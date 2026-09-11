@@ -84,6 +84,19 @@ export const IconPin = createIcon(
   16,
 );
 
+/**
+ * Pin, as a bookmark ribbon. A pushpin silhouette collapses into a blob at the
+ * 12px the sidebar hover row uses; a ribbon keeps its shape, and a bookmark in
+ * a scroll is the Inkstone reading of "keep this one to hand". Pinned state
+ * fills it — see .session-pin-btn.active in styles/inkstone/sidebar.css.
+ */
+export const IconBookmark = createIcon(
+  <>
+    <path d="M4.5 2.5h7v9l-3.5-2.6-3.5 2.6z" />
+  </>,
+  16,
+);
+
 export const IconStar = createIcon(
   <path d="M12 4.75l2.1 4.3 4.75.7-3.45 3.35.8 4.75L12 15.6l-4.2 2.25.8-4.75-3.45-3.35 4.75-.7Z" />,
 );

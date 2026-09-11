@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkstone（砚）· 增量 9 · 侧栏分栏（对话 / 项目）</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#e6e1d7;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s13{width:13px;height:13px}.s14{width:14px;height:14px}
+.ml{margin-left:auto}
+.app{--sans:Inter,"PingFang SC","Noto Sans SC",-apple-system,system-ui,sans-serif;--serif:"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Source Serif 4",Georgia,serif;--mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;height:100dvh;width:100%;display:grid;grid-template-rows:28px minmax(0,1fr);background:var(--void);color:var(--t1);font:13.5px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.app[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--azure:#3a7797;--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2)}
+.app[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--azure:#6ba4c3;--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5)}
+.proto{display:flex;align-items:center;gap:10px;padding:0 12px;font:11px var(--mono);color:var(--t3);border-bottom:1px dashed var(--l2);white-space:nowrap;overflow:hidden}
+.proto .pt{color:var(--t1);margin-right:8px}.proto .pl{color:var(--t4)}.proto .pn{margin-left:auto}
+.seg{display:inline-flex;border:1px solid var(--l2);border-radius:5px;overflow:hidden;flex:none}
+.seg button{font:11px var(--mono);padding:3px 8px;color:var(--t3)}.seg button.on{background:var(--s3);color:var(--t1)}
+
+.stage{overflow:auto;padding:18px 20px 40px}
+.gal{margin-bottom:28px}
+.gal-h{font:500 15px var(--serif);color:var(--t1)}
+.gal-h small{display:block;font:11px var(--mono);color:var(--t4);margin-top:3px;line-height:1.6;white-space:normal;max-width:780px}
+.rowc{display:flex;gap:18px;align-items:flex-start;margin-top:14px;flex-wrap:wrap}
+.cap{font:10.5px var(--mono);color:var(--t4);margin-bottom:6px}
+.note{background:var(--s1);border-radius:10px;box-shadow:var(--sh1);padding:14px 16px;max-width:400px;font-size:12.5px;line-height:1.72;color:var(--t2)}
+.note b{color:var(--t1);font-weight:600}
+.note ul{margin:6px 0 0;padding-left:16px}.note li{margin-bottom:6px}
+.note code{font:11.5px var(--mono);background:var(--s2);border-radius:3px;padding:0 4px;color:var(--t1)}
+.k{font:10.5px var(--mono);background:var(--s2);border:1px solid var(--l1);border-radius:3px;padding:0 4px;color:var(--t3)}
+
+/* ── 侧栏 ─────────────────────────────────────────────── */
+.sb{width:240px;height:560px;background:var(--s1);border-radius:12px;box-shadow:var(--sh2);display:flex;flex-direction:column;overflow:hidden;flex:none}
+
+/* 顶行：模式段控 · 搜索 · 新建 */
+.sb-top{display:flex;align-items:center;gap:6px;padding:10px 10px 8px}
+.mode{display:inline-flex;gap:2px;padding:2px;border-radius:7px;background:var(--s2);box-shadow:var(--sh1);flex:none}
+.mode button{width:26px;height:24px;border-radius:5px;display:grid;place-items:center;color:var(--t3);position:relative;transition:color 120ms ease,background 120ms ease}
+.mode button:hover{color:var(--t2)}
+.mode button.on{background:var(--s4);color:var(--t1);box-shadow:0 1px 2px rgba(0,0,0,.07)}
+.app[data-face=ink] .mode button.on{background:var(--s4);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.mode .lamp{position:absolute;top:2.5px;right:2.5px;width:5px;height:5px;border-radius:50%;background:var(--lamp);box-shadow:0 0 6px 1px var(--lamp-glow);animation:breath 2.4s ease-in-out infinite}
+@keyframes breath{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+.search{flex:1;min-width:0;height:28px;border-radius:7px;background:var(--s2);box-shadow:var(--sh1);display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--t4);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.search .i{color:var(--t4)}
+.new{width:28px;height:28px;border-radius:7px;background:var(--zhu);color:var(--on-zhu);display:grid;place-items:center;flex:none}
+.new:hover{background:var(--zhu-lift)}
+
+.sb-scroll{flex:1;overflow:auto;min-height:0;padding-bottom:6px}
+.sb-scroll::-webkit-scrollbar{width:8px}
+.sb-scroll::-webkit-scrollbar-thumb{background:var(--l2);border-radius:4px}
+.sec{padding:6px 6px 0}
+.sec-h{display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;font:600 11.5px var(--sans);color:var(--t3)}
+.sec-h::after{content:"";flex:1;height:1px;background:var(--l1);margin-left:2px}
+.sec-h .n{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.sec-h .ib{opacity:0;order:9}.sec:hover .sec-h .ib{opacity:1}
+.ib{width:22px;height:22px;border-radius:5px;display:grid;place-items:center;color:var(--t3);flex:none}
+.ib:hover{background:var(--s2);color:var(--t1)}
+.ib.s20{width:20px;height:20px}
+
+/* ── 对话卡片 —— 保留现在喜欢的形态：标题 + 引文 + 时间 ── */
+.conv-list{display:flex;flex-direction:column;gap:1px;padding:0 2px}
+.conv-card{position:relative;padding:7px 8px 8px 10px;display:flex;flex-direction:column;gap:2px;border-radius:7px;cursor:pointer;transition:background 110ms ease}
+.conv-card:hover{background:var(--s2)}
+/* 朱记：满高 2px，左上/左下圆角压到 2px——弧线是圆角带出来的，不是长度带出来的 */
+.conv-card.cur{background:var(--s3);box-shadow:var(--sh1);border-left:2px solid var(--zhu);padding-left:8px;border-top-left-radius:2px;border-bottom-left-radius:2px}
+.cc-h{display:flex;align-items:baseline;gap:8px;min-width:0}
+.conv-title{flex:1;min-width:0;font:500 13px/1.4 var(--serif);color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv-card.cur .conv-title{font-weight:600}
+.conv-snippet{font:11px/1.35 var(--sans);color:var(--t4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv-card:hover .conv-snippet,.conv-card.cur .conv-snippet{color:var(--t3)}
+.end{display:flex;align-items:center;justify-content:flex-end;flex:none;gap:1px}
+.tm{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.acts{display:none}
+.conv-card:hover .acts,.row:hover .acts{display:flex;gap:1px}
+.conv-card:hover .tm,.row:hover .tm{display:none}
+.pinm{color:var(--zhu);flex:none;margin-right:1px}
+
+
+/* ── 置顶：书签落下 ─────────────────────────────────────
+   静止是空心短书签；点下去带一下过冲落下来，同时灌满朱砂、变长。
+   静止形也写在 path 的 d 属性上：CSS 的 d 只在 Chromium 98+ / Safari 17.4+
+   生效，不支持的引擎读属性照样画得出来（只是长度不变、仍然会变实心朱）。
+   别把静止形只写在 CSS 里——那样不支持的引擎会画出一个空白。 */
+.bm .bmp{
+  d:path("M4.5 2.5h7v9l-3.5-2.6-3.5 2.6z");
+  fill:none;stroke:currentColor;
+  transition:d 200ms cubic-bezier(.34,1.4,.64,1),fill 160ms ease,stroke 160ms ease;
+}
+.bm[aria-pressed=true]{color:var(--zhu)}
+.bm[aria-pressed=true] .bmp{
+  d:path("M4.5 2.5h7v12l-3.5-2.6-3.5 2.6z");
+  fill:var(--zhu);stroke:var(--zhu);
+}
+.bm[aria-pressed=true] .i{animation:bmDrop 260ms cubic-bezier(.34,1.4,.64,1)}
+@keyframes bmDrop{0%{transform:translateY(-1.5px)}55%{transform:translateY(1.5px)}100%{transform:translateY(0)}}
+.bm:hover{color:var(--t1)}
+.bm[aria-pressed=true]:hover{color:var(--zhu-lift)}
+/* 列表里已置顶的那枚小书签，同一个形 */
+.pinm .bmp{fill:var(--zhu);stroke:var(--zhu)}
+
+
+/* 列表动作条：没有标题，只有一条延伸的细线和两个动作。
+   「工作区」这个标题是废话——这一整栏就是工作区。 */
+.listbar{display:flex;align-items:center;gap:2px;height:26px;padding:0 6px 0 8px}
+.listbar::before{content:"";flex:1;height:1px;background:var(--l1)}
+.listbar .ib{color:var(--t4)}
+.listbar .ib:hover{color:var(--t1);background:var(--s2)}
+/* 置顶区：两栏都有，都单独成区 */
+.pinrow{display:flex;align-items:center;gap:7px;height:28px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t1);cursor:pointer}
+.pinrow:hover{background:var(--s2)}
+.pinrow .bmp{fill:var(--zhu);stroke:var(--zhu)}
+.pinrow .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 12.5px var(--sans)}
+.pinrow .proj{font:10.5px var(--mono);color:var(--t4);flex:none}
+
+/* ── 项目：文件夹 + 会话线 ── */
+.row{display:flex;align-items:center;gap:7px;height:28px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t1);position:relative;cursor:pointer}
+.row:hover{background:var(--s2)}
+.row.cur{background:var(--s3);box-shadow:var(--sh1)}
+.row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 12.5px var(--sans)}
+.folder{display:flex;align-items:center;gap:6px;height:27px;padding:0 8px;font-size:12.5px;color:var(--t2);border-radius:6px;cursor:pointer}
+.folder:hover{background:var(--s2)}
+.folder b{color:var(--t1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.br{font:11px var(--mono);color:var(--t4);background:var(--s2);border:1px solid var(--l1);border-radius:3px;padding:0 4px;line-height:15px;display:inline-flex;align-items:center;flex:none;margin-left:2px}
+.folder .fp{margin-left:auto;opacity:0}.folder:hover .fp{opacity:1}
+.folder .cv{color:var(--t4);transition:transform 150ms ease}
+.folder.col .cv{transform:rotate(-90deg)}
+.folder.col .n{margin-left:auto;font:11px var(--mono);color:var(--t4)}
+/* worktree：同一个仓库的另一次检出。用分支图标而不是文件夹——目录树是同一棵 */
+.wt{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 22px;font-size:12.5px;color:var(--t2);border-radius:6px;cursor:pointer;position:relative}
+.wt:hover{background:var(--s2)}
+.wt::before{content:"";position:absolute;left:13px;top:-1px;bottom:13px;width:1.5px;background:var(--l2)}
+.wt::after{content:"";position:absolute;left:13px;top:12px;width:5px;height:1.5px;background:var(--l2)}
+.wt .gi{color:var(--t4);flex:none}
+.wt b{color:var(--t1);font:500 11px var(--mono);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wt .wtp{font-size:11px;color:var(--t4);flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wt .fp{margin-left:auto;opacity:0}.wt:hover .fp{opacity:1}
+.wt.gone{opacity:.55}
+.wt.gone b{text-decoration:line-through;text-decoration-color:var(--l3)}
+.badge-off{display:inline-flex;align-items:center;height:15px;padding:0 4px;border-radius:3px;background:var(--s2);border:1px solid var(--l1);font:10px var(--mono);color:var(--t4);flex:none;white-space:nowrap;margin-left:auto}
+.thread.wt-thread{padding-left:36px}
+.thread.wt-thread::before{left:26px}
+.thread{position:relative;padding-left:22px}
+.thread::before{content:"";position:absolute;left:12px;top:5px;bottom:5px;width:1.5px;border-radius:1px;background:var(--l2)}
+.node{position:absolute;left:-14px;top:50%;margin-top:-4px;width:8px;height:8px;border-radius:50%;background:var(--s1);border:1.5px solid var(--l3)}
+.row.cur .node{background:var(--zhu);border-color:var(--zhu);box-shadow:0 0 0 3px var(--zhu-wash)}
+.node.done{background:var(--pine);border-color:var(--pine)}
+.node.bg{background:var(--azure);border-color:var(--azure)}
+.node.run{background:var(--lamp);border-color:var(--lamp);box-shadow:0 0 0 3px var(--lamp-wash);animation:breath 2.4s ease-in-out infinite}
+.wave{display:inline-flex;gap:2px;align-items:center;flex:none}
+.wave i{width:4px;height:4px;border-radius:50%;background:var(--azure);animation:breath 1.4s ease-in-out infinite}
+.wave i:nth-child(2){animation-delay:.15s}.wave i:nth-child(3){animation-delay:.3s}
+
+/* ── 底栏：图标 + 连接状态 ── */
+/* 底栏一律带字。图标只对高频动作管用——资料库/闪卡是低频入口，
+   没有词就是一个猜谜。设置和更多留在面上，低频的收进更多。 */
+.shelf{margin-top:auto;border-top:1px solid var(--l1);padding:6px 6px;display:flex;align-items:center;gap:2px;flex:none;position:relative}
+.shelf button{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;border-radius:6px;font-size:12px;color:var(--t2)}
+.shelf button .i{color:var(--t4)}
+.shelf button:hover{background:var(--s2);color:var(--t1)}
+.shelf button:hover .i{color:var(--t2)}
+.shelf .sp{flex:1}
+/* ── 去处：带字的导航块，压在搜索行下面、列表上面 ──
+   资料库/闪卡是「另一个地方」，不是当前列表里的东西，也不是每天点的。
+   露在面上、带字，但不占列表的位置。 */
+.nav{padding:2px 6px 6px;border-bottom:1px solid var(--l1);flex:none}
+.navrow{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t2);cursor:pointer;width:100%}
+.navrow:hover{background:var(--s2);color:var(--t1)}
+.navrow .i{color:var(--t4)}
+.navrow:hover .i{color:var(--t2)}
+.navrow .cv{transition:transform 160ms ease}
+.navrow.open .cv{transform:rotate(180deg)}
+.navsub .navrow{height:26px;padding-left:30px;font-size:12px;color:var(--t3)}
+.host{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 7px;border-radius:999px;background:var(--s2);font:10.5px var(--mono);color:var(--t3);flex:none}
+.host i{width:5px;height:5px;border-radius:50%;background:var(--pine);flex:none}
+.host.off i{background:var(--t4)}
+
+/* ── 空态 ── */
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:24px 20px;text-align:center}
+.empty .mark{width:32px;height:32px;border-radius:4px;background:var(--zhu);color:var(--on-zhu);display:grid;place-items:center;font:600 15px var(--serif);transform:rotate(-1.5deg);box-shadow:0 1px 0 rgba(0,0,0,.18),inset 0 0 0 1px rgba(255,255,255,.35);position:relative}
+.empty .mark::after{content:"";position:absolute;inset:3px;border:1px solid rgba(255,255,255,.6);border-radius:2px}
+.empty .mark.ghost{background:transparent;color:var(--t3);box-shadow:inset 0 0 0 1.5px var(--l3);transform:none}
+.empty .mark.ghost::after{display:none}
+.empty h4{font:500 13.5px var(--serif);color:var(--t1)}
+.empty p{font-size:11.5px;color:var(--t3);line-height:1.6;max-width:176px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:7px;font-size:12px;background:var(--s2);box-shadow:var(--sh1);color:var(--t1)}
+.btn:hover{background:var(--s3)}
+.btn.pri{background:var(--zhu);color:var(--on-zhu);box-shadow:none}
+.btn.pri:hover{background:var(--zhu-lift)}
+
+.spec{background:var(--s1);border-radius:10px;box-shadow:var(--sh1);padding:12px 14px;flex:none}
+.icorow{display:flex;align-items:center;gap:14px}
+.icocell{display:flex;flex-direction:column;align-items:center;gap:6px;width:56px}
+.icocell .b{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;color:var(--t2);background:var(--s2);box-shadow:var(--sh1)}
+.icocell span{font:10px var(--mono);color:var(--t4)}
+</style>
+</head>
+<body>
+<div class="app" data-face="paper" id="app">
+  <div class="proto">
+    <span class="pt">增量 9</span><span>侧栏分栏 · 对话 / 项目</span>
+    <span class="pl">· 段控切换 · 会话行沿用现状 · worktree 归位</span>
+    <span class="pn"><span class="seg" id="face"><button class="on" data-f="paper">纸</button><button data-f="ink">墨</button></span></span>
+  </div>
+
+  <div class="stage">
+
+    <div class="gal">
+      <div class="gal-h">一、两栏
+        <small>切换收进左上角的段控，两个图标，跟窗口控件同一行高。会话行保持现在的样子——宋体标题 + 引文 + 时间，不显示模型（模型常变，放这儿只会一直在动）。</small>
+      </div>
+      <div class="rowc">
+
+        <div>
+          <div class="cap">① 对话（默认）</div>
+          <aside class="sb">
+            <div class="sb-top">
+              <span class="mode">
+                <button class="on" title="对话"><svg class="i s14"><use href="#chat"/></svg></button>
+                <button title="项目 · 有会话在跑"><svg class="i s14"><use href="#code"/></svg><span class="lamp"></span></button>
+              </span>
+              <label class="search"><svg class="i s13"><use href="#search"/></svg><span>搜索</span></label>
+              <button class="new" title="新建对话 ⌘N"><svg class="i s14"><use href="#plus"/></svg></button>
+            </div>
+            <nav class="nav">
+              <button class="navrow"><svg class="i s14"><use href="#image"/></svg>资料库</button>
+              <button class="navrow"><svg class="i s14"><use href="#cards"/></svg>闪卡</button>
+            </nav>
+            <div class="sb-scroll">
+              <section class="sec">
+                <div class="sec-h">置顶<span class="n">1</span></div>
+                <div class="conv-list">
+                  <div class="conv-card">
+                    <div class="cc-h"><span class="conv-title"><svg class="i s12 pinm" viewBox="0 0 16 16" style="vertical-align:-1px"><path class="bmp" d="M4.5 2.5h7v12l-3.5-2.6-3.5 2.6z"/></svg>我有个关键问题，手机壳怎么拆</span><span class="end"><span class="tm">1d</span><span class="acts"><button class="ib s20" title="更多"><svg class="i s12"><use href="#moreh"/></svg></button><button class="ib s20 bm" aria-pressed="true" title="取消置顶"><svg class="i s12" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v9l-3.5-2.6-3.5 2.6z"/></svg></button><button class="ib s20" title="归档"><svg class="i s12"><use href="#putaway"/></svg></button></span></span></div>
+                    <div class="conv-snippet">“你网上查一下苹果碳纤维壳怎么拆…”</div>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="sec-h">昨天<span class="n">2</span></div>
+                <div class="conv-list">
+                  <div class="conv-card cur">
+                    <div class="cc-h"><span class="conv-title">绘制鹈鹕骑行动画</span><span class="end"><span class="tm">刚刚</span><span class="acts"><button class="ib s20" title="更多"><svg class="i s12"><use href="#moreh"/></svg></button><button class="ib s20 bm" aria-pressed="false" title="置顶"><svg class="i s12" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v9l-3.5-2.6-3.5 2.6z"/></svg></button><button class="ib s20" title="归档"><svg class="i s12"><use href="#putaway"/></svg></button></span></span></div>
+                    <div class="conv-snippet">“画一只 2D 的鹈鹕骑自行车的 HTML 动画效果”</div>
+                  </div>
+                  <div class="conv-card">
+                    <div class="cc-h"><span class="conv-title">制作玛奇玛闪光卡</span><span class="end"><span class="tm">4h</span><span class="acts"><button class="ib s20"><svg class="i s12"><use href="#moreh"/></svg></button><button class="ib s20 bm" aria-pressed="false" title="置顶"><svg class="i s12" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v9l-3.5-2.6-3.5 2.6z"/></svg></button><button class="ib s20"><svg class="i s12"><use href="#putaway"/></svg></button></span></span></div>
+                    <div class="conv-snippet">“奇怪我还以为使用那个 skill 是图片结合 svg…”</div>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="sec-h">过去 7 天<span class="n">4</span></div>
+                <div class="conv-list">
+                  <div class="conv-card"><div class="cc-h"><span class="conv-title">确认 /van 命令意图</span><span class="end"><span class="tm">2d</span></span></div><div class="conv-snippet">“/van”</div></div>
+                  <div class="conv-card"><div class="cc-h"><span class="conv-title">GitHub 查找 RuiC-card</span><span class="end"><span class="tm">3d</span></span></div><div class="conv-snippet">“查一下，看有没有一个叫 RUic-card 的…”</div></div>
+                  <div class="conv-card"><div class="cc-h"><span class="conv-title">生成温馨短视频</span><span class="end"><span class="tm">3d</span></span></div><div class="conv-snippet">“给我简单生成个视频吧”</div></div>
+                  <div class="conv-card"><div class="cc-h"><span class="conv-title">Mobile session</span><span class="end"><span class="tm">4d</span></span></div><div class="conv-snippet">“你好”</div></div>
+                </div>
+              </section>
+            </div>
+            <footer class="shelf">
+              <button><svg class="i s14"><use href="#gear"/></svg>设置</button>
+              <span class="sp"></span>
+              <span class="host" title="已连接本机 Host · 8787"><i></i>8787</span>
+            </footer>
+          </aside>
+        </div>
+
+        <div>
+          <div class="cap">② 项目（写代码 / 工作区）</div>
+          <aside class="sb">
+            <div class="sb-top">
+              <span class="mode">
+                <button title="对话"><svg class="i s14"><use href="#chat"/></svg></button>
+                <button class="on" title="项目"><svg class="i s14"><use href="#code"/></svg></button>
+              </span>
+              <label class="search"><svg class="i s13"><use href="#search"/></svg><span>搜索</span></label>
+              <button class="new" title="在 piwin 中新建 ⌘N"><svg class="i s14"><use href="#plus"/></svg></button>
+            </div>
+            <nav class="nav">
+              <button class="navrow"><svg class="i s14"><use href="#image"/></svg>资料库</button>
+              <button class="navrow"><svg class="i s14"><use href="#cards"/></svg>闪卡</button>
+            </nav>
+            <div class="sb-scroll">
+              <section class="sec">
+                <div class="sec-h">置顶<span class="n">2</span></div>
+                <div class="pinrow"><svg class="i s12" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v12l-3.5-2.6-3.5 2.6z"/></svg><span class="t">侧栏分栏重构</span><span class="proj">piwin</span></div>
+                <div class="pinrow"><svg class="i s12" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v12l-3.5-2.6-3.5 2.6z"/></svg><span class="t">登录态迁移</span><span class="proj">planora</span></div>
+                <div class="listbar">
+                  <button class="ib s20" title="显示选项"><svg class="i s12"><use href="#filter"/></svg></button>
+                  <button class="ib s20" title="打开工作区文件夹…"><svg class="i s12"><use href="#folderp"/></svg></button>
+                </div>
+                <div class="folder"><svg class="i s12 cv"><use href="#chevd"/></svg><svg class="i s13"><use href="#folderopen"/></svg><b>piwin</b><span class="br">main</span><button class="ib s20 fp" title="在 piwin 中新建"><svg class="i s12"><use href="#plus"/></svg></button></div>
+                <div class="thread">
+                  <div class="row cur"><span class="node run"></span><span class="t">侧栏分栏重构</span><span class="end"><span class="tm">现在</span><span class="acts"><button class="ib s20"><svg class="i s12"><use href="#moreh"/></svg></button><button class="ib s20 bm" aria-pressed="false" title="置顶"><svg class="i s12" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v9l-3.5-2.6-3.5 2.6z"/></svg></button><button class="ib s20"><svg class="i s12"><use href="#putaway"/></svg></button></span></span></div>
+                  <div class="row"><span class="node done"></span><span class="t">色阶还原与对比度守卫</span><span class="end"><span class="tm">1h</span></span></div>
+                  <div class="row"><span class="node"></span><span class="t">会话线落地</span><span class="end"><span class="tm">3h</span></span></div>
+                  <div class="row"><span class="node bg"></span><span class="t">打包冒烟</span><span class="end"><span class="wave"><i></i><i></i><i></i></span></span></div>
+                </div>
+                <div class="wt" title="worktree · ~/Developer/piwin-ui-deck"><svg class="i s12 gi"><use href="#branch"/></svg><b>feat/ui-deck</b><button class="ib s20 fp" title="在此 worktree 中新建"><svg class="i s12"><use href="#plus"/></svg></button></div>
+                <div class="thread wt-thread">
+                  <div class="row"><span class="node"></span><span class="t">右面板全宽</span><span class="end"><span class="tm">20m</span></span></div>
+                  <div class="row"><span class="node done"></span><span class="t">跳到最新改成圆钮</span><span class="end"><span class="tm">2h</span></span></div>
+                </div>
+                <div class="wt gone" title="worktree 路径已不存在 · ~/Developer/piwin-host-lease"><svg class="i s12 gi"><use href="#branch"/></svg><b>fix/host-lease</b><span class="badge-off">路径缺失</span></div>
+                <div class="folder"><svg class="i s12 cv"><use href="#chevd"/></svg><svg class="i s13"><use href="#folderopen"/></svg><b>planora</b><span class="br">main</span><button class="ib s20 fp"><svg class="i s12"><use href="#plus"/></svg></button></div>
+                <div class="thread">
+                  <div class="row"><span class="node"></span><span class="t">登录态迁移</span><span class="end"><span class="tm">2d</span></span></div>
+                  <div class="row"><span class="node"></span><span class="t">时区处理的坑</span><span class="end"><span class="tm">5d</span></span></div>
+                </div>
+                <div class="folder col"><svg class="i s12 cv"><use href="#chevd"/></svg><svg class="i s13"><use href="#folder"/></svg><b>grok_reg_clean</b><span class="n">6</span></div>
+                <div class="folder col"><svg class="i s12 cv"><use href="#chevd"/></svg><svg class="i s13"><use href="#folder"/></svg><b>未命名文件夹</b><span class="n">2</span></div>
+                <div class="folder col"><svg class="i s12 cv"><use href="#chevd"/></svg><svg class="i s13"><use href="#folder"/></svg><b>No Repo</b><span class="n">11</span></div>
+              </section>
+            </div>
+            <footer class="shelf">
+              <button><svg class="i s14"><use href="#gear"/></svg>设置</button>
+              <span class="sp"></span>
+              <span class="host" title="已连接本机 Host · 8787"><i></i>8787</span>
+            </footer>
+          </aside>
+        </div>
+
+        <div class="note">
+          <b>改了什么</b>
+          <ul>
+            <li><b>朱记满高、去弧。</b>弧是圆角带出来的，不是长度带出来的——所以留满高的 <code>border-left: 2px</code>，只把左上/左下圆角压到 2px。这就是 app 现在 <code>--general-session .session-item.active</code> 的做法，照搬。</li>
+            <li><b>不显示模型。</b>模型常换，挂在每张卡上只会让列表一直在动。要看模型就看转录里那一行元信息。</li>
+            <li><b>切换是段控，不是标签栏。</b>两个图标塞进 58px，和窗口控件同一行高，不占一整行；原来那条带下划线的标签栏整条去掉了。另一栏有会话在跑，就在图标右上角点一盏灯。</li>
+            <li><b>分节标题改成 11.5px 中文常规字重 + 一条延伸细线</b>。原来是 10.5px 大写 + 0.08em 字距——中文没有大写，加字距只是把方块字拆散。</li>
+            <li><b>去处进导航块。</b>资料库、闪卡是「另一个地方」，跟当前是对话还是项目无关——放在搜索行下面、列表上面，一行一个、<b>带字</b>。图标没有词只在高频动作上成立，这两个都不是。</li>
+            <li><b>没有「工作区」这个标题。</b>项目栏整栏就是工作区，再写一遍是废话。原来那行只留下延伸细线和两个动作——「显示选项」「打开工作区文件夹」沿用现有的 <code>IconListFilter</code> / <code>IconFolderPlus</code>，没重画。</li>
+            <li><b>置顶两栏都有，都单独成区。</b>对话置顶的是对话，项目置顶的是某个项目里的会话——所以项目栏的置顶行后面跟一枚项目名，不然不知道它是哪儿的。置顶行不显示时间：会被置顶是因为要紧，不是因为新。</li>
+            <li><b>worktree 挂在本仓库下面。</b>同一个仓库的另一次检出，用<b>分支图标</b>而不是文件夹——目录树是同一棵，变的只是 HEAD。行里只写<b>分支名</b>（等宽）：240px 塞不下「分支 + 目录名」两个标签，而分支才是身份，目录名是「在哪」，退到 tooltip。<code>reachable:false</code> 的划掉 + 「路径缺失」。按 <code>commonDir</code> 归组——contracts 里写着它「same for every worktree of this repo」。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="gal">
+      <div class="gal-h">二、图标
+        <small>三个悬停动作 + 模式段控。都在 16px 网格、1.6 描边上重画。</small>
+      </div>
+      <div class="rowc">
+        <div class="spec">
+          <div class="icorow">
+            <div class="icocell"><span class="b"><svg class="i s14"><use href="#moreh"/></svg></span><span>更多</span></div>
+            <div class="icocell"><button class="b bm" aria-pressed="false" onclick="this.setAttribute('aria-pressed',this.getAttribute('aria-pressed')==='true'?'false':'true')"><svg class="i s14" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v9l-3.5-2.6-3.5 2.6z"/></svg></button><span>置顶 · 可点</span></div>
+            <div class="icocell"><span class="b"><svg class="i s14"><use href="#putaway"/></svg></span><span>归档</span></div>
+            <div class="icocell"><span class="b"><svg class="i s14"><use href="#chat"/></svg></span><span>对话</span></div>
+            <div class="icocell"><span class="b"><svg class="i s14"><use href="#code"/></svg></span><span>项目</span></div>
+          </div>
+        </div>
+        <div class="spec">
+          <div class="cap" style="margin-bottom:8px">段控三态</div>
+          <div class="icorow" style="gap:18px">
+            <span class="mode"><button class="on"><svg class="i s14"><use href="#chat"/></svg></button><button><svg class="i s14"><use href="#code"/></svg></button></span>
+            <span class="mode"><button><svg class="i s14"><use href="#chat"/></svg></button><button class="on"><svg class="i s14"><use href="#code"/></svg></button></span>
+            <span class="mode"><button class="on"><svg class="i s14"><use href="#chat"/></svg></button><button><svg class="i s14"><use href="#code"/></svg><span class="lamp"></span></button></span>
+          </div>
+        </div>
+        <div class="spec">
+          <div class="cap" style="margin-bottom:10px">置顶 · 书签落下（点一下试试）</div>
+          <div class="icorow" style="gap:20px">
+            <div class="icocell"><button class="b bm" aria-pressed="false"><svg class="i s14" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v9l-3.5-2.6-3.5 2.6z"/></svg></button><span>未置顶</span></div>
+            <div class="icocell"><button class="b bm" aria-pressed="true"><svg class="i s14" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v9l-3.5-2.6-3.5 2.6z"/></svg></button><span>已置顶</span></div>
+          </div>
+          <div class="note" style="box-shadow:none;background:transparent;padding:10px 0 0;max-width:250px;font-size:11.5px;line-height:1.65">
+            空心 → 灌满朱砂，同时下缘从 <code>y=11.5</code> 落到 <code>y=14.5</code>，带一下过冲（<code>cubic-bezier(.34,1.4,.64,1)</code>，260ms）——书签被压进纸里的手感。
+          </div>
+        </div>
+        <div class="note" style="max-width:340px">
+          <b>为什么是这三个</b>
+          <ul>
+            <li><b>更多</b>：竖着的 ⋮ 在一列 12px 图标里容易读成滚动条，改成横着的 ···。</li>
+            <li><b>置顶</b>：图钉在 12px 上会糊成一坨。换成<b>书签</b>——一卷纸里夹一枚书签，比图钉更贴这套纸墨语言，形也更立得住。点下去<b>灌满朱砂并落长一截</b>，带一下过冲：置顶这个动作本身就是「把书签压进去」。</li>
+            <li><b>归档</b>：原来是带盖的箱子，12px 下盖和身分不开。改成<b>「收进去」</b>——一个向下的箭头落进托盘。</li>
+            <li><b>项目</b>用 <code>&lt; &gt;</code>，sprite 里原本没有，新加的 <code>#code</code>。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="gal">
+      <div class="gal-h">三、底栏与空态
+        <small>资料库和闪卡是<b>去处</b>，进导航块、露着带字。没有「更多」——归档管理、用量统计、连接 Host 本来就都是设置页里的条目，侧栏再开一个入口是重复。底栏只剩设置和连接状态：原来那三个标签是 10px、在 246px 下必然溢出（实测 clientWidth 240 / scrollWidth 256，「remote」被切），少两个入口之后就不挤了。</small>
+      </div>
+      <div class="rowc">
+        <div><div class="cap">导航块 · 置顶区 · 列表动作条</div>
+          <div class="spec" style="width:240px;padding:0">
+            <nav class="nav">
+              <button class="navrow"><svg class="i s14"><use href="#image"/></svg>资料库</button>
+              <button class="navrow"><svg class="i s14"><use href="#cards"/></svg>闪卡</button>
+            </nav>
+            <div class="sec" style="padding-top:2px">
+              <div class="sec-h">置顶<span class="n">2</span></div>
+              <div class="pinrow"><svg class="i s12" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v12l-3.5-2.6-3.5 2.6z"/></svg><span class="t">侧栏分栏重构</span><span class="proj">piwin</span></div>
+              <div class="pinrow"><svg class="i s12" viewBox="0 0 16 16"><path class="bmp" d="M4.5 2.5h7v12l-3.5-2.6-3.5 2.6z"/></svg><span class="t">手机壳怎么拆</span><span class="proj">对话</span></div>
+              <div class="listbar">
+                <button class="ib s20" title="显示选项"><svg class="i s12"><use href="#filter"/></svg></button>
+                <button class="ib s20" title="打开工作区文件夹…"><svg class="i s12"><use href="#folderp"/></svg></button>
+              </div>
+            </div>
+            <footer class="shelf">
+              <button><svg class="i s14"><use href="#gear"/></svg>设置</button>
+              <span class="sp"></span><span class="host off"><i></i>未连接</span>
+            </footer>
+          </div>
+        </div>
+        <div><div class="cap">对话为空</div>
+          <aside class="sb" style="height:280px">
+            <div class="sb-top"><span class="mode"><button class="on"><svg class="i s14"><use href="#chat"/></svg></button><button><svg class="i s14"><use href="#code"/></svg></button></span><label class="search"><svg class="i s13"><use href="#search"/></svg><span>搜索</span></label><button class="new"><svg class="i s14"><use href="#plus"/></svg></button></div>
+            <div class="empty"><span class="mark">砚</span><h4>还没有对话</h4><p>随手问点什么，不用先开项目。</p><button class="btn pri"><svg class="i s14"><use href="#plus"/></svg>新建对话</button></div>
+          </aside>
+        </div>
+        <div><div class="cap">项目 · 没有工作区</div>
+          <aside class="sb" style="height:280px">
+            <div class="sb-top"><span class="mode"><button><svg class="i s14"><use href="#chat"/></svg></button><button class="on"><svg class="i s14"><use href="#code"/></svg></button></span><label class="search"><svg class="i s13"><use href="#search"/></svg><span>搜索</span></label><button class="new"><svg class="i s14"><use href="#plus"/></svg></button></div>
+            <div class="empty"><span class="mark ghost"><svg class="i"><use href="#folder"/></svg></span><h4>没有打开的工作区</h4><p>打开一个文件夹，这里会按项目挂上它的会话线。</p><button class="btn"><svg class="i s14"><use href="#folderp"/></svg>打开文件夹…</button></div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="chat" viewBox="0 0 16 16"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v7a1.5 1.5 0 0 1-1.5 1.5H6.5L3 14.5v-2.5H3.5A1.5 1.5 0 0 1 2 10.5z"/></symbol>
+<symbol id="code" viewBox="0 0 16 16"><path d="M6 4.5L2.5 8 6 11.5M10 4.5L13.5 8 10 11.5"/></symbol>
+<symbol id="moreh" viewBox="0 0 16 16"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01" stroke-width="2.2"/></symbol>
+<symbol id="putaway" viewBox="0 0 16 16"><path d="M8 2.5v6M5.5 6.5 8 9l2.5-2.5"/><path d="M2.5 10.5v1.5A1.5 1.5 0 0 0 4 13.5h8a1.5 1.5 0 0 0 1.5-1.5v-1.5"/></symbol>
+<symbol id="folder" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+<symbol id="folderp" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/><path d="M8 8v3.5M6.25 9.75h3.5"/></symbol>
+<symbol id="folderopen" viewBox="0 0 16 16"><path d="M2 11.6V5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v.6"/><path d="M3.5 13h8.05a1.5 1.5 0 0 0 1.43-1.04l1.18-3.75A.6.6 0 0 0 13.59 7.4H5.85a1.5 1.5 0 0 0-1.43 1.05l-1.4 4.44A.1.1 0 0 0 3.5 13z"/></symbol>
+<symbol id="branch" viewBox="0 0 16 16"><circle cx="4.6" cy="3.6" r="1.6"/><circle cx="4.6" cy="12.4" r="1.6"/><circle cx="11.4" cy="5.6" r="1.6"/><path d="M4.6 5.2v5.6M11.4 7.2c0 2.6-3 3.1-6.8 3.6"/></symbol>
+<symbol id="filter" viewBox="0 0 16 16"><path d="M2 4h12M4.7 8h6.6M6.7 12h2.6"/></symbol>
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="7" r="1.2"/><path d="M14 11l-3.5-3.5L5 13"/></symbol>
+<symbol id="cards" viewBox="0 0 16 16"><rect x="3" y="4.5" width="8.5" height="9" rx="1.5"/><path d="M6 4.5V3.5A1.5 1.5 0 0 1 7.5 2h4A1.5 1.5 0 0 1 13 3.5V10"/></symbol>
+<symbol id="gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.7"/><path d="M8 2.2v1.5M8 12.3v1.5M2.2 8h1.5M12.3 8h1.5M4.1 4.1l1.05 1.05M10.85 10.85l1.05 1.05M4.1 11.9l1.05-1.05M10.85 5.15l1.05-1.05"/></symbol>
+</defs></svg>
+
+<script>
+/* 书签可点：切 aria-pressed，动画和终态都挂在这个属性上 */
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('.bm'); if (!b) return;
+  e.stopPropagation();
+  var on = b.getAttribute('aria-pressed') === 'true';
+  b.setAttribute('aria-pressed', on ? 'false' : 'true');
+  b.title = on ? '置顶' : '取消置顶';
+});
+document.getElementById('face').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  document.getElementById('app').dataset.face = b.dataset.f;
+  this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+});
+</script>
+</body>
+</html>

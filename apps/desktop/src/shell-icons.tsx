@@ -6,6 +6,7 @@ export {
   IconAgent,
   IconAlertCircle,
   IconArchive,
+  IconBookmark,
   IconArrowDown,
   IconArrowFork,
   IconArrowLeft,
@@ -101,4 +102,5 @@ export {
   IconPlay,
   IconWarn,
   IconChat,
+  IconCode,
 } from '@piwin/ui-kit';

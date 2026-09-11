@@ -102,6 +102,158 @@ export type SidebarTreeRowViewProps = {
   showMoreText: string;
 };
 
+/** Props the display menu reads. A subset of the row view's own props. */
+type SidebarDisplayMenuProps = {
+  sidebarCopy: DesktopCopy['sidebar'];
+  sortBy: SessionListOrder;
+  onChangeSortBy: (order: SessionListOrder) => void;
+  groupBy: 'time' | 'none';
+  onChangeGroupBy: (group: 'time' | 'none') => void;
+  showArchivedSessions: boolean;
+  onToggleShowArchived: () => void;
+};
+
+/**
+ * Ordering / grouping / archived filter.
+ *
+ * Both section headers carry it: the two panes each own a list, and each list
+ * wants the same three controls. Only one pane is on screen at a time, so the
+ * duplicated `display-options-btn` test id still resolves to the visible one.
+ */
+function SidebarDisplayMenu(props: SidebarDisplayMenuProps) {
+  const sidebarCopy = props.sidebarCopy;
+  return (
+      <DropdownMenu
+        trigger={
+          <IconButton
+            className="sidebar-icon-btn"
+            size="xs"
+            label={sidebarCopy.displayOptions}
+            title={sidebarCopy.displayOptions}
+            data-testid="display-options-btn"
+          >
+            <IconListFilter />
+          </IconButton>
+        }
+        contentClassName="sidebar-display-menu"
+        align="end"
+        label={sidebarCopy.customizeSidebar}
+        testId="display-options-menu"
+      >
+        <DropdownMenuLabel className="sidebar-display-menu-title">
+          {sidebarCopy.customize}
+        </DropdownMenuLabel>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger testId="display-options-ordering">
+            <span className="sidebar-display-row">
+              <span className="sidebar-display-row-label">{sidebarCopy.ordering}</span>
+              <span className="sidebar-display-row-value">
+                {props.sortBy === 'updated' ? sidebarCopy.updated : 'A-Z'}
+                <IconChevronRight width={12} height={12} />
+              </span>
+            </span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent
+            className="sidebar-display-submenu"
+            label={sidebarCopy.ordering}
+            testId="display-options-ordering-menu"
+          >
+            <DropdownMenuItem
+              onSelect={() => props.onChangeSortBy('updated')}
+              testId="display-sort-updated"
+            >
+              <span className="sidebar-display-option-label">{sidebarCopy.lastUpdated}</span>
+              {props.sortBy === 'updated' ? (
+                <span className="sidebar-display-check" aria-hidden>
+                  <IconCheck width={13} height={13} />
+                </span>
+              ) : (
+                <span className="sidebar-display-check-spacer" aria-hidden />
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => props.onChangeSortBy('alphabetical')}
+              testId="display-sort-alphabetical"
+            >
+              <span className="sidebar-display-option-label">{sidebarCopy.alphabetical}</span>
+              {props.sortBy === 'alphabetical' ? (
+                <span className="sidebar-display-check" aria-hidden>
+                  <IconCheck width={13} height={13} />
+                </span>
+              ) : (
+                <span className="sidebar-display-check-spacer" aria-hidden />
+              )}
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger testId="display-options-group-by">
+            <span className="sidebar-display-row">
+              <span className="sidebar-display-row-label">{sidebarCopy.groupBy}</span>
+              <span className="sidebar-display-row-value">
+                {props.groupBy === 'time' ? sidebarCopy.dateTime : sidebarCopy.none}
+                <IconChevronRight width={12} height={12} />
+              </span>
+            </span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent
+            className="sidebar-display-submenu"
+            label={sidebarCopy.groupBy}
+            testId="display-options-group-by-menu"
+          >
+            <DropdownMenuItem
+              onSelect={() => props.onChangeGroupBy('time')}
+              testId="display-group-time"
+            >
+              <span className="sidebar-display-option-label">{sidebarCopy.dateTime}</span>
+              {props.groupBy === 'time' ? (
+                <span className="sidebar-display-check" aria-hidden>
+                  <IconCheck width={13} height={13} />
+                </span>
+              ) : (
+                <span className="sidebar-display-check-spacer" aria-hidden />
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => props.onChangeGroupBy('none')}
+              testId="display-group-none"
+            >
+              <span className="sidebar-display-option-label">
+                {`${sidebarCopy.none} (${sidebarCopy.flatList})`}
+              </span>
+              {props.groupBy === 'none' ? (
+                <span className="sidebar-display-check" aria-hidden>
+                  <IconCheck width={13} height={13} />
+                </span>
+              ) : (
+                <span className="sidebar-display-check-spacer" aria-hidden />
+              )}
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="sidebar-display-section-label">
+          {sidebarCopy.filters}
+        </DropdownMenuLabel>
+        <DropdownMenuItem
+          onSelect={() => props.onToggleShowArchived()}
+          testId="display-filter-archived"
+        >
+          <span className="sidebar-display-row">
+            <span className="sidebar-display-row-label">{sidebarCopy.archived}</span>
+            {props.showArchivedSessions ? (
+              <span className="sidebar-display-check" aria-hidden>
+                <IconCheck width={13} height={13} />
+              </span>
+            ) : (
+              <span className="sidebar-display-check-spacer" aria-hidden />
+            )}
+          </span>
+        </DropdownMenuItem>
+      </DropdownMenu>
+  );
+}
+
 export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement | null {
   const { row, sidebarCopy } = props;
 
@@ -162,134 +314,15 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
           <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
         </button>
         <div className="sidebar-section-label-actions">
-          <DropdownMenu
-            trigger={
-              <IconButton
-                className="sidebar-icon-btn"
-                size="xs"
-                label={sidebarCopy.displayOptions}
-                title={sidebarCopy.displayOptions}
-                data-testid="display-options-btn"
-              >
-                <IconListFilter />
-              </IconButton>
-            }
-            contentClassName="sidebar-display-menu"
-            align="end"
-            label={sidebarCopy.customizeSidebar}
-            testId="display-options-menu"
-          >
-            <DropdownMenuLabel className="sidebar-display-menu-title">
-              {sidebarCopy.customize}
-            </DropdownMenuLabel>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger testId="display-options-ordering">
-                <span className="sidebar-display-row">
-                  <span className="sidebar-display-row-label">{sidebarCopy.ordering}</span>
-                  <span className="sidebar-display-row-value">
-                    {props.sortBy === 'updated' ? sidebarCopy.updated : 'A-Z'}
-                    <IconChevronRight width={12} height={12} />
-                  </span>
-                </span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent
-                className="sidebar-display-submenu"
-                label={sidebarCopy.ordering}
-                testId="display-options-ordering-menu"
-              >
-                <DropdownMenuItem
-                  onSelect={() => props.onChangeSortBy('updated')}
-                  testId="display-sort-updated"
-                >
-                  <span className="sidebar-display-option-label">{sidebarCopy.lastUpdated}</span>
-                  {props.sortBy === 'updated' ? (
-                    <span className="sidebar-display-check" aria-hidden>
-                      <IconCheck width={13} height={13} />
-                    </span>
-                  ) : (
-                    <span className="sidebar-display-check-spacer" aria-hidden />
-                  )}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => props.onChangeSortBy('alphabetical')}
-                  testId="display-sort-alphabetical"
-                >
-                  <span className="sidebar-display-option-label">{sidebarCopy.alphabetical}</span>
-                  {props.sortBy === 'alphabetical' ? (
-                    <span className="sidebar-display-check" aria-hidden>
-                      <IconCheck width={13} height={13} />
-                    </span>
-                  ) : (
-                    <span className="sidebar-display-check-spacer" aria-hidden />
-                  )}
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger testId="display-options-group-by">
-                <span className="sidebar-display-row">
-                  <span className="sidebar-display-row-label">{sidebarCopy.groupBy}</span>
-                  <span className="sidebar-display-row-value">
-                    {props.groupBy === 'time' ? sidebarCopy.dateTime : sidebarCopy.none}
-                    <IconChevronRight width={12} height={12} />
-                  </span>
-                </span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent
-                className="sidebar-display-submenu"
-                label={sidebarCopy.groupBy}
-                testId="display-options-group-by-menu"
-              >
-                <DropdownMenuItem
-                  onSelect={() => props.onChangeGroupBy('time')}
-                  testId="display-group-time"
-                >
-                  <span className="sidebar-display-option-label">{sidebarCopy.dateTime}</span>
-                  {props.groupBy === 'time' ? (
-                    <span className="sidebar-display-check" aria-hidden>
-                      <IconCheck width={13} height={13} />
-                    </span>
-                  ) : (
-                    <span className="sidebar-display-check-spacer" aria-hidden />
-                  )}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => props.onChangeGroupBy('none')}
-                  testId="display-group-none"
-                >
-                  <span className="sidebar-display-option-label">
-                    {`${sidebarCopy.none} (${sidebarCopy.flatList})`}
-                  </span>
-                  {props.groupBy === 'none' ? (
-                    <span className="sidebar-display-check" aria-hidden>
-                      <IconCheck width={13} height={13} />
-                    </span>
-                  ) : (
-                    <span className="sidebar-display-check-spacer" aria-hidden />
-                  )}
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="sidebar-display-section-label">
-              {sidebarCopy.filters}
-            </DropdownMenuLabel>
-            <DropdownMenuItem
-              onSelect={() => props.onToggleShowArchived()}
-              testId="display-filter-archived"
-            >
-              <span className="sidebar-display-row">
-                <span className="sidebar-display-row-label">{sidebarCopy.archived}</span>
-                {props.showArchivedSessions ? (
-                  <span className="sidebar-display-check" aria-hidden>
-                    <IconCheck width={13} height={13} />
-                  </span>
-                ) : (
-                  <span className="sidebar-display-check-spacer" aria-hidden />
-                )}
-              </span>
-            </DropdownMenuItem>
-          </DropdownMenu>
+          <SidebarDisplayMenu
+            sidebarCopy={sidebarCopy}
+            sortBy={props.sortBy}
+            onChangeSortBy={props.onChangeSortBy}
+            groupBy={props.groupBy}
+            onChangeGroupBy={props.onChangeGroupBy}
+            showArchivedSessions={props.showArchivedSessions}
+            onToggleShowArchived={props.onToggleShowArchived}
+          />
           <IconButton
             className="sidebar-icon-btn"
             size="xs"
@@ -332,6 +365,15 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
           <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
         </button>
         <div className="sidebar-section-label-actions">
+          <SidebarDisplayMenu
+            sidebarCopy={sidebarCopy}
+            sortBy={props.sortBy}
+            onChangeSortBy={props.onChangeSortBy}
+            groupBy={props.groupBy}
+            onChangeGroupBy={props.onChangeGroupBy}
+            showArchivedSessions={props.showArchivedSessions}
+            onToggleShowArchived={props.onToggleShowArchived}
+          />
           <IconButton
             className="sidebar-icon-btn"
             size="xs"

@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { ProjectSessionSidebar, type ProjectSessionSidebarProps } from './project-session-sidebar';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { SessionListItemUi } from './chat-reducer';
+import { saveSidebarMode } from './sidebar-mode';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -79,6 +80,11 @@ afterEach(() => {
 });
 
 describe('ProjectSessionSidebar keyboard navigation', () => {
+  // These rows are project-scope (filteredSessions), so open that pane.
+  beforeEach(() => {
+    saveSidebarMode('code');
+  });
+
   it('navigates from a focused session action within its owning row', () => {
     const { container, root } = renderSidebar(createMockSessions(3));
     const firstPin = container.querySelector<HTMLButtonElement>('[data-testid="session-pin-btn"]');

@@ -28,6 +28,12 @@ import {
 } from './sidebar-tree-rows';
 import { getProjectSessionDisclosureCopy } from './project-session-disclosure-copy';
 import { SidebarTreeRowView } from './sidebar-tree-row-view';
+import {
+  filterSidebarRowsByMode,
+  loadSidebarMode,
+  saveSidebarMode,
+  type SidebarMode,
+} from './sidebar-mode';
 import { Button } from '@piwin/ui-kit';
 import {
   IconCards,
@@ -35,6 +41,8 @@ import {
   IconPlus,
   IconPaperPlane,
   IconSearch,
+  IconChat,
+  IconCode,
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 
@@ -219,7 +227,13 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     ],
   );
 
-  const treeRows = useMemo(
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() => loadSidebarMode());
+  const selectSidebarMode = useCallback((mode: SidebarMode) => {
+    setSidebarMode(mode);
+    saveSidebarMode(mode);
+  }, []);
+
+  const allTreeRows = useMemo(
     () =>
       buildSidebarTreeRows({
         recentProjects: props.recentProjects,
@@ -260,6 +274,14 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       sortBy,
     ],
   );
+
+  /* One builder, two panes. Filtering here keeps sidebar-tree-rows.ts (and its
+     tests) untouched — the split is presentation, not a different query. */
+  const treeRows = useMemo(
+    () => filterSidebarRowsByMode(allTreeRows, sidebarMode),
+    [allTreeRows, sidebarMode],
+  );
+
   const searchHidesCurrent = sidebarSearchHidesReveal(
     treeRows,
     props.sessionSearch.trim().length > 0,
@@ -518,6 +540,34 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
 
       {/* Prototype .sb-top: search plus the vermilion new-chat action. */}
       <div className="sb-top sidebar-sb-top" data-testid="sidebar-sb-top">
+        {/* Pane switch. Two glyphs, no labels: it sits on the window-control
+            line where a labelled tab row would cost a whole row of list. */}
+        <div className="sidebar-mode" role="tablist" aria-label={copy.workspace}>
+          <button
+            type="button"
+            role="tab"
+            className={`sidebar-mode-btn${sidebarMode === 'chat' ? ' on' : ''}`}
+            data-testid="sidebar-mode-chat"
+            aria-selected={sidebarMode === 'chat'}
+            title={sidebarCopy.conversations}
+            aria-label={sidebarCopy.conversations}
+            onClick={() => selectSidebarMode('chat')}
+          >
+            <IconChat width={14} height={14} />
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={`sidebar-mode-btn${sidebarMode === 'code' ? ' on' : ''}`}
+            data-testid="sidebar-mode-code"
+            aria-selected={sidebarMode === 'code'}
+            title={sidebarCopy.projects}
+            aria-label={sidebarCopy.projects}
+            onClick={() => selectSidebarMode('code')}
+          >
+            <IconCode width={14} height={14} />
+          </button>
+        </div>
         <button
           type="button"
           className="search sidebar-search-box"
