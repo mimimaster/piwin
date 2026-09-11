@@ -299,4 +299,42 @@ describe('SubscriptionAuthService', () => {
       'high',
     ]);
   });
+
+  it('removes subscription providers from config on logout', async () => {
+    let credentials: Array<{ providerId: string; type: 'oauth' }> = [{ providerId: 'xai', type: 'oauth' }];
+    const port = loggedInXaiPort();
+    port.listCredentials = async () => credentials;
+    port.logout = async () => {
+      credentials = [];
+      return { kind: 'ok' };
+    };
+    let config: PiwinConfig = {
+      ...createDefaultPiwinConfig(),
+      defaultProviderId: 'xai',
+      defaultModelId: 'grok-4.6',
+      providers: [
+        grokSubscriptionProvider(),
+        {
+          id: 'custom-openai',
+          name: 'Local',
+          protocol: 'openai-compatible',
+          baseUrl: 'http://127.0.0.1:11434/v1',
+          models: [{ id: 'llama' }],
+        },
+      ],
+    };
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => config,
+        saveConfig: async (next) => {
+          config = next;
+        },
+      },
+    );
+    await service.logout('xai');
+    expect(config.providers.map((provider) => provider.id)).toEqual(['custom-openai']);
+    expect(config.defaultProviderId).toBeUndefined();
+    expect(config.defaultModelId).toBeUndefined();
+  });
 });

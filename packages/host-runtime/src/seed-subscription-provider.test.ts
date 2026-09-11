@@ -23,6 +23,7 @@ describe('seed subscription provider', () => {
     expect(next.providers[0]?.models[0]).toEqual({
       id: 'gpt-5.4-codex',
       label: 'GPT-5.4 Codex',
+      category: 'package',
       capabilities: ['chat'],
       reasoning: true,
     });
@@ -58,6 +59,7 @@ describe('seed subscription provider', () => {
       {
         id: 'gpt-5.4-codex',
         label: 'Codex',
+        category: 'package',
         capabilities: ['chat'],
         enabled: false,
         contextWindow: 200_000,
@@ -99,6 +101,7 @@ describe('seed subscription provider', () => {
     expect(merged.providers[0]?.models[0]).toEqual({
       id: 'grok-4.6',
       label: 'Grok 4.6',
+      category: 'package',
       capabilities: ['chat'],
       contextWindow: 500_000,
       maxOutputTokens: 500_000,
@@ -119,6 +122,41 @@ describe('seed subscription provider', () => {
     );
     expect(next.providers.map((provider) => provider.id)).toEqual(['xai']);
     expect(next.providers[0]?.source).toBe('subscription');
+  });
+
+  it('drops subscription rows after logout and keeps BYOK channels', () => {
+    const config = createDefaultPiwinConfig();
+    config.defaultProviderId = 'openai-codex';
+    config.defaultModelId = 'gpt-5.4-codex';
+    config.providers = [
+      {
+        id: 'openai-codex',
+        name: 'ChatGPT Codex',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://openai-codex',
+        source: 'subscription',
+        models: [{ id: 'gpt-5.4-codex', label: 'GPT-5.4 Codex' }],
+      },
+      {
+        id: 'xai',
+        name: 'Grok',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://xai',
+        source: 'subscription',
+        models: [{ id: 'grok-4.6', label: 'Grok 4.6' }],
+      },
+      {
+        id: 'custom-openai',
+        name: 'Local',
+        protocol: 'openai-compatible',
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        models: [{ id: 'llama' }],
+      },
+    ];
+    const next = ensureSubscriptionProviders(config, [], () => []);
+    expect(next.providers.map((provider) => provider.id)).toEqual(['custom-openai']);
+    expect(next.defaultProviderId).toBeUndefined();
+    expect(next.defaultModelId).toBeUndefined();
   });
 
   it('drops leftover vision input from generation extras', () => {
