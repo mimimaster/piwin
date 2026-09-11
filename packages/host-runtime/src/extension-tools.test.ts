@@ -76,6 +76,17 @@ describe('buildExtensionTools', () => {
     expect(names).toEqual(['extension_install', 'extension_list']);
   });
 
+  it('tells the model that Pi TUI plugins are not a piwin surface', () => {
+    const install = buildExtensionTools({
+      enabled: true,
+      piwinRoot,
+      sessionId: 's',
+      applyExtensions: applyOk,
+    }).find((tool) => tool.descriptor.name === 'extension_install');
+    expect(install?.descriptor.description).toMatch(/Pi TUI plugins/);
+    expect(install?.descriptor.description).toMatch(/do not work/);
+  });
+
   it('extension_install stages, enables, and schedules apply for a self-contained repo', async () => {
     const repo = await makeGitRepo({ 'index.ts': 'export default function () {}\n' });
     const applyExtensions = vi.fn(applyOk);

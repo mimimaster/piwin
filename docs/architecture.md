@@ -456,6 +456,13 @@ ResourceLoader path; ADR 0023). It calls only Pi-native `ctx.ui.select` /
   crosses the app boundary (AGENTS.md §1). SDK and RPC→SDK-fallback share one
   interaction path; the surfaces differ only in renderer.
 
+The product surface is Agent tools, event hooks, and those four dialogs. Pi
+TUI chrome (custom components, widgets, themes, keybindings, editor, custom
+rendering) and native `/reload` are not bridged — they no-op or error. Settings
+→ Extensions, `piwin extension list`, and
+[`docs/guides/pi-extensions.md`](guides/pi-extensions.md) state that boundary
+before install.
+
 ### 3.6 Runtime control and execution planes
 
 Runtime control follows [`runtime-refactor.md`](./specs/runtime-refactor.md):
@@ -556,6 +563,7 @@ performed.
 ~/.piwin/
   config.json                 # product config (host mode, providers, imageGeneration, Desktop composer/session restore)
   credentials/                # secrets (prefer OS keychain)
+  pi-agent/                   # Host-owned Pi runtime: auth.json + catalog cache
   sessions-index/             # SQLite or JSONL index over Pi sessions
   sessions/<session-id>/      # transcript.sqlite3 + leftover non-payload files
   pack-staging/               # non-authoritative pack construction
@@ -582,6 +590,7 @@ performed.
 Pi native paths remain under `~/.pi/agent/`. piwin maps:
 
 - sessions: prefer Pi session files; maintain index for UI
+- subscription OAuth: Host-owned `{PIWIN_ROOT}/pi-agent/auth.json` (not `~/.pi/agent/auth.json`)
 - skills: bundled + `~/.piwin/skills` + optional maps to other harness skill dirs. System skills (e.g. `imagegen`) use frontmatter `hidden: true` to stay out of the Skills panel/CLI while remaining loadable by Pi; the `imagegen` skill is toggled via `config.skills.disabledIds` (enables/disables both the skill and the `image_gen` host tool).
 - extensions: optional Pi extensions under `extensions/` shipped with piwin
 

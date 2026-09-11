@@ -29,6 +29,16 @@ export function buildPermissionRequestContext(
     };
   }
 
+  if (lowered === 'extensions:install' || lowered.startsWith('extensions:install ')) {
+    return {
+      kind: 'unknown' satisfies PermissionRiskKind,
+      summary: 'Install a Pi extension',
+      reason:
+        'This loads executable code into the Agent with your OS privileges. Pi TUI UI, themes, keybindings, and /reload will not work in piwin.',
+      ...(detailText ? { command: detailText } : {}),
+    };
+  }
+
   if (lowered === 'bash' || lowered.startsWith('bash:')) {
     return {
       kind: 'command',

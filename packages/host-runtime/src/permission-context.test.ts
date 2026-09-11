@@ -40,6 +40,17 @@ describe('buildPermissionRequestContext', () => {
     expect(context.reason).toBe('Browser navigation requires review');
   });
 
+  it('states privilege and TUI limits for extension install', () => {
+    const context = buildPermissionRequestContext(
+      'extensions:install',
+      'extensions:install https://github.com/example/ext',
+    );
+    expect(context.kind).toBe('unknown');
+    expect(context.summary).toBe('Install a Pi extension');
+    expect(context.reason).toMatch(/OS privileges/);
+    expect(context.reason).toMatch(/\/reload/);
+  });
+
   it('classifies explicit file-write: action kind as file-write', () => {
     const context = buildPermissionRequestContext('file-write:edit', 'write /repo/.env');
     expect(context.kind).toBe('file-write');

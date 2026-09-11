@@ -36,7 +36,11 @@ as host tools.
 ## Consequences
 
 - Host/CLI can list and toggle extensions without executing them.
-- Third-party extensions remain full-privilege once enabled (document in UI/doctor).
+- Third-party extensions remain full-privilege once enabled. Settings →
+  Extensions, `piwin extension list`, `piwin doctor`, and
+  [`docs/guides/pi-extensions.md`](../guides/pi-extensions.md) state the
+  Agent-runtime surface (tools, hooks, confirm/select/input/notify) and that
+  Pi TUI chrome is not supported.
 - Desktop panel and Pi Package install are follow-ons.
 - Future: map prompt-templates/themes with the same ResourceLoader pattern.
 
