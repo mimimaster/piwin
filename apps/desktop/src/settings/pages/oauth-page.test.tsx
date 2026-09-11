@@ -171,7 +171,7 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     ) as [unknown, { idempotencyKey: string } | undefined] | undefined;
     expect(loginCall?.[0]).toMatchObject({
       type: 'auth/login',
-      input: { providerId: 'kimi-coding', preferLoopback: true },
+      input: { providerId: 'kimi-coding', preferLoopback: true, openAuthUrlOnHost: false },
     });
     expect(loginCall?.[1]).toEqual({
       idempotencyKey: expect.any(String),

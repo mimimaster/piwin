@@ -65,6 +65,7 @@ type ActiveLogin = {
   ownerDeviceId: string;
   startedAt: string;
   preferLoopback: boolean;
+  openAuthUrlOnHost: boolean;
   abort: AbortController;
   currentPrompt?: AuthPromptPayload;
   authUrl?: AuthPromptPayload;
@@ -284,6 +285,7 @@ export class SubscriptionAuthService {
       ownerDeviceId: input.ownerDeviceId,
       startedAt: new Date(this.now()).toISOString(),
       preferLoopback: input.preferLoopback === true,
+      openAuthUrlOnHost: input.openAuthUrlOnHost !== false,
       abort,
       ...(newChannelId !== undefined ? { newChannelId } : {}),
     };
@@ -630,7 +632,7 @@ export class SubscriptionAuthService {
         : payload.kind === 'device_code'
           ? payload.verificationUri
           : undefined;
-    if (openUrl) {
+    if (openUrl && active.openAuthUrlOnHost) {
       console.log(`[piwin-host] auth/prompt ${payload.kind} opening ${openUrl}`);
       this.openAuthUrl?.(openUrl);
     }

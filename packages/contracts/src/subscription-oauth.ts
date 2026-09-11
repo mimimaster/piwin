@@ -104,6 +104,12 @@ export type AuthLoginInput = {
   relocateChannelId?: string;
   /** Codex/Claude use the browser + paste-callback flow. Device code is not the default. */
   preferLoopback?: boolean;
+  /**
+   * Host opens the verification URL in the system browser.
+   * Desktop opens the URL itself; pass false so Grok/Codex do not get two tabs.
+   * Omit (CLI) to keep Host opening.
+   */
+  openAuthUrlOnHost?: boolean;
 };
 
 export type AuthLoginData = {

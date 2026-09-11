@@ -155,6 +155,35 @@ describe('SubscriptionAuthService', () => {
     expect(opened).toEqual(['https://chatgpt.com/connect']);
   });
 
+  it('does not open the auth URL on the Host when the Desktop will', async () => {
+    const opened: string[] = [];
+    const port = fakePort();
+    port.login = async (_providerId, interaction) => {
+      interaction.notify({
+        type: 'auth_url',
+        url: 'https://accounts.x.ai/sign-in',
+      });
+      interaction.notify({
+        type: 'device_code',
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://accounts.x.ai/device',
+      });
+      return { kind: 'ok' };
+    };
+    const config: PiwinConfig = createDefaultPiwinConfig();
+    const service = new SubscriptionAuthService(
+      { port, openAuthUrl: (url) => opened.push(url) },
+      { loadConfig: async () => config, saveConfig: async () => undefined },
+    );
+    await service.login({
+      providerId: 'xai',
+      ownerDeviceId: 'desktop-1',
+      openAuthUrlOnHost: false,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(opened).toEqual([]);
+  });
+
   it('refreshProvider forwards to the auth port', async () => {
     const refreshed: string[] = [];
     const port = fakePort();
