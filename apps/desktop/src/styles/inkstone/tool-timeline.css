@@ -137,12 +137,24 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   opacity: 1;
 }
 
-/* S5.4.1: Thinking Draft Box (墨晕内省笺) */
+/* S5.4.1: Thinking Draft Box (墨晕内省笺)
+   Base: bounded to the column (0 margin, 100% width) so when the stage is
+   squeezed (<960px or inspector open, where --gut=0) the draft box's 1px border,
+   8px radius, and 3px cinnabar stripe (::before) never get clipped by overflow:hidden.
+   Wide (>=960px): bleeds 8px into the 140px+ gutter to match .work-h / .turn-work-details-summary. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .turn-work-details-body,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-thinking-body {
-  margin-left: calc(-1 * var(--row-pad));
-  width: calc(100% + var(--row-pad) * 2);
+  margin-left: 0;
+  width: 100%;
   overflow: visible;
+}
+
+@container transcript-stage (min-width: 960px) {
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .turn-work-details-body,
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-thinking-body {
+    margin-left: calc(-1 * var(--row-pad));
+    width: calc(100% + var(--row-pad) * 2);
+  }
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .think,

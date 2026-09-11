@@ -25,7 +25,7 @@ describe('Inkstone composer.css context capsules', () => {
     );
   });
 
-  it('keeps the slab sheen track idle-invisible and lamp-lit when active', () => {
+  it('keeps the slab perimeter orbit track idle-invisible and lamp-lit when active', () => {
     expect(composer).toMatch(
       /\.slab::before \{[\s\S]*?background: transparent;/,
     );
@@ -33,7 +33,7 @@ describe('Inkstone composer.css context capsules', () => {
       /\.slab::before \{[\s\S]*?background: var\(--slab-line\);/,
     );
     expect(composer).toMatch(
-      /\.slab\.is-streaming::before[\s\S]*?animation: sheen/,
+      /\.slab\.is-streaming::before[\s\S]*?animation: orbit/,
     );
   });
 

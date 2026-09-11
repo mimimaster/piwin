@@ -127,10 +127,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib {
-  /* Overlay traffic lights sit on tauri y:18; the 30px band centres CSS
-     chrome ~1px higher. Nudge so the light centreline bisects the glyph. */
+  /* Natural flex align-items:center aligns the toggle glyph to the exact
+     horizontal centreline of the traffic lights; keep left offset aligned with settings back button. */
   position: relative;
-  top: 1px;
+  left: -2px;
   background: transparent !important;
   box-shadow: none !important;
 }

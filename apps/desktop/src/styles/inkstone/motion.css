@@ -1,6 +1,21 @@
 /* Inkstone motion + component sheet — proto-07-components.html.
    Keyframes are the single Inkstone source of truth. Region files may
-   apply them; they must not redefine breath/grind/sheen/stamp/draw. */
+   apply them; they must not redefine breath/grind/sheen/stamp/draw/orbit. */
+
+@property --composer-beam-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes orbit {
+  0% {
+    --composer-beam-angle: 0deg;
+  }
+  100% {
+    --composer-beam-angle: 360deg;
+  }
+}
 
 @keyframes breath {
   0%,

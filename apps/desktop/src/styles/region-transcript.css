@@ -73,7 +73,7 @@
   align-items: flex-start;
   width: min(660px, 100%);
   max-width: 660px;
-  margin: 0 auto 18px;
+  margin: 0 auto 28px;
   order: 1;
   box-sizing: border-box;
 }
@@ -105,7 +105,7 @@
   order: 3;
   width: min(660px, 100%);
   max-width: 660px;
-  margin: 20px auto 0;
+  margin: 16px auto 0;
   box-sizing: border-box;
 }
 
@@ -113,7 +113,7 @@
   display: flex;
   align-items: center;
   gap: var(--s-3, 10px);
-  margin-top: var(--s-4, 16px);
+  margin-top: 0;
   margin-bottom: var(--s-2, 8px);
   padding: 0;
 }
