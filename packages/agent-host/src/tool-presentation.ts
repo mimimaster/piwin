@@ -17,6 +17,7 @@ import { attachFlashcardPresentation } from './flashcard-presentation.js';
 import { attachGoalPresentation } from './goal-presentation.js';
 import { attachKnowledgePresentation } from './knowledge-presentation.js';
 import { attachPlanPresentation } from './plan-presentation.js';
+import { attachSubagentPresentation } from './subagent-presentation.js';
 import {
   type ToolActionFamily,
   classifyToolKind,
@@ -327,7 +328,14 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
   };
   const withGoal = attachGoalPresentation(withFlashcard, detailsInput);
   const withKnowledge = attachKnowledgePresentation(withGoal, detailsInput);
-  return attachPlanPresentation(withKnowledge, detailsInput);
+  const withPlan = attachPlanPresentation(withKnowledge, detailsInput);
+  return attachSubagentPresentation(withPlan, {
+    toolName: input.toolName,
+    ...(input.routedToolName !== undefined ? { routedToolName: input.routedToolName } : {}),
+    args,
+    ...(input.details !== undefined ? { details: input.details } : {}),
+    ...(input.isError !== undefined ? { isError: input.isError } : {}),
+  });
 }
 
 /**
