@@ -6,7 +6,14 @@
  * independently interprets SessionSummary or stream state. Pure and
  * unit-tested; no React, Host, or contracts mutation.
  */
-import type { SessionSummary } from '@piwin/contracts';
+import type {
+  SessionSummary,
+  SubagentIntegrationStatus,
+  SubagentInvocation,
+  SubagentInvocationActivity,
+  SubagentInvocationStatus,
+  SubagentSummaryStatus,
+} from '@piwin/contracts';
 import type { SubagentStreamState } from './chat-reducer';
 
 /** Presentation status for a child session (desktop-local, not a contract). */
@@ -82,6 +89,132 @@ export function normalizeExecutionStatus(child: SessionSummary): ActiveSubagentS
   }
 }
 
+/** Keep the highest-revision invocation when merging Host pushes. */
+export function preferSubagentInvocation(
+  current: SubagentInvocation | undefined,
+  incoming: SubagentInvocation,
+): SubagentInvocation {
+  if (current === undefined || incoming.revision > current.revision) {
+    return incoming;
+  }
+  return current;
+}
+
+/** Map durable invocation status to the shared execution presentation axis. */
+export function invocationStatusToExecutionStatus(
+  status: SubagentInvocationStatus,
+): ActiveSubagentStatus | 'starting' {
+  switch (status) {
+    case 'queued':
+      return 'queued';
+    case 'starting':
+      return 'starting';
+    case 'running':
+      return 'running';
+    case 'completed':
+    case 'needs-integration':
+      return 'completed';
+    case 'failed':
+      return 'failed';
+    case 'cancelled':
+      return 'cancelled';
+  }
+}
+
+/** English activity line from a persisted invocation activity snapshot. */
+export function formatInvocationActivity(activity: SubagentInvocationActivity): string {
+  switch (activity.kind) {
+    case 'queued':
+      return 'Queued';
+    case 'preparing':
+      return 'Preparing workspace';
+    case 'thinking':
+      return 'Thinking';
+    case 'responding':
+      return 'Responding';
+    case 'tool':
+      return `Running ${activity.title ?? activity.toolName}`;
+    case 'permission':
+      return `Waiting for permission: ${activity.action}`;
+    case 'completed':
+      return activity.summary?.trim() || 'Completed';
+    case 'needs-integration':
+      return activity.message?.trim() || 'Changes need attention';
+    case 'failed':
+      return activity.message?.trim() || 'Subtask failed';
+    case 'cancelled':
+      return 'Cancelled';
+  }
+}
+
+/** Derive a short activity line from stream, child, and/or invocation state. */
+export function deriveSubagentLatestActivity(input: {
+  child?: SessionSummary;
+  stream?: SubagentStreamState;
+  invocation?: SubagentInvocation;
+}): string {
+  const runningTool = input.stream?.tools.find((tool) => tool.status === 'running');
+  if (runningTool !== undefined) {
+    return `Running ${runningTool.toolName}`;
+  }
+  const streamText = input.stream !== undefined ? input.stream.text.trim() : '';
+  if (streamText.length > 0) {
+    return streamText.slice(0, 160);
+  }
+  if (input.invocation !== undefined) {
+    return formatInvocationActivity(input.invocation.activity);
+  }
+  if (input.child !== undefined) {
+    return input.child.summaryPreview ?? input.child.lastPreview ?? input.child.task ?? 'Subagent';
+  }
+  return 'Subagent';
+}
+
+/** Resolve orthogonal lifecycle axes, preferring invocation over child summaries. */
+export function resolveSubagentLifecycleAxes(input: {
+  invocation?: SubagentInvocation;
+  child?: SessionSummary;
+}): {
+  executionStatus: ActiveSubagentStatus | 'starting';
+  summaryStatus?: SubagentSummaryStatus;
+  integrationStatus?: SubagentIntegrationStatus;
+} {
+  if (input.invocation !== undefined) {
+    const executionStatus = invocationStatusToExecutionStatus(input.invocation.status);
+    const child = input.child;
+    return {
+      executionStatus,
+      ...(child?.subagentSummaryStatus !== undefined
+        ? { summaryStatus: child.subagentSummaryStatus }
+        : {}),
+      ...(child?.subagentIntegrationStatus !== undefined
+        ? { integrationStatus: child.subagentIntegrationStatus }
+        : input.invocation.status === 'needs-integration'
+          ? { integrationStatus: 'pending' as const }
+          : {}),
+    };
+  }
+  if (input.child !== undefined) {
+    return {
+      executionStatus: normalizeExecutionStatus(input.child),
+      ...(input.child.subagentSummaryStatus !== undefined
+        ? { summaryStatus: input.child.subagentSummaryStatus }
+        : {}),
+      ...(input.child.subagentIntegrationStatus !== undefined
+        ? { integrationStatus: input.child.subagentIntegrationStatus }
+        : {}),
+    };
+  }
+  return { executionStatus: 'running' };
+}
+
+/** True when orchestration surfaces should treat work as in-flight. */
+export function isOrchestrationExecutionActive(
+  status: ActiveSubagentStatus | 'starting',
+): boolean {
+  return status === 'queued' || status === 'starting' || status === 'running';
+}
+
 /** Present the status in the shared run-activity visual language. */
 export function subagentStatusToRunKind(status: ActiveSubagentStatus): 'preparing' | 'working' | 'complete' | 'failed' | 'stopping' {
   switch (status) {
@@ -139,13 +272,10 @@ export function selectActiveSubagents(input: SelectActiveSubagentsInput): Active
     }
     const stream = input.streams[child.id];
     const runningTool = stream?.tools.find((tool) => tool.status === 'running');
-    const streamText = stream !== undefined ? stream.text.trim() : '';
-    const latestActivity =
-      runningTool !== undefined
-        ? `Running ${runningTool.toolName}`
-        : streamText.length > 0
-          ? streamText
-          : child.summaryPreview ?? child.lastPreview ?? child.task ?? 'Subagent';
+    const latestActivity = deriveSubagentLatestActivity({
+      child,
+      ...(stream !== undefined ? { stream } : {}),
+    });
     views.push({
       childSessionId: child.id,
       parentSessionId: child.parentSessionId,
