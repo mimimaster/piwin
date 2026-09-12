@@ -404,7 +404,6 @@ export function createSubagentIntegrationCoordinator(
       }
 
       if (control.signal?.aborted) {
-        reservedApply.release();
         throw new IntegrationQueueCancelledError();
       }
 
@@ -480,11 +479,6 @@ export function createSubagentIntegrationCoordinator(
         worktreePath,
       };
     } catch (error) {
-      if (writeStarted) {
-        reservedApply.complete('needs-repair');
-      } else {
-        reservedApply.release();
-      }
       if (error instanceof IntegrationQueueCancelledError) {
         await retain(worktreePath, error.message);
         return {
@@ -493,6 +487,11 @@ export function createSubagentIntegrationCoordinator(
           error: error.message,
           worktreePath,
         };
+      }
+      if (writeStarted) {
+        reservedApply.complete('needs-repair');
+      } else {
+        reservedApply.release();
       }
       const message = formatError(error);
       // Unexpected error during integration: retain and mark as failed.

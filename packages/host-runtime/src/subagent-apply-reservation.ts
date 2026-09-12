@@ -30,6 +30,14 @@ export type SubagentApplyReservationPort = {
 
 export type SubagentApplyWriterStatus = 'succeeded' | 'rejected' | 'needs-repair';
 
+export function subagentApplyIdempotencyKey(resultId: string): string {
+  return `subagent-apply:${resultId}`;
+}
+
+export function subagentApplyRequestHash(resultId: string, revision: number): string {
+  return `${subagentApplyIdempotencyKey(resultId)}:${String(revision)}`;
+}
+
 export type IntegrationApplyReservation = {
   blocked: boolean;
   result: SubagentTaskResult;
@@ -62,11 +70,11 @@ export function reserveIntegrationApply(
   }
   const reserved = port.reserveSubagentApply({
     operationId: randomUUID(),
-    changeSetId: result.childChanges?.changeSetId ?? `subagent-apply:${resultRef.resultId}`,
+    changeSetId: result.childChanges?.changeSetId ?? subagentApplyIdempotencyKey(resultRef.resultId),
     expectedRevision: resultRef.revision,
     principal: 'host',
-    idempotencyKey: `subagent-apply:${resultRef.resultId}`,
-    requestHash: `subagent-apply:${resultRef.resultId}:${String(resultRef.revision)}`,
+    idempotencyKey: subagentApplyIdempotencyKey(resultRef.resultId),
+    requestHash: subagentApplyRequestHash(resultRef.resultId, resultRef.revision),
     resultId: resultRef.resultId,
     ...(result.candidateGroupId !== undefined ? { candidateGroupId: result.candidateGroupId } : {}),
   });

@@ -95,30 +95,55 @@ describe('subagent command handlers', () => {
     expect(response).toMatchObject({ success: false, command: 'subagent/continue' });
   });
 
-  it('routes an explicit worktree action through the injected seam', async () => {
+  it('routes an explicit retain through the injected seam', async () => {
     const actions: string[] = [];
     const response = await handleSubagentCommand(
-      { type: 'subagent/worktree-action', childSessionId: 'child-1', action: 'discard' },
+      { type: 'subagent/worktree-action', childSessionId: 'child-1', action: 'retain' },
       'request-worktree',
       {
         ...context,
         actOnWorktree: async (childSessionId, action) => {
           actions.push(`${childSessionId}:${action}`);
-          return { integrationStatus: 'discarded' };
+          return { integrationStatus: 'retained' };
         },
       },
     );
 
-    expect(actions).toEqual(['child-1:discard']);
+    expect(actions).toEqual(['child-1:retain']);
     expect(response).toMatchObject({
       success: true,
       command: 'subagent/worktree-action',
       data: {
         childSessionId: 'child-1',
-        action: 'discard',
-        integrationStatus: 'discarded',
+        action: 'retain',
+        integrationStatus: 'retained',
       },
     });
+  });
+
+  it('refuses childSessionId-only apply and discard without result identity', async () => {
+    const actions: string[] = [];
+    const contextWithProbe = {
+      ...context,
+      actOnWorktree: async (childSessionId: string, action: 'apply' | 'retain' | 'discard') => {
+        actions.push(`${childSessionId}:${action}`);
+        return { integrationStatus: 'applied' as const };
+      },
+    };
+    for (const action of ['apply', 'discard'] as const) {
+      const response = await handleSubagentCommand(
+        { type: 'subagent/worktree-action', childSessionId: 'child-1', action },
+        `request-${action}`,
+        contextWithProbe,
+      );
+      expect(response).toMatchObject({
+        success: false,
+        command: 'subagent/worktree-action',
+        error: 'upgrade-required',
+        problem: { code: 'upgrade-required' },
+      });
+    }
+    expect(actions).toEqual([]);
   });
 
   it('returns a stable not-ready response without an orchestration seam', async () => {

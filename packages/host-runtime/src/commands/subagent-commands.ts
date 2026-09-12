@@ -147,6 +147,9 @@ export async function handleSubagentCommand(
       });
     }
     case 'subagent/worktree-action': {
+      if (command.action === 'apply' || command.action === 'discard') {
+        return failCode(requestId, command.type, 'upgrade-required');
+      }
       const childSessionId = command.childSessionId;
       if (typeof childSessionId !== 'string' || childSessionId.length === 0) {
         return unsupportedCapability(requestId, command.type);
