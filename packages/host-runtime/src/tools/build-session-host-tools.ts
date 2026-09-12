@@ -33,6 +33,7 @@ import { createPlanStepTool } from '../plan-step-tool.js';
 import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-tool.js';
 import { createSubagentStartTool } from '../subagent-start-tool.js';
 import { createSubagentContinueTool } from '../subagent-continue-tool.js';
+import { createSubagentResultApplyTool } from '../subagent-result-apply-tool.js';
 import { createSubagentWaitTool } from '../subagent-wait-tool.js';
 import { createSubagentCancelTool } from '../subagent-cancel-tool.js';
 import {
@@ -423,6 +424,11 @@ export async function buildSessionHostTools(
       createSubagentContinueTool({
         sessionId: options.sessionId,
         seam,
+      }),
+      createSubagentResultApplyTool({
+        sessionId: options.sessionId,
+        seam,
+        ...(options.projectPath ? { workspacePath: options.projectPath } : {}),
       }),
       createSubagentWaitTool({
         sessionId: options.sessionId,

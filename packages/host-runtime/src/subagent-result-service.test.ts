@@ -18,6 +18,16 @@ import { workspaceIdForRoot } from './turn-changes/coordinator.js';
 
 const dirs: string[] = [];
 
+function approvedReview(
+  overrides: Partial<SubagentResultSummary> = {},
+): Partial<SubagentResultSummary> {
+  return {
+    latestReview: { reviewId: 'rev-1', revision: 1 },
+    reviewStatus: 'approved',
+    ...overrides,
+  };
+}
+
 function makeSummary(overrides: Partial<SubagentResultSummary> = {}): SubagentResultSummary {
   return {
     resultId: 'result-1',
@@ -122,7 +132,7 @@ describe('SubagentResultService', () => {
   it('applies once and returns already-applied without a second write', async () => {
     const calls: string[] = [];
     const service = createSubagentResultService();
-    service.register(makeSummary({ resultId: 'result-1', candidateGroupId: 'group-1' }));
+    service.register(makeSummary(approvedReview({ resultId: 'result-1', candidateGroupId: 'group-1' })));
 
     const first = await service.apply({
       resultId: 'result-1',
@@ -154,8 +164,8 @@ describe('SubagentResultService', () => {
   it('rejects a second candidate in the same group without another write', async () => {
     const calls: string[] = [];
     const service = createSubagentResultService();
-    service.register(makeSummary({ resultId: 'a', candidateGroupId: 'group-1' }));
-    service.register(makeSummary({ resultId: 'b', candidateGroupId: 'group-1' }));
+    service.register(makeSummary(approvedReview({ resultId: 'a', candidateGroupId: 'group-1' })));
+    service.register(makeSummary(approvedReview({ resultId: 'b', candidateGroupId: 'group-1' })));
 
     const first = await service.apply({
       resultId: 'a',
@@ -233,7 +243,7 @@ describe('SubagentResultService', () => {
 
   it('fails request-resolution and apply for missing or stale results', async () => {
     const service = createSubagentResultService();
-    service.register(makeSummary({ resultId: 'result-1', revision: 2 }));
+    service.register(makeSummary(approvedReview({ resultId: 'result-1', revision: 2 })));
     const applyResult = async () => ({ operationId: 'op-1' });
     const startParentPrompt = async () => ({ runId: 'parent-run' });
 
@@ -553,12 +563,14 @@ describe('SubagentResultService', () => {
       }),
     );
     service.register(
-      makeSummary({
-        resultId: 'b',
-        candidateGroupId: 'group-login',
-        candidateLineageId: 'lineage-b',
-        candidateGeneration: 1,
-      }),
+      makeSummary(
+        approvedReview({
+          resultId: 'b',
+          candidateGroupId: 'group-login',
+          candidateLineageId: 'lineage-b',
+          candidateGeneration: 1,
+        }),
+      ),
     );
     service.register(
       makeSummary({
@@ -573,7 +585,7 @@ describe('SubagentResultService', () => {
     expect(service.get('a')?.candidateGroupId).toBe('group-login');
     expect(service.get('a')?.candidateLineageId).toBe('lineage-a');
     expect(service.get('a')?.reviewStatus).toBe('stale');
-    expect(service.get('b')?.reviewStatus).toBe('not-requested');
+    expect(service.get('b')?.reviewStatus).toBe('approved');
     expect(service.get('b')?.availability.apply.allowed).toBe(true);
     expect(service.get('c')?.candidateGroupId).toBe('group-other');
 
@@ -589,7 +601,7 @@ describe('SubagentResultService', () => {
         expectedRevision: 1,
         applyResult: async () => ({ operationId: 'op-a' }),
       }),
-    ).toMatchObject({ ok: false, code: 'candidate-group-selected' });
+    ).toMatchObject({ ok: false, code: 'candidate-superseded' });
     expect(service.get('c')?.availability.apply.allowed).toBe(true);
   });
 
@@ -599,7 +611,7 @@ describe('SubagentResultService', () => {
     const store = openTurnChangeStore({ rootDir: dir });
     const writes: string[] = [];
     const service = createSubagentResultService({ operationStore: store });
-    service.register(makeSummary({ resultId: 'result-1' }));
+    service.register(makeSummary(approvedReview({ resultId: 'result-1' })));
 
     const first = await service.apply({
       resultId: 'result-1',
@@ -632,8 +644,8 @@ describe('SubagentResultService', () => {
     const started = createDeferred();
     const releaseFirst = createDeferred();
     const service = createSubagentResultService({ operationStore: store });
-    service.register(makeSummary({ resultId: 'a', candidateGroupId: 'group-1' }));
-    service.register(makeSummary({ resultId: 'b', candidateGroupId: 'group-1' }));
+    service.register(makeSummary(approvedReview({ resultId: 'a', candidateGroupId: 'group-1' })));
+    service.register(makeSummary(approvedReview({ resultId: 'b', candidateGroupId: 'group-1' })));
 
     const first = service.apply({
       resultId: 'a',
@@ -683,7 +695,7 @@ describe('SubagentResultService', () => {
     dirs.push(dir);
     const firstStore = openTurnChangeStore({ rootDir: dir });
     const first = createSubagentResultService({ operationStore: firstStore });
-    first.register(makeSummary({ resultId: 'result-1', candidateGroupId: 'group-1' }));
+    first.register(makeSummary(approvedReview({ resultId: 'result-1', candidateGroupId: 'group-1' })));
     firstStore.reserveSubagentApply({
       operationId: 'op-reserved',
       changeSetId: 'cs-child',
@@ -698,8 +710,8 @@ describe('SubagentResultService', () => {
 
     const restartedStore = openTurnChangeStore({ rootDir: dir });
     const restarted = createSubagentResultService({ operationStore: restartedStore });
-    restarted.register(makeSummary({ resultId: 'result-1', candidateGroupId: 'group-1' }));
-    restarted.register(makeSummary({ resultId: 'result-2', candidateGroupId: 'group-1' }));
+    restarted.register(makeSummary(approvedReview({ resultId: 'result-1', candidateGroupId: 'group-1' })));
+    restarted.register(makeSummary(approvedReview({ resultId: 'result-2', candidateGroupId: 'group-1' })));
     restarted.reconcileApplyReservations(restartedStore.listSubagentApplyReservations());
 
     const writes: string[] = [];
@@ -761,7 +773,7 @@ describe('SubagentResultService', () => {
     const restartedStore = openTurnChangeStore({ rootDir: dir });
     const objectStore = createTurnChangeObjectStore({ rootDir: dir });
     const restarted = createSubagentResultService({ operationStore: restartedStore });
-    restarted.register(makeSummary({ resultId: 'result-1', integrationStatus: 'retained' }));
+    restarted.register(makeSummary(approvedReview({ resultId: 'result-1', integrationStatus: 'retained' })));
     await reconcileSubagentApplyOperations({
       store: restartedStore,
       objectStore,
@@ -789,8 +801,8 @@ describe('SubagentResultService', () => {
     dirs.push(dir);
     const store = openTurnChangeStore({ rootDir: dir });
     const service = createSubagentResultService({ operationStore: store });
-    service.register(makeSummary({ resultId: 'result-1', candidateGroupId: 'group-1' }));
-    service.register(makeSummary({ resultId: 'result-2', candidateGroupId: 'group-1' }));
+    service.register(makeSummary(approvedReview({ resultId: 'result-1', candidateGroupId: 'group-1' })));
+    service.register(makeSummary(approvedReview({ resultId: 'result-2', candidateGroupId: 'group-1' })));
 
     const rejected = await service.apply({
       resultId: 'result-1',
@@ -818,7 +830,7 @@ describe('SubagentResultService', () => {
     dirs.push(repairDir);
     const isolated = openTurnChangeStore({ rootDir: repairDir });
     const repairService = createSubagentResultService({ operationStore: isolated });
-    repairService.register(makeSummary({ resultId: 'result-2', candidateGroupId: 'group-1' }));
+    repairService.register(makeSummary(approvedReview({ resultId: 'result-2', candidateGroupId: 'group-1' })));
     const repair = await repairService.apply({
       resultId: 'result-2',
       expectedRevision: 1,
@@ -851,7 +863,7 @@ describe('SubagentResultService', () => {
     dirs.push(dir);
     const store = openTurnChangeStore({ rootDir: dir });
     const service = createSubagentResultService({ operationStore: store });
-    service.register(makeSummary({ resultId: 'result-1' }));
+    service.register(makeSummary(approvedReview({ resultId: 'result-1' })));
     expect(
       store.reserveSubagentApply({
         operationId: 'op-resume',
@@ -885,7 +897,7 @@ describe('SubagentResultService', () => {
     dirs.push(dir);
     const store = openTurnChangeStore({ rootDir: dir });
     const service = createSubagentResultService({ operationStore: store });
-    service.register(makeSummary({ resultId: 'res-1' }));
+    service.register(makeSummary(approvedReview({ resultId: 'res-1' })));
     const coordinator = createSubagentIntegrationCoordinator({
       integrateWorktree: async () => ({
         success: false,
@@ -995,7 +1007,7 @@ describe('SubagentResultService', () => {
     const restartedStore = openTurnChangeStore({ rootDir: dir });
     const objectStore = createTurnChangeObjectStore({ rootDir: dir });
     const restarted = createSubagentResultService({ operationStore: restartedStore });
-    restarted.register(makeSummary({ resultId: 'result-1', integrationStatus: 'retained' }));
+    restarted.register(makeSummary(approvedReview({ resultId: 'result-1', integrationStatus: 'retained' })));
     await reconcileSubagentApplyOperations({
       store: restartedStore,
       objectStore,

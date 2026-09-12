@@ -336,6 +336,57 @@ export function parseSubagentRunIds(
   return { ok: true, value: deduped };
 }
 
+export const subagentResultApplyInputParameters = {
+  type: 'object' as const,
+  properties: {
+    result: {
+      type: 'object',
+      description: 'Exact current lineage-head result to apply.',
+      properties: {
+        resultId: { type: 'string' },
+        revision: { type: 'number' },
+      },
+      required: ['resultId', 'revision'],
+    },
+    approvedBy: {
+      type: 'object',
+      description: 'Durable approved review bound to that exact result and frozen change version.',
+      properties: {
+        reviewId: { type: 'string' },
+        revision: { type: 'number' },
+      },
+      required: ['reviewId', 'revision'],
+    },
+  },
+  required: ['result', 'approvedBy'] as const,
+};
+
+export type SubagentResultApplyToolInput = {
+  result: SubagentResultRef;
+  approvedBy: SubagentReviewRef;
+};
+
+export function parseSubagentResultApplyInput(
+  args: Record<string, unknown>,
+): { ok: true; value: SubagentResultApplyToolInput } | InvalidSubagentInput {
+  for (const key of FORBIDDEN_START_FIELDS) {
+    if (args[key] !== undefined) {
+      return invalidSubagentInput(`${key} cannot be supplied by the model`);
+    }
+  }
+  const result = parseSubagentResultRef(args.result, 'result');
+  if (!result.ok) return result;
+  const approvedBy = parseSubagentReviewRef(args.approvedBy, 'approvedBy');
+  if (!approvedBy.ok) return approvedBy;
+  return {
+    ok: true,
+    value: {
+      result: result.value,
+      approvedBy: approvedBy.value,
+    },
+  };
+}
+
 export function parseSubagentContinueInput(
   args: Record<string, unknown>,
 ): { ok: true; value: SubagentContinueInput } | InvalidSubagentInput {

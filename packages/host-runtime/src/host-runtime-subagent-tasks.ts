@@ -26,7 +26,9 @@ import type { SubagentRunSeam } from './subagent-run-tool.js';
 import { createSubagentControlSeam, type SubagentControlDeps } from './host-runtime-subagent-start.js';
 import { bindSubagentReviewTarget } from './subagent-review-context.js';
 import { findPersistedReview, loadPersistedReviewObservation } from './subagent-review-service.js';
+import { applyReviewedSubagentResult } from './subagent-result-apply.js';
 import { startReviewedContinuation } from './subagent-continue.js';
+import { workspaceIdForRoot } from './turn-changes/coordinator.js';
 import {
   buildShellContinuationTask,
   prepareRetainedSubagentContinuation,
@@ -143,6 +145,68 @@ export function getSubagentSeam(
         sessionId,
         input,
       ),
+    applyReviewed: async (input) => {
+      const resultService = deps.subagentResultService;
+      if (!resultService) {
+        return { ok: false, code: 'tool-not-available', message: 'subagent apply is not available' };
+      }
+      const projectPath = deps.sessionProjects.get(sessionId);
+      return applyReviewedSubagentResult(
+        {
+          resultService,
+          loadReview: async (ref) =>
+            deps.subagentRunStore ? findPersistedReview(deps.subagentRunStore, ref) : undefined,
+          applyResult: async (applyInput) => {
+            const summary = resultService.get(applyInput.resultId);
+            const childSessionId = summary?.childSessionId;
+            if (!childSessionId) {
+              throw new Error(`subagent result not found: ${applyInput.resultId}`);
+            }
+            const outcome = await deps.actOnSubagentWorktree(childSessionId, 'apply');
+            return {
+              operationId: applyInput.operationId,
+              status: outcome.applyStatus,
+              integrationStatus: outcome.integrationStatus,
+            };
+          },
+          ...(deps.turnChangeRuntime && projectPath
+            ? {
+                probeWrite: async () => {
+                  const acquired = await deps.turnChangeRuntime?.gate.tryAcquire({
+                    workspaceId: workspaceIdForRoot(projectPath),
+                    rootPath: projectPath,
+                    kind: 'integration',
+                    mode: 'exclusive',
+                    wait: false,
+                  });
+                  if (!acquired) return { ok: true as const };
+                  if (!acquired.ok) {
+                    return {
+                      ok: false as const,
+                      code: acquired.reason === 'workspace-busy' ? 'workspace-busy' : 'aborted',
+                    };
+                  }
+                  acquired.lease.release();
+                  return { ok: true as const };
+                },
+              }
+            : {}),
+          publish: (message) => deps.push(message),
+        },
+        {
+          parentSessionId: sessionId,
+          result: input.result,
+          approvedBy: input.approvedBy,
+          ...(input.toolCallId
+            ? {
+                idempotencyKey: `subagent-apply:${input.result.resultId}`,
+                requestHash: `subagent-apply:${input.result.resultId}:${String(input.result.revision)}:${input.toolCallId}`,
+              }
+            : {}),
+          ...(input.signal ? { signal: input.signal } : {}),
+        },
+      );
+    },
   };
 }
 

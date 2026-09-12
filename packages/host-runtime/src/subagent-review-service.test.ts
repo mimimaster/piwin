@@ -249,6 +249,14 @@ describe('subagent review service', () => {
     expect(summary.reviewStatus).toBe('not-requested');
     expect(reviewAuthorizesApply(summary)).toBe(false);
     expect(summary.availability.apply.allowed).toBe(true);
+    expect(
+      await resultService.apply({
+        resultId: 'result-1',
+        expectedRevision: 1,
+        applyResult: async () => ({ operationId: 'must-not-write' }),
+      }),
+    ).toMatchObject({ ok: false, code: 'review-missing' });
+    expect(resultService.get('result-1')?.integrationStatus).toBe('retained');
   });
 
   it('a decision for an unscoped/stale result is rejected', async () => {

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseSubagentRunIds, parseSubagentStartInput } from './subagent-tool-input.js';
+import {
+  parseSubagentResultApplyInput,
+  parseSubagentRunIds,
+  parseSubagentStartInput,
+} from './subagent-tool-input.js';
 
 describe('parseSubagentRunIds', () => {
   it('deduplicates while preserving caller order', () => {
@@ -89,6 +93,33 @@ describe('parseSubagentStartInput reviewOf', () => {
           revision: 1,
           changeSetId: 'cs-child',
         },
+      }),
+    ).toMatchObject({ ok: false, code: 'invalid-input' });
+  });
+});
+
+describe('parseSubagentResultApplyInput', () => {
+  it('parses an exact result and approval ref', () => {
+    expect(
+      parseSubagentResultApplyInput({
+        result: { resultId: 'result-1', revision: 1 },
+        approvedBy: { reviewId: 'rev-1', revision: 1 },
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        result: { resultId: 'result-1', revision: 1 },
+        approvedBy: { reviewId: 'rev-1', revision: 1 },
+      },
+    });
+  });
+
+  it('rejects host-owned fields', () => {
+    expect(
+      parseSubagentResultApplyInput({
+        result: { resultId: 'result-1', revision: 1 },
+        approvedBy: { reviewId: 'rev-1', revision: 1 },
+        parentSessionId: 'parent-1',
       }),
     ).toMatchObject({ ok: false, code: 'invalid-input' });
   });

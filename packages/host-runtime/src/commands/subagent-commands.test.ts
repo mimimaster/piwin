@@ -288,6 +288,8 @@ function makeResultSummary(): SubagentResultSummary {
     legacyManual: false,
     candidateGroupId: null,
     ...emptySubagentResultReviewFields(),
+    latestReview: { reviewId: 'rev-1', revision: 1 },
+    reviewStatus: 'approved',
     executionStatus: 'completed',
     summaryStatus: 'merged',
     integrationStatus: 'retained',
