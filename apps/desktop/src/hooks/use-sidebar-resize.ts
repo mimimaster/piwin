@@ -11,6 +11,7 @@ import {
   shouldCollapseSidebar,
   shouldExpandSidebar,
 } from '../sidebar-width';
+import { isOverlayShellLayout, type ShellLayoutMode } from '../shell-layout';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
 function writeSidebarWidthCss(shell: HTMLElement | null, widthPx: number): void {
@@ -25,7 +26,7 @@ function findAppShell(): HTMLElement | null {
 }
 
 export type UseSidebarResizeOptions = {
-  layoutMode: 'desktop' | 'compact';
+  layoutMode: ShellLayoutMode;
   /** Right panel currently open (reserves chrome on desktop). */
   rightPanelOpen: boolean;
   /** Right panel CSS width in px. */
@@ -132,7 +133,7 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
         options.layoutMode === 'desktop' && options.rightPanelOpen ? rightPanelWidthPx : 0;
       return clampSidebarWidthForViewport(candidate, viewport, {
         reservedChromePx: reserved,
-        minStagePx: options.layoutMode === 'compact' ? 0 : 280,
+        minStagePx: isOverlayShellLayout(options.layoutMode) ? 0 : 280,
       });
     },
     [options.layoutMode, options.rightPanelOpen, rightPanelWidthPx],

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   createSupersededByNewPromptAbortReason,
+  createToolLoopStallAbortReason,
   createUserStopAbortReason,
   formatRunAbortReason,
   isRunAbortReason,
+  isToolLoopStallAbortReason,
   looksLikeCancelledToolOutput,
 } from './run-abort-reason.js';
 
@@ -13,6 +15,17 @@ describe('run-abort-reason', () => {
     expect(isRunAbortReason(reason)).toBe(true);
     expect(formatRunAbortReason(reason)).toContain('user stopped');
     expect(formatRunAbortReason(reason).toLowerCase()).toContain('re-run');
+  });
+
+  it('formats a tool-loop stall as a Host stop, not a user Stop', () => {
+    const reason = createToolLoopStallAbortReason(
+      'Host stopped this run: the agent searched without writing.',
+    );
+    expect(isRunAbortReason(reason)).toBe(true);
+    expect(reason.code).toBe('tool-loop-stalled');
+    expect(isToolLoopStallAbortReason(reason)).toBe(true);
+    expect(formatRunAbortReason(reason)).toContain('searched without writing');
+    expect(formatRunAbortReason(reason)).not.toContain('Stop');
   });
 
   it('formats superseded reason distinctly from user-stop', () => {

@@ -402,6 +402,10 @@ export type SkillsInstallData = {
   targetPath: string;
 };
 
+export type SkillsUninstallData = {
+  skillId: string;
+};
+
 export type {
   FlashcardStudyCatalogPage as FlashcardStudyCatalogData,
   FlashcardStudyOperationResult as FlashcardStudyOperationLookupData,

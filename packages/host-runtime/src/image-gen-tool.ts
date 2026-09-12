@@ -63,7 +63,11 @@ function enabledImageModels(provider: ModelProviderConfig): ModelConfigEntry[] {
   return provider.models.filter((model) => isModelEnabled(model) && isImageGenerationModel(model));
 }
 
-/** Resolve one enabled, image-capable provider/model without falling back to chat. */
+/**
+ * Resolve one enabled, image-capable provider/model without falling back to chat.
+ * Preference: explicit args, then imageGeneration.defaultModel, then the first
+ * enabled image model in provider/config order.
+ */
 export function resolveImageProvider(
   config: Pick<PiwinConfig, 'providers' | 'imageGeneration'>,
   modelId?: string,
@@ -136,15 +140,8 @@ export function resolveImageProvider(
   const candidates = providers.flatMap((provider) =>
     enabledImageModels(provider).map((model) => ({ provider, model })),
   );
-  if (candidates.length === 1) {
-    const candidate = candidates[0];
-    if (candidate) return candidate;
-  }
-  if (candidates.length > 1) {
-    throw new ImageGenConfigError(
-      'image_gen: multiple image models are configured. Choose a default under Settings → Image Generation.',
-    );
-  }
+  const first = candidates[0];
+  if (first) return first;
   throw new ImageGenConfigError(
     'image_gen: no image model configured. Add one under Settings → Image Generation.',
   );
@@ -642,7 +639,7 @@ export type ImageGenToolOptions = {
   secretResolver: SecretResolver;
 };
 
-/** Build the image_gen host tool, or null when no unambiguous image model is configured. */
+/** Build the image_gen host tool, or null when no enabled image model is configured. */
 export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistration | null {
   const { config, sessionId, mediaConfig, secretResolver } = options;
   try {
@@ -673,7 +670,7 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
           model: {
             type: 'string',
             description:
-              'Optional configured image model id; defaults to the image-generation default',
+              'Optional configured image model id; defaults to the image-generation default, or the first enabled image model',
           },
           size: {
             type: 'string',

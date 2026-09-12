@@ -22,6 +22,8 @@ import {
 } from './appearance-tokens';
 import { isDocumentThemeId, rememberAppliedTheme, resolveStartupAppearance } from './theme-startup';
 import { loadDesktopPreferences } from './ui-preferences';
+import { useWebViewport } from './hooks/use-web-viewport';
+import { applyWindowChromeToDocument } from './window-chrome';
 
 /**
  * Test-harness route, compiled in only when Playwright's Vite server sets
@@ -73,6 +75,10 @@ function themePaintEquals(left: ThemeManifest, right: ThemeManifest): boolean {
 }
 
 export function DesktopThemeRoot() {
+  useWebViewport();
+  useLayoutEffect(() => {
+    applyWindowChromeToDocument(document.documentElement);
+  }, []);
   // Same resolver as main.tsx pre-paint so React's first commit matches the
   // document tokens already on <html> (no Noir → ink-wash jump).
   const [activeTheme, setActiveTheme] = useState<ThemeManifest>(() => resolveStartupAppearance());

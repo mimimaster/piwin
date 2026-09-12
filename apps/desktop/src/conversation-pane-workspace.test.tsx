@@ -23,6 +23,7 @@ const hostClient = {
 
 function Probe(props: {
   keyboardEnabled?: boolean;
+  phoneSinglePane?: boolean;
   onCreateConversation?: (paneId: string) => Promise<string | null>;
 }): React.ReactElement {
   const controller = useConversationPaneLayout({ enabled: true, primarySessionId: 'primary' });
@@ -30,6 +31,7 @@ function Probe(props: {
     <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
       <ConversationPaneWorkspace
         controller={controller}
+        {...(props.phoneSinglePane ? { phoneSinglePane: true } : {})}
         primaryPane={<div data-testid="primary-pane">Primary</div>}
         primarySessionName="Primary Chat"
         sessions={[]}
@@ -244,5 +246,50 @@ describe('ConversationPaneWorkspace', () => {
       container?.querySelector<HTMLElement>('[data-testid="conversation-pane-workspace"]')?.dataset
         .paneCount,
     ).toBe('1');
+  });
+
+  it('keeps the split tree but shows only the active pane on phone', () => {
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', metaKey: true }));
+    });
+    expect(
+      container?.querySelector<HTMLElement>('[data-testid="conversation-pane-workspace"]')?.dataset
+        .paneCount,
+    ).toBe('2');
+
+    act(() => {
+      root?.render(<Probe phoneSinglePane />);
+    });
+
+    const workspace = container?.querySelector<HTMLElement>(
+      '[data-testid="conversation-pane-workspace"]',
+    );
+    expect(workspace?.dataset.phoneSinglePane).toBe('true');
+    expect(workspace?.dataset.paneCount).toBe('1');
+    expect(workspace?.classList.contains('is-single-pane')).toBe(true);
+    expect(container?.querySelector('.conversation-pane-header')).toBeNull();
+    expect(container?.querySelector('[role="separator"]')).toBeNull();
+    const panes = container?.querySelectorAll<HTMLElement>('[data-pane-id]') ?? [];
+    expect(panes.length).toBeGreaterThan(1);
+    const hiddenCount = Array.from(panes).filter((pane) => pane.hidden).length;
+    expect(hiddenCount).toBe(panes.length - 1);
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', metaKey: true }));
+    });
+    expect(workspace?.dataset.paneCount).toBe('1');
+    expect(container?.querySelectorAll('[data-pane-id]')).toHaveLength(panes.length);
+
+    const beforeActive = container
+      ?.querySelector('[data-conversation-pane-active="true"]')
+      ?.getAttribute('data-pane-id');
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: ']', metaKey: true }));
+    });
+    const afterFocus = container?.querySelectorAll<HTMLElement>('[data-pane-id]') ?? [];
+    expect(Array.from(afterFocus).filter((pane) => pane.hidden).length).toBe(afterFocus.length - 1);
+    expect(
+      container?.querySelector('[data-conversation-pane-active="true"]')?.getAttribute('data-pane-id'),
+    ).not.toBe(beforeActive);
   });
 });

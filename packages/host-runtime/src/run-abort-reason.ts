@@ -9,6 +9,7 @@ export type RunAbortCode =
   | 'pause-requested'
   | 'superseded-by-new-prompt'
   | 'host-shutdown'
+  | 'tool-loop-stalled'
   | 'unknown';
 
 export type RunAbortReason = {
@@ -51,6 +52,13 @@ export function createHostShutdownAbortReason(): RunAbortReason {
   };
 }
 
+export function createToolLoopStallAbortReason(message: string): RunAbortReason {
+  return {
+    code: 'tool-loop-stalled',
+    message,
+  };
+}
+
 export function isRunAbortReason(value: unknown): value is RunAbortReason {
   if (!value || typeof value !== 'object') {
     return false;
@@ -66,12 +74,17 @@ export function isRunAbortReason(value: unknown): value is RunAbortReason {
     code === 'pause-requested' ||
     code === 'superseded-by-new-prompt' ||
     code === 'host-shutdown' ||
+    code === 'tool-loop-stalled' ||
     code === 'unknown'
   );
 }
 
 export function isPauseRequestedAbortReason(value: unknown): value is RunAbortReason {
   return isRunAbortReason(value) && value.code === 'pause-requested';
+}
+
+export function isToolLoopStallAbortReason(value: unknown): value is RunAbortReason {
+  return isRunAbortReason(value) && value.code === 'tool-loop-stalled';
 }
 
 /**

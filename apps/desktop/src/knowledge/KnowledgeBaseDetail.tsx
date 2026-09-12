@@ -14,6 +14,7 @@ export type KnowledgeBaseDetailProps = {
   onRemove: (deleteIndex: boolean) => Promise<KnowledgeActionResult<null>>;
   /** Opens the file picker / ingestion flow for a folder (also where cards are produced). */
   onOpenIngest: (folderPath: string) => void;
+  onProduceFlashcards?: ((folderPath: string) => void) | undefined;
   onUseInChat: (baseId: string) => void;
   onConfigureEmbedding?: (() => void) | undefined;
   search: (
@@ -113,21 +114,23 @@ export function KnowledgeBaseDetail(props: KnowledgeBaseDetailProps): ReactEleme
             <h2>{base.name}</h2>
           )}
           <span className={`kb-detail-path${folderPath ? ' is-path' : ''}`}>
-            {folderPath ?? t('Built-in notes library', '内置笔记库')}
+            {folderPath ?? (base.kind === 'wiki' ? t('Built-in wiki library', '内置维基库') : t('Built-in notes library', '内置笔记库'))}
           </span>
           {renameError ? <span className="kb-detail-error" role="alert">{renameError}</span> : null}
         </div>
         <div className="kb-detail-tools">
-          <IconButton
-            label={t('Rename', '重命名')}
-            onClick={() => {
-              setNameDraft(base.name);
-              setEditing(true);
-            }}
-            data-testid="knowledge-base-rename"
-          >
-            <IconEdit width={14} height={14} />
-          </IconButton>
+          {base.kind === 'folder' ? (
+            <IconButton
+              label={t('Rename', '重命名')}
+              onClick={() => {
+                setNameDraft(base.name);
+                setEditing(true);
+              }}
+              data-testid="knowledge-base-rename"
+            >
+              <IconEdit width={14} height={14} />
+            </IconButton>
+          ) : null}
           {base.kind === 'folder' ? (
             <IconButton
               label={t('Remove knowledge base', '移除知识库')}
@@ -177,7 +180,12 @@ export function KnowledgeBaseDetail(props: KnowledgeBaseDetailProps): ReactEleme
             <span>{t('Use in chat', '在对话中使用')}</span>
           </Button>
           {folderPath ? (
-            <Button variant="secondary" size="compact" onClick={() => props.onOpenIngest(folderPath)}>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => (props.onProduceFlashcards ?? props.onOpenIngest)(folderPath)}
+              data-testid="knowledge-produce-cards-btn"
+            >
               <IconCards width={13} height={13} aria-hidden="true" />
               <span>{t('Make flashcards', '出闪卡')}</span>
             </Button>
@@ -185,15 +193,62 @@ export function KnowledgeBaseDetail(props: KnowledgeBaseDetailProps): ReactEleme
         </div>
       ) : null}
 
-      <KnowledgeSearchPanel
-        key={base.id}
-        base={base}
-        searchable={searchable}
-        locale={props.locale}
-        search={props.search}
-        onOpenCitation={props.onOpenCitation}
-        onSendToChat={props.onSendToChat}
-      />
+      {searchable ? (
+        <KnowledgeSearchPanel
+          key={base.id}
+          base={base}
+          searchable={searchable}
+          locale={props.locale}
+          search={props.search}
+          onOpenCitation={props.onOpenCitation}
+          onSendToChat={props.onSendToChat}
+        />
+      ) : (
+        <div className="kb-detail-empty-hero" data-testid="knowledge-detail-empty-guide">
+          {base.kind === 'notes' ? (
+            <div className="kb-empty-guide-card">
+              <h3>{t('How Notes Work', '便签库使用指南')}</h3>
+              <p>
+                {t(
+                  'Notes captured during your conversations are saved here automatically. You can tell the agent to take a note or use the /note command anytime.',
+                  '在会话中随时让 Agent「记个便签」或者输入「/note 标题 内容」，便签内容会自动入库并提供语义检索支持。',
+                )}
+              </p>
+              <div className="kb-empty-guide-actions">
+                <Button
+                  variant="primary"
+                  size="compact"
+                  onClick={() => props.onSendToChat(t('Please help me take a note: ', '帮我记录一条便签：'))}
+                  data-testid="knowledge-notes-take-note-btn"
+                >
+                  <IconChat width={13} height={13} aria-hidden="true" />
+                  <span>{t('Take a note in chat', '在对话中记便签')}</span>
+                </Button>
+              </div>
+            </div>
+          ) : folderPath ? (
+            <div className="kb-empty-guide-card">
+              <h3>{t('Ingest Folder Documents', '入库文件夹中的文档')}</h3>
+              <p>
+                {t(
+                  'Select files from this folder to ingest into the vector index. Once indexed, you can search exact passages, reference them in chat, or generate flashcards.',
+                  '为此文件夹选择需要入库的文件。建立索引后，可直接检索原文、在对话中作为上下文引用，或一键提炼生成复习闪卡。',
+                )}
+              </p>
+              <div className="kb-empty-guide-actions">
+                <Button
+                  variant="primary"
+                  size="compact"
+                  onClick={() => props.onOpenIngest(folderPath)}
+                  data-testid="knowledge-folder-ingest-btn"
+                >
+                  <span>{t('Choose files to ingest', '选择文件入库')}</span>
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmOpen}

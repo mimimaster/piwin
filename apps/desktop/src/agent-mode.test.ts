@@ -6,10 +6,12 @@ describe('agent-mode', () => {
     expect(AGENT_MODES.map((mode) => mode.id)).toEqual(['agent', 'goal']);
   });
 
-  it('prefixes agent mode with a compact generation-contract marker', () => {
+  it('prefixes agent mode with the every-turn operating contract', () => {
     const out = applyAgentModeToPrompt('agent', 'hello');
-    expect(out).toBe('[piwin-mode:agent]\nUser:\nhello');
-    expect(out).not.toContain('Operating contract');
+    expect(out).toContain('[piwin-mode:agent]');
+    expect(out).toContain('Operating contract for this turn:');
+    expect(out).toContain('Tool-loop silence');
+    expect(out).toContain('User:\nhello');
   });
 
   it('prefixes goal mode with autonomous iteration constraints', () => {

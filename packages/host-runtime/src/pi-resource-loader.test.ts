@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { join } from 'node:path';
 import type { ResourceCatalogEntry } from '@piwin/contracts';
-import { buildResourceShadowDiagnostics } from './pi-resource-loader.js';
+import { resolveBundledSkillsRoot } from '@piwin/skills';
+import { buildResourceShadowDiagnostics, collectSkillPaths } from './pi-resource-loader.js';
 
 function resource(
   overrides: Partial<ResourceCatalogEntry> & Pick<ResourceCatalogEntry, 'resourceId' | 'kind'>,
@@ -12,6 +14,15 @@ function resource(
     ...overrides,
   };
 }
+
+describe('collectSkillPaths', () => {
+  it('puts the product skill tree ahead of ~/.piwin/skills', () => {
+    const bundledRoot = resolveBundledSkillsRoot();
+    const paths = collectSkillPaths({ piwinRoot: '/tmp/piwin-root' });
+    expect(paths[0]).toBe(bundledRoot);
+    expect(paths).toContain(join('/tmp/piwin-root', 'skills'));
+  });
+});
 
 describe('buildResourceShadowDiagnostics', () => {
   it('reports precedence shadowing within one family', () => {

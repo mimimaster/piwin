@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatChainPreviewChip,
+  formatPathChip,
   humanizeToolCallName,
+  splitPathChipParts,
   kindVerb,
   looksLikeArgsDumpSummary,
   recoverSummaryFromInputPreview,
@@ -25,6 +27,41 @@ describe('formatChainPreviewChip', () => {
     expect(clipped.endsWith('…')).toBe(true);
     expect(clipped.length).toBeLessThanOrEqual(40);
     expect(clipped.startsWith('pnpm')).toBe(true);
+  });
+});
+
+describe('formatPathChip', () => {
+  it('leaves a short path unchanged', () => {
+    expect(formatPathChip('apps/desktop/src/tool-call-card.tsx', 52)).toBe(
+      'apps/desktop/src/tool-call-card.tsx',
+    );
+  });
+
+  it('keeps the basename and ellipsizes the directory', () => {
+    expect(
+      formatPathChip('apps/desktop/src/workspace-subpages/flashcards/TactileStudyStage.tsx', 40),
+    ).toBe('apps/desktop/src/…/TactileStudyStage.tsx');
+  });
+
+  it('clips an oversized basename from the left', () => {
+    const clipped = formatPathChip('very-very-long-filename-that-exceeds-the-max.tsx', 16);
+    expect(clipped.startsWith('…')).toBe(true);
+    expect(clipped.endsWith('.tsx')).toBe(true);
+    expect(clipped.length).toBe(16);
+  });
+});
+
+describe('splitPathChipParts', () => {
+  it('splits directory and filename', () => {
+    expect(splitPathChipParts('apps/desktop/src/tool-call-card.tsx')).toEqual({
+      dir: 'apps/desktop/src/',
+      file: 'tool-call-card.tsx',
+    });
+  });
+
+  it('returns null when there is no directory', () => {
+    expect(splitPathChipParts('README.md')).toBeNull();
+    expect(splitPathChipParts('…ool-call-card.tsx')).toBeNull();
   });
 });
 

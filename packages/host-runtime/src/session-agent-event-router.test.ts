@@ -4,6 +4,7 @@ import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { RunEventCorrelator } from './run-event-correlator.js';
 import { RunRegistry } from './run-registry.js';
 import { routeSessionAgentEvent } from './session-agent-event-router.js';
+import { ToolLoopProgressTracker } from './tools/tool-loop-progress.js';
 
 function createRouterKernel(input: {
   sessionId: string;
@@ -305,5 +306,60 @@ describe('routeSessionAgentEvent', () => {
     });
     expect(sessionFilesTouched.get('session-1')).toContain('src/a.ts');
     expect(sessionFilesTouched.get('session-1')).toContain('src/b.ts');
+  });
+
+  it('fails a run that only re-reads and greps', () => {
+    const registry = new RunRegistry();
+    const run = registry.createForegroundRun('session-1');
+    const stopRunForToolLoopStall = vi.fn();
+    const { deps, pushes } = createRouterKernel({
+      sessionId: 'session-1',
+      registry,
+    });
+    deps.toolLoopProgress = new ToolLoopProgressTracker({
+      maxInspectOnlyTurns: 2,
+      maxInspectStallRounds: 0,
+      maxToolLoopTurns: 0,
+    });
+    deps.stopRunForToolLoopStall = stopRunForToolLoopStall;
+
+    for (let turn = 1; turn <= 2; turn += 1) {
+      routeSessionAgentEvent(
+        deps,
+        { id: 'session-1' },
+        {
+          type: 'tool/start',
+          toolCallId: `read-${turn}`,
+          toolName: 'read',
+          runId: run.runId,
+        },
+        'gen-1',
+        undefined,
+        undefined,
+      );
+      routeSessionAgentEvent(
+        deps,
+        { id: 'session-1' },
+        { type: 'message/end', messageId: `assistant-${turn}`, runId: run.runId },
+        'gen-1',
+        undefined,
+        undefined,
+      );
+    }
+
+    expect(stopRunForToolLoopStall).toHaveBeenCalledTimes(1);
+    expect(stopRunForToolLoopStall).toHaveBeenCalledWith(
+      'session-1',
+      run.runId,
+      expect.stringContaining('without writing or editing'),
+    );
+    expect(
+      pushes.some(
+        (push) =>
+          push.type === 'host/log' &&
+          push.level === 'warn' &&
+          push.message.includes('tool-loop stall stopped'),
+      ),
+    ).toBe(true);
   });
 });

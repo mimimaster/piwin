@@ -37,6 +37,7 @@ import {
 } from './section-registry';
 import { matchesSettingsSearch } from './settings-search-index.js';
 import { SettingsProvider, type SettingsContextValue } from './settings-context';
+import { SettingsFeedbackToast, type SettingsFeedbackTone } from './settings-feedback-toast';
 import { ensureSettingsLazyLoaded } from './settings-lazy-load';
 // Chromium Basic bundle: first-paint section only.
 import './pages/basic.js';
@@ -115,6 +116,25 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
     >
       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  ),
+  subagents: (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="5" r="2" />
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="18" cy="19" r="2" />
+      <path d="M12 7v4" />
+      <path d="m12 11-4.5 6" />
+      <path d="m12 11 4.5 6" />
     </svg>
   ),
   agent: (
@@ -261,10 +281,15 @@ export type SettingsShellProps = {
   contextValue: SettingsContextValue;
   /** Callback to leave the settings route. */
   onClose?: (() => void) | undefined;
+  feedback?: {
+    error: string | null;
+    info: string | null;
+    tone: SettingsFeedbackTone;
+  };
 };
 
 export function SettingsShell(props: SettingsShellProps): ReactElement {
-  const { activeSection, onSelectSection, contextValue, onClose } = props;
+  const { activeSection, onSelectSection, contextValue, onClose, feedback } = props;
   const [searchQuery, setSearchQuery] = useState('');
   const { locale, translator } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
@@ -336,6 +361,9 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
         aria-modal="true"
         aria-label={copy.settings}
       >
+        {feedback ? (
+          <SettingsFeedbackToast error={feedback.error} info={feedback.info} tone={feedback.tone} />
+        ) : null}
         {/* Full-width titleband: settings covers the shell chrome, so this is the only window drag surface. */}
         <div
           className="settings-titlebar settings-titlebar-box"

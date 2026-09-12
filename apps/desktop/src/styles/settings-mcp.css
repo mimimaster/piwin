@@ -250,7 +250,7 @@
   margin-bottom: 0;
 }
 
-.cherry-dialog--mcp-editor .mcp-editor-actions {
+.mcp-editor-actions {
   display: flex;
   align-items: center;
   gap: var(--s-5);
@@ -273,9 +273,26 @@
 .mcp-tools-preview-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s-5);
+  gap: var(--s-4);
   margin-bottom: var(--s-3);
+}
+
+/* Actions hug the right edge; the title + count keep their natural width. */
+.mcp-tools-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-left: auto;
+}
+
+.mcp-tools-count {
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-pill);
+  color: var(--text-3);
+  background: var(--hover);
+  white-space: nowrap;
 }
 
 .cherry-dialog--mcp-editor .mcp-tools-preview h5,
@@ -311,6 +328,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
+  max-height: 232px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .cherry-dialog--mcp-editor .mcp-tools-list li,
@@ -406,6 +426,8 @@
 
 /* MCP raw JSON editor (used in dialog and legacy) */
 .mcp-raw-editor {
+  /* Inline-block textareas leave a baseline gap under the control. */
+  display: block;
   width: 100%;
   border: 0;
   box-shadow: inset 0 0 0 1px var(--line-1);
@@ -427,6 +449,12 @@
 
 .mcp-raw-document {
   min-height: 280px;
+  resize: vertical;
+}
+
+/* Env is usually one or two lines; keep it from dominating the dialog. */
+.mcp-env-editor {
+  min-height: 72px;
   resize: vertical;
 }
 

@@ -247,6 +247,7 @@ export function buildArtifactBridgeBootstrapScript(
   var lastSnapshotRevision = -1;
   var sourceFrozen = ${freezeSource ? 'true' : 'false'};
   var scriptsActivated = sourceFrozen;
+  var pendingSnapshot = null;
   var utf8Bytes = function (value) {
     if (window.TextEncoder) return new window.TextEncoder().encode(value).length;
     return value.length;
@@ -303,6 +304,40 @@ export function buildArtifactBridgeBootstrapScript(
       current.replaceWith(replacement);
     });
   };
+  var resolveStreamRoot = function () {
+    return document.querySelector('.piwin-artifact-root') || document.body || null;
+  };
+  var applySnapshot = function (data) {
+    var root = resolveStreamRoot();
+    if (!root) {
+      pendingSnapshot = data;
+      return false;
+    }
+    pendingSnapshot = null;
+    var template = document.createElement('template');
+    template.innerHTML = data.source;
+    syncChildren(root, template.content);
+    if (data.final === true) {
+      sourceFrozen = true;
+      if (!scriptsActivated) {
+        activateFinalScripts(root);
+        scriptsActivated = true;
+      }
+      setTimeout(function () {
+        document.dispatchEvent(new Event('DOMContentLoaded'));
+        window.dispatchEvent(new Event('load'));
+        if (currentFrameMode === 'inline-flow') scheduleHeight();
+        if (currentFrameMode === 'canvas') scheduleCanvasStageFit();
+      }, 0);
+      return true;
+    }
+    if (currentFrameMode === 'inline-flow') scheduleHeight();
+    if (currentFrameMode === 'canvas') scheduleCanvasStageFit();
+    return true;
+  };
+  var flushPendingSnapshot = function () {
+    if (pendingSnapshot && !sourceFrozen) applySnapshot(pendingSnapshot);
+  };
   var onRenderCommand = function (event) {
     var data = event.data;
     if (
@@ -319,30 +354,14 @@ export function buildArtifactBridgeBootstrapScript(
     lastSnapshotRevision = data.revision;
     if (nextMode !== currentFrameMode) applyFrameMode(nextMode);
     if (sourceFrozen) return;
-    var root = document.querySelector('.piwin-artifact-root');
-    if (root) {
-      var template = document.createElement('template');
-      template.innerHTML = data.source;
-      syncChildren(root, template.content);
-    }
-    if (data.final === true) {
-      sourceFrozen = true;
-      if (root && !scriptsActivated) {
-        activateFinalScripts(root);
-        scriptsActivated = true;
-      }
-      setTimeout(function () {
-        document.dispatchEvent(new Event('DOMContentLoaded'));
-        window.dispatchEvent(new Event('load'));
-        if (currentFrameMode === 'inline-flow') scheduleHeight();
-        if (currentFrameMode === 'canvas') scheduleCanvasStageFit();
-      }, 0);
-      return;
-    }
-    if (currentFrameMode === 'inline-flow') scheduleHeight();
-    if (currentFrameMode === 'canvas') scheduleCanvasStageFit();
+    applySnapshot(data);
   };
-  window.addEventListener('message', onRenderCommand);`
+  window.addEventListener('message', onRenderCommand);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', flushPendingSnapshot, { once: true });
+  } else {
+    flushPendingSnapshot();
+  }`
       : ''
   }
 

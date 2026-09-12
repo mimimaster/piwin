@@ -1040,6 +1040,132 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.textContent).toContain('Thought for 3s');
   });
 
+  it('does not spin a query locator under a live explore call chain', () => {
+    const userMessage = createUserMessage('u-live-chain', 'Find the loader');
+    const readStep = (id: string, toolCallId: string, path: string, status: ToolCardUi['status']): ChatMessageUi => ({
+      id,
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [
+        {
+          toolCallId,
+          toolName: 'read',
+          status,
+          output: status === 'running' ? '' : 'contents',
+          presentation: {
+            kind: 'filesystem',
+            title: 'Read',
+            actionVerb: 'Read',
+            targetPaths: [path],
+          },
+        },
+      ],
+      attachments: [],
+      status: status === 'running' ? 'streaming' : 'done',
+      runId: 'run-live-chain',
+    });
+    const placeholder: ChatMessageUi = {
+      ...createStreamingAssistant('a-live-placeholder'),
+      runId: 'run-live-chain',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThreadHarness
+            messages={[
+              userMessage,
+              readStep('a-live-1', 'tool-live-1', 'src/a.ts', 'done'),
+              readStep('a-live-2', 'tool-live-2', 'src/b.ts', 'running'),
+              placeholder,
+            ]}
+            streaming={true}
+            activeRunId="run-live-chain"
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="explore-flow-capsule"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="explore-flow-capsule"]')?.getAttribute('data-expanded'),
+    ).toBe('false');
+    expect(container.querySelector('[data-testid="turn-waiting-line"]')).toBeNull();
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+  });
+
+  it('settles the previous call chain when a follow-up query arrives', () => {
+    const firstUser = createUserMessage('u-follow-1', 'Find the loader');
+    const followUp = createUserMessage('u-follow-2', 'HTML 还在吐吗');
+    const readStep = (id: string, toolCallId: string, path: string, status: ToolCardUi['status']): ChatMessageUi => ({
+      id,
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [
+        {
+          toolCallId,
+          toolName: 'read',
+          status,
+          output: status === 'running' ? '' : 'contents',
+          presentation: {
+            kind: 'filesystem',
+            title: 'Read',
+            actionVerb: 'Read',
+            targetPaths: [path],
+          },
+        },
+      ],
+      attachments: [],
+      status: status === 'running' ? 'streaming' : 'done',
+      runId: 'run-follow-1',
+    });
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThreadHarness
+            messages={[
+              firstUser,
+              readStep('a-follow-1', 'tool-follow-1', 'src/a.ts', 'done'),
+              readStep('a-follow-2', 'tool-follow-2', 'src/b.ts', 'running'),
+              followUp,
+            ]}
+            streaming={true}
+            activeRunId="run-follow-1"
+            editingMessageId={null}
+            lastUserMessageId={followUp.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const capsule = container.querySelector('[data-testid="explore-flow-capsule"]');
+    expect(capsule?.getAttribute('data-live')).toBe('false');
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+  });
+
   it('folds the final answer thinking into the Work disclosure', () => {
     const userMessage = createUserMessage('u-work-thinking', 'Inspect the project');
     const workMessage: ChatMessageUi = {

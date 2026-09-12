@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { StatusBadge } from '@piwin/ui-kit';
 import type { KnowledgeBaseSummary } from '@piwin/contracts';
-import { IconFolder, IconNote } from '../shell-icons';
+import { IconBook, IconFolder, IconNote } from '../shell-icons';
 import { knowledgeBaseMeta, knowledgeStateCopy, type KnowledgeLocale } from './knowledge-base-copy.js';
 
 export type KnowledgeBaseListProps = {
@@ -28,7 +28,13 @@ export function KnowledgeBaseList(props: KnowledgeBaseListProps): ReactElement {
             data-testid={`knowledge-base-row-${base.id}`}
           >
             <span className="kb-list-icon" aria-hidden="true">
-              {base.kind === 'notes' ? <IconNote width={16} height={16} /> : <IconFolder width={16} height={16} />}
+              {base.kind === 'notes' ? (
+                <IconNote width={16} height={16} />
+              ) : base.kind === 'wiki' ? (
+                <IconBook width={16} height={16} />
+              ) : (
+                <IconFolder width={16} height={16} />
+              )}
             </span>
             <span className="kb-list-body">
               <span className="kb-list-name">{base.name}</span>

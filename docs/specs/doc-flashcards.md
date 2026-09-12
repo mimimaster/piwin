@@ -479,9 +479,8 @@ Single `flashcard_create` remains for ad-hoc one-offs.
 
 ### 9.4 Quality rules injection
 
-Bundled skill path: `skills/generate-flashcards/SKILL.md` → installed by
-`ensureBundledSkillsInstalled` into `~/.piwin/skills/` **only if missing**
-(existing non-overwrite policy).
+Bundled skill path: `skills/generate-flashcards/SKILL.md` in the product tree
+(not copied into `~/.piwin/skills`).
 
 **Doc Cards generate must not rely on skill discovery alone.**  
 `FLASHCARD_QUALITY_RULES` is a **string constant** co-located with the prompt

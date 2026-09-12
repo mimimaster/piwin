@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { WorkFoldHeader } from './work-fold-header.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatLiveElapsed, WorkFoldHeader } from './work-fold-header.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -92,6 +92,52 @@ describe('WorkFoldHeader', () => {
     expect(closed?.querySelector('.chev')?.innerHTML).toContain('M6 4l4 4-4 4');
     expect(opened?.getAttribute('aria-expanded')).toBe('true');
     expect(opened?.querySelector('.chev')?.innerHTML).toContain('M4 6l4 4 4-4');
+  });
+
+  it('formats the live clock compactly and pads the trailing unit', () => {
+    expect(formatLiveElapsed(0)).toBe('0s');
+    expect(formatLiveElapsed(12_400)).toBe('12s');
+    expect(formatLiveElapsed(59_999)).toBe('59s');
+    expect(formatLiveElapsed(65_000)).toBe('1m 05s');
+    expect(formatLiveElapsed(3_599_000)).toBe('59m 59s');
+    expect(formatLiveElapsed(3_720_000)).toBe('1h 02m');
+  });
+
+  it('ticks a live clock while running and omits it without a run start', () => {
+    vi.useFakeTimers();
+    try {
+      const startedAt = Date.now();
+      act(() => {
+        root.render(
+          <>
+            <WorkFoldHeader
+              state="running"
+              locale="zh-CN"
+              runningToolIndex={5}
+              runningSince={startedAt}
+              testId="run-clock"
+            />
+            <WorkFoldHeader state="running" locale="zh-CN" runningToolIndex={5} testId="run-bare" />
+          </>,
+        );
+      });
+
+      const clock = () =>
+        container.querySelector('[data-testid="run-clock"] [data-testid="work-fold-elapsed"]');
+      expect(clock()?.textContent).toBe('0s');
+
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(clock()?.textContent).toBe('5s');
+
+      // No `runningSince` means no clock at all, rather than a misleading 0s.
+      expect(
+        container.querySelector('[data-testid="run-bare"] [data-testid="work-fold-elapsed"]'),
+      ).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps the proto bulb for done work disclosure', () => {

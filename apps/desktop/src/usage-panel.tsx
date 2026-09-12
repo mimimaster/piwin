@@ -5,39 +5,57 @@
  * token-composition trend, and one model + Key table. Provider configuration
  * ids are the safe Key dimension: API key values never reach the client.
  */
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Button, SegmentedControl, Select, TextInput } from '@piwin/ui-kit';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { Button, SegmentedControl, Select, Switch, TextInput } from '@piwin/ui-kit';
 import {
   computePromptCacheHitRate,
   computeTokensPerSecond,
   type HostResponse,
+  type UsageCallLog,
   type UsageRollup,
 } from '@piwin/contracts';
 import { isRemoteCommandGapError } from './remote-command-gap.js';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
+  EMPTY_USAGE_CALL_LOG,
   EMPTY_USAGE_ROLLUP,
+  RECENT_CALLS_PAGE_SIZE,
+  RECENT_CALLS_PAGE_SIZES,
+  RECENT_CALLS_WINDOW_MINUTES,
   deriveLegacyModelKeyRows,
   formatTokensPerSecond,
+  formatUsageClock,
   formatUsageCompact,
   formatUsageDate,
+  formatUsageDuration,
   formatUsageExact,
   formatUsagePercent,
+  formatUsageSessionTag,
+  formatUsageTimestamp,
+  normalizeUsageCallLog,
   normalizeUsageRollup,
+  resolveUsageCallLogPage,
   resolveUsageWindow,
+  summarizeUsageCallLog,
   tokenComponents,
   type UsageTimeRange,
 } from './usage-panel-statistics';
+
+/** How often the live call log re-reads the ledger while the page is visible. */
+const RECENT_CALLS_POLL_MS = 20_000;
 
 export type UsagePanelProps = {
   /** Current trusted project path; null when no project is open. */
   projectPath: string | null;
   request: (command: {
-    type: 'usage/get-rollup';
+    type: 'usage/get-rollup' | 'usage/list-recent';
     projectPath?: string;
     scope?: { kind: 'general' };
     window?: { from?: string; to?: string };
     topSessions?: number;
+    windowMinutes?: number;
+    limit?: number;
+    offset?: number;
   }) => Promise<HostResponse>;
 };
 
@@ -50,14 +68,65 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   const [timeRange, setTimeRange] = useState<UsageTimeRange>('30d');
   const [searchQuery, setSearchQuery] = useState('');
   const [rollup, setRollup] = useState<UsageRollup>(EMPTY_USAGE_ROLLUP);
+  const [callLog, setCallLog] = useState<UsageCallLog>(EMPTY_USAGE_CALL_LOG);
+  const [callLogSupported, setCallLogSupported] = useState(true);
+  const [callPageSize, setCallPageSize] = useState<number>(RECENT_CALLS_PAGE_SIZE);
+  const [callOffset, setCallOffset] = useState(0);
+  const [callsLoading, setCallsLoading] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const requestRef = useRef(props.request);
+  requestRef.current = props.request;
+  const callScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!props.projectPath && scopeMode === 'project') {
       setScopeMode('global');
     }
   }, [props.projectPath, scopeMode]);
+
+  const scopedProjectPath = scopeMode === 'project' ? props.projectPath : null;
+
+  /**
+   * Rolling call log. Kept separate from the rollup load so a 20s poll never
+   * re-reads the 30-day aggregate, and so a Host without the command only
+   * hides this one card.
+   */
+  const loadCallLog = useCallback(async () => {
+    setCallsLoading(true);
+    try {
+      const response = await requestRef.current({
+        type: 'usage/list-recent',
+        ...(scopedProjectPath ? { projectPath: scopedProjectPath } : {}),
+        windowMinutes: RECENT_CALLS_WINDOW_MINUTES,
+        limit: callPageSize,
+        offset: callOffset,
+      });
+      if (!response.success) {
+        // An older Host simply has no such command; drop the card instead of
+        // showing a page-level error for a feature that cannot exist there.
+        setCallLogSupported(false);
+        return;
+      }
+      const data = response.data as { log?: UsageCallLog };
+      const nextLog = normalizeUsageCallLog(data.log);
+      setCallLog(nextLog);
+      // Rows age out of the window, so the Host may have clamped the offset to
+      // the last page. Follow it, or the pager would keep asking for a page
+      // that no longer exists.
+      if (nextLog.offset !== callOffset) {
+        setCallOffset(nextLog.offset);
+      }
+      setCallLogSupported(true);
+      setRefreshedAt(new Date().toISOString());
+    } catch {
+      setCallLogSupported(false);
+    } finally {
+      setCallsLoading(false);
+    }
+  }, [callOffset, callPageSize, scopedProjectPath]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,6 +146,7 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
       }
       const data = response.data as { rollup?: UsageRollup };
       setRollup(normalizeUsageRollup(data.rollup));
+      setRefreshedAt(new Date().toISOString());
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : String(requestError));
     } finally {
@@ -87,6 +157,27 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadCallLog();
+  }, [loadCallLog]);
+
+  // Poll only while the log is live, supported, on the newest page, and
+  // actually on screen. Refreshing an older page would shift rows under the
+  // reader as new calls land, and a backgrounded settings tab must not keep
+  // re-reading the ledger.
+  useEffect(() => {
+    if (!autoRefresh || !callLogSupported || callOffset > 0) {
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      void loadCallLog();
+    }, RECENT_CALLS_POLL_MS);
+    return () => clearInterval(timer);
+  }, [autoRefresh, callLogSupported, callOffset, loadCallLog]);
 
   const days = useMemo(
     () => Object.entries(rollup.byDay).sort(([left], [right]) => left.localeCompare(right)),
@@ -133,6 +224,24 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   const firstDay = days[0]?.[0] ?? null;
   const lastDay = days[days.length - 1]?.[0] ?? null;
 
+  // A scope switch is a different result set; start it from the newest page.
+  useEffect(() => {
+    setCallOffset(0);
+  }, [scopedProjectPath]);
+
+  // A new page starts at its first row, not wherever the previous page was
+  // scrolled to.
+  useEffect(() => {
+    if (callScrollRef.current) {
+      callScrollRef.current.scrollTop = 0;
+    }
+  }, [callOffset, callPageSize]);
+
+  const callSummary = useMemo(() => summarizeUsageCallLog(callLog.entries), [callLog.entries]);
+  const callPage = resolveUsageCallLogPage(callLog);
+  const livePaused = !autoRefresh || callOffset > 0;
+  const refreshedLabel = refreshedAt ? formatUsageClock(refreshedAt, locale) : null;
+
   const scopeOptions = [
     {
       value: 'project',
@@ -156,14 +265,12 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
       aria-busy={loading}
     >
       <header className="usage-toolbar">
-        <div className="usage-toolbar-copy">
-          <p>
-            {isZh
-              ? '看清 Token 去向和提示词缓存是否真正生效。'
-              : 'Understand token usage and whether prompt caching is working.'}
-          </p>
-        </div>
         <div className="usage-toolbar-controls">
+          {refreshedLabel ? (
+            <span className="usage-toolbar-stamp" data-testid="usage-refreshed-at">
+              {isZh ? `更新于 ${refreshedLabel}` : `Updated ${refreshedLabel}`}
+            </span>
+          ) : null}
           <SegmentedControl
             data={scopeOptions}
             value={scopeMode}
@@ -178,7 +285,15 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
             testId="usage-time-select"
             aria-label={isZh ? '时间范围' : 'Time range'}
           />
-          <Button variant="ghost" size="compact" onClick={() => void load()} disabled={loading}>
+          <Button
+            variant="ghost"
+            size="compact"
+            onClick={() => {
+              void load();
+              void loadCallLog();
+            }}
+            disabled={loading}
+          >
             {loading ? (isZh ? '加载中…' : 'Loading…') : isZh ? '刷新' : 'Refresh'}
           </Button>
         </div>
@@ -448,6 +563,210 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
             </div>
           )}
         </section>
+
+        {callLogSupported ? (
+          <section className="usage-card usage-calls-card" data-testid="usage-recent-calls">
+            <div className="usage-section-header usage-calls-header">
+              <div className="usage-calls-heading">
+                <h3>
+                  {isZh ? '最近调用' : 'Recent calls'}
+                  <span className="usage-calls-window">
+                    {isZh
+                      ? `近 ${callLog.windowMinutes} 分钟`
+                      : `last ${callLog.windowMinutes} min`}
+                  </span>
+                </h3>
+                <p data-testid="usage-recent-calls-summary">
+                  {callLog.totalInWindow === 0
+                    ? isZh
+                      ? '逐次记录模型调用，随会话实时追加。'
+                      : 'Every model call, appended live as sessions run.'
+                    : isZh
+                      ? `共 ${formatUsageExact(callLog.totalInWindow)} 次调用 · 本页 ${formatUsageCompact(callSummary.totalTokens)} token · 缓存命中 ${formatUsageExact(callSummary.cachedCalls)}/${formatUsageExact(callSummary.calls)}（${formatUsagePercent(callSummary.cacheHitRate)}）`
+                      : `${formatUsageExact(callLog.totalInWindow)} calls · ${formatUsageCompact(callSummary.totalTokens)} tokens on this page · cache hit on ${formatUsageExact(callSummary.cachedCalls)}/${formatUsageExact(callSummary.calls)} (${formatUsagePercent(callSummary.cacheHitRate)})`}
+                </p>
+              </div>
+              <label className="usage-calls-live" data-live={livePaused ? 'off' : 'on'}>
+                <span className="usage-calls-live-text" data-testid="usage-calls-live-label">
+                  <i aria-hidden="true" />
+                  {!autoRefresh
+                    ? isZh
+                      ? '自动刷新已暂停'
+                      : 'Auto-refresh paused'
+                    : callOffset > 0
+                      ? isZh
+                        ? '翻页时暂停刷新'
+                        : 'Paused while paging'
+                      : isZh
+                        ? `每 ${RECENT_CALLS_POLL_MS / 1000} 秒自动刷新`
+                        : `Auto-refresh every ${RECENT_CALLS_POLL_MS / 1000}s`}
+                </span>
+                <Switch
+                  checked={autoRefresh}
+                  onCheckedChange={setAutoRefresh}
+                  testId="usage-calls-autorefresh"
+                  aria-label={isZh ? '自动刷新最近调用' : 'Auto-refresh recent calls'}
+                />
+              </label>
+            </div>
+
+            {callLog.entries.length > 0 ? (
+              <div
+                className="usage-table-scroll usage-calls-scroll"
+                ref={callScrollRef}
+                data-testid="usage-calls-scroll"
+              >
+                <table className="usage-table usage-calls-table">
+                  <thead>
+                    <tr>
+                      <th>{isZh ? '时间' : 'Time'}</th>
+                      <th>{isZh ? '模型' : 'Model'}</th>
+                      <th>{isZh ? 'Key（提供商配置）' : 'Key (provider config)'}</th>
+                      <th>{isZh ? '会话' : 'Session'}</th>
+                      <th>{isZh ? '用时' : 'Duration'}</th>
+                      <th>{isZh ? '输出速率' : 'Output speed'}</th>
+                      <th>{isZh ? '直接输入 / 输出' : 'Direct input / output'}</th>
+                      <th>{isZh ? '缓存读 / 写' : 'Cache read / write'}</th>
+                      <th>{isZh ? '缓存' : 'Cache'}</th>
+                      <th>{isZh ? '总计' : 'Total'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {callLog.entries.map((entry) => {
+                      const entryHitRate = computePromptCacheHitRate(entry);
+                      const tokensPerSecond = computeTokensPerSecond({
+                        completionTokens: entry.completionTokens,
+                        ...(entry.durationMs !== undefined ? { durationMs: entry.durationMs } : {}),
+                      });
+                      return (
+                        <tr
+                          key={entry.id}
+                          data-testid="usage-call-row"
+                          data-failed={entry.success === false ? 'true' : undefined}
+                        >
+                          <td
+                            className="usage-call-time"
+                            title={formatUsageTimestamp(entry.recordedAt, locale)}
+                          >
+                            {formatUsageClock(entry.recordedAt, locale)}
+                          </td>
+                          <td className="usage-table-model" title={entry.modelId ?? undefined}>
+                            <strong>
+                              {entry.modelId ?? (isZh ? '未知模型' : 'Unknown model')}
+                            </strong>
+                            {entry.success === false ? (
+                              <span className="usage-call-chip usage-call-chip-failed">
+                                {isZh ? '失败' : 'Failed'}
+                              </span>
+                            ) : null}
+                            {entry.source === 'host-estimate' ? (
+                              <span className="usage-call-chip">{isZh ? '估算' : 'Estimated'}</span>
+                            ) : null}
+                          </td>
+                          <td>
+                            <span className="usage-key-label">
+                              {entry.providerId ?? (isZh ? '未知 Key' : 'Unknown Key')}
+                            </span>
+                          </td>
+                          <td className="usage-call-session" title={entry.sessionId}>
+                            {formatUsageSessionTag(entry.sessionId)}
+                          </td>
+                          <td className="usage-tps-cell">
+                            {formatUsageDuration(entry.durationMs)}
+                          </td>
+                          <td className="usage-tps-cell">
+                            {formatTokensPerSecond(tokensPerSecond)}
+                          </td>
+                          <td className="usage-token-pair">
+                            <span>
+                              {isZh ? '入' : 'In'} {formatUsageCompact(entry.promptTokens)}
+                            </span>
+                            <span>
+                              {isZh ? '出' : 'Out'} {formatUsageCompact(entry.completionTokens)}
+                            </span>
+                          </td>
+                          <td className="usage-token-pair">
+                            <span>
+                              {isZh ? '读' : 'R'} {formatUsageCompact(entry.cacheReadTokens)}
+                            </span>
+                            <span>
+                              {isZh ? '写' : 'W'} {formatUsageCompact(entry.cacheWriteTokens)}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className="usage-call-cache"
+                              data-hit={entry.cacheReadTokens > 0 ? 'true' : 'false'}
+                            >
+                              {entry.cacheReadTokens > 0
+                                ? `${isZh ? '命中' : 'Hit'} ${formatUsagePercent(entryHitRate)}`
+                                : isZh
+                                  ? '未命中'
+                                  : 'Miss'}
+                            </span>
+                          </td>
+                          <td title={formatUsageExact(entry.totalTokens)}>
+                            <strong>{formatUsageCompact(entry.totalTokens)}</strong>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="usage-compact-empty">
+                {isZh
+                  ? `最近 ${callLog.windowMinutes} 分钟内没有模型调用。`
+                  : `No model calls in the last ${callLog.windowMinutes} minutes.`}
+              </div>
+            )}
+
+            {callLog.totalInWindow > 0 ? (
+              <div className="usage-calls-pager" data-testid="usage-calls-pager">
+                <span className="usage-calls-range" data-testid="usage-calls-range">
+                  {callPage.firstRow === 0
+                    ? '—'
+                    : `${formatUsageExact(callPage.firstRow)}–${formatUsageExact(callPage.lastRow)} / ${formatUsageExact(callLog.totalInWindow)}`}
+                </span>
+                <div className="usage-calls-pager-controls">
+                  <label className="usage-calls-page-size">
+                    <span>{isZh ? '每页' : 'Rows'}</span>
+                    <Select
+                      data={RECENT_CALLS_PAGE_SIZES.map((size) => ({
+                        value: String(size),
+                        label: String(size),
+                      }))}
+                      value={String(callPageSize)}
+                      onChange={(event) => {
+                        setCallPageSize(Number(event.currentTarget.value));
+                        setCallOffset(0);
+                      }}
+                      testId="usage-calls-page-size"
+                      aria-label={isZh ? '每页行数' : 'Rows per page'}
+                    />
+                  </label>
+                  <Button
+                    size="compact"
+                    disabled={!callPage.hasPrevious || callsLoading}
+                    onClick={() => setCallOffset(callPage.previousOffset)}
+                    data-testid="usage-calls-prev"
+                  >
+                    {isZh ? '上一页' : 'Previous'}
+                  </Button>
+                  <Button
+                    size="compact"
+                    disabled={!callPage.hasNext || callsLoading}
+                    onClick={() => setCallOffset(callPage.nextOffset)}
+                    data-testid="usage-calls-next"
+                  >
+                    {isZh ? '下一页' : 'Next'}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
       </div>
     </section>
   );

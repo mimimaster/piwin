@@ -5,6 +5,8 @@ import {
   createDefaultExecutionConfig,
   DEFAULT_SUBAGENT_MAX_CONCURRENCY,
   DEFAULT_MAX_CONCURRENT_RUNS,
+  DEFAULT_MIN_AVAILABLE_MEMORY_MIB,
+  MAX_MIN_AVAILABLE_MEMORY_MIB,
   deriveSubagentQuota,
   deriveSupervisorMaxWorkers,
   deriveWorkerPoolSize,
@@ -438,7 +440,9 @@ describe('ExecutionConfig', () => {
   it('defaults missing config to 8 concurrent runs', () => {
     expect(createDefaultExecutionConfig()).toEqual({
       maxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
+      minAvailableMemoryMiB: DEFAULT_MIN_AVAILABLE_MEMORY_MIB,
     });
+    expect(normalizeExecutionConfig({}).minAvailableMemoryMiB).toBe(2048);
     expect(normalizeExecutionConfig(undefined).maxConcurrentRuns).toBe(8);
     expect(normalizeExecutionConfig({}).maxConcurrentRuns).toBe(8);
   });
@@ -447,6 +451,19 @@ describe('ExecutionConfig', () => {
     expect(normalizeExecutionConfig({ maxConcurrentRuns: 0 }).maxConcurrentRuns).toBe(1);
     expect(normalizeExecutionConfig({ maxConcurrentRuns: 99 }).maxConcurrentRuns).toBe(8);
     expect(normalizeExecutionConfig({ maxConcurrentRuns: 4.9 }).maxConcurrentRuns).toBe(4);
+  });
+
+  it('keeps a partial block from resetting the other field', () => {
+    expect(normalizeExecutionConfig({ maxConcurrentRuns: 2 }).minAvailableMemoryMiB).toBe(2048);
+    expect(normalizeExecutionConfig({ minAvailableMemoryMiB: 512 }).maxConcurrentRuns).toBe(8);
+  });
+
+  it('clamps the memory floor but keeps 0 as the off switch', () => {
+    expect(normalizeExecutionConfig({ minAvailableMemoryMiB: 0 }).minAvailableMemoryMiB).toBe(0);
+    expect(normalizeExecutionConfig({ minAvailableMemoryMiB: -5 }).minAvailableMemoryMiB).toBe(0);
+    expect(normalizeExecutionConfig({ minAvailableMemoryMiB: 99999 }).minAvailableMemoryMiB).toBe(
+      MAX_MIN_AVAILABLE_MEMORY_MIB,
+    );
   });
 });
 

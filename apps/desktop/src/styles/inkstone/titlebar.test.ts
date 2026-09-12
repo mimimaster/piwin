@@ -23,6 +23,9 @@ describe('Inkstone titleband / sidebar seam', () => {
     // traffic-light centreline through the icon.
     expect(titlebar).toMatch(/\.traffic\s*\{[\s\S]*?min-width:\s*60px/);
     expect(titlebar).toMatch(/\.traffic\s*\{[\s\S]*?margin-right:\s*10px/);
+    expect(titlebar).toMatch(
+      /html:not\(\[data-window-chrome='macos-overlay'\]\) \.context-bar \.traffic/,
+    );
     expect(titlebar).toMatch(/\.proto-nav[\s\S]{0,200}?align-items:\s*center/);
     expect(titlebar).not.toMatch(
       /\.context-bar-sessions-toggle\.ib\s*\{[\s\S]{0,500}?top:\s*1px/,

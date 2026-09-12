@@ -14,6 +14,7 @@ import {
   clampKnowledgeSearchLimit,
   mapContextPackSourceToCitation,
   mapContextPackSourceToNotesCitation,
+  mapContextPackSourceToWikiCitation,
   mergeRankedKnowledgeHits,
   searchKnowledgeBases,
   skipReasonForBase,
@@ -84,6 +85,23 @@ describe('citation mapping', () => {
     );
     expect(citation.title).toBe('inbox/stray.md');
     expect(citation.noteId).toBe('stray');
+  });
+
+  it('maps ContextPackSource onto a wiki citation with kind wiki', () => {
+    const citation = mapContextPackSourceToWikiCitation(
+      {
+        ...folderSource,
+        relativePath: 'concepts/transformer.md',
+        metadata: { title: 'Transformer Architecture' },
+      },
+      { id: 'wiki', name: 'Wiki' },
+    );
+    expect(citation).toMatchObject({
+      baseId: 'wiki',
+      kind: 'wiki',
+      title: 'Transformer Architecture',
+      relativePath: 'concepts/transformer.md',
+    });
   });
 });
 

@@ -6,12 +6,13 @@
  * The Host owns the registry; clients never keep their own folder list.
  */
 
-export type KnowledgeBaseKind = 'notes' | 'folder';
+export type KnowledgeBaseKind = 'notes' | 'folder' | 'wiki';
 
 /**
  * Derived at read time, never persisted in the registry.
  * - notes: `empty` | `ready`
  * - folder: `missing` | `not-indexed` | `indexing` | `ready` | `partial`
+ * - wiki: `empty` | `ready`
  */
 export type KnowledgeBaseState =
   | 'empty'
@@ -24,6 +25,9 @@ export type KnowledgeBaseState =
 /** The built-in notes library always uses this id. */
 export const NOTES_KNOWLEDGE_BASE_ID = 'notes';
 
+/** The built-in wiki knowledge base always uses this id. */
+export const WIKI_KNOWLEDGE_BASE_ID = 'wiki';
+
 const FOLDER_ID_PREFIX = 'folder:';
 const FOLDER_KEY_PATTERN = /^[0-9a-f]{16}$/;
 
@@ -35,11 +39,17 @@ export function folderKnowledgeBaseId(folderKey: string): string {
   return `${FOLDER_ID_PREFIX}${folderKey}`;
 }
 
-export type ParsedKnowledgeBaseId = { kind: 'notes' } | { kind: 'folder'; folderKey: string };
+export type ParsedKnowledgeBaseId =
+  | { kind: 'notes' }
+  | { kind: 'wiki' }
+  | { kind: 'folder'; folderKey: string };
 
 export function parseKnowledgeBaseId(id: string): ParsedKnowledgeBaseId | null {
   if (id === NOTES_KNOWLEDGE_BASE_ID) {
     return { kind: 'notes' };
+  }
+  if (id === WIKI_KNOWLEDGE_BASE_ID) {
+    return { kind: 'wiki' };
   }
   if (!id.startsWith(FOLDER_ID_PREFIX)) {
     return null;
@@ -156,6 +166,43 @@ export type KnowledgeBaseMutationResult = { base: KnowledgeBaseSummary };
 export type KnowledgeBaseRemoveResult = { removed: true; baseId: string };
 export type SessionKnowledgeBasesResult = { sessionId: string; baseIds: string[] };
 
+export type WikiConceptItem = {
+  title: string;
+  slug: string;
+  summary?: string;
+  tags: string[];
+  updatedAt: string;
+  relativePath: string;
+};
+
+export type WikiConceptDetail = {
+  title: string;
+  slug: string;
+  content: string;
+  summary?: string;
+  tags: string[];
+  aliases?: string[];
+  links: string[];
+  updatedAt: string;
+  relativePath: string;
+};
+
+export type WikiOverviewResult = {
+  indexContent: string;
+  logSnippet: string;
+  concepts: WikiConceptItem[];
+  totalConcepts: number;
+};
+
+/** One concept distilled from a source base, plus where it came from. */
+export type WikiDistillResult = {
+  concept: WikiConceptDetail;
+  /** Source base the raw slices were read from. */
+  baseId: string;
+  /** Relative paths of the slices that fed the synthesis. */
+  sourcePaths: string[];
+};
+
 export type KnowledgeBaseHostCommand =
   | { id?: string; type: 'knowledge/bases/list' }
   /** Idempotent: re-adding a registered folder returns the existing base. */
@@ -179,7 +226,17 @@ export type KnowledgeBaseHostCommand =
     }
   | { id?: string; type: 'knowledge/open-source'; citation: KnowledgeCitation; openFile?: boolean }
   /** Replaces the session's mounted bases. Unknown ids are rejected. */
-  | { id?: string; type: 'session/set-knowledge-bases'; sessionId: string; baseIds: string[] };
+  | { id?: string; type: 'session/set-knowledge-bases'; sessionId: string; baseIds: string[] }
+  /** LLM Wiki overview (index, log snippet, concept summaries). */
+  | { id?: string; type: 'knowledge/wiki/overview' }
+  /** Read full detail of one concept by slug or name. */
+  | { id?: string; type: 'knowledge/wiki/concept'; slug: string }
+  /**
+   * Synthesises one wiki concept from a source base's indexed slices and
+   * writes it into the wiki (INDEX.md and LOG.md follow). Needs a configured
+   * model; `topic` narrows which slices are retrieved.
+   */
+  | { id?: string; type: 'knowledge/wiki/distill'; baseId: string; topic?: string };
 
 /** Full list on any registry or derived-state change. */
 export type KnowledgeBasesChangedPush = {

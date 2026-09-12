@@ -205,6 +205,7 @@ export type PlatformHostCommand =
       source: InstallSource;
       name?: string;
     }
+  | { id?: string; type: 'skills/uninstall'; skillId: string }
   | { id?: string; type: 'extensions/list'; projectPath?: string }
   | {
       id?: string;
@@ -428,6 +429,21 @@ export type PlatformHostCommand =
       window?: { from?: string; to?: string };
       /** Max number of per-session rows in the breakdown. Default 20. */
       topSessions?: number;
+    }
+  /** CE-OBS: rolling log of recent model calls (default last 60 minutes). */
+  | {
+      id?: string;
+      type: 'usage/list-recent';
+      /** When set, restrict to one project (else projectPath below). */
+      scope?: import('./host.js').SessionScope;
+      /** Legacy project path filter (project scope shorthand). */
+      projectPath?: string;
+      /** Rolling window length in minutes. Default 60, max 1440. */
+      windowMinutes?: number;
+      /** Page size, newest first. Default 200, max 1000. */
+      limit?: number;
+      /** Zero-based row offset inside the window, for paging. Default 0. */
+      offset?: number;
     }
   | {
       id?: string;

@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { formatError } from '@piwin/contracts';
-import { scanSkills } from '@piwin/skills';
+import { resolveBundledSkillsRoot, scanSkills } from '@piwin/skills';
 import { removeWorktree, runGitCommand } from '@piwin/git';
 
 import { getSessionRecord, upsertSessionRecord, createSubagentRunStore } from '@piwin/session';
@@ -225,6 +225,7 @@ export async function prepareSubagentBatch(
     await scanSkills({
       piwinRoot: rootDir,
       projectPath,
+      bundledRoot: resolveBundledSkillsRoot(),
       ...(config.skills ? { skillsConfig: config.skills } : {}),
     })
   )

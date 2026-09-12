@@ -24,6 +24,8 @@ import {
 } from '../knowledge-base-service.js';
 import { searchKnowledgeBases } from '../knowledge-retriever.js';
 import { KnowledgePathEscapeError, readConfinedLineWindow } from '../knowledge-tools.js';
+import { getWikiOverview, readWikiConcept } from '../wiki-service.js';
+import { distillWikiConcept, WikiDistillError } from '../wiki-distill.js';
 
 const TYPES = new Set<HostCommand['type']>([
   'knowledge/bases/list',
@@ -33,6 +35,9 @@ const TYPES = new Set<HostCommand['type']>([
   'knowledge/search',
   'knowledge/open-source',
   'session/set-knowledge-bases',
+  'knowledge/wiki/overview',
+  'knowledge/wiki/concept',
+  'knowledge/wiki/distill',
 ]);
 
 export function isKnowledgeBaseCommand(command: HostCommand): boolean {
@@ -128,11 +133,63 @@ export async function handleKnowledgeBaseCommand(
         await publishKnowledgeBasesChanged(context);
         return ok(requestId, command.type, { sessionId: command.sessionId, baseIds: uniqueIds });
       }
+      case 'knowledge/wiki/overview': {
+        const overview = await getWikiOverview(runtime.piwinRoot);
+        return ok(requestId, command.type, overview);
+      }
+      case 'knowledge/wiki/concept': {
+        const concept = await readWikiConcept(runtime.piwinRoot, command.slug);
+        if (!concept) {
+          return fail(requestId, command.type, `Wiki concept not found: ${command.slug}`);
+        }
+        return ok(requestId, command.type, { concept });
+      }
+      case 'knowledge/wiki/distill': {
+        if (!context.completeJson) {
+          return fail(
+            requestId,
+            command.type,
+            'No model is configured for distillation. Set one in Settings → Models.',
+          );
+        }
+        const bases = await listKnowledgeBaseSummaries(runtime);
+        const base = bases.find((entry) => entry.id === command.baseId);
+        if (!base) {
+          return fail(requestId, command.type, `Unknown knowledge base: ${command.baseId}`);
+        }
+        if (!base.folderPath) {
+          return fail(requestId, command.type, `${base.name} has no indexed folder to distil.`);
+        }
+        const rag = await runtime.getFolderRag();
+        // Retrieval, not a raw file dump: the pack is already deduped, ranked
+        // and budgeted, which is exactly what the synthesis prompt wants.
+        const pack = await rag.retrievePack(
+          base.folderPath,
+          command.topic?.trim() || base.name,
+          { limit: 12 },
+        );
+        const result = await distillWikiConcept({
+          piwinRoot: runtime.piwinRoot,
+          base,
+          sources: pack.sources.map((source) => ({
+            relativePath: source.relativePath,
+            text: source.text,
+          })),
+          ...(command.topic ? { topic: command.topic } : {}),
+          completeJson: context.completeJson,
+        });
+        await publishKnowledgeBasesChanged(context);
+        return ok(requestId, command.type, result);
+      }
       default:
         return null;
     }
   } catch (error) {
-    if (error instanceof KnowledgeBaseCommandError || error instanceof KnowledgePathEscapeError) {
+    if (
+      error instanceof KnowledgeBaseCommandError ||
+      error instanceof KnowledgePathEscapeError ||
+      error instanceof WikiDistillError
+    ) {
       return fail(requestId, command.type, error.message);
     }
     throw error;

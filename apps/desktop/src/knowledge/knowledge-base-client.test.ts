@@ -18,12 +18,21 @@ const folderBase: KnowledgeBaseSummary = {
   documentCount: 4,
 };
 
+const wikiBase: KnowledgeBaseSummary = {
+  id: 'wiki',
+  kind: 'wiki',
+  name: 'Wiki',
+  state: 'empty',
+  degraded: false,
+  documentCount: 0,
+};
+
 describe('knowledge base response readers', () => {
   it('keeps only well-formed bases from a list payload', () => {
     const bases = readKnowledgeBaseList({
-      bases: [folderBase, { id: 'x', kind: 'web', name: 'bad' }, { ...folderBase, state: 'stale' }],
+      bases: [folderBase, wikiBase, { id: 'x', kind: 'web', name: 'bad' }, { ...folderBase, state: 'stale' }],
     });
-    expect(bases).toEqual([folderBase]);
+    expect(bases).toEqual([folderBase, wikiBase]);
     expect(readKnowledgeBaseList({})).toBeNull();
   });
 

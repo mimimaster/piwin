@@ -10,6 +10,7 @@ import { shouldSuppressControlledAbortError } from './run-agent-event-policy.js'
 import { getPiwinRoot } from './paths.js';
 import { formatFilesTouchedBlock, normalizeCompactionFileOps } from './compaction-file-ops.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+import { failRunForToolLoopStall } from './tools/tool-loop-breaker.js';
 
 export function readEventRunId(event: AgentEvent): string | undefined {
   return 'runId' in event && typeof event.runId === 'string' ? event.runId : undefined;
@@ -132,6 +133,7 @@ export function routeSessionAgentEvent(
   const eventRunId = correlatedRunId ?? activeRunId;
   if (eventRunId !== undefined) {
     deps.runRegistry.noteAgentEvent(eventRunId, eventForClients);
+    observeToolLoopProgress(deps, session.id, eventRunId, eventForClients);
   }
   if (eventForClients.type === 'permission/request') {
     deps.push({
@@ -306,6 +308,50 @@ function recordAssistantReply(
 ): void {
   deps.assistantTextBuffers.set(messageId, text);
   if (runId) deps.runAssistantReply.set(runId, text);
+}
+
+function observeToolLoopProgress(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+  runId: string,
+  event: AgentEvent,
+): void {
+  const tracker = deps.toolLoopProgress;
+  if (tracker === undefined) {
+    return;
+  }
+  if (event.type === 'tool/start') {
+    tracker.observeTool(runId, {
+      toolName: event.toolName,
+      ...(event.presentation?.targetPaths !== undefined
+        ? { targetPaths: event.presentation.targetPaths }
+        : {}),
+      ...(event.presentation?.inputPreview !== undefined
+        ? { inputPreview: event.presentation.inputPreview }
+        : {}),
+      ...(event.presentation?.command !== undefined
+        ? { command: event.presentation.command }
+        : {}),
+    });
+    return;
+  }
+  if (event.type !== 'message/end') {
+    return;
+  }
+  const decision = tracker.closeAssistantTurn(runId);
+  if (decision.action !== 'stop') {
+    return;
+  }
+  deps.push({
+    type: 'host/log',
+    level: 'warn',
+    message: `tool-loop stall stopped ${sessionId}/${runId}: ${decision.reason}`,
+  });
+  if (typeof deps.stopRunForToolLoopStall === 'function') {
+    deps.stopRunForToolLoopStall(sessionId, runId, decision.message);
+    return;
+  }
+  failRunForToolLoopStall(deps, { sessionId, runId, message: decision.message });
 }
 
 function logCoordinatorFailure(deps: HostRuntimeKernel, error: unknown): void {

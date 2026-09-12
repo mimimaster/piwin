@@ -16,6 +16,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'models',
   'oauth',
   'hooks',
+  'subagents',
   'agent',
   'extensions',
   'web',
@@ -59,7 +60,7 @@ describe('section registry', () => {
     expect(normalizeSettingsSection('bogus')).toBe('general');
     expect(normalizeSettingsSection('skills')).toBe('extensions');
     expect(normalizeSettingsSection('tools')).toBe('extensions');
-    expect(normalizeSettingsSection('subagents')).toBe('agent');
+    expect(normalizeSettingsSection('subagents')).toBe('subagents');
     expect(normalizeSettingsSection('web')).toBe('web');
     expect(normalizeSettingsSection('runtime')).toBe('session');
     expect(normalizeSettingsSection('archive')).toBe('archive');
@@ -74,6 +75,8 @@ describe('section registry', () => {
     expect(normalizeSettingsSection('image-generation')).toBe('models');
     expect(normalizeSettingsSection('oauth')).toBe('oauth');
     expect(normalizeSettingsSection('hooks')).toBe('hooks');
+    expect(isLegacySettingsSectionId('subagents')).toBe(false);
+    expect(isSettingsSectionId('subagents')).toBe(true);
     expect(Object.keys(LEGACY_SETTINGS_REDIRECTS).length).toBeGreaterThanOrEqual(13);
   });
 });

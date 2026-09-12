@@ -1,5 +1,5 @@
 import type { DesktopLocale } from './desktop-locale';
-import { IconBook, IconCards, IconImage, IconSettings } from './shell-icons';
+import { IconBook, IconImage, IconSettings } from './shell-icons';
 
 export interface SidebarShelfFooterProps {
   activeSubPage?:
@@ -24,7 +24,7 @@ export interface SidebarShelfFooterProps {
   hostMock: boolean;
   transportLabel: string;
   locale?: DesktopLocale | undefined;
-  flashcardsTitle: string;
+  flashcardsTitle?: string | undefined;
   settingsTitle: string;
 }
 
@@ -54,19 +54,11 @@ export function SidebarShelfFooter(props: SidebarShelfFooterProps) {
 
         <button
           type="button"
-          className={`shelf-btn${props.activeSubPage === 'flashcards' ? ' active' : ''}`}
-          data-testid="sidebar-flashcards-shelf-btn"
-          onClick={() => props.onOpenFlashcards?.()}
-          title={props.flashcardsTitle}
-          aria-label={props.flashcardsTitle}
-        >
-          <IconCards width={16} height={16} />
-          <span>{props.flashcardsTitle}</span>
-        </button>
-
-        <button
-          type="button"
-          className={`shelf-btn${props.activeSubPage === 'knowledge' ? ' active' : ''}`}
+          className={`shelf-btn${
+            props.activeSubPage === 'knowledge' || props.activeSubPage === 'flashcards'
+              ? ' active'
+              : ''
+          }`}
           data-testid="sidebar-knowledge-shelf-btn"
           onClick={() => props.onOpenKnowledge?.()}
           title={props.knowledgeTitle}

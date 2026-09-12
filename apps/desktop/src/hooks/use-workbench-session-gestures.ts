@@ -11,6 +11,7 @@ import type { DocumentOpenInput } from '../tool-call-card';
 import type { RightPanelTab } from '../right-panel';
 import type { ExtensionUiRequestState } from './use-host-bootstrap';
 import { tryOpenHtmlDocumentInBrowser } from '../open-html-in-browser.js';
+import { isOverlayShellLayout, type ShellLayoutMode } from '../shell-layout';
 
 const ARTIFACT_CANVAS_MIN_PANEL_WIDTH_PX = 560;
 
@@ -25,7 +26,7 @@ export type UseWorkbenchSessionGesturesArgs = {
   openDocumentBase: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
   revealDocPreview: () => void;
   artifactCanvas: { openTarget: (target: ArtifactCanvasTarget) => void };
-  layoutMode: 'desktop' | 'compact';
+  layoutMode: ShellLayoutMode;
   rightPanelWidthPx: number;
   setRightPanelWidthPx: (widthPx: number) => void;
   openInspector: (tab?: RightPanelTab | null) => void;
@@ -113,7 +114,7 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
   const handleOpenArtifactCanvas = useCallback(
     (target: ArtifactCanvasTarget): void => {
       artifactCanvas.openTarget(target);
-      if (layoutMode !== 'compact' && rightPanelWidthPx < ARTIFACT_CANVAS_MIN_PANEL_WIDTH_PX) {
+      if (!isOverlayShellLayout(layoutMode) && rightPanelWidthPx < ARTIFACT_CANVAS_MIN_PANEL_WIDTH_PX) {
         setRightPanelWidthPx(ARTIFACT_CANVAS_MIN_PANEL_WIDTH_PX);
       }
       openInspector('canvas');

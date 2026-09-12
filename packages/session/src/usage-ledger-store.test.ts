@@ -5,8 +5,10 @@ import { describe, expect, it } from 'vitest';
 import type { UsageRecord } from '@piwin/contracts';
 import {
   appendUsageRecord,
+  computeUsageCallLog,
   computeUsageRollup,
   loadUsageRecords,
+  readUsageCallLog,
   resetUsageLedgerCaches,
   selectLatestSessionContextUsage,
   readUsageRollup,
@@ -251,6 +253,128 @@ describe('usage-ledger-store', () => {
     });
   });
 
+  it('call log keeps the rolling window, newest first, without touching history', () => {
+    const now = new Date('2026-08-01T12:00:00.000Z');
+    const records = [
+      record({ sessionId: 'old', recordedAt: '2026-08-01T10:30:00.000Z', totalTokens: 10 }),
+      record({ sessionId: 'mid', recordedAt: '2026-08-01T11:20:00.000Z', totalTokens: 20 }),
+      record({ sessionId: 'new', recordedAt: '2026-08-01T11:59:00.000Z', totalTokens: 30 }),
+    ];
+
+    const log = computeUsageCallLog(records, { now });
+    expect(log.windowMinutes).toBe(60);
+    expect(log.entries.map((entry) => entry.sessionId)).toEqual(['new', 'mid']);
+    expect(log.totalInWindow).toBe(2);
+    expect(log.truncated).toBe(false);
+    // The full ledger is untouched: the all-time rollup still sees every row.
+    expect(computeUsageRollup(records).entryCount).toBe(3);
+  });
+
+  it('call log dedupes replays, applies scope, and reports truncation', () => {
+    const now = new Date('2026-08-01T12:00:00.000Z');
+    const replayed = record({
+      sessionId: 's1',
+      measurementId: 'm-1',
+      recordedAt: '2026-08-01T11:50:00.000Z',
+    });
+    const records = [
+      replayed,
+      { ...replayed, totalTokens: 999 },
+      record({
+        sessionId: 's2',
+        projectPath: null,
+        recordedAt: '2026-08-01T11:55:00.000Z',
+      }),
+    ];
+
+    const deduped = computeUsageCallLog(records, { now });
+    expect(deduped.entries).toHaveLength(2);
+
+    const general = computeUsageCallLog(records, { now, scope: { kind: 'general' } });
+    expect(general.entries.map((entry) => entry.sessionId)).toEqual(['s2']);
+
+    const capped = computeUsageCallLog(records, { now, limit: 1 });
+    expect(capped.entries).toHaveLength(1);
+    expect(capped.totalInWindow).toBe(2);
+    expect(capped.truncated).toBe(true);
+  });
+
+  it('call log pages by offset and reports the window total on every page', () => {
+    const now = new Date('2026-08-01T12:00:00.000Z');
+    const records = Array.from({ length: 25 }, (_, index) =>
+      record({
+        sessionId: `s${index}`,
+        measurementId: `m-${index}`,
+        recordedAt: new Date(now.getTime() - (index + 1) * 60_000).toISOString(),
+      }),
+    );
+
+    const first = computeUsageCallLog(records, { now, limit: 10 });
+    expect(first.entries.map((entry) => entry.sessionId)).toEqual([
+      's0',
+      's1',
+      's2',
+      's3',
+      's4',
+      's5',
+      's6',
+      's7',
+      's8',
+      's9',
+    ]);
+    expect(first.offset).toBe(0);
+    expect(first.limit).toBe(10);
+    expect(first.totalInWindow).toBe(25);
+    expect(first.truncated).toBe(true);
+
+    const second = computeUsageCallLog(records, { now, limit: 10, offset: 10 });
+    expect(second.entries[0]?.sessionId).toBe('s10');
+    expect(second.offset).toBe(10);
+
+    const last = computeUsageCallLog(records, { now, limit: 10, offset: 20 });
+    expect(last.entries).toHaveLength(5);
+    expect(last.entries[0]?.sessionId).toBe('s20');
+  });
+
+  it('call log clamps an offset that ran past the shrinking window', () => {
+    const now = new Date('2026-08-01T12:00:00.000Z');
+    const records = [
+      record({ sessionId: 'a', measurementId: 'a', recordedAt: '2026-08-01T11:50:00.000Z' }),
+      record({ sessionId: 'b', measurementId: 'b', recordedAt: '2026-08-01T11:40:00.000Z' }),
+      record({ sessionId: 'c', measurementId: 'c', recordedAt: '2026-08-01T11:30:00.000Z' }),
+    ];
+
+    // Page 5 of a two-row page size no longer exists; land on the last page.
+    const clamped = computeUsageCallLog(records, { now, limit: 2, offset: 10 });
+    expect(clamped.offset).toBe(2);
+    expect(clamped.entries.map((entry) => entry.sessionId)).toEqual(['c']);
+
+    // An empty window pages back to the start rather than reporting an offset.
+    const empty = computeUsageCallLog([], { now, limit: 2, offset: 10 });
+    expect(empty.offset).toBe(0);
+    expect(empty.entries).toHaveLength(0);
+    expect(empty.truncated).toBe(false);
+  });
+
+  it('call log defaults optional token fields so the client renders zeroes', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-usage-calls-'));
+    const filePath = join(dir, 'ledger.jsonl');
+    const bare = record({ sessionId: 'bare', recordedAt: new Date().toISOString() });
+    delete bare.promptTokens;
+    delete bare.completionTokens;
+    await appendUsageRecord(filePath, bare);
+    const log = await readUsageCallLog(filePath);
+    expect(log.entries[0]).toMatchObject({
+      sessionId: 'bare',
+      promptTokens: 0,
+      completionTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      providerId: null,
+      modelId: null,
+    });
+  });
+
   it('T15: replay of the same measurementId stays one row and keeps old no-id rows', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-usage-idempotent-'));
     const filePath = join(dir, 'ledger.jsonl');
@@ -268,7 +392,9 @@ describe('usage-ledger-store', () => {
     expect(await appendUsageRecord(filePath, withId)).toBe('duplicate');
     const rows = await loadUsageRecords(filePath);
     expect(rows).toHaveLength(2);
-    expect(rows.some((row) => row.measurementId === undefined && row.totalTokens === 11)).toBe(true);
+    expect(rows.some((row) => row.measurementId === undefined && row.totalTokens === 11)).toBe(
+      true,
+    );
     expect(rows.filter((row) => row.measurementId === withId.measurementId)).toHaveLength(1);
   });
 });

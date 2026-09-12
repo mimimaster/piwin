@@ -104,6 +104,33 @@ describe('loadDiscoveredResources', () => {
     expect(loaded.extensionPaths.some((path) => path.includes('tui-only'))).toBe(false);
   });
 
+  it('classifies a seeded product skill as bundled and a custom skill as user', async () => {
+    const { piwinRoot, agentDir } = await seedPiwinAndPi();
+    const productDir = join(piwinRoot, 'skills', 'find-skill');
+    await mkdir(productDir, { recursive: true });
+    await writeFile(
+      join(productDir, 'SKILL.md'),
+      '---\nname: find-skill\ndescription: Find a skill\n---\n# Find\n',
+      'utf8',
+    );
+    const customDir = join(piwinRoot, 'skills', 'my-notes');
+    await mkdir(customDir, { recursive: true });
+    await writeFile(
+      join(customDir, 'SKILL.md'),
+      '---\nname: my-notes\ndescription: Personal\n---\n# Notes\n',
+      'utf8',
+    );
+    const listed = await loadDiscoveredResources({
+      piwinRoot,
+      agentDir,
+      followPiNativeInventory: false,
+    });
+    const findSkill = listed.skills.find((skill) => skill.id === 'find-skill');
+    expect(findSkill?.source).toBe('bundled');
+    expect(findSkill?.path).not.toBe(productDir);
+    expect(listed.skills.find((skill) => skill.id === 'my-notes')?.source).toBe('user');
+  });
+
   it('does not follow user-global Pi inventory for a custom piwinRoot', async () => {
     const { piwinRoot, agentDir } = await seedPiwinAndPi();
     const listed = await loadDiscoveredResources({

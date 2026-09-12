@@ -44,6 +44,7 @@ export type HostRequestAdapters = {
       | 'project/permissions-list'
       | 'project/permissions-revoke'
       | 'usage/get-rollup'
+      | 'usage/list-recent'
       | 'session/runtime-status'
       | 'session/reload-runtime'
       | 'session/compact-export'
@@ -80,6 +81,10 @@ export type HostRequestAdapters = {
     force?: boolean;
     window?: { from?: string; to?: string };
     topSessions?: number;
+    /** usage/list-recent: rolling window, page size and page offset. */
+    windowMinutes?: number;
+    limit?: number;
+    offset?: number;
     sessionId?: string;
     expectedSettingsRevision?: string;
     when?: 'now' | 'after-current-run';
@@ -102,6 +107,7 @@ export type HostRequestAdapters = {
       | 'skills/list'
       | 'skills/set_enabled'
       | 'skills/install'
+      | 'skills/uninstall'
       | 'skills/store-list'
       | 'config/get'
       | 'config/set';
@@ -552,6 +558,31 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         if (command.topSessions !== undefined) payload.topSessions = command.topSessions;
         return hostClient.request(payload);
       }
+      if (command.type === 'usage/list-recent') {
+        const payload: {
+          type: 'usage/list-recent';
+          windowMinutes?: number;
+          limit?: number;
+          offset?: number;
+          projectPath?: string;
+        } = {
+          type: 'usage/list-recent',
+        };
+        const projectPath =
+          command.projectPath ??
+          (command.scope && command.scope.kind === 'project'
+            ? command.scope.projectPath
+            : undefined);
+        // Remote Host rejects project paths from a remote client; fall back to
+        // the global log rather than failing the request.
+        if (hostClient.getTransport() !== 'remote' && projectPath) {
+          payload.projectPath = projectPath;
+        }
+        if (command.windowMinutes !== undefined) payload.windowMinutes = command.windowMinutes;
+        if (command.limit !== undefined) payload.limit = command.limit;
+        if (command.offset !== undefined) payload.offset = command.offset;
+        return hostClient.request(payload);
+      }
       if (command.type === 'session/runtime-status') {
         return hostClient.request({
           type: 'session/runtime-status',
@@ -709,6 +740,12 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       }
       if (command.type === 'skills/store-list') {
         return hostClient.request({ type: 'skills/store-list' });
+      }
+      if (command.type === 'skills/uninstall') {
+        return hostClient.request({
+          type: 'skills/uninstall',
+          skillId: command.skillId ?? '',
+        });
       }
       if (command.type === 'skills/install') {
         if (!command.source) {

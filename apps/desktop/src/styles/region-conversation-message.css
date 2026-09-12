@@ -448,6 +448,10 @@ html[data-theme-visual-style='ink-wash']
     max-width: calc(100% - 36px);
   }
 
+  .conversation-message-model-name {
+    max-width: min(180px, 40vw);
+  }
+
   .chat-thread.is-conversation .chat-message-row.role-assistant .assistant-response-actions,
   .chat-thread.is-conversation .chat-message-row.role-assistant .turn-colophon {
     padding-left: 36px;

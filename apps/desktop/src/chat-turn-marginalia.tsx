@@ -11,9 +11,10 @@ import { ProviderIcon } from './provider-icons.js';
  * (not sticky: a tall virtualized turn stranded the label at the viewport top
  * over unrelated content). The inline head is the same data for narrow stages.
  * CSS shows the rail via
- * `@container transcript-stage (min-width: 1080px)` on `.chat-stage`
+ * `@container transcript-stage (min-width: 1000px)` on `.chat-stage`
  * (proto-01 `.stage`), never on the scrollport — querying the scrollport
- * oscillates at the threshold.
+ * oscillates at the threshold. The leftover gutter is `100cqw` of that
+ * named stage so a `--chat-max`-sized thread cannot collapse `.who`.
  */
 
 export function formatTurnClock(iso: string): string {

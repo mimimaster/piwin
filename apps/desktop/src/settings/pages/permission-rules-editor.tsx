@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import type { HostCommand, HostResponse, PermissionRulesFile } from '@piwin/contracts';
-import { Button, Notice } from '@piwin/ui-kit';
+import { Button, Notice, TextArea } from '@piwin/ui-kit';
 import { IconClose } from '../../shell-icons.js';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { PageTitle } from '../page-title';
@@ -241,14 +241,13 @@ export function PermissionRulesEditor(): ReactElement | null {
         </Button>
       </div>
       {showJson ? (
-        <textarea
-          className="mcp-raw-editor"
-          data-testid="settings-permission-rules-draft"
+        <TextArea
+          testId="settings-permission-rules-draft"
           value={jsonDraft}
-          onChange={(event) => setJsonDraft(event.currentTarget.value)}
+          onChange={setJsonDraft}
           rows={12}
-          spellCheck={false}
           disabled={saving}
+          nativeProps={{ spellCheck: false }}
         />
       ) : null}
       {error ? (

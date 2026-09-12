@@ -37,7 +37,6 @@ import {
 import { Button } from '@piwin/ui-kit';
 import {
   IconBook,
-  IconCards,
   IconImage,
   IconExtension,
   IconPlus,
@@ -649,14 +648,18 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
 
           <button
             type="button"
-            className={`sidebar-action-row${props.activeSubPage === 'flashcards' ? ' active' : ''}`}
-            data-testid="sidebar-flashcards-btn"
-            onClick={() => props.onOpenFlashcards?.()}
-            title={sidebarCopy.flashcards}
-            aria-label={sidebarCopy.flashcards}
+            className={`sidebar-action-row${
+              props.activeSubPage === 'knowledge' || props.activeSubPage === 'flashcards'
+                ? ' active'
+                : ''
+            }`}
+            data-testid="sidebar-knowledge-btn"
+            onClick={() => props.onOpenKnowledge?.()}
+            title={sidebarCopy.knowledge}
+            aria-label={sidebarCopy.knowledge}
           >
-            <IconCards />
-            <span>{sidebarCopy.flashcards}</span>
+            <IconBook />
+            <span>{sidebarCopy.knowledge}</span>
           </button>
 
           <button
@@ -669,18 +672,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           >
             <IconExtension />
             <span>{props.locale === 'en' ? 'Marketplace' : '扩展市场'}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`sidebar-action-row${props.activeSubPage === 'knowledge' ? ' active' : ''}`}
-            data-testid="sidebar-knowledge-btn"
-            onClick={() => props.onOpenKnowledge?.()}
-            title={sidebarCopy.knowledge}
-            aria-label={sidebarCopy.knowledge}
-          >
-            <IconBook />
-            <span>{sidebarCopy.knowledge}</span>
           </button>
 
           <button

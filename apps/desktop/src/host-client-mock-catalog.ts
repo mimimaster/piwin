@@ -280,6 +280,14 @@ export async function handleMockCatalogCommands(
             targetPath: '/mock/.piwin/skills/mock-skill',
           },
         };
+      case 'skills/uninstall':
+        return {
+          id,
+          type: 'response',
+          command: 'skills/uninstall',
+          success: true,
+          data: { skillId: command.skillId },
+        };
       case 'skills/set_enabled':
         return {
           id,
@@ -741,6 +749,7 @@ export async function handleMockCatalogCommands(
         }
         host.mockMcpDocument = {
           mcpServers: { ...document.mcpServers },
+          ...(document.pinnedSelectors ? { pinnedSelectors: [...document.pinnedSelectors] } : {}),
         };
         return {
           id,

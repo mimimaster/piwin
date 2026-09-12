@@ -17,6 +17,7 @@ import {
   type ToolApprovalBrokerOptions,
 } from './tool-approval-broker.js';
 import { hostToolPolicyEvaluator, type ToolPolicyEvaluator } from './tool-policy-evaluator.js';
+import type { ToolResourceGate } from '../system-memory.js';
 export type HostToolAdmissionDecision =
   | { allowed: true }
   | { allowed: false; result: ToolResult };
@@ -27,6 +28,11 @@ export type HostToolAdmission = {
   getPermissionMode: () => PermissionMode;
   rules: PermissionRuleSet;
   projectRoot: string;
+  /**
+   * Host resource admission, consulted before policy. Omitted means no
+   * resource gating — the product default supplies a memory gate.
+   */
+  resourceGate?: ToolResourceGate;
   onDiagnostic?: (message: string) => void;
 };
 
@@ -34,6 +40,7 @@ export type HostToolAdmissionOptions = ToolApprovalBrokerOptions & {
   rules: PermissionRuleSet;
   getPermissionMode: () => PermissionMode;
   projectRoot: string;
+  resourceGate?: ToolResourceGate;
 };
 
 export function createHostToolAdmission(options: HostToolAdmissionOptions): HostToolAdmission {
@@ -43,6 +50,7 @@ export function createHostToolAdmission(options: HostToolAdmissionOptions): Host
     getPermissionMode: options.getPermissionMode,
     rules: options.rules,
     projectRoot: options.projectRoot,
+    ...(options.resourceGate ? { resourceGate: options.resourceGate } : {}),
     ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}),
   };
 }
@@ -77,6 +85,28 @@ export async function resolveHostToolAdmission(input: {
   signal: AbortSignal;
 }): Promise<HostToolAdmissionDecision> {
   try {
+    // Resource admission precedes policy on purpose: a command the Host will
+    // not run must not raise a permission prompt the user then approves for
+    // nothing. Read-only tools are never gated (see actionSpawnsSubprocesses).
+    const resource = input.admission.resourceGate?.({
+      action: input.registration.permissionSpec.action,
+    });
+    if (resource?.refuse) {
+      input.admission.onDiagnostic?.(
+        `resource admission refused ${input.registration.descriptor.name}: ` +
+          `${resource.availableMiB} MiB available, floor ${resource.requiredMiB} MiB`,
+      );
+      return {
+        allowed: false,
+        result: {
+          ok: false,
+          code: 'execution-failed',
+          message: resource.message,
+          details: { reason: resource.reason },
+          retryable: true,
+        },
+      };
+    }
     const outcome = input.admission.policyEvaluator.evaluate({
       registration: input.registration,
       arguments: input.args,

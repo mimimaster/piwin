@@ -655,10 +655,18 @@ describe('HostRuntime', () => {
     const skills = (listed.data as { skills: Array<{ id: string }> }).skills;
     expect(Array.isArray(skills)).toBe(true);
 
+    const userSkillDir = join(rootDir, 'skills', 'my-notes');
+    await mkdir(userSkillDir, { recursive: true });
+    await writeFile(
+      join(userSkillDir, 'SKILL.md'),
+      '---\nname: my-notes\ndescription: Personal\n---\n# Notes\n',
+      'utf8',
+    );
+
     const toggled = await runtime.handleCommand({
       id: 's2',
       type: 'skills/set_enabled',
-      skillId: 'find-skill',
+      skillId: 'my-notes',
       enabled: false,
     });
     expect(toggled.success).toBe(true);
@@ -666,7 +674,7 @@ describe('HostRuntime', () => {
       throw new Error(toggled.error);
     }
     const disabledIds = (toggled.data as { disabledIds: string[] }).disabledIds;
-    expect(disabledIds).toContain('find-skill');
+    expect(disabledIds).toContain('my-notes');
 
     const mcp = await runtime.handleCommand({ id: 'm1', type: 'mcp/get' });
     expect(mcp.success).toBe(true);

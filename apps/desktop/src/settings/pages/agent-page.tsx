@@ -1,21 +1,18 @@
 /**
  * Settings → Agent & Workflows page.
- * Unified intelligent agent orchestration hub aggregating:
- * - Subagent Schemes (Orchestration / Ultra Code)
- * - Automation & Hooks
- * - Artifacts Policy & Playground
+ * Automation, artifacts policy, and the artifact playground.
+ * Orchestration schemes live in the dedicated `subagents` section.
  */
 import { useState, type ReactElement } from 'react';
 import { Button, SegmentedControl } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
-import { SubagentProfilesPage } from './subagents-page';
 import { AutomationPanel } from '../../AutomationPanel';
 import { SubAgentPanel } from '../../SubAgentPanel';
 import { ArtifactPage } from './artifact-page';
 import { ArtifactPlaygroundPage } from './artifact-playground-page';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 
-type AgentSubTab = 'subagents' | 'automation' | 'artifact' | 'playground';
+type AgentSubTab = 'automation' | 'artifact' | 'playground';
 
 export function AgentPage(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -32,7 +29,9 @@ export function AgentPage(): ReactElement {
   } = settings;
   const automationAvailable = settingsHostSupportsCommand(settings, 'cron/list');
 
-  const [activeTab, setActiveTab] = useState<AgentSubTab>('subagents');
+  const [activeTab, setActiveTab] = useState<AgentSubTab>(
+    automationAvailable ? 'automation' : 'artifact',
+  );
 
   const liveChildren =
     activeSessionId && subagentChildren
@@ -46,7 +45,6 @@ export function AgentPage(): ReactElement {
           value={activeTab}
           onChange={(val) => setActiveTab(val as AgentSubTab)}
           data={[
-            { value: 'subagents', label: isChinese ? '子代理编排 (Schemes)' : 'Orchestration' },
             {
               value: 'automation',
               label: isChinese ? '自动化与任务 (Automation)' : 'Automation',
@@ -59,31 +57,19 @@ export function AgentPage(): ReactElement {
         />
       </div>
 
-      {activeTab === 'subagents' && (
-        <div data-testid="agent-tab-subagents">
-          <SubagentProfilesPage />
-        </div>
-      )}
-
       {activeTab === 'automation' && (
         <div className="settings-card" data-testid="agent-tab-automation">
           <AutomationPanel projectPath={projectPath} request={requestAutomation} variant="inline" />
-          {requestSubAgent && (
-            <div
-              className="settings-section settings-section-card"
-              style={{ marginTop: 24 }}
-              data-testid="settings-automation-subagents"
-            >
-              <SubAgentPanel
-                parentSessionId={activeSessionId}
-                request={requestSubAgent}
-                variant="embedded"
-                onOpenSession={(sessionId) => onOpenSubagentSession?.(sessionId)}
-                {...(liveChildren ? { children: liveChildren } : {})}
-                {...(subagentBatches ? { batches: subagentBatches } : {})}
-              />
-            </div>
-          )}
+          {requestSubAgent ? (
+            <SubAgentPanel
+              parentSessionId={activeSessionId}
+              request={requestSubAgent}
+              variant="embedded"
+              onOpenSession={(sessionId) => onOpenSubagentSession?.(sessionId)}
+              {...(liveChildren ? { children: liveChildren } : {})}
+              {...(subagentBatches ? { batches: subagentBatches } : {})}
+            />
+          ) : null}
         </div>
       )}
 

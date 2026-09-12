@@ -32,7 +32,10 @@ const PRODUCT_GLASS_WHITELIST = [
   '.media-lightbox-close',
   '.sidebar-footer-fade',
   ".app-shell[data-layout='compact'].nav-open > .sidebar",
+  ".app-shell[data-layout='phone'].nav-open > .sidebar",
   ".app-shell[data-layout='compact'].has-right-panel > .right-panel.outward-column:not(.is-collapsed)",
+  ".app-shell[data-layout='phone'].has-right-panel > .right-panel.outward-column:not(.is-collapsed)",
+  ".app-shell[data-inspector='overlay'].has-right-panel > .right-panel.outward-column:not(.is-collapsed)",
 ] as const;
 
 const ALLOWED_PRODUCT_GLASS = new Set<string>(PRODUCT_GLASS_WHITELIST);

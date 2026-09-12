@@ -35,8 +35,9 @@ and saving outputs through `@piwin/media`.
    - The Desktop provides an `image-generation` settings section for configuring
      image-capable models, the image-generation default, and route settings.
    - The chat default (`defaultProviderId`/`defaultModelId`) is not an image
-     fallback. When no image default exists, Host may use the only enabled image
-     model; multiple candidates require an explicit image default.
+     fallback. When no image default exists, Host uses the first enabled image
+     model in provider/config order so `image_gen` stays callable. An explicit
+     image default still wins when set.
    - Permission-gated as a network action (`network:image-gen`), default `ask`.
    - Normalizes every provider output item, detects PNG/JPEG/WebP/GIF from magic
      bytes, and saves every image via `@piwin/media` to
@@ -47,11 +48,11 @@ and saving outputs through `@piwin/media`.
      Host/UI. Base64 is never placed in context (AGENTS.md §3.6).
    - Settings exposes a real endpoint smoke test (`models/image-test`) that uses
      the same adapter as `image_gen` and discards the returned bytes.
-4. **Switch = `config.skills.disabledIds`.** Adding `imagegen` disables both the
-   skill and the `image_gen` tool.
-5. **Hidden from UI/CLI.** `SkillSummary.hidden` (frontmatter `hidden: true`) is
-   filtered from the Desktop Skills panel and CLI skill lists, but the skill is
-   still loadable by Pi when enabled.
+4. **`image_gen` is not skill-toggled.** Registration follows configured
+   image-capable models, not `config.skills.disabledIds`.
+5. **Listed as built-in.** Bundled skills (including `imagegen`) appear on the
+   Skills page / CLI list as 应用内置. They cannot be disabled or uninstalled.
+   Only `source: user` skills can be toggled or deleted.
 
 ## Consequences
 
@@ -60,7 +61,7 @@ and saving outputs through `@piwin/media`.
   or google-gemini) in Settings → Image Generation.
 - Anthropic-compatible providers cannot generate images (clear error).
 - Image editing via `/images/edits` is a documented follow-up, not shipped here.
-- CLI and Desktop share the same host tool and switch; no CLI degradation.
+- CLI and Desktop share the same host tool; no CLI degradation.
 
 ## 2026-08-10 amendment
 
@@ -74,3 +75,12 @@ Model-facing `output` no longer includes absolute media paths. The product UI
 owns generated-image presentation via `details.attachments`. The earlier
 "path-based output" wording meant "do not put bytes in context", not "the
 model must re-deliver the file path to the user".
+
+## 2026-09-12 amendment
+
+`image_gen` is registered whenever at least one enabled image-capable model
+exists. A missing image default no longer hides the tool. Resolution order is
+explicit `provider`/`model` args, then `imageGeneration.defaultModel`, then the
+first enabled image model. Chat defaults are still not an image fallback.
+Bundled skills stay listed as 应用内置 with no enable switch; leftover
+`disabledIds` entries for those ids are ignored.

@@ -7,7 +7,8 @@ import type {
   HostResponse,
   InstallSource,
 } from '@piwin/contracts';
-import { isExtensionBlueprintEligible } from '@piwin/contracts';
+import { isExtensionBlueprintEligible, resourceSourceLabel } from '@piwin/contracts';
+import { catalogDescription } from './catalog-display-copy.js';
 import {
   Button,
   Collapse,
@@ -399,7 +400,9 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                 <div className="ext-list-main">
                   <div className="ext-list-title">
                     <strong>{extension.name}</strong>
-                    <span className="pill muted">{extension.source}</span>
+                    <span className="pill muted">
+                      {resourceSourceLabel(extension.source, isChinese ? 'zh-CN' : 'en')}
+                    </span>
                     {compatibilityLabel(extension.compatibility?.tier, isChinese) ? (
                       <span
                         className="pill muted"
@@ -412,7 +415,13 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                       <span className="pill ok">{isChinese ? '已启用' : 'on'}</span>
                     ) : null}
                   </div>
-                  <div className="muted ext-desc">{extension.description}</div>
+                  <div className="muted ext-desc">
+                    {catalogDescription(
+                      extension.id,
+                      extension.description,
+                      isChinese ? 'zh-CN' : 'en',
+                    )}
+                  </div>
                 </div>
                 <Switch
                   checked={extension.enabled}

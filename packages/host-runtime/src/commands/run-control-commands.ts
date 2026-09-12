@@ -67,6 +67,7 @@ import {
   createSupersededByNewPromptAbortReason,
   createUserStopAbortReason,
   formatRunAbortReason,
+  isToolLoopStallAbortReason,
 } from '../run-abort-reason.js';
 import {
   clearSessionPlan,
@@ -210,6 +211,18 @@ export async function finalizeAbortedRun(
     await finalizePausedRun(context, sessionId, runId, extras);
     return;
   }
+  const abortReason = context.getRunSignal(runId)?.reason;
+  if (isToolLoopStallAbortReason(abortReason)) {
+    await finalizeCancelledRun(
+      context,
+      sessionId,
+      runId,
+      abortReason.message,
+      'tool-loop-stalled',
+      extras,
+    );
+    return;
+  }
   await finalizeCancelledRun(context, sessionId, runId, undefined, 'cancelled', extras);
 }
 
@@ -229,7 +242,14 @@ export async function finalizeCancelledRun(
   const admitted = context.getForegroundRun(sessionId);
   const newerOwnsSession = admitted !== undefined && admitted.runId !== runId;
   if (newerOwnsSession) {
-    await context.terminateRun(sessionId, runId, 'cancelled', code, message, extras);
+    await context.terminateRun(
+      sessionId,
+      runId,
+      terminalOutcomeForCode(code),
+      code,
+      message,
+      extras,
+    );
     return;
   }
   if (admitted === undefined || admitted.runId !== runId) {
@@ -281,7 +301,7 @@ async function abortAndTerminalizeRun(
     await context.terminateRun(
       sessionId,
       runId,
-      'cancelled',
+      terminalOutcomeForCode(code),
       code,
       timeoutMessage,
       mergeTerminateOptions(extras, { skipJobCleanup: true }),
@@ -300,7 +320,18 @@ async function abortAndTerminalizeRun(
       });
     }
   }
-  await context.terminateRun(sessionId, runId, 'cancelled', code, message, extras);
+  await context.terminateRun(
+    sessionId,
+    runId,
+    terminalOutcomeForCode(code),
+    code,
+    message,
+    extras,
+  );
+}
+
+function terminalOutcomeForCode(code: RunTerminalCode): 'cancelled' | 'failed' {
+  return code === 'tool-loop-stalled' ? 'failed' : 'cancelled';
 }
 
 /** Persist the partial transcript before publishing the paused terminal. */

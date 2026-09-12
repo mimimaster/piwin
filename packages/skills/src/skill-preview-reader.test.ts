@@ -90,6 +90,48 @@ describe('readSkillPreview', () => {
     }
   });
 
+  it('reports user-installed origin for a custom skill', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-skill-read-user-'));
+    const skillDir = join(piwinRoot, 'skills', 'my-notes');
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: my-notes\ndescription: personal\n---\n\n# Notes\n',
+      'utf8',
+    );
+
+    const result = await readSkillPreview({
+      piwinRoot,
+      skillId: 'my-notes',
+    });
+    expect(result.status).toBe('ready');
+    if (result.status === 'ready') {
+      expect(result.effectiveSource).toBe('user');
+      expect(result.origin).toBe('user-installed');
+    }
+  });
+
+  it('reports bundled-installed origin for a product-bound skill', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-skill-read-bundled-'));
+    const skillDir = join(piwinRoot, 'skills', 'executing-plans');
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: executing-plans\ndescription: run plans\norigin: bundled\n---\n\n# Executing Plans\n\nBody.\n',
+      'utf8',
+    );
+
+    const result = await readSkillPreview({
+      piwinRoot,
+      skillId: 'executing-plans',
+    });
+    expect(result.status).toBe('ready');
+    if (result.status === 'ready') {
+      expect(result.effectiveSource).toBe('bundled');
+      expect(result.origin).toBe('bundled-installed');
+    }
+  });
+
   it('maps legacy bundle path to installed skill via id extraction', async () => {
     const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-skill-legacy-'));
     const skillDir = join(piwinRoot, 'skills', 'executing-plans');

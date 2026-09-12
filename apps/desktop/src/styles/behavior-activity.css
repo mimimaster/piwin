@@ -62,46 +62,36 @@
   animation: behavior-gate-text-pulse 1.8s ease-in-out infinite;
 }
 
-/* The transcript theme gives tool verbs a more specific muted color. Keep
- * active behavior rows able to reveal the moving text gradient. */
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-text-bloom,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-explore-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-search-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-read-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-edit-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-command-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-test-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-build-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-web-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-subagent-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-subagent-inspector-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-mcp-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-mcp-discovery-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-git-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-process-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-artifact-active,
-.turn-work-details .tool-call-card .tool-call-action-verb.behavior-generic-active {
-  color: transparent;
-}
-
-/* Running tool call row (command line / shell / read / edit / search / etc.)
- * Font flowing light (left to right shimmer) across the verb and preview text. */
+/* Chain rows: liveness stays on the spine node and kind icon. Verbs and
+ * previews stay static so a parallel run does not shimmer the whole line. */
+.tool-call-card .tool-call-action-verb.behavior-text-bloom,
+.tool-call-card .tool-call-action-verb.behavior-explore-active,
+.tool-call-card .tool-call-action-verb.behavior-search-active,
+.tool-call-card .tool-call-action-verb.behavior-read-active,
+.tool-call-card .tool-call-action-verb.behavior-edit-active,
+.tool-call-card .tool-call-action-verb.behavior-command-active,
+.tool-call-card .tool-call-action-verb.behavior-test-active,
+.tool-call-card .tool-call-action-verb.behavior-build-active,
+.tool-call-card .tool-call-action-verb.behavior-web-active,
+.tool-call-card .tool-call-action-verb.behavior-subagent-active,
+.tool-call-card .tool-call-action-verb.behavior-subagent-inspector-active,
+.tool-call-card .tool-call-action-verb.behavior-mcp-active,
+.tool-call-card .tool-call-action-verb.behavior-mcp-discovery-active,
+.tool-call-card .tool-call-action-verb.behavior-git-active,
+.tool-call-card .tool-call-action-verb.behavior-process-active,
+.tool-call-card .tool-call-action-verb.behavior-artifact-active,
+.tool-call-card .tool-call-action-verb.behavior-generic-active,
 .tool-call-card[data-tool-status='running'] .tool-call-action-verb,
 .tool-call-card[data-tool-status='running'] .tool-call-preview,
 .turn-work-details .tool-call-card[data-tool-status='running'] .tool-call-action-verb,
 .turn-work-details .tool-call-card[data-tool-status='running'] .tool-call-preview {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--text-1) 38%, transparent) 0%,
-    color-mix(in srgb, var(--text-1) 92%, transparent) 42%,
-    color-mix(in srgb, var(--text-1) 38%, transparent) 78%
-  );
-  background-size: 220% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  animation: wb-shimmer var(--shimmer) linear infinite;
+  animation: none;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  -webkit-text-fill-color: unset;
+  color: inherit;
+  filter: none;
 }
 
 .turn-work-details .tool-call-card .tool-call-action-verb.behavior-thinking-active,

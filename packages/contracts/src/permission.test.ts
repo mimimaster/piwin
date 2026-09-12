@@ -181,10 +181,19 @@ describe('agent operating contract', () => {
 });
 
 describe('mergeAgentModeIntoPrompt', () => {
-  it('uses a compact marker for the generation-scoped default agent contract', () => {
+  it('restates the agent operating contract on every user turn', () => {
     const out = mergeAgentModeIntoPrompt('agent', 'hello');
-    expect(out).toBe('[piwin-mode:agent]\nUser:\nhello');
-    expect(out).not.toContain('Operating contract');
+    expect(out.startsWith('[piwin-mode:agent]\n')).toBe(true);
+    expect(out).toContain(AGENT_MODE_SYSTEM_PREAMBLES.agent);
+    expect(out).toContain('Tool-loop silence');
+    expect(out).toContain('User:\nhello');
+  });
+
+  it('restates the agent contract when the user body is empty', () => {
+    const out = mergeAgentModeIntoPrompt('agent', '   ');
+    expect(out.startsWith('[piwin-mode:agent]\n')).toBe(true);
+    expect(out).toContain(AGENT_MODE_SYSTEM_PREAMBLES.agent);
+    expect(out).not.toContain('User:');
   });
 
   it('prefixes goal mode with autonomous iteration and verification contracts', () => {

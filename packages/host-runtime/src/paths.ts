@@ -133,6 +133,11 @@ export function getPiwinKnowledgeBasesPath(rootDir: string): string {
   return join(getPiwinKnowledgeDir(rootDir), 'bases.json');
 }
 
+/** LLM Wiki knowledge directory (`<piwinRoot>/wiki`). */
+export function getPiwinWikiDir(rootDir?: string): string {
+  return join(getPiwinRoot(rootDir), 'wiki');
+}
+
 export function getPiwinSkillsDir(rootDir: string): string {
   return join(rootDir, 'skills');
 }

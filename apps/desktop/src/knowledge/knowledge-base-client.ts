@@ -16,7 +16,7 @@ function isKnowledgeBaseSummary(value: unknown): value is KnowledgeBaseSummary {
   return (
     isRecord(value) &&
     typeof value.id === 'string' &&
-    (value.kind === 'notes' || value.kind === 'folder') &&
+    (value.kind === 'notes' || value.kind === 'folder' || value.kind === 'wiki') &&
     typeof value.name === 'string' &&
     typeof value.state === 'string' &&
     BASE_STATES.has(value.state) &&

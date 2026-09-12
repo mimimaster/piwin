@@ -375,3 +375,15 @@ html[data-theme-id='piwin-inkstone-ink'] .intr .pill.zhu-p {
   background: var(--zhu-wash);
   color: var(--zhu);
 }
+
+@media (max-width: 480px) {
+  html[data-theme-id='piwin-inkstone-paper'] .gate,
+  html[data-theme-id='piwin-inkstone-ink'] .gate {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html[data-theme-id='piwin-inkstone-paper'] .gate .seals,
+  html[data-theme-id='piwin-inkstone-ink'] .gate .seals {
+    justify-content: flex-end;
+  }
+}

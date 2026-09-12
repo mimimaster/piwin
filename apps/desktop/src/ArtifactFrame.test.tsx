@@ -319,12 +319,13 @@ describe('ArtifactFrame chrome', () => {
 
     const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
     expect(iframe).not.toBeNull();
+    const emptySrc = iframe?.getAttribute('src');
     expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
     expect(container.textContent).toContain('正在准备稳定画面');
 
     const stable = makeStreamPlan(
       '<style>.scene { display: grid; }</style><div class="scene">ready</div>',
-      '<html>replacement must not mount</html>',
+      '<html>seeded stream document</html>',
     );
     act(() => {
       root.render(
@@ -334,8 +335,14 @@ describe('ArtifactFrame chrome', () => {
       );
     });
 
+    const seededIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(seededIframe).not.toBeNull();
+    expect(seededIframe?.getAttribute('src')).not.toBe(emptySrc);
+    expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
+    act(() => {
+      seededIframe?.dispatchEvent(new Event('load'));
+    });
     expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).toBeNull();
-    expect(container.querySelector('iframe.artifact-iframe')).toBe(iframe);
   });
 
   it('keeps one iframe and pushes throttled DOM snapshots while output is streaming', async () => {
@@ -385,7 +392,7 @@ describe('ArtifactFrame chrome', () => {
     );
   });
 
-  it('replays a large newly-styled scene through stable prefixes', async () => {
+  it('bakes a large newly-styled scene into a seeded stream document', async () => {
     const initial = makeStreamPlan('', '<html>empty stream shell</html>');
     const { container, root } = renderFrame(initial, 'canvas');
     instances.push({ container, root });
@@ -396,7 +403,7 @@ describe('ArtifactFrame chrome', () => {
 
     const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
     expect(iframe).not.toBeNull();
-    const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
+    const emptySrc = iframe?.getAttribute('src');
     const scene = [
       '<style>.scene { display: grid; } .part { min-height: 20px; }</style>',
       '<div class="scene">',
@@ -407,7 +414,7 @@ describe('ArtifactFrame chrome', () => {
       ),
       '</div>',
     ].join('');
-    const styled = makeStreamPlan(scene, '<html>replacement must not mount</html>');
+    const styled = makeStreamPlan(scene, '<html>seeded large scene document</html>');
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -416,38 +423,19 @@ describe('ArtifactFrame chrome', () => {
       );
     });
 
-    const firstReplaySource = postMessage.mock.calls
-      .map(([payload]) => payload)
-      .find(
-        (payload) =>
-          typeof payload === 'object' &&
-          payload !== null &&
-          'source' in payload &&
-          typeof payload.source === 'string' &&
-          payload.source.length > 0,
-      ) as { source?: string } | undefined;
-    expect(firstReplaySource?.source?.length).toBeGreaterThan(0);
-    expect(firstReplaySource?.source?.length).toBeLessThan(scene.length);
-
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 1_540));
+    const seededIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const seededSrc = seededIframe?.getAttribute('src') ?? '';
+    expect(seededSrc).not.toBe(emptySrc);
+    const encoded = seededSrc.slice(seededSrc.indexOf('base64,') + 'base64,'.length);
+    expect(atob(encoded)).toContain('seeded large scene document');
+    expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
+    act(() => {
+      seededIframe?.dispatchEvent(new Event('load'));
     });
-    const postedSources = postMessage.mock.calls
-      .map(([payload]) => payload)
-      .filter(
-        (payload): payload is { source: string } =>
-          typeof payload === 'object' &&
-          payload !== null &&
-          'source' in payload &&
-          typeof payload.source === 'string',
-      )
-      .map((payload) => payload.source);
-    expect(postedSources.at(-1)).toBe(scene);
-    expect(new Set(postedSources).size).toBeGreaterThan(2);
-    expect(container.querySelector('iframe.artifact-iframe')).toBe(iframe);
+    expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).toBeNull();
   });
 
-  it('commits final DOM in place and does not replace the stream document', async () => {
+  it('loads the final document on completion instead of freezing the stream shell', async () => {
     const initial = makeStreamPlan('<div><p>Hel</p></div>', '<html>stable stream shell</html>');
     const { container, root } = renderFrame(initial);
     instances.push({ container, root });
@@ -460,9 +448,9 @@ describe('ArtifactFrame chrome', () => {
     const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
     expect(iframe).not.toBeNull();
     const initialDocumentUrl = iframe?.getAttribute('src');
-    const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
     const finalSource =
       '<div><p>Hello</p><button>Done</button></div><script>window.done=true</script>';
+    const finalSrcdoc = '<html>final document must mount</html>';
     const baseFinal = makeRenderPlan();
     const finalDecision: Extract<ArtifactRenderPlan, { kind: 'render' }> = {
       ...baseFinal,
@@ -476,7 +464,7 @@ describe('ArtifactFrame chrome', () => {
       renderSource: finalSource,
       document: {
         kind: 'sandbox',
-        srcdoc: '<html>replacement final document must not mount</html>',
+        srcdoc: finalSrcdoc,
         csp: "default-src 'none'",
       },
     };
@@ -493,21 +481,13 @@ describe('ArtifactFrame chrome', () => {
     });
 
     const completedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
-    expect(completedIframe).toBe(iframe);
-    expect(completedIframe?.getAttribute('src')).toBe(initialDocumentUrl);
-    expect(postMessage).toHaveBeenCalledWith(
-      {
-        type: 'piwin-artifact:stream-update',
-        channelId: 'artifact-test-1',
-        revision: expect.any(Number),
-        source: finalSource,
-        frameMode: 'inline-flow',
-        final: true,
-      },
-      '*',
-    );
+    expect(completedIframe).not.toBeNull();
+    expect(completedIframe?.getAttribute('src')).not.toBe(initialDocumentUrl);
+    expect(completedIframe?.getAttribute('src')).toMatch(/^data:text\/html;charset=utf-8;base64,/);
+    const encoded = completedIframe?.getAttribute('src')?.split('base64,')[1] ?? '';
+    expect(atob(encoded)).toBe(finalSrcdoc);
 
-    postMessage.mockClear();
+    const completedSrc = completedIframe?.getAttribute('src');
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -518,7 +498,57 @@ describe('ArtifactFrame chrome', () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 320));
     });
-    expect(postMessage).not.toHaveBeenCalled();
+    expect(container.querySelector('iframe.artifact-iframe')?.getAttribute('src')).toBe(
+      completedSrc,
+    );
+  });
+
+  it('keeps the preparing overlay until a completed canvas remounts a seeded stream update', async () => {
+    const completed = makeRenderPlan();
+    const { container, root } = renderFrame(completed, 'canvas', undefined, 'zh-CN');
+    instances.push({ container, root });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const completedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const completedSrc = completedIframe?.getAttribute('src');
+    expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).toBeNull();
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame
+            plan={makeStreamPlan('', '<html>empty stream shell</html>')}
+            presentation="canvas"
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
+    const emptyIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const emptySrc = emptyIframe?.getAttribute('src');
+    expect(emptySrc).not.toBe(completedSrc);
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame
+            plan={makeStreamPlan('<div>updated canvas</div>', '<html>seeded stream</html>')}
+            presentation="canvas"
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const seededIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(seededIframe?.getAttribute('src')).not.toBe(emptySrc);
+    expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
+    act(() => {
+      seededIframe?.dispatchEvent(new Event('load'));
+    });
+    expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).toBeNull();
   });
 
   it('upgrades inline-flow to inline-viewport on the same iframe', async () => {

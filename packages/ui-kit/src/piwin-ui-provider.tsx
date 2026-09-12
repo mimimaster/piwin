@@ -135,6 +135,19 @@ export function buildMantineTheme(manifest: ThemeManifest): MantineThemeOverride
           radius: 'md',
         },
       },
+      NumberInput: {
+        defaultProps: {
+          size: 'sm',
+          radius: 'md',
+          hideControls: true,
+        },
+      },
+      Textarea: {
+        defaultProps: {
+          size: 'sm',
+          radius: 'md',
+        },
+      },
       PasswordInput: {
         defaultProps: {
           size: 'sm',

@@ -34,6 +34,7 @@ describe('settings lazy load (Chrome two-bundle)', () => {
       expect(getSettingsSection('oauth')).toBeTypeOf('function');
       expect(getSettingsSection('hooks')).toBeTypeOf('function');
       expect(getSettingsSection('permissions')).toBeTypeOf('function');
+      expect(getSettingsSection('subagents')).toBeTypeOf('function');
       expect(getSettingsSection('agent')).toBeTypeOf('function');
       expect(getSettingsSection('extensions')).toBeTypeOf('function');
       expect(getSettingsSection('web')).toBeTypeOf('function');

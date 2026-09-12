@@ -20,16 +20,11 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--s-6);
-  padding: var(--s-7) var(--s-7);
+  padding: var(--s-5) var(--s-7);
   border-bottom: 1px solid var(--line-1);
   background: color-mix(in srgb, var(--surface-1) 78%, transparent);
-}
-
-.usage-toolbar-copy {
-  flex: 1;
-  min-width: 220px;
 }
 
 .usage-section-header h3 {
@@ -38,15 +33,10 @@
   letter-spacing: var(--tracking-tight);
 }
 
-.usage-toolbar-copy p,
 .usage-section-header p {
   margin: 0;
   color: var(--text-3);
   line-height: var(--lh-normal);
-}
-
-.usage-toolbar-copy p {
-  font-size: var(--fs-chrome);
 }
 
 .usage-toolbar-controls {
@@ -55,6 +45,14 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--s-4);
+}
+
+.usage-toolbar-stamp {
+  margin-right: var(--s-3);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .usage-toolbar-controls .piwin-select {
@@ -176,7 +174,8 @@
 }
 
 .usage-trend-card,
-.usage-model-key-card {
+.usage-model-key-card,
+.usage-calls-card {
   padding: var(--s-7);
 }
 
@@ -467,5 +466,216 @@
 @media (prefers-reduced-motion: reduce) {
   .usage-trend-bar {
     transition: none;
+  }
+}
+
+/* ── Recent calls (rolling 1h ledger tail) ────────────────────────────
+   A live timeline rather than an aggregate: the header carries the window
+   and the poll state, the table stays in the same visual language as the
+   model × Key table so the page reads as one surface. */
+
+.usage-calls-header {
+  align-items: center;
+}
+
+.usage-calls-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.usage-calls-window {
+  padding: 1px var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.usage-calls-heading p {
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-calls-live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-4);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  cursor: pointer;
+  user-select: none;
+}
+
+.usage-calls-live-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.usage-calls-live i {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--text-4);
+}
+
+.usage-calls-live[data-live='on'] i {
+  background: var(--usage-output);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--usage-output) 18%, transparent);
+  animation: usage-calls-pulse 2.4s var(--ease-out) infinite;
+}
+
+@keyframes usage-calls-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* A page of rows scrolls inside the card, so page size never changes how
+   much of the settings page the card occupies. */
+.usage-calls-scroll {
+  /* The pager sits below, so this one does not bleed into the card edge. */
+  margin-bottom: 0;
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.usage-calls-table {
+  min-width: 1040px;
+}
+
+.usage-calls-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* Rows scroll underneath, so the header needs an opaque base. --hover is
+     translucent; layer it over the card surface instead of mixing (a mix
+     keeps the alpha and lets rows show through). */
+  background-color: var(--surface-2);
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--hover) 64%, transparent),
+    color-mix(in srgb, var(--hover) 64%, transparent)
+  );
+  box-shadow: inset 0 -1px 0 var(--line-1);
+}
+
+.usage-call-time {
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+}
+
+.usage-call-session {
+  max-width: 96px;
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-call-chip {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-3);
+  font-size: 9px;
+  line-height: 15px;
+}
+
+.usage-call-chip-failed {
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+  color: var(--coral);
+}
+
+.usage-call-cache {
+  display: inline-block;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+}
+
+.usage-call-cache[data-hit='true'] {
+  background: color-mix(in srgb, var(--usage-cache-read) 14%, transparent);
+  color: color-mix(in srgb, var(--usage-cache-read) 72%, var(--text-1));
+}
+
+.usage-calls-table tr[data-failed='true'] td {
+  background: color-mix(in srgb, var(--coral) 6%, transparent);
+}
+
+.usage-calls-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-top: var(--s-5);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.usage-calls-range {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.usage-calls-pager-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-left: auto;
+}
+
+.usage-calls-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  white-space: nowrap;
+}
+
+.usage-calls-page-size .piwin-select {
+  width: 76px;
+  min-width: 76px;
+}
+
+@media (max-width: 680px) {
+  .usage-calls-card {
+    padding: var(--s-6);
+  }
+
+  .usage-calls-live {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .usage-calls-pager-controls {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .usage-calls-live[data-live='on'] i {
+    animation: none;
   }
 }

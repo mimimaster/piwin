@@ -25,7 +25,7 @@ features:
     details: 主思考模型与快速视觉模型分工协作，大幅降低 Token 消耗与响应延迟，支持本地及云端各类多模态模型。
   - icon: 🌐
     title: Web 搜索与全域感知
-    details: 无缝接入 Tavily、SearXNG、Brave 等实时网络检索，支持社群精选 MCP 工具与扩展生态。
+    details: 无缝接入 Tavily、Brave、DuckDuckGo 等实时网络检索，支持社群精选 MCP 工具与扩展生态。
   - icon: ⚡
     title: 开箱即用配置指引
     details: 提供详尽的免费视觉模型获取教程、API Key 申请指南与一键直达锚点，新手也能零门槛上手。

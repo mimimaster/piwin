@@ -10,6 +10,7 @@ export type LibraryWorkspaceViewProps = {
   refreshToken?: number;
   initialKind?: MediaLibraryFilter;
   deleteUndoWindowMs?: number;
+  subscribeConnected?: ((listener: (connected: boolean) => void) => () => void) | undefined;
   onRemixToComposer?: (input: { text: string; item?: MediaLibraryItem }) => void;
 };
 
@@ -20,6 +21,9 @@ export function LibraryWorkspaceView(props: LibraryWorkspaceViewProps): ReactEle
       onClose={props.onClose}
       request={props.request}
       {...(props.locale !== undefined ? { locale: props.locale } : {})}
+      {...(props.subscribeConnected !== undefined
+        ? { subscribeConnected: props.subscribeConnected }
+        : {})}
       {...(props.refreshToken !== undefined ? { refreshToken: props.refreshToken } : {})}
       {...(props.deleteUndoWindowMs !== undefined
         ? { deleteUndoWindowMs: props.deleteUndoWindowMs }

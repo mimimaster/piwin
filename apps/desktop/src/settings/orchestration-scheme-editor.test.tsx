@@ -8,66 +8,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { OrchestrationScheme, OrchestrationSchemeSettings } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
-import {
-  OrchestrationSchemeEditor,
-  type OrchestrationSchemeEditorCopy,
-} from './orchestration-scheme-editor';
+import { buildOrchestrationCopy } from './orchestration-copy';
+import { OrchestrationSchemeEditor } from './orchestration-scheme-editor';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-const COPY: OrchestrationSchemeEditorCopy = {
-  schemesTitle: 'Schemes',
-  schemesDescription: 'Roster',
-  schemeClone: 'Clone',
-  schemeCloneSaved: 'Cloned',
-  schemeClonedSuffix: ' (copy)',
-  schemeSourceBuiltin: 'Builtin',
-  schemeSourceOverridden: 'Overridden',
-  schemeSourceSettings: 'Custom',
-  schemeGeneric: 'Generic',
-  schemeExpose: 'Expose',
-  schemeEdit: 'Edit',
-  schemeNew: 'New',
-  schemeDelete: 'Delete',
-  schemeResetBuiltin: 'Reset',
-  schemeSave: 'Save',
-  schemeSaved: 'Saved',
-  schemeName: 'Name',
-  schemeId: 'ID',
-  schemeDesc: 'Summary',
-  schemeDiscipline: 'Discipline',
-  schemeDisciplineHint: 'Hint',
-  schemeMembers: 'Members',
-  schemeAddMember: 'Add member',
-  schemeAddFromTemplate: 'Template',
-  schemeRole: 'Role',
-  schemeRoleDesc: 'Duty',
-  schemeMemberModel: 'Model',
-  schemeModelInherit: 'Inherit',
-  schemeThinking: 'Thinking',
-  schemeThinkingInherit: 'Default',
-  schemeIsolation: 'Isolation',
-  schemeIsolationReadonly: 'Readonly',
-  schemeIsolationWorktree: 'Worktree',
-  schemeFallback: 'Fallback',
-  schemeFallbackMain: 'Main',
-  schemeFallbackNone: 'None',
-  schemeDefaultRole: 'Default role',
-  schemeMaxConcurrency: 'Concurrency',
-  schemeMaxTasks: 'Tasks',
-  schemeMaxThinking: 'Max thinking',
-  schemeMaxThinkingInherit: 'Inherit thinking',
-  schemeRemoveMember: 'Remove',
-  schemeCancel: 'Cancel',
-  schemeInvalidId: 'Invalid id',
-  schemeInvalidRole: 'Invalid role',
-  schemeNeedMember: 'Need member',
-  schemeIncomplete: 'Incomplete',
-  schemeCheapModelHint: 'Cheap',
-  schemeAdvanced: 'Advanced',
-};
+const COPY = buildOrchestrationCopy(false);
 
 const SCHEME: OrchestrationScheme = {
   id: 'roster',
@@ -81,18 +29,29 @@ const SCHEME: OrchestrationScheme = {
   members: [{ role: 'scout', description: 'Look around', fallback: 'main' }],
 };
 
-function setInputValue(input: HTMLInputElement, value: string): void {
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-  setter?.call(input, value);
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  input.dispatchEvent(new Event('change', { bubbles: true }));
+type EditableField = HTMLInputElement | HTMLTextAreaElement;
+
+function setInputValue(field: EditableField, value: string): void {
+  const prototype =
+    field instanceof HTMLTextAreaElement
+      ? window.HTMLTextAreaElement.prototype
+      : window.HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+  setter?.call(field, value);
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  field.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-function resolveInput(root: ParentNode, testId: string): HTMLInputElement {
+function resolveInput(root: ParentNode, testId: string): EditableField {
   const host = root.querySelector(`[data-testid="${testId}"]`);
-  const input = host instanceof HTMLInputElement ? host : host?.querySelector('input');
-  if (!input) throw new Error(`missing input ${testId}`);
-  return input;
+  const field =
+    host instanceof HTMLInputElement || host instanceof HTMLTextAreaElement
+      ? host
+      : host?.querySelector('input, textarea');
+  if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) {
+    throw new Error(`missing input ${testId}`);
+  }
+  return field;
 }
 
 describe('OrchestrationSchemeEditor member typing', () => {
@@ -180,7 +139,11 @@ describe('OrchestrationSchemeEditor member typing', () => {
   });
 
   it('writes trimmed lowercase roles on save', async () => {
-    const persist = vi.fn(async () => true);
+    const persisted: OrchestrationSchemeSettings[][] = [];
+    const persist = vi.fn(async (schemes: OrchestrationSchemeSettings[]) => {
+      persisted.push(schemes);
+      return true;
+    });
     renderEditor(persist);
     openEditor();
 
@@ -200,7 +163,7 @@ describe('OrchestrationSchemeEditor member typing', () => {
     });
 
     expect(persist).toHaveBeenCalledTimes(1);
-    const saved = persist.mock.calls[0]?.[0];
+    const saved = persisted[0];
     const member = saved?.[0]?.members?.[0];
     expect(member?.role).toBe('scoutz');
     expect(member?.description).toBe('Look around');

@@ -52,6 +52,8 @@ export type ConversationPaneWorkspaceProps = {
   readMedia: MediaPreviewReader | null;
   locale: 'zh-CN' | 'en';
   keyboardEnabled?: boolean;
+  /** Phone presentation: keep the split tree, show only the active pane. */
+  phoneSinglePane?: boolean;
   onCreateConversation: (paneId: string) => Promise<string | null>;
   onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
@@ -98,7 +100,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
   const [notice, setNotice] = useState<string | null>(null);
   const [creatingPaneId, setCreatingPaneId] = useState<string | null>(null);
   const [sessionNames, setSessionNames] = useState<Record<string, string>>({});
-  const { controller } = props;
+  const { controller, phoneSinglePane = false } = props;
   const leaves = useMemo(
     () => listConversationPaneLeaves(controller.layout.root),
     [controller.layout.root],
@@ -164,6 +166,10 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
   }
 
   function applyPreset(count: ConversationPanePreset): void {
+    if (phoneSinglePane) {
+      explainInsufficientSpace();
+      return;
+    }
     if (!canApplyPreset(count)) {
       explainInsufficientSpace();
       return;
@@ -173,6 +179,10 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
   }
 
   function splitPane(paneId: string, orientation: 'row' | 'column'): void {
+    if (phoneSinglePane) {
+      explainInsufficientSpace();
+      return;
+    }
     if (leaves.length >= CONVERSATION_PANE_MAX_COUNT) {
       setNotice(
         props.locale === 'zh-CN'
@@ -243,6 +253,13 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
   }, [controller.update, multiplePanes]);
 
   useEffect(() => {
+    if (!phoneSinglePane) return;
+    if (controller.layout.maximizedPaneId !== null) {
+      controller.toggleMaximized(controller.layout.maximizedPaneId);
+    }
+  }, [controller, phoneSinglePane]);
+
+  useEffect(() => {
     if (props.keyboardEnabled === false) return;
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.defaultPrevented) return;
@@ -254,6 +271,14 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
       }
       const command = resolveConversationPaneShortcut(event);
       if (!command) return;
+      if (
+        phoneSinglePane &&
+        (command.type === 'split' || command.type === 'maximize' || command.type === 'resize')
+      ) {
+        event.preventDefault();
+        explainInsufficientSpace();
+        return;
+      }
       event.preventDefault();
       const activePaneId = controller.layout.activePaneId;
       if (command.type === 'split') splitPane(activePaneId, command.orientation);
@@ -272,7 +297,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [controller, leaves.length, multiplePanes, props.keyboardEnabled, props.locale, rectangles]);
+  }, [controller, leaves.length, multiplePanes, phoneSinglePane, props.keyboardEnabled, props.locale, rectangles]);
 
   async function createConversation(paneId: string): Promise<void> {
     if (creatingPaneId !== null) return;
@@ -298,20 +323,27 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
   }
 
   const maximizedPaneId = controller.layout.maximizedPaneId;
+  const phoneActivePaneId = phoneSinglePane
+    ? (controller.layout.activePaneId || PRIMARY_CONVERSATION_PANE_ID)
+    : null;
+  const visibleMultiplePanes = multiplePanes && !phoneSinglePane;
   return (
     <div
-      className={`conversation-pane-workspace${multiplePanes ? '' : ' is-single-pane'}${maximizedPaneId && multiplePanes ? ' has-maximized-pane' : ''}`}
+      className={`conversation-pane-workspace${visibleMultiplePanes ? '' : ' is-single-pane'}${maximizedPaneId && visibleMultiplePanes ? ' has-maximized-pane' : ''}${phoneSinglePane ? ' is-phone-single-pane' : ''}`}
       data-testid="conversation-pane-workspace"
-      data-pane-count={leaves.length}
+      data-pane-count={visibleMultiplePanes ? leaves.length : 1}
+      data-phone-single-pane={phoneSinglePane ? 'true' : 'false'}
     >
       <div ref={rootRef} className="conversation-pane-stage">
       {leaves.map((leaf, index) => {
         const rect = rectangles.find((item) => item.paneId === leaf.paneId);
         if (!rect) return null;
         const active = controller.layout.activePaneId === leaf.paneId;
-        const hidden = maximizedPaneId !== null && maximizedPaneId !== leaf.paneId;
+        const hidden = phoneSinglePane
+          ? leaf.paneId !== phoneActivePaneId
+          : maximizedPaneId !== null && maximizedPaneId !== leaf.paneId;
         const style =
-          maximizedPaneId === leaf.paneId
+          phoneSinglePane || maximizedPaneId === leaf.paneId
             ? leafStyle({ left: 0, top: 0, width: 1, height: 1 })
             : leafStyle(rect);
         const availableSessions = props.sessions.filter(
@@ -324,7 +356,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
             className={`conversation-pane${active ? ' is-active' : ''}`}
             style={style}
             hidden={hidden}
-            {...(multiplePanes
+            {...(visibleMultiplePanes
               ? {
                   tabIndex: -1,
                   role: 'region',
@@ -337,7 +369,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
             onPointerDownCapture={() => controller.focus(leaf.paneId)}
           >
             <div className="conversation-pane-frame">
-            {multiplePanes ? (
+            {visibleMultiplePanes ? (
               <ConversationPaneHeader
                 paneId={leaf.paneId}
                 index={index}
@@ -396,7 +428,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
           </section>
         );
       })}
-      {maximizedPaneId === null
+      {maximizedPaneId === null && !phoneSinglePane
         ? splitRectangles.map((split) => (
             <ConversationPaneSeparator
               key={split.splitId}
@@ -413,7 +445,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
         </div>
       ) : null}
       </div>
-      {multiplePanes ? (
+      {visibleMultiplePanes ? (
         <ConversationPaneLayoutPresets
           currentCount={leaves.length}
           locale={props.locale}

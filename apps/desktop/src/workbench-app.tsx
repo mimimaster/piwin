@@ -78,7 +78,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     rightPanelTab,
     showOverlayScrim,
     layoutMode,
+    inspectorPlacement,
     isOverlayPresentation,
+    inspectorOverlay,
     sidebarResize,
     rightPanelResize,
     setRightPanelView,
@@ -431,13 +433,14 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               <KnowledgeMountsProvider value={knowledgeSupported ? knowledge.mounts : null}>
               <KnowledgeCitationActionsProvider value={knowledge.citationActions}>
               <div
-                className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}${rightPanelOpen && layoutMode === 'desktop' && rightPanelResize.isFullWidth ? ' right-panel-full-width' : ''}`}
+                className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}${rightPanelOpen && inspectorPlacement === 'column' && rightPanelResize.isFullWidth ? ' right-panel-full-width' : ''}`}
                 style={appShellStyle}
                 data-testid="app-shell"
                 data-layout={layoutMode}
+                data-inspector={inspectorPlacement}
                 data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
                 data-right-panel-full-width={
-                  rightPanelOpen && layoutMode === 'desktop' && rightPanelResize.isFullWidth
+                  rightPanelOpen && inspectorPlacement === 'column' && rightPanelResize.isFullWidth
                     ? 'true'
                     : 'false'
                 }
@@ -477,10 +480,16 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onRemoveProject={handleRemoveProjectFromSidebar}
                       onNewSession={(options) => {
                         setActiveSubPage(null);
+                        if (isOverlayPresentation) {
+                          shell.closeOverlay();
+                        }
                         return handleStartNewSession(options);
                       }}
                       onResumeSession={(sessionId) => {
                         setActiveSubPage(null);
+                        if (isOverlayPresentation) {
+                          shell.closeOverlay();
+                        }
                         if (conversationPanesEnabled) {
                           const leaves = listConversationPaneLeaves(
                             conversationPaneController.layout.root,
@@ -512,6 +521,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       }}
                       onResumeDraft={(draftId) => {
                         setActiveSubPage(null);
+                        if (isOverlayPresentation) {
+                          shell.closeOverlay();
+                        }
                         return handleResumeDraft(draftId);
                       }}
                       draftSessions={draftSessions}
@@ -584,6 +596,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       return (
                         <ConversationPaneWorkspace
                           controller={conversationPaneController}
+                          phoneSinglePane={layoutMode === 'phone'}
                           primaryPane={primaryPane}
                           primarySessionName={
                             activeSessionName ||
@@ -693,7 +706,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       rightPanelOpen={rightPanelOpen}
                       rightPanelTab={rightPanelTab}
                       rightPanelResize={rightPanelResize}
-                      isOverlayPresentation={isOverlayPresentation}
+                      isOverlayPresentation={inspectorOverlay}
                       runningJobCount={jobs.length}
                       terminalAttention={terminalAttention}
                       onTerminalAttentionClear={() => setTerminalAttention(false)}

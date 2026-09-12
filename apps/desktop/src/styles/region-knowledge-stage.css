@@ -310,3 +310,305 @@
   justify-content: center;
   gap: var(--s-4);
 }
+
+/* ── Inkstone Knowledge Chrome Foundations ───────────────────────── */
+.vault-bar-actions .lib-segmented-tabs {
+  margin-left: 4px;
+}
+
+.lib-segmented-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  background: var(--s2, var(--surface-2));
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: 6px;
+}
+
+.lib-segmented-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 14px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: var(--t3, var(--text-3));
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  transition: all 0.15s ease;
+}
+
+.lib-segmented-tab:hover {
+  color: var(--t1, var(--text-1));
+}
+
+.lib-segmented-tab.is-active {
+  background: var(--s3, var(--surface-3));
+  color: var(--t1, var(--text-1));
+  box-shadow: var(--sh1, 0 1px 2px rgba(0,0,0,0.06));
+  font-weight: 500;
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font: 600 10px var(--mono, monospace);
+  background: var(--l2, var(--line-2));
+  color: var(--t2, var(--text-2));
+}
+
+.lib-segmented-tab.is-active .tab-badge {
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.1));
+  color: var(--zhu, #b03a24);
+}
+
+/* Typographic Inkstone Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--t2, var(--text-2));
+  background: var(--s3, var(--surface-3));
+  border: 1px solid var(--l2, var(--line-2));
+  box-shadow: var(--sh1, 0 1px 2px rgba(0,0,0,0.06));
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: var(--s4, var(--surface-4));
+  color: var(--t1, var(--text-1));
+  box-shadow: var(--sh2, 0 2px 8px rgba(0,0,0,0.1));
+}
+
+.btn.pri {
+  background: var(--zhu, #b03a24);
+  color: var(--on-zhu, #fff7f0);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.btn.pri:hover {
+  background: var(--zhu-lift, #d4553d);
+  color: var(--on-zhu, #fff7f0);
+}
+
+.btn.sec {
+  background: var(--s3, var(--surface-3));
+  color: var(--t2, var(--text-2));
+  border: 1px solid var(--l2, var(--line-2));
+}
+
+.btn.sm {
+  height: 24px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+/* Typographic Stamp Pills */
+.stamp-pill {
+  display: inline-flex;
+  align-items: center;
+  font: 600 10.5px/1 var(--mono, monospace);
+  padding: 3px 7px;
+  border-radius: 3px;
+  background: var(--pine-wash, rgba(61, 124, 94, 0.12));
+  color: var(--pine, #3d7c5e);
+  border: 1px solid color-mix(in srgb, var(--pine, #3d7c5e) 30%, transparent);
+  vertical-align: middle;
+}
+
+.stamp-pill.zhu {
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.1));
+  color: var(--zhu, #b03a24);
+  border-color: color-mix(in srgb, var(--zhu, #b03a24) 30%, transparent);
+}
+
+.stamp-pill.lamp {
+  background: var(--lamp-wash, rgba(184, 128, 31, 0.12));
+  color: var(--lamp, #b8801f);
+  border-color: color-mix(in srgb, var(--lamp, #b8801f) 30%, transparent);
+}
+
+.stamp-pill.ochre {
+  background: var(--ochre-wash, rgba(148, 97, 26, 0.12));
+  color: var(--ochre, #94611a);
+  border-color: color-mix(in srgb, var(--ochre, #94611a) 30%, transparent);
+}
+
+/* ── Inkstone Face Tokens (Paper & Ink) ────────────────────────── */
+.app,
+.vault-stage,
+[data-face="paper"],
+html[data-theme-id='piwin-inkstone-paper'] {
+  --void: #e6e1d7;
+  --s1: #ede8df;
+  --s2: #f6f3eb;
+  --s3: #fcfbfa;
+  --s4: #ffffff;
+  --t1: #1d1b17;
+  --t2: #4a453d;
+  --t3: #6e675d;
+  --t4: #8f887d;
+  --l1: rgba(29, 27, 23, 0.07);
+  --l2: rgba(29, 27, 23, 0.12);
+  --l3: rgba(29, 27, 23, 0.22);
+  --zhu: #b03a24;
+  --zhu-lift: #cc452c;
+  --on-zhu: #fff7f0;
+  --zhu-wash: rgba(176, 58, 36, 0.1);
+  --lamp: #b8801f;
+  --lamp-wash: rgba(184, 128, 31, 0.12);
+  --pine: #3d7c5e;
+  --pine-wash: rgba(61, 124, 94, 0.12);
+  --ochre: #94611a;
+  --ochre-wash: rgba(148, 97, 26, 0.12);
+  --crimson: #9c2e3d;
+  --azure: #3a7797;
+  --azure-wash: rgba(58, 119, 151, 0.12);
+  /* Markdown chip / code-block ground. Declared with the face so the stage's
+     pinned text palette and its code surfaces stay on the same face — without
+     it the app theme's `--code` leaked in and painted a near-black chip. */
+  --code: #efece4;
+  --sh1: 0 1px 2px rgba(60, 45, 20, 0.05), 0 0 0 1px var(--l2);
+  --sh2: 0 3px 10px -2px rgba(60, 45, 20, 0.1), 0 0 0 1px var(--l2);
+  --sh3: 0 14px 30px -10px rgba(50, 35, 15, 0.25), 0 0 0 1px var(--l3);
+  --text-1: var(--t1);
+  --text-2: var(--t2);
+  --text-3: var(--t3);
+  --text-4: var(--t4);
+  --surface-1: var(--s1);
+  --surface-2: var(--s2);
+  --surface-3: var(--s3);
+  --surface-4: var(--s4);
+  --line-1: var(--l1);
+  --line-2: var(--l2);
+  --line-3: var(--l3);
+}
+
+[data-face="ink"],
+html[data-theme-id='piwin-inkstone-ink'] {
+  --void: #0b0a09;
+  --s1: #13110f;
+  --s2: #181613;
+  --s3: #1e1b17;
+  --s4: #28241f;
+  --t1: #ebe5da;
+  --t2: #aba397;
+  --t3: #8a8276;
+  --t4: #6b6358;
+  --l1: rgba(235, 229, 218, 0.07);
+  --l2: rgba(235, 229, 218, 0.12);
+  --l3: rgba(235, 229, 218, 0.2);
+  --zhu: #e25a3d;
+  --zhu-lift: #f07054;
+  --on-zhu: #1a0805;
+  --zhu-wash: rgba(226, 90, 61, 0.14);
+  --lamp: #e7b352;
+  --lamp-wash: rgba(231, 179, 82, 0.12);
+  --pine: #5fad85;
+  --pine-wash: rgba(95, 173, 133, 0.14);
+  --ochre: #c88f3c;
+  --ochre-wash: rgba(200, 143, 60, 0.14);
+  --crimson: #d95f6e;
+  --azure: #6ba4c3;
+  --azure-wash: rgba(107, 164, 195, 0.14);
+  --code: #0f0e0c;
+  --sh1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.6);
+  --sh2: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.6), 0 3px 10px -2px rgba(0, 0, 0, 0.5);
+  --sh3: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.7), 0 14px 34px -10px rgba(0, 0, 0, 0.7);
+  --text-1: var(--t1);
+  --text-2: var(--t2);
+  --text-3: var(--t3);
+  --text-4: var(--t4);
+  --surface-1: var(--s1);
+  --surface-2: var(--s2);
+  --surface-3: var(--s3);
+  --surface-4: var(--s4);
+  --line-1: var(--l1);
+  --line-2: var(--l2);
+  --line-3: var(--l3);
+}
+
+/* Prototype Control Strip */
+.proto-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 20px;
+  font: 11.5px var(--mono, monospace);
+  color: var(--t3, var(--text-3));
+  border-bottom: 1px dashed var(--l2, var(--line-2));
+  background: var(--s1, var(--surface-1));
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  flex: none;
+}
+.proto-bar .pt {
+  color: var(--t1, var(--text-1));
+  font-weight: 600;
+}
+.proto-seg {
+  display: inline-flex;
+  border: 1px solid var(--l2, var(--line-2));
+  border-radius: 5px;
+  overflow: hidden;
+  flex: none;
+  background: var(--s2, var(--surface-2));
+}
+.proto-seg button {
+  font: 11px var(--mono, monospace);
+  padding: 3px 10px;
+  color: var(--t3, var(--text-3));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.proto-seg button.active {
+  background: var(--s3, var(--surface-3));
+  color: var(--t1, var(--text-1));
+  font-weight: 600;
+  box-shadow: var(--sh1, 0 1px 2px rgba(0,0,0,0.06));
+}
+
+/* Stage Canvas & Hub Container */
+.hub-container {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+/* Paper noise texture */
+.vault-stage.ink-window {
+  background: var(--s2, var(--surface-1));
+}
+
+.traffic-lights {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.traffic-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}

@@ -247,7 +247,7 @@ describe('buildExploreFlowRoles', () => {
     if (liveAnchor?.kind !== 'anchor') return;
     expect(liveAnchor.group.isLive).toBe(true);
     expect(liveAnchor.group.toolCount).toBe(2);
-    expect(withPlaceholder.get('m3')).toBeUndefined();
+    expect(withPlaceholder.get('m3')).toEqual({ kind: 'member', anchorMessageId: 'm1' });
     expect(
       exploreFlowRolesEqual(liveAnchor, withoutPlaceholder.get('m1') as ExploreFlowRole),
     ).toBe(true);
@@ -269,7 +269,7 @@ describe('buildExploreFlowRoles', () => {
     expect(roles.get('m2')).toEqual({ kind: 'member', anchorMessageId: 'm1' });
     expect(anchor.group.toolCount).toBe(2);
     expect(anchor.group.isLive).toBe(true);
-    expect(roles.get('gap')).toBeUndefined();
+    expect(roles.get('gap')).toEqual({ kind: 'member', anchorMessageId: 'm1' });
   });
 
   it('joins the same live run after the placeholder gains a tool', () => {
@@ -296,6 +296,26 @@ describe('buildExploreFlowRoles', () => {
       't2',
       't3',
     ]);
+  });
+
+  it('settles a running explore group when a user follow-up breaks the run', () => {
+    const roles = buildExploreFlowRoles(
+      [
+        assistantStep('m1', { tools: [readTool('t1', 'src/a.ts')] }),
+        assistantStep('m2', {
+          status: 'streaming',
+          tools: [readTool('t2', 'src/b.ts', 'running')],
+        }),
+        userMessage('u2'),
+      ],
+      { streamActive: true },
+    );
+
+    const anchor = roles.get('m1');
+    expect(anchor?.kind).toBe('anchor');
+    if (anchor?.kind !== 'anchor') return;
+    expect(anchor.group.hasRunning).toBe(true);
+    expect(anchor.group.isLive).toBe(false);
   });
 
   it('excludes error steps and messages with generation tools or citations', () => {

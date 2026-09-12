@@ -4,6 +4,7 @@ import type {
   SessionTranscriptMessage,
   ThemeManifest,
   UsageBucket,
+  UsageCallLog,
   UsageRollup,
 } from '@piwin/contracts';
 import {
@@ -106,6 +107,63 @@ export function createMockUsageRollup(projectPath: string | undefined): UsageRol
     ],
     byDay,
     bySession: [],
+  };
+}
+
+/**
+ * Deterministic call log for the browser mock. Generates enough rows to page
+ * through, spread across the requested window, so the table, the summary and
+ * the pager all have something real to render.
+ */
+export function createMockUsageCallLog(
+  projectPath: string | undefined,
+  windowMinutes: number,
+  limit: number,
+  offset: number,
+): UsageCallLog {
+  const now = Date.now();
+  const models = [
+    { modelId: 'gpt-5.2-codex', providerId: 'openai-work' },
+    { modelId: 'claude-sonnet-4-5', providerId: 'anthropic-main' },
+    { modelId: 'gpt-5.2-codex', providerId: 'openai-personal' },
+  ];
+  const total = 137;
+  const spacingMs = Math.max(1, Math.floor((windowMinutes * 60_000) / total));
+  const all = Array.from({ length: total }, (_, index) => {
+    const model = models[index % models.length] ?? models[0]!;
+    // Every 7th call misses the cache, so the hit/miss column is not uniform.
+    const missed = index % 7 === 0;
+    const promptTokens = missed ? 24_000 + index * 37 : 1_200 + index * 11;
+    const completionTokens = 60 + ((index * 53) % 900);
+    const cacheReadTokens = missed ? 0 : 90_000 + index * 613;
+    const cacheWriteTokens = missed ? 4_200 : 0;
+    return {
+      id: `mock-call-${index}`,
+      recordedAt: new Date(now - index * spacingMs - 20_000).toISOString(),
+      sessionId: `mock-session-${(index % 4) + 1}`,
+      projectPath: projectPath ?? null,
+      providerId: model.providerId,
+      modelId: model.modelId,
+      promptTokens,
+      completionTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+      totalTokens: promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens,
+      durationMs: 2_400 + ((index * 911) % 26_000),
+      source: 'assistant-usage' as const,
+    };
+  });
+  const safeOffset = Math.min(Math.max(0, offset), Math.max(0, (Math.ceil(all.length / limit) - 1) * limit));
+  const entries = all.slice(safeOffset, safeOffset + limit);
+  return {
+    windowMinutes,
+    from: new Date(now - windowMinutes * 60_000).toISOString(),
+    to: new Date(now).toISOString(),
+    entries,
+    offset: safeOffset,
+    limit,
+    totalInWindow: all.length,
+    truncated: all.length > entries.length,
   };
 }
 

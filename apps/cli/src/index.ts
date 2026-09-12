@@ -41,7 +41,11 @@ import { connectCliAttachedHost, readCliHostAttachTarget } from './attach-existi
 import { formatRuntimeResourcesLines } from './runtime-resources-format.js';
 import { openCliHost, type CliHostHandle } from './cli-host.js';
 import { saveAttachedCliImageAttachment, saveLocalCliImageAttachment } from './cli-prompt-image.js';
-import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
+import {
+  ensureBundledSkillsInstalled,
+  resolveBundledSkillsRoot,
+  uninstallUserSkill,
+} from '@piwin/skills';
 import { loadMcpConfig, saveMcpConfig, tryValidateMcpConfig, listEnabledServers } from '@piwin/mcp';
 import { installSkill, installExtension, RECOMMENDED_SKILLS } from '@piwin/marketplace';
 import {
@@ -158,6 +162,7 @@ Usage:
   piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass]
   piwin skill list [--project <path>]
   piwin skill install --local <dir> | --git <url> [--name <id>]
+  piwin skill uninstall <skill-id>
   piwin skill ensure-bundled
   piwin extension list [--project <path>]
   piwin extension ensure-bundled
@@ -1515,7 +1520,9 @@ async function commandSkill(argv: string[]): Promise<void> {
       projectPath: scanOptions.projectPath,
       ...(config.skills ? { skillsConfig: config.skills } : {}),
     });
-    const visibleSkills = discovered.skills.filter((s) => s.hidden !== true);
+    const visibleSkills = discovered.skills.filter(
+      (s) => s.hidden !== true || s.source === 'bundled',
+    );
     if (visibleSkills.length === 0) {
       console.log('(no skills found)');
       return;
@@ -1528,14 +1535,9 @@ async function commandSkill(argv: string[]): Promise<void> {
   }
 
   if (sub === 'ensure-bundled') {
-    const installed = await ensureBundledSkillsInstalled(root);
-    if (installed.length === 0) {
-      console.log('(bundled skills already present or none found)');
-    } else {
-      for (const name of installed) {
-        console.log(`installed bundled skill: ${name}`);
-      }
-    }
+    await ensureBundledSkillsInstalled(root);
+    console.log(`bundled skills load from ${resolveBundledSkillsRoot()}`);
+    console.log('(product tree — not copied into ~/.piwin/skills)');
     return;
   }
 
@@ -1575,6 +1577,34 @@ async function commandSkill(argv: string[]): Promise<void> {
     }
     console.error('Usage: piwin skill install --local <dir> | --git <url> [--name <id>]');
     process.exitCode = 1;
+    return;
+  }
+
+  if (sub === 'uninstall') {
+    const skillId = argv[2]?.trim();
+    if (!skillId) {
+      console.error('Usage: piwin skill uninstall <skill-id>');
+      process.exitCode = 1;
+      return;
+    }
+    const discovered = await loadDiscoveredResources({
+      piwinRoot: root,
+      ...(config.skills ? { skillsConfig: config.skills } : {}),
+    });
+    const skill = discovered.skills.find((entry) => entry.id === skillId);
+    if (!skill) {
+      console.error(`Skill not found: ${skillId}`);
+      process.exitCode = 1;
+      return;
+    }
+    try {
+      await uninstallUserSkill({ piwinRoot: root, skill });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`uninstalled ${skillId}`);
     return;
   }
 

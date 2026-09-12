@@ -52,6 +52,14 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell.has-right-panel {
     'nav stage signal' !important;
 }
 
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='desktop'][data-inspector='overlay'].has-right-panel,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='desktop'][data-inspector='overlay'].has-right-panel {
+  grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr) !important;
+  grid-template-areas:
+    'tb tb'
+    'nav stage' !important;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='desktop']:not(.nav-open),
 html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='desktop']:not(.nav-open) {
   grid-template-columns: minmax(0, 1fr) !important;
@@ -66,6 +74,14 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='desktop']:not(.
   grid-template-areas:
     'tb tb'
     'stage signal' !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='desktop'][data-inspector='overlay']:not(.nav-open).has-right-panel,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='desktop'][data-inspector='overlay']:not(.nav-open).has-right-panel {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-areas:
+    'tb'
+    'stage' !important;
 }
 
 /* Same !important weight as the split templates above. Without this, toggling
@@ -96,11 +112,22 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='compact'],
 html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='compact'],
 html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='compact'].has-right-panel,
-html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='compact'].has-right-panel {
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='compact'].has-right-panel,
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='phone'],
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='phone'],
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='phone'].has-right-panel,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='phone'].has-right-panel {
   grid-template-columns: minmax(0, 1fr) !important;
   grid-template-areas:
     'tb'
     'stage' !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone'] {
+  padding: 0 !important;
+  gap: 0 !important;
+  column-gap: 0 !important;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .app-shell > .context-bar,

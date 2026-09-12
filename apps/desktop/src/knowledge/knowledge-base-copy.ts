@@ -62,6 +62,16 @@ export function knowledgeStateCopy(
         nextStep: 'remove',
       };
     case 'empty':
+      if (base.kind === 'wiki') {
+        return {
+          label: zh ? '暂无词条' : 'No concepts yet',
+          tone: 'neutral',
+          explanation: zh
+            ? '通过 /wiki 指令或让 Agent 提炼材料，生成的百科词条会自动进入这里。'
+            : 'Ask the agent to ingest materials or create concepts with /wiki.',
+          nextStep: null,
+        };
+      }
       return {
         label: zh ? '还没有笔记' : 'No notes yet',
         tone: 'neutral',
@@ -78,6 +88,8 @@ export function knowledgeBaseMeta(base: KnowledgeBaseSummary, locale: KnowledgeL
   const parts: string[] = [];
   if (base.kind === 'notes') {
     parts.push(zh ? `${base.documentCount} 篇笔记` : `${base.documentCount} notes`);
+  } else if (base.kind === 'wiki') {
+    parts.push(zh ? `${base.documentCount} 个词条` : `${base.documentCount} concepts`);
   } else {
     parts.push(zh ? `${base.documentCount} 个文件` : `${base.documentCount} files`);
     if (base.chunkCount !== undefined) {

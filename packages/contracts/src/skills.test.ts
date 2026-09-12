@@ -2,10 +2,49 @@ import { describe, expect, it } from 'vitest';
 import {
   extractSkillUserRequest,
   formatSkillPrompt,
+  canToggleSkill,
+  canUninstallSkill,
+  groupSkillsBySource,
   readExplicitSkillIntent,
+  skillSourceLabel,
   stripSkillMarkdownFrontmatter,
   type SkillSummary,
 } from './skills.js';
+
+describe('skillSourceLabel / groupSkillsBySource', () => {
+  it('only user-installed skills can be uninstalled', () => {
+    expect(canUninstallSkill('user')).toBe(true);
+    expect(canUninstallSkill('bundled')).toBe(false);
+    expect(canUninstallSkill('project')).toBe(false);
+    expect(canUninstallSkill('mapped')).toBe(false);
+    expect(canUninstallSkill('pi-native')).toBe(false);
+  });
+
+  it('does not let built-in skills be toggled off', () => {
+    expect(canToggleSkill('bundled')).toBe(false);
+    expect(canToggleSkill('user')).toBe(true);
+    expect(canToggleSkill('project')).toBe(true);
+    expect(canToggleSkill('mapped')).toBe(true);
+    expect(canToggleSkill('pi-native')).toBe(true);
+  });
+
+  it('labels product-bound vs user-installed skills', () => {
+    expect(skillSourceLabel('bundled', 'zh-CN')).toBe('应用内置');
+    expect(skillSourceLabel('user', 'zh-CN')).toBe('我安装的');
+    expect(skillSourceLabel('bundled', 'en')).toBe('bundled');
+    expect(skillSourceLabel('user', 'en')).toBe('Installed');
+  });
+
+  it('groups in display order and skips empty buckets', () => {
+    const groups = groupSkillsBySource([
+      { source: 'user' as const, id: 'mine' },
+      { source: 'bundled' as const, id: 'imagegen' },
+      { source: 'project' as const, id: 'repo' },
+    ]);
+    expect(groups.map((group) => group.source)).toEqual(['bundled', 'user', 'project']);
+    expect(groups[0]?.skills).toEqual([{ source: 'bundled', id: 'imagegen' }]);
+  });
+});
 
 describe('SkillSummary', () => {
   it('exposes an optional hidden flag', () => {

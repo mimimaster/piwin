@@ -1,0 +1,474 @@
+/* Settings → orchestration schemes (list + drill-down editor).
+
+   Deck rule: a scheme is an object you act on, so each one keeps a surface and
+   the whole card is the affordance that opens it. The editor replaces the list
+   rather than expanding inside it — a roster of four roles is a page, not a
+   disclosure — and its commit bar sticks to the bottom of the settings
+   scroller so Save never scrolls out of reach.
+
+   Measure: forms cap at --orch-measure. The settings column can run past
+   1400px and a 1400px-wide one-line input reads as a mistake. */
+
+.orch-root {
+  --orch-measure: 1040px;
+  max-width: var(--orch-measure);
+  min-width: 0;
+}
+
+.orch-page-intro {
+  max-width: 760px;
+  margin: calc(var(--s-6) * -1) 0 var(--s-7);
+  color: var(--text-3);
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+}
+
+.orch-notice-slot {
+  max-width: 1040px;
+  margin-bottom: var(--s-6);
+}
+
+.orch-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Shared field chrome ──────────────────────────────────────────────── */
+
+.orch-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.orch-field-label {
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  font-weight: 550;
+  letter-spacing: var(--tracking-tight);
+}
+
+.orch-field-hint,
+.orch-section-hint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+}
+
+.orch-count {
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.orch-badge {
+  flex-shrink: 0;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--hover);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.orch-badge--default {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-mono);
+}
+
+/* ── List ─────────────────────────────────────────────────────────────── */
+
+.orch-list-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-6);
+  margin-bottom: var(--s-5);
+}
+
+.orch-scheme-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin: var(--s-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orch-scheme-card {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+  transition:
+    box-shadow var(--t-2) var(--ease-out),
+    background var(--t-2) var(--ease-out);
+}
+
+.orch-scheme-card:hover {
+  background: var(--surface-3);
+  box-shadow: var(--elev-2);
+}
+
+/* The card body is the primary affordance: one click opens the scheme. */
+.orch-scheme-open {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.orch-scheme-open:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.orch-scheme-open:focus-visible {
+  outline: 2px solid var(--accent-ring, var(--accent));
+  outline-offset: 3px;
+  border-radius: var(--r-control);
+}
+
+.orch-scheme-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.orch-scheme-name {
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  font-weight: 650;
+  letter-spacing: var(--tracking-tight);
+}
+
+.orch-scheme-id,
+.orch-detail-id {
+  color: var(--text-4);
+  font-family: var(--mono, var(--font-mono));
+  font-size: var(--fs-mono);
+}
+
+.orch-scheme-desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+}
+
+.orch-scheme-roles {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+
+.orch-role-chip {
+  padding: 1px var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  font-family: var(--mono, var(--font-mono));
+  font-size: var(--fs-mono);
+  font-weight: 600;
+}
+
+.orch-scheme-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--s-2);
+  align-self: flex-start;
+}
+
+/* ── Detail shell ─────────────────────────────────────────────────────── */
+
+.orch-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  min-width: 0;
+}
+
+.orch-detail-bar {
+  display: flex;
+  align-items: center;
+}
+
+.orch-back,
+.orch-inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  cursor: pointer;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.orch-back:hover:not(:disabled),
+.orch-inline-action:hover:not(:disabled) {
+  color: var(--text-1);
+}
+
+.orch-back:disabled,
+.orch-inline-action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.orch-detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.orch-detail-head h4 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-title);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+/* ── Form sections ────────────────────────────────────────────────────── */
+
+.orch-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--line-1);
+}
+
+.orch-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  font-weight: 650;
+}
+
+.orch-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-6);
+}
+
+.orch-section-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.orch-basics-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--s-5);
+}
+
+/* ── Quick add ────────────────────────────────────────────────────────── */
+
+.orch-quick-add {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.orch-quick-add-label {
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+}
+
+.orch-chip-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--h-xs);
+  padding: 0 var(--s-4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--mono, var(--font-mono));
+  font-size: var(--fs-mono);
+  cursor: pointer;
+  transition:
+    border-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out),
+    background var(--t-1) var(--ease-out);
+}
+
+.orch-chip-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.orch-chip-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* ── Roster ───────────────────────────────────────────────────────────── */
+
+.orch-member-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.orch-member {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6) var(--s-6);
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+}
+
+.orch-member-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.orch-member-role {
+  color: var(--text-1);
+  font-family: var(--mono, var(--font-mono));
+  font-size: var(--fs-body);
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Duty first, knobs after: the duty text is what routing reads. */
+.orch-member-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s-5) var(--s-4);
+}
+
+.orch-field--role {
+  grid-column: span 1;
+}
+
+/* ── Dispatch options ─────────────────────────────────────────────────── */
+
+.orch-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-7);
+}
+
+.orch-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.orch-toggle-title {
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  font-weight: 550;
+}
+
+.orch-caps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--s-5);
+  margin-top: var(--s-4);
+}
+
+.orch-limits-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--s-5);
+}
+
+.orch-global-limits {
+  max-width: 1040px;
+  margin-top: var(--s-8);
+}
+
+/* ── Commit bar ───────────────────────────────────────────────────────── */
+
+.orch-detail-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-4);
+  margin-top: var(--s-2);
+  padding: var(--s-5) 0 var(--s-6);
+  border-top: 1px solid var(--line-1);
+  background: linear-gradient(
+    to top,
+    var(--surface-1) 78%,
+    color-mix(in srgb, var(--surface-1) 70%, transparent)
+  );
+}
+
+/* ── Narrow settings column ───────────────────────────────────────────── */
+
+@media (max-width: 860px) {
+  .orch-scheme-card {
+    flex-direction: column;
+  }
+
+  .orch-scheme-actions {
+    align-self: stretch;
+    justify-content: flex-end;
+  }
+
+  .orch-basics-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .orch-section-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

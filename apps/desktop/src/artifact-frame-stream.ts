@@ -22,11 +22,52 @@ const ARTIFACT_STABLE_REPLAY_INTERVAL_MS = 140;
 const ARTIFACT_STABLE_REPLAY_MIN_BYTES = 4_096;
 const ARTIFACT_STABLE_REPLAY_MAX_FRAMES = 8;
 
+export type ArtifactDocumentPhase = 'empty-stream' | 'seeded-stream' | 'final';
+
 export type ArtifactDocument = {
   documentKey: string;
   documentUrl: string;
   streamLifecycle: boolean;
+  streamSeeded: boolean;
 };
+
+export function initialArtifactDocumentPhase(
+  mode: ArtifactRenderMode,
+  renderSource: string,
+): ArtifactDocumentPhase {
+  if (mode !== 'stream-preview') {
+    return 'final';
+  }
+  return renderSource.trim().length > 0 ? 'seeded-stream' : 'empty-stream';
+}
+
+export function advanceArtifactDocumentPhase(
+  current: ArtifactDocumentPhase,
+  mode: ArtifactRenderMode,
+  renderSource: string,
+): ArtifactDocumentPhase {
+  if (mode === 'stream-preview') {
+    if (current === 'final') {
+      return initialArtifactDocumentPhase(mode, renderSource);
+    }
+    return renderSource.trim().length > 0 ? 'seeded-stream' : current;
+  }
+  return 'final';
+}
+
+export function artifactDocumentKey(
+  phase: ArtifactDocumentPhase,
+  id: string,
+  srcdoc: string,
+): string {
+  if (phase === 'empty-stream') {
+    return `stream:${id}`;
+  }
+  if (phase === 'seeded-stream') {
+    return `stream:${id}:seeded`;
+  }
+  return `final:${id}:${srcdoc}`;
+}
 
 /** Encode the CSP-protected Artifact document as an isolated iframe URL. */
 export function buildArtifactDocumentDataUrl(srcdoc: string): string {
@@ -40,18 +81,29 @@ export function buildArtifactDocumentDataUrl(srcdoc: string): string {
 }
 
 /**
- * A stream keeps its first iframe document through completion. Direct final
- * renders get their own immutable document URL.
+ * Empty stream shells stay mounted only until the first stable snapshot.
+ * That snapshot is baked into a new document so the canvas is not an empty
+ * iframe waiting on postMessage. Later tokens still reconcile in place.
+ * Completion navigates to the final document — the same path history uses —
+ * instead of freezing the stream shell and hoping a last snapshot lands.
  */
 export function useArtifactDocument(decision: ArtifactSandboxView): ArtifactDocument {
-  const streamLifecycleRef = useRef(decision.mode === 'stream-preview');
-  if (decision.mode === 'stream-preview') {
-    streamLifecycleRef.current = true;
-  }
-  const streamLifecycle = streamLifecycleRef.current;
-  const documentKey = streamLifecycle
-    ? `stream:${decision.descriptor.id}`
-    : `final:${decision.descriptor.id}:${decision.srcdoc}`;
+  const phaseRef = useRef(
+    initialArtifactDocumentPhase(decision.mode, decision.renderSource),
+  );
+  phaseRef.current = advanceArtifactDocumentPhase(
+    phaseRef.current,
+    decision.mode,
+    decision.renderSource,
+  );
+  const phase = phaseRef.current;
+  const streamLifecycle = phase !== 'final';
+  const streamSeeded = phase === 'seeded-stream';
+  const documentKey = artifactDocumentKey(
+    phase,
+    decision.descriptor.id,
+    decision.srcdoc,
+  );
   const documentRef = useRef({
     key: documentKey,
     documentUrl: buildArtifactDocumentDataUrl(decision.srcdoc),
@@ -62,7 +114,12 @@ export function useArtifactDocument(decision: ArtifactSandboxView): ArtifactDocu
       documentUrl: buildArtifactDocumentDataUrl(decision.srcdoc),
     };
   }
-  return { documentKey, documentUrl: documentRef.current.documentUrl, streamLifecycle };
+  return {
+    documentKey,
+    documentUrl: documentRef.current.documentUrl,
+    streamLifecycle,
+    streamSeeded,
+  };
 }
 
 type StreamPublisherInput = {

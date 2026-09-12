@@ -1,6 +1,81 @@
 /** Skill registry contracts */
 
+/**
+ * Where a skill comes from — not a privilege level.
+ * `bundled` is first-party and lives in the product tree (repo `skills/` or
+ * the packaged `$PIWIN_BUNDLED_ASSETS_ROOT/skills` copy). It is not copied
+ * into `~/.piwin/skills`. `user` is only something the operator installed.
+ */
 export type SkillSource = 'bundled' | 'user' | 'project' | 'mapped' | 'pi-native';
+
+export const SKILL_SOURCE_DISPLAY_ORDER: readonly SkillSource[] = [
+  'bundled',
+  'user',
+  'project',
+  'mapped',
+  'pi-native',
+];
+
+export type SkillSourceLocale = 'zh-CN' | 'en';
+
+export function resourceSourceLabel(source: SkillSource, locale: SkillSourceLocale): string {
+  if (locale === 'zh-CN') {
+    switch (source) {
+      case 'bundled':
+        return '应用内置';
+      case 'user':
+        return '我安装的';
+      case 'project':
+        return '项目';
+      case 'mapped':
+        return '映射';
+      case 'pi-native':
+        return 'Pi';
+    }
+  }
+  switch (source) {
+    case 'bundled':
+      return 'bundled';
+    case 'user':
+      return 'Installed';
+    case 'project':
+      return 'Project';
+    case 'mapped':
+      return 'Mapped';
+    case 'pi-native':
+      return 'Pi';
+  }
+}
+
+export const skillSourceLabel = resourceSourceLabel;
+
+/** Only operator-installed skills may be removed from disk. */
+export function canUninstallSkill(source: SkillSource): boolean {
+  return source === 'user';
+}
+
+/** Bundled skills stay on; only non-bundled skills may be toggled. */
+export function canToggleSkill(source: SkillSource): boolean {
+  return source !== 'bundled';
+}
+
+export function groupSkillsBySource<T extends { source: SkillSource }>(
+  skills: readonly T[],
+): Array<{ source: SkillSource; skills: T[] }> {
+  const buckets = new Map<SkillSource, T[]>();
+  for (const source of SKILL_SOURCE_DISPLAY_ORDER) {
+    buckets.set(source, []);
+  }
+  for (const skill of skills) {
+    const bucket = buckets.get(skill.source);
+    if (bucket) {
+      bucket.push(skill);
+    }
+  }
+  return SKILL_SOURCE_DISPLAY_ORDER
+    .map((source) => ({ source, skills: buckets.get(source) ?? [] }))
+    .filter((group) => group.skills.length > 0);
+}
 
 export type SkillSummary = {
   id: string;
@@ -10,7 +85,7 @@ export type SkillSummary = {
   path: string;
   enabled: boolean;
   hidden?: boolean;
-  };
+};
 export type SkillsConfig = {
   /** Extra skill directories to scan (absolute or ~) */
   extraPaths: string[];

@@ -1,13 +1,15 @@
+import { Textarea as MantineTextarea } from '@mantine/core';
 import {
   useId,
   type ChangeEvent,
+  type ComponentPropsWithoutRef,
   type ReactElement,
   type TextareaHTMLAttributes,
 } from 'react';
 
 /**
- * Props for {@link TextArea}. Extends the native textarea attributes that make
- * sense for a controlled field; consumers always own `value` and `onChange`.
+ * Props for {@link TextArea}. Consumers keep a value-first `onChange` so
+ * existing call sites do not have to unwrap a DOM event.
  */
 export type TextAreaProps = {
   /** Visible label above the control. */
@@ -16,7 +18,7 @@ export type TextAreaProps = {
   description?: string;
   /** Test id exposed on the root element. */
   testId?: string;
-  /** Placeholder forwarded to the native textarea. */
+  /** Placeholder forwarded to the textarea. */
   placeholder?: string;
   /** Disables the control and dims the wrapper. */
   disabled?: boolean;
@@ -28,12 +30,16 @@ export type TextAreaProps = {
   value: string;
   /** Controlled change handler. */
   onChange: (value: string, event: ChangeEvent<HTMLTextAreaElement>) => void;
-  /** Optional rows hint for the native textarea. */
+  /** Visible rows for the field. */
   rows?: number;
   /** Optional id; generated when omitted so the label associates correctly. */
   id?: string;
   /** Optional className merged onto the root wrapper. */
   className?: string;
+  /** Association id injected by {@link Field}. */
+  'aria-describedby'?: string;
+  /** Invalid flag injected by {@link Field}. */
+  'aria-invalid'?: boolean;
   /** Pass-through native attributes (spellcheck, autocomplete, name, ...). */
   nativeProps?: Omit<
     TextareaHTMLAttributes<HTMLTextAreaElement>,
@@ -42,9 +48,8 @@ export type TextAreaProps = {
 };
 
 /**
- * Piwin-branded textarea. Thin wrapper over the native `<textarea>` element —
- * no Mantine dependency. Composes label / description / error inline so callers
- * do not need a separate `Field` wrapper for the common case.
+ * Piwin-branded textarea. Mantine `Textarea` for chrome;
+ * public props stay the existing value-first contract.
  */
 export function TextArea({
   label,
@@ -60,18 +65,17 @@ export function TextArea({
   id,
   className,
   nativeProps,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: TextAreaProps): ReactElement {
   const generatedId = useId();
   const controlId = id ?? `textarea-${generatedId}`;
-  const descriptionId = description ? `${controlId}-description` : undefined;
-  const errorId = error ? `${controlId}-error` : undefined;
-  const describedBy =
-    [descriptionId, errorId].filter(Boolean).join(' ') || undefined;
+  const invalid = Boolean(error) || ariaInvalid === true;
 
   const rootClass = [
     'piwin-text-area',
     disabled ? 'piwin-text-area--disabled' : null,
-    error ? 'piwin-text-area--error' : null,
+    invalid ? 'piwin-text-area--error' : null,
     className,
   ]
     .filter(Boolean)
@@ -86,36 +90,35 @@ export function TextArea({
       className={rootClass}
       data-testid={testId}
       data-disabled={disabled ? 'true' : 'false'}
-      data-invalid={error ? 'true' : 'false'}
+      data-invalid={invalid ? 'true' : 'false'}
     >
-      {label ? (
-        <label className="piwin-text-area-label" htmlFor={controlId}>
-          {label}
-        </label>
-      ) : null}
-      <textarea
-        {...nativeProps}
+      <MantineTextarea
+        {...(nativeProps as ComponentPropsWithoutRef<typeof MantineTextarea>)}
         id={controlId}
-        className="piwin-text-area-field"
-        value={value}
-        onChange={handleChange}
+        classNames={{
+          label: 'piwin-text-area-label',
+          input: 'piwin-text-area-field',
+          wrapper: 'piwin-text-area-wrapper',
+          description: 'piwin-text-area-description',
+          error: 'piwin-text-area-error',
+        }}
+        label={label}
+        description={description}
         placeholder={placeholder}
         disabled={disabled}
-        rows={rows}
         maxLength={maxLength}
-        aria-describedby={describedBy}
-        aria-invalid={error ? true : undefined}
+        error={error ?? undefined}
+        errorProps={{ role: 'alert' }}
+        value={value}
+        onChange={handleChange}
+        rows={rows ?? 3}
+        resize="none"
+        size="sm"
+        radius="md"
+        variant="default"
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={invalid ? true : undefined}
       />
-      {description ? (
-        <p className="piwin-text-area-description muted" id={descriptionId}>
-          {description}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="piwin-text-area-error" id={errorId} role="alert">
-          {error}
-        </p>
-      ) : null}
       {maxLength ? (
         <p className="piwin-text-area-counter muted">
           {value.length}/{maxLength}

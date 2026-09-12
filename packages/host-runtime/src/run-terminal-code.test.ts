@@ -13,6 +13,17 @@ describe('resolveRunTerminalCode', () => {
     ).toBe('worker-crash');
   });
 
+  it('does not collapse a tool-loop stall to a generic failed code', () => {
+    expect(
+      resolveRunTerminalCode({
+        cleanupFailed: false,
+        outcome: 'failed',
+        code: 'tool-loop-stalled',
+        supersededByNewPrompt: false,
+      }),
+    ).toBe('tool-loop-stalled');
+  });
+
   it('does not collapse runtime memory pressure to a generic failed code', () => {
     expect(
       resolveRunTerminalCode({

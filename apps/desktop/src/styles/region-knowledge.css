@@ -82,7 +82,7 @@
   gap: var(--s-3);
   height: var(--titleband-height);
   min-height: var(--titleband-height);
-  padding: 0 var(--s-3) 0 calc(var(--traffic-light-clearance) - var(--deck-inset));
+  padding: 0 var(--s-3) 0 var(--titleband-flush-leading);
   border-bottom: 1px solid var(--line-1);
   flex-shrink: 0;
   box-sizing: border-box;

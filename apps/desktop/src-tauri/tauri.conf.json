@@ -26,6 +26,7 @@
         "fullscreen": false,
         "minWidth": 800,
         "minHeight": 700,
+        "decorations": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "trafficLightPosition": {

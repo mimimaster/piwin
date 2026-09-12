@@ -115,6 +115,15 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font: 500 13.5px / 1.3 var(--serif);
   letter-spacing: 0;
   font-weight: 500;
+  color: var(--t1, var(--text-1));
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .vault-stage .vault-back {
+  color: var(--t2, var(--text-2));
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .vault-stage .vault-back:hover {
+  color: var(--t1, var(--text-1));
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .vault-stage .vault-bar-count {
@@ -239,9 +248,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .vault-stage .vault-bar {
   height: var(--titleband-height, 36px);
   min-height: var(--titleband-height, 36px);
-  /* Settings titleband sits in a dialog already inset by --deck-inset; this
-     row is flush to the window, so it owes the full traffic-light clearance. */
-  padding: 0 var(--s-3) 0 var(--traffic-light-clearance);
+  /* Flush-to-window vault bar: Overlay pays the light hole, Web/Windows do not. */
+  padding: 0 var(--s-3) 0 var(--titleband-flush-leading);
   background: var(--s1);
   border-bottom: 1px solid var(--l1);
 }
@@ -249,7 +257,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-bar.is-page {
   height: var(--titleband-height, 36px);
   min-height: var(--titleband-height, 36px);
-  padding: 0 var(--s-3) 0 var(--traffic-light-clearance);
+  padding: 0 var(--s-3) 0 var(--titleband-flush-leading);
   background: var(--s1);
   border-bottom: 1px solid var(--l1);
 }

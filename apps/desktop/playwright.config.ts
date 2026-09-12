@@ -39,6 +39,9 @@ export default defineConfig({
     reducedMotion: 'reduce',
     deviceScaleFactor: 1,
   },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+  ],
   webServer: {
     // VITE_PIWIN_E2E_FIXTURES compiles in the #/e2e/primitives and
     // #/e2e/artifacts gallery routes; it is supplied only here, never in a

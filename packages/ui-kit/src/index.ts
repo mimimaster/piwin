@@ -108,6 +108,9 @@ export type { ModalProps } from './modal.js';
 export { TextInput, PasswordInput } from './text-input.js';
 export type { TextInputProps, PasswordInputProps } from './text-input.js';
 
+export { NumberInput } from './number-input.js';
+export type { NumberInputProps } from './number-input.js';
+
 export { TextArea } from './textarea.js';
 export type { TextAreaProps } from './textarea.js';
 

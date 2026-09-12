@@ -36,6 +36,31 @@ describe('Inkstone tool-call timeline spine and row layout', () => {
       /\.turn-work-details \.tool-call-card \.tool-call-file-pill \{[\s\S]*?font: 11\.5px var\(--mono\);[\s\S]*?background: var\(--code\);[\s\S]*?padding: 1px 5px;/,
     );
     expect(css).toMatch(/max-width: min\(240px, 48%\);/);
+    expect(css).toMatch(
+      /\.tool-call-card \.tool-call-file-dir,[\s\S]*?flex: 0 1 auto;[\s\S]*?text-overflow: ellipsis;/,
+    );
+    expect(css).toMatch(
+      /\.tool-call-card \.tool-call-file-name,[\s\S]*?flex: none;/,
+    );
+    expect(css).toMatch(
+      /\.explore-thought-chevron \{[\s\S]*?transform: rotate\(-90deg\);/,
+    );
+    expect(css).toMatch(
+      /\.explore-thought-chevron\.open \{[\s\S]*?transform: rotate\(0deg\);/,
+    );
+    expect(css).toMatch(
+      /\.tool-call-card \.tool-call-line-range \{[\s\S]*?flex: none;[\s\S]*?color: var\(--t4\);/,
+    );
+    expect(css).not.toMatch(
+      /\.tool-call-card \.tool-call-line-range,[\s\S]*?display: none;/,
+    );
+    expect(css).toMatch(/\.tool-call-chevron-hit \{[\s\S]*?opacity: 0\.35;/);
+    expect(css).toMatch(
+      /\.tool-batch-items,[\s\S]*?padding: 0 0 0 12px;/,
+    );
+    expect(css).toMatch(
+      /\.tool-batch-items \.tool-call-card \.tool-call-summary > \.node \{[\s\S]*?left: -30px;/,
+    );
   });
 
   it('binds mineral status colors to nodes on the spine', () => {

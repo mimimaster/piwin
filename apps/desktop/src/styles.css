@@ -37,6 +37,7 @@
 @import './styles/transcript-files-changed.css';
 @import './styles/transcript-walkthrough.css';
 @import './styles/transcript-tool-card.css';
+@import './styles/transcript-tool-file-pill.css';
 @import './styles/transcript-tool-chain.css';
 @import './styles/transcript-markdown.css';
 @import './styles/transcript-cards.css';
@@ -64,7 +65,9 @@
 @import './styles/region-knowledge-stage.css';
 @import './styles/region-knowledge-cards.css';
 @import './styles/region-knowledge-wiki.css';
+@import './styles/region-knowledge-wiki-article.css';
 @import './styles/region-knowledge-base.css';
+@import './styles/region-knowledge-hub.css';
 @import './styles/knowledge-ink-wash.css';
 @import './styles/run-activity.css';
 @import './styles/region-inspector.css';
@@ -106,6 +109,7 @@
 @import './styles/inkstone/navigation.css';
 @import './styles/inkstone/subpages.css';
 @import './styles/inkstone/motion.css';
+@import './styles/region-phone.css';
 /* Memory-governor degradation overlay. Cross-cutting override layer, not a
    region: keyed off html[data-memory-pressure] and must import last so its
    !important strips beat every region sheet above. */

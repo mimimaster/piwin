@@ -1,9 +1,9 @@
 /**
  * Cursor-style "Explored N files" capsule for a cross-message explore flow.
  *
- * Live groups stay expanded so rows stream in with the running shimmer; when
- * the flow closes the capsule auto-collapses to a one-line summary (unless the
- * user toggled it, or a grouped tool failed). Thought segments render as
+ * Stays collapsed by default — including while live — so the call chain stays
+ * a one-line summary (marquee shows the active tool). Only a grouped failure
+ * auto-opens; the user can still pin it open. Thought segments render as
  * expandable "Thought for Ns" rows between tool rows, matching the causal
  * order of the underlying assistant messages.
  */
@@ -116,21 +116,21 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
   const isChinese = (props.locale ?? 'zh-CN') === 'zh-CN';
   const group = props.group;
   const hasError = group.errorCount > 0;
-  const autoOpen = group.isLive || hasError;
-  const [internalExpanded, setInternalExpanded] = useState(autoOpen);
+  const [internalExpanded, setInternalExpanded] = useState(hasError);
   const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
   const expanded = internalExpanded;
 
-  // Live flows stay open so rows stream in; once the flow closes it folds back
-  // to the summary line unless the user pinned it (or an op failed). Collapsing
-  // unmounts the list — `isLive` must not flicker across empty `message/start`
-  // placeholders (see buildExploreFlowRoles).
+  // Explore stays folded unless a grouped tool failed (or the user pinned it).
+  // Collapsing unmounts the list — `isLive` must not flicker across empty
+  // `message/start` placeholders (see buildExploreFlowRoles).
   useEffect(() => {
     if (disclosureIntentRef.current !== 'automatic') {
       return;
     }
-    setInternalExpanded(group.isLive || hasError);
-  }, [group.isLive, hasError]);
+    if (hasError) {
+      setInternalExpanded(true);
+    }
+  }, [hasError]);
 
   function toggleExpanded(): void {
     const nextExpanded = !expanded;

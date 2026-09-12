@@ -1,4 +1,5 @@
 import {
+  createMockUsageCallLog,
   createMockUsageRollup,
 } from './host-client-mock-helpers.js';
 import type { MockHostBackend } from './host-client-mock.js';
@@ -104,6 +105,21 @@ export async function handleMockHostCommands(
           command: 'usage/get-rollup',
           success: true,
           data: { rollup: createMockUsageRollup(command.projectPath) },
+        };
+      case 'usage/list-recent':
+        return {
+          id,
+          type: 'response',
+          command: 'usage/list-recent',
+          success: true,
+          data: {
+            log: createMockUsageCallLog(
+              command.projectPath,
+              command.windowMinutes ?? 60,
+              command.limit ?? 200,
+              command.offset ?? 0,
+            ),
+          },
         };
     default:
       return null;

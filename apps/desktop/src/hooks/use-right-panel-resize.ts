@@ -14,6 +14,7 @@ import {
   shouldExpandRightPanel,
   RIGHT_PANEL_STAGE_MIN_PX,
 } from '../right-panel-width';
+import { isOverlayShellLayout, type ShellLayoutMode } from '../shell-layout';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
 function writeRightPanelWidthCss(shell: HTMLElement | null, widthPx: number): void {
@@ -29,7 +30,7 @@ function findAppShell(): HTMLElement | null {
 
 export type UseRightPanelResizeOptions = {
   /** Desktop in-flow column vs compact overlay drawer. */
-  layoutMode: 'desktop' | 'compact';
+  layoutMode: ShellLayoutMode;
   /** Left navigator currently open (reserves chrome on desktop). */
   navDrawerOpen: boolean;
   /** Sidebar CSS width in px (read once; default 260). */
@@ -65,7 +66,7 @@ export function useRightPanelResize(
   const sidebarWidthPx = options.sidebarWidthPx ?? 260;
   const [widthPx, setWidthState] = useState(() => {
     const loaded = loadRightPanelWidth();
-    if (typeof window === 'undefined' || options.layoutMode === 'compact') {
+    if (typeof window === 'undefined' || isOverlayShellLayout(options.layoutMode)) {
       return loaded;
     }
     const reserved = options.navDrawerOpen ? sidebarWidthPx : 0;
@@ -181,7 +182,7 @@ export function useRightPanelResize(
         reservedChromePx: reserved,
         // Keep the chat/composer column usable — below this the empty-state
         // composer card deforms when the right panel is dragged wide.
-        minStagePx: options.layoutMode === 'compact' ? 0 : RIGHT_PANEL_STAGE_MIN_PX,
+        minStagePx: isOverlayShellLayout(options.layoutMode) ? 0 : RIGHT_PANEL_STAGE_MIN_PX,
       });
     },
     [options.layoutMode, options.navDrawerOpen, sidebarWidthPx],
@@ -238,7 +239,7 @@ export function useRightPanelResize(
   }, [commitFullWidth]);
 
   useEffect(() => {
-    if (options.layoutMode === 'compact') {
+    if (isOverlayShellLayout(options.layoutMode)) {
       commitFullWidth(false);
     }
   }, [commitFullWidth, options.layoutMode]);

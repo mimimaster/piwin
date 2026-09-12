@@ -61,7 +61,9 @@
 }
 
 /* Compact cannot reliably grow the window; panel is a fixed overlay drawer. */
-.app-shell[data-layout='compact'] > .right-panel.outward-column {
+.app-shell[data-layout='compact'] > .right-panel.outward-column,
+.app-shell[data-layout='phone'] > .right-panel.outward-column,
+.app-shell[data-inspector='overlay'] > .right-panel.outward-column {
   position: fixed;
   z-index: var(--layer-drawer);
   top: 0;
@@ -74,7 +76,14 @@
   grid-area: unset;
 }
 
-.app-shell[data-layout='compact'].has-right-panel > .right-panel.outward-column:not(.is-collapsed) {
+.app-shell[data-layout='compact'] > .right-panel.outward-column,
+.app-shell[data-inspector='overlay'] > .right-panel.outward-column {
+  width: min(var(--right-panel-width, 360px), 56vw);
+}
+
+.app-shell[data-layout='compact'].has-right-panel > .right-panel.outward-column:not(.is-collapsed),
+.app-shell[data-layout='phone'].has-right-panel > .right-panel.outward-column:not(.is-collapsed),
+.app-shell[data-inspector='overlay'].has-right-panel > .right-panel.outward-column:not(.is-collapsed) {
   /* Overlay drawer covers the stage — the only right-panel state that needs glass. */
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -613,4 +622,11 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.app-shell[data-layout='phone'] > .right-panel.outward-column {
+  width: 100%;
+  max-width: none;
+  left: 0;
+  right: 0;
 }

@@ -63,6 +63,10 @@ describe('ToolCallCard openable file paths', () => {
     const filePill = container.querySelector<HTMLElement>('[data-testid="tool-call-file-pill"]');
     expect(filePill).not.toBeNull();
     expect(filePill?.classList.contains('is-link')).toBe(true);
+    expect(filePill?.getAttribute('aria-label')).toBe('Open pelican-bicycle-animation.html');
+    expect(container.querySelector('.tool-call-summary')?.classList.contains('has-body')).toBe(
+      true,
+    );
     expect(container.querySelector('.tool-call-card')?.classList.contains('is-expanded')).toBe(
       false,
     );
@@ -78,6 +82,60 @@ describe('ToolCallCard openable file paths', () => {
     expect(container.querySelector('.tool-call-card')?.classList.contains('is-expanded')).toBe(
       false,
     );
+  });
+
+  it('expands from the summary row even when a file opener is wired', () => {
+    const onOpenFile = vi.fn();
+
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={createReadTool()}
+          projectPath="/workspace"
+          density="comfortable"
+          onOpenFile={onOpenFile}
+        />,
+      );
+    });
+
+    act(() => {
+      container.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+
+    expect(onOpenFile).not.toHaveBeenCalled();
+    expect(container.querySelector('.tool-call-card')?.classList.contains('is-expanded')).toBe(
+      true,
+    );
+  });
+
+  it('keeps the filename visible and ellipsizes the directory on a long path', () => {
+    const relative = 'apps/desktop/src/workspace-subpages/flashcards/TactileStudyStage.tsx';
+
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={createReadTool({
+            presentation: {
+              title: 'Read',
+              kind: 'filesystem',
+              actionVerb: 'Read',
+              summary: relative,
+              targetPaths: [relative],
+            },
+          })}
+          projectPath="/workspace"
+          density="comfortable"
+        />,
+      );
+    });
+
+    const pill = container.querySelector('[data-testid="tool-call-file-pill"]');
+    expect(pill?.querySelector('.tool-call-file-name')?.textContent).toBe(
+      'TactileStudyStage.tsx',
+    );
+    expect(pill?.querySelector('.tool-call-file-dir')?.textContent).toContain('…/');
+    expect(pill?.textContent).toContain('TactileStudyStage.tsx');
+    expect(pill?.textContent).not.toMatch(/TactileStudyStage\.tsx…$/);
   });
 
   it('shows the recovered read range next to the filename', () => {
@@ -183,6 +241,46 @@ describe('ToolCallCard openable file paths', () => {
     });
 
     expect(onOpenFile).toHaveBeenCalledWith('/workspace/docs/a.html', 'docs/a.html');
+  });
+
+  it('does not repeat the same file as a relative chip, absolute chip, and args JSON', () => {
+    const relative = 'packages/artifact/src/materialize.test.ts';
+    const projectPath = '/Volumes/BigDesk/Projectsys/Projectsys/piwin';
+    const absolute = `${projectPath}/${relative}`;
+    const readTool = createReadTool({
+      toolName: 'readfile',
+      output: 'expect(plann.renderSource).toContain',
+      presentation: {
+        title: 'readfile',
+        kind: 'filesystem',
+        actionVerb: 'Read',
+        summary: relative,
+        targetPaths: [absolute],
+        documentTargets: [{ kind: 'project-file', relativePath: relative, displayRef: relative }],
+        inputPreview: JSON.stringify({ path: absolute }),
+        output: { text: 'expect(plann.renderSource).toContain' },
+      },
+    });
+
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={readTool}
+          projectPath={projectPath}
+          density="detailed"
+          defaultExpanded
+        />,
+      );
+    });
+
+    const body = container.querySelector('.tool-call-body');
+    expect(body?.textContent).toContain(relative);
+    expect(body?.querySelector('[data-testid="tool-call-doc-targets"]')?.textContent).toContain(
+      relative,
+    );
+    expect(body?.querySelector('[data-testid="tool-call-paths"]')).toBeNull();
+    expect(body?.querySelector('[data-testid="tool-call-input-preview"]')).toBeNull();
+    expect(body?.textContent?.split(relative).length).toBe(2);
   });
 
   it('keeps the file pill a non-nested code chip so the row can expand', () => {

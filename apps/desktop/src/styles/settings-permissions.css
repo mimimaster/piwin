@@ -1,0 +1,356 @@
+/**
+ * Settings → Permissions styles.
+ *
+ * Split out of settings-resources.css (one region, split by responsibility
+ * so every stylesheet stays well under the 1000-line cap).
+ *
+ * Covers:
+ * - .permission-mode-deck: the 3-card Run Mode selector (Auto / Ask / YOLO)
+ * - .permission-mode-cards, .permission-mode-card: rich interactive mode cards
+ * - .mode-card-*: header, jewel dot, title, badge, check indicator, tagline, desc, feature pills
+ * - .permission-mode-mechanics: clean disclosure for system-level rules
+ * - .permission-mode-pills: legacy segmented pill group fallback
+ */
+
+/* ── Permission Mode Selector Deck ─────────────────────────────────────
+   Three prominent, rich selection cards for Auto, Ask, and YOLO modes.
+   Provides direct visual hierarchy, status dots, taglines, capability tags,
+   and clean active/hover transitions. */
+
+.permission-mode-deck {
+  width: 100%;
+  margin-top: var(--s-3, 8px);
+  margin-bottom: var(--s-3, 8px);
+}
+
+.permission-mode-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-4, 12px);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 680px) {
+  .permission-mode-cards {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+.permission-mode-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 14px 14px 12px;
+  border-radius: var(--r-card, 10px);
+  border: 1px solid var(--line-1, rgba(0, 0, 0, 0.08));
+  background: var(--surface-2, #faf8f5);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--t-2, 160ms) var(--ease-out, ease),
+    border-color var(--t-2, 160ms) var(--ease-out, ease),
+    box-shadow var(--t-2, 160ms) var(--ease-out, ease),
+    transform var(--t-2, 160ms) var(--ease-out, ease);
+  outline: none;
+  box-sizing: border-box;
+  min-height: 154px;
+}
+
+.permission-mode-card:hover:not(:disabled) {
+  background: var(--surface-3, #ffffff);
+  border-color: var(--line-2, rgba(0, 0, 0, 0.16));
+  box-shadow: var(--elev-1, 0 2px 8px rgba(0, 0, 0, 0.04));
+  transform: translateY(-1px);
+}
+
+.permission-mode-card:focus-visible {
+  outline: 2px solid var(--iris, #8468b8);
+  outline-offset: 1px;
+}
+
+.permission-mode-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Card Header */
+.mode-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.mode-card-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.mode-card-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-4, #a0998f);
+  flex-shrink: 0;
+  transition: all var(--t-2, 160ms) var(--ease-out, ease);
+}
+
+.mode-auto .mode-card-dot { background: var(--mint, #3d7c5e); }
+.mode-ask .mode-card-dot { background: var(--amber, #b8801f); }
+.mode-yolo .mode-card-dot { background: var(--coral, #b03a24); }
+
+.mode-card-title {
+  font-size: var(--fs-chrome, 13.5px);
+  font-weight: 650;
+  color: var(--text-1, #1d1b17);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.mode-card-badge {
+  font-size: var(--fs-micro, 10.5px);
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--r-control, 4px);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.badge-pine {
+  background: color-mix(in srgb, var(--mint, #3d7c5e) 12%, transparent);
+  color: var(--mint, #3d7c5e);
+}
+.badge-lamp {
+  background: color-mix(in srgb, var(--amber, #b8801f) 14%, transparent);
+  color: var(--amber, #b8801f);
+}
+.badge-zhu {
+  background: color-mix(in srgb, var(--coral, #b03a24) 12%, transparent);
+  color: var(--coral, #b03a24);
+}
+
+/* Selector Indicator (Checkmark / Ring) */
+.mode-card-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.mode-card-radio-ring {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-2, rgba(0, 0, 0, 0.2));
+  background: transparent;
+  transition: border-color var(--t-2, 150ms) ease;
+}
+
+.permission-mode-card:hover:not(:disabled) .mode-card-radio-ring {
+  border-color: var(--text-3, #726b61);
+}
+
+.mode-card-check-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.mode-auto.is-active .mode-card-check-icon { color: var(--mint, #3d7c5e); }
+.mode-ask.is-active .mode-card-check-icon { color: var(--amber, #b8801f); }
+.mode-yolo.is-active .mode-card-check-icon { color: var(--coral, #b03a24); }
+
+/* Tagline & Description */
+.mode-card-tagline {
+  font-size: var(--fs-micro, 11.5px);
+  font-weight: 600;
+  color: var(--text-2, #5a554d);
+  margin-bottom: 5px;
+  line-height: 1.4;
+}
+
+.mode-card-desc {
+  font-size: var(--fs-micro, 11.5px);
+  line-height: 1.55;
+  color: var(--text-3, #726b61);
+  margin-bottom: 10px;
+  flex: 1 1 auto;
+}
+
+/* Feature Pills */
+.mode-card-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.mode-card-feature-pill {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--line-1, rgba(0, 0, 0, 0.06)) 60%, transparent);
+  color: var(--text-3, #726b61);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* Active State Overrides */
+.permission-mode-card.mode-auto.is-active {
+  background: color-mix(in srgb, var(--mint, #3d7c5e) 5%, var(--surface-3, #ffffff));
+  border-color: var(--mint, #3d7c5e);
+  box-shadow: 0 0 0 1px var(--mint, #3d7c5e), var(--elev-1, 0 2px 10px rgba(61, 124, 94, 0.08));
+}
+.permission-mode-card.mode-auto.is-active .mode-card-dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mint, #3d7c5e) 24%, transparent);
+}
+
+.permission-mode-card.mode-ask.is-active {
+  background: color-mix(in srgb, var(--amber, #b8801f) 6%, var(--surface-3, #ffffff));
+  border-color: var(--amber, #b8801f);
+  box-shadow: 0 0 0 1px var(--amber, #b8801f), var(--elev-1, 0 2px 10px rgba(184, 128, 31, 0.08));
+}
+.permission-mode-card.mode-ask.is-active .mode-card-dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber, #b8801f) 24%, transparent);
+}
+
+.permission-mode-card.mode-yolo.is-active {
+  background: color-mix(in srgb, var(--coral, #b03a24) 5%, var(--surface-3, #ffffff));
+  border-color: var(--coral, #b03a24);
+  box-shadow: 0 0 0 1px var(--coral, #b03a24), var(--elev-1, 0 2px 10px rgba(176, 58, 36, 0.08));
+}
+.permission-mode-card.mode-yolo.is-active .mode-card-dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--coral, #b03a24) 24%, transparent);
+}
+
+/* Restricted State for YOLO */
+.permission-mode-card.is-restricted {
+  opacity: 0.82;
+}
+
+.mode-card-restricted-hint {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--coral, #b03a24);
+  font-weight: 550;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mode-card-restricted-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--coral, #b03a24);
+  flex-shrink: 0;
+}
+
+/* Mechanics Disclosure */
+.permission-mode-mechanics {
+  margin-top: 12px;
+  border-top: 1px solid var(--line-1, rgba(0, 0, 0, 0.06));
+  padding-top: 10px;
+}
+
+.permission-mechanics-summary {
+  font-size: var(--fs-micro, 11.5px);
+  font-weight: 500;
+  color: var(--text-3, #726b61);
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--t-2, 150ms) ease;
+  list-style-type: none;
+}
+
+.permission-mechanics-summary::-webkit-details-marker {
+  display: none;
+}
+
+.permission-mechanics-summary::before {
+  content: '›';
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 6px;
+  transition: transform var(--t-2, 160ms) ease;
+}
+
+.permission-mode-mechanics[open] > .permission-mechanics-summary::before {
+  transform: rotate(90deg);
+}
+
+.permission-mechanics-summary:hover {
+  color: var(--text-1, #1d1b17);
+}
+
+/* ── Legacy Permission mode pills fallback / audit support ───────────── */
+.permission-mode-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2, 6px);
+  padding: 3px;
+  border-radius: var(--r-control, 8px);
+  background: var(--void);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.permission-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: var(--h-sm);
+  padding: 0 var(--s-5);
+  border-radius: calc(var(--r-control, 8px) - 2px);
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color var(--t-2) var(--ease-out),
+    background-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.permission-mode-pill:hover:not(:disabled) {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.permission-mode-pill.is-active {
+  color: var(--text-1);
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  font-weight: 600;
+}
+
+.permission-mode-pill .mode-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-4);
+  transition: background-color var(--t-2) var(--ease-out);
+}
+
+.permission-mode-pill.mode-auto.is-active .mode-pill-dot {
+  background: var(--mint);
+}
+
+.permission-mode-pill.mode-ask.is-active .mode-pill-dot {
+  background: var(--amber);
+}
+
+.permission-mode-pill.mode-yolo.is-active .mode-pill-dot {
+  background: var(--coral);
+}

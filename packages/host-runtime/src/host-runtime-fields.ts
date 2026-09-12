@@ -38,6 +38,7 @@ import { ProductAgentHost, type PreparedProductSession } from './product-agent-h
 import { createSessionStorageCoordinator } from './session-storage-coordinator.js';
 import { SessionAllowlist } from './session-allowlist.js';
 import { RunRegistry } from './run-registry.js';
+import { ToolLoopProgressTracker } from './tools/tool-loop-progress.js';
 import { PromptAdmissionGate } from './commands/session-prompt-admission.js';
 import { QueuedTurnController } from './queued-turn-controller.js';
 import { SessionRuntimeController } from './sessions/session-runtime-controller.js';
@@ -164,6 +165,15 @@ export class HostRuntimeFields {
   >();
   /** Structured lifecycle authority for every foreground and descendant Run. */
   runRegistry = undefined as unknown as RunRegistry;
+  /**
+   * Detects a Pi tool loop that only re-reads / greps. Built-in inspect tools
+   * never hit Host admission, so this watches AgentEvents instead.
+   */
+  toolLoopProgress = new ToolLoopProgressTracker();
+  /** Optional override used by router tests; production leaves this unset. */
+  stopRunForToolLoopStall:
+    | ((sessionId: string, runId: string, message: string) => void)
+    | undefined;
   healthToolRunBudget = new HealthToolRunBudget();
   /** Host-owned normal next-turn and Replace Run authority. */
   queuedTurnController = undefined as unknown as QueuedTurnController;

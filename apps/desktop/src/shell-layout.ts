@@ -1,28 +1,80 @@
 /**
  * Pure shell layout contract for the desktop product shell.
- * Single compact threshold: width <= 1023 is compact; >= 1024 is desktop.
+ * Width thresholds: phone <= 767; compact <= 1023; desktop >= 1024.
+ *
+ * Web/Safari skips compact: 768+ is the normal desktop page (iPad included).
+ * Compact remains a Tauri-only narrow-window drawer.
  *
  * Right workspace chrome:
  * - Closed by default (no permanent signal rail).
- * - Desktop open: in-flow third grid column; stage (chat) narrows — no OS resize.
- * - Compact open: fixed drawer overlay (unchanged).
+ * - Desktop open at >= 1024: in-flow third grid column; stage (chat) narrows.
+ * - Narrower desktop (Web 768–1023), compact, and phone: fixed drawer overlay.
+ *
+ * Phone reuses compact overlay ownership; CSS may refine presentation via
+ * data-layout="phone" without a second overlay state machine.
  */
 
-export type ShellLayoutMode = 'desktop' | 'compact';
+export type ShellLayoutMode = 'desktop' | 'compact' | 'phone';
 
 export type ShellOverlay = 'none' | 'sessions' | 'inspector';
+
+export type InspectorPlacement = 'column' | 'overlay';
+
+/** Phone-shell threshold in CSS pixels (inclusive upper bound for phone). */
+export const PHONE_SHELL_MAX_WIDTH = 767;
 
 /** Compact-shell threshold in CSS pixels (inclusive upper bound for compact). */
 export const COMPACT_SHELL_MAX_WIDTH = 1023;
 
-export function resolveLayoutMode(viewportWidth: number): ShellLayoutMode {
-  return viewportWidth <= COMPACT_SHELL_MAX_WIDTH ? 'compact' : 'desktop';
+/**
+ * Floor where sidebar + stage-min (420) + inspector + deck chrome still fit.
+ * Below this, a desktop inspector stays an overlay so the stage is not crushed.
+ */
+export const DESKTOP_INSPECTOR_COLUMN_MIN_WIDTH = 1024;
+
+export type ResolveLayoutModeOptions = {
+  /**
+   * Compact is the Mac narrow-window drawer. Web/Safari (including iPad)
+   * keeps the normal desktop page from 768 up.
+   */
+  allowCompact?: boolean;
+};
+
+export function resolveLayoutMode(
+  viewportWidth: number,
+  options: ResolveLayoutModeOptions = {},
+): ShellLayoutMode {
+  if (viewportWidth <= PHONE_SHELL_MAX_WIDTH) {
+    return 'phone';
+  }
+  const allowCompact = options.allowCompact ?? true;
+  if (allowCompact && viewportWidth <= COMPACT_SHELL_MAX_WIDTH) {
+    return 'compact';
+  }
+  return 'desktop';
+}
+
+export function resolveInspectorPlacement(
+  viewportWidth: number,
+  layoutMode: ShellLayoutMode = resolveLayoutMode(viewportWidth),
+): InspectorPlacement {
+  if (layoutMode !== 'desktop') {
+    return 'overlay';
+  }
+  return viewportWidth >= DESKTOP_INSPECTOR_COLUMN_MIN_WIDTH ? 'column' : 'overlay';
+}
+
+/** Sessions/inspector use overlay drawers instead of in-flow columns. */
+export function isOverlayShellLayout(layoutMode: ShellLayoutMode): boolean {
+  return layoutMode !== 'desktop';
 }
 
 export type ShellLayoutDerived = {
   layoutMode: ShellLayoutMode;
   isCompact: boolean;
-  /** @deprecated Use layoutMode === 'compact' — retained for gradual migration. */
+  isPhone: boolean;
+  inspectorPlacement: InspectorPlacement;
+  /** @deprecated Use isOverlayShellLayout(layoutMode) — retained for gradual migration. */
   isNarrow: boolean;
   navDrawerOpen: boolean;
   /** Content panel expanded (Files / Terminal / Changes body). */
@@ -50,23 +102,30 @@ export function deriveShellLayoutState(
    * using the compact sessions overlay.
    */
   desktopSidebarCollapsed = false,
+  inspectorPlacement: InspectorPlacement = layoutMode === 'desktop' ? 'column' : 'overlay',
 ): ShellLayoutDerived {
-  const isCompact = layoutMode === 'compact';
-  const navDrawerOpen = isCompact
+  const overlayLayout = isOverlayShellLayout(layoutMode);
+  const isPhone = layoutMode === 'phone';
+  const navDrawerOpen = overlayLayout
     ? overlay === 'sessions'
     : !desktopSidebarCollapsed;
   const rightPanelOpen = overlay === 'inspector';
   // No permanent rail; panel chrome only when inspector is open.
   const signalRailVisible = rightPanelOpen;
-  const sidebarOverlayOpen = isCompact && overlay === 'sessions';
-  // Desktop also uses an outward overlay so the stage is not compressed.
-  const inspectorOverlayOpen = overlay === 'inspector';
-  const showOverlayScrim = isCompact && overlay !== 'none';
+  const sidebarOverlayOpen = overlayLayout && overlay === 'sessions';
+  const inspectorAsOverlay = overlayLayout || inspectorPlacement === 'overlay';
+  const inspectorOverlayOpen = overlay === 'inspector' && inspectorAsOverlay;
+  const showOverlayScrim =
+    overlay === 'none'
+      ? false
+      : overlayLayout || (inspectorPlacement === 'overlay' && overlay === 'inspector');
 
   return {
     layoutMode,
-    isCompact,
-    isNarrow: isCompact,
+    isCompact: overlayLayout,
+    isPhone,
+    inspectorPlacement,
+    isNarrow: overlayLayout,
     navDrawerOpen,
     rightPanelOpen,
     signalRailVisible,

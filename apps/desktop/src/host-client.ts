@@ -111,6 +111,7 @@ function getHostRequestTimeoutMs(
     case 'mcp/start':
     case 'mcp/stop':
     case 'skills/install':
+    case 'skills/uninstall':
     case 'extensions/install':
     case 'extensions/apply':
     case 'plugins/install':

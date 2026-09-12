@@ -8,6 +8,26 @@ export {
   estimateMockUsage,
 } from '@piwin/agent-host';
 export {
+  actionSpawnsSubprocesses,
+  createAvailableMemoryReader,
+  createSystemMemoryMonitor,
+  createToolResourceGate,
+  evaluateShellMemoryAdmission,
+  getSharedSystemMemoryMonitor,
+  resetSharedSystemMemoryMonitor,
+  DEFAULT_MEMORY_SAMPLE_INTERVAL_MS,
+} from './system-memory.js';
+export type {
+  AvailableMemoryReading,
+  AvailableMemorySource,
+  ReadAvailableMemory,
+  ShellMemoryAdmission,
+  SystemMemoryMonitor,
+  SystemMemoryMonitorOptions,
+  ToolResourceGate,
+  ToolResourceRefusal,
+} from './system-memory.js';
+export {
   applyModeToMatchedRule,
   evaluateBashPermission,
   evaluateFileWritePermission,
@@ -67,6 +87,7 @@ export {
   getPiwinMcpConfigPath,
   getPiwinKnowledgeDir,
   getPiwinKnowledgeBasesPath,
+  getPiwinWikiDir,
   getPiwinSkillsDir,
   getPiwinExtensionsDir,
   getPiwinPromptsDir,
@@ -321,6 +342,23 @@ export type {
   ToolApprovalOutcome,
 } from './tools/tool-approval-broker.js';
 export { HostToolRegistrationError, toolFamilyIndex } from './tools/tool-family-index.js';
+export {
+  ToolLoopProgressTracker,
+  classifyToolLoopClass,
+  createDefaultToolLoopLimits,
+  fingerprintToolLoopCall,
+  formatToolLoopStopMessage,
+  DEFAULT_MAX_INSPECT_ONLY_TURNS,
+  DEFAULT_MAX_INSPECT_STALL_ROUNDS,
+  DEFAULT_MAX_TOOL_LOOP_TURNS,
+} from './tools/tool-loop-progress.js';
+export type {
+  ToolLoopClass,
+  ToolLoopDecision,
+  ToolLoopLimits,
+  ToolLoopObservation,
+} from './tools/tool-loop-progress.js';
+export { failRunForToolLoopStall } from './tools/tool-loop-breaker.js';
 export { ToolInvocationLedger, fingerprintToolInvocation } from './tools/tool-invocation-ledger.js';
 export { createExecutionTracker } from './turn-changes/execution-tracker.js';
 export type { ExecutionTracker } from './turn-changes/execution-tracker.js';
@@ -380,3 +418,11 @@ export {
 export type { PersistedFailureContext } from './persisted-error-redaction.js';
 export { SubscriptionQuotaService } from './subscription-quota-service.js';
 export type { SubscriptionQuotaServiceOptions } from './subscription-quota-service.js';
+export {
+  ensureWikiInitialized,
+  listWikiConcepts,
+  readWikiIndex,
+  appendWikiLog,
+  WIKI_KNOWLEDGE_BASE_NAME,
+} from './wiki-service.js';
+export type { WikiConceptItem } from './wiki-service.js';

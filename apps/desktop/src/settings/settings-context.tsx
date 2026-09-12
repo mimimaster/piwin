@@ -50,6 +50,7 @@ export type SettingsConfigRequest = (command: {
     | 'project/permissions-list'
     | 'project/permissions-revoke'
     | 'usage/get-rollup'
+    | 'usage/list-recent'
     | 'session/runtime-status'
     | 'session/reload-runtime'
     | 'session/compact-export'
@@ -86,6 +87,10 @@ export type SettingsConfigRequest = (command: {
   force?: boolean;
   window?: { from?: string; to?: string };
   topSessions?: number;
+  /** usage/list-recent: rolling window, page size and page offset. */
+  windowMinutes?: number;
+  limit?: number;
+  offset?: number;
   sessionId?: string;
   expectedSettingsRevision?: string;
   when?: 'now' | 'after-current-run';

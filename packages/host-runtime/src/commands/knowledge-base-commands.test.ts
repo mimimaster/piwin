@@ -314,4 +314,38 @@ describe('folder retrieve mapping via mocked rag', () => {
     expect(data.citations[0]?.relativePath).toBe('a.md');
     expect(data.degradedBaseIds).toContain(baseId);
   });
+
+  it('handles knowledge/wiki/overview and knowledge/wiki/concept', async () => {
+    const { root, context, rag } = await setup();
+    const overviewRes = await handleKnowledgeCommand(
+      { type: 'knowledge/wiki/overview' },
+      'w1',
+      context,
+    );
+    expect(overviewRes).toMatchObject({ success: true, command: 'knowledge/wiki/overview' });
+    const overviewData = (overviewRes as { data: { totalConcepts: number; indexContent: string } }).data;
+    expect(overviewData.totalConcepts).toBe(0);
+    expect(overviewData.indexContent).toContain('# Knowledge Index');
+
+    // Create a concept file
+    const wikiConceptsDir = join(root, 'wiki', 'concepts');
+    await mkdir(wikiConceptsDir, { recursive: true });
+    await writeFile(
+      join(wikiConceptsDir, 'attention.md'),
+      '---\ntitle: Attention\ntags: [nlp]\n---\n# Attention\n\nMechanism for [[Transformers]].',
+      'utf8',
+    );
+
+    const conceptRes = await handleKnowledgeCommand(
+      { type: 'knowledge/wiki/concept', slug: 'attention' },
+      'w2',
+      context,
+    );
+    expect(conceptRes).toMatchObject({ success: true, command: 'knowledge/wiki/concept' });
+    const conceptData = (conceptRes as { data: { concept: { title: string; links: string[] } } }).data.concept;
+    expect(conceptData.title).toBe('Attention');
+    expect(conceptData.links).toEqual(['Transformers']);
+
+    rag.close();
+  });
 });

@@ -38,6 +38,14 @@ function skillsRequestStub() {
               enabled: true,
               hidden: true,
             },
+            {
+              id: 'my-notes',
+              name: 'my-notes',
+              description: 'Personal notes',
+              source: 'user',
+              path: '/x/my-notes',
+              enabled: true,
+            },
           ],
         },
       };
@@ -55,14 +63,14 @@ function skillsRequestStub() {
   return fn as never;
 }
 
-function renderPanel(): { container: HTMLDivElement; root: Root } {
+function renderPanel(locale: 'en' | 'zh-CN' = 'en'): { container: HTMLDivElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => {
     root.render(
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-        <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+        <DesktopLocaleProvider locale={locale} onLocaleChange={() => {}}>
           <SkillsPanel projectPath={null} request={skillsRequestStub()} variant="inline" />
         </DesktopLocaleProvider>
       </PiwinUiProvider> as ReactElement,
@@ -71,7 +79,7 @@ function renderPanel(): { container: HTMLDivElement; root: Root } {
   return { container, root };
 }
 
-describe('SkillsPanel hidden skills', () => {
+describe('SkillsPanel bundled skills', () => {
   let root: Root | undefined;
   let container: HTMLDivElement | undefined;
 
@@ -84,14 +92,49 @@ describe('SkillsPanel hidden skills', () => {
     container = undefined;
   });
 
-  it('does not render skills with hidden: true', async () => {
+  it('shows bundled skills with a built-in label and no toggle or remove', async () => {
     ({ root, container } = renderPanel());
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     const list = container!.querySelector('[data-testid="skills-list"]');
     expect(list).not.toBeNull();
-    expect(container!.querySelector('[data-testid="skill-toggle-hatch-theme"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="skills-group-bundled"]')?.textContent).toContain(
+      'bundled',
+    );
+    expect(container!.querySelector('[data-testid="skills-group-bundled"]')?.textContent).not.toContain(
+      'Locked',
+    );
+    expect(container!.querySelector('[data-testid="skill-toggle-hatch-theme"]')).toBeNull();
     expect(container!.querySelector('[data-testid="skill-toggle-imagegen"]')).toBeNull();
+    expect(container!.querySelector('[data-testid="skill-uninstall-hatch-theme"]')).toBeNull();
+    expect(container!.querySelector('[data-testid="skill-uninstall-imagegen"]')).toBeNull();
+    expect(container!.querySelector('[data-testid="skill-toggle-my-notes"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="skill-uninstall-my-notes"]')).not.toBeNull();
+  });
+
+  it('groups built-in skills separately from user-installed skills', async () => {
+    ({ root, container } = renderPanel());
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const bundled = container!.querySelector('[data-testid="skills-group-bundled"]');
+    const user = container!.querySelector('[data-testid="skills-group-user"]');
+    expect(bundled?.textContent).toContain('bundled');
+    expect(bundled?.textContent).toContain('hatch-theme');
+    expect(user?.textContent).toContain('Installed');
+    expect(user?.textContent).toContain('my-notes');
+    expect(bundled?.textContent).not.toContain('my-notes');
+  });
+
+  it('uses 应用内置 and Chinese catalog copy in zh-CN', async () => {
+    ({ root, container } = renderPanel('zh-CN'));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const bundled = container!.querySelector('[data-testid="skills-group-bundled"]');
+    expect(bundled?.textContent).toContain('应用内置');
+    expect(bundled?.textContent).toContain('位图');
+    expect(bundled?.textContent).not.toContain('bundled');
   });
 });

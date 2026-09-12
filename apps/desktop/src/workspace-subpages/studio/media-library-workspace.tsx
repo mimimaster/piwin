@@ -38,6 +38,8 @@ import {
 import { MediaLibraryWorkspaceHeader } from './media-library-workspace-header';
 import { MediaLibrarySelectionDock } from './media-library-selection-dock';
 import { MediaLibraryWorkspaceOverlays } from './media-library-workspace-overlays';
+import { MediaLibraryErrorState } from './media-library-error-state';
+import { isWorkbenchHostTeardownError } from '../../workbench-host-teardown.js';
 
 export type { MediaLibraryFilter };
 
@@ -49,6 +51,7 @@ export type MediaLibraryWorkspaceProps = {
   refreshToken?: number;
   /** How long a deleted asset stays undoable before the host unlinks it. */
   deleteUndoWindowMs?: number;
+  subscribeConnected?: ((listener: (connected: boolean) => void) => () => void) | undefined;
   /**
    * Drops `text` into the composer as a starting draft — attaching `item`
    * too when remixing a real asset — then closes the library. Omit to fall
@@ -118,6 +121,7 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
     query: search,
     refreshToken: props.refreshToken ?? 0,
     isZh,
+    subscribeConnected: props.subscribeConnected,
   });
 
   const showToast = useCallback(
@@ -717,10 +721,13 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
               <p>{t('Searching the rest of the library…', '正在检索资料库其余部分…')}</p>
             </div>
           ) : library.error && library.items.length === 0 ? (
-            <div className="lib-state is-error">
-              <p className="lib-state-title">{t('Could not load the library', '无法加载资料库')}</p>
-              <p className="lib-state-detail">{library.error}</p>
-            </div>
+            <MediaLibraryErrorState
+              error={library.error}
+              isTeardown={isWorkbenchHostTeardownError(library.error)}
+              onRetry={library.reload}
+              onClose={props.onClose}
+              locale={props.locale}
+            />
           ) : visibleItems.length > 0 ? (
             <>
               <div

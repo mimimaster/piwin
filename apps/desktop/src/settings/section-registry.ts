@@ -16,6 +16,7 @@ export type SettingsSectionId =
   | 'models'
   | 'oauth'
   | 'hooks'
+  | 'subagents'
   | 'agent'
   | 'extensions'
   | 'web'
@@ -48,7 +49,6 @@ export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionI
   prompts: 'extensions',
 
   // Consolidated sections into Agent
-  subagents: 'agent',
   automation: 'agent',
   artifact: 'agent',
   'artifact-playground': 'agent',
@@ -76,6 +76,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'models', group: 'agent', labelKey: 'models' },
   { id: 'oauth', group: 'agent', labelKey: 'oauth' },
   { id: 'hooks', group: 'agent', labelKey: 'hooks' },
+  { id: 'subagents', group: 'agent', labelKey: 'subagents' },
   { id: 'agent', group: 'agent', labelKey: 'agent' },
   { id: 'extensions', group: 'integrations', labelKey: 'extensions' },
   { id: 'web', group: 'integrations', labelKey: 'web' },

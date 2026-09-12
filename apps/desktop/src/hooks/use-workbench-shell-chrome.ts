@@ -17,6 +17,7 @@ import { useComposerPlusMenu } from './use-composer-plus-menu';
 import { useRightPanelResize } from './use-right-panel-resize';
 import { useSessionListChrome } from './use-session-list-chrome';
 import { useSessionListQuery } from './use-session-list-query';
+import { isOverlayShellLayout } from '../shell-layout';
 import { useShellLayout } from './use-shell-layout';
 import { loadSidebarMode, saveSidebarMode, type SidebarMode } from '../sidebar-mode';
 import { useSidebarResize } from './use-sidebar-resize';
@@ -45,8 +46,10 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     inspectorTab: rightPanelTab,
     showOverlayScrim,
     layoutMode,
+    inspectorPlacement,
   } = shell;
-  const isOverlayPresentation = layoutMode === 'compact';
+  const isOverlayPresentation = isOverlayShellLayout(layoutMode);
+  const inspectorOverlay = isOverlayPresentation || inspectorPlacement === 'overlay';
   const rightPanelWidthRef = useRef(RIGHT_PANEL_DEFAULT_WIDTH_PX);
   const [rightPanelView, setRightPanelView] = useState<'home' | 'detail'>('home');
   const sidebarResize = useSidebarResize({
@@ -62,7 +65,7 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     sidebarWidthPx: sidebarResize.widthPx,
     onCollapseRequest: shell.closeOverlay,
     onExpandRequest: () => shell.openInspector(rightPanelTab),
-    canEnterFullWidth: rightPanelView === 'detail',
+    canEnterFullWidth: rightPanelView === 'detail' && inspectorPlacement === 'column',
   });
   if (rightPanelWidthRef.current !== rightPanelResize.widthPx) {
     rightPanelWidthRef.current = rightPanelResize.widthPx;
@@ -261,7 +264,9 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     rightPanelTab,
     showOverlayScrim,
     layoutMode,
+    inspectorPlacement,
     isOverlayPresentation,
+    inspectorOverlay,
     sidebarResize,
     rightPanelResize,
     rightPanelView,

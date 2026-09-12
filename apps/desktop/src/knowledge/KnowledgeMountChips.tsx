@@ -11,7 +11,7 @@ export function KnowledgeMountChips(props: { locale: 'zh-CN' | 'en' }): ReactEle
 
   return (
     <div
-      className="kb-mounts"
+      className="kb-mounts refs"
       role="group"
       aria-label={zh ? '本对话使用的知识库' : 'Knowledge bases in this conversation'}
       data-testid="knowledge-mount-chips"
@@ -19,18 +19,34 @@ export function KnowledgeMountChips(props: { locale: 'zh-CN' | 'en' }): ReactEle
       {mounts.mountedIds.map((baseId) => {
         const name = namesById.get(baseId) ?? baseId;
         return (
-          <span key={baseId} className="kb-mount-chip" data-testid={`knowledge-mount-chip-${baseId}`}>
-            <IconBook width={12} height={12} aria-hidden="true" />
-            <span className="kb-mount-name">{name}</span>
+          <div
+            key={baseId}
+            className="ref composer-v2-attachment-chip composer-v2-doc-comment-chip composer-v2-context-chip kb-mount-chip"
+            data-testid={`knowledge-mount-chip-${baseId}`}
+            data-shelf-chip=""
+            data-shelf-kind="knowledge-mount"
+            tabIndex={0}
+            title={name}
+          >
+            <span className="doc-comment-chip-icon" aria-hidden="true">
+              <IconBook width={13} height={13} />
+            </span>
+            <span className="chip-text kb-mount-name">{name}</span>
+            <span className="doc-comment-chip-dot" aria-hidden="true">
+              ·
+            </span>
+            <span className="doc-comment-chip-count">{zh ? '知识库' : 'Knowledge'}</span>
             <button
               type="button"
-              className="kb-mount-remove"
-              aria-label={zh ? `不再使用「${name}」` : `Stop using ${name}`}
+              className="composer-v2-chip-remove doc-comment-chip-remove kb-mount-remove"
+              data-testid={`knowledge-mount-remove-${baseId}`}
+              tabIndex={-1}
               onClick={() => mounts.toggle(baseId)}
+              aria-label={zh ? `不再使用「${name}」` : `Stop using ${name}`}
             >
-              <IconClose width={10} height={10} aria-hidden="true" />
+              <IconClose width={12} height={12} aria-hidden="true" />
             </button>
-          </span>
+          </div>
         );
       })}
       {mounts.error ? (

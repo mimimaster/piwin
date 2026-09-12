@@ -70,6 +70,8 @@ describe('DesktopThemeRoot', () => {
     const documentRoot = document.documentElement;
     expect(documentRoot.dataset.themeId).toBe('piwin-inkstone-ink');
     expect(documentRoot.dataset.themeMode).toBe('dark');
+    expect(documentRoot.dataset.windowChrome).toBe('web');
+    expect(documentRoot.dataset.runtime).toBe('web');
     // The Appearance background is the *field* the deck floats over, not the
     // panels themselves: panels come from the palette one step above it. At
     // default settings that field is Inkstone's authored void, so a stock install
