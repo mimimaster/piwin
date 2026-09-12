@@ -29,6 +29,10 @@ import { indexRecordToSummary } from './session-summary-map.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import { freezeSubagentChildResult } from './subagent-result-freeze.js';
 import {
+  recoverSubagentApplyOperations,
+  projectSubagentApplyReservations,
+} from './subagent-apply-reconcile.js';
+import {
   enrichSubagentTaskResult,
   hydrateSubagentResultService,
   projectSubagentResultSummary,
@@ -125,7 +129,12 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
   deps.subagentIntegrationCoordinator = createSubagentIntegrationCoordinator({
     integrateWorktree: integrationAdapter,
     isBaseClean: isWorktreeBaseClean,
-    ...(deps.turnChangeRuntime ? { workspaceWriteGate: deps.turnChangeRuntime.gate } : {}),
+    ...(deps.turnChangeRuntime
+      ? {
+          workspaceWriteGate: deps.turnChangeRuntime.gate,
+          applyReservation: deps.turnChangeRuntime.store,
+        }
+      : {}),
     removeWorktree: async (
       worktreePath: string,
       parentRepoPath: string,
@@ -446,6 +455,9 @@ export async function reconcilePersistedSubagentSessions(
   const manifests = await runStore.listManifests();
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const indexPath = getPiwinSessionIndexPath(rootDir);
+  if (deps.turnChangeRuntime) {
+    await recoverSubagentApplyOperations(deps.turnChangeRuntime);
+  }
 
   for (const manifest of manifests) {
     const children = await listChildSessions(indexPath, manifest.parentSessionId);
@@ -481,6 +493,9 @@ export async function reconcilePersistedSubagentSessions(
 
   if (deps.subagentResultService) {
     hydrateSubagentResultService(deps.subagentResultService, await runStore.listManifests());
+    if (deps.turnChangeRuntime) {
+      projectSubagentApplyReservations(deps.subagentResultService, deps.turnChangeRuntime.store);
+    }
   }
 }
 

@@ -8,6 +8,7 @@ import type {
   WorktreeIntegrationInput as GitWorktreeIntegrationInput,
   WorktreeIntegrationResult as GitWorktreeIntegrationResult,
 } from '@piwin/git';
+import { openTurnChangeStore } from '@piwin/git';
 import {
   createGitWorktreeIntegrationAdapter,
   createSubagentIntegrationCoordinator,
@@ -546,5 +547,140 @@ describe('SubagentIntegrationCoordinator', () => {
     releaseApply.resolve();
     await integration;
     await rm(parentRepoPath, { recursive: true, force: true });
+  });
+
+  it('persists a reservation before the first workspace write', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-int-reserve-'));
+    const store = openTurnChangeStore({ rootDir });
+    const integrateWorktree = vi.fn(async () => {
+      expect(store.getSubagentApplyReservation({ resultId: 'res-1' })?.status).toBe('applying');
+      return {
+        success: true as const,
+        changedFiles: ['src/a.ts'],
+        allowedOutputPaths: [],
+      };
+    });
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree,
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree: vi.fn().mockResolvedValue(undefined),
+      applyReservation: store,
+    });
+
+    const result = await coordinator.integrate(
+      createFrozenTaskResult('task-1'),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/one'),
+    );
+    expect(result.integrationStatus).toBe('applied');
+    expect(store.getSubagentApplyReservation({ resultId: 'res-1' })?.status).toBe('succeeded');
+    store.close();
+    await rm(rootDir, { recursive: true, force: true });
+  });
+
+  it('concurrent same-result and same-group applies produce one writer', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-int-one-writer-'));
+    const store = openTurnChangeStore({ rootDir });
+    const started = createDeferred();
+    const releaseFirst = createDeferred();
+    const writes: string[] = [];
+    const integrateWorktree: WorktreeIntegrationFunction = async (input) => {
+      writes.push(input.worktreePath);
+      if (writes.length === 1) {
+        started.resolve();
+        await releaseFirst.promise;
+      }
+      return {
+        success: true as const,
+        changedFiles: [],
+        allowedOutputPaths: [],
+      };
+    };
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree,
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree: vi.fn().mockResolvedValue(undefined),
+      applyReservation: store,
+    });
+
+    const first = coordinator.integrate(
+      { ...createFrozenTaskResult('task-1'), candidateGroupId: 'group-1' },
+      createWorktreeLease('/tmp/project/.piwin-worktrees/one'),
+    );
+    await started.promise;
+    const sameGroup = coordinator.integrate(
+      {
+        ...createTaskResult('task-2', undefined, { resultId: 'res-2', revision: 1 }),
+        candidateGroupId: 'group-1',
+      },
+      createWorktreeLease('/tmp/project/.piwin-worktrees/two'),
+    );
+    releaseFirst.resolve();
+    const [firstResult, groupResult] = await Promise.all([first, sameGroup]);
+
+    expect(firstResult.integrationStatus).toBe('applied');
+    expect(groupResult.integrationStatus).toBe('failed');
+    expect(groupResult.error).toBe('candidate-group-selected');
+    expect(writes).toHaveLength(1);
+    store.close();
+    await rm(rootDir, { recursive: true, force: true });
+  });
+
+  it('failed pre-write validation releases reservation; needs-repair does not', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-int-release-'));
+    const store = openTurnChangeStore({ rootDir });
+    const controller = new AbortController();
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree: vi.fn(),
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree: vi.fn().mockResolvedValue(undefined),
+      applyReservation: {
+        reserveSubagentApply: (input) => {
+          const reserved = store.reserveSubagentApply(input);
+          controller.abort();
+          return reserved;
+        },
+        releaseSubagentApplyReservation: (operationId) =>
+          store.releaseSubagentApplyReservation(operationId),
+        updateOperationStatus: (operationId, status) =>
+          store.updateOperationStatus(operationId, status),
+        getOperation: (operationId) => store.getOperation(operationId),
+      },
+    });
+
+    const cancelled = await coordinator.integrate(
+      { ...createFrozenTaskResult('task-1'), candidateGroupId: 'group-1' },
+      createWorktreeLease('/tmp/project/.piwin-worktrees/one'),
+      { signal: controller.signal },
+    );
+    expect(cancelled.integrationStatus).toBe('retained');
+    expect(store.getSubagentApplyReservation({ resultId: 'res-1' })).toBeUndefined();
+
+    const throwing = createSubagentIntegrationCoordinator({
+      integrateWorktree: async () => {
+        throw new Error('disk exploded');
+      },
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree: vi.fn().mockResolvedValue(undefined),
+      applyReservation: store,
+    });
+    const repaired = await throwing.integrate(
+      { ...createFrozenTaskResult('task-1'), candidateGroupId: 'group-1' },
+      createWorktreeLease('/tmp/project/.piwin-worktrees/one'),
+    );
+    expect(repaired.error).toBe('needs-repair');
+    expect(store.getSubagentApplyReservation({ resultId: 'res-1' })?.status).toBe('needs-repair');
+    store.releaseSubagentApplyReservation(
+      store.getSubagentApplyReservation({ resultId: 'res-1' })?.operationId ?? '',
+    );
+    const blocked = await throwing.integrate(
+      {
+        ...createTaskResult('task-2', undefined, { resultId: 'res-2', revision: 1 }),
+        candidateGroupId: 'group-1',
+      },
+      createWorktreeLease('/tmp/project/.piwin-worktrees/two'),
+    );
+    expect(blocked.error).toBe('needs-repair');
+    store.close();
+    await rm(rootDir, { recursive: true, force: true });
   });
 });

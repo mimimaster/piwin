@@ -6,6 +6,7 @@ import { emptySubagentResultReviewFields, type SubagentResultSummary } from '@pi
 import { createTurnChangeObjectStore, openTurnChangeStore } from '@piwin/git';
 import { createSubagentRunStore } from '@piwin/session';
 import { handleSubagentCommand, type SubagentCommandContext } from './commands/subagent-commands.js';
+import { reconcileSubagentApplyOperations } from './subagent-apply-reconcile.js';
 import {
   SUBAGENT_RESOLUTION_INSTRUCTION,
   createSubagentResultService,
@@ -589,4 +590,274 @@ describe('SubagentResultService', () => {
     ).toMatchObject({ ok: false, code: 'candidate-group-selected' });
     expect(service.get('c')?.availability.apply.allowed).toBe(true);
   });
+
+  it('same apply fingerprint replays one operation id', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-result-apply-fp-'));
+    dirs.push(dir);
+    const store = openTurnChangeStore({ rootDir: dir });
+    const writes: string[] = [];
+    const service = createSubagentResultService({ operationStore: store });
+    service.register(makeSummary({ resultId: 'result-1' }));
+
+    const first = await service.apply({
+      resultId: 'result-1',
+      expectedRevision: 1,
+      applyResult: async (input) => {
+        writes.push(input.operationId);
+        return { operationId: input.operationId };
+      },
+    });
+    const second = await service.apply({
+      resultId: 'result-1',
+      expectedRevision: 1,
+      applyResult: async (input) => {
+        writes.push(`second:${input.operationId}`);
+        return { operationId: input.operationId };
+      },
+    });
+
+    expect(first.ok).toBe(true);
+    expect(second).toEqual(first);
+    expect(writes).toHaveLength(1);
+    store.close();
+  });
+
+  it('concurrent same-result and same-group applies produce one writer', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-result-apply-race-'));
+    dirs.push(dir);
+    const store = openTurnChangeStore({ rootDir: dir });
+    const writes: string[] = [];
+    const started = createDeferred();
+    const releaseFirst = createDeferred();
+    const service = createSubagentResultService({ operationStore: store });
+    service.register(makeSummary({ resultId: 'a', candidateGroupId: 'group-1' }));
+    service.register(makeSummary({ resultId: 'b', candidateGroupId: 'group-1' }));
+
+    const first = service.apply({
+      resultId: 'a',
+      expectedRevision: 1,
+      applyResult: async (input) => {
+        writes.push(input.resultId);
+        started.resolve();
+        await releaseFirst.promise;
+        return { operationId: input.operationId };
+      },
+    });
+    await started.promise;
+    const [sameResult, sameGroup] = await Promise.all([
+      service.apply({
+        resultId: 'a',
+        expectedRevision: 1,
+        idempotencyKey: 'other-a',
+        requestHash: 'other-a',
+        applyResult: async (input) => {
+          writes.push(input.resultId);
+          return { operationId: input.operationId };
+        },
+      }),
+      (async () => {
+        releaseFirst.resolve();
+        return service.apply({
+          resultId: 'b',
+          expectedRevision: 1,
+          applyResult: async (input) => {
+            writes.push(input.resultId);
+            return { operationId: input.operationId };
+          },
+        });
+      })(),
+    ]);
+    const firstResult = await first;
+
+    expect(firstResult).toMatchObject({ ok: true });
+    expect(sameResult).toMatchObject({ ok: false, code: 'already-applied' });
+    expect(sameGroup).toMatchObject({ ok: false, code: 'candidate-group-selected' });
+    expect(writes).toEqual(['a']);
+    store.close();
+  });
+
+  it('restart after reservation rejects an overlapping apply', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-result-apply-reserve-'));
+    dirs.push(dir);
+    const firstStore = openTurnChangeStore({ rootDir: dir });
+    const first = createSubagentResultService({ operationStore: firstStore });
+    first.register(makeSummary({ resultId: 'result-1', candidateGroupId: 'group-1' }));
+    firstStore.reserveSubagentApply({
+      operationId: 'op-reserved',
+      changeSetId: 'cs-child',
+      expectedRevision: 1,
+      principal: 'host',
+      idempotencyKey: 'manual-reserve',
+      requestHash: 'manual-reserve',
+      resultId: 'result-1',
+      candidateGroupId: 'group-1',
+    });
+    firstStore.close();
+
+    const restartedStore = openTurnChangeStore({ rootDir: dir });
+    const restarted = createSubagentResultService({ operationStore: restartedStore });
+    restarted.register(makeSummary({ resultId: 'result-1', candidateGroupId: 'group-1' }));
+    restarted.register(makeSummary({ resultId: 'result-2', candidateGroupId: 'group-1' }));
+    restarted.reconcileApplyReservations(restartedStore.listSubagentApplyReservations());
+
+    const writes: string[] = [];
+    expect(
+      await restarted.apply({
+        resultId: 'result-2',
+        expectedRevision: 1,
+        applyResult: async (input) => {
+          writes.push(input.resultId);
+          return { operationId: input.operationId };
+        },
+      }),
+    ).toMatchObject({ ok: false, code: 'candidate-group-selected' });
+    expect(
+      await restarted.apply({
+        resultId: 'result-1',
+        expectedRevision: 1,
+        idempotencyKey: 'overlap',
+        requestHash: 'overlap',
+        applyResult: async (input) => {
+          writes.push(input.resultId);
+          return { operationId: input.operationId };
+        },
+      }),
+    ).toMatchObject({ ok: false, code: 'already-applied' });
+    expect(writes).toEqual([]);
+    restartedStore.close();
+  });
+
+  it('restart after file write reconciles success without a second write', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-result-apply-written-'));
+    dirs.push(dir);
+    const firstStore = openTurnChangeStore({ rootDir: dir });
+    const reserved = firstStore.reserveSubagentApply({
+      operationId: 'op-written',
+      changeSetId: 'cs-child',
+      expectedRevision: 1,
+      principal: 'host',
+      idempotencyKey: 'subagent-apply:result-1',
+      requestHash: 'subagent-apply:result-1:1',
+      resultId: 'result-1',
+    });
+    expect(reserved.outcome).toBe('created');
+    firstStore.updateOperationStatus('op-written', 'applying');
+    firstStore.recordOperationFiles([
+      {
+        operationId: 'op-written',
+        relativePath: 'a.ts',
+        fromSha: null,
+        toSha: 'a'.repeat(64),
+        backupSha: null,
+        fromExists: false,
+        toExists: true,
+        status: 'verified',
+      },
+    ]);
+    firstStore.close();
+
+    const restartedStore = openTurnChangeStore({ rootDir: dir });
+    const objectStore = createTurnChangeObjectStore({ rootDir: dir });
+    const restarted = createSubagentResultService({ operationStore: restartedStore });
+    restarted.register(makeSummary({ resultId: 'result-1', integrationStatus: 'retained' }));
+    await reconcileSubagentApplyOperations({
+      store: restartedStore,
+      objectStore,
+      resultService: restarted,
+    });
+
+    expect(restarted.get('result-1')?.integrationStatus).toBe('applied');
+    expect(restarted.get('result-1')?.latestOperationId).toBe('op-written');
+    const writes: string[] = [];
+    const replay = await restarted.apply({
+      resultId: 'result-1',
+      expectedRevision: 1,
+      applyResult: async (input) => {
+        writes.push(input.resultId);
+        return { operationId: input.operationId };
+      },
+    });
+    expect(replay).toEqual({ ok: true, operationId: 'op-written' });
+    expect(writes).toEqual([]);
+    restartedStore.close();
+  });
+
+  it('failed pre-write validation releases reservation; needs-repair does not', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-result-apply-release-'));
+    dirs.push(dir);
+    const store = openTurnChangeStore({ rootDir: dir });
+    const service = createSubagentResultService({ operationStore: store });
+    service.register(makeSummary({ resultId: 'result-1', candidateGroupId: 'group-1' }));
+    service.register(makeSummary({ resultId: 'result-2', candidateGroupId: 'group-1' }));
+
+    const rejected = await service.apply({
+      resultId: 'result-1',
+      expectedRevision: 1,
+      applyResult: async (input) => ({ operationId: input.operationId, status: 'rejected' }),
+    });
+    expect(rejected.ok).toBe(false);
+    expect(store.getSubagentApplyReservation({ resultId: 'result-1' })).toBeUndefined();
+
+    const writes: string[] = [];
+    const retried = await service.apply({
+      resultId: 'result-1',
+      expectedRevision: 1,
+      idempotencyKey: 'retry',
+      requestHash: 'retry',
+      applyResult: async (input) => {
+        writes.push(input.resultId);
+        return { operationId: input.operationId };
+      },
+    });
+    expect(retried.ok).toBe(true);
+    expect(writes).toEqual(['result-1']);
+
+    const repairDir = await mkdtemp(join(tmpdir(), 'piwin-result-apply-repair-'));
+    dirs.push(repairDir);
+    const isolated = openTurnChangeStore({ rootDir: repairDir });
+    const repairService = createSubagentResultService({ operationStore: isolated });
+    repairService.register(makeSummary({ resultId: 'result-2', candidateGroupId: 'group-1' }));
+    const repair = await repairService.apply({
+      resultId: 'result-2',
+      expectedRevision: 1,
+      applyResult: async (input) => ({ operationId: input.operationId, status: 'needs-repair' }),
+    });
+    expect(repair).toMatchObject({ ok: false, code: 'needs-repair' });
+    isolated.releaseSubagentApplyReservation(
+      isolated.getSubagentApplyReservation({ resultId: 'result-2' })?.operationId ?? '',
+    );
+    expect(isolated.getSubagentApplyReservation({ resultId: 'result-2' })?.status).toBe('needs-repair');
+
+    const blocked = await repairService.apply({
+      resultId: 'result-2',
+      expectedRevision: 1,
+      idempotencyKey: 'blocked',
+      requestHash: 'blocked',
+      applyResult: async (input) => {
+        writes.push(input.resultId);
+        return { operationId: input.operationId };
+      },
+    });
+    expect(blocked).toMatchObject({ ok: false, code: 'needs-repair' });
+    expect(writes).toEqual(['result-1']);
+    isolated.close();
+    store.close();
+  });
 });
+
+function createDeferred(): {
+  promise: Promise<void>;
+  resolve(): void;
+} {
+  let resolvePromise: (() => void) | undefined;
+  const promise = new Promise<void>((resolveValue) => {
+    resolvePromise = resolveValue;
+  });
+  return {
+    resolve: () => {
+      if (!resolvePromise) throw new Error('deferred promise was not initialized');
+      resolvePromise();
+    },
+    promise,
+  };
+}

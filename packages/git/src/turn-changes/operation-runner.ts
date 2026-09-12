@@ -1,6 +1,6 @@
 /**
- * Idempotent undo/redo runner on the bounded writer. Prechecks every path
- * before the first write. Does not change git HEAD or index.
+ * Idempotent undo/redo/subagent-apply runner on the bounded writer. Prechecks
+ * every path before the first write. Does not change git HEAD or index.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -16,7 +16,7 @@ export type TurnChangeOperationRunResult = {
   operationId: string;
   status: string;
   replayed: boolean;
-  reason?: 'files-changed';
+  reason?: 'files-changed' | 'already-applied' | 'candidate-group-selected' | 'needs-repair';
   affectedPaths?: string[];
 };
 
@@ -31,24 +31,30 @@ export async function runTurnChangeOperation(input: {
   kind: TurnChangeOperationKind;
   expectedRevision: number;
   files: readonly PlannedFileOp[];
+  resultId?: string;
+  candidateGroupId?: string | null;
 }): Promise<TurnChangeOperationRunResult> {
-  const begun = input.store.beginOperation({
-    operationId: randomUUID(),
-    changeSetId: input.changeSetId,
-    kind: input.kind,
-    expectedRevision: input.expectedRevision,
-    principal: input.principal,
-    idempotencyKey: input.idempotencyKey,
-    requestHash: input.requestHash,
-  });
+  const begun = beginRun(input);
   if (begun.outcome === 'replay') {
     return replayResult(input.store, begun.operationId);
+  }
+  if (begun.outcome === 'conflict') {
+    return {
+      operationId: begun.operationId,
+      status: begun.code,
+      replayed: false,
+      reason: begun.code,
+    };
   }
 
   const operationId = begun.operationId;
   const affectedPaths = await collectMismatchedPaths(input.workspaceRoot, input.files);
   if (affectedPaths.length > 0) {
-    input.store.updateOperationStatus(operationId, 'rejected');
+    if (input.kind === 'subagent-apply') {
+      input.store.releaseSubagentApplyReservation(operationId);
+    } else {
+      input.store.updateOperationStatus(operationId, 'rejected');
+    }
     return {
       operationId,
       status: 'rejected',
@@ -58,29 +64,86 @@ export async function runTurnChangeOperation(input: {
     };
   }
 
-  input.store.recordOperationFiles(
-    input.files.map((file) => ({
-      operationId,
-      relativePath: file.relativePath,
-      fromSha: file.fromSha,
-      toSha: file.toSha,
-      backupSha: file.fromSha,
-      fromExists: file.fromExists,
-      toExists: file.toExists,
-      status: 'intent',
-    })),
-  );
+  try {
+    input.store.recordOperationFiles(
+      input.files.map((file) => ({
+        operationId,
+        relativePath: file.relativePath,
+        fromSha: file.fromSha,
+        toSha: file.toSha,
+        backupSha: file.fromSha,
+        fromExists: file.fromExists,
+        toExists: file.toExists,
+        status: 'intent',
+      })),
+    );
 
-  for (const file of input.files) {
-    await applyPlannedFile(input.workspaceRoot, input.objectStore, file);
-    input.store.updateOperationFileStatus(operationId, file.relativePath, 'applied');
-    await verifyPlannedFile(input.workspaceRoot, file);
-    input.store.updateOperationFileStatus(operationId, file.relativePath, 'verified');
+    for (const file of input.files) {
+      await applyPlannedFile(input.workspaceRoot, input.objectStore, file);
+      input.store.updateOperationFileStatus(operationId, file.relativePath, 'applied');
+      await verifyPlannedFile(input.workspaceRoot, file);
+      input.store.updateOperationFileStatus(operationId, file.relativePath, 'verified');
+    }
+
+    input.store.updateOperationStatus(operationId, 'succeeded');
+    if (input.kind !== 'subagent-apply') {
+      input.store.markAttemptDisposition(
+        input.changeSetId,
+        input.kind === 'undo' ? 'undone' : 'applied',
+      );
+    }
+    return { operationId, status: 'succeeded', replayed: false };
+  } catch (error) {
+    if (input.kind === 'subagent-apply') {
+      input.store.updateOperationStatus(operationId, 'needs-repair');
+    }
+    throw error;
   }
+}
 
-  input.store.updateOperationStatus(operationId, 'succeeded');
-  input.store.markAttemptDisposition(input.changeSetId, input.kind === 'undo' ? 'undone' : 'applied');
-  return { operationId, status: 'succeeded', replayed: false };
+function beginRun(input: {
+  store: TurnChangeStore;
+  changeSetId: string;
+  kind: TurnChangeOperationKind;
+  expectedRevision: number;
+  principal: string;
+  idempotencyKey: string;
+  requestHash: string;
+  resultId?: string;
+  candidateGroupId?: string | null;
+}):
+  | { outcome: 'created'; operationId: string }
+  | { outcome: 'replay'; operationId: string }
+  | {
+      outcome: 'conflict';
+      operationId: string;
+      code: 'already-applied' | 'candidate-group-selected' | 'needs-repair';
+    } {
+  if (input.kind === 'subagent-apply') {
+    const resultId = input.resultId;
+    if (!resultId) {
+      throw new Error('subagent-apply requires resultId');
+    }
+    return input.store.reserveSubagentApply({
+      operationId: randomUUID(),
+      changeSetId: input.changeSetId,
+      expectedRevision: input.expectedRevision,
+      principal: input.principal,
+      idempotencyKey: input.idempotencyKey,
+      requestHash: input.requestHash,
+      resultId,
+      ...(input.candidateGroupId !== undefined ? { candidateGroupId: input.candidateGroupId } : {}),
+    });
+  }
+  return input.store.beginOperation({
+    operationId: randomUUID(),
+    changeSetId: input.changeSetId,
+    kind: input.kind,
+    expectedRevision: input.expectedRevision,
+    principal: input.principal,
+    idempotencyKey: input.idempotencyKey,
+    requestHash: input.requestHash,
+  });
 }
 
 function replayResult(store: TurnChangeStore, operationId: string): TurnChangeOperationRunResult {

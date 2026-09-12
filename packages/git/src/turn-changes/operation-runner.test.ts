@@ -340,4 +340,213 @@ describe('runTurnChangeOperation', () => {
     expect(await readFile(join(workspaceRoot, 'removed.txt'))).toEqual(Buffer.from(removed.bytes));
     store.close();
   });
+
+  it('same apply fingerprint replays one operation id', async () => {
+    const { workspaceRoot, store, objectStore } = await createHarness();
+    const before = await put(objectStore, 'before\n');
+    const after = await put(objectStore, 'after\n');
+    await writeFile(join(workspaceRoot, 'note.txt'), before.bytes);
+    const input = {
+      workspaceRoot,
+      store,
+      objectStore,
+      principal: 'host',
+      idempotencyKey: 'subagent-apply-replay',
+      requestHash: 'hash-subagent-apply-replay',
+      changeSetId: 'cs-1',
+      kind: 'subagent-apply' as const,
+      expectedRevision: 1,
+      resultId: 'result-1',
+      files: planUndoRedo({
+        files: [
+          {
+            relativePath: 'note.txt',
+            beforeSha: before.sha256,
+            afterSha: after.sha256,
+            beforeExists: true,
+            afterExists: true,
+          },
+        ],
+        direction: 'redo',
+      }),
+    };
+
+    const first = await runTurnChangeOperation(input);
+    await writeFile(join(workspaceRoot, 'note.txt'), text.encode('mutated-after-apply\n'));
+    const second = await runTurnChangeOperation(input);
+
+    expect(first.status).toBe('succeeded');
+    expect(second.operationId).toBe(first.operationId);
+    expect(second.replayed).toBe(true);
+    expect(await readFile(join(workspaceRoot, 'note.txt'), 'utf8')).toBe('mutated-after-apply\n');
+    store.close();
+  });
+
+  it('restart after file write reconciles success without a second write', async () => {
+    const workspaceRoot = await createTempDir('piwin-turn-change-op-ws-');
+    const storeRoot = await createTempDir('piwin-turn-change-op-store-');
+    const firstStore = openTurnChangeStore({ rootDir: storeRoot });
+    const objectStore = createTurnChangeObjectStore({ rootDir: storeRoot });
+    firstStore.createAttempt({
+      changeSetId: 'cs-1',
+      attemptId: 'att-1',
+      sessionId: 'sess-1',
+      workspaceId: 'ws-1',
+    });
+    const before = await put(objectStore, 'before\n');
+    const after = await put(objectStore, 'after\n');
+    await writeFile(join(workspaceRoot, 'note.txt'), before.bytes);
+
+    const first = await runTurnChangeOperation({
+      workspaceRoot,
+      store: firstStore,
+      objectStore,
+      principal: 'host',
+      idempotencyKey: 'subagent-apply-written',
+      requestHash: 'hash-subagent-apply-written',
+      changeSetId: 'cs-1',
+      kind: 'subagent-apply',
+      expectedRevision: 1,
+      resultId: 'result-1',
+      files: planUndoRedo({
+        files: [
+          {
+            relativePath: 'note.txt',
+            beforeSha: before.sha256,
+            afterSha: after.sha256,
+            beforeExists: true,
+            afterExists: true,
+          },
+        ],
+        direction: 'redo',
+      }),
+    });
+    firstStore.updateOperationStatus(first.operationId, 'applying');
+    firstStore.close();
+
+    const restarted = openTurnChangeStore({ rootDir: storeRoot });
+    const files = restarted.listOperationFiles(first.operationId);
+    expect(files.every((file) => file.status === 'verified')).toBe(true);
+    restarted.updateOperationStatus(first.operationId, 'succeeded');
+    await writeFile(join(workspaceRoot, 'note.txt'), text.encode('keep-reconciled\n'));
+
+    const replay = await runTurnChangeOperation({
+      workspaceRoot,
+      store: restarted,
+      objectStore,
+      principal: 'host',
+      idempotencyKey: 'subagent-apply-written',
+      requestHash: 'hash-subagent-apply-written',
+      changeSetId: 'cs-1',
+      kind: 'subagent-apply',
+      expectedRevision: 1,
+      resultId: 'result-1',
+      files: planUndoRedo({
+        files: [
+          {
+            relativePath: 'note.txt',
+            beforeSha: before.sha256,
+            afterSha: after.sha256,
+            beforeExists: true,
+            afterExists: true,
+          },
+        ],
+        direction: 'redo',
+      }),
+    });
+
+    expect(replay.operationId).toBe(first.operationId);
+    expect(replay.replayed).toBe(true);
+    expect(replay.status).toBe('succeeded');
+    expect(await readFile(join(workspaceRoot, 'note.txt'), 'utf8')).toBe('keep-reconciled\n');
+    restarted.close();
+  });
+
+  it('failed pre-write validation releases reservation; needs-repair does not', async () => {
+    const { workspaceRoot, store, objectStore } = await createHarness();
+    const before = await put(objectStore, 'before\n');
+    const after = await put(objectStore, 'after\n');
+    await writeFile(join(workspaceRoot, 'note.txt'), text.encode('externally-edited\n'));
+
+    const rejected = await runTurnChangeOperation({
+      workspaceRoot,
+      store,
+      objectStore,
+      principal: 'host',
+      idempotencyKey: 'subagent-apply-reject',
+      requestHash: 'hash-subagent-apply-reject',
+      changeSetId: 'cs-1',
+      kind: 'subagent-apply',
+      expectedRevision: 1,
+      resultId: 'result-1',
+      candidateGroupId: 'group-1',
+      files: planUndoRedo({
+        files: [
+          {
+            relativePath: 'note.txt',
+            beforeSha: before.sha256,
+            afterSha: after.sha256,
+            beforeExists: true,
+            afterExists: true,
+          },
+        ],
+        direction: 'redo',
+      }),
+    });
+
+    expect(rejected.status).toBe('rejected');
+    expect(store.getSubagentApplyReservation({ resultId: 'result-1' })).toBeUndefined();
+
+    await writeFile(join(workspaceRoot, 'note.txt'), before.bytes);
+    const retried = await runTurnChangeOperation({
+      workspaceRoot,
+      store,
+      objectStore,
+      principal: 'host',
+      idempotencyKey: 'subagent-apply-retry',
+      requestHash: 'hash-subagent-apply-retry',
+      changeSetId: 'cs-1',
+      kind: 'subagent-apply',
+      expectedRevision: 1,
+      resultId: 'result-1',
+      candidateGroupId: 'group-1',
+      files: planUndoRedo({
+        files: [
+          {
+            relativePath: 'note.txt',
+            beforeSha: before.sha256,
+            afterSha: after.sha256,
+            beforeExists: true,
+            afterExists: true,
+          },
+        ],
+        direction: 'redo',
+      }),
+    });
+    expect(retried.status).toBe('succeeded');
+    store.updateOperationStatus(retried.operationId, 'needs-repair');
+    store.releaseSubagentApplyReservation(retried.operationId);
+
+    const blocked = await runTurnChangeOperation({
+      workspaceRoot,
+      store,
+      objectStore,
+      principal: 'host',
+      idempotencyKey: 'subagent-apply-blocked',
+      requestHash: 'hash-subagent-apply-blocked',
+      changeSetId: 'cs-1',
+      kind: 'subagent-apply',
+      expectedRevision: 1,
+      resultId: 'result-2',
+      candidateGroupId: 'group-1',
+      files: [],
+    });
+    expect(blocked).toMatchObject({
+      status: 'needs-repair',
+      replayed: false,
+      reason: 'needs-repair',
+    });
+    expect(await readFile(join(workspaceRoot, 'note.txt'))).toEqual(Buffer.from(after.bytes));
+    store.close();
+  });
 });

@@ -481,6 +481,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       deps.subagentResultService = createSubagentResultService({
         changeStore: deps.turnChangeRuntime.store,
         objectStore: deps.turnChangeRuntime.objectStore,
+        operationStore: deps.turnChangeRuntime.store,
       });
       deps.sessionHostToolPort = createSessionHostToolExecutionPort({
         isSessionKnown: (sessionId) =>

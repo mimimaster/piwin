@@ -28,7 +28,11 @@ export type SubagentCommandContext = {
     text: string;
     resultId: string;
   }) => Promise<{ runId: string }>;
-  applyResult?: (input: { resultId: string; expectedRevision: number }) => Promise<{
+  applyResult?: (input: {
+    resultId: string;
+    expectedRevision: number;
+    operationId: string;
+  }) => Promise<{
     operationId: string;
   }>;
 };
