@@ -1,0 +1,112 @@
+import { randomUUID } from 'node:crypto';
+import type { SubagentTaskResult } from '@piwin/contracts';
+import type {
+  SubagentApplyReservationRecord,
+  SubagentApplyReserveResult,
+  TurnChangeOperationRecord,
+} from '@piwin/git';
+
+export type SubagentApplyReservationPort = {
+  reserveSubagentApply(input: {
+    operationId: string;
+    changeSetId: string;
+    expectedRevision: number;
+    principal: string;
+    idempotencyKey: string;
+    requestHash: string;
+    resultId: string;
+    candidateGroupId?: string | null;
+  }): SubagentApplyReserveResult;
+  releaseSubagentApplyReservation(operationId: string): void;
+  updateOperationStatus(operationId: string, status: string): void;
+  getOperation(operationId: string): TurnChangeOperationRecord | undefined;
+  getSubagentApplyReservation?(query: {
+    resultId?: string;
+    candidateGroupId?: string;
+  }): SubagentApplyReservationRecord | undefined;
+};
+
+export type IntegrationApplyReservation = {
+  blocked: boolean;
+  result: SubagentTaskResult;
+  release(): void;
+  complete(status: 'succeeded' | 'needs-repair'): void;
+};
+
+export function idleApplyReservation(): IntegrationApplyReservation {
+  return {
+    blocked: false,
+    result: {
+      runId: '',
+      taskId: '',
+      executionStatus: 'completed',
+      summaryStatus: 'not-requested',
+      integrationStatus: 'pending',
+    },
+    release() {},
+    complete() {},
+  };
+}
+
+export function reserveIntegrationApply(
+  port: SubagentApplyReservationPort | undefined,
+  result: SubagentTaskResult,
+): IntegrationApplyReservation {
+  const resultRef = result.resultRef;
+  if (!port || !resultRef) {
+    return idleApplyReservation();
+  }
+  const reserved = port.reserveSubagentApply({
+    operationId: randomUUID(),
+    changeSetId: result.childChanges?.changeSetId ?? `subagent-apply:${resultRef.resultId}`,
+    expectedRevision: resultRef.revision,
+    principal: 'host',
+    idempotencyKey: `subagent-apply:${resultRef.resultId}`,
+    requestHash: `subagent-apply:${resultRef.resultId}:${String(resultRef.revision)}`,
+    resultId: resultRef.resultId,
+    ...(result.candidateGroupId !== undefined ? { candidateGroupId: result.candidateGroupId } : {}),
+  });
+  if (reserved.outcome === 'conflict') {
+    return {
+      blocked: true,
+      result: {
+        ...result,
+        integrationStatus: 'failed',
+        error: reserved.code,
+      },
+      release() {},
+      complete() {},
+    };
+  }
+  if (reserved.outcome === 'replay' && reserved.status === 'succeeded') {
+    return {
+      blocked: true,
+      result: { ...result, integrationStatus: 'applied' },
+      release() {},
+      complete() {},
+    };
+  }
+  if (reserved.outcome === 'replay' && reserved.status === 'needs-repair') {
+    return {
+      blocked: true,
+      result: {
+        ...result,
+        integrationStatus: 'failed',
+        error: 'needs-repair',
+      },
+      release() {},
+      complete() {},
+    };
+  }
+  const operationId = reserved.operationId;
+  return {
+    blocked: false,
+    result,
+    release() {
+      port.releaseSubagentApplyReservation(operationId);
+    },
+    complete(status) {
+      port.updateOperationStatus(operationId, status);
+    },
+  };
+}

@@ -33,7 +33,9 @@ type IdempotencyRow = {
   operation_id: string;
 };
 
-export type TurnChangeOperationKind = 'undo' | 'redo';
+export type TurnChangeOperationKind = 'undo' | 'redo' | 'subagent-apply';
+
+export const SUBAGENT_APPLY_RESOURCE_PRINCIPAL = 'subagent-apply';
 
 export type TurnChangeOperationRecord = {
   operationId: string;
@@ -43,6 +45,24 @@ export type TurnChangeOperationRecord = {
   expectedRevision: number;
   direction: string | null;
 };
+
+export type SubagentApplyReservationRecord = {
+  operationId: string;
+  resultId: string;
+  candidateGroupId: string | null;
+  status: string;
+  changeSetId: string;
+  expectedRevision: number;
+};
+
+export type SubagentApplyReserveResult =
+  | { outcome: 'created'; operationId: string }
+  | { outcome: 'replay'; operationId: string; status: string }
+  | {
+      outcome: 'conflict';
+      operationId: string;
+      code: 'already-applied' | 'candidate-group-selected' | 'needs-repair';
+    };
 
 export type TurnChangeOperationFileRecord = {
   operationId: string;
@@ -76,6 +96,23 @@ export type TurnChangeOperationStore = {
   listOperationFiles(operationId: string): TurnChangeOperationFileRecord[];
   updateOperationFileStatus(operationId: string, relativePath: string, status: string): void;
   markAttemptDisposition(changeSetId: string, disposition: string): void;
+  reserveSubagentApply(input: {
+    operationId: string;
+    changeSetId: string;
+    expectedRevision: number;
+    principal: string;
+    idempotencyKey: string;
+    requestHash: string;
+    resultId: string;
+    candidateGroupId?: string | null;
+  }): SubagentApplyReserveResult;
+  releaseSubagentApplyReservation(operationId: string): void;
+  getSubagentApplyReservation(query: {
+    resultId?: string;
+    candidateGroupId?: string;
+  }): SubagentApplyReservationRecord | undefined;
+  listSubagentApplyReservations(): SubagentApplyReservationRecord[];
+  listOperationsByKind(kind: string): TurnChangeOperationRecord[];
 };
 
 export function bindTurnChangeOperationStore(db: DatabaseSync): TurnChangeOperationStore {
@@ -89,6 +126,22 @@ export function bindTurnChangeOperationStore(db: DatabaseSync): TurnChangeOperat
   const insertIdempotency = db.prepare(
     `INSERT INTO idempotency(principal, key, request_hash, operation_id)
      VALUES (?, ?, ?, ?)`,
+  );
+  const upsertIdempotency = db.prepare(
+    `INSERT INTO idempotency(principal, key, request_hash, operation_id)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(principal, key) DO UPDATE SET
+       request_hash = excluded.request_hash,
+       operation_id = excluded.operation_id`,
+  );
+  const deleteIdempotencyByOperation = db.prepare(
+    `DELETE FROM idempotency WHERE operation_id = ?`,
+  );
+  const selectIdempotencyByPrincipal = db.prepare(
+    `SELECT * FROM idempotency WHERE principal = ? ORDER BY rowid ASC`,
+  );
+  const selectOperationsByKind = db.prepare(
+    `SELECT * FROM operation WHERE kind = ? ORDER BY rowid ASC`,
   );
   const selectOperation = db.prepare(`SELECT * FROM operation WHERE operation_id = ?`);
   const updateOperationStatus = db.prepare(`UPDATE operation SET status = ? WHERE operation_id = ?`);
@@ -224,6 +277,131 @@ export function bindTurnChangeOperationStore(db: DatabaseSync): TurnChangeOperat
     markAttemptDisposition(changeSetId: string, disposition: string): void {
       updateAttemptDisposition.run(disposition, changeSetId);
     },
+
+    reserveSubagentApply(input): SubagentApplyReserveResult {
+      const existing = selectIdempotency.get(input.principal, input.idempotencyKey) as
+        | IdempotencyRow
+        | undefined;
+      if (existing) {
+        return replayReservedOperation(existing, input.requestHash, selectOperation);
+      }
+
+      db.exec('BEGIN');
+      try {
+        const raced = selectIdempotency.get(input.principal, input.idempotencyKey) as
+          | IdempotencyRow
+          | undefined;
+        if (raced) {
+          db.exec('ROLLBACK');
+          return replayReservedOperation(raced, input.requestHash, selectOperation);
+        }
+
+        const resultConflict = occupyingReservation(
+          selectIdempotency,
+          selectOperation,
+          subagentApplyResultKey(input.resultId),
+        );
+        if (resultConflict) {
+          db.exec('ROLLBACK');
+          return {
+            outcome: 'conflict',
+            operationId: resultConflict.operationId,
+            code: resultConflict.status === 'needs-repair' ? 'needs-repair' : 'already-applied',
+          };
+        }
+
+        const groupId = input.candidateGroupId;
+        if (groupId) {
+          const groupConflict = occupyingReservation(
+            selectIdempotency,
+            selectOperation,
+            subagentApplyGroupKey(groupId),
+          );
+          if (groupConflict) {
+            db.exec('ROLLBACK');
+            return {
+              outcome: 'conflict',
+              operationId: groupConflict.operationId,
+              code:
+                groupConflict.status === 'needs-repair' ? 'needs-repair' : 'candidate-group-selected',
+            };
+          }
+        }
+
+        insertOperation.run(
+          input.operationId,
+          input.changeSetId,
+          'subagent-apply',
+          input.expectedRevision,
+          'subagent-apply',
+        );
+        insertIdempotency.run(
+          input.principal,
+          input.idempotencyKey,
+          input.requestHash,
+          input.operationId,
+        );
+        upsertIdempotency.run(
+          SUBAGENT_APPLY_RESOURCE_PRINCIPAL,
+          subagentApplyResultKey(input.resultId),
+          input.resultId,
+          input.operationId,
+        );
+        if (groupId) {
+          upsertIdempotency.run(
+            SUBAGENT_APPLY_RESOURCE_PRINCIPAL,
+            subagentApplyGroupKey(groupId),
+            groupId,
+            input.operationId,
+          );
+        }
+        db.exec('COMMIT');
+        return { outcome: 'created', operationId: input.operationId };
+      } catch (error) {
+        db.exec('ROLLBACK');
+        const duplicate = selectIdempotency.get(input.principal, input.idempotencyKey) as
+          | IdempotencyRow
+          | undefined;
+        if (duplicate) {
+          return replayReservedOperation(duplicate, input.requestHash, selectOperation);
+        }
+        throw error;
+      }
+    },
+
+    releaseSubagentApplyReservation(operationId: string): void {
+      const row = selectOperation.get(operationId) as OperationRow | undefined;
+      if (row === undefined) {
+        return;
+      }
+      if (row.status === 'needs-repair' || row.status === 'succeeded') {
+        return;
+      }
+      deleteIdempotencyByOperation.run(operationId);
+      updateOperationStatus.run('rejected', operationId);
+    },
+
+    getSubagentApplyReservation(query) {
+      return listSubagentApplyReservationRecords(
+        selectIdempotencyByPrincipal,
+        selectOperation,
+      ).find((record) => {
+        if (query.resultId !== undefined) return record.resultId === query.resultId;
+        if (query.candidateGroupId !== undefined) {
+          return record.candidateGroupId === query.candidateGroupId;
+        }
+        return false;
+      });
+    },
+
+    listSubagentApplyReservations(): SubagentApplyReservationRecord[] {
+      return listSubagentApplyReservationRecords(selectIdempotencyByPrincipal, selectOperation);
+    },
+
+    listOperationsByKind(kind: string): TurnChangeOperationRecord[] {
+      const rows = selectOperationsByKind.all(kind) as OperationRow[];
+      return rows.map(mapOperationRow);
+    },
   };
 }
 
@@ -262,4 +440,84 @@ function pinSha(
     return;
   }
   upsertPin.run(sha, OPERATION_FILE_REF_KIND, `${operationId}:${relativePath}:${side}`, null);
+}
+
+export function subagentApplyResultKey(resultId: string): string {
+  return `result:${resultId}`;
+}
+
+export function subagentApplyGroupKey(groupId: string): string {
+  return `group:${groupId}`;
+}
+
+export function occupiesSubagentApplyStatus(status: string): boolean {
+  return status === 'applying' || status === 'succeeded' || status === 'needs-repair';
+}
+
+function occupyingReservation(
+  selectIdempotency: { get(principal: string, key: string): unknown },
+  selectOperation: { get(operationId: string): unknown },
+  key: string,
+): TurnChangeOperationRecord | undefined {
+  const row = selectIdempotency.get(SUBAGENT_APPLY_RESOURCE_PRINCIPAL, key) as
+    | IdempotencyRow
+    | undefined;
+  if (!row) {
+    return undefined;
+  }
+  const operation = selectOperation.get(row.operation_id) as OperationRow | undefined;
+  if (!operation || !occupiesSubagentApplyStatus(operation.status)) {
+    return undefined;
+  }
+  return mapOperationRow(operation);
+}
+
+function replayReservedOperation(
+  row: IdempotencyRow,
+  requestHash: string,
+  selectOperation: { get(operationId: string): unknown },
+): SubagentApplyReserveResult {
+  if (row.request_hash !== requestHash) {
+    throw new Error('idempotency-conflict');
+  }
+  const operation = selectOperation.get(row.operation_id) as OperationRow | undefined;
+  return {
+    outcome: 'replay',
+    operationId: row.operation_id,
+    status: operation?.status ?? 'applying',
+  };
+}
+
+function listSubagentApplyReservationRecords(
+  selectIdempotencyByPrincipal: { all(principal: string): unknown[] },
+  selectOperation: { get(operationId: string): unknown },
+): SubagentApplyReservationRecord[] {
+  const rows = selectIdempotencyByPrincipal.all(SUBAGENT_APPLY_RESOURCE_PRINCIPAL) as IdempotencyRow[];
+  const groups = new Map<string, string>();
+  const results: IdempotencyRow[] = [];
+  for (const row of rows) {
+    if (row.key.startsWith('group:')) {
+      groups.set(row.operation_id, row.key.slice('group:'.length));
+      continue;
+    }
+    if (row.key.startsWith('result:')) {
+      results.push(row);
+    }
+  }
+  const records: SubagentApplyReservationRecord[] = [];
+  for (const row of results) {
+    const operation = selectOperation.get(row.operation_id) as OperationRow | undefined;
+    if (!operation) {
+      continue;
+    }
+    records.push({
+      operationId: row.operation_id,
+      resultId: row.key.slice('result:'.length),
+      candidateGroupId: groups.get(row.operation_id) ?? null,
+      status: operation.status,
+      changeSetId: operation.change_set_id,
+      expectedRevision: operation.expected_revision,
+    });
+  }
+  return records;
 }

@@ -23,11 +23,18 @@ import type {
   WorktreeIntegrationInput as GitWorktreeIntegrationInput,
   WorktreeIntegrationResult as GitWorktreeIntegrationResult,
 } from '@piwin/git';
+import {
+  idleApplyReservation,
+  reserveIntegrationApply,
+  type SubagentApplyReservationPort,
+} from './subagent-apply-reservation.js';
 import { settleAppliedWorktreeCopy } from './subagent-copy-cleanup.js';
 import type {
   WorkspaceWriteGate,
   WorkspaceWriteLease,
 } from './turn-changes/workspace-write-gate.js';
+
+export type { SubagentApplyReservationPort } from './subagent-apply-reservation.js';
 
 export type WorktreeIntegrationInput = {
   readonly worktreePath: string;
@@ -125,6 +132,8 @@ export type SubagentIntegrationCoordinatorOptions = {
   ) => Promise<void>;
   /** Exclusive parent-workspace lock; acquired after the repo serial queue. */
   workspaceWriteGate?: WorkspaceWriteGate;
+  /** Durable apply reservation; persist before the first parent write. */
+  applyReservation?: SubagentApplyReservationPort;
 };
 
 export type SubagentIntegrationControl = {
@@ -237,7 +246,8 @@ type RetainedWorktree = {
 export function createSubagentIntegrationCoordinator(
   options: SubagentIntegrationCoordinatorOptions,
 ): SubagentIntegrationCoordinator {
-  const { integrateWorktree, isBaseClean, removeWorktree, workspaceWriteGate } = options;
+  const { integrateWorktree, isBaseClean, removeWorktree, workspaceWriteGate, applyReservation } =
+    options;
 
   /** Explicit FIFO queues allow a cancelled waiter to be removed safely. */
   const integrationQueues = new Map<string, IntegrationQueueState>();
@@ -354,6 +364,8 @@ export function createSubagentIntegrationCoordinator(
 
     let slot: IntegrationQueueLease | undefined;
     let writeLease: WorkspaceWriteLease | undefined;
+    let reservedApply = idleApplyReservation();
+    let writeStarted = false;
 
     try {
       slot = await acquireIntegrationSlot(parentRepoPath, worktreePath, control.signal);
@@ -386,10 +398,21 @@ export function createSubagentIntegrationCoordinator(
         throw new IntegrationQueueCancelledError();
       }
 
+      reservedApply = reserveIntegrationApply(applyReservation, result);
+      if (reservedApply.blocked) {
+        return reservedApply.result;
+      }
+
+      if (control.signal?.aborted) {
+        reservedApply.release();
+        throw new IntegrationQueueCancelledError();
+      }
+
       // The current Git adapter is a one-shot operation. Until the durable
       // prepare/apply journal is introduced, this is the conservative commit
       // point: cancellation can remove queued work before this callback, but
       // cannot interrupt or relabel a Git operation after it starts.
+      writeStarted = true;
       control.onCommitPoint?.();
       const integrationResult = await integrateWorktree({
         worktreePath,
@@ -405,6 +428,7 @@ export function createSubagentIntegrationCoordinator(
           allowedOutputPaths,
         );
         if (disallowedOutputPaths.length > 0) {
+          reservedApply.release();
           await retain(
             worktreePath,
             `integration rejected files outside allowedOutputPaths: ${disallowedOutputPaths.join(', ')}`,
@@ -417,6 +441,7 @@ export function createSubagentIntegrationCoordinator(
           };
         }
 
+        reservedApply.complete('succeeded');
         return settleAppliedWorktreeCopy({
           result,
           changedFiles: integrationResult.changedFiles,
@@ -431,6 +456,7 @@ export function createSubagentIntegrationCoordinator(
       }
 
       if (integrationResult.conflict) {
+        reservedApply.release();
         // SC-12 / rule 6: retain conflicted worktrees.
         const conflictDetail = integrationResult.error
           ? `${integrationResult.conflictFiles.join(', ')} (${integrationResult.error})`
@@ -444,6 +470,7 @@ export function createSubagentIntegrationCoordinator(
         };
       }
 
+      reservedApply.release();
       // Non-conflict failure: retain and mark as failed.
       await retain(worktreePath, `integration error: ${integrationResult.error}`);
       return {
@@ -453,6 +480,11 @@ export function createSubagentIntegrationCoordinator(
         worktreePath,
       };
     } catch (error) {
+      if (writeStarted) {
+        reservedApply.complete('needs-repair');
+      } else {
+        reservedApply.release();
+      }
       if (error instanceof IntegrationQueueCancelledError) {
         await retain(worktreePath, error.message);
         return {
@@ -468,7 +500,7 @@ export function createSubagentIntegrationCoordinator(
       return {
         ...result,
         integrationStatus: 'failed',
-        error: message,
+        error: writeStarted ? 'needs-repair' : message,
         worktreePath,
       };
     } finally {

@@ -399,6 +399,7 @@ export type {
   WorktreeIntegrationInput,
   WorktreeIntegrationResult,
 } from './subagent-integration-coordinator.js';
+export type { SubagentApplyReservationPort } from './subagent-apply-reservation.js';
 export {
   acquirePiwinRootLease,
   PiwinRootAlreadyOwnedError,

@@ -61,10 +61,18 @@ export type {
 
 export { recoverTurnChangeOperation } from './turn-changes/recovery.js';
 export type {
+  SubagentApplyReservationRecord,
+  SubagentApplyReserveResult,
   TurnChangeBeginOperationResult,
   TurnChangeOperationFileRecord,
   TurnChangeOperationKind,
   TurnChangeOperationRecord,
+} from './turn-changes/operation-store.js';
+export {
+  occupiesSubagentApplyStatus,
+  SUBAGENT_APPLY_RESOURCE_PRINCIPAL,
+  subagentApplyGroupKey,
+  subagentApplyResultKey,
 } from './turn-changes/operation-store.js';
 
 export { probeGitRepository } from './repository-probe.js';

@@ -1,9 +1,11 @@
-/** In-memory subagent result store, apply mutex, and parent-resolution text. */
+/** Restart-rebuildable subagent result projection. Apply maps are a cache. */
 
 import { randomUUID } from 'node:crypto';
 import type { SubagentResultSummary } from '@piwin/contracts';
 import {
   diffTurnChangeObjects,
+  occupiesSubagentApplyStatus,
+  type SubagentApplyReservationRecord,
   type TurnChangeObjectStore,
   type TurnChangeStore,
 } from '@piwin/git';
@@ -43,18 +45,41 @@ export type SubagentResultFilesPage = {
 export type SubagentResultApplyInput = {
   resultId: string;
   expectedRevision: number;
-  applyResult: (input: { resultId: string; expectedRevision: number }) => Promise<{
+  applyResult: (input: {
+    resultId: string;
+    expectedRevision: number;
     operationId: string;
+  }) => Promise<{
+    operationId: string;
+    status?: 'succeeded' | 'rejected' | 'needs-repair';
   }>;
+  principal?: string;
+  idempotencyKey?: string;
+  requestHash?: string;
 };
 
 export type SubagentResultApplyOutcome =
   | { ok: true; operationId: string }
   | {
       ok: false;
-      code: 'not-found' | 'stale-revision' | 'already-applied' | 'candidate-group-selected';
+      code:
+        | 'not-found'
+        | 'stale-revision'
+        | 'already-applied'
+        | 'candidate-group-selected'
+        | 'needs-repair';
       alreadyApplied?: boolean;
     };
+
+export type SubagentApplyOperationStore = Pick<
+  TurnChangeStore,
+  | 'reserveSubagentApply'
+  | 'releaseSubagentApplyReservation'
+  | 'getOperation'
+  | 'getSubagentApplyReservation'
+  | 'updateOperationStatus'
+  | 'listSubagentApplyReservations'
+>;
 
 export type SubagentResultResolutionInput = {
   resultId: string;
@@ -88,6 +113,7 @@ export type SubagentResultCleanupOutcome =
 export type SubagentResultServiceOptions = {
   changeStore?: Pick<TurnChangeStore, 'getChangeVersion'>;
   objectStore?: TurnChangeObjectStore;
+  operationStore?: SubagentApplyOperationStore;
 };
 
 export type SubagentResultService = {
@@ -106,6 +132,7 @@ export type SubagentResultService = {
     fileId: string;
   }): Promise<SubagentResultDiffOutcome>;
   apply(input: SubagentResultApplyInput): Promise<SubagentResultApplyOutcome>;
+  reconcileApplyReservations(reservations: readonly SubagentApplyReservationRecord[]): void;
   requestResolution(
     input: SubagentResultResolutionInput,
   ): Promise<SubagentResultResolutionOutcome>;
@@ -123,6 +150,31 @@ export function createSubagentResultService(
   const appliedByResultId = new Map<string, string>();
   const selectedGroupId = new Map<string, string>();
   const serializeApply = createSerializer();
+  const operationStore = options.operationStore;
+
+  function occupy(resultId: string, groupId: string | null, operationId: string): void {
+    appliedByResultId.set(resultId, operationId);
+    if (groupId !== null) {
+      selectedGroupId.set(groupId, resultId);
+    }
+  }
+
+  function projectApplied(resultId: string, operationId: string): void {
+    const summary = byId.get(resultId);
+    if (!summary) return;
+    byId.set(resultId, {
+      ...summary,
+      integrationStatus: 'applied',
+      latestOperationId: operationId,
+    });
+  }
+
+  function occupyReservation(record: SubagentApplyReservationRecord): void {
+    occupy(record.resultId, record.candidateGroupId, record.operationId);
+    if (record.status === 'succeeded') {
+      projectApplied(record.resultId, record.operationId);
+    }
+  }
 
   function lookup(
     resultId: string,
@@ -212,28 +264,93 @@ export function createSubagentResultService(
       return serializeApply(async () => {
         const found = lookup(input.resultId, input.expectedRevision);
         if (!found.ok) return found;
-        if (appliedByResultId.has(input.resultId)) {
-          return { ok: false, code: 'already-applied', alreadyApplied: true };
-        }
         const groupId = found.summary.candidateGroupId;
-        if (groupId !== null && selectedGroupId.has(groupId)) {
-          return { ok: false, code: 'candidate-group-selected' };
+        if (!operationStore) {
+          if (appliedByResultId.has(input.resultId)) {
+            return { ok: false, code: 'already-applied', alreadyApplied: true };
+          }
+          if (groupId !== null && selectedGroupId.has(groupId)) {
+            return { ok: false, code: 'candidate-group-selected' };
+          }
+          const applied = await input.applyResult({
+            resultId: input.resultId,
+            expectedRevision: input.expectedRevision,
+            operationId: `apply-${input.resultId}-${String(input.expectedRevision)}`,
+          });
+          occupy(input.resultId, groupId, applied.operationId);
+          projectApplied(input.resultId, applied.operationId);
+          return { ok: true, operationId: applied.operationId };
         }
-        const applied = await input.applyResult({
-          resultId: input.resultId,
+
+        const reserved = operationStore.reserveSubagentApply({
+          operationId: randomUUID(),
+          changeSetId: found.summary.childChanges?.changeSetId ?? `subagent-apply:${input.resultId}`,
           expectedRevision: input.expectedRevision,
+          principal: input.principal ?? 'host',
+          idempotencyKey: input.idempotencyKey ?? `subagent-apply:${input.resultId}`,
+          requestHash:
+            input.requestHash ?? `subagent-apply:${input.resultId}:${String(input.expectedRevision)}`,
+          resultId: input.resultId,
+          ...(groupId !== null ? { candidateGroupId: groupId } : {}),
         });
-        appliedByResultId.set(input.resultId, applied.operationId);
-        if (groupId !== null) {
-          selectedGroupId.set(groupId, input.resultId);
+        if (reserved.outcome === 'replay') {
+          occupy(input.resultId, groupId, reserved.operationId);
+          if (reserved.status === 'succeeded') {
+            projectApplied(input.resultId, reserved.operationId);
+            return { ok: true, operationId: reserved.operationId };
+          }
+          if (reserved.status === 'needs-repair') {
+            return { ok: false, code: 'needs-repair' };
+          }
+          return { ok: false, code: 'already-applied', alreadyApplied: reserved.status === 'succeeded' };
         }
-        byId.set(input.resultId, {
-          ...found.summary,
-          integrationStatus: 'applied',
-          latestOperationId: applied.operationId,
-        });
-        return { ok: true, operationId: applied.operationId };
+        if (reserved.outcome === 'conflict') {
+          const existing =
+            operationStore.getSubagentApplyReservation({ resultId: input.resultId }) ??
+            (groupId !== null
+              ? operationStore.getSubagentApplyReservation({ candidateGroupId: groupId })
+              : undefined);
+          if (existing) occupyReservation(existing);
+          return {
+            ok: false,
+            code: reserved.code,
+            alreadyApplied:
+              reserved.code === 'already-applied' &&
+              operationStore.getOperation(reserved.operationId)?.status === 'succeeded',
+          };
+        }
+
+        try {
+          const applied = await input.applyResult({
+            resultId: input.resultId,
+            expectedRevision: input.expectedRevision,
+            operationId: reserved.operationId,
+          });
+          if (applied.status === 'rejected') {
+            operationStore.releaseSubagentApplyReservation(reserved.operationId);
+            return { ok: false, code: 'already-applied', alreadyApplied: false };
+          }
+          if (applied.status === 'needs-repair') {
+            operationStore.updateOperationStatus(reserved.operationId, 'needs-repair');
+            occupy(input.resultId, groupId, reserved.operationId);
+            return { ok: false, code: 'needs-repair' };
+          }
+          operationStore.updateOperationStatus(reserved.operationId, 'succeeded');
+          occupy(input.resultId, groupId, reserved.operationId);
+          projectApplied(input.resultId, reserved.operationId);
+          return { ok: true, operationId: reserved.operationId };
+        } catch {
+          operationStore.releaseSubagentApplyReservation(reserved.operationId);
+          throw new Error('subagent apply failed before write');
+        }
       });
+    },
+
+    reconcileApplyReservations(reservations) {
+      for (const record of reservations) {
+        if (!occupiesSubagentApplyStatus(record.status)) continue;
+        occupyReservation(record);
+      }
     },
 
     async requestResolution(input) {

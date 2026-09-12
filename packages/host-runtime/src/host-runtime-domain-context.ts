@@ -246,6 +246,7 @@ export async function buildDomainContext(
                   applyResult: async (input: {
                     resultId: string;
                     expectedRevision: number;
+                    operationId: string;
                   }) => {
                     const summary = deps.subagentResultService?.get(input.resultId);
                     const childSessionId = summary?.childSessionId;
@@ -253,9 +254,7 @@ export async function buildDomainContext(
                       throw new Error(`subagent result not found: ${input.resultId}`);
                     }
                     await deps.actOnSubagentWorktree(childSessionId, 'apply');
-                    return {
-                      operationId: `apply-${input.resultId}-${String(input.expectedRevision)}`,
-                    };
+                    return { operationId: input.operationId };
                   },
                 }
               : {}),
