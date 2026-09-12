@@ -14,7 +14,13 @@ import { isConversationIndexRecord } from './session-scope.js';
 import { type SessionLiveContext } from './commands/session-live-commands.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+import { persistAndPushAssembly } from './model-context-record.js';
 import { terminateHostRun } from './run-terminalizer.js';
+import { getSubagentSeam } from './host-runtime-subagent-tasks.js';
+import {
+  settleParentSubagents,
+  type ParentSubagentSettlementPorts,
+} from './subagent-parent-settlement.js';
 
 export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveContext {
   return {
@@ -231,6 +237,11 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     updateRunPhase: (runId, phase, detail) => {
       deps.runRegistry.updatePhase(runId, phase, detail);
     },
+    settleParentSubagents: (input) =>
+      settleParentSubagents({
+        ...input,
+        ports: createParentSettlementPorts(deps, input.sessionId),
+      }),
     terminateRun: async (sessionId, runId, outcome, code, message, options) => {
       return terminateHostRun(deps, sessionId, runId, outcome, code, message, options);
     },
@@ -309,5 +320,56 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
       deps.turnChangeRuntime?.coordinator.endRunSegment(runId);
     },
     sessionContextCoordinator: deps.sessionContextCoordinator,
+  };
+}
+
+function createParentSettlementPorts(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+): ParentSubagentSettlementPorts {
+  return {
+    closeAdmission: (runId) => deps.runRegistry.closeAdmission(runId),
+    snapshotDirectChildren: (runId) => deps.runRegistry.snapshotDirectChildren(runId),
+    updatePhase: (runId, phase, detail) => {
+      deps.runRegistry.updatePhase(runId, phase, detail);
+    },
+    getRunSignal: (runId) => deps.runRegistry.getSignal(runId),
+    joinBatch: async (runId) => {
+      if (deps.subagentOrchestrator) {
+        return deps.subagentOrchestrator.joinBatch(runId);
+      }
+      await deps.runRegistry.join(runId);
+      return { runId, status: 'failed', results: [] };
+    },
+    cancelBatchesForParentRun: (parentRunId) => {
+      deps.subagentOrchestrator?.cancelBatchesForParentRun(parentRunId);
+    },
+    lookupBatchOwner: async (runId) => {
+      if (!deps.subagentOrchestrator) return undefined;
+      return deps.subagentOrchestrator.lookupBatchOwner(runId);
+    },
+    inspectMerge: async (childSessionId) => {
+      const seam = getSubagentSeam(deps, sessionId);
+      if (seam) {
+        try {
+          return await seam.merge(childSessionId);
+        } catch {
+          // Fall through to the in-memory task result.
+        }
+      }
+      const result = deps.subagentTaskResults.get(childSessionId);
+      return {
+        alreadyMerged: result?.summaryStatus === 'merged',
+        ...(result?.summaryPreview ? { summaryPreview: result.summaryPreview } : {}),
+      };
+    },
+    persistAssembly: async (summary) => {
+      await persistAndPushAssembly({
+        ...(deps.options.piwinRoot === undefined ? {} : { piwinRoot: deps.options.piwinRoot }),
+        summary,
+        push: (message) => deps.push(message),
+      });
+    },
+    nextRequestOrdinal: (id) => deps.nextModelRequestOrdinal(id),
   };
 }

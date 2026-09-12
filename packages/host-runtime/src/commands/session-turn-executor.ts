@@ -196,8 +196,40 @@ export async function executeSessionTurn(input: {
       runId: run.runId,
       outcome,
     });
-    if (applied !== 'completed') {
+    if (applied !== 'completed' || outcome.status !== 'completed') {
       return;
+    }
+
+    let finalOutcome = outcome;
+    if (context.settleParentSubagents) {
+      const settled = await context.settleParentSubagents({
+        sessionId: command.sessionId,
+        parentRunId: run.runId,
+        firstOutcome: outcome,
+        liveSession,
+      });
+      if (settled.status === 'aborted') {
+        await finalizeAbortedRun(context, command.sessionId, run.runId);
+        return;
+      }
+      if (settled.status === 'failed') {
+        await persistHostRuntimeFailure({
+          context,
+          sessionId: command.sessionId,
+          runId: run.runId,
+          failure: settled.failure,
+        });
+        await context.terminateRun(
+          command.sessionId,
+          run.runId,
+          'failed',
+          undefined,
+          settled.failure.message,
+          { failure: settled.failure },
+        );
+        return;
+      }
+      finalOutcome = settled.outcome;
     }
 
     if (input.planPath) {
@@ -227,7 +259,7 @@ export async function executeSessionTurn(input: {
       }
     }
     await context.terminateRun(command.sessionId, run.runId, 'completed', undefined, undefined, {
-      agentStopReason: outcome.stopReason,
+      agentStopReason: finalOutcome.stopReason,
     });
     void scheduleReplyWriterAfterRun(context, {
       sessionId: command.sessionId,

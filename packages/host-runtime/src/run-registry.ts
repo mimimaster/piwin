@@ -593,6 +593,21 @@ export class RunRegistry {
     }
   }
 
+  /** Whether new children are rejected for this run. */
+  isAdmissionClosed(runId: string): boolean {
+    return this.nodes.get(runId)?.admissionClosed === true;
+  }
+
+  /** Snapshot direct child records (stable order of current children). */
+  snapshotDirectChildren(runId: string): ExecutionRunRecord[] {
+    const children: ExecutionRunRecord[] = [];
+    for (const childId of this.getChildren(runId)) {
+      const child = this.get(childId);
+      if (child) children.push(child);
+    }
+    return children;
+  }
+
   /**
    * Close admission and abort a run without terminalizing it.
    * Cleanup owners use terminate() only after their asynchronous work joins.

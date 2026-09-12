@@ -116,6 +116,7 @@ import {
 } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
+import type { ParentSubagentSettlementResult } from '../subagent-parent-settlement.js';
 
 export type TerminateHostRunOptions = {
   skipJobCleanup?: boolean;
@@ -338,6 +339,16 @@ export type SessionLiveContext = {
     phase: import('@piwin/contracts').SessionRunPhase,
     detail?: string,
   ) => void;
+  /**
+   * Join started subagent batches and recover a missed wait before the parent
+   * terminalizes. Optional so control-only tests keep the first-prompt path.
+   */
+  settleParentSubagents?: (input: {
+    sessionId: string;
+    parentRunId: string;
+    firstOutcome: Extract<AgentPromptOutcome, { status: 'completed' }>;
+    liveSession: SessionHandle;
+  }) => Promise<ParentSubagentSettlementResult>;
   terminateRun: (
     sessionId: string,
     runId: string,

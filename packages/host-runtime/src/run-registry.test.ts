@@ -784,6 +784,10 @@ describe('RunRegistry.closeAdmission()', () => {
     expect(reg.getChildren(parent.runId)).toEqual([child1.runId]);
 
     reg.closeAdmission(parent.runId);
+    expect(reg.isAdmissionClosed(parent.runId)).toBe(true);
+    expect(reg.snapshotDirectChildren(parent.runId).map((child) => child.runId)).toEqual([
+      child1.runId,
+    ]);
 
     // After admission is closed, creating a child should throw.
     expect(() =>
