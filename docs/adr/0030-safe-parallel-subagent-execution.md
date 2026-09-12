@@ -49,6 +49,20 @@ verification. Generic manual candidate adopt and result-review commands stay
 intact. See
 [`2026-09-13-model-facing-subagent-review-loop.md`](../plans/2026-09-13-model-facing-subagent-review-loop.md).
 
+**Reviewed delivery shipped (2026-09-13):** The builtin scheme `reviewed-delivery`
+is the first-party loop. Parent tools are `piwin_subagent_start` (worker
+`deliveryIntent='candidate'`, `applyPolicy='explicit'`, worktree, retain
+worktree; reviewer `reviewOf` one frozen result), `piwin_subagent_wait` (exact
+`resultRef` / `childChanges` / structured `reviewRef`),
+`piwin_subagent_review_submit`, `piwin_subagent_continue` (same child, at most
+two repairs), `piwin_subagent_result_apply` (exact version + exact durable
+`approved` only; v1 cannot apply after v2), and
+`piwin_subagent_verification_submit`. Reviewer prose never authorizes apply.
+Verification is not review: `Delivered` requires a durable `passed` verification
+record on the applied chain. `piwin_subagent_run` wait/merge is unchanged.
+One writer: apply still goes through the existing integration coordinator and
+workspace write gate (ADR 0069).
+
 ## Context
 
 piwin supports subagent-driven plan execution where independent steps run in

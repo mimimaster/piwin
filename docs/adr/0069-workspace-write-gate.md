@@ -35,6 +35,12 @@ Waiting uses `AbortSignal`. Permission admission stays before the lock.
 `workspace-busy` is for undo collision (and reserved restoring/foreign-host
 reasons), not everyday parallel writes.
 
+Reviewed-delivery apply (`piwin_subagent_result_apply`) does not add a second
+writer. After an exact durable `approved` review, parent mutation still takes
+the existing exclusive integrate lease and the existing integration
+coordinator. Reviewer isolation stays readonly; worker writes stay on the
+child worktree until that one gated apply.
+
 ## Consequences
 
 Same-turn writes of different files succeed. Long shell still serializes with

@@ -2,12 +2,17 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress |
+| Status | Implementation complete — verification incomplete |
 | Date | 2026-09-13 |
 | Required base | `feat/async-subagents@0e5727cd3a766767c08adacca6ae623229ff8ab8` |
 | Actual base | `0e5727cd3a766767c08adacca6ae623229ff8ab8` (this worktree, `codex/subagent-review-loop`) |
 | Scope | Candidate-producing worker, independent reviewer, targeted continuation, review-bound apply, final verification, Desktop projection |
 | Related | ADR 0030, ADR 0046, ADR 0050, ADR 0069; `docs/specs/2026-08-30-subagent-delivery-review-adjustment.md`; `docs/plans/2026-09-12-model-facing-async-subagents.md` |
+
+Status is not Complete: B0–B9 and F1–F2 plus the V1 Host/Desktop harness are
+implemented, but plan §11 manual Desktop / real-model smoke did not run in
+this worktree. Do not treat the slice as delivered from unit tests or a
+verification ref.
 
 ## 1. Deliverable outcome
 
