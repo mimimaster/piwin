@@ -90,6 +90,7 @@ export * from './subagent.js';
 export * from './subagent-profile.js';
 export * from './orchestration-scheme.js';
 export * from './subagent-lifecycle.js';
+export * from './subagent-tool-presentation.js';
 export * from './subagent-orchestration.js';
 export * from './subagent-delivery.js';
 export * from './subagent-result.js';

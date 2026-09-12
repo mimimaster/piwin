@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { HostCommand } from './ipc.js';
 import {
   ACTIVITY_SUMMARY_MAX_ITEMS,
+  isActivitySessionRunPhase,
   readActivitySummaryData,
   sanitizeActivityPermissionAction,
 } from './activity-summary.js';
@@ -76,6 +77,10 @@ describe('activity/summary contracts', () => {
     expect(sanitizeActivityPermissionAction('file-write')).toBe('file-write');
     expect(sanitizeActivityPermissionAction('/Users/private/file')).toBeUndefined();
     expect(sanitizeActivityPermissionAction('rm -rf /tmp')).toBeUndefined();
+  });
+
+  it('accepts waiting-subagents as a session run phase', () => {
+    expect(isActivitySessionRunPhase('waiting-subagents')).toBe(true);
   });
 
   it('caps items at the hard ceiling and marks truncated', () => {

@@ -221,6 +221,18 @@ describe('thinking clamp helpers', () => {
 });
 
 describe('preamble and roster merge', () => {
+  it('names run, start, wait, and cancel with a valid role requirement', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig(), 'ultra-code', {
+      knownProfileIds: ['explorer'],
+    })!;
+    const preamble = formatOrchestrationSchemePreamble(resolved);
+    expect(preamble).toMatch(/piwin_subagent_run/);
+    expect(preamble).toMatch(/piwin_subagent_start/);
+    expect(preamble).toMatch(/piwin_subagent_wait/);
+    expect(preamble).toMatch(/piwin_subagent_cancel/);
+    expect(preamble).toMatch(/role set to one of the roster roles/);
+  });
+
   it('prefixes model-facing text with roster', () => {
     const resolved = resolveOrchestrationScheme(baseConfig(), 'ultra-code', {
       knownProfileIds: ['explorer'],

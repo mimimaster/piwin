@@ -40,6 +40,7 @@ const SESSION_RUN_PHASES = new Set<string>([
   'pausing',
   'cancelling',
   'waiting-resource',
+  'waiting-subagents',
 ]);
 
 /** Classifier tokens such as `bash` or `network:web_search`, not paths. */
