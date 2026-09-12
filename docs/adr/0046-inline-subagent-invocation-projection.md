@@ -142,3 +142,19 @@ it is not a second scheduler.
 This pill is **not** a return of the old composer-adjacent current-work dock
 removed by this ADR. The transcript invocation card remains the causal anchor;
 the pill is reachability for background work only.
+
+## Reviewed-delivery loop presentation (2026-09-13, `codex/subagent-review-loop`)
+
+Desktop joins Host-normalized invocation, result, review, and verification
+facts into one connected loop (F1) and renders it on the transcript card and
+Tasks panel (F2). It does not parse raw tool text for decisions or lineage.
+
+- Candidate generations stay inspectable. v1 is stale once v2 is the lineage
+  head; a v1 approval cannot look applied.
+- `approved`, `applied`, and `verified`/`delivered` are separate phases.
+  `Delivered` requires a durable passed verification fact, not a verification
+  ref and not an approved review.
+- Reviewer submit and result-read stay linking metadata, not extra child
+  topology cards. Continuation is the same worker identity with a new Run /
+  generation.
+- CLI still ignores subagent push surfaces; rich nesting remains Desktop-only.

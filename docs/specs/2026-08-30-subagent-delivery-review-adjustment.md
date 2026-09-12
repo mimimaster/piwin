@@ -2,7 +2,7 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | V1 / 核心路径已落地（`feat/subagent-delivery-review`）；模型侧异步控制已完成（`feat/async-subagents@0e5727cd`）。下一刀是 `codex/subagent-review-loop`：在候选结果上做独立审查、原 worker 返工、审查绑定的 apply 与集成后验证。通用手动 candidate 采用与 result-review 命令保持不变。 |
+| 状态 | V1 / 核心路径已落地（`feat/subagent-delivery-review`）；模型侧异步控制已完成（`feat/async-subagents@0e5727cd`）。`codex/subagent-review-loop` 已实现独立审查 → 原 worker 返工 → 精确版本 apply → 集成后验证（见文末 §15）。通用手动 candidate 采用与 result-review 命令保持不变。手动 §11 Desktop / 真模型冒烟仍未在该 worktree 跑过。 |
 | 日期 | 2026-08-30 |
 | 产品目标 | 用户在主对话验收本轮整体成果，不必逐个进入子代理决定是否保留文件 |
 | 基于 | 当前仓库实现、[竞品及代码调研](../plans/2026-08-30-subagent-review-ux-research.md) |
@@ -598,3 +598,18 @@ ui-ux-pro-max 搜索未命中本类问题，本文采用其内置渐进展开、
 工程完成条件：SD-W0–W8 和 SD-A01–A40 全部验证；无虚假差异/完成状态；无未记录父写入；旧记录和客户端兼容；真实 worker/Tauri 证据；架构/typecheck/测试及源文件行数门禁通过；实现与文档同步。
 
 本次只交付此 Spec 及相关文档交叉链接，没有修改产品代码、默认策略、用户文件、分支或运行数据，也未执行任何回滚操作。
+
+## 15. Reviewed-delivery loop（2026-09-13 已落地，不改写上文历史）
+
+内置编排方案 `reviewed-delivery`（contracts `BUILTIN_REVIEWED_DELIVERY_SCHEME`）把候选交付收成一条模型面对的环，而不是第二个调度器。
+
+| 步骤 | 工具 / 事实 | 权威 |
+| --- | --- | --- |
+| Worker 出候选 | `piwin_subagent_start` role=`worker`：`deliveryIntent='candidate'`、`applyPolicy='explicit'`、worktree、retain worktree | 未 apply |
+| 精确引用 | `piwin_subagent_wait` 返回 `resultRef` / `childChanges` / 结构化 `reviewRef` | 禁止“最新 child” |
+| 独立审查 | reviewer + `reviewOf`；必须 `piwin_subagent_review_submit` | 散文不是 apply 权威 |
+| 返工 | 仅 durable `changes-requested` 可 `piwin_subagent_continue` 同一 child；最多两次 | v2 有 predecessor；v1 可看不可再审/再续/再 apply |
+| 精确 apply | `piwin_subagent_result_apply`：lineage head + 精确 `approved` | 与 review target = apply target = 冻结版本；失配 `stale-review` |
+| 验证 ≠ 审查 | 父工作区普通验证后 `piwin_subagent_verification_submit` | **Delivered** 仅当该记录 `passed`。`cannot-verify` / `not-run` 不是通过。失败验证保持 applied，不自动 undo |
+
+`piwin_subagent_run` 的 wait/merge 语义未改。`waitPolicy` 仍为 `await-all`。父 Stop/失败/暂停/替换取消后代，不自动开下一步。Desktop 用 Host 归一化事实画一条 worker → reviewer → repair 环（ADR 0046 补充）。证据见 [`2026-09-13-subagent-review-loop.md`](../evidence/2026-09-13-subagent-review-loop.md)。

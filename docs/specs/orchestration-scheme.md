@@ -494,7 +494,7 @@ Host-owned 完整配方（示例；实现以代码常量为准）：
 
 ### 9.1 内置方案：Reviewed Delivery
 
-第二个内置方案，id `reviewed-delivery`。contracts 常量 `BUILTIN_REVIEWED_DELIVERY_SCHEME` merge 进 `listOrchestrationSchemes`；**不**写入磁盘默认 config。Composer 经已有 `listOrchestrationSchemes` 列出，无需 Desktop 改动。
+第二个内置方案，id `reviewed-delivery`（2026-09-13 已随 `codex/subagent-review-loop` 落地）。contracts 常量 `BUILTIN_REVIEWED_DELIVERY_SCHEME` merge 进 `listOrchestrationSchemes`；**不**写入磁盘默认 config。Composer 经已有 `listOrchestrationSchemes` 列出，无需 Desktop 改动。验证 ≠ 审查：`Delivered` 只认 durable `piwin_subagent_verification_submit` 的 `passed`，不认 reviewer 散文或 `approved` 单独成立。Apply 必须对准精确冻结版本。
 
 | Role | Purpose | Isolation | Default model |
 |------|---------|-----------|---------------|
