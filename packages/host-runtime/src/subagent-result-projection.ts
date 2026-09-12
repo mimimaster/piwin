@@ -135,8 +135,9 @@ export function projectSubagentResultSummary(
     ...(legacy
       ? {}
       : {
-          candidateLineageId: lineageId ?? null,
-          candidateGeneration: generation ?? null,
+          candidateLineageId:
+            lineageId ?? (deliveryIntent === 'candidate' ? resultRef.resultId : null),
+          candidateGeneration: generation ?? (deliveryIntent === 'candidate' ? 1 : null),
           predecessorResult: predecessor ?? null,
           latestReview: latestReview ?? null,
           reviewStatus: storedReviewStatus ?? 'not-requested',

@@ -324,46 +324,37 @@ async function createHarness(scripts: ReviewerScript[]) {
       const manifest = await runStore.loadManifest(result.runId);
       const task = manifest?.tasks.find((candidate) => candidate.id === result.taskId);
       const lease = manifest?.leases[result.taskId];
-      const enriched: SubagentTaskResult = {
-        ...result,
-        ...(result.resultRef && !result.candidateLineageId
-          ? {
-              candidateLineageId: result.resultRef.resultId,
-              candidateGeneration: result.candidateGeneration ?? 1,
-            }
-          : {}),
-      };
       const summary = projectSubagentResultSummary({
         parentSessionId: SESSION_ID,
-        result: enriched,
+        result,
         task,
         lease,
       });
       if (summary) {
         resultService.register(
           summary,
-          enriched.worktreePath ? { worktreePath: enriched.worktreePath } : undefined,
+          result.worktreePath ? { worktreePath: result.worktreePath } : undefined,
         );
         await runStore.recordResult(
-          enriched.runId,
-          enriched.taskId,
-          enrichSubagentTaskResult(enriched, resultService.get(summary.resultId) ?? summary, task),
+          result.runId,
+          result.taskId,
+          enrichSubagentTaskResult(result, resultService.get(summary.resultId) ?? summary, task),
         );
       }
-      if (enriched.childSessionId) {
-        const child = await getSessionRecord(indexPath, enriched.childSessionId);
+      if (result.childSessionId) {
+        const child = await getSessionRecord(indexPath, result.childSessionId);
         if (child) {
           child.subagentStatus = 'done';
           child.subagentLifecycle = {
-            executionStatus: enriched.executionStatus,
-            summaryStatus: enriched.summaryStatus,
-            integrationStatus: enriched.integrationStatus,
+            executionStatus: result.executionStatus,
+            summaryStatus: result.summaryStatus,
+            integrationStatus: result.integrationStatus,
           };
           await upsertSessionRecord(indexPath, child);
         }
       }
-      if (enriched.childSessionId && lease?.mode === 'worktree') {
-        latestWorktree.set(enriched.childSessionId, { result: enriched, lease });
+      if (result.childSessionId && lease?.mode === 'worktree') {
+        latestWorktree.set(result.childSessionId, { result, lease });
       }
     },
   });
@@ -594,6 +585,7 @@ describe('reviewed-delivery Host loop', () => {
 
     const summaryV1 = harness.resultService.get(v1.resultId);
     const summaryV2 = harness.resultService.get(v2.resultId);
+    expect(summaryV1?.candidateLineageId).toBe(v1.resultId);
     expect(summaryV1?.candidateLineageId).toBe(summaryV2?.candidateLineageId);
     expect(summaryV1?.candidateGeneration).toBe(1);
     expect(summaryV2?.candidateGeneration).toBe(2);
@@ -656,7 +648,7 @@ describe('reviewed-delivery Host loop', () => {
     const v2 = requireRef(workerV2.resultRef);
     expect(
       await executeTool(harness.apply, { result: v1, approvedBy: approvedRef }),
-    ).toMatchObject({ ok: false });
+    ).toMatchObject({ ok: false, code: 'candidate-superseded' });
     expect(
       await executeTool(harness.apply, { result: v2, approvedBy: approvedRef }),
     ).toMatchObject({ ok: false });
