@@ -6,7 +6,7 @@
  * classifier is intentionally simple and deterministic so UI/host
  * logic can rely on it without parsing arbitrary model prose.
  */
-import type { PlanComplexity, SessionPlan } from '@piwin/contracts';
+import type { PlanComplexity, PlanExecutionMode, SessionPlan } from '@piwin/contracts';
 import { MAX_PLAN_INDEPENDENT_STEPS, MAX_PLAN_STEPS } from '@piwin/contracts';
 
 export const LONG_PLAN_STEP_THRESHOLD = 4;
@@ -37,6 +37,14 @@ export function classifyPlanComplexity(plan: Pick<SessionPlan, 'steps' | 'indepe
 /** Bound plan shape so callers can reject oversized plans early. */
 export function isWithinPlanSizeLimits(plan: Pick<SessionPlan, 'steps' | 'independentSteps'>): boolean {
   return plan.steps.length <= MAX_PLAN_STEPS && (plan.independentSteps?.length ?? 0) <= MAX_PLAN_INDEPENDENT_STEPS;
+}
+
+/** Same rule the execution card uses for the highlighted A/B option. */
+export function recommendedPlanExecutionMode(
+  plan: Pick<SessionPlan, 'complexity' | 'steps' | 'independentSteps'>,
+): PlanExecutionMode {
+  if (plan.complexity !== 'long') return 'inline';
+  return countValidIndependentSteps(plan) > 0 ? 'subagent-driven' : 'inline';
 }
 
 function countValidIndependentSteps(plan: Pick<SessionPlan, 'steps' | 'independentSteps'>): number {

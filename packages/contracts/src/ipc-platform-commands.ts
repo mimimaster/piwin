@@ -396,6 +396,13 @@ export type PlatformHostCommand =
   | { id?: string; type: 'pty/close'; ptyId: string }
   | { id?: string; type: 'pty/list'; projectPath?: string }
   | { id?: string; type: 'skills/store-list' }
+  | {
+      id?: string;
+      type: 'marketplace/search';
+      query: string;
+      /** Max npm hits. Default 20, max 50. */
+      limit?: number;
+    }
   | { id?: string; type: 'mcp/registry-list'; query?: string }
   | {
       id?: string;

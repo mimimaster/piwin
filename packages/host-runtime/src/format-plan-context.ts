@@ -26,6 +26,11 @@ export function formatPlanForModelContext(plan: SessionPlan): string {
     }
   }
   if (plan.status === 'approved' || plan.status === 'executing') {
+    if (plan.execution?.mode === 'inline') {
+      lines.push('Chosen execution mode: inline in this session.');
+    } else if (plan.execution?.mode === 'subagent-driven') {
+      lines.push('Chosen execution mode: subagent-driven.');
+    }
     lines.push(
       'Success: complete steps against their acceptance criteria; mark done only with evidence.',
     );

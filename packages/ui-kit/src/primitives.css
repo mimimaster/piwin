@@ -8,6 +8,8 @@
    regional placement refinements stay in the consuming app behind a region
    parent selector. */
 
+@import './empty-state.css';
+
 /* ── Button (Mantine Button wrapper) ─────────────────────────────── */
 
 .piwin-button {

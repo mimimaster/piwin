@@ -61,6 +61,8 @@ export function routeSessionAgentEvent(
   const correlatedRun = correlatedRunId ? deps.runRegistry.get(correlatedRunId) : undefined;
   const correlatedRunSignal =
     correlatedRunId === undefined ? undefined : deps.runRegistry.getSignal(correlatedRunId);
+  const correlatedAbortReason =
+    correlatedRunId === undefined ? undefined : deps.runRegistry.getAbortReason(correlatedRunId);
   if (
     shouldSuppressControlledAbortError(correlatedEvent, {
       ...(correlatedRunSignal !== undefined ? { signal: correlatedRunSignal } : {}),
@@ -68,6 +70,7 @@ export function routeSessionAgentEvent(
       ...(correlatedRunId !== undefined
         ? { pauseRequested: deps.runRegistry.isPauseRequested(correlatedRunId) }
         : {}),
+      ...(correlatedAbortReason !== undefined ? { abortReason: correlatedAbortReason } : {}),
     })
   ) {
     return;

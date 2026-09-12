@@ -9,10 +9,14 @@ import { createInitialChatUiState } from './chat-reducer';
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import {
   canShowPlanExecutionGate,
+  findPlanDisplayForMessage,
   findPlanExecutionGateMessageId,
+  findPlanPresentOwningRunId,
   isPlanCreateTool,
+  isPlanPresentTool,
   PlanExecutionGate,
   recommendedPlanExecutionMode,
+  resolvePlanExecutionGateActionState,
 } from './plan-execution-gate';
 import { TurnWorkDetails } from './turn-work-details';
 import { WorkbenchPermissionBar } from './workbench-conversation';
@@ -44,114 +48,113 @@ function draftPlan(overrides: Partial<SessionPlan> = {}): SessionPlan {
   };
 }
 
+function settledGate(
+  overrides: Partial<Parameters<typeof canShowPlanExecutionGate>[0]> = {},
+): Parameters<typeof canShowPlanExecutionGate>[0] {
+  return {
+    plan: draftPlan(),
+    isConversationSession: false,
+    runOutcome: 'completed',
+    ...overrides,
+  };
+}
+
 describe('canShowPlanExecutionGate', () => {
   it('waits until the creating turn has finished', () => {
-    expect(canShowPlanExecutionGate({ plan: draftPlan(), isConversationSession: false, streaming: true })).toBe(false);
+    expect(canShowPlanExecutionGate(settledGate({ streaming: true }))).toBe(false);
   });
 
   it('shows for a draft plan in a project session', () => {
-    expect(
-      canShowPlanExecutionGate({
-        plan: draftPlan(),
-        isConversationSession: false,
-      }),
-    ).toBe(true);
+    expect(canShowPlanExecutionGate(settledGate())).toBe(true);
   });
 
   it('shows for an approved plan that has not started running', () => {
-    expect(
-      canShowPlanExecutionGate({
-        plan: draftPlan({ status: 'approved' }),
-        isConversationSession: false,
-      }),
-    ).toBe(true);
+    expect(canShowPlanExecutionGate(settledGate({ plan: draftPlan({ status: 'approved' }) }))).toBe(
+      true,
+    );
   });
 
   it('hides in Conversation sessions even when a draft exists', () => {
-    expect(
-      canShowPlanExecutionGate({
-        plan: draftPlan(),
-        isConversationSession: true,
-      }),
-    ).toBe(false);
+    expect(canShowPlanExecutionGate(settledGate({ isConversationSession: true }))).toBe(false);
   });
 
   it('can still render on the creating turn while the user keeps chatting', () => {
+    expect(canShowPlanExecutionGate(settledGate())).toBe(true);
+  });
+
+  it('hides a stuck executing plan instead of offering a retry card', () => {
+    expect(
+      canShowPlanExecutionGate(
+        settledGate({
+          plan: draftPlan({
+            status: 'executing',
+            execution: {
+              sessionId: 's1',
+              planId: 'p1',
+              mode: 'subagent-driven',
+              status: 'failed',
+              childSessionIds: [],
+              error: 'session-busy: body-job',
+            },
+          }),
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it.each([
+    ['failed', { runOutcome: 'failed' as const }],
+    ['cancelled', { runOutcome: 'cancelled' as const }],
+    ['paused', { runOutcome: 'paused' as const }],
+    ['cancelling', { runStatus: 'cancelling' as const, runOutcome: 'completed' as const }],
+  ] as const)('hides the card when the owning run is %s', (_label, override) => {
+    expect(canShowPlanExecutionGate(settledGate({ ...override }))).toBe(false);
+  });
+
+  it('hides the card when the owning run has no completed outcome', () => {
     expect(
       canShowPlanExecutionGate({
         plan: draftPlan(),
         isConversationSession: false,
       }),
-    ).toBe(true);
-  });
-
-  it('shows a stuck executing plan after execution failed so the user can retry', () => {
-    expect(
-      canShowPlanExecutionGate({
-        plan: draftPlan({
-          status: 'executing',
-          execution: {
-            sessionId: 's1',
-            planId: 'p1',
-            mode: 'subagent-driven',
-            status: 'failed',
-            childSessionIds: [],
-            error: 'session-busy: body-job',
-          },
-        }),
-        isConversationSession: false,
-      }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
 
 
   it('hides while the plan is executing, done, or abandoned', () => {
-    expect(
-      canShowPlanExecutionGate({
-        plan: draftPlan({ status: 'executing' }),
-        isConversationSession: false,
-      }),
-    ).toBe(false);
-    expect(
-      canShowPlanExecutionGate({
-        plan: draftPlan({ status: 'done' }),
-        isConversationSession: false,
-      }),
-    ).toBe(false);
-    expect(
-      canShowPlanExecutionGate({
-        plan: draftPlan({ status: 'abandoned' }),
-        isConversationSession: false,
-      }),
-    ).toBe(false);
+    expect(canShowPlanExecutionGate(settledGate({ plan: draftPlan({ status: 'executing' }) }))).toBe(
+      false,
+    );
+    expect(canShowPlanExecutionGate(settledGate({ plan: draftPlan({ status: 'done' }) }))).toBe(
+      false,
+    );
+    expect(canShowPlanExecutionGate(settledGate({ plan: draftPlan({ status: 'abandoned' }) }))).toBe(
+      false,
+    );
   });
 
   it('hides when live execution is queued or running even if status lagged', () => {
     expect(
-      canShowPlanExecutionGate({
-        plan: draftPlan({
-          status: 'approved',
-          execution: {
-            sessionId: 's1',
-            planId: 'p1',
-            mode: 'inline',
-            status: 'queued',
-            childSessionIds: [],
-          },
+      canShowPlanExecutionGate(
+        settledGate({
+          plan: draftPlan({
+            status: 'approved',
+            execution: {
+              sessionId: 's1',
+              planId: 'p1',
+              mode: 'inline',
+              status: 'queued',
+              childSessionIds: [],
+            },
+          }),
         }),
-        isConversationSession: false,
-      }),
+      ),
     ).toBe(false);
   });
 
   it('hides when there is no plan', () => {
-    expect(
-      canShowPlanExecutionGate({
-        plan: null,
-        isConversationSession: false,
-      }),
-    ).toBe(false);
+    expect(canShowPlanExecutionGate(settledGate({ plan: null }))).toBe(false);
   });
 });
 
@@ -195,13 +198,13 @@ function assistantMessage(
 }
 
 describe('findPlanExecutionGateMessageId', () => {
-  it.each(['running', 'error'] as const)('does not offer execution for a %s create tool', (status) => {
+  it.each(['running', 'error'] as const)('does not offer execution for a %s present tool', (status) => {
     expect(findPlanExecutionGateMessageId([
-      assistantMessage('create', [{ toolCallId: 'tool', toolName: 'piwin_plan_create', status, output: '' }]),
+      assistantMessage('present', [{ toolCallId: 'tool', toolName: 'piwin_plan_present', status, output: '' }]),
     ])).toBeNull();
   });
 
-  it('pins the gate to the assistant message that created the plan', () => {
+  it('pins the gate to the last assistant when that turn contains a successful present', () => {
     expect(
       findPlanExecutionGateMessageId([
         assistantMessage('a1', [
@@ -209,43 +212,176 @@ describe('findPlanExecutionGateMessageId', () => {
         ]),
         assistantMessage('a2', [
           { toolCallId: 't2', toolName: 'piwin_plan_create', status: 'done', output: '' },
-        ]),
-        assistantMessage('a3', [
-          { toolCallId: 't3', toolName: 'bash', status: 'done', output: 'later' },
+          { toolCallId: 't3', toolName: 'piwin_plan_present', status: 'done', output: '' },
         ]),
       ]),
     ).toBe('a2');
   });
 
-  it('stays on the creating message after later turns, never the latest assistant', () => {
+  it('keeps the gate on the final reply when a later assistant summarized after present', () => {
+    expect(
+      findPlanExecutionGateMessageId([
+        assistantMessage('present', [
+          { toolCallId: 't1', toolName: 'piwin_plan_present', status: 'done', output: '' },
+        ]),
+        assistantMessage('follow-up', []),
+      ]),
+    ).toBe('follow-up');
+  });
+
+  it('does not attach when only create ran', () => {
     expect(
       findPlanExecutionGateMessageId([
         assistantMessage('create', [
           { toolCallId: 't1', toolName: 'piwin_plan_create', status: 'done', output: '' },
         ]),
-        assistantMessage('follow-up', [
-          { toolCallId: 't2', toolName: 'piwin_plan_set_step', status: 'running', output: '' },
-        ]),
-      ]),
-    ).toBe('create');
-  });
-
-  it('does not attach to later turns when the creating tool is absent', () => {
-    expect(
-      findPlanExecutionGateMessageId([
-        assistantMessage('a1'),
-        assistantMessage('a2'),
       ]),
     ).toBeNull();
   });
 
-  it('matches routed plan_create aliases', () => {
+  it('matches routed present aliases', () => {
+    expect(
+      isPlanPresentTool({
+        toolName: 'piwin_toolbox',
+        presentation: { kind: 'other', title: 'Plan', routedToolName: 'plan_present' },
+      }),
+    ).toBe(true);
     expect(
       isPlanCreateTool({
         toolName: 'piwin_toolbox',
         presentation: { kind: 'other', title: 'Plan', routedToolName: 'plan_create' },
       }),
     ).toBe(true);
+  });
+});
+
+describe('findPlanPresentOwningRunId', () => {
+  it('uses the present tool run when the later summary has none', () => {
+    expect(
+      findPlanPresentOwningRunId([
+        {
+          ...assistantMessage('present', [
+            {
+              toolCallId: 't1',
+              toolName: 'piwin_plan_present',
+              status: 'done',
+              output: '',
+              runId: 'run-present',
+              presentation: {
+                kind: 'other',
+                title: 'present',
+                plan: {
+                  version: 1,
+                  path: '/tmp/plan.json',
+                  displayPath: 'plans/s1.md',
+                  plan: draftPlan(),
+                },
+              },
+            },
+          ]),
+          runId: 'run-present',
+        },
+        assistantMessage('summary'),
+      ]),
+    ).toBe('run-present');
+  });
+});
+
+describe('resolvePlanExecutionGateActionState', () => {
+  it('stays choosable when no live plan has been supplied', () => {
+    expect(resolvePlanExecutionGateActionState({ display: draftPlan() })).toBe('choose');
+  });
+
+  it('marks a newer or replaced plan as expired', () => {
+    expect(
+      resolvePlanExecutionGateActionState({
+        display: draftPlan(),
+        livePlan: draftPlan({ revision: 2 }),
+      }),
+    ).toBe('stale');
+    expect(
+      resolvePlanExecutionGateActionState({
+        display: draftPlan(),
+        livePlan: draftPlan({ id: 'other' }),
+      }),
+    ).toBe('stale');
+    expect(resolvePlanExecutionGateActionState({ display: draftPlan(), livePlan: null })).toBe(
+      'stale',
+    );
+  });
+
+  it('marks executing or finished plans as executed', () => {
+    expect(
+      resolvePlanExecutionGateActionState({
+        display: draftPlan({ status: 'approved', revision: 1 }),
+        livePlan: draftPlan({ status: 'executing', revision: 1 }),
+      }),
+    ).toBe('executed');
+    expect(
+      resolvePlanExecutionGateActionState({
+        display: draftPlan({ status: 'approved', revision: 1 }),
+        livePlan: draftPlan({ status: 'done', revision: 1 }),
+      }),
+    ).toBe('executed');
+  });
+});
+
+describe('findPlanDisplayForMessage', () => {
+  const display = {
+    version: 1 as const,
+    path: '/tmp/plan.json',
+    displayPath: 'plans/s1.md',
+    plan: draftPlan(),
+  };
+
+  it('ignores a completed create tool even when it still carries a payload', () => {
+    expect(
+      findPlanDisplayForMessage(
+        assistantMessage('create', [
+          {
+            toolCallId: 't1',
+            toolName: 'piwin_plan_create',
+            status: 'done',
+            output: 'draft',
+            presentation: { kind: 'other', title: 'piwin_plan_create', plan: display },
+          },
+        ]),
+      ),
+    ).toBeNull();
+  });
+
+  it('still returns the present payload when later tools ran on the same message', () => {
+    expect(
+      findPlanDisplayForMessage(
+        assistantMessage('mid', [
+          {
+            toolCallId: 't1',
+            toolName: 'piwin_plan_present',
+            status: 'done',
+            output: 'ready',
+            presentation: { kind: 'other', title: 'piwin_plan_present', plan: display },
+          },
+          { toolCallId: 't2', toolName: 'read', status: 'done', output: 'later' },
+        ]),
+      ),
+    ).toEqual(display);
+  });
+
+  it('returns the payload when present is the last completed tool', () => {
+    expect(
+      findPlanDisplayForMessage(
+        assistantMessage('end', [
+          { toolCallId: 't1', toolName: 'piwin_plan_create', status: 'done', output: 'draft' },
+          {
+            toolCallId: 't2',
+            toolName: 'piwin_plan_present',
+            status: 'done',
+            output: 'ready',
+            presentation: { kind: 'other', title: 'piwin_plan_present', plan: display },
+          },
+        ]),
+      ),
+    ).toEqual(display);
   });
 });
 
@@ -285,6 +421,26 @@ describe('PlanExecutionGate', () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('Verification failed');
     expect(container.querySelector('[data-testid="plan-mode-inline"]')).not.toBeNull();
     act(() => root.unmount());
+  });
+
+  it('shows only the logical plan path, never the absolute Host path', () => {
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <PlanExecutionGate
+            plan={draftPlan()}
+            planPath="/Users/me/.piwin/sessions/s1/plan.json"
+            displayPath="plans/s1.md"
+            onExecute={() => undefined}
+          />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+    expect(container.querySelector('.plan-path')?.textContent).toBe('plans/s1.md');
+    expect(container.textContent).not.toContain('/Users/me/.piwin');
+    expect(container.textContent).not.toContain('plan.json');
+    act(() => root.unmount());
+    container.remove();
   });
 
   it('renders title, plan name, and both execution modes without a Process step', () => {
@@ -336,6 +492,50 @@ describe('PlanExecutionGate', () => {
     const subagentBtn = container.querySelector('[data-testid="plan-mode-subagent"]');
     expect(subagentBtn?.getAttribute('data-recommended')).toBe('true');
     expect(inlineBtn?.getAttribute('data-recommended')).toBe('false');
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('shows expired buttons on a stale historical card', () => {
+    const onExecute = vi.fn();
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <PlanExecutionGate
+            plan={draftPlan()}
+            livePlan={draftPlan({ revision: 2, status: 'approved' })}
+            onExecute={onExecute}
+          />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+    const inline = container.querySelector<HTMLButtonElement>('[data-testid="plan-mode-inline"]');
+    expect(container.querySelector('[data-action-state="stale"]')).not.toBeNull();
+    expect(inline?.disabled).toBe(true);
+    expect(inline?.textContent).toBe('已过期');
+    act(() => {
+      inline?.click();
+    });
+    expect(onExecute).not.toHaveBeenCalled();
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('shows executed buttons after the live plan has started', () => {
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <PlanExecutionGate
+            plan={draftPlan({ status: 'approved', revision: 1 })}
+            livePlan={draftPlan({ status: 'executing', revision: 1 })}
+            onExecute={() => undefined}
+          />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+    expect(container.querySelector('[data-action-state="executed"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="plan-mode-inline"]')?.textContent).toBe('已执行');
+    expect(container.querySelector('.kb')).toBeNull();
     act(() => root.unmount());
     container.remove();
   });

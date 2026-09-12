@@ -58,6 +58,36 @@ describe('createPlanStepTool', () => {
     expect(outputOf(result)).toContain('done');
   });
 
+  it('tells the model to confirm a mode instead of retrying a draft', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-tool-draft-'));
+    const planPath = join(rootDir, 'plan.json');
+    await mkdir(rootDir, { recursive: true });
+    const now = new Date().toISOString();
+    await writeFile(
+      planPath,
+      JSON.stringify({
+        id: 'p1',
+        sessionId: 's1',
+        projectPath: '/tmp',
+        status: 'draft',
+        title: 'T',
+        goal: 'G',
+        steps: [{ id: '1', title: 'A', status: 'pending' }],
+        revision: 0,
+        createdAt: now,
+        updatedAt: now,
+        source: 'user',
+      }),
+      'utf8',
+    );
+    const tool = createPlanStepTool({ sessionId: 's1', planPath });
+    const result = await executeTool(tool, { stepId: '1', status: 'done' });
+    expect(result.ok).toBe(false);
+    expect(outputOf(result)).toContain('尚未选择执行方式');
+    expect(outputOf(result)).toContain('请先确认');
+    expect(outputOf(result)).toContain('不要重试');
+  });
+
   it('calls onUpdated after a successful step update', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-tool-push-'));
     const planPath = join(rootDir, 'plan.json');

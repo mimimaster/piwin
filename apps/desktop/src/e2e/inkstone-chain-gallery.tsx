@@ -116,6 +116,7 @@ const exploreGroup: ExploreFlowGroup = {
   hasRunning: false,
   isLive: false,
   errorCount: 0,
+  cancelledCount: 0,
   totalDurationMs: 1800,
 };
 

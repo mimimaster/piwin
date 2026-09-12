@@ -173,9 +173,19 @@
 }
 
 .explore-thought-label {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.explore-thought-row .meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
 }
 
 /* Always faintly visible so collapsed rows still read as expandable. */
@@ -567,6 +577,19 @@
   white-space: nowrap;
 }
 
+.work-fold-trailing {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.work-fold-elapsed {
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
 .turn-work-disclosure-trigger .chev,
 .turn-work-disclosure-chevron,
 .work-h .chev {
@@ -578,13 +601,30 @@
   transition: opacity var(--t-1) var(--ease-out);
 }
 
+.work-fold-trailing .chev,
+.work-fold-trailing .turn-work-details-chevron {
+  margin-left: 0;
+}
+
+.turn-work-details-summary.conversation-thinking-summary {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.conversation-thinking-summary .turn-work-details-label {
+  flex: 1;
+  min-width: 0;
+}
+
 :is(.turn-work-disclosure-trigger, .turn-work-disclosure):is(:hover, .is-open) :is(.chev, .turn-work-disclosure-chevron),
 :is(.work-h:hover, .work-h.is-open, .work.is-open > .work-h) .chev {
   opacity: 1;
 }
 
 .turn-work-details-summary {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--s-3);
   height: var(--h-sm);
@@ -597,7 +637,8 @@
   font-size: var(--fs-chrome);
   font-weight: 400;
   cursor: pointer;
-  width: fit-content;
+  width: 100%;
+  box-sizing: border-box;
   font-family: inherit;
   transition:
     background-color var(--t-1) var(--ease-out),

@@ -71,13 +71,15 @@ remain valid, but it is no longer the Desktop card's main handoff.
 ## 2026-09-11: Plan display is message-bound and non-blocking
 
 The durable `SessionPlan` remains the Host source of truth. A successful
-`piwin_plan_create` result carries a versioned plan-display payload (durable
-path, logical display path, and the created snapshot). Agent events, transcript
-projection, remote projection, and Desktop history preserve that payload.
+`piwin_plan_present` result carries a versioned plan-display payload (durable
+path, logical display path, and the saved snapshot). `piwin_plan_create` only
+persists the draft. Agent events, transcript projection, remote projection,
+and Desktop history preserve that payload.
 
-Desktop renders the card from the completed tool result on its owning assistant
-message. It does not consult the current session plan or move the card to the
-composer. Opening the card uses the snapshot; choosing inline or subagent sends
+Desktop renders the card from the last successful present payload in that
+turn, under the turn's final reply after the owning Run completed. It does
+not consult the current session plan or move the card to the composer.
+Opening the card uses the snapshot; choosing inline or subagent sends
 an ordinary user prompt after the Host rechecks the session and plan identity.
 The main card path no longer calls `plan/execute`, so a display failure cannot
 hold a model turn or create an empty UI message. The existing `plan/execute`

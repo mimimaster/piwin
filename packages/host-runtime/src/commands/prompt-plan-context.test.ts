@@ -103,9 +103,121 @@ describe('prompt plan context degradation', () => {
       id: 'selection-plan',
       status: 'approved',
       revision: 1,
+      execution: { mode: 'inline', status: 'idle' },
     });
     expect(
       events.some((event) => event.type === 'plan/updated' && event.plan?.status === 'approved'),
     ).toBe(true);
+  });
+
+  it('does not approve a draft from 执行一下', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-prompt-plan-vague-'));
+    const session = createDelayedSessionHandle();
+    const { context } = createPromptContext(session);
+    context.piwinRoot = rootDir;
+    context.resolveIsConversationChat = async () => false;
+    let modelFacingText = '';
+    const originalPrompt = session.prompt.bind(session);
+    session.prompt = async (input: PromptInput) => {
+      modelFacingText = input.text;
+      return originalPrompt(input);
+    };
+    const planPath = getPiwinSessionPlanPath(rootDir, session.id);
+    const now = new Date().toISOString();
+    await saveSessionPlan(planPath, {
+      id: 'vague-plan',
+      sessionId: session.id,
+      projectPath: '/tmp/project',
+      status: 'draft',
+      title: 'Needs a mode',
+      goal: 'Stay draft until a mode is chosen',
+      steps: [{ id: '1', title: 'Verify', status: 'pending' }],
+      revision: 0,
+      createdAt: now,
+      updatedAt: now,
+      source: 'assistant',
+    });
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: '执行一下' },
+      },
+      undefined,
+      context,
+    );
+    expect(response?.success).toBe(true);
+    await session.promptSettled;
+    await vi.waitFor(() => {
+      expect(modelFacingText).toContain('执行一下');
+    });
+    expect(modelFacingText).not.toContain('[piwin plan context v2');
+    expect(await loadSessionPlan(planPath)).toMatchObject({
+      id: 'vague-plan',
+      status: 'draft',
+      revision: 0,
+    });
+  });
+
+  it('reuses the stored mode when the user asks to execute an approved plan', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-prompt-plan-reuse-'));
+    const session = createDelayedSessionHandle();
+    const { context } = createPromptContext(session);
+    context.piwinRoot = rootDir;
+    context.resolveIsConversationChat = async () => false;
+    let modelFacingText = '';
+    const originalPrompt = session.prompt.bind(session);
+    session.prompt = async (input: PromptInput) => {
+      modelFacingText = input.text;
+      return originalPrompt(input);
+    };
+    const planPath = getPiwinSessionPlanPath(rootDir, session.id);
+    const now = new Date().toISOString();
+    await saveSessionPlan(planPath, {
+      id: 'reuse-plan',
+      sessionId: session.id,
+      projectPath: '/tmp/project',
+      status: 'approved',
+      title: 'Already chosen',
+      goal: 'Continue without repeating keywords',
+      steps: [{ id: '1', title: 'Verify', status: 'pending' }],
+      revision: 1,
+      createdAt: now,
+      updatedAt: now,
+      source: 'assistant',
+      execution: {
+        sessionId: session.id,
+        planId: 'reuse-plan',
+        mode: 'subagent-driven',
+        status: 'idle',
+        childSessionIds: [],
+      },
+    });
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: '执行一下' },
+      },
+      undefined,
+      context,
+    );
+    expect(response?.success).toBe(true);
+    await session.promptSettled;
+    await vi.waitFor(() => {
+      expect(modelFacingText).toContain('[piwin plan context v2');
+    });
+    expect(modelFacingText).toContain('Status: approved');
+    expect(modelFacingText).toContain('Chosen execution mode: subagent-driven.');
+    expect(modelFacingText).toContain(
+      'delegate eligible plan steps to subagents, then summarize and verify their results',
+    );
+    expect(await loadSessionPlan(planPath)).toMatchObject({
+      id: 'reuse-plan',
+      status: 'approved',
+      execution: { mode: 'subagent-driven' },
+    });
   });
 });

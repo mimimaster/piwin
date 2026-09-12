@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyHostProviderSnapshot,
   configFromSettingsWriteResponse,
   createSettingsViewConfig,
   interpretSettingsLoadResponse,
@@ -7,6 +8,7 @@ import {
   mergeSettingsViewConfig,
   providerListWriteRetained,
   settingsMutationsFromViewDraft,
+  shouldSyncSettingsProviders,
 } from './settings-view-config.js';
 
 describe('settings view config', () => {
@@ -279,5 +281,49 @@ describe('settings view config', () => {
         createSettingsViewConfig(),
       ).knowledge?.reranker?.model,
     ).toBe('kept');
+  });
+
+  it('syncs providers after OAuth login/logout without clobbering an unsaved knowledge draft', () => {
+    const current = mergeSettingsViewConfig({
+      providers: [
+        {
+          id: 'xai',
+          name: 'Grok',
+          protocol: 'openai-compatible',
+          baseUrl: 'oauth://xai',
+          source: 'subscription',
+          category: 'package',
+          models: [{ id: 'grok-4.6' }],
+        },
+      ],
+      defaultProviderId: 'xai',
+      defaultModelId: 'grok-4.6',
+      knowledge: { reranker: { enabled: true, model: 'unsaved-rerank' } },
+    });
+    const host = mergeSettingsViewConfig({
+      providers: [
+        {
+          id: 'anthropic',
+          name: 'Claude',
+          protocol: 'openai-compatible',
+          baseUrl: 'oauth://anthropic',
+          source: 'subscription',
+          category: 'package',
+          models: [{ id: 'claude-sonnet-4-6' }],
+        },
+      ],
+    });
+    const next = applyHostProviderSnapshot(current, host);
+    expect(next.providers.map((provider) => provider.id)).toEqual(['anthropic']);
+    expect(next.defaultProviderId).toBeUndefined();
+    expect(next.defaultModelId).toBeUndefined();
+    expect(next.knowledge?.reranker?.model).toBe('unsaved-rerank');
+  });
+
+  it('refetches the Models list after auth changes or a providers-domain settings push', () => {
+    expect(shouldSyncSettingsProviders(undefined)).toBe(true);
+    expect(shouldSyncSettingsProviders(['providers'])).toBe(true);
+    expect(shouldSyncSettingsProviders(['defaultProviderId', 'web'])).toBe(true);
+    expect(shouldSyncSettingsProviders(['knowledge', 'web'])).toBe(false);
   });
 });

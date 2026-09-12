@@ -224,6 +224,9 @@ describe('Desktop renderer resource boundaries', () => {
     expect(hostClient).toContain("import('./host-client-mock')");
     expect(mockHostClient).not.toMatch(/from '@piwin\/session['"]/);
     expect(mockHostClient).toContain("from '@piwin/session/fork-session-name'");
+    const planExecutionGate = readSource('./plan-execution-gate.tsx');
+    expect(planExecutionGate).not.toMatch(/from '@piwin\/session['"]/);
+    expect(planExecutionGate).toContain("from '@piwin/session/classify-plan'");
     expect(syntaxHighlight).toContain("import type { Highlighter, ThemedToken } from 'shiki'");
     expect(syntaxHighlight).toContain("import('shiki')");
 

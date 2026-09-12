@@ -106,6 +106,7 @@ export type WorkbenchTranscriptProps = {
     display: PlanDisplayPayload,
     mode: PlanExecutionMode,
   ) => void | Promise<void>;
+  sessionPlan?: SessionPlan | null;
   /** Scope-matched sessions offered as resume targets on an empty stage. */
   scopeSessions: readonly SessionListItemUi[];
   onOpenAllSessions?: () => void;
@@ -167,6 +168,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onOpenSession,
     onCompactAbort,
     onPlanExecute,
+    sessionPlan,
     scopeSessions,
     sidebarMode,
   } = props;
@@ -307,6 +309,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             onOpenSession={(sessionId: string) => void onOpenSession(sessionId)}
             derivedActionsDisabled={!activeSessionId || state.streaming || state.awaitingTranscript}
             {...(onPlanExecute ? { onPlanExecute } : {})}
+            {...(sessionPlan ? { sessionPlan } : {})}
           />
         ) : (
           <EmptyStageLanding

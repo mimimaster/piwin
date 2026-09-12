@@ -8,6 +8,7 @@ import type {
   PermissionRememberScope,
   PlanExecutionMode,
   PlanDisplayPayload,
+  SessionPlan,
   ProductSessionLineageView,
   SessionSummary,
   TranscriptBranchPoint,
@@ -171,4 +172,6 @@ export type ChatThreadProps = {
     display: PlanDisplayPayload,
     mode: PlanExecutionMode,
   ) => void | Promise<void>;
+  /** Live session plan used only to age historical execution cards. */
+  sessionPlan?: SessionPlan | null;
 };

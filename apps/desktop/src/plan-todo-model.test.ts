@@ -108,6 +108,7 @@ describe('compactPlanSteps', () => {
 describe('isPlanProgressTool', () => {
   it('matches create and set-step names, including routed aliases', () => {
     expect(isPlanProgressTool({ toolName: 'piwin_plan_create' })).toBe(true);
+    expect(isPlanProgressTool({ toolName: 'piwin_plan_present' })).toBe(true);
     expect(isPlanProgressTool({ toolName: 'piwin_plan_set_step' })).toBe(true);
     expect(
       isPlanProgressTool({

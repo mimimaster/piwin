@@ -1,10 +1,11 @@
 import type { AgentEvent, ExecutionRunRecord } from '@piwin/contracts';
-import { isRunAbortReason } from './run-abort-reason.js';
+import { isRunAbortReason, type RunAbortReason } from './run-abort-reason.js';
 
 export type ControlledAbortErrorContext = {
   signal?: AbortSignal;
   runStatus?: ExecutionRunRecord['status'];
   pauseRequested?: boolean;
+  abortReason?: RunAbortReason;
 };
 
 /**
@@ -18,7 +19,7 @@ export function shouldSuppressControlledAbortError(
   if (event.type !== 'error') {
     return false;
   }
-  if (context.pauseRequested === true) {
+  if (context.pauseRequested === true || context.abortReason !== undefined) {
     return true;
   }
   if (

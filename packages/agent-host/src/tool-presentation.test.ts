@@ -595,4 +595,35 @@ describe('buildToolPresentation cancel', () => {
     expect(presentation.summary).toBe('Cancelled before completion');
     expect(presentation.error?.message.toLowerCase()).toContain('newer user message');
   });
+
+  it('marks DOM / fetch abort prose as cancelled', async () => {
+    const { buildToolPresentation } = await import('./tool-presentation.js');
+    for (const outputText of [
+      'This operation was aborted',
+      'The operation was aborted.',
+      'tool execution aborted before executor',
+      'Request was aborted',
+    ]) {
+      const presentation = buildToolPresentation({
+        toolName: 'read',
+        args: { path: 'docs/spec.md' },
+        outputText,
+        isError: true,
+      });
+      expect(presentation.error?.category).toBe('cancelled');
+    }
+  });
+
+  it('marks AbortError and Chinese stop prose as cancelled', async () => {
+    const { buildToolPresentation } = await import('./tool-presentation.js');
+    for (const outputText of ['AbortError: Listener closed', '操作已中止', '用户已停止']) {
+      const presentation = buildToolPresentation({
+        toolName: 'grep',
+        args: { pattern: 'x' },
+        outputText,
+        isError: true,
+      });
+      expect(presentation.error?.category).toBe('cancelled');
+    }
+  });
 });

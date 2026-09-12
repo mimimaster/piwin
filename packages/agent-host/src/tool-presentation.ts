@@ -22,11 +22,17 @@ import { attachPlanPresentation } from './plan-presentation.js';
 function looksLikeCancelledToolOutput(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   return (
-    normalized.includes('command aborted') ||
-    normalized.includes('was interrupted') ||
-    normalized.includes('was cancelled') ||
-    normalized.includes('user stopped this run') ||
-    normalized.includes('superseded by a newer')
+    /\b(?:(?:this|the)\s+)?operation was aborted\b/.test(normalized) ||
+    /\brequest was aborted\b/.test(normalized) ||
+    /\bcommand aborted\b/.test(normalized) ||
+    /\btool execution aborted\b/.test(normalized) ||
+    /\baborted before executor\b/.test(normalized) ||
+    /\bwas interrupted\b/.test(normalized) ||
+    /\bwas cancelled\b/.test(normalized) ||
+    /\buser stopped this run\b/.test(normalized) ||
+    /\bsuperseded by a newer\b/.test(normalized) ||
+    /\baborterror\b/.test(normalized) ||
+    /已中止|已取消|操作已中止|用户已停止/.test(normalized)
   );
 }
 

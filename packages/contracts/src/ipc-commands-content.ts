@@ -285,6 +285,7 @@ export type HostContentCommand =
   | { id?: string; type: 'pty/close'; ptyId: string }
   | { id?: string; type: 'pty/list'; projectPath?: string }
   | { id?: string; type: 'skills/store-list' }
+  | { id?: string; type: 'marketplace/search'; query: string; limit?: number }
   | { id?: string; type: 'mcp/registry-list'; query?: string }
   | {
       id?: string;

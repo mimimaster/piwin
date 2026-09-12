@@ -65,8 +65,6 @@ export function WebPage(): ReactElement {
     testWebSearchSource,
     remoteSettingsReadOnly,
     hostClient,
-    setError,
-    setInfo,
   } = useSettings();
   const [webToolsTab, setWebToolsTab] = useState<'search' | 'fetch'>('search');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');

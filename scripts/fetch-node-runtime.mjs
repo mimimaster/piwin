@@ -55,6 +55,33 @@ async function download(url, dest) {
   await pipeline(response.body, createWriteStream(dest));
 }
 
+function extractArchive(archivePath, extractDir, ext) {
+  if (ext === 'tar.gz') {
+    const result = spawnSync('tar', ['-xzf', archivePath, '-C', extractDir], {
+      stdio: 'inherit',
+    });
+    if (result.status !== 0) {
+      throw new Error('tar extract failed');
+    }
+    return;
+  }
+
+  // Windows Node ships as zip. Git-for-Windows / Win10+ tar (libarchive) can
+  // extract it; macOS unzip is the fallback when fetching a Windows runtime.
+  const attempts =
+    process.platform === 'win32'
+      ? [['tar', ['-xf', archivePath, '-C', extractDir]]]
+      : [
+          ['unzip', ['-q', archivePath, '-d', extractDir]],
+          ['tar', ['-xf', archivePath, '-C', extractDir]],
+        ];
+  for (const [cmd, args] of attempts) {
+    const result = spawnSync(cmd, args, { stdio: 'inherit' });
+    if (result.status === 0) return;
+  }
+  throw new Error('zip extract failed — need tar (Windows) or unzip (Unix)');
+}
+
 async function sha256File(path) {
   const buf = await readFile(path);
   return createHash('sha256').update(buf).digest('hex');
@@ -108,22 +135,7 @@ async function main() {
   await rm(extractDir, { recursive: true, force: true });
   await mkdir(extractDir, { recursive: true });
 
-  if (ext === 'tar.gz') {
-    const result = spawnSync('tar', ['-xzf', archivePath, '-C', extractDir], {
-      stdio: 'inherit',
-    });
-    if (result.status !== 0) {
-      throw new Error('tar extract failed');
-    }
-  } else {
-    // Windows zip — use unzip if available
-    const result = spawnSync('unzip', ['-q', archivePath, '-d', extractDir], {
-      stdio: 'inherit',
-    });
-    if (result.status !== 0) {
-      throw new Error('unzip failed — install unzip or run on Unix for now');
-    }
-  }
+  extractArchive(archivePath, extractDir, ext);
 
   const nodeBinName = triple.includes('windows') ? 'node.exe' : 'node';
   const extractedNode = join(extractDir, `node-${NODE_VERSION}-${key}`, triple.includes('windows') ? nodeBinName : 'bin/node');
@@ -140,11 +152,16 @@ async function main() {
   }
 
   // Also copy as the generic name used by externalBin lookup during local checks
-  const versionCheck = spawnSync(outPath, ['--version'], { encoding: 'utf8' });
-  if (versionCheck.status !== 0) {
-    throw new Error(`bundled node failed --version: ${versionCheck.stderr}`);
+  const canExec = process.platform === 'win32' || !triple.includes('windows');
+  if (canExec) {
+    const versionCheck = spawnSync(outPath, ['--version'], { encoding: 'utf8' });
+    if (versionCheck.status !== 0) {
+      throw new Error(`bundled node failed --version: ${versionCheck.stderr}`);
+    }
+    console.log(`[fetch-node] wrote ${outPath} (${versionCheck.stdout.trim()})`);
+  } else {
+    console.log(`[fetch-node] wrote ${outPath} (skip --version; host cannot run Windows binary)`);
   }
-  console.log(`[fetch-node] wrote ${outPath} (${versionCheck.stdout.trim()})`);
 }
 
 main().catch((error) => {

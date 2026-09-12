@@ -335,12 +335,17 @@ pub fn run() {
             // macOS Dock icon click. The floating pet-overlay is always "visible"
             // (and skip_taskbar), so has_visible_windows is often true even when
             // the main window is minimized or buried — always raise main.
+            #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen {
                 has_visible_windows: _,
                 ..
             } = event
             {
                 let _ = raise_main_window(app_handle);
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = (app_handle, event);
             }
         });
 }

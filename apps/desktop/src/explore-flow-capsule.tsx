@@ -4,8 +4,8 @@
  * Stays collapsed by default — including while live — so the call chain stays
  * a one-line summary (marquee shows the active tool). Only a grouped failure
  * auto-opens; the user can still pin it open. Thought segments render as
- * expandable "Thought for Ns" rows between tool rows, matching the causal
- * order of the underlying assistant messages.
+ * expandable thought rows (title left, duration on the far right) between
+ * tool rows, matching the causal order of the underlying assistant messages.
  */
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { DiffCardRequest } from './diff-card';
@@ -24,6 +24,7 @@ import {
   IconChevronDown,
 } from './shell-icons';
 import { ChainIconSearch } from './inkstone-chain-icons.js';
+import { WorkElapsed } from './work-fold-header.js';
 
 export { exploreFlowTitleParts } from './tool-batch-capsule';
 
@@ -62,10 +63,19 @@ function thoughtLabel(
   if (item.live) {
     return isChinese ? '思考中' : 'Thinking';
   }
-  if (item.seconds !== undefined) {
-    return isChinese ? `已思考 ${item.seconds} 秒` : `Thought for ${item.seconds}s`;
-  }
   return isChinese ? '思考过程' : 'Thoughts';
+}
+
+function thoughtElapsedProps(
+  item: Extract<ExploreFlowItem, { kind: 'thought' }>,
+): { startedAt: number } | { elapsedMs: number } | undefined {
+  if (item.live && item.startedAt !== undefined) {
+    return { startedAt: item.startedAt };
+  }
+  if (item.seconds !== undefined) {
+    return { elapsedMs: item.seconds * 1000 };
+  }
+  return undefined;
 }
 
 function ThoughtFlowRow(props: {
@@ -73,6 +83,7 @@ function ThoughtFlowRow(props: {
   isChinese: boolean;
 }): ReactElement {
   const [open, setOpen] = useState(false);
+  const elapsed = thoughtElapsedProps(props.item);
   return (
     <div className={`tr sub explore-thought${props.item.live ? ' is-live' : ''}${open ? ' is-open' : ''}`}>
       <button
@@ -96,7 +107,7 @@ function ThoughtFlowRow(props: {
           {thoughtLabel(props.item, props.isChinese)}
         </span>
         <span className="meta">
-          {props.isChinese ? '思考' : 'Thought'}
+          {elapsed ? <WorkElapsed {...elapsed} /> : null}
           <IconChevronDown
             className={open ? 'explore-thought-chevron chev open' : 'explore-thought-chevron chev'}
             aria-hidden="true"
@@ -116,6 +127,7 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
   const isChinese = (props.locale ?? 'zh-CN') === 'zh-CN';
   const group = props.group;
   const hasError = group.errorCount > 0;
+  const cancelledOnly = !hasError && group.cancelledCount > 0;
   const [internalExpanded, setInternalExpanded] = useState(hasError);
   const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
   const expanded = internalExpanded;
@@ -160,7 +172,9 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
     <div
       className={`tr tool-batch-capsule explore-flow-capsule${
         expanded ? ' is-expanded' : ' is-collapsed'
-      }${hasError ? ' has-error fail' : ''}${group.isLive ? ' is-running' : ''}`}
+      }${hasError ? ' has-error fail' : ''}${cancelledOnly ? ' is-cancelled' : ''}${
+        group.isLive ? ' is-running' : ''
+      }`}
       data-testid="explore-flow-capsule"
       data-expanded={expanded ? 'true' : 'false'}
       data-live={group.isLive ? 'true' : 'false'}

@@ -314,6 +314,17 @@ html[data-theme-id='piwin-inkstone-ink'] .intr .choice:disabled {
   opacity: 0.6;
 }
 
+html[data-theme-id='piwin-inkstone-paper'] .intr .choice[data-historical='true'],
+html[data-theme-id='piwin-inkstone-ink'] .intr .choice[data-historical='true'] {
+  cursor: default;
+  opacity: 0.72;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr .choice[data-historical='true']:hover,
+html[data-theme-id='piwin-inkstone-ink'] .intr .choice[data-historical='true']:hover {
+  background: var(--s2);
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .intr .choice:focus-visible,
 html[data-theme-id='piwin-inkstone-ink'] .intr .choice:focus-visible {
   outline: 2px solid var(--zhu);

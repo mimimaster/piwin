@@ -19,7 +19,7 @@ export type FlashcardGalleryLabels = {
  * progress). The corner cue is the only path into the review desk.
  */
 export function FlashcardGallery(props: {
-  tiles: FlashcardTile[];
+  tiles: readonly FlashcardTile[];
   onOpen: (tileId: string) => void;
   onDeleteTile: (tile: FlashcardTile) => void;
   labels: FlashcardGalleryLabels;

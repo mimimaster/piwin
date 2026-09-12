@@ -301,6 +301,8 @@ export type SessionLiveContext = {
   isSessionBodyReserved: (sessionId: string) => boolean;
   joinRun: (runId: string) => Promise<ExecutionRunRecord | undefined>;
   getRunSignal: (runId: string) => AbortSignal | undefined;
+  /** Durable Host abort intent. Prefer this over a live AbortSignal. */
+  getRunAbortReason: (runId: string) => RunAbortReason | undefined;
   /**
    * True when an Agent error event for this Run already reached Host
    * admission. Used only to avoid duplicating outcome evidence, never to

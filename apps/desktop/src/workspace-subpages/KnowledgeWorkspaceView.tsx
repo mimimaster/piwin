@@ -321,6 +321,8 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
           '当前连接的 Host 还不支持知识库。闪卡和笔记共用这份文件夹登记，从文档文件夹产卡也需要它。',
         )}
         visual={<IconBook width={28} height={28} aria-hidden="true" />}
+        seal="简"
+        size="spacious"
         testId="knowledge-host-too-old"
       />
     );

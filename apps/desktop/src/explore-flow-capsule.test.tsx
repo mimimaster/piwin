@@ -43,6 +43,7 @@ function doneGroup(): ExploreFlowGroup {
     hasRunning: false,
     isLive: false,
     errorCount: 0,
+    cancelledCount: 0,
     totalDurationMs: 40,
   };
 }
@@ -86,7 +87,13 @@ describe('ExploreFlowCapsule', () => {
     });
     expect(capsule?.getAttribute('data-expanded')).toBe('true');
     expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
-    expect(container.textContent).toContain('已思考 2 秒');
+    expect(container.textContent).toContain('思考过程');
+    expect(
+      container.querySelector(
+        '[data-testid="explore-thought-row"] [data-testid="work-fold-elapsed"]',
+      )?.textContent,
+    ).toBe('2s');
+    expect(container.textContent).not.toContain('已思考 2 秒');
   });
 
   it('expands the thought text when its row is clicked', () => {
@@ -190,5 +197,21 @@ describe('ExploreFlowCapsule', () => {
         .querySelector('[data-testid="explore-flow-capsule"]')
         ?.getAttribute('data-expanded'),
     ).toBe('true');
+  });
+
+  it('keeps a cancelled explore chain collapsed without a red failure icon', () => {
+    act(() =>
+      render({
+        ...doneGroup(),
+        cancelledCount: 2,
+        errorCount: 0,
+      }),
+    );
+    const capsule = container.querySelector('[data-testid="explore-flow-capsule"]');
+    expect(capsule?.getAttribute('data-expanded')).toBe('false');
+    expect(capsule?.className).not.toContain('has-error');
+    expect(container.textContent).toContain('已停止');
+    expect(container.querySelector('.tool-batch-error-icon')).toBeNull();
+    expect(container.querySelector('[data-testid="explore-flow-body"]')).toBeNull();
   });
 });

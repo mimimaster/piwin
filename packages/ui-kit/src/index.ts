@@ -14,7 +14,7 @@ export { Dialog } from './dialog.js';
 export type { DialogProps } from './dialog.js';
 
 export { EmptyState } from './empty-state.js';
-export type { EmptyStateProps } from './empty-state.js';
+export type { EmptyStateProps, EmptyStateSuggestion } from './empty-state.js';
 
 export { Spinner } from './spinner.js';
 export type { SpinnerProps } from './spinner.js';

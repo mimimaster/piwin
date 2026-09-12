@@ -4,6 +4,18 @@ export { installExtension } from './install-extension.js';
 export type { InstallExtensionOptions, InstallExtensionResult } from './install-extension.js';
 export { RECOMMENDED_SKILLS } from './catalog.js';
 export type { RecommendedSkill } from './catalog.js';
+export {
+  isNpmPackageName,
+  normalizeRepositoryUrl,
+  npmPackagePageUrl,
+  piInstallCommand,
+  searchPiNpmPackages,
+} from './search-pi-packages.js';
+export type { SearchPiPackagesOptions } from './search-pi-packages.js';
+export { piGitInstallCommand, searchPiGithubRepos } from './search-pi-github.js';
+export type { SearchPiGithubOptions } from './search-pi-github.js';
+export { searchMarketplaceSources } from './search-marketplace.js';
+export type { SearchMarketplaceOptions } from './search-marketplace.js';
 
 export {
   listStaticMcpRegistry,

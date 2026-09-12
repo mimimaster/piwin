@@ -99,6 +99,7 @@ export * from './compaction.js';
 export * from './pty.js';
 export * from './automation.js';
 export * from './marketplace-registry.js';
+export * from './marketplace-search.js';
 export * from './permission.js';
 export * from './capability-matrix.js';
 export * from './walkthrough.js';

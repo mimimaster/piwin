@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyPlanComplexity,
   isWithinPlanSizeLimits,
+  recommendedPlanExecutionMode,
   LONG_PLAN_INDEPENDENT_THRESHOLD,
   LONG_PLAN_STEP_THRESHOLD,
 } from './classify-plan.js';
@@ -48,6 +49,33 @@ describe('classifyPlanComplexity', () => {
   });
 });
 
+describe('recommendedPlanExecutionMode', () => {
+  it('recommends inline for short plans', () => {
+    expect(recommendedPlanExecutionMode({ complexity: 'short', steps: [step('1')] })).toBe(
+      'inline',
+    );
+  });
+
+  it('recommends subagent-driven for long plans with independent steps', () => {
+    expect(
+      recommendedPlanExecutionMode({
+        complexity: 'long',
+        steps: [step('1'), step('2')],
+        independentSteps: ['1'],
+      }),
+    ).toBe('subagent-driven');
+  });
+
+  it('recommends inline for long plans with no independent steps', () => {
+    expect(
+      recommendedPlanExecutionMode({
+        complexity: 'long',
+        steps: [step('1'), step('2'), step('3'), step('4')],
+      }),
+    ).toBe('inline');
+  });
+});
+
 describe('isWithinPlanSizeLimits', () => {
   it('allows plans under the step cap', () => {
     expect(isWithinPlanSizeLimits(plan(Array.from({ length: 32 }, (_, i) => step(String(i + 1)))))).toBe(true);
@@ -62,3 +90,4 @@ describe('isWithinPlanSizeLimits', () => {
     expect(isWithinPlanSizeLimits(plan([step('1')], ids))).toBe(false);
   });
 });
+

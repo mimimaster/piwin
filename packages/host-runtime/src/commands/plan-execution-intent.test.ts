@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveExplicitPlanExecutionMode } from './plan-execution-intent.js';
 
 describe('resolveExplicitPlanExecutionMode', () => {
-  it.each(['inline', 'in line', '请用 inline 执行', '我选择当前会话直接执行'])(
+  it.each(['inline', 'in line', '请用 inline 执行', '我选择当前会话直接执行', '当前会话执行'])(
     'resolves inline: %s',
     (text) => {
       expect(resolveExplicitPlanExecutionMode(text)).toBe('inline');
@@ -17,7 +17,7 @@ describe('resolveExplicitPlanExecutionMode', () => {
     ).toBe('inline');
   });
 
-  it.each(['subagent', 'sub agent', '请用子代理执行', '选择委派方式'])(
+  it.each(['subagent', 'sub agent', '请用子代理执行', '选择委派方式', '使用子代理执行'])(
     'resolves subagent: %s',
     (text) => {
       expect(resolveExplicitPlanExecutionMode(text)).toBe('subagent-driven');
@@ -30,6 +30,17 @@ describe('resolveExplicitPlanExecutionMode', () => {
     'not subagent',
     '讨论 inline 的优缺点',
     'inline execution 是什么意思？',
+    '好',
+    '可以',
+    '行',
+    '执行一下',
+    '开始吧',
+    '就这样',
+    '按推荐',
+    'go ahead',
+    'lgtm',
+    '取消计划',
+    '先不做这个计划',
   ])('leaves non-selection text alone: %s', (text) => {
     expect(resolveExplicitPlanExecutionMode(text)).toBeUndefined();
   });

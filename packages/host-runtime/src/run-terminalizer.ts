@@ -65,7 +65,8 @@ export async function terminateHostRun(
     }
   }
   const effectiveOutcome = cleanupFailed ? 'failed' : outcome;
-  const abortReason = deps.runRegistry.getSignal(runId)?.reason;
+  const abortReason =
+    deps.runRegistry.getAbortReason(runId) ?? deps.runRegistry.getSignal(runId)?.reason;
   const supersededByNewPrompt =
     (isRunAbortReason(abortReason) && abortReason.code === 'superseded-by-new-prompt') ||
     code === 'superseded-by-new-prompt';

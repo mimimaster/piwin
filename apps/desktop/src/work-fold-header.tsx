@@ -217,8 +217,13 @@ function RunningLabel(props: {
   );
 }
 
-function LiveElapsed(props: { startedAt: number }): ReactElement | null {
-  const elapsedMs = useLiveElapsed(props.startedAt);
+/** Right-edge clock: live while `startedAt` is set, otherwise the frozen ms. */
+export function WorkElapsed(props: {
+  startedAt?: number;
+  elapsedMs?: number;
+}): ReactElement | null {
+  const liveMs = useLiveElapsed(props.startedAt);
+  const elapsedMs = liveMs ?? props.elapsedMs;
   if (elapsedMs === undefined) return null;
   return (
     <span className="work-fold-elapsed" data-testid="work-fold-elapsed">
@@ -285,15 +290,26 @@ export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
       />
     );
 
+  const runningSince = props.runningSince;
+  const elapsedMs = props.elapsedMs;
+  const showLiveElapsed = props.state === 'running' && runningSince !== undefined;
+  // Custom thinking labels keep duration on the right (`18s`), not in the title.
+  const showFrozenElapsed =
+    !showLiveElapsed && props.children !== undefined && elapsedMs !== undefined;
+
   const inner = (
     <>
       <WorkFoldIcon state={props.state} doneIcon={props.doneIcon ?? 'bulb'} />
       {props.leading}
       {label}
-      {props.state === 'running' && props.runningSince !== undefined ? (
-        <LiveElapsed startedAt={props.runningSince} />
-      ) : null}
-      <WorkFoldChevron isOpen={open} />
+      <span className="work-fold-trailing">
+        {showLiveElapsed && runningSince !== undefined ? (
+          <WorkElapsed startedAt={runningSince} />
+        ) : showFrozenElapsed && elapsedMs !== undefined ? (
+          <WorkElapsed elapsedMs={elapsedMs} />
+        ) : null}
+        <WorkFoldChevron isOpen={open} />
+      </span>
     </>
   );
 

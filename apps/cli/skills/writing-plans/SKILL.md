@@ -1,7 +1,7 @@
 ---
 name: writing-plans
 description: Explore codebase context and formulate a modular SessionPlan via piwin_plan_create for user review. Trigger via /writing-plans or /write-plan.
-version: 3
+version: 7
 ---
 
 # Writing Plans
@@ -25,13 +25,23 @@ Produce one reviewable `SessionPlan` the user can approve before any implementat
 
 ## Workflow
 1. **Explore & Scope**: Inspect relevant codebase files and interfaces to establish concrete boundaries.
-2. **Draft Blueprint**: Invoke `piwin_plan_create` with the fields above.
-3. **Acknowledge & Await**: Summarize the plan in chat and await user review on the workbench plan card.
+2. **Draft Blueprint**: Invoke `piwin_plan_create` with the fields above. This only saves the plan.
+3. **Optional card**: You may call `piwin_plan_present` to attach Desktop display data. Present does not change plan status or stop other tools.
+4. **Ask and finish**: Write the user-visible summary, include the plan path (`plans/<session>.md`), and ask: **当前会话执行，还是子代理执行？** Then end the reply and wait.
+
+If you skip present, the text question is enough. If the user follows up with questions, plan edits, or a new topic instead of choosing a mode, handle that normally.
+
+## Execution choice
+- The card is a shortcut, not a permission gate. Reading, verifying, or editing the plan is normal.
+- If the user names one mode (`inline` / 当前会话执行, or `subagent` / 子代理执行), follow that path. Do not re-ask.
+- If they only say they want it executed (for example 「执行一下」) and no mode is already known, ask **当前会话执行，还是子代理执行？** Do not implement and do not call `piwin_plan_set_step`.
+- If this conversation already chose a mode, or plan context already shows a chosen execution mode, do not demand those keywords again.
+- If a plan tool says the plan is still draft / 尚未选择执行方式, tell the user that and ask the same question. Do not retry `piwin_plan_set_step`.
+- Failed later execution uses the existing continue / retry controls, not this card.
 
 ## Stop when
 - Goal, constraints, or technical choices are ambiguous in a way that would change the plan — surface the real options and ask; do not invent scope.
-- Plan is draft-created. Do **not** implement, mutate source, or start execution.
-- Do **not** ask the user in chat to pick `inline` or `subagent-driven`. The Host shows a mode picker. Summarize the plan and wait.
+- After the plan is saved and you have asked how to execute, stop. Do not implement or start execution in this turn.
 
 ## Constraints
 - Prefer thin, correct plans over speculative multi-week epics.

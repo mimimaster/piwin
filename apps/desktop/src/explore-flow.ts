@@ -34,6 +34,8 @@ export type ExploreFlowItem =
       messageId: string;
       text: string;
       seconds?: number;
+      /** Epoch ms thinking started — drives the live right-edge clock. */
+      startedAt?: number;
       /** True while this thought is still streaming (live shimmer row). */
       live?: boolean;
     }
@@ -53,8 +55,55 @@ export type ExploreFlowGroup = {
   /** Group is still growing: run active and no later block closed it. */
   isLive: boolean;
   errorCount: number;
+  /** Cancelled tools are not errors; they do not auto-expand the capsule. */
+  cancelledCount: number;
   totalDurationMs?: number;
 };
+
+export function isCancelledExploreTool(tool: Pick<ToolCardUi, 'presentation'>): boolean {
+  return tool.presentation?.error?.category === 'cancelled';
+}
+
+function collapseCancelledExploreItems(items: ExploreFlowItem[]): ExploreFlowItem[] {
+  const result: ExploreFlowItem[] = [];
+  let pending: Array<Extract<ExploreFlowItem, { kind: 'tool' }>> = [];
+  const flushCancelled = (): void => {
+    if (pending.length === 0) return;
+    const first = pending[0];
+    if (!first) return;
+    if (pending.length === 1) {
+      result.push(first);
+    } else {
+      result.push({
+        kind: 'tool',
+        messageId: first.messageId,
+        tool: {
+          ...first.tool,
+          output: `${pending.length} cancelled`,
+          presentation: {
+            kind: first.tool.presentation?.kind ?? 'other',
+            title: first.tool.presentation?.title ?? 'Stopped',
+            error: {
+              category: 'cancelled',
+              message: `${pending.length} cancelled`,
+            },
+          },
+        },
+      });
+    }
+    pending = [];
+  };
+  for (const item of items) {
+    if (item.kind === 'tool' && isCancelledExploreTool(item.tool)) {
+      pending.push(item);
+      continue;
+    }
+    flushCancelled();
+    result.push(item);
+  }
+  flushCancelled();
+  return result;
+}
 
 export type ExploreFlowRole =
   | { kind: 'anchor'; group: ExploreFlowGroup }
@@ -164,6 +213,9 @@ function appendMessageItems(
       messageId: message.id,
       text: message.thinking,
       ...(seconds !== undefined ? { seconds } : {}),
+      ...(message.thinkingStartedAt !== undefined
+        ? { startedAt: message.thinkingStartedAt }
+        : {}),
       ...(live ? { live } : {}),
     });
   }
@@ -188,13 +240,18 @@ function finalizeRun(
   const uniqueTargets = new Set<string>();
   let searchCount = 0;
   let errorCount = 0;
+  let cancelledCount = 0;
   let hasRunning = false;
   let hasDuration = false;
   let totalDurationMs = 0;
   for (const item of toolItems) {
     const clusterKind = resolveToolClusterKind(item.tool);
     if (clusterKind === 'search') searchCount += 1;
-    if (item.tool.status === 'error') errorCount += 1;
+    if (isCancelledExploreTool(item.tool)) {
+      cancelledCount += 1;
+    } else if (item.tool.status === 'error') {
+      errorCount += 1;
+    }
     if (item.tool.status === 'running') hasRunning = true;
     for (const path of item.tool.presentation?.targetPaths ?? []) {
       if (path) uniqueTargets.add(path);
@@ -205,10 +262,11 @@ function finalizeRun(
     }
   }
 
+  const collapsedItems = collapseCancelledExploreItems(run.items);
   const group: ExploreFlowGroup = {
     anchorMessageId: run.anchorMessageId,
     memberMessageIds: run.memberMessageIds,
-    items: run.items,
+    items: collapsedItems,
     toolCount: toolItems.length,
     fileCount: uniqueTargets.size,
     searchCount,
@@ -219,6 +277,7 @@ function finalizeRun(
     // old call chain streaming while the new query spun a waiting locator.
     isLive: options.allowRunningLive === false ? false : options.isLive || hasRunning,
     errorCount,
+    cancelledCount,
     ...(hasDuration ? { totalDurationMs } : {}),
   };
 
@@ -311,7 +370,14 @@ function exploreFlowItemsEqual(left: ExploreFlowItem[], right: ExploreFlowItem[]
     if (a.kind === 'tool' && b.kind === 'tool') {
       if (a.tool !== b.tool) return false;
     } else if (a.kind === 'thought' && b.kind === 'thought') {
-      if (a.text !== b.text || a.seconds !== b.seconds || a.live !== b.live) return false;
+      if (
+        a.text !== b.text ||
+        a.seconds !== b.seconds ||
+        a.startedAt !== b.startedAt ||
+        a.live !== b.live
+      ) {
+        return false;
+      }
     }
   }
   return true;
@@ -332,6 +398,7 @@ export function exploreFlowRolesEqual(
       a.isLive === b.isLive &&
       a.hasRunning === b.hasRunning &&
       a.errorCount === b.errorCount &&
+      a.cancelledCount === b.cancelledCount &&
       a.totalDurationMs === b.totalDurationMs &&
       exploreFlowItemsEqual(a.items, b.items)
     );

@@ -617,3 +617,49 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   border-color: var(--l2);
   box-shadow: none;
 }
+
+/* ── Empty state Inkstone theme polish ──────────────────────────────── */
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-state .empty-state-title {
+  font-family: var(--serif);
+  font-size: 18px;
+  color: var(--t1);
+  letter-spacing: 0.02em;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-state .empty-state-copy {
+  color: var(--t3);
+  font-size: 13.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-state .empty-state-visual-inner {
+  background: var(--s3);
+  border-color: var(--l1);
+  color: var(--t2);
+  box-shadow: var(--sh1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-state:hover .empty-state-visual-inner {
+  border-color: var(--l2);
+  color: var(--t1);
+  box-shadow: var(--sh2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-state .empty-state-badge {
+  background: var(--s3);
+  border-color: var(--l1);
+  color: var(--t3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-state .empty-state-suggestion-chip {
+  background: var(--s3);
+  border-color: var(--l1);
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-state .empty-state-suggestion-chip.is-clickable:hover {
+  background: var(--s1);
+  border-color: var(--l2);
+  color: var(--t1);
+}
+

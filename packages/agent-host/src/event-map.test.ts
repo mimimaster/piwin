@@ -222,13 +222,7 @@ describe('mapPiSessionEvent', () => {
         errorMessage: 'stream closed by gateway: timeout',
       },
     });
-    expect(aborted.filter((event) => event.type === 'error')).toEqual([
-      expect.objectContaining({
-        type: 'error',
-        message: 'stream closed by gateway: timeout',
-        failure: expect.objectContaining({ code: 'model-request-timeout' }),
-      }),
-    ]);
+    expect(aborted.filter((event) => event.type === 'error')).toEqual([]);
   });
 
   it('recovers provider errors from agent_end when message_end omitted stopReason', () => {

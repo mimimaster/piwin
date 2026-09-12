@@ -27,7 +27,16 @@ const details = {
 };
 
 describe('plan tool presentation', () => {
-  it('attaches the plan payload to the tool presentation', () => {
+  it('attaches the plan payload to the present-tool presentation', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'piwin_plan_present',
+      details,
+      outputText: 'ready',
+    });
+    expect(presentation.plan).toEqual(details.planDisplay);
+  });
+
+  it('still lifts a legacy create-tool payload for historical transcripts', () => {
     const presentation = buildToolPresentation({
       toolName: 'piwin_plan_create',
       details,
