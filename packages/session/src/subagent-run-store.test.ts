@@ -7,7 +7,12 @@ import {
   SubagentRunManifestCorruptError,
   SubagentRunManifestExistsError,
 } from './subagent-run-store.js';
-import type { SubagentBatchRequest, SubagentReviewRecord, SubagentTaskSpec } from '@piwin/contracts';
+import type {
+  SubagentBatchRequest,
+  SubagentDeliveryVerification,
+  SubagentReviewRecord,
+  SubagentTaskSpec,
+} from '@piwin/contracts';
 
 function makeTask(overrides: Partial<SubagentTaskSpec> = {}): SubagentTaskSpec {
   return {
@@ -180,6 +185,58 @@ describe('SubagentRunStore', () => {
     const loaded = await store.loadManifest('run-1');
     expect(loaded?.tasks[0]?.reviewRef).toEqual({ reviewId: 'review-1', revision: 1 });
     expect(loaded?.invocations['inv-1']?.reviewRef).toEqual({ reviewId: 'review-1', revision: 1 });
+  });
+
+  it('persists a delivery verification once and rejects a different payload', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'worker', invocationId: 'inv-1' })]));
+    await store.recordResult('run-1', 'worker', {
+      runId: 'run-1',
+      taskId: 'worker',
+      childSessionId: 'worker-child',
+      executionStatus: 'completed',
+      summaryStatus: 'merged',
+      integrationStatus: 'applied',
+      resultRef: { resultId: 'result-1', revision: 1 },
+    });
+    const record: SubagentDeliveryVerification = {
+      verificationId: 'verify-1',
+      revision: 1,
+      parentSessionId: 'parent-1',
+      parentRunId: 'parent-run-2',
+      result: { resultId: 'result-1', revision: 1 },
+      approvedBy: { reviewId: 'review-1', revision: 1 },
+      applyOperationId: 'op-1',
+      appliedChanges: { changeSetId: 'cs-1', revision: 1 },
+      status: 'passed',
+      checks: [{ label: 'typecheck', status: 'passed', evidence: 'tsc ok' }],
+      createdAt: '2026-09-13T03:00:00.000Z',
+    };
+    await expect(store.persistDeliveryVerification('run-1', 'worker', record)).resolves.toEqual({
+      ok: true,
+      record,
+    });
+    await expect(store.persistDeliveryVerification('run-1', 'worker', record)).resolves.toEqual({
+      ok: true,
+      record,
+    });
+    const conflict = await store.persistDeliveryVerification('run-1', 'worker', {
+      ...record,
+      status: 'failed',
+      checks: [{ label: 'typecheck', status: 'failed', evidence: 'tsc failed' }],
+    });
+    expect(conflict).toMatchObject({ ok: false, code: 'conflict' });
+    const loaded = await store.loadManifest('run-1');
+    expect(loaded?.tasks[0]?.latestVerification).toEqual({
+      verificationId: 'verify-1',
+      revision: 1,
+    });
+    expect(loaded?.results.worker?.latestVerification).toEqual({
+      verificationId: 'verify-1',
+      revision: 1,
+    });
+    expect(loaded?.results.worker?.integrationStatus).toBe('applied');
   });
 
   it('reads a legacy manifest without inventing lineage or delivery fields', async () => {

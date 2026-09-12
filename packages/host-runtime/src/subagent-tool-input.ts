@@ -2,6 +2,7 @@ import type {
   ModelRef,
   SubagentApplyPolicy,
   SubagentDeliveryIntent,
+  SubagentDeliveryVerification,
   SubagentIsolationMode,
   SubagentResultRef,
   SubagentReviewRef,
@@ -19,6 +20,14 @@ const FORBIDDEN_START_FIELDS = [
   'reviewScope',
   'reviewCapability',
 ] as const;
+
+const FORBIDDEN_VERIFICATION_FIELDS = [
+  ...FORBIDDEN_START_FIELDS,
+  'appliedChanges',
+  'verificationId',
+] as const;
+
+const DELIVERY_VERIFICATION_STATUSES = new Set(['passed', 'failed']);
 
 const ISOLATION_MODES: ReadonlySet<string> = new Set(['readonly', 'worktree']);
 
@@ -385,6 +394,117 @@ export function parseSubagentResultApplyInput(
       approvedBy: approvedBy.value,
     },
   };
+}
+
+export const subagentVerificationSubmitInputParameters = {
+  type: 'object' as const,
+  properties: {
+    result: {
+      type: 'object',
+      description: 'Exact applied result to verify in the parent workspace.',
+      properties: {
+        resultId: { type: 'string' },
+        revision: { type: 'number' },
+      },
+      required: ['resultId', 'revision'],
+    },
+    approvedBy: {
+      type: 'object',
+      description: 'Durable approved review that authorized apply for this result.',
+      properties: {
+        reviewId: { type: 'string' },
+        revision: { type: 'number' },
+      },
+      required: ['reviewId', 'revision'],
+    },
+    applyOperationId: {
+      type: 'string',
+      description: 'Successful apply operation id for this exact result. Host resolves appliedChanges.',
+    },
+    status: {
+      type: 'string',
+      enum: ['passed', 'failed'],
+      description: 'Parent-workspace delivery verification. Reviewer-local not-run is not a pass.',
+    },
+    checks: {
+      type: 'array',
+      description: 'Bounded parent-workspace checks. passed needs ≥1 check and no failed check.',
+    },
+  },
+  required: ['result', 'approvedBy', 'applyOperationId', 'status', 'checks'] as const,
+};
+
+export type SubagentVerificationSubmitToolInput = {
+  result: SubagentResultRef;
+  approvedBy: SubagentReviewRef;
+  applyOperationId: string;
+  status: SubagentDeliveryVerification['status'];
+  checks: SubagentDeliveryVerification['checks'];
+};
+
+export function parseSubagentVerificationSubmitInput(
+  args: Record<string, unknown>,
+): { ok: true; value: SubagentVerificationSubmitToolInput } | InvalidSubagentInput {
+  for (const key of FORBIDDEN_VERIFICATION_FIELDS) {
+    if (args[key] !== undefined) {
+      return invalidSubagentInput(`${key} cannot be supplied by the model`);
+    }
+  }
+  const result = parseSubagentResultRef(args.result, 'result');
+  if (!result.ok) return result;
+  const approvedBy = parseSubagentReviewRef(args.approvedBy, 'approvedBy');
+  if (!approvedBy.ok) return approvedBy;
+  const applyOperationId = String(args.applyOperationId ?? '').trim();
+  if (!applyOperationId) return invalidSubagentInput('applyOperationId is required');
+  const statusRaw = String(args.status ?? '').trim();
+  if (!DELIVERY_VERIFICATION_STATUSES.has(statusRaw)) {
+    return invalidSubagentInput('status must be passed or failed');
+  }
+  const checks = parseDeliveryVerificationChecks(args.checks);
+  if (!checks.ok) return checks;
+  return {
+    ok: true,
+    value: {
+      result: result.value,
+      approvedBy: approvedBy.value,
+      applyOperationId,
+      status: statusRaw as SubagentDeliveryVerification['status'],
+      checks: checks.value,
+    },
+  };
+}
+
+function parseDeliveryVerificationChecks(
+  value: unknown,
+): { ok: true; value: SubagentDeliveryVerification['checks'] } | InvalidSubagentInput {
+  if (!Array.isArray(value)) {
+    return invalidSubagentInput('checks must be an array');
+  }
+  const checks: SubagentDeliveryVerification['checks'] = [];
+  for (const [index, entry] of value.entries()) {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      return invalidSubagentInput(`checks[${String(index)}] must be an object`);
+    }
+    const record = entry as Record<string, unknown>;
+    if (record.appliedChanges !== undefined) {
+      return invalidSubagentInput('appliedChanges cannot be supplied by the model');
+    }
+    const label = typeof record.label === 'string' ? record.label.trim() : '';
+    const status = typeof record.status === 'string' ? record.status : '';
+    if (!label) return invalidSubagentInput(`checks[${String(index)}].label is required`);
+    if (!DELIVERY_VERIFICATION_STATUSES.has(status)) {
+      return invalidSubagentInput(`checks[${String(index)}].status must be passed or failed`);
+    }
+    if (typeof record.evidence !== 'string') {
+      return invalidSubagentInput(`checks[${String(index)}].evidence is required`);
+    }
+    checks.push({
+      label,
+      status: status as SubagentDeliveryVerification['checks'][number]['status'],
+      evidence: record.evidence,
+    });
+  }
+  return { ok: true, value: checks };
 }
 
 export function parseSubagentContinueInput(

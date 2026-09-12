@@ -4,6 +4,7 @@ import {
   SUBAGENT_REVIEW_TITLE_MAX_CHARS,
   pickSubagentLineageRefs,
   validateSubagentDeliveryVerificationBounds,
+  validateSubagentDeliveryVerificationStatus,
   validateSubagentReviewBounds,
   validateSubagentReviewDecision,
   type SubagentReviewFinding,
@@ -71,6 +72,42 @@ describe('subagent review bounds', () => {
       checks: [{ label: 'test', status: 'passed', evidence: 'e'.repeat(2001) }],
     });
     expect(result.ok).toBe(false);
+  });
+
+  it('enforces passed/failed delivery-verification consistency', () => {
+    expect(
+      validateSubagentDeliveryVerificationStatus({
+        status: 'passed',
+        checks: [{ label: 'test', status: 'passed', evidence: 'ok' }],
+      }).ok,
+    ).toBe(true);
+    expect(validateSubagentDeliveryVerificationStatus({ status: 'passed', checks: [] }).ok).toBe(
+      false,
+    );
+    expect(
+      validateSubagentDeliveryVerificationStatus({
+        status: 'passed',
+        checks: [{ label: 'test', status: 'failed', evidence: 'boom' }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      validateSubagentDeliveryVerificationStatus({
+        status: 'failed',
+        checks: [{ label: 'test', status: 'passed', evidence: 'ok' }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      validateSubagentDeliveryVerificationStatus({
+        status: 'failed',
+        checks: [{ label: 'test', status: 'failed', evidence: 'boom' }],
+      }).ok,
+    ).toBe(true);
+    expect(
+      validateSubagentDeliveryVerificationStatus({
+        status: 'not-run',
+        checks: [{ label: 'test', status: 'passed', evidence: 'ok' }],
+      }).ok,
+    ).toBe(false);
   });
 
   it('enforces approved / changes-requested / blocked finding rules', () => {

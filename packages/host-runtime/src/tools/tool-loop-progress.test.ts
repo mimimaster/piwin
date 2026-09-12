@@ -24,6 +24,7 @@ describe('classifyToolLoopClass', () => {
     expect(classifyToolLoopClass('piwin_subagent_start')).toBe('progress');
     expect(classifyToolLoopClass('piwin_subagent_continue')).toBe('progress');
     expect(classifyToolLoopClass('piwin_subagent_result_apply')).toBe('progress');
+    expect(classifyToolLoopClass('piwin_subagent_verification_submit')).toBe('progress');
   });
 
   it('treats wait and cancel as non-progress control tools', () => {

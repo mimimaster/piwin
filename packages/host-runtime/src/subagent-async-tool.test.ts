@@ -758,7 +758,7 @@ describe('async subagent start/wait/cancel', () => {
     expect(messageOf(result)).toContain('did the thing');
   });
 
-  it('tool-surface inventory registers exactly five delegate tools', async () => {
+  it('tool-surface inventory registers parent delegate tools', async () => {
     const harness = createHarness();
     const tools = await buildSessionHostTools({
       sessionId: SESSION_ID,
@@ -770,6 +770,8 @@ describe('async subagent start/wait/cancel', () => {
       'piwin_subagent_run',
       'piwin_subagent_start',
       'piwin_subagent_continue',
+      'piwin_subagent_result_apply',
+      'piwin_subagent_verification_submit',
       'piwin_subagent_wait',
       'piwin_subagent_cancel',
     ]);

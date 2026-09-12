@@ -261,3 +261,30 @@ export function validateSubagentDeliveryVerificationBounds(input: {
   }
   return issues.length === 0 ? { ok: true } : { ok: false, issues };
 }
+
+export function validateSubagentDeliveryVerificationStatus(input: {
+  status: string;
+  checks: SubagentDeliveryVerification['checks'];
+}): SubagentReviewBoundsResult {
+  const issues: SubagentReviewBoundsIssue[] = [];
+  if (input.status !== 'passed' && input.status !== 'failed') {
+    addIssue(
+      issues,
+      'invalid-status',
+      'delivery verification status must be passed or failed',
+      'status',
+    );
+    return { ok: false, issues };
+  }
+  if (input.status === 'passed') {
+    if (input.checks.length === 0) {
+      addIssue(issues, 'passed-without-check', 'passed requires at least one check');
+    }
+    if (input.checks.some((check) => check.status === 'failed')) {
+      addIssue(issues, 'passed-with-failed-check', 'passed rejects any failed check');
+    }
+  } else if (!input.checks.some((check) => check.status === 'failed')) {
+    addIssue(issues, 'failed-without-failed-check', 'failed requires at least one failed check');
+  }
+  return issues.length === 0 ? { ok: true } : { ok: false, issues };
+}
