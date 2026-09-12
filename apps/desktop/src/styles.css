@@ -88,6 +88,7 @@
 @import './styles/region-overlays.css';
 @import './styles/host-workspace-picker.css';
 @import './styles/subagent-session-inspector.css';
+@import './styles/subagent-orchestration.css';
 @import './styles/goal.css';
 @import './styles/inkstone-overrides.css';
 /* Theme refinements follow the base regions. Equal-specificity legacy rules

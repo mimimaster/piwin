@@ -532,4 +532,271 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(container.querySelector('[data-tool-name="piwin_plan_present"]')).toBeNull();
     expect(container.querySelector('[data-tool-name="piwin_plan_set_step"]')).toBeNull();
   });
+
+  it('renders one wait row that links two invocation cards and creates no child card', () => {
+    const startA: ToolCardUi = {
+      toolCallId: 'tool-start-a',
+      toolName: 'piwin_subagent_start',
+      status: 'done',
+      output: '',
+      presentation: {
+        kind: 'subagent',
+        title: 'Subagent',
+        subagentControl: {
+          phase: 'accepted',
+          runId: 'run-a',
+          invocationId: 'inv-a',
+          task: 'Scout the scheduler',
+        },
+      },
+    };
+    const startB: ToolCardUi = {
+      toolCallId: 'tool-start-b',
+      toolName: 'piwin_subagent_start',
+      status: 'done',
+      output: '',
+      presentation: {
+        kind: 'subagent',
+        title: 'Subagent',
+        subagentControl: {
+          phase: 'accepted',
+          runId: 'run-b',
+          invocationId: 'inv-b',
+          task: 'Write contracts',
+        },
+      },
+    };
+    const waitTool: ToolCardUi = {
+      toolCallId: 'tool-wait-1',
+      toolName: 'piwin_subagent_wait',
+      status: 'running',
+      output: '',
+      presentation: {
+        kind: 'other',
+        title: 'Wait',
+        durationMs: 400,
+        subagentControl: {
+          phase: 'waiting',
+          total: 2,
+          completed: 0,
+          failed: 0,
+          cancelled: 0,
+          needsIntegration: 0,
+          runs: [
+            {
+              runId: 'run-a',
+              invocationId: 'inv-a',
+              title: 'Scout the scheduler',
+              executionStatus: 'running',
+            },
+            {
+              runId: 'run-b',
+              invocationId: 'inv-b',
+              title: 'Write contracts',
+              executionStatus: 'running',
+            },
+          ],
+        },
+      },
+    };
+    const makeInvocation = (
+      id: string,
+      parentToolCallId: string,
+      title: string,
+    ): SubagentInvocation => ({
+      id,
+      parentSessionId: 'parent-1',
+      runId: id === 'inv-a' ? 'run-a' : 'run-b',
+      parentToolCallId,
+      taskId: id,
+      task: title,
+      title,
+      status: 'running',
+      activity: { kind: 'thinking' },
+      revision: 1,
+      createdAt: '2026-09-13T00:00:00.000Z',
+      updatedAt: '2026-09-13T00:00:08.000Z',
+    });
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnToolGroup
+            tools={[startA, startB, waitTool]}
+            locale="zh-CN"
+            subagentInvocations={{
+              'inv-a': makeInvocation('inv-a', 'tool-start-a', 'Scout the scheduler'),
+              'inv-b': makeInvocation('inv-b', 'tool-start-b', 'Write contracts'),
+            }}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelectorAll('[data-testid="subagent-invocation-block"]')).toHaveLength(2);
+    expect(container.querySelectorAll('[data-testid="subagent-embed"]')).toHaveLength(2);
+    expect(container.querySelectorAll('[data-testid="subagent-control-row"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="subagent-control-row"]')?.textContent).toContain(
+      '正在等待 2 个子任务',
+    );
+    expect(container.querySelector('#subagent-invocation-inv-a')).not.toBeNull();
+    expect(container.querySelector('#subagent-invocation-inv-b')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="subagent-control-row"] [data-testid="subagent-invocation-block"]'),
+    ).toBeNull();
+    expect(container.querySelector('[data-tool-call-id="tool-wait-1"][data-testid="tool-call-card"]')).toBeNull();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="subagent-control-expand"]')?.click();
+    });
+    expect(container.querySelector('a[href="#subagent-invocation-inv-a"]')).not.toBeNull();
+    expect(container.querySelector('a[href="#subagent-invocation-inv-b"]')).not.toBeNull();
+  });
+
+  it('opens the correct child inline after delayed allocation', () => {
+    const startTool: ToolCardUi = {
+      toolCallId: 'tool-start-delayed',
+      toolName: 'piwin_subagent_start',
+      status: 'done',
+      output: '',
+      presentation: {
+        kind: 'subagent',
+        title: 'Subagent',
+        subagentControl: {
+          phase: 'accepted',
+          runId: 'run-delayed',
+          invocationId: 'inv-delayed',
+          task: 'Explore the repo',
+        },
+      },
+    };
+    const invocation: SubagentInvocation = {
+      id: 'inv-delayed',
+      parentSessionId: 'parent-1',
+      runId: 'run-delayed',
+      parentToolCallId: 'tool-start-delayed',
+      taskId: 'delayed',
+      task: 'Explore the repo',
+      title: 'Explore the repo',
+      status: 'running',
+      activity: { kind: 'preparing' },
+      revision: 1,
+      createdAt: '2026-09-13T00:00:00.000Z',
+      updatedAt: '2026-09-13T00:00:02.000Z',
+    };
+    const onInspect = vi.fn();
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnToolGroup
+            tools={[startTool]}
+            locale="en"
+            subagentInvocations={{ [invocation.id]: invocation }}
+            onInspectSubagent={onInspect}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const queued = container.querySelector('[data-testid="subagent-invocation-block"]');
+    expect(queued?.getAttribute('data-status')).toBe('running');
+    expect(queued?.getAttribute('data-invocation-id')).toBe('inv-delayed');
+    expect(queued?.getAttribute('data-child-session-id')).toBeNull();
+    expect(container.querySelector('[data-testid="subagent-inline-session"]')).toBeNull();
+
+    const allocated: SubagentInvocation = {
+      ...invocation,
+      revision: 2,
+      childSessionId: 'child-delayed',
+      activity: { kind: 'thinking' },
+    };
+    const child: SessionSummary = {
+      id: 'child-delayed',
+      scope: { kind: 'project', projectPath: '/repo' },
+      workingDirectory: '/repo',
+      projectPath: '/repo',
+      name: 'Explore the repo',
+      updatedAt: '2026-09-13T00:00:03.000Z',
+      messageCount: 1,
+      parentSessionId: 'parent-1',
+      kind: 'subagent',
+      subagentStatus: 'running',
+      subagentInvocationId: 'inv-delayed',
+      task: 'Explore the repo',
+      subagentParentToolCallId: 'tool-start-delayed',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnToolGroup
+            tools={[startTool]}
+            locale="en"
+            subagentInvocations={{ [allocated.id]: allocated }}
+            subagentChildren={{ [child.id]: child }}
+            onInspectSubagent={onInspect}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const block = container.querySelector<HTMLButtonElement>(
+      '[data-testid="subagent-invocation-block"]',
+    );
+    expect(block?.disabled).toBe(false);
+    act(() => {
+      block?.click();
+    });
+    expect(onInspect).toHaveBeenCalledWith({
+      childSessionId: 'child-delayed',
+      displayName: 'Explore the repo',
+      taskSummary: 'Explore the repo',
+      anchorId: 'inv-delayed',
+    });
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentInspectorProvider
+            toggle={{
+              selection: {
+                childSessionId: 'child-delayed',
+                displayName: 'Explore the repo',
+                taskSummary: 'Explore the repo',
+                anchorId: 'inv-delayed',
+              },
+              toggle: vi.fn(),
+            }}
+            panel={{
+              status: 'running',
+              messages: [],
+              liveTail: null,
+              loading: false,
+              error: null,
+              projectPath: '/repo',
+              onOpenFullSession: vi.fn(),
+              onRetry: vi.fn(),
+              onClose: vi.fn(),
+              onWorktreeAction: async () => undefined,
+              artifactPreviewEnabled: true,
+            }}
+          >
+            <TurnToolGroup
+              tools={[startTool]}
+              locale="en"
+              subagentInvocations={{ [allocated.id]: allocated }}
+              subagentChildren={{ [child.id]: child }}
+              onInspectSubagent={onInspect}
+            />
+          </SubagentInspectorProvider>
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(
+      container.querySelector('[data-testid="subagent-embed"]')?.getAttribute('data-expanded'),
+    ).toBe('true');
+    expect(container.querySelector('[data-testid="subagent-inline-session"]')).not.toBeNull();
+  });
 });

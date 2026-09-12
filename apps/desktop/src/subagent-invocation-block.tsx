@@ -1,19 +1,25 @@
 import type { ReactElement } from 'react';
+import { StatusBadge, type StatusTone } from '@piwin/ui-kit';
 import type {
   SessionSummary,
+  SubagentControlDisplay,
   SubagentInvocation,
   SubagentInvocationActivity,
 } from '@piwin/contracts';
 import type { SubagentStreamState, ToolCardUi } from './chat-reducer';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
-import { normalizeExecutionStatus } from './subagent-activity-model';
+import {
+  isOrchestrationExecutionActive,
+  resolveSubagentLifecycleAxes,
+} from './subagent-activity-model';
+import type { SubagentOrchestrationItem } from './subagent-orchestration-view';
 import {
   getBehaviorActivitySpec,
   type BehaviorActivityId,
 } from './behavior-activity.js';
 import type { ModelOption } from './model-options';
 import { SubagentIdentityChips } from './subagent-identity-chip';
-import { IconChevronDown, IconCheck, IconClose } from './shell-icons';
+import { IconChevronDown } from './shell-icons';
 
 export type SubagentInvocationBlockProps = {
   tool: ToolCardUi;
@@ -22,6 +28,8 @@ export type SubagentInvocationBlockProps = {
   stream?: SubagentStreamState;
   locale: 'zh-CN' | 'en';
   modelOptions?: readonly ModelOption[];
+  /** Host-derived orchestration item when the parent view has one. */
+  orchestrationItem?: SubagentOrchestrationItem;
   /** Toggles the inline session panel anchored to this block. */
   onInspect?: (selection: SubagentInspectorSelection) => void;
   /** Whether the inline session panel is currently expanded below the block. */
@@ -37,16 +45,84 @@ type InvocationStatus =
   | 'failed'
   | 'cancelled';
 
-function resolveStatus(props: SubagentInvocationBlockProps): InvocationStatus {
+type LifecycleAxes = {
+  executionStatus: InvocationStatus;
+  summaryStatus?: string;
+  integrationStatus?: string;
+};
+
+function isAsyncStartTool(tool: ToolCardUi): boolean {
+  const control = tool.presentation?.subagentControl;
+  if (control?.phase === 'accepted') return true;
+  if (control !== undefined) return false;
+  return tool.toolName === 'piwin_subagent_start';
+}
+
+function acceptedControl(tool: ToolCardUi): Extract<SubagentControlDisplay, { phase: 'accepted' }> | undefined {
+  const control = tool.presentation?.subagentControl;
+  return control?.phase === 'accepted' ? control : undefined;
+}
+
+function visualStatus(
+  execution: LifecycleAxes['executionStatus'] | 'starting' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled',
+  integration?: string,
+): InvocationStatus {
+  if (execution === 'queued' || execution === 'starting' || execution === 'running') {
+    return execution;
+  }
+  if (execution === 'failed') return 'failed';
+  if (execution === 'cancelled') return 'cancelled';
+  if (integration === 'pending' || integration === 'conflict') return 'needs-integration';
+  return 'completed';
+}
+
+function resolveLifecycle(props: SubagentInvocationBlockProps): LifecycleAxes {
+  if (props.orchestrationItem) {
+    return {
+      executionStatus: visualStatus(
+        props.orchestrationItem.executionStatus,
+        props.orchestrationItem.integrationStatus,
+      ),
+      ...(props.orchestrationItem.summaryStatus !== undefined
+        ? { summaryStatus: props.orchestrationItem.summaryStatus }
+        : {}),
+      ...(props.orchestrationItem.integrationStatus !== undefined
+        ? { integrationStatus: props.orchestrationItem.integrationStatus }
+        : {}),
+    };
+  }
+
   if (props.invocation) {
-    return props.invocation.status;
+    const axes = resolveSubagentLifecycleAxes({
+      invocation: props.invocation,
+      ...(props.child !== undefined ? { child: props.child } : {}),
+    });
+    return {
+      executionStatus: visualStatus(axes.executionStatus, axes.integrationStatus),
+      ...(axes.summaryStatus !== undefined ? { summaryStatus: axes.summaryStatus } : {}),
+      ...(axes.integrationStatus !== undefined ? { integrationStatus: axes.integrationStatus } : {}),
+    };
   }
+
+  if (isAsyncStartTool(props.tool)) {
+    if (props.tool.status === 'error') {
+      return { executionStatus: 'failed' };
+    }
+    return { executionStatus: 'queued' };
+  }
+
   if (props.child) {
-    return normalizeExecutionStatus(props.child);
+    const axes = resolveSubagentLifecycleAxes({ child: props.child });
+    return {
+      executionStatus: visualStatus(axes.executionStatus, axes.integrationStatus),
+      ...(axes.summaryStatus !== undefined ? { summaryStatus: axes.summaryStatus } : {}),
+      ...(axes.integrationStatus !== undefined ? { integrationStatus: axes.integrationStatus } : {}),
+    };
   }
-  if (props.tool.status === 'error') return 'failed';
-  if (props.tool.status === 'done') return 'completed';
-  return 'starting';
+
+  if (props.tool.status === 'error') return { executionStatus: 'failed' };
+  if (props.tool.status === 'done') return { executionStatus: 'completed' };
+  return { executionStatus: 'starting' };
 }
 
 function persistedActivityLabel(
@@ -194,25 +270,129 @@ function behaviorIdForStatus(status: InvocationStatus): BehaviorActivityId {
   }
 }
 
+function formatElapsed(startedAt: string, endedAt: string): string {
+  const start = Date.parse(startedAt);
+  const end = Date.parse(endedAt);
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return '';
+  const seconds = Math.floor((end - start) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ${seconds % 60}s`;
+}
+
+function executionBadge(
+  status: InvocationStatus,
+  locale: 'zh-CN' | 'en',
+): { tone: StatusTone; label: string } | undefined {
+  const zh = locale === 'zh-CN';
+  switch (status) {
+    case 'starting':
+    case 'queued':
+      return { tone: 'neutral', label: zh ? '排队中' : 'Queued' };
+    case 'running':
+      return { tone: 'running', label: zh ? '运行中' : 'Running' };
+    case 'cancelled':
+      return { tone: 'neutral', label: zh ? '已取消' : 'Cancelled' };
+    default:
+      return undefined;
+  }
+}
+
+type SecondaryBadge = { tone: StatusTone; label: string; testId: string };
+
+function secondaryBadges(
+  axes: LifecycleAxes,
+  locale: 'zh-CN' | 'en',
+): SecondaryBadge[] {
+  if (isOrchestrationExecutionActive(axes.executionStatus === 'needs-integration' ? 'completed' : axes.executionStatus)) {
+    return [];
+  }
+  const zh = locale === 'zh-CN';
+  const badges: SecondaryBadge[] = [];
+  if (axes.summaryStatus === 'pending') {
+    badges.push({
+      tone: 'warning',
+      label: zh ? '报告待收集' : 'Report pending',
+      testId: 'subagent-badge-report-pending',
+    });
+  } else if (axes.summaryStatus === 'merged') {
+    badges.push({
+      tone: 'success',
+      label: zh ? '已收集' : 'Collected',
+      testId: 'subagent-badge-collected',
+    });
+  } else if (axes.summaryStatus === 'failed') {
+    badges.push({
+      tone: 'danger',
+      label: zh ? '失败' : 'Failed',
+      testId: 'subagent-badge-summary-failed',
+    });
+  }
+  if (axes.integrationStatus === 'pending') {
+    badges.push({
+      tone: 'warning',
+      label: zh ? '代码待处理' : 'Code pending',
+      testId: 'subagent-badge-code-pending',
+    });
+  } else if (axes.integrationStatus === 'conflict') {
+    badges.push({
+      tone: 'danger',
+      label: zh ? '冲突' : 'Conflict',
+      testId: 'subagent-badge-conflict',
+    });
+  } else if (axes.integrationStatus === 'failed') {
+    badges.push({
+      tone: 'danger',
+      label: zh ? '失败' : 'Failed',
+      testId: 'subagent-badge-integration-failed',
+    });
+  }
+  return badges;
+}
+
+function isFullySettled(axes: LifecycleAxes): boolean {
+  if (axes.executionStatus === 'failed' || axes.executionStatus === 'cancelled') {
+    return false;
+  }
+  if (axes.executionStatus !== 'completed') return false;
+  return secondaryBadges(axes, 'en').length === 0;
+}
+
 export function SubagentInvocationBlock(
   props: SubagentInvocationBlockProps,
 ): ReactElement {
-  const status = resolveStatus(props);
+  const axes = resolveLifecycle(props);
+  const status = axes.executionStatus;
   const isActive = status === 'starting' || status === 'queued' || status === 'running';
+  const accepted = acceptedControl(props.tool);
+  const invocationId =
+    props.orchestrationItem?.invocationId ??
+    props.invocation?.id ??
+    accepted?.invocationId;
   const title =
     props.child?.name?.trim() ||
     props.invocation?.title?.trim() ||
+    props.orchestrationItem?.title?.trim() ||
     props.tool.presentation?.summary?.trim() ||
+    accepted?.task?.trim() ||
     props.invocation?.task?.trim() ||
     props.child?.task?.trim() ||
     (props.locale === 'zh-CN' ? '子代理任务' : 'Subagent task');
-  const role = props.invocation?.role ?? props.child?.subagentRole;
+  const role = props.invocation?.role ?? props.child?.subagentRole ?? props.orchestrationItem?.role;
   const profileId = props.invocation?.profileId ?? props.child?.subagentProfileId;
   const model = props.invocation?.model ?? props.child?.subagentModel;
   const canInspect = props.child !== undefined && props.onInspect !== undefined;
   const expanded = props.expanded === true;
   const behaviorId = behaviorIdForStatus(status);
   const sealChar = resolveSubagentSealChar(role, title, props.locale);
+  const startedAt = props.orchestrationItem?.startedAt ?? props.invocation?.createdAt;
+  const endedAt = props.orchestrationItem?.updatedAt ?? props.invocation?.updatedAt;
+  const elapsed =
+    startedAt !== undefined && endedAt !== undefined ? formatElapsed(startedAt, endedAt) : '';
+  const activeBadge = executionBadge(status, props.locale);
+  const extras = secondaryBadges(axes, props.locale);
+  const showCompleted = isFullySettled(axes);
+  const inspectAnchor = invocationId ?? props.tool.toolCallId;
 
   const toggleInspector = (): void => {
     if (!props.child || !props.onInspect) return;
@@ -220,7 +400,7 @@ export function SubagentInvocationBlock(
       childSessionId: props.child.id,
       displayName: title,
       taskSummary: props.child.task ?? '',
-      anchorId: props.tool.toolCallId,
+      anchorId: inspectAnchor,
     });
   };
 
@@ -232,6 +412,7 @@ export function SubagentInvocationBlock(
       data-status={status}
       data-child-session-id={props.child?.id}
       data-tool-call-id={props.tool.toolCallId}
+      {...(invocationId !== undefined ? { 'data-invocation-id': invocationId } : {})}
       data-activity-id={behaviorId}
       data-activity-animation={getBehaviorActivitySpec(behaviorId).animation}
       data-tool-status={isActive ? 'running' : status === 'failed' ? 'error' : 'done'}
@@ -252,21 +433,35 @@ export function SubagentInvocationBlock(
       <span className="subagent-invocation-copy">
         <span className="subagent-invocation-heading">
           <span className="subagent-invocation-title">{title}</span>
-          {status === 'completed' ? (
-            <span className="subagent-status-pill pill-completed">
-              <IconCheck width={12} height={12} aria-hidden="true" />
-              <span>{props.locale === 'zh-CN' ? '已完成' : 'Completed'}</span>
-            </span>
-          ) : status === 'failed' ? (
-            <span className="subagent-status-pill pill-failed">
-              <IconClose width={12} height={12} aria-hidden="true" />
-              <span>{props.locale === 'zh-CN' ? '失败' : 'Failed'}</span>
-            </span>
-          ) : status === 'needs-integration' ? (
-            <span className="subagent-status-pill pill-warning">
-              <span>{props.locale === 'zh-CN' ? '待处理' : 'Attention'}</span>
-            </span>
+          {activeBadge ? (
+            <StatusBadge
+              tone={activeBadge.tone}
+              label={activeBadge.label}
+              testId="subagent-execution-badge"
+            />
           ) : null}
+          {showCompleted ? (
+            <StatusBadge
+              tone="success"
+              label={props.locale === 'zh-CN' ? '已完成' : 'Completed'}
+              testId="subagent-execution-badge"
+            />
+          ) : null}
+          {status === 'failed' && extras.length === 0 ? (
+            <StatusBadge
+              tone="danger"
+              label={props.locale === 'zh-CN' ? '失败' : 'Failed'}
+              testId="subagent-execution-badge"
+            />
+          ) : null}
+          {extras.map((badge) => (
+            <StatusBadge
+              key={badge.testId}
+              tone={badge.tone}
+              label={badge.label}
+              testId={badge.testId}
+            />
+          ))}
         </span>
         <span className="subagent-invocation-activity" role="status" aria-live="polite">
           {isActive ? <span className="subagent-grind-spinner" aria-hidden="true" /> : null}
@@ -281,6 +476,11 @@ export function SubagentInvocationBlock(
             {...(model ? { model } : {})}
             {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
           />
+          {elapsed ? (
+            <span className="subagent-invocation-elapsed" data-testid="subagent-elapsed">
+              {elapsed}
+            </span>
+          ) : null}
         </span>
       </span>
       {canInspect ? (

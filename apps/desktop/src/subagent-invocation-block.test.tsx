@@ -154,7 +154,7 @@ describe('SubagentInvocationBlock component', () => {
     expect(seal?.getAttribute('data-status')).toBe('completed');
     expect(seal?.textContent).toBe('审');
 
-    const pill = container.querySelector('.subagent-status-pill.pill-completed');
+    const pill = container.querySelector('[data-testid="subagent-execution-badge"]');
     expect(pill).not.toBeNull();
     expect(pill?.textContent).toContain('已完成');
 
@@ -201,11 +201,197 @@ describe('SubagentInvocationBlock component', () => {
     const seal = container.querySelector('[data-testid="subagent-seal"]');
     expect(seal?.getAttribute('data-status')).toBe('failed');
 
-    const pill = container.querySelector('.subagent-status-pill.pill-failed');
+    const pill = container.querySelector('[data-testid="subagent-execution-badge"]');
     expect(pill).not.toBeNull();
     expect(pill?.textContent).toContain('失败');
 
     const activity = container.querySelector('.subagent-invocation-activity');
     expect(activity?.textContent).toContain('Timed out waiting for worker');
+  });
+
+  it('keeps a successful start tool queued or running until Host invocation is terminal', () => {
+    const startTool: ToolCardUi = {
+      toolCallId: 'tool-start-1',
+      toolName: 'piwin_subagent_start',
+      status: 'done',
+      output: '',
+      presentation: {
+        kind: 'subagent',
+        title: 'Subagent',
+        summary: 'Review auth',
+        subagentControl: {
+          phase: 'accepted',
+          runId: 'run-1',
+          invocationId: 'inv-start',
+          task: 'Review auth',
+        },
+      },
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentInvocationBlock tool={startTool} locale="zh-CN" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const block = container.querySelector('[data-testid="subagent-invocation-block"]');
+    expect(block?.getAttribute('data-status')).toBe('queued');
+    expect(block?.getAttribute('data-invocation-id')).toBe('inv-start');
+    expect(block?.getAttribute('data-status')).not.toBe('completed');
+    expect(container.querySelector('[data-testid="subagent-execution-badge"]')?.textContent).toContain(
+      '排队中',
+    );
+
+    const running: SubagentInvocation = {
+      id: 'inv-start',
+      runId: 'run-1',
+      taskId: 'task-1',
+      revision: 2,
+      parentSessionId: 'sess-parent',
+      parentToolCallId: 'tool-start-1',
+      status: 'running',
+      title: 'Review auth',
+      task: 'Review auth',
+      activity: { kind: 'thinking' },
+      createdAt: '2026-09-13T00:00:00.000Z',
+      updatedAt: '2026-09-13T00:00:12.000Z',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentInvocationBlock tool={startTool} invocation={running} locale="zh-CN" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(
+      container.querySelector('[data-testid="subagent-invocation-block"]')?.getAttribute('data-status'),
+    ).toBe('running');
+    expect(container.querySelector('[data-testid="subagent-execution-badge"]')?.textContent).toContain(
+      '运行中',
+    );
+    expect(container.querySelector('[data-testid="subagent-elapsed"]')?.textContent).toBe('12s');
+    expect(container.textContent).not.toContain('已完成');
+  });
+
+  it('keeps summary and integration badges distinct from execution complete', () => {
+    const tool: ToolCardUi = {
+      toolCallId: 'tool-start-2',
+      toolName: 'piwin_subagent_start',
+      status: 'done',
+      output: '',
+      presentation: {
+        kind: 'subagent',
+        title: 'Subagent',
+        subagentControl: {
+          phase: 'accepted',
+          runId: 'run-2',
+          invocationId: 'inv-done',
+          task: 'Apply the patch',
+        },
+      },
+    };
+    const invocation: SubagentInvocation = {
+      id: 'inv-done',
+      runId: 'run-2',
+      taskId: 'task-2',
+      revision: 4,
+      parentSessionId: 'sess-parent',
+      parentToolCallId: 'tool-start-2',
+      childSessionId: 'child-2',
+      status: 'completed',
+      title: 'Apply the patch',
+      task: 'Apply the patch',
+      activity: { kind: 'completed', summary: 'Patch is ready in the worktree' },
+      createdAt: '2026-09-13T00:00:00.000Z',
+      updatedAt: '2026-09-13T00:01:00.000Z',
+    };
+    const child: SessionSummary = {
+      id: 'child-2',
+      name: 'Apply the patch',
+      scope: { kind: 'project', projectPath: '/repo' },
+      workingDirectory: '/repo',
+      projectPath: '/repo',
+      updatedAt: '2026-09-13T00:01:00.000Z',
+      messageCount: 3,
+      parentSessionId: 'sess-parent',
+      kind: 'subagent',
+      subagentStatus: 'done',
+      subagentExecutionStatus: 'completed',
+      subagentSummaryStatus: 'pending',
+      subagentIntegrationStatus: 'pending',
+      summaryPreview: 'Patch is ready in the worktree',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentInvocationBlock
+            tool={tool}
+            invocation={invocation}
+            child={child}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="subagent-badge-report-pending"]')?.textContent).toBe(
+      '报告待收集',
+    );
+    expect(container.querySelector('[data-testid="subagent-badge-code-pending"]')?.textContent).toBe(
+      '代码待处理',
+    );
+    expect(container.querySelector('[data-testid="subagent-execution-badge"]')).toBeNull();
+    expect(container.querySelector('.subagent-activity-text')?.textContent).toContain(
+      'Patch is ready in the worktree',
+    );
+
+    const conflictChild: SessionSummary = {
+      ...child,
+      subagentSummaryStatus: 'merged',
+      subagentIntegrationStatus: 'conflict',
+    };
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentInvocationBlock
+            tool={tool}
+            invocation={invocation}
+            child={conflictChild}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="subagent-badge-collected"]')?.textContent).toBe(
+      '已收集',
+    );
+    expect(container.querySelector('[data-testid="subagent-badge-conflict"]')?.textContent).toBe(
+      '冲突',
+    );
+
+    const failedInvocation: SubagentInvocation = {
+      ...invocation,
+      status: 'failed',
+      activity: { kind: 'failed', message: 'Worker crashed' },
+    };
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentInvocationBlock
+            tool={tool}
+            invocation={failedInvocation}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="subagent-execution-badge"]')?.textContent).toBe(
+      'Failed',
+    );
   });
 });
