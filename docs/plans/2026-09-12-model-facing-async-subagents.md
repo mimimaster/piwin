@@ -45,15 +45,15 @@ composer-adjacent current-work dock.
 
 | Task | Scope |
 |------|-------|
-| B0 | Contracts + agent-host presentation split |
-| B1 | Shared subagent tool input parsing |
-| B2 | `start` / `wait` / `cancel` host-runtime tools |
-| B3 | Abort latch + active-run edge cases |
-| B4 | Missed-wait settlement continuation |
-| B5 | Parent fail/cancel/pause/replace descendant cleanup |
+| B0 | Agent-host tool-presentation classification split |
+| B1 | Contracts + orchestration guidance |
+| B2 | Shared subagent tool input parsers |
+| B3 | Host `start` / `wait` / `cancel` + durable acceptance |
+| B4 | Parent missed-wait settlement continuation |
+| B5 | Agent-host start/wait/cancel presentation |
 | F1–F5 | Desktop orchestration view, inline lifecycle, Tasks tab, waiting copy, activity pill |
 
-## Commits on branch (`c7b8f879..cb9b6b4a`)
+## Commits on branch (`c7b8f879..7cbf891a`)
 
 ```
 92e780be refactor(agent-host): split tool presentation classification
@@ -70,6 +70,7 @@ d3e76294 feat(desktop): derive async subagent orchestration view
 10010d21 feat(desktop): present waiting-subagents settlement phase
 3dedd6f9 feat(desktop): attach composer activity pill for subagents and jobs
 cb9b6b4a fix(host): keep synthesizing-reports through settlement continuation
+7cbf891a docs(subagents): document async delegation and presentation
 ```
 
 ## Related docs
