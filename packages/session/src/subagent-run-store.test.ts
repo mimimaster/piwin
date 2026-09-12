@@ -7,7 +7,7 @@ import {
   SubagentRunManifestCorruptError,
   SubagentRunManifestExistsError,
 } from './subagent-run-store.js';
-import type { SubagentBatchRequest, SubagentTaskSpec } from '@piwin/contracts';
+import type { SubagentBatchRequest, SubagentReviewRecord, SubagentTaskSpec } from '@piwin/contracts';
 
 function makeTask(overrides: Partial<SubagentTaskSpec> = {}): SubagentTaskSpec {
   return {
@@ -134,6 +134,52 @@ describe('SubagentRunStore', () => {
       candidateGeneration: 2,
       predecessorResult: predecessor,
     });
+  });
+
+  it('persists a reviewer decision once and rejects a different payload', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest(
+      'run-1',
+      makeBatch([makeTask({ id: 'reviewer', invocationId: 'inv-1' })]),
+    );
+    const record: SubagentReviewRecord = {
+      reviewId: 'review-1',
+      revision: 1,
+      parentSessionId: 'parent-1',
+      reviewerSessionId: 'reviewer-child',
+      reviewerRunId: 'run-1',
+      targetResult: { resultId: 'result-1', revision: 1 },
+      targetChanges: { changeSetId: 'cs-1', revision: 1 },
+      decision: 'approved',
+      findings: [],
+      verification: [],
+      createdAt: '2026-09-13T01:00:00.000Z',
+    };
+    await expect(store.persistReviewerDecision('run-1', 'reviewer', record)).resolves.toEqual({
+      ok: true,
+      record,
+    });
+    await expect(store.persistReviewerDecision('run-1', 'reviewer', record)).resolves.toEqual({
+      ok: true,
+      record,
+    });
+    const conflict = await store.persistReviewerDecision('run-1', 'reviewer', {
+      ...record,
+      decision: 'blocked',
+      findings: [
+        {
+          id: 'f1',
+          severity: 'low',
+          title: 'Blocked',
+          detail: 'Need access',
+        },
+      ],
+    });
+    expect(conflict).toMatchObject({ ok: false, code: 'conflict' });
+    const loaded = await store.loadManifest('run-1');
+    expect(loaded?.tasks[0]?.reviewRef).toEqual({ reviewId: 'review-1', revision: 1 });
+    expect(loaded?.invocations['inv-1']?.reviewRef).toEqual({ reviewId: 'review-1', revision: 1 });
   });
 
   it('reads a legacy manifest without inventing lineage or delivery fields', async () => {

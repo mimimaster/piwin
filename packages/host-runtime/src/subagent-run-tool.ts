@@ -24,9 +24,12 @@ import type {
   SubagentIntegrationStatus,
   SubagentSummaryStatus,
   SubagentApplyPolicy,
+  ChangeVersionRef,
   SubagentDeliveryIntent,
   SubagentIsolationMode,
   SubagentResultRef,
+  SubagentReviewDecision,
+  SubagentReviewRef,
   ThinkingLevel,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
@@ -80,6 +83,10 @@ export type SubagentWaitRunObservation = {
   integrationStatus: SubagentIntegrationStatus;
   summaryStatus?: SubagentSummaryStatus;
   error?: string;
+  resultRef?: SubagentResultRef;
+  childChanges?: ChangeVersionRef;
+  reviewRef?: SubagentReviewRef;
+  reviewDecision?: SubagentReviewDecision;
 };
 
 export type SubagentWaitResult = {

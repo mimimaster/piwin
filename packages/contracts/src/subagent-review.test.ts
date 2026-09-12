@@ -5,6 +5,7 @@ import {
   pickSubagentLineageRefs,
   validateSubagentDeliveryVerificationBounds,
   validateSubagentReviewBounds,
+  validateSubagentReviewDecision,
   type SubagentReviewFinding,
 } from './subagent-review.js';
 
@@ -70,6 +71,35 @@ describe('subagent review bounds', () => {
       checks: [{ label: 'test', status: 'passed', evidence: 'e'.repeat(2001) }],
     });
     expect(result.ok).toBe(false);
+  });
+
+  it('enforces approved / changes-requested / blocked finding rules', () => {
+    expect(validateSubagentReviewDecision({ decision: 'approved', findings: [] }).ok).toBe(true);
+    expect(
+      validateSubagentReviewDecision({
+        decision: 'approved',
+        findings: [finding({ severity: 'medium' })],
+      }).ok,
+    ).toBe(true);
+    expect(
+      validateSubagentReviewDecision({
+        decision: 'approved',
+        findings: [finding({ severity: 'high' })],
+      }).ok,
+    ).toBe(false);
+    expect(validateSubagentReviewDecision({ decision: 'changes-requested', findings: [] }).ok).toBe(
+      false,
+    );
+    expect(
+      validateSubagentReviewDecision({
+        decision: 'changes-requested',
+        findings: [finding()],
+      }).ok,
+    ).toBe(true);
+    expect(validateSubagentReviewDecision({ decision: 'blocked', findings: [] }).ok).toBe(false);
+    expect(
+      validateSubagentReviewDecision({ decision: 'blocked', findings: [finding()] }).ok,
+    ).toBe(true);
   });
 
   it('copies lineage refs without aliasing group identity', () => {

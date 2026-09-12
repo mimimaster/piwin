@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { HostRuntime } from './host-runtime.js';
 import { SUBAGENT_RESULT_READ_TOOL_NAME } from './subagent-result-read-tool.js';
+import { SUBAGENT_REVIEW_SUBMIT_TOOL_NAME } from './subagent-review-submit-tool.js';
 
 describe('HostRuntime tool surfaces', () => {
   it('uses the explicit project path before session binding completes', async () => {
@@ -156,7 +157,10 @@ describe('HostRuntime tool surfaces', () => {
         await rm(piwinRoot, { recursive: true, force: true });
       }
     }
-    expect(namesByMode.sdk).toEqual([SUBAGENT_RESULT_READ_TOOL_NAME]);
+    expect(namesByMode.sdk).toEqual([
+      SUBAGENT_RESULT_READ_TOOL_NAME,
+      SUBAGENT_REVIEW_SUBMIT_TOOL_NAME,
+    ]);
     expect(namesByMode.rpc).toEqual(namesByMode.sdk);
   });
 

@@ -24,6 +24,7 @@ import { createBundledRuleSet } from './permission-defaults.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { loadMergedPermissionRules } from './permission-rule-loader.js';
 import { fail } from './response-helpers.js';
+import { createSubagentReviewService } from './subagent-review-service.js';
 import { buildSessionHostTools } from './tools/build-session-host-tools.js';
 import { bindCaptureReceipts } from './turn-changes/tool-capture.js';
 import { resolveTurnChangeWorkspaceRoot } from './turn-changes/runtime-wiring.js';
@@ -238,6 +239,18 @@ export async function composeSessionHostToolsForSession(
       ? {
           reviewScope: childContext.reviewScope,
           resultService: deps.subagentResultService,
+          ...(deps.subagentRunStore
+            ? {
+                reviewService: createSubagentReviewService({
+                  runStore: deps.subagentRunStore,
+                  resultService: deps.subagentResultService,
+                  publish: (message) => deps.push(message),
+                }),
+                ...(childContext.invocationId
+                  ? { reviewerInvocationId: childContext.invocationId }
+                  : {}),
+              }
+            : {}),
         }
       : {}),
     ...(deps.options.clientToolExecution === undefined || childContext

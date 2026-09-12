@@ -8,6 +8,7 @@ import type {
   SessionCapabilitySnapshot,
   SubagentBatchRequest,
   SubagentProviderEnvelope,
+  SubagentReviewRecord,
   SubagentTaskResult,
   SubagentTaskRunInput,
   SubagentTaskRunOutput,
@@ -26,6 +27,7 @@ import { createSubagentWaitTool } from './subagent-wait-tool.js';
 import { createSubagentCancelTool } from './subagent-cancel-tool.js';
 import { createSubagentRunTool, type SubagentRunSeam } from './subagent-run-tool.js';
 import { buildSessionHostTools } from './tools/build-session-host-tools.js';
+import { loadPersistedReviewObservation } from './subagent-review-service.js';
 
 const RUNTIME_GENERATION_ID = 'generation-async';
 const SESSION_ID = 'parent-1';
@@ -135,12 +137,20 @@ function makeFakeIntegrationCoordinator(): SubagentIntegrationCoordinator {
   };
 }
 
+type StoredTask = {
+  id?: string;
+  invocationId?: string;
+  parentRunId?: string;
+  review?: SubagentReviewRecord;
+  reviewRef?: { reviewId: string; revision: number };
+};
+
 type StoredManifest = {
   status: 'running' | 'completed' | 'failed' | 'cancelled' | 'needs-integration';
   results: Record<string, SubagentTaskResult>;
   parentSessionId: string;
   parentRunId?: string;
-  tasks: Array<{ invocationId?: string; parentRunId?: string }>;
+  tasks: StoredTask[];
   invocations: Record<string, { id: string; parentRunId?: string }>;
 };
 
@@ -161,11 +171,24 @@ function createMemoryRunStore(options?: {
         parentSessionId: request.parentSessionId,
         ...(request.tasks[0]?.parentRunId ? { parentRunId: request.tasks[0].parentRunId } : {}),
         tasks: request.tasks.map((task) => ({
+          id: task.id,
           ...(task.invocationId ? { invocationId: task.invocationId } : {}),
           ...(task.parentRunId ? { parentRunId: task.parentRunId } : {}),
         })),
         invocations: {},
       });
+    },
+    async persistReviewerDecision(runId: string, taskId: string, record: SubagentReviewRecord) {
+      const manifest = manifests.get(runId);
+      const task = manifest?.tasks.find((candidate) => candidate.id === taskId);
+      if (!manifest || !task) return { ok: false as const, code: 'not-found' as const };
+      if (task.review && task.review.decision !== record.decision) {
+        return { ok: false as const, code: 'conflict' as const, existing: task.review };
+      }
+      if (task.review) return { ok: true as const, record: task.review };
+      task.review = record;
+      task.reviewRef = { reviewId: record.reviewId, revision: record.revision };
+      return { ok: true as const, record };
     },
     async recordInvocation(runId: string, invocation: { id: string; parentRunId?: string }) {
       if (options?.beforeInvocation) await options.beforeInvocation();
@@ -334,6 +357,7 @@ function createHarness(options?: {
         const result = taskResults.get(childSessionId);
         return { summaryPreview: result?.summaryPreview ?? `merged-${childSessionId}` };
       },
+      observePersistedReview: (runId) => loadPersistedReviewObservation(store, runId),
     },
     SESSION_ID,
   );
@@ -348,6 +372,7 @@ function createHarness(options?: {
     runRegistry,
     mergeCalls,
     parentRunId,
+    store,
   };
 }
 
@@ -654,6 +679,64 @@ describe('async subagent start/wait/cancel', () => {
       cancelledRuns[0]?.status === 'cancelled' || cancelledRuns[0]?.status === 'cancelling',
     ).toBe(true);
     expect(harness.orchestrator.isRunning(activeRunId)).toBe(false);
+  });
+
+  it('wait returns a persisted review ref and omits it when the reviewer never submitted', async () => {
+    const harness = createHarness();
+    const started = await executeTool(harness.startTool, { task: 'review candidate' });
+    const runId = acceptedRunId(started);
+    await flushUntil(() => harness.runner.startedTasks.length === 1, 'reviewer start');
+    const taskId = harness.runner.startedTasks[0];
+    if (!taskId) throw new Error('expected started task');
+
+    const missing = await loadPersistedReviewObservation(harness.store, runId);
+    expect(missing).toBeUndefined();
+
+    await harness.store.persistReviewerDecision(runId, taskId, {
+      reviewId: 'review-wait-1',
+      revision: 1,
+      parentSessionId: SESSION_ID,
+      reviewerSessionId: `child-${taskId}`,
+      reviewerRunId: runId,
+      targetResult: { resultId: 'result-1', revision: 1 },
+      targetChanges: { changeSetId: 'cs-child', revision: 1 },
+      decision: 'approved',
+      findings: [],
+      verification: [],
+      createdAt: '2026-09-13T01:00:00.000Z',
+    });
+    harness.runner.hold(taskId).resolve();
+    const waited = await executeTool(harness.waitTool, { runIds: [runId] });
+    expect(waited.ok).toBe(true);
+    const runs = waited.ok
+      ? (waited.details?.runs as Array<{
+          runId: string;
+          reviewRef?: { reviewId: string };
+          reviewDecision?: string;
+        }>)
+      : [];
+    expect(runs[0]).toMatchObject({
+      runId,
+      reviewRef: { reviewId: 'review-wait-1' },
+      reviewDecision: 'approved',
+    });
+    expect(messageOf(waited)).toContain('review=approved');
+
+    const bare = createHarness();
+    const unfinished = await executeTool(bare.startTool, { task: 'forget to review' });
+    const bareRunId = acceptedRunId(unfinished);
+    await flushUntil(() => bare.runner.startedTasks.length === 1, 'bare reviewer start');
+    const bareTask = bare.runner.startedTasks[0];
+    if (!bareTask) throw new Error('expected bare task');
+    bare.runner.hold(bareTask).resolve();
+    const bareWait = await executeTool(bare.waitTool, { runIds: [bareRunId] });
+    expect(bareWait.ok).toBe(true);
+    const bareRuns = bareWait.ok
+      ? (bareWait.details?.runs as Array<{ reviewRef?: unknown; reviewDecision?: unknown }>)
+      : [];
+    expect(bareRuns[0]?.reviewRef).toBeUndefined();
+    expect(bareRuns[0]?.reviewDecision).toBeUndefined();
+    expect(messageOf(bareWait)).not.toContain('review=');
   });
 
   it('keeps the synchronous run tool spawn-and-merge path unchanged', async () => {
