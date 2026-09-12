@@ -2,7 +2,7 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | V1 / 核心路径已落地（`feat/subagent-delivery-review`）；非全量验收完成 |
+| 状态 | V1 / 核心路径已落地（`feat/subagent-delivery-review`）；模型侧异步控制已完成（`feat/async-subagents@0e5727cd`）。下一刀是 `codex/subagent-review-loop`：在候选结果上做独立审查、原 worker 返工、审查绑定的 apply 与集成后验证。通用手动 candidate 采用与 result-review 命令保持不变。 |
 | 日期 | 2026-08-30 |
 | 产品目标 | 用户在主对话验收本轮整体成果，不必逐个进入子代理决定是否保留文件 |
 | 基于 | 当前仓库实现、[竞品及代码调研](../plans/2026-08-30-subagent-review-ux-research.md) |
