@@ -23,9 +23,11 @@ import {
   type SubagentIsolationMode,
   type SubagentResultRef,
   type SubagentResultReviewStatus,
+  type SubagentDeliveryVerification,
   type SubagentReviewRecord,
   type SubagentReviewRef,
   type SubagentReviewTarget,
+  type SubagentVerificationRef,
   type SubagentRuntimeSnapshot,
   type SubagentTaskResult,
   type SubagentTaskSpec,
@@ -59,6 +61,9 @@ export type SubagentPersistedTask = {
   review?: SubagentReviewRecord;
   latestReview?: SubagentReviewRef;
   reviewStatus?: SubagentResultReviewStatus;
+  verificationRef?: SubagentVerificationRef;
+  latestVerification?: SubagentVerificationRef;
+  deliveryVerification?: SubagentDeliveryVerification;
   candidateLineageId?: string;
   candidateGeneration?: number;
   predecessorResult?: SubagentResultRef;
@@ -188,6 +193,33 @@ function reviewPayloadEquals(
       decision: right.decision,
       findings: right.findings,
       verification: right.verification,
+    })
+  );
+}
+
+function deliveryVerificationPayloadEquals(
+  left: SubagentDeliveryVerification,
+  right: Pick<
+    SubagentDeliveryVerification,
+    'result' | 'approvedBy' | 'applyOperationId' | 'appliedChanges' | 'status' | 'checks'
+  >,
+): boolean {
+  return (
+    JSON.stringify({
+      result: left.result,
+      approvedBy: left.approvedBy,
+      applyOperationId: left.applyOperationId,
+      appliedChanges: left.appliedChanges,
+      status: left.status,
+      checks: left.checks,
+    }) ===
+    JSON.stringify({
+      result: right.result,
+      approvedBy: right.approvedBy,
+      applyOperationId: right.applyOperationId,
+      appliedChanges: right.appliedChanges,
+      status: right.status,
+      checks: right.checks,
     })
   );
 }
@@ -448,6 +480,57 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     return outcome;
   }
 
+  async function persistDeliveryVerification(
+    runId: string,
+    taskId: string,
+    record: SubagentDeliveryVerification,
+  ): Promise<
+    | { ok: true; record: SubagentDeliveryVerification }
+    | { ok: false; code: 'not-found' | 'conflict'; existing?: SubagentDeliveryVerification }
+  > {
+    let outcome:
+      | { ok: true; record: SubagentDeliveryVerification }
+      | { ok: false; code: 'not-found' | 'conflict'; existing?: SubagentDeliveryVerification } = {
+      ok: false,
+      code: 'not-found',
+    };
+    await mutateManifest(runId, (manifest) => {
+      const task = manifest.tasks.find((candidate) => candidate.id === taskId);
+      if (!task) {
+        outcome = { ok: false, code: 'not-found' };
+        return false;
+      }
+      if (task.deliveryVerification) {
+        if (deliveryVerificationPayloadEquals(task.deliveryVerification, record)) {
+          outcome = { ok: true, record: task.deliveryVerification };
+          return false;
+        }
+        outcome = { ok: false, code: 'conflict', existing: task.deliveryVerification };
+        return false;
+      }
+      const verificationRef = {
+        verificationId: record.verificationId,
+        revision: record.revision,
+      };
+      task.deliveryVerification = record;
+      task.verificationRef = verificationRef;
+      task.latestVerification = verificationRef;
+      const result = manifest.results[taskId];
+      if (result) {
+        manifest.results[taskId] = {
+          ...result,
+          deliveryVerification: record,
+          verificationRef,
+          latestVerification: verificationRef,
+          appliedChanges: record.appliedChanges,
+          latestOperationId: record.applyOperationId,
+        };
+      }
+      outcome = { ok: true, record };
+    });
+    return outcome;
+  }
+
   async function projectResultReview(
     runId: string,
     taskId: string,
@@ -464,6 +547,25 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
       }
       if (result) {
         manifest.results[taskId] = { ...result, latestReview, reviewStatus };
+      }
+    });
+  }
+
+  async function projectResultVerification(
+    runId: string,
+    taskId: string,
+    latestVerification: SubagentVerificationRef,
+  ): Promise<void> {
+    await mutateManifest(runId, (manifest) => {
+      const task = manifest.tasks.find((candidate) => candidate.id === taskId);
+      const result = manifest.results[taskId];
+      if (!task && !result) return false;
+      if (task) {
+        task.latestVerification = latestVerification;
+        task.verificationRef = latestVerification;
+      }
+      if (result) {
+        manifest.results[taskId] = { ...result, latestVerification, verificationRef: latestVerification };
       }
     });
   }
@@ -625,7 +727,9 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     recordResult,
     recordInvocation,
     persistReviewerDecision,
+    persistDeliveryVerification,
     projectResultReview,
+    projectResultVerification,
     listInvocations,
     setStatus,
     requestCancel,

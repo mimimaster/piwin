@@ -56,7 +56,13 @@ import type {
   SubagentDeliveryIntent,
   SubagentResultRef,
 } from './subagent-delivery.js';
-import type { SubagentReviewRecord, SubagentReviewRef, SubagentReviewTarget } from './subagent-review.js';
+import type {
+  SubagentDeliveryVerification,
+  SubagentReviewRecord,
+  SubagentReviewRef,
+  SubagentReviewTarget,
+  SubagentVerificationRef,
+} from './subagent-review.js';
 import type { SubagentResultReviewStatus } from './subagent-result.js';
 import type { SubagentApplyPolicy, SubagentIsolationMode } from './subagent.js';
 import type { SubagentCapability, SubagentRuntimeSnapshot } from './subagent-profile.js';
@@ -275,6 +281,11 @@ export type SubagentTaskResult = {
   review?: SubagentReviewRecord;
   latestReview?: SubagentReviewRef;
   reviewStatus?: SubagentResultReviewStatus;
+  verificationRef?: SubagentVerificationRef;
+  latestVerification?: SubagentVerificationRef;
+  deliveryVerification?: SubagentDeliveryVerification;
+  appliedChanges?: ChangeVersionRef;
+  latestOperationId?: string;
   candidateLineageId?: string;
   candidateGeneration?: number;
   predecessorResult?: SubagentResultRef;

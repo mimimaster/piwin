@@ -34,6 +34,7 @@ import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-too
 import { createSubagentStartTool } from '../subagent-start-tool.js';
 import { createSubagentContinueTool } from '../subagent-continue-tool.js';
 import { createSubagentResultApplyTool } from '../subagent-result-apply-tool.js';
+import { createSubagentVerificationSubmitTool } from '../subagent-verification-submit-tool.js';
 import { createSubagentWaitTool } from '../subagent-wait-tool.js';
 import { createSubagentCancelTool } from '../subagent-cancel-tool.js';
 import {
@@ -429,6 +430,10 @@ export async function buildSessionHostTools(
         sessionId: options.sessionId,
         seam,
         ...(options.projectPath ? { workspacePath: options.projectPath } : {}),
+      }),
+      createSubagentVerificationSubmitTool({
+        sessionId: options.sessionId,
+        seam,
       }),
       createSubagentWaitTool({
         sessionId: options.sessionId,

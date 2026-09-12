@@ -26,6 +26,7 @@ import type {
   SubagentApplyPolicy,
   ChangeVersionRef,
   SubagentDeliveryIntent,
+  SubagentDeliveryVerification,
   SubagentIsolationMode,
   SubagentResultRef,
   SubagentReviewDecision,
@@ -157,6 +158,22 @@ export type SubagentRunSeam = {
         result: SubagentResultRef;
         appliedChanges: ChangeVersionRef;
         integrationStatus: SubagentIntegrationStatus;
+      }
+      | Extract<import('@piwin/contracts').ToolResult, { ok: false }>
+  >;
+  submitVerification?: (input: {
+    parentSessionId: string;
+    parentRunId: string;
+    result: SubagentResultRef;
+    approvedBy: SubagentReviewRef;
+    applyOperationId: string;
+    status: SubagentDeliveryVerification['status'];
+    checks: SubagentDeliveryVerification['checks'];
+  }) => Promise<
+    | {
+        ok: true;
+        record: SubagentDeliveryVerification;
+        duplicate: boolean;
       }
     | Extract<import('@piwin/contracts').ToolResult, { ok: false }>
   >;

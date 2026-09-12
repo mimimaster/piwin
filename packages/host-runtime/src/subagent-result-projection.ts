@@ -106,6 +106,18 @@ export function projectSubagentResultSummary(
   const groupId = firstDefined(source.result.candidateGroupId, source.task?.candidateGroupId);
   const latestReview = firstDefined(source.result.latestReview, source.task?.latestReview);
   const storedReviewStatus = firstDefined(source.result.reviewStatus, source.task?.reviewStatus);
+  const latestVerification = firstDefined(
+    source.result.latestVerification,
+    source.task?.latestVerification,
+  );
+  const appliedChanges = firstDefined(
+    source.result.appliedChanges,
+    source.task?.deliveryVerification?.appliedChanges,
+  );
+  const latestOperationId = firstDefined(
+    source.result.latestOperationId,
+    source.task?.deliveryVerification?.applyOperationId,
+  );
 
   return {
     resultId: resultRef.resultId,
@@ -128,14 +140,15 @@ export function projectSubagentResultSummary(
           predecessorResult: predecessor ?? null,
           latestReview: latestReview ?? null,
           reviewStatus: storedReviewStatus ?? 'not-requested',
+          latestVerification: latestVerification ?? null,
         }),
     executionStatus: source.result.executionStatus,
     summaryStatus: source.result.summaryStatus,
     integrationStatus: source.result.integrationStatus,
     childChanges: source.result.childChanges ?? null,
-    appliedChanges: null,
+    appliedChanges: appliedChanges ?? null,
     copyState: 'present',
-    latestOperationId: null,
+    latestOperationId: latestOperationId ?? null,
     availability: resolveAvailability({
       legacy,
       deliveryIntent,
@@ -171,6 +184,9 @@ export function enrichSubagentTaskResult(
     ...(predecessor ? { predecessorResult: predecessor } : {}),
     ...(summary.latestReview ? { latestReview: summary.latestReview } : {}),
     ...(summary.reviewStatus !== 'not-requested' ? { reviewStatus: summary.reviewStatus } : {}),
+    ...(summary.latestVerification ? { latestVerification: summary.latestVerification } : {}),
+    ...(summary.appliedChanges ? { appliedChanges: summary.appliedChanges } : {}),
+    ...(summary.latestOperationId ? { latestOperationId: summary.latestOperationId } : {}),
   };
 }
 
@@ -191,6 +207,7 @@ export function hydrateSubagentResultService(
     }
   }
   applyPersistedReviewsToResultService(service, manifests);
+  applyPersistedVerificationsToResultService(service, manifests);
 }
 
 export function applyPersistedReviewsToResultService(
@@ -207,6 +224,29 @@ export function applyPersistedReviewsToResultService(
         ...summary,
         latestReview: { reviewId: review.reviewId, revision: review.revision },
         reviewStatus: review.decision,
+      });
+    }
+  }
+}
+
+export function applyPersistedVerificationsToResultService(
+  service: SubagentResultService,
+  manifests: readonly SubagentRunManifest[],
+): void {
+  for (const manifest of manifests) {
+    for (const task of manifest.tasks) {
+      const verification = task.deliveryVerification;
+      if (!verification) continue;
+      const summary = service.get(verification.result.resultId);
+      if (!summary || summary.revision !== verification.result.revision) continue;
+      service.register({
+        ...summary,
+        latestVerification: {
+          verificationId: verification.verificationId,
+          revision: verification.revision,
+        },
+        appliedChanges: verification.appliedChanges,
+        latestOperationId: verification.applyOperationId,
       });
     }
   }

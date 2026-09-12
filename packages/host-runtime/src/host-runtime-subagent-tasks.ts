@@ -26,6 +26,7 @@ import type { SubagentRunSeam } from './subagent-run-tool.js';
 import { createSubagentControlSeam, type SubagentControlDeps } from './host-runtime-subagent-start.js';
 import { bindSubagentReviewTarget } from './subagent-review-context.js';
 import { findPersistedReview, loadPersistedReviewObservation } from './subagent-review-service.js';
+import { createSubagentVerificationService } from './subagent-verification-service.js';
 import {
   applyReviewedSubagentResult,
   SubagentApplyOutcomeUnknownError,
@@ -223,6 +224,30 @@ export function getSubagentSeam(
           ...(input.signal ? { signal: input.signal } : {}),
         },
       );
+    },
+    submitVerification: async (input) => {
+      const resultService = deps.subagentResultService;
+      const runStore = deps.subagentRunStore;
+      if (!resultService || !runStore) {
+        return {
+          ok: false,
+          code: 'tool-not-available',
+          message: 'subagent verification is not available',
+        };
+      }
+      return createSubagentVerificationService({
+        runStore,
+        resultService,
+        publish: (message) => deps.push(message),
+      }).submit({
+        parentSessionId: sessionId,
+        parentRunId: input.parentRunId,
+        result: input.result,
+        approvedBy: input.approvedBy,
+        applyOperationId: input.applyOperationId,
+        status: input.status,
+        checks: input.checks,
+      });
     },
   };
 }

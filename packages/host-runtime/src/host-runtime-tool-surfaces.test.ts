@@ -6,6 +6,7 @@ import { HostRuntime } from './host-runtime.js';
 import { SUBAGENT_RESULT_APPLY_TOOL_NAME } from './subagent-result-apply-tool.js';
 import { SUBAGENT_RESULT_READ_TOOL_NAME } from './subagent-result-read-tool.js';
 import { SUBAGENT_REVIEW_SUBMIT_TOOL_NAME } from './subagent-review-submit-tool.js';
+import { SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME } from './subagent-verification-submit-tool.js';
 
 describe('HostRuntime tool surfaces', () => {
   it('uses the explicit project path before session binding completes', async () => {
@@ -56,12 +57,13 @@ describe('HostRuntime tool surfaces', () => {
     }
   });
 
-  it('exposes exactly six delegate tools in sdk and rpc modes', async () => {
+  it('exposes exactly seven delegate tools in sdk and rpc modes', async () => {
     const expected = [
       'piwin_subagent_run',
       'piwin_subagent_start',
       'piwin_subagent_continue',
       SUBAGENT_RESULT_APPLY_TOOL_NAME,
+      SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME,
       'piwin_subagent_wait',
       'piwin_subagent_cancel',
     ];
@@ -120,12 +122,18 @@ describe('HostRuntime tool surfaces', () => {
       expect(parentTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_APPLY_TOOL_NAME)).toBe(
         true,
       );
+      expect(
+        parentTools.some((tool) => tool.descriptor.name === SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME),
+      ).toBe(true);
       expect(childTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_READ_TOOL_NAME)).toBe(
         false,
       );
       expect(childTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_APPLY_TOOL_NAME)).toBe(
         false,
       );
+      expect(
+        childTools.some((tool) => tool.descriptor.name === SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME),
+      ).toBe(false);
     } finally {
       await runtime.dispose();
       await rm(piwinRoot, { recursive: true, force: true });
@@ -170,6 +178,7 @@ describe('HostRuntime tool surfaces', () => {
       SUBAGENT_RESULT_READ_TOOL_NAME,
       SUBAGENT_REVIEW_SUBMIT_TOOL_NAME,
     ]);
+    expect(namesByMode.sdk.includes(SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME)).toBe(false);
     expect(namesByMode.rpc).toEqual(namesByMode.sdk);
   });
 
