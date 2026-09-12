@@ -799,4 +799,108 @@ describe('TurnToolGroup causal tool sequence', () => {
     ).toBe('true');
     expect(container.querySelector('[data-testid="subagent-inline-session"]')).not.toBeNull();
   });
+
+  it('old Host capability degrades to ordinary result cards', () => {
+    const toolCard: ToolCardUi = {
+      toolCallId: 'tool-worker',
+      toolName: 'piwin_subagent_start',
+      status: 'done',
+      output: '',
+      presentation: {
+        kind: 'subagent',
+        title: 'Fix login state',
+        subagentControl: {
+          phase: 'accepted',
+          invocationId: 'inv-worker-v1',
+          runId: 'run-worker-1',
+          task: 'Fix login state',
+        },
+      },
+    };
+    const invocation: SubagentInvocation = {
+      id: 'inv-worker-v1',
+      parentSessionId: 'parent-1',
+      runId: 'run-worker-1',
+      parentToolCallId: 'tool-worker',
+      taskId: 'task-worker-1',
+      task: 'Fix login state',
+      title: 'Fix login state',
+      status: 'completed',
+      activity: { kind: 'completed' },
+      revision: 1,
+      createdAt: '2026-09-13T00:00:00.000Z',
+      updatedAt: '2026-09-13T00:00:00.000Z',
+      candidateLineageId: 'lineage-login',
+      candidateGeneration: 1,
+    };
+    const result = {
+      resultId: 'result-v1',
+      revision: 1,
+      parentSessionId: 'parent-1',
+      childSessionId: 'child-worker',
+      taskId: 'task-worker-1',
+      batchRunId: 'run-worker-1',
+      sourceAttemptId: null,
+      targetWorkspaceId: 'ws-1',
+      deliveryIntent: 'candidate' as const,
+      legacyManual: false,
+      candidateGroupId: null,
+      candidateLineageId: 'lineage-login',
+      candidateGeneration: 1,
+      predecessorResult: null,
+      latestReview: { reviewId: 'review-v1', revision: 1 },
+      reviewStatus: 'approved' as const,
+      latestVerification: null,
+      executionStatus: 'completed' as const,
+      summaryStatus: 'merged' as const,
+      integrationStatus: 'retained' as const,
+      childChanges: { changeSetId: 'cs-1', revision: 1 },
+      appliedChanges: null,
+      copyState: 'present' as const,
+      latestOperationId: null,
+      availability: {
+        view: { allowed: true },
+        apply: { allowed: true },
+        resolve: { allowed: true },
+        cleanup: { allowed: true },
+      },
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnToolGroup
+            tools={[toolCard]}
+            locale="zh-CN"
+            reviewLoopEnabled={false}
+            subagentInvocations={{ [invocation.id]: invocation }}
+            subagentResults={{ [result.resultId]: result }}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="subagent-review-summary"]')).toBeNull();
+    expect(container.querySelector('[data-testid="subagent-review-loop-attach"]')).toBeNull();
+    expect(container.querySelector('[data-testid="subagent-invocation-block"]')).not.toBeNull();
+    expect(container.textContent).toContain('Fix login state');
+    expect(container.textContent).not.toContain('审查与返工');
+    expect(container.textContent).not.toContain('已产出候选 v1');
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnToolGroup
+            tools={[toolCard]}
+            locale="zh-CN"
+            reviewLoopEnabled
+            subagentInvocations={{ [invocation.id]: invocation }}
+            subagentResults={{ [result.resultId]: result }}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="subagent-review-summary"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="subagent-invocation-block"]')).not.toBeNull();
+  });
 });

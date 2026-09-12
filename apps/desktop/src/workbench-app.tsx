@@ -15,6 +15,10 @@ import type { HostLogEntry } from './HostLogPanel';
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import { DesktopContextMenuProvider } from './context-menu';
 import { SubagentInspectorProvider } from './subagent-inspector-context';
+import {
+  SubagentReviewLoopProvider,
+  useSubagentReviewLoopValue,
+} from './subagent-review-loop-context';
 import { useWorkbenchShellChrome } from './hooks/use-workbench-shell-chrome';
 import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
 import { installRendererSelfHeal } from './renderer-self-heal';
@@ -340,6 +344,15 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       ),
     [parentSessionId, state.subagentChildren],
   );
+  const reviewLoop = useSubagentReviewLoopValue({
+    enabled: hostStatus?.capabilities.subagentReviewLoopV1 === true,
+    parentSessionId,
+    results: state.subagentResults,
+    verifications: state.subagentVerifications,
+    taskResults: state.subagentTaskResults,
+    hostClient,
+    onInspect: handleInspectSubagent,
+  });
   selfHealBusyRef.current =
     state.streaming ||
     state.compacting ||
@@ -457,6 +470,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               toggle={subagentInspectorToggle}
               panel={subagentInspectorPanel}
             >
+              <SubagentReviewLoopProvider value={reviewLoop}>
               <KnowledgeMountsProvider value={knowledgeSupported ? knowledge.mounts : null}>
               <KnowledgeCitationActionsProvider value={knowledge.citationActions}>
               <div
@@ -945,6 +959,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               />
               </KnowledgeCitationActionsProvider>
               </KnowledgeMountsProvider>
+              </SubagentReviewLoopProvider>
             </SubagentInspectorProvider>
           </DesktopContextMenuProvider>
         </MediaPreviewReadProvider>

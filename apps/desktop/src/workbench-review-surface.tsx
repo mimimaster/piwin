@@ -15,6 +15,8 @@ import { RemoteUnavailableSurface } from './remote-unavailable-surface';
 import { SubagentUnresolvedEntry } from './subagent-unresolved-entry';
 import { SubagentCandidateCard } from './subagent-candidate-card';
 import { useReviewSubagentResults } from './use-review-subagent-results';
+import { deriveSubagentReviewLoopView } from './subagent-orchestration-view';
+import { resolveSubagentReviewActionGate } from './subagent-review-summary-model';
 
 export type WorkbenchReviewSurfaceProps = {
   hostClient: ReviewResultsHost;
@@ -86,25 +88,64 @@ function ReviewResultList(props: {
       unresolved.push(result);
     }
   }
+  const parentSessionId = props.results[0]?.parentSessionId ?? '';
+  const reviewView = deriveSubagentReviewLoopView({
+    parentSessionId,
+    invocations: {},
+    results: Object.fromEntries(props.results.map((result) => [result.resultId, result])),
+  });
+  const gateFor = (result: SubagentResultSummary) => {
+    const loop = reviewView.loops.find(
+      (candidate) =>
+        candidate.headResultId === result.resultId ||
+        candidate.rows.some((row) => row.resultId === result.resultId),
+    );
+    const row = loop?.rows.find(
+      (candidate) => candidate.resultId === result.resultId && candidate.kind !== 'review',
+    );
+    if (loop === undefined || row === undefined) {
+      return {
+        applyEnabled: result.availability.apply.allowed,
+        resolveEnabled: result.availability.resolve.allowed,
+        reason: result.availability.apply.reason ?? result.availability.resolve.reason,
+      };
+    }
+    return resolveSubagentReviewActionGate({
+      loop,
+      row,
+      result,
+      locale: props.locale,
+    });
+  };
   return (
     <div className="review-result-list" data-testid="review-result-list">
-      {unresolved.map((result) => (
-        <SubagentUnresolvedEntry
-          key={result.resultId}
-          resultId={result.resultId}
-          title={result.taskId}
-          locale={props.locale}
-          onRequestResolution={props.onRequestResolution}
-        />
-      ))}
+      {unresolved.map((result) => {
+        const gate = gateFor(result);
+        return (
+          <SubagentUnresolvedEntry
+            key={result.resultId}
+            resultId={result.resultId}
+            title={result.taskId}
+            locale={props.locale}
+            disabled={!gate.resolveEnabled}
+            {...(gate.reason !== undefined ? { reason: gate.reason } : {})}
+            onRequestResolution={props.onRequestResolution}
+          />
+        );
+      })}
       {[...candidatesByGroup.entries()].map(([groupId, members]) => (
         <SubagentCandidateCard
           key={groupId}
           candidateGroupId={groupId}
-          candidates={members.map((member) => ({
-            resultId: member.resultId,
-            title: member.taskId,
-          }))}
+          candidates={members.map((member) => {
+            const gate = gateFor(member);
+            return {
+              resultId: member.resultId,
+              title: member.taskId,
+              applyEnabled: gate.applyEnabled,
+              ...(gate.reason !== undefined ? { applyReason: gate.reason } : {}),
+            };
+          })}
           locale={props.locale}
           onAdopt={props.onAdopt}
         />

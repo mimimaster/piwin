@@ -1,0 +1,129 @@
+/* Review / repair loop tree (transcript + Tasks). Status is always written. */
+
+.subagent-review-summary {
+  min-width: 0;
+  margin: var(--s-3, 6px) 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-1, rgba(29, 27, 23, 0.08));
+  border-radius: 8px;
+  background: var(--surface-2, #f8f6f0);
+}
+
+.subagent-review-loop {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subagent-review-loop-row {
+  --subagent-review-depth: 0;
+  min-width: 0;
+}
+
+.subagent-review-loop-row-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 2px 4px calc(var(--subagent-review-depth) * 14px);
+}
+
+.subagent-review-loop-indent {
+  flex: 0 0 auto;
+  width: 14px;
+  color: var(--text-4, #8f887d);
+  font-family: var(--mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.subagent-review-loop-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.subagent-review-loop-title {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-1, #1d1b17);
+}
+
+.subagent-review-loop-prefix {
+  font-weight: 600;
+}
+
+.subagent-review-loop-status {
+  font-size: 12px;
+  color: var(--text-3, #726b61);
+}
+
+.subagent-review-loop-row[data-incomplete='true'] .subagent-review-loop-status,
+.subagent-review-summary[data-incomplete='true'] [data-testid='subagent-review-verification-status'] {
+  color: var(--text-1, #1d1b17);
+  font-weight: 600;
+}
+
+.subagent-review-row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+}
+
+.subagent-review-stale-reason {
+  font-size: 11.5px;
+  color: var(--text-3, #726b61);
+}
+
+.subagent-review-findings {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 2px 2px 2px calc(var(--subagent-review-depth, 0) * 14px + 22px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subagent-review-findings-empty,
+.subagent-review-finding {
+  font-size: 12px;
+  color: var(--text-2, #3f3a34);
+}
+
+.subagent-review-finding {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+}
+
+.subagent-review-finding-severity {
+  font-family: var(--mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  color: var(--text-4, #8f887d);
+}
+
+.subagent-review-finding-path {
+  font-family: var(--mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  color: var(--text-4, #8f887d);
+}
+
+.subagent-review-loop-attach {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3, #726b61);
+}
+

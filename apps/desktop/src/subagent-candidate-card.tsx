@@ -11,6 +11,8 @@ export type SubagentCandidateItem = {
   title: string;
   summary?: string;
   fileCount?: number;
+  applyEnabled?: boolean;
+  applyReason?: string;
 };
 
 export type SubagentCandidateAdoptPayload = {
@@ -78,6 +80,7 @@ function CandidateOption(props: {
   onAdopt: () => void;
 }): ReactElement {
   const { candidate, selected, isZh } = props;
+  const applyEnabled = candidate.applyEnabled !== false;
   const fileLabel =
     candidate.fileCount === undefined
       ? null
@@ -88,6 +91,9 @@ function CandidateOption(props: {
           : `${candidate.fileCount} files`;
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (!applyEnabled) {
+      return;
+    }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       props.onAdopt();
@@ -105,7 +111,8 @@ function CandidateOption(props: {
       data-testid="subagent-candidate-option"
       data-result-id={candidate.resultId}
       data-selected={selected ? 'true' : 'false'}
-      onClick={props.onAdopt}
+      data-apply-enabled={applyEnabled ? 'true' : 'false'}
+      onClick={applyEnabled ? props.onAdopt : undefined}
       onKeyDown={onKeyDown}
     >
       <span className="subagent-candidate-option-mark" aria-hidden="true" />
@@ -117,12 +124,19 @@ function CandidateOption(props: {
         {fileLabel ? (
           <span className="subagent-candidate-option-meta">{fileLabel}</span>
         ) : null}
+        {candidate.applyReason !== undefined ? (
+          <span className="subagent-candidate-option-meta">{candidate.applyReason}</span>
+        ) : null}
       </div>
       <Button
         variant={selected ? 'primary' : 'secondary'}
         size="compact"
+        disabled={!applyEnabled}
         onClick={(event) => {
           event.stopPropagation();
+          if (!applyEnabled) {
+            return;
+          }
           props.onAdopt();
         }}
       >
