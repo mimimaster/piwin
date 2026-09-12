@@ -7,6 +7,7 @@ import {
   type TurnChangeObjectStore,
   type TurnChangeStore,
 } from '@piwin/git';
+import { applyLineageHeadProjection } from './subagent-result-projection.js';
 
 export const SUBAGENT_RESOLUTION_INSTRUCTION =
   '请检查子任务尚未合入的结果，在保留当前修改的前提下处理冲突并验证；不要扩大原任务范围';
@@ -141,6 +142,9 @@ export function createSubagentResultService(
       byId.set(summary.resultId, summary);
       if (extras !== undefined) {
         extrasById.set(summary.resultId, extras);
+      }
+      for (const next of applyLineageHeadProjection([...byId.values()])) {
+        byId.set(next.resultId, next);
       }
     },
 

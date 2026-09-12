@@ -93,6 +93,11 @@ export function buildCapabilityMatrix(
       'Subagent result review',
       capabilities.subagentResultReviewV1 === true,
     ),
+    row(
+      'subagentReviewLoopV1',
+      'Subagent reviewed-delivery loop',
+      capabilities.subagentReviewLoopV1 === true,
+    ),
     row('turnChangeUndoV1', 'Turn-change undo', capabilities.turnChangeUndoV1 === true),
   ];
 }

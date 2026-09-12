@@ -93,6 +93,8 @@ export type HostStatusData = {
     subagentWorktree?: boolean;
     subagentDeliveryV1?: boolean;
     subagentResultReviewV1?: boolean;
+    /** Reviewed-delivery loop persistence and model tools. Absent on old Hosts. */
+    subagentReviewLoopV1?: boolean;
     turnChangeUndoV1?: boolean;
     /** CE-HUB registry browse. */
     marketplaceHub?: boolean;

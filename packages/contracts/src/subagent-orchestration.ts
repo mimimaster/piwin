@@ -56,6 +56,7 @@ import type {
   SubagentDeliveryIntent,
   SubagentResultRef,
 } from './subagent-delivery.js';
+import type { SubagentReviewRef, SubagentReviewTarget } from './subagent-review.js';
 import type { SubagentApplyPolicy, SubagentIsolationMode } from './subagent.js';
 import type { SubagentCapability, SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { BackendPreparedPrompt } from './backend-prepared-prompt.js';
@@ -128,6 +129,13 @@ export type SubagentTaskSpec = {
   legacyManual?: boolean;
   /** Frozen result identity once a result record exists. */
   resultRef?: SubagentResultRef;
+  /** Mutually exclusive alternative group. Never used as v1/v2 repair lineage. */
+  candidateGroupId?: string;
+  reviewTarget?: SubagentReviewTarget;
+  reviewRef?: SubagentReviewRef;
+  candidateLineageId?: string;
+  candidateGeneration?: number;
+  predecessorResult?: SubagentResultRef;
   /** Whether a worktree should be retained after successful execution. */
   retainWorktree?: boolean;
   /** Resolved capability ceiling captured before dispatch. */
@@ -183,6 +191,11 @@ export type SubagentInvocation = {
   childSessionId?: string;
   status: SubagentInvocationStatus;
   activity: SubagentInvocationActivity;
+  reviewTarget?: SubagentReviewTarget;
+  reviewRef?: SubagentReviewRef;
+  candidateLineageId?: string;
+  candidateGeneration?: number;
+  predecessorResult?: SubagentResultRef;
   /** Monotonic within this invocation; consumers ignore stale revisions. */
   revision: number;
   createdAt: string;
@@ -251,6 +264,16 @@ export type SubagentTaskResult = {
   resultRef?: SubagentResultRef;
   /** Child S0→S1 snapshot. Not the parent Git HEAD. */
   childChanges?: ChangeVersionRef;
+  deliveryIntent?: SubagentDeliveryIntent;
+  applyPolicy?: SubagentApplyPolicy;
+  legacyManual?: boolean;
+  candidateGroupId?: string;
+  targetWorkspaceId?: string;
+  reviewTarget?: SubagentReviewTarget;
+  reviewRef?: SubagentReviewRef;
+  candidateLineageId?: string;
+  candidateGeneration?: number;
+  predecessorResult?: SubagentResultRef;
 };
 
 /** Batch-level result after all tasks settle. */

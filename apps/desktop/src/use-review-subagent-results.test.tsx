@@ -2,7 +2,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { HostCommand, HostResponse, SubagentResultSummary } from '@piwin/contracts';
+import {
+  emptySubagentResultReviewFields,
+  type HostCommand,
+  type HostResponse,
+  type SubagentResultSummary,
+} from '@piwin/contracts';
 import { useReviewSubagentResults, type ReviewResultsHost } from './use-review-subagent-results';
 
 declare global {
@@ -23,6 +28,7 @@ function summary(overrides: Partial<SubagentResultSummary> = {}): SubagentResult
     deliveryIntent: 'integrate',
     legacyManual: false,
     candidateGroupId: null,
+    ...emptySubagentResultReviewFields(),
     executionStatus: 'completed',
     summaryStatus: 'merged',
     integrationStatus: 'retained',

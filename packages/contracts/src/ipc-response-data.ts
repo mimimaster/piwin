@@ -104,6 +104,8 @@ export type HostStatusData = {
     subagentDeliveryV1?: boolean;
     /** Result review / apply / cleanup Host surface. Default false until W5+. */
     subagentResultReviewV1?: boolean;
+    /** Reviewed-delivery loop persistence and model tools. Absent on old Hosts. */
+    subagentReviewLoopV1?: boolean;
     /** Turn-change undo Host surface. Default false until turn-change infra lands. */
     turnChangeUndoV1?: boolean;
   };

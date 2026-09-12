@@ -93,6 +93,76 @@ describe('SubagentRunStore', () => {
     });
   });
 
+  it('persists delivery, group, and lineage fields through a store round-trip', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    const predecessor = { resultId: 'result-v1', revision: 1 };
+    await store.createManifest(
+      'run-1',
+      makeBatch([
+        makeTask({
+          id: 'a',
+          invocationId: 'inv-1',
+          deliveryIntent: 'candidate',
+          applyPolicy: 'explicit',
+          legacyManual: false,
+          retainWorktree: true,
+          candidateGroupId: 'group-login',
+          candidateLineageId: 'lineage-login',
+          candidateGeneration: 2,
+          predecessorResult: predecessor,
+          reviewTarget: {
+            result: predecessor,
+            changes: { changeSetId: 'cs-v1', revision: 1 },
+          },
+        }),
+      ]),
+    );
+    const loaded = await store.loadManifest('run-1');
+    expect(loaded?.tasks[0]).toMatchObject({
+      deliveryIntent: 'candidate',
+      applyPolicy: 'explicit',
+      legacyManual: false,
+      retainWorktree: true,
+      candidateGroupId: 'group-login',
+      candidateLineageId: 'lineage-login',
+      candidateGeneration: 2,
+      predecessorResult: predecessor,
+    });
+    expect(loaded?.invocations['inv-1']).toMatchObject({
+      candidateLineageId: 'lineage-login',
+      candidateGeneration: 2,
+      predecessorResult: predecessor,
+    });
+  });
+
+  it('reads a legacy manifest without inventing lineage or delivery fields', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    await writeFile(
+      join(dir, 'run-old.json'),
+      `${JSON.stringify({
+        runId: 'run-old',
+        parentSessionId: 'parent-1',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+        tasks: [{ id: 'a', task: 'do something' }],
+        maxConcurrency: 4,
+        failurePolicy: 'continue',
+        snapshots: {},
+        leases: {},
+        results: {},
+        invocations: {},
+        status: 'completed',
+      })}\n`,
+      'utf8',
+    );
+    const store = createSubagentRunStore({ runsDir: dir });
+    const loaded = await store.loadManifest('run-old');
+    expect(loaded?.tasks[0]).toEqual({ id: 'a', task: 'do something' });
+    expect(loaded?.tasks[0]?.deliveryIntent).toBeUndefined();
+    expect(loaded?.tasks[0]?.candidateLineageId).toBeUndefined();
+  });
+
   it('records snapshots, leases, and results', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
     const store = createSubagentRunStore({ runsDir: dir });
