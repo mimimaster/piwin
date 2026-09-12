@@ -26,10 +26,13 @@ import type {
   SubagentDeliveryIntent,
   SubagentIsolationMode,
   ThinkingLevel,
-  ToolResult,
 } from '@piwin/contracts';
-import { formatError, parseSubagentDeliveryFields } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import { isSubagentDeliveryPolicyError } from './subagent-delivery-policy.js';
+import {
+  parseSubagentStartInput,
+  subagentStartInputParameters,
+} from './subagent-tool-input.js';
 
 export type SubagentRunSeam = {
   /** Spawn a child subagent session and wait for it to finish. */
@@ -72,12 +75,6 @@ export type SubagentRunToolOptions = {
   seam: SubagentRunSeam;
 };
 
-const ISOLATION_MODES: ReadonlySet<string> = new Set(['readonly', 'worktree']);
-
-function invalidSubagentInput(message: string): ToolResult {
-  return { ok: false, code: 'invalid-input', message };
-}
-
 export function createSubagentRunTool(options: SubagentRunToolOptions): HostToolRegistration {
   return {
     descriptor: {
@@ -87,76 +84,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
         'Use for heavy exploration, independent implementation slices, or focused verification. ' +
         'Task text must include acceptance criteria. Default mode readonly; worktree for isolated writes. ' +
         'Child cannot spawn further subagents.',
-      parameters: {
-        type: 'object',
-        properties: {
-          task: {
-            type: 'string',
-            description:
-              'The task to delegate. Must be self-contained — the subagent starts with a fresh ' +
-              "context and does not see this conversation's history. Include all necessary context " +
-              'and acceptance criteria in the task text.',
-          },
-          role: {
-            type: 'string',
-            description:
-              'Orchestration scheme roster role (e.g. "scout", "coder", "reviewer"). ' +
-              'When an orchestration scheme is active, prefer role over free-form profileId/model. ' +
-              'The Host resolves the role to a profile, model, and isolation from the scheme members.',
-          },
-          mode: {
-            type: 'string',
-            description:
-              'Isolation override: "readonly" (safe default) or "worktree" (write access in a ' +
-              'temporary git worktree branch). When profileId is set and mode is omitted, the ' +
-              'profile isolation is used.',
-          },
-          sessionName: {
-            type: 'string',
-            description: 'Optional short name for the subagent session (shown in UI)',
-          },
-          deliveryIntent: {
-            type: 'string',
-            enum: ['report', 'integrate', 'candidate'],
-            description:
-              'How the child result should be delivered: "report" (read-only summary), ' +
-              '"integrate" (apply worktree changes to the parent workspace), or "candidate" ' +
-              '(keep an isolated proposal for later review). Default follows isolation.',
-          },
-          applyPolicy: {
-            type: 'string',
-            enum: ['none', 'auto', 'explicit'],
-            description:
-              'Worktree change application policy: "none" (default, changes stay in the worktree) ' +
-              'or "auto"/"explicit" (apply changed files back to the parent branch on merge). ' +
-              'Only relevant when mode is "worktree". Kept until runtime replacement.',
-          },
-          profileId: {
-            type: 'string',
-            description:
-              'Optional subagent profile id (e.g. "explorer", "reviewer", "implementer", "tester"). ' +
-              "When set, the Host resolves the profile's model, thinking level, capabilities, skills, " +
-              'and isolation. The profile cannot be widened by this call.',
-          },
-          model: {
-            type: 'object',
-            description:
-              'Optional per-call model override. Must reference a provider/model already configured ' +
-              'in Settings. Overrides the profile model; cannot widen capabilities or isolation.',
-            properties: {
-              protocol: { type: 'string' },
-              providerId: { type: 'string' },
-              modelId: { type: 'string' },
-            },
-          },
-          thinkingLevel: {
-            type: 'string',
-            enum: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
-            description: 'Optional per-call thinking level override.',
-          },
-        },
-        required: ['task'],
-      },
+      parameters: subagentStartInputParameters,
     },
     family: 'delegate',
     permissionSpec: {
@@ -167,66 +95,19 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
     },
     prepareArgs: passThroughPrepareArgs,
     async execute(args, signal, context: HostToolExecutionContext) {
-      const task = String(args.task ?? '').trim();
-      if (!task) return invalidSubagentInput('task is required');
-
-      const sessionNameRaw = String(args.sessionName ?? '').trim();
-      const sessionName = sessionNameRaw || undefined;
-
-      const roleRaw = String(args.role ?? '').trim();
-      const role = roleRaw || undefined;
-
-      const profileIdRaw = String(args.profileId ?? '').trim();
-      const profileId = profileIdRaw || undefined;
-
-      // Leave omitted mode unresolved. The Host must apply the active scheme
-      // and profile before choosing an isolation or delivery default.
-      const modeRaw = args.mode === undefined ? undefined : String(args.mode ?? '').trim();
-      let mode: SubagentIsolationMode | undefined;
-      if (modeRaw !== undefined) {
-        if (!ISOLATION_MODES.has(modeRaw)) {
-          return invalidSubagentInput(
-            `invalid mode "${modeRaw}" (expected "readonly" or "worktree")`,
-          );
-        }
-        mode = modeRaw as SubagentIsolationMode;
-      }
-
-      if (args.deliveryIntent !== undefined && typeof args.deliveryIntent !== 'string') {
-        return invalidSubagentInput('unknown deliveryIntent');
-      }
-      if (args.applyPolicy !== undefined && typeof args.applyPolicy !== 'string') {
-        return invalidSubagentInput('unknown applyPolicy');
-      }
-      const parsedDelivery = parseSubagentDeliveryFields({
-        ...(typeof args.deliveryIntent === 'string' ? { deliveryIntent: args.deliveryIntent } : {}),
-        ...(typeof args.applyPolicy === 'string' ? { applyPolicy: args.applyPolicy } : {}),
-      });
-      if (!parsedDelivery.ok) return invalidSubagentInput(parsedDelivery.message);
-      // Only validate syntax here. Effective delivery is resolved once by the
-      // Host after scheme/profile isolation has been applied.
-      const deliveryIntent = parsedDelivery.deliveryIntent;
-      const applyPolicy = parsedDelivery.applyPolicy;
-
-      const modelRaw = args.model as
-        { protocol?: string; providerId?: string; modelId?: string } | undefined;
-      const model: ModelRef | undefined =
-        modelRaw && typeof modelRaw === 'object' && modelRaw.providerId && modelRaw.modelId
-          ? {
-              providerId: modelRaw.providerId,
-              modelId: modelRaw.modelId,
-              ...(modelRaw.protocol
-                ? { protocol: modelRaw.protocol as NonNullable<ModelRef['protocol']> }
-                : {}),
-            }
-          : undefined;
-
-      const thinkingLevelRaw = String(args.thinkingLevel ?? '').trim();
-      const thinkingLevel: ThinkingLevel | undefined =
-        thinkingLevelRaw &&
-        ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(thinkingLevelRaw)
-          ? (thinkingLevelRaw as ThinkingLevel)
-          : undefined;
+      const parsedInput = parseSubagentStartInput(args);
+      if (!parsedInput.ok) return parsedInput;
+      const {
+        task,
+        mode,
+        sessionName,
+        deliveryIntent,
+        applyPolicy,
+        role,
+        profileId,
+        model,
+        thinkingLevel,
+      } = parsedInput.value;
 
       if (signal?.aborted) {
         return {
@@ -286,7 +167,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           };
         }
         if (isSubagentDeliveryPolicyError(message)) {
-          return invalidSubagentInput(message);
+          return { ok: false, code: 'invalid-input', message };
         }
         return { ok: false, code: 'subagent-failed', message, retryable: true };
       }
