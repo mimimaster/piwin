@@ -29,6 +29,7 @@ import type {
   SubagentBatchProjection,
   SubagentInvocation,
   SubagentResultSummary,
+  SubagentReviewRecord,
   SubagentTaskResult,
   ToolPresentation,
   WalkthroughArtifact,
@@ -469,6 +470,8 @@ export type ChatUiState = {
       status: 'passed' | 'failed';
     }
   >;
+  /** Review bodies keyed by reviewId. A later result-updated ref cannot drop these. */
+  subagentReviews: Record<string, SubagentReviewRecord>;
   /**
    * Walkthrough artifacts keyed by owning assistant messageId (spec §5.1).
    * Cleared on session switch so stale artifacts never leak across sessions.

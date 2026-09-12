@@ -209,6 +209,7 @@ describe('chatUiReducer subagent hydration', () => {
     expect(Object.keys(state.subagentTaskResults)).toHaveLength(0);
     expect(Object.keys(state.subagentResults)).toHaveLength(0);
     expect(Object.keys(state.subagentVerifications)).toHaveLength(0);
+    expect(Object.keys(state.subagentReviews)).toHaveLength(0);
   });
 
   it('uses clientMessageId for optimistic user bubbles and rolls them back', () => {

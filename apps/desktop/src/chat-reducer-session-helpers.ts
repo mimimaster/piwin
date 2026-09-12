@@ -4,6 +4,7 @@ import type {
   SubagentBatchProjection,
   SubagentInvocation,
   SubagentResultSummary,
+  SubagentReviewRecord,
   SubagentTaskResult,
 } from '@piwin/contracts';
 import type { ChatUiState, SessionListItemUi, SubagentStreamState } from './chat-ui-types';
@@ -24,6 +25,7 @@ export const CLEARED_SUBAGENT_UI = {
       status: 'passed' | 'failed';
     }
   >,
+  subagentReviews: {} as Record<string, SubagentReviewRecord>,
 };
 
 export function isTerminalSubagentChild(child: SessionSummary): boolean {

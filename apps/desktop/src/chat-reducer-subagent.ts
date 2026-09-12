@@ -6,6 +6,7 @@ import {
   MAX_SUBAGENT_CHILDREN,
   MAX_SUBAGENT_INVOCATIONS,
   MAX_SUBAGENT_RESULTS,
+  MAX_SUBAGENT_REVIEWS,
   MAX_SUBAGENT_TASK_RESULTS,
   MAX_SUBAGENT_VERIFICATIONS,
   putRecordLru,
@@ -39,6 +40,7 @@ import {
 } from './chat-reducer-session-helpers';
 import {
   preferSubagentResult,
+  preferSubagentReview,
   preferSubagentVerification,
   verificationFactFromDelivery,
 } from './subagent-review-loop-view.js';
@@ -577,15 +579,34 @@ export function reduceChatSubagent(state: ChatUiState, action: ChatUiSubagentAct
     case 'subagent/task-updated': {
       if (state.activeSessionId !== action.parentSessionId) return state;
       const key = `${action.runId}:${action.result.taskId}`;
+      const storedTask = state.subagentTaskResults[key];
+      const nextTask =
+        action.result.review === undefined && storedTask?.review !== undefined
+          ? { ...action.result, review: storedTask.review }
+          : action.result;
       const nextTaskResults = putRecordLru(
         state.subagentTaskResults,
         key,
-        action.result,
+        nextTask,
         MAX_SUBAGENT_TASK_RESULTS,
       );
-      const record = action.result.deliveryVerification;
+      const review = nextTask.review;
+      const nextReviews =
+        review === undefined
+          ? state.subagentReviews
+          : putRecordLru(
+              state.subagentReviews,
+              review.reviewId,
+              preferSubagentReview(state.subagentReviews[review.reviewId], review),
+              MAX_SUBAGENT_REVIEWS,
+            );
+      const record = nextTask.deliveryVerification;
       if (record === undefined) {
-        return { ...state, subagentTaskResults: nextTaskResults };
+        return {
+          ...state,
+          subagentTaskResults: nextTaskResults,
+          subagentReviews: nextReviews,
+        };
       }
       const fact = verificationFactFromDelivery(record);
       const nextFact = preferSubagentVerification(
@@ -595,6 +616,7 @@ export function reduceChatSubagent(state: ChatUiState, action: ChatUiSubagentAct
       return {
         ...state,
         subagentTaskResults: nextTaskResults,
+        subagentReviews: nextReviews,
         subagentVerifications: putRecordLru(
           state.subagentVerifications,
           fact.verificationId,

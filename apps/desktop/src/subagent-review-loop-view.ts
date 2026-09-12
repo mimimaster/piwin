@@ -164,6 +164,22 @@ export function mergeSubagentResultRecord(
   };
 }
 
+export function preferSubagentReview(
+  stored: SubagentReviewRecord | undefined,
+  incoming: SubagentReviewRecord,
+): SubagentReviewRecord {
+  if (stored === undefined) {
+    return incoming;
+  }
+  if (incoming.revision < stored.revision) {
+    return stored;
+  }
+  if (incoming.revision === stored.revision) {
+    return stored;
+  }
+  return incoming;
+}
+
 export function preferSubagentVerification(
   stored: SubagentReviewLoopVerificationFact | undefined,
   incoming: SubagentReviewLoopVerificationFact,
