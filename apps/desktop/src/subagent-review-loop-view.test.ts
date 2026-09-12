@@ -80,6 +80,72 @@ function makeInvocation(
   };
 }
 
+/** Mirrors Host `invocationStatusForResult` so retained fixtures cannot hide `needs-integration`. */
+function hostInvocationStatusForResult(
+  result: Pick<SubagentResultSummary, 'executionStatus' | 'integrationStatus'>,
+): SubagentInvocation['status'] {
+  if (result.executionStatus === 'completed') {
+    if (result.integrationStatus === 'retained' || result.integrationStatus === 'conflict') {
+      return 'needs-integration';
+    }
+    if (result.integrationStatus === 'failed') {
+      return 'failed';
+    }
+    return 'completed';
+  }
+  if (result.executionStatus === 'cancelled') {
+    return 'cancelled';
+  }
+  if (result.executionStatus === 'queued') {
+    return 'queued';
+  }
+  if (result.executionStatus === 'running') {
+    return 'running';
+  }
+  return 'failed';
+}
+
+function hostInvocationActivity(
+  result: Pick<SubagentResultSummary, 'executionStatus' | 'integrationStatus'>,
+): SubagentInvocation['activity'] {
+  const status = hostInvocationStatusForResult(result);
+  if (status === 'needs-integration') {
+    return {
+      kind: 'needs-integration',
+      ...(result.integrationStatus === 'conflict'
+        ? { message: 'worktree integration conflicted' }
+        : {}),
+    };
+  }
+  if (status === 'completed') {
+    return { kind: 'completed' };
+  }
+  if (status === 'cancelled') {
+    return { kind: 'cancelled' };
+  }
+  if (status === 'queued') {
+    return { kind: 'queued' };
+  }
+  if (status === 'running') {
+    return { kind: 'thinking' };
+  }
+  return { kind: 'failed' };
+}
+
+function makeHostMappedInvocation(
+  result: SubagentResultSummary,
+  overrides: Partial<SubagentInvocation> & Pick<SubagentInvocation, 'id'>,
+): SubagentInvocation {
+  return makeInvocation({
+    status: hostInvocationStatusForResult(result),
+    activity: hostInvocationActivity(result),
+    childSessionId: result.childSessionId,
+    runId: result.batchRunId,
+    taskId: result.taskId,
+    ...overrides,
+  });
+}
+
 function makeReview(
   overrides: Partial<SubagentReviewRecord> & Pick<SubagentReviewRecord, 'reviewId' | 'decision' | 'targetResult'>,
 ): SubagentReviewRecord {
@@ -117,10 +183,8 @@ function relationFacts(order: 'forward' | 'reverse') {
     childChanges: { changeSetId: 'cs-2', revision: 1 },
     revision: 3,
   });
-  const worker = makeInvocation({
+  const worker = makeHostMappedInvocation(v1, {
     id: 'inv-worker-v1',
-    status: 'completed',
-    childSessionId: WORKER,
     role: 'worker',
     candidateLineageId: LINEAGE,
     candidateGeneration: 1,
@@ -141,12 +205,8 @@ function relationFacts(order: 'forward' | 'reverse') {
     reviewRef: { reviewId: 'review-v1', revision: 1 },
     createdAt: '2026-09-13T00:02:00.000Z',
   });
-  const repair = makeInvocation({
+  const repair = makeHostMappedInvocation(v2, {
     id: 'inv-repair-v2',
-    status: 'completed',
-    runId: 'run-worker-2',
-    taskId: 'task-worker-2',
-    childSessionId: WORKER,
     role: 'worker',
     candidateLineageId: LINEAGE,
     candidateGeneration: 2,
@@ -506,6 +566,177 @@ describe('deriveSubagentReviewLoopView', () => {
       applied: true,
       delivered: false,
     });
+  });
+
+  it('keeps a retained Host needs-integration candidate awaiting-review, not applying', () => {
+    const result = makeResult({
+      resultId: 'result-v1',
+      integrationStatus: 'retained',
+    });
+    const invocation = makeHostMappedInvocation(result, {
+      id: 'inv-worker-v1',
+      candidateLineageId: LINEAGE,
+      candidateGeneration: 1,
+    });
+    expect(invocation.status).toBe('needs-integration');
+    const view = deriveSubagentReviewLoopView({
+      parentSessionId: PARENT,
+      invocations: { [invocation.id]: invocation },
+      results: { [result.resultId]: result },
+    });
+    expect(view.loops[0]).toMatchObject({
+      phase: 'awaiting-review',
+      approved: false,
+      applied: false,
+      delivered: false,
+    });
+    expect(view.loops[0]?.phase).not.toBe('applying');
+  });
+
+  it('keeps an approved retained Host needs-integration candidate approved, not applying', () => {
+    const result = makeResult({
+      resultId: 'result-v1',
+      reviewStatus: 'approved',
+      latestReview: { reviewId: 'review-v1', revision: 1 },
+      integrationStatus: 'retained',
+    });
+    const invocation = makeHostMappedInvocation(result, {
+      id: 'inv-worker-v1',
+      candidateLineageId: LINEAGE,
+      candidateGeneration: 1,
+    });
+    expect(invocation.status).toBe('needs-integration');
+    const view = deriveSubagentReviewLoopView({
+      parentSessionId: PARENT,
+      invocations: { [invocation.id]: invocation },
+      results: { [result.resultId]: result },
+      reviews: {
+        'review-v1': makeReview({
+          reviewId: 'review-v1',
+          decision: 'approved',
+          targetResult: { resultId: 'result-v1', revision: 1 },
+        }),
+      },
+    });
+    expect(view.loops[0]).toMatchObject({
+      phase: 'approved',
+      approved: true,
+      applied: false,
+      delivered: false,
+    });
+    expect(view.loops[0]?.phase).not.toBe('applying');
+  });
+
+  it('shows applying only while approved integrate is pending', () => {
+    const result = makeResult({
+      resultId: 'result-v1',
+      reviewStatus: 'approved',
+      latestReview: { reviewId: 'review-v1', revision: 1 },
+      integrationStatus: 'pending',
+      latestOperationId: 'op-apply-1',
+    });
+    const invocation = makeHostMappedInvocation(result, {
+      id: 'inv-worker-v1',
+      candidateLineageId: LINEAGE,
+      candidateGeneration: 1,
+    });
+    expect(invocation.status).toBe('completed');
+    const view = deriveSubagentReviewLoopView({
+      parentSessionId: PARENT,
+      invocations: { [invocation.id]: invocation },
+      results: { [result.resultId]: result },
+      reviews: {
+        'review-v1': makeReview({
+          reviewId: 'review-v1',
+          decision: 'approved',
+          targetResult: { resultId: 'result-v1', revision: 1 },
+        }),
+      },
+    });
+    expect(view.loops[0]).toMatchObject({
+      phase: 'applying',
+      approved: true,
+      applied: false,
+      delivered: false,
+    });
+  });
+
+  it('keeps conflict plus Host needs-integration blocked, not applying', () => {
+    const result = makeResult({
+      resultId: 'result-v1',
+      reviewStatus: 'approved',
+      latestReview: { reviewId: 'review-v1', revision: 1 },
+      integrationStatus: 'conflict',
+    });
+    const invocation = makeHostMappedInvocation(result, {
+      id: 'inv-worker-v1',
+      candidateLineageId: LINEAGE,
+      candidateGeneration: 1,
+    });
+    expect(invocation.status).toBe('needs-integration');
+    const view = deriveSubagentReviewLoopView({
+      parentSessionId: PARENT,
+      invocations: { [invocation.id]: invocation },
+      results: { [result.resultId]: result },
+      reviews: {
+        'review-v1': makeReview({
+          reviewId: 'review-v1',
+          decision: 'approved',
+          targetResult: { resultId: 'result-v1', revision: 1 },
+        }),
+      },
+    });
+    expect(view.loops[0]).toMatchObject({
+      phase: 'blocked',
+      approved: true,
+      applied: false,
+      delivered: false,
+      attention: true,
+    });
+    expect(view.loops[0]?.phase).not.toBe('applying');
+  });
+
+  it('does not treat passed verification without apply as delivered', () => {
+    const result = makeResult({
+      resultId: 'result-v1',
+      reviewStatus: 'approved',
+      latestReview: { reviewId: 'review-v1', revision: 1 },
+      latestVerification: { verificationId: 'verify-early', revision: 1 },
+      integrationStatus: 'retained',
+    });
+    const invocation = makeHostMappedInvocation(result, {
+      id: 'inv-worker-v1',
+      candidateLineageId: LINEAGE,
+      candidateGeneration: 1,
+    });
+    expect(invocation.status).toBe('needs-integration');
+    const view = deriveSubagentReviewLoopView({
+      parentSessionId: PARENT,
+      invocations: { [invocation.id]: invocation },
+      results: { [result.resultId]: result },
+      reviews: {
+        'review-v1': makeReview({
+          reviewId: 'review-v1',
+          decision: 'approved',
+          targetResult: { resultId: 'result-v1', revision: 1 },
+        }),
+      },
+      verifications: {
+        'verify-early': {
+          verificationId: 'verify-early',
+          revision: 1,
+          resultId: 'result-v1',
+          status: 'passed',
+        },
+      },
+    });
+    expect(view.loops[0]).toMatchObject({
+      phase: 'approved',
+      approved: true,
+      applied: false,
+      delivered: false,
+    });
+    expect(view.loops[0]?.phase).not.toBe('delivered');
   });
 });
 
