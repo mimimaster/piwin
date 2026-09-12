@@ -57,7 +57,7 @@
 | 下拉 Off | 与今日完全一致：无新系统提示、无强制探子、无 schema/并发特殊约束 |
 | 选 Ultra Code 再发送 | 本条更倾向拆只读探子、等证据再综合；子代理偏 low 思考；不乱填 model/thinking |
 | 选 Ultra Code 后从 New Agent 发出 | 会话创建后 pill 仍显示 Ultra Code；不得跳回「自由」 |
-| Settings | 能看到内置 Ultra Code，可 clone 改纪律/profile/并发 |
+| Settings | 能看到内置 Ultra Code 与 Reviewed Delivery，可 overlay / clone 改纪律/profile/模型 |
 | 切会话 / 重启 | 下拉回到 Off；没有「上次方案自动跟过来」的惊喜惊吓 |
 
 ---
@@ -67,7 +67,7 @@
 > **编排方案（Orchestration Scheme）** 是**逐条消息的 opt-in 工作方式**：用户在 Composer 下拉选中非 Off 方案并发送后，本条 prompt 才注入主代理派发纪律，并按方案收紧子代理角色、并发与（可选）工具 schema；**Off 时与实现前行为 bit-identical**。
 
 中文产品名：**编排方案**。英文类型名：`OrchestrationScheme`。  
-内置方案名：**Ultra Code**（与主代理 thinking 档位 **Ultra** 无关，禁止共用配置或混名叙事）。
+内置方案名：**Ultra Code**（与主代理 thinking 档位 **Ultra** 无关，禁止共用配置或混名叙事）与 **Reviewed Delivery**。
 
 ---
 
@@ -78,8 +78,9 @@
 ```text
 Settings（配）          Composer（选）           Host（本条生效）
   方案库                  下拉 Off | Ultra Code     仅当 id ≠ off：
-  · 内置 Ultra Code        | 用户自建…              · 注入纪律 preamble
-  · 用户 clone / 新建      发送 → PromptInput       · 约束子代理
+  · 内置 Ultra Code        | Reviewed Delivery      · 注入纪律 preamble
+  · 内置 Reviewed Delivery | 用户自建…              · 约束子代理
+  · 用户 clone / 新建      发送 → PromptInput
   · 引用 Subagent Profile    .orchestrationSchemeId · 可选收窄 spawn schema
 ```
 
@@ -89,7 +90,7 @@ Settings（配）          Composer（选）           Host（本条生效）
 |----|------|----------|------|
 | L1 | 子代理档案 Profile | 「探子 / 审查 / 实现用什么模型与能力」 | 已有 CE-SUB-PROF |
 | L2 | 派发纪律 Policy | 通常不单独露出；写在方案的 preamble 与开关里 | `systemPreamble`、wait、exposeSpawnMetadata… |
-| L3 | 编排方案 Scheme | 下拉里的一项：「Ultra Code」「我的审查包」 | 引用 Profile + 纪律 + 并发边界 |
+| L3 | 编排方案 Scheme | 下拉里的一项：「Ultra Code」「Reviewed Delivery」「我的审查包」 | 引用 Profile + 纪律 + 并发边界 |
 
 ### 2.2 Composer 主入口（已敲定）
 
@@ -103,7 +104,8 @@ Settings（配）          Composer（选）           Host（本条生效）
 - **列表顺序**：
   1. **Off**（永远置顶，不可删）— 文案：自由干活，不加限制
   2. 内置 **Ultra Code**
-  3. 用户自建方案（Settings 定义顺序）
+  3. 内置 **Reviewed Delivery**
+  4. 用户自建方案（Settings 定义顺序）
 - 每项：名称 + 一行描述；Ultra Code 可带徽标（只读 / 泛型 / low）。
 - Footer：仅 **「管理方案…」** → Settings → Subagents → 编排方案。**无「设为默认」。**
 - 非 Off 时 pill 高亮显示短名（如 `Ultra Code`）。
@@ -150,7 +152,7 @@ Slash / CLI **不是**「执行一次 ultra 脚本」；真正生效永远是**�
 | 设为默认 / 项目默认方案 | 与「主动选择才应用」冲突 |
 | 纯 skill + `/exe-…` 作主入口 | 藏得深、方案一多难管 |
 | 自动按任务复杂度开方案 | 额度与调度不可预期（Sol Ultra 翻车点） |
-| 内置多个方案 | 先一个 Ultra Code 打穿；其余用户自建 |
+| 第三个及以后的内置方案 | 现有内置为 Ultra Code 与 Reviewed Delivery；其余用户自建 |
 | 发送后强制下拉回 Off | 无必要；切 session 再回 Off 即可 |
 | 方案市场 / 流程图编排器 | 超出 v1 |
 | Side Chat 应用方案 | Side Chat 无 delegate；v1 忽略 |
@@ -230,8 +232,8 @@ PiwinConfig.subagents
         └── OrchestrationSchemeSettings
 ```
 
-内置 Ultra Code：**Host（或 contracts 只读常量）merge**，模式对齐 builtin profiles：  
-`createDefaultSubagentConfig()` **不**把 Ultra Code 写入默认磁盘 config。
+内置 Ultra Code 与 Reviewed Delivery：**contracts 只读常量 merge**，模式对齐 builtin profiles：  
+`createDefaultSubagentConfig()` **不**把任一内置方案写入默认磁盘 config。Settings 以同 id overlay 覆盖该内置（`source` 变为 `settings`）。
 
 ### 6.1 与现有 subagent 栈
 
@@ -489,6 +491,23 @@ Host-owned 完整配方（示例；实现以代码常量为准）：
 | fork_turns=none | 已有 fresh child |
 | 立刻 wait_agent | 同步工具 + preamble |
 | Ultra 思考档 | **不是**本功能 |
+
+### 9.1 内置方案：Reviewed Delivery
+
+第二个内置方案，id `reviewed-delivery`。contracts 常量 `BUILTIN_REVIEWED_DELIVERY_SCHEME` merge 进 `listOrchestrationSchemes`；**不**写入磁盘默认 config。Composer 经已有 `listOrchestrationSchemes` 列出，无需 Desktop 改动。
+
+| Role | Purpose | Isolation | Default model |
+|------|---------|-----------|---------------|
+| `worker` | Implement or repair one bounded change | `worktree` | inherit parent unless Settings pins a model |
+| `reviewer` | Inspect the frozen candidate and submit a decision | `readonly` | inherit parent unless Settings pins a different model |
+
+Parent/composer 不是 child role。`defaultRole` = `worker`；`waitPolicy` = `await-all`；`exposeSpawnMetadata` = `false`；两角色 `fallback` = `main`。不硬编码 provider/model id。
+
+Settings 以同 id `reviewed-delivery` overlay 时，与 Ultra Code 相同：整份 settings 对象覆盖内置（`source` 变为 `settings`），可分别钉 worker/reviewer 模型。overlay member 省略 `reportContract` 时，仍补回内置 reviewer 合同。
+
+Parent preamble 按工具名规定：`piwin_subagent_start`（worker：`deliveryIntent='candidate'`、`applyPolicy='explicit'`、worktree、retain worktree）→ `piwin_subagent_wait` 收集精确 `resultRef` → 独立 reviewer + `reviewOf` → 仅 durable `changes-requested` 用 `piwin_subagent_continue`（最多两次）→ 仅 lineage head + 精确 `approved` 用 `piwin_subagent_result_apply` → 父工作区普通验证 → `piwin_subagent_verification_submit`。`Delivered` 仅当该记录为 `passed`。`blocked` / repair-limit / Stop 则停止并说明，不发明无限循环。
+
+Reviewer `reportContract`：必须经 `piwin_subagent_review_submit` 提交；prose 只是旁证，不是 apply 权威。决定：`approved` / `changes-requested` / `blocked`。
 
 ---
 
