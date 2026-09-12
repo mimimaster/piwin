@@ -16,6 +16,7 @@ import type { CreateSessionOptions, NativeContextEntry } from './session-seed.js
 import type { SearchEvidence } from './web.js';
 import type { HealthToolCardSummary } from './apple-health.js';
 import type { AgentPromptOutcome } from './agent-prompt-outcome.js';
+import type { SubagentControlDisplay } from './subagent-tool-presentation.js';
 
 export type HostMode = 'sdk' | 'rpc';
 
@@ -424,7 +425,8 @@ export type SessionRunPhase =
   | 'waiting-permission'
   | 'pausing'
   | 'cancelling'
-  | 'waiting-resource';
+  | 'waiting-resource'
+  | 'waiting-subagents';
 
 /** ADR 0015: stable terminal codes for run outcomes. */
 export type SessionRunTerminalCode =
@@ -539,6 +541,8 @@ export type ToolPresentation = {
   health?: HealthToolCardSummary;
   /** Copied from ToolResult.details so secondary ingest can skip Health. */
   sensitivity?: 'health';
+  /** Async subagent control-tool aggregate (start / wait / cancel). */
+  subagentControl?: SubagentControlDisplay;
 };
 
 export type AgentEvent =

@@ -230,7 +230,11 @@ const ULTRA_CODE_PREAMBLE = `<orchestration_discipline scheme="ultra-code">
 You are the composer agent: orchestrate, synthesize, and decide. Prevent context rot in this thread by delegating wide reads.
 
 ## Delegation Policy
-- **Delegate (via \`piwin_subagent_run\` role="scout")**: Broad symbol discovery, cross-file call/import tracing, large files/logs, or independent parallel investigations. Prefer multiple small, parallel scouts fired in one turn.
+- **Delegate (role="scout")**: Broad symbol discovery, cross-file call/import tracing, large files/logs, or independent parallel investigations.
+- **Start early**: Use \`piwin_subagent_start\` to kick off independent scouts in parallel, then continue useful parent work in this thread.
+- **Single-task convenience**: Use \`piwin_subagent_run\` when one synchronous spawn-and-merge scout is enough.
+- **Collect once**: Call \`piwin_subagent_wait\` exactly once to gather every required scout report before synthesizing.
+- **Cancel sparingly**: Use \`piwin_subagent_cancel\` only for work proven unnecessary — never to skip required evidence.
 - **Do NOT Delegate**: Known small files, foundational docs, or the exact file you are about to edit. Read these directly.
 
 ## Execution & Verification
@@ -721,7 +725,7 @@ export function resolveOrchestrationScheme(
     exposeSpawnMetadata: scheme.exposeSpawnMetadata,
     maxConcurrency: Math.max(1, Math.min(schemeConcurrency, globalMaxConcurrency)),
     maxTasksPerRun: Math.max(1, Math.min(schemeTasks, globalMaxTasksPerRun)),
-    // MVP: piwin_subagent_run is synchronous (spawn+merge).
+    // waitPolicy stays `await-all` for structured in-turn concurrency (start + wait), not fire-and-forget.
     waitPolicy: 'await-all',
     systemPreamble: preamble,
   };
@@ -753,7 +757,7 @@ export function formatOrchestrationSchemeRoster(resolved: ResolvedOrchestrationS
   return [
     '[piwin-scheme-roster]',
     ...lines,
-    'When delegating, call piwin_subagent_run with role set to one of the roster roles.',
+    'When delegating, call piwin_subagent_run, piwin_subagent_start, piwin_subagent_wait, or piwin_subagent_cancel with role set to one of the roster roles.',
   ].join('\n');
 }
 
