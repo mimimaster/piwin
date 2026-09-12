@@ -92,10 +92,9 @@ export function createSubagentControlSeam(
     start: async (input) => {
       const prepared = await prepareAndStartSubagent(deps, sessionId, input);
       observeAcceptedBatch(deps, prepared);
-      let accepted = false;
       let abortBeforeAccept = false;
       const cancelBatch = (): void => {
-        if (accepted) return;
+        if (prepared.handle.hasAccepted()) return;
         abortBeforeAccept = true;
         void deps.orchestrator.cancelBatch(prepared.handle.runId).catch(() => {});
       };
@@ -106,7 +105,6 @@ export function createSubagentControlSeam(
       }
       try {
         await prepared.handle.accepted;
-        accepted = true;
       } catch (error) {
         throw new SubagentControlError('subagent-failed', formatError(error));
       } finally {
@@ -114,7 +112,7 @@ export function createSubagentControlSeam(
           input.signal.removeEventListener('abort', cancelBatch);
         }
       }
-      if (abortBeforeAccept) {
+      if (abortBeforeAccept && !prepared.handle.hasAccepted()) {
         throw new SubagentControlError('aborted', 'aborted before subagent acceptance', true);
       }
       return {

@@ -270,7 +270,11 @@ function messageOf(result: ToolResult): string {
   return result.ok ? result.output : result.message;
 }
 
-function createHarness(options?: { store?: ReturnType<typeof createMemoryRunStore>; parentRunId?: string }) {
+function createHarness(options?: {
+  store?: ReturnType<typeof createMemoryRunStore>;
+  parentRunId?: string;
+  onPush?: (message: HostPush) => void;
+}) {
   const runner = createGatedRunner();
   const requestedParentRunId = options?.parentRunId ?? PARENT_RUN_ID;
   let issuedParent = false;
@@ -298,7 +302,10 @@ function createHarness(options?: { store?: ReturnType<typeof createMemoryRunStor
     runRegistry,
     integrationCoordinator: makeFakeIntegrationCoordinator(),
     runStore: store,
-    push: (message) => pushes.push(message),
+    push: (message) => {
+      options?.onPush?.(message);
+      pushes.push(message);
+    },
     getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
   });
   const schemeAdmissionGate = new TurnScopedSchemeAdmissionGate();
@@ -414,6 +421,31 @@ describe('async subagent start/wait/cancel', () => {
     expect(failedInvocation).toMatchObject({ ok: false });
     expect(messageOf(failedInvocation)).toContain('invocation persist failed');
     expect(failedInvocation.ok ? failedInvocation.details?.status : undefined).not.toBe('accepted');
+  });
+
+  it('abort after durable acceptance leaves the batch running and returns the accepted receipt', async () => {
+    const controller = new AbortController();
+    const harness = createHarness({
+      onPush: (message) => {
+        if (message.type === 'subagent/batch-updated') {
+          controller.abort();
+        }
+      },
+    });
+    const startPromise = executeTool(harness.startTool, { task: 'hold after accept' }, controller.signal);
+    const accepted = await startPromise;
+    expect(accepted).toMatchObject({
+      ok: true,
+      details: { status: 'accepted' },
+    });
+    const runId = acceptedRunId(accepted);
+    expect(harness.orchestrator.isRunning(runId)).toBe(true);
+
+    await flushUntil(() => harness.runner.startedTasks.length === 1, 'child start');
+    const taskId = harness.runner.startedTasks[0];
+    if (!taskId) throw new Error('expected started task');
+    harness.runner.hold(taskId).resolve();
+    await harness.orchestrator.joinBatch(runId);
   });
 
   it('admission remains occupied until completion and releases exactly once', async () => {

@@ -33,6 +33,7 @@ export interface BatchState {
   invocations: Map<string, SubagentInvocation>;
   errors: Error[];
   accepted: Promise<void>;
+  hasAccepted: () => boolean;
   resolveAccepted: () => void;
   rejectAccepted: (error: Error) => void;
   completion: Promise<SubagentBatchResult>;
@@ -107,10 +108,12 @@ export function createCompletionLatch(): {
 
 export function createAcceptedLatch(): {
   accepted: Promise<void>;
+  hasAccepted: () => boolean;
   resolveAccepted: () => void;
   rejectAccepted: (error: Error) => void;
 } {
   let settled = false;
+  let acceptedSuccessfully = false;
   let resolveAccepted: (() => void) | undefined;
   let rejectAccepted: ((error: Error) => void) | undefined;
   const accepted = new Promise<void>((resolve, reject) => {
@@ -124,9 +127,11 @@ export function createAcceptedLatch(): {
 
   return {
     accepted,
+    hasAccepted: () => acceptedSuccessfully,
     resolveAccepted: () => {
       if (settled) return;
       settled = true;
+      acceptedSuccessfully = true;
       resolveAccepted?.();
     },
     rejectAccepted: (error: Error) => {

@@ -116,6 +116,8 @@ export type SubagentBatchHandle = {
   runId: string;
   /** Resolves after durable manifest + queued invocation persistence. */
   accepted: Promise<void>;
+  /** Synchronous predicate; true immediately after durable acceptance resolves. */
+  hasAccepted: () => boolean;
   completion: Promise<SubagentBatchResult>;
 };
 
