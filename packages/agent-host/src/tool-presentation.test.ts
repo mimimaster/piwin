@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   boundToolOutput,
   buildToolPresentation,
@@ -7,6 +9,14 @@ import {
   redactToolText,
   resolvePresentedToolInvocation,
 } from './tool-presentation.js';
+
+describe('tool-presentation module size', () => {
+  it('keeps tool-presentation.ts below the 1000-line hard cap', () => {
+    const path = fileURLToPath(new URL('./tool-presentation.ts', import.meta.url));
+    const lineCount = readFileSync(path, 'utf8').split('\n').length;
+    expect(lineCount).toBeLessThan(1000);
+  });
+});
 
 describe('classifyToolKind', () => {
   it('classifies known tools without inventing from substrings', () => {
