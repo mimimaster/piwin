@@ -216,6 +216,10 @@ async function continueOnceFromUncollected(
   try {
     continuation = await liveSession.prompt({ text: promptText });
   } catch (error) {
+    if (ports.getRunSignal(parentRunId)?.aborted) {
+      await drainDescendants(ports, parentRunId);
+      return { status: 'aborted' };
+    }
     return { status: 'failed', failure: createUnknownAgentFailure(formatError(error)) };
   }
 
@@ -227,6 +231,10 @@ async function continueOnceFromUncollected(
     return { status: 'completed', outcome: continuation };
   }
   if (continuation.status === 'aborted') {
+    if (ports.getRunSignal(parentRunId)?.aborted) {
+      await drainDescendants(ports, parentRunId);
+      return { status: 'aborted' };
+    }
     return {
       status: 'failed',
       failure: createUnknownAgentFailure(
