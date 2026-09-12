@@ -8,6 +8,7 @@ import type { TerminateHostRunOptions } from './commands/session-live-context.js
 import { isRunAbortReason } from './run-abort-reason.js';
 import { finalizeRunTranscriptArtifacts } from './transcript-stream-settler.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+import { cancelAndJoinParentDescendants } from './subagent-parent-settlement.js';
 
 export function resolveRunTerminalCode(input: {
   cleanupFailed: boolean;
@@ -64,6 +65,28 @@ export async function terminateHostRun(
       });
     }
   }
+  await cancelAndJoinParentDescendants({
+    parentRunId: runId,
+    hasActiveDescendants: (id) => deps.runRegistry.hasActiveDescendants(id),
+    cancelBatchesForParentRun: (id) => {
+      deps.subagentOrchestrator?.cancelBatchesForParentRun(id);
+    },
+    snapshotBatchRunIds: (id) =>
+      deps.runRegistry
+        .snapshotDirectChildren(id)
+        .filter((child) => child.kind === 'subagent-batch')
+        .map((child) => child.runId),
+    joinBatch: async (id) => {
+      if (deps.subagentOrchestrator) {
+        try {
+          return await deps.subagentOrchestrator.joinBatch(id);
+        } catch {
+          return deps.runRegistry.join(id);
+        }
+      }
+      return deps.runRegistry.join(id);
+    },
+  });
   const effectiveOutcome = cleanupFailed ? 'failed' : outcome;
   const abortReason =
     deps.runRegistry.getAbortReason(runId) ?? deps.runRegistry.getSignal(runId)?.reason;
