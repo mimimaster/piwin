@@ -192,6 +192,8 @@ async function continueOnceFromUncollected(
     formatted.output,
   ].join('\n');
 
+  ports.updatePhase(parentRunId, 'waiting-subagents', 'synthesizing-reports');
+
   const assembly = createModelPromptAssembly();
   assembly.add({
     kind: 'orchestration',

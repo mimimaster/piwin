@@ -251,6 +251,37 @@ describe('RunRegistry semantic AgentEvent publication', () => {
     expect(updates).toHaveLength(4);
   });
 
+  it('holds waiting-subagents through settlement continuation tokens', () => {
+    const reg = makeRegistry();
+    const run = reg.createForegroundRun('sess-1');
+    reg.updatePhase(run.runId, 'waiting-subagents', 'synthesizing-reports');
+
+    const afterDelta = reg.noteAgentEvent(run.runId, {
+      type: 'message/text_delta',
+      messageId: 'message-settlement',
+      delta: 'summary',
+    });
+    expect(afterDelta?.phase).toBe('waiting-subagents');
+    expect(afterDelta?.phaseDetail).toBe('synthesizing-reports');
+    expect(afterDelta?.firstTokenReceived).toBe(true);
+
+    const afterTool = reg.noteAgentEvent(run.runId, {
+      type: 'tool/start',
+      toolCallId: 'tool-settlement',
+      toolName: 'read',
+    });
+    expect(afterTool?.phase).toBe('waiting-subagents');
+
+    const waiting = reg.noteAgentEvent(run.runId, {
+      type: 'permission/request',
+      requestId: 'permission-settlement',
+      action: 'shell',
+      detail: 'run shell',
+      defaultDecision: 'ask',
+    });
+    expect(waiting?.phase).toBe('waiting-permission');
+  });
+
   it('counts a final text snapshot as the first token', () => {
     const updates: ExecutionRunRecord[] = [];
     const reg = new RunRegistry({
