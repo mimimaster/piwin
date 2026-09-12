@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { HostRuntime } from './host-runtime.js';
+import { SUBAGENT_RESULT_APPLY_TOOL_NAME } from './subagent-result-apply-tool.js';
 import { SUBAGENT_RESULT_READ_TOOL_NAME } from './subagent-result-read-tool.js';
 import { SUBAGENT_REVIEW_SUBMIT_TOOL_NAME } from './subagent-review-submit-tool.js';
 
@@ -55,11 +56,12 @@ describe('HostRuntime tool surfaces', () => {
     }
   });
 
-  it('exposes exactly five delegate tools in sdk and rpc modes', async () => {
+  it('exposes exactly six delegate tools in sdk and rpc modes', async () => {
     const expected = [
       'piwin_subagent_run',
       'piwin_subagent_start',
       'piwin_subagent_continue',
+      SUBAGENT_RESULT_APPLY_TOOL_NAME,
       'piwin_subagent_wait',
       'piwin_subagent_cancel',
     ];
@@ -115,7 +117,13 @@ describe('HostRuntime tool surfaces', () => {
       expect(parentTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_READ_TOOL_NAME)).toBe(
         false,
       );
+      expect(parentTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_APPLY_TOOL_NAME)).toBe(
+        true,
+      );
       expect(childTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_READ_TOOL_NAME)).toBe(
+        false,
+      );
+      expect(childTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_APPLY_TOOL_NAME)).toBe(
         false,
       );
     } finally {

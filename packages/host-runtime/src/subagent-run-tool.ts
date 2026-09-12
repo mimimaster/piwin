@@ -143,6 +143,23 @@ export type SubagentRunSeam = {
     runId: string;
     invocationId: string;
   }>;
+  applyReviewed?: (input: {
+    parentSessionId: string;
+    parentRunId: string;
+    result: SubagentResultRef;
+    approvedBy: SubagentReviewRef;
+    toolCallId?: string;
+    signal?: AbortSignal;
+  }) => Promise<
+    | {
+        ok: true;
+        operationId: string;
+        result: SubagentResultRef;
+        appliedChanges: ChangeVersionRef;
+        integrationStatus: SubagentIntegrationStatus;
+      }
+    | Extract<import('@piwin/contracts').ToolResult, { ok: false }>
+  >;
 };
 
 export type SubagentRunToolOptions = {
