@@ -428,7 +428,7 @@ export function createSubagentIntegrationCoordinator(
           allowedOutputPaths,
         );
         if (disallowedOutputPaths.length > 0) {
-          reservedApply.release();
+          reservedApply.complete('needs-repair');
           await retain(
             worktreePath,
             `integration rejected files outside allowedOutputPaths: ${disallowedOutputPaths.join(', ')}`,
@@ -456,7 +456,7 @@ export function createSubagentIntegrationCoordinator(
       }
 
       if (integrationResult.conflict) {
-        reservedApply.release();
+        reservedApply.complete('needs-repair');
         // SC-12 / rule 6: retain conflicted worktrees.
         const conflictDetail = integrationResult.error
           ? `${integrationResult.conflictFiles.join(', ')} (${integrationResult.error})`
@@ -470,7 +470,7 @@ export function createSubagentIntegrationCoordinator(
         };
       }
 
-      reservedApply.release();
+      reservedApply.complete('needs-repair');
       // Non-conflict failure: retain and mark as failed.
       await retain(worktreePath, `integration error: ${integrationResult.error}`);
       return {

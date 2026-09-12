@@ -253,8 +253,11 @@ export async function buildDomainContext(
                     if (!childSessionId) {
                       throw new Error(`subagent result not found: ${input.resultId}`);
                     }
-                    await deps.actOnSubagentWorktree(childSessionId, 'apply');
-                    return { operationId: input.operationId };
+                    const outcome = await deps.actOnSubagentWorktree(childSessionId, 'apply');
+                    return {
+                      operationId: input.operationId,
+                      status: outcome.applyStatus,
+                    };
                   },
                 }
               : {}),

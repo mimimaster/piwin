@@ -605,7 +605,7 @@ export class HostRuntime extends HostRuntimeFields {
   async actOnSubagentWorktree(
     childSessionId: string,
     action: 'apply' | 'retain' | 'discard',
-  ): Promise<{ integrationStatus: import('@piwin/contracts').SubagentIntegrationStatus }> {
+  ): Promise<import('./host-runtime-subagent-tasks.js').SubagentWorktreeActionResult> {
     return actOnSubagentWorktree(this.asKernel(), childSessionId, action);
   }
 

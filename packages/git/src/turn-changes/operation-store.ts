@@ -107,6 +107,8 @@ export type TurnChangeOperationStore = {
     candidateGroupId?: string | null;
   }): SubagentApplyReserveResult;
   releaseSubagentApplyReservation(operationId: string): void;
+  recordSubagentApplyWriteCompleted(operationId: string): void;
+  hasSubagentApplyWriteCompleted(operationId: string): boolean;
   getSubagentApplyReservation(query: {
     resultId?: string;
     candidateGroupId?: string;
@@ -381,6 +383,23 @@ export function bindTurnChangeOperationStore(db: DatabaseSync): TurnChangeOperat
       updateOperationStatus.run('rejected', operationId);
     },
 
+    recordSubagentApplyWriteCompleted(operationId: string): void {
+      upsertIdempotency.run(
+        SUBAGENT_APPLY_RESOURCE_PRINCIPAL,
+        subagentApplyWriteCompletedKey(operationId),
+        'write-completed',
+        operationId,
+      );
+    },
+
+    hasSubagentApplyWriteCompleted(operationId: string): boolean {
+      const row = selectIdempotency.get(
+        SUBAGENT_APPLY_RESOURCE_PRINCIPAL,
+        subagentApplyWriteCompletedKey(operationId),
+      ) as IdempotencyRow | undefined;
+      return row !== undefined;
+    },
+
     getSubagentApplyReservation(query) {
       return listSubagentApplyReservationRecords(
         selectIdempotencyByPrincipal,
@@ -448,6 +467,10 @@ export function subagentApplyResultKey(resultId: string): string {
 
 export function subagentApplyGroupKey(groupId: string): string {
   return `group:${groupId}`;
+}
+
+export function subagentApplyWriteCompletedKey(operationId: string): string {
+  return `write-completed:${operationId}`;
 }
 
 export function occupiesSubagentApplyStatus(status: string): boolean {

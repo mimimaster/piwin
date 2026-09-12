@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { SubagentTaskResult } from '@piwin/contracts';
+import type { SubagentIntegrationStatus, SubagentTaskResult } from '@piwin/contracts';
 import type {
   SubagentApplyReservationRecord,
   SubagentApplyReserveResult,
@@ -20,11 +20,15 @@ export type SubagentApplyReservationPort = {
   releaseSubagentApplyReservation(operationId: string): void;
   updateOperationStatus(operationId: string, status: string): void;
   getOperation(operationId: string): TurnChangeOperationRecord | undefined;
+  recordSubagentApplyWriteCompleted?(operationId: string): void;
+  hasSubagentApplyWriteCompleted?(operationId: string): boolean;
   getSubagentApplyReservation?(query: {
     resultId?: string;
     candidateGroupId?: string;
   }): SubagentApplyReservationRecord | undefined;
 };
+
+export type SubagentApplyWriterStatus = 'succeeded' | 'rejected' | 'needs-repair';
 
 export type IntegrationApplyReservation = {
   blocked: boolean;
@@ -99,6 +103,19 @@ export function reserveIntegrationApply(
     };
   }
   const operationId = reserved.operationId;
+  if (
+    reserved.outcome === 'replay' &&
+    reserved.status === 'applying' &&
+    port.hasSubagentApplyWriteCompleted?.(operationId) === true
+  ) {
+    port.updateOperationStatus(operationId, 'succeeded');
+    return {
+      blocked: true,
+      result: { ...result, integrationStatus: 'applied' },
+      release() {},
+      complete() {},
+    };
+  }
   return {
     blocked: false,
     result,
@@ -106,7 +123,23 @@ export function reserveIntegrationApply(
       port.releaseSubagentApplyReservation(operationId);
     },
     complete(status) {
+      if (status === 'succeeded') {
+        port.recordSubagentApplyWriteCompleted?.(operationId);
+      }
       port.updateOperationStatus(operationId, status);
     },
   };
+}
+
+export function applyStatusFromIntegration(input: {
+  integrationStatus: SubagentIntegrationStatus;
+  reservationStatus?: string;
+}): SubagentApplyWriterStatus {
+  if (input.integrationStatus === 'applied') {
+    return 'succeeded';
+  }
+  if (input.integrationStatus === 'conflict' || input.reservationStatus === 'needs-repair') {
+    return 'needs-repair';
+  }
+  return 'rejected';
 }

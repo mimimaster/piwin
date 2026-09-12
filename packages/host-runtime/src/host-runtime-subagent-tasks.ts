@@ -26,8 +26,13 @@ import {
 import type { SubagentRunSeam } from './subagent-run-tool.js';
 import { createSubagentControlSeam } from './host-runtime-subagent-start.js';
 import { bindSubagentReviewTarget } from './subagent-review-context.js';
+import {
+  applyStatusFromIntegration,
+  type SubagentApplyWriterStatus,
+} from './subagent-apply-reservation.js';
 import type {
   SubagentBatchRequest,
+  SubagentIntegrationStatus,
   SubagentTaskSpec,
   SubagentTaskResult,
   SubagentWorkspaceLease,
@@ -317,11 +322,16 @@ export async function resolveRetainedSubagentWorktreeLease(
   return matchingLease;
 }
 
+export type SubagentWorktreeActionResult = {
+  integrationStatus: SubagentIntegrationStatus;
+  applyStatus: SubagentApplyWriterStatus;
+};
+
 export async function actOnSubagentWorktree(
   deps: HostRuntimeKernel,
   childSessionId: string,
   action: 'apply' | 'retain' | 'discard',
-): Promise<{ integrationStatus: import('@piwin/contracts').SubagentIntegrationStatus }> {
+): Promise<SubagentWorktreeActionResult> {
   const coordinator = deps.subagentIntegrationCoordinator;
   if (!coordinator) {
     throw new Error('subagent worktree integration is not available');
@@ -453,5 +463,16 @@ export async function actOnSubagentWorktree(
       child: indexRecordToSummary(updated),
     });
   }
-  return { integrationStatus: result.integrationStatus };
+  const resultId = result.resultRef?.resultId;
+  const reservationStatus =
+    resultId === undefined
+      ? undefined
+      : deps.turnChangeRuntime?.store.getSubagentApplyReservation({ resultId })?.status;
+  return {
+    integrationStatus: result.integrationStatus,
+    applyStatus: applyStatusFromIntegration({
+      integrationStatus: result.integrationStatus,
+      ...(reservationStatus === undefined ? {} : { reservationStatus }),
+    }),
+  };
 }

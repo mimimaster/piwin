@@ -683,4 +683,56 @@ describe('SubagentIntegrationCoordinator', () => {
     store.close();
     await rm(rootDir, { recursive: true, force: true });
   });
+
+  it('post-write conflict keeps the reservation as needs-repair', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-int-conflict-lock-'));
+    const store = openTurnChangeStore({ rootDir });
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree: async () => ({
+        success: false as const,
+        conflict: true as const,
+        conflictFiles: ['src/a.ts'],
+        allowedOutputPaths: [],
+      }),
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree: vi.fn().mockResolvedValue(undefined),
+      applyReservation: store,
+    });
+
+    const result = await coordinator.integrate(
+      createFrozenTaskResult('task-1'),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/one'),
+    );
+
+    expect(result.integrationStatus).toBe('conflict');
+    expect(store.getSubagentApplyReservation({ resultId: 'res-1' })?.status).toBe('needs-repair');
+    expect(store.listOperationFiles(store.getSubagentApplyReservation({ resultId: 'res-1' })?.operationId ?? '')).toEqual(
+      [],
+    );
+    store.close();
+    await rm(rootDir, { recursive: true, force: true });
+  });
+
+  it('records write-completed on success without operation_file rows', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-int-write-completed-'));
+    const store = openTurnChangeStore({ rootDir });
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree: createSuccessIntegration(['src/a.ts']),
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree: vi.fn().mockResolvedValue(undefined),
+      applyReservation: store,
+    });
+
+    const result = await coordinator.integrate(
+      createFrozenTaskResult('task-1'),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/one'),
+    );
+    const reservation = store.getSubagentApplyReservation({ resultId: 'res-1' });
+    expect(result.integrationStatus).toBe('applied');
+    expect(reservation?.status).toBe('succeeded');
+    expect(reservation && store.hasSubagentApplyWriteCompleted(reservation.operationId)).toBe(true);
+    expect(reservation ? store.listOperationFiles(reservation.operationId) : ['missing']).toEqual([]);
+    store.close();
+    await rm(rootDir, { recursive: true, force: true });
+  });
 });
