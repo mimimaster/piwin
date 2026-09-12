@@ -415,7 +415,13 @@ describe('piwin_subagent_continue', () => {
     const harness = createHarness();
     const { started, result } = await harness.continueAndJoin();
     expect(started.ok).toBe(true);
-    expect(started.ok && started.details?.status).toBe('accepted');
+    expect(started.ok && started.details).toMatchObject({
+      status: 'accepted',
+      childSessionId: CHILD_ID,
+      predecessorResult: { resultId: 'result-v1', revision: 1 },
+      reviewRef: { reviewId: 'review-v1', revision: 1 },
+    });
+    expect(started.ok && started.details?.runId).not.toBe(PARENT_RUN_ID);
     const task = harness.batches[0]?.tasks[0];
     expect(task?.continuationSessionId).toBe(CHILD_ID);
     expect(task?.continuationWorkspaceLease).toEqual(WORKTREE_LEASE);

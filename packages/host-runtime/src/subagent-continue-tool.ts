@@ -73,6 +73,9 @@ export function createSubagentContinueTool(
             runId: started.runId,
             invocationId: started.invocationId,
             status: 'accepted',
+            childSessionId: parsedInput.value.childSessionId,
+            predecessorResult: parsedInput.value.expectedResult,
+            reviewRef: parsedInput.value.review,
           },
         };
       } catch (error) {
