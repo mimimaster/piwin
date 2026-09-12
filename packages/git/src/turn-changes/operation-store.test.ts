@@ -137,4 +137,21 @@ describe('subagent-apply reservation store', () => {
     ).toMatchObject({ outcome: 'conflict', code: 'needs-repair', operationId: 'op-2' });
     store.close();
   });
+
+  it('records a write-completed fact without operation_file rows', async () => {
+    const store = await openStore();
+    expect(store.reserveSubagentApply(reserveInput()).outcome).toBe('created');
+    store.recordSubagentApplyWriteCompleted('op-1');
+
+    expect(store.hasSubagentApplyWriteCompleted('op-1')).toBe(true);
+    expect(store.listOperationFiles('op-1')).toEqual([]);
+    expect(store.listSubagentApplyReservations()).toEqual([
+      expect.objectContaining({
+        operationId: 'op-1',
+        resultId: 'result-1',
+        status: 'applying',
+      }),
+    ]);
+    store.close();
+  });
 });

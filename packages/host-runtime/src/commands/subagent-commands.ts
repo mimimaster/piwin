@@ -21,7 +21,10 @@ export type SubagentCommandContext = {
   actOnWorktree: (
     childSessionId: string,
     action: 'apply' | 'retain' | 'discard',
-  ) => Promise<{ integrationStatus: import('@piwin/contracts').SubagentIntegrationStatus }>;
+  ) => Promise<{
+    integrationStatus: import('@piwin/contracts').SubagentIntegrationStatus;
+    applyStatus?: 'succeeded' | 'rejected' | 'needs-repair';
+  }>;
   resultService?: SubagentResultService;
   startParentPrompt?: (input: {
     parentSessionId: string;
@@ -34,6 +37,7 @@ export type SubagentCommandContext = {
     operationId: string;
   }) => Promise<{
     operationId: string;
+    status?: 'succeeded' | 'rejected' | 'needs-repair';
   }>;
 };
 

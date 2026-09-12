@@ -79,6 +79,7 @@ export type SubagentApplyOperationStore = Pick<
   | 'getSubagentApplyReservation'
   | 'updateOperationStatus'
   | 'listSubagentApplyReservations'
+  | 'hasSubagentApplyWriteCompleted'
 >;
 
 export type SubagentResultResolutionInput = {
@@ -277,6 +278,12 @@ export function createSubagentResultService(
             expectedRevision: input.expectedRevision,
             operationId: `apply-${input.resultId}-${String(input.expectedRevision)}`,
           });
+          if (applied.status === 'rejected') {
+            return { ok: false, code: 'already-applied', alreadyApplied: false };
+          }
+          if (applied.status === 'needs-repair') {
+            return { ok: false, code: 'needs-repair' };
+          }
           occupy(input.resultId, groupId, applied.operationId);
           projectApplied(input.resultId, applied.operationId);
           return { ok: true, operationId: applied.operationId };
@@ -302,6 +309,21 @@ export function createSubagentResultService(
           if (reserved.status === 'needs-repair') {
             return { ok: false, code: 'needs-repair' };
           }
+          if (reserved.status === 'applying') {
+            if (operationStore.hasSubagentApplyWriteCompleted(reserved.operationId)) {
+              operationStore.updateOperationStatus(reserved.operationId, 'succeeded');
+              projectApplied(input.resultId, reserved.operationId);
+              return { ok: true, operationId: reserved.operationId };
+            }
+            return runReservedWriter(
+              operationStore,
+              input,
+              groupId,
+              reserved.operationId,
+              occupy,
+              projectApplied,
+            );
+          }
           return { ok: false, code: 'already-applied', alreadyApplied: reserved.status === 'succeeded' };
         }
         if (reserved.outcome === 'conflict') {
@@ -320,29 +342,14 @@ export function createSubagentResultService(
           };
         }
 
-        try {
-          const applied = await input.applyResult({
-            resultId: input.resultId,
-            expectedRevision: input.expectedRevision,
-            operationId: reserved.operationId,
-          });
-          if (applied.status === 'rejected') {
-            operationStore.releaseSubagentApplyReservation(reserved.operationId);
-            return { ok: false, code: 'already-applied', alreadyApplied: false };
-          }
-          if (applied.status === 'needs-repair') {
-            operationStore.updateOperationStatus(reserved.operationId, 'needs-repair');
-            occupy(input.resultId, groupId, reserved.operationId);
-            return { ok: false, code: 'needs-repair' };
-          }
-          operationStore.updateOperationStatus(reserved.operationId, 'succeeded');
-          occupy(input.resultId, groupId, reserved.operationId);
-          projectApplied(input.resultId, reserved.operationId);
-          return { ok: true, operationId: reserved.operationId };
-        } catch {
-          operationStore.releaseSubagentApplyReservation(reserved.operationId);
-          throw new Error('subagent apply failed before write');
-        }
+        return runReservedWriter(
+          operationStore,
+          input,
+          groupId,
+          reserved.operationId,
+          occupy,
+          projectApplied,
+        );
       });
     },
 
@@ -427,6 +434,52 @@ function pageById<T>(
     last !== undefined && start + page.length < items.length ? idOf(last) : undefined;
   const body = key === 'files' ? { files: page } : { items: page };
   return nextCursor === undefined ? body : { ...body, nextCursor };
+}
+
+async function runReservedWriter(
+  operationStore: SubagentApplyOperationStore,
+  input: SubagentResultApplyInput,
+  groupId: string | null,
+  operationId: string,
+  occupy: (resultId: string, groupId: string | null, operationId: string) => void,
+  projectApplied: (resultId: string, operationId: string) => void,
+): Promise<SubagentResultApplyOutcome> {
+  try {
+    const applied = await input.applyResult({
+      resultId: input.resultId,
+      expectedRevision: input.expectedRevision,
+      operationId,
+    });
+    if (applied.status === 'rejected') {
+      operationStore.releaseSubagentApplyReservation(operationId);
+      return { ok: false, code: 'already-applied', alreadyApplied: false };
+    }
+    if (applied.status === 'needs-repair') {
+      operationStore.updateOperationStatus(operationId, 'needs-repair');
+      occupy(input.resultId, groupId, operationId);
+      return { ok: false, code: 'needs-repair' };
+    }
+    operationStore.updateOperationStatus(operationId, 'succeeded');
+    occupy(input.resultId, groupId, operationId);
+    projectApplied(input.resultId, operationId);
+    return { ok: true, operationId };
+  } catch {
+    const current = operationStore.getOperation(operationId);
+    if (current?.status === 'succeeded' || operationStore.hasSubagentApplyWriteCompleted(operationId)) {
+      if (current?.status !== 'succeeded') {
+        operationStore.updateOperationStatus(operationId, 'succeeded');
+      }
+      occupy(input.resultId, groupId, operationId);
+      projectApplied(input.resultId, operationId);
+      return { ok: true, operationId };
+    }
+    if (current?.status === 'needs-repair') {
+      occupy(input.resultId, groupId, operationId);
+      return { ok: false, code: 'needs-repair' };
+    }
+    operationStore.releaseSubagentApplyReservation(operationId);
+    throw new Error('subagent apply failed before write');
+  }
 }
 
 function createSerializer(): <T>(fn: () => Promise<T>) => Promise<T> {

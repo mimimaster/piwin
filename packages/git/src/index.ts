@@ -73,6 +73,7 @@ export {
   SUBAGENT_APPLY_RESOURCE_PRINCIPAL,
   subagentApplyGroupKey,
   subagentApplyResultKey,
+  subagentApplyWriteCompletedKey,
 } from './turn-changes/operation-store.js';
 
 export { probeGitRepository } from './repository-probe.js';

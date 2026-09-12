@@ -6,7 +6,9 @@ import { emptySubagentResultReviewFields, type SubagentResultSummary } from '@pi
 import { createTurnChangeObjectStore, openTurnChangeStore } from '@piwin/git';
 import { createSubagentRunStore } from '@piwin/session';
 import { handleSubagentCommand, type SubagentCommandContext } from './commands/subagent-commands.js';
+import { applyStatusFromIntegration } from './subagent-apply-reservation.js';
 import { reconcileSubagentApplyOperations } from './subagent-apply-reconcile.js';
+import { createSubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
 import {
   SUBAGENT_RESOLUTION_INSTRUCTION,
   createSubagentResultService,
@@ -842,6 +844,178 @@ describe('SubagentResultService', () => {
     expect(writes).toEqual(['result-1']);
     isolated.close();
     store.close();
+  });
+
+  it('same-fingerprint applying replay continues the original writer', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-result-apply-resume-'));
+    dirs.push(dir);
+    const store = openTurnChangeStore({ rootDir: dir });
+    const service = createSubagentResultService({ operationStore: store });
+    service.register(makeSummary({ resultId: 'result-1' }));
+    expect(
+      store.reserveSubagentApply({
+        operationId: 'op-resume',
+        changeSetId: 'cs-child',
+        expectedRevision: 1,
+        principal: 'host',
+        idempotencyKey: 'subagent-apply:result-1',
+        requestHash: 'subagent-apply:result-1:1',
+        resultId: 'result-1',
+      }).outcome,
+    ).toBe('created');
+
+    const writes: string[] = [];
+    const resumed = await service.apply({
+      resultId: 'result-1',
+      expectedRevision: 1,
+      applyResult: async (input) => {
+        writes.push(input.operationId);
+        return { operationId: input.operationId };
+      },
+    });
+
+    expect(resumed).toEqual({ ok: true, operationId: 'op-resume' });
+    expect(writes).toEqual(['op-resume']);
+    expect(service.get('result-1')?.integrationStatus).toBe('applied');
+    store.close();
+  });
+
+  it('wired applyResult conflict keeps the lock and is not ok', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-result-apply-wired-conflict-'));
+    dirs.push(dir);
+    const store = openTurnChangeStore({ rootDir: dir });
+    const service = createSubagentResultService({ operationStore: store });
+    service.register(makeSummary({ resultId: 'res-1' }));
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree: async () => ({
+        success: false,
+        conflict: true,
+        conflictFiles: ['src/a.ts'],
+        allowedOutputPaths: [],
+      }),
+      isBaseClean: async () => true,
+      removeWorktree: async () => {},
+      applyReservation: store,
+    });
+
+    const outcome = await service.apply({
+      resultId: 'res-1',
+      expectedRevision: 1,
+      applyResult: async (input) => {
+        const integrated = await coordinator.integrate(
+          {
+            runId: 'run-1',
+            taskId: 'task-1',
+            executionStatus: 'completed',
+            summaryStatus: 'not-requested',
+            integrationStatus: 'pending',
+            resultRef: { resultId: input.resultId, revision: input.expectedRevision },
+          },
+          {
+            mode: 'worktree',
+            cwd: '/tmp/project/.piwin-worktrees/one',
+            parentRepoPath: '/tmp/project',
+            worktreePath: '/tmp/project/.piwin-worktrees/one',
+            worktreeBranch: 'piwin/subagent/one',
+            baseCommit: '0123456789abcdef',
+          },
+        );
+        const reservationStatus = store.getSubagentApplyReservation({
+          resultId: input.resultId,
+        })?.status;
+        return {
+          operationId: input.operationId,
+          status: applyStatusFromIntegration({
+            integrationStatus: integrated.integrationStatus,
+            ...(reservationStatus === undefined ? {} : { reservationStatus }),
+          }),
+        };
+      },
+    });
+
+    expect(outcome).toMatchObject({ ok: false, code: 'needs-repair' });
+    expect(store.getSubagentApplyReservation({ resultId: 'res-1' })?.status).toBe('needs-repair');
+    expect(service.get('res-1')?.integrationStatus).not.toBe('applied');
+    store.close();
+  });
+
+  it('restart after coordinator success without operation_file rows reconciles without a second write', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-result-apply-wired-restart-'));
+    dirs.push(dir);
+    const firstStore = openTurnChangeStore({ rootDir: dir });
+    const crashedStore = {
+      reserveSubagentApply: firstStore.reserveSubagentApply.bind(firstStore),
+      releaseSubagentApplyReservation: firstStore.releaseSubagentApplyReservation.bind(firstStore),
+      getOperation: firstStore.getOperation.bind(firstStore),
+      getSubagentApplyReservation: firstStore.getSubagentApplyReservation.bind(firstStore),
+      recordSubagentApplyWriteCompleted: firstStore.recordSubagentApplyWriteCompleted.bind(firstStore),
+      hasSubagentApplyWriteCompleted: firstStore.hasSubagentApplyWriteCompleted.bind(firstStore),
+      updateOperationStatus: (operationId: string, status: string) => {
+        if (status === 'succeeded') {
+          firstStore.recordSubagentApplyWriteCompleted(operationId);
+          return;
+        }
+        firstStore.updateOperationStatus(operationId, status);
+      },
+    };
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree: async () => ({
+        success: true,
+        changedFiles: ['src/a.ts'],
+        allowedOutputPaths: [],
+      }),
+      isBaseClean: async () => true,
+      removeWorktree: async () => {},
+      applyReservation: crashedStore,
+    });
+    await coordinator.integrate(
+      {
+        runId: 'run-1',
+        taskId: 'task-1',
+        executionStatus: 'completed',
+        summaryStatus: 'not-requested',
+        integrationStatus: 'pending',
+        resultRef: { resultId: 'result-1', revision: 1 },
+      },
+      {
+        mode: 'worktree',
+        cwd: '/tmp/project/.piwin-worktrees/one',
+        parentRepoPath: '/tmp/project',
+        worktreePath: '/tmp/project/.piwin-worktrees/one',
+        worktreeBranch: 'piwin/subagent/one',
+        baseCommit: '0123456789abcdef',
+      },
+    );
+    const reserved = firstStore.getSubagentApplyReservation({ resultId: 'result-1' });
+    expect(reserved?.status).toBe('applying');
+    expect(reserved && firstStore.hasSubagentApplyWriteCompleted(reserved.operationId)).toBe(true);
+    expect(reserved ? firstStore.listOperationFiles(reserved.operationId) : ['missing']).toEqual([]);
+    firstStore.close();
+
+    const restartedStore = openTurnChangeStore({ rootDir: dir });
+    const objectStore = createTurnChangeObjectStore({ rootDir: dir });
+    const restarted = createSubagentResultService({ operationStore: restartedStore });
+    restarted.register(makeSummary({ resultId: 'result-1', integrationStatus: 'retained' }));
+    await reconcileSubagentApplyOperations({
+      store: restartedStore,
+      objectStore,
+      resultService: restarted,
+    });
+
+    expect(restarted.get('result-1')?.integrationStatus).toBe('applied');
+    const writes: string[] = [];
+    const replay = await restarted.apply({
+      resultId: 'result-1',
+      expectedRevision: 1,
+      applyResult: async (input) => {
+        writes.push(input.resultId);
+        return { operationId: input.operationId };
+      },
+    });
+    expect(replay.ok).toBe(true);
+    expect(writes).toEqual([]);
+    expect(restartedStore.listOperationFiles(reserved?.operationId ?? '')).toEqual([]);
+    restartedStore.close();
   });
 });
 

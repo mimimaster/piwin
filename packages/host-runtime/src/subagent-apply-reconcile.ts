@@ -16,8 +16,9 @@ export async function recoverSubagentApplyOperations(input: {
   for (const operation of input.store.listOperationsByKind('subagent-apply')) {
     if (operation.status !== 'applying') continue;
     const files = input.store.listOperationFiles(operation.operationId);
-    if (files.length === 0) continue;
-    if (files.every((file) => file.status === 'verified')) {
+    const writeCompleted = input.store.hasSubagentApplyWriteCompleted(operation.operationId);
+    if (files.length === 0 && !writeCompleted) continue;
+    if (writeCompleted || files.every((file) => file.status === 'verified')) {
       input.store.updateOperationStatus(operation.operationId, 'succeeded');
       continue;
     }
