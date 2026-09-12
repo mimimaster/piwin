@@ -12,14 +12,52 @@ import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/pro
 import { watch } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type {
-  SubagentBatchRequest,
-  SubagentFailurePolicy,
-  SubagentInvocation,
-  SubagentRuntimeSnapshot,
-  SubagentTaskResult,
-  SubagentWorkspaceLease,
+import {
+  pickSubagentLineageRefs,
+  type ModelRef,
+  type SubagentApplyPolicy,
+  type SubagentBatchRequest,
+  type SubagentDeliveryIntent,
+  type SubagentFailurePolicy,
+  type SubagentInvocation,
+  type SubagentIsolationMode,
+  type SubagentResultRef,
+  type SubagentReviewRef,
+  type SubagentReviewTarget,
+  type SubagentRuntimeSnapshot,
+  type SubagentTaskResult,
+  type SubagentTaskSpec,
+  type SubagentWorkspaceLease,
 } from '@piwin/contracts';
+
+export type SubagentPersistedTask = {
+  id: string;
+  task: string;
+  invocationId?: string;
+  parentRunId?: string;
+  parentToolCallId?: string;
+  sessionName?: string;
+  role?: string;
+  profileId?: string;
+  model?: ModelRef;
+  isolationOverride?: SubagentIsolationMode;
+  continuationSessionId?: string;
+  dependsOn?: string[];
+  parallelGroup?: string;
+  applyPolicy?: SubagentApplyPolicy;
+  deliveryIntent?: SubagentDeliveryIntent;
+  legacyManual?: boolean;
+  retainWorktree?: boolean;
+  resultRef?: SubagentResultRef;
+  allowedOutputPaths?: string[];
+  candidateGroupId?: string;
+  targetWorkspaceId?: string;
+  reviewTarget?: SubagentReviewTarget;
+  reviewRef?: SubagentReviewRef;
+  candidateLineageId?: string;
+  candidateGeneration?: number;
+  predecessorResult?: SubagentResultRef;
+};
 
 export type SubagentRunManifest = {
   runId: string;
@@ -27,20 +65,7 @@ export type SubagentRunManifest = {
   createdAt: string;
   updatedAt: string;
   /** Snapshot of the batch request (task specs without transient fields). */
-  tasks: Array<{
-    id: string;
-    task: string;
-    invocationId?: string;
-    parentRunId?: string;
-    parentToolCallId?: string;
-    sessionName?: string;
-    profileId?: string;
-    model?: import('@piwin/contracts').ModelRef;
-    isolationOverride?: import('@piwin/contracts').SubagentIsolationMode;
-    continuationSessionId?: string;
-    dependsOn?: string[];
-    parallelGroup?: string;
-  }>;
+  tasks: SubagentPersistedTask[];
   maxConcurrency: number;
   failurePolicy: SubagentFailurePolicy;
   /** Per-task runtime snapshot captured at dispatch time. */
@@ -90,6 +115,60 @@ function isNodeError(error: unknown, code: string): boolean {
  * Rejects run ids that could escape the runs directory or collide with
  * sibling files (for example `../x`, `a/b`, or a cancel marker suffix).
  */
+export function snapshotSubagentPersistedTask(task: SubagentTaskSpec): SubagentPersistedTask {
+  return {
+    id: task.id,
+    task: task.task,
+    ...(task.invocationId ? { invocationId: task.invocationId } : {}),
+    ...(task.parentRunId ? { parentRunId: task.parentRunId } : {}),
+    ...(task.parentToolCallId ? { parentToolCallId: task.parentToolCallId } : {}),
+    ...(task.sessionName ? { sessionName: task.sessionName } : {}),
+    ...(task.role ? { role: task.role } : {}),
+    ...(task.profileId ? { profileId: task.profileId } : {}),
+    ...(task.model ? { model: { ...task.model } } : {}),
+    ...(task.isolationOverride ? { isolationOverride: task.isolationOverride } : {}),
+    ...(task.continuationSessionId ? { continuationSessionId: task.continuationSessionId } : {}),
+    ...(task.dependsOn ? { dependsOn: [...task.dependsOn] } : {}),
+    ...(task.parallelGroup ? { parallelGroup: task.parallelGroup } : {}),
+    ...(task.applyPolicy ? { applyPolicy: task.applyPolicy } : {}),
+    ...(task.deliveryIntent ? { deliveryIntent: task.deliveryIntent } : {}),
+    ...(task.legacyManual !== undefined ? { legacyManual: task.legacyManual } : {}),
+    ...(task.retainWorktree !== undefined ? { retainWorktree: task.retainWorktree } : {}),
+    ...(task.resultRef ? { resultRef: { ...task.resultRef } } : {}),
+    ...(task.allowedOutputPaths ? { allowedOutputPaths: [...task.allowedOutputPaths] } : {}),
+    ...(task.candidateGroupId ? { candidateGroupId: task.candidateGroupId } : {}),
+    ...pickSubagentLineageRefs(task),
+  };
+}
+
+function snapshotSubagentInvocation(
+  task: SubagentTaskSpec,
+  parentSessionId: string,
+  runId: string,
+  now: string,
+): SubagentInvocation {
+  return {
+    id: task.invocationId ?? task.id,
+    parentSessionId,
+    runId,
+    ...(task.parentRunId ? { parentRunId: task.parentRunId } : {}),
+    ...(task.parentToolCallId ? { parentToolCallId: task.parentToolCallId } : {}),
+    taskId: task.id,
+    task: task.task,
+    ...(task.sessionName ? { title: task.sessionName } : {}),
+    ...(task.role ? { role: task.role } : {}),
+    ...(task.profileId ? { profileId: task.profileId } : {}),
+    ...(task.model ? { model: { ...task.model } } : {}),
+    ...(task.isolationOverride ? { isolation: task.isolationOverride } : {}),
+    ...pickSubagentLineageRefs(task),
+    status: 'queued',
+    activity: { kind: 'queued' },
+    revision: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 function assertSafeRunId(runId: string): void {
   if (typeof runId !== 'string' || runId.length === 0) {
     throw new Error('Invalid run id: must be a non-empty string');
@@ -161,21 +240,7 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
       parentSessionId: request.parentSessionId,
       createdAt: now,
       updatedAt: now,
-      tasks: request.tasks.map((t) => ({
-        id: t.id,
-        task: t.task,
-        ...(t.invocationId ? { invocationId: t.invocationId } : {}),
-        ...(t.parentRunId ? { parentRunId: t.parentRunId } : {}),
-        ...(t.parentToolCallId ? { parentToolCallId: t.parentToolCallId } : {}),
-        ...(t.sessionName ? { sessionName: t.sessionName } : {}),
-        ...(t.role ? { role: t.role } : {}),
-        ...(t.profileId ? { profileId: t.profileId } : {}),
-        ...(t.model ? { model: { ...t.model } } : {}),
-        ...(t.isolationOverride ? { isolationOverride: t.isolationOverride } : {}),
-        ...(t.continuationSessionId ? { continuationSessionId: t.continuationSessionId } : {}),
-        ...(t.dependsOn ? { dependsOn: [...t.dependsOn] } : {}),
-        ...(t.parallelGroup ? { parallelGroup: t.parallelGroup } : {}),
-      })),
+      tasks: request.tasks.map((task) => snapshotSubagentPersistedTask(task)),
       maxConcurrency: request.maxConcurrency ?? 4,
       failurePolicy: request.failurePolicy ?? 'continue',
       snapshots: {},
@@ -185,30 +250,7 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
         request.tasks.flatMap((task) => {
           const invocationId = task.invocationId;
           if (!invocationId) return [];
-          return [
-            [
-              invocationId,
-              {
-                id: invocationId,
-                parentSessionId: request.parentSessionId,
-                runId,
-                ...(task.parentRunId ? { parentRunId: task.parentRunId } : {}),
-                ...(task.parentToolCallId ? { parentToolCallId: task.parentToolCallId } : {}),
-                taskId: task.id,
-                task: task.task,
-                ...(task.sessionName ? { title: task.sessionName } : {}),
-                ...(task.role ? { role: task.role } : {}),
-                ...(task.profileId ? { profileId: task.profileId } : {}),
-                ...(task.model ? { model: { ...task.model } } : {}),
-                ...(task.isolationOverride ? { isolation: task.isolationOverride } : {}),
-                status: 'queued',
-                activity: { kind: 'queued' },
-                revision: 1,
-                createdAt: now,
-                updatedAt: now,
-              } satisfies SubagentInvocation,
-            ] as const,
-          ];
+          return [[invocationId, snapshotSubagentInvocation(task, request.parentSessionId, runId, now)] as const];
         }),
       ),
       status: 'running',

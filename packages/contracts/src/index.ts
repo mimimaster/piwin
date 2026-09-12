@@ -93,6 +93,7 @@ export * from './subagent-lifecycle.js';
 export * from './subagent-tool-presentation.js';
 export * from './subagent-orchestration.js';
 export * from './subagent-delivery.js';
+export * from './subagent-review.js';
 export * from './subagent-result.js';
 export * from './turn-change.js';
 export * from './compaction-fileops.js';

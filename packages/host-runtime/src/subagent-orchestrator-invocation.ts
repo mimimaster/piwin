@@ -1,9 +1,10 @@
-import type {
-  SubagentInvocation,
-  SubagentInvocationActivity,
-  SubagentInvocationStatus,
-  SubagentTaskResult,
-  SubagentTaskSpec,
+import {
+  pickSubagentLineageRefs,
+  type SubagentInvocation,
+  type SubagentInvocationActivity,
+  type SubagentInvocationStatus,
+  type SubagentTaskResult,
+  type SubagentTaskSpec,
 } from '@piwin/contracts';
 import {
   invocationActivityForResult,
@@ -79,6 +80,7 @@ export async function updateInvocation(
     ...(task.profileId ? { profileId: task.profileId } : {}),
     ...(task.model ? { model: task.model } : {}),
     ...(task.isolationOverride ? { isolation: task.isolationOverride } : {}),
+    ...pickSubagentLineageRefs(task),
     ...(update.childSessionId
       ? { childSessionId: update.childSessionId }
       : current?.childSessionId

@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  SubagentTaskResult,
-  SubagentTaskRunInput,
-  SubagentTaskSpec,
-  SubagentWorkspaceLease,
+import {
+  pickSubagentLineageRefs,
+  type SubagentTaskResult,
+  type SubagentTaskRunInput,
+  type SubagentTaskSpec,
+  type SubagentWorkspaceLease,
 } from '@piwin/contracts';
 import type { SubagentIntegrationControl } from './subagent-integration-coordinator.js';
 import { createPersistedFailure, redactPersistedMessage } from './persisted-error-redaction.js';
@@ -14,6 +15,20 @@ import {
   type SubagentOrchestratorContext,
 } from './subagent-orchestrator-batch.js';
 import { recordTaskResult, updateInvocation } from './subagent-orchestrator-invocation.js';
+
+function admittedResultFacts(task: SubagentTaskSpec): Partial<SubagentTaskResult> {
+  return {
+    ...(task.allowedOutputPaths !== undefined
+      ? { allowedOutputPaths: [...task.allowedOutputPaths] }
+      : {}),
+    ...(task.deliveryIntent ? { deliveryIntent: task.deliveryIntent } : {}),
+    ...(task.applyPolicy ? { applyPolicy: task.applyPolicy } : {}),
+    ...(task.legacyManual !== undefined ? { legacyManual: task.legacyManual } : {}),
+    ...(task.candidateGroupId ? { candidateGroupId: task.candidateGroupId } : {}),
+    ...(task.resultRef ? { resultRef: task.resultRef } : {}),
+    ...pickSubagentLineageRefs(task),
+  };
+}
 
 /** Dispatch a single task: acquire resource, workspace, run, settle, integrate. */
 export async function dispatchTask(
@@ -157,9 +172,7 @@ export async function dispatchTask(
       ...(output.verification ? { verification: output.verification } : {}),
       ...(output.error ? { error: output.error } : {}),
       ...(lease?.worktreePath ? { worktreePath: lease.worktreePath } : {}),
-      ...(task.allowedOutputPaths !== undefined
-        ? { allowedOutputPaths: [...task.allowedOutputPaths] }
-        : {}),
+      ...admittedResultFacts(task),
     };
 
     if (
@@ -268,9 +281,7 @@ export async function dispatchTask(
         retryable: false,
       }),
       ...(lease?.worktreePath ? { worktreePath: lease.worktreePath } : {}),
-      ...(task.allowedOutputPaths !== undefined
-        ? { allowedOutputPaths: [...task.allowedOutputPaths] }
-        : {}),
+      ...admittedResultFacts(task),
     };
     if (lease?.mode === 'worktree') {
       await deps.integrationCoordinator.retain(
@@ -324,9 +335,7 @@ export async function dispatchTask(
         summaryStatus: 'not-requested',
         integrationStatus: lease?.mode === 'worktree' ? 'retained' : 'not-requested',
         ...(lease?.worktreePath ? { worktreePath: lease.worktreePath } : {}),
-        ...(task.allowedOutputPaths !== undefined
-          ? { allowedOutputPaths: [...task.allowedOutputPaths] }
-          : {}),
+        ...admittedResultFacts(task),
       };
       batchState.results.set(task.id, cancelled);
       await recordTaskResult(deps, batchState, cancelled);

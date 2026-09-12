@@ -1,14 +1,17 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { SubagentResultSummary } from '@piwin/contracts';
+import { emptySubagentResultReviewFields, type SubagentResultSummary } from '@piwin/contracts';
 import { createTurnChangeObjectStore, openTurnChangeStore } from '@piwin/git';
+import { createSubagentRunStore } from '@piwin/session';
 import { handleSubagentCommand, type SubagentCommandContext } from './commands/subagent-commands.js';
 import {
   SUBAGENT_RESOLUTION_INSTRUCTION,
   createSubagentResultService,
 } from './subagent-result-service.js';
+import { hydrateSubagentResultService } from './subagent-result-projection.js';
+import { workspaceIdForRoot } from './turn-changes/coordinator.js';
 
 const dirs: string[] = [];
 
@@ -25,6 +28,7 @@ function makeSummary(overrides: Partial<SubagentResultSummary> = {}): SubagentRe
     deliveryIntent: 'candidate',
     legacyManual: false,
     candidateGroupId: null,
+    ...emptySubagentResultReviewFields(),
     executionStatus: 'completed',
     summaryStatus: 'merged',
     integrationStatus: 'retained',
@@ -323,5 +327,266 @@ describe('SubagentResultService', () => {
     const service = createSubagentResultService();
     service.register(makeSummary());
     expect(service.listFiles({ resultId: 'result-1', revision: 1 })).toEqual({ files: [] });
+  });
+
+  it('candidate metadata survives store round-trip and Host restart', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-result-restart-'));
+    dirs.push(dir);
+    const parentRepo = '/tmp/piwin-parent-ws';
+    const store = createSubagentRunStore({ runsDir: dir });
+    const predecessor = { resultId: 'result-v1', revision: 1 };
+    await store.createManifest('run-1', {
+      parentSessionId: 'parent-1',
+      tasks: [
+        {
+          id: 'task-1',
+          parentSessionId: 'parent-1',
+          task: 'implement login',
+          deliveryIntent: 'candidate',
+          applyPolicy: 'explicit',
+          legacyManual: false,
+          candidateGroupId: 'group-login',
+          candidateLineageId: 'lineage-login',
+          candidateGeneration: 2,
+          predecessorResult: predecessor,
+        },
+      ],
+    });
+    await store.recordLease('run-1', 'task-1', {
+      mode: 'worktree',
+      cwd: parentRepo,
+      parentRepoPath: parentRepo,
+      worktreePath: '/tmp/child-wt',
+      worktreeBranch: 'child',
+      baseCommit: 'abc',
+    });
+    await store.recordResult('run-1', 'task-1', {
+      runId: 'run-1',
+      taskId: 'task-1',
+      childSessionId: 'child-1',
+      executionStatus: 'completed',
+      summaryStatus: 'merged',
+      integrationStatus: 'retained',
+      resultRef: { resultId: 'result-v2', revision: 1 },
+      childChanges: { changeSetId: 'cs-v2', revision: 1 },
+      worktreePath: '/tmp/child-wt',
+    });
+
+    const loaded = await store.loadManifest('run-1');
+    expect(loaded?.tasks[0]).toMatchObject({
+      deliveryIntent: 'candidate',
+      applyPolicy: 'explicit',
+      candidateGroupId: 'group-login',
+      candidateLineageId: 'lineage-login',
+      candidateGeneration: 2,
+      predecessorResult: predecessor,
+    });
+
+    if (!loaded) throw new Error('expected persisted manifest');
+    const first = createSubagentResultService();
+    hydrateSubagentResultService(first, [loaded]);
+    const beforeRestart = first.get('result-v2');
+    expect(beforeRestart).toMatchObject({
+      resultId: 'result-v2',
+      deliveryIntent: 'candidate',
+      legacyManual: false,
+      candidateGroupId: 'group-login',
+      candidateLineageId: 'lineage-login',
+      candidateGeneration: 2,
+      predecessorResult: predecessor,
+      targetWorkspaceId: workspaceIdForRoot(parentRepo),
+      childChanges: { changeSetId: 'cs-v2', revision: 1 },
+      reviewStatus: 'not-requested',
+    });
+    expect(beforeRestart?.availability.apply.allowed).toBe(true);
+
+    const restarted = createSubagentRunStore({ runsDir: dir });
+    const after = createSubagentResultService();
+    hydrateSubagentResultService(after, await restarted.listManifests());
+    expect(after.get('result-v2')).toEqual(beforeRestart);
+  });
+
+  it('continuation v2 links to v1 with a distinct result id', () => {
+    const service = createSubagentResultService();
+    const v1 = makeSummary({
+      resultId: 'result-v1',
+      taskId: 'task-v1',
+      candidateGroupId: 'group-login',
+      candidateLineageId: 'lineage-login',
+      candidateGeneration: 1,
+      childChanges: { changeSetId: 'cs-v1', revision: 1 },
+    });
+    const v2 = makeSummary({
+      resultId: 'result-v2',
+      taskId: 'task-v2',
+      candidateGroupId: 'group-login',
+      candidateLineageId: 'lineage-login',
+      candidateGeneration: 2,
+      predecessorResult: { resultId: 'result-v1', revision: 1 },
+      childChanges: { changeSetId: 'cs-v2', revision: 1 },
+    });
+    service.register(v1);
+    service.register(v2);
+    expect(service.get('result-v2')?.resultId).not.toBe(service.get('result-v1')?.resultId);
+    expect(service.get('result-v2')?.predecessorResult).toEqual({
+      resultId: 'result-v1',
+      revision: 1,
+    });
+    expect(service.get('result-v2')?.candidateLineageId).toBe('lineage-login');
+  });
+
+  it('v2 makes v1 non-head without mutating v1 frozen content', () => {
+    const service = createSubagentResultService();
+    const frozenV1 = { changeSetId: 'cs-v1', revision: 1 };
+    service.register(
+      makeSummary({
+        resultId: 'result-v1',
+        reviewStatus: 'approved',
+        latestReview: { reviewId: 'rev-1', revision: 1 },
+        candidateLineageId: 'lineage-login',
+        candidateGeneration: 1,
+        childChanges: frozenV1,
+      }),
+    );
+    const v1Before = service.get('result-v1');
+    if (!v1Before) throw new Error('expected v1');
+    const frozenSnapshot = structuredClone(v1Before.childChanges);
+
+    service.register(
+      makeSummary({
+        resultId: 'result-v2',
+        candidateLineageId: 'lineage-login',
+        candidateGeneration: 2,
+        predecessorResult: { resultId: 'result-v1', revision: 1 },
+        childChanges: { changeSetId: 'cs-v2', revision: 1 },
+      }),
+    );
+
+    const v1After = service.get('result-v1');
+    expect(v1After?.reviewStatus).toBe('stale');
+    expect(v1After?.availability.apply).toEqual({
+      allowed: false,
+      reason: 'candidate-superseded',
+    });
+    expect(v1After?.resultId).toBe('result-v1');
+    expect(v1After?.revision).toBe(1);
+    expect(v1After?.childChanges).toEqual(frozenSnapshot);
+    expect(v1After?.latestReview).toEqual({ reviewId: 'rev-1', revision: 1 });
+    expect(service.get('result-v2')?.reviewStatus).toBe('not-requested');
+    expect(service.get('result-v2')?.availability.apply.allowed).toBe(true);
+  });
+
+  it('legacy manifest migration cannot make a result more writable', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-result-legacy-'));
+    dirs.push(dir);
+    await writeFile(
+      join(dir, 'run-legacy.json'),
+      `${JSON.stringify({
+        runId: 'run-legacy',
+        parentSessionId: 'parent-1',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+        tasks: [{ id: 'task-1', task: 'old worktree task' }],
+        maxConcurrency: 4,
+        failurePolicy: 'continue',
+        snapshots: {},
+        leases: {
+          'task-1': {
+            mode: 'worktree',
+            cwd: '/tmp/parent',
+            parentRepoPath: '/tmp/parent',
+            worktreePath: '/tmp/legacy-wt',
+            worktreeBranch: 'child',
+            baseCommit: 'abc',
+          },
+        },
+        results: {
+          'task-1': {
+            runId: 'run-legacy',
+            taskId: 'task-1',
+            childSessionId: 'child-legacy',
+            executionStatus: 'completed',
+            summaryStatus: 'merged',
+            integrationStatus: 'retained',
+            resultRef: { resultId: 'legacy-result', revision: 1 },
+            childChanges: { changeSetId: 'cs-legacy', revision: 1 },
+            worktreePath: '/tmp/legacy-wt',
+          },
+        },
+        invocations: {},
+        status: 'completed',
+      })}\n`,
+      'utf8',
+    );
+    const store = createSubagentRunStore({ runsDir: dir });
+    const service = createSubagentResultService();
+    hydrateSubagentResultService(service, await store.listManifests());
+    const summary = service.get('legacy-result');
+    expect(summary).toMatchObject({
+      legacyManual: true,
+      candidateLineageId: null,
+      candidateGeneration: null,
+      predecessorResult: null,
+      latestReview: null,
+      reviewStatus: 'not-requested',
+    });
+    expect(summary?.availability.view.allowed).toBe(true);
+    expect(summary?.availability.apply).toEqual({ allowed: false, reason: 'legacy-manual' });
+    expect(summary?.availability.resolve).toEqual({ allowed: false, reason: 'legacy-manual' });
+    expect(summary?.availability.cleanup).toEqual({ allowed: false, reason: 'legacy-manual' });
+
+    hydrateSubagentResultService(service, await store.listManifests());
+    expect(service.get('legacy-result')?.availability.apply.allowed).toBe(false);
+  });
+
+  it('candidate group and candidate lineage remain independent', async () => {
+    const service = createSubagentResultService();
+    service.register(
+      makeSummary({
+        resultId: 'a',
+        candidateGroupId: 'group-login',
+        candidateLineageId: 'lineage-a',
+        candidateGeneration: 1,
+      }),
+    );
+    service.register(
+      makeSummary({
+        resultId: 'b',
+        candidateGroupId: 'group-login',
+        candidateLineageId: 'lineage-b',
+        candidateGeneration: 1,
+      }),
+    );
+    service.register(
+      makeSummary({
+        resultId: 'c',
+        candidateGroupId: 'group-other',
+        candidateLineageId: 'lineage-a',
+        candidateGeneration: 2,
+        predecessorResult: { resultId: 'a', revision: 1 },
+      }),
+    );
+
+    expect(service.get('a')?.candidateGroupId).toBe('group-login');
+    expect(service.get('a')?.candidateLineageId).toBe('lineage-a');
+    expect(service.get('a')?.reviewStatus).toBe('stale');
+    expect(service.get('b')?.reviewStatus).toBe('not-requested');
+    expect(service.get('b')?.availability.apply.allowed).toBe(true);
+    expect(service.get('c')?.candidateGroupId).toBe('group-other');
+
+    const applied = await service.apply({
+      resultId: 'b',
+      expectedRevision: 1,
+      applyResult: async () => ({ operationId: 'op-b' }),
+    });
+    expect(applied).toEqual({ ok: true, operationId: 'op-b' });
+    expect(
+      await service.apply({
+        resultId: 'a',
+        expectedRevision: 1,
+        applyResult: async () => ({ operationId: 'op-a' }),
+      }),
+    ).toMatchObject({ ok: false, code: 'candidate-group-selected' });
+    expect(service.get('c')?.availability.apply.allowed).toBe(true);
   });
 });

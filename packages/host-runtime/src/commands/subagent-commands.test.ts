@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { SubagentBatchRequest, SubagentResultSummary } from '@piwin/contracts';
+import {
+  emptySubagentResultReviewFields,
+  type SubagentBatchRequest,
+  type SubagentResultSummary,
+} from '@piwin/contracts';
 import { createSubagentResultService } from '../subagent-result-service.js';
 import { handleSubagentCommand } from './subagent-commands.js';
 
@@ -283,6 +287,7 @@ function makeResultSummary(): SubagentResultSummary {
     deliveryIntent: 'candidate',
     legacyManual: false,
     candidateGroupId: null,
+    ...emptySubagentResultReviewFields(),
     executionStatus: 'completed',
     summaryStatus: 'merged',
     integrationStatus: 'retained',

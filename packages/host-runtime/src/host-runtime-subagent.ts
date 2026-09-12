@@ -28,6 +28,11 @@ import { getPiwinGeneralWorkspacePath, getPiwinRoot, getPiwinSessionIndexPath } 
 import { indexRecordToSummary } from './session-summary-map.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import { freezeSubagentChildResult } from './subagent-result-freeze.js';
+import {
+  enrichSubagentTaskResult,
+  hydrateSubagentResultService,
+  projectSubagentResultSummary,
+} from './subagent-result-projection.js';
 import type { SubagentTaskPreflightContext } from './subagent-orchestrator.js';
 import { resolveSubagentChildPrompt } from './subagent-lifecycle-service.js';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
@@ -397,37 +402,30 @@ export async function persistSubagentTaskResult(
     integrationStatus: result.integrationStatus,
   };
   await upsertSessionRecord(indexPath, record);
-  const resultRef = result.resultRef;
-  if (resultRef && deps.subagentResultService) {
-    deps.subagentResultService.register(
-      {
-        resultId: resultRef.resultId,
-        revision: resultRef.revision,
-        parentSessionId,
-        childSessionId,
-        taskId: result.taskId,
-        batchRunId: result.runId,
-        sourceAttemptId: null,
-        targetWorkspaceId: '',
-        deliveryIntent: 'integrate',
-        legacyManual: false,
-        candidateGroupId: null,
-        executionStatus: result.executionStatus,
-        summaryStatus: result.summaryStatus,
-        integrationStatus: result.integrationStatus,
-        childChanges: result.childChanges ?? null,
-        appliedChanges: null,
-        copyState: 'present',
-        latestOperationId: null,
-        availability: {
-          view: { allowed: true },
-          apply: { allowed: result.integrationStatus !== 'applied' },
-          resolve: { allowed: true },
-          cleanup: { allowed: true },
-        },
-      },
-      result.worktreePath ? { worktreePath: result.worktreePath } : undefined,
-    );
+  if (result.resultRef && deps.subagentResultService) {
+    const manifest = deps.subagentRunStore
+      ? await deps.subagentRunStore.loadManifest(result.runId)
+      : undefined;
+    const task = manifest?.tasks.find((candidate) => candidate.id === result.taskId);
+    const summary = projectSubagentResultSummary({
+      parentSessionId,
+      result,
+      task,
+      lease: manifest?.leases[result.taskId],
+    });
+    if (summary) {
+      deps.subagentResultService.register(
+        summary,
+        result.worktreePath ? { worktreePath: result.worktreePath } : undefined,
+      );
+      if (deps.subagentRunStore) {
+        await deps.subagentRunStore.recordResult(
+          result.runId,
+          result.taskId,
+          enrichSubagentTaskResult(result, summary, task),
+        );
+      }
+    }
   }
   deps.push({
     type: 'subagent/updated',
@@ -479,6 +477,10 @@ export async function reconcilePersistedSubagentSessions(
     if (manifest.status === 'running') {
       await runStore.setStatus(manifest.runId, 'failed');
     }
+  }
+
+  if (deps.subagentResultService) {
+    hydrateSubagentResultService(deps.subagentResultService, await runStore.listManifests());
   }
 }
 

@@ -5,7 +5,12 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { WorkbenchReviewSurface } from './workbench-review-surface';
-import type { HostCommand, HostResponse, SubagentResultSummary } from '@piwin/contracts';
+import {
+  emptySubagentResultReviewFields,
+  type HostCommand,
+  type HostResponse,
+  type SubagentResultSummary,
+} from '@piwin/contracts';
 import type { ReviewResultsHost } from './use-review-subagent-results';
 
 declare global {
@@ -44,6 +49,7 @@ function summary(): SubagentResultSummary {
     deliveryIntent: 'integrate',
     legacyManual: false,
     candidateGroupId: null,
+    ...emptySubagentResultReviewFields(),
     executionStatus: 'completed',
     summaryStatus: 'merged',
     integrationStatus: 'conflict',

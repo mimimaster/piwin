@@ -152,6 +152,7 @@ export function getStatus(deps: HostRuntimeKernel): HostStatusData {
       subagentWorktree: deps.subagentOrchestrator !== null,
       subagentDeliveryV1: true,
       subagentResultReviewV1: true,
+      subagentReviewLoopV1: true,
       turnChangeUndoV1: true,
       marketplaceHub: true,
       automation: true,
