@@ -53,9 +53,11 @@ export type RightPanelProps = {
   canvasContent?: ReactNode;
   sideChatContent?: ReactNode;
   docPreviewContent?: ReactNode;
+  tasksContent?: ReactNode;
   changesCount?: number;
   runningJobCount?: number;
   cardsDueCount?: number;
+  tasksActiveCount?: number;
   terminalAttention?: boolean;
   onTerminalAttentionClear?: () => void;
   onViewChange?: (view: RightPanelView) => void;
@@ -90,6 +92,8 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
       return props.sideChatContent;
     case 'docPreview':
       return props.docPreviewContent;
+    case 'tasks':
+      return props.tasksContent;
     default:
       return undefined;
   }
@@ -115,6 +119,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const changesCount = props.changesCount ?? 0;
   const runningJobCount = props.runningJobCount ?? 0;
   const cardsDueCount = props.cardsDueCount;
+  const tasksActiveCount = props.tasksActiveCount ?? 0;
   const terminalAttention = props.terminalAttention === true;
 
   const initial = useMemo(() => readStoredRightPanelState(), []);
@@ -286,6 +291,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             changesCount={changesCount}
             runningJobCount={runningJobCount}
             cardsDueCount={cardsDueCount}
+            tasksActiveCount={tasksActiveCount}
             terminalAttention={terminalAttention}
             onSelect={openTab}
             onClose={closeTab}
@@ -373,7 +379,11 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       </div>
 
       {openTabs.length === 0 ? (
-        <RightPanelHome locale={locale} onSelect={openTab} />
+        <RightPanelHome
+          locale={locale}
+          onSelect={openTab}
+          tasksActiveCount={tasksActiveCount}
+        />
       ) : (
         /* Active-only lifecycle; terminal remains the explicit PTY exception. */
         <div className="right-panel-bodies">

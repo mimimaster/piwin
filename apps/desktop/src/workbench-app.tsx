@@ -1,7 +1,7 @@
 /**
  * Workbench composition root: shell chrome + host/session owners + slot tree.
  */
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { HostLogProvider } from './host-log-context';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
 import type { MediaLibraryItem, ThemeManifest } from '@piwin/contracts';
@@ -20,6 +20,8 @@ import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
 import { installRendererSelfHeal } from './renderer-self-heal';
 import { WorkspaceShell } from './workspace-shell';
 import { WorkbenchInspector } from './workbench-inspector';
+import { SubAgentPanel } from './SubAgentPanel';
+import { deriveSubagentOrchestrationView } from './subagent-orchestration-view';
 import { SessionContextRow } from './session-context-row';
 import {
   WorkbenchComposerColumn,
@@ -313,6 +315,30 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     dispatchNotification,
     artifactCanvas,
   } = model;
+  const parentSessionId = state.activeSessionId;
+  const tasksActiveCount = useMemo(() => {
+    if (!parentSessionId) {
+      return 0;
+    }
+    return deriveSubagentOrchestrationView({
+      parentSessionId,
+      invocations: state.subagentInvocations,
+      children: state.subagentChildren,
+      streams: state.subagentStreams,
+    }).activeCount;
+  }, [
+    parentSessionId,
+    state.subagentInvocations,
+    state.subagentChildren,
+    state.subagentStreams,
+  ]);
+  const tasksChildren = useMemo(
+    () =>
+      Object.values(state.subagentChildren).filter(
+        (child) => !parentSessionId || child.parentSessionId === parentSessionId,
+      ),
+    [parentSessionId, state.subagentChildren],
+  );
   selfHealBusyRef.current =
     state.streaming ||
     state.compacting ||
@@ -752,6 +778,18 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       terminalCwd={terminalCwd}
                       handleTerminalCwdChange={handleTerminalCwdChange}
                       terminalRecentDirs={terminalRecentDirs}
+                      tasksActiveCount={tasksActiveCount}
+                      tasksContent={
+                        <SubAgentPanel
+                          parentSessionId={parentSessionId}
+                          request={requestSubAgent}
+                          onOpenSession={handleResumeSession}
+                          children={tasksChildren}
+                          batches={state.subagentBatches}
+                          invocations={state.subagentInvocations}
+                          streams={state.subagentStreams}
+                        />
+                      }
                     />
                   }
                 />

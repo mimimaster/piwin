@@ -112,10 +112,64 @@
   outline-offset: 2px;
 }
 
+.subagent-tasks-overview {
+  min-width: 0;
+  padding: 8px 10px 12px;
+}
+
+.subagent-tasks-batch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.subagent-tasks-header {
+  margin: 0;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1, #1d1b17);
+}
+
+.subagent-tasks-anchor {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+
+.subagent-tasks-anchor:hover {
+  text-decoration: underline;
+}
+
+.subagent-tasks-row .ext-list-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.subagent-tasks-duration {
+  font-family: var(--mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.subagent-tasks-overview .empty-state {
+  margin: 24px 8px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .subagent-control-row,
   .subagent-control-row *,
-  .subagent-invocation-elapsed {
+  .subagent-invocation-elapsed,
+  .subagent-tasks-overview,
+  .subagent-tasks-overview * {
     transition: none !important;
     animation: none !important;
   }

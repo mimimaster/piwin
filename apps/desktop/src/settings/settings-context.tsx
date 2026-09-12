@@ -16,6 +16,7 @@ import type {
   SessionSummary,
   ThemeManifest,
   SubagentBatchProjection,
+  SubagentInvocation,
   SearchRoutePreviewInput,
 } from '@piwin/contracts';
 import type { SkillsPanelProps } from '../SkillsPanel';
@@ -158,6 +159,8 @@ export type SettingsContextValue = {
   subagentChildren?: Record<string, SessionSummary>;
   /** Live batch projections keyed by batch Run id. */
   subagentBatches?: Record<string, SubagentBatchProjection>;
+  /** Live invocation records keyed by invocation id. */
+  subagentInvocations?: Record<string, SubagentInvocation>;
   onThemeApplied: (theme: ThemeManifest) => void;
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
   discoverProviderModels: (

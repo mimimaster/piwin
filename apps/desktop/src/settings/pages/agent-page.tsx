@@ -25,6 +25,7 @@ export function AgentPage(): ReactElement {
     activeSessionId,
     subagentChildren,
     subagentBatches,
+    subagentInvocations,
     onOpenSubagentSession,
   } = settings;
   const automationAvailable = settingsHostSupportsCommand(settings, 'cron/list');
@@ -68,6 +69,7 @@ export function AgentPage(): ReactElement {
               onOpenSession={(sessionId) => onOpenSubagentSession?.(sessionId)}
               {...(liveChildren ? { children: liveChildren } : {})}
               {...(subagentBatches ? { batches: subagentBatches } : {})}
+              {...(subagentInvocations ? { invocations: subagentInvocations } : {})}
             />
           ) : null}
         </div>
