@@ -653,7 +653,7 @@ describe('SubagentIntegrationCoordinator', () => {
       { signal: controller.signal },
     );
     expect(cancelled.integrationStatus).toBe('retained');
-    expect(store.getSubagentApplyReservation({ resultId: 'res-1' })).toBeUndefined();
+    expect(store.getSubagentApplyReservation({ resultId: 'res-1' })?.status).toBe('applying');
 
     const throwing = createSubagentIntegrationCoordinator({
       integrateWorktree: async () => {

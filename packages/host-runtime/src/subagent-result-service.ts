@@ -13,8 +13,14 @@ import type { SubagentReviewRecord, SubagentReviewRef } from '@piwin/contracts';
 import { applyLineageHeadProjection } from './subagent-result-projection.js';
 import {
   evaluateReviewedApplyInvariants,
+  isApplyAbortOrTimeoutError,
   isSubagentApplyOutcomeUnknownError,
+  SubagentApplyOutcomeUnknownError,
 } from './subagent-result-apply.js';
+import {
+  subagentApplyIdempotencyKey,
+  subagentApplyRequestHash,
+} from './subagent-apply-reservation.js';
 
 export const SUBAGENT_RESOLUTION_INSTRUCTION =
   '请检查子任务尚未合入的结果，在保留当前修改的前提下处理冲突并验证；不要扩大原任务范围';
@@ -54,6 +60,7 @@ export type SubagentResultApplyInput = {
     resultId: string;
     expectedRevision: number;
     operationId: string;
+    signal?: AbortSignal;
   }) => Promise<{
     operationId: string;
     status?: 'succeeded' | 'rejected' | 'needs-repair' | 'workspace-busy';
@@ -65,6 +72,7 @@ export type SubagentResultApplyInput = {
   parentSessionId?: string;
   approvedBy?: SubagentReviewRef;
   review?: SubagentReviewRecord;
+  signal?: AbortSignal;
 };
 
 export type SubagentResultApplyOutcome =
@@ -328,12 +336,13 @@ export function createSubagentResultService(
 
         const reserved = operationStore.reserveSubagentApply({
           operationId: randomUUID(),
-          changeSetId: found.summary.childChanges?.changeSetId ?? `subagent-apply:${input.resultId}`,
+          changeSetId:
+            found.summary.childChanges?.changeSetId ?? subagentApplyIdempotencyKey(input.resultId),
           expectedRevision: input.expectedRevision,
           principal: input.principal ?? 'host',
-          idempotencyKey: input.idempotencyKey ?? `subagent-apply:${input.resultId}`,
+          idempotencyKey: input.idempotencyKey ?? subagentApplyIdempotencyKey(input.resultId),
           requestHash:
-            input.requestHash ?? `subagent-apply:${input.resultId}:${String(input.expectedRevision)}`,
+            input.requestHash ?? subagentApplyRequestHash(input.resultId, input.expectedRevision),
           resultId: input.resultId,
           ...(groupId !== null ? { candidateGroupId: groupId } : {}),
         });
@@ -352,14 +361,11 @@ export function createSubagentResultService(
               projectApplied(input.resultId, reserved.operationId);
               return { ok: true, operationId: reserved.operationId };
             }
-            return runReservedWriter(
-              operationStore,
-              input,
-              groupId,
-              reserved.operationId,
-              occupy,
-              projectApplied,
-            );
+            return {
+              ok: false,
+              code: 'apply-outcome-unknown',
+              operationId: reserved.operationId,
+            };
           }
           return { ok: false, code: 'already-applied', alreadyApplied: reserved.status === 'succeeded' };
         }
@@ -481,13 +487,21 @@ async function runReservedWriter(
   occupy: (resultId: string, groupId: string | null, operationId: string) => void,
   projectApplied: (resultId: string, operationId: string) => void,
 ): Promise<SubagentResultApplyOutcome> {
+  const appliedPromise = input.applyResult({
+    resultId: input.resultId,
+    expectedRevision: input.expectedRevision,
+    operationId,
+    ...(input.signal ? { signal: input.signal } : {}),
+  });
   try {
-    const applied = await input.applyResult({
-      resultId: input.resultId,
-      expectedRevision: input.expectedRevision,
-      operationId,
-    });
+    const applied = input.signal
+      ? await Promise.race([appliedPromise, waitForApplyAbort(input.signal, operationId)])
+      : await appliedPromise;
     if (applied.status === 'rejected') {
+      if (input.signal?.aborted) {
+        occupy(input.resultId, groupId, operationId);
+        return { ok: false, code: 'apply-outcome-unknown', operationId };
+      }
       operationStore.releaseSubagentApplyReservation(operationId);
       return { ok: false, code: 'already-applied', alreadyApplied: false };
     }
@@ -505,8 +519,17 @@ async function runReservedWriter(
     projectApplied(input.resultId, operationId);
     return { ok: true, operationId };
   } catch (error) {
-    if (isSubagentApplyOutcomeUnknownError(error)) {
+    if (isApplyAbortOrTimeoutError(error) || isSubagentApplyOutcomeUnknownError(error)) {
       occupy(input.resultId, groupId, operationId);
+      void settleReservedWriterLate(
+        appliedPromise,
+        operationStore,
+        input,
+        groupId,
+        operationId,
+        occupy,
+        projectApplied,
+      );
       return { ok: false, code: 'apply-outcome-unknown', operationId };
     }
     const current = operationStore.getOperation(operationId);
@@ -525,6 +548,58 @@ async function runReservedWriter(
     operationStore.releaseSubagentApplyReservation(operationId);
     throw new Error('subagent apply failed before write');
   }
+}
+
+function waitForApplyAbort(signal: AbortSignal | undefined, operationId: string): Promise<never> {
+  return new Promise((_, reject) => {
+    if (!signal) return;
+    const fail = () => reject(new SubagentApplyOutcomeUnknownError(operationId));
+    if (signal.aborted) {
+      fail();
+      return;
+    }
+    signal.addEventListener('abort', fail, { once: true });
+  });
+}
+
+function settleReservedWriterLate(
+  appliedPromise: ReturnType<SubagentResultApplyInput['applyResult']>,
+  operationStore: SubagentApplyOperationStore,
+  input: SubagentResultApplyInput,
+  groupId: string | null,
+  operationId: string,
+  occupy: (resultId: string, groupId: string | null, operationId: string) => void,
+  projectApplied: (resultId: string, operationId: string) => void,
+): Promise<void> {
+  return appliedPromise.then(
+    (applied) => {
+      if (applied.status === 'succeeded' || operationStore.hasSubagentApplyWriteCompleted(operationId)) {
+        if (operationStore.getOperation(operationId)?.status !== 'succeeded') {
+          operationStore.updateOperationStatus(operationId, 'succeeded');
+        }
+        occupy(input.resultId, groupId, operationId);
+        projectApplied(input.resultId, operationId);
+        return;
+      }
+      if (applied.status === 'needs-repair') {
+        operationStore.updateOperationStatus(operationId, 'needs-repair');
+        occupy(input.resultId, groupId, operationId);
+      }
+    },
+    (error: unknown) => {
+      if (isApplyAbortOrTimeoutError(error) || isSubagentApplyOutcomeUnknownError(error)) {
+        occupy(input.resultId, groupId, operationId);
+        return;
+      }
+      if (
+        operationStore.getOperation(operationId)?.status === 'succeeded' ||
+        operationStore.hasSubagentApplyWriteCompleted(operationId)
+      ) {
+        occupy(input.resultId, groupId, operationId);
+        projectApplied(input.resultId, operationId);
+      }
+    },
+  );
 }
 
 function createSerializer(): <T>(fn: () => Promise<T>) => Promise<T> {

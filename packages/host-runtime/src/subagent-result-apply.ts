@@ -57,6 +57,25 @@ export function isSubagentApplyOutcomeUnknownError(
   return error instanceof SubagentApplyOutcomeUnknownError;
 }
 
+export function isApplyAbortOrTimeoutError(error: unknown): boolean {
+  if (isSubagentApplyOutcomeUnknownError(error)) return true;
+  if (typeof error !== 'object' || error === null) return false;
+  const name = 'name' in error ? String(error.name) : '';
+  if (
+    name === 'AbortError' ||
+    name === 'TimeoutError' ||
+    name === 'IntegrationQueueCancelledError'
+  ) {
+    return true;
+  }
+  return (
+    error instanceof Error &&
+    /aborted|timeout|cancelled before parent mutation|apply outcome is unknown/i.test(
+      error.message,
+    )
+  );
+}
+
 export function evaluateReviewedApplyInvariants(
   input: ReviewedApplyInvariantInput,
 ): ReviewedApplyInvariantResult {
@@ -230,6 +249,7 @@ export async function applyReviewedSubagentResult(
       ...(input.principal ? { principal: input.principal } : {}),
       ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
       ...(input.requestHash ? { requestHash: input.requestHash } : {}),
+      ...(input.signal ? { signal: input.signal } : {}),
     });
     if (!outcome.ok) {
       return applyError(

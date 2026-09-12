@@ -605,8 +605,9 @@ export class HostRuntime extends HostRuntimeFields {
   async actOnSubagentWorktree(
     childSessionId: string,
     action: 'apply' | 'retain' | 'discard',
+    signal?: AbortSignal,
   ): Promise<import('./host-runtime-subagent-tasks.js').SubagentWorktreeActionResult> {
-    return actOnSubagentWorktree(this.asKernel(), childSessionId, action);
+    return actOnSubagentWorktree(this.asKernel(), childSessionId, action, signal);
   }
 
   getJobController(): JobController {

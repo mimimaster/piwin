@@ -12,12 +12,15 @@ import {
 import { openTurnChangeStore } from '@piwin/git';
 import { handleSubagentCommand, type SubagentCommandContext } from './commands/subagent-commands.js';
 import { createSubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
-import { applyStatusFromIntegration } from './subagent-apply-reservation.js';
+import {
+  applyStatusFromIntegration,
+  subagentApplyIdempotencyKey,
+  subagentApplyRequestHash,
+} from './subagent-apply-reservation.js';
 import {
   SUBAGENT_RESULT_APPLY_TOOL_NAME,
   applyReviewedSubagentResult,
   evaluateReviewedApplyInvariants,
-  SubagentApplyOutcomeUnknownError,
 } from './subagent-result-apply.js';
 import { createSubagentResultApplyTool } from './subagent-result-apply-tool.js';
 import { createSubagentResultService } from './subagent-result-service.js';
@@ -180,12 +183,8 @@ function createHarness(options?: {
         parentSessionId: input.parentSessionId,
         result: input.result,
         approvedBy: input.approvedBy,
-        ...(input.toolCallId
-          ? {
-              idempotencyKey: `subagent-apply:${input.result.resultId}`,
-              requestHash: `subagent-apply:${input.result.resultId}:${String(input.result.revision)}:${input.toolCallId}`,
-            }
-          : {}),
+        idempotencyKey: subagentApplyIdempotencyKey(input.result.resultId),
+        requestHash: subagentApplyRequestHash(input.result.resultId, input.result.revision),
         ...(input.signal ? { signal: input.signal } : {}),
       },
     );
@@ -195,6 +194,115 @@ function createHarness(options?: {
     workspacePath: '/tmp/project',
   });
   return { resultService, reviews, writes, tool, applyReviewed };
+}
+
+const WORKTREE_LEASE = {
+  mode: 'worktree' as const,
+  cwd: '/tmp/project/.piwin-worktrees/one',
+  parentRepoPath: '/tmp/project',
+  worktreePath: '/tmp/project/.piwin-worktrees/one',
+  worktreeBranch: 'piwin/subagent/one',
+  baseCommit: '0123456789abcdef',
+};
+
+async function createHostPairHarness(options?: {
+  summaries?: SubagentResultSummary[];
+  reviews?: SubagentReviewRecord[];
+  integrateWorktree?: () => Promise<{
+    success: boolean;
+    conflict?: boolean;
+    conflictFiles?: string[];
+    changedFiles?: string[];
+    allowedOutputPaths: string[];
+  }>;
+}) {
+  const dir = await mkdtemp(join(tmpdir(), 'piwin-apply-host-pair-'));
+  dirs.push(dir);
+  const store = openTurnChangeStore({ rootDir: dir });
+  const resultService = createSubagentResultService({ operationStore: store });
+  for (const summary of options?.summaries ?? [makeSummary()]) {
+    resultService.register(summary);
+  }
+  const reviews = new Map<string, SubagentReviewRecord>();
+  for (const review of options?.reviews ?? [makeReview()]) {
+    reviews.set(`${review.reviewId}:${String(review.revision)}`, review);
+  }
+  let integrateCalls = 0;
+  let integrateSettled = createDeferred();
+  const coordinator = createSubagentIntegrationCoordinator({
+    integrateWorktree: async () => {
+      integrateCalls += 1;
+      return (
+        options?.integrateWorktree?.() ?? {
+          success: true,
+          changedFiles: ['src/a.ts'],
+          allowedOutputPaths: [],
+        }
+      );
+    },
+    isBaseClean: async () => true,
+    removeWorktree: async () => {},
+    applyReservation: store,
+  });
+  const applyReviewed: NonNullable<SubagentRunSeam['applyReviewed']> = async (input) =>
+    applyReviewedSubagentResult(
+      {
+        resultService,
+        loadReview: async (ref) => reviews.get(`${ref.reviewId}:${String(ref.revision)}`),
+        applyResult: async (applyInput) => {
+          integrateSettled = createDeferred();
+          try {
+            const integrated = await coordinator.integrate(
+              {
+                runId: 'run-1',
+                taskId: 'task-1',
+                executionStatus: 'completed',
+                summaryStatus: 'not-requested',
+                integrationStatus: 'pending',
+                resultRef: { resultId: applyInput.resultId, revision: applyInput.expectedRevision },
+                childChanges: CHANGES_V2,
+              },
+              WORKTREE_LEASE,
+              applyInput.signal ? { signal: applyInput.signal } : {},
+            );
+            return {
+              operationId: applyInput.operationId,
+              status: applyStatusFromIntegration({
+                integrationStatus: integrated.integrationStatus,
+              }),
+              integrationStatus: integrated.integrationStatus,
+            };
+          } finally {
+            integrateSettled.resolve();
+          }
+        },
+      },
+      {
+        parentSessionId: input.parentSessionId,
+        result: input.result,
+        approvedBy: input.approvedBy,
+        idempotencyKey: subagentApplyIdempotencyKey(input.result.resultId),
+        requestHash: subagentApplyRequestHash(input.result.resultId, input.result.revision),
+        ...(input.signal ? { signal: input.signal } : {}),
+      },
+    );
+  const tool = createSubagentResultApplyTool({
+    sessionId: SESSION_ID,
+    seam: dummySeam(applyReviewed),
+    workspacePath: '/tmp/project',
+  });
+  return {
+    tool,
+    store,
+    resultService,
+    applyReviewed,
+    get integrateCalls() {
+      return integrateCalls;
+    },
+    get integrateSettled() {
+      return integrateSettled.promise;
+    },
+  };
 }
 
 function orchestrationContext(
@@ -248,6 +356,39 @@ describe('piwin_subagent_result_apply', () => {
     expect(second).toMatchObject({ ok: false, code: 'already-applied' });
     expect(writes).toEqual(['result-v2']);
     expect(resultService.get('result-v2')?.appliedChanges).toEqual(CHANGES_V2);
+  });
+
+  it('approved current head applies once through the real reservation + coordinator hash', async () => {
+    const harness = await createHostPairHarness();
+    const first = await executeTool(harness.tool, { result: RESULT_V2, approvedBy: APPROVED_BY });
+    const second = await executeTool(harness.tool, { result: RESULT_V2, approvedBy: APPROVED_BY });
+    expect(first).toMatchObject({
+      ok: true,
+      details: {
+        operationId: expect.any(String),
+        result: RESULT_V2,
+        appliedChanges: CHANGES_V2,
+        integrationStatus: 'applied',
+      },
+    });
+    expect(second).toMatchObject({
+      ok: true,
+      details: {
+        result: RESULT_V2,
+        appliedChanges: CHANGES_V2,
+        integrationStatus: 'applied',
+      },
+    });
+    expect(first.ok && second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(second.details.operationId).toBe(first.details.operationId);
+    }
+    expect(harness.integrateCalls).toBe(1);
+    expect(harness.store.getSubagentApplyReservation({ resultId: 'result-v2' })?.status).toBe(
+      'succeeded',
+    );
+    expect(harness.resultService.get('result-v2')?.appliedChanges).toEqual(CHANGES_V2);
+    harness.store.close();
   });
 
   it('2. v1 approval cannot apply v2; v1 cannot apply after v2 exists', async () => {
@@ -400,60 +541,67 @@ describe('piwin_subagent_result_apply', () => {
   });
 
   it('6. timeout/retry reconciles one durable operation', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'piwin-apply-timeout-'));
-    dirs.push(dir);
-    const store = openTurnChangeStore({ rootDir: dir });
-    const resultService = createSubagentResultService({ operationStore: store });
-    resultService.register(makeSummary());
-    const firstWriter = createDeferred();
-    const releaseFirst = createDeferred();
-    let calls = 0;
-    const applyResult = async (input: {
-      resultId: string;
-      expectedRevision: number;
-      operationId: string;
-    }) => {
-      calls += 1;
-      if (calls === 1) {
-        firstWriter.resolve();
-        await releaseFirst.promise;
-        throw new SubagentApplyOutcomeUnknownError(input.operationId);
-      }
-      return { operationId: input.operationId, status: 'succeeded' as const };
-    };
-    const first = applyReviewedSubagentResult(
-      { resultService, loadReview: async () => makeReview(), applyResult },
-      {
-        parentSessionId: SESSION_ID,
-        result: RESULT_V2,
-        approvedBy: APPROVED_BY,
-        idempotencyKey: 'subagent-apply:result-v2',
-        requestHash: 'subagent-apply:result-v2:1:tool-call-1',
+    const writeStarted = createDeferred();
+    const finishWrite = createDeferred();
+    const harness = await createHostPairHarness({
+      integrateWorktree: async () => {
+        writeStarted.resolve();
+        await finishWrite.promise;
+        return { success: true, changedFiles: ['src/a.ts'], allowedOutputPaths: [] };
       },
+    });
+    const controller = new AbortController();
+    const first = executeTool(
+      harness.tool,
+      { result: RESULT_V2, approvedBy: APPROVED_BY },
+      controller.signal,
     );
-    await firstWriter.promise;
-    releaseFirst.resolve();
+    await writeStarted.promise;
+    controller.abort();
     expect(await first).toMatchObject({ ok: false, code: 'apply-outcome-unknown' });
-    expect(store.getSubagentApplyReservation({ resultId: 'result-v2' })?.status).toBe('applying');
-    const retry = await applyReviewedSubagentResult(
-      { resultService, loadReview: async () => makeReview(), applyResult },
-      {
-        parentSessionId: SESSION_ID,
-        result: RESULT_V2,
-        approvedBy: APPROVED_BY,
-        idempotencyKey: 'subagent-apply:result-v2',
-        requestHash: 'subagent-apply:result-v2:1:tool-call-1',
-      },
+    expect(harness.store.getSubagentApplyReservation({ resultId: 'result-v2' })?.status).toBe(
+      'applying',
     );
+    finishWrite.resolve();
+    await harness.integrateSettled;
+    expect(harness.store.hasSubagentApplyWriteCompleted(
+      harness.store.getSubagentApplyReservation({ resultId: 'result-v2' })?.operationId ?? '',
+    )).toBe(true);
+    const retry = await executeTool(harness.tool, { result: RESULT_V2, approvedBy: APPROVED_BY });
     expect(retry).toMatchObject({
       ok: true,
-      result: RESULT_V2,
-      appliedChanges: CHANGES_V2,
-      integrationStatus: 'applied',
+      details: {
+        result: RESULT_V2,
+        appliedChanges: CHANGES_V2,
+        integrationStatus: 'applied',
+      },
     });
-    expect(calls).toBe(2);
-    expect(store.getSubagentApplyReservation({ resultId: 'result-v2' })?.status).toBe('succeeded');
-    store.close();
+    expect(harness.integrateCalls).toBe(1);
+    expect(harness.store.getSubagentApplyReservation({ resultId: 'result-v2' })?.status).toBe(
+      'succeeded',
+    );
+    harness.store.close();
+  });
+
+  it('childSessionId-only apply is refused', async () => {
+    const resultService = createSubagentResultService();
+    resultService.register(makeSummary());
+    const writes: string[] = [];
+    const response = await handleSubagentCommand(
+      { type: 'subagent/worktree-action', childSessionId: 'child-1', action: 'apply' },
+      'child-only-apply',
+      orchestrationContext(resultService, async (input) => {
+        writes.push(input.resultId);
+        return { operationId: input.operationId };
+      }),
+    );
+    expect(response).toMatchObject({
+      success: false,
+      command: 'subagent/worktree-action',
+      error: 'upgrade-required',
+      problem: { code: 'upgrade-required' },
+    });
+    expect(writes).toEqual([]);
   });
 
   it('7. UI apply and model apply share the same service-level invariant checks', async () => {

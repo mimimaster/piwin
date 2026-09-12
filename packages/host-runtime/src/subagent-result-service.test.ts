@@ -858,7 +858,7 @@ describe('SubagentResultService', () => {
     store.close();
   });
 
-  it('same-fingerprint applying replay continues the original writer', async () => {
+  it('same-fingerprint applying replay without write-completed stays unknown', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-result-apply-resume-'));
     dirs.push(dir);
     const store = openTurnChangeStore({ rootDir: dir });
@@ -886,9 +886,13 @@ describe('SubagentResultService', () => {
       },
     });
 
-    expect(resumed).toEqual({ ok: true, operationId: 'op-resume' });
-    expect(writes).toEqual(['op-resume']);
-    expect(service.get('result-1')?.integrationStatus).toBe('applied');
+    expect(resumed).toEqual({
+      ok: false,
+      code: 'apply-outcome-unknown',
+      operationId: 'op-resume',
+    });
+    expect(writes).toEqual([]);
+    expect(store.getSubagentApplyReservation({ resultId: 'result-1' })?.status).toBe('applying');
     store.close();
   });
 

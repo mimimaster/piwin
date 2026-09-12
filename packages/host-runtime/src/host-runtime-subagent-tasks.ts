@@ -26,7 +26,10 @@ import type { SubagentRunSeam } from './subagent-run-tool.js';
 import { createSubagentControlSeam, type SubagentControlDeps } from './host-runtime-subagent-start.js';
 import { bindSubagentReviewTarget } from './subagent-review-context.js';
 import { findPersistedReview, loadPersistedReviewObservation } from './subagent-review-service.js';
-import { applyReviewedSubagentResult } from './subagent-result-apply.js';
+import {
+  applyReviewedSubagentResult,
+  SubagentApplyOutcomeUnknownError,
+} from './subagent-result-apply.js';
 import { startReviewedContinuation } from './subagent-continue.js';
 import { workspaceIdForRoot } from './turn-changes/coordinator.js';
 import {
@@ -35,6 +38,8 @@ import {
 } from './subagent-continuation-prep.js';
 import {
   applyStatusFromIntegration,
+  subagentApplyIdempotencyKey,
+  subagentApplyRequestHash,
   type SubagentApplyWriterStatus,
 } from './subagent-apply-reservation.js';
 import type {
@@ -162,12 +167,28 @@ export function getSubagentSeam(
             if (!childSessionId) {
               throw new Error(`subagent result not found: ${applyInput.resultId}`);
             }
-            const outcome = await deps.actOnSubagentWorktree(childSessionId, 'apply');
-            return {
-              operationId: applyInput.operationId,
-              status: outcome.applyStatus,
-              integrationStatus: outcome.integrationStatus,
-            };
+            try {
+              const outcome = await deps.actOnSubagentWorktree(
+                childSessionId,
+                'apply',
+                applyInput.signal,
+              );
+              if (applyInput.signal?.aborted && outcome.applyStatus !== 'succeeded') {
+                throw new SubagentApplyOutcomeUnknownError(applyInput.operationId);
+              }
+              return {
+                operationId: applyInput.operationId,
+                status: outcome.applyStatus,
+                integrationStatus: outcome.integrationStatus,
+              };
+            } catch (error) {
+              if (applyInput.signal?.aborted || error instanceof SubagentApplyOutcomeUnknownError) {
+                throw error instanceof SubagentApplyOutcomeUnknownError
+                  ? error
+                  : new SubagentApplyOutcomeUnknownError(applyInput.operationId);
+              }
+              throw error;
+            }
           },
           ...(deps.turnChangeRuntime && projectPath
             ? {
@@ -197,12 +218,8 @@ export function getSubagentSeam(
           parentSessionId: sessionId,
           result: input.result,
           approvedBy: input.approvedBy,
-          ...(input.toolCallId
-            ? {
-                idempotencyKey: `subagent-apply:${input.result.resultId}`,
-                requestHash: `subagent-apply:${input.result.resultId}:${String(input.result.revision)}:${input.toolCallId}`,
-              }
-            : {}),
+          idempotencyKey: subagentApplyIdempotencyKey(input.result.resultId),
+          requestHash: subagentApplyRequestHash(input.result.resultId, input.result.revision),
           ...(input.signal ? { signal: input.signal } : {}),
         },
       );
@@ -378,6 +395,7 @@ export async function actOnSubagentWorktree(
   deps: HostRuntimeKernel,
   childSessionId: string,
   action: 'apply' | 'retain' | 'discard',
+  signal?: AbortSignal,
 ): Promise<SubagentWorktreeActionResult> {
   const coordinator = deps.subagentIntegrationCoordinator;
   if (!coordinator) {
@@ -419,7 +437,11 @@ export async function actOnSubagentWorktree(
 
   let result: SubagentTaskResult;
   if (action === 'apply') {
-    result = await coordinator.integrate(retainedTask.result, lease);
+    result = await coordinator.integrate(
+      retainedTask.result,
+      lease,
+      signal ? { signal } : {},
+    );
   } else if (action === 'discard') {
     await removeWorktree({
       projectPath: lease.parentRepoPath,
