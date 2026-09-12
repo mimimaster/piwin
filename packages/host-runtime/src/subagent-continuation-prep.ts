@@ -98,7 +98,7 @@ export function buildReviewedContinuationTask(
 ): SubagentTaskSpec {
   return buildContinuationTask(prepared, {
     task: extras.task,
-    applyPolicy: prepared.child.subagentApplyPolicy ?? 'explicit',
+    applyPolicy: 'explicit', // reviewed continue never auto-applies
     deliveryIntent: 'candidate',
     ...(extras.invocationId ? { invocationId: extras.invocationId } : {}),
     ...(extras.parentRunId ? { parentRunId: extras.parentRunId } : {}),

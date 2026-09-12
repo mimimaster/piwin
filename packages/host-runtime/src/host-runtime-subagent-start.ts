@@ -10,7 +10,6 @@ import {
   applySchemeToSubagentSpawnInput,
   boundSubagentControlDisplay,
   boundSubagentControlRunDisplay,
-  formatError,
   type ResolvedOrchestrationScheme,
   type SubagentBatchRequest,
   type SubagentBatchResult,
@@ -19,7 +18,6 @@ import {
   type SubagentReviewDecision,
   type SubagentReviewRef,
   type SubagentTaskResult,
-  type ToolResultErrorCode,
 } from '@piwin/contracts';
 import type { BindSubagentReviewTargetResult } from './subagent-review-context.js';
 import type { RunRegistry } from './run-registry.js';
@@ -34,18 +32,14 @@ import type {
   SubagentWaitResult,
   SubagentWaitRunObservation,
 } from './subagent-run-tool.js';
+import {
+  SubagentControlError,
+  awaitAcceptedBatch,
+  cacheBatchResults,
+  observeAcceptedBatch,
+} from './subagent-accepted-batch.js';
 
-export class SubagentControlError extends Error {
-  readonly code: ToolResultErrorCode;
-  readonly cancelled?: boolean;
-
-  constructor(code: ToolResultErrorCode, message: string, cancelled?: boolean) {
-    super(message);
-    this.name = 'SubagentControlError';
-    this.code = code;
-    if (cancelled) this.cancelled = true;
-  }
-}
+export { SubagentControlError };
 
 export type SubagentControlDeps = {
   orchestrator: SubagentOrchestrator;
@@ -110,29 +104,7 @@ export function createSubagentControlSeam(
     start: async (input) => {
       const prepared = await prepareAndStartSubagent(deps, sessionId, input);
       observeAcceptedBatch(deps, prepared);
-      let abortBeforeAccept = false;
-      const cancelBatch = (): void => {
-        if (prepared.handle.hasAccepted()) return;
-        abortBeforeAccept = true;
-        void deps.orchestrator.cancelBatch(prepared.handle.runId).catch(() => {});
-      };
-      if (input.signal?.aborted) {
-        cancelBatch();
-      } else if (input.signal) {
-        input.signal.addEventListener('abort', cancelBatch, { once: true });
-      }
-      try {
-        await prepared.handle.accepted;
-      } catch (error) {
-        throw new SubagentControlError('subagent-failed', formatError(error));
-      } finally {
-        if (input.signal) {
-          input.signal.removeEventListener('abort', cancelBatch);
-        }
-      }
-      if (abortBeforeAccept && !prepared.handle.hasAccepted()) {
-        throw new SubagentControlError('aborted', 'aborted before subagent acceptance', true);
-      }
+      await awaitAcceptedBatch(deps, prepared.handle, input.signal);
       return {
         runId: prepared.handle.runId,
         invocationId: input.invocationId,
@@ -264,25 +236,6 @@ function attachReviewTarget(
     ...request,
     tasks: [{ ...task, reviewTarget: bound.target }],
   };
-}
-
-function observeAcceptedBatch(deps: SubagentControlDeps, prepared: PreparedStart): void {
-  void prepared.handle.completion
-    .then((result) => {
-      cacheBatchResults(deps, result);
-    })
-    .catch(() => {})
-    .finally(() => {
-      prepared.releaseAdmission();
-    });
-}
-
-function cacheBatchResults(deps: SubagentControlDeps, result: SubagentBatchResult): void {
-  for (const taskResult of result.results) {
-    if (taskResult.childSessionId) {
-      deps.taskResults.set(taskResult.childSessionId, taskResult);
-    }
-  }
 }
 
 function spawnResultFromBatch(result: SubagentBatchResult): SubagentSpawnResult {
