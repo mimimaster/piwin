@@ -24,6 +24,10 @@ function phaseToKind(phase: SessionRunPhase): RunStatusKind {
       return 'working';
     case 'waiting-permission':
       return 'waiting-permission';
+    case 'waiting-subagents':
+      return 'waiting-subagents';
+    case 'waiting-resource':
+      return 'waiting-resource';
     case 'cancelling':
       return 'stopping';
     default:

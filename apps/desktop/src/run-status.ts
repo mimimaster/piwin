@@ -11,6 +11,7 @@ export type RunStatusKind =
   | 'connecting-model'
   | 'waiting-first-token'
   | 'waiting-resource'
+  | 'waiting-subagents'
   | 'planning'
   | 'working'
   | 'waiting-permission'
@@ -21,6 +22,8 @@ export type RunStatusKind =
   | 'complete';
 
 export type RunStatusPrimaryAction = 'view-activity' | 'review-permission' | 'view-plan' | 'retry';
+
+export type RunStatusSettlementDetail = 'joining' | 'synthesizing';
 
 export type RunStatusView = {
   kind: RunStatusKind;
@@ -33,6 +36,8 @@ export type RunStatusView = {
   canStop: boolean;
   elapsedMs?: number;
   planStep?: string;
+  /** Present while the parent run is joining or synthesizing async subagent work. */
+  settlementDetail?: RunStatusSettlementDetail;
 };
 
 export type DeriveRunStatusInput = {
@@ -128,6 +133,36 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
   }
 
   // ADR 0040: cold prompt waiting for runtime capacity — subtle restoring phase.
+  if (activePhase === 'waiting-subagents') {
+    const isZh = input.locale === 'zh-CN';
+    const synthesizing = input.chat.activeRunPhaseDetail === 'synthesizing-reports';
+    const settlementDetail: RunStatusSettlementDetail = synthesizing ? 'synthesizing' : 'joining';
+    const phaseElapsedMs = resolvePhaseElapsedMs(input.chat);
+    const shownElapsed = visibleElapsedMs(phaseElapsedMs);
+    return {
+      kind: 'waiting-subagents',
+      label: synthesizing
+        ? isZh
+          ? '汇总子任务'
+          : 'Synthesizing subtasks'
+        : isZh
+          ? '等待子代理'
+          : 'Waiting for subagents',
+      summary: synthesizing
+        ? isZh
+          ? '正在汇总子任务结果…'
+          : 'Synthesizing subtask results…'
+        : isZh
+          ? '等待子代理结果…'
+          : 'Waiting for subagent results…',
+      settlementDetail,
+      ...baseCounts,
+      primaryAction: 'view-activity',
+      canStop: true,
+      ...(shownElapsed !== undefined ? { elapsedMs: shownElapsed } : {}),
+    };
+  }
+
   if (activePhase === 'waiting-resource') {
     const isZh = input.locale === 'zh-CN';
     const waitingExecution = input.chat.activeRunPhaseDetail === 'execution-slot';
