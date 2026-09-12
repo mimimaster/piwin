@@ -114,3 +114,31 @@ Host capability flags `subagentDeliveryV1`, `subagentResultReviewV1`, and
 honestly. Candidate adopt/mutex UI, parent `request-resolution` prompt wiring,
 and Tauri smoke evidence for the full delivery-review acceptance matrix are
 **not** claimed shipped here.
+
+## Async delegation presentation (2026-09-13, `feat/async-subagents`)
+
+Model-facing structured in-turn concurrency splits **invocation anchors** from
+**control tools**:
+
+- `piwin_subagent_start` creates exactly one `SubagentInvocation` card at the
+  parent transcript tool position (same causal anchor as synchronous
+  `piwin_subagent_run`).
+- `piwin_subagent_wait` and `piwin_subagent_cancel` are control tools only —
+  they are not invocation topology nodes. Desktop renders Host-normalized
+  `ToolPresentation.subagentControl` for wait/cancel lifecycle rows and never
+  parses raw tool text when that field exists.
+
+The parent transcript owns invocation cards plus wait/cancel lifecycle rows. The
+right panel **Tasks** tab shows the F1 orchestration overview for the active
+batch; it does not auto-open on spawn.
+
+The composer **activity pill** above the input is a compact reachability rail
+(Cursor-style Working count) for in-flight async subagents and live
+`process_start` jobs. Its popover jumps to invocation cards or Terminal job
+logs; Stop uses only `subagent/batch-cancel` and `job/stop`. The Terminal tab
+adds a zsh PTY plus a job-log switcher so nohup-style services stay reachable;
+it is not a second scheduler.
+
+This pill is **not** a return of the old composer-adjacent current-work dock
+removed by this ADR. The transcript invocation card remains the causal anchor;
+the pill is reachability for background work only.

@@ -24,6 +24,23 @@ but that is not the parent working-tree write path. Host advertises
 true. See also
 [`2026-08-30-subagent-delivery-review-adjustment.md`](../specs/2026-08-30-subagent-delivery-review-adjustment.md).
 
+**Async delegation update (2026-09-13, `feat/async-subagents`):** Model-facing
+in-turn concurrency now exposes `piwin_subagent_start` (one task, returns after
+durable manifest + queued invocation acceptance), `piwin_subagent_wait`, and
+`piwin_subagent_cancel` (1–8 `runIds`, order-preserving dedupe). `piwin_subagent_run`
+remains the synchronous spawn+merge convenience path. Wait and cancel are
+**control tools**, not invocation topology nodes. Scheme admission stays held
+for the full child lifetime, including after start returns. `waitPolicy` stays
+`'await-all'`; there is no `any` / `minCompleted` / Settings fire-and-continue.
+When the parent turn ends without an explicit wait, Host runs at most one
+settlement continuation: child admission stays closed, no fake user row, parent
+phase `waiting-subagents` with `joining-descendants` then
+`synthesizing-reports` (token events do not overwrite that phase; permission
+still can). Fail/cancel/pause/replace of the parent cancels descendants and
+skips continuation. See
+[`2026-09-12-model-facing-async-subagents.md`](../plans/2026-09-12-model-facing-async-subagents.md)
+and ADR 0046 async presentation update.
+
 ## Context
 
 piwin supports subagent-driven plan execution where independent steps run in

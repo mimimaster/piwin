@@ -243,12 +243,23 @@ PiwinConfig.subagents
 | Child context | 仍 fresh；方案不得改为继承父历史 |
 | Depth | 仍 max 1；方案不得开放套娃 |
 
-### 6.2 waitPolicy 与同步工具
+### 6.2 waitPolicy 与委派工具
 
-`piwin_subagent_run` **已是同步 spawn+merge**，「立刻 wait」在工具层**结构性成立**。  
-仍保留 `waitPolicy` + preamble：防主代理绕过工具自己乱搜；为未来异步 batch 预留。
+`piwin_subagent_run` **仍是同步 spawn+merge** 便利路径，「单次调用内 wait」在工具层**结构性成立**。
 
-v1：`await-all` 为 Ultra Code 值；`fire-and-continue` 可留在类型中，**Settings 不暴露**；保存用户方案时拒绝或强制 `await-all`。
+`feat/async-subagents`（2026-09-13）另提供结构化 in-turn 并发：
+
+- `piwin_subagent_start`：一次启动一个子任务，在 durable manifest + queued
+  invocation 接受后返回；scheme admission 在子任务存活期内保持占用。
+- `piwin_subagent_wait` / `piwin_subagent_cancel`：**控制工具**（1–8
+  `runIds`，保序去重），不是 invocation 拓扑节点。
+
+`waitPolicy` **仍为 `await-all`**。无 `any` / `minCompleted` / Settings
+fire-and-continue。主代理若未显式 wait 而 turn 结束，Host 最多触发一次
+settlement continuation（见 ADR 0030 async 更新）；这不改变 scheme 的
+`await-all` 语义，只是 Host 侧的兜底合流。
+
+`fire-and-continue` 可留在类型中，**Settings 不暴露**；保存用户方案时拒绝或强制 `await-all`。Preamble 纪律仍用于防主代理绕过工具自行乱搜。
 
 ---
 
