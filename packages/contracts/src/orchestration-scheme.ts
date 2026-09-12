@@ -11,6 +11,15 @@
 import type { ModelRef, ThinkingLevel } from './host.js';
 import { isThinkingLevel } from './host.js';
 import type { SubagentIsolationMode } from './subagent.js';
+import { BUILTIN_REVIEWED_DELIVERY_SCHEME } from './orchestration-scheme-reviewed-delivery.js';
+
+export {
+  BUILTIN_REVIEWED_DELIVERY_SCHEME,
+  REVIEWED_DELIVERY_REVIEWER_REPORT_CONTRACT,
+  REVIEWED_DELIVERY_REVIEWER_ROLE,
+  REVIEWED_DELIVERY_SCHEME_ID,
+  REVIEWED_DELIVERY_WORKER_ROLE,
+} from './orchestration-scheme-reviewed-delivery.js';
 
 /** Wait policy for orchestration schemes. */
 export type OrchestrationWaitPolicy = 'await-all' | 'fire-and-continue';
@@ -107,7 +116,7 @@ export const ULTRA_CODE_SCOUT_ROLE = 'scout' as const;
 /** Pre-rename Ultra Code role; aliased to scout only on scheme id ultra-code. */
 const LEGACY_ULTRA_CODE_SCOUT_ROLE = 'searcher';
 
-/** Scheme ids are lowercase kebab tokens (builtins: ultra-code). */
+/** Scheme ids are lowercase kebab tokens (builtins: ultra-code, reviewed-delivery). */
 export const ORCHESTRATION_SCHEME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Role ids: start with a letter; lowercase alnum, hyphen, underscore. */
@@ -304,7 +313,10 @@ export const BUILTIN_ULTRA_CODE_SCHEME: OrchestrationScheme = {
   systemPreamble: ULTRA_CODE_PREAMBLE,
 };
 
-const BUILTIN_SCHEMES: readonly OrchestrationScheme[] = [BUILTIN_ULTRA_CODE_SCHEME];
+const BUILTIN_SCHEMES: readonly OrchestrationScheme[] = [
+  BUILTIN_ULTRA_CODE_SCHEME,
+  BUILTIN_REVIEWED_DELIVERY_SCHEME,
+];
 
 /**
  * Default role seeds for new user schemes (Settings "add role" templates).
@@ -601,17 +613,16 @@ function resolveMembers(
 }
 
 /**
- * Overlay of ultra-code replaces the whole scheme object. New recipe fields
+ * Overlay of a builtin replaces the whole scheme object. Recipe fields
  * (reportContract) still apply when the overlay member omitted them.
  */
-function applyUltraCodeMemberRecipe(
+function applyBuiltinMemberRecipe(
   schemeId: string,
   members: ResolvedOrchestrationMember[],
 ): ResolvedOrchestrationMember[] {
-  if (schemeId !== ULTRA_CODE_SCHEME_ID) return members;
-  const recipes = new Map(
-    (BUILTIN_ULTRA_CODE_SCHEME.members ?? []).map((member) => [member.role, member]),
-  );
+  const builtin = BUILTIN_SCHEMES.find((scheme) => scheme.id === schemeId);
+  if (!builtin) return members;
+  const recipes = new Map((builtin.members ?? []).map((member) => [member.role, member]));
   return members.map((member) => {
     if (member.reportContract?.trim()) return member;
     const recipe = recipes.get(member.role);
@@ -654,7 +665,7 @@ export function resolveOrchestrationScheme(
   }
 
   const migratedMembers = migrateSchemeMembers(scheme);
-  const members = applyUltraCodeMemberRecipe(
+  const members = applyBuiltinMemberRecipe(
     trimmed,
     resolveMembers(trimmed, migratedMembers, options),
   );

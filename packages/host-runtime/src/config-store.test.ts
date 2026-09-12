@@ -2,6 +2,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { listOrchestrationSchemes } from '@piwin/contracts';
 import {
   createDefaultPiwinConfig,
   initPiwinConfig,
@@ -657,6 +658,43 @@ describe('config-store', () => {
       }),
       'utf8',
     );
+    const reloaded = await loadPiwinConfig(rootDir);
+    expect(reloaded.subagents?.schemes?.map((scheme) => scheme.id)).toEqual(['my-review']);
+  });
+
+  it('loads old settings without inventing reviewed-delivery on disk', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-orch-old-schemes-'));
+    const config = createDefaultPiwinConfig();
+    config.subagents = {
+      profiles: [],
+      maxConcurrency: 4,
+      maxTasksPerRun: 8,
+      processIsolation: 'required',
+      parallelWritePolicy: 'worktree-only',
+      dirtyBasePolicy: 'ask',
+      schemes: [
+        {
+          id: 'my-review',
+          name: 'My Review',
+          description: 'Custom review pack',
+          defaultProfileId: 'reviewer',
+          exposeSpawnMetadata: true,
+          waitPolicy: 'await-all',
+          systemPreamble: 'Review carefully and wait for scouts.',
+        },
+      ],
+    };
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.subagents?.schemes?.map((scheme) => scheme.id)).toEqual(['my-review']);
+    const listed = listOrchestrationSchemes({ schemes: loaded.subagents?.schemes });
+    expect(listed.map((scheme) => scheme.id)).toEqual([
+      'ultra-code',
+      'reviewed-delivery',
+      'my-review',
+    ]);
+    expect(listed.find((scheme) => scheme.id === 'reviewed-delivery')?.source).toBe('builtin');
+    await savePiwinConfig(loaded, rootDir);
     const reloaded = await loadPiwinConfig(rootDir);
     expect(reloaded.subagents?.schemes?.map((scheme) => scheme.id)).toEqual(['my-review']);
   });

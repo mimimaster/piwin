@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   BUILTIN_ULTRA_CODE_SCHEME,
   ORCHESTRATION_SCHEME_OFF_ID,
+  REVIEWED_DELIVERY_REVIEWER_REPORT_CONTRACT,
+  REVIEWED_DELIVERY_SCHEME_ID,
   isValidOrchestrationSchemeId,
   OrchestrationSchemeError,
   PIWIN_REPORT_CONTRACT_MARKER,
@@ -19,6 +21,7 @@ import {
 } from './orchestration-scheme.js';
 import type {
   OrchestrationSchemeConfigSlice,
+  OrchestrationSchemeMember,
   OrchestrationSchemeSettings,
 } from './orchestration-scheme.js';
 
@@ -142,7 +145,11 @@ describe('resolveOrchestrationScheme', () => {
       ],
     });
     const list = listOrchestrationSchemes(config);
-    expect(list.map((item) => item.id)).toEqual(['ultra-code', 'my-review']);
+    expect(list.map((item) => item.id)).toEqual([
+      'ultra-code',
+      'reviewed-delivery',
+      'my-review',
+    ]);
   });
 });
 
@@ -449,5 +456,186 @@ describe('resolveUnpinnedOrchestrationDefaultRole', () => {
         ],
       }),
     ).toBeUndefined();
+  });
+});
+
+const REVIEWED_DELIVERY_PROFILES = ['implementer', 'reviewer'] as const;
+
+function reviewedDeliveryOverlay(members: OrchestrationSchemeMember[]): OrchestrationSchemeSettings {
+  return {
+    id: REVIEWED_DELIVERY_SCHEME_ID,
+    name: 'Reviewed Delivery overlay',
+    description: 'settings overlay',
+    defaultRole: 'worker',
+    defaultProfileId: 'implementer',
+    exposeSpawnMetadata: false,
+    waitPolicy: 'await-all',
+    systemPreamble: 'overlay preamble still wins',
+    members,
+  };
+}
+
+describe('reviewed-delivery builtin', () => {
+  it('built-in scheme resolves valid roles and compatible isolation', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig(), REVIEWED_DELIVERY_SCHEME_ID, {
+      knownProfileIds: REVIEWED_DELIVERY_PROFILES,
+    });
+    expect(resolved?.schemeId).toBe('reviewed-delivery');
+    expect(resolved?.scheme.source).toBe('builtin');
+    expect(resolved?.defaultRole).toBe('worker');
+    expect(resolved?.exposeSpawnMetadata).toBe(false);
+    expect(resolved?.waitPolicy).toBe('await-all');
+    expect(resolved?.members.map((member) => member.role)).toEqual(['worker', 'reviewer']);
+    expect(resolved?.members.find((member) => member.role === 'worker')).toMatchObject({
+      isolation: 'worktree',
+      fallback: 'main',
+      available: true,
+    });
+    expect(resolved?.members.find((member) => member.role === 'reviewer')).toMatchObject({
+      isolation: 'readonly',
+      fallback: 'main',
+      available: true,
+      reportContract: REVIEWED_DELIVERY_REVIEWER_REPORT_CONTRACT,
+    });
+    expect(resolved?.members.every((member) => member.model === undefined)).toBe(true);
+  });
+
+  it('preamble names all required tools and does not describe a generic infinite loop', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig(), REVIEWED_DELIVERY_SCHEME_ID, {
+      knownProfileIds: REVIEWED_DELIVERY_PROFILES,
+    })!;
+    const preamble = resolved.systemPreamble;
+    expect(preamble).toMatch(/piwin_subagent_start/);
+    expect(preamble).toMatch(/piwin_subagent_wait/);
+    expect(preamble).toMatch(/piwin_subagent_continue/);
+    expect(preamble).toMatch(/piwin_subagent_result_apply/);
+    expect(preamble).toMatch(/piwin_subagent_verification_submit/);
+    expect(preamble).toMatch(/resultRef/);
+    expect(preamble).toMatch(/two continuations/i);
+    expect(preamble).not.toMatch(/repeat indefinitely|loop forever|keep looping until/i);
+    expect(resolved.members.find((member) => member.role === 'reviewer')?.reportContract).toMatch(
+      /piwin_subagent_review_submit/,
+    );
+  });
+
+  it('pinned worker/reviewer models stay distinct through resolve and spawn application', () => {
+    const workerModel = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'worker-provider',
+      modelId: 'worker-model',
+    };
+    const reviewerModel = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'reviewer-provider',
+      modelId: 'reviewer-model',
+    };
+    const config = baseConfig({
+      schemes: [
+        reviewedDeliveryOverlay([
+          {
+            role: 'worker',
+            description: 'implement',
+            profileId: 'implementer',
+            isolation: 'worktree',
+            fallback: 'main',
+            model: workerModel,
+          },
+          {
+            role: 'reviewer',
+            description: 'review',
+            profileId: 'reviewer',
+            isolation: 'readonly',
+            fallback: 'main',
+            model: reviewerModel,
+          },
+        ]),
+      ],
+    });
+    const resolved = resolveOrchestrationScheme(config, REVIEWED_DELIVERY_SCHEME_ID, {
+      knownProfileIds: REVIEWED_DELIVERY_PROFILES,
+      knownModelKeys: [
+        'worker-provider::worker-model',
+        'reviewer-provider::reviewer-model',
+      ],
+    })!;
+    expect(resolved.scheme.source).toBe('settings');
+    expect(resolved.members.find((member) => member.role === 'worker')?.model).toEqual(workerModel);
+    expect(resolved.members.find((member) => member.role === 'reviewer')?.model).toEqual(
+      reviewerModel,
+    );
+    const workerSpawn = applySchemeToSubagentSpawnInput(resolved, { role: 'worker' });
+    const reviewerSpawn = applySchemeToSubagentSpawnInput(resolved, { role: 'reviewer' });
+    expect(workerSpawn.model).toEqual(workerModel);
+    expect(reviewerSpawn.model).toEqual(reviewerModel);
+    expect(workerSpawn.model).not.toEqual(reviewerSpawn.model);
+    expect(workerSpawn.isolation).toBe('worktree');
+    expect(reviewerSpawn.isolation).toBe('readonly');
+  });
+
+  it('unavailable role follows configured fallback without model substitution', () => {
+    const missingReviewerModel = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'reviewer-provider',
+      modelId: 'missing-reviewer',
+    };
+    const config = baseConfig({
+      schemes: [
+        reviewedDeliveryOverlay([
+          {
+            role: 'worker',
+            description: 'implement',
+            profileId: 'implementer',
+            isolation: 'worktree',
+            fallback: 'main',
+          },
+          {
+            role: 'reviewer',
+            description: 'review',
+            profileId: 'reviewer',
+            isolation: 'readonly',
+            fallback: 'main',
+            model: missingReviewerModel,
+          },
+        ]),
+      ],
+    });
+    const resolved = resolveOrchestrationScheme(config, REVIEWED_DELIVERY_SCHEME_ID, {
+      knownProfileIds: REVIEWED_DELIVERY_PROFILES,
+      knownModelKeys: ['worker-provider::worker-model'],
+    })!;
+    const reviewer = resolved.members.find((member) => member.role === 'reviewer');
+    expect(reviewer?.available).toBe(false);
+    expect(reviewer?.fallback).toBe('main');
+    const applied = applySchemeToSubagentSpawnInput(resolved, {
+      role: 'reviewer',
+      model: { protocol: 'openai-compatible', providerId: 'other', modelId: 'substitute' },
+    });
+    expect(applied.fallback?.kind).toBe('main');
+    expect(applied.clearedModel).toBe(true);
+    expect(applied.model).toBeUndefined();
+  });
+
+  it('old settings load unchanged', () => {
+    const customScheme: OrchestrationSchemeSettings = {
+      id: 'my-review',
+      name: 'My Review',
+      description: 'custom',
+      defaultProfileId: 'reviewer',
+      exposeSpawnMetadata: true,
+      waitPolicy: 'await-all',
+      systemPreamble: 'review carefully',
+    };
+    const schemes = [customScheme];
+    const config = baseConfig({ schemes });
+    const list = listOrchestrationSchemes(config);
+    expect(list.map((item) => item.id)).toEqual([
+      'ultra-code',
+      'reviewed-delivery',
+      'my-review',
+    ]);
+    expect(list.find((item) => item.id === 'reviewed-delivery')?.source).toBe('builtin');
+    expect(list.find((item) => item.id === 'my-review')?.source).toBe('settings');
+    expect(config.schemes?.map((scheme) => scheme.id)).toEqual(['my-review']);
+    expect(schemes.map((scheme) => scheme.id)).toEqual(['my-review']);
   });
 });
