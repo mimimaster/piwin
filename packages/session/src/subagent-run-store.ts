@@ -22,6 +22,8 @@ import {
   type SubagentInvocation,
   type SubagentIsolationMode,
   type SubagentResultRef,
+  type SubagentResultReviewStatus,
+  type SubagentReviewRecord,
   type SubagentReviewRef,
   type SubagentReviewTarget,
   type SubagentRuntimeSnapshot,
@@ -54,6 +56,9 @@ export type SubagentPersistedTask = {
   targetWorkspaceId?: string;
   reviewTarget?: SubagentReviewTarget;
   reviewRef?: SubagentReviewRef;
+  review?: SubagentReviewRecord;
+  latestReview?: SubagentReviewRef;
+  reviewStatus?: SubagentResultReviewStatus;
   candidateLineageId?: string;
   candidateGeneration?: number;
   predecessorResult?: SubagentResultRef;
@@ -167,6 +172,24 @@ function snapshotSubagentInvocation(
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function reviewPayloadEquals(
+  left: SubagentReviewRecord,
+  right: Pick<SubagentReviewRecord, 'decision' | 'findings' | 'verification'>,
+): boolean {
+  return (
+    JSON.stringify({
+      decision: left.decision,
+      findings: left.findings,
+      verification: left.verification,
+    }) ===
+    JSON.stringify({
+      decision: right.decision,
+      findings: right.findings,
+      verification: right.verification,
+    })
+  );
 }
 
 function assertSafeRunId(runId: string): void {
@@ -377,6 +400,74 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     });
   }
 
+  async function persistReviewerDecision(
+    runId: string,
+    taskId: string,
+    record: SubagentReviewRecord,
+  ): Promise<
+    | { ok: true; record: SubagentReviewRecord }
+    | { ok: false; code: 'not-found' | 'conflict'; existing?: SubagentReviewRecord }
+  > {
+    let outcome:
+      | { ok: true; record: SubagentReviewRecord }
+      | { ok: false; code: 'not-found' | 'conflict'; existing?: SubagentReviewRecord } = {
+      ok: false,
+      code: 'not-found',
+    };
+    await mutateManifest(runId, (manifest) => {
+      const task = manifest.tasks.find((candidate) => candidate.id === taskId);
+      if (!task) {
+        outcome = { ok: false, code: 'not-found' };
+        return false;
+      }
+      if (task.review) {
+        if (reviewPayloadEquals(task.review, record)) {
+          outcome = { ok: true, record: task.review };
+          return false;
+        }
+        outcome = { ok: false, code: 'conflict', existing: task.review };
+        return false;
+      }
+      const reviewRef = { reviewId: record.reviewId, revision: record.revision };
+      task.review = record;
+      task.reviewRef = reviewRef;
+      const result = manifest.results[taskId];
+      if (result) {
+        manifest.results[taskId] = { ...result, reviewRef, review: record };
+      }
+      const invocation = Object.values(manifest.invocations).find(
+        (candidate) => candidate.taskId === taskId,
+      );
+      if (invocation) {
+        invocation.reviewRef = reviewRef;
+        invocation.revision += 1;
+        invocation.updatedAt = record.createdAt;
+      }
+      outcome = { ok: true, record };
+    });
+    return outcome;
+  }
+
+  async function projectResultReview(
+    runId: string,
+    taskId: string,
+    latestReview: SubagentReviewRef,
+    reviewStatus: SubagentResultReviewStatus,
+  ): Promise<void> {
+    await mutateManifest(runId, (manifest) => {
+      const task = manifest.tasks.find((candidate) => candidate.id === taskId);
+      const result = manifest.results[taskId];
+      if (!task && !result) return false;
+      if (task) {
+        task.latestReview = latestReview;
+        task.reviewStatus = reviewStatus;
+      }
+      if (result) {
+        manifest.results[taskId] = { ...result, latestReview, reviewStatus };
+      }
+    });
+  }
+
   async function listInvocations(parentSessionId: string): Promise<SubagentInvocation[]> {
     const manifests = await listManifests();
     return manifests
@@ -533,6 +624,8 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     recordLease,
     recordResult,
     recordInvocation,
+    persistReviewerDecision,
+    projectResultReview,
     listInvocations,
     setStatus,
     requestCancel,

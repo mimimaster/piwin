@@ -16,6 +16,8 @@ import {
   type SubagentBatchResult,
   type SubagentIsolationMode,
   type SubagentResultRef,
+  type SubagentReviewDecision,
+  type SubagentReviewRef,
   type SubagentTaskResult,
   type ToolResultErrorCode,
 } from '@piwin/contracts';
@@ -65,6 +67,13 @@ export type SubagentControlDeps = {
     resolvedIsolation: SubagentIsolationMode;
     role?: string;
   }) => BindSubagentReviewTargetResult;
+  observePersistedReview?: (runId: string) => Promise<
+    | {
+        reviewRef: SubagentReviewRef;
+        reviewDecision: SubagentReviewDecision;
+      }
+    | undefined
+  >;
 };
 
 type PreparedStart = {
@@ -387,6 +396,7 @@ async function waitForSubagentRuns(
         // Observation still succeeds; merge is best-effort for available summaries.
       }
     }
+    const persistedReview = await deps.observePersistedReview?.(owner.runId);
     const observation: SubagentWaitRunObservation = {
       runId: owner.runId,
       ...(owner.invocationIds[0] ? { invocationId: owner.invocationIds[0] } : {}),
@@ -398,6 +408,19 @@ async function waitForSubagentRuns(
       integrationStatus: taskResult?.integrationStatus ?? 'not-requested',
       ...(taskResult?.summaryStatus ? { summaryStatus: taskResult.summaryStatus } : {}),
       ...(taskResult?.error ? { error: taskResult.error } : {}),
+      ...(taskResult?.resultRef ? { resultRef: taskResult.resultRef } : {}),
+      ...(taskResult?.childChanges ? { childChanges: taskResult.childChanges } : {}),
+      ...(persistedReview
+        ? {
+            reviewRef: persistedReview.reviewRef,
+            reviewDecision: persistedReview.reviewDecision,
+          }
+        : taskResult?.reviewRef
+          ? {
+              reviewRef: taskResult.reviewRef,
+              ...(taskResult.review ? { reviewDecision: taskResult.review.decision } : {}),
+            }
+          : {}),
     };
     runs.push(observation);
   }
@@ -507,6 +530,7 @@ export function formatWaitToolResult(result: SubagentWaitResult): {
       (run) =>
         `${run.runId}:${run.executionStatus}` +
         (run.integrationStatus ? `/${run.integrationStatus}` : '') +
+        (run.reviewDecision ? ` review=${run.reviewDecision}` : '') +
         (run.summaryPreview ? ` ${run.summaryPreview}` : ''),
     )
     .join('\n');

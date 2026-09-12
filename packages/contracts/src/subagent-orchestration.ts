@@ -56,7 +56,8 @@ import type {
   SubagentDeliveryIntent,
   SubagentResultRef,
 } from './subagent-delivery.js';
-import type { SubagentReviewRef, SubagentReviewTarget } from './subagent-review.js';
+import type { SubagentReviewRecord, SubagentReviewRef, SubagentReviewTarget } from './subagent-review.js';
+import type { SubagentResultReviewStatus } from './subagent-result.js';
 import type { SubagentApplyPolicy, SubagentIsolationMode } from './subagent.js';
 import type { SubagentCapability, SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { BackendPreparedPrompt } from './backend-prepared-prompt.js';
@@ -271,6 +272,9 @@ export type SubagentTaskResult = {
   targetWorkspaceId?: string;
   reviewTarget?: SubagentReviewTarget;
   reviewRef?: SubagentReviewRef;
+  review?: SubagentReviewRecord;
+  latestReview?: SubagentReviewRef;
+  reviewStatus?: SubagentResultReviewStatus;
   candidateLineageId?: string;
   candidateGeneration?: number;
   predecessorResult?: SubagentResultRef;

@@ -38,6 +38,8 @@ import {
   createSubagentResultReadTool,
   type SubagentResultReadService,
 } from '../subagent-result-read-tool.js';
+import { createSubagentReviewSubmitTool } from '../subagent-review-submit-tool.js';
+import type { SubagentReviewService } from '../subagent-review-service.js';
 import type { SubagentReviewCapabilityScope } from '../subagent-review-context.js';
 import { buildImageGenTool } from '../image-gen-tool.js';
 import { buildVideoGenTool } from '../video-gen-tool.js';
@@ -138,6 +140,8 @@ export type BuildSessionHostToolsOptions = {
   /** Host-only reviewer scope. Never accepted from model input. */
   reviewScope?: SubagentReviewCapabilityScope;
   resultService?: SubagentResultReadService;
+  reviewService?: SubagentReviewService;
+  reviewerInvocationId?: string;
 
   /** Publish mutations made by model-facing plan tools. */
   onPlanUpdated?: (plan: SessionPlan) => void;
@@ -433,6 +437,18 @@ export async function buildSessionHostTools(
         resultService: options.resultService,
       }),
     );
+    if (options.reviewService) {
+      tools.push(
+        createSubagentReviewSubmitTool({
+          scope: options.reviewScope,
+          reviewerSessionId: options.sessionId,
+          service: options.reviewService,
+          ...(options.reviewerInvocationId
+            ? { invocationId: options.reviewerInvocationId }
+            : {}),
+        }),
+      );
+    }
   }
 
   // --- Image generation tool ---

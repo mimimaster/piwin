@@ -104,6 +104,8 @@ export function projectSubagentResultSummary(
   const generation = firstDefined(source.result.candidateGeneration, source.task?.candidateGeneration);
   const predecessor = firstDefined(source.result.predecessorResult, source.task?.predecessorResult);
   const groupId = firstDefined(source.result.candidateGroupId, source.task?.candidateGroupId);
+  const latestReview = firstDefined(source.result.latestReview, source.task?.latestReview);
+  const storedReviewStatus = firstDefined(source.result.reviewStatus, source.task?.reviewStatus);
 
   return {
     resultId: resultRef.resultId,
@@ -124,6 +126,8 @@ export function projectSubagentResultSummary(
           candidateLineageId: lineageId ?? null,
           candidateGeneration: generation ?? null,
           predecessorResult: predecessor ?? null,
+          latestReview: latestReview ?? null,
+          reviewStatus: storedReviewStatus ?? 'not-requested',
         }),
     executionStatus: source.result.executionStatus,
     summaryStatus: source.result.summaryStatus,
@@ -165,6 +169,8 @@ export function enrichSubagentTaskResult(
     ...(lineageId ? { candidateLineageId: lineageId } : {}),
     ...(generation !== null && generation !== undefined ? { candidateGeneration: generation } : {}),
     ...(predecessor ? { predecessorResult: predecessor } : {}),
+    ...(summary.latestReview ? { latestReview: summary.latestReview } : {}),
+    ...(summary.reviewStatus !== 'not-requested' ? { reviewStatus: summary.reviewStatus } : {}),
   };
 }
 
@@ -182,6 +188,26 @@ export function hydrateSubagentResultService(
       });
       if (!summary) continue;
       service.register(summary, result.worktreePath ? { worktreePath: result.worktreePath } : undefined);
+    }
+  }
+  applyPersistedReviewsToResultService(service, manifests);
+}
+
+export function applyPersistedReviewsToResultService(
+  service: SubagentResultService,
+  manifests: readonly SubagentRunManifest[],
+): void {
+  for (const manifest of manifests) {
+    for (const task of manifest.tasks) {
+      const review = task.review;
+      if (!review) continue;
+      const summary = service.get(review.targetResult.resultId);
+      if (!summary || summary.revision !== review.targetResult.revision) continue;
+      service.register({
+        ...summary,
+        latestReview: { reviewId: review.reviewId, revision: review.revision },
+        reviewStatus: review.decision,
+      });
     }
   }
 }

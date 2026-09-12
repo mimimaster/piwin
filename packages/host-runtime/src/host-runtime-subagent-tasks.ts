@@ -26,6 +26,7 @@ import {
 import type { SubagentRunSeam } from './subagent-run-tool.js';
 import { createSubagentControlSeam } from './host-runtime-subagent-start.js';
 import { bindSubagentReviewTarget } from './subagent-review-context.js';
+import { loadPersistedReviewObservation } from './subagent-review-service.js';
 import {
   applyStatusFromIntegration,
   type SubagentApplyWriterStatus,
@@ -106,6 +107,10 @@ export function getSubagentSeam(
             : {}),
         }),
       merge,
+      observePersistedReview: async (runId) => {
+        if (!deps.subagentRunStore) return undefined;
+        return loadPersistedReviewObservation(deps.subagentRunStore, runId);
+      },
     },
     sessionId,
   );

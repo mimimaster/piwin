@@ -213,6 +213,31 @@ export function validateSubagentReviewBounds(input: {
   return issues.length === 0 ? { ok: true } : { ok: false, issues };
 }
 
+export function validateSubagentReviewDecision(input: {
+  decision: SubagentReviewDecision;
+  findings: SubagentReviewFinding[];
+}): SubagentReviewBoundsResult {
+  const issues: SubagentReviewBoundsIssue[] = [];
+  if (input.decision === 'approved') {
+    if (input.findings.some((finding) => finding.severity === 'critical' || finding.severity === 'high')) {
+      addIssue(
+        issues,
+        'approved-with-blocking-finding',
+        'approved rejects critical or high findings',
+      );
+    }
+  } else if (input.decision === 'changes-requested' && input.findings.length === 0) {
+    addIssue(
+      issues,
+      'changes-requested-without-finding',
+      'changes-requested requires at least one finding',
+    );
+  } else if (input.decision === 'blocked' && input.findings.length === 0) {
+    addIssue(issues, 'blocked-without-reason', 'blocked requires a reason finding');
+  }
+  return issues.length === 0 ? { ok: true } : { ok: false, issues };
+}
+
 export function validateSubagentDeliveryVerificationBounds(input: {
   checks: SubagentDeliveryVerification['checks'];
 }): SubagentReviewBoundsResult {
