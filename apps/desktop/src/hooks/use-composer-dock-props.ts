@@ -61,6 +61,10 @@ import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
 import { isConversationSessionChrome } from '../is-conversation-session';
 import type { SidebarMode } from '../sidebar-mode';
 import { useAtWorkspaceFiles } from './use-at-workspace-files';
+import {
+  deriveSubagentOrchestrationView,
+} from '../subagent-orchestration-view.js';
+import { EMPTY_SUBAGENT_ORCHESTRATION_VIEW } from '../composer-activity-model.js';
 
 export type UseComposerDockPropsArgs = {
   hostClient: HostClient;
@@ -137,6 +141,7 @@ export type UseComposerDockPropsArgs = {
   recentProjects: readonly ProjectRecord[];
   activeJobs: readonly JobRecord[];
   stopJob: (jobId: string) => void | Promise<void>;
+  viewJobLogs: (jobId: string) => void;
   openInspector: (tab?: RightPanelTab | null) => void;
   steerQueueMessages: readonly SteerQueueMessage[];
   onSteerQueueSendNow: (messageId: string) => void | Promise<void>;
@@ -227,6 +232,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     recentProjects,
     activeJobs,
     stopJob,
+    viewJobLogs,
     openInspector,
     steerQueueMessages,
     onSteerQueueSendNow,
@@ -361,6 +367,40 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     [state.messages],
   );
 
+  const orchestrationView = useMemo(() => {
+    if (!state.activeSessionId) {
+      return EMPTY_SUBAGENT_ORCHESTRATION_VIEW;
+    }
+    return deriveSubagentOrchestrationView({
+      parentSessionId: state.activeSessionId,
+      invocations: state.subagentInvocations,
+      children: state.subagentChildren,
+      streams: state.subagentStreams,
+    });
+  }, [
+    state.activeSessionId,
+    state.subagentInvocations,
+    state.subagentChildren,
+    state.subagentStreams,
+  ]);
+
+  const handleViewJobLogs = useCallback(
+    (jobId: string): void => {
+      viewJobLogs(jobId);
+      openInspector('terminal');
+    },
+    [openInspector, viewJobLogs],
+  );
+  const handleCancelSubagentBatch = useCallback(
+    (runId: string): void => {
+      void hostClient.request({ type: 'subagent/batch-cancel', runId });
+    },
+    [hostClient],
+  );
+  const handleOpenTasks = useCallback((): void => {
+    openInspector('tasks');
+  }, [openInspector]);
+
   const queuedEdit = useMemo(() => {
     if (queuedTurnEditId === null) {
       return null;
@@ -404,12 +444,13 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onComposerChange: setComposer,
       sessionUserPrompts,
       activeJobs,
+      orchestrationView,
       onStopJob: (jobId) => {
         void stopJob(jobId);
       },
-      onViewJobLogs: () => {
-        openInspector('terminal');
-      },
+      onViewJobLogs: handleViewJobLogs,
+      onCancelSubagentBatch: handleCancelSubagentBatch,
+      onOpenTasks: handleOpenTasks,
       agentMode,
       onAgentModeChange: setAgentMode,
       goalExtensionEnabled,
@@ -574,7 +615,10 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       handleComposerResumeRun,
       handleComposerSend,
       handleComposerSteer,
+      handleCancelSubagentBatch,
       handleOpenHostSettings,
+      handleOpenTasks,
+      handleViewJobLogs,
       handleOpenMcpPanel,
       handleOpenModelSettings,
       handleOpenOrchestrationSchemeSettings,
@@ -602,6 +646,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onSteerQueueSendNow,
       onThinkingLevelChange,
       openInspector,
+      orchestrationView,
       orchestrationSchemeId,
       orchestrationSchemeOptions,
       pendingAttachments,

@@ -53,6 +53,7 @@ import {
   resolveInteractiveTerminalCwd,
   resolveInteractiveTerminalProjectPath,
 } from './interactive-terminal-binding';
+import { TerminalJobMonitor, type TerminalJobMonitorProps } from './terminal-job-monitor';
 
 type InspectorShell = {
   closeOverlay: () => void;
@@ -127,6 +128,7 @@ export type WorkbenchInspectorProps = {
   terminalRecentDirs: string[];
   tasksContent?: ReactNode;
   tasksActiveCount?: number;
+  terminalJobMonitor?: Omit<TerminalJobMonitorProps, 'children' | 'locale'> | undefined;
 };
 
 export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement {
@@ -184,6 +186,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     terminalRecentDirs,
     tasksContent,
     tasksActiveCount,
+    terminalJobMonitor,
   } = props;
   useBrowserInspectorReveal(hostClient, (tab) => {
     shell.openInspector(tab);
@@ -194,6 +197,18 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     preferredCwd: terminalCwd,
     projectPath,
   });
+  const terminalDock = (
+    <DeferredTerminalDock
+      projectPath={terminalProjectPath}
+      projectTrusted={projectTrusted}
+      ptyOutput={ptyOutput}
+      onClearPtyOutput={() => setPtyOutput([])}
+      currentCwd={terminalSpawnCwd || terminalCwd}
+      onCwdChange={handleTerminalCwdChange}
+      recentDirs={terminalRecentDirs}
+      request={requestPty}
+    />
+  );
 
   return (
       <>
@@ -442,16 +457,13 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
             )
           }
           terminalContent={
-            <DeferredTerminalDock
-              projectPath={terminalProjectPath}
-              projectTrusted={projectTrusted}
-              ptyOutput={ptyOutput}
-              onClearPtyOutput={() => setPtyOutput([])}
-              currentCwd={terminalSpawnCwd || terminalCwd}
-              onCwdChange={handleTerminalCwdChange}
-              recentDirs={terminalRecentDirs}
-              request={requestPty}
-            />
+            terminalJobMonitor ? (
+              <TerminalJobMonitor {...terminalJobMonitor} locale={locale}>
+                {terminalDock}
+              </TerminalJobMonitor>
+            ) : (
+              terminalDock
+            )
           }
           reviewContent={
             <WorkbenchReviewSurface

@@ -191,6 +191,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     requestPty,
     requestAutomation,
     jobs,
+    terminalJobMonitor,
     backendServiceSessionIds,
     hostStatus,
     config,
@@ -778,6 +779,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       terminalCwd={terminalCwd}
                       handleTerminalCwdChange={handleTerminalCwdChange}
                       terminalRecentDirs={terminalRecentDirs}
+                      terminalJobMonitor={terminalJobMonitor}
                       tasksActiveCount={tasksActiveCount}
                       tasksContent={
                         <SubAgentPanel

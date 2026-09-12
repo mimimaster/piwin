@@ -1,0 +1,214 @@
+/* Composer activity pill — Cursor-style Working chip above the slab. */
+
+.composer-activity-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s-3);
+  padding: 0 var(--s-2);
+  z-index: 3;
+}
+
+.composer-activity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: 550;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+.composer-activity-pill:hover {
+  background: var(--hover);
+}
+
+.composer-activity-pill[aria-expanded='true'] {
+  background: var(--hover);
+}
+
+.composer-activity-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono, ui-monospace, Menlo, Monaco, Consolas, monospace);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--azure, #3a7797);
+}
+
+.composer-activity-pill-icon.is-done {
+  color: var(--mint);
+  font-weight: 700;
+}
+
+.composer-activity-pill-label {
+  letter-spacing: -0.01em;
+}
+
+.composer-activity-pill-chevron {
+  font-size: 10px;
+  color: var(--text-3);
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.composer-activity-pill:hover .composer-activity-pill-chevron,
+.composer-activity-pill[aria-expanded='true'] .composer-activity-pill-chevron {
+  color: var(--text-1);
+}
+
+.ui-popover-content.composer-activity-popover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: min(272px, calc(100vw - 24px));
+  padding: 10px;
+  border-radius: var(--r-panel);
+  border: 0;
+  background: var(--surface-4);
+  box-shadow: var(--elev-4);
+  font-size: var(--fs-chrome);
+}
+
+.composer-activity-popover-head,
+.composer-activity-popover-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-activity-popover-head {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.composer-activity-popover-foot {
+  padding-top: 4px;
+  border-top: 1px solid var(--line-1);
+}
+
+.composer-activity-stop-all,
+.composer-activity-popover-close {
+  border: 0;
+  background: transparent;
+  color: var(--coral, #9c2e3d);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-micro);
+  padding: 0;
+}
+
+.composer-activity-popover-close {
+  color: var(--text-2);
+}
+
+.composer-activity-stop-all:hover,
+.composer-activity-popover-close:hover {
+  text-decoration: underline;
+}
+
+.composer-activity-section-label {
+  margin: 0 0 4px;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.composer-activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 196px;
+  overflow-y: auto;
+}
+
+.composer-activity-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: var(--r-chip);
+  background: var(--surface-3);
+}
+
+.composer-activity-row-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-activity-row:hover {
+  background: var(--hover);
+}
+
+.composer-activity-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 550;
+}
+
+.composer-activity-row-meta {
+  flex-shrink: 0;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 10px;
+  font-family: var(--font-mono, ui-monospace, Menlo, Monaco, Consolas, monospace);
+}
+
+.composer-activity-row-stop {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin-right: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.composer-activity-row-stop:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.composer-active-job-dot.is-failed {
+  background: var(--coral, #9c2e3d);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-activity-pill-icon {
+    animation: none;
+  }
+}

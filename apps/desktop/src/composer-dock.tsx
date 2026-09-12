@@ -7,7 +7,7 @@
  */
 import type { ReactElement } from 'react';
 import { SteerQueue } from './steer-queue';
-import { ActiveJobsStrip } from './active-jobs-strip';
+import { ComposerActivityPill } from './composer-activity-pill';
 import { ComposerCard } from './composer-card';
 import { ComposerContextRail } from './composer-context-rail';
 import type { ComposerDockProps } from './composer-dock-types';
@@ -45,13 +45,14 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         onSelectLocalRuntime={props.onSelectLocalRuntime}
         onSelectAttachRuntime={props.onSelectAttachRuntime}
       />
-      {props.activeJobs && props.activeJobs.length > 0 ? (
-        <ActiveJobsStrip
-          jobs={props.activeJobs}
-          onStop={props.onStopJob ?? (() => {})}
-          onViewLogs={props.onViewJobLogs ?? (() => {})}
-        />
-      ) : null}
+      <ComposerActivityPill
+        orchestrationView={props.orchestrationView}
+        jobs={props.activeJobs ?? []}
+        onStopJob={props.onStopJob ?? (() => {})}
+        onViewJobLogs={props.onViewJobLogs ?? (() => {})}
+        onCancelSubagentBatch={props.onCancelSubagentBatch ?? (() => {})}
+        onOpenTasks={props.onOpenTasks ?? (() => {})}
+      />
       {props.steerQueueMessages && props.steerQueueMessages.length > 0 ? (
         <SteerQueue
           messages={props.steerQueueMessages}

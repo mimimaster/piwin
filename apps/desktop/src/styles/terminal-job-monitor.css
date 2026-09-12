@@ -1,0 +1,130 @@
+/* Terminal tab: zsh PTY plus reachable job log streams. */
+
+.terminal-job-monitor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.terminal-job-switcher {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--line-1);
+  flex-shrink: 0;
+}
+
+.terminal-job-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 550;
+  cursor: pointer;
+  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+}
+
+.terminal-job-chip:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.terminal-job-chip.is-selected {
+  background: var(--surface-4);
+  color: var(--text-1);
+  box-shadow: var(--elev-1);
+}
+
+.terminal-job-chip-label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-job-chip-meta {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.terminal-job-pty {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.terminal-job-pty[hidden] {
+  display: none;
+}
+
+.terminal-job-log-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.terminal-job-log-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  height: var(--h-md);
+  min-height: var(--h-md);
+  padding: 0 var(--s-4);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.terminal-job-log-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-micro);
+  font-weight: 550;
+  color: var(--text-2);
+}
+
+.terminal-job-log-stop {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.terminal-job-log-stop:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.terminal-job-log {
+  flex: 1;
+  min-height: 240px;
+  margin: 0;
+  padding: var(--s-4);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono, ui-monospace, Menlo, Monaco, Consolas, monospace);
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  color: var(--text-1);
+  background: var(--void, transparent);
+}

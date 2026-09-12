@@ -31,6 +31,8 @@
 @import './styles/composer-menus.css';
 @import './styles/composer-popovers.css';
 @import './styles/composer-ink-wash.css';
+@import './styles/composer-activity-pill.css';
+@import './styles/terminal-job-monitor.css';
 @import './styles/region-transcript.css';
 @import './styles/transcript-history-ticks.css';
 @import './styles/transcript-message.css';
