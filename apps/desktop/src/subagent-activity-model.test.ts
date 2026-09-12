@@ -3,7 +3,12 @@ import type { SessionSummary } from '@piwin/contracts';
 import type { SubagentStreamState } from './chat-reducer';
 import {
   deriveSubagentInspectorStatus,
+  deriveSubagentLatestActivity,
+  formatInvocationActivity,
+  invocationStatusToExecutionStatus,
   normalizeExecutionStatus,
+  preferSubagentInvocation,
+  resolveSubagentLifecycleAxes,
   selectActiveSubagents,
   subagentStatusToRunKind,
   toInspectorSelection,
@@ -35,6 +40,90 @@ function makeStream(overrides: Partial<SubagentStreamState>): SubagentStreamStat
     ...overrides,
   };
 }
+
+describe('preferSubagentInvocation', () => {
+  it('keeps the higher revision invocation', () => {
+    const current = {
+      id: 'inv-1',
+      parentSessionId: 'parent-1',
+      runId: 'run-1',
+      taskId: 'task-1',
+      task: 'Task',
+      status: 'completed' as const,
+      revision: 5,
+      createdAt: '2026-09-13T00:00:00.000Z',
+      updatedAt: '2026-09-13T00:05:00.000Z',
+      activity: { kind: 'completed' as const },
+    };
+    const stale = { ...current, status: 'running' as const, revision: 2 };
+    expect(preferSubagentInvocation(current, stale)).toBe(current);
+    expect(preferSubagentInvocation(undefined, stale)).toBe(stale);
+  });
+});
+
+describe('invocationStatusToExecutionStatus', () => {
+  it('maps needs-integration to completed execution', () => {
+    expect(invocationStatusToExecutionStatus('needs-integration')).toBe('completed');
+    expect(invocationStatusToExecutionStatus('starting')).toBe('starting');
+  });
+});
+
+describe('resolveSubagentLifecycleAxes', () => {
+  it('prefers invocation execution over a stale running child summary', () => {
+    const child = makeChild({
+      id: 'child-1',
+      subagentExecutionStatus: 'running',
+    });
+    expect(
+      resolveSubagentLifecycleAxes({
+        invocation: {
+          id: 'inv-1',
+          parentSessionId: 'parent-1',
+          runId: 'run-1',
+          taskId: 'task-1',
+          task: 'Task',
+          status: 'completed',
+          revision: 4,
+          createdAt: '2026-09-13T00:00:00.000Z',
+          updatedAt: '2026-09-13T00:04:00.000Z',
+          activity: { kind: 'completed' },
+          childSessionId: 'child-1',
+        },
+        child,
+      }),
+    ).toMatchObject({
+      executionStatus: 'completed',
+    });
+  });
+});
+
+describe('deriveSubagentLatestActivity', () => {
+  it('prefers a running tool over persisted invocation activity', () => {
+    expect(
+      deriveSubagentLatestActivity({
+        invocation: {
+          id: 'inv-1',
+          parentSessionId: 'parent-1',
+          runId: 'run-1',
+          taskId: 'task-1',
+          task: 'Task',
+          status: 'running',
+          revision: 1,
+          createdAt: '2026-09-13T00:00:00.000Z',
+          updatedAt: '2026-09-13T00:01:00.000Z',
+          activity: { kind: 'responding' },
+        },
+        stream: makeStream({
+          tools: [{ toolCallId: 'tool-1', toolName: 'grep', status: 'running', output: '' }],
+        }),
+      }),
+    ).toBe('Running grep');
+  });
+
+  it('formats persisted invocation activity when no stream is attached', () => {
+    expect(formatInvocationActivity({ kind: 'queued' })).toBe('Queued');
+  });
+});
 
 describe('normalizeExecutionStatus', () => {
   it('prefers the orthogonal CE-SUB-LIFE execution status axis', () => {
