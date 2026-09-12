@@ -55,10 +55,11 @@ describe('HostRuntime tool surfaces', () => {
     }
   });
 
-  it('exposes exactly four delegate tools in sdk and rpc modes', async () => {
+  it('exposes exactly five delegate tools in sdk and rpc modes', async () => {
     const expected = [
       'piwin_subagent_run',
       'piwin_subagent_start',
+      'piwin_subagent_continue',
       'piwin_subagent_wait',
       'piwin_subagent_cancel',
     ];

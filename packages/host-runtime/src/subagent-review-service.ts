@@ -90,6 +90,25 @@ export async function loadPersistedReviewObservation(
   return undefined;
 }
 
+export async function findPersistedReview(
+  store: Pick<SubagentRunStore, 'listManifests'>,
+  ref: SubagentReviewRef,
+): Promise<SubagentReviewRecord | undefined> {
+  for (const manifest of await store.listManifests()) {
+    for (const task of manifest.tasks) {
+      const review = task.review;
+      if (
+        review &&
+        review.reviewId === ref.reviewId &&
+        review.revision === ref.revision
+      ) {
+        return review;
+      }
+    }
+  }
+  return undefined;
+}
+
 function collectFrozenRelativePaths(
   resultService: SubagentResultService,
   resultId: string,

@@ -32,6 +32,7 @@ describe('classifyToolKind', () => {
     expect(classifyToolKind('image_gen')).toBe('image');
     expect(classifyToolKind('piwin_subagent_run')).toBe('subagent');
     expect(classifyToolKind('piwin_subagent_start')).toBe('subagent');
+    expect(classifyToolKind('piwin_subagent_continue')).toBe('subagent');
     expect(classifyToolKind('piwin_subagent_wait')).toBe('other');
     expect(classifyToolKind('piwin_subagent_cancel')).toBe('other');
     expect(classifyToolKind('health_read_context')).toBe('health');

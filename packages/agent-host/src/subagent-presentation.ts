@@ -18,7 +18,8 @@ function normalizeToolName(name: string | undefined): string {
 }
 
 function isSubagentStartTool(name: string | undefined): boolean {
-  return normalizeToolName(name) === 'piwin_subagent_start';
+  const normalized = normalizeToolName(name);
+  return normalized === 'piwin_subagent_start' || normalized === 'piwin_subagent_continue';
 }
 
 function isSubagentWaitTool(name: string | undefined): boolean {
