@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSubagentRunIds } from './subagent-tool-input.js';
+import { parseSubagentRunIds, parseSubagentStartInput } from './subagent-tool-input.js';
 
 describe('parseSubagentRunIds', () => {
   it('deduplicates while preserving caller order', () => {
@@ -53,5 +53,43 @@ describe('parseSubagentRunIds', () => {
       code: 'invalid-input',
       message: 'runIds must be an array of strings',
     });
+  });
+});
+
+describe('parseSubagentStartInput reviewOf', () => {
+  it('parses an exact result ref', () => {
+    expect(
+      parseSubagentStartInput({
+        task: 'review the candidate',
+        role: 'reviewer',
+        reviewOf: { resultId: 'result-1', revision: 1 },
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        task: 'review the candidate',
+        role: 'reviewer',
+        reviewOf: { resultId: 'result-1', revision: 1 },
+      },
+    });
+  });
+
+  it('rejects host-owned fields on start or reviewOf', () => {
+    expect(
+      parseSubagentStartInput({
+        task: 'review the candidate',
+        parentSessionId: 'parent-1',
+      }),
+    ).toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(
+      parseSubagentStartInput({
+        task: 'review the candidate',
+        reviewOf: {
+          resultId: 'result-1',
+          revision: 1,
+          changeSetId: 'cs-child',
+        },
+      }),
+    ).toMatchObject({ ok: false, code: 'invalid-input' });
   });
 });

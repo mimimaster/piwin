@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { HostRuntime } from './host-runtime.js';
+import { SUBAGENT_RESULT_READ_TOOL_NAME } from './subagent-result-read-tool.js';
 
 describe('HostRuntime tool surfaces', () => {
   it('uses the explicit project path before session binding completes', async () => {
@@ -81,6 +82,82 @@ describe('HostRuntime tool surfaces', () => {
         await rm(piwinRoot, { recursive: true, force: true });
       }
     }
+  });
+
+  it('does not give parent or ordinary child sessions reviewer-only tools', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-tool-surface-review-parent-'));
+    const projectPath = join(piwinRoot, 'project');
+    await mkdir(projectPath, { recursive: true });
+    const runtime = new HostRuntime({ mode: 'sdk', mock: false, piwinRoot });
+    try {
+      runtime.subagentSessionContexts.set('ordinary-child', {
+        parentSessionId: 'parent-session',
+        runtimeGenerationId: 'generation-ordinary',
+        workingDirectory: projectPath,
+        parentRepoPath: projectPath,
+      });
+      const parentTools = await runtime.buildSessionHostToolsForSession(
+        'parent-session',
+        'generation-parent',
+        undefined,
+        'active',
+        projectPath,
+      );
+      const childTools = await runtime.buildSessionHostToolsForSession(
+        'ordinary-child',
+        'generation-ordinary',
+        undefined,
+        'active',
+        projectPath,
+      );
+      expect(parentTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_READ_TOOL_NAME)).toBe(
+        false,
+      );
+      expect(childTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_READ_TOOL_NAME)).toBe(
+        false,
+      );
+    } finally {
+      await runtime.dispose();
+      await rm(piwinRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('exposes the same scoped reviewer surface in sdk and worker modes', async () => {
+    const reviewScope = {
+      result: { resultId: 'result-1', revision: 1 },
+      changes: { changeSetId: 'cs-child', revision: 1 },
+    };
+    const namesByMode: Record<string, string[]> = {};
+    for (const mode of ['sdk', 'rpc'] as const) {
+      const piwinRoot = await mkdtemp(join(tmpdir(), `piwin-tool-surface-reviewer-${mode}-`));
+      const projectPath = join(piwinRoot, 'project');
+      await mkdir(projectPath, { recursive: true });
+      const runtime = new HostRuntime({ mode, mock: false, piwinRoot });
+      try {
+        runtime.subagentSessionContexts.set(`reviewer-${mode}`, {
+          parentSessionId: 'parent-session',
+          runtimeGenerationId: `generation-reviewer-${mode}`,
+          workingDirectory: projectPath,
+          parentRepoPath: projectPath,
+          reviewScope,
+        });
+        const tools = await runtime.buildSessionHostToolsForSession(
+          `reviewer-${mode}`,
+          `generation-reviewer-${mode}`,
+          undefined,
+          'active',
+          projectPath,
+        );
+        namesByMode[mode] = tools
+          .filter((tool) => tool.family === 'delegate')
+          .map((tool) => tool.descriptor.name);
+      } finally {
+        await runtime.dispose();
+        await rm(piwinRoot, { recursive: true, force: true });
+      }
+    }
+    expect(namesByMode.sdk).toEqual([SUBAGENT_RESULT_READ_TOOL_NAME]);
+    expect(namesByMode.rpc).toEqual(namesByMode.sdk);
   });
 
   it('omits browser_* tools on mock hosts', async () => {

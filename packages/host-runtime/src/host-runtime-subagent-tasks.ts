@@ -25,6 +25,7 @@ import {
 } from './subagent-invocation-state.js';
 import type { SubagentRunSeam } from './subagent-run-tool.js';
 import { createSubagentControlSeam } from './host-runtime-subagent-start.js';
+import { bindSubagentReviewTarget } from './subagent-review-context.js';
 import type {
   SubagentBatchRequest,
   SubagentTaskSpec,
@@ -82,6 +83,23 @@ export function getSubagentSeam(
       prepareBatch: (request, source) => deps.prepareSubagentBatch(request, source),
       whenReady: () => deps.whenSubagentStartupRecoveryReady(),
       taskResults: deps.subagentTaskResults,
+      bindReviewTarget: (input) =>
+        bindSubagentReviewTarget({
+          parentSessionId: input.parentSessionId,
+          reviewOf: input.reviewOf,
+          resolvedIsolation: input.resolvedIsolation,
+          ...(input.role ? { role: input.role } : {}),
+          getResult: (resultId) => deps.subagentResultService?.get(resultId),
+          ...(deps.turnChangeRuntime
+            ? {
+                hasFrozenChanges: (changes: { changeSetId: string; revision: number }) =>
+                  deps.turnChangeRuntime?.store.getChangeVersion(
+                    changes.changeSetId,
+                    changes.revision,
+                  ) !== undefined,
+              }
+            : {}),
+        }),
       merge,
     },
     sessionId,

@@ -234,6 +234,12 @@ export async function composeSessionHostToolsForSession(
           const seam = deps.getSubagentSeam(sessionId);
           return seam ? { subagentSeam: seam } : {};
         })()),
+    ...(childContext?.reviewScope && deps.subagentResultService
+      ? {
+          reviewScope: childContext.reviewScope,
+          resultService: deps.subagentResultService,
+        }
+      : {}),
     ...(deps.options.clientToolExecution === undefined || childContext
       ? {}
       : {

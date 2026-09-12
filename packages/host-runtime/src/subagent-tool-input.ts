@@ -3,10 +3,21 @@ import type {
   SubagentApplyPolicy,
   SubagentDeliveryIntent,
   SubagentIsolationMode,
+  SubagentResultRef,
   ThinkingLevel,
   ToolResult,
 } from '@piwin/contracts';
 import { parseSubagentDeliveryFields } from '@piwin/contracts';
+
+const FORBIDDEN_START_FIELDS = [
+  'parentSessionId',
+  'parentRunId',
+  'workspacePath',
+  'changeSetId',
+  'candidateLineageId',
+  'reviewScope',
+  'reviewCapability',
+] as const;
 
 const ISOLATION_MODES: ReadonlySet<string> = new Set(['readonly', 'worktree']);
 
@@ -87,6 +98,17 @@ export const subagentStartInputParameters = {
       enum: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
       description: 'Optional per-call thinking level override.',
     },
+    reviewOf: {
+      type: 'object',
+      description:
+        'Exact frozen result to review. Host binds parent session, change version, ' +
+        'and reviewer scope. Do not supply workspace paths or capability scope.',
+      properties: {
+        resultId: { type: 'string' },
+        revision: { type: 'number' },
+      },
+      required: ['resultId', 'revision'],
+    },
   },
   required: ['task'] as const,
 };
@@ -101,6 +123,7 @@ export type SubagentStartInput = {
   profileId?: string;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
+  reviewOf?: SubagentResultRef;
 };
 
 type InvalidSubagentInput = Extract<ToolResult, { ok: false }>;
@@ -109,9 +132,35 @@ function invalidSubagentInput(message: string): InvalidSubagentInput {
   return { ok: false, code: 'invalid-input', message };
 }
 
+export function parseSubagentResultRef(
+  value: unknown,
+  field = 'result',
+): { ok: true; value: SubagentResultRef } | InvalidSubagentInput {
+  if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return invalidSubagentInput(`${field} must be { resultId, revision }`);
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of FORBIDDEN_START_FIELDS) {
+    if (record[key] !== undefined) {
+      return invalidSubagentInput(`${field} cannot include ${key}`);
+    }
+  }
+  const resultId = typeof record.resultId === 'string' ? record.resultId.trim() : '';
+  if (!resultId) return invalidSubagentInput(`${field}.resultId is required`);
+  if (typeof record.revision !== 'number' || !Number.isInteger(record.revision) || record.revision < 1) {
+    return invalidSubagentInput(`${field}.revision must be a positive integer`);
+  }
+  return { ok: true, value: { resultId, revision: record.revision } };
+}
+
 export function parseSubagentStartInput(
   args: Record<string, unknown>,
 ): { ok: true; value: SubagentStartInput } | InvalidSubagentInput {
+  for (const key of FORBIDDEN_START_FIELDS) {
+    if (args[key] !== undefined) {
+      return invalidSubagentInput(`${key} cannot be supplied by the model`);
+    }
+  }
   const task = String(args.task ?? '').trim();
   if (!task) return invalidSubagentInput('task is required');
 
@@ -171,6 +220,13 @@ export function parseSubagentStartInput(
       ? (thinkingLevelRaw as ThinkingLevel)
       : undefined;
 
+  let reviewOf: SubagentResultRef | undefined;
+  if (args.reviewOf !== undefined) {
+    const parsedReviewOf = parseSubagentResultRef(args.reviewOf, 'reviewOf');
+    if (!parsedReviewOf.ok) return parsedReviewOf;
+    reviewOf = parsedReviewOf.value;
+  }
+
   return {
     ok: true,
     value: {
@@ -183,6 +239,7 @@ export function parseSubagentStartInput(
       ...(profileId ? { profileId } : {}),
       ...(model ? { model } : {}),
       ...(thinkingLevel ? { thinkingLevel } : {}),
+      ...(reviewOf ? { reviewOf } : {}),
     },
   };
 }

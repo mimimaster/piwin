@@ -34,6 +34,11 @@ import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-too
 import { createSubagentStartTool } from '../subagent-start-tool.js';
 import { createSubagentWaitTool } from '../subagent-wait-tool.js';
 import { createSubagentCancelTool } from '../subagent-cancel-tool.js';
+import {
+  createSubagentResultReadTool,
+  type SubagentResultReadService,
+} from '../subagent-result-read-tool.js';
+import type { SubagentReviewCapabilityScope } from '../subagent-review-context.js';
 import { buildImageGenTool } from '../image-gen-tool.js';
 import { buildVideoGenTool } from '../video-gen-tool.js';
 import { buildArtifactInstructionsTool } from '../artifact-instructions-tool.js';
@@ -129,6 +134,10 @@ export type BuildSessionHostToolsOptions = {
 
   /** Subagent run seam for the delegate tool. */
   subagentSeam?: SubagentRunSeam;
+
+  /** Host-only reviewer scope. Never accepted from model input. */
+  reviewScope?: SubagentReviewCapabilityScope;
+  resultService?: SubagentResultReadService;
 
   /** Publish mutations made by model-facing plan tools. */
   onPlanUpdated?: (plan: SessionPlan) => void;
@@ -413,6 +422,15 @@ export async function buildSessionHostTools(
       createSubagentCancelTool({
         sessionId: options.sessionId,
         seam,
+      }),
+    );
+  }
+
+  if (options.reviewScope && options.resultService) {
+    tools.push(
+      createSubagentResultReadTool({
+        scope: options.reviewScope,
+        resultService: options.resultService,
       }),
     );
   }

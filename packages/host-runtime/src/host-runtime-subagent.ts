@@ -207,6 +207,14 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
         workingDirectory: input.workingDirectory,
         parentRepoPath: input.workspaceLease.parentRepoPath,
         ...(input.task.invocationId ? { invocationId: input.task.invocationId } : {}),
+        ...(input.task.reviewTarget
+          ? {
+              reviewScope: {
+                result: { ...input.task.reviewTarget.result },
+                changes: { ...input.task.reviewTarget.changes },
+              },
+            }
+          : {}),
       });
       await deps.persistSubagentSessionStart(input).catch((error: unknown) => {
         deps.push({

@@ -26,6 +26,7 @@ import type {
   SubagentApplyPolicy,
   SubagentDeliveryIntent,
   SubagentIsolationMode,
+  SubagentResultRef,
   ThinkingLevel,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
@@ -53,6 +54,8 @@ export type SubagentSpawnInput = {
     model?: ModelRef;
     /** CE-SUB-PROF: per-call thinking level override. */
     thinkingLevel?: ThinkingLevel;
+    /** Exact result to bind as a reviewer target. Host fills reviewTarget. */
+    reviewOf?: SubagentResultRef;
     signal?: AbortSignal;
 };
 
@@ -157,6 +160,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
         profileId,
         model,
         thinkingLevel,
+        reviewOf,
       } = parsedInput.value;
 
       if (signal?.aborted) {
@@ -185,6 +189,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           ...(profileId ? { profileId } : {}),
           ...(model ? { model } : {}),
           ...(thinkingLevel ? { thinkingLevel } : {}),
+          ...(reviewOf ? { reviewOf } : {}),
           ...(signal ? { signal } : {}),
         });
       } catch (error) {
