@@ -157,6 +157,7 @@ function createHarness(options?: {
   maxTasksPerRun?: number;
   maxConcurrency?: number;
   holdRunner?: boolean;
+  persistFrozenResults?: boolean;
   abortDuringPrepare?: AbortController;
   closeAdmissionDuringPrepare?: boolean;
 }) {
@@ -265,11 +266,31 @@ function createHarness(options?: {
       },
       async dispose() {},
     },
-    freezeChildResult: async ({ result }) => ({
-      ...result,
-      resultRef: { resultId: `result-${result.taskId}`, revision: 1 },
-      childChanges: { changeSetId: `cs-${result.taskId}`, revision: 1 },
-    }),
+    freezeChildResult: async ({ result }) => {
+      const resultRef = { resultId: `result-${result.taskId}`, revision: 1 };
+      const childChanges = { changeSetId: `cs-${result.taskId}`, revision: 1 };
+      if (options?.persistFrozenResults) {
+        resultService.register(
+          makeSummary({
+            resultId: resultRef.resultId,
+            revision: resultRef.revision,
+            taskId: result.taskId,
+            batchRunId: result.runId ?? 'run-repair',
+            childSessionId: result.childSessionId ?? CHILD_ID,
+            candidateLineageId: result.candidateLineageId ?? 'lineage-login',
+            candidateGeneration: result.candidateGeneration ?? 2,
+            predecessorResult: result.predecessorResult ?? {
+              resultId: 'result-v1',
+              revision: 1,
+            },
+            latestReview: { reviewId: `review-${resultRef.resultId}`, revision: 1 },
+            reviewStatus: 'not-requested',
+            childChanges,
+          }),
+        );
+      }
+      return { ...result, resultRef, childChanges };
+    },
     push: () => {},
     getRuntimeGenerationId: () => 'generation-1',
   });
@@ -319,7 +340,7 @@ function createHarness(options?: {
           name: 'login worker',
           subagentStatus: 'done',
           subagentMode: 'worktree',
-          subagentApplyPolicy: 'explicit',
+          subagentApplyPolicy: 'auto',
           subagentRole: 'worker',
           worktreePath: WORKTREE_LEASE.worktreePath,
           subagentRuntime: {
@@ -406,6 +427,7 @@ describe('piwin_subagent_continue', () => {
     expect(task?.predecessorResult).toEqual({ resultId: 'result-v1', revision: 1 });
     expect(task?.candidateLineageId).toBe('lineage-login');
     expect(task?.candidateGeneration).toBe(2);
+    expect(task?.applyPolicy).toBe('explicit');
     expect(result?.childSessionId).toBe(CHILD_ID);
     expect(result?.candidateGeneration).toBe(2);
     expect(result?.predecessorResult).toEqual({ resultId: 'result-v1', revision: 1 });
@@ -442,6 +464,46 @@ describe('piwin_subagent_continue', () => {
       code: 'review-missing',
     });
     expect(missing.acquireCalls).toEqual([]);
+  });
+
+  it('rejects an older changes-requested review after latestReview is approved or blocked', async () => {
+    const approved = createHarness({
+      summaries: [
+        makeSummary({
+          reviewStatus: 'approved',
+          latestReview: { reviewId: 'rev-ok', revision: 1 },
+        }),
+      ],
+      reviews: [
+        makeReview(),
+        makeReview({ reviewId: 'rev-ok', decision: 'approved', findings: [] }),
+      ],
+    });
+    expect(await executeTool(approved.continueTool, continueArgs())).toMatchObject({
+      ok: false,
+      code: 'stale-review',
+    });
+    expect(approved.acquireCalls).toEqual([]);
+    expect(approved.batches).toEqual([]);
+
+    const blocked = createHarness({
+      summaries: [
+        makeSummary({
+          reviewStatus: 'blocked',
+          latestReview: { reviewId: 'rev-block', revision: 1 },
+        }),
+      ],
+      reviews: [
+        makeReview(),
+        makeReview({ reviewId: 'rev-block', decision: 'blocked' }),
+      ],
+    });
+    expect(await executeTool(blocked.continueTool, continueArgs())).toMatchObject({
+      ok: false,
+      code: 'stale-review',
+    });
+    expect(blocked.acquireCalls).toEqual([]);
+    expect(blocked.batches).toEqual([]);
   });
 
   it('rejects a stale v1 request after v2 before batch admission', async () => {
@@ -550,6 +612,28 @@ describe('piwin_subagent_continue', () => {
     expect((await held).ok).toBe(true);
     expect((await waiting).ok).toBe(true);
     expect(concurrency.batches).toHaveLength(2);
+  });
+
+  it('does not let two overlapping same-v1 continues both accept as generation 2', async () => {
+    const harness = createHarness({
+      maxConcurrency: 1,
+      maxTasksPerRun: 2,
+      holdRunner: true,
+      persistFrozenResults: true,
+    });
+    const first = executeTool(harness.continueTool, continueArgs());
+    await flushUntil(() => harness.batches.length === 1, 'first continuation started');
+    const firstStarted = await first;
+    expect(firstStarted.ok).toBe(true);
+    expect(harness.batches[0]?.tasks[0]?.candidateGeneration).toBe(2);
+
+    const second = executeTool(harness.continueTool, continueArgs());
+    await flushUntil(() => harness.acquireCalls.length === 2, 'second waiting for admission');
+    expect(harness.batches).toHaveLength(1);
+
+    harness.runnerHold.resolve();
+    expect(await second).toMatchObject({ ok: false, code: 'candidate-superseded' });
+    expect(harness.batches).toHaveLength(1);
   });
 
   it('starts no continuation when the parent stops after validation', async () => {

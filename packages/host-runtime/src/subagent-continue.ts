@@ -9,6 +9,7 @@ import type {
   SubagentReviewRecord,
   SubagentReviewRef,
 } from '@piwin/contracts';
+import { awaitAcceptedBatch, observeAcceptedBatch } from './subagent-accepted-batch.js';
 import { SubagentControlError, type SubagentControlDeps } from './host-runtime-subagent-start.js';
 import {
   buildReviewedContinuationTask,
@@ -79,49 +80,10 @@ export async function startReviewedContinuation(
     throw new SubagentControlError('invalid-input', 'continuation must run on the current parent run');
   }
 
-  const summary = deps.getResult(input.expectedResult.resultId);
-  if (!summary) {
-    throw new SubagentControlError(
-      'review-target-not-found',
-      'expected result was not found; refresh result state',
-    );
-  }
-  if (summary.revision !== input.expectedResult.revision) {
-    throw new SubagentControlError('stale-revision', 'expected result revision is stale');
-  }
-  if (summary.parentSessionId !== parentSessionId) {
-    throw new SubagentControlError(
-      'review-target-forbidden',
-      'expected result is outside the current parent session',
-    );
-  }
-  if (summary.childSessionId !== input.childSessionId) {
-    throw new SubagentControlError(
-      'review-target-forbidden',
-      'expected result does not belong to this child',
-    );
-  }
-  rejectIfSuperseded(deps, parentSessionId, summary);
-
-  const review = await deps.loadReview(input.review);
-  if (!review) {
-    throw new SubagentControlError('review-missing', 'structured review was not found');
-  }
-  if (review.decision !== 'changes-requested') {
-    throw new SubagentControlError(
-      'stale-review',
-      'review does not authorize continuation of this candidate',
-    );
-  }
+  let summary = requireContinuationHead(deps, parentSessionId, input);
+  const review = await loadAuthorizingReview(deps, input);
   if (!isExactReviewTarget(review.targetResult, input.expectedResult)) {
     throw new SubagentControlError('stale-review', 'review does not target the expected result');
-  }
-
-  if (modelRepairCount(summary.candidateGeneration) >= SUBAGENT_MAX_MODEL_REPAIRS) {
-    throw new SubagentControlError(
-      'repair-limit-reached',
-      'two model continuations have already been used for this lineage',
-    );
   }
 
   let prepared: PreparedSubagentContinuation;
@@ -157,6 +119,7 @@ export async function startReviewedContinuation(
   let observingRelease = false;
   try {
     throwIfCancelled(deps, input);
+    summary = requireContinuationHead(deps, parentSessionId, input);
     const findings = formatSubagentContinueFindingsBlock({
       review,
       result: input.expectedResult,
@@ -182,35 +145,86 @@ export async function startReviewedContinuation(
     );
     observeAcceptedBatch(deps, { handle, releaseAdmission });
     observingRelease = true;
-    let abortBeforeAccept = false;
-    const cancelBatch = (): void => {
-      if (handle.hasAccepted()) return;
-      abortBeforeAccept = true;
-      void deps.orchestrator.cancelBatch(handle.runId).catch(() => {});
-    };
-    if (input.signal?.aborted) {
-      cancelBatch();
-    } else if (input.signal) {
-      input.signal.addEventListener('abort', cancelBatch, { once: true });
-    }
-    try {
-      await handle.accepted;
-    } catch (error) {
-      throw new SubagentControlError('subagent-failed', formatError(error));
-    } finally {
-      if (input.signal) {
-        input.signal.removeEventListener('abort', cancelBatch);
-      }
-    }
-    if (abortBeforeAccept && !handle.hasAccepted()) {
-      throw new SubagentControlError('aborted', 'aborted before subagent acceptance', true);
-    }
+    await awaitAcceptedBatch(deps, handle, input.signal);
     return { runId: handle.runId, invocationId: input.invocationId };
   } catch (error) {
     if (!observingRelease) {
       releaseAdmission();
     }
     throw error;
+  }
+}
+
+function requireContinuationHead(
+  deps: SubagentContinuePorts,
+  parentSessionId: string,
+  input: SubagentReviewedContinueInput,
+): SubagentResultSummary {
+  const summary = deps.getResult(input.expectedResult.resultId);
+  if (!summary) {
+    throw new SubagentControlError(
+      'review-target-not-found',
+      'expected result was not found; refresh result state',
+    );
+  }
+  if (summary.revision !== input.expectedResult.revision) {
+    throw new SubagentControlError('stale-revision', 'expected result revision is stale');
+  }
+  if (summary.parentSessionId !== parentSessionId) {
+    throw new SubagentControlError(
+      'review-target-forbidden',
+      'expected result is outside the current parent session',
+    );
+  }
+  if (summary.childSessionId !== input.childSessionId) {
+    throw new SubagentControlError(
+      'review-target-forbidden',
+      'expected result does not belong to this child',
+    );
+  }
+  rejectIfSuperseded(deps, parentSessionId, summary);
+  rejectIfReviewDoesNotAuthorize(input, summary);
+  if (modelRepairCount(summary.candidateGeneration) >= SUBAGENT_MAX_MODEL_REPAIRS) {
+    throw new SubagentControlError(
+      'repair-limit-reached',
+      'two model continuations have already been used for this lineage',
+    );
+  }
+  return summary;
+}
+
+async function loadAuthorizingReview(
+  deps: SubagentContinuePorts,
+  input: SubagentReviewedContinueInput,
+): Promise<SubagentReviewRecord> {
+  const review = await deps.loadReview(input.review);
+  if (!review) {
+    throw new SubagentControlError('review-missing', 'structured review was not found');
+  }
+  if (review.decision !== 'changes-requested') {
+    throw new SubagentControlError(
+      'stale-review',
+      'review does not authorize continuation of this candidate',
+    );
+  }
+  return review;
+}
+
+function rejectIfReviewDoesNotAuthorize(
+  input: SubagentReviewedContinueInput,
+  summary: SubagentResultSummary,
+): void {
+  const latest = summary.latestReview;
+  if (
+    summary.reviewStatus !== 'changes-requested' ||
+    !latest ||
+    latest.reviewId !== input.review.reviewId ||
+    latest.revision !== input.review.revision
+  ) {
+    throw new SubagentControlError(
+      'stale-review',
+      'review does not authorize continuation of this candidate',
+    );
   }
 }
 
@@ -246,25 +260,4 @@ function throwIfCancelled(
   if (input.signal?.aborted || deps.isAdmissionClosed(input.parentRunId)) {
     throw new SubagentControlError('aborted', 'aborted before continuation acceptance', true);
   }
-}
-
-function observeAcceptedBatch(
-  deps: Pick<SubagentControlDeps, 'taskResults'>,
-  prepared: {
-    handle: ReturnType<SubagentControlDeps['orchestrator']['startBatch']>;
-    releaseAdmission: () => void;
-  },
-): void {
-  void prepared.handle.completion
-    .then((result) => {
-      for (const taskResult of result.results) {
-        if (taskResult.childSessionId) {
-          deps.taskResults.set(taskResult.childSessionId, taskResult);
-        }
-      }
-    })
-    .catch(() => {})
-    .finally(() => {
-      prepared.releaseAdmission();
-    });
 }
