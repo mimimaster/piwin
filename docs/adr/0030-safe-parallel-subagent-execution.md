@@ -41,6 +41,14 @@ skips continuation. See
 [`2026-09-12-model-facing-async-subagents.md`](../plans/2026-09-12-model-facing-async-subagents.md)
 and ADR 0046 async presentation update.
 
+**Reviewed delivery slice (2026-09-13, `codex/subagent-review-loop`):** Model-facing
+async control is complete. This slice adds reviewed, model-driven candidate
+delivery on that surface: exact `resultRef` handoff, scoped reviewer tools,
+structured review records, review-bound continuation/apply, and post-apply
+verification. Generic manual candidate adopt and result-review commands stay
+intact. See
+[`2026-09-13-model-facing-subagent-review-loop.md`](../plans/2026-09-13-model-facing-subagent-review-loop.md).
+
 ## Context
 
 piwin supports subagent-driven plan execution where independent steps run in
