@@ -27,6 +27,7 @@ import {
   type ThinkingLevel,
   type ModelRef,
 } from '@piwin/contracts';
+import { formatSubagentReviewProvenanceBlock } from './subagent-review-context.js';
 import {
   buildSubagentRuntimeSnapshot,
   resolveSubagentProfile,
@@ -159,27 +160,35 @@ export function planSubagentSpawn(input: {
 export function buildSubagentSeedPrompt(
   task: string,
   snapshot: Pick<SubagentRuntimeSnapshot, 'isolation'>,
-  options?: { reportContract?: string },
+  options?: { reportContract?: string; reviewProvenance?: string },
 ): string {
   const prefix =
     snapshot.isolation === 'readonly'
       ? '[READONLY sub-agent] Do not modify files or run destructive commands.'
       : '[WORKTREE sub-agent] Work only under the allocated worktree.';
-  const contractBlock = formatSubagentReportContractBlock(options?.reportContract);
-  if (!contractBlock) return `${prefix}\n\n${task}`;
-  return `${prefix}\n\n${contractBlock}\n\n---\n${task}`;
+  const hostBlocks = [
+    options?.reviewProvenance,
+    formatSubagentReportContractBlock(options?.reportContract),
+  ].filter((block): block is string => Boolean(block));
+  if (hostBlocks.length === 0) return `${prefix}\n\n${task}`;
+  return `${prefix}\n\n${hostBlocks.join('\n\n')}\n\n---\n${task}`;
 }
 
 /**
  * Model-facing first prompt for a child task. Continuations send the follow-up
  * text as-is (contract was already on the original seed).
  */
-export function resolveSubagentChildPrompt(task: Pick<SubagentTaskSpec, 'task' | 'isolationOverride' | 'reportContract' | 'continuationSessionId'>): string {
+export function resolveSubagentChildPrompt(task: Pick<SubagentTaskSpec, 'task' | 'isolationOverride' | 'reportContract' | 'continuationSessionId' | 'reviewTarget'>): string {
   if (task.continuationSessionId) return task.task;
   return buildSubagentSeedPrompt(
     task.task,
     { isolation: task.isolationOverride ?? 'readonly' },
-    task.reportContract ? { reportContract: task.reportContract } : {},
+    {
+      ...(task.reportContract ? { reportContract: task.reportContract } : {}),
+      ...(task.reviewTarget
+        ? { reviewProvenance: formatSubagentReviewProvenanceBlock(task.reviewTarget) }
+        : {}),
+    },
   );
 }
 

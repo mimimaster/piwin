@@ -101,13 +101,7 @@ export class HostRuntimeFields {
   /** Transient child context available before a child has a persisted session. */
   subagentSessionContexts = new Map<
     string,
-    {
-      parentSessionId: string;
-      runtimeGenerationId: string;
-      workingDirectory: string;
-      parentRepoPath: string;
-      invocationId?: string;
-    }
+    import('./subagent-review-context.js').SubagentSessionRuntimeContext
   >();
   /** Model-facing merge seam cache, keyed by the child product session id. */
   subagentTaskResults = new Map<string, SubagentTaskResult>();

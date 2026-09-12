@@ -54,6 +54,7 @@ export function createSubagentStartTool(options: SubagentStartToolOptions): Host
         profileId,
         model,
         thinkingLevel,
+        reviewOf,
       } = parsedInput.value;
 
       if (signal?.aborted) {
@@ -81,6 +82,7 @@ export function createSubagentStartTool(options: SubagentStartToolOptions): Host
           ...(profileId ? { profileId } : {}),
           ...(model ? { model } : {}),
           ...(thinkingLevel ? { thinkingLevel } : {}),
+          ...(reviewOf ? { reviewOf } : {}),
           ...(signal ? { signal } : {}),
         });
         return {

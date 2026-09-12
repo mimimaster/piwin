@@ -9,6 +9,7 @@ import {
 } from './subagent-lifecycle-service.js';
 import type { PiwinConfig } from '@piwin/contracts';
 import { PIWIN_REPORT_CONTRACT_MARKER } from '@piwin/contracts';
+import { PIWIN_REVIEW_PROVENANCE_MARKER } from './subagent-review-context.js';
 
 function makeConfig(overrides: Partial<PiwinConfig> = {}): PiwinConfig {
   return {
@@ -499,6 +500,21 @@ describe('buildSubagentSeedPrompt', () => {
       prompt.indexOf('find auth middleware'),
     );
   });
+
+  it('injects Host-authored review provenance before the task text', () => {
+    const prompt = buildSubagentSeedPrompt(
+      'judge the candidate',
+      { isolation: 'readonly' },
+      {
+        reviewProvenance: `${PIWIN_REVIEW_PROVENANCE_MARKER}\nHost-authored review evidence.`,
+      },
+    );
+    expect(prompt).toContain(PIWIN_REVIEW_PROVENANCE_MARKER);
+    expect(prompt.indexOf(PIWIN_REVIEW_PROVENANCE_MARKER)).toBeLessThan(
+      prompt.indexOf('judge the candidate'),
+    );
+    expect(prompt).toContain('---\njudge the candidate');
+  });
 });
 
 describe('resolveSubagentChildPrompt', () => {
@@ -518,6 +534,30 @@ describe('resolveSubagentChildPrompt', () => {
       continuationSessionId: 'child-1',
     });
     expect(continuation).toBe('look at the follow-up file');
+  });
+
+  it('injects Host review provenance on first reviewer prompts only', () => {
+    const initial = resolveSubagentChildPrompt({
+      task: 'judge the candidate',
+      isolationOverride: 'readonly',
+      reviewTarget: {
+        result: { resultId: 'result-1', revision: 1 },
+        changes: { changeSetId: 'cs-child', revision: 1 },
+      },
+    });
+    expect(initial).toContain(PIWIN_REVIEW_PROVENANCE_MARKER);
+    expect(initial).toContain('---\njudge the candidate');
+
+    const continuation = resolveSubagentChildPrompt({
+      task: 'look again',
+      isolationOverride: 'readonly',
+      continuationSessionId: 'child-1',
+      reviewTarget: {
+        result: { resultId: 'result-1', revision: 1 },
+        changes: { changeSetId: 'cs-child', revision: 1 },
+      },
+    });
+    expect(continuation).toBe('look again');
   });
 });
 

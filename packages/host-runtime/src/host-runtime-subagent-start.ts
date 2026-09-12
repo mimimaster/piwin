@@ -14,9 +14,12 @@ import {
   type ResolvedOrchestrationScheme,
   type SubagentBatchRequest,
   type SubagentBatchResult,
+  type SubagentIsolationMode,
+  type SubagentResultRef,
   type SubagentTaskResult,
   type ToolResultErrorCode,
 } from '@piwin/contracts';
+import type { BindSubagentReviewTargetResult } from './subagent-review-context.js';
 import type { RunRegistry } from './run-registry.js';
 import type { TurnScopedSchemeAdmissionGate } from './orchestration-scheme-admission.js';
 import type { SubagentDeliveryPolicySource } from './subagent-delivery-policy.js';
@@ -56,6 +59,12 @@ export type SubagentControlDeps = {
   whenReady: () => Promise<void>;
   taskResults: Map<string, SubagentTaskResult>;
   merge: SubagentRunSeam['merge'];
+  bindReviewTarget?: (input: {
+    parentSessionId: string;
+    reviewOf: SubagentResultRef;
+    resolvedIsolation: SubagentIsolationMode;
+    role?: string;
+  }) => BindSubagentReviewTargetResult;
 };
 
 type PreparedStart = {
@@ -206,12 +215,46 @@ async function prepareAndStartSubagent(
       },
       'model-tool',
     );
-    const handle = deps.orchestrator.startBatch(preparedRequest, parentRunId);
+    const admittedRequest = input.reviewOf
+      ? attachReviewTarget(deps, sessionId, input.reviewOf, preparedRequest)
+      : preparedRequest;
+    const handle = deps.orchestrator.startBatch(admittedRequest, parentRunId);
     return { handle, releaseAdmission };
   } catch (error) {
     releaseAdmission();
     throw error;
   }
+}
+
+function attachReviewTarget(
+  deps: SubagentControlDeps,
+  parentSessionId: string,
+  reviewOf: SubagentResultRef,
+  request: SubagentBatchRequest,
+): SubagentBatchRequest {
+  const task = request.tasks[0];
+  if (!task) {
+    throw new SubagentControlError('invalid-input', 'reviewOf requires a reviewer task');
+  }
+  if (!deps.bindReviewTarget) {
+    throw new SubagentControlError(
+      'review-target-not-found',
+      'review target was not found; refresh result state',
+    );
+  }
+  const bound = deps.bindReviewTarget({
+    parentSessionId,
+    reviewOf,
+    resolvedIsolation: task.isolationOverride ?? 'readonly',
+    ...(task.role ? { role: task.role } : {}),
+  });
+  if (!bound.ok) {
+    throw new SubagentControlError(bound.code, bound.message);
+  }
+  return {
+    ...request,
+    tasks: [{ ...task, reviewTarget: bound.target }],
+  };
 }
 
 function observeAcceptedBatch(deps: SubagentControlDeps, prepared: PreparedStart): void {
