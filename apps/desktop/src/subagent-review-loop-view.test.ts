@@ -917,4 +917,62 @@ describe('chatUiReducer subagent/result-updated', () => {
       attention: true,
     });
   });
+
+  it('keeps a review body from task-updated after a later result-updated', () => {
+    const review = makeReview({
+      reviewId: 'review-v1',
+      decision: 'changes-requested',
+      targetResult: { resultId: 'result-v1', revision: 4 },
+      findings: [finding('f-high', 'Missing null check')],
+    });
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: PARENT });
+    state = chatUiReducer(state, {
+      type: 'subagent/task-updated',
+      parentSessionId: PARENT,
+      runId: 'run-reviewer-1',
+      result: {
+        runId: 'run-reviewer-1',
+        taskId: 'task-reviewer-1',
+        executionStatus: 'completed',
+        summaryStatus: 'merged',
+        integrationStatus: 'not-requested',
+        review,
+      },
+    });
+    expect(state.subagentReviews['review-v1']?.findings).toEqual(review.findings);
+    state = chatUiReducer(state, {
+      type: 'subagent/result-updated',
+      parentSessionId: PARENT,
+      result: {
+        ...appliedResult(4),
+        latestReview: { reviewId: 'review-v1', revision: 1 },
+        reviewStatus: 'changes-requested',
+      },
+    });
+    expect(state.subagentReviews['review-v1']?.findings).toEqual(review.findings);
+    state = chatUiReducer(state, {
+      type: 'subagent/task-updated',
+      parentSessionId: PARENT,
+      runId: 'run-reviewer-1',
+      result: {
+        runId: 'run-reviewer-1',
+        taskId: 'task-reviewer-1',
+        executionStatus: 'completed',
+        summaryStatus: 'merged',
+        integrationStatus: 'not-requested',
+      },
+    });
+    expect(state.subagentReviews['review-v1']?.findings).toEqual(review.findings);
+    expect(state.subagentTaskResults['run-reviewer-1:task-reviewer-1']?.review?.findings).toEqual(
+      review.findings,
+    );
+    const view = deriveSubagentReviewLoopView({
+      parentSessionId: PARENT,
+      invocations: {},
+      results: state.subagentResults,
+      taskResults: state.subagentTaskResults,
+    });
+    expect(view.loops[0]?.rows.some((row) => row.findingCount === 1)).toBe(true);
+  });
 });

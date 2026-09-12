@@ -2,13 +2,18 @@
  * Connected review/repair tree for transcript and Tasks.
  * Indentation follows F1 row order. Invocation cards stay the inspect surface.
  */
-import { useState, type KeyboardEvent, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { Button, StatusBadge } from '@piwin/ui-kit';
-import type { SubagentResultSummary, SubagentReviewRecord } from '@piwin/contracts';
+import type {
+  SubagentResultSummary,
+  SubagentReviewRecord,
+  SubagentTaskResult,
+} from '@piwin/contracts';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { SubagentReviewLoop, SubagentReviewLoopRow } from './subagent-review-loop-view';
 import {
   boundReviewFindings,
+  collectReviewsFromTaskResults,
   isSafeRelativeFindingPath,
   resolveSubagentReviewActionGate,
   reviewForRow,
@@ -25,6 +30,7 @@ export type SubagentReviewSummaryProps = {
   locale?: DesktopLocaleTag;
   enabled?: boolean;
   reviews?: Record<string, SubagentReviewRecord>;
+  taskResults?: Record<string, SubagentTaskResult>;
   results?: Record<string, SubagentResultSummary>;
   onInspect?: (selection: SubagentInspectorSelection) => void;
   onApply?: (resultId: string) => void;
@@ -104,8 +110,7 @@ function LoopRowActions(props: {
           variant="secondary"
           disabled={!props.applyEnabled}
           data-testid="subagent-review-apply"
-          onClick={(event) => {
-            event.stopPropagation();
+          onClick={() => {
             if (props.applyEnabled) {
               props.onApply?.(props.resultId);
             }
@@ -120,8 +125,7 @@ function LoopRowActions(props: {
           variant="ghost"
           disabled={!props.resolveEnabled}
           data-testid="subagent-review-resolve"
-          onClick={(event) => {
-            event.stopPropagation();
+          onClick={() => {
             if (props.resolveEnabled) {
               props.onRequestResolution?.(props.resultId);
             }
@@ -181,13 +185,6 @@ function LoopRow(props: {
     });
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      inspect();
-    }
-  };
-
   return (
     <li
       className="subagent-review-loop-row"
@@ -208,14 +205,7 @@ function LoopRow(props: {
         : {})}
       style={{ ['--subagent-review-depth' as string]: String(depth) }}
     >
-      <div
-        className="subagent-review-loop-row-main"
-        role={canInspect ? 'button' : undefined}
-        tabIndex={canInspect ? 0 : undefined}
-        aria-label={label}
-        onClick={canInspect ? inspect : undefined}
-        onKeyDown={canInspect ? onKeyDown : undefined}
-      >
+      <div className="subagent-review-loop-row-main" aria-label={label}>
         <span className="subagent-review-loop-indent" aria-hidden="true">
           {depth > 0 ? '└─' : ''}
         </span>
@@ -233,12 +223,21 @@ function LoopRow(props: {
               variant="ghost"
               aria-expanded={expanded}
               data-testid="subagent-review-expand"
-              onClick={(event) => {
-                event.stopPropagation();
+              onClick={() => {
                 setExpanded((current) => !current);
               }}
             >
               {props.locale === 'zh-CN' ? (expanded ? '收起' : '展开') : expanded ? 'Hide' : 'Show'}
+            </Button>
+          ) : null}
+          {canInspect ? (
+            <Button
+              size="compact"
+              variant="ghost"
+              data-testid="subagent-review-inspect"
+              onClick={inspect}
+            >
+              {props.locale === 'zh-CN' ? '查看' : 'Inspect'}
             </Button>
           ) : null}
         </span>
@@ -268,6 +267,10 @@ export function SubagentReviewSummary(props: SubagentReviewSummaryProps): ReactE
     return null;
   }
   const locale = props.locale ?? 'zh-CN';
+  const reviews = useMemo(
+    () => collectReviewsFromTaskResults(props.taskResults, props.reviews),
+    [props.reviews, props.taskResults],
+  );
   const verification = shouldShowVerificationRow(props.loop)
     ? reviewLoopVerificationCopy({ loop: props.loop, locale })
     : undefined;
@@ -302,7 +305,7 @@ export function SubagentReviewSummary(props: SubagentReviewSummaryProps): ReactE
             row={row}
             index={index}
             locale={locale}
-            {...(props.reviews !== undefined ? { reviews: props.reviews } : {})}
+            {...(Object.keys(reviews).length > 0 ? { reviews } : {})}
             {...(row.resultId !== undefined && props.results?.[row.resultId] !== undefined
               ? { result: props.results[row.resultId] }
               : {})}

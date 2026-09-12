@@ -12,6 +12,7 @@ import type {
   SubagentReviewRef,
   SubagentResultRef,
   SubagentResultSummary,
+  SubagentTaskResult,
   ToolResult,
 } from '@piwin/contracts';
 import {
@@ -107,6 +108,27 @@ export async function findPersistedReview(
     }
   }
   return undefined;
+}
+
+function reviewerTaskResultForPublish(
+  binding: { runId: string; taskId: string },
+  review: SubagentReviewRecord,
+  existing: SubagentTaskResult | undefined,
+): SubagentTaskResult {
+  const reviewRef = { reviewId: review.reviewId, revision: review.revision };
+  if (existing) {
+    return { ...existing, review, reviewRef };
+  }
+  return {
+    runId: binding.runId,
+    taskId: binding.taskId,
+    childSessionId: review.reviewerSessionId,
+    executionStatus: 'running',
+    summaryStatus: 'not-requested',
+    integrationStatus: 'not-requested',
+    review,
+    reviewRef,
+  };
 }
 
 function collectFrozenRelativePaths(
@@ -291,6 +313,16 @@ export function createSubagentReviewService(
       });
 
       const refreshed = await options.runStore.loadManifest(binding.runId);
+      options.publish?.({
+        type: 'subagent/task-updated',
+        runId: binding.runId,
+        parentSessionId: summary.parentSessionId,
+        result: reviewerTaskResultForPublish(
+          binding,
+          stored,
+          refreshed?.results[binding.taskId],
+        ),
+      });
       const invocation = Object.values(refreshed?.invocations ?? {}).find(
         (candidate) => candidate.taskId === binding.taskId,
       );

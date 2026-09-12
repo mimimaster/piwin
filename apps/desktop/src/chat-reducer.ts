@@ -121,6 +121,7 @@ export function createInitialChatUiState(): ChatUiState {
     subagentTaskResults: {},
     subagentResults: {},
     subagentVerifications: {},
+    subagentReviews: {},
     walkthroughsByMessageId: {},
     workingSessionIds: {},
     completedAttentionSessionIds: {},

@@ -218,6 +218,14 @@ describe('subagent review service', () => {
     expect(resultService.get('result-1')?.reviewStatus).toBe('approved');
     expect(pushes.some((push) => push.type === 'subagent/result-updated')).toBe(true);
     expect(pushes.some((push) => push.type === 'subagent/invocation-updated')).toBe(true);
+    const taskUpdated = pushes.find((push) => push.type === 'subagent/task-updated');
+    expect(taskUpdated?.type).toBe('subagent/task-updated');
+    if (taskUpdated?.type !== 'subagent/task-updated') {
+      throw new Error('expected reviewer task-updated');
+    }
+    expect(taskUpdated.result.review).toEqual(submitted.record);
+    expect(taskUpdated.result.review?.findings).toEqual([]);
+    expect(taskUpdated.result.latestReview).toBeUndefined();
 
     const restartedStore = createSubagentRunStore({ runsDir: dir });
     const restartedResults = createSubagentResultService();
@@ -321,5 +329,38 @@ describe('subagent review service', () => {
       verification: [],
     });
     expect(conflict).toMatchObject({ ok: false, code: 'invalid-input' });
+  });
+
+  it('publishes the persisted review body on task-updated, not a latestReview ref', async () => {
+    const { service, pushes } = await setupReviewer();
+    const submitted = await service.submit({
+      reviewerSessionId: 'reviewer-child',
+      invocationId: 'reviewer-inv',
+      scope: SCOPE,
+      target: TARGET,
+      decision: 'changes-requested',
+      findings: [finding({ title: 'Missing null check', detail: 'Guard the token' })],
+      verification: [],
+    });
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) throw new Error('expected submit');
+    const taskUpdated = pushes.find((push) => push.type === 'subagent/task-updated');
+    expect(taskUpdated?.type).toBe('subagent/task-updated');
+    if (taskUpdated?.type !== 'subagent/task-updated') {
+      throw new Error('expected reviewer task-updated');
+    }
+    expect(taskUpdated.result.review).toEqual(submitted.record);
+    expect(taskUpdated.result.review?.findings).toEqual(submitted.record.findings);
+    expect(taskUpdated.result.latestReview).toBeUndefined();
+    const resultUpdated = pushes.find((push) => push.type === 'subagent/result-updated');
+    expect(resultUpdated?.type).toBe('subagent/result-updated');
+    if (resultUpdated?.type !== 'subagent/result-updated') {
+      throw new Error('expected result-updated');
+    }
+    expect(resultUpdated.result.latestReview).toEqual({
+      reviewId: submitted.record.reviewId,
+      revision: 1,
+    });
+    expect(resultUpdated.result).not.toHaveProperty('findings');
   });
 });

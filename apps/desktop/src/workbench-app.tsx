@@ -350,6 +350,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     results: state.subagentResults,
     verifications: state.subagentVerifications,
     taskResults: state.subagentTaskResults,
+    reviews: state.subagentReviews,
     hostClient,
     onInspect: handleInspectSubagent,
   });

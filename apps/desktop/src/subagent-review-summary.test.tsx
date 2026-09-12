@@ -296,6 +296,96 @@ describe('SubagentReviewSummary', () => {
     expect(v2Review?.textContent).not.toContain('Missing null check');
   });
 
+  it('keyboard-activates expand without inspecting the child', () => {
+    const onInspect = vi.fn();
+    renderSummary({ onInspect });
+    const v1Review = container.querySelector(
+      '[data-testid="subagent-review-loop-row"][data-invocation-id="inv-reviewer-v1"]',
+    );
+    const rowMain = v1Review?.querySelector('.subagent-review-loop-row-main');
+    expect(rowMain?.getAttribute('role')).toBeNull();
+    expect(rowMain?.getAttribute('tabindex')).toBeNull();
+
+    act(() => {
+      rowMain?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onInspect).not.toHaveBeenCalled();
+
+    const expand = v1Review?.querySelector<HTMLButtonElement>(
+      '[data-testid="subagent-review-expand"]',
+    );
+    expect(expand?.tagName).toBe('BUTTON');
+    act(() => {
+      expand?.click();
+    });
+    expect(onInspect).not.toHaveBeenCalled();
+    expect(v1Review?.querySelectorAll('[data-testid="subagent-review-finding"]').length).toBe(3);
+
+    const inspect = v1Review?.querySelector<HTMLButtonElement>(
+      '[data-testid="subagent-review-inspect"]',
+    );
+    act(() => {
+      inspect?.click();
+    });
+    expect(onInspect).toHaveBeenCalledTimes(1);
+  });
+
+  it('expands findings from taskResults.review without a reviews prop', () => {
+    const facts = loopFacts();
+    const reviewV1 = facts.reviews['review-v1'];
+    if (reviewV1 === undefined) {
+      throw new Error('expected review-v1');
+    }
+    const taskResults = {
+      'run-reviewer-1:task-reviewer-1': {
+        runId: 'run-reviewer-1',
+        taskId: 'task-reviewer-1',
+        childSessionId: 'child-reviewer-1',
+        executionStatus: 'completed' as const,
+        summaryStatus: 'merged' as const,
+        integrationStatus: 'not-requested' as const,
+        review: reviewV1,
+      },
+    };
+    const loop = deriveSubagentReviewLoopView({
+      parentSessionId: PARENT,
+      invocations: facts.invocations,
+      results: facts.results,
+      taskResults,
+    }).loops[0];
+    if (loop === undefined) {
+      throw new Error('expected a review loop');
+    }
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentReviewSummary
+            loop={loop}
+            locale="zh-CN"
+            taskResults={taskResults}
+            results={facts.results}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const v1Review = container.querySelector(
+      '[data-testid="subagent-review-loop-row"][data-invocation-id="inv-reviewer-v1"]',
+    );
+    const expand = v1Review?.querySelector<HTMLButtonElement>(
+      '[data-testid="subagent-review-expand"]',
+    );
+    expect(expand).not.toBeNull();
+    act(() => {
+      expand?.click();
+    });
+    const findings = v1Review?.querySelectorAll('[data-testid="subagent-review-finding"]');
+    expect(findings?.length).toBe(3);
+    expect(findings?.[0]?.getAttribute('data-finding-id')).toBe('f-high');
+    expect(findings?.[0]?.textContent).toContain('src/auth.ts:12');
+  });
+
   it('continuation remains the same worker identity with v2 label', () => {
     renderSummary();
     const v1 = container.querySelector(
