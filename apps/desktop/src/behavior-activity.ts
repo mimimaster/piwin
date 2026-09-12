@@ -702,6 +702,10 @@ export function resolveRunBehaviorId(kind: RunStatusKind): BehaviorActivityId {
       return 'run.running';
     case 'waiting-permission':
       return 'permission';
+    case 'waiting-subagents':
+      return 'run.running';
+    case 'waiting-resource':
+      return 'run.prepare';
     case 'compacting':
       return 'run.compacting';
     case 'stopping':

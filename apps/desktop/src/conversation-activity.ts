@@ -49,7 +49,8 @@ export function resolveConversationActivityKind(input: {
     input.runState?.kind === 'connecting-model' ||
     input.runState?.kind === 'waiting-first-token' ||
     input.runState?.kind === 'working' ||
-    input.runState?.kind === 'waiting-resource'
+    input.runState?.kind === 'waiting-resource' ||
+    input.runState?.kind === 'waiting-subagents'
   ) {
     return 'thinking';
   }

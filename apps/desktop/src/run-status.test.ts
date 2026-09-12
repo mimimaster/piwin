@@ -172,6 +172,101 @@ describe('deriveRunStatus', () => {
     expect(zh.summary).toContain('等待运行时容量');
   });
 
+  it('presents waiting-subagents as active and stoppable', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      activeRunId: 'run-1',
+      activeRunPhase: 'waiting-subagents' as const,
+      activeRunPhaseDetail: 'joining-descendants',
+      activeRunStartedAt: Date.now() - 500,
+      runPhase: 'idle' as const,
+      streaming: false,
+      runTerminal: { kind: 'none' as const },
+    };
+    const status = deriveRunStatus({
+      chat,
+      tools: [{ toolCallId: 't1', toolName: 'piwin_subagent_start', status: 'done', output: '' }],
+      plan: null,
+      jobs: [],
+    });
+    expect(status.kind).toBe('waiting-subagents');
+    expect(status.canStop).toBe(true);
+    expect(status.summary).toBe('Waiting for subagent results…');
+
+    const zh = deriveRunStatus({
+      chat,
+      tools: [{ toolCallId: 't1', toolName: 'piwin_subagent_start', status: 'done', output: '' }],
+      plan: null,
+      jobs: [],
+      locale: 'zh-CN',
+    });
+    expect(zh.summary).toBe('等待子代理结果…');
+    expect(zh.settlementDetail).toBe('joining');
+  });
+
+  it('shows synthesizing settlement copy when the host reports synthesizing-reports', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      activeRunId: 'run-1',
+      activeRunPhase: 'waiting-subagents' as const,
+      activeRunPhaseDetail: 'synthesizing-reports',
+      runPhase: 'streaming' as const,
+      streaming: true,
+      runTerminal: { kind: 'none' as const },
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
+    expect(status.kind).toBe('waiting-subagents');
+    expect(status.summary).toBe('Synthesizing subtask results…');
+    expect(status.settlementDetail).toBe('synthesizing');
+
+    const zh = deriveRunStatus({
+      chat,
+      tools: [],
+      plan: null,
+      jobs: [],
+      locale: 'zh-CN',
+    });
+    expect(zh.summary).toBe('正在汇总子任务结果…');
+  });
+
+  it('keeps the parent run active until settlement continuation ends', () => {
+    const duringSettlement = {
+      ...createInitialChatUiState(),
+      activeRunId: 'run-1',
+      activeRunPhase: 'waiting-subagents' as const,
+      activeRunPhaseDetail: 'joining-descendants',
+      runPhase: 'idle' as const,
+      streaming: false,
+      runTerminal: { kind: 'none' as const },
+    };
+    const active = deriveRunStatus({
+      chat: duringSettlement,
+      tools: [{ toolCallId: 't1', toolName: 'piwin_subagent_start', status: 'done', output: '' }],
+      plan: null,
+      jobs: [],
+    });
+    expect(active.kind).not.toBe('complete');
+    expect(active.kind).not.toBe('idle');
+    expect(active.canStop).toBe(true);
+
+    const afterSettlement = {
+      ...createInitialChatUiState(),
+      activeRunId: null,
+      activeRunPhase: null,
+      runPhase: 'idle' as const,
+      streaming: false,
+      runTerminal: { kind: 'complete' as const, at: Date.now() },
+    };
+    const terminal = deriveRunStatus({
+      chat: afterSettlement,
+      tools: [{ toolCallId: 't1', toolName: 'piwin_subagent_start', status: 'done', output: '' }],
+      plan: null,
+      jobs: [],
+    });
+    expect(terminal.kind).toBe('complete');
+    expect(terminal.canStop).toBe(false);
+  });
+
   it('maps waiting-resource execution-slot to an explicit queue status', () => {
     const chat = {
       ...createInitialChatUiState(),

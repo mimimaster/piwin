@@ -174,6 +174,15 @@ export function buildBasePhrases(input: RunActivityInput): string[] {
 
   const isZh = input.locale === 'zh-CN';
   switch (input.kind) {
+    case 'waiting-subagents':
+      if (input.detail === 'synthesizing-reports') {
+        return isZh
+          ? ['正在汇总子任务结果…', '等待子代理结果…']
+          : ['Synthesizing subtask results…', 'Waiting for subagent results…'];
+      }
+      return isZh
+        ? ['等待子代理结果…', '正在汇总子任务结果…']
+        : ['Waiting for subagent results…', 'Synthesizing subtask results…'];
     case 'compacting':
       return isZh
         ? ['整理上下文', '保留关键决策', '整理工具记录', '生成续接摘要']

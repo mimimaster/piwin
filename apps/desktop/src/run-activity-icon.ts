@@ -7,6 +7,7 @@ const LUCIDE_NAME: Record<RunStatusKind, string> = {
   'connecting-model': 'Wifi',
   'waiting-first-token': 'Sparkles',
   'waiting-resource': 'RefreshCw',
+  'waiting-subagents': 'Bot',
   planning: 'Map',
   working: 'Code',
   'waiting-permission': 'ShieldQuestion',
@@ -30,6 +31,9 @@ export function resolveActionCategory(input: RunActivityInput): ActivityActionCa
   }
   if (input.kind === 'waiting-permission') {
     return 'ask';
+  }
+  if (input.kind === 'waiting-subagents') {
+    return 'subagent';
   }
 
   const tool = input.activeToolName?.toLowerCase() ?? '';

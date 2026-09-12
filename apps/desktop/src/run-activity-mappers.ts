@@ -16,6 +16,14 @@ export function runStatusToActivityInput(
       : {}),
     ...(runState.planStep !== undefined ? { planStep: runState.planStep } : {}),
     ...(runState.elapsedMs !== undefined ? { elapsedMs: runState.elapsedMs } : {}),
+    ...(runState.settlementDetail !== undefined
+      ? {
+          detail:
+            runState.settlementDetail === 'synthesizing'
+              ? 'synthesizing-reports'
+              : 'joining-descendants',
+        }
+      : {}),
   };
 }
 
@@ -82,6 +90,10 @@ export function sessionRunPhaseToActivityKind(phase: SessionRunPhase): RunStatus
       return 'working';
     case 'waiting-permission':
       return 'waiting-permission';
+    case 'waiting-subagents':
+      return 'waiting-subagents';
+    case 'waiting-resource':
+      return 'waiting-resource';
     case 'pausing':
     case 'cancelling':
       return 'stopping';

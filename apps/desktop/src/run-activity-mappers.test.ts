@@ -26,6 +26,10 @@ describe('sessionRunPhaseToActivityKind', () => {
   it('maps pausing to the same control-transition activity', () => {
     expect(sessionRunPhaseToActivityKind('pausing')).toBe('stopping');
   });
+
+  it('maps waiting-subagents to an active settlement kind', () => {
+    expect(sessionRunPhaseToActivityKind('waiting-subagents')).toBe('waiting-subagents');
+  });
 });
 
 describe('runStatusToActivityInput', () => {
@@ -48,6 +52,26 @@ describe('runStatusToActivityInput', () => {
     expect(input.locale).toBe('zh-CN');
     expect(input.elapsedMs).toBe(3000);
     expect(input.planStep).toBe('Auth');
+  });
+
+  it('passes settlement detail for waiting-subagents activity', () => {
+    const runState: RunStatusView = {
+      kind: 'waiting-subagents',
+      label: 'Waiting for subagents',
+      summary: 'Waiting for subagent results…',
+      settlementDetail: 'joining',
+      completedToolCount: 1,
+      runningJobCount: 0,
+      canStop: true,
+    };
+    expect(runStatusToActivityInput(runState, 'en').detail).toBe('joining-descendants');
+
+    const synthesizing: RunStatusView = {
+      ...runState,
+      settlementDetail: 'synthesizing',
+      summary: 'Synthesizing subtask results…',
+    };
+    expect(runStatusToActivityInput(synthesizing, 'zh-CN').detail).toBe('synthesizing-reports');
   });
 });
 

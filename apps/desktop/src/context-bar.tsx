@@ -85,6 +85,8 @@ function shellStateKind(kind: RunStatusView['kind']): 'idle' | 'running' | 'wait
     case 'preparing':
     case 'connecting-model':
     case 'waiting-first-token':
+    case 'waiting-resource':
+    case 'waiting-subagents':
     case 'working':
     case 'planning':
     case 'compacting':
