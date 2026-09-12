@@ -1,7 +1,9 @@
 import {
   boundSubagentControlDisplay,
   readSubagentControlDisplay,
+  readSubagentLoopControlDisplay,
   type SubagentControlDisplay,
+  type SubagentLoopControlDisplay,
   type ToolPresentation,
 } from '@piwin/contracts';
 
@@ -17,17 +19,37 @@ function normalizeToolName(name: string | undefined): string {
   return (name ?? '').trim().toLowerCase();
 }
 
-function isSubagentStartTool(name: string | undefined): boolean {
-  const normalized = normalizeToolName(name);
-  return normalized === 'piwin_subagent_start' || normalized === 'piwin_subagent_continue';
+function toolNameIs(name: string | undefined, expected: string): boolean {
+  return normalizeToolName(name) === expected;
 }
 
-function isSubagentWaitTool(name: string | undefined): boolean {
-  return normalizeToolName(name) === 'piwin_subagent_wait';
+function matchesTool(input: AttachSubagentPresentationInput, expected: string): boolean {
+  return toolNameIs(input.routedToolName ?? input.toolName, expected) || toolNameIs(input.toolName, expected);
 }
 
-function isSubagentCancelTool(name: string | undefined): boolean {
-  return normalizeToolName(name) === 'piwin_subagent_cancel';
+function isSubagentStartTool(input: AttachSubagentPresentationInput): boolean {
+  return matchesTool(input, 'piwin_subagent_start') || matchesTool(input, 'piwin_subagent_continue');
+}
+
+function isSubagentContinueTool(input: AttachSubagentPresentationInput): boolean {
+  return matchesTool(input, 'piwin_subagent_continue');
+}
+
+function isSubagentWaitTool(input: AttachSubagentPresentationInput): boolean {
+  return matchesTool(input, 'piwin_subagent_wait');
+}
+
+function isSubagentCancelTool(input: AttachSubagentPresentationInput): boolean {
+  return matchesTool(input, 'piwin_subagent_cancel');
+}
+
+function isSubagentLoopTool(input: AttachSubagentPresentationInput): boolean {
+  return (
+    matchesTool(input, 'piwin_subagent_result_read') ||
+    matchesTool(input, 'piwin_subagent_review_submit') ||
+    matchesTool(input, 'piwin_subagent_result_apply') ||
+    matchesTool(input, 'piwin_subagent_verification_submit')
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -66,11 +88,18 @@ function parseStartAcceptedDisplay(
   if (!runId || !invocationId || status !== 'accepted') return undefined;
   const task = isRecord(args) ? readString(args.task) : undefined;
   if (!task) return undefined;
-  return boundSubagentControlDisplay({
+  const childSessionId =
+    readString(details.childSessionId) ?? (isRecord(args) ? readString(args.childSessionId) : undefined);
+  const predecessorResult = details.predecessorResult ?? (isRecord(args) ? args.expectedResult : undefined);
+  const reviewRef = details.reviewRef ?? (isRecord(args) ? args.review : undefined);
+  return readSubagentControlDisplay({
     phase: 'accepted',
     runId,
     invocationId,
     task,
+    ...(childSessionId ? { childSessionId } : {}),
+    ...(predecessorResult !== undefined ? { predecessorResult } : {}),
+    ...(reviewRef !== undefined ? { reviewRef } : {}),
   });
 }
 
@@ -102,10 +131,10 @@ function buildCancellingDisplay(runIds: readonly string[]): SubagentControlDispl
   });
 }
 
-function controlActionVerb(control: SubagentControlDisplay): string {
+function controlActionVerb(control: SubagentControlDisplay, continued: boolean): string {
   switch (control.phase) {
     case 'accepted':
-      return 'Delegated';
+      return continued ? 'Continued' : 'Delegated';
     case 'waiting':
       return 'Waiting for subagents';
     case 'waited':
@@ -143,23 +172,22 @@ function controlSummary(control: SubagentControlDisplay): string {
 function resolveSubagentControl(
   input: AttachSubagentPresentationInput,
 ): SubagentControlDisplay | undefined {
-  const effectiveName = input.routedToolName ?? input.toolName;
   if (input.isError) return undefined;
 
-  if (isSubagentStartTool(effectiveName) || isSubagentStartTool(input.toolName)) {
+  if (isSubagentStartTool(input)) {
     return parseStartAcceptedDisplay(input.details, input.args);
   }
 
   const runIds = parseRunIds(input.args);
   const fromDetails = readControlDisplayFromDetails(input.details);
 
-  if (isSubagentWaitTool(effectiveName) || isSubagentWaitTool(input.toolName)) {
+  if (isSubagentWaitTool(input)) {
     if (fromDetails) return fromDetails;
     if (runIds) return buildWaitingDisplay(runIds);
     return undefined;
   }
 
-  if (isSubagentCancelTool(effectiveName) || isSubagentCancelTool(input.toolName)) {
+  if (isSubagentCancelTool(input)) {
     if (fromDetails) return fromDetails;
     if (runIds) return buildCancellingDisplay(runIds);
     return undefined;
@@ -168,15 +196,111 @@ function resolveSubagentControl(
   return undefined;
 }
 
+function parseResultReadDisplay(
+  details: unknown,
+  args: unknown,
+): SubagentLoopControlDisplay | undefined {
+  const mode = (isRecord(details) ? details.mode : undefined) ?? (isRecord(args) ? args.mode : undefined);
+  const result =
+    (isRecord(details) ? details.result : undefined) ?? (isRecord(args) ? args.result : undefined);
+  return readSubagentLoopControlDisplay({
+    kind: 'result-read',
+    result,
+    mode,
+  });
+}
+
+function parseReviewSubmitDisplay(details: unknown): SubagentLoopControlDisplay | undefined {
+  if (!isRecord(details)) return undefined;
+  return readSubagentLoopControlDisplay({
+    kind: 'review-submit',
+    reviewRef: details.reviewRef,
+    decision: details.decision,
+    target: details.target,
+  });
+}
+
+function parseResultApplyDisplay(
+  details: unknown,
+  args: unknown,
+): SubagentLoopControlDisplay | undefined {
+  if (!isRecord(details)) return undefined;
+  return readSubagentLoopControlDisplay({
+    kind: 'result-apply',
+    result: details.result ?? (isRecord(args) ? args.result : undefined),
+    operationId: details.operationId,
+    integrationStatus: details.integrationStatus,
+  });
+}
+
+function parseVerificationDisplay(
+  details: unknown,
+  args: unknown,
+): SubagentLoopControlDisplay | undefined {
+  if (!isRecord(details)) return undefined;
+  return readSubagentLoopControlDisplay({
+    kind: 'verification-submit',
+    result: details.result ?? (isRecord(args) ? args.result : undefined),
+    verificationRef: details.verificationRef,
+    status: details.status,
+  });
+}
+
+function resolveLoopControl(
+  input: AttachSubagentPresentationInput,
+): SubagentLoopControlDisplay | undefined {
+  if (input.isError) return undefined;
+  if (matchesTool(input, 'piwin_subagent_result_read')) {
+    return parseResultReadDisplay(input.details, input.args);
+  }
+  if (matchesTool(input, 'piwin_subagent_review_submit')) {
+    return parseReviewSubmitDisplay(input.details);
+  }
+  if (matchesTool(input, 'piwin_subagent_result_apply')) {
+    return parseResultApplyDisplay(input.details, input.args);
+  }
+  if (matchesTool(input, 'piwin_subagent_verification_submit')) {
+    return parseVerificationDisplay(input.details, input.args);
+  }
+  return undefined;
+}
+
+function loopActionVerb(loop: SubagentLoopControlDisplay): string {
+  switch (loop.kind) {
+    case 'result-read':
+      return 'Read result';
+    case 'review-submit':
+      return 'Reviewed';
+    case 'result-apply':
+      return 'Applied';
+    case 'verification-submit':
+      return loop.status === 'failed' ? 'Verification failed' : 'Verified';
+  }
+}
+
+function loopSummary(loop: SubagentLoopControlDisplay): string {
+  switch (loop.kind) {
+    case 'result-read':
+      return loop.summary;
+    case 'review-submit':
+      return loop.decision === 'changes-requested' ? 'changes requested' : loop.decision;
+    case 'result-apply':
+      return loop.integrationStatus;
+    case 'verification-submit':
+      return loop.status;
+  }
+}
+
 function applyControlPresentation(
   presentation: ToolPresentation,
   control: SubagentControlDisplay,
   invocation: boolean,
+  continued: boolean,
 ): ToolPresentation {
   const next: ToolPresentation = {
     ...presentation,
     subagentControl: control,
-    actionVerb: controlActionVerb(control),
+    actionVerb: controlActionVerb(control, continued),
     summary: controlSummary(control),
   };
   if (invocation) {
@@ -188,6 +312,19 @@ function applyControlPresentation(
   return next;
 }
 
+function applyLoopPresentation(
+  presentation: ToolPresentation,
+  loop: SubagentLoopControlDisplay,
+): ToolPresentation {
+  return {
+    ...presentation,
+    kind: 'other',
+    subagentLoop: loop,
+    actionVerb: loopActionVerb(loop),
+    summary: loopSummary(loop),
+  };
+}
+
 /**
  * Attach bounded async subagent control presentation from tool args/details.
  * Malformed payloads are ignored so Desktop falls back to a generic tool card.
@@ -196,12 +333,20 @@ export function attachSubagentPresentation(
   presentation: ToolPresentation,
   input: AttachSubagentPresentationInput,
 ): ToolPresentation {
-  const effectiveName = input.routedToolName ?? input.toolName;
-  const isStart = isSubagentStartTool(effectiveName) || isSubagentStartTool(input.toolName);
-  const isWait = isSubagentWaitTool(effectiveName) || isSubagentWaitTool(input.toolName);
-  const isCancel = isSubagentCancelTool(effectiveName) || isSubagentCancelTool(input.toolName);
-  if (!isStart && !isWait && !isCancel) {
+  const isStart = isSubagentStartTool(input);
+  const isWait = isSubagentWaitTool(input);
+  const isCancel = isSubagentCancelTool(input);
+  const isLoop = isSubagentLoopTool(input);
+  if (!isStart && !isWait && !isCancel && !isLoop) {
     return presentation;
+  }
+
+  if (isLoop) {
+    const loop = resolveLoopControl(input);
+    if (!loop) {
+      return { ...presentation, kind: 'other' };
+    }
+    return applyLoopPresentation(presentation, loop);
   }
 
   const control = resolveSubagentControl(input);
@@ -212,5 +357,5 @@ export function attachSubagentPresentation(
     return presentation;
   }
 
-  return applyControlPresentation(presentation, control, isStart);
+  return applyControlPresentation(presentation, control, isStart, isSubagentContinueTool(input));
 }

@@ -86,7 +86,16 @@ export function resolveActionFamily(toolName: string): ToolActionFamily {
   if (n === 'piwin_subagent_run' || n === 'piwin_subagent_start' || n === 'piwin_subagent_continue') {
     return 'subagent';
   }
-  if (n === 'piwin_subagent_wait' || n === 'piwin_subagent_cancel') return 'other';
+  if (
+    n === 'piwin_subagent_wait' ||
+    n === 'piwin_subagent_cancel' ||
+    n === 'piwin_subagent_result_read' ||
+    n === 'piwin_subagent_review_submit' ||
+    n === 'piwin_subagent_result_apply' ||
+    n === 'piwin_subagent_verification_submit'
+  ) {
+    return 'other';
+  }
   if (n === 'health_read_context' || n.startsWith('health_') || n.startsWith('health:')) {
     return 'health';
   }

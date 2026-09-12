@@ -16,7 +16,10 @@ import type { CreateSessionOptions, NativeContextEntry } from './session-seed.js
 import type { SearchEvidence } from './web.js';
 import type { HealthToolCardSummary } from './apple-health.js';
 import type { AgentPromptOutcome } from './agent-prompt-outcome.js';
-import type { SubagentControlDisplay } from './subagent-tool-presentation.js';
+import type {
+  SubagentControlDisplay,
+  SubagentLoopControlDisplay,
+} from './subagent-tool-presentation.js';
 
 export type HostMode = 'sdk' | 'rpc';
 
@@ -543,6 +546,11 @@ export type ToolPresentation = {
   sensitivity?: 'health';
   /** Async subagent control-tool aggregate (start / wait / cancel). */
   subagentControl?: SubagentControlDisplay;
+  /**
+   * Review-loop tools (result read / review / apply / verification).
+   * Desktop may ignore this until loop UI exists.
+   */
+  subagentLoop?: SubagentLoopControlDisplay;
 };
 
 export type AgentEvent =
