@@ -163,12 +163,52 @@ describe('chatUiReducer subagent hydration', () => {
     expect(Object.keys(state.subagentBatches)).toHaveLength(1);
     expect(Object.keys(state.subagentTaskResults)).toHaveLength(1);
 
+    state = chatUiReducer(state, {
+      type: 'subagent/result-updated',
+      parentSessionId: 'parent-1',
+      result: {
+        resultId: 'result-1',
+        revision: 1,
+        parentSessionId: 'parent-1',
+        childSessionId: 'child-1',
+        taskId: 't1',
+        batchRunId: 'run-1',
+        sourceAttemptId: null,
+        targetWorkspaceId: 'ws-1',
+        deliveryIntent: 'candidate',
+        legacyManual: false,
+        candidateGroupId: null,
+        candidateLineageId: null,
+        candidateGeneration: null,
+        predecessorResult: null,
+        latestReview: null,
+        reviewStatus: 'not-requested',
+        latestVerification: null,
+        executionStatus: 'completed',
+        summaryStatus: 'merged',
+        integrationStatus: 'retained',
+        childChanges: null,
+        appliedChanges: null,
+        copyState: 'present',
+        latestOperationId: null,
+        availability: {
+          view: { allowed: true },
+          apply: { allowed: true },
+          resolve: { allowed: true },
+          cleanup: { allowed: true },
+        },
+      },
+    });
+    expect(Object.keys(state.subagentResults)).toHaveLength(1);
+
     state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-2' });
     expect(Object.keys(state.subagentChildren)).toHaveLength(0);
     expect(Object.keys(state.subagentStreams)).toHaveLength(0);
     expect(Object.keys(state.subagentInvocations)).toHaveLength(0);
     expect(Object.keys(state.subagentBatches)).toHaveLength(0);
     expect(Object.keys(state.subagentTaskResults)).toHaveLength(0);
+    expect(Object.keys(state.subagentResults)).toHaveLength(0);
+    expect(Object.keys(state.subagentVerifications)).toHaveLength(0);
   });
 
   it('uses clientMessageId for optimistic user bubbles and rolls them back', () => {

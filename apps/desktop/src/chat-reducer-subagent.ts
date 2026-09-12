@@ -5,7 +5,9 @@ import {
   MAX_SUBAGENT_BATCHES,
   MAX_SUBAGENT_CHILDREN,
   MAX_SUBAGENT_INVOCATIONS,
+  MAX_SUBAGENT_RESULTS,
   MAX_SUBAGENT_TASK_RESULTS,
+  MAX_SUBAGENT_VERIFICATIONS,
   putRecordLru,
 } from './record-budget';
 import { createBoundedTextAccumulator } from './bounded-text-accumulator';
@@ -33,7 +35,13 @@ import { isEnvelopeStale, recordEnvelope } from './chat-reducer-envelope';
 import {
   isTerminalSubagentChild,
   isTerminalSubagentInvocation,
+  isTerminalSubagentResult,
 } from './chat-reducer-session-helpers';
+import {
+  preferSubagentResult,
+  preferSubagentVerification,
+  verificationFactFromDelivery,
+} from './subagent-review-loop-view.js';
 import {
   applyPermissionQueueToStream,
   dequeuePermissionPrompt,
@@ -52,6 +60,7 @@ export type ChatUiSubagentAction = Extract<
       | 'subagent/invocations-hydrate'
       | 'subagent/batch-updated'
       | 'subagent/task-updated'
+      | 'subagent/result-updated'
       | 'subagent/clear-stream';
   }
 >;
@@ -568,13 +577,50 @@ export function reduceChatSubagent(state: ChatUiState, action: ChatUiSubagentAct
     case 'subagent/task-updated': {
       if (state.activeSessionId !== action.parentSessionId) return state;
       const key = `${action.runId}:${action.result.taskId}`;
+      const nextTaskResults = putRecordLru(
+        state.subagentTaskResults,
+        key,
+        action.result,
+        MAX_SUBAGENT_TASK_RESULTS,
+      );
+      const record = action.result.deliveryVerification;
+      if (record === undefined) {
+        return { ...state, subagentTaskResults: nextTaskResults };
+      }
+      const fact = verificationFactFromDelivery(record);
+      const nextFact = preferSubagentVerification(
+        state.subagentVerifications[fact.verificationId],
+        fact,
+      );
       return {
         ...state,
-        subagentTaskResults: putRecordLru(
-          state.subagentTaskResults,
-          key,
-          action.result,
-          MAX_SUBAGENT_TASK_RESULTS,
+        subagentTaskResults: nextTaskResults,
+        subagentVerifications: putRecordLru(
+          state.subagentVerifications,
+          fact.verificationId,
+          nextFact,
+          MAX_SUBAGENT_VERIFICATIONS,
+        ),
+      };
+    }
+    case 'subagent/result-updated': {
+      if (state.activeSessionId !== action.parentSessionId) {
+        return state;
+      }
+      const current = state.subagentResults[action.result.resultId];
+      if (current && current.revision >= action.result.revision) {
+        return state;
+      }
+      const next = preferSubagentResult(current, action.result);
+      return {
+        ...state,
+        subagentResults: evictCompletedFirst(
+          {
+            ...state.subagentResults,
+            [next.resultId]: next,
+          },
+          MAX_SUBAGENT_RESULTS,
+          isTerminalSubagentResult,
         ),
       };
     }

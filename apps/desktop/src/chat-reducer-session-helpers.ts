@@ -3,6 +3,7 @@ import type {
   SessionSummary,
   SubagentBatchProjection,
   SubagentInvocation,
+  SubagentResultSummary,
   SubagentTaskResult,
 } from '@piwin/contracts';
 import type { ChatUiState, SessionListItemUi, SubagentStreamState } from './chat-ui-types';
@@ -13,6 +14,16 @@ export const CLEARED_SUBAGENT_UI = {
   subagentInvocations: {} as Record<string, SubagentInvocation>,
   subagentBatches: {} as Record<string, SubagentBatchProjection>,
   subagentTaskResults: {} as Record<string, SubagentTaskResult>,
+  subagentResults: {} as Record<string, SubagentResultSummary>,
+  subagentVerifications: {} as Record<
+    string,
+    {
+      verificationId: string;
+      revision: number;
+      resultId: string;
+      status: 'passed' | 'failed';
+    }
+  >,
 };
 
 export function isTerminalSubagentChild(child: SessionSummary): boolean {
@@ -29,6 +40,14 @@ export function isTerminalSubagentInvocation(invocation: SubagentInvocation): bo
     invocation.status === 'needs-integration' ||
     invocation.status === 'failed' ||
     invocation.status === 'cancelled'
+  );
+}
+
+export function isTerminalSubagentResult(result: SubagentResultSummary): boolean {
+  return (
+    result.executionStatus === 'completed' ||
+    result.executionStatus === 'failed' ||
+    result.executionStatus === 'cancelled'
   );
 }
 

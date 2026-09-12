@@ -6,6 +6,20 @@
  * re-interpreting tool cards or child summaries independently.
  */
 import type { SessionSummary, SubagentActivityView, SubagentInvocation } from '@piwin/contracts';
+
+export {
+  deriveSubagentReviewLoopView,
+  mergeSubagentResultRecord,
+  preferSubagentResult,
+} from './subagent-review-loop-view.js';
+export type {
+  DeriveSubagentReviewLoopInput,
+  SubagentDeliveryLoopPhase,
+  SubagentReviewLoop,
+  SubagentReviewLoopRow,
+  SubagentReviewLoopVerificationFact,
+  SubagentReviewLoopView,
+} from './subagent-review-loop-view.js';
 import type { SubagentStreamState } from './chat-reducer';
 import {
   deriveSubagentLatestActivity,

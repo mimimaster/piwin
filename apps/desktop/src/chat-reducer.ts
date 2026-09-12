@@ -119,6 +119,8 @@ export function createInitialChatUiState(): ChatUiState {
     subagentInvocations: {},
     subagentBatches: {},
     subagentTaskResults: {},
+    subagentResults: {},
+    subagentVerifications: {},
     walkthroughsByMessageId: {},
     workingSessionIds: {},
     completedAttentionSessionIds: {},
@@ -186,6 +188,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
     case 'subagent/invocations-hydrate':
     case 'subagent/batch-updated':
     case 'subagent/task-updated':
+    case 'subagent/result-updated':
     case 'subagent/clear-stream':
       return reduceChatSubagent(state, action);
 
