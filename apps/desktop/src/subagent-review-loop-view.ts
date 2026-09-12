@@ -565,6 +565,17 @@ function reviewRow(input: {
   };
 }
 
+function isApplyInProgress(head: SubagentResultSummary | undefined): boolean {
+  return head?.integrationStatus === 'pending';
+}
+
+function isDeliveredLoop(
+  head: SubagentResultSummary | undefined,
+  verification: SubagentReviewLoopVerificationFact | undefined,
+): boolean {
+  return head?.integrationStatus === 'applied' && verification?.status === 'passed';
+}
+
 function deriveLoopPhase(input: {
   legacy: boolean;
   head?: SubagentResultSummary;
@@ -574,7 +585,7 @@ function deriveLoopPhase(input: {
   verification?: SubagentReviewLoopVerificationFact;
 }): SubagentDeliveryLoopPhase | null {
   const head = input.head;
-  if (input.verification?.status === 'passed') {
+  if (isDeliveredLoop(head, input.verification)) {
     return 'delivered';
   }
   if (head?.integrationStatus === 'applied') {
@@ -583,7 +594,10 @@ function deriveLoopPhase(input: {
     }
     return 'verifying';
   }
-  if (head?.integrationStatus === 'pending' || input.headInvocation?.status === 'needs-integration') {
+  // Host maps retained (and conflict) candidates to invocation
+  // `needs-integration` before review/apply. Apply-in-progress is
+  // `integrationStatus === 'pending'` only.
+  if (isApplyInProgress(head)) {
     return 'applying';
   }
   if (head?.integrationStatus === 'conflict' || head?.integrationStatus === 'failed') {
@@ -793,7 +807,7 @@ function projectBucket(input: {
     !legacy &&
     (headReview?.decision === 'approved' || head?.reviewStatus === 'approved');
   const applied = head?.integrationStatus === 'applied';
-  const delivered = verification?.status === 'passed';
+  const delivered = isDeliveredLoop(head, verification);
   const attention =
     verification?.status === 'failed' ||
     head?.integrationStatus === 'conflict' ||
