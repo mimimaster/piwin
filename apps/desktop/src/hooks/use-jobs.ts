@@ -3,7 +3,10 @@ import type { JobRecord } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import { MAX_JOB_LOGS_BY_ID, putRecordLru, retainRecordKeys } from '../record-budget';
 
-export function useJobs(hostClient: HostClient, options: { refreshWhenVisible: boolean }) {
+export function useJobs(
+  hostClient: HostClient,
+  options: { refreshWhenVisible: boolean; sessionId?: string | null },
+) {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [jobLogsById, setJobLogsById] = useState<Record<string, string>>({});
 
@@ -56,7 +59,7 @@ export function useJobs(hostClient: HostClient, options: { refreshWhenVisible: b
     if (options.refreshWhenVisible) {
       void refreshJobs();
     }
-  }, [options.refreshWhenVisible, refreshJobs]);
+  }, [options.refreshWhenVisible, options.sessionId, refreshJobs]);
 
   return {
     jobs,

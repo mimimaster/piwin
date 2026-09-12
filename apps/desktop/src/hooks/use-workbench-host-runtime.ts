@@ -7,6 +7,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useState,
   type Dispatch,
   type SetStateAction,
 } from 'react';
@@ -39,6 +40,8 @@ import { useActiveDocument } from './use-active-document';
 import { useArtifactCanvas } from './use-artifact-canvas';
 import { useHostBootstrap } from './use-host-bootstrap';
 import { usePendingPermissionReconcile } from './use-pending-permission-reconcile';
+import { shouldRefreshJobList } from '../composer-activity-actions.js';
+import type { TerminalJobMonitorProps } from '../terminal-job-monitor';
 import { useJobs } from './use-jobs';
 import { useRunReconcile } from './use-run-reconcile';
 import { useSessionLineage } from './use-session-lineage';
@@ -61,8 +64,6 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
   const { hostClient, state, dispatch, chrome, activeTheme, onThemeApplied, setHostLogEntries } =
     args;
   const {
-    shell,
-    rightPanelOpen,
     revealDocPreview,
     terminal,
     setSelectedModelKey,
@@ -108,20 +109,66 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
 
   const {
     jobs,
+    jobLogsById,
     refreshJobs,
+    loadJobLogs,
     stopJob,
     appendJobLog: appendJobLogBase,
   } = useJobs(hostClient, {
-    refreshWhenVisible:
-      hostClient.supportsCommand('job/list') &&
-      rightPanelOpen &&
-      shell.inspectorTab === 'terminal',
+    refreshWhenVisible: shouldRefreshJobList({
+      supportsJobList: hostClient.supportsCommand('job/list'),
+      hasActiveSession: state.activeSessionId !== null,
+    }),
+    sessionId: state.activeSessionId,
   });
+  const [selectedTerminalJobId, setSelectedTerminalJobId] = useState<string | null>(null);
+  const viewJobLogs = useCallback(
+    (jobId: string): void => {
+      setSelectedTerminalJobId(jobId);
+      void loadJobLogs(jobId);
+    },
+    [loadJobLogs],
+  );
+  const selectTerminalPty = useCallback((): void => {
+    setSelectedTerminalJobId(null);
+  }, []);
   const activeJobsForComposer = useMemo(() => {
     return jobs.filter(
       (job) => isJobActive(job.status) && job.ownerSessionId === state.activeSessionId,
     );
   }, [jobs, state.activeSessionId]);
+  const terminalMonitorJobs = useMemo(() => {
+    if (selectedTerminalJobId === null) {
+      return activeJobsForComposer;
+    }
+    if (activeJobsForComposer.some((job) => job.jobId === selectedTerminalJobId)) {
+      return activeJobsForComposer;
+    }
+    const leftover = jobs.find((job) => job.jobId === selectedTerminalJobId);
+    return leftover === undefined ? activeJobsForComposer : [...activeJobsForComposer, leftover];
+  }, [activeJobsForComposer, jobs, selectedTerminalJobId]);
+  const terminalJobMonitor = useMemo<
+    Omit<TerminalJobMonitorProps, 'children' | 'locale'>
+  >(
+    () => ({
+      jobs: terminalMonitorJobs,
+      selectedJobId: selectedTerminalJobId,
+      logsById: jobLogsById,
+      onSelectJob: viewJobLogs,
+      onSelectPty: selectTerminalPty,
+      onStopJob: (jobId) => {
+        void stopJob(jobId);
+      },
+    }),
+    [
+      jobLogsById,
+      selectTerminalPty,
+      selectedTerminalJobId,
+      stopJob,
+      terminalMonitorJobs,
+      viewJobLogs,
+    ],
+  );
 
   const backendServiceSessionIds = useMemo(() => {
     const sessionIds: Record<string, true> = {};
@@ -315,7 +362,9 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
     requestAutomation,
     jobs,
     stopJob,
+    viewJobLogs,
     activeJobsForComposer,
+    terminalJobMonitor,
     backendServiceSessionIds,
     hostStatus,
     config,

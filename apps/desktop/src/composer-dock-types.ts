@@ -205,6 +205,12 @@ export type ComposerDockProps = {
   onStopJob?: (jobId: string) => void;
   /** AJB: open the right Terminal panel with the job's logs. */
   onViewJobLogs?: (jobId: string) => void;
+  /** F1 orchestration items for the composer activity pill. */
+  orchestrationView?: import('./subagent-orchestration-view').SubagentOrchestrationView;
+  /** Stop a live batch (`subagent/batch-cancel`). */
+  onCancelSubagentBatch?: (runId: string) => void;
+  /** Open the Tasks inspector when a subagent card is not in the DOM. */
+  onOpenTasks?: () => void;
   /**
    * CHT-501: general Conversation hides Run Mode / Orchestration /
    * Skills-MCP chrome. `/goal` stays available, as does its exit chip.

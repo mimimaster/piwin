@@ -142,6 +142,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     recentProjects: session.recentProjects,
     activeJobs: host.activeJobsForComposer,
     stopJob: host.stopJob,
+    viewJobLogs: host.viewJobLogs,
     openInspector: shell.openInspector,
     steerQueueMessages: composer.steerQueueMessages,
     onSteerQueueSendNow: composer.handleSteerQueueSendNow,
