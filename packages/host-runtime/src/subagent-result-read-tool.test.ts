@@ -215,4 +215,67 @@ describe('piwin_subagent_result_read', () => {
     }
     store.close();
   });
+
+  it('uses the bound change revision when result and change revisions diverge', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-result-read-rev-'));
+    dirs.push(rootDir);
+    const store = openTurnChangeStore({ rootDir });
+    const objectStore = createTurnChangeObjectStore({ rootDir });
+    const before = await store.putObject(new TextEncoder().encode('old\n'));
+    const after = await store.putObject(new TextEncoder().encode('new\n'));
+    const published = store.publishChangeVersion({
+      changeSetId: 'cs-child',
+      revision: 1,
+      coverageComplete: true,
+      files: [
+        {
+          relativePath: 'a.txt',
+          beforeSha: before.sha256,
+          afterSha: after.sha256,
+          beforeExists: true,
+          afterExists: true,
+        },
+      ],
+    });
+    const file = published.files[0];
+    if (!file) throw new Error('expected published file');
+    const service = createSubagentResultService({ changeStore: store, objectStore });
+    service.register(makeSummary({ revision: 2, childChanges: { changeSetId: 'cs-child', revision: 1 } }));
+    const scope = {
+      result: { resultId: 'result-1', revision: 2 },
+      changes: { changeSetId: 'cs-child', revision: 1 },
+    };
+    const tool = createSubagentResultReadTool({ scope, resultService: service });
+
+    const files = await execute(tool, { mode: 'files', result: scope.result });
+    expect(files).toMatchObject({
+      ok: true,
+      details: {
+        files: [{ fileId: file.fileId, relativePath: 'a.txt', kind: 'modified' }],
+        truncated: false,
+      },
+    });
+
+    const diff = await execute(tool, {
+      mode: 'diff',
+      result: scope.result,
+      fileId: file.fileId,
+    });
+    expect(diff.ok).toBe(true);
+    if (diff.ok) {
+      expect(diff.details).toMatchObject({ binary: false, truncated: false });
+      expect(String(diff.details?.patch)).toContain('a.txt');
+    }
+    store.close();
+  });
+
+  it('fails closed when bound changes no longer match the frozen summary', async () => {
+    const service = createSubagentResultService();
+    service.register(makeSummary({ childChanges: { changeSetId: 'cs-other', revision: 1 } }));
+    const tool = createSubagentResultReadTool({ scope: SCOPE, resultService: service });
+    expect(await execute(tool, { mode: 'files', result: SCOPE.result })).toMatchObject({
+      ok: false,
+      code: 'review-data-expired',
+    });
+  });
 });

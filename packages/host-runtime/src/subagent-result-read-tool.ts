@@ -11,6 +11,7 @@ import type {
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import {
   isExactReviewTarget,
+  isSameChangeVersionRef,
   type SubagentReviewCapabilityScope,
 } from './subagent-review-context.js';
 import { parseSubagentResultRef } from './subagent-tool-input.js';
@@ -97,6 +98,9 @@ function authorizeRead(
   ) {
     return reviewError('review-data-expired', 'frozen review data is unavailable');
   }
+  if (!isSameChangeVersionRef(summary.childChanges, options.scope.changes)) {
+    return reviewError('review-data-expired', 'frozen review data is unavailable');
+  }
   return { ok: true, summary };
 }
 
@@ -159,7 +163,7 @@ export function createSubagentResultReadTool(
         }
         const page = options.resultService.listFiles({
           resultId: parsedResult.value.resultId,
-          revision: parsedResult.value.revision,
+          revision: authorized.summary.childChanges.revision,
           ...(typeof args.cursor === 'string' ? { cursor: args.cursor } : {}),
           ...(typeof args.limit === 'number' ? { limit: args.limit } : {}),
         });
@@ -181,7 +185,7 @@ export function createSubagentResultReadTool(
       }
       const diff = await options.resultService.diffFile({
         resultId: parsedResult.value.resultId,
-        revision: parsedResult.value.revision,
+        revision: authorized.summary.childChanges.revision,
         fileId,
       });
       if (!diff.ok) {
