@@ -11,7 +11,6 @@ import { resolveBundledSkillsRoot, scanSkills } from '@piwin/skills';
 import { removeWorktree, runGitCommand } from '@piwin/git';
 
 import { getSessionRecord, upsertSessionRecord, createSubagentRunStore } from '@piwin/session';
-import type { SessionIndexRecord } from '@piwin/contracts';
 import { loadPiwinConfig } from './config-store.js';
 import { getPiwinGeneralWorkspacePath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { indexRecordToSummary } from './session-summary-map.js';
@@ -24,9 +23,14 @@ import {
   invocationStatusForResult,
 } from './subagent-invocation-state.js';
 import type { SubagentRunSeam } from './subagent-run-tool.js';
-import { createSubagentControlSeam } from './host-runtime-subagent-start.js';
+import { createSubagentControlSeam, type SubagentControlDeps } from './host-runtime-subagent-start.js';
 import { bindSubagentReviewTarget } from './subagent-review-context.js';
-import { loadPersistedReviewObservation } from './subagent-review-service.js';
+import { findPersistedReview, loadPersistedReviewObservation } from './subagent-review-service.js';
+import { startReviewedContinuation } from './subagent-continue.js';
+import {
+  buildShellContinuationTask,
+  prepareRetainedSubagentContinuation,
+} from './subagent-continuation-prep.js';
 import {
   applyStatusFromIntegration,
   type SubagentApplyWriterStatus,
@@ -34,10 +38,18 @@ import {
 import type {
   SubagentBatchRequest,
   SubagentIntegrationStatus,
-  SubagentTaskSpec,
   SubagentTaskResult,
   SubagentWorkspaceLease,
 } from '@piwin/contracts';
+
+export {
+  buildShellContinuationTask,
+  prepareRetainedSubagentContinuation,
+};
+export type {
+  PreparedSubagentContinuation,
+  SubagentContinuationPrepDeps,
+} from './subagent-continuation-prep.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 
@@ -78,42 +90,60 @@ export function getSubagentSeam(
     };
   };
 
-  return createSubagentControlSeam(
-    {
-      orchestrator,
-      schemeAdmissionGate: deps.schemeAdmissionGate,
-      runRegistry: deps.runRegistry,
-      getParentRunId: () => deps.runExecutionContext.getStore(),
-      getDelegationMode: (runId) => deps.runDelegationModes.get(runId),
-      getActiveScheme: (runId) => deps.runOrchestrationSchemes.get(runId),
-      prepareBatch: (request, source) => deps.prepareSubagentBatch(request, source),
-      whenReady: () => deps.whenSubagentStartupRecoveryReady(),
-      taskResults: deps.subagentTaskResults,
-      bindReviewTarget: (input) =>
-        bindSubagentReviewTarget({
-          parentSessionId: input.parentSessionId,
-          reviewOf: input.reviewOf,
-          resolvedIsolation: input.resolvedIsolation,
-          ...(input.role ? { role: input.role } : {}),
-          getResult: (resultId) => deps.subagentResultService?.get(resultId),
-          ...(deps.turnChangeRuntime
-            ? {
-                hasFrozenChanges: (changes: { changeSetId: string; revision: number }) =>
-                  deps.turnChangeRuntime?.store.getChangeVersion(
-                    changes.changeSetId,
-                    changes.revision,
-                  ) !== undefined,
-              }
-            : {}),
-        }),
-      merge,
-      observePersistedReview: async (runId) => {
-        if (!deps.subagentRunStore) return undefined;
-        return loadPersistedReviewObservation(deps.subagentRunStore, runId);
-      },
+  const controlDeps: SubagentControlDeps = {
+    orchestrator,
+    schemeAdmissionGate: deps.schemeAdmissionGate,
+    runRegistry: deps.runRegistry,
+    getParentRunId: () => deps.runExecutionContext.getStore(),
+    getDelegationMode: (runId: string) => deps.runDelegationModes.get(runId),
+    getActiveScheme: (runId: string) => deps.runOrchestrationSchemes.get(runId),
+    prepareBatch: (request: SubagentBatchRequest, source: SubagentDeliveryPolicySource) =>
+      deps.prepareSubagentBatch(request, source),
+    whenReady: () => deps.whenSubagentStartupRecoveryReady(),
+    taskResults: deps.subagentTaskResults,
+    bindReviewTarget: (input) =>
+      bindSubagentReviewTarget({
+        parentSessionId: input.parentSessionId,
+        reviewOf: input.reviewOf,
+        resolvedIsolation: input.resolvedIsolation,
+        ...(input.role ? { role: input.role } : {}),
+        getResult: (resultId) => deps.subagentResultService?.get(resultId),
+        ...(deps.turnChangeRuntime
+          ? {
+              hasFrozenChanges: (changes: { changeSetId: string; revision: number }) =>
+                deps.turnChangeRuntime?.store.getChangeVersion(
+                  changes.changeSetId,
+                  changes.revision,
+                ) !== undefined,
+            }
+          : {}),
+      }),
+    merge,
+    observePersistedReview: async (runId: string) => {
+      if (!deps.subagentRunStore) return undefined;
+      return loadPersistedReviewObservation(deps.subagentRunStore, runId);
     },
-    sessionId,
-  );
+  };
+  const seam = createSubagentControlSeam(controlDeps, sessionId);
+  return {
+    ...seam,
+    continueReviewed: async (input) =>
+      startReviewedContinuation(
+        {
+          ...controlDeps,
+          prepareContinuation: (childSessionId) =>
+            prepareRetainedSubagentContinuation(deps, childSessionId),
+          getResult: (resultId) => deps.subagentResultService?.get(resultId),
+          listResults: (parentSessionId) =>
+            deps.subagentResultService?.list({ parentSessionId }).items ?? [],
+          loadReview: async (ref) =>
+            deps.subagentRunStore ? findPersistedReview(deps.subagentRunStore, ref) : undefined,
+          isAdmissionClosed: (runId) => deps.runRegistry.isAdmissionClosed(runId),
+        },
+        sessionId,
+        input,
+      ),
+  };
 }
 
 export async function prepareSubagentBatch(
@@ -201,71 +231,19 @@ export async function prepareSubagentBatch(
 }
 
 export async function continueSubagentChild(
-  deps: HostRuntimeKernel,
-  orchestrator: SubagentOrchestrator,
+  deps: {
+    options: { piwinRoot?: string };
+    resolveRetainedSubagentWorktreeLease: HostRuntimeKernel['resolveRetainedSubagentWorktreeLease'];
+    push: HostRuntimeKernel['push'];
+  },
+  orchestrator: Pick<SubagentOrchestrator, 'startBatch'>,
   childSessionId: string,
   text: string,
 ): Promise<{ runId: string }> {
-  const rootDir = getPiwinRoot(deps.options.piwinRoot);
-  const indexPath = getPiwinSessionIndexPath(rootDir);
-  const child = await getSessionRecord(indexPath, childSessionId);
-  if (!child || child.kind !== 'subagent' || !child.parentSessionId) {
-    throw new Error(`subagent child session not found: ${childSessionId}`);
-  }
-  if (
-    child.subagentStatus === 'running' ||
-    child.subagentLifecycle?.executionStatus === 'queued' ||
-    child.subagentLifecycle?.executionStatus === 'running'
-  ) {
-    throw new Error('subagent is still running; wait for it to finish before continuing');
-  }
-  const runtime = child.subagentRuntime;
-  if (!runtime) {
-    throw new Error('subagent runtime snapshot is unavailable; open a new delegated task');
-  }
-  const parent = await getSessionRecord(indexPath, child.parentSessionId);
-  if (!parent) {
-    throw new Error(`subagent parent session not found: ${child.parentSessionId}`);
-  }
-
-  const mode = child.subagentMode ?? runtime.isolation;
-  const parentScope =
-    parent.scope ??
-    (parent.projectPath
-      ? ({ kind: 'project', projectPath: parent.projectPath } as const)
-      : ({ kind: 'general' } as const));
-  const continuationWorkspaceLease =
-    mode === 'worktree'
-      ? await deps.resolveRetainedSubagentWorktreeLease(child)
-      : {
-          mode: 'readonly' as const,
-          cwd: child.workingDirectory ?? runtime.workingDirectory,
-          parentRepoPath:
-            parentScope.kind === 'project'
-              ? parentScope.projectPath
-              : getPiwinGeneralWorkspacePath(rootDir),
-        };
-  const task: SubagentTaskSpec = {
-    id: randomUUID(),
-    parentSessionId: child.parentSessionId,
-    task: text,
-    continuationSessionId: child.id,
-    continuationWorkspaceLease,
-    sessionName: child.name ?? `subagent-${child.id.slice(0, 8)}`,
-    ...(runtime.profileId ? { profileId: runtime.profileId } : {}),
-    ...(runtime.model ? { model: runtime.model } : {}),
-    ...(runtime.thinkingLevel ? { thinkingLevel: runtime.thinkingLevel } : {}),
-    ...(runtime.capabilities ? { capabilities: [...runtime.capabilities] } : {}),
-    ...(runtime.skillIds ? { skillIds: [...runtime.skillIds] } : {}),
-    isolationOverride: mode,
-    applyPolicy: 'none',
-    retainWorktree: mode === 'worktree',
-    ...(child.subagentAllowedOutputPaths
-      ? { allowedOutputPaths: [...child.subagentAllowedOutputPaths] }
-      : {}),
-  };
+  const prepared = await prepareRetainedSubagentContinuation(deps, childSessionId);
+  const task = buildShellContinuationTask(prepared, text);
   const handle = orchestrator.startBatch({
-    parentSessionId: child.parentSessionId,
+    parentSessionId: prepared.child.parentSessionId ?? '',
     tasks: [task],
     maxConcurrency: 1,
     failurePolicy: 'continue',

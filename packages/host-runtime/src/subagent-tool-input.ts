@@ -4,6 +4,7 @@ import type {
   SubagentDeliveryIntent,
   SubagentIsolationMode,
   SubagentResultRef,
+  SubagentReviewRef,
   ThinkingLevel,
   ToolResult,
 } from '@piwin/contracts';
@@ -113,6 +114,46 @@ export const subagentStartInputParameters = {
   required: ['task'] as const,
 };
 
+export const subagentContinueInputParameters = {
+  type: 'object' as const,
+  properties: {
+    childSessionId: {
+      type: 'string',
+      description: 'Terminal child session to continue. Must belong to this parent session.',
+    },
+    expectedResult: {
+      type: 'object',
+      description: 'Current lineage-head result that the authorizing review targeted.',
+      properties: {
+        resultId: { type: 'string' },
+        revision: { type: 'number' },
+      },
+      required: ['resultId', 'revision'],
+    },
+    review: {
+      type: 'object',
+      description: 'Durable changes-requested review bound to expectedResult.',
+      properties: {
+        reviewId: { type: 'string' },
+        revision: { type: 'number' },
+      },
+      required: ['reviewId', 'revision'],
+    },
+    task: {
+      type: 'string',
+      description: 'Repair instructions. Host prepends structured findings with Host provenance.',
+    },
+  },
+  required: ['childSessionId', 'expectedResult', 'review', 'task'] as const,
+};
+
+export type SubagentContinueInput = {
+  childSessionId: string;
+  expectedResult: SubagentResultRef;
+  review: SubagentReviewRef;
+  task: string;
+};
+
 export type SubagentStartInput = {
   task: string;
   role?: string;
@@ -151,6 +192,27 @@ export function parseSubagentResultRef(
     return invalidSubagentInput(`${field}.revision must be a positive integer`);
   }
   return { ok: true, value: { resultId, revision: record.revision } };
+}
+
+export function parseSubagentReviewRef(
+  value: unknown,
+  field = 'review',
+): { ok: true; value: SubagentReviewRef } | InvalidSubagentInput {
+  if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return invalidSubagentInput(`${field} must be { reviewId, revision }`);
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of FORBIDDEN_START_FIELDS) {
+    if (record[key] !== undefined) {
+      return invalidSubagentInput(`${field} cannot include ${key}`);
+    }
+  }
+  const reviewId = typeof record.reviewId === 'string' ? record.reviewId.trim() : '';
+  if (!reviewId) return invalidSubagentInput(`${field}.reviewId is required`);
+  if (typeof record.revision !== 'number' || !Number.isInteger(record.revision) || record.revision < 1) {
+    return invalidSubagentInput(`${field}.revision must be a positive integer`);
+  }
+  return { ok: true, value: { reviewId, revision: record.revision } };
 }
 
 export function parseSubagentStartInput(
@@ -272,4 +334,31 @@ export function parseSubagentRunIds(
   }
 
   return { ok: true, value: deduped };
+}
+
+export function parseSubagentContinueInput(
+  args: Record<string, unknown>,
+): { ok: true; value: SubagentContinueInput } | InvalidSubagentInput {
+  for (const key of FORBIDDEN_START_FIELDS) {
+    if (args[key] !== undefined) {
+      return invalidSubagentInput(`${key} cannot be supplied by the model`);
+    }
+  }
+  const childSessionId = String(args.childSessionId ?? '').trim();
+  if (!childSessionId) return invalidSubagentInput('childSessionId is required');
+  const task = String(args.task ?? '').trim();
+  if (!task) return invalidSubagentInput('task is required');
+  const expectedResult = parseSubagentResultRef(args.expectedResult, 'expectedResult');
+  if (!expectedResult.ok) return expectedResult;
+  const review = parseSubagentReviewRef(args.review, 'review');
+  if (!review.ok) return review;
+  return {
+    ok: true,
+    value: {
+      childSessionId,
+      expectedResult: expectedResult.value,
+      review: review.value,
+      task,
+    },
+  };
 }

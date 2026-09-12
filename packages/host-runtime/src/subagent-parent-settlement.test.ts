@@ -222,6 +222,45 @@ describe('settleParentSubagents', () => {
     });
   });
 
+  it('joins an accepted repair child and does not invent another repair', async () => {
+    const registry = new RunRegistry();
+    const parent = registry.createForegroundRun(SESSION_ID);
+    const repair = registry.create({
+      kind: 'subagent-batch',
+      sessionId: SESSION_ID,
+      parentRunId: parent.runId,
+    });
+    const prompts: string[] = [];
+    const firstOutcome = completedAgentPromptOutcome('toolUse');
+    const continuation = completedAgentPromptOutcome('stop');
+
+    const settled = await settleParentSubagents({
+      sessionId: SESSION_ID,
+      parentRunId: parent.runId,
+      firstOutcome,
+      liveSession: makeLiveSession(async (input) => {
+        prompts.push(input.text);
+        return continuation;
+      }),
+      ports: makePorts(registry, {
+        joinBatch: async (runId) =>
+          makeBatchResult(runId, {
+            childSessionId: 'child-repair',
+            predecessorResult: { resultId: 'result-v1', revision: 1 },
+            candidateGeneration: 2,
+            summaryPreview: 'repaired login guard',
+          }),
+        inspectMerge: async () => ({ alreadyMerged: false, summaryPreview: 'repaired login guard' }),
+      }),
+    });
+
+    expect(settled).toEqual({ status: 'completed', outcome: continuation });
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain('Do not start another subagent');
+    expect(prompts[0]).toContain('repaired login guard');
+    expect(registry.getChildren(parent.runId)).toEqual([repair.runId]);
+  });
+
   it('rejects a new subagent start during the one-shot continuation', async () => {
     const registry = new RunRegistry();
     const parent = registry.createForegroundRun(SESSION_ID);

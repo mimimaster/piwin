@@ -128,6 +128,21 @@ export type SubagentRunSeam = {
     parentSessionId: string;
     parentRunId: string;
   }) => Promise<SubagentCancelResult>;
+  /** Continue one reviewed terminal child after durable changes-requested. */
+  continueReviewed?: (input: {
+    parentSessionId: string;
+    invocationId: string;
+    parentRunId: string;
+    parentToolCallId?: string;
+    childSessionId: string;
+    expectedResult: SubagentResultRef;
+    review: SubagentReviewRef;
+    task: string;
+    signal?: AbortSignal;
+  }) => Promise<{
+    runId: string;
+    invocationId: string;
+  }>;
 };
 
 export type SubagentRunToolOptions = {

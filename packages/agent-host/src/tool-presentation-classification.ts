@@ -83,7 +83,9 @@ export function resolveActionFamily(toolName: string): ToolActionFamily {
 
   if (n === 'image_gen' || n === 'image_generate' || n.includes('image_gen')) return 'image';
   if (n === 'video_gen' || n === 'video_generate' || n.includes('video_gen')) return 'video';
-  if (n === 'piwin_subagent_run' || n === 'piwin_subagent_start') return 'subagent';
+  if (n === 'piwin_subagent_run' || n === 'piwin_subagent_start' || n === 'piwin_subagent_continue') {
+    return 'subagent';
+  }
   if (n === 'piwin_subagent_wait' || n === 'piwin_subagent_cancel') return 'other';
   if (n === 'health_read_context' || n.startsWith('health_') || n.startsWith('health:')) {
     return 'health';
