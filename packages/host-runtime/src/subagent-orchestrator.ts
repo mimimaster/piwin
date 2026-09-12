@@ -199,7 +199,12 @@ export class SubagentOrchestrator {
     // Spawn/plan callers only await completion; observe accepted to avoid
     // unhandled rejections when durable persistence fails.
     void batchState.accepted.catch(() => {});
-    return { runId, accepted: batchState.accepted, completion: batchState.completion };
+    return {
+      runId,
+      accepted: batchState.accepted,
+      hasAccepted: batchState.hasAccepted,
+      completion: batchState.completion,
+    };
   }
 
   /** Compatibility helper for callers that still await batch completion. */
