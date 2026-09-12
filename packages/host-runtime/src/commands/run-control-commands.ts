@@ -211,7 +211,7 @@ export async function finalizeAbortedRun(
     await finalizePausedRun(context, sessionId, runId, extras);
     return;
   }
-  const abortReason = context.getRunSignal(runId)?.reason;
+  const abortReason = context.getRunAbortReason(runId) ?? context.getRunSignal(runId)?.reason;
   if (isToolLoopStallAbortReason(abortReason)) {
     await finalizeCancelledRun(
       context,

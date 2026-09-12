@@ -1,10 +1,10 @@
 /**
  * Message-bound plan execution picker.
  *
- * Emitted once, below the answer in the turn that ran `piwin_plan_create`.
- * The card is a projection of a completed plan-create tool result. It never
- * owns plan state, waits for a Run, or blocks the composer. Buttons are wired
- * by the caller to the ordinary prompt submission path.
+ * Shown under a turn's final reply after that turn's Run completed, using
+ * the last successful `piwin_plan_present` payload in the same turn. Create
+ * only persists the draft and does not show the card. The card never owns
+ * plan state or blocks the composer. Buttons use the ordinary prompt path.
  */
 import {
   useCallback,
@@ -16,10 +16,13 @@ import {
 } from 'react';
 import {
   parsePlanDisplayPayload,
+  type ExecutionRunRecord,
   type PlanDisplayPayload,
   type PlanExecutionMode,
   type SessionPlan,
+  type SessionRunOutcome,
 } from '@piwin/contracts';
+import { recommendedPlanExecutionMode } from '@piwin/session/classify-plan';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import type { ChatMessageUi, ToolCardUi } from './chat-ui-types.js';
 import { useDesktopLocale } from './desktop-locale-context';
@@ -31,19 +34,26 @@ export type PlanExecutionGateVisibility = {
   isConversationSession: boolean;
   /** A plan is reviewable only after the producing turn has settled. */
   streaming?: boolean;
+  /** Owning Run outcome. The card is only offered after a completed turn. */
+  runOutcome?: SessionRunOutcome;
+  runStatus?: ExecutionRunRecord['status'];
 };
 
 export function canShowPlanExecutionGate(input: PlanExecutionGateVisibility): boolean {
   if (input.isConversationSession || input.streaming) return false;
+  if (
+    input.runStatus === 'cancelling' ||
+    input.runStatus === 'queued' ||
+    input.runStatus === 'running'
+  ) {
+    return false;
+  }
+  if (input.runOutcome !== 'completed') return false;
   const plan = input.plan;
   if (!plan) return false;
   const executionStatus = plan.execution?.status;
   if (executionStatus === 'running' || executionStatus === 'queued') return false;
-  const retryableStuck =
-    plan.status === 'executing' &&
-    (executionStatus === 'failed' || executionStatus === 'aborted');
-  if (plan.status !== 'draft' && plan.status !== 'approved' && !retryableStuck) return false;
-  return true;
+  return plan.status === 'draft' || plan.status === 'approved';
 }
 
 export function isPlanCreateTool(tool: Pick<ToolCardUi, 'toolName' | 'presentation'>): boolean {
@@ -55,32 +65,90 @@ export function isPlanCreateTool(tool: Pick<ToolCardUi, 'toolName' | 'presentati
   });
 }
 
-/** Assistant message that created the plan. Null if that turn is not in the transcript. */
-export function findPlanExecutionGateMessageId(
-  messages: readonly Pick<ChatMessageUi, 'id' | 'role' | 'tools'>[],
-): string | null {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (!message || message.role !== 'assistant') continue;
-    if (
-      message.tools.some((tool) => isPlanCreateTool(tool) && tool.status === 'done')
-    ) {
-      return message.id;
-    }
-  }
-  return null;
+export function isPlanPresentTool(tool: Pick<ToolCardUi, 'toolName' | 'presentation'>): boolean {
+  const names = [tool.toolName, tool.presentation?.routedToolName];
+  return names.some((name) => {
+    if (!name) return false;
+    const key = name.trim().toLowerCase();
+    return key === 'piwin_plan_present' || key === 'plan_present';
+  });
 }
 
-/** Find the completed plan payload owned by this assistant message. */
+function findSuccessfulPlanPresentPayload(
+  tool: Pick<ToolCardUi, 'toolName' | 'status' | 'presentation'>,
+): PlanDisplayPayload | null {
+  if (tool.status !== 'done' || !isPlanPresentTool(tool)) return null;
+  return parsePlanDisplayPayload(tool.presentation?.plan);
+}
+
+/** Last successful present payload in this assistant message, if any. */
 export function findPlanDisplayForMessage(
   message: Pick<ChatMessageUi, 'role' | 'tools'>,
 ): PlanDisplayPayload | null {
   if (message.role !== 'assistant') return null;
-  for (let index = message.tools.length - 1; index >= 0; index -= 1) {
-    const tool = message.tools[index];
-    if (!tool || tool.status !== 'done' || !isPlanCreateTool(tool)) continue;
-    const plan = parsePlanDisplayPayload(tool.presentation?.plan);
-    if (plan) return plan;
+  let last: PlanDisplayPayload | null = null;
+  for (const tool of message.tools) {
+    const payload = findSuccessfulPlanPresentPayload(tool);
+    if (payload) last = payload;
+  }
+  return last;
+}
+
+/**
+ * Last successful present payload in the same turn. Create-only turns return
+ * null. A later ordinary text reply does not hide an earlier present.
+ */
+export function findLastSuccessfulPlanPresent(
+  messages: readonly Pick<ChatMessageUi, 'role' | 'tools'>[],
+): PlanDisplayPayload | null {
+  let last: PlanDisplayPayload | null = null;
+  for (const message of messages) {
+    const payload = findPlanDisplayForMessage(message);
+    if (payload) last = payload;
+  }
+  return last;
+}
+
+function hasSuccessfulPlanPresent(
+  message: Pick<ChatMessageUi, 'role' | 'tools'>,
+): boolean {
+  return (
+    message.role === 'assistant' &&
+    message.tools.some((tool) => tool.status === 'done' && isPlanPresentTool(tool))
+  );
+}
+
+/** Last assistant message of the latest turn that contains a successful present. */
+/** Run that produced the last successful present in this turn. */
+export function findPlanPresentOwningRunId(
+  messages: readonly Pick<ChatMessageUi, 'role' | 'runId' | 'tools'>[],
+): string | undefined {
+  let last: string | undefined;
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue;
+    for (const tool of message.tools) {
+      if (!findSuccessfulPlanPresentPayload(tool)) continue;
+      last = tool.runId ?? message.runId ?? last;
+    }
+  }
+  return last;
+}
+
+export function findPlanExecutionGateMessageId(
+  messages: readonly Pick<ChatMessageUi, 'id' | 'role' | 'tools'>[],
+): string | null {
+  let lastUserIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') {
+      lastUserIndex = index;
+      break;
+    }
+  }
+  const turn = messages.slice(lastUserIndex + 1);
+  if (!turn.some((message) => hasSuccessfulPlanPresent(message))) return null;
+  for (let index = turn.length - 1; index >= 0; index -= 1) {
+    const message = turn[index];
+    if (message?.role === 'assistant') return message.id;
   }
   return null;
 }
@@ -94,11 +162,34 @@ function countIndependentSteps(plan: Pick<SessionPlan, 'steps' | 'independentSte
   return count;
 }
 
-export function recommendedPlanExecutionMode(
-  plan: Pick<SessionPlan, 'complexity' | 'steps' | 'independentSteps'>,
-): PlanExecutionMode {
-  if (plan.complexity !== 'long') return 'inline';
-  return countIndependentSteps(plan) > 0 ? 'subagent-driven' : 'inline';
+export { recommendedPlanExecutionMode } from '@piwin/session/classify-plan';
+
+export type PlanExecutionGateActionState = 'choose' | 'executed' | 'stale';
+
+/**
+ * Historical cards keep their snapshot. Buttons follow the live document:
+ * a later revision or a replacement plan is stale; executing/done is executed.
+ * `livePlan === undefined` means the caller has no live document yet.
+ */
+export function resolvePlanExecutionGateActionState(input: {
+  display: Pick<SessionPlan, 'id' | 'revision'>;
+  livePlan?: SessionPlan | null;
+}): PlanExecutionGateActionState {
+  if (input.livePlan === undefined) return 'choose';
+  const live = input.livePlan;
+  if (live === null || live.id !== input.display.id) return 'stale';
+  if (live.revision !== input.display.revision) return 'stale';
+  if (live.status === 'executing' || live.status === 'done') return 'executed';
+  if (live.status === 'abandoned') return 'stale';
+  const executionStatus = live.execution?.status;
+  if (
+    executionStatus === 'running' ||
+    executionStatus === 'queued' ||
+    executionStatus === 'completed'
+  ) {
+    return 'executed';
+  }
+  return 'choose';
 }
 
 export type PlanExecutionGateProps = {
@@ -107,6 +198,8 @@ export type PlanExecutionGateProps = {
   planPath?: string;
   /** Logical path used when opening the read-only inspector document. */
   displayPath?: string;
+  /** Current session plan, used only to age historical buttons. */
+  livePlan?: SessionPlan | null;
   onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
   onOpenDocument?: (input: DocumentOpenInput) => void;
   actionInProgress?: boolean;
@@ -120,6 +213,8 @@ type GateCopy = {
   recommended: string;
   inline: string;
   subagent: string;
+  executed: string;
+  stale: string;
   kb: string;
 };
 
@@ -129,6 +224,8 @@ const COPY_ZH: GateCopy = {
   recommended: '推荐',
   inline: '在当前会话直接执行',
   subagent: '子代理执行',
+  executed: '已执行',
+  stale: '已过期',
   kb: '按 A / B 键快速执行 · 也可以直接在输入框继续提问',
 };
 
@@ -138,6 +235,8 @@ const COPY_EN: GateCopy = {
   recommended: 'Recommended',
   inline: 'Inline in this session',
   subagent: 'Subagent-driven',
+  executed: 'Executed',
+  stale: 'Expired',
   kb: 'Press A / B to run · Or continue typing in the prompt bar',
 };
 
@@ -163,17 +262,25 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
     plan,
     planPath,
     displayPath,
+    livePlan,
     onExecute,
     onOpenDocument,
     actionInProgress = false,
   } = props;
   const [internalActionInProgress, setInternalActionInProgress] = useState(false);
   const internalActionInProgressRef = useRef(false);
+  const actionState = resolvePlanExecutionGateActionState({
+    display: plan,
+    ...(livePlan !== undefined ? { livePlan } : {}),
+  });
+  const choosable = actionState === 'choose';
   const busy = actionInProgress || internalActionInProgress;
   const { locale } = useDesktopLocale();
   const copy = locale === 'en' ? COPY_EN : COPY_ZH;
-  const captureKeyboard = props.captureKeyboard !== false;
+  const captureKeyboard = choosable && props.captureKeyboard !== false;
   const recommended = recommendedPlanExecutionMode(plan);
+  const historicalLabel = actionState === 'executed' ? copy.executed : copy.stale;
+  const statusLabel = choosable ? copy.status : historicalLabel;
   const modes: Array<{ mode: PlanExecutionMode; badge: string; label: string }> =
     recommended === 'subagent-driven'
       ? [
@@ -187,7 +294,7 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
 
   const executeMode = useCallback(
     async (mode: PlanExecutionMode): Promise<void> => {
-      if (busy || internalActionInProgressRef.current) return;
+      if (!choosable || busy || internalActionInProgressRef.current) return;
       internalActionInProgressRef.current = true;
       setInternalActionInProgress(true);
       try {
@@ -198,7 +305,7 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
         setInternalActionInProgress(false);
       }
     },
-    [busy, onExecute],
+    [busy, choosable, onExecute],
   );
   const executeModeRef = useRef(executeMode);
   executeModeRef.current = executeMode;
@@ -254,8 +361,9 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
       data-activity-id="plan"
       data-activity-animation={getBehaviorActivitySpec('plan').animation}
       data-tool-status="idle"
+      data-action-state={actionState}
       {...(planPath !== undefined ? { 'data-plan-path': planPath } : {})}
-      aria-label={copy.status}
+      aria-label={statusLabel}
       {...(onOpenDocument
         ? {
             role: 'button' as const,
@@ -269,21 +377,17 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
     >
       <span className="pill zhu-p">
         <i />
-        {copy.status}
+        {statusLabel}
       </span>
       <h3>{copy.title}</h3>
       <div className="desc">{description}</div>
-      {planPath || displayPath ? (
-        <div className="plan-path" title={planPath ?? displayPath}>
-          {planPath ?? displayPath}
-        </div>
-      ) : null}
+      {displayPath ? <div className="plan-path">{displayPath}</div> : null}
       {plan.execution?.status === 'failed' && plan.execution.error ? (
         <div role="alert">{plan.execution.error}</div>
       ) : null}
       <div className="choices">
         {modes.map((entry) => {
-          const isRecommended = entry.mode === recommended;
+          const isRecommended = choosable && entry.mode === recommended;
           return (
             <button
               type="button"
@@ -291,14 +395,19 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
               className={`choice${isRecommended ? ' rec' : ''}`}
               data-testid={entry.mode === 'inline' ? 'plan-mode-inline' : 'plan-mode-subagent'}
               data-recommended={isRecommended ? 'true' : 'false'}
-              disabled={busy}
+              data-historical={choosable ? undefined : 'true'}
+              disabled={busy || !choosable}
               onClick={(event) => {
                 event.stopPropagation();
                 void executeMode(entry.mode);
               }}
             >
-              <span className="bd">{entry.badge}</span>
-              {isRecommended ? `${copy.recommended} · ${entry.label}` : entry.label}
+              {choosable ? <span className="bd">{entry.badge}</span> : null}
+              {choosable
+                ? isRecommended
+                  ? `${copy.recommended} · ${entry.label}`
+                  : entry.label
+                : historicalLabel}
             </button>
           );
         })}

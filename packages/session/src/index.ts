@@ -278,6 +278,7 @@ export type { SessionPlanInspection } from './plan-store.js';
 export {
   classifyPlanComplexity,
   isWithinPlanSizeLimits,
+  recommendedPlanExecutionMode,
   LONG_PLAN_INDEPENDENT_THRESHOLD,
   LONG_PLAN_STEP_THRESHOLD,
 } from './classify-plan.js';

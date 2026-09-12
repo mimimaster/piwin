@@ -38,15 +38,9 @@ export function mapAssistantStopReasonFailure(
       failure,
     };
   }
-  if (stopReason === 'aborted' && errorMessage) {
-    const failure = agentFailureFromPiEvent(endedMessage ?? {}, rawEvent, { errorMessage });
-    return {
-      type: 'error',
-      message: failure.message,
-      retriable: failure.retriable,
-      failure,
-    };
-  }
+  // aborted is a lifecycle outcome. Host classifies user-stop / pause /
+  // superseded vs a true provider abort. Emitting error here double-fires
+  // a red failure after the Host already handled aborted.
   return undefined;
 }
 

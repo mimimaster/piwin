@@ -42,7 +42,11 @@ import {
   ChatTurnMarginalia,
   resolveTurnMarginalia,
 } from './chat-turn-marginalia.js';
-import { findPlanDisplayForMessage } from './plan-execution-gate.js';
+import {
+  canShowPlanExecutionGate,
+  findLastSuccessfulPlanPresent,
+  findPlanPresentOwningRunId,
+} from './plan-execution-gate.js';
 import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
 
 /** Legacy helper retained for callers that still compute the old preference. */
@@ -383,14 +387,19 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           const assistantMessages = turn.items
             .filter((item) => item.message.role !== 'user')
             .map((item) => item.message);
+          const turnPlanDisplay = conversationSession
+            ? null
+            : findLastSuccessfulPlanPresent(assistantMessages);
+          const presentOwningRunId = conversationSession
+            ? undefined
+            : findPlanPresentOwningRunId(assistantMessages);
 
           const renderedUserItems: ReactElement[] = [];
           const renderedAssistantItems: ReactElement[] = [];
 
           turn.items.forEach(({ message, messageIndex }, itemIndex) => {
-            const planDisplay = conversationSession
-              ? null
-              : findPlanDisplayForMessage(message);
+            const planDisplay =
+              turn.lastAssistantMessageId === message.id ? turnPlanDisplay : null;
             const isDisclosureWorkItem =
               workDisclosureProjection !== null &&
               itemIndex >= workDisclosureProjection.startIndex &&
@@ -518,19 +527,36 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   turnModel
                     ? { ...message, model: turnModel }
                     : message;
+                const turnStillLive =
+                  currentTurnStreaming &&
+                  (message.status === 'streaming' ||
+                    (message.runId !== undefined && message.runId === props.activeRunId));
+                const owningRunId = presentOwningRunId ?? message.runId;
+                const owningRun =
+                  owningRunId !== undefined
+                    ? props.runRecordsById?.[owningRunId]
+                    : undefined;
+                const presentRunStillLive =
+                  presentOwningRunId !== undefined && presentOwningRunId === props.activeRunId;
                 const planExecutionGate =
-                  planDisplay && props.onPlanExecute
+                  planDisplay &&
+                  props.onPlanExecute &&
+                  canShowPlanExecutionGate({
+                    plan: planDisplay.plan,
+                    isConversationSession: conversationSession,
+                    streaming: currentTurnStreaming || presentRunStillLive || turnStillLive,
+                    ...(owningRun?.outcome !== undefined ? { runOutcome: owningRun.outcome } : {}),
+                    ...(owningRun?.status !== undefined ? { runStatus: owningRun.status } : {}),
+                  })
                     ? {
                         plan: planDisplay.plan,
                         planPath: planDisplay.path,
                         displayPath: planDisplay.displayPath,
+                        ...(props.sessionPlan !== undefined
+                          ? { livePlan: props.sessionPlan }
+                          : {}),
                         onExecute: (mode: PlanExecutionMode) =>
                           props.onPlanExecute?.(planDisplay, mode),
-                        actionInProgress:
-                          message.status === 'streaming' ||
-                          (props.streaming === true &&
-                            message.runId !== undefined &&
-                            message.runId === props.activeRunId),
                         captureKeyboard: false,
                       }
                     : undefined;

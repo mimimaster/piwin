@@ -373,6 +373,7 @@ describe('ConversationResponseContent', () => {
         hasRunning: false,
         isLive: false,
         errorCount: 0,
+        cancelledCount: 0,
       },
     };
 
@@ -430,7 +431,11 @@ describe('ConversationResponseContent', () => {
     );
 
     expect(container.querySelector('[data-testid="conversation-thinking"]')).toBeNull();
-    expect(container.querySelector('[data-testid="conversation-thinking-summary"]')).not.toBeNull();
+    const summary = container.querySelector('[data-testid="conversation-thinking-summary"]');
+    expect(summary).not.toBeNull();
+    expect(summary?.textContent).toContain('思考过程');
+    expect(summary?.querySelector('[data-testid="work-fold-elapsed"]')?.textContent).toBe('4s');
+    expect(summary?.querySelector('.work-fold-trailing')).not.toBeNull();
   });
 
   it('handles interaction on native flashcard: reveal, rate, and action callback', () => {

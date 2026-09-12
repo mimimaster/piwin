@@ -35,6 +35,7 @@ import { resolveAssistantRenderingPhase } from './streaming-caret';
 import type { DocumentOpenInput } from './tool-call-card';
 import type { DiffCardRequest } from './diff-card.js';
 import { IconBrain, IconChevronRight } from './shell-icons';
+import { WorkElapsed } from './work-fold-header.js';
 import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 import { buildTurnPresentation } from './run-presentation.js';
 import { runtimeStatusText } from './run-activity-strings.js';
@@ -288,19 +289,24 @@ export function ConversationResponseContent(props: {
             <span className={`turn-work-details-label ${thinkingLabelClass}`}>
               {thinkingStreaming
                 ? runtimeStatusText('thinking', locale)
-                : presentation.thoughtSeconds !== undefined
-                  ? locale === 'zh-CN'
-                    ? `已思考 ${presentation.thoughtSeconds} 秒`
-                    : `Thought for ${presentation.thoughtSeconds}s`
-                  : locale === 'zh-CN'
-                    ? '思考过程'
-                    : 'Thoughts'}
+                : locale === 'zh-CN'
+                  ? '思考过程'
+                  : 'Thoughts'}
             </span>
-            <span
-              className={`turn-work-details-chevron${thinkingOpen ? ' is-open' : ''}`}
-              aria-hidden
-            >
-              <IconChevronRight />
+            <span className="work-fold-trailing">
+              <WorkElapsed
+                {...(thinkingStreaming && message.thinkingStartedAt !== undefined
+                  ? { startedAt: message.thinkingStartedAt }
+                  : !thinkingStreaming && presentation.thoughtSeconds !== undefined
+                    ? { elapsedMs: presentation.thoughtSeconds * 1000 }
+                    : {})}
+              />
+              <span
+                className={`turn-work-details-chevron${thinkingOpen ? ' is-open' : ''}`}
+                aria-hidden
+              >
+                <IconChevronRight />
+              </span>
             </span>
           </button>
           {thinkingOpen ? (

@@ -4,6 +4,32 @@
 
 第一版只保证 **Mac 综合包**（Host + 桌面壳）。Windows、iOS、安卓后面再做。移动壳现在不打包。
 
+## 架构
+
+```mermaid
+flowchart TD
+    SHELL["客户端壳<br/>Desktop · CLI"]
+    HOST["Host 运行时<br/>会话 · 权限 · 命令"]
+    AGENT["Agent Host<br/>SDK / RPC 双模式"]
+    KERNEL["Pi Kernel<br/>Agent Loop · 模型调用"]
+    CAPS["能力<br/>Skills · MCP · Git · 知识库"]
+
+    SHELL --> HOST
+    HOST --> AGENT
+    AGENT --> KERNEL
+    HOST --> CAPS
+```
+
+| 层 | 位置 | 职责 |
+| --- | --- | --- |
+| 客户端壳 | `apps/desktop`、`apps/cli` | 只跟 Host 通信，不直接依赖 Pi |
+| Host 运行时 | `packages/host-runtime` | 唯一组合根：组装能力、管会话、做权限决策 |
+| Agent Host | `packages/agent-host` | 唯一依赖 Pi 的边界，进程内与进程隔离两种模式 |
+| Pi Kernel | 外部内核 | Agent Loop、模型调用、内置工具 |
+| 能力 | `packages/*` | Skills、MCP、Git、媒体、知识库等 |
+
+配置根为 `~/.piwin`，Desktop 与 CLI 共用同一个 Host。完整分层与约束见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)。
+
 ## 怎么用
 
 自己在本机打总包：

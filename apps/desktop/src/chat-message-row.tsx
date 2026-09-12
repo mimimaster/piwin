@@ -22,7 +22,7 @@ import {
   getGenerationTool,
   shouldRenderGenerationProgress,
 } from './generation-tool-kind.js';
-import { isPlanCreateTool } from './plan-execution-gate.js';
+import { isPlanPresentTool } from './plan-execution-gate.js';
 import { ConversationResponseContent } from './conversation-response-content.js';
 import { extractFlashcardRecords } from './flashcard-result-extract.js';
 import { FlashcardResultProjection } from './FlashcardResultProjection.js';
@@ -80,7 +80,7 @@ export const ChatMessageRow = memo(
       message.tools.some(
         (tool) =>
           tool.status === 'done' &&
-          isPlanCreateTool(tool) &&
+          isPlanPresentTool(tool) &&
           tool.presentation?.plan !== undefined,
       );
     if (message.subagentActivity) {

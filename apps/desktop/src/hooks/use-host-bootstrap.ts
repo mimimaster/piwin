@@ -472,23 +472,22 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         }
         return;
       }
-      if (message.type === 'settings/updated') {
+      if (
+        message.type === 'settings/updated' ||
+        message.type === 'auth/updated' ||
+        message.type === 'auth/login-finished'
+      ) {
         void (async () => {
           const response = await hostClient.request({ type: 'settings/get' });
-          if (!response.success) {
-            return;
-          }
-          const snapshot = (response.data as { snapshot?: { config?: PiwinConfig } } | undefined)
-            ?.snapshot;
-          if (snapshot?.config) {
-            setConfig(mergeSettingsViewConfig(snapshot.config));
+          if (response.success) {
+            const snapshot = (response.data as { snapshot?: { config?: PiwinConfig } } | undefined)
+              ?.snapshot;
+            if (snapshot?.config) {
+              setConfig(mergeSettingsViewConfig(snapshot.config));
+            }
           }
           await applyConfiguredChatModels(hostClient, setConfiguredChatModels, args.setSelectedModelKey);
         })();
-        return;
-      }
-      if (message.type === 'auth/updated' || message.type === 'auth/login-finished') {
-        void applyConfiguredChatModels(hostClient, setConfiguredChatModels, args.setSelectedModelKey);
         return;
       }
       if (message.type === 'session/name-updated') {

@@ -175,7 +175,7 @@ export function computeBatchSummary(
       hasDuration = true;
       totalDurationMs += tool.presentation.durationMs;
     }
-    if (tool.status === 'error') {
+    if (tool.status === 'error' && tool.presentation?.error?.category !== 'cancelled') {
       errorCount += 1;
     }
     if (tool.status === 'running') {

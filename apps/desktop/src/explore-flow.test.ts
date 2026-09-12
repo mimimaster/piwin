@@ -318,6 +318,38 @@ describe('buildExploreFlowRoles', () => {
     expect(anchor.group.isLive).toBe(false);
   });
 
+  it('keeps a cancelled explore chain folded without counting abort as failure', () => {
+    const cancelled = (toolCallId: string, path: string): ToolCardUi => ({
+      ...readTool(toolCallId, path, 'error'),
+      output: 'Command aborted',
+      presentation: {
+        kind: 'filesystem',
+        title: 'Read',
+        actionVerb: 'Read',
+        targetPaths: [path],
+        error: { category: 'cancelled', message: 'Command aborted' },
+      },
+    });
+    const roles = buildExploreFlowRoles([
+      assistantStep('m1', { tools: [readTool('t1', 'src/a.ts')] }),
+      assistantStep('m2', { tools: [cancelled('t2', 'src/b.ts')] }),
+      assistantStep('m3', { tools: [cancelled('t3', 'src/c.ts')] }),
+    ]);
+    const anchor = roles.get('m1');
+    expect(anchor?.kind).toBe('anchor');
+    if (anchor?.kind !== 'anchor') return;
+    expect(anchor.group.errorCount).toBe(0);
+    expect(anchor.group.cancelledCount).toBe(2);
+    expect(
+      anchor.group.items.filter(
+        (item) => item.kind === 'tool' && item.tool.presentation?.error?.category === 'cancelled',
+      ),
+    ).toHaveLength(1);
+    expect(anchor.group.items.some((item) => item.kind === 'tool' && item.tool.output === 'Command aborted')).toBe(
+      false,
+    );
+  });
+
   it('excludes error steps and messages with generation tools or citations', () => {
     const roles = buildExploreFlowRoles([
       assistantStep('m1', { tools: [readTool('t1', 'src/a.ts')] }),

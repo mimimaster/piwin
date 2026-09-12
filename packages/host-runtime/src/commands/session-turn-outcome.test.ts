@@ -11,6 +11,7 @@ import {
   completedAgentPromptOutcome,
   failedAgentPromptOutcome,
 } from '@piwin/contracts';
+import { createUserStopAbortReason } from '../run-abort-reason.js';
 import { createDelayedSessionHandle } from '../delayed-session-fixture.js';
 import type { TranscriptRecorder } from '../transcript-recorder.js';
 import { handleSessionLiveCommand } from './session-live-commands.js';
@@ -159,6 +160,8 @@ describe('applyAgentPromptOutcome via session/prompt', () => {
       status: 'cancelled',
       terminalCode: 'cancelled',
     });
+    expect(errorEvents(events)).toHaveLength(0);
+    expect(context.getRunAbortReason(runId)?.code).toBe('user-stop');
     expect(events.filter((message) => message.type === 'run/terminal')).toHaveLength(1);
   });
 
@@ -310,6 +313,7 @@ describe('applyAgentPromptOutcome', () => {
       context: {
         terminateRun,
         getRunSignal: () => undefined,
+        getRunAbortReason: () => undefined,
         isPauseRequested: () => false,
         hasRunAgentErrorEvidence: () => false,
         transcriptRecorders: new Map(),
@@ -323,14 +327,55 @@ describe('applyAgentPromptOutcome', () => {
     expect(terminateRun).not.toHaveBeenCalled();
   });
 
-  it('stamps aborted stop reason when Host already requested abort', async () => {
+  it('treats a failed provider stop as a Host abort when the user already stopped', async () => {
     const terminateRun = vi.fn(async () => true);
-    const controller = new AbortController();
-    controller.abort();
+    const abortReason = createUserStopAbortReason();
     const applied = await applyAgentPromptOutcome({
       context: {
         terminateRun,
-        getRunSignal: () => controller.signal,
+        getRunSignal: () => undefined,
+        getRunAbortReason: () => abortReason,
+        isPauseRequested: () => false,
+        hasRunAgentErrorEvidence: () => false,
+        getForegroundRun: () => ({
+          runId: 'run-1',
+          sessionId: 'session-1',
+          status: 'cancelling',
+        }),
+        requireSession: () => ({ abort: async () => undefined }),
+        stopProcessesForSession: async () => undefined,
+        transcriptRecorders: new Map(),
+        push: () => undefined,
+        quarantineSessionRuntime: () => undefined,
+      } as never,
+      sessionId: 'session-1',
+      runId: 'run-1',
+      outcome: failedAgentPromptOutcome({
+        code: 'unknown-agent-failure',
+        origin: 'transport',
+        message: 'This operation was aborted',
+        retriable: true,
+      }),
+    });
+    expect(applied).toBe('aborted-by-host');
+    expect(terminateRun).toHaveBeenCalledWith(
+      'session-1',
+      'run-1',
+      'cancelled',
+      'cancelled',
+      undefined,
+      { agentStopReason: 'aborted' },
+    );
+  });
+
+  it('stamps aborted stop reason when Host already requested abort', async () => {
+    const terminateRun = vi.fn(async () => true);
+    const abortReason = createUserStopAbortReason();
+    const applied = await applyAgentPromptOutcome({
+      context: {
+        terminateRun,
+        getRunSignal: () => undefined,
+        getRunAbortReason: () => abortReason,
         isPauseRequested: () => false,
         hasRunAgentErrorEvidence: () => false,
         getForegroundRun: () => ({
@@ -357,5 +402,84 @@ describe('applyAgentPromptOutcome', () => {
       undefined,
       { agentStopReason: 'aborted' },
     );
+  });
+});
+
+describe('cancel vs failure event order', () => {
+  it('shows cancel when Host already accepted stop and a later failed outcome arrives', async () => {
+    const session = createDelayedSessionHandle({ delays: { firstTokenMs: 200 } });
+    const { context, events } = createPromptContext(session);
+    const accepted = await handleSessionLiveCommand(
+      { type: 'session/prompt', sessionId: session.id, input: { text: 'hello' } },
+      undefined,
+      context,
+    );
+    const runId = acceptedRunId(accepted);
+    await handleSessionLiveCommand(
+      { type: 'session/abort', sessionId: session.id, runId },
+      undefined,
+      context,
+    );
+    await applyAgentPromptOutcome({
+      context,
+      sessionId: session.id,
+      runId,
+      outcome: failedAgentPromptOutcome({
+        code: 'unknown-agent-failure',
+        origin: 'transport',
+        message: 'This operation was aborted',
+        retriable: true,
+      }),
+    });
+    await vi.waitFor(() => {
+      expect(context.getForegroundRun(session.id)).toBeUndefined();
+    });
+    expect(terminalOf(events)?.run).toMatchObject({
+      status: 'cancelled',
+      terminalCode: 'cancelled',
+    });
+    expect(errorEvents(events)).toHaveLength(0);
+  });
+
+  it('keeps a real failure when the user stops after the run has already failed', async () => {
+    const failure = {
+      code: 'provider-http-error' as const,
+      origin: 'provider' as const,
+      message: '503 upstream',
+      retriable: true,
+      httpStatus: 503,
+    };
+    const session = sessionWithOutcome(failedAgentPromptOutcome(failure));
+    const { context, events } = createPromptContext(session);
+    const accepted = await handleSessionLiveCommand(
+      { type: 'session/prompt', sessionId: session.id, input: { text: 'hello' } },
+      undefined,
+      context,
+    );
+    const runId = acceptedRunId(accepted);
+    await vi.waitFor(() => {
+      expect(context.getForegroundRun(session.id)).toBeUndefined();
+    });
+    expect(terminalOf(events)?.run).toMatchObject({
+      status: 'failed',
+      failure,
+    });
+
+    const abort = await handleSessionLiveCommand(
+      { type: 'session/abort', sessionId: session.id, runId },
+      undefined,
+      context,
+    );
+    expect(abort).toMatchObject({
+      success: true,
+      data: { cancelled: false, reason: 'no-active-run' },
+    });
+    const terminals = events.filter((message) => message.type === 'run/terminal');
+    expect(terminals).toHaveLength(1);
+    expect(terminalOf(events)?.run).toMatchObject({
+      status: 'failed',
+      failure,
+    });
+    expect(errorEvents(events)).toHaveLength(1);
   });
 });

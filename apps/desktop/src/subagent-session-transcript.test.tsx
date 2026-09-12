@@ -221,7 +221,9 @@ describe('SubagentSessionTranscript work-details layout', () => {
     expect(message).not.toBeNull();
     expect(workDetails).not.toBeNull();
     expect(workDetails?.parentElement).toBe(message);
-    expect(container.textContent).toContain('已思考 4 秒');
+    expect(container.textContent).toContain('思考过程');
+    expect(container.querySelector('[data-testid="work-fold-elapsed"]')?.textContent).toBe('4s');
+    expect(container.textContent).not.toContain('已思考 4 秒');
     expect(container.textContent).toContain('探索了 2 个文件');
     expect(container.querySelector('[data-testid="tool-batch-capsule"]')).not.toBeNull();
     expect(container.querySelector('.markdown')).toBeNull();

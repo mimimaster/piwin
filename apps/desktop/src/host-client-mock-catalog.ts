@@ -780,6 +780,42 @@ export async function handleMockCatalogCommands(
             ],
           },
         };
+      case 'marketplace/search': {
+        const query = command.query.trim().toLowerCase();
+        const hits =
+          query.includes('subagent') || query.includes('pi-subagents')
+            ? [
+                {
+                  entryId: 'npm:pi-subagents',
+                  name: 'pi-subagents',
+                  version: '0.67.0',
+                  description: 'Pi extension for single-agent delegation and scripted multi-agent workflows',
+                  source: 'npm-pi-package' as const,
+                  installCommand: 'pi install npm:pi-subagents',
+                  npmUrl: 'https://www.npmjs.com/package/pi-subagents',
+                  repositoryUrl: 'https://github.com/nicobailon/pi-subagents',
+                  publisher: 'nicopreme',
+                },
+                {
+                  entryId: 'github:amosblomqvist/pi-subagents',
+                  name: 'pi-subagents',
+                  version: 'main',
+                  description: 'Simple subagents for pi (git-only mock).',
+                  source: 'github' as const,
+                  installCommand: 'pi install git:github.com/amosblomqvist/pi-subagents',
+                  repositoryUrl: 'https://github.com/amosblomqvist/pi-subagents',
+                  publisher: 'amosblomqvist',
+                },
+              ]
+            : [];
+        return {
+          id,
+          type: 'response',
+          command: 'marketplace/search',
+          success: true,
+          data: { query: command.query, hits },
+        };
+      }
       case 'skills/store-list':
         return {
           id,

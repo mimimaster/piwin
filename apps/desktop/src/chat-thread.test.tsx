@@ -1037,7 +1037,13 @@ describe('ChatThread render isolation (E1)', () => {
     });
     expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(3);
     expect(container.querySelectorAll('[data-testid="explore-thought-row"]')).toHaveLength(2);
-    expect(container.textContent).toContain('Thought for 3s');
+    expect(container.textContent).toContain('Thoughts');
+    expect(
+      container.querySelector(
+        '[data-testid="explore-thought-row"] [data-testid="work-fold-elapsed"]',
+      )?.textContent,
+    ).toBe('3s');
+    expect(container.textContent).not.toContain('Thought for 3s');
   });
 
   it('does not spin a query locator under a live explore call chain', () => {
@@ -2374,7 +2380,9 @@ describe('ChatThread render isolation (E1)', () => {
 
     act(() => renderThread(null, 1_707_000));
     summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');
-    expect(summary?.textContent).toContain('已思考 4 秒');
+    expect(summary?.textContent).toContain('思考过程');
+    expect(summary?.querySelector('[data-testid="work-fold-elapsed"]')?.textContent).toBe('4s');
+    expect(summary?.textContent).not.toContain('已思考');
     expect(summary?.textContent).not.toContain('1707');
   });
 

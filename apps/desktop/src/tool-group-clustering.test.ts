@@ -147,4 +147,20 @@ describe('clusterToolCalls', () => {
     expect(summary.errorCount).toBe(1);
     expect(summary.totalDurationMs).toBe(500);
   });
+
+  it('does not count cancelled tools as batch errors', () => {
+    const tools = [
+      makeTool('read', {
+        status: 'error',
+        presentation: {
+          kind: 'read',
+          title: 'read',
+          error: { category: 'cancelled', message: 'This operation was aborted' },
+        },
+      }),
+    ];
+    const summary = computeBatchSummary('read', tools);
+    expect(summary.hasError).toBe(false);
+    expect(summary.errorCount).toBe(0);
+  });
 });

@@ -25,6 +25,11 @@ import type {
   SessionRunPhase,
 } from '@piwin/contracts';
 import { isRunTerminal } from '@piwin/contracts';
+import {
+  formatRunAbortReason,
+  isRunAbortReason,
+  type RunAbortReason,
+} from './run-abort-reason.js';
 
 /** Internal run node tracking the record, abort controller, and children. */
 interface RunNode {
@@ -45,6 +50,8 @@ interface RunNode {
   hasAgentErrorEvidence?: boolean;
   /** In-flight toolCallIds; tool/end must not leave tool-running until empty. */
   inFlightToolIds: Set<string>;
+  /** Host-owned abort intent; survives after the live AbortSignal is gone. */
+  abortReason?: RunAbortReason;
 }
 
 export type TerminateRunRecordOptions = {
@@ -197,6 +204,11 @@ export class RunRegistry {
   /** Get the AbortSignal for a run. */
   getSignal(runId: string): AbortSignal | undefined {
     return this.nodes.get(runId)?.abortController.signal;
+  }
+
+  /** Durable Host abort reason. Prefer this over a live AbortSignal. */
+  getAbortReason(runId: string): RunAbortReason | undefined {
+    return this.nodes.get(runId)?.abortReason;
   }
 
   /** Get the AbortController for a run (for internal use by orchestrator). */
@@ -545,6 +557,7 @@ export class RunRegistry {
         this.publishUpdated(node);
       }
 
+      persistAbortReason(node, undefined);
       // Abort this node's controller.
       if (!node.abortController.signal.aborted) {
         node.abortController.abort();
@@ -587,6 +600,7 @@ export class RunRegistry {
   requestCancel(runId: string, reason?: unknown): ExecutionRunRecord | undefined {
     const node = this.nodes.get(runId);
     if (!node || isRunTerminal(node.record.status)) return undefined;
+    persistAbortReason(node, reason);
     node.pauseRequested = false;
     node.admissionClosed = true;
     let changed = false;
@@ -612,6 +626,7 @@ export class RunRegistry {
   requestPause(runId: string, reason?: unknown): ExecutionRunRecord | undefined {
     const node = this.nodes.get(runId);
     if (!node || isRunTerminal(node.record.status)) return undefined;
+    persistAbortReason(node, reason);
     node.admissionClosed = true;
     node.pauseRequested = true;
     let changed = false;
@@ -792,6 +807,18 @@ export class RunRegistry {
     this.nodes.clear();
     this.terminalOrder.length = 0;
   }
+}
+
+function persistAbortReason(node: RunNode, reason: unknown): void {
+  if (node.abortReason) return;
+  if (isRunAbortReason(reason)) {
+    node.abortReason = reason;
+    return;
+  }
+  node.abortReason = {
+    code: 'unknown',
+    message: formatRunAbortReason(reason),
+  };
 }
 
 function eventHasRunId(event: AgentEvent): event is AgentEvent & { runId: string } {

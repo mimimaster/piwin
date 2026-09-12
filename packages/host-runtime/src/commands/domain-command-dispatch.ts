@@ -4,6 +4,7 @@
 import type { HostCommand, HostResponse } from '@piwin/contracts';
 import type { HostCommandContext } from './host-command-context.js';
 import { handleCatalogCommand } from './catalog-commands.js';
+import { handleMarketplaceSearchCommand } from './marketplace-search-commands.js';
 import { handleMcpCommand } from './mcp-commands.js';
 import { handleGitCommand } from './git-commands.js';
 import { handlePlanCommand } from './plan-commands.js';
@@ -119,6 +120,9 @@ export async function dispatchDomainCommands(
 
   const usage = await handleUsageCommand(command, requestId, context);
   if (usage) return usage;
+
+  const marketplaceSearch = await handleMarketplaceSearchCommand(command, requestId);
+  if (marketplaceSearch) return marketplaceSearch;
 
   const study = await handleFlashcardStudyCommand(command, requestId, context.flashcardStudy);
   if (study) return study;

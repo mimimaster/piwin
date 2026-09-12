@@ -473,6 +473,15 @@
   opacity: 0.6;
 }
 
+.intr .choice[data-historical='true'] {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.intr .choice[data-historical='true']:hover {
+  background: var(--s2, var(--intr-s2));
+}
+
 .intr .choice:focus-visible {
   outline: 2px solid var(--zhu, var(--intr-zhu));
   outline-offset: 1px;

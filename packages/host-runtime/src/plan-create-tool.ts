@@ -45,12 +45,12 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
     descriptor: {
       name: 'piwin_plan_create',
       description:
-        'Create a durable draft SessionPlan when the user requests a reviewable execution plan. ' +
-        'After creation, summarize the plan and END this turn so the user can choose inline or subagent execution. ' +
-        'Do not implement or spawn implementation subagents before approval. ' +
-        'Decompose tasks into modular steps to maximize parallel subagent potential. ' +
-        'Use dependsOn ONLY for genuine sequential blockers, and parallelGroup for concurrent tasks. ' +
-        'Each step MUST specify affected components, explicit acceptance criteria, and a concrete verification command.',
+        'Save a durable draft SessionPlan. This tool only persists the plan; it does not start execution, ' +
+        'change execution rights, or stop other tools. Returns the plan id, revision, status, and the ' +
+        'user-visible path plans/<session>.md. Decompose tasks into modular steps to maximize parallel ' +
+        'subagent potential. Use dependsOn ONLY for genuine sequential blockers, and parallelGroup for ' +
+        'concurrent tasks. Each step MUST specify affected components, explicit acceptance criteria, ' +
+        'and a concrete verification command.',
       parameters: {
         type: 'object',
         properties: {
@@ -274,18 +274,11 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
         output:
           `draft plan created with ${steps.length} steps (complexity=${complexity}); ` +
           `saved at ${options.planPath}. Open in Piwin as ${displayPath}. ` +
-          'The user can choose inline or subagent execution from the plan card. ' +
-          'Summarize the plan and end this turn; do not execute or delegate it yet.',
+          '尚未选择执行方式。',
         details: {
           planId: created.id,
           revision: created.revision,
           status: created.status,
-          planDisplay: {
-            version: 1 as const,
-            path: options.planPath,
-            displayPath,
-            plan: created,
-          },
         },
       };
     },

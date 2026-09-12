@@ -13,6 +13,7 @@ Desktop already renders plan progress as `N / M tasks done` on `PlanCard`
 Model-facing tools already exist in SDK mode:
 
 - `piwin_plan_create` — draft plan → plan.json
+- `piwin_plan_present` — display payload for the execution card; does not change plan status
 - `piwin_plan_set_step` — step status → plan.json
 
 Both tools accept an optional `onUpdated` callback. Production wiring in
@@ -65,16 +66,30 @@ Prefer one thin seam over a new subsystem. Restore the same SessionPlan with
 
 ### 4. Execution choice stays visible and opens the plan document
 
-- The draft/approved `PlanExecutionGate` is rendered after the creating turn's
-  tool sequence and outside the collapsible thinking/work-details container.
-- It is a one-shot call-chain card: pin it to the assistant message that ran
-  `piwin_plan_create`. Later turns must not re-home it onto the latest
-  assistant. If that create tool is not in the transcript, do not show the gate.
+- The draft/approved `PlanExecutionGate` is rendered under the turn's final
+  reply, outside the collapsible thinking/work-details container, after that
+  turn's Run completed.
+- Take the last successful `piwin_plan_present` payload in the same turn.
+  `piwin_plan_create` only persists the draft and must not show the card. A
+  later ordinary text summary does not hide the card. Present does not have
+  to be the last tool or last message. Host does not stop tools to keep the
+  card visible.
+- The card is an enhancement, not a gate. If present is skipped, the model
+  ends in text with `plans/<sessionId>.md` and asks how to execute. The user
+  can reply with an explicit mode in the composer
+  (`resolveExplicitPlanExecutionMode`) or click the card when it is shown.
 - Clicking the card opens the existing right-side document preview with the
   current `SessionPlan` rendered as Markdown at the virtual path
   `plans/<sessionId>.md`; it does not require a Host file read.
 - The A/B execution controls stop event propagation, so choosing an execution
   mode never opens the document preview.
+- The card uses the present tool's owning Run to decide the turn is complete.
+  Old cards keep their snapshot; their buttons show 已执行 / 已过期 once the
+  live plan has moved on. Click-time `plan/get` validation still rejects a
+  stale card.
+- Host prompt preparation approves a draft only from an explicit one-mode
+  reply, persists `execution.mode`, and later turns reuse that stored mode.
+  「执行一下」 is not a mode and never auto-approves a draft.
 
 ## Consequences
 

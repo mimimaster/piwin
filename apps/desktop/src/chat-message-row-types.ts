@@ -162,11 +162,12 @@ export type ChatMessageRowProps = {
   showConversationHeader?: boolean;
   /** Conversation only: turn usage chip on that identity header. */
   showConversationTurnUsage?: boolean;
-  /** Message-bound execution picker for a completed plan-create result. */
+  /** Message-bound execution picker for a completed plan-present result. */
   planExecutionGate?: {
     plan: SessionPlan;
     planPath?: string;
     displayPath?: string;
+    livePlan?: SessionPlan | null;
     onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
     actionInProgress?: boolean;
     /** False once a later assistant turn exists — the card is transcript, not a live overlay. */

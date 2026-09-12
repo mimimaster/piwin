@@ -13,13 +13,15 @@ const NEGATED_SELECTION_PATTERN =
  * Resolve a deliberate one-mode reply for a draft plan.
  *
  * The Host only auto-approves when the message names exactly one execution
- * mode. A comparison such as “inline 还是 subagent” remains ordinary text so
- * the model can answer it without mutating the durable plan.
+ * mode. Short acknowledgements (“好”, “可以”, “行”) stay ordinary text.
+ * A comparison such as “inline 还是 subagent” also remains ordinary text.
  */
 export function resolveExplicitPlanExecutionMode(text: string): PlanExecutionMode | undefined {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) {
+    return undefined;
+  }
   if (
-    !normalized ||
     NEGATED_SELECTION_PATTERN.test(normalized) ||
     QUESTION_PATTERN.test(normalized)
   ) {
@@ -31,13 +33,7 @@ export function resolveExplicitPlanExecutionMode(text: string): PlanExecutionMod
   if (inline === subagent) {
     return undefined;
   }
-
-  const stripped = normalized
-    .replace(/[，。！？、；：,.!?;:()[\]{}"']/g, ' ')
-    .replace(/\b(?:please|use|choose|select|run|execute|execution|start|mode|the|plan)\b/g, ' ')
-    .replace(/(?:请|用|使用|选择|执行|运行|开始|采用|计划|方式|模式|一下)/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const stripped = stripSelectionNoise(normalized);
   const isStandaloneSelection =
     stripped === 'inline' ||
     stripped === 'in line' ||
@@ -51,4 +47,13 @@ export function resolveExplicitPlanExecutionMode(text: string): PlanExecutionMod
     return inline ? 'inline' : 'subagent-driven';
   }
   return undefined;
+}
+
+function stripSelectionNoise(normalized: string): string {
+  return normalized
+    .replace(/[，。！？、；：,.!?;:()[\]{}"']/g, ' ')
+    .replace(/\b(?:please|use|choose|select|run|execute|execution|start|mode|the|plan)\b/g, ' ')
+    .replace(/(?:请|用|使用|选择|执行|运行|开始|采用|计划|方式|模式|一下)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }

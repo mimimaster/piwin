@@ -34,6 +34,8 @@ export function createPlanStepTool(options: PlanStepToolOptions): HostToolRegist
       name: 'piwin_plan_set_step',
       description:
         'Update execution status of a plan step (pending | active | done | skipped). ' +
+        'The plan must already be approved or executing. If the tool says the ' +
+        'execution mode is not chosen, ask the user and do not retry. ' +
         'Mark done ONLY after verifying concrete evidence (test/build passing). ' +
         'Document empirical verification results in note.',
       parameters: {
@@ -77,6 +79,11 @@ export function createPlanStepTool(options: PlanStepToolOptions): HostToolRegist
         plan = await updateSessionPlan(options.planPath, (current) => {
           if (!current) {
             throw new PlanMutationError('no plan for this session');
+          }
+          if (current.status === 'draft') {
+            throw new PlanMutationError(
+              '尚未选择执行方式；请先确认当前会话执行还是子代理执行，不要重试本工具。',
+            );
           }
           if (current.status !== 'approved' && current.status !== 'executing') {
             throw new PlanMutationError(

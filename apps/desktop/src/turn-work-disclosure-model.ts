@@ -169,7 +169,9 @@ function countFailures(
   for (let index = startIndex; index <= endIndex; index += 1) {
     const message = turn.items[index]?.message;
     if (!message) continue;
-    failedToolCount += message.tools.filter((tool) => tool.status === 'error').length;
+    failedToolCount += message.tools.filter(
+      (tool) => tool.status === 'error' && tool.presentation?.error?.category !== 'cancelled',
+    ).length;
     if (message.status === 'error' || message.error !== undefined) {
       hasNonToolFailure = true;
     }

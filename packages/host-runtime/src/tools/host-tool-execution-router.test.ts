@@ -314,4 +314,32 @@ describe('HostToolExecutionRouter', () => {
     });
     expect(began).toBe(0);
   });
+
+  it('lets later tools run after plan_create without aborting siblings', async () => {
+    let writeFinished = false;
+    let writeStarted!: () => void;
+    const writeBegan = new Promise<void>((resolve) => {
+      writeStarted = resolve;
+    });
+    const router = new HostToolExecutionRouter({
+      tools: [
+        tool('piwin_plan_create', async () => ({ ok: true, output: 'created' })),
+        tool('write_file', async () => {
+          writeStarted();
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          writeFinished = true;
+          return { ok: true, output: 'written' };
+        }),
+        tool('read_file'),
+      ],
+      admission: createPermissiveToolAdmission(),
+    });
+
+    const writePromise = runTool(router, 'write_file', {});
+    await writeBegan;
+    await expect(runTool(router, 'piwin_plan_create', {})).resolves.toMatchObject({ ok: true });
+    await expect(writePromise).resolves.toMatchObject({ ok: true, output: 'written' });
+    expect(writeFinished).toBe(true);
+    await expect(runTool(router, 'read_file', {})).resolves.toMatchObject({ ok: true });
+  });
 });

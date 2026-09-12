@@ -713,12 +713,16 @@ async function applyAgentPromptContext(
   }
   throwIfPromptPreparationAborted(context, run.runId);
 
-  // A user may choose a mode by replying in the composer instead of clicking
-  // the historical card. Treat that exact one-mode reply as the same approval
-  // transition, but keep the prompt path best-effort so a display affordance
-  // can never block the ordinary model turn.
+  // Composer and card share this path: only an explicit one-mode reply
+  // (inline / subagent / 当前会话执行 / 使用子代理执行) approves a draft.
+  // Later turns reuse the stored mode. "执行一下" is not a mode.
   const explicitPlanMode = resolveExplicitPlanExecutionMode(promptText);
-  let selectedPlanMode: PlanExecutionMode | undefined;
+  const selectedPlanMode =
+    explicitPlanMode ??
+    (activePlan && (activePlan.status === 'approved' || activePlan.status === 'executing')
+      ? activePlan.execution?.mode
+      : undefined);
+
   if (activePlan?.status === 'draft' && explicitPlanMode !== undefined) {
     const draftPlanId = activePlan.id;
     let approvedHere = false;
@@ -732,6 +736,17 @@ async function applyAgentPromptContext(
           ...current,
           status: 'approved' as const,
           updatedAt: new Date().toISOString(),
+          execution: {
+            ...(current.execution ?? {
+              sessionId: command.sessionId,
+              planId: current.id,
+              status: 'idle' as const,
+              childSessionIds: [],
+            }),
+            sessionId: command.sessionId,
+            planId: current.id,
+            mode: explicitPlanMode,
+          },
         };
       });
       if (selectedPlan?.id === draftPlanId && selectedPlan.status === 'approved') {
@@ -739,7 +754,6 @@ async function applyAgentPromptContext(
         if (approvedHere) {
           context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: selectedPlan });
         }
-        selectedPlanMode = explicitPlanMode;
       }
     } catch (error) {
       const message = error instanceof PlanMutationError ? error.message : formatError(error);
@@ -749,14 +763,6 @@ async function applyAgentPromptContext(
         message: `explicit plan mode approval failed: ${message}`,
       });
     }
-  }
-
-  if (
-    selectedPlanMode === undefined &&
-    activePlan?.status === 'approved' &&
-    explicitPlanMode !== undefined
-  ) {
-    selectedPlanMode = explicitPlanMode;
   }
 
   if (activePlan && (activePlan.status === 'approved' || activePlan.status === 'executing')) {

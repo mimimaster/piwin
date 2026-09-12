@@ -22,7 +22,7 @@ describe('HostRuntime tool surfaces', () => {
 
       expect(
         tools.filter((tool) => tool.family === 'planning').map((tool) => tool.descriptor.name),
-      ).toEqual(['piwin_plan_create', 'piwin_plan_set_step']);
+      ).toEqual(['piwin_plan_create', 'piwin_plan_present', 'piwin_plan_set_step']);
     } finally {
       await runtime.dispose();
       await rm(piwinRoot, { recursive: true, force: true });

@@ -8,6 +8,7 @@ import { isV1SubscriptionProviderId } from '@piwin/contracts';
 import { formatError, sanitizeAgentFailure } from '@piwin/contracts';
 import { finalizeAbortedRun } from './run-control-commands.js';
 import type { SessionLiveContext } from './session-live-context.js';
+import { isRunAbortReason } from '../run-abort-reason.js';
 
 export type AgentPromptOutcomeApplication = 'completed' | 'failed' | 'aborted-by-host';
 
@@ -22,6 +23,12 @@ export async function applyAgentPromptOutcome(input: {
     case 'completed':
       return 'completed';
     case 'failed':
+      // Pi often reports a user stop as stopReason=error + abort prose.
+      // Host already owns that stop; do not paint a red generation failure.
+      if (hasHostAbortReason(context, runId)) {
+        await finalizeAbortedRun(context, sessionId, runId, { agentStopReason: 'aborted' });
+        return 'aborted-by-host';
+      }
       await persistStructuredFailureIfNeeded(context, sessionId, runId, outcome.failure);
       noteSubscriptionAuthFailure(context, sessionId, outcome.failure);
       await context.terminateRun(sessionId, runId, 'failed', undefined, outcome.failure.message, {
@@ -76,7 +83,10 @@ function noteSubscriptionAuthFailure(
 }
 
 function hasHostAbortReason(context: SessionLiveContext, runId: string): boolean {
-  return context.getRunSignal(runId)?.aborted === true || context.isPauseRequested(runId);
+  if (context.getRunAbortReason(runId) !== undefined) return true;
+  if (context.isPauseRequested(runId)) return true;
+  const signal = context.getRunSignal(runId);
+  return signal?.aborted === true && isRunAbortReason(signal.reason);
 }
 
 function spontaneousAbortFailure(message?: string): AgentFailure {

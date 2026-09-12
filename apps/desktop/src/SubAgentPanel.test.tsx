@@ -118,7 +118,7 @@ describe('SubAgentPanel', () => {
           <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
             <SubAgentPanel
               parentSessionId="parent-1"
-              request={vi.fn(async () => ({
+              request={vi.fn(async (): Promise<HostResponse> => ({
                 type: 'response',
                 command: 'session/list-children',
                 success: true,

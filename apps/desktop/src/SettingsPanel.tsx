@@ -27,10 +27,12 @@ import { webToDraft, draftToWeb, preserveWebCliLaunchers, type DraftWeb } from '
 import { hostFailureNotice } from './host-problem-copy.js';
 import { isRemoteCommandGapError } from './remote-command-gap.js';
 import {
+  applyHostProviderSnapshot,
   configFromSettingsWriteResponse,
   interpretSettingsLoadResponse,
   knowledgeWriteRetained,
   providerListWriteRetained,
+  shouldSyncSettingsProviders,
 } from './settings/settings-view-config';
 import { SettingsShell } from './settings/settings-shell';
 import type { SettingsConfigRequest, SettingsContextValue } from './settings/settings-context';
@@ -110,6 +112,8 @@ export const SettingsPanel = memo(function SettingsPanel({
   const [infoTone, setInfoTone] = useState<'info' | 'success' | 'warning'>('info');
   const [webDraft, setWebDraft] = useState<DraftWeb>(webToDraft(createDefaultWebConfig()));
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  savingRef.current = saving;
   const [settingsNav, setSettingsNav] = useState<SettingsSectionId>(initialSection ?? 'general');
 
   const selectSection = useCallback(
@@ -196,6 +200,56 @@ export const SettingsPanel = memo(function SettingsPanel({
       cancelled = true;
     };
   }, [hostClient, request, setError]);
+
+  // OAuth login/logout writes providers on Host. This panel keeps its own
+  // snapshot so knowledge drafts survive seedConfig flaps — still pull the
+  // provider list or Models keeps a logged-out Grok row.
+  useEffect(() => {
+    if (!hostClient) {
+      return;
+    }
+    let cancelled = false;
+    const syncProviders = async (): Promise<void> => {
+      if (savingRef.current) {
+        return;
+      }
+      const remote = hostClient.getTransport?.() === 'remote';
+      const canReadSettings = hostClient.supportsCommand?.('settings/get') !== false;
+      if (remote && !canReadSettings) {
+        return;
+      }
+      try {
+        const response = await request({ type: 'config/get' });
+        if (cancelled || savingRef.current) {
+          return;
+        }
+        const loaded = interpretSettingsLoadResponse({
+          remote,
+          canReadSettings,
+          response,
+        });
+        if (loaded.kind === 'error') {
+          return;
+        }
+        setConfig((current) =>
+          current ? applyHostProviderSnapshot(current, loaded.config) : loaded.config,
+        );
+      } catch {
+        // Keep the open form; the next auth/settings push can retry.
+      }
+    };
+    return hostClient.subscribe((message) => {
+      if (message.type === 'settings/updated') {
+        if (shouldSyncSettingsProviders(message.changedDomains)) {
+          void syncProviders();
+        }
+        return;
+      }
+      if (message.type === 'auth/updated' || message.type === 'auth/login-finished') {
+        void syncProviders();
+      }
+    });
+  }, [hostClient, request]);
 
   useEffect(() => {
     if (initialSection) {

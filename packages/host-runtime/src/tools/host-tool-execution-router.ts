@@ -154,25 +154,25 @@ export class HostToolExecutionRouter {
     }
 
     const toolCallId = context.toolCallId;
-    if (this.invocationLedger && toolCallId) {
-      return await this.invocationLedger.run(
-        {
-          runId: context.runId,
-          toolCallId,
-          toolName: tool.descriptor.name,
-          fingerprint: fingerprintToolInvocation(tool.descriptor.name, canonicalArgs),
-          callerSignal: signal,
-        },
-        async (attempt) =>
-          await this.continuePreparedExecution(tool, canonicalArgs, context, attempt),
-      );
-    }
-
-    return await this.continuePreparedExecution(tool, canonicalArgs, context, {
-      invocationId: context.toolCallId ?? randomUUID(),
-      signal,
-      markRunnerStarted: () => undefined,
-    });
+    const result =
+      this.invocationLedger && toolCallId
+        ? await this.invocationLedger.run(
+            {
+              runId: context.runId,
+              toolCallId,
+              toolName: tool.descriptor.name,
+              fingerprint: fingerprintToolInvocation(tool.descriptor.name, canonicalArgs),
+              callerSignal: signal,
+            },
+            async (attempt) =>
+              await this.continuePreparedExecution(tool, canonicalArgs, context, attempt),
+          )
+        : await this.continuePreparedExecution(tool, canonicalArgs, context, {
+            invocationId: context.toolCallId ?? randomUUID(),
+            signal,
+            markRunnerStarted: () => undefined,
+          });
+    return result;
   }
 
   private async continuePreparedExecution(
@@ -282,10 +282,7 @@ export class HostToolExecutionRouter {
       }
     };
 
-    if (captureId) {
-      return await runInToolCapture(captureId, runExecutor);
-    }
-    return await runExecutor();
+    return captureId ? await runInToolCapture(captureId, runExecutor) : await runExecutor();
   }
 
   private blockAfterBeginCapture(

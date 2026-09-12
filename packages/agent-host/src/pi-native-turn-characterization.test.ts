@@ -73,11 +73,9 @@ describe('Pi native turn characterization (current 0.84.2 mapping)', () => {
     ]);
   });
 
-  it('surfaces an aborted assistant with the native abort detail', () => {
+  it('does not map an aborted assistant stop to an error event', () => {
     const events = replayFixture('aborted.json');
-    expect(events.filter((event) => event.type === 'error')).toEqual([
-      expect.objectContaining({ type: 'error', message: 'Request was aborted' }),
-    ]);
+    expect(events.filter((event) => event.type === 'error')).toEqual([]);
   });
 
   it('lets the current prompt wrapper resolve after a mapped stopReason error', async () => {

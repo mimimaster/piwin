@@ -1,7 +1,7 @@
 /**
  * Claude Code-style live plan list: composer-adjacent, mutates in place.
  * Shown only while a plan is in flight — draft/approved wait on
- * PlanExecutionGate (proto-01 #13), which stays on the creating turn only.
+ * PlanExecutionGate (proto-01 #13), which stays under that turn's final reply.
  * Tool rows for piwin_plan_* stay out of the call chain (see TurnToolGroup).
  */
 import { useState, type MouseEvent, type ReactElement } from 'react';

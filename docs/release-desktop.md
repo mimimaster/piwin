@@ -88,8 +88,27 @@ pnpm test:bundle
 
 - macOS: `apps/desktop/src-tauri/target/release/bundle/dmg/` and `macos/`
 - Linux: `apps/desktop/src-tauri/target/release/bundle/deb/` / `appimage/`
-- Windows: `apps/desktop/src-tauri/target/release/bundle/msi/` / `nsis/`
+- Windows: `apps/desktop/src-tauri/target/release/bundle/nsis/` (current-user NSIS; MSI is not the default)
 - Standalone Host: `dist/piwin-host/`
+
+## Windows build (do it on Windows)
+
+Do **not** cross-compile the Desktop installer from macOS. Host sidecar natives
+(`lancedb`, `sharp`, clipboard, bundled Node) are OS-specific, and Tauri needs
+MSVC + WebView2. Build on the target machine (or a matching Windows x64 box):
+
+1. Node `>= 22.19` and pnpm `9.x`
+2. Rust stable (`x86_64-pc-windows-msvc`)
+3. Visual Studio Build Tools with MSVC + Windows SDK
+4. WebView2 runtime (usually already present)
+
+```bat
+pnpm install
+pnpm package:desktop
+```
+
+Installer: `apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe`.
+Silent current-user install: `piwinwin_0.0.0_x64-setup.exe /S`.
 
 Thin-shell product name is `piwinwin Shell` (`app.piwinwin.desktop.shell`).
 All-in-one remains `piwinwin`.

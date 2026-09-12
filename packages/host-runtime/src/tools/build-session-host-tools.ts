@@ -28,6 +28,7 @@ import { createDefaultPiwinConfig } from '../config-store.js';
 import { buildFlashcardTools } from '../flashcard-tools.js';
 import { buildExtensionTools, type ExtensionApplyOutcome } from '../extension-tools.js';
 import { createPlanCreateTool } from '../plan-create-tool.js';
+import { createPlanPresentTool } from '../plan-present-tool.js';
 import { createPlanStepTool } from '../plan-step-tool.js';
 import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-tool.js';
 import { buildImageGenTool } from '../image-gen-tool.js';
@@ -375,6 +376,7 @@ export async function buildSessionHostTools(
         ...(options.onPlanUpdated ? { onUpdated: options.onPlanUpdated } : {}),
       }),
     );
+    tools.push(createPlanPresentTool({ sessionId: options.sessionId, planPath }));
     tools.push(
       createPlanStepTool({
         sessionId: options.sessionId,

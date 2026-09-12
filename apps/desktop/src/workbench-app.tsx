@@ -684,6 +684,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenSession={handleResumeSession}
                       onCompactAbort={handleCompactAbort}
                       onPlanExecute={handlePlanExecute}
+                      {...(sessionPlan ? { sessionPlan } : {})}
                     />
                   }
                   permissionBar={

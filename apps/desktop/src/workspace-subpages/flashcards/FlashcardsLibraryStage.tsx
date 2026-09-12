@@ -3,7 +3,7 @@ import { Button, Notice, Spinner } from '@piwin/ui-kit';
 import { IconCards, IconPlus, IconSearch, IconSpark } from '../../shell-icons';
 import type { DesktopLocale } from '../../desktop-locale';
 import { FlashcardGallery } from './flashcard-gallery';
-import type { FlashcardTileItem } from './group-flashcard-tiles';
+import type { FlashcardTile } from './group-flashcard-tiles';
 import { flashcardStudyCopy } from './study/study-copy';
 
 export type FlashcardsLibraryStageProps = {
@@ -20,7 +20,7 @@ export type FlashcardsLibraryStageProps = {
   hostTooOld: boolean;
   error: string | null;
   loading: boolean;
-  tiles: readonly FlashcardTileItem[];
+  tiles: readonly FlashcardTile[];
   onOpenTile: (tileId: string) => void;
   onDeleteTile: (tileId: string) => void;
   onStudyDue: () => void;

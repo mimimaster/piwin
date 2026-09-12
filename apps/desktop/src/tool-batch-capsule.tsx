@@ -133,11 +133,16 @@ export function exploreFlowTitleParts(
     totalCount?: number;
     toolCount?: number;
     isLive?: boolean;
+    cancelledCount?: number;
+    errorCount?: number;
   },
   isChinese: boolean,
 ): { lead: string; rest: string | null } {
   const isLive = Boolean(group.isLive);
   const totalCount = group.totalCount ?? group.toolCount ?? 0;
+  if (!isLive && (group.cancelledCount ?? 0) > 0 && (group.errorCount ?? 0) === 0) {
+    return { lead: isChinese ? '已停止' : 'Stopped', rest: null };
+  }
   if (isLive) {
     return {
       lead: formatExploreCapsuleTitle({

@@ -178,17 +178,25 @@ pub fn purge_webview_memory(app_handle: tauri::AppHandle) {
 /// (renderer-self-heal.ts); this command is the mechanism only.
 #[tauri::command]
 pub fn relaunch_webview_renderer() -> bool {
-    let pid = MAIN_WEBVIEW_PID.load(Ordering::Relaxed);
-    if pid <= 1 {
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = MAIN_WEBVIEW_PID.load(Ordering::Relaxed);
         return false;
     }
-    if !is_webcontent_process(pid) {
-        return false;
+    #[cfg(target_os = "macos")]
+    {
+        let pid = MAIN_WEBVIEW_PID.load(Ordering::Relaxed);
+        if pid <= 1 {
+            return false;
+        }
+        if !is_webcontent_process(pid) {
+            return false;
+        }
+        // Forget the pid so a second call cannot target a recycled pid before the
+        // monitor re-samples the replacement renderer.
+        MAIN_WEBVIEW_PID.store(0, Ordering::Relaxed);
+        unsafe { libc::kill(pid, libc::SIGKILL) == 0 }
     }
-    // Forget the pid so a second call cannot target a recycled pid before the
-    // monitor re-samples the replacement renderer.
-    MAIN_WEBVIEW_PID.store(0, Ordering::Relaxed);
-    unsafe { libc::kill(pid, libc::SIGKILL) == 0 }
 }
 
 /// A pid may be recycled between sampling and kill; only accept processes

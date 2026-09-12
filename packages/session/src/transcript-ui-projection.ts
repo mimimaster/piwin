@@ -27,7 +27,9 @@ function isPreservedToolOutput(
       lower.includes('flashcard_create') ||
       lower.includes('flashcard_batch_create') ||
       lower.includes('piwin_plan_create') ||
+      lower.includes('piwin_plan_present') ||
       lower === 'plan_create' ||
+      lower === 'plan_present' ||
       lower.startsWith('mcp__') ||
       lower.startsWith('mcp:') ||
       lower === 'mcp_gateway'

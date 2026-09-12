@@ -159,9 +159,10 @@ export function createControlContext(
     isSessionBodyReserved: () => false,
     joinRun: (runId) => registry.join(runId),
     getRunSignal: (runId) => registry.getSignal(runId),
+    getRunAbortReason: (runId) => registry.getAbortReason(runId),
     hasRunAgentErrorEvidence: (runId) => registry.hasAgentErrorEvidence(runId),
-    requestCancelRun: (_sessionId, runId) =>
-      runId === undefined ? undefined : registry.requestCancel(runId),
+    requestCancelRun: (_sessionId, runId, reason) =>
+      runId === undefined ? undefined : registry.requestCancel(runId, reason),
     requestPauseRun: (_sessionId, runId, reason) =>
       runId === undefined ? undefined : registry.requestPause(runId, reason),
     isPauseRequested: (runId) => registry.isPauseRequested(runId),

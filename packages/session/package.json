@@ -11,6 +11,11 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./classify-plan": {
+      "types": "./src/classify-plan.ts",
+      "import": "./src/classify-plan.ts",
+      "default": "./src/classify-plan.ts"
+    },
     "./derive-default-name": {
       "types": "./src/derive-default-name.ts",
       "import": "./src/derive-default-name.ts",

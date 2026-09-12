@@ -140,6 +140,32 @@ describe('WorkFoldHeader', () => {
     }
   });
 
+  it('pins thinking duration to the trailing right edge, not the title', () => {
+    act(() => {
+      root.render(
+        <WorkFoldHeader
+          state="done"
+          locale="zh-CN"
+          elapsedMs={4_000}
+          open
+          onToggle={() => undefined}
+          testId="think-elapsed"
+        >
+          思考过程
+        </WorkFoldHeader>,
+      );
+    });
+
+    const header = container.querySelector('[data-testid="think-elapsed"]');
+    const elapsed = header?.querySelector('[data-testid="work-fold-elapsed"]');
+    expect(header?.querySelector('.work-fold-trailing')).not.toBeNull();
+    expect(header?.querySelector('.turn-work-details-label')?.textContent).toBe('思考过程');
+    expect(elapsed?.textContent).toBe('4s');
+    expect(elapsed?.parentElement?.className).toContain('work-fold-trailing');
+    expect(header?.textContent).not.toContain('已思考');
+    expect(header?.textContent).not.toContain('已工作');
+  });
+
   it('keeps the proto bulb for done work disclosure', () => {
     act(() => {
       root.render(

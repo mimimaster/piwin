@@ -6,7 +6,12 @@
  * Fully conforms to the Inkstone design system, pure typography-first layout.
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import type { ExtensionSummary, HostCommand, HostResponse } from '@piwin/contracts';
+import type {
+  ExtensionSummary,
+  HostCommand,
+  HostResponse,
+  MarketplaceSearchHit,
+} from '@piwin/contracts';
 import { resourceSourceLabel } from '@piwin/contracts';
 import { Button, EmptyState, Notice } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../desktop-locale.js';
@@ -22,8 +27,10 @@ import {
   type MarketTab,
   MarketplaceExtensionCard,
   MarketplacePluginCard,
+  MarketplacePiPackageCard,
   ExtensionInstallConsentDialog,
   PluginSecretDialog,
+  useMarketplaceEcosystemSearch,
 } from './marketplace/index.js';
 
 export type MarketplaceWorkspaceViewProps = {
@@ -47,6 +54,8 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
 
   const [consentTarget, setConsentTarget] = useState<MarketExtensionItem | null>(null);
   const [secretTarget, setSecretTarget] = useState<MarketPluginItem | null>(null);
+  const ecosystemQuery = tab === 'installed' ? '' : search;
+  const ecosystem = useMarketplaceEcosystemSearch(ecosystemQuery, props.request);
 
   // Synchronize with host's real extension inventory on mount
   useEffect(() => {
@@ -228,6 +237,23 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     );
   };
 
+  const handleCopyPiInstall = (hit: MarketplaceSearchHit) => {
+    void navigator.clipboard.writeText(hit.installCommand).then(
+      () => {
+        showToast(
+          t(
+            `Copied ${hit.installCommand}. Run it, then Refresh Settings → Extensions.`,
+            `已复制 ${hit.installCommand}。运行后到 设置 → 扩展 点刷新。`,
+          ),
+          'success',
+        );
+      },
+      () => {
+        showToast(t('Could not copy install command', '无法复制安装命令'), 'error');
+      },
+    );
+  };
+
   const handleUninstallPlugin = (plugin: MarketPluginItem) => {
     setPlugins((prev) =>
       prev.map((p) => (p.id === plugin.id ? { ...p, installed: false } : p)),
@@ -344,50 +370,120 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
         )}
 
         {tab === 'extensions' && (
-          filteredExtensions.length === 0 ? (
-            <EmptyState
-              visual={<IconExtension width={28} height={28} aria-hidden="true" />}
-              title={t('No extensions found', '未找到匹配的扩展')}
-              description={t(
-                'Try adjusting your search query or switching to another category.',
-                '请尝试更换关键词或在上方切换筛选分类。',
-              )}
-              action={
-                <Button variant="secondary" size="compact" onClick={() => { setSearch(''); setCategory('all'); }}>
-                  {t('Clear filters', '清空筛选')}
-                </Button>
-              }
-              testId="marketplace-empty"
-            />
-          ) : (
-            <div className="market-grid">
-              {filteredExtensions.map((ext) => (
-                <MarketplaceExtensionCard
-                  key={ext.id}
-                  extension={ext}
-                  locale={props.locale}
-                  onInstall={handleInstallExtension}
-                  onUninstall={handleUninstallExtension}
-                />
-              ))}
-            </div>
-          )
+          <>
+            {search.trim() ? (
+              <section className="market-ecosystem" data-testid="marketplace-ecosystem">
+                <header className="market-ecosystem-header">
+                  <h2 className="market-ecosystem-title">
+                    {t('Pi catalog', 'Pi 生态')}
+                  </h2>
+                  <p className="market-ecosystem-sub">
+                    {t(
+                      'Live search: npm packages tagged pi-package, plus GitHub repos with topic:pi-package.',
+                      '实时搜索：npm 上的 pi-package，以及 GitHub 上带 topic:pi-package 的仓库。',
+                    )}
+                  </p>
+                </header>
+                {ecosystem.error ? (
+                  <Notice tone="warning" testId="marketplace-ecosystem-error">
+                    {t('Could not reach npm:', '无法连接 npm：')} {ecosystem.error}
+                  </Notice>
+                ) : null}
+                {ecosystem.loading && ecosystem.hits.length === 0 ? (
+                  <p className="market-ecosystem-status" data-testid="marketplace-ecosystem-loading">
+                    {t('Searching npm and GitHub…', '正在搜索 npm 与 GitHub…')}
+                  </p>
+                ) : null}
+                {ecosystem.hits.length > 0 ? (
+                  <div className="market-grid">
+                    {ecosystem.hits.map((hit) => (
+                      <MarketplacePiPackageCard
+                        key={hit.entryId}
+                        hit={hit}
+                        locale={props.locale}
+                        onCopyInstall={handleCopyPiInstall}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+            {filteredExtensions.length === 0 &&
+            !(search.trim() && (ecosystem.loading || ecosystem.hits.length > 0)) ? (
+              <EmptyState
+                visual={<IconExtension width={28} height={28} aria-hidden="true" />}
+                seal={search.trim() ? '寻' : '空'}
+                badge={search.trim() ? t(`Query: "${search.trim()}"`, `搜索: "${search.trim()}"`) : undefined}
+                title={t('No extensions found', '未找到匹配的扩展')}
+                description={
+                  search.trim()
+                    ? t(
+                        'No local extensions match your search. Try adjusting the query or reset filters.',
+                        '未找到与搜索词匹配的扩展。请尝试更换关键词或清空筛选。',
+                      )
+                    : t(
+                        'Try adjusting your search query or switching to another category.',
+                        '请尝试更换关键词或在上方切换筛选分类。',
+                      )
+                }
+                suggestions={
+                  search.trim() || category !== 'all'
+                    ? [
+                        ...(search.trim()
+                          ? [{ label: t('Clear keyword', '清空关键词'), onClick: () => setSearch('') }]
+                          : []),
+                        ...(category !== 'all'
+                          ? [{ label: t('Show all categories', '全部分类'), onClick: () => setCategory('all') }]
+                          : []),
+                      ]
+                    : undefined
+                }
+                action={
+                  <Button variant="secondary" size="compact" onClick={() => { setSearch(''); setCategory('all'); }}>
+                    {t('Clear filters', '清空筛选')}
+                  </Button>
+                }
+                size="spacious"
+                testId="marketplace-empty"
+              />
+            ) : filteredExtensions.length > 0 ? (
+              <div className="market-grid">
+                {filteredExtensions.map((ext) => (
+                  <MarketplaceExtensionCard
+                    key={ext.id}
+                    extension={ext}
+                    locale={props.locale}
+                    onInstall={handleInstallExtension}
+                    onUninstall={handleUninstallExtension}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </>
         )}
 
         {tab === 'plugins' && (
           filteredPlugins.length === 0 ? (
             <EmptyState
               visual={<IconExtension width={28} height={28} aria-hidden="true" />}
+              seal={search.trim() ? '寻' : '空'}
+              badge={search.trim() ? t(`Query: "${search.trim()}"`, `搜索: "${search.trim()}"`) : undefined}
               title={t('No plugins found', '未找到匹配的插件')}
               description={t(
                 'Try adjusting your search query.',
                 '请尝试更换关键词。',
               )}
+              suggestions={
+                search.trim()
+                  ? [{ label: t('Clear keyword', '清空关键词'), onClick: () => setSearch('') }]
+                  : undefined
+              }
               action={
                 <Button variant="secondary" size="compact" onClick={() => setSearch('')}>
                   {t('Clear search', '清空搜索')}
                 </Button>
               }
+              size="spacious"
               testId="marketplace-empty-plugins"
             />
           ) : (
@@ -409,6 +505,7 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
           installedTotal === 0 ? (
             <EmptyState
               visual={<IconExtension width={28} height={28} aria-hidden="true" />}
+              seal="墨"
               title={t('No extensions or plugins installed yet', '尚未安装任何扩展或插件')}
               description={t(
                 'Browse extensions or plugins in the marketplace to expand your Pi session capabilities.',
@@ -419,6 +516,7 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
                   {t('Browse Extensions', '浏览扩展')}
                 </Button>
               }
+              size="spacious"
               testId="marketplace-empty-installed"
             />
           ) : (

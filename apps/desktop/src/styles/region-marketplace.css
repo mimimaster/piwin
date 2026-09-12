@@ -19,6 +19,13 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   overflow-y: auto;
   scrollbar-gutter: stable;
   padding-bottom: 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+.marketplace-main .empty-state {
+  margin: auto;
+  padding: 56px 24px;
 }
 
 /* ── Topbar: Runtime Generation Status Badge ───────────────────────── */
@@ -515,4 +522,42 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-dialog-footer {
   border-top-color: var(--l1);
+}
+
+.market-ecosystem {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.market-ecosystem-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.market-ecosystem-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-ecosystem-title {
+  font-family: var(--serif);
+  color: var(--t1);
+}
+
+.market-ecosystem-sub,
+.market-ecosystem-status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-ecosystem-sub,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-ecosystem-status {
+  color: var(--t4);
 }

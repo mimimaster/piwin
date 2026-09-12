@@ -15,10 +15,49 @@ import {
   DEFAULT_ATTACHMENT_ALLOWED_MIME_TYPES,
   type HostResponse,
   type PiwinConfig,
+  type SettingsDomain,
   type SettingsMutation,
   type WebConfig,
   buildSettingsDomainMutations,
 } from '@piwin/contracts';
+
+const PROVIDER_SYNC_DOMAINS = new Set<SettingsDomain>([
+  'providers',
+  'defaultProviderId',
+  'defaultModelId',
+]);
+
+/** Auth login/logout always refetches. Settings pushes only when providers moved. */
+export function shouldSyncSettingsProviders(
+  changedDomains: readonly SettingsDomain[] | undefined,
+): boolean {
+  if (changedDomains === undefined) {
+    return true;
+  }
+  return changedDomains.some((domain) => PROVIDER_SYNC_DOMAINS.has(domain));
+}
+
+/**
+ * Overlay Host-seeded subscription rows onto the open Settings document.
+ * Keep knowledge/web drafts — a full refetch used to look like unsaved extras.
+ */
+export function applyHostProviderSnapshot(current: PiwinConfig, host: PiwinConfig): PiwinConfig {
+  const next: PiwinConfig = {
+    ...current,
+    providers: host.providers,
+  };
+  if (host.defaultProviderId !== undefined) {
+    next.defaultProviderId = host.defaultProviderId;
+  } else {
+    delete next.defaultProviderId;
+  }
+  if (host.defaultModelId !== undefined) {
+    next.defaultModelId = host.defaultModelId;
+  } else {
+    delete next.defaultModelId;
+  }
+  return next;
+}
 /** Renderable Settings document when the remote Host cannot (or will not) send a full snapshot. */
 export function createSettingsViewConfig(): PiwinConfig {
   return {

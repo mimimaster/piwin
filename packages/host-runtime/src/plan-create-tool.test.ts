@@ -102,12 +102,15 @@ describe('createPlanCreateTool', () => {
     });
     expect(messageOf(result)).toContain('complexity=long');
     expect(messageOf(result)).toContain(`saved at ${planPath}`);
+    expect(messageOf(result)).toContain('plans/s1.md');
+    expect(messageOf(result)).toContain('尚未选择执行方式');
+    expect(messageOf(result)).not.toContain('piwin_plan_present');
+    expect(messageOf(result)).not.toContain('Do not implement');
     if (!result.ok) throw new Error(result.message);
-    expect(result.details?.planDisplay).toMatchObject({
-      version: 1,
-      path: planPath,
-      displayPath: 'plans/s1.md',
-      plan: { id: expect.any(String), status: 'draft', sessionId: 's1' },
+    expect(result.details?.planDisplay).toBeUndefined();
+    expect(result.details).toMatchObject({
+      planId: expect.any(String),
+      status: 'draft',
     });
     const persisted = await readPlan(planPath);
     expect(persisted['status']).toBe('draft');

@@ -14,8 +14,10 @@ export const PLAN_TODO_COMPACT_LIMIT = 5;
 
 const PLAN_PROGRESS_TOOL_NAMES = new Set([
   'piwin_plan_create',
+  'piwin_plan_present',
   'piwin_plan_set_step',
   'plan_create',
+  'plan_present',
   'plan_set_step',
 ]);
 

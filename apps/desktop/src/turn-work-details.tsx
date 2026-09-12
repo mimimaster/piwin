@@ -78,6 +78,7 @@ export type TurnWorkDetailsProps = {
     plan: SessionPlan;
     planPath?: string;
     displayPath?: string;
+    livePlan?: SessionPlan | null;
     onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
     actionInProgress?: boolean;
     captureKeyboard?: boolean;
@@ -87,7 +88,6 @@ export type TurnWorkDetailsProps = {
 function thinkingSummaryLabel(input: {
   isRunActive: boolean;
   isThinkingActive: boolean;
-  thoughtSeconds?: number;
   locale: 'zh-CN' | 'en';
 }): string {
   if (input.isThinkingActive) {
@@ -95,11 +95,6 @@ function thinkingSummaryLabel(input: {
   }
   if (input.isRunActive) {
     return runtimeStatusText('working', input.locale);
-  }
-  if (input.thoughtSeconds !== undefined) {
-    return input.locale === 'zh-CN'
-      ? `已思考 ${input.thoughtSeconds} 秒`
-      : `Thought for ${input.thoughtSeconds}s`;
   }
   return input.locale === 'zh-CN' ? '思考过程' : 'Thoughts';
 }
@@ -219,6 +214,9 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       {...(props.planExecutionGate.displayPath !== undefined
         ? { displayPath: props.planExecutionGate.displayPath }
         : {})}
+      {...(props.planExecutionGate.livePlan !== undefined
+        ? { livePlan: props.planExecutionGate.livePlan }
+        : {})}
       onExecute={props.planExecutionGate.onExecute}
       {...(props.planExecutionGate.actionInProgress !== undefined
         ? { actionInProgress: props.planExecutionGate.actionInProgress }
@@ -300,15 +298,15 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
                 ...(waitingCode !== undefined ? { waitingCode } : {}),
               }
             : {})}
+          {...(foldState === 'done' && presentation.thoughtSeconds !== undefined
+            ? { elapsedMs: presentation.thoughtSeconds * 1000 }
+            : {})}
         >
           {foldState === 'done'
             ? thinkingSummaryLabel({
                 isRunActive: presentation.isActive,
                 isThinkingActive: thinkingIsStreaming,
                 locale,
-                ...(presentation.thoughtSeconds !== undefined
-                  ? { thoughtSeconds: presentation.thoughtSeconds }
-                  : {}),
               })
             : hasThinking && showWaitingLocator
               ? // Quiet toggle only — live meaning lives in the carousel below.

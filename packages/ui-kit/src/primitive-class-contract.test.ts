@@ -19,6 +19,7 @@ import { Notice } from './notice.js';
 import { Spinner } from './spinner.js';
 import { TextArea } from './textarea.js';
 import { NumberInput } from './number-input.js';
+import { EmptyState } from './empty-state.js';
 import { TEST_THEME_DARK } from './test-theme-fixtures.js';
 
 /** Mantine-backed primitives need the provider even for static markup. */
@@ -162,5 +163,34 @@ describe('primitive class contract', () => {
     expect(markup).toContain('piwin-text-area-label');
     expect(markup).toContain('piwin-text-area-field');
     expect(markup).toContain('piwin-text-area-description');
+  });
+
+  it('EmptyState exposes empty-state structure and styling classes', () => {
+    const markup = renderWithProvider(
+      createElement(EmptyState, {
+        title: 'No results',
+        description: 'Try adjusting query',
+        seal: '寻',
+        badge: '0 items',
+        suggestions: [{ label: 'Reset' }],
+        action: createElement('button', null, 'Clear'),
+        secondaryAction: createElement('button', null, 'Help'),
+        size: 'spacious',
+        card: true,
+      }),
+    );
+    expect(markup).toContain('empty-state');
+    expect(markup).toContain('empty-state--spacious');
+    expect(markup).toContain('empty-state--card');
+    expect(markup).toContain('empty-state-visual');
+    expect(markup).toContain('empty-state-seal');
+    expect(markup).toContain('empty-state-badge');
+    expect(markup).toContain('empty-state-title');
+    expect(markup).toContain('empty-state-copy');
+    expect(markup).toContain('empty-state-suggestions');
+    expect(markup).toContain('empty-state-suggestion-chip');
+    expect(markup).toContain('empty-state-actions');
+    expect(markup).toContain('empty-state-action');
+    expect(markup).toContain('empty-state-secondary-action');
   });
 });
