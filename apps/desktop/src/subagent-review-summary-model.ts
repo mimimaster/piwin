@@ -197,6 +197,9 @@ function availabilityReasonCopy(
   if (reason === 'not-applicable') {
     return locale === 'zh-CN' ? '当前不可用' : 'Not applicable';
   }
+  if (reason === 'result-not-approved') {
+    return locale === 'zh-CN' ? '需先批准' : 'Needs an approved review';
+  }
   return reason;
 }
 
@@ -217,14 +220,21 @@ export function resolveSubagentReviewActionGate(input: {
       STALE_APPLY_REASONS.has(input.result.availability.apply.reason));
   const applyAllowed = input.result?.availability.apply.allowed === true;
   const resolveAllowed = input.result?.availability.resolve.allowed === true;
+  const approvedHead =
+    input.result !== undefined &&
+    input.result.resultId === input.loop.headResultId &&
+    input.result.reviewStatus === 'approved';
+  const applyReason =
+    input.result?.availability.apply.reason ??
+    (!approvedHead && input.result !== undefined ? 'result-not-approved' : undefined);
   const reason = stale
     ? stalePointer(headGeneration, input.locale)
     : availabilityReasonCopy(
-        input.result?.availability.apply.reason ?? input.result?.availability.resolve.reason,
+        applyReason ?? input.result?.availability.resolve.reason,
         input.locale,
       );
   return {
-    applyEnabled: !stale && applyAllowed,
+    applyEnabled: !stale && applyAllowed && approvedHead,
     resolveEnabled: !stale && resolveAllowed,
     stale,
     ...(reason !== undefined ? { reason } : {}),

@@ -3,6 +3,7 @@ import {
   emptySubagentResultReviewFields,
   type SubagentBatchRequest,
   type SubagentResultSummary,
+  type SubagentReviewRecord,
 } from '@piwin/contracts';
 import { createSubagentResultService } from '../subagent-result-service.js';
 import { handleSubagentCommand } from './subagent-commands.js';
@@ -202,6 +203,7 @@ describe('subagent command handlers', () => {
         applied.push(`${input.resultId}:${String(input.expectedRevision)}`);
         return { operationId: 'op-1' };
       },
+      loadReview: async () => makeResultReview(summary),
     };
 
     const results = await handleSubagentCommand(
@@ -298,6 +300,22 @@ describe('subagent command handlers', () => {
     });
   });
 });
+
+function makeResultReview(summary: SubagentResultSummary): SubagentReviewRecord {
+  return {
+    reviewId: summary.latestReview?.reviewId ?? 'rev-1',
+    revision: summary.latestReview?.revision ?? 1,
+    parentSessionId: summary.parentSessionId,
+    reviewerSessionId: 'reviewer-1',
+    reviewerRunId: 'run-reviewer',
+    targetResult: { resultId: summary.resultId, revision: summary.revision },
+    targetChanges: summary.childChanges ?? { changeSetId: 'cs-child', revision: 1 },
+    decision: 'approved',
+    findings: [],
+    verification: [],
+    createdAt: '2026-09-13T00:00:00.000Z',
+  };
+}
 
 function makeResultSummary(): SubagentResultSummary {
   return {

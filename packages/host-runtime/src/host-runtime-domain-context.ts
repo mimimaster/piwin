@@ -13,7 +13,8 @@ import type { HostCommandContext } from './commands/host-command-context.js';
 import { type WalkthroughCommandContext } from './commands/walkthrough-commands.js';
 import { createTwoStageCompleteJson } from './doccards-draft-cards.js';
 import { openDoccardReviewSession } from './doccards-review-session.js';
-import type { SubagentBatchRequest } from '@piwin/contracts';
+import type { SubagentBatchRequest, SubagentReviewRef } from '@piwin/contracts';
+import { findPersistedReview } from './subagent-review-service.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { cancelRunsForSubscriptionProvider } from './cancel-subscription-runs.js';
@@ -259,6 +260,10 @@ export async function buildDomainContext(
                       status: outcome.applyStatus,
                     };
                   },
+                  loadReview: async (ref: SubagentReviewRef) =>
+                    deps.subagentRunStore
+                      ? findPersistedReview(deps.subagentRunStore, ref)
+                      : undefined,
                 }
               : {}),
           },

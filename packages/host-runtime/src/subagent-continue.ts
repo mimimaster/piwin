@@ -17,6 +17,10 @@ import {
 } from './subagent-continuation-prep.js';
 import { projectLineageHeadGeneration } from './subagent-result-projection.js';
 import { isExactReviewTarget } from './subagent-review-context.js';
+import type { ReviewedContinueGate } from './subagent-continue-gate.js';
+
+export type { ReviewedContinueGate } from './subagent-continue-gate.js';
+export { createReviewedContinueGate } from './subagent-continue-gate.js';
 
 export const SUBAGENT_CONTINUE_TOOL_NAME = 'piwin_subagent_continue';
 export const SUBAGENT_MAX_MODEL_REPAIRS = 2;
@@ -39,6 +43,7 @@ export type SubagentContinuePorts = {
   listResults: (parentSessionId: string) => SubagentResultSummary[];
   loadReview: (ref: SubagentReviewRef) => Promise<SubagentReviewRecord | undefined>;
   isAdmissionClosed: (runId: string) => boolean;
+  continueGate: ReviewedContinueGate;
 };
 
 function modelRepairCount(generation: number | null | undefined): number {
@@ -86,11 +91,103 @@ export async function startReviewedContinuation(
     throw new SubagentControlError('stale-review', 'review does not target the expected result');
   }
 
+  let prepared = await prepareReviewedContinuationWorktree(
+    deps,
+    parentSessionId,
+    input.childSessionId,
+  );
+
+  await Promise.resolve();
+  throwIfCancelled(deps, input);
+
+  const lineageKey = `${parentSessionId}:${input.childSessionId}:${summary.candidateLineageId ?? summary.resultId}`;
+  const releaseLineage = await deps.continueGate.acquire(lineageKey);
+  try {
+    throwIfCancelled(deps, input);
+
+    const admission = await deps.schemeAdmissionGate.acquire(parentRunId, input.signal);
+    const releaseAdmission = (): void => {
+      admission?.release();
+    };
+    let observingRelease = false;
+    try {
+      throwIfCancelled(deps, input);
+      summary = requireContinuationHead(deps, parentSessionId, input);
+      prepared = await prepareReviewedContinuationWorktree(
+        deps,
+        parentSessionId,
+        input.childSessionId,
+      );
+      const predecessorKey = `${parentSessionId}:${summary.resultId}:${String(summary.revision)}`;
+      if (!deps.continueGate.claimPredecessor(predecessorKey)) {
+        throw new SubagentControlError(
+          'candidate-superseded',
+          'expected result is not the current lineage head',
+        );
+      }
+      let claimOwned = true;
+      try {
+        const findings = formatSubagentContinueFindingsBlock({
+          review,
+          result: input.expectedResult,
+        });
+        const task = buildReviewedContinuationTask(prepared, {
+          invocationId: input.invocationId,
+          parentRunId: input.parentRunId,
+          ...(input.parentToolCallId ? { parentToolCallId: input.parentToolCallId } : {}),
+          task: `${findings}\n\n---\n${input.task}`,
+          candidateLineageId: summary.candidateLineageId ?? summary.resultId,
+          candidateGeneration: (summary.candidateGeneration ?? 1) + 1,
+          predecessorResult: { resultId: summary.resultId, revision: summary.revision },
+          reviewRef: { reviewId: review.reviewId, revision: review.revision },
+        });
+        const handle = deps.orchestrator.startBatch(
+          {
+            parentSessionId,
+            tasks: [task],
+            maxConcurrency: 1,
+            failurePolicy: 'continue',
+          },
+          parentRunId,
+        );
+        observeAcceptedBatch(deps, { handle, releaseAdmission });
+        observingRelease = true;
+        await awaitAcceptedBatch(deps, handle, input.signal);
+        void handle.completion.finally(() => {
+          deps.continueGate.releasePredecessor(predecessorKey);
+        });
+        claimOwned = false;
+        return { runId: handle.runId, invocationId: input.invocationId };
+      } catch (error) {
+        if (claimOwned) {
+          deps.continueGate.releasePredecessor(predecessorKey);
+        }
+        throw error;
+      }
+    } catch (error) {
+      if (!observingRelease) {
+        releaseAdmission();
+      }
+      throw error;
+    }
+  } finally {
+    releaseLineage();
+  }
+}
+
+async function prepareReviewedContinuationWorktree(
+  deps: SubagentContinuePorts,
+  parentSessionId: string,
+  childSessionId: string,
+): Promise<PreparedSubagentContinuation> {
   let prepared: PreparedSubagentContinuation;
   try {
-    prepared = await deps.prepareContinuation(input.childSessionId);
+    prepared = await deps.prepareContinuation(childSessionId);
   } catch (error) {
     const message = formatError(error);
+    if (/still running/i.test(message)) {
+      throw new SubagentControlError('candidate-superseded', message);
+    }
     if (message.includes('worktree')) {
       throw new SubagentControlError('continuation-worktree-missing', message);
     }
@@ -108,51 +205,7 @@ export async function startReviewedContinuation(
       'retained worktree lease is unavailable; start no replacement silently',
     );
   }
-
-  await Promise.resolve();
-  throwIfCancelled(deps, input);
-
-  const admission = await deps.schemeAdmissionGate.acquire(parentRunId, input.signal);
-  const releaseAdmission = (): void => {
-    admission?.release();
-  };
-  let observingRelease = false;
-  try {
-    throwIfCancelled(deps, input);
-    summary = requireContinuationHead(deps, parentSessionId, input);
-    const findings = formatSubagentContinueFindingsBlock({
-      review,
-      result: input.expectedResult,
-    });
-    const task = buildReviewedContinuationTask(prepared, {
-      invocationId: input.invocationId,
-      parentRunId: input.parentRunId,
-      ...(input.parentToolCallId ? { parentToolCallId: input.parentToolCallId } : {}),
-      task: `${findings}\n\n---\n${input.task}`,
-      candidateLineageId: summary.candidateLineageId ?? summary.resultId,
-      candidateGeneration: (summary.candidateGeneration ?? 1) + 1,
-      predecessorResult: { resultId: summary.resultId, revision: summary.revision },
-      reviewRef: { reviewId: review.reviewId, revision: review.revision },
-    });
-    const handle = deps.orchestrator.startBatch(
-      {
-        parentSessionId,
-        tasks: [task],
-        maxConcurrency: 1,
-        failurePolicy: 'continue',
-      },
-      parentRunId,
-    );
-    observeAcceptedBatch(deps, { handle, releaseAdmission });
-    observingRelease = true;
-    await awaitAcceptedBatch(deps, handle, input.signal);
-    return { runId: handle.runId, invocationId: input.invocationId };
-  } catch (error) {
-    if (!observingRelease) {
-      releaseAdmission();
-    }
-    throw error;
-  }
+  return prepared;
 }
 
 function requireContinuationHead(

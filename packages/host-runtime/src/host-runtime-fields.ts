@@ -55,6 +55,7 @@ import { type SubagentIntegrationCoordinator } from './subagent-integration-coor
 import type { TurnChangeRuntime } from './turn-changes/runtime-wiring.js';
 import { type RuntimeResourceCoordinator } from './runtime-resource-coordinator.js';
 import { TurnScopedSchemeAdmissionGate } from './orchestration-scheme-admission.js';
+import { createReviewedContinueGate } from './subagent-continue-gate.js';
 import { SessionBodyGate } from './session-body-gate.js';
 import { type PiwinRootLease } from './piwin-root-lease.js';
 import type { SubagentTaskResult } from '@piwin/contracts';
@@ -119,6 +120,8 @@ export class HostRuntimeFields {
    * parent runs. Bound when a scheme resolves; cleared on run terminate.
    */
   schemeAdmissionGate = new TurnScopedSchemeAdmissionGate();
+  /** Serializes reviewed continues per child/lineage before startBatch. */
+  reviewedContinueGate = createReviewedContinueGate();
   promptAdmissionGate = new PromptAdmissionGate();
   sessionBodyGate = new SessionBodyGate();
   /** Deduplicates concurrent cleanup callbacks for one crashed Run tree. */

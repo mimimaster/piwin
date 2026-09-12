@@ -106,6 +106,10 @@ export function evaluateReviewedApplyInvariants(
   if (isSuperseded(summary, input.lineageMembers)) {
     return { ok: false, code: 'candidate-superseded' };
   }
+  if (input.review) {
+    const reviewGate = evaluateDurableReview(input.review, summary, input.approvedBy);
+    if (!reviewGate.ok) return reviewGate;
+  }
   if (!summary.latestReview || summary.reviewStatus === 'not-requested' || summary.reviewStatus === 'pending') {
     return { ok: false, code: 'review-missing' };
   }
@@ -114,10 +118,6 @@ export function evaluateReviewedApplyInvariants(
   }
   if (input.approvedBy && !isExactReviewRef(input.approvedBy, summary.latestReview)) {
     return { ok: false, code: 'stale-review' };
-  }
-  if (input.review) {
-    const reviewGate = evaluateDurableReview(input.review, summary, input.approvedBy);
-    if (!reviewGate.ok) return reviewGate;
   }
   return { ok: true, summary };
 }

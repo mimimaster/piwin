@@ -35,7 +35,7 @@ import {
 import { TurnScopedSchemeAdmissionGate } from './orchestration-scheme-admission.js';
 import { createSubagentControlSeam, type SubagentControlDeps } from './host-runtime-subagent-start.js';
 import { prepareRetainedSubagentContinuation } from './subagent-continuation-prep.js';
-import { startReviewedContinuation } from './subagent-continue.js';
+import { createReviewedContinueGate, startReviewedContinuation } from './subagent-continue.js';
 import { createSubagentContinueTool } from './subagent-continue-tool.js';
 import { createSubagentResultApplyTool } from './subagent-result-apply-tool.js';
 import { applyReviewedSubagentResult } from './subagent-result-apply.js';
@@ -435,6 +435,7 @@ async function createHarness(scripts: ReviewerScript[]) {
           listResults: (parentSessionId) => resultService.list({ parentSessionId }).items,
           loadReview: (ref) => findPersistedReview(runStore, ref),
           isAdmissionClosed: (runId) => runRegistry.isAdmissionClosed(runId),
+          continueGate: createReviewedContinueGate(),
         },
         SESSION_ID,
         input,
@@ -651,7 +652,7 @@ describe('reviewed-delivery Host loop', () => {
     ).toMatchObject({ ok: false, code: 'candidate-superseded' });
     expect(
       await executeTool(harness.apply, { result: v2, approvedBy: approvedRef }),
-    ).toMatchObject({ ok: false });
+    ).toMatchObject({ ok: false, code: 'stale-review' });
     expect(await harness.parentLogin()).toBe(SEED);
     harness.changeStore.close();
   });

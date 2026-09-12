@@ -38,11 +38,13 @@ File: `packages/host-runtime/src/subagent-review-loop.integration.test.ts`
 
 In-process Host pieces (orchestrator, real git worktree, freeze, result/review/verification services, start/wait/continue/apply/verify tools). Fake child runners. No second scheduler. `piwin_subagent_run` wait/merge untouched.
 
+This harness does **not** drive `piwin_subagent_result_read` or Desktop `subagent/worktree-action`. Apply/verify go through the model tools (`piwin_subagent_result_apply` / `piwin_subagent_verification_submit`) which call `applyReviewedSubagentResult` and persist reviews on `SubagentRunStore`. It is not a production `session/prompt` turn and not a UI apply.
+
 **§9.1** — worker candidate v1 → wait refs → reviewer A `changes-requested` (one high finding after reading two files) → continue same child → v2 with predecessor → reviewer B `approved` → apply v2 (parent `login.js` is v2, not v1) → `piwin_subagent_verification_submit` `passed`.
 
 Asserted: one worktree path, two worker Runs / one child session, two reviewer children, two frozen results, predecessor link, one apply, one verification, no v1 write into the parent, delivered only after the passed record.
 
-**§9.2** — approve v1, replacement `changes-requested`, authorized continue to v2. Apply v1 with the v1 approval and apply v2 with the v1 approval both fail before write. Parent file stays seed.
+**§9.2** — approve v1, replacement `changes-requested`, authorized continue to v2. Apply v1 with the v1 approval fails with `candidate-superseded`. Apply v2 with the v1 approval fails with `stale-review`. Both fail before write. Parent file stays seed.
 
 **§9.3** — reviewer completes with prose only. Wait is `completed` with no `reviewRef` / `reviewDecision`. Apply is `review-missing`. Parent unchanged.
 

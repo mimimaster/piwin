@@ -5,8 +5,11 @@ import type {
   HostResponse,
   SubagentBatchProjection,
   SubagentBatchRequest,
+  SubagentReviewRecord,
+  SubagentReviewRef,
 } from '@piwin/contracts';
 import { fail, ok } from '../response-helpers.js';
+import { applyReviewedSubagentResult } from '../subagent-result-apply.js';
 import type { SubagentResultService } from '../subagent-result-service.js';
 
 export const NOT_READY_SUBAGENT_ORCHESTRATION_MESSAGE =
@@ -39,6 +42,7 @@ export type SubagentCommandContext = {
     operationId: string;
     status?: 'succeeded' | 'rejected' | 'needs-repair';
   }>;
+  loadReview?: (ref: SubagentReviewRef) => Promise<SubagentReviewRecord | undefined>;
 };
 
 const TYPES = new Set<HostCommand['type']>([
@@ -263,10 +267,29 @@ async function handleResultWorktreeAction(
     if (typeof expectedRevision !== 'number') {
       return failCode(requestId, command.type, 'upgrade-required');
     }
-    if (!applyResult) {
+    if (!applyResult || !context.loadReview) {
       return unsupportedCapability(requestId, command.type);
     }
-    const outcome = await resultService.apply({ resultId, expectedRevision, applyResult });
+    const summary = resultService.get(resultId);
+    if (!summary) {
+      return failCode(requestId, command.type, 'not-found');
+    }
+    const approvedBy = summary.latestReview;
+    if (!approvedBy) {
+      return failCode(requestId, command.type, 'review-missing');
+    }
+    const outcome = await applyReviewedSubagentResult(
+      {
+        resultService,
+        loadReview: context.loadReview,
+        applyResult,
+      },
+      {
+        parentSessionId: summary.parentSessionId,
+        result: { resultId, revision: expectedRevision },
+        approvedBy,
+      },
+    );
     if (!outcome.ok) {
       return failCode(
         requestId,

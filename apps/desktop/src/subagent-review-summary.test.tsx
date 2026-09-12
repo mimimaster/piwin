@@ -11,6 +11,7 @@ import type {
 } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { deriveSubagentReviewLoopView } from './subagent-orchestration-view';
+import { resolveSubagentReviewActionGate } from './subagent-review-summary-model';
 import { SubagentReviewSummary } from './subagent-review-summary';
 
 const PARENT = 'parent-1';
@@ -401,6 +402,63 @@ describe('SubagentReviewSummary', () => {
     expect(repair?.textContent).toContain('返工：');
     expect(repair?.textContent).toContain('已产出候选 v2');
     expect(v1?.textContent).toContain('已产出候选 v1');
+  });
+
+  it('changes-requested head keeps apply disabled', () => {
+    const facts = loopFacts();
+    const worker = facts.invocations['inv-worker-v1'];
+    const reviewer = facts.invocations['inv-reviewer-v1'];
+    const review = facts.reviews['review-v1'];
+    if (worker === undefined || reviewer === undefined || review === undefined) {
+      throw new Error('expected v1 loop facts');
+    }
+    const head = {
+      ...facts.v1,
+      availability: {
+        view: { allowed: true },
+        apply: { allowed: true },
+        resolve: { allowed: true },
+        cleanup: { allowed: true },
+      },
+    };
+    const view = deriveSubagentReviewLoopView({
+      parentSessionId: PARENT,
+      invocations: { [worker.id]: worker, [reviewer.id]: reviewer },
+      results: { [head.resultId]: head },
+      reviews: { [review.reviewId]: review },
+    });
+    const loop = view.loops[0];
+    const row = loop?.rows.find(
+      (candidate) => candidate.resultId === head.resultId && candidate.kind !== 'review',
+    );
+    if (loop === undefined || row === undefined) {
+      throw new Error('expected changes-requested head row');
+    }
+    expect(
+      resolveSubagentReviewActionGate({
+        loop,
+        row,
+        result: head,
+        locale: 'zh-CN',
+      }).applyEnabled,
+    ).toBe(false);
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentReviewSummary
+            loop={loop}
+            locale="zh-CN"
+            reviews={{ [review.reviewId]: review }}
+            results={{ [head.resultId]: head }}
+            onApply={vi.fn()}
+            onRequestResolution={vi.fn()}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const apply = container.querySelector<HTMLButtonElement>('[data-testid="subagent-review-apply"]');
+    expect(apply?.disabled).toBe(true);
+    expect(container.textContent).toContain('需先批准');
   });
 
   it('stale v1 approval disables apply and points to v2', () => {

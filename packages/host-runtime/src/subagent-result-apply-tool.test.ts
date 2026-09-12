@@ -308,6 +308,10 @@ async function createHostPairHarness(options?: {
 function orchestrationContext(
   resultService: ReturnType<typeof createSubagentResultService>,
   applyResult: SubagentCommandContext['applyResult'],
+  loadReview: NonNullable<SubagentCommandContext['loadReview']> = async (ref) =>
+    ref.reviewId === APPROVED_BY.reviewId && ref.revision === APPROVED_BY.revision
+      ? makeReview()
+      : undefined,
 ): SubagentCommandContext {
   return {
     prepareBatch: async (input) => input,
@@ -317,6 +321,7 @@ function orchestrationContext(
     continueChild: async () => ({ runId: 'continuation-run' }),
     actOnWorktree: async () => ({ integrationStatus: 'retained', applyStatus: 'succeeded' }),
     resultService,
+    loadReview,
     ...(applyResult ? { applyResult } : {}),
   };
 }
@@ -665,5 +670,34 @@ describe('piwin_subagent_result_apply', () => {
     );
     expect(uiOk).toMatchObject({ success: true, data: { action: 'apply', resultId: 'result-v2' } });
     expect(writes).toEqual(['result-v2']);
+  });
+
+  it('UI apply rechecks persisted review targetChanges', async () => {
+    const resultService = createSubagentResultService();
+    resultService.register(makeSummary());
+    const writes: string[] = [];
+    const ui = await handleSubagentCommand(
+      {
+        type: 'subagent/worktree-action',
+        action: 'apply',
+        resultId: 'result-v2',
+        expectedRevision: 1,
+      },
+      'ui-apply-stale-changes',
+      orchestrationContext(
+        resultService,
+        async (input) => {
+          writes.push(input.resultId);
+          return { operationId: input.operationId };
+        },
+        async () => makeReview({ targetChanges: CHANGES_V1 }),
+      ),
+    );
+    expect(ui).toMatchObject({
+      success: false,
+      command: 'subagent/worktree-action',
+      problem: { code: 'stale-review' },
+    });
+    expect(writes).toEqual([]);
   });
 });
