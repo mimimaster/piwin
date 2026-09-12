@@ -56,6 +56,13 @@ export function isExactReviewTarget(
   return requested.resultId === bound.resultId && requested.revision === bound.revision;
 }
 
+export function isSameChangeVersionRef(
+  left: ChangeVersionRef,
+  right: ChangeVersionRef,
+): boolean {
+  return left.changeSetId === right.changeSetId && left.revision === right.revision;
+}
+
 export function bindSubagentReviewTarget(
   input: BindSubagentReviewTargetInput,
 ): BindSubagentReviewTargetResult {

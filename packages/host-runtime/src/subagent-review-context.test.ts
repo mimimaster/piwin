@@ -5,6 +5,7 @@ import {
   bindSubagentReviewTarget,
   formatSubagentReviewProvenanceBlock,
   isExactReviewTarget,
+  isSameChangeVersionRef,
 } from './subagent-review-context.js';
 
 function makeSummary(overrides: Partial<SubagentResultSummary> = {}): SubagentResultSummary {
@@ -143,5 +144,17 @@ describe('review provenance', () => {
     expect(isExactReviewTarget({ resultId: 'result-2', revision: 1 }, { resultId: 'result-1', revision: 1 })).toBe(
       false,
     );
+    expect(
+      isSameChangeVersionRef(
+        { changeSetId: 'cs-child', revision: 1 },
+        { changeSetId: 'cs-child', revision: 1 },
+      ),
+    ).toBe(true);
+    expect(
+      isSameChangeVersionRef(
+        { changeSetId: 'cs-child', revision: 1 },
+        { changeSetId: 'cs-child', revision: 2 },
+      ),
+    ).toBe(false);
   });
 });
