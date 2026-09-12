@@ -91,6 +91,7 @@ describe('ContextBar', () => {
     if (container.parentNode) {
       container.parentNode.removeChild(container);
     }
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -209,6 +210,32 @@ describe('ContextBar', () => {
     );
 
     expect(container.querySelector('[data-testid="right-panel-open-btn"]')).not.toBeNull();
+  });
+
+  it('omits fake traffic lights in the web chrome', () => {
+    renderContextBar(createBaseProps({ runState: createIdleRunStatus() }), root);
+
+    expect(container.querySelector('.traffic')).toBeNull();
+  });
+
+  it('keeps an invisible Overlay spacer only on macOS Tauri', () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      configurable: true,
+    });
+    Object.defineProperty(navigator, 'platform', {
+      value: 'MacIntel',
+      configurable: true,
+    });
+
+    renderContextBar(createBaseProps({ runState: createIdleRunStatus() }), root);
+
+    const traffic = container.querySelector('.traffic');
+    expect(traffic).not.toBeNull();
+    expect(traffic?.classList.contains('is-native')).toBe(true);
+    expect(traffic?.getAttribute('aria-hidden')).toBe('true');
+
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
   });
 
   it('does not render permission badge or activity status text in titleband', () => {

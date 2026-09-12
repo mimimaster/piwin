@@ -179,6 +179,60 @@ export function computeTokensPerSecond(
   return completionTokens / (durationMs / 1000);
 }
 
+/**
+ * One model call in the rolling call log (`usage/list-recent`).
+ *
+ * A flattened `UsageRecord` with the optional token fields defaulted, so the
+ * client renders a table without re-deriving zeroes per cell. `id` is stable
+ * across polls, which keeps React keys (and row identity) steady.
+ */
+export type UsageCallLogEntry = {
+  id: string;
+  recordedAt: string;
+  sessionId: string;
+  projectPath: string | null;
+  providerId: string | null;
+  modelId: string | null;
+  promptTokens: number;
+  completionTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+  /** Generation duration in ms when the provider reported it. */
+  durationMs?: number;
+  /** First token latency in ms when the provider reported it. */
+  firstTokenMs?: number;
+  /** Turn outcome when the ledger recorded one. */
+  success?: boolean;
+  source: 'assistant-usage' | 'host-estimate';
+};
+
+/**
+ * One page of the rolling call log returned by `usage/list-recent`.
+ *
+ * Paging is offset-based over a newest-first ordering. The window is bounded
+ * (an hour by default), so offsets stay small and a page is cheap to skip to;
+ * `offset` is echoed back because the Host clamps it to the window size.
+ */
+export type UsageCallLog = {
+  /** Length of the rolling window in minutes. */
+  windowMinutes: number;
+  /** ISO lower bound of the window (inclusive). */
+  from: string;
+  /** ISO timestamp the log was produced. */
+  to: string;
+  /** Calls on this page, newest first. */
+  entries: UsageCallLogEntry[];
+  /** Zero-based index of the first returned row within the window. */
+  offset: number;
+  /** Page size that was applied. */
+  limit: number;
+  /** Total calls inside the window, across all pages. */
+  totalInWindow: number;
+  /** True when rows exist outside this page. */
+  truncated: boolean;
+};
+
 /** Aggregated token statistics returned by `usage/get-rollup`. */
 export type UsageRollup = {
   scope: SessionScope | { kind: 'global' };

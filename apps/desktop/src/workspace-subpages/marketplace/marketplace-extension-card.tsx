@@ -4,8 +4,14 @@
  */
 import type { ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
+import { resourceSourceLabel } from '@piwin/contracts';
 import type { DesktopLocale } from '../../desktop-locale.js';
-import type { MarketExtensionItem } from './marketplace-types.js';
+import type { MarketExtensionItem, MarketExtensionSource } from './marketplace-types.js';
+
+function marketSourceLabel(source: MarketExtensionSource, locale: DesktopLocale | undefined): string {
+  if (source === 'npm' || source === 'git') return source;
+  return resourceSourceLabel(source, locale === 'zh-CN' ? 'zh-CN' : 'en');
+}
 
 export type MarketplaceExtensionCardProps = {
   extension: MarketExtensionItem;
@@ -63,18 +69,18 @@ export function MarketplaceExtensionCard({
   };
 
   const renderSourcePill = () => {
-    switch (extension.source) {
-      case 'bundled':
-        return <span className="market-source-pill is-bundled">bundled</span>;
-      case 'user':
-        return <span className="market-source-pill is-user">user</span>;
-      case 'pi-native':
-        return <span className="market-source-pill is-native">pi-native</span>;
-      case 'npm':
-        return <span className="market-source-pill is-npm">npm</span>;
-      default:
-        return <span className="market-source-pill is-git">{extension.source}</span>;
-    }
+    const label = marketSourceLabel(extension.source, locale);
+    const tone =
+      extension.source === 'bundled'
+        ? 'bundled'
+        : extension.source === 'user'
+          ? 'user'
+          : extension.source === 'pi-native'
+            ? 'native'
+            : extension.source === 'npm'
+              ? 'npm'
+              : 'git';
+    return <span className={`market-source-pill is-${tone}`}>{label}</span>;
   };
 
   const degradationLabel = (tag: string) => {
@@ -148,7 +154,7 @@ export function MarketplaceExtensionCard({
       <div className="market-card-footer">
         <span className="market-card-source">
           {extension.bundled
-            ? t('Core Bundle', '随系统内置')
+            ? t('bundled', '应用内置')
             : extension.source === 'user'
               ? t('User Extension', '用户级扩展')
               : extension.source === 'pi-native'

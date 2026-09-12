@@ -18,7 +18,9 @@ html[data-theme-id='piwin-inkstone-ink'] .sidebar {
 /* Compact drawer: it overlays the window (covering the titleband row), so the
    region's titleband-clearance padding applies again. */
 html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='compact'] > .sidebar,
-html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='compact'] > .sidebar {
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='compact'] > .sidebar,
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='phone'] > .sidebar,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='phone'] > .sidebar {
   padding: var(--titleband-height) var(--s-3) var(--s-3);
 }
 

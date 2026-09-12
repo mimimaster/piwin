@@ -1,0 +1,324 @@
+/* Region: Knowledge Wiki — the reading page (WikiArticlePane.tsx).
+   Split out of region-knowledge-wiki.css per AGENTS.md 3.2: the nav rail,
+   copilot rail and source drawer are chrome; this sheet is the page being
+   read, and it follows the Inkstone document faces (宣纸 / 砚墨).
+
+   Two rules shape everything here:
+   1. The page is a sheet, not a stack of cards — one canvas, hairlines and
+      type for hierarchy, no nested boxes on the reading surface.
+   2. The article ends where its text ends. Nothing is pinned to the bottom
+      of the viewport, so a short concept reads short instead of opening a
+      dead band between the prose and its provenance. */
+
+.wiki-content-canvas {
+  display: flex;
+  flex-direction: column;
+  background: var(--s2, var(--surface-base)) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 32px 40px 64px !important;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.article-container {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* ── Header: domain eyebrow → title → byline ─────────────────────── */
+
+.article-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--l2, var(--line-2));
+}
+
+.article-domains {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.article-domain {
+  font: 600 10.5px var(--mono, monospace);
+  letter-spacing: 0.03em;
+  color: var(--zhu, #b03a24);
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.1));
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.article-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.article-h1 {
+  font: 600 27px/1.35 var(--serif, inherit);
+  color: var(--t1, var(--text-1));
+  letter-spacing: -0.01em;
+  margin: 0;
+  /* Optical: the serif title sits slightly high against the button row. */
+  padding-top: 1px;
+}
+
+.article-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* The byline replaces the boxed metadata ribbon: same facts, read as a
+   printed credit line rather than a debug strip. */
+.article-byline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font: 11px var(--mono, monospace);
+  color: var(--t4, var(--text-4));
+}
+
+.article-byline-item + .article-byline-item::before {
+  content: '·';
+  margin-right: 10px;
+  color: var(--l3, var(--line-3));
+}
+
+.article-byline time {
+  color: var(--t3, var(--text-3));
+  font-variant-numeric: tabular-nums;
+}
+
+.article-byline-stamp {
+  margin-left: auto;
+}
+
+/* ── Prose ───────────────────────────────────────────────────────── */
+
+.wiki-prose-text,
+.article-prose {
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--t2, var(--text-2));
+  margin-top: 24px;
+}
+
+.wiki-prose-text p,
+.article-prose p {
+  margin-bottom: var(--s-3);
+}
+
+.article-prose :is(h1, h2, h3, h4) {
+  font-family: var(--serif, inherit);
+  font-weight: 600;
+  color: var(--t1, var(--text-1));
+  letter-spacing: -0.005em;
+  margin: 1.7em 0 0.5em;
+}
+
+.article-prose > :first-child :is(h1, h2, h3, h4):first-child {
+  margin-top: 0;
+}
+
+.article-prose :is(ul, ol) {
+  padding-left: 1.4em;
+}
+
+.article-prose li {
+  margin-bottom: 0.3em;
+}
+
+.article-prose blockquote {
+  margin: 1.2em 0;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--l3, var(--line-3));
+  color: var(--t3, var(--text-3));
+}
+
+/* Wikilinks read as ink, not as web links: colour plus a hairline rule that
+   fills in on hover. */
+.article-prose a {
+  color: var(--zhu, #b03a24);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--zhu, #b03a24) 35%, transparent);
+  text-underline-offset: 3px;
+  border-radius: 2px;
+  transition: background 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.article-prose a:hover {
+  text-decoration-color: var(--zhu, #b03a24);
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.1));
+  box-shadow: 0 0 0 2px var(--zhu-wash, rgba(176, 58, 36, 0.1));
+}
+
+/* ── Colophon: provenance + outlinks, set below a hairline ───────── */
+
+.article-colophon {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--l2, var(--line-2));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.colophon-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.colophon-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.colophon-title {
+  font: 600 10.5px var(--mono, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--t4, var(--text-4));
+}
+
+.colophon-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--t3, var(--text-3));
+}
+
+.colophon-source {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.colophon-path {
+  font: 10.5px var(--mono, monospace);
+  color: var(--t3, var(--text-3));
+  background: var(--s1, var(--surface-1));
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: 3px;
+  padding: 2px 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiki-outlinks-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wiki-link-chip {
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: var(--r-chip, 4px);
+  background: transparent;
+  color: var(--zhu, #b03a24);
+  border: 1px solid color-mix(in srgb, var(--zhu, #b03a24) 28%, transparent);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* The `[[…]]` brackets are decoration, not part of the concept name. */
+.wiki-link-chip::before,
+.wiki-link-chip::after {
+  color: var(--t4, var(--text-4));
+  font-family: var(--mono, monospace);
+}
+
+.wiki-link-chip::before {
+  content: '[[';
+}
+
+.wiki-link-chip::after {
+  content: ']]';
+}
+
+.wiki-link-chip:hover {
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.1));
+  border-color: var(--zhu, #b03a24);
+}
+
+/* ── Standby (no concept selected yet) ───────────────────────────── */
+
+.article-standby {
+  max-width: 560px;
+  margin-top: 8vh;
+}
+
+.standby-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px 24px;
+  background: var(--s1, var(--surface-1));
+  border: 1px solid var(--l1, var(--line-1));
+  border-top: 2px solid var(--zhu, #b03a24);
+  border-radius: var(--r-card, 6px);
+}
+
+.standby-kicker {
+  font: 600 10.5px var(--mono, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--t4, var(--text-4));
+}
+
+.standby-title {
+  margin: 0;
+  font: 600 17px/1.4 var(--serif, inherit);
+  color: var(--t1, var(--text-1));
+}
+
+.standby-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--t3, var(--text-3));
+}
+
+.standby-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+@media (max-width: 900px) {
+  .wiki-content-canvas {
+    padding: 24px 24px 48px !important;
+  }
+
+  .article-title-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .article-h1 {
+    font-size: 23px;
+  }
+}

@@ -439,6 +439,18 @@ export function createDefaultSubagentConfig(): SubagentConfig {
 export type ExecutionConfig = {
   /** Default 8. Legal range 1–8 in v1. */
   maxConcurrentRuns: number;
+  /**
+   * Available-memory floor in MiB. A shell tool call is refused while system
+   * available memory is below this, so the model serializes instead of the
+   * machine thrashing. `0` disables the gate.
+   *
+   * Why this exists (2026-09-12): `maxConcurrentRuns` counts Runs and
+   * `process.maxProcesses` counts Jobs, so a single `bash` call running
+   * `pnpm test` scored 1 against both while forking ten ~1 GiB vitest workers.
+   * Nothing in the product measured the fan-out inside one tool call, and the
+   * machine hit out-of-application-memory with every quota still green.
+   */
+  minAvailableMemoryMiB: number;
 };
 
 /** Default simultaneous leaf executions on a local Host. */
@@ -447,20 +459,41 @@ export const DEFAULT_MAX_CONCURRENT_RUNS = 8;
 /** v1 product safety ceiling for {@link ExecutionConfig.maxConcurrentRuns}. */
 export const MAX_CONCURRENT_RUNS = 8;
 
+/**
+ * Default shell admission floor. One full-repo typecheck peaked at 2.2 GiB and
+ * one desktop vitest run at ~1.5 GiB on the 2026-09-12 machine, so 2 GiB is the
+ * smallest floor that still refuses the state that preceded the incident
+ * (1.25 GiB available) without tripping during ordinary work.
+ */
+export const DEFAULT_MIN_AVAILABLE_MEMORY_MIB = 2048;
+
+/** Upper bound for {@link ExecutionConfig.minAvailableMemoryMiB}. */
+export const MAX_MIN_AVAILABLE_MEMORY_MIB = 16384;
+
 export function createDefaultExecutionConfig(): ExecutionConfig {
-  return { maxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS };
+  return {
+    maxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
+    minAvailableMemoryMiB: DEFAULT_MIN_AVAILABLE_MEMORY_MIB,
+  };
 }
 
-/** Clamp a user-provided execution block; omitted config becomes the default 8. */
+/** Clamp a user-provided execution block; omitted fields fall back to defaults. */
 export function normalizeExecutionConfig(
   input: Partial<ExecutionConfig> | undefined,
 ): ExecutionConfig {
-  const raw = input?.maxConcurrentRuns;
-  if (raw === undefined || !Number.isFinite(raw)) {
-    return createDefaultExecutionConfig();
-  }
+  const defaults = createDefaultExecutionConfig();
+  const runs = input?.maxConcurrentRuns;
+  const floor = input?.minAvailableMemoryMiB;
   return {
-    maxConcurrentRuns: Math.max(1, Math.min(MAX_CONCURRENT_RUNS, Math.floor(raw))),
+    maxConcurrentRuns:
+      runs === undefined || !Number.isFinite(runs)
+        ? defaults.maxConcurrentRuns
+        : Math.max(1, Math.min(MAX_CONCURRENT_RUNS, Math.floor(runs))),
+    // 0 is a real value here (gate off), so it must survive the clamp.
+    minAvailableMemoryMiB:
+      floor === undefined || !Number.isFinite(floor)
+        ? defaults.minAvailableMemoryMiB
+        : Math.max(0, Math.min(MAX_MIN_AVAILABLE_MEMORY_MIB, Math.floor(floor))),
   };
 }
 

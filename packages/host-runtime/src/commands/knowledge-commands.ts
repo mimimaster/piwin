@@ -96,6 +96,8 @@ const TYPES = new Set<HostCommand['type']>([
   'knowledge/search',
   'knowledge/open-source',
   'session/set-knowledge-bases',
+  'knowledge/wiki/overview',
+  'knowledge/wiki/concept',
 ]);
 
 /** One notes rebuild at a time for this Host process. */

@@ -3,7 +3,7 @@
  * Write/edit tools with non-empty `changedPaths` render a DiffCard per path;
  * the original raw output is folded into a <details> below.
  */
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
 import type { DocumentTargetRef } from '@piwin/contracts';
@@ -18,7 +18,9 @@ import { toolCallKindIcon } from './tool-call-kind-icon';
 import {
   extractCommandDescription,
   formatChainPreviewChip,
+  formatPathChip,
   formatToolDuration,
+  splitPathChipParts,
   isFetchLikeShellCommand,
   kindVerb,
   looksLikeArgsDumpSummary,
@@ -42,6 +44,11 @@ import {
   type ContextMenuTarget,
 } from './context-menu';
 import { recoverToolArgsFromInputPreview } from './tool-call-arg-recovery';
+import {
+  documentTargetCoveragePaths,
+  isRedundantPathArgsPreview,
+  visibleTargetPaths,
+} from './tool-path-coverage.js';
 import { toolOutputDuplicatesError } from './tool-output-duplicates-error.js';
 import { useToolEditDiffStats } from './use-tool-edit-diff-stats';
 import { inkLineNodeClass, toolStatusToNodeStatus } from './session-node-status.js';
@@ -335,10 +342,16 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const displayName = tool.presentation?.title ?? tool.toolName;
   const kind = tool.presentation?.kind ?? 'unknown';
   const recoveredArgs = recoverToolArgsFromInputPreview(tool.presentation?.inputPreview);
+  const documentTargets = tool.presentation?.documentTargets ?? [];
   const targetPaths =
     tool.presentation?.targetPaths && tool.presentation.targetPaths.length > 0
       ? tool.presentation.targetPaths
       : recoveredArgs.paths;
+  const bodyTargetPaths = visibleTargetPaths(
+    targetPaths,
+    documentTargets,
+    props.projectPath,
+  );
   const command = tool.presentation?.command ?? recoveredArgs.command;
   // Prefer host changedPaths; fall back to write-like targetPaths so DiffCard
   // still works for older transcripts that only stored targetPaths.
@@ -467,9 +480,15 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         command ??
         (targetPaths.length > 0 ? targetPaths.join(', ') : displayName));
   // Prefer host inputPreview; fall back when legacy presentations stuffed JSON into summary.
-  const inputPreview =
+  const rawInputPreview =
     tool.presentation?.inputPreview ||
     (looksLikeArgsDumpSummary(rawSummary) ? rawSummary : undefined);
+  const pathChipCoverage = [...documentTargetCoveragePaths(documentTargets), ...targetPaths];
+  const inputPreview =
+    rawInputPreview &&
+    !isRedundantPathArgsPreview(rawInputPreview, pathChipCoverage, props.projectPath)
+      ? rawInputPreview
+      : undefined;
   // Legacy image_gen rows stored paths JSON as summary after tool/end; recover the
   // prompt from inputPreview so the header stays human-readable on old transcripts.
   const recoveredSummary =
@@ -544,7 +563,12 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       keepTitlePreview: isMcpBehavior,
     }),
   );
-  const displayPillLabel = pillLabel ? formatChainPreviewChip(pillLabel, 52) : '';
+  const displayPillLabel = !pillLabel
+    ? ''
+    : multiPath
+      ? formatChainPreviewChip(pillLabel, 52)
+      : formatPathChip(pillLabel, 52);
+  const pillParts = !multiPath && displayPillLabel ? splitPathChipParts(displayPillLabel) : null;
   const previewClassName =
     isQueryLike || baseBehaviorId === 'shell' ? 'tool-call-preview is-query' : 'tool-call-preview';
   const behaviorClassName =
@@ -562,33 +586,41 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     Boolean(tool.presentation?.error) ||
     Boolean(outputTruncation);
 
-  function activateSummary(): void {
+  function openPrimaryPath(): boolean {
     const path = primaryTargetPath;
-    if (isEditTool) {
-      if (canRenderDiffCard || hasBody) {
-        toggleExpanded();
-        return;
-      }
-      if (path && props.onOpenFile) {
-        openResolvedToolPath(path, props.projectPath, props.onOpenFile);
-        return;
-      }
+    if (!path) {
+      return false;
     }
-    if (isPathLike && path) {
-      if (
-        openPathLikeToolDocument({
-          filePath: path,
-          tool,
-          ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
-          ...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {}),
-        })
-      ) {
-        return;
-      }
-      if (props.onOpenFile) {
-        openResolvedToolPath(path, props.projectPath, props.onOpenFile);
-        return;
-      }
+    if (
+      openPathLikeToolDocument({
+        filePath: path,
+        tool,
+        ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
+        ...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {}),
+      })
+    ) {
+      return true;
+    }
+    if (props.onOpenFile) {
+      openResolvedToolPath(path, props.projectPath, props.onOpenFile);
+      return true;
+    }
+    return false;
+  }
+
+  function activateSummary(): void {
+    if (hasBody) {
+      toggleExpanded();
+      return;
+    }
+    openPrimaryPath();
+  }
+
+  function activateFilePill(event: { preventDefault(): void; stopPropagation(): void }): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (canOpenPath && openPrimaryPath()) {
+      return;
     }
     if (hasBody) {
       toggleExpanded();
@@ -645,7 +677,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         real button without illegal nested interactive content.
       */}
       <div
-        className="tool-call-summary"
+        className={`tool-call-summary${hasBody ? ' has-body' : ''}`}
         onClick={activateSummary}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -670,8 +702,33 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
             className={`tool-call-file-pill${canOpenPath ? ' is-link' : ''}`}
             data-testid="tool-call-file-pill"
             title={primaryOpenPath?.absolutePath ?? pillLabel}
+            {...(canOpenPath
+              ? {
+                  role: 'link' as const,
+                  tabIndex: 0,
+                  'aria-label':
+                    locale === 'zh-CN'
+                      ? `打开 ${pillParts?.file ?? displayPillLabel}`
+                      : `Open ${pillParts?.file ?? displayPillLabel}`,
+                  onClick: activateFilePill,
+                  onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      activateFilePill(event);
+                    }
+                  },
+                }
+              : {})}
           >
-            <span className="tool-call-file-name">{displayPillLabel}</span>
+            <span className="tool-call-file-path">
+              {pillParts ? (
+                <>
+                  <span className="tool-call-file-dir">{pillParts.dir}</span>
+                  <span className="tool-call-file-name">{pillParts.file}</span>
+                </>
+              ) : (
+                <span className="tool-call-file-name">{displayPillLabel}</span>
+              )}
+            </span>
             {!multiPath && lineRange ? (
               <span className="tool-call-line-range" data-testid="tool-call-line-range">
                 {lineRange}
@@ -807,19 +864,17 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
                 );
               })
             : null}
-          {tool.presentation?.documentTargets && tool.presentation.documentTargets.length > 0 ? (
+          {documentTargets.length > 0 ? (
             <ToolDocumentTargetList
-              targets={tool.presentation.documentTargets}
+              targets={documentTargets}
               toolCallId={tool.toolCallId}
               onOpenDocument={props.onOpenDocument}
               testId="tool-call-doc-targets"
             />
           ) : null}
-          {tool.presentation?.targetPaths &&
-          tool.presentation.targetPaths.length > 0 &&
-          !canRenderDiffCard ? (
+          {bodyTargetPaths.length > 0 && !canRenderDiffCard ? (
             <ToolPathLinkList
-              paths={tool.presentation.targetPaths}
+              paths={bodyTargetPaths}
               projectPath={props.projectPath}
               onOpenFile={props.onOpenFile}
               onOpenDocument={props.onOpenDocument}

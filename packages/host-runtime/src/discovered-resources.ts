@@ -11,7 +11,7 @@ import type {
   SkillsConfig,
 } from '@piwin/contracts';
 import { isExtensionBlueprintEligible } from '@piwin/contracts';
-import { scanSkills } from '@piwin/skills';
+import { resolveBundledSkillsRoot, scanSkills } from '@piwin/skills';
 import { scanExtensions } from './extension-scanner.js';
 import { loadPiNativeInventory } from './pi-package-inventory.js';
 import { getPiAgentDir, isDefaultPiwinRoot } from './paths.js';
@@ -59,7 +59,7 @@ export async function loadDiscoveredResources(
       piwinRoot: options.piwinRoot,
       ...(projectPath ? { projectPath } : {}),
       ...(skillsConfig ? { skillsConfig } : {}),
-      ...(options.bundledSkillsRoot ? { bundledRoot: options.bundledSkillsRoot } : {}),
+      bundledRoot: options.bundledSkillsRoot ?? resolveBundledSkillsRoot(),
     }),
     scanPrompts({
       piwinRoot: options.piwinRoot,

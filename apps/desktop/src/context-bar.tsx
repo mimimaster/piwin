@@ -26,6 +26,7 @@ import {
   IconPanelRight,
 } from './shell-icons';
 import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
+import { readWindowChromeFromEnvironment } from './window-chrome';
 
 export type ContextBarSession = {
   title: string;
@@ -108,10 +109,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
     ? titlebarCopy.collapseWorkspacePanel
     : titlebarCopy.expandWorkspacePanel;
 
-  const isNativeTraffic =
-    typeof window !== 'undefined' &&
-    '__TAURI_INTERNALS__' in window &&
-    (navigator.platform?.includes('Mac') || navigator.userAgent?.includes('Mac'));
+  const showOverlayTrafficSpacer = readWindowChromeFromEnvironment() === 'macos-overlay';
 
   const [slab, setSlab] = useState<'ink' | 'paper'>(() => {
     if (typeof window !== 'undefined') {
@@ -172,14 +170,13 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         role="group"
         aria-label={titlebarCopy.shellNavigation}
       >
-        <div
-          className={`traffic${isNativeTraffic ? ' is-native' : ''}`}
-          aria-label={isChinese ? '窗口控制' : 'Window controls'}
-        >
-          <span className="traffic-dot close" />
-          <span className="traffic-dot minimize" />
-          <span className="traffic-dot maximize" />
-        </div>
+        {showOverlayTrafficSpacer ? (
+          <div className="traffic is-native" aria-hidden="true">
+            <span className="traffic-dot close" />
+            <span className="traffic-dot minimize" />
+            <span className="traffic-dot maximize" />
+          </div>
+        ) : null}
 
         {props.onToggleSessions ? (
           <IconButton

@@ -112,25 +112,27 @@ This amendment supersedes the source-only streaming clauses in the 2026-07-25,
   replays at most eight structurally closed prefixes. This bounded fallback
   preserves one iframe and stable DOM growth; it never executes scripts or
   slices characters.
-- The iframe document is stable for the whole streaming phase. Sanitized token
-  snapshots reconcile its DOM in place at most once per 300ms and report the
-  resulting stream height.
-- Completion commits the repaired final source into that same iframe once,
-  removes its stream listener, activates final permitted scripts, and reports
-  one settled height. Completed/history Artifacts load the final document
-  directly.
+- After the first stable snapshot the iframe document stays mounted for the
+  rest of the stream. Sanitized token snapshots reconcile its DOM in place at
+  most once per 300ms and report the resulting stream height.
+- Completion loads the repaired final document directly (same as
+  completed/history Artifacts). The stream listener is not required for that
+  commit; scripts run from the final document.
 - Inline Artifact title/status/byte chrome is not permanently visible. Source
   inspection remains available from an action overlay shown on hover or
   keyboard focus; activating `Show code` opens the source fully expanded.
 - Model-authored Artifact motion is preserved. A host-owned style placed after
   model styles suppresses CSS animations/transitions and SVG declarative motion
   only when `prefers-reduced-motion: reduce` is active.
-- Desktop completion stability (amended 2026-08-13): fence identity is sticky
-  (`<messageId>-artifact-<ordinal>`, never a hash of the body). During token
-  streaming the first lightweight document stays mounted while throttled body
-  snapshots reconcile its DOM in place. Completion commits one final snapshot
-  without navigating or remounting the iframe. Completed/history Artifacts load
-  the same final document directly. Parent re-renders do not reload it.
+- Desktop completion stability (amended 2026-08-13; 2026-09-12): fence identity
+  is sticky (`<messageId>-artifact-<ordinal>`, never a hash of the body). An
+  empty stream shell stays mounted only until the first stable snapshot; that
+  snapshot is baked into a new document so Canvas is not a white iframe waiting
+  on postMessage. Later tokens still reconcile in place at most once per 300ms.
+  Completion navigates to the repaired final document — the same path
+  completed/history Artifacts already use — instead of freezing the stream
+  shell. Parent re-renders of an equivalent final document do not reload it.
+  The preparing overlay stays until the current document has loaded.
 - Artifact document canvas remains transparent. A host-owned theme guard is
   appended after model content to keep `html`/`body`/root transparent and map
   known fixed-light surfaces to the Artifact theme without creating a white

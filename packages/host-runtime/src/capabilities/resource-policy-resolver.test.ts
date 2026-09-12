@@ -143,6 +143,17 @@ describe('resolveResourceActivations', () => {
     expect(result.activations[0]?.effectiveEnabled).toBe(true);
   });
 
+  it('does not disable bundled skills via disabledIds', () => {
+    const result = resolveResourceActivations(
+      policyInput({
+        disabledIds: ['imagegen'],
+        catalog: catalog([entry({ resourceId: 'imagegen', source: 'bundled' })]),
+      }),
+    );
+    expect(result.activations[0]?.effectiveEnabled).toBe(true);
+    expect(result.activeEntries).toHaveLength(1);
+  });
+
   it('disabled logical ID applies to every copy regardless of source', () => {
     const result = resolveResourceActivations(
       policyInput({

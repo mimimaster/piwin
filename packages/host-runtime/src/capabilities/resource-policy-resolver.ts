@@ -9,7 +9,7 @@ import type {
   ResourceSelectionPolicy,
   ResourceSource,
 } from '@piwin/contracts';
-import { normalizeResourceId } from '@piwin/contracts';
+import { canToggleSkill, normalizeResourceId } from '@piwin/contracts';
 
 export type ResourcePolicyInput = {
   catalog: ResourceCatalog;
@@ -115,7 +115,10 @@ export function resolveResourceActivations(
     const isProjectResource = entry.source === 'project';
     const sourceAllowed = selectionForKind.allowedSources.includes(entry.source);
     const projectBlocked = isProjectResource && !sourceAllowed;
-    const idDisabled = disabled.has(resourceId);
+    const idDisabled =
+      entry.kind === 'skill' && !canToggleSkill(entry.source)
+        ? false
+        : disabled.has(resourceId);
     const notAllowed = allow !== null && !allow.has(resourceId);
 
     const configuredEnabled = !familyOff && !idDisabled && entry.configuredEnabled !== false;

@@ -105,6 +105,26 @@ export type InstallPluginResult = {
   secretRefs: string[];
 };
 
+/** Display label for how a plugin was installed. */
+export function pluginSourceKindLabel(
+  kind: PluginInstallSource['kind'],
+  locale: 'zh-CN' | 'en',
+): string {
+  if (locale === 'zh-CN') {
+    switch (kind) {
+      case 'bundled':
+        return '应用内置';
+      case 'local':
+        return '本地';
+      case 'git':
+        return 'Git';
+      case 'registry':
+        return '商店';
+    }
+  }
+  return kind;
+}
+
 /** Namespaced MCP server id: `plugin__<pluginId>__<serverId>`. */
 export function pluginMcpServerId(pluginId: string, serverId: string): string {
   return `plugin__${pluginId}__${serverId}`;

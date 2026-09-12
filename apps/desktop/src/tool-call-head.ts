@@ -197,6 +197,36 @@ export function formatChainPreviewChip(text: string, maxChars = 48): string {
   return `${compact.slice(0, Math.max(1, maxChars - 1))}…`;
 }
 
+function pathChipBasename(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
+
+/**
+ * Path chip text: keep the basename, ellipsize the directory in the middle.
+ * End-clip (`formatChainPreviewChip`) hid the filename on long Host paths.
+ */
+export function formatPathChip(path: string, maxChars = 52): string {
+  const compact = path.replace(/\s+/g, ' ').trim();
+  if (!compact || compact.length <= maxChars) {
+    return compact;
+  }
+  const base = pathChipBasename(compact);
+  if (base.length + 3 > maxChars) {
+    return `…${base.slice(-(maxChars - 1))}`;
+  }
+  return `${compact.slice(0, maxChars - base.length - 2)}…/${base}`;
+}
+
+/** Split a path chip so CSS can ellipsize the directory and keep the file. */
+export function splitPathChipParts(path: string): { dir: string; file: string } | null {
+  const file = pathChipBasename(path);
+  if (!file || file === path) {
+    return null;
+  }
+  const dir = path.slice(0, path.length - file.length);
+  return dir ? { dir, file } : null;
+}
+
 /**
  * Collapsed MCP head: tool identity, plus a short arg snippet (query/prompt)
  * when one exists. Never dump raw JSON into the title row.

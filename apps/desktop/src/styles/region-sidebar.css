@@ -73,7 +73,8 @@
    frame and its own shadow instead of the deck inset. The base rule's top
    padding already clears the traffic lights, which it covers here. */
 
-.app-shell[data-layout='compact'] > .sidebar {
+.app-shell[data-layout='compact'] > .sidebar,
+.app-shell[data-layout='phone'] > .sidebar {
   position: fixed;
   z-index: var(--layer-drawer);
   top: 0;
@@ -89,12 +90,14 @@
   transition: transform var(--t-3) var(--ease-out);
 }
 
-.app-shell[data-layout='compact']:not(.nav-open) > .sidebar {
+.app-shell[data-layout='compact']:not(.nav-open) > .sidebar,
+.app-shell[data-layout='phone']:not(.nav-open) > .sidebar {
   transform: translateX(-110%);
   pointer-events: none;
 }
 
-.app-shell[data-layout='compact'].nav-open > .sidebar {
+.app-shell[data-layout='compact'].nav-open > .sidebar,
+.app-shell[data-layout='phone'].nav-open > .sidebar {
   pointer-events: auto;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);

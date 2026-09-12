@@ -63,8 +63,9 @@ const DEFAULT_AGENT_MODE_RULES = [
 ] as const;
 
 /**
- * Generation-scoped default Agent contract. A compact per-turn marker selects
- * this contract without copying the same rules into every user message.
+ * Generation-scoped default Agent contract. Agent mode also restates these
+ * rules each user turn via {@link AGENT_MODE_SYSTEM_PREAMBLES} so models that
+ * drop long-lived system constraints still see them next to the latest user text.
  */
 export const DEFAULT_AGENT_MODE_SYSTEM_PROMPT = [
   '[piwin-prompt-meta kind="mode:agent-default" version="5" applies="generation"]',
@@ -114,9 +115,6 @@ export function mergeAgentModeIntoPrompt(
 ): string {
   const mode = normalizeAgentModeId(modeId);
   const body = userFacingText.trim();
-  if (mode === 'agent') {
-    return body ? `[piwin-mode:agent]\nUser:\n${body}` : '[piwin-mode:agent]';
-  }
   const preamble = AGENT_MODE_SYSTEM_PREAMBLES[mode];
   if (!preamble) {
     return body;

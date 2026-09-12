@@ -27,8 +27,7 @@ html[data-theme-visual-style='ink-wash'] .doc-sidebar,
 html[data-theme-visual-style='ink-wash'] .review-panel,
 html[data-theme-visual-style='ink-wash'] .changes-panel,
 html[data-theme-visual-style='ink-wash'] .git-panel,
-html[data-theme-visual-style='ink-wash'] .plan-panel,
-html[data-theme-visual-style='ink-wash'] .host-log-panel {
+html[data-theme-visual-style='ink-wash'] .plan-panel {
   background: transparent !important;
 }
 

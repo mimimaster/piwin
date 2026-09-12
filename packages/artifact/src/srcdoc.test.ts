@@ -81,6 +81,8 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('syncChildren(root, template.content)');
     expect(srcdoc).toContain('sourceFrozen = true');
     expect(srcdoc).toContain('if (sourceFrozen) return');
+    expect(srcdoc).toContain('pendingSnapshot');
+    expect(srcdoc).toContain('resolveStreamRoot');
     expect(srcdoc).not.toContain("window.removeEventListener('message', onRenderCommand)");
     expect(srcdoc).toContain('scheduleHeight();');
     expect(srcdoc).toContain('activateFinalScripts(root)');
@@ -477,6 +479,38 @@ describe('buildHtmlArtifactSrcdoc', () => {
     const session = runBridgeSession(root, { bodyHeight: 900 });
     expect(session.messages.at(-1)).toMatchObject({ height: 240 });
   });
+
+  it('does not freeze a final snapshot before the stream root exists', () => {
+    const session = runBridgeSession(null, {
+      enableRenderCommand: true,
+      omitBody: true,
+      readyState: 'loading',
+    });
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 0,
+      source: '<div>done</div><script>window.ready=true</script>',
+      frameMode: 'inline-flow',
+      final: true,
+    });
+    expect(session.scriptActivateCount()).toBe(0);
+
+    const root = createMeasuredRoot(240);
+    session.attachStreamRoot(root);
+    session.flushDocumentReady();
+    expect(session.scriptActivateCount()).toBe(1);
+
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 1,
+      source: '<div>ignore</div><script>window.ready=2</script>',
+      frameMode: 'inline-flow',
+      final: true,
+    });
+    expect(session.scriptActivateCount()).toBe(1);
+  });
 });
 
 type MeasuredRoot = {
@@ -509,6 +543,8 @@ function runBridgeSession(
     frameMode?: ArtifactFrameMode;
     nativeHandler?: boolean;
     bodyHeight?: number;
+    omitBody?: boolean;
+    readyState?: string;
   } = {},
 ): {
   messages: SizeMessage[];
@@ -523,6 +559,8 @@ function runBridgeSession(
   flushAnimationFrames: () => void;
   remeasure: () => void;
   dispatchRenderCommand: (data: unknown) => void;
+  attachStreamRoot: (nextRoot: MeasuredRoot) => void;
+  flushDocumentReady: () => void;
 } {
   const messages: SizeMessage[] = [];
   const nativeMessages: SizeMessage[] = [];
@@ -530,6 +568,7 @@ function runBridgeSession(
   const mutationCallbacks = new Set<() => void>();
   const animationCallbacks: Array<() => void> = [];
   const messageListeners: Array<(event: { data: unknown }) => void> = [];
+  const documentListeners = new Map<string, Array<() => void>>();
   const documentElement = {
     attributes: {} as Record<string, string>,
     setAttribute(name: string, value: string): void {
@@ -589,28 +628,32 @@ function runBridgeSession(
     };
   }
   let scriptActivations = 0;
-  const fragmentRoot =
-    root === null
-      ? null
-      : {
-          ...root,
-          get scrollHeight() {
-            return root.scrollHeight;
-          },
-          firstChild: null as unknown,
-          querySelectorAll: (selector: string) =>
-            selector === 'script'
-              ? [{ attributes: [], textContent: '', replaceWith: () => undefined }]
-              : [],
-        };
+  function wrapStreamRoot(nextRoot: MeasuredRoot) {
+    return {
+      ...nextRoot,
+      get scrollHeight() {
+        return nextRoot.scrollHeight;
+      },
+      firstChild: null as unknown,
+      querySelectorAll: (selector: string) =>
+        selector === 'script'
+          ? [{ attributes: [], textContent: '', replaceWith: () => undefined }]
+          : [],
+    };
+  }
+  let fragmentRoot = root === null ? null : wrapStreamRoot(root);
   const bodyNode = createMeasuredRoot(options.bodyHeight ?? (root === null ? 0 : root.height));
   const documentObject = {
-    readyState: 'complete',
+    readyState: options.readyState ?? 'complete',
     documentElement,
-    body: bodyNode,
+    body: options.omitBody === true ? null : bodyNode,
     querySelector: (selector: string) =>
       selector === '.piwin-artifact-root' ? fragmentRoot : null,
-    addEventListener: () => undefined,
+    addEventListener: (type: string, listener: () => void) => {
+      const listeners = documentListeners.get(type) ?? [];
+      listeners.push(listener);
+      documentListeners.set(type, listeners);
+    },
     createElement: (tag: string) => {
       if (tag === 'template') {
         return { innerHTML: '', content: { firstChild: null } };
@@ -689,6 +732,17 @@ function runBridgeSession(
     },
     dispatchRenderCommand: (data: unknown): void => {
       for (const listener of [...messageListeners]) listener({ data });
+      flushAnimationFrames();
+    },
+    attachStreamRoot: (nextRoot: MeasuredRoot): void => {
+      fragmentRoot = wrapStreamRoot(nextRoot);
+      documentObject.body = nextRoot;
+    },
+    flushDocumentReady: (): void => {
+      documentObject.readyState = 'complete';
+      for (const listener of documentListeners.get('DOMContentLoaded') ?? []) {
+        listener();
+      }
       flushAnimationFrames();
     },
   };

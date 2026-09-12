@@ -12,6 +12,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  TextArea,
   TextInput,
 } from '@piwin/ui-kit';
 import type { McpConfigDocument, McpServerConfig, McpToolSummary } from '@piwin/contracts';
@@ -100,6 +101,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
   const [draft, setDraft] = useState<ServerFormDraft>(emptyDraft());
   const [rawJson, setRawJson] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ id?: string; command?: string }>({});
   const [info, setInfo] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [tools, setTools] = useState<McpToolSummary[]>([]);
@@ -114,6 +116,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
   useEffect(() => {
     if (!props.open) return;
     setError(null);
+    setFieldErrors({});
     setInfo(null);
     setTools([]);
     setTestingConnection(false);
@@ -145,22 +148,36 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     setRawJson(`${JSON.stringify(props.document, null, 2)}\n`);
   }, [props.open, props.document, tab]);
 
-  async function handleSaveForm(): Promise<void> {
+  function clearFieldError(field: 'id' | 'command'): void {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  /** Inline, per-field validation so errors sit next to the offending input. */
+  function validateDraft(): boolean {
     const id = draft.id.trim();
+    const next: { id?: string; command?: string } = {};
     if (!id) {
-      setError(isChinese ? '请填写服务器 ID。' : 'Server ID is required.');
-      return;
-    }
-    if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
-      setError(
-        isChinese ? '服务器 ID 必须匹配 [a-zA-Z0-9_-]+。' : 'Server ID must match [a-zA-Z0-9_-]+.',
-      );
-      return;
+      next.id = isChinese ? '请填写服务器 ID。' : 'Server ID is required.';
+    } else if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+      next.id = isChinese
+        ? '只能包含字母、数字、- 和 _。'
+        : 'Only letters, digits, - and _ are allowed.';
     }
     if (!draft.command.trim()) {
-      setError(isChinese ? '请填写命令。' : 'Command is required.');
-      return;
+      next.command = isChinese ? '请填写命令。' : 'Command is required.';
     }
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  }
+
+  async function handleSaveForm(): Promise<void> {
+    if (!validateDraft()) return;
+    const id = draft.id.trim();
     setSaving(true);
     setError(null);
     const ok = await props.onSave(id, draftToServer(draft), props.serverId);
@@ -208,11 +225,8 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
   }
 
   async function handlePreviewTools(): Promise<void> {
+    if (!validateDraft()) return;
     const id = draft.id.trim();
-    if (!id) {
-      setError(isChinese ? '请先填写服务器 ID。' : 'Enter a server ID first.');
-      return;
-    }
     setLoadingTools(true);
     setError(null);
     const result = await props.onPreviewTools(id, draftToServer(draft));
@@ -230,15 +244,8 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
   }
 
   async function handleTestConnection(): Promise<void> {
+    if (!validateDraft()) return;
     const id = draft.id.trim();
-    if (!id) {
-      setError(isChinese ? '请先填写服务器 ID。' : 'Enter a server ID first.');
-      return;
-    }
-    if (!draft.command.trim()) {
-      setError(isChinese ? '请填写命令。' : 'Command is required.');
-      return;
-    }
     setTestingConnection(true);
     setError(null);
     const result = await props.onTestConnection(id, draftToServer(draft));
@@ -299,6 +306,20 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
   const pinnedCountForServer = catalogEntries.filter(
     (entry) => entry.exposure === 'direct' || entry.exposure === 'dormant-pin',
   ).length;
+  // Probing and testing both persist the draft server first, so both need a
+  // complete id + command pair before they can run.
+  const canProbe = draftServerId.length > 0 && draft.command.trim().length > 0;
+  const probeRequirementHint = isChinese
+    ? '先填写服务器 ID 与命令'
+    : 'Fill in the server ID and command first';
+  const pinnedCountLabel =
+    tools.length > 0
+      ? `${pinnedCountForServer}/${tools.length}`
+      : pinnedCountForServer > 0
+        ? isChinese
+          ? `已固定 ${pinnedCountForServer}`
+          : `${pinnedCountForServer} pinned`
+        : null;
 
   return (
     <Modal
@@ -331,27 +352,61 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
           </TabsList>
 
           <TabsContent value="form" className="mcp-tab-content">
-            <div className="mcp-editor-body">
+            {/* Enter in any single-line field saves, matching the rest of the settings dialogs. */}
+            <div
+              className="mcp-editor-body"
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey) return;
+                if ((event.target as HTMLElement).tagName !== 'INPUT') return;
+                event.preventDefault();
+                void handleSaveForm();
+              }}
+            >
               <div className="mcp-form-grid">
-                <Field label={isChinese ? '服务器 ID' : 'Server ID'} required>
+                <Field
+                  label={isChinese ? '服务器 ID' : 'Server ID'}
+                  description={
+                    isChinese
+                      ? '唯一名称，仅限字母、数字、- 和 _'
+                      : 'Unique name: letters, digits, - and _'
+                  }
+                  error={fieldErrors.id ?? null}
+                  required
+                >
                   <TextInput
                     value={draft.id}
-                    onChange={(event) => setDraft({ ...draft, id: event.currentTarget.value })}
+                    onChange={(event) => {
+                      setDraft({ ...draft, id: event.currentTarget.value });
+                      clearFieldError('id');
+                    }}
                     placeholder="memory"
                     data-testid="mcp-editor-id"
                     autoFocus
                   />
                 </Field>
-                <Field label={isChinese ? '命令' : 'Command'} required>
+                <Field
+                  label={isChinese ? '命令' : 'Command'}
+                  description={
+                    isChinese ? '启动程序，如 npx、uvx、node' : 'Launcher, e.g. npx, uvx, node'
+                  }
+                  error={fieldErrors.command ?? null}
+                  required
+                >
                   <TextInput
                     value={draft.command}
-                    onChange={(event) => setDraft({ ...draft, command: event.currentTarget.value })}
+                    onChange={(event) => {
+                      setDraft({ ...draft, command: event.currentTarget.value });
+                      clearFieldError('command');
+                    }}
                     placeholder="npx"
                     data-testid="mcp-editor-command"
                   />
                 </Field>
               </div>
-              <Field label={isChinese ? '参数（以空格分隔）' : 'Args (space-separated)'}>
+              <Field
+                label={isChinese ? '参数' : 'Args'}
+                description={isChinese ? '以空格分隔' : 'Space-separated'}
+              >
                 <TextInput
                   value={draft.argsText}
                   onChange={(event) => setDraft({ ...draft, argsText: event.currentTarget.value })}
@@ -360,84 +415,89 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
                 />
               </Field>
               <Field
-                label={
+                label={isChinese ? '环境变量' : 'Environment'}
+                description={
                   isChinese
-                    ? `环境变量（每行 KEY=VALUE，支持 ${'{ENV}'}）`
-                    : `Env (KEY=VALUE per line, supports ${'{ENV}'})`
+                    ? '每行一条 KEY=VALUE，可用 ${VAR} 引用系统变量'
+                    : 'One KEY=VALUE per line; ${VAR} reads from the environment'
                 }
               >
-                <textarea
-                  className="mcp-raw-editor"
-                  rows={5}
+                <TextArea
+                  rows={3}
                   value={draft.envText}
-                  onChange={(event) => setDraft({ ...draft, envText: event.target.value })}
+                  onChange={(nextValue) => setDraft({ ...draft, envText: nextValue })}
                   placeholder="API_KEY=${API_KEY}"
-                  data-testid="mcp-editor-env"
+                  testId="mcp-editor-env"
+                  nativeProps={{ spellCheck: false }}
                 />
               </Field>
             </div>
 
             <section className="mcp-tools-preview" data-testid="mcp-tools-preview">
               <div className="mcp-tools-preview-header">
-                <h5>
-                  {isChinese ? '工具固定（直调）' : 'Pin tools (direct call)'}
-                  {tools.length > 0
-                    ? ` · ${pinnedCountForServer}/${tools.length}`
-                    : pinnedCountForServer > 0
+                <h5>{isChinese ? '工具固定（直调）' : 'Pin tools (direct call)'}</h5>
+                {pinnedCountLabel ? (
+                  <span className="mcp-tools-count" data-testid="mcp-editor-pin-count">
+                    {pinnedCountLabel}
+                  </span>
+                ) : null}
+                <div className="mcp-tools-preview-actions">
+                  <Button
+                    variant="ghost"
+                    size="compact"
+                    disabled={testingConnection || !canProbe}
+                    title={canProbe ? undefined : probeRequirementHint}
+                    onClick={() => void handleTestConnection()}
+                    data-testid="mcp-editor-test-connection"
+                  >
+                    {testingConnection
                       ? isChinese
-                        ? ` · 已固定 ${pinnedCountForServer}`
-                        : ` · ${pinnedCountForServer} pinned`
-                      : null}
-                </h5>
-                <Button
-                  variant="ghost"
-                  size="compact"
-                  disabled={testingConnection || !draft.id.trim() || !draft.command.trim()}
-                  onClick={() => void handleTestConnection()}
-                  data-testid="mcp-editor-test-connection"
-                >
-                  {testingConnection
-                    ? isChinese
-                      ? '测试中…'
-                      : 'Testing…'
-                    : isChinese
-                      ? '测试连接'
-                      : 'Test connection'}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="compact"
-                  disabled={loadingTools || !draft.id.trim()}
-                  onClick={() => void handlePreviewTools()}
-                  data-testid="mcp-editor-tools"
-                  data-activity-id="mcp.discovery"
-                  data-activity-animation={getBehaviorActivitySpec('mcp.discovery').animation}
-                  data-tool-status={loadingTools ? 'running' : 'done'}
-                >
-                  {loadingTools
-                    ? isChinese
-                      ? '探测中…'
-                      : 'Probing…'
-                    : isChinese
-                      ? '探测工具'
-                      : 'Probe tools'}
-                </Button>
+                        ? '测试中…'
+                        : 'Testing…'
+                      : isChinese
+                        ? '测试连接'
+                        : 'Test connection'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    disabled={loadingTools || !canProbe}
+                    title={canProbe ? undefined : probeRequirementHint}
+                    onClick={() => void handlePreviewTools()}
+                    data-testid="mcp-editor-tools"
+                    data-activity-id="mcp.discovery"
+                    data-activity-animation={getBehaviorActivitySpec('mcp.discovery').animation}
+                    data-tool-status={loadingTools ? 'running' : 'done'}
+                  >
+                    {loadingTools
+                      ? isChinese
+                        ? '探测中…'
+                        : 'Probing…'
+                      : isChinese
+                        ? '探测工具'
+                        : 'Probe tools'}
+                  </Button>
+                </div>
               </div>
               <p className="mcp-tools-preview-hint muted">
                 {isChinese
-                  ? '钉选后以 mcp__server__tool 直接暴露给 Agent。未钉选的工具仍可通过 piwin_toolbox（search → call）调用。'
-                  : 'Pinned tools appear as mcp__server__tool for the agent. Unpinned tools stay reachable via piwin_toolbox (search → call).'}
+                  ? '钉选的工具以 mcp__server__tool 直接暴露给 Agent；其余仍可通过 piwin_toolbox 搜索调用。'
+                  : 'Pinned tools are exposed to the agent as mcp__server__tool; the rest stay reachable through piwin_toolbox.'}
               </p>
               {loadingTools && tools.length === 0 ? (
                 <p className="mcp-tools-empty muted">
-                  {isChinese ? '正在加载工具列表…' : 'Loading tools…'}
+                  {isChinese ? '正在探测工具列表…' : 'Probing tools…'}
                 </p>
               ) : null}
               {!loadingTools && displayTools.length === 0 ? (
                 <p className="mcp-tools-empty muted">
-                  {isChinese
-                    ? '尚未加载工具。保存服务器后点击「探测工具」以列出并固定高频工具。'
-                    : 'No tools loaded yet. Save the server, then click "Probe tools" to list and pin high-frequency tools.'}
+                  {canProbe
+                    ? isChinese
+                      ? '点击「探测工具」列出该服务器的工具并固定高频项（会先保存当前配置）。'
+                      : 'Click "Probe tools" to list this server\u2019s tools and pin the ones you use most (the config is saved first).'
+                    : isChinese
+                      ? '填写服务器 ID 与命令后，即可测试连接或探测工具。'
+                      : 'Fill in the server ID and command to test the connection or probe tools.'}
                 </p>
               ) : null}
               {catalogEntries.length > 0 ? (
@@ -459,14 +519,21 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
           </TabsContent>
 
           <TabsContent value="raw" className="mcp-tab-content">
-            <Field label="mcpServers" required>
-              <textarea
-                className="mcp-raw-editor mcp-raw-document"
+            <Field
+              label="mcpServers"
+              description={
+                isChinese
+                  ? '直接编辑 mcp.json 全文；保存前会自动校验结构。'
+                  : 'Edit the whole mcp.json document; it is validated before saving.'
+              }
+              required
+            >
+              <TextArea
                 rows={16}
                 value={rawJson}
-                onChange={(event) => setRawJson(event.target.value)}
-                spellCheck={false}
-                data-testid="mcp-raw-json"
+                onChange={setRawJson}
+                testId="mcp-raw-json"
+                nativeProps={{ spellCheck: false }}
               />
             </Field>
           </TabsContent>

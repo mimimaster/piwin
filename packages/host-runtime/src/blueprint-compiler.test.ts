@@ -428,7 +428,7 @@ describe('compileBlueprintForWorker', () => {
     expect(hostToolNames).not.toContain('process_start');
   });
 
-  it('excludes image_gen when imagegen skill is disabled', async () => {
+  it('keeps image_gen when leftover disabledIds still lists imagegen', async () => {
     const result = await compileBlueprintForWorker(
       { scope: generalScope },
       {
@@ -436,8 +436,7 @@ describe('compileBlueprintForWorker', () => {
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
       },
     );
-    expect(result.blueprint.tools.enabledFamilies).not.toContain('image-generation');
-    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).not.toContain('image_gen');
+    expect(result.blueprint.tools.enabledFamilies).toContain('image-generation');
   });
 
   it('excludes notes when notes disabled in config', async () => {
@@ -1666,7 +1665,7 @@ describe('conversation fast path (pure chat)', () => {
     ]);
   });
 
-  it('excludes flashcards and image generation when disabled in config', async () => {
+  it('excludes flashcards when disabled in config', async () => {
     const result = await compileBlueprintForWorker(
       { scope: generalScope },
       {
@@ -1681,8 +1680,8 @@ describe('conversation fast path (pure chat)', () => {
     const families = result.blueprint.tools.enabledFamilies;
     expect(families).not.toContain('flashcards-read');
     expect(families).not.toContain('flashcards-write');
-    expect(families).not.toContain('image-generation');
-    expect(result.sessionBlueprint.hostToolboxTargetNames).toEqual(['video_gen']);
+    expect(families).toContain('image-generation');
+    expect(result.sessionBlueprint.hostToolboxTargetNames).toEqual(['image_gen', 'video_gen']);
   });
 
   it('session tool policy excludes flashcards-write for doccard presentation', async () => {

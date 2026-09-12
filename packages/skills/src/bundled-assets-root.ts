@@ -16,3 +16,12 @@ export function resolveBundledAssetsRoot(options: {
   }
   return join(dirname(fileURLToPath(options.moduleUrl)), options.relativeFallback);
 }
+
+export function resolveBundledSkillsRoot(env?: NodeJS.ProcessEnv): string {
+  return resolveBundledAssetsRoot({
+    layoutPath: 'skills',
+    moduleUrl: import.meta.url,
+    relativeFallback: '../../../skills',
+    ...(env ? { env } : {}),
+  });
+}

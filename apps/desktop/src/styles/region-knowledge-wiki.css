@@ -1,116 +1,5 @@
-/* Region: full-window Knowledge Center — Wiki & Search view.
-   Ink-wash overrides live in knowledge-ink-wash.css (one region, split by
-   responsibility per AGENTS.md 3.2).
-
-   Deck rule: the header is a titleband (transparent, hairline below) like
-   region-knowledge-stage.css's topbar. The search box and raw-content /
-   snippet blocks are inputs and raw text respectively, so both recess to
-   void; search-hit-card is the one object on this page and gets a surface. */
-
-.knowledge-wiki-view {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.wiki-view-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-5);
-  padding: var(--s-3) var(--s-6);
-  border-bottom: 1px solid var(--line-1);
-  background: transparent;
-}
-
-.wiki-search-box {
-  flex: 1;
-  max-width: 600px;
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  background: var(--void);
-  box-shadow: inset 0 0 0 1px var(--line-1);
-  border-radius: var(--r-control);
-  padding: 2px var(--s-4) 2px var(--s-5);
-  transition: box-shadow var(--t-1) var(--ease-out);
-}
-
-.wiki-search-box:focus-within {
-  box-shadow: inset 0 0 0 1px var(--iris);
-}
-
-.wiki-search-icon-wrap {
-  color: var(--text-4);
-  display: flex;
-  align-items: center;
-}
-
-.wiki-search-input {
-  flex: 1;
-}
-
-.wiki-search-input input {
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  font-size: var(--fs-chrome) !important;
-  height: var(--h-sm) !important;
-  padding: 0 !important;
-  color: var(--text-1) !important;
-}
-
-.wiki-search-key-badge {
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  padding: 1px var(--s-3);
-  border-radius: var(--r-chip);
-  background: var(--hover);
-  color: var(--text-3);
-  white-space: nowrap;
-}
-
-.wiki-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-}
-
-.wiki-view-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--s-7) var(--s-8);
-}
-
-.wiki-empty-hero {
-  text-align: center;
-  max-width: 440px;
-  margin: var(--s-10) auto;
-  color: var(--text-4);
-}
-
-.wiki-hero-icon-bubble {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--iris-wash);
-  color: var(--iris-lift);
-  border: 0;
-  margin: 0 auto var(--s-5);
-}
-
-.wiki-empty-hero h3 {
-  color: var(--text-1);
-  margin: 0 0 var(--s-3);
-  font-size: var(--fs-title);
-  font-weight: 700;
-}
+/* Region: Knowledge Center — Wiki & Synthesis view.
+   Strict adherence to Inkstone design system (Paper & Ink faces). */
 
 .wiki-markdown-article {
   max-width: 780px;
@@ -245,4 +134,610 @@
   padding: var(--s-4) var(--s-5);
   border-radius: var(--r-control);
   margin: 0;
+}
+
+/* ── Inkstone Overrides for Wiki Workspace ───────────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-article-heading {
+  font-family: var(--serif, 'Noto Serif SC', 'Songti SC', serif);
+  font-weight: 500;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-provenance-box {
+  background: var(--s2);
+  border-color: var(--l1);
+  border-left-color: var(--zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-copilot-pane {
+  background: var(--s2);
+  border-color: var(--l1);
+  box-shadow: var(--sh1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-copilot-title {
+  font-family: var(--serif, 'Noto Serif SC', 'Songti SC', serif);
+  font-weight: 600;
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-copilot-link-chip {
+  background: var(--s3);
+  border-color: var(--l1);
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-copilot-link-chip:hover {
+  border-color: var(--zhu);
+  color: var(--zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-copilot-card-box {
+  background: var(--s3);
+  border-color: var(--l1);
+}
+
+/* ── Knowledge Wiki tab (KnowledgeWikiView.tsx, WikiCopilotPane.tsx) ────
+   Class names from the Inkstone prototype markup — a separate set from
+   `.wiki-workspace-layout` / `.wiki-sidebar-pane` / `.wiki-article-pane`
+   above, which belonged to an earlier iteration this view no longer
+   renders. `.stamp-pill` / `.btn` (region-knowledge-stage.css) are still
+   shared and reused here. */
+.wiki-with-notices {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  width: 100%;
+}
+
+.wiki-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  background: var(--s1, var(--surface-1));
+}
+
+.wiki-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 260px;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  background: var(--s1, var(--surface-1));
+  gap: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden;
+}
+
+.wiki-nav-pane {
+  display: flex;
+  flex-direction: column;
+  background: var(--s0, var(--surface-base)) !important;
+  border: none !important;
+  border-right: 1px solid var(--l1, var(--line-1)) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  position: static;
+}
+
+.wiki-nav-header {
+  padding: 12px 14px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--l1, var(--line-1));
+  background: var(--s0, var(--surface-base));
+  flex-shrink: 0;
+}
+
+.nav-col-title {
+  font: 600 12.5px var(--serif, inherit);
+  color: var(--t1, var(--text-1));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.search-box-wrap {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--l1, var(--line-1));
+  background: var(--s0, var(--surface-base));
+  flex-shrink: 0;
+}
+
+.ink-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px 0 10px;
+  background: var(--s2, var(--surface-1));
+  border: 1px solid var(--l2, var(--line-2));
+  border-radius: 4px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.ink-search:focus-within {
+  border-color: var(--zhu, #b03a24);
+  box-shadow: 0 0 0 2px var(--zhu-wash, rgba(176,58,36,0.1));
+}
+
+.ink-search input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 11.5px;
+  color: var(--t1, var(--text-1));
+  min-width: 0;
+}
+
+.kbd-chip {
+  font: 500 9.5px var(--mono, monospace);
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--s3, var(--surface-2));
+  color: var(--t3, var(--text-3));
+  border: 1px solid var(--l2, var(--line-2));
+}
+
+.tag-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px 8px;
+  border-bottom: 1px solid var(--l1, var(--line-1));
+  flex-shrink: 0;
+}
+
+.tag-pill {
+  font: 11px var(--mono, monospace);
+  color: var(--t3, var(--text-3));
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: var(--s2, var(--surface-1));
+  border: 1px solid var(--l1, var(--line-1));
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tag-pill:hover {
+  color: var(--t1, var(--text-1));
+  border-color: var(--l2, var(--line-2));
+}
+
+.tag-pill.active {
+  background: var(--zhu-wash, rgba(176,58,36,0.1));
+  color: var(--zhu, #b03a24);
+  border-color: rgba(176, 58, 36, 0.3);
+  font-weight: 600;
+}
+
+.concept-scroll-list,
+.wiki-concept-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.list-group-title {
+  font: 600 10.5px var(--mono, monospace);
+  color: var(--t4, var(--text-4));
+  padding: 6px 4px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.concept-row,
+.wiki-concept-card {
+  position: relative;
+  padding: 7px 10px;
+  border-radius: 5px;
+  background: var(--s2, var(--surface-1));
+  border: 1px solid var(--l1, var(--line-1));
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: all 0.15s ease;
+}
+
+.concept-row:hover,
+.wiki-concept-card:hover {
+  background: var(--s1, var(--surface-1));
+  border-color: var(--l2, var(--line-2));
+  transform: translateX(1px);
+}
+
+.concept-row.active,
+.wiki-concept-card.active {
+  background: var(--s2, var(--surface-1)) !important;
+  border-color: var(--zhu, #b03a24) !important;
+  box-shadow: 0 0 0 1px var(--zhu, #b03a24), 0 2px 8px rgba(176,58,36,0.08) !important;
+}
+
+.concept-row.active::before,
+.wiki-concept-card.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--zhu, #b03a24);
+}
+
+.concept-row .row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.concept-row .row-title,
+.wiki-concept-title {
+  font: 500 12.5px var(--sans, inherit);
+  color: var(--t1, var(--text-1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.concept-row.active .row-title,
+.wiki-concept-card.active .wiki-concept-title {
+  font-weight: 600;
+  color: var(--zhu, #b03a24);
+}
+
+.concept-row .row-sub {
+  font: 10.5px var(--mono, monospace);
+  color: var(--t4, var(--text-4));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-source-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--l1, var(--line-1));
+  background: var(--s0, var(--surface-base));
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.provenance-box {
+  background: var(--s1, var(--surface-1));
+  border: 1px solid var(--l2, var(--line-2));
+  border-left: 3px solid var(--zhu, #b03a24);
+  border-radius: var(--r-control, 4px);
+  padding: var(--s-3) var(--s-4);
+  font-size: 12px;
+  color: var(--t3, var(--text-3));
+  line-height: 1.6;
+}
+
+.provenance-box .prov-head,
+.provenance-box .p-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: 600 11.5px var(--mono, monospace);
+  color: var(--t1, var(--text-1));
+  margin-bottom: var(--s-1);
+}
+
+.wiki-copilot-pane {
+  display: flex;
+  flex-direction: column;
+  background: var(--s0, var(--surface-base)) !important;
+  border: none !important;
+  border-left: 1px solid var(--l1, var(--line-1)) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 12px !important;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 12px;
+}
+
+.wiki-copilot-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--s2, var(--surface-1));
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: 7px;
+  padding: 10px 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.copilot-section-title {
+  font: 600 11px var(--mono, monospace);
+  color: var(--t2, var(--text-2));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.copilot-link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.concept-node-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--s1, var(--surface-base));
+  border: 1px solid var(--l1, var(--line-1));
+  font-size: 11.5px;
+  color: var(--t1, var(--text-1));
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.concept-node-btn:hover {
+  background: var(--s2, var(--surface-1));
+  border-color: var(--zhu, #b03a24);
+  transform: translateX(1.5px);
+}
+
+.flashcard-mini-tile {
+  background: var(--s0, var(--surface-base));
+  border: 1px solid var(--l2, var(--line-2));
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.flashcard-mini-kicker {
+  font: 9.5px var(--mono, monospace);
+  color: var(--t4, var(--text-4));
+}
+
+.flashcard-mini-q {
+  font: 600 12px var(--serif, serif);
+  color: var(--t1, var(--text-1));
+}
+
+.flashcard-mini-a {
+  font-size: 11px;
+  color: var(--t3, var(--text-3));
+  line-height: 1.5;
+  background: var(--s1, var(--surface-1));
+  padding: 6px 8px;
+  border-radius: 3px;
+  border: 1px dashed var(--l2, var(--line-1));
+}
+
+.flashcard-mini-tile::after {
+  content: 'FSRS';
+  position: absolute;
+  top: -1px;
+  right: 8px;
+  font: 600 8.5px var(--mono, monospace);
+  background: var(--zhu, #b03a24);
+  color: var(--on-zhu, #fff7f0);
+  padding: 1px 4px;
+  border-radius: 0 0 3px 3px;
+}
+
+.wiki-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0 5px;
+  border-radius: 3px;
+  font: 600 10px var(--mono, monospace);
+  background: var(--s3, var(--surface-2));
+  color: var(--t3, var(--text-3));
+  border: 1px solid var(--l2, var(--line-2));
+  box-sizing: border-box;
+  white-space: nowrap;
+  line-height: 1;
+  width: auto !important;
+  transform: none !important;
+}
+
+.wiki-stamp.pine {
+  background: var(--pine-wash, rgba(46, 109, 81, 0.09));
+  color: var(--pine, #2e6d51);
+  border-color: rgba(46, 109, 81, 0.25);
+}
+
+.wiki-stamp.zhu {
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.08));
+  color: var(--zhu, #b03a24);
+  border-color: rgba(176, 58, 36, 0.25);
+}
+
+.wiki-stamp.ochre {
+  background: var(--ochre-wash, rgba(138, 87, 25, 0.08));
+  color: var(--ochre, #8a5719);
+  border-color: rgba(138, 87, 25, 0.25);
+}
+
+.wiki-stamp.azure {
+  background: var(--azure-wash, rgba(44, 110, 143, 0.09));
+  color: var(--azure, #2c6e8f);
+  border-color: rgba(44, 110, 143, 0.25);
+}
+
+.source-drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 320px;
+  background: var(--s1, var(--surface-2));
+  border-right: 1px solid var(--l2, var(--line-2));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  animation: drawer-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes drawer-slide-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.drawer-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  z-index: 85;
+}
+
+.source-drawer .drawer-header {
+  padding: 12px 14px;
+  background: var(--s1, var(--surface-1));
+  border-bottom: 1px solid var(--l2, var(--line-2));
+}
+
+.source-drawer .drawer-header span {
+  font: 600 12.5px var(--serif, serif);
+  color: var(--t1, var(--text-1));
+}
+
+.source-drawer .drawer-content {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.source-drawer .drawer-content > p {
+  font-size: 11.5px;
+  color: var(--t3, var(--text-3));
+  line-height: 1.5;
+  margin: 0;
+}
+
+.source-drawer .drawer-content > .btn {
+  width: 100%;
+}
+
+.drawer-base-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-base-card {
+  background: var(--s2, var(--surface-2));
+  border: 1px solid var(--l2, var(--line-2));
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drawer-base-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawer-base-card-top > span:first-child {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--t1, var(--text-1));
+}
+
+.drawer-base-card .wiki-stamp {
+  font-size: 9px;
+}
+
+.drawer-base-path {
+  font: 10.5px var(--mono, monospace);
+  color: var(--t4, var(--text-4));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawer-base-meta {
+  font: 10px var(--mono, monospace);
+  color: var(--t3, var(--text-3));
+  margin-top: 2px;
+}
+
+.drawer-base-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.drawer-base-actions .btn {
+  flex: 1;
+}
+
+/* Responsive collapse. Must stay last in this sheet: these rules have the
+   same specificity as the pane definitions above and only win by order —
+   placed earlier, `.wiki-copilot-pane { display: flex }` re-showed the rail
+   on narrow windows and it wrapped under the nav column. */
+@media (max-width: 1150px) {
+  .wiki-layout {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .wiki-copilot-pane {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .wiki-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+html:has(.app-shell[data-layout='compact']) .wiki-layout {
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+
+html:has(.app-shell[data-layout='phone']) .wiki-layout {
+  grid-template-columns: minmax(0, 1fr);
 }

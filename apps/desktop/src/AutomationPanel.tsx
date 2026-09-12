@@ -6,10 +6,11 @@ import type {
   HostResponse,
   PiwinConfig,
 } from '@piwin/contracts';
-import { Button, Collapse, Notice, Spinner, Switch, IconButton } from '@piwin/ui-kit';
+import { Button, Collapse, Spinner, Switch, IconButton } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 import { FieldRow } from './settings/field-row';
+import { useSettings } from './settings/settings-context';
 
 export type AutomationPanelProps = {
   projectPath: string | null;
@@ -33,13 +34,12 @@ export type AutomationPanelProps = {
 
 export function AutomationPanel(props: AutomationPanelProps) {
   const { locale, translator } = useDesktopLocale();
+  const { setError, setInfo } = useSettings();
   const isChinese = locale === 'zh-CN';
   const common = translator.common;
   const [config, setConfig] = useState<PiwinConfig | null>(null);
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [hooks, setHooks] = useState<HookDefinition[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
@@ -82,7 +82,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       return;
     }
     setConfig(next);
-    setInfo(isChinese ? '自动化设置已保存。' : 'Automation settings saved.');
+    setInfo(isChinese ? '自动化设置已保存。' : 'Automation settings saved.', 'success');
   }
 
   async function handleDeleteJob(jobId: string) {
@@ -128,20 +128,17 @@ export function AutomationPanel(props: AutomationPanelProps) {
                 void saveAutomation({ ...config?.automation, enabled: checked } as any)
               }
               aria-label={isChinese ? '启用自动化' : 'Enable Automation'}
+              testId="automation-enabled-switch"
             />
           </FieldRow>
         </div>
 
         <Collapse expanded={enabled} className="settings-collapsible">
-          <div className="settings-section">
-            <PageTitle
-              title={isChinese ? '定时任务 (Cron)' : 'Scheduled Jobs (Cron)'}
-            />
-            <ul className="ext-list">
-              {jobs.length === 0 ? (
-                <li className="muted" style={{ textAlign: 'center', padding: '24px' }}>{isChinese ? '暂无定时任务' : 'No scheduled jobs'}</li>
-              ) : (
-                jobs.map((job) => (
+          {jobs.length > 0 ? (
+            <div className="settings-section" data-testid="automation-cron-section">
+              <PageTitle title={isChinese ? '定时任务 (Cron)' : 'Scheduled Jobs (Cron)'} />
+              <ul className="ext-list">
+                {jobs.map((job) => (
                   <li key={job.id} className="ext-list-item">
                     <div className="ext-list-main">
                       <div className="ext-list-title">
@@ -151,7 +148,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
                       <div className="muted ext-desc">{job.promptText}</div>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <Button size="compact" variant="ghost" onClick={() => void handleRunJob(job.id)}>{isChinese ? '运行' : 'Run'}</Button>
+                      <Button size="compact" variant="ghost" onClick={() => void handleRunJob(job.id)}>
+                        {isChinese ? '运行' : 'Run'}
+                      </Button>
                       <IconButton
                         label={common.delete}
                         onClick={() => void handleDeleteJob(job.id)}
@@ -162,46 +161,44 @@ export function AutomationPanel(props: AutomationPanelProps) {
                       </IconButton>
                     </div>
                   </li>
-                ))
-              )}
-            </ul>
-          </div>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
-          <div className="settings-section">
-            <PageTitle
-              title={isChinese ? '事件钩子 (Hooks)' : 'Event Hooks'}
-              description={
-                isChinese
-                  ? '在特定事件发生时执行本地命令。完整配置与扩展拦截见设置侧栏 Hooks。'
-                  : 'Execute local commands when specific events occur. Full config and extension intercepts live under Settings → Hooks.'
-              }
-            />
-            <ul className="ext-list">
-              {hooks.length === 0 ? (
-                <li className="muted" style={{ textAlign: 'center', padding: '24px' }}>{isChinese ? '暂无钩子' : 'No hooks configured'}</li>
-              ) : (
-                hooks.map((hook, idx) => (
+          {hooks.length > 0 ? (
+            <div className="settings-section" data-testid="automation-hooks-section">
+              <PageTitle
+                title={isChinese ? '事件钩子 (Hooks)' : 'Event Hooks'}
+                description={
+                  isChinese
+                    ? '在特定事件发生时执行本地命令。完整配置与扩展拦截见设置侧栏 Hooks。'
+                    : 'Execute local commands when specific events occur. Full config and extension intercepts live under Settings → Hooks.'
+                }
+              />
+              <ul className="ext-list">
+                {hooks.map((hook, idx) => (
                   <li key={idx} className="ext-list-item">
                     <div className="ext-list-main">
                       <div className="ext-list-title">
                         <strong>{hook.event}</strong>
                       </div>
-                      <div className="muted ext-desc"><code>{hook.action.type === 'shell' ? `${hook.action.command} ${hook.action.args?.join(' ') ?? ''}` : hook.action.url}</code></div>
+                      <div className="muted ext-desc">
+                        <code>
+                          {hook.action.type === 'shell'
+                            ? `${hook.action.command} ${hook.action.args?.join(' ') ?? ''}`
+                            : hook.action.url}
+                        </code>
+                      </div>
                     </div>
                   </li>
-                ))
-              )}
-            </ul>
-          </div>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </Collapse>
 
         {loading && <div style={{ textAlign: 'center', padding: '20px' }}><Spinner /></div>}
-        {(error || info) ? (
-          <div className="ui-feedback-host" aria-live="polite">
-            {error ? <Notice tone="error">{error}</Notice> : null}
-            {info ? <Notice tone="info">{info}</Notice> : null}
-          </div>
-        ) : null}
       </div>
     </div>
   );

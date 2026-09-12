@@ -287,7 +287,7 @@ export function PluginsPanel(props: PluginsPanelProps) {
                 void handleInstall(
                   { kind: 'registry', registryId: installRegistryId.trim() },
                   parseSecrets(installSecrets),
-                  isChinese ? '插件已从 Registry 安装' : 'Plugin installed from registry',
+                  isChinese ? '插件已从商店安装' : 'Plugin installed from registry',
                 );
               }}
               onPickRegistry={(id) => {

@@ -7,6 +7,7 @@
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { ExtensionSummary, HostCommand, HostResponse } from '@piwin/contracts';
+import { resourceSourceLabel } from '@piwin/contracts';
 import { Button, EmptyState, Notice } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../desktop-locale.js';
 import { IconExtension } from '../shell-icons.js';
@@ -78,7 +79,10 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
                   name: live.name,
                   version: live.version || '1.0.0',
                   source: live.source,
-                  author: live.source === 'bundled' ? '内置 (Bundled)' : live.source,
+                  author:
+                    live.source === 'bundled'
+                      ? resourceSourceLabel('bundled', isZh ? 'zh-CN' : 'en')
+                      : live.source,
                   category: 'tools',
                   bundled: live.source === 'bundled',
                   installed: true,
@@ -233,7 +237,7 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
 
   const categories: Array<{ id: MarketCategory; label: string }> = [
     { id: 'all', label: t('All', '全部') },
-    { id: 'bundled', label: t('Bundled', '内置预置') },
+    { id: 'bundled', label: t('bundled', '应用内置') },
     { id: 'workflow', label: t('Workflow', '任务规划') },
     { id: 'tools', label: t('Tools', '工具与钩子') },
     { id: 'guard', label: t('Guards', '安全守卫') },
@@ -428,7 +432,9 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
                         <div className="market-card-title-row">
                           <strong className="market-installed-name">{ext.name}</strong>
                           <span className={`market-source-pill is-${ext.source}`}>
-                            {ext.source}
+                            {ext.source === 'npm' || ext.source === 'git'
+                              ? ext.source
+                              : resourceSourceLabel(ext.source, isZh ? 'zh-CN' : 'en')}
                           </span>
                         </div>
                         <span className="market-card-meta">

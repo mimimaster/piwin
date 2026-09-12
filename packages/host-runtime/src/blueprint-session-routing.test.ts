@@ -563,7 +563,7 @@ describe('conversation fast path (pure chat)', () => {
     ]);
   });
 
-  it('excludes flashcards and image generation when disabled in config', async () => {
+  it('excludes flashcards when disabled in config', async () => {
     const result = await compileBlueprintForWorker(
       { scope: generalScope },
       {
@@ -578,8 +578,8 @@ describe('conversation fast path (pure chat)', () => {
     const families = result.blueprint.tools.enabledFamilies;
     expect(families).not.toContain('flashcards-read');
     expect(families).not.toContain('flashcards-write');
-    expect(families).not.toContain('image-generation');
-    expect(result.sessionBlueprint.hostToolboxTargetNames).toEqual(['video_gen']);
+    expect(families).toContain('image-generation');
+    expect(result.sessionBlueprint.hostToolboxTargetNames).toEqual(['image_gen', 'video_gen']);
   });
 
   it('session tool policy excludes flashcards-write for doccard presentation', async () => {

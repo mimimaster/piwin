@@ -64,13 +64,6 @@
   flex: 0 1 auto;
 }
 
-.conversation-pane-session .tool-call-file-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .conversation-pane-session .action-marquee-container,
 .conversation-pane-session .action-marquee-text,
 .conversation-pane-session .search-file-pill-btn {

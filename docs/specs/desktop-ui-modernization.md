@@ -231,7 +231,7 @@ Implement and verify these desktop ranges:
 
 | Viewport | Expected behavior |
 |---|---|
-| `>= 1280px` | Rail, persistent session sidebar, workspace, optional inspector; all title/context controls readable. |
+| `>= 1024px` | Persistent session sidebar, workspace, optional in-flow inspector; all title/context controls readable. |
 | `1024px-1279px` | Rail, 240px sidebar, workspace; inspector is optional and may be narrower but has readable active tab label. |
 | `800px-1023px` | Rail remains; session navigation and inspector open as one mutually-exclusive overlay; each overlay has a scrim, explicit close control, Escape behavior, and focus restoration. Composer remains reachable. |
 | `<800px` | Not a primary support target; preserve basic reachability using the same overlay rules and establish Tauri minimum window dimensions if testing proves critical controls cannot remain usable. |

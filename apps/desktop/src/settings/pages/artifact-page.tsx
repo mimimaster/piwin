@@ -18,7 +18,7 @@ import {
   type ArtifactTriggerMode,
   type PiwinConfig,
 } from '@piwin/contracts';
-import { Button, SegmentedControl, Switch } from '@piwin/ui-kit';
+import { Button, NumberInput, SegmentedControl, Switch, TextArea } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { settingsSavedWithEffect } from '../../settings-effect-copy.js';
 import { FieldRow } from '../field-row';
@@ -165,38 +165,40 @@ export function ArtifactPage(): ReactElement {
                   <SegmentedControl
                     value={promptMode}
                     onChange={(value) => {
-                      setPromptMode(value as ArtifactPromptMode);
+                      const next = value as ArtifactPromptMode;
+                      setPromptMode(next);
+                      if (next === 'custom') {
+                        setCustomPrompt((current) =>
+                          current.trim() === '' ? DEFAULT_ARTIFACT_DECISION_PROMPT : current,
+                        );
+                      }
                       setEditing(true);
                     }}
                     data={[
                       { value: 'default', label: isZh ? '默认策略' : 'Default' },
                       { value: 'custom', label: isZh ? '自定义' : 'Custom' },
                     ]}
+                    testId="artifact-prompt-mode-control"
                   />
                 </FieldRow>
 
                 {promptMode === 'custom' ? (
                   <div className="ui-field" data-testid="artifact-custom-prompt-field">
-                    <label className="ui-field-label">
-                      {isZh ? '自定义决策提示词' : 'Custom decision prompt'}
-                    </label>
-                    <textarea
-                      className="mcp-raw-editor"
+                    <TextArea
+                      label={isZh ? '自定义决策提示词' : 'Custom decision prompt'}
+                      description={
+                        isZh
+                          ? '替换默认的 Artifact 触发与 surface 路由规则。留空时回退到默认策略。运行时契约（主题变量、布局约束）始终注入，不受此设置影响。'
+                          : 'Replaces the default artifact trigger and surface routing rules. Empty falls back to default. The runtime contract (theme variables, layout constraints) is always injected regardless.'
+                      }
                       rows={14}
                       value={customPrompt}
-                      onChange={(event) => {
-                        setCustomPrompt(event.currentTarget.value);
+                      onChange={(nextValue) => {
+                        setCustomPrompt(nextValue);
                         setEditing(true);
                       }}
-                      onFocus={() => setEditing(true)}
-                      style={{ resize: 'vertical' }}
-                      data-testid="artifact-custom-prompt-textarea"
+                      testId="artifact-custom-prompt-textarea"
                     />
-                    <p className="ui-field-description muted">
-                      {isZh
-                        ? '替换默认的 Artifact 触发与 surface 路由规则。留空时回退到默认策略。运行时契约（主题变量、布局约束）始终注入，不受此设置影响。'
-                        : 'Replaces the default artifact trigger and surface routing rules. Empty falls back to default. The runtime contract (theme variables, layout constraints) is always injected regardless.'}
-                    </p>
                   </div>
                 ) : null}
 
@@ -321,20 +323,19 @@ export function ArtifactPage(): ReactElement {
                   }
                   testId="artifact-max-bytes-row"
                 >
-                  <input
-                    type="number"
+                  <NumberInput
+                    testId="artifact-max-bytes-input"
+                    aria-label={isZh ? '最大 Artifact 大小' : 'Max artifact size'}
+                    w={140}
                     min={1024}
                     step={1024}
                     value={maxBytes}
-                    onChange={(event) => {
-                      const value = Number(event.currentTarget.value);
-                      if (value > 0) {
+                    onChange={(value) => {
+                      if (typeof value === 'number' && value > 0) {
                         setMaxBytes(value);
                         setEditing(true);
                       }
                     }}
-                    style={{ width: '120px' }}
-                    data-testid="artifact-max-bytes-input"
                   />
                 </FieldRow>
               </div>

@@ -214,8 +214,8 @@ with source attribution (`sourceFolder`, `sourceFile`, `sourceLine`,
    `flashcard/open-source` → `doccards/open-source` IPC, which validates
    confinement and resolves the absolute path.
 
-7. **`generate-flashcards` bundled skill** — installed once via
-   `ensureBundledSkillsInstalled` (same mechanism as other bundled skills).
+7. **`generate-flashcards` bundled skill** — lives in repo `skills/generate-flashcards`
+   and is loaded from the product tree (same as other bundled skills).
    The skill body documents the folder/notes/open flows and is
    snapshot-tested against `FLASHCARD_QUALITY_RULES` to stay in sync.
 

@@ -1,10 +1,10 @@
 /* General Chat shares the prototype's document measure and square paper
    cards. Keep these refinements separate from Agent tool/permission anatomy. */
-.inkstone-message-identity {
-  display: none !important;
-}
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .inkstone-message-identity {
+/* Duplicate of the turn-level ChatTurnHead already mounted on `.chat-turn`.
+   The rail/head pair owns 「你」 / model name; this copy stays out of flow
+   on every theme so Conversation does not stack two bylines. */
+.inkstone-message-identity {
   display: none !important;
 }
 

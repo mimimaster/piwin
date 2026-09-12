@@ -28,11 +28,19 @@
   --code-font-size: 12px;
   --code-wrap: unset;
 
-  /* Dead space the macOS Overlay traffic lights occupy, measured from the
-     *window* edge (see trafficLightPosition in tauri.conf.json). Any row that
-     shares the window's top line must start after this; panels floating in the
-     deck subtract their own --deck-inset. */
-  --traffic-light-clearance: 78px;
+  /* macOS Overlay traffic-light hole, measured from the *window* edge
+     (see trafficLightPosition in tauri.conf.json). Default is 0; only
+     html[data-window-chrome='macos-overlay'] pays this. Titlebands inside
+     the deck use --titleband-leading; flush-to-window bars use
+     --titleband-flush-leading. Both floor at --s-3 so Web/Windows never
+     go negative when clearance is 0. */
+  --traffic-light-clearance: 0px;
+  --titleband-leading: max(var(--s-3), calc(var(--traffic-light-clearance) - var(--deck-inset)));
+  --titleband-flush-leading: max(var(--s-3), var(--traffic-light-clearance));
+  --app-safe-top: env(safe-area-inset-top, 0px);
+  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --app-vv-height: 100dvh;
+  --app-keyboard-inset: 0px;
 
   /* ── Band heights ─────────────────────────────────────────────── */
   --topbar-height: 40px;
@@ -174,25 +182,21 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html[data-window-chrome='macos-overlay'] {
+  --traffic-light-clearance: 78px;
+}
+
 * {
   box-sizing: border-box;
 }
 
 /* ── Shared motion primitives ───────────────────────────────────────
    `breath` is referenced by every "the agent is alive" indicator. They
-   share one name and duration so the whole shell pulses in phase. */
-
-@keyframes breath {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.45;
-    transform: scale(0.82);
-  }
-}
+   share one name and `--breath` duration so the whole shell pulses in phase.
+   The keyframes themselves live in styles/inkstone/motion.css, which owns
+   every shared keyframe and is imported last — a second definition here only
+   ever lost the cascade, and silently redefined the pulse for the whole
+   shell while looking authoritative. Duration stays here; motion stays there. */
 
 /* Ambient warmth behind the composer while a run is active. Peripheral by
    design: never legible as a shape, only as heat. */

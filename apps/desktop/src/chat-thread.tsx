@@ -43,6 +43,7 @@ import {
   resolveTurnMarginalia,
 } from './chat-turn-marginalia.js';
 import { findPlanDisplayForMessage } from './plan-execution-gate.js';
+import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -111,13 +112,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   // bubble until the Host has actually started the turn.
   const transcriptMessages = useMemo(
     () =>
-      props.messages.filter((message) => {
-        const delivery = message.instructionDelivery;
-        return !(
-          delivery?.kind === 'queued-turn' &&
-          (delivery.status === 'pending' || delivery.status === 'starting')
-        );
-      }),
+      props.messages.filter((message) => !isQueuedTurnHiddenFromTranscript(message)),
     [props.messages],
   );
   const effectiveMessages = useMemo(() => {

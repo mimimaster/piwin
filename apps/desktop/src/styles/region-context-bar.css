@@ -15,10 +15,9 @@
   width: 100%;
   min-height: var(--titleband-height);
   height: var(--titleband-height);
-  /* Left padding is the traffic-light clearance in every layout, because this
-     row always starts at the window's leading edge. The grid already inset the
-     row by one deck inset, so it only owes the remainder. */
-  padding: 0 var(--s-3) 0 calc(var(--traffic-light-clearance) - var(--deck-inset));
+  /* Deck-inset titleband: --titleband-leading is 0-floored so Web/Windows
+     do not pull left when Overlay clearance is 0. */
+  padding: 0 var(--s-3) 0 var(--titleband-leading);
   box-sizing: border-box;
   margin: 0;
   background: transparent;
@@ -52,10 +51,7 @@
    title starts at the seam instead of straddling it. Collapsed, there is no
    seam and the title simply follows the arrows. */
 .app-shell.nav-open > .context-bar > .context-bar-leading {
-  min-width: calc(
-    var(--deck-inset) + var(--sidebar-width) + var(--deck-gap) -
-      var(--traffic-light-clearance)
-  );
+  min-width: calc(var(--sidebar-width) + var(--deck-gap) - var(--titleband-leading));
 }
 
 /* Chrome icon buttons: recessive at rest, a real surface on hover. A hover

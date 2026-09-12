@@ -154,12 +154,20 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
   .markdown .md-blockquote {
     background: transparent;
-    border-left: 1.5px solid var(--l3);
+    border-left: 2px solid var(--l3);
     border-radius: 0;
-    padding: 2px 0 2px 12px;
+    padding: 3px 0 3px 12px;
     color: var(--t2);
     font-size: 13.5px;
     font-style: normal;
+  }
+  .markdown .md-blockquote:has(strong) {
+    border-left: 2.5px solid var(--zhu);
+  }
+  /* Diff and review annotations in markdown code */
+  .markdown .md-code-line:has(> .md-tok-c:first-child:is([data-del='true'])) {
+    background: var(--diff-del-bg);
+    color: var(--diff-del-t);
   }
   .markdown .md-mermaid {
     background: var(--s3);

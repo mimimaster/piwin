@@ -108,7 +108,7 @@ describe('ExploreFlowCapsule', () => {
     ).toContain('inspect the reducer first');
   });
 
-  it('stays expanded while live and auto-collapses when the flow settles', () => {
+  it('stays collapsed while live and only auto-opens when a grouped tool fails', () => {
     const liveGroup: ExploreFlowGroup = {
       ...doneGroup(),
       items: [
@@ -122,9 +122,10 @@ describe('ExploreFlowCapsule', () => {
     act(() => render(liveGroup));
 
     const capsule = container.querySelector('[data-testid="explore-flow-capsule"]');
-    expect(capsule?.getAttribute('data-expanded')).toBe('true');
+    expect(capsule?.getAttribute('data-expanded')).toBe('false');
     expect(capsule?.getAttribute('data-live')).toBe('true');
     expect(container.textContent).toContain('正在探索代码库');
+    expect(container.querySelector('[data-testid="explore-flow-body"]')).toBeNull();
 
     act(() => render(doneGroup()));
     expect(
@@ -133,6 +134,18 @@ describe('ExploreFlowCapsule', () => {
         ?.getAttribute('data-expanded'),
     ).toBe('false');
     expect(container.textContent).toContain('探索了 2 个文件');
+
+    act(() =>
+      render({
+        ...doneGroup(),
+        errorCount: 1,
+      }),
+    );
+    expect(
+      container
+        .querySelector('[data-testid="explore-flow-capsule"]')
+        ?.getAttribute('data-expanded'),
+    ).toBe('true');
   });
 
   it('keeps already-emitted tool cards mounted when a live group grows', () => {
@@ -150,6 +163,11 @@ describe('ExploreFlowCapsule', () => {
       isLive: true,
     };
     act(() => render(liveTwo));
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="explore-flow-header"]')
+        ?.click();
+    });
     const firstCard = container.querySelector('[data-testid="tool-call-card"]');
     expect(firstCard).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);

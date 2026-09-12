@@ -65,6 +65,15 @@ References:
 10. A one-pane layout is visually identical to the pre-feature Conversation
     stage. Pane borders, headers, numbering, and controls appear only after the
     first split.
+11. Phone Web (`data-layout="phone"`, width <= 767) keeps the device-local split
+    tree and session identities, but presents only the active pane. Split and
+    maximize stay available after returning to compact/desktop; they are not a
+    second Host session authority.
+12. Desktop inspector is an in-flow column at width >= 1024 (sidebar +
+    stage-min + inspector + deck chrome). Below that it is the same overlay
+    drawer as compact/phone, so the stage is not crushed.
+13. The Web shell (Safari / iPad) never enters compact. Width > 767 is the
+    normal desktop page; compact remains a Tauri-only narrow-window drawer.
 
 ## Consequences
 
@@ -79,6 +88,8 @@ References:
   history controls can be added without changing the split-tree contract.
 - The protocol subscription ceiling is a compatibility-safe additive capacity
   change under protocol v1; older clients still send smaller lists.
+- Phone Web is a presentation filter over the same pane tree: hidden leaves
+  remain bound and subscribed; returning to a wider layout restores the split.
 
 ## Rejected alternatives
 

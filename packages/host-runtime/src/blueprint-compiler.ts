@@ -670,8 +670,6 @@ function compileConversationToolPolicy(
   });
   const webSearchReady = shouldExposeExternalWebSearch(searchRoute);
   const webFetchReady = resolvedWebConfig !== undefined;
-  const imagegenDisabled = config.skills?.disabledIds?.includes('imagegen') ?? false;
-  const videogenDisabled = config.skills?.disabledIds?.includes('videogen') ?? false;
   const flashcardsEnabled = config.flashcards?.enabled !== false;
   const flashcardsAccess =
     input.presentation?.kind === 'doccard-sequence'
@@ -684,8 +682,8 @@ function compileConversationToolPolicy(
     webSearch: webSearchReady,
     webFetch: webFetchReady,
     mcp: false,
-    imageGeneration: !imagegenDisabled,
-    videoGeneration: !videogenDisabled,
+    imageGeneration: true,
+    videoGeneration: true,
     process: 'off',
     browser: 'off',
     subagents: 'off',
@@ -708,8 +706,8 @@ function compileConversationToolPolicy(
     delegate: false,
     notesEnabled: familyHasKnowledgeTools(options.hostToolFamilyIndex),
     flashcardsEnabled: flashcardsEnabled && flashcardsAccess !== 'off',
-    imageGenerationEnabled: !imagegenDisabled,
-    videoGenerationEnabled: !videogenDisabled,
+    imageGenerationEnabled: true,
+    videoGenerationEnabled: true,
     extensionInstall: config.extensions?.agentInstall !== false,
     ...(options.hostToolFamilyIndex
       ? { availableFamilies: new Set(options.hostToolFamilyIndex.keys()) }
@@ -890,14 +888,12 @@ function compileToolPolicy(
   // Native-selected generations must not advertise the competing tool family.
   const webSearchReady = shouldExposeExternalWebSearch(searchRoute);
   const webFetchReady = resolvedWebConfig !== undefined;
-  const imagegenDisabled = config.skills?.disabledIds?.includes('imagegen') ?? false;
-  const videogenDisabled = config.skills?.disabledIds?.includes('videogen') ?? false;
 
   const resolvedToolPolicy = resolveToolPolicyDetails({
     webSearch: webSearchReady,
     webFetch: resolvedWebConfig !== undefined,
     mcp: true,
-    imageGeneration: !imagegenDisabled,
+    imageGeneration: true,
     process: 'agent',
     browser: 'agent',
     subagents: 'agent',
@@ -939,9 +935,9 @@ function compileToolPolicy(
       capabilityCeiling === undefined &&
       (config.notes?.enabled !== false || familyHasKnowledgeTools(hostToolFamilyIndex)),
     flashcardsEnabled: capabilityCeiling === undefined && config.flashcards?.enabled !== false,
-    imageGenerationEnabled: capabilityCeiling === undefined && !imagegenDisabled,
-    videoGeneration: !videogenDisabled,
-    videoGenerationEnabled: capabilityCeiling === undefined && !videogenDisabled,
+    imageGenerationEnabled: capabilityCeiling === undefined,
+    videoGeneration: true,
+    videoGenerationEnabled: capabilityCeiling === undefined,
     extensionInstall: capabilityCeiling === undefined && config.extensions?.agentInstall !== false,
   });
 

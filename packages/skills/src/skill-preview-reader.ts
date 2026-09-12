@@ -329,9 +329,7 @@ function originFromSource(source: SkillSource): SkillResourceOrigin {
     case 'bundled':
       return 'bundled-installed';
     case 'user':
-      // ~/.piwin/skills is the user location; bundled copies are installed here
-      // without durable origin metadata → unknown is more honest than bundled.
-      return 'unknown';
+      return 'user-installed';
     case 'project':
       return 'project';
     case 'mapped':

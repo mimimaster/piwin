@@ -162,6 +162,33 @@ describe('SettingsShell', () => {
   );
 
   it(
+    'opens orchestration as its own nav section, not an agent hub tab',
+    async () => {
+      await act(async () => {
+        root.render(<ShellHarness initialSection="subagents" />);
+        await ensureSettingsLazyLoaded();
+      });
+      expect(container.querySelector('[data-testid="settings-nav-subagents"]')).not.toBeNull();
+      expect(container.querySelector('.settings-main-heading h1')?.textContent).toBe('子代理编排');
+      expect(container.querySelector('[data-testid="settings-subagents-loading"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="settings-agent-hub"]')).toBeNull();
+      expect(container.querySelector('[data-testid="agent-tab-subagents"]')).toBeNull();
+
+      const agentNav = container.querySelector<HTMLButtonElement>(
+        '[data-testid="settings-nav-agent"]',
+      );
+      expect(agentNav).not.toBeNull();
+      act(() => {
+        agentNav?.click();
+      });
+      expect(container.querySelector('[data-testid="settings-agent-hub"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="agent-tab-subagents"]')).toBeNull();
+      expect(container.querySelector('[data-testid="settings-subagents-loading"]')).toBeNull();
+    },
+    SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
+  );
+
+  it(
     'uses the page content heading without rendering a duplicate shell title',
     async () => {
       await act(async () => {
@@ -186,6 +213,29 @@ describe('SettingsShell', () => {
     },
     SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
   );
+
+  it('mounts the shared settings feedback bubble over the dialog, not in page flow', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SettingsShell
+            activeSection="general"
+            onSelectSection={vi.fn()}
+            contextValue={createContextValue(vi.fn())}
+            feedback={{ error: null, info: '自动化设置已保存。', tone: 'success' }}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const host = container.querySelector('[data-testid="settings-feedback-toast"]');
+    expect(host).not.toBeNull();
+    expect(host?.className).toContain('settings-feedback-host');
+    expect(container.querySelector('.settings-modal-dialog')?.contains(host)).toBe(true);
+    expect(container.querySelector('[data-testid="settings-feedback-info"]')?.textContent).toBe(
+      '自动化设置已保存。',
+    );
+  });
 
   it('returns to the workspace from the sidebar back action', () => {
     const onClose = vi.fn();

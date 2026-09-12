@@ -17,6 +17,8 @@ import { Surface } from './surface.js';
 import { StatusBadge } from './status-badge.js';
 import { Notice } from './notice.js';
 import { Spinner } from './spinner.js';
+import { TextArea } from './textarea.js';
+import { NumberInput } from './number-input.js';
 import { TEST_THEME_DARK } from './test-theme-fixtures.js';
 
 /** Mantine-backed primitives need the provider even for static markup. */
@@ -132,5 +134,33 @@ describe('primitive class contract', () => {
   it('Spinner exposes ui-spinner', () => {
     const markup = renderToStaticMarkup(createElement(Spinner, {}));
     expect(markup).toContain('ui-spinner');
+  });
+
+  it('NumberInput exposes piwin-number-input and shared text-input chrome classes', () => {
+    const markup = renderWithProvider(
+      createElement(NumberInput, {
+        value: 1024,
+        onChange: () => undefined,
+      }),
+    );
+    expect(markup).toContain('piwin-number-input');
+    expect(markup).toContain('piwin-text-input');
+    expect(markup).toContain('piwin-number-input-field');
+    expect(markup).toContain('piwin-text-input-field');
+  });
+
+  it('TextArea exposes piwin-text-area structure classes', () => {
+    const markup = renderWithProvider(
+      createElement(TextArea, {
+        label: 'Notes',
+        description: 'Hint',
+        value: 'body',
+        onChange: () => undefined,
+      }),
+    );
+    expect(markup).toContain('piwin-text-area');
+    expect(markup).toContain('piwin-text-area-label');
+    expect(markup).toContain('piwin-text-area-field');
+    expect(markup).toContain('piwin-text-area-description');
   });
 });

@@ -7,6 +7,7 @@ import {
   KNOWLEDGE_SEARCH_DEFAULT_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
   NOTES_KNOWLEDGE_BASE_ID,
+  WIKI_KNOWLEDGE_BASE_ID,
   type ContextPackSource,
   type KnowledgeBaseSummary,
   type KnowledgeCitation,
@@ -20,7 +21,7 @@ import {
 } from './knowledge-base-state.js';
 import type { KnowledgeBaseRuntime } from './knowledge-base-service.js';
 import { listKnowledgeBaseSummaries } from './knowledge-base-service.js';
-import { getPiwinRoot } from './paths.js';
+import { getPiwinRoot, getPiwinWikiDir } from './paths.js';
 
 export const KNOWLEDGE_SEARCH_MAX_TOTAL_CHARS = DEFAULT_MAX_TOTAL_CHARS;
 
@@ -79,6 +80,24 @@ export function mapContextPackSourceToNotesCitation(
     kind: 'notes',
     title: typeof titleFromMeta === 'string' && titleFromMeta.length > 0 ? titleFromMeta : source.relativePath,
     noteId: noteIdFromRelativePath(source.relativePath),
+    relativePath: source.relativePath,
+    text: source.text,
+  };
+  copySharedSourceFields(citation, source, score);
+  return citation;
+}
+
+export function mapContextPackSourceToWikiCitation(
+  source: ContextPackSource,
+  base: Pick<KnowledgeBaseSummary, 'id' | 'name'>,
+): UnnumberedKnowledgeCitation {
+  const score = source.rerankScore ?? source.retrievalScore;
+  const titleFromMeta = source.metadata?.title;
+  const citation: UnnumberedKnowledgeCitation = {
+    baseId: base.id,
+    baseName: base.name,
+    kind: 'wiki',
+    title: typeof titleFromMeta === 'string' && titleFromMeta.length > 0 ? titleFromMeta : source.relativePath,
     relativePath: source.relativePath,
     text: source.text,
   };
@@ -214,11 +233,27 @@ export async function searchKnowledgeBases(
     }
   }
 
+  if (requested.includes(WIKI_KNOWLEDGE_BASE_ID)) {
+    const wiki = byId.get(WIKI_KNOWLEDGE_BASE_ID);
+    const wikiPath =
+      wiki?.folderPath ?? getPiwinWikiDir(getPiwinRoot(runtime.piwinRoot));
+    if (wiki?.state !== 'missing') {
+      try {
+        await rag.indexFolder(wikiPath);
+      } catch (error) {
+        console.warn(
+          `wiki drift reindex failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
   for (const baseId of requested) {
     const base = byId.get(baseId);
     const skip = skipReasonForBase(base);
     const notesNotIndexed = base?.kind === 'notes' && skip === 'not-indexed';
-    if (skip && !notesNotIndexed) {
+    const wikiNotIndexed = base?.kind === 'wiki' && skip === 'not-indexed';
+    if (skip && !notesNotIndexed && !wikiNotIndexed) {
       skipped.push(skipEntry(baseId, skip));
       continue;
     }
@@ -283,7 +318,11 @@ async function searchFolderBase(
     ...(fileAllowlist ? { fileAllowlist } : {}),
   });
   const mapper =
-    base.kind === 'notes' ? mapContextPackSourceToNotesCitation : mapContextPackSourceToCitation;
+    base.kind === 'notes'
+      ? mapContextPackSourceToNotesCitation
+      : base.kind === 'wiki'
+        ? mapContextPackSourceToWikiCitation
+        : mapContextPackSourceToCitation;
   return {
     citations: pack.sources.map((source) => mapper(source, base)),
     degraded: pack.degraded || !rag.hasEmbeddingProvider,

@@ -1,0 +1,982 @@
+/* Region: Modern Source Materials Hub (信源与原始素材驾驶舱) */
+
+.kb-hub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
+  padding-bottom: var(--s-10);
+}
+
+/* 1. Header */
+.kb-hub-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.kb-hub-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 280px;
+  flex: 1 1 auto;
+}
+
+.kb-hub-headline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.kb-hub-headline h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.02em;
+}
+
+.kb-hub-pill {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--r-chip);
+  background: color-mix(in srgb, var(--emerald) 15%, transparent);
+  color: var(--emerald-lift, #34d399);
+  border: 1px solid color-mix(in srgb, var(--emerald) 30%, transparent);
+}
+
+.kb-hub-subtitle {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: var(--lh-normal);
+  max-width: 680px;
+}
+
+.kb-hub-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/* 2. Metric Pulse Bar */
+.kb-metric-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-4);
+}
+
+.kb-metric-card {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-card);
+  box-shadow: var(--elev-1);
+}
+
+.kb-metric-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-control);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kb-metric-icon.is-blue {
+  background: color-mix(in srgb, var(--iris) 15%, transparent);
+  color: var(--iris-lift, #818cf8);
+}
+
+.kb-metric-icon.is-emerald {
+  background: color-mix(in srgb, var(--emerald) 15%, transparent);
+  color: var(--emerald-lift, #34d399);
+}
+
+.kb-metric-icon.is-purple {
+  background: color-mix(in srgb, #a855f7 15%, transparent);
+  color: #c084fc;
+}
+
+.kb-metric-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kb-metric-label {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  font-weight: 500;
+}
+
+.kb-metric-value {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.kb-metric-value small {
+  font-size: var(--fs-micro);
+  font-weight: 400;
+  color: var(--text-4);
+}
+
+/* 3. Global Retrieval Bar */
+.kb-hub-search-wrap {
+  padding: var(--s-5) var(--s-6);
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-card);
+  box-shadow: var(--elev-1);
+}
+
+/* 4. Matrix Section */
+.kb-hub-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.kb-hub-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.kb-hub-section-head h3 {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.kb-hub-section-head span {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+/* Grid layout */
+.kb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--s-5);
+}
+
+/* Source Card */
+.kb-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  box-shadow: var(--elev-1);
+  transition: transform var(--t-1) var(--ease-out),
+              box-shadow var(--t-1) var(--ease-out),
+              border-color var(--t-1) var(--ease-out);
+  cursor: pointer;
+  text-align: left;
+}
+
+.kb-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-2);
+  border-color: color-mix(in srgb, var(--iris) 40%, transparent);
+}
+
+.kb-card.is-selected {
+  border-color: var(--iris);
+  box-shadow: var(--elev-2), 0 0 0 1px var(--iris);
+}
+
+.kb-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.kb-card-title-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.kb-card-icon-bubble {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-control);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kb-card-icon-bubble.is-amber {
+  background: color-mix(in srgb, var(--amber) 15%, transparent);
+  color: var(--amber-lift, #fbbf24);
+}
+
+.kb-card-icon-bubble.is-blue {
+  background: color-mix(in srgb, var(--iris) 15%, transparent);
+  color: var(--iris-lift, #818cf8);
+}
+
+.kb-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.kb-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.kb-card-name {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  font-weight: 700;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-card-path {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-card-rename-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.kb-card-menu {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.kb-card-notice-row {
+  margin-top: 2px;
+}
+
+.kb-card-action-banner {
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-3);
+  border-radius: var(--r-control);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.kb-card-unindexed-tip {
+  margin: 0;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  line-height: var(--lh-normal);
+}
+
+.kb-card-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+}
+
+.kb-card-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kb-card-stat-label {
+  font-size: 10px;
+  color: var(--text-4);
+}
+
+.kb-card-stat-val {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.kb-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-1);
+}
+
+.kb-card-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* Dotted Add Card */
+.kb-card-add-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--s-3);
+  min-height: 200px;
+  padding: var(--s-6);
+  border-radius: var(--r-card);
+  border: 2px dashed var(--line-2, #3b4256);
+  background: var(--surface-1);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.kb-card-add-slot:hover {
+  border-color: var(--iris);
+  background: color-mix(in srgb, var(--iris) 5%, var(--surface-1));
+  transform: translateY(-2px);
+}
+
+.kb-card-add-bubble {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-3);
+  color: var(--text-3);
+  border: 1px solid var(--line-1);
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.kb-card-add-slot:hover .kb-card-add-bubble {
+  background: var(--iris-wash);
+  color: var(--iris-lift, #818cf8);
+  border-color: var(--iris);
+}
+
+.kb-card-add-title {
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.kb-card-add-desc {
+  margin: 0;
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  line-height: var(--lh-relaxed);
+  max-width: 260px;
+}
+
+/* ── Inkstone (砚石 · 宣纸与砚墨) Theme Refinements ─────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-hub-headline h2 {
+  font-family: var(--serif, 'Noto Serif SC', 'Songti SC', serif);
+  font-weight: 500;
+  font-size: 22px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-hub-pill {
+  background: var(--pine-wash);
+  color: var(--pine);
+  border: 1px solid color-mix(in srgb, var(--pine) 30%, transparent);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-metric-card {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  border: 1px solid var(--l1);
+  border-radius: 8px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-metric-card:hover {
+  box-shadow: var(--sh2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-metric-icon.is-blue {
+  background: var(--azure-wash);
+  color: var(--azure);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-metric-icon.is-emerald {
+  background: var(--pine-wash);
+  color: var(--pine);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-metric-icon.is-purple {
+  background: var(--lamp-wash);
+  color: var(--lamp);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-metric-value {
+  font-family: var(--serif, 'Noto Serif SC', 'Songti SC', serif);
+  font-weight: 600;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-hub-search-wrap {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  border: 1px solid var(--l1);
+  border-radius: 8px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-hub-section-head h3 {
+  font-family: var(--serif, 'Noto Serif SC', 'Songti SC', serif);
+  font-weight: 500;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  border: 1px solid var(--l1);
+  border-radius: 8px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card:hover {
+  box-shadow: var(--sh2);
+  border-color: var(--l2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card.is-selected {
+  box-shadow: var(--sh2);
+  border-color: var(--zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card-icon-bubble.is-amber {
+  background: var(--lamp-wash);
+  color: var(--lamp);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card-icon-bubble.is-blue {
+  background: var(--azure-wash);
+  color: var(--azure);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card-stats-grid {
+  background: var(--s2);
+  border: 1px solid var(--l1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card-add-slot {
+  background: var(--s1);
+  border: 1.5px dashed var(--l3);
+  border-radius: 8px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card-add-slot:hover {
+  border-color: var(--zhu);
+  background: var(--s3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card-add-bubble {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  color: var(--t3);
+  border: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card-add-slot:hover .kb-card-add-bubble {
+  color: var(--zhu);
+  box-shadow: var(--sh2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card-add-title {
+  font-family: var(--serif, 'Noto Serif SC', 'Songti SC', serif);
+  font-weight: 500;
+  color: var(--t2);
+}
+
+/* ── 5. Responsive Two-Column Source Materials Workbench ───────────── */
+.kb-source-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  gap: var(--s-6);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .kb-source-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-5);
+  }
+}
+
+.kb-source-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  position: sticky;
+  top: var(--s-4);
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+}
+
+@media (max-width: 860px) {
+  .kb-source-sidebar {
+    position: static;
+    max-height: none;
+  }
+}
+
+.kb-sidebar-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.kb-source-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.kb-source-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.kb-source-group-title {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 var(--s-2);
+}
+
+.kb-sidebar-add-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-control);
+  border: 1.5px dashed var(--line-2);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+  background: var(--surface-1);
+}
+
+.kb-sidebar-add-slot:hover {
+  border-color: var(--iris);
+  background: var(--surface-2);
+}
+
+.kb-source-workbench {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+.kb-wb-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.kb-wb-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.kb-wb-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.kb-wb-path {
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  color: var(--text-4);
+  margin-top: var(--s-1);
+  word-break: break-all;
+}
+
+.kb-wb-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.kb-wb-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--s-3);
+}
+
+.kb-wb-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-control);
+}
+
+.kb-wb-stat .num {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+}
+
+.kb-wb-stat .lbl {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.kb-wb-search-wrap {
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-card);
+  padding: var(--s-4);
+}
+
+/* Chunk Inspector */
+.kb-chunk-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.kb-chunk-inspector-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.kb-chunk-inspector-head h4 {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.kb-chunk-inspector-head span {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.kb-chunk-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.kb-chunk-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-card);
+  box-shadow: var(--elev-1);
+  transition: border-color var(--t-1) var(--ease-out);
+}
+
+.kb-chunk-card:hover {
+  border-color: var(--line-2);
+}
+
+.kb-chunk-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.kb-chunk-badge {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  padding: 1px var(--s-2);
+  border-radius: var(--r-chip);
+  background: color-mix(in srgb, var(--emerald) 15%, transparent);
+  color: var(--emerald-lift, #34d399);
+}
+
+.kb-chunk-card-body {
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-relaxed);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  background: var(--void);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-control);
+  border: 1px solid var(--line-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.kb-chunk-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+@media (max-width: 640px) {
+  .kb-metric-bar {
+    grid-template-columns: 1fr;
+  }
+  .kb-wb-header {
+    flex-direction: column;
+  }
+  .kb-wb-actions {
+    width: 100%;
+  }
+}
+
+/* ── Inkstone Overrides for Source Workbench ─────────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-wb-name {
+  font-family: var(--serif, 'Noto Serif SC', 'Songti SC', serif);
+  font-weight: 500;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-wb-stat {
+  background: var(--s3);
+  border-color: var(--l1);
+  box-shadow: var(--sh1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-chunk-card {
+  background: var(--s3);
+  border-color: var(--l1);
+  box-shadow: var(--sh1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-chunk-card-body {
+  background: var(--void);
+  border-color: var(--l1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-chunk-badge {
+  background: var(--pine-wash);
+  color: var(--pine);
+}
+
+/* ── Source Materials tab (KnowledgeSourceHub.tsx) ──────────────────────
+   These class names come straight from the Inkstone prototype markup —
+   distinct from the `.kb-*` primitives above, which an earlier iteration
+   of this region used and no longer renders. `.kb-list-row` / `.btn` /
+   `.stamp-pill` (region-knowledge-base.css, region-knowledge-stage.css)
+   are still shared and reused here. */
+.source-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: var(--s-5);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .source-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.source-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  background: var(--s3, var(--surface-2));
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-card, 8px);
+  box-shadow: var(--sh1, none);
+  position: sticky;
+  top: var(--s-4);
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+}
+
+@media (max-width: 860px) {
+  .source-sidebar {
+    position: static;
+    max-height: none;
+  }
+}
+
+.source-search-box {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--s-3);
+  background: var(--s1, var(--surface-1));
+  border: 1px solid var(--l2, var(--line-1));
+  border-radius: var(--r-control, 5px);
+}
+
+.source-search-box input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: var(--t1, var(--text-1));
+  font-size: 12px;
+}
+
+.source-group-title {
+  font: 600 11px var(--mono, monospace);
+  color: var(--t4, var(--text-4));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: var(--s-2);
+}
+
+.source-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.source-item.active {
+  background: var(--s4, var(--surface-3));
+  box-shadow: var(--sh1, none);
+}
+
+.source-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.source-item-name {
+  font: 600 13px var(--sans, inherit);
+  color: var(--t1, var(--text-1));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.source-item-sub {
+  font: 11px var(--mono, monospace);
+  color: var(--t4, var(--text-4));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.source-workbench {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+  padding: var(--s-5);
+  background: var(--s3, var(--surface-2));
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-card, 8px);
+  box-shadow: var(--sh1, none);
+}
+
+.workbench-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--l1, var(--line-1));
+}
+
+.workbench-header h2 {
+  margin: 0;
+  font: 500 20px var(--serif, inherit);
+  color: var(--t1, var(--text-1));
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.workbench-path {
+  font: 11.5px var(--mono, monospace);
+  color: var(--t3, var(--text-3));
+  margin-top: var(--s-1);
+  word-break: break-all;
+}
+
+.workbench-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--s-3);
+}
+
+.w-stat {
+  background: var(--s2, var(--surface-1));
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-control, 5px);
+  padding: var(--s-3) var(--s-4);
+}
+
+.w-stat .num {
+  font: 600 15px var(--mono, monospace);
+  color: var(--t1, var(--text-1));
+  display: block;
+}
+
+.w-stat .lbl {
+  font-size: 11px;
+  color: var(--t4, var(--text-4));
+  margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+  .workbench-header {
+    flex-direction: column;
+  }
+}
+
+

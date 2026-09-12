@@ -10,6 +10,8 @@ describe('settings search index', () => {
     ['skills', 'extensions'],
     ['runtime', 'session'],
     ['image-generation', 'models'],
+    ['编排', 'subagents'],
+    ['orchestration', 'subagents'],
   ])('routes %s to %s', (query, id) => {
     expect(matchesSettingsSearch(query, { id: id as SettingsSectionId })).toBe(true);
   });

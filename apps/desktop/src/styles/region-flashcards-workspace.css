@@ -1,22 +1,4 @@
-/* Flashcards workspace — gallery + produce page. Layout chrome lives in region-studio-shell. */
-
-.vault-produce-page {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.vault-produce-page .knowledge-master-detail-layout {
-  min-height: 0;
-  flex: 1;
-}
-
-.vault-produce-forget {
-  margin-top: auto;
-  padding: var(--s-3) 0;
-}
+/* Flashcards workspace — gallery + study + deck manager. Layout chrome lives in region-studio-shell. */
 
 /* Produce / index progress ring (proto-06 §07) — base tokens; Inkstone retunes stroke. */
 .doc-cards-progress {
@@ -413,109 +395,6 @@
   margin-top: var(--s-4);
 }
 
-/* ── Dialog ───────────────────────────────────────────────────────── */
-
-.fcws-card-row:hover {
-  border-color: var(--line-2);
-  box-shadow: var(--elev-2);
-}
-
-.fcws-card-row-main,
-.fcws-card-row-open {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  align-items: flex-start;
-  text-align: left;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-.fcws-card-row-open:focus-visible {
-  outline: var(--focus-ring, 2px solid var(--iris));
-  outline-offset: 2px;
-  border-radius: var(--r-control);
-}
-
-.fcws-card-deck {
-  align-self: flex-start;
-  padding: 1px 8px;
-  border-radius: var(--r-pill);
-  background: var(--iris-wash);
-  color: var(--iris);
-  font-size: var(--fs-micro);
-  font-weight: 600;
-}
-
-.fcws-card-front {
-  margin: 0;
-  font-size: var(--fs-chrome);
-  font-weight: 600;
-  color: var(--text-1);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.fcws-card-back {
-  margin: 0;
-  font-size: var(--fs-chrome);
-  color: var(--text-3);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.fcws-card-row-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--s-2);
-  flex-shrink: 0;
-}
-
-.fcws-state-badge {
-  padding: 1px 8px;
-  border-radius: var(--r-pill);
-  background: var(--surface-3);
-  color: var(--text-3);
-  font-size: var(--fs-micro);
-  white-space: nowrap;
-}
-
-.fcws-state-badge.is-due {
-  background: var(--ember-wash);
-  color: var(--ember);
-  font-weight: 600;
-}
-
-.fcws-card-delete {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: var(--r-control);
-  background: transparent;
-  color: var(--text-4);
-  cursor: pointer;
-  transition: all var(--t-1) var(--ease-out);
-}
-
-.fcws-card-delete:hover {
-  background: var(--ember-wash);
-  color: var(--coral);
-}
-
 /* ── Browse overlay (TearDeck) ─────────────────────────────────────── */
 .fcws-library .fcws-tear {
   flex: 1;
@@ -541,6 +420,18 @@
   flex-direction: column;
   gap: var(--s-5);
   padding: var(--s-6);
+}
+
+.fc-draft-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.fc-draft-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
 }
 
 .fcws-dialog-body h3 {
@@ -593,3 +484,306 @@
     transition: none;
   }
 }
+
+
+/* ── Subnav & Responsive Adjustments ─────────────── */
+/* Prototype: .study-subnav sits edge-to-edge under the studio topbar. */
+.flashcards-study-stage {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  width: 100%;
+}
+
+.study-subnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--l1, var(--line-1));
+  background: var(--s2, var(--surface-1));
+  gap: 12px;
+  flex: none;
+}
+
+.subnav-modes,
+.study-view-modes {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--s1, var(--surface-base));
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid var(--l2, var(--line-2));
+}
+
+.subnav-btn,
+.study-mode-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t3, var(--text-3));
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.subnav-btn:hover,
+.study-mode-btn:hover {
+  color: var(--t1, var(--text-1));
+}
+
+.subnav-btn.active,
+.study-mode-btn.active {
+  color: var(--t1, var(--text-1));
+  background: var(--s3, var(--surface-2));
+  font-weight: 600;
+  box-shadow: var(--sh1, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+
+.subnav-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font: 11.5px var(--mono, monospace);
+  color: var(--t3, var(--text-3));
+  flex-shrink: 0;
+}
+
+.subnav-stats strong {
+  font-weight: 600;
+  color: var(--t1, var(--text-1));
+}
+
+.subnav-stats strong.is-zhu {
+  color: var(--zhu, #b03a24);
+}
+
+.study-subnav .btn.sm.pri {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  gap: 4px;
+}
+
+
+/* ── Distillation Studio (Cold Start Bento) ─────── */
+.cold-start-stage {
+  max-width: 860px;
+  margin: 32px auto;
+  width: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.cold-start-hero {
+  text-align: center;
+  padding: 16px 16px 4px;
+}
+
+.cold-start-tag {
+  font: 11px var(--mono, monospace);
+  color: var(--zhu, #b03a24);
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.08));
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(176, 58, 36, 0.2);
+  margin-bottom: 12px;
+}
+
+.cold-start-title {
+  font: 600 22px/1.3 var(--serif, serif);
+  color: var(--t1, var(--text-1));
+  margin-bottom: 10px;
+  letter-spacing: -0.02em;
+}
+
+.cold-start-desc {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--t3, var(--text-3));
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+.distill-pathway-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.pathway-card {
+  background: var(--s3, var(--surface-2));
+  border: 1px solid var(--l2, var(--line-2));
+  border-radius: 8px;
+  padding: 20px 18px;
+  box-shadow: var(--sh1, 0 1px 2px rgba(60, 45, 20, 0.05));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pathway-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sh3, 0 14px 30px -10px rgba(50, 35, 15, 0.25));
+  border-color: var(--zhu, #b03a24);
+}
+
+.pathway-icon-chip {
+  font: 600 11px var(--mono, monospace);
+  color: var(--zhu, #b03a24);
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.08));
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  width: fit-content;
+}
+
+.pathway-title {
+  font: 600 14.5px/1.4 var(--serif, serif);
+  color: var(--t1, var(--text-1));
+  margin-bottom: 8px;
+}
+
+.pathway-desc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--t3, var(--text-3));
+  margin-bottom: 16px;
+  flex: 1;
+}
+
+.pathway-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: 11.5px var(--mono, monospace);
+  color: var(--zhu, #b03a24);
+  border-top: 1px dashed var(--l1, var(--line-1));
+  padding-top: 12px;
+}
+
+.sample-pack-callout {
+  background: var(--s1, var(--surface-1));
+  border: 1px solid var(--l2, var(--line-2));
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: var(--sh1, 0 1px 2px rgba(60, 45, 20, 0.05));
+}
+
+.sample-pack-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sample-pack-title {
+  font: 600 13.5px var(--serif, serif);
+  color: var(--t1, var(--text-1));
+}
+
+.sample-pack-desc {
+  font-size: 12px;
+  color: var(--t3, var(--text-3));
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .distill-pathway-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .sample-pack-callout {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ── Deck Manager Bento Grid (Proto-10) ─────────── */
+.deck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 16px 0;
+}
+.deck-card {
+  background: var(--s3, var(--surface-2));
+  border: 1px solid var(--l2, var(--line-2));
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: var(--sh1, 0 1px 2px rgba(60, 45, 20, 0.05));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 170px;
+  transition: all 0.15s ease;
+}
+.deck-card:hover {
+  box-shadow: var(--sh2, 0 3px 10px -2px rgba(60, 45, 20, 0.1));
+  border-color: var(--zhu, #b03a24);
+}
+.deck-card-title {
+  font: 600 14px var(--serif, serif);
+  color: var(--t1, var(--text-1));
+}
+.deck-card-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: 11px var(--mono, monospace);
+  color: var(--t4, var(--text-4));
+  border-top: 1px dashed var(--l1, var(--line-1));
+  border-bottom: 1px dashed var(--l1, var(--line-1));
+  padding: 8px 0;
+  margin: 12px 0;
+}
+.deck-card.is-add-slot {
+  border: 1px dashed var(--l3, var(--line-3));
+  background: transparent;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  min-height: 170px;
+}
+.deck-card.is-add-slot:hover {
+  background: var(--s3, var(--surface-2));
+  border-color: var(--zhu, #b03a24);
+}
+.deck-add-plus {
+  font-size: 24px;
+  color: var(--t3, var(--text-3));
+  margin-bottom: 4px;
+  line-height: 1;
+}
+.deck-add-title {
+  font: 600 13px var(--serif, serif);
+  color: var(--t2, var(--text-2));
+}
+.deck-add-desc {
+  font-size: 11.5px;
+  color: var(--t4, var(--text-4));
+  margin-top: 4px;
+  max-width: 220px;
+  line-height: 1.5;
+  text-align: center;
+}
+

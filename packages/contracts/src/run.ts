@@ -88,6 +88,7 @@ export const RUN_TERMINAL_CODES = {
   hostShutdown: 'host-shutdown',
   runtimeMemoryPressure: 'runtime-memory-pressure',
   supersededByNewPrompt: 'superseded-by-new-prompt',
+  toolLoopStalled: 'tool-loop-stalled',
 } as const;
 
 export type RunTerminalCode = (typeof RUN_TERMINAL_CODES)[keyof typeof RUN_TERMINAL_CODES];

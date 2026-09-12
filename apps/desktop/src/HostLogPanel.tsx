@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { Button } from '@piwin/ui-kit';
-import { IconChevronDown, IconChevronRight } from './shell-icons';
+import { Button, Select, StatusBadge, showSuccessNotification } from '@piwin/ui-kit';
+import { useDesktopLocale } from './desktop-locale-context.js';
 
 export type HostLogLevel = 'info' | 'warn' | 'error';
 
@@ -14,22 +14,27 @@ export type HostLogEntry = {
 export type HostLogPanelProps = {
   entries: HostLogEntry[];
   onClear: () => void;
-  open: boolean;
-  onToggle: () => void;
 };
 
 const LEVEL_FILTERS: Array<HostLogLevel | 'all'> = ['all', 'info', 'warn', 'error'];
 
+function isLevelFilter(value: string): value is HostLogLevel | 'all' {
+  return LEVEL_FILTERS.includes(value as HostLogLevel | 'all');
+}
+
+function levelTone(level: HostLogLevel): 'danger' | 'warning' | 'neutral' {
+  if (level === 'error') return 'danger';
+  if (level === 'warn') return 'warning';
+  return 'neutral';
+}
+
 /**
- * Collapsible host/log ring-buffer panel (D-M2-07).
- * Lets users see MCP / permission diagnostics without DevTools.
+ * Settings Host log viewer. Uses ui-kit Select/Button/StatusBadge so it
+ * matches the rest of the settings surface instead of inspector chrome.
  */
-export function HostLogPanel({
-  entries,
-  onClear,
-  open,
-  onToggle,
-}: HostLogPanelProps): ReactElement {
+export function HostLogPanel({ entries, onClear }: HostLogPanelProps): ReactElement {
+  const { locale } = useDesktopLocale();
+  const isZh = locale === 'zh-CN';
   const [levelFilter, setLevelFilter] = useState<HostLogLevel | 'all'>('all');
 
   const visible = useMemo(() => {
@@ -39,78 +44,75 @@ export function HostLogPanel({
     return entries.filter((entry) => entry.level === levelFilter);
   }, [entries, levelFilter]);
 
-  const errorCount = entries.filter((entry) => entry.level === 'error').length;
-  const warnCount = entries.filter((entry) => entry.level === 'warn').length;
-
   async function handleCopy(): Promise<void> {
     const text = visible
       .map((entry) => `[${entry.at}] ${entry.level.toUpperCase()} ${entry.message}`)
       .join('\n');
     try {
       await navigator.clipboard.writeText(text);
+      showSuccessNotification(isZh ? '已复制 Host 日志' : 'Host log copied');
     } catch {
       // Clipboard may be denied; ignore.
     }
   }
 
   return (
-    <section className={`host-log-panel ${open ? 'open' : 'collapsed'}`}>
-      <header className="host-log-header">
-        <Button variant="ghost" className="host-log-toggle" onClick={onToggle}>
-          <span className="host-log-toggle-icon" aria-hidden>
-            {open ? <IconChevronDown width={12} height={12} /> : <IconChevronRight width={12} height={12} />}
-          </span>
-          Host log
-          <span className="muted host-log-counts">
-            {entries.length}
-            {warnCount > 0 ? ` · ${warnCount} warn` : ''}
-            {errorCount > 0 ? ` · ${errorCount} err` : ''}
-          </span>
-        </Button>
-        {open ? (
-          <div className="host-log-actions">
-            <select
-              className="select"
-              value={levelFilter}
-              onChange={(event) => {
-                const next = event.target.value as HostLogLevel | 'all';
+    <div className="settings-host-log" data-testid="host-log-panel">
+      <div className="settings-host-log-toolbar">
+        <div className="settings-host-log-filter">
+          <Select
+            testId="settings-host-log-level"
+            aria-label={isZh ? '筛选日志级别' : 'Filter host log level'}
+            value={levelFilter}
+            data={[
+              { value: 'all', label: isZh ? '全部' : 'All' },
+              { value: 'info', label: 'Info' },
+              { value: 'warn', label: isZh ? '警告' : 'Warn' },
+              { value: 'error', label: isZh ? '错误' : 'Error' },
+            ]}
+            onChange={(event) => {
+              const next = event.currentTarget.value;
+              if (isLevelFilter(next)) {
                 setLevelFilter(next);
-              }}
-              aria-label="Filter host log level"
-            >
-              {LEVEL_FILTERS.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
-            <Button onClick={() => void handleCopy()}>
-              Copy
-            </Button>
-            <Button onClick={onClear}>
-              Clear
-            </Button>
-          </div>
-        ) : null}
-      </header>
-      {open ? (
-        <div className="host-log-body" role="log" aria-live="polite">
-          {visible.length === 0 ? (
-            <p className="muted">No host log lines yet.</p>
-          ) : (
-            <ul className="host-log-list">
-              {visible.map((entry) => (
-                <li key={entry.id} className={`host-log-line level-${entry.level}`}>
-                  <span className="host-log-time">{formatTime(entry.at)}</span>
-                  <span className="host-log-level">{entry.level}</span>
-                  <span className="host-log-message">{entry.message}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+              }
+            }}
+          />
         </div>
-      ) : null}
-    </section>
+        <Button
+          size="compact"
+          data-testid="settings-host-log-copy"
+          disabled={visible.length === 0}
+          onClick={() => void handleCopy()}
+        >
+          {isZh ? '复制' : 'Copy'}
+        </Button>
+        <Button
+          size="compact"
+          data-testid="settings-host-log-clear"
+          disabled={entries.length === 0}
+          onClick={onClear}
+        >
+          {isZh ? '清空' : 'Clear'}
+        </Button>
+      </div>
+      <div className="settings-host-log-body" role="log" aria-live="polite">
+        {visible.length === 0 ? (
+          <p className="settings-host-log-empty" data-testid="settings-host-log-empty">
+            {isZh ? '暂无 Host 日志。' : 'No host log lines yet.'}
+          </p>
+        ) : (
+          <ul className="settings-host-log-list" data-testid="settings-host-log-list">
+            {visible.map((entry) => (
+              <li key={entry.id} className="settings-host-log-line">
+                <span className="settings-host-log-time">{formatTime(entry.at)}</span>
+                <StatusBadge tone={levelTone(entry.level)} label={entry.level} showDot />
+                <span className="settings-host-log-message">{entry.message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -129,8 +131,7 @@ export function appendHostLogEntry(
   next: Omit<HostLogEntry, 'id'>,
   maxEntries = 200,
 ): HostLogEntry[] {
-  const id =
-    current.length === 0 ? 1 : (current[current.length - 1]?.id ?? 0) + 1;
+  const id = current.length === 0 ? 1 : (current[current.length - 1]?.id ?? 0) + 1;
   const entry: HostLogEntry = { ...next, id };
   const merged = [...current, entry];
   if (merged.length <= maxEntries) {

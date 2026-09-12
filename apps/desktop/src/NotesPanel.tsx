@@ -502,7 +502,7 @@ function NoteEditor(props: {
           value={content}
           onChange={(val) => setContent(val)}
           placeholder={isZh ? '输入 Markdown 格式内容…' : 'Markdown content…'}
-          data-testid="notes-editor-content"
+          testId="notes-editor-content"
           rows={12}
         />
       </div>

@@ -221,12 +221,22 @@ html[data-theme-id='piwin-inkstone-ink'] .slab.is-queued-edit .composer-orbit-be
 
 html[data-theme-id='piwin-inkstone-paper'] .slab .refs,
 html[data-theme-id='piwin-inkstone-ink'] .slab .refs,
+html[data-theme-id='piwin-inkstone-paper'] .slab .kb-mounts,
+html[data-theme-id='piwin-inkstone-ink'] .slab .kb-mounts,
 html[data-theme-id='piwin-inkstone-paper'] .slab .composer-attachment-shelf-chips,
 html[data-theme-id='piwin-inkstone-ink'] .slab .composer-attachment-shelf-chips {
   display: flex;
   gap: 6px;
   padding: 10px 12px 0;
   flex-wrap: wrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .slab
+  .kb-mounts
+  + .composer-attachment-shelf
+  .composer-attachment-shelf-chips {
+  padding-top: 4px;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .slab .composer-attachment-shelf,
@@ -239,6 +249,8 @@ html[data-theme-id='piwin-inkstone-ink'] .slab .composer-attachment-shelf {
    Those Deck leftovers read as blown-out reddish-grey on both slab faces. */
 html[data-theme-id='piwin-inkstone-paper'] .slab .ref,
 html[data-theme-id='piwin-inkstone-ink'] .slab .ref,
+html[data-theme-id='piwin-inkstone-paper'] .slab .kb-mount-chip,
+html[data-theme-id='piwin-inkstone-ink'] .slab .kb-mount-chip,
 html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-context-chip,
 html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-context-chip,
 html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-doc-comment-chip,
@@ -259,19 +271,28 @@ html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-doc-comment-chip {
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .slab
-  :is(.ref, .composer-v2-context-chip, .composer-v2-doc-comment-chip)
+  :is(.ref, .composer-v2-context-chip, .composer-v2-doc-comment-chip, .kb-mount-chip)
   :is(
     .doc-comment-chip-icon,
     .chip-text,
+    .kb-mount-name,
     .doc-comment-chip-title,
     .doc-comment-chip-dot,
     .doc-comment-chip-count,
-    .doc-comment-chip-remove
+    .doc-comment-chip-remove,
+    .kb-mount-remove
   ) {
   color: var(--slab-t);
   font: inherit;
   font-weight: 400;
   opacity: 1;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .slab
+  :is(.doc-comment-chip-remove, .kb-mount-remove):hover {
+  background: var(--crimson-wash);
+  color: var(--crimson);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])

@@ -882,6 +882,17 @@
   gap: var(--s-4);
 }
 
+.ext-list-group + .ext-list-group {
+  margin-top: var(--s-6);
+}
+
+.ext-list-group-title {
+  margin: 0 0 var(--s-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .ext-list-item {
   display: flex;
   align-items: flex-start;
@@ -911,6 +922,13 @@
 .ext-list-main {
   flex: 1;
   min-width: 0;
+}
+
+.ext-list-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: none;
 }
 
 .ext-list-title {

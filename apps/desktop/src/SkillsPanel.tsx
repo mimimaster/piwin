@@ -8,7 +8,14 @@ import type {
   SkillsListData,
   SkillStoreEntry,
 } from '@piwin/contracts';
-import { WELL_KNOWN_SKILL_PATH_PRESETS } from '@piwin/contracts';
+import {
+  canToggleSkill,
+  canUninstallSkill,
+  groupSkillsBySource,
+  resourceSourceLabel,
+  WELL_KNOWN_SKILL_PATH_PRESETS,
+} from '@piwin/contracts';
+import { catalogDescription } from './catalog-display-copy.js';
 import { isRemoteCommandGapError } from './remote-command-gap.js';
 import {
   Button,
@@ -35,6 +42,7 @@ export type SkillsPanelProps = {
       | 'skills/list'
       | 'skills/set_enabled'
       | 'skills/install'
+      | 'skills/uninstall'
       | 'skills/store-list'
       | 'config/get'
       | 'config/set';
@@ -129,18 +137,23 @@ export function SkillsPanel(props: SkillsPanelProps) {
   }, [mainTab, loadStore]);
 
   const visible = useMemo(() => {
-    const unhidden = skills.filter((s) => s.hidden !== true);
-    if (!filter) return unhidden;
+    const listed = skills.filter((s) => s.hidden !== true || s.source === 'bundled');
+    if (!filter) return listed;
     const lower = filter.toLowerCase();
-    return unhidden.filter(
+    return listed.filter(
       (s) =>
         s.name.toLowerCase().includes(lower) ||
         s.id.toLowerCase().includes(lower) ||
         s.description?.toLowerCase().includes(lower),
     );
   }, [skills, filter]);
+  const grouped = useMemo(() => groupSkillsBySource(visible), [visible]);
+  const sourceLocale = isChinese ? 'zh-CN' : 'en';
 
   async function handleToggle(skill: SkillSummary) {
+    if (!canToggleSkill(skill.source)) {
+      return;
+    }
     setError(null);
     setInfo(null);
     const response = await props.request({
@@ -158,6 +171,28 @@ export function SkillsPanel(props: SkillsPanelProps) {
         : `${skill.enabled ? 'Disabled' : 'Enabled'} skill: ${skill.name}`,
     );
     setSkills((prev) => prev.map((s) => (s.id === skill.id ? { ...s, enabled: !s.enabled } : s)));
+    notifySkillsChanged();
+  }
+
+  async function handleUninstall(skill: SkillSummary) {
+    if (!canUninstallSkill(skill.source)) {
+      setError(isChinese ? '应用内置技能不能删除' : 'Bundled skills cannot be uninstalled');
+      return;
+    }
+    setError(null);
+    setInfo(null);
+    const response = await props.request({
+      type: 'skills/uninstall',
+      skillId: skill.id,
+    });
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    setInfo(
+      isChinese ? `已删除技能：${skill.name}` : `Removed skill: ${skill.name}`,
+    );
+    setSkills((prev) => prev.filter((entry) => entry.id !== skill.id));
     notifySkillsChanged();
   }
 
@@ -339,29 +374,63 @@ export function SkillsPanel(props: SkillsPanelProps) {
                   </p>
                 </div>
               ) : (
-                <ul className="ext-list" data-testid="skills-list">
-                  {visible.map((skill) => (
-                    <li key={skill.id} className="ext-list-item">
-                      <div className="ext-list-main">
-                        <div className="ext-list-title">
-                          <strong>{skill.name}</strong>
-                          <span className="pill muted">{skill.source}</span>
-                          {skill.enabled ? (
-                            <span className="pill ok">{isChinese ? '已启用' : 'on'}</span>
-                          ) : null}
-                        </div>
-                        <div className="muted ext-desc">{skill.description}</div>
-                      </div>
-                      <Switch
-                        checked={skill.enabled}
-                        disabled={props.readOnly}
-                        onCheckedChange={() => void handleToggle(skill)}
-                        aria-label={isChinese ? `启用 ${skill.name}` : `Enable ${skill.name}`}
-                        testId={`skill-toggle-${skill.id}`}
-                      />
-                    </li>
+                <div data-testid="skills-list">
+                  {grouped.map((group) => (
+                    <section
+                      key={group.source}
+                      className="ext-list-group"
+                      data-testid={`skills-group-${group.source}`}
+                    >
+                      <h3 className="muted ext-list-group-title">
+                        {resourceSourceLabel(group.source, sourceLocale)}
+                      </h3>
+                      <ul className="ext-list">
+                        {group.skills.map((skill) => (
+                          <li key={skill.id} className="ext-list-item">
+                            <div className="ext-list-main">
+                              <div className="ext-list-title">
+                                <strong>{skill.name}</strong>
+                                <span className="pill muted">
+                                  {resourceSourceLabel(skill.source, sourceLocale)}
+                                </span>
+                                {canToggleSkill(skill.source) && skill.enabled ? (
+                                  <span className="pill ok">{isChinese ? '已启用' : 'on'}</span>
+                                ) : null}
+                              </div>
+                              <div className="muted ext-desc">
+                                {catalogDescription(skill.id, skill.description, sourceLocale)}
+                              </div>
+                            </div>
+                            {canUninstallSkill(skill.source) || canToggleSkill(skill.source) ? (
+                              <div className="ext-list-actions">
+                                {canUninstallSkill(skill.source) ? (
+                                  <Button
+                                    size="compact"
+                                    variant="ghost"
+                                    disabled={props.readOnly}
+                                    onClick={() => void handleUninstall(skill)}
+                                    data-testid={`skill-uninstall-${skill.id}`}
+                                  >
+                                    {isChinese ? '删除' : 'Remove'}
+                                  </Button>
+                                ) : null}
+                                {canToggleSkill(skill.source) ? (
+                                  <Switch
+                                    checked={skill.enabled}
+                                    disabled={props.readOnly}
+                                    onCheckedChange={() => void handleToggle(skill)}
+                                    aria-label={isChinese ? `启用 ${skill.name}` : `Enable ${skill.name}`}
+                                    testId={`skill-toggle-${skill.id}`}
+                                  />
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
                   ))}
-                </ul>
+                </div>
               )}
 
               {error || info ? (

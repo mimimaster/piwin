@@ -18,9 +18,12 @@ const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[
   ],
   oauth: ['oauth', 'login', 'account', 'subscription', '登录', '账户', '订阅'],
   hooks: ['hook', 'hooks', 'event', 'lifecycle', '钩子', '事件', '生命周期'],
+  subagents: [
+    'subagent', 'subagents', 'orchestration', 'scheme', 'schemes', 'ultra',
+    '子代理', '编排', '方案',
+  ],
   agent: [
-    'agent', 'subagent', 'subagents', 'automation', 'artifact', 'playground', '定时', '自动化',
-    '子代理', '产物', '工件',
+    'agent', 'automation', 'artifact', 'playground', '定时', '自动化', '产物', '工件',
   ],
   extensions: [
     'extension', 'extensions', 'skill', 'skills', 'tool', 'tools', 'mcp', 'plugin', 'plugins',

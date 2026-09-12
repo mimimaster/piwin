@@ -18,7 +18,8 @@
  *     answer's own thinking) folds its thought row into the preceding group.
  *   - An empty streaming assistant (`message/start` before the first token)
  *     is a lifecycle placeholder, not a break. Closing the run on it would
- *     flicker `isLive` and remount the already-emitted tool list.
+ *     flicker `isLive` and remount the already-emitted tool list. The
+ *     placeholder joins as a member so it cannot paint a second locator.
  *
  * Pure projection: recomputed from message state on every render.
  */
@@ -174,7 +175,7 @@ function appendMessageItems(
 function finalizeRun(
   run: OpenRun,
   roles: Map<string, ExploreFlowRole>,
-  options: { isLive: boolean },
+  options: { isLive: boolean; allowRunningLive?: boolean },
 ): void {
   const toolItems = run.items.filter(
     (item): item is Extract<ExploreFlowItem, { kind: 'tool' }> => item.kind === 'tool',
@@ -213,7 +214,10 @@ function finalizeRun(
     searchCount,
     thoughtCount: run.items.length - toolItems.length,
     hasRunning,
-    isLive: options.isLive || hasRunning,
+    // A hard break (user follow-up, edit, narration) must settle even if a
+    // tool is still marked running. Promoting those groups to live left the
+    // old call chain streaming while the new query spun a waiting locator.
+    isLive: options.allowRunningLive === false ? false : options.isLive || hasRunning,
     errorCount,
     ...(hasDuration ? { totalDurationMs } : {}),
   };
@@ -240,21 +244,25 @@ export function buildExploreFlowRoles(
   const roles = new Map<string, ExploreFlowRole>();
   let openRun: OpenRun | null = null;
 
-  const closeRun = (isLive: boolean): void => {
+  const closeRun = (isLive: boolean, allowRunningLive = true): void => {
     if (openRun) {
-      finalizeRun(openRun, roles, { isLive });
+      finalizeRun(openRun, roles, { isLive, allowRunningLive });
       openRun = null;
     }
   };
 
   for (const message of messages) {
     if (message.role !== 'assistant') {
-      closeRun(false);
+      closeRun(false, false);
       continue;
     }
-    // Keep the open run live across the empty `message/start` gap. The new
-    // row joins later as a real explore step, fold-thought, or hard break.
+    // Keep the open run live across the empty `message/start` gap. Fold the
+    // placeholder in as a member so ChatMessageRow hides it — leaving it
+    // ungrouped painted a second waiting-first-token locator under the chain.
     if (isStreamingLifecyclePlaceholder(message)) {
+      if (openRun) {
+        openRun.memberMessageIds.push(message.id);
+      }
       continue;
     }
     if (isPureExploreStep(message)) {
@@ -271,7 +279,7 @@ export function buildExploreFlowRoles(
       continue;
     }
     if (isExploreNarrationOpener(message)) {
-      closeRun(false);
+      closeRun(false, false);
       openRun = {
         anchorMessageId: message.id,
         memberMessageIds: [message.id],
@@ -284,10 +292,10 @@ export function buildExploreFlowRoles(
     if (openRun && canFoldTrailingThought(message)) {
       openRun.foldThoughtMessageIds.push(message.id);
       appendMessageItems(openRun, message, streamActive);
-      closeRun(false);
+      closeRun(false, false);
       continue;
     }
-    closeRun(false);
+    closeRun(false, false);
   }
   closeRun(streamActive);
 

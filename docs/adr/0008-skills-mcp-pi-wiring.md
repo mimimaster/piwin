@@ -33,7 +33,7 @@ Earlier piwin code incorrectly used:
 2. Convert them with a Pi tool adapter into `customTools` and pass them **at
    createAgentSession time**.
 3. Construct `DefaultResourceLoader` with:
-   - `additionalSkillPaths`: `~/.piwin/skills` + `config.skills.extraPaths` (+ project skill roots when available)
+   - `additionalSkillPaths`: product `skills/` tree + `~/.piwin/skills` + `config.skills.extraPaths` (+ project skill roots when available)
    - `skillsOverride`: filter out `config.skills.disabledIds`
 4. MCP process ownership:
    - `HostRuntime` owns one `McpSupervisor` and injects it into all session/tool
@@ -70,3 +70,12 @@ Until a piwin-owned RPC worker or Pi extension channel exists:
 - Desktop permission modal already resolves `permission/request`; tools must emit
   through HostRuntime.
 - Future: bash hard-gate via Pi extension `tool_call` hook (separate from custom tools).
+
+## 2026-09-12 amendment — bundled skills follow the repo
+
+First-party skills are defined in the git tree `skills/` and shipped with the
+host as `$PIWIN_BUNDLED_ASSETS_ROOT/skills`. Host/Pi load that tree directly.
+`ensureBundledSkillsInstalled` does not copy them into `~/.piwin/skills`.
+That directory is only for operator-installed skills. A leftover copy of a
+bundled id under the user dir is ignored. `user` means the operator installed
+it themselves. The Skills panel groups these separately (应用内置 / 我安装的).

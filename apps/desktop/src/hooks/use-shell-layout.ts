@@ -11,10 +11,14 @@ import type { RightPanelTab } from '../right-panel';
 import {
   COMPACT_SHELL_MAX_WIDTH,
   deriveShellLayoutState,
+  resolveInspectorPlacement,
   resolveLayoutMode,
+  type InspectorPlacement,
+  type ResolveLayoutModeOptions,
   type ShellLayoutMode,
   type ShellOverlay,
 } from '../shell-layout';
+import { isTauriRuntime } from '../tauri-pty';
 import {
   canGoShellBack,
   canGoShellForward,
@@ -30,13 +34,27 @@ import {
 } from '../shell-navigation';
 import { normalizeSettingsSection, type SettingsSectionId } from '../settings/section-registry';
 
-export type { ShellLayoutMode, ShellOverlay, SettingsSectionId, ShellSettingsSection };
+export type { InspectorPlacement, ShellLayoutMode, ShellOverlay, SettingsSectionId, ShellSettingsSection };
+
+function webAwareLayoutOptions(): ResolveLayoutModeOptions {
+  return { allowCompact: isTauriRuntime() };
+}
 
 export function useShellLayout() {
   const [overlay, setOverlay] = useState<ShellOverlay>('none');
   const [inspectorTab, setInspectorTab] = useState<RightPanelTab | null>(null);
   const [layoutMode, setLayoutMode] = useState<ShellLayoutMode>(() =>
-    typeof window !== 'undefined' ? resolveLayoutMode(window.innerWidth) : 'desktop',
+    typeof window !== 'undefined'
+      ? resolveLayoutMode(window.innerWidth, webAwareLayoutOptions())
+      : 'desktop',
+  );
+  const [inspectorPlacement, setInspectorPlacement] = useState<InspectorPlacement>(() =>
+    typeof window !== 'undefined'
+      ? resolveInspectorPlacement(
+          window.innerWidth,
+          resolveLayoutMode(window.innerWidth, webAwareLayoutOptions()),
+        )
+      : 'column',
   );
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   /** Desktop titlebar: collapse left navigator without compact overlay. */
@@ -46,7 +64,10 @@ export function useShellLayout() {
 
   useEffect(() => {
     function onResize(): void {
-      setLayoutMode(resolveLayoutMode(window.innerWidth));
+      const width = window.innerWidth;
+      const mode = resolveLayoutMode(width, webAwareLayoutOptions());
+      setLayoutMode(mode);
+      setInspectorPlacement(resolveInspectorPlacement(width, mode));
     }
     onResize();
     window.addEventListener('resize', onResize);
@@ -61,8 +82,8 @@ export function useShellLayout() {
   }, [layoutMode, overlay]);
 
   const derived = useMemo(
-    () => deriveShellLayoutState(layoutMode, overlay, desktopSidebarCollapsed),
-    [desktopSidebarCollapsed, layoutMode, overlay],
+    () => deriveShellLayoutState(layoutMode, overlay, desktopSidebarCollapsed, inspectorPlacement),
+    [desktopSidebarCollapsed, inspectorPlacement, layoutMode, overlay],
   );
 
   const activeRoute = currentShellRoute(navigation);
@@ -306,7 +327,9 @@ export function useShellLayout() {
     activeSubPage,
     knowledgeOpen,
     layoutMode,
+    inspectorPlacement,
     isCompact: derived.isCompact,
+    isPhone: derived.isPhone,
     /** @deprecated Prefer layoutMode / isCompact */
     isNarrow: derived.isNarrow,
     commandPaletteOpen,

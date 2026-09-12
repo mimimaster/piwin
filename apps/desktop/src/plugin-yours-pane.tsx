@@ -2,6 +2,7 @@
  * Installed plugins list plus advanced local/git/registry install.
  */
 import type { InstalledPlugin, PluginRegistryIndex } from '@piwin/contracts';
+import { pluginSourceKindLabel } from '@piwin/contracts';
 import { Button, Collapse, SegmentedControl, Spinner, TextInput } from '@piwin/ui-kit';
 
 export type PluginYoursPaneProps = {
@@ -52,7 +53,9 @@ export function PluginYoursPane(props: PluginYoursPaneProps) {
                 <div className="ext-list-title">
                   <strong>{plugin.name}</strong>
                   <span className="pill muted">v{plugin.version}</span>
-                  <span className="pill muted">{plugin.source.kind}</span>
+                  <span className="pill muted">
+                    {pluginSourceKindLabel(plugin.source.kind, props.isChinese ? 'zh-CN' : 'en')}
+                  </span>
                 </div>
                 <div className="muted ext-desc">
                   {props.isChinese ? '技能' : 'skills'}: {plugin.skills.length} · MCP:{' '}

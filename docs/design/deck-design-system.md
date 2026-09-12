@@ -235,6 +235,12 @@ Changes from the current three-column grid:
    the window top can never reach that line, so `--titleband-height` is twice the lights'
    centre offset and the band is flush with the window top.
 
+   That hole is not a global layout constant. `data-window-chrome` on `<html>` selects
+   the contract: `macos-overlay` (Tauri on macOS) sets `--traffic-light-clearance` to
+   78px; `native-frame` (Windows/Linux packaged, OS titlebar) and `web` leave it at 0.
+   Titlebands read `--titleband-leading` / `--titleband-flush-leading`. Do not paint
+   fake traffic lights except as an invisible Overlay spacer.
+
    Two consequences worth keeping: the window controls are a single DOM node that never
    migrates between columns as the sidebar opens and closes, and the title's leading edge
    is held to the sidebar's live width so it starts at the stage column's edge instead of

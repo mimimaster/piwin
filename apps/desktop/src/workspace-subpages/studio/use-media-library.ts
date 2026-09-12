@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { HostCommand, HostResponse, MediaLibraryItem, MediaLibraryKind } from '@piwin/contracts';
+import { isWorkbenchHostTeardownError } from '../../workbench-host-teardown.js';
 
 export type MediaLibraryRequest = (command: HostCommand) => Promise<HostResponse>;
 
@@ -11,6 +12,7 @@ export type UseMediaLibraryArgs = {
   query: string;
   refreshToken: number;
   isZh?: boolean;
+  subscribeConnected?: ((listener: (connected: boolean) => void) => () => void) | undefined;
 };
 
 export type MediaLibraryState = {
@@ -21,6 +23,7 @@ export type MediaLibraryState = {
   error: string | null;
   hasMore: boolean;
   loadMore: () => void;
+  reload: () => void;
   deleteAsset: (item: Pick<MediaLibraryItem, 'sessionId' | 'assetId'>) => Promise<boolean>;
 };
 
@@ -33,16 +36,33 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [reloadNonce, setReloadNonce] = useState(0);
+
   const requestRef = useRef(args.request);
   requestRef.current = args.request;
   const fetchGen = useRef(0);
 
+  const reload = useCallback(() => {
+    setReloadNonce((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!args.subscribeConnected) return undefined;
+    return args.subscribeConnected((connected) => {
+      if (connected) {
+        setReloadNonce((n) => n + 1);
+      }
+    });
+  }, [args.subscribeConnected]);
+
   useEffect(() => {
     const generation = ++fetchGen.current;
-    const handle = window.setTimeout(() => {
+    let retryTimer: number | undefined;
+
+    const doFetch = (retryCount = 0) => {
+      setLoading(true);
+      setError(null);
       void (async () => {
-        setLoading(true);
-        setError(null);
         try {
           const response = await requestRef.current({
             type: 'media/list',
@@ -56,6 +76,14 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
             return;
           }
           if (!response.success) {
+            if (isWorkbenchHostTeardownError(response.error) && retryCount < 3) {
+              retryTimer = window.setTimeout(() => {
+                if (generation === fetchGen.current) {
+                  doFetch(retryCount + 1);
+                }
+              }, (retryCount + 1) * 800);
+              return;
+            }
             setItems([]);
             setTotal(0);
             setCursor(undefined);
@@ -70,21 +98,36 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
           if (generation !== fetchGen.current) {
             return;
           }
+          const msg = caught instanceof Error ? caught.message : 'media/list failed';
+          if (isWorkbenchHostTeardownError(msg) && retryCount < 3) {
+            retryTimer = window.setTimeout(() => {
+              if (generation === fetchGen.current) {
+                doFetch(retryCount + 1);
+              }
+            }, (retryCount + 1) * 800);
+            return;
+          }
           setItems([]);
           setTotal(0);
           setCursor(undefined);
-          setError(caught instanceof Error ? caught.message : 'media/list failed');
+          setError(hostNeedsRestart(msg, args.isZh === true));
         } finally {
-          if (generation === fetchGen.current) {
+          if (generation === fetchGen.current && !retryTimer) {
             setLoading(false);
           }
         }
       })();
+    };
+
+    const handle = window.setTimeout(() => {
+      doFetch(0);
     }, 200);
+
     return () => {
       window.clearTimeout(handle);
+      if (retryTimer) window.clearTimeout(retryTimer);
     };
-  }, [args.kind, args.query, args.refreshToken, args.isZh]);
+  }, [args.kind, args.query, args.refreshToken, args.isZh, reloadNonce]);
 
   const loadMore = useCallback(() => {
     if (!cursor || loading || loadingMore) {
@@ -163,11 +206,17 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
     error,
     hasMore: cursor !== undefined,
     loadMore,
+    reload,
     deleteAsset,
   };
 }
 
 function hostNeedsRestart(error: string, isZh: boolean): string {
+  if (isWorkbenchHostTeardownError(error)) {
+    return isZh
+      ? '与 Host 服务的连接尚未就绪或已断开。'
+      : 'Connection to the Host service is not ready or disconnected.';
+  }
   if (error === 'Unhandled command') {
     return isZh
       ? 'Host 还是旧进程。请完全退出桌面应用再打开，不要只刷新窗口。'

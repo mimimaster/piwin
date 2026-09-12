@@ -10,7 +10,7 @@ import type {
   PermissionMode,
 } from '@piwin/contracts';
 import { randomUUID } from 'node:crypto';
-import { formatError } from '@piwin/contracts';
+import { formatError, normalizeExecutionConfig } from '@piwin/contracts';
 import { healthProviderDisclosure } from './health-turn-display.js';
 import { effectivePermissionMode } from './effective-permission-mode.js';
 import { loadMcpConfig, createMcpGenerationSnapshot } from '@piwin/mcp';
@@ -29,6 +29,7 @@ import { bindCaptureReceipts } from './turn-changes/tool-capture.js';
 import { resolveTurnChangeWorkspaceRoot } from './turn-changes/runtime-wiring.js';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 import { createHostToolAdmission } from './tools/tool-admission.js';
+import { createToolResourceGate, getSharedSystemMemoryMonitor } from './system-memory.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import type { ComposedSessionHostTools } from './host-runtime-types.js';
@@ -281,6 +282,13 @@ export async function composeSessionHostToolsForSession(
     projectRoot: projectPath ?? rootDir ?? process.cwd(),
     ...(projectPath !== undefined ? { projectPath } : {}),
     projectsFilePath: getPiwinProjectsPath(rootDir),
+    // Host resource admission (`execution.minAvailableMemoryMiB`). Counts what
+    // no other quota can see: the process tree one `bash` call forks.
+    resourceGate: createToolResourceGate({
+      getMinAvailableMemoryMiB: () =>
+        normalizeExecutionConfig(config?.execution).minAvailableMemoryMiB,
+      getReading: () => getSharedSystemMemoryMonitor().getLatest(),
+    }),
     onDiagnostic: (message) => deps.push({ type: 'host/log', level: 'warn', message }),
   });
   deps.generationPermissionRuleRevisions.set(

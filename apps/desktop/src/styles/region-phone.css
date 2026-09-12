@@ -1,0 +1,177 @@
+/* Phone presentation refinements. Overlay ownership stays in shell-layout;
+   this file only consumes data-layout="phone". Compact is Tauri-only now;
+   Web/Safari at 768+ uses the desktop page.
+
+   Settings / studio / knowledge / library titlebars sit outside .app-shell, so
+   they inherit :root --traffic-light-clearance (0 unless macos-overlay).
+   html:has retargets that token for the whole document while phone layout is
+   active — phone never reserves the Overlay hole. */
+
+html:has(.app-shell[data-layout='phone']) {
+  --traffic-light-clearance: var(--s-3);
+  --deck-inset: 0px;
+  --titleband-height: 44px;
+}
+
+.app-shell[data-layout='phone'] {
+  --traffic-light-clearance: var(--s-3);
+  --titleband-height: 44px;
+}
+
+.app-shell[data-layout='phone'] > .sidebar {
+  width: min(100%, 100vw);
+  padding-top: calc(var(--titleband-height) + var(--app-safe-top, 0px));
+  padding-bottom: var(--app-safe-bottom, 0px);
+}
+
+.app-shell[data-layout='phone'] > .context-bar,
+.app-shell[data-layout='phone'] > .context-bar.context-titlebar-box {
+  height: auto;
+  min-height: calc(var(--titleband-height) + var(--app-safe-top, 0px));
+  padding: var(--app-safe-top, 0px) var(--s-3) 0 var(--s-3);
+}
+
+.app-shell[data-layout='phone'].nav-open > .context-bar > .context-bar-leading,
+.app-shell[data-layout='phone'] > .context-bar > .context-bar-leading,
+.app-shell[data-layout='compact'] > .context-bar > .context-bar-leading {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.app-shell[data-layout='phone'] .traffic {
+  display: none;
+}
+
+.app-shell[data-layout='phone'] .context-bar .piwin-icon-button {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+}
+
+.app-shell[data-layout='phone'] .composer-v2-toolbar,
+.app-shell[data-layout='phone'] .composer-v2-toolbar-left,
+.app-shell[data-layout='phone'] .composer-v2-toolbar-right {
+  flex-wrap: nowrap;
+}
+
+.app-shell[data-layout='phone'] .composer-v2-toolbar-left {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-shell[data-layout='phone'] .composer-v2-toolbar-right {
+  flex: none;
+  margin-left: auto;
+}
+
+.app-shell[data-layout='phone'] .composer-v2-textarea {
+  font-size: 16px;
+  max-height: 36vh;
+  overflow-y: auto;
+}
+
+.app-shell[data-layout='phone'] .slab .composer-v2-icon-btn {
+  width: 28px;
+  height: 26px;
+  min-width: 28px;
+  min-height: 26px;
+  --ai-size: 26px;
+}
+
+.app-shell[data-layout='phone'] .slab .composer-v2-send-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.app-shell[data-layout='phone'] .context-usage-ring {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+}
+
+.app-shell[data-layout='phone'] .conversation-message-model-name {
+  max-width: min(180px, 40vw);
+}
+
+.app-shell[data-layout='phone'] .md-table-wrapper,
+.app-shell[data-layout='phone'] .md-code-block {
+  max-width: 100%;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone']
+  .gate {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone']
+  .gate
+  .seals {
+  justify-content: flex-end;
+}
+
+/* Inkstone titleband uses !important geometry; phone must reclaim the strip. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone']
+  > .context-bar {
+  height: auto !important;
+  min-height: calc(var(--titleband-height) + var(--app-safe-top, 0px)) !important;
+  max-height: none !important;
+  padding: var(--app-safe-top, 0px) var(--s-3) 0 var(--s-3) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone']
+  > .context-bar
+  > .context-bar-leading,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone']
+  .proto-nav {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone']
+  .traffic {
+  display: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone']
+  .slab
+  .ta,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone']
+  .slab
+  .composer-v2-textarea {
+  font-size: 16px;
+}
+
+html:has(.app-shell[data-layout='phone']) .vault-bar,
+html:has(.app-shell[data-layout='phone']) .knowledge-titlebar,
+html:has(.app-shell[data-layout='phone']) .knowledge-titlebar-box,
+html:has(.app-shell[data-layout='phone']) .settings-titlebar,
+html:has(.app-shell[data-layout='phone']) .settings-titlebar-box {
+  padding-top: var(--app-safe-top, 0px);
+  min-height: calc(var(--titleband-height) + var(--app-safe-top, 0px));
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']):has(
+    .app-shell[data-layout='phone']
+  )
+  .vault-stage
+  .vault-bar,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']):has(
+    .app-shell[data-layout='phone']
+  )
+  .lib-page
+  .vault-bar.is-page {
+  padding: var(--app-safe-top, 0px) var(--s-3) 0 var(--s-3);
+}

@@ -261,3 +261,100 @@
     gap: 12px;
   }
 }
+
+
+/* ── Library States (Loading, Scanning & Error Cards) ──────────────── */
+
+.lib-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-3);
+  margin: 0 auto;
+  max-width: 560px;
+}
+
+.lib-state-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--iris);
+  animation: lib-dot-pulse 1.4s ease-in-out infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes lib-dot-pulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.lib-state.is-error {
+  min-height: 400px;
+  justify-content: center;
+}
+
+.lib-error-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 36px 32px;
+  background: var(--s3, var(--surface-2));
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-card, 16px);
+  box-shadow: var(--sh2, 0 4px 16px rgba(0, 0, 0, 0.08));
+  max-width: 480px;
+  width: 100%;
+}
+
+.lib-error-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ochre-wash, rgba(148, 97, 26, 0.12));
+  color: var(--ochre, #94611a);
+  margin-bottom: 16px;
+}
+
+.lib-error-icon-box.is-failure {
+  background: var(--crimson-wash, rgba(156, 46, 61, 0.12));
+  color: var(--crimson, #9c2e3d);
+}
+
+.lib-state-title {
+  font: 600 16px var(--serif, inherit);
+  color: var(--t1, var(--text-1));
+  margin: 0 0 8px;
+}
+
+.lib-state-detail {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--t3, var(--text-3));
+  margin: 0 0 20px;
+  max-width: 400px;
+}
+
+.lib-error-badge {
+  margin-bottom: 16px;
+}
+
+.lib-error-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}

@@ -9,7 +9,6 @@ import type {
 import type { HostRequestOptions } from '@piwin/host-client';
 import type { DesktopLocale } from './desktop-locale';
 import {
-  FlashcardsWorkspaceView,
   KnowledgeWorkspaceView,
   LibraryWorkspaceView,
   MarketplaceWorkspaceView,
@@ -66,6 +65,9 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         request={props.request}
         locale={props.locale}
         initialKind={props.activeSubPage === 'videos' ? 'video' : 'image'}
+        {...(props.subscribeConnected !== undefined
+          ? { subscribeConnected: props.subscribeConnected }
+          : {})}
         {...(props.refreshToken !== undefined ? { refreshToken: props.refreshToken } : {})}
         {...(props.onRemixToComposer !== undefined
           ? { onRemixToComposer: props.onRemixToComposer }
@@ -74,42 +76,33 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
     );
   }
 
-  if (props.activeSubPage === 'flashcards') {
-    return (
-      <FlashcardsWorkspaceView
-        // A new folder target must restart the produce flow on that folder.
-        key={props.flashcardsFolderPath ?? 'flashcards'}
-        locale={props.locale}
-        onClose={props.onClose}
-        request={props.requestFlashcards}
-        projectPath={props.projectPath}
-        {...(props.onConfigureEmbedding
-          ? { onConfigureEmbedding: props.onConfigureEmbedding }
-          : {})}
-        {...(props.subscribePush ? { subscribePush: props.subscribePush } : {})}
-        {...(props.subscribeConnected ? { subscribeConnected: props.subscribeConnected } : {})}
-        {...(props.hasStudyCapability ? { hasStudyCapability: props.hasStudyCapability } : {})}
-        {...(props.flashcardsEntry ? { entry: props.flashcardsEntry } : {})}
-        {...(props.flashcardsFolderPath ? { initialFolderPath: props.flashcardsFolderPath } : {})}
-        {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
-        knowledgeSupported={props.knowledgeSupported === true}
-      />
-    );
-  }
-
-  if (props.activeSubPage === 'knowledge') {
+  if (props.activeSubPage === 'flashcards' || props.activeSubPage === 'knowledge') {
+    const initialTab =
+      props.activeSubPage === 'flashcards' && props.flashcardsEntry !== 'produce'
+        ? 'flashcards'
+        : props.flashcardsFolderPath || props.flashcardsEntry === 'produce'
+          ? 'documents'
+          : 'wiki';
     return (
       <KnowledgeWorkspaceView
+        key={props.flashcardsFolderPath ?? props.activeSubPage}
         locale={props.locale === 'en' ? 'en' : 'zh-CN'}
         onClose={props.onClose}
         request={props.request}
-        subscribePush={props.subscribeKnowledgePush}
+        initialTab={initialTab}
+        initialFolderPath={props.flashcardsFolderPath}
+        projectPath={props.projectPath}
+        subscribePush={props.subscribePush}
+        subscribeKnowledgePush={props.subscribeKnowledgePush}
+        subscribeConnected={props.subscribeConnected}
+        hasStudyCapability={props.hasStudyCapability}
         knowledgeSupported={props.knowledgeSupported === true}
         onOpenIngest={(folderPath) => props.onOpenIngest?.(folderPath)}
         onUseInChat={(baseId) => props.onUseKnowledgeInChat?.(baseId)}
         onSendToChat={(text) => props.onRemixToComposer?.({ text })}
         onOpenCitation={(citation) => props.onOpenKnowledgeCitation?.(citation)}
         onConfigureEmbedding={props.onConfigureEmbedding}
+        onOpenSession={props.onOpenSession}
       />
     );
   }

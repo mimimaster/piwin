@@ -33,7 +33,7 @@ import { FieldRow } from '../field-row';
 import { SearchRouteStatus } from '../search-route-status';
 import { useSettings } from '../settings-context';
 import { WebSecretEditor } from '../web-secret-editor';
-import { WebCliSourceFields, draftToTestSource } from '../web-cli-source-fields';
+import { WebCliSourceFields } from '../web-cli-source-fields';
 import { createDraftSearchSource, draftToWeb, findCustomSearchSource, type DraftSearchSource } from '../web-draft';
 import { HostWorkspacePicker } from '../../host-workspace-picker';
 import { pickLocalFile } from '../../pick-project-directory';
@@ -503,69 +503,6 @@ export function WebPage(): ReactElement {
                           }
                           testId={`web-search-${option.id}-api-key`}
                         />
-                      </div>
-                    ) : null}
-
-                    {selected &&
-                    source &&
-                    expandedSourceIds.has(source.id) &&
-                    option.id === 'searxng' ? (
-                      <div
-                        className="web-source-card-body"
-                        onClick={(event) => event.stopPropagation()}
-                        onKeyDown={(event) => event.stopPropagation()}
-                      >
-                        <Field
-                          label={zh ? '实例 URL' : 'Instance URL'}
-                          description={
-                            zh
-                              ? 'Host 将直接发起 HTTP 请求访问 /search?format=json，无需通过 CLI 包装。'
-                              : 'Host calls /search?format=json. No CLI wrapper needed.'
-                          }
-                          className="web-source-field"
-                        >
-                          <TextInput
-                            value={source.baseUrl}
-                            onChange={(event) =>
-                              updateKind('searxng', { baseUrl: event.currentTarget.value })
-                            }
-                            placeholder="http://127.0.0.1:8080"
-                            spellCheck={false}
-                            disabled={saving || remoteSettingsReadOnly === true}
-                            testId="web-search-searxng-url"
-                          />
-                        </Field>
-                        <div className="web-cli-actions">
-                          <span className="muted">
-                            {zh ? '自托管最常见路径' : 'Typical self-hosted path'}
-                          </span>
-                          <Button
-                            variant="primary"
-                            disabled={saving || remoteSettingsReadOnly === true}
-                            data-testid="web-search-searxng-test"
-                            onClick={() => {
-                              void (async () => {
-                                try {
-                                  const result = await testSearchConnection(
-                                    source.id,
-                                    'searxng',
-                                    draftToTestSource(source),
-                                  );
-                                  setInfo(
-                                    zh
-                                      ? `检索到 ${result.resultCount} 条结果 · 耗时 ${result.durationMs}ms`
-                                      : `${result.resultCount} hits · ${result.durationMs}ms`,
-                                    'success',
-                                  );
-                                } catch (error) {
-                                  setError(error instanceof Error ? error.message : String(error));
-                                }
-                              })();
-                            }}
-                          >
-                            {zh ? '测试' : 'Test'}
-                          </Button>
-                        </div>
                       </div>
                     ) : null}
 

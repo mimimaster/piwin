@@ -1758,7 +1758,7 @@ describe('session live control commands', () => {
       expect(boundScheme?.members[0]?.fallback).toBe('main');
     });
 
-    it('injects a compact agent-mode marker model-facing only; transcript keeps user text', async () => {
+    it('injects the agent-mode operating contract model-facing only; transcript keeps user text', async () => {
       const session = createDelayedSessionHandle();
       const promptContext = createPromptContext(session);
       const context = promptContext.context;
@@ -1797,7 +1797,8 @@ describe('session live control commands', () => {
       expect(recordedPrompts[0]?.text).toBe('fix the login bug');
       expect(recordedPrompts[0]?.text).not.toContain('[piwin-mode:');
       expect(modelFacingText).toContain('fix the login bug');
-      expect(modelFacingText).not.toContain('Operating contract');
+      expect(modelFacingText).toContain('Operating contract for this turn:');
+      expect(modelFacingText).toContain('Tool-loop silence');
       expect(modelFacingText.startsWith('[piwin-mode:agent]')).toBe(true);
     });
 

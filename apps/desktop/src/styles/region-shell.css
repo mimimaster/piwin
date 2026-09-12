@@ -35,6 +35,11 @@
   grid-template-areas: 'nav stage signal';
 }
 
+.app-shell[data-layout='desktop'][data-inspector='overlay'].has-right-panel {
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-areas: 'nav stage';
+}
+
 .app-shell[data-layout='desktop']:not(.nav-open) {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: 'stage';
@@ -43,6 +48,11 @@
 .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
   grid-template-columns: minmax(var(--stage-min), 1fr) minmax(0, var(--right-panel-width, 320px));
   grid-template-areas: 'stage signal';
+}
+
+.app-shell[data-layout='desktop'][data-inspector='overlay']:not(.nav-open).has-right-panel {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'stage';
 }
 
 /* Codex content-full: sidebar + right panel; stage stays mounted but hidden. */
@@ -69,9 +79,23 @@
 
 /* Compact collapses to a single stage column; the sidebar becomes a drawer. */
 .app-shell[data-layout='compact'],
-.app-shell[data-layout='compact'].has-right-panel {
+.app-shell[data-layout='compact'].has-right-panel,
+.app-shell[data-layout='phone'],
+.app-shell[data-layout='phone'].has-right-panel {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: 'stage';
+}
+
+.app-shell[data-layout='phone'] {
+  --stage-min: 0px;
+  --deck-inset: 0px;
+  --deck-gap: 0px;
+  --chat-inline-pad: 14px;
+  --chat-font-size: 16px;
+  --traffic-light-clearance: var(--s-3);
+  height: var(--app-vv-height, 100dvh);
+  padding: 0;
+  padding-bottom: var(--app-keyboard-inset, 0px);
 }
 
 /* ── Panel treatment ───────────────────────────────────────────────

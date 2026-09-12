@@ -100,10 +100,11 @@
   height: 12px;
   color: var(--text-4);
   transition: transform var(--t-2) var(--ease-out);
+  transform: rotate(-90deg);
 }
 
 .tool-batch-chevron.open {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
 }
 
 .tool-batch-body {
@@ -177,14 +178,14 @@
   white-space: nowrap;
 }
 
-/* Chevron stays hidden until the row is hoverable-relevant: at this density a
-   permanent affordance on every line is visual noise. */
+/* Always faintly visible so collapsed rows still read as expandable. */
 .explore-thought-chevron {
   width: 10px;
   height: 10px;
   flex-shrink: 0;
-  color: transparent;
-  opacity: 0;
+  color: var(--text-4);
+  opacity: 0.35;
+  transform: rotate(-90deg);
   transition:
     transform var(--t-2) var(--ease-out),
     color var(--t-1) var(--ease-out),
@@ -199,7 +200,7 @@
 }
 
 .explore-thought-chevron.open {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
 }
 
 .explore-thought-body {

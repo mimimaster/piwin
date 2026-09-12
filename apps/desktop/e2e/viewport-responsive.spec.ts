@@ -73,7 +73,7 @@ async function recordBoundaryState(page: Page): Promise<BoundaryRecord> {
 }
 
 /** S0 baseline widths: prove existing JS/CSS breakpoint discontinuities before S1 unifies them. */
-const BOUNDARY_WIDTHS = [820, 821, 980, 981, 1023, 1024] as const;
+const BOUNDARY_WIDTHS = [360, 390, 440, 767, 768, 820, 821, 980, 981, 1023, 1024] as const;
 
 test.describe('responsive viewport smoke', () => {
   test('1280x840 keeps sidebar and opens inspector', async ({ page }) => {
@@ -205,60 +205,74 @@ test.describe('responsive viewport smoke', () => {
     for (const width of BOUNDARY_WIDTHS) {
       const entry = records.find((item) => item.width === width);
       expect(entry).toBeTruthy();
-      if (width <= 1023) {
-        expect(entry?.dataLayout).toBe('compact');
+      if (width <= 767) {
+        expect(entry?.dataLayout).toBe('phone');
       } else {
         expect(entry?.dataLayout).toBe('desktop');
       }
     }
   });
 
-  test('compact has close routes for sidebar and inspector', async ({ page }) => {
+  test('web 980 uses the desktop page with an in-flow sidebar', async ({ page }) => {
     await page.setViewportSize({ width: 980, height: 760 });
     await page.goto('/');
     await waitForHostReady(page);
-    await expect(page.getByTestId('app-shell')).toHaveAttribute('data-layout', 'compact');
-
-    await page.getByTestId('rail-chats-btn').click();
-    await expect(page.getByTestId('sidebar-close-btn')).toBeVisible();
-    await page.getByTestId('sidebar-close-btn').click();
-    await expect(page.getByTestId('shell-overlay-scrim')).toHaveCount(0);
+    const shell = page.getByTestId('app-shell');
+    await expect(shell).toHaveAttribute('data-layout', 'desktop');
+    await expect(shell).toHaveClass(/nav-open/);
+    await expect(page.locator('.sidebar')).toBeVisible();
+    await expect(page.getByTestId('sidebar-close-btn')).toHaveCount(0);
 
     await page.getByTestId('right-panel-open-btn').click();
     await expect(page.getByTestId('right-panel')).toBeVisible();
-    await page.getByTestId('right-panel-files-btn').click();
-    await expect(page.getByTestId('right-panel')).toHaveAttribute('data-view', 'detail');
-    await expect(page.getByTestId('right-panel-close-btn')).toBeVisible();
     await expect(page.getByTestId('shell-overlay-scrim')).toBeVisible();
     await page.getByTestId('right-panel-close-btn').click();
     await expect(page.getByTestId('right-panel')).toBeHidden();
-
-    await openSettingsFromCompactShell(page);
-    await expect(page.getByTestId('settings-panel')).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('settings-panel')).toHaveCount(0);
   });
 
-  test('compact closed sidebar keeps its toggle clear of macOS traffic lights', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 980, height: 760 });
+  test('iPad portrait 820 uses the desktop page without overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 820, height: 1180 });
     await page.goto('/');
-
+    await waitForHostReady(page);
     const shell = page.getByTestId('app-shell');
-    await expect(shell).toBeVisible();
-    await expect(shell).toHaveAttribute('data-layout', 'compact');
-    await expect(shell).not.toHaveClass(/nav-open/);
+    await expect(shell).toHaveAttribute('data-layout', 'desktop');
+    await expect(shell).toHaveAttribute('data-inspector', 'overlay');
+    await expect(shell).toHaveClass(/nav-open/);
+    await expect(page.locator('.sidebar')).toBeVisible();
+    await expect(page.getByTestId('composer-input')).toBeVisible();
+    await expect.poll(async () =>
+      page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    ).toBe(true);
+  });
 
-    // With the compact drawer closed, the stage titleband occupies the native
-    // traffic-light row. Keep its leading controls outside that reserved area.
-    await expect
-      .poll(() =>
-        page
-          .getByTestId('workspace-context-header')
-          .evaluate((node) => Number.parseFloat(getComputedStyle(node).paddingLeft)),
-      )
-      .toBeGreaterThanOrEqual(78);
+  test('1024 desktop squeezes the inspector as a column', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto('/');
+    await waitForHostReady(page);
+    const shell = page.getByTestId('app-shell');
+    await expect(shell).toHaveAttribute('data-layout', 'desktop');
+    await expect(shell).toHaveAttribute('data-inspector', 'column');
+    await expect(page.locator('.sidebar')).toBeVisible();
+
+    await page.getByTestId('right-panel-open-btn').click();
+    await expect(page.getByTestId('right-panel')).toBeVisible();
+    await expect(page.getByTestId('shell-overlay-scrim')).toHaveCount(0);
+    await expect.poll(async () =>
+      page.evaluate(() => {
+        const panel = document.querySelector('[data-testid="right-panel"]');
+        const stage = document.querySelector('.workspace');
+        if (!(panel instanceof HTMLElement) || !(stage instanceof HTMLElement)) return false;
+        const panelBox = panel.getBoundingClientRect();
+        const stageBox = stage.getBoundingClientRect();
+        return (
+          getComputedStyle(panel).position === 'relative' &&
+          panelBox.left >= stageBox.right - 1 &&
+          document.documentElement.scrollWidth <= window.innerWidth + 1
+        );
+      }),
+    ).toBe(true);
+    await page.getByTestId('right-panel-open-btn').click();
+    await expect(page.getByTestId('right-panel')).toBeHidden();
   });
 
   test('800x700 mutual overlays stay reachable', async ({ page }) => {
@@ -266,10 +280,10 @@ test.describe('responsive viewport smoke', () => {
     await page.goto('/');
     await waitForHostReady(page);
 
-    // Sessions navigation remain usable.
+    // Web 800 is the desktop page; the session list is already in flow.
+    await expect(page.getByTestId('app-shell')).toHaveAttribute('data-layout', 'desktop');
+    await expect(page.locator('.sidebar')).toBeVisible();
     await expect(page.getByTestId('rail-chats-btn')).toBeVisible();
-    await page.getByTestId('rail-chats-btn').click();
-    await expect(page.getByTestId('open-workspace-btn')).toBeVisible();
 
     await openTrustedSession(page, '/tmp/piwin-e2e-viewport-800');
     await expect(page.getByTestId('composer-input')).toBeEnabled();
@@ -290,6 +304,32 @@ test.describe('responsive viewport smoke', () => {
     const scrim = page.getByTestId('shell-overlay-scrim');
     await expect(scrim).toBeVisible();
     await scrim.click();
+    await expect(page.getByTestId('right-panel')).toBeHidden();
+    await expect(page.getByTestId('composer-input')).toBeVisible();
+  });
+
+  test('phone 390 keeps chat loop reachable without page scroll', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await waitForHostReady(page);
+    const shell = page.getByTestId('app-shell');
+    await expect(shell).toHaveAttribute('data-layout', 'phone');
+    await expect(page.getByTestId('composer-input')).toBeVisible();
+    await expect(page.getByTestId('rail-chats-btn')).toBeVisible();
+    await expect.poll(async () =>
+      page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    ).toBe(true);
+
+    await page.getByTestId('rail-chats-btn').click();
+    await expect(shell).toHaveClass(/nav-open/);
+    await expect(page.getByTestId('session-search-btn-sb-top')).toBeVisible();
+    await page.getByTestId('sidebar-close-btn').click();
+    await expect(shell).not.toHaveClass(/nav-open/);
+
+    await page.getByTestId('workspace-context-header').getByTestId('right-panel-open-btn').click();
+    await expect(page.getByTestId('right-panel')).toBeVisible();
+    await expect(page.getByTestId('shell-overlay-scrim')).toBeVisible();
+    await page.getByTestId('right-panel-close-btn').click();
     await expect(page.getByTestId('right-panel')).toBeHidden();
     await expect(page.getByTestId('composer-input')).toBeVisible();
   });

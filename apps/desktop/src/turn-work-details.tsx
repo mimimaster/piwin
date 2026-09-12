@@ -188,6 +188,9 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     presentation.isActive &&
     !presentation.answerStarted &&
     callChainTools.length === 0 &&
+    // The explore capsule is the live work chrome. Folded tools used to look
+    // like "no work", so the waiting-first-token carousel spun under the chain.
+    !workFoldedIntoFlow &&
     // Visible open thinking already fills the bubble; collapsed/hidden reasoning
     // must still keep the carousel so long waits are not avatar-only.
     !(hasThinking && thinkingOpen) &&
@@ -284,6 +287,11 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
             ? {
                 ...(runningOrdinal !== undefined ? { runningToolIndex: runningOrdinal } : {}),
                 ...(runningCode !== undefined ? { runningCode } : {}),
+                // Run start, not tool start: the live clock is the ticking
+                // form of the `已工作 Xs` the header freezes into once done.
+                ...(presentation.startedAt !== undefined
+                  ? { runningSince: presentation.startedAt }
+                  : {}),
               }
             : {})}
           {...(foldState === 'waiting' && permissionItem?.kind === 'permission'

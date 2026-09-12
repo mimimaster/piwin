@@ -755,13 +755,15 @@
 
 .piwin-text-input,
 .piwin-password-input,
-.piwin-select {
+.piwin-select,
+.piwin-text-area {
   width: 100%;
 }
 
 .piwin-text-input-field,
 .piwin-password-input-field,
-.piwin-select-field {
+.piwin-select-field,
+.piwin-text-area-field {
   --input-height-sm: var(--control-height-default, 32px);
   --input-height-md: var(--control-height-large, 36px);
   --input-height-xs: var(--control-height-compact, 28px);
@@ -782,14 +784,16 @@
 
 .piwin-text-input-field:hover:not(:disabled):not(:focus),
 .piwin-password-input-field:hover:not(:disabled):not(:focus),
-.piwin-select-field:hover:not(:disabled):not(:focus) {
+.piwin-select-field:hover:not(:disabled):not(:focus),
+.piwin-text-area-field:hover:not(:disabled):not(:focus) {
   border-color: color-mix(in srgb, var(--accent) 28%, var(--line-soft));
   background: color-mix(in srgb, var(--surface-raised) 70%, var(--surface-inset));
 }
 
 .piwin-text-input-field:focus,
 .piwin-password-input-field:focus,
-.piwin-select-field:focus {
+.piwin-select-field:focus,
+.piwin-text-area-field:focus {
   border-color: var(--accent);
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
@@ -799,7 +803,8 @@
 
 .piwin-text-input-field:disabled,
 .piwin-password-input-field:disabled,
-.piwin-select-field:disabled {
+.piwin-select-field:disabled,
+.piwin-text-area-field:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -813,18 +818,20 @@
 @media (prefers-reduced-motion: reduce) {
   .piwin-text-input-field,
   .piwin-password-input-field,
-  .piwin-select-field {
+  .piwin-select-field,
+  .piwin-text-area-field {
     transition: none;
   }
 }
 
 /* ── TextArea ────────────────────────────────────────────────────── */
+/* Mantine Textarea + the shared input chrome above. Hide the native
+   resize grip so multiline fields match TextInput. */
 
 .piwin-text-area {
   display: flex;
   flex-direction: column;
   gap: 0;
-  width: 100%;
 }
 
 .piwin-text-area-label {
@@ -836,46 +843,15 @@
 }
 
 .piwin-text-area-field {
+  --input-height-sm: auto;
+  --input-height: auto;
   width: 100%;
   box-sizing: border-box;
   min-height: 72px;
-  padding: 10px 12px;
-  border: 1px solid var(--line-soft, var(--border));
-  border-radius: var(--radius-control, 8px);
-  background: var(--surface-inset, var(--surface-control));
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
+  height: auto;
+  padding-block: 10px;
   line-height: 1.45;
-  resize: vertical;
-  outline: none;
-  transition:
-    border-color var(--motion-quick, 120ms) var(--motion-ease, ease),
-    box-shadow var(--motion-quick, 120ms) var(--motion-ease, ease),
-    background-color var(--motion-quick, 120ms) var(--motion-ease, ease);
-}
-
-.piwin-text-area-field::placeholder {
-  color: var(--muted);
-}
-
-.piwin-text-area-field:hover:not(:disabled):not(:focus) {
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--line-soft));
-  background: color-mix(in srgb, var(--surface-raised) 70%, var(--surface-inset));
-}
-
-.piwin-text-area-field:focus {
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
-    0 1px 2px color-mix(in srgb, #000 8%, transparent);
-  background: var(--surface-raised);
-}
-
-.piwin-text-area--disabled .piwin-text-area-field,
-.piwin-text-area-field:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  resize: none;
 }
 
 .piwin-text-area-description {
@@ -896,12 +872,6 @@
   font-size: 11px;
   text-align: right;
   color: var(--muted);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .piwin-text-area-field {
-    transition: none;
-  }
 }
 
 /* ── SegmentedControl ───────────────────────────────────────────── */

@@ -272,6 +272,106 @@ html:is(
     margin-bottom: 6px;
   }
 
+  /* ── Permission Mode Selector Deck (Inkstone) ─────────────────────── */
+  .permission-mode-card {
+    border-radius: 8px;
+    border: 1px solid var(--l2);
+    background: var(--s2);
+    box-shadow: none;
+  }
+
+  .permission-mode-card:hover:not(:disabled) {
+    background: var(--s3);
+    border-color: var(--l3);
+    box-shadow: var(--sh1);
+  }
+
+  .mode-auto .mode-card-dot { background: var(--pine); }
+  .mode-ask .mode-card-dot { background: var(--lamp); }
+  .mode-yolo .mode-card-dot { background: var(--zhu); }
+
+  .mode-card-title {
+    font: 600 13.5px var(--sans);
+    color: var(--t1);
+  }
+
+  .mode-card-tagline {
+    font: 550 11.5px/1.4 var(--sans);
+    color: var(--t2);
+  }
+
+  .mode-card-desc {
+    font: 11.5px/1.55 var(--sans);
+    color: var(--t3);
+  }
+
+  .mode-card-feature-pill {
+    background: var(--l1);
+    color: var(--t3);
+  }
+
+  .badge-pine {
+    background: var(--pine-wash);
+    color: var(--pine);
+  }
+  .badge-lamp {
+    background: var(--lamp-wash);
+    color: var(--lamp);
+  }
+  .badge-zhu {
+    background: var(--zhu-wash);
+    color: var(--zhu);
+  }
+
+  .mode-auto.is-active .mode-card-check-icon { color: var(--pine); }
+  .mode-ask.is-active .mode-card-check-icon { color: var(--lamp); }
+  .mode-yolo.is-active .mode-card-check-icon { color: var(--zhu); }
+
+  .permission-mode-card.mode-auto.is-active {
+    background: color-mix(in srgb, var(--pine) 5%, var(--s3));
+    border-color: var(--pine);
+    box-shadow: 0 0 0 1px var(--pine), var(--sh1);
+  }
+  .permission-mode-card.mode-auto.is-active .mode-card-dot {
+    box-shadow: 0 0 0 3px var(--pine-wash);
+  }
+
+  .permission-mode-card.mode-ask.is-active {
+    background: color-mix(in srgb, var(--lamp) 6%, var(--s3));
+    border-color: var(--lamp);
+    box-shadow: 0 0 0 1px var(--lamp), var(--sh1);
+  }
+  .permission-mode-card.mode-ask.is-active .mode-card-dot {
+    box-shadow: 0 0 0 3px var(--lamp-wash);
+  }
+
+  .permission-mode-card.mode-yolo.is-active {
+    background: color-mix(in srgb, var(--zhu) 5%, var(--s3));
+    border-color: var(--zhu);
+    box-shadow: 0 0 0 1px var(--zhu), var(--sh1);
+  }
+  .permission-mode-card.mode-yolo.is-active .mode-card-dot {
+    box-shadow: 0 0 0 3px var(--zhu-wash);
+  }
+
+  .mode-card-restricted-hint {
+    color: var(--crimson);
+  }
+  .mode-card-restricted-dot {
+    background: var(--crimson);
+  }
+
+  .permission-mode-mechanics {
+    border-top: 1px solid var(--l1);
+  }
+  .permission-mechanics-summary {
+    color: var(--t3);
+  }
+  .permission-mechanics-summary:hover {
+    color: var(--t1);
+  }
+
+  /* Legacy pills fallback */
   .permission-mode-pill,
   .perm-pill {
     display: inline-flex;
@@ -285,13 +385,38 @@ html:is(
     color: var(--t2);
     border: 0;
     box-shadow: none;
+    transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .permission-mode-pill:hover:not(:disabled),
+  .perm-pill:hover:not(:disabled) {
+    background: var(--s2);
+    color: var(--t1);
+  }
+
+  .permission-mode-pill.mode-auto.is-active {
+    background: var(--pine-wash);
+    color: var(--pine);
+    box-shadow: inset 0 0 0 1px var(--pine);
+  }
+
+  .permission-mode-pill.mode-ask.is-active {
+    background: var(--lamp-wash);
+    color: var(--lamp);
+    box-shadow: inset 0 0 0 1px var(--lamp);
+  }
+
+  .permission-mode-pill.mode-yolo.is-active {
+    background: var(--zhu-wash);
+    color: var(--zhu);
+    box-shadow: inset 0 0 0 1px var(--zhu);
   }
 
   .permission-mode-pill.is-active,
   .perm-pill.sel {
-    background: var(--zhu-wash);
-    color: var(--zhu);
-    box-shadow: inset 0 0 0 1px var(--zhu);
+    background: var(--s3);
+    color: var(--t1);
+    box-shadow: var(--sh1);
   }
 
   .mode-pill-dot {

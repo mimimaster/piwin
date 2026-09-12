@@ -410,7 +410,7 @@ batchCreate(cards) → { created, skipped }
 
 ### 9.4 质量规则注入
 
-- 内置 skill：`skills/generate-flashcards/SKILL.md`，经 `ensureBundledSkillsInstalled` 安装到 `~/.piwin/skills/`（**已存在则不覆盖**）。
+- 内置 skill：仓库 `skills/generate-flashcards/SKILL.md`，从产品树加载，不拷进 `~/.piwin/skills/`。
 - **Doc Cards 生成不得只依赖 skill 发现。** `FLASHCARD_QUALITY_RULES` 为与 prompt builder 同仓的字符串常量，步骤 5 **始终嵌入**。
 - Skill 正文与常量主题保持 snapshot 对齐，对自由 chat 仅为 best-effort。
 

@@ -17,7 +17,7 @@ Bitmap image asset(s) on disk under the piwin media store that match the user’
 
 ## Stop when
 - Deliverable is better as SVG/vector, existing icon system, or HTML/CSS/canvas — do not use this skill.
-- `image_gen` missing or “no default image model” — tell user to configure Settings → Image Generation; no curl/base64 workarounds.
+- `image_gen` missing or “no image model configured” — tell user to add an image-capable model under Settings → Image Generation; no curl/base64 workarounds.
 - User needed image **editing** from references — not available yet; say so.
 
 ## Constraints

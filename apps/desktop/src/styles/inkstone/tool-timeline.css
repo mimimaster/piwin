@@ -58,13 +58,57 @@ html[data-theme-id='piwin-inkstone-paper'] .work-h .lamp,
 html[data-theme-id='piwin-inkstone-ink'] .work-h .lamp,
 html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .lamp,
 html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .lamp {
+  position: relative;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--lamp);
   box-shadow: 0 0 8px 2px var(--lamp-glow);
-  animation: breath 2.4s ease-in-out infinite;
+  animation: breath var(--breath) var(--ease-in-out) infinite;
   flex: none;
+}
+
+/* The lit core holds steady; the 墨晕 halo does the breathing. One wick, one
+   halo — layering a second offset wave here reads as a loading spinner, which
+   is the opposite of the intent. Sits behind the core (z-index: -1) so the
+   lamp never dims under its own glow. */
+html[data-theme-id='piwin-inkstone-paper'] .work-h .lamp::after,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .lamp::after,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .lamp::after,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .lamp::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, var(--lamp-glow), transparent);
+  animation: ink-bloom calc(var(--breath) * 1.5) var(--ease-out) infinite;
+  pointer-events: none;
+}
+
+/* The live clock sits opposite the label on the row's right edge, where the
+   frozen `已工作 Xs` will later read. Tabular figures so the seconds tick in
+   place instead of jittering the row; --t3 keeps it a quiet instrument
+   reading rather than a second headline competing with the lamp. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-elapsed {
+  margin-left: auto;
+  padding-left: 10px;
+  font: 11.5px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--t3);
+  flex: none;
+}
+
+/* With a clock now claiming the right edge, a long path has to ellipsis
+   instead of shoving the readout out of the row's `overflow: hidden`. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  :is(.turn-work-details-label, .turn-work-disclosure-label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .work-h .sq,
@@ -444,7 +488,29 @@ html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot.status-running {
   background: var(--lamp);
   border-color: var(--lamp);
   box-shadow: 0 0 0 3px var(--lamp-wash);
-  animation: breath 2.4s ease-in-out infinite;
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+/* Same 墨晕 bloom on the spine node. Scoped to the three containers that lift
+   the node onto the rail with `position: absolute`, so it already establishes
+   its own containing block. Deliberately NOT keyed off `.tool-status-dot` at
+   large: the same component also renders inline `position: static` dots in card
+   meta rows, and an absolutely positioned halo there escapes to whatever distant
+   ancestor happens to be positioned. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(
+    .tool-call-card .tool-call-summary > .node,
+    .explore-flow-capsule > .node,
+    .tool-batch-capsule > .node
+  ):is(.run, .status-running)::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, var(--lamp-glow), transparent);
+  animation: ink-bloom calc(var(--breath) * 1.5) var(--ease-out) infinite;
+  pointer-events: none;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .tr.fail b,
@@ -555,17 +621,37 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     box-shadow: none;
     white-space: nowrap;
   }
-  .tool-call-card .tool-call-file-name,
-  .turn-work-details .tool-call-card .tool-call-file-pill .tool-call-file-name {
-    font: inherit;
-    color: inherit;
+  .tool-call-card .tool-call-file-path,
+  .turn-work-details .tool-call-card .tool-call-file-path {
+    display: inline-flex;
+    min-width: 0;
+    overflow: hidden;
+    max-width: 100%;
+  }
+  .tool-call-card .tool-call-file-dir,
+  .turn-work-details .tool-call-card .tool-call-file-dir {
+    flex: 0 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .tool-call-card .tool-call-line-range,
-  .tool-call-card .tool-call-count-inline,
-  .tool-call-card .tool-call-count-tag {
-    display: none;
+  .tool-call-card .tool-call-file-name,
+  .turn-work-details .tool-call-card .tool-call-file-pill .tool-call-file-name {
+    flex: none;
+    font: inherit;
+    color: inherit;
+    overflow: visible;
+    white-space: nowrap;
+  }
+  .tool-call-card .tool-call-line-range {
+    display: inline;
+    flex: none;
+    color: var(--t4);
+    font-variant-numeric: tabular-nums;
+  }
+  .tool-call-card .tool-call-summary.has-body {
+    cursor: pointer;
   }
   .tool-call-card .meta,
   .tr .meta,
@@ -819,7 +905,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
   .tool-call-summary .seal.mini { width: 17px; height: 17px; flex: none; }
   .tool-call-chevron-hit {
-    opacity: 0;
+    opacity: 0.35;
     color: var(--t4);
     margin-left: 0;
     transition: opacity var(--t-1) var(--ease-out);
@@ -890,9 +976,20 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
   .tool-batch-items,
   .turn-work-details .tool-batch-items {
-    padding: 0;
+    padding: 0 0 0 12px;
     margin-left: 0;
     border: 0;
+  }
+  /* Content indents; nodes stay on the single spine. */
+  .tool-batch-items .tool-call-card .tool-call-summary > .node {
+    left: -30px;
+  }
+  .tool-batch-items .tool-call-card .tool-call-summary > .node.sm,
+  .tool-batch-items .tool-call-card.sub .tool-call-summary > .node {
+    left: -29px;
+  }
+  .tool-batch-items .explore-thought-row > .node {
+    left: -29px;
   }
 
   /* Proto thought row: brain icon + label + meta「思考」 on the same 28px .tr. */
@@ -972,8 +1069,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     width: 12px;
     height: 12px;
     color: var(--t4);
-    opacity: 0;
+    opacity: 0.35;
     flex: none;
+    transform: rotate(-90deg);
     transition:
       opacity var(--t-1) var(--ease-out),
       transform var(--t-2) var(--ease-out);
@@ -984,7 +1082,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     opacity: 1;
   }
   .explore-thought-chevron.open {
-    transform: rotate(180deg);
+    transform: rotate(0deg);
   }
   .explore-thought-body {
     margin: 6px 0 10px 0;

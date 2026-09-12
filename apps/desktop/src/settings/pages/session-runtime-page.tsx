@@ -14,6 +14,8 @@ import {
   ABSOLUTE_MAX_RESIDENT_RUNTIMES,
   DEFAULT_IDLE_TTL_SECONDS,
   DEFAULT_MAX_CONCURRENT_RUNS,
+  DEFAULT_MIN_AVAILABLE_MEMORY_MIB,
+  MAX_MIN_AVAILABLE_MEMORY_MIB,
   DEFAULT_MAX_IDLE_RUNTIMES,
   MAX_CONCURRENT_RUNS,
   MAX_MEMORY_HIGH_WATER_MIB,
@@ -144,6 +146,9 @@ export function SessionRuntimePage(): ReactElement {
       ? String(savedRetention.memoryHighWaterMiB)
       : '',
   );
+  const [minMemoryDraft, setMinMemoryDraft] = useState(
+    String(savedExecution.minAvailableMemoryMiB),
+  );
   const [maxConcurrentDraft, setMaxConcurrentDraft] = useState(
     String(savedExecution.maxConcurrentRuns),
   );
@@ -165,6 +170,7 @@ export function SessionRuntimePage(): ReactElement {
 
   useEffect(() => {
     setMaxConcurrentDraft(String(savedExecution.maxConcurrentRuns));
+    setMinMemoryDraft(String(savedExecution.minAvailableMemoryMiB));
   }, [savedExecution]);
 
   const draftRetention: SessionRuntimeRetentionConfig = useMemo(
@@ -188,10 +194,16 @@ export function SessionRuntimePage(): ReactElement {
     () =>
       normalizeExecutionConfig({
         maxConcurrentRuns: parseNonNegativeInt(maxConcurrentDraft, DEFAULT_MAX_CONCURRENT_RUNS),
+        minAvailableMemoryMiB: parseNonNegativeInt(
+          minMemoryDraft,
+          DEFAULT_MIN_AVAILABLE_MEMORY_MIB,
+        ),
       }),
-    [maxConcurrentDraft],
+    [maxConcurrentDraft, minMemoryDraft],
   );
-  const executionDirty = draftExecution.maxConcurrentRuns !== savedExecution.maxConcurrentRuns;
+  const executionDirty =
+    draftExecution.maxConcurrentRuns !== savedExecution.maxConcurrentRuns ||
+    draftExecution.minAvailableMemoryMiB !== savedExecution.minAvailableMemoryMiB;
 
   const refreshStatus = useCallback(async (): Promise<void> => {
     if (!canReadRuntimeStatus) {
@@ -485,6 +497,25 @@ export function SessionRuntimePage(): ReactElement {
             onChange={(event) => setMaxConcurrentDraft(event.currentTarget.value)}
           />
         </FieldRow>
+        <FieldRow
+          label={isZh ? '可用内存下限 (MiB)' : 'Available memory floor (MiB)'}
+          description={
+            isZh
+              ? `默认 ${DEFAULT_MIN_AVAILABLE_MEMORY_MIB}，最大 ${MAX_MIN_AVAILABLE_MEMORY_MIB}，填 0 关闭。系统可用内存低于此值时拒绝执行 shell 命令，并提示模型改用串行参数重跑。上面的并发上限按“任务数”计数，拦不住单条命令自己 fork 出的一堆子进程（例如 pnpm test 拉起十个 vitest worker），这一项补的就是那一层。无法读取系统内存时不拦截。`
+              : `Default ${DEFAULT_MIN_AVAILABLE_MEMORY_MIB}, max ${MAX_MIN_AVAILABLE_MEMORY_MIB}, 0 disables. Shell commands are refused while system available memory is below this, and the model is told to retry serially. The cap above counts runs, so it cannot see the subprocesses one command forks (a single \`pnpm test\` spawning ten vitest workers); this covers that layer. Never blocks when memory cannot be measured.`
+          }
+          testId="execution-min-memory-row"
+        >
+          <TextInput
+            testId="execution-min-memory"
+            type="number"
+            min={0}
+            max={MAX_MIN_AVAILABLE_MEMORY_MIB}
+            step={256}
+            value={minMemoryDraft}
+            onChange={(event) => setMinMemoryDraft(event.currentTarget.value)}
+          />
+        </FieldRow>
         <div className="ui-field-row">
           <Button
             data-testid="execution-max-concurrent-save"
@@ -493,7 +524,7 @@ export function SessionRuntimePage(): ReactElement {
               void handleSaveExecution();
             }}
           >
-            {isZh ? '保存同时执行任务数' : 'Save concurrent run limit'}
+            {isZh ? '保存执行限制' : 'Save execution limits'}
           </Button>
         </div>
       </div>

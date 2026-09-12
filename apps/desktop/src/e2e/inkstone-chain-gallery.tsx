@@ -1,4 +1,4 @@
-import { useEffect, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import type { ToolCardUi } from '../chat-reducer.js';
 import type { ExploreFlowGroup } from '../explore-flow.js';
 import { ExploreFlowCapsule } from '../explore-flow-capsule.js';
@@ -134,6 +134,8 @@ const galleryStyle = {
 
 /** Static proto-01 call-chain states for visual QA. */
 export function InkstoneChainGallery(): ReactElement {
+  // Fixed at mount so the running header's live clock actually ticks here.
+  const [runStartedAt] = useState(() => Date.now() - 74_000);
   useEffect(() => {
     document.documentElement.setAttribute('data-theme-id', 'piwin-inkstone-paper');
     document.documentElement.setAttribute('data-theme-mode', 'light');
@@ -161,6 +163,7 @@ export function InkstoneChainGallery(): ReactElement {
           locale="zh-CN"
           runningToolIndex={5}
           runningCode="pnpm typecheck"
+          runningSince={runStartedAt}
           testId="gallery-work-running"
         />
         <WorkFoldHeader

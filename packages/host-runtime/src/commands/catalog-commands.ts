@@ -11,6 +11,7 @@ import {
   MEDIA_READ_WIRE_SAFE_BYTES,
   MEDIA_THUMB_EDGE_STANDARD_PX,
   SPEECH_MAX_DURATION_MS,
+  canToggleSkill,
   createDefaultWebConfig,
   formatError,
   isMediaThumbEdge,
@@ -25,7 +26,12 @@ import {
 import { isSubscriptionProvider, isV1SubscriptionProviderId } from '@piwin/contracts';
 import { createMediaService } from '@piwin/media';
 import { createExtensionRevisionStore } from '@piwin/extensions';
-import { ensureBundledSkillsInstalled, readSkillPreview } from '@piwin/skills';
+import {
+  ensureBundledSkillsInstalled,
+  readSkillPreview,
+  SkillUninstallError,
+  uninstallUserSkill,
+} from '@piwin/skills';
 import { loadDiscoveredResources } from '../discovered-resources.js';
 import { getPiAgentDir } from '../paths.js';
 import { installSkill, installExtension, listSkillStoreEntries } from '@piwin/marketplace';
@@ -91,6 +97,7 @@ const TYPES = new Set<HostCommand['type']>([
   'skills/read',
   'skills/set_enabled',
   'skills/install',
+  'skills/uninstall',
   'skills/store-list',
   'extensions/list',
   'extensions/set_enabled',
@@ -293,6 +300,13 @@ export async function handleCatalogCommand(
       const rootDir = getPiwinRoot(context.piwinRoot);
       const config = await loadPiwinConfig(rootDir);
       const skillsConfig = config.skills ?? { extraPaths: [], disabledIds: [] };
+      if (!command.enabled) {
+        const discovered = await loadCatalogResources(rootDir);
+        const skill = discovered.skills.find((entry) => entry.id === command.skillId);
+        if (skill && !canToggleSkill(skill.source)) {
+          return fail(requestId, 'skills/set_enabled', 'Bundled skills cannot be disabled');
+        }
+      }
       const disabled = new Set(skillsConfig.disabledIds);
       if (command.enabled) {
         disabled.delete(command.skillId);
@@ -324,6 +338,26 @@ export async function handleCatalogCommand(
         skillId: result.skillId,
         targetPath: result.targetPath,
       });
+    }
+    case 'skills/uninstall': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const skillId = command.skillId.trim();
+      if (!skillId) {
+        return fail(requestId, 'skills/uninstall', 'skillId is required');
+      }
+      const discovered = await loadCatalogResources(rootDir);
+      const skill = discovered.skills.find((entry) => entry.id === skillId);
+      if (!skill) {
+        return fail(requestId, 'skills/uninstall', `Skill not found: ${skillId}`);
+      }
+      try {
+        await uninstallUserSkill({ piwinRoot: rootDir, skill });
+      } catch (error) {
+        const message =
+          error instanceof SkillUninstallError ? error.message : formatError(error);
+        return fail(requestId, 'skills/uninstall', message);
+      }
+      return ok(requestId, 'skills/uninstall', { skillId });
     }
     case 'skills/store-list': {
       const entries = listSkillStoreEntries();

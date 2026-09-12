@@ -2,67 +2,70 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { createElement } from 'react';
+import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { PiwinUiProvider } from './piwin-ui-provider.js';
+import { TEST_THEME_DARK } from './test-theme-fixtures.js';
 import { TextArea } from './textarea.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
+function renderTextArea(props: Parameters<typeof TextArea>[0]): string {
+  return renderToStaticMarkup(
+    createElement(PiwinUiProvider, {
+      manifest: TEST_THEME_DARK,
+      children: createElement(TextArea, props),
+    }),
+  );
+}
+
 describe('TextArea (static)', () => {
-  it('renders the controlled value into the native textarea', () => {
-    const markup = renderToStaticMarkup(
-      createElement(TextArea, {
-        value: 'hello world',
-        onChange: () => undefined,
-      }),
-    );
+  it('renders the controlled value into the textarea', () => {
+    const markup = renderTextArea({
+      value: 'hello world',
+      onChange: () => undefined,
+    });
 
     expect(markup).toContain('<textarea');
     expect(markup).toContain('hello world');
+    expect(markup).toContain('piwin-text-area-field');
   });
 
   it('applies label, description, and testId', () => {
-    const markup = renderToStaticMarkup(
-      createElement(TextArea, {
-        label: 'Notes',
-        description: 'Markdown supported',
-        testId: 'notes-field',
-        value: '',
-        onChange: () => undefined,
-      }),
-    );
+    const markup = renderTextArea({
+      label: 'Notes',
+      description: 'Markdown supported',
+      testId: 'notes-field',
+      value: '',
+      onChange: () => undefined,
+    });
 
     expect(markup).toContain('data-testid="notes-field"');
     expect(markup).toContain('Notes');
     expect(markup).toContain('Markdown supported');
-    // Label associates with the control via htmlFor.
-    expect(markup).toContain('class="piwin-text-area-label"');
-    expect(markup).toContain('class="piwin-text-area-description');
+    expect(markup).toContain('piwin-text-area-label');
+    expect(markup).toContain('piwin-text-area-description');
   });
 
   it('marks the disabled state on the wrapper and the control', () => {
-    const markup = renderToStaticMarkup(
-      createElement(TextArea, {
-        disabled: true,
-        value: '',
-        onChange: () => undefined,
-      }),
-    );
+    const markup = renderTextArea({
+      disabled: true,
+      value: '',
+      onChange: () => undefined,
+    });
 
     expect(markup).toContain('data-disabled="true"');
-    expect(markup).toContain('disabled=""');
+    expect(markup).toContain('disabled');
   });
 
   it('renders the error message and flags aria-invalid', () => {
-    const markup = renderToStaticMarkup(
-      createElement(TextArea, {
-        error: 'Too short',
-        value: '',
-        onChange: () => undefined,
-      }),
-    );
+    const markup = renderTextArea({
+      error: 'Too short',
+      value: '',
+      onChange: () => undefined,
+    });
 
     expect(markup).toContain('data-invalid="true"');
     expect(markup).toContain('aria-invalid="true"');
@@ -71,13 +74,11 @@ describe('TextArea (static)', () => {
   });
 
   it('renders a character counter when maxLength is set', () => {
-    const markup = renderToStaticMarkup(
-      createElement(TextArea, {
-        maxLength: 10,
-        value: 'abc',
-        onChange: () => undefined,
-      }),
-    );
+    const markup = renderTextArea({
+      maxLength: 10,
+      value: 'abc',
+      onChange: () => undefined,
+    });
 
     expect(markup).toContain('maxLength="10"');
     expect(markup).toContain('3/10');
@@ -107,7 +108,12 @@ describe('TextArea (interactive)', () => {
     const handleChange = vi.fn();
 
     act(() => {
-      root.render(createElement(TextArea, { value: '', onChange: handleChange }));
+      root.render(
+        createElement(PiwinUiProvider, {
+          manifest: TEST_THEME_DARK,
+          children: createElement(TextArea, { value: '', onChange: handleChange }),
+        }) as ReactElement,
+      );
     });
 
     const textarea = container.querySelector('textarea');

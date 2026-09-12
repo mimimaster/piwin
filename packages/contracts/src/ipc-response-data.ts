@@ -359,6 +359,10 @@ export type SkillsInstallData = {
   targetPath: string;
 };
 
+export type SkillsUninstallData = {
+  skillId: string;
+};
+
 /** CE-CHAT pin / search / truncate payloads. */
 export type SessionPinData = {
   sessionId: string;

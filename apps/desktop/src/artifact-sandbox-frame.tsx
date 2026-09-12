@@ -168,8 +168,12 @@ export function ArtifactSandboxFrame(props: {
   const canvas = props.presentation === 'canvas';
   const viewportChrome = hostOwnsViewport(appliedFrameMode, bridge.overflowsInlineFlow);
   const showOverflowHint = !canvas && appliedFrameMode === 'inline-overflow';
+  const [paintedDocumentKey, setPaintedDocumentKey] = useState<string | null>(null);
   const preparingStableSnapshot =
-    view.mode === 'stream-preview' && props.plan.renderSource.trim().length === 0;
+    view.mode === 'stream-preview' &&
+    (props.plan.renderSource.trim().length === 0 ||
+      !document.streamSeeded ||
+      paintedDocumentKey !== document.documentKey);
   const toolStatus =
     bridge.status === 'ready' ? 'done' : bridge.status === 'fallback' ? 'error' : 'running';
   const pausedLabel =
@@ -294,6 +298,7 @@ export function ArtifactSandboxFrame(props: {
                   lease.markIframeLoaded();
                   bridge.onIframeLoad();
                   streamPublisher.onIframeLoad();
+                  setPaintedDocumentKey(document.documentKey);
                 }}
                 style={
                   canvas

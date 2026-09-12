@@ -57,9 +57,9 @@ The route path is optional. Host defaults remain protocol-aware:
 - `anthropic-compatible`: unsupported with a configuration error
 
 `imageGeneration.defaultModel` is the only image default. Chat defaults are no
-longer accepted as an arbitrary fallback. If no image default exists and there
-is exactly one enabled image model, Host may use it as a migration convenience;
-if several exist, Settings must choose a default.
+longer accepted as an arbitrary fallback. If no image default exists, Host uses
+the first enabled image model in provider/config order so `image_gen` stays
+callable. An explicit image default still wins when set.
 
 For compatibility, an existing model with an image-generation route is treated
 as image-capable even if its capability tag predates this spec. Any model saved
@@ -112,6 +112,7 @@ created.
 ## Acceptance checks
 
 - A non-image chat default cannot make `image_gen` appear or receive a request.
+- Missing image default still registers `image_gen` when any enabled image model exists.
 - A stale image default produces a clear configuration error.
 - Duplicate model ids require an explicit provider id.
 - Multi-image provider responses produce the same number of media attachments.

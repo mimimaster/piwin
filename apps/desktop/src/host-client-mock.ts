@@ -16,6 +16,7 @@ import { handleMockCatalogCommands } from './host-client-mock-catalog.js';
 import { handleMockSettingsCommands } from './host-client-mock-settings.js';
 import { handleMockOpsCommands } from './host-client-mock-ops.js';
 import { handleMockKnowledgeCommands } from './host-client-mock-knowledge.js';
+import { handleMockFlashcardCommands } from './host-client-mock-flashcards.js';
 import {
   byteLength,
   chunkText,
@@ -285,7 +286,8 @@ export class MockHostBackend {
       (await handleMockCatalogCommands(this, command, id)) ??
       (await handleMockSettingsCommands(this, command, id)) ??
       (await handleMockOpsCommands(this, command, id)) ??
-      (await handleMockKnowledgeCommands(this, command, id));
+      (await handleMockKnowledgeCommands(this, command, id)) ??
+      (await handleMockFlashcardCommands(this, command, id));
     if (dispatched) {
       return dispatched;
     }

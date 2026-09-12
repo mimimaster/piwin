@@ -7,7 +7,7 @@ import type {
   SessionScope,
 } from '@piwin/contracts';
 import { normalizeResourceId } from '@piwin/contracts';
-import { ensureBundledSkillsInstalled } from '@piwin/skills';
+import { ensureBundledSkillsInstalled, resolveBundledSkillsRoot } from '@piwin/skills';
 import { collectExtensionEntryPaths } from './extension-scanner.js';
 import { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
 import { collectPromptEntryPaths } from './prompt-scanner.js';
@@ -207,8 +207,10 @@ export function collectSkillPaths(options: {
   extraSkillPaths?: string[];
   projectPath?: string;
   scope?: SessionScope;
+  bundledSkillsRoot?: string;
 }): string[] {
-  const paths: string[] = [getPiwinSkillsDir(options.piwinRoot)];
+  const bundledRoot = options.bundledSkillsRoot ?? resolveBundledSkillsRoot();
+  const paths: string[] = [bundledRoot, getPiwinSkillsDir(options.piwinRoot)];
   const allowProjectLocal = options.scope?.kind !== 'general';
   const projectPath = options.projectPath?.trim();
   if (allowProjectLocal && projectPath) {

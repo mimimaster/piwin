@@ -5,6 +5,7 @@
 import { mkdir, stat } from 'node:fs/promises';
 import {
   NOTES_KNOWLEDGE_BASE_ID,
+  WIKI_KNOWLEDGE_BASE_ID,
   parseKnowledgeBaseId,
   type KnowledgeBaseKind,
   type KnowledgeBaseSummary,
@@ -28,8 +29,10 @@ import {
   type KnowledgeBaseRegistryRecord,
 } from './knowledge-base-registry.js';
 import { deriveFolderKnowledgeBaseState } from './knowledge-base-state.js';
-import { getPiwinRoot } from './paths.js';
+import { getPiwinRoot, getPiwinWikiDir } from './paths.js';
+import { ensureWikiInitialized, WIKI_KNOWLEDGE_BASE_NAME } from './wiki-service.js';
 
+export { WIKI_KNOWLEDGE_BASE_NAME };
 export const NOTES_KNOWLEDGE_BASE_NAME = 'Notes';
 
 export type NotesServices = {
@@ -76,6 +79,15 @@ export async function listKnowledgeBaseSummaries(
       }),
     );
   }
+  await ensureWikiInitialized(runtime.piwinRoot);
+  bases.unshift(
+    await summarizeBase(runtime, rag, {
+      id: WIKI_KNOWLEDGE_BASE_ID,
+      kind: 'wiki',
+      name: WIKI_KNOWLEDGE_BASE_NAME,
+      folderPath: getPiwinWikiDir(getPiwinRoot(runtime.piwinRoot)),
+    }),
+  );
   return sortKnowledgeBases(bases);
 }
 
@@ -129,8 +141,8 @@ export async function renameKnowledgeBase(
   if (!parsed) {
     throw new KnowledgeBaseCommandError(`Unknown knowledge base: ${baseId}`);
   }
-  if (parsed.kind === 'notes') {
-    throw new KnowledgeBaseCommandError('the notes knowledge base cannot be renamed');
+  if (parsed.kind === 'notes' || parsed.kind === 'wiki') {
+    throw new KnowledgeBaseCommandError(`the ${parsed.kind} knowledge base cannot be renamed`);
   }
   await recoverKnowledgeBaseRegistry(runtime.piwinRoot);
   const document = await loadKnowledgeBaseRegistry(runtime.piwinRoot);
@@ -152,8 +164,8 @@ export async function removeKnowledgeBase(
   if (!parsed) {
     throw new KnowledgeBaseCommandError(`Unknown knowledge base: ${baseId}`);
   }
-  if (parsed.kind === 'notes') {
-    throw new KnowledgeBaseCommandError('the notes knowledge base cannot be removed');
+  if (parsed.kind === 'notes' || parsed.kind === 'wiki') {
+    throw new KnowledgeBaseCommandError(`the ${parsed.kind} knowledge base cannot be removed`);
   }
   await recoverKnowledgeBaseRegistry(runtime.piwinRoot);
   const document = await loadKnowledgeBaseRegistry(runtime.piwinRoot);
@@ -216,6 +228,10 @@ export async function readMountedKnowledgeBaseNames(
       names.push(NOTES_KNOWLEDGE_BASE_NAME);
       continue;
     }
+    if (baseId === WIKI_KNOWLEDGE_BASE_ID) {
+      names.push(WIKI_KNOWLEDGE_BASE_NAME);
+      continue;
+    }
     const record = findFolderRecordById(document, baseId);
     names.push(record?.name ?? baseId);
   }
@@ -255,7 +271,7 @@ async function summarizeBase(
   rag: FolderRag,
   base: SummarizableBase,
 ): Promise<KnowledgeBaseSummary> {
-  if (base.kind === 'notes') {
+  if (base.kind === 'notes' || base.kind === 'wiki') {
     await mkdir(base.folderPath, { recursive: true });
   }
   const pathExists = await folderPathExists(base.folderPath);
@@ -270,8 +286,8 @@ async function summarizeBase(
     hasEmbeddingProvider: rag.hasEmbeddingProvider,
     documents,
   });
-  if (base.kind === 'notes' && derived.state === 'not-indexed') {
-    // Notes has no manual ingest step, so "zero notes yet" must stay
+  if ((base.kind === 'notes' || base.kind === 'wiki') && derived.state === 'not-indexed') {
+    // Notes and Wiki have no manual ingest step, so "zero notes yet" must stay
     // distinguishable from "folder with unpicked files" — the desktop copy
     // for 'empty' ("ask the agent to take notes") vs 'not-indexed' ("pick
     // files to ingest") depends on this.
@@ -327,6 +343,8 @@ function sortKnowledgeBases(bases: KnowledgeBaseSummary[]): KnowledgeBaseSummary
   return [...bases].sort((left, right) => {
     if (left.kind === 'notes' && right.kind !== 'notes') return -1;
     if (right.kind === 'notes' && left.kind !== 'notes') return 1;
+    if (left.kind === 'wiki' && right.kind !== 'wiki') return -1;
+    if (right.kind === 'wiki' && left.kind !== 'wiki') return 1;
     const leftUsed = left.lastUsedAt ?? '';
     const rightUsed = right.lastUsedAt ?? '';
     if (leftUsed !== rightUsed) return rightUsed.localeCompare(leftUsed);

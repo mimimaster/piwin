@@ -757,3 +757,16 @@ input.project-path-input {
 .continue-session-project-list .piwin-button {
   justify-content: flex-start;
 }
+
+@media (max-width: 767px) {
+  .modal {
+    width: min(480px, calc(100vw - 24px));
+    padding: var(--s-4);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .ui-dialog-content {
+    max-height: calc(100dvh - 24px);
+    width: min(520px, calc(100vw - 24px));
+  }
+}

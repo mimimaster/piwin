@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { writeBundledSkillMarker } from './bundled-skill-origin.js';
 import { scanSkills } from './skill-scanner.js';
 
 describe('scanSkills', () => {
@@ -185,6 +186,105 @@ describe('scanSkills hidden flag', () => {
       expect(imagegen).toBeTruthy();
       expect(imagegen?.source).toBe('bundled');
       expect(imagegen?.hidden).toBe(true);
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps bundled skills enabled even when listed in disabledIds', async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const repoSkillsRoot = resolve(here, '..', '..', '..', 'skills');
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-bundled-locked-'));
+    try {
+      const skills = await scanSkills({
+        piwinRoot: rootDir,
+        bundledRoot: repoSkillsRoot,
+        skillsConfig: { extraPaths: [], disabledIds: ['imagegen', 'find-skill'] },
+      });
+      expect(skills.find((skill) => skill.id === 'imagegen')?.enabled).toBe(true);
+      expect(skills.find((skill) => skill.id === 'find-skill')?.enabled).toBe(true);
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('scanSkills product origin', () => {
+  it('keeps a user-authored skill as user', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-user-own-'));
+    try {
+      const dir = join(rootDir, 'skills', 'my-notes');
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        join(dir, 'SKILL.md'),
+        '---\nname: my-notes\ndescription: Personal notes\n---\n# Notes\n',
+        'utf8',
+      );
+      const skills = await scanSkills({ piwinRoot: rootDir });
+      expect(skills.find((skill) => skill.id === 'my-notes')?.source).toBe('user');
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('classifies a user-dir copy with a bundled marker as bundled', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-marker-'));
+    try {
+      const dir = join(rootDir, 'skills', 'writing-plans');
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        join(dir, 'SKILL.md'),
+        '---\nname: writing-plans\ndescription: Plans\n---\n# Plans\n',
+        'utf8',
+      );
+      await writeBundledSkillMarker(dir);
+      const skills = await scanSkills({ piwinRoot: rootDir });
+      expect(skills.find((skill) => skill.id === 'writing-plans')?.source).toBe('bundled');
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('loads a product skill from the repo tree and ignores a leftover user-dir copy', async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const repoSkillsRoot = resolve(here, '..', '..', '..', 'skills');
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-bound-'));
+    try {
+      const leftover = join(rootDir, 'skills', 'generate-flashcards');
+      await mkdir(leftover, { recursive: true });
+      await writeFile(
+        join(leftover, 'SKILL.md'),
+        '---\nname: generate-flashcards\ndescription: stale leftover\n---\n# Stale\n',
+        'utf8',
+      );
+      const skills = await scanSkills({ piwinRoot: rootDir, bundledRoot: repoSkillsRoot });
+      const matches = skills.filter((skill) => skill.id === 'generate-flashcards');
+      expect(matches).toHaveLength(1);
+      expect(matches[0]?.source).toBe('bundled');
+      expect(matches[0]?.path).toBe(join(repoSkillsRoot, 'generate-flashcards'));
+      expect(matches[0]?.description).not.toBe('stale leftover');
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('classifies frontmatter origin: bundled as bundled', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-origin-fm-'));
+    try {
+      const dir = join(rootDir, 'skills', 'llm-wiki');
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        join(dir, 'SKILL.md'),
+        '---\nname: llm-wiki\ndescription: Wiki\norigin: bundled\n---\n# Wiki\n',
+        'utf8',
+      );
+      const skills = await scanSkills({ piwinRoot: rootDir });
+      expect(skills.find((skill) => skill.id === 'llm-wiki')?.source).toBe('bundled');
     } finally {
       const { rm } = await import('node:fs/promises');
       await rm(rootDir, { recursive: true, force: true });

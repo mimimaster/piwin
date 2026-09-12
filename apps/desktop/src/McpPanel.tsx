@@ -631,7 +631,7 @@ export function McpPanel(props: McpPanelProps) {
               <div className="mcp-pin-tip">
                 <Notice
                   tone="info"
-                  title={isChinese ? 'Pin MCP 工具会发生什么？' : 'What does pinning MCP tools do?'}
+                  title={isChinese ? '固定 MCP 工具会发生什么？' : 'What does pinning MCP tools do?'}
                   testId="mcp-pin-tip"
                 >
                   {isChinese

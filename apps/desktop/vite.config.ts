@@ -12,6 +12,14 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     exclude: ['e2e/**', 'node_modules/**'],
     setupFiles: ['./src/setupTests.ts'],
+    /**
+     * 2026-09-12 事故：不设上限时 vitest 按 CPU 核数开 worker（本机 10 个），
+     * 每个 jsdom worker 实测 0.5-1.5 GB，叠上并发 tsc 后 24 GB 内存被打满，
+     * 内核在 11:53 触发 out-of-application-memory。这是全仓最大的套件，
+     * 也是 `pnpm --dir apps/desktop test` 绕过根脚本 --workspace-concurrency
+     * 的那条路径，上限必须写在这里才拦得住。
+     */
+    maxWorkers: 4,
   },
 
   plugins: [react()],

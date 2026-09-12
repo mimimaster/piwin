@@ -108,47 +108,6 @@
   flex: none;
 }
 
-.tool-call-file-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  padding: 1px var(--s-3);
-  border-radius: var(--r-chip);
-  background: var(--hover);
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono);
-  color: var(--text-2);
-  flex-shrink: 0;
-}
-
-.tool-call-file-pill.is-link .tool-call-file-name {
-  color: var(--text-1);
-  cursor: pointer;
-}
-
-.tool-call-file-pill.is-link:hover .tool-call-file-name {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.tool-call-file-pill.is-openable:hover {
-  background: var(--iris-wash);
-  color: var(--iris-lift);
-  text-decoration: underline;
-}
-
-.tool-call-file-pill.is-openable:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
-}
-
-.tool-call-line-range {
-  color: var(--text-4);
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  font-weight: 500;
-}
-
 .tool-call-diff-stats {
   display: inline-flex;
   align-items: center;
@@ -217,8 +176,7 @@
 }
 
 .tool-call-duration-live {
-  color: var(--ember);
-  animation: breath var(--breath) var(--ease-in-out) infinite;
+  color: inherit;
 }
 
 /* ── Status markers ───────────────────────────────────────────────────── */
@@ -267,6 +225,10 @@
 .tool-call-chevron.open { transform: rotate(0deg); }
 .tool-call-card:not(.is-expanded) .tool-call-chevron { transform: rotate(-90deg); }
 
+.tool-call-summary.has-body {
+  cursor: pointer;
+}
+
 .tool-call-chevron-hit {
   display: inline-flex;
   align-items: center;
@@ -274,7 +236,7 @@
   margin-left: auto;
   padding: 2px;
   border-radius: var(--r-chip);
-  opacity: 0;
+  opacity: 0.35;
   transition: opacity var(--t-1) var(--ease-out);
 }
 
@@ -842,20 +804,10 @@
   display: none;
 }
 
-.turn-work-details .tool-call-card .tool-call-file-pill.is-link .tool-call-file-name {
-  color: var(--text-2);
-  cursor: pointer;
-}
 .turn-work-details .tool-call-card .tool-call-action-verb {
   color: var(--text-4);
   font-size: var(--fs-chrome);
   font-weight: 400;
-}
-.turn-work-details .tool-call-card .tool-call-file-pill {
-  background: transparent;
-  padding: 0;
-  font-size: var(--fs-chrome);
-  color: var(--text-3);
 }
 
 /* ── Tool batch capsule ─────────────────────────────────────────────── */

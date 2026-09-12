@@ -146,6 +146,7 @@ export type HostContentCommand =
       source: InstallSource;
       name?: string;
     }
+  | { id?: string; type: 'skills/uninstall'; skillId: string }
   | { id?: string; type: 'extensions/list'; projectPath?: string }
   | {
       id?: string;

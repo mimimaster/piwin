@@ -20,7 +20,6 @@ import type { PluginsPanelProps } from './PluginsPanel';
 import type { PromptsPanelProps } from './PromptsPanel';
 import type { PetPanelProps } from './PetPanel';
 import type { AutomationPanelProps } from './AutomationPanel';
-import { hideUiNotification, showUiNotification } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import type { DesktopPreferences } from './ui-preferences';
 import { type SettingsSectionId } from './settings/section-registry';
@@ -204,8 +203,8 @@ export const SettingsPanel = memo(function SettingsPanel({
     }
   }, [initialSection]);
 
-  // All Settings feedback uses the shared Mantine notification host rather
-  // than a page-local alert so placement, sizing, and dismissal stay uniform.
+  // Shared settings bubble (`.settings-feedback-host`) auto-dismisses so pages
+  // only call setInfo/setError — no page-local overlay that covers a FieldRow.
   useEffect(() => {
     const message = error ?? info;
     if (!message) {
@@ -213,24 +212,20 @@ export const SettingsPanel = memo(function SettingsPanel({
     }
 
     const isError = error !== null;
-    const notificationId = showUiNotification({
-      tone: isError ? 'error' : infoTone,
-      ...(isError ? { title: locale === 'zh-CN' ? '设置错误' : 'Settings error' } : {}),
-      message,
-      autoClose: isError ? 6000 : 3500,
-      onClose: () => {
+    const timeoutId = window.setTimeout(
+      () => {
         if (isError) {
           setErrorState(null);
         } else {
           setInfoMessage(null);
         }
       },
-    });
-
+      isError ? 6000 : 3500,
+    );
     return () => {
-      hideUiNotification(notificationId);
+      window.clearTimeout(timeoutId);
     };
-  }, [error, info, infoTone, locale]);
+  }, [error, info]);
 
   const setInfo = useCallback(
     (message: string | null, tone: 'info' | 'success' | 'warning' = 'info'): void => {
@@ -531,6 +526,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       onSelectSection={selectSection}
       contextValue={contextValue}
       onClose={onClose}
+      feedback={{ error, info, tone: infoTone }}
     />
   );
 });

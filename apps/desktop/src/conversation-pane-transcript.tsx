@@ -6,6 +6,7 @@ import { ConversationResponseContent } from './conversation-response-content.js'
 import { UserMessageContent } from './conversation-user-message.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
+import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
 
 export type ConversationPaneTranscriptProps = {
   sessionId: string;
@@ -41,12 +42,23 @@ function createPendingAssistant(
 export function ConversationPaneTranscript(props: ConversationPaneTranscriptProps): ReactElement {
   const endRef = useRef<HTMLDivElement | null>(null);
   const messages = useMemo(() => {
-    const visible = props.state.messages.filter(
-      (message) =>
-        message.role === 'user' || message.role === 'assistant' || message.role === 'system',
-    );
+    const visible = props.state.messages.filter((message) => {
+      if (
+        message.role !== 'user' &&
+        message.role !== 'assistant' &&
+        message.role !== 'system'
+      ) {
+        return false;
+      }
+      return !isQueuedTurnHiddenFromTranscript(message);
+    });
     const tail = visible.at(-1);
-    return props.state.streaming && tail?.role === 'user'
+    const priorLiveCallChain = visible.some(
+      (message) =>
+        message.role === 'assistant' &&
+        message.tools.some((tool) => tool.status === 'running'),
+    );
+    return props.state.streaming && tail?.role === 'user' && !priorLiveCallChain
       ? [...visible, createPendingAssistant(tail, props.livePromptModel)]
       : visible;
   }, [props.livePromptModel, props.state.messages, props.state.streaming]);

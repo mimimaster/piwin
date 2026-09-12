@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { DesktopThemeRoot } from './desktop-theme-root';
 import { applyAppearanceToDocument } from './appearance-tokens';
 import { resolveStartupAppearance } from './theme-startup';
+import { applyWindowChromeToDocument } from './window-chrome';
 import { installDevelopmentPerformanceTimelineGuard } from './development-performance-timeline';
 import { installArtifactMemoryBridge } from './artifact-memory-bridge';
 import { installMemoryParking } from './memory-parking';
@@ -14,6 +15,7 @@ import './styles.css';
 // Pre-paint: use last known built-in theme (or Appearance prefs) so the first
 // frame is not always Noir. Host may still refine custom themes after connect.
 // Once mounted, DesktopThemeRoot is authoritative.
+applyWindowChromeToDocument(document.documentElement);
 applyAppearanceToDocument(resolveStartupAppearance());
 
 // Wire native memory samples into the Memory Governor before first render so

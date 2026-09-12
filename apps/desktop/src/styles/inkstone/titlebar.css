@@ -82,7 +82,8 @@ html[data-theme-id='piwin-inkstone-ink'] .context-bar .traffic-dot.maximize {
   pointer-events: none;
 }
 
-html:not([data-theme-id='piwin-inkstone-paper']):not([data-theme-id='piwin-inkstone-ink']) .traffic {
+html:not([data-theme-id='piwin-inkstone-paper']):not([data-theme-id='piwin-inkstone-ink']) .traffic,
+html:not([data-window-chrome='macos-overlay']) .context-bar .traffic {
   display: none !important;
 }
 

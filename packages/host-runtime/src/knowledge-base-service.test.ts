@@ -74,4 +74,24 @@ describe('listKnowledgeBaseSummaries — notes state', () => {
       rag.close();
     }
   });
+
+  it('includes built-in wiki knowledge base with empty state and prevents modification', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-kbs-'));
+    cleanup.push(root);
+    const { runtime, rag } = await runtimeIn(root);
+    try {
+      const summaries = await listKnowledgeBaseSummaries(runtime);
+      const wiki = summaries.find((base) => base.kind === 'wiki');
+      expect(wiki).toBeDefined();
+      expect(wiki?.id).toBe('wiki');
+      expect(wiki?.name).toBe('Wiki');
+      expect(wiki?.state).toBe('empty');
+
+      // Notes should be first, wiki should be second
+      expect(summaries[0]?.kind).toBe('notes');
+      expect(summaries[1]?.kind).toBe('wiki');
+    } finally {
+      rag.close();
+    }
+  });
 });

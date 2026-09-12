@@ -113,8 +113,26 @@ describe('resolveImageProvider', () => {
     expect(resolved.model.id).toBe('gpt-image-1');
   });
 
+  it('uses the first enabled image model when no image default exists', () => {
+    const resolved = resolveImageProvider(configWith({}));
+    expect(resolved.provider.id).toBe('openai');
+    expect(resolved.model.id).toBe('gpt-image-1');
+  });
+
   it('does not choose a chat default when multiple image models exist', () => {
-    expect(() => resolveImageProvider(configWith({}))).toThrow(/multiple image models/i);
+    const provider: OpenAiCompatibleProviderConfig = {
+      ...openAiProvider,
+      models: [{ id: 'gpt-4o', capabilities: ['chat'] }, ...openAiProvider.models],
+    };
+    const resolved = resolveImageProvider(
+      configWith({
+        providers: [provider, geminiProvider],
+        defaultProviderId: 'openai',
+        defaultModelId: 'gpt-4o',
+      }),
+    );
+    expect(resolved.provider.id).toBe('openai');
+    expect(resolved.model.id).toBe('gpt-image-1');
   });
 
   it('rejects a stale image default instead of silently changing models', () => {
@@ -623,7 +641,22 @@ describe('callImageEndpoint', () => {
 });
 
 describe('buildImageGenTool', () => {
-  it('returns null when no unambiguous image model can be resolved', () => {
+  it('registers image_gen when multiple image models exist without a default', () => {
+    const tool = buildImageGenTool({
+      piwinRoot: '/tmp/piwin',
+      sessionId: 's1',
+      config: configWith({}),
+      mediaConfig: {
+        mediaRoot: '/tmp/piwin/media',
+        maxPasteBytes: 10_000_000,
+        allowedMimeTypes: ['image/png'],
+      },
+      secretResolver: { resolveProviderSecret: async () => 'k' } as never,
+    });
+    expect(tool).not.toBeNull();
+  });
+
+  it('returns null when no enabled image model can be resolved', () => {
     const tool = buildImageGenTool({
       piwinRoot: '/tmp/piwin',
       sessionId: 's1',

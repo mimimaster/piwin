@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { IconBrain, IconChevronDown, IconChevronRight } from './shell-icons';
 
 export type WorkFoldHeaderState = 'done' | 'running' | 'waiting';
@@ -14,6 +14,8 @@ export type WorkFoldHeaderProps = {
   failureCount?: number;
   runningToolIndex?: number;
   runningCode?: string;
+  /** Epoch ms the run started. Drives the live clock in the running header. */
+  runningSince?: number;
   waitingAction?: string;
   waitingCode?: string;
   className?: string;
@@ -25,6 +27,37 @@ export type WorkFoldHeaderProps = {
   leading?: ReactNode;
   children?: ReactNode;
 };
+
+/** Compact, monospace-stable elapsed readout: `12s`, `3m 05s`, `1h 02m`. */
+export function formatLiveElapsed(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1_000));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  if (totalMinutes < 60) {
+    return `${totalMinutes}m ${String(totalSeconds % 60).padStart(2, '0')}s`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  return `${hours}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
+}
+
+/**
+ * Ticks once a second while a run is open. The interval only exists while a
+ * running header is mounted — at most one per transcript — and is keyed on
+ * `startedAt` so a new run restarts the clock rather than inheriting the old
+ * phase. Returns undefined when there is nothing to count from, so callers
+ * render no clock at all instead of a misleading `0s`.
+ */
+function useLiveElapsed(startedAt: number | undefined): number | undefined {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (startedAt === undefined) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [startedAt]);
+  if (startedAt === undefined) return undefined;
+  return Math.max(0, now - startedAt);
+}
 
 export function formatWorkDuration(elapsedMs: number, locale: 'zh-CN' | 'en'): string {
   let remainingSeconds = Math.max(1, Math.round(elapsedMs / 1_000));
@@ -184,6 +217,16 @@ function RunningLabel(props: {
   );
 }
 
+function LiveElapsed(props: { startedAt: number }): ReactElement | null {
+  const elapsedMs = useLiveElapsed(props.startedAt);
+  if (elapsedMs === undefined) return null;
+  return (
+    <span className="work-fold-elapsed" data-testid="work-fold-elapsed">
+      {formatLiveElapsed(elapsedMs)}
+    </span>
+  );
+}
+
 function WaitingLabel(props: {
   locale: 'zh-CN' | 'en';
   waitingAction?: string;
@@ -247,6 +290,9 @@ export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
       <WorkFoldIcon state={props.state} doneIcon={props.doneIcon ?? 'bulb'} />
       {props.leading}
       {label}
+      {props.state === 'running' && props.runningSince !== undefined ? (
+        <LiveElapsed startedAt={props.runningSince} />
+      ) : null}
       <WorkFoldChevron isOpen={open} />
     </>
   );

@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   BEHAVIOR_ACTIVITY_REGISTRY,
@@ -7,6 +10,11 @@ import {
   resolveToolBehaviorId,
   resolveToolBehaviorStateId,
 } from './behavior-activity.js';
+
+const behaviorCss = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), 'styles/behavior-activity.css'),
+  'utf8',
+);
 
 describe('behavior activity registry', () => {
   it('keeps every registry entry addressable by its stable id', () => {
@@ -109,6 +117,16 @@ describe('behavior activity registry', () => {
     expect(behaviorTextClass('tool.other', true)).toBe('behavior-generic-active');
     expect(resolveToolBehaviorStateId('mcp.call', 'done')).toBe('mcp.call.done');
     expect(resolveToolBehaviorStateId('mcp.call', 'error')).toBe('mcp.call.error');
+  });
+
+  it('keeps running tool-call verbs static so the spine owns liveness', () => {
+    const calm = behaviorCss.slice(
+      behaviorCss.indexOf('/* Chain rows: liveness stays on the spine node'),
+      behaviorCss.indexOf('.turn-work-details .tool-call-card .tool-call-action-verb.behavior-thinking-active'),
+    );
+    expect(calm).toContain(".tool-call-card[data-tool-status='running'] .tool-call-action-verb");
+    expect(calm).toContain('animation: none;');
+    expect(calm).not.toContain('wb-shimmer');
   });
 
   it('maps run lifecycle states to locator behavior ids', () => {

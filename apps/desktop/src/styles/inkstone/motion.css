@@ -19,13 +19,36 @@
   }
 }
 
+/* The shell's single "the agent is alive" pulse. Opacity only, on purpose:
+   `breath` is applied to text (`…` live duration), 7px lamps and 9px status
+   nodes alike, and a shared transform would blur the glyphs. Indicators that
+   want presence beyond a fade layer `ink-bloom` on a pseudo-element instead.
+   The 0.6→1 range this replaced was imperceptible on a 7px dot. */
 @keyframes breath {
   0%,
   100% {
-    opacity: 0.6;
+    opacity: 1;
   }
   50% {
+    opacity: 0.5;
+  }
+}
+
+/* 墨晕 — a halo swelling off a lit indicator and dissolving, the way ink
+   blooms outward when a loaded brush rests on paper. Runs on a pseudo-element
+   layered under the indicator core, at a period deliberately coprime with
+   `breath` so the two never lock into a mechanical blink. */
+@keyframes ink-bloom {
+  0% {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+  22% {
     opacity: 1;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
   }
 }
 

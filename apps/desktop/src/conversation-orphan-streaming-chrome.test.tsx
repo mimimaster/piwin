@@ -183,4 +183,90 @@ describe('orphan streaming chrome', () => {
       container.querySelector('[data-testid="conversation-thinking-active-animation"]'),
     ).not.toBeNull();
   });
+
+  it('does not paint a query locator under a live call chain after a follow-up', () => {
+    const state = {
+      ...createInitialChatUiState(),
+      streaming: true,
+      activeRunId: 'run-1',
+      messages: [
+        {
+          id: 'u1',
+          role: 'user' as const,
+          text: 'first',
+          thinking: '',
+          tools: [],
+          attachments: [],
+          status: 'done' as const,
+        },
+        {
+          id: 'a1',
+          role: 'assistant' as const,
+          text: '',
+          thinking: '',
+          tools: [{ toolCallId: 't1', toolName: 'read', status: 'running' as const, output: '' }],
+          attachments: [],
+          status: 'streaming' as const,
+        },
+        {
+          id: 'u2',
+          role: 'user' as const,
+          text: 'follow up while tools run',
+          thinking: '',
+          tools: [],
+          attachments: [],
+          status: 'done' as const,
+        },
+      ],
+    };
+    const container = renderContent(
+      <ConversationPaneTranscript
+        sessionId="s1"
+        state={state}
+        activeTheme={PIWIN_APPEARANCE_DARK}
+        artifactThemeKey={0}
+        artifactPreviewEnabled={false}
+        locale="zh-CN"
+      />,
+    );
+    expect(container.textContent).toContain('follow up while tools run');
+    expect(container.querySelector('[data-testid="conversation-activity"]')).toBeNull();
+  });
+
+  it('keeps pending queued turns off the pane transcript', () => {
+    const state = {
+      ...createInitialChatUiState(),
+      streaming: true,
+      activeRunId: 'run-1',
+      messages: [
+        {
+          id: 'u-queued',
+          role: 'user' as const,
+          text: 'queued follow-up',
+          thinking: '',
+          tools: [],
+          attachments: [],
+          status: 'done' as const,
+          instructionDelivery: {
+            kind: 'queued-turn' as const,
+            instructionId: 'q1',
+            status: 'pending' as const,
+            revision: 1,
+          },
+        },
+      ],
+    };
+    const container = renderContent(
+      <ConversationPaneTranscript
+        sessionId="s1"
+        state={state}
+        activeTheme={PIWIN_APPEARANCE_DARK}
+        artifactThemeKey={0}
+        artifactPreviewEnabled={false}
+        locale="zh-CN"
+      />,
+    );
+    expect(container.textContent).not.toContain('queued follow-up');
+    expect(container.querySelector('[data-testid="conversation-activity"]')).toBeNull();
+  });
 });

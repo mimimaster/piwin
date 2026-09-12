@@ -1393,18 +1393,18 @@ describe('ProjectSessionSidebar repo grouping', () => {
 });
 
 describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
-  it('renders sb-top and shelf footer with library, flashcards, settings, and host status', () => {
+  it('renders sb-top and shelf footer with library, knowledge, settings, and host status', () => {
     const onNewSession = vi.fn();
     const onOpenSessionSearch = vi.fn();
     const onOpenLibrary = vi.fn();
-    const onOpenFlashcards = vi.fn();
+    const onOpenKnowledge = vi.fn();
     const onOpenSettings = vi.fn();
 
     const { container } = renderSidebar({
       onNewSession,
       onOpenSessionSearch,
       onOpenLibrary,
-      onOpenFlashcards,
+      onOpenKnowledge,
       onOpenSettings,
       hostMock: false,
       hostReady: true,
@@ -1429,10 +1429,10 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
     act(() => libBtn?.click());
     expect(onOpenLibrary).toHaveBeenCalledTimes(1);
 
-    const cardsBtn = container.querySelector<HTMLButtonElement>('[data-testid="sidebar-flashcards-shelf-btn"]');
-    expect(cardsBtn).not.toBeNull();
-    act(() => cardsBtn?.click());
-    expect(onOpenFlashcards).toHaveBeenCalledTimes(1);
+    const knowledgeBtn = container.querySelector<HTMLButtonElement>('[data-testid="sidebar-knowledge-shelf-btn"]');
+    expect(knowledgeBtn).not.toBeNull();
+    act(() => knowledgeBtn?.click());
+    expect(onOpenKnowledge).toHaveBeenCalledTimes(1);
 
     const settingsBtn = container.querySelector<HTMLButtonElement>('[data-testid="settings-open-shelf-btn"]');
     expect(settingsBtn).not.toBeNull();

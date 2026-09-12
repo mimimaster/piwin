@@ -71,6 +71,8 @@ function makeFakeRequester(store: FakeStore): {
           return ok(command, { config: { providers: [] } });
         case 'knowledge/bases/list':
           return ok(command, { bases: store.knowledgeBases ?? [] });
+        case 'knowledge/wiki/overview':
+          return ok(command, { concepts: [], logCount: 0, tagCount: 0 });
         case 'knowledge/bases/add': {
           const addCmd = command as { folderPath: string; name?: string };
           const base: KnowledgeBaseSummary = {
@@ -185,8 +187,9 @@ describe('FlashcardsWorkspaceView', () => {
 
     expect(fake.request).toHaveBeenCalledWith({ type: 'flashcards/decks' });
     expect(container.textContent).toContain('闪卡');
-    expect(container.textContent).not.toContain('今日复习');
-    expect(container.textContent).not.toContain('开始复习');
+    // The Inkstone subnav offers 「开始复习」 as an entry point, but opening the
+    // tab must still land on the tiled library — never straight into a session.
+    expect(container.querySelector('[data-testid="flashcards-study-route"]')).toBeNull();
     expect(container.querySelector('[data-testid="flashcard-tile-card-1"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="flashcard-tile-seq_os"]')).not.toBeNull();
   }, 15000);
@@ -205,14 +208,39 @@ describe('FlashcardsWorkspaceView', () => {
     expect(dragStrip?.hasAttribute('data-tauri-drag-region')).toBe(true);
     expect(titlebar?.querySelector('[data-testid="flashcards-back-btn"]')).not.toBeNull();
     expect(titlebar?.querySelector('.vault-search')).toBeNull();
-    expect(container.querySelector('.vault-filters .vault-search')).not.toBeNull();
-    // Search moved to the knowledge base page; the gallery no longer offers a Wiki door.
+    expect(container.querySelector('.studio-chrome .vault-filters')).toBeNull();
+    expect(titlebar?.querySelector('[data-testid="knowledge-tab-flashcards"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('三阶知识飞轮');
+    expect(container.textContent).not.toContain('Host :4310');
+    // Search lives in the library stage; the gallery no longer offers a Wiki door.
     expect(container.querySelector('[data-testid="flashcards-open-wiki"]')).toBeNull();
     expect(
       container
         .querySelector('[data-testid="flashcards-back-btn"]')
         ?.closest('[data-no-window-drag]'),
     ).not.toBeNull();
+  }, 15000);
+
+  it('keeps the flashcards subnav full-bleed under the studio topbar', async () => {
+    await renderWith(structuredClone(BASE_STORE));
+
+    const subnav = container.querySelector('[data-testid="flashcards-study-subnav"]');
+    const chrome = container.querySelector('.studio-chrome');
+    const main = container.querySelector('#vault-main');
+    expect(subnav).not.toBeNull();
+    expect(chrome).not.toBeNull();
+    expect(main).not.toBeNull();
+    expect(subnav?.parentElement).toBe(container.querySelector('[data-testid="flashcards-study-view"]'));
+    expect(main?.contains(subnav)).toBe(true);
+    expect(subnav?.closest('.hub-container')).toBeNull();
+    expect(subnav?.closest('.kb-main')).toBeNull();
+    expect(subnav?.closest('.studio-chrome')).toBeNull();
+    expect(main?.classList.contains('is-flashcards')).toBe(true);
+    expect(chrome?.nextElementSibling).toBe(main);
+    expect(subnav?.querySelector('.subnav-modes')).not.toBeNull();
+    expect(subnav?.querySelector('.subnav-stats')).not.toBeNull();
+    expect(subnav?.textContent).toContain('连续复习');
+    expect(subnav?.textContent).toContain('+ 提炼新卡');
   }, 15000);
 
   it('opens a set into the study page, not a dismissible overlay', async () => {
@@ -282,23 +310,41 @@ describe('FlashcardsWorkspaceView', () => {
     });
   }, 15000);
 
-  it('jumps into the knowledge-center produce loop on the same page', async () => {
-    await renderWith(structuredClone(BASE_STORE));
+  it('slides the source drawer over flashcards study via 从文档出卡', async () => {
+    const store = structuredClone(BASE_STORE);
+    store.knowledgeBases = [
+      {
+        id: 'folder:docs',
+        kind: 'folder',
+        name: 'Docs',
+        folderPath: '/docs',
+        state: 'ready',
+        degraded: false,
+        documentCount: 1,
+        createdAt: 'now',
+      },
+    ];
+    await renderWith(store);
 
-    const produceBtn = findButton(container, '出卡');
-    expect(produceBtn).toBeDefined();
+    const produceBtn = container.querySelector<HTMLButtonElement>('[data-testid="flashcards-goto-docs"]');
+    expect(produceBtn).not.toBeNull();
     act(() => {
       produceBtn?.click();
     });
     await flush(4);
 
-    expect(container.querySelector('[data-testid="flashcards-produce"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="knowledge-project-list"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="hero-pick-folder-btn"]')).not.toBeNull();
-    expect(container.querySelector('.vault-sheet')).toBeNull();
+    expect(container.querySelector('[data-testid="flashcards-study-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="knowledge-tab-flashcards"]')?.classList.contains('is-active')).toBe(
+      true,
+    );
+    expect(container.querySelector('[data-testid="knowledge-wiki-workspace"]')).toBeNull();
+    expect(container.querySelector('[data-testid="wiki-source-drawer"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="wiki-source-card-folder:docs"]')?.textContent).toContain(
+      'Docs',
+    );
   });
 
-  it('populates produce folders from knowledge bases when knowledge is supported', async () => {
+  it('opens wiki sources from knowledge bases when entry is produce', async () => {
     const store = structuredClone(BASE_STORE);
     store.knowledgeBases = [
       {
@@ -319,8 +365,7 @@ describe('FlashcardsWorkspaceView', () => {
     await flush(4);
 
     expect(fake.calls).toContainEqual(expect.objectContaining({ type: 'knowledge/bases/list' }));
-    expect(container.querySelector('[data-testid="flashcards-produce"]')).not.toBeNull();
-    expect(container.textContent).toContain('docs');
+    expect(container.textContent).toContain('My Docs');
   });
 
   it('shows an error notice when mounting a folder on a Host without knowledge base support', async () => {
@@ -331,7 +376,8 @@ describe('FlashcardsWorkspaceView', () => {
     });
     await flush(4);
 
-    expect(container.textContent).toContain('更新 Host 后才能在这里选择文档文件夹。');
+    expect(container.querySelector('[data-testid="knowledge-host-too-old"]')).not.toBeNull();
+    expect(container.textContent).toContain('更新 Host 后才能使用知识库');
   });
 
   it('does not render an in-page workspace switcher', async () => {

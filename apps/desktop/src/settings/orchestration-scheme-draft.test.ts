@@ -6,7 +6,7 @@ import {
   healSchemeDefaultRole,
   schemeToEditableDraft,
   validateSchemeDraft,
-} from './orchestration-scheme-editor';
+} from './orchestration-scheme-draft';
 
 describe('orchestration scheme editor helpers', () => {
   it('turns ultra builtin into an editable draft with scout', () => {

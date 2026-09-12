@@ -25,12 +25,6 @@ export const SOURCE_KIND_OPTIONS: Array<{
     descriptionZh: '需要 API Key · 保存在 Host',
   },
   {
-    id: 'searxng',
-    title: 'SearXNG',
-    description: 'Self-hosted instance · URL only',
-    descriptionZh: '自托管实例 · 填 URL 即可',
-  },
-  {
     id: 'cli',
     title: 'Custom CLI',
     description: 'MCP-style command, args, and env — or an HTTP endpoint',

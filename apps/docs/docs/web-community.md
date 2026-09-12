@@ -37,20 +37,6 @@ Brave 提供了独立的搜索引擎索引库，保护隐私且搜索质量极�
 
 ---
 
-### 选项 C：SearXNG 私有化自建 <span class="tag-badge tag-local">100% 自主可控</span> <span class="tag-badge tag-free">无限调用</span>
-
-如果你有自己的服务器或 VPS，可以一键通过 Docker 部署 SearXNG 聚合搜索引擎。
-
-- **快速部署命令**：
-  ```bash
-  docker run -d --name searxng -p 8080:8080 -e "BASE_URL=http://localhost:8080/" searxng/searxng
-  ```
-- **在 Planora 中配置**：
-  - 搜索引擎选择 **SearXNG**。
-  - 填入自建实例地址（如 `http://your-server-ip:8080`）。
-
----
-
 ## 2. 社群与生态资源获取 {#community-resources}
 
 Planora 拥有活跃的开源与开发者社区，你可以在以下渠道获取技能扩展（Skills）、提示词库（Prompts）以及 MCP 工具包。

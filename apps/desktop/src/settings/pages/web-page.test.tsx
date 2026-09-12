@@ -469,6 +469,21 @@ describe('WebPage search route settings', () => {
     expect(argsValue).toContain('{{query}}');
   });
 
+  it('does not list SearXNG as a search source', async () => {
+    const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
+      const input = getSearchRoutePreviewInput(command);
+      if (input) {
+        return successResponse(nativePreview(input.policy));
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+    const container = renderPage(request);
+    await flushPreviewDebounce();
+    expect(container.querySelector('[data-testid="web-search-source-searxng"]')).toBeNull();
+    expect(container.querySelector('[data-testid="web-search-source-card-searxng"]')).toBeNull();
+    expect(container.textContent).not.toContain('SearXNG');
+  });
+
   it('fills a CLI example into the command line', async () => {
     const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
       const input = getSearchRoutePreviewInput(command);
@@ -499,7 +514,7 @@ describe('WebPage search route settings', () => {
     act(() => {
       cliHeader.click();
     });
-    expect(container.querySelector('[data-testid="web-search-source-searxng"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="web-search-source-searxng"]')).toBeNull();
     const examplesToggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="web-search-cli-examples-toggle"]',
     );

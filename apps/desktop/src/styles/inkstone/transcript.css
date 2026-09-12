@@ -118,15 +118,26 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
    `.who` (overflow:hidden) vanished, and usage like "1 工具" wrapped into a
    vertical stack.
 
+   `100%` on those descendants is the child's own box (often `--chat-max`),
+   not the stage. After the 960 swap hid `.head`, a 0-width rail ate 「你」
+   and the model name. `100cqw` is the named stage width.
+
    Include `.composer-dock` so the dock inherits the same leftover gut as
-   the turn grid. */
+   the turn grid.
+
+   Keep the inline head until the leftover gutter can actually hold a
+   byline (Wide measure is 840px; 840 + 2×80 ≈ 1000). Hiding it at 960
+   left empty rail slots when `100cqw - measure` collapsed to 0. */
 @container transcript-stage (min-width: 960px) {
   html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
     .chat-stage
     :is(.chat-thread, .chat-turn, .turn, .composer-dock) {
-    --gut: max(0px, min(140px, calc((100% - var(--measure)) / 2)));
+    --gut: max(0px, min(140px, calc((100cqw - var(--measure)) / 2)));
     --mg: var(--gut);
   }
+}
+
+@container transcript-stage (min-width: 1000px) {
   html[data-theme-id='piwin-inkstone-paper'] .marg,
   html[data-theme-id='piwin-inkstone-ink'] .marg,
   html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia,
@@ -145,7 +156,7 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
   html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
     .chat-stage
     :is(.chat-thread, .chat-turn, .turn, .composer-dock) {
-    --gut: max(0px, min(160px, calc((100% - var(--measure)) / 2)));
+    --gut: max(0px, min(160px, calc((100cqw - var(--measure)) / 2)));
     --mg: var(--gut);
   }
 }
@@ -238,7 +249,7 @@ html[data-theme-id='piwin-inkstone-ink'] .turn .marg .who,
 html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia .who,
 html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia .who {
   font: 500 12.5px var(--serif);
-  color: var(--t2);
+  color: var(--t2, var(--text-2, #5a554d));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

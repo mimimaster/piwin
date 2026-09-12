@@ -121,9 +121,11 @@ export {
   selectLatestSessionContextUsage,
   readUsageRollup,
   computeUsageRollup,
+  readUsageCallLog,
+  computeUsageCallLog,
   resetUsageLedgerCaches,
 } from './usage-ledger-store.js';
-export type { UsageRollupOptions } from './usage-ledger-store.js';
+export type { UsageCallLogOptions, UsageRollupOptions } from './usage-ledger-store.js';
 
 export {
   exportTranscript,

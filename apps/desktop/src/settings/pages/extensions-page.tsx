@@ -49,25 +49,25 @@ export function ExtensionsPage(): ReactElement {
           value={activeTab}
           onChange={(val) => setActiveTab(val as ExtensionsSubTab)}
           data={[
-            { value: 'extensions', label: isChinese ? '扩展 (Extensions)' : 'Extensions' },
+            { value: 'extensions', label: isChinese ? '扩展' : 'Extensions' },
             {
               value: 'skills',
-              label: isChinese ? '技能 (Skills)' : 'Skills',
+              label: isChinese ? '技能' : 'Skills',
               disabled: !skillsAvailable,
             },
             {
               value: 'tools',
-              label: isChinese ? 'MCP 工具 (Tools)' : 'MCP Tools',
+              label: isChinese ? 'MCP 工具' : 'MCP',
               disabled: !toolsAvailable,
             },
             {
               value: 'prompts',
-              label: isChinese ? '提示词模板 (Prompts)' : 'Prompts',
+              label: isChinese ? '提示词' : 'Prompts',
               disabled: !promptsAvailable,
             },
             {
               value: 'plugins',
-              label: isChinese ? '插件 (Plugins)' : 'Plugins',
+              label: isChinese ? '插件' : 'Plugins',
               disabled: !pluginsAvailable,
             },
           ]}
