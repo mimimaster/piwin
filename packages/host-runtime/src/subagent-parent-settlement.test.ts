@@ -297,6 +297,51 @@ describe('settleParentSubagents', () => {
     expect(promptCalls).toBe(0);
   });
 
+  it('treats continuation prompt throw as aborted when the parent signal is aborted', async () => {
+    const registry = new RunRegistry();
+    const parent = registry.createForegroundRun(SESSION_ID);
+    const child = registry.create({
+      kind: 'subagent-batch',
+      sessionId: SESSION_ID,
+      parentRunId: parent.runId,
+    });
+    const promptEntered = createDeferred<void>();
+    let promptCalls = 0;
+    let cancelCalls = 0;
+    let joinCalls = 0;
+
+    const settlePromise = settleParentSubagents({
+      sessionId: SESSION_ID,
+      parentRunId: parent.runId,
+      firstOutcome: completedAgentPromptOutcome('stop'),
+      liveSession: makeLiveSession(async () => {
+        promptCalls += 1;
+        promptEntered.resolve();
+        throw new Error('continuation exploded after abort');
+      }),
+      ports: makePorts(registry, {
+        joinBatch: async (runId) => {
+          joinCalls += 1;
+          return makeBatchResult(runId);
+        },
+        inspectMerge: async () => ({ alreadyMerged: false, summaryPreview: 'late report' }),
+        cancelBatchesForParentRun: () => {
+          cancelCalls += 1;
+        },
+      }),
+    });
+
+    await promptEntered.promise;
+    registry.requestCancel(parent.runId);
+    const settled = await settlePromise;
+
+    expect(settled).toEqual({ status: 'aborted' });
+    expect(promptCalls).toBe(1);
+    expect(cancelCalls).toBe(1);
+    expect(joinCalls).toBe(2);
+    expect(snapshotBatchRunIds(registry, parent.runId)).toEqual([child.runId]);
+  });
+
   it('retains child evidence and reports a single failed continuation', async () => {
     const registry = new RunRegistry();
     const parent = registry.createForegroundRun(SESSION_ID);
