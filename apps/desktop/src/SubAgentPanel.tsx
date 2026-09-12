@@ -4,6 +4,9 @@ import type {
   SessionSummary,
   SubagentBatchProjection,
   SubagentInvocation,
+  SubagentResultSummary,
+  SubagentReviewRecord,
+  SubagentTaskResult,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { Button, EmptyState, Notice, StatusBadge, type StatusTone } from '@piwin/ui-kit';
@@ -15,6 +18,7 @@ import type { SubagentStreamState } from './chat-reducer';
 import { IconActivity } from './shell-icons';
 import {
   deriveSubagentOrchestrationView,
+  deriveSubagentReviewLoopView,
   subagentInvocationDomId,
   type SubagentOrchestrationItem,
 } from './subagent-orchestration-view';
@@ -25,6 +29,11 @@ import {
   orchestrationItemDurationMs,
   type TasksOverviewBatch,
 } from './subagent-tasks-overview';
+import { useSubagentReviewLoopBinding } from './subagent-review-loop-context';
+import { SubagentReviewSummary } from './subagent-review-summary';
+import { shouldPresentReviewLoop } from './subagent-review-summary-model';
+import type { SubagentReviewLoopVerificationFact } from './subagent-review-loop-view';
+import type { SubagentInspectorSelection } from './subagent-activity-model';
 
 type SubAgentRequest = {
   type: 'session/list-children';
@@ -48,6 +57,14 @@ export type SubAgentPanelProps = {
   invocations?: Record<string, SubagentInvocation>;
   /** Live child streams for latest-activity lines. */
   streams?: Record<string, SubagentStreamState>;
+  reviewLoopEnabled?: boolean;
+  results?: Record<string, SubagentResultSummary>;
+  verifications?: Record<string, SubagentReviewLoopVerificationFact>;
+  taskResults?: Record<string, SubagentTaskResult>;
+  reviews?: Record<string, SubagentReviewRecord>;
+  onInspect?: (selection: SubagentInspectorSelection) => void;
+  onApply?: (resultId: string) => void;
+  onRequestResolution?: (resultId: string) => void;
 };
 
 function executionBadge(
@@ -232,7 +249,37 @@ export function SubAgentPanel(props: SubAgentPanelProps): ReactElement | null {
       }),
     [view, props.batches],
   );
-  const hasTasks = overview.activeBatches.length > 0 || overview.recentItems.length > 0;
+  const reviewLoopBinding = useSubagentReviewLoopBinding();
+  const reviewLoopEnabled = props.reviewLoopEnabled ?? reviewLoopBinding.enabled;
+  const reviewLoops = useMemo(() => {
+    if (!reviewLoopEnabled || !props.parentSessionId) {
+      return [];
+    }
+    return deriveSubagentReviewLoopView({
+      parentSessionId: props.parentSessionId,
+      invocations: props.invocations ?? {},
+      results: props.results ?? reviewLoopBinding.results,
+      reviews: props.reviews ?? reviewLoopBinding.reviews,
+      verifications: props.verifications ?? reviewLoopBinding.verifications,
+      taskResults: props.taskResults ?? reviewLoopBinding.taskResults,
+    }).loops.filter(shouldPresentReviewLoop);
+  }, [
+    reviewLoopEnabled,
+    props.parentSessionId,
+    props.invocations,
+    props.results,
+    props.reviews,
+    props.verifications,
+    props.taskResults,
+    reviewLoopBinding.results,
+    reviewLoopBinding.reviews,
+    reviewLoopBinding.verifications,
+    reviewLoopBinding.taskResults,
+  ]);
+  const hasTasks =
+    overview.activeBatches.length > 0 ||
+    overview.recentItems.length > 0 ||
+    reviewLoops.length > 0;
 
   const cancelBatch = useCallback(
     async (batch: TasksOverviewBatch): Promise<void> => {
@@ -308,6 +355,45 @@ export function SubAgentPanel(props: SubAgentPanelProps): ReactElement | null {
       ) : null}
 
       {error ? <Notice tone="error">{error}</Notice> : null}
+
+      {reviewLoops.length > 0 ? (
+        <div className="settings-section" data-testid="subagent-review-loops">
+          <h4 className="subagent-tasks-header">
+            {isChinese ? '审查与返工' : 'Review & repair'}
+          </h4>
+          {reviewLoops.map((loop) => (
+            <SubagentReviewSummary
+              key={loop.loopId}
+              loop={loop}
+              locale={localeTag}
+              enabled={reviewLoopEnabled}
+              reviews={props.reviews ?? reviewLoopBinding.reviews}
+              results={props.results ?? reviewLoopBinding.results}
+              {...(props.onInspect !== undefined
+                ? { onInspect: props.onInspect }
+                : reviewLoopBinding.onInspect !== undefined
+                  ? { onInspect: reviewLoopBinding.onInspect }
+                  : {
+                      onInspect: (selection) => {
+                        if (selection.childSessionId) {
+                          props.onOpenSession(selection.childSessionId);
+                        }
+                      },
+                    })}
+              {...(props.onApply !== undefined
+                ? { onApply: props.onApply }
+                : reviewLoopBinding.onApply !== undefined
+                  ? { onApply: reviewLoopBinding.onApply }
+                  : {})}
+              {...(props.onRequestResolution !== undefined
+                ? { onRequestResolution: props.onRequestResolution }
+                : reviewLoopBinding.onRequestResolution !== undefined
+                  ? { onRequestResolution: reviewLoopBinding.onRequestResolution }
+                  : {})}
+            />
+          ))}
+        </div>
+      ) : null}
 
       {overview.activeBatches.map((batch) => (
         <div

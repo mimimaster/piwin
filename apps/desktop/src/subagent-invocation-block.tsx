@@ -20,6 +20,10 @@ import {
 import type { ModelOption } from './model-options';
 import { SubagentIdentityChips } from './subagent-identity-chip';
 import { IconChevronDown } from './shell-icons';
+import {
+  reviewLoopAttachLabel,
+  type SubagentReviewLoopAttach,
+} from './subagent-review-summary-model';
 
 export type SubagentInvocationBlockProps = {
   tool: ToolCardUi;
@@ -34,6 +38,8 @@ export type SubagentInvocationBlockProps = {
   onInspect?: (selection: SubagentInspectorSelection) => void;
   /** Whether the inline session panel is currently expanded below the block. */
   expanded?: boolean;
+  /** F2 thin attach: generation/kind label only. Tree lives in SubagentReviewSummary. */
+  reviewLoopAttach?: SubagentReviewLoopAttach;
 };
 
 type InvocationStatus =
@@ -433,6 +439,18 @@ export function SubagentInvocationBlock(
       <span className="subagent-invocation-copy">
         <span className="subagent-invocation-heading">
           <span className="subagent-invocation-title">{title}</span>
+          {props.reviewLoopAttach ? (
+            <span
+              className="subagent-review-loop-attach"
+              data-testid="subagent-review-loop-attach"
+              data-row-kind={props.reviewLoopAttach.kind}
+              {...(props.reviewLoopAttach.candidateGeneration !== null
+                ? { 'data-candidate-generation': String(props.reviewLoopAttach.candidateGeneration) }
+                : {})}
+            >
+              {reviewLoopAttachLabel(props.reviewLoopAttach, props.locale)}
+            </span>
+          ) : null}
           {activeBadge ? (
             <StatusBadge
               tone={activeBadge.tone}

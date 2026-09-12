@@ -12,6 +12,7 @@ export type SubagentUnresolvedEntryProps = {
   title: string;
   reason?: string;
   locale?: 'zh-CN' | 'en';
+  disabled?: boolean;
   onRequestResolution: (resultId: string) => void;
 };
 
@@ -30,7 +31,13 @@ export function SubagentUnresolvedEntry(props: SubagentUnresolvedEntryProps): Re
       data-testid="subagent-unresolved-entry"
       data-result-id={props.resultId}
       aria-label={`${heading}: ${props.title}`}
-      onClick={() => props.onRequestResolution(props.resultId)}
+      data-disabled={props.disabled === true ? 'true' : 'false'}
+      onClick={() => {
+        if (props.disabled === true) {
+          return;
+        }
+        props.onRequestResolution(props.resultId);
+      }}
     >
       <IconWarn className="subagent-unresolved-entry-icon" />
       <div className="subagent-unresolved-entry-body">
@@ -45,8 +52,12 @@ export function SubagentUnresolvedEntry(props: SubagentUnresolvedEntryProps): Re
         size="compact"
         data-testid="subagent-unresolved-resolve"
         title={hint}
+        disabled={props.disabled === true}
         onClick={(event) => {
           event.stopPropagation();
+          if (props.disabled === true) {
+            return;
+          }
           props.onRequestResolution(props.resultId);
         }}
       >

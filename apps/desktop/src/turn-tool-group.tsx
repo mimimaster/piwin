@@ -4,6 +4,9 @@ import type {
   SessionSummary,
   SubagentControlDisplay,
   SubagentInvocation,
+  SubagentResultSummary,
+  SubagentReviewRecord,
+  SubagentTaskResult,
 } from '@piwin/contracts';
 import type { SubagentStreamState, ToolCardUi } from './chat-reducer';
 import { ToolCallCard, type DocumentOpenInput } from './tool-call-card';
@@ -21,9 +24,19 @@ import { useSubagentInspectorToggle } from './subagent-inspector-context';
 import { SubagentInlineSession } from './subagent-inline-session';
 import {
   deriveSubagentOrchestrationView,
+  deriveSubagentReviewLoopView,
   subagentInvocationDomId,
   type SubagentOrchestrationItem,
 } from './subagent-orchestration-view';
+import { useSubagentReviewLoopBinding } from './subagent-review-loop-context';
+import { SubagentReviewSummary } from './subagent-review-summary';
+import {
+  mergeVerificationFacts,
+  shouldPresentReviewLoop,
+  verificationFactFromLoopPresentation,
+  type SubagentReviewLoopAttach,
+} from './subagent-review-summary-model';
+import type { SubagentReviewLoop, SubagentReviewLoopVerificationFact } from './subagent-review-loop-view';
 
 export type TurnToolGroupProps = {
   tools: ToolCardUi[];
@@ -39,6 +52,13 @@ export type TurnToolGroupProps = {
   subagentInvocations?: Record<string, SubagentInvocation>;
   subagentStreams?: Record<string, SubagentStreamState>;
   onInspectSubagent?: (selection: SubagentInspectorSelection) => void;
+  reviewLoopEnabled?: boolean;
+  subagentResults?: Record<string, SubagentResultSummary>;
+  subagentVerifications?: Record<string, SubagentReviewLoopVerificationFact>;
+  subagentTaskResults?: Record<string, SubagentTaskResult>;
+  subagentReviews?: Record<string, SubagentReviewRecord>;
+  onApplySubagentResult?: (resultId: string) => void;
+  onRequestSubagentResolution?: (resultId: string) => void;
 };
 
 function readSubagentControl(tool: ToolCardUi): SubagentControlDisplay | undefined {
@@ -80,6 +100,53 @@ function findOrchestrationItem(
   return items.find((item) => item.invocationId === invocation.id);
 }
 
+function verificationFactsFromTools(
+  tools: readonly ToolCardUi[],
+): Record<string, SubagentReviewLoopVerificationFact> {
+  const facts: Record<string, SubagentReviewLoopVerificationFact> = {};
+  for (const tool of tools) {
+    const fact = verificationFactFromLoopPresentation(tool.presentation?.subagentLoop);
+    if (fact === undefined) {
+      continue;
+    }
+    facts[fact.verificationId] = fact;
+  }
+  return facts;
+}
+
+function attachForInvocation(
+  loops: readonly SubagentReviewLoop[],
+  invocationId: string | undefined,
+): SubagentReviewLoopAttach | undefined {
+  if (invocationId === undefined) {
+    return undefined;
+  }
+  for (const loop of loops) {
+    if (!shouldPresentReviewLoop(loop)) {
+      continue;
+    }
+    const row = loop.rows.find((candidate) => candidate.invocationId === invocationId);
+    if (row === undefined) {
+      continue;
+    }
+    return {
+      kind: row.kind,
+      candidateGeneration: row.candidateGeneration,
+      ...(row.superseded === true ? { superseded: true } : {}),
+    };
+  }
+  return undefined;
+}
+
+function loopTouchesInvocations(
+  loop: SubagentReviewLoop,
+  invocationIds: ReadonlySet<string>,
+): boolean {
+  return loop.rows.some(
+    (row) => row.invocationId !== undefined && invocationIds.has(row.invocationId),
+  );
+}
+
 /**
  * Renders tool calls from one response with automatic clustering for consecutive
  * read-only / exploratory actions into compact collapsible batch capsules.
@@ -92,6 +159,20 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
   const clusters = useMemo(() => clusterToolCalls(tools), [tools]);
   const inspectorToggle = useSubagentInspectorToggle();
   const goalActions = useGoalActions();
+  const reviewLoopBinding = useSubagentReviewLoopBinding();
+  const reviewLoopEnabled = props.reviewLoopEnabled ?? reviewLoopBinding.enabled;
+  const reviewResults = props.subagentResults ?? reviewLoopBinding.results;
+  const reviewTaskResults = props.subagentTaskResults ?? reviewLoopBinding.taskResults;
+  const reviewRecords = props.subagentReviews ?? reviewLoopBinding.reviews;
+  const reviewVerifications = useMemo(
+    () =>
+      mergeVerificationFacts(
+        reviewLoopBinding.verifications,
+        props.subagentVerifications,
+        verificationFactsFromTools(tools),
+      ),
+    [props.subagentVerifications, reviewLoopBinding.verifications, tools],
+  );
   const orchestrationItems = useMemo(() => {
     const invocations = props.subagentInvocations ?? {};
     const children = props.subagentChildren ?? {};
@@ -106,6 +187,54 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
       streams: props.subagentStreams ?? {},
     }).items;
   }, [props.subagentInvocations, props.subagentChildren, props.subagentStreams]);
+  const reviewLoops = useMemo(() => {
+    if (!reviewLoopEnabled) {
+      return [];
+    }
+    const invocations = props.subagentInvocations ?? {};
+    const children = props.subagentChildren ?? {};
+    const parentSessionId =
+      reviewLoopBinding.parentSessionId ??
+      Object.values(invocations)[0]?.parentSessionId ??
+      Object.values(children)[0]?.parentSessionId;
+    if (!parentSessionId) {
+      return [];
+    }
+    return deriveSubagentReviewLoopView({
+      parentSessionId,
+      invocations,
+      results: reviewResults,
+      reviews: reviewRecords,
+      verifications: reviewVerifications,
+      taskResults: reviewTaskResults,
+    }).loops.filter(shouldPresentReviewLoop);
+  }, [
+    reviewLoopEnabled,
+    reviewLoopBinding.parentSessionId,
+    props.subagentInvocations,
+    props.subagentChildren,
+    reviewResults,
+    reviewRecords,
+    reviewVerifications,
+    reviewTaskResults,
+  ]);
+  const reviewLoopInvocationIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const tool of tools) {
+      const invocation = resolveInvocationForTool(tool, props.subagentInvocations);
+      const accepted = readSubagentControl(tool);
+      const invocationId =
+        invocation?.id ?? (accepted?.phase === 'accepted' ? accepted.invocationId : undefined);
+      if (invocationId !== undefined) {
+        ids.add(invocationId);
+      }
+    }
+    return ids;
+  }, [props.subagentInvocations, tools]);
+  const visibleReviewLoops = useMemo(
+    () => reviewLoops.filter((loop) => loopTouchesInvocations(loop, reviewLoopInvocationIds)),
+    [reviewLoopInvocationIds, reviewLoops],
+  );
 
   if (tools.length === 0) {
     return null;
@@ -164,6 +293,9 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
           const invocationId =
             invocation?.id ??
             (startControl?.phase === 'accepted' ? startControl.invocationId : undefined);
+          const reviewLoopAttach = reviewLoopEnabled
+            ? attachForInvocation(reviewLoops, invocationId)
+            : undefined;
           // Only the top-level transcript activates anchors (nested child
           // transcripts never receive onInspectSubagent), so a nested block
           // can never claim the single expanded panel.
@@ -204,6 +336,7 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
                 {...(props.onInspectSubagent
                   ? { onInspect: props.onInspectSubagent }
                   : {})}
+                {...(reviewLoopAttach !== undefined ? { reviewLoopAttach } : {})}
               />
               {expanded ? <SubagentInlineSession /> : null}
             </div>
@@ -305,6 +438,31 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
           />
         );
       })}
+      {visibleReviewLoops.map((loop) => (
+        <SubagentReviewSummary
+          key={loop.loopId}
+          loop={loop}
+          locale={props.locale ?? 'zh-CN'}
+          enabled={reviewLoopEnabled}
+          reviews={reviewRecords}
+          results={reviewResults}
+          {...(props.onInspectSubagent !== undefined
+            ? { onInspect: props.onInspectSubagent }
+            : reviewLoopBinding.onInspect !== undefined
+              ? { onInspect: reviewLoopBinding.onInspect }
+              : {})}
+          {...(props.onApplySubagentResult !== undefined
+            ? { onApply: props.onApplySubagentResult }
+            : reviewLoopBinding.onApply !== undefined
+              ? { onApply: reviewLoopBinding.onApply }
+              : {})}
+          {...(props.onRequestSubagentResolution !== undefined
+            ? { onRequestResolution: props.onRequestSubagentResolution }
+            : reviewLoopBinding.onRequestResolution !== undefined
+              ? { onRequestResolution: reviewLoopBinding.onRequestResolution }
+              : {})}
+        />
+      ))}
     </div>
   );
 }
