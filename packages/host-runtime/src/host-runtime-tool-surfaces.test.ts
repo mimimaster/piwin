@@ -53,6 +53,36 @@ describe('HostRuntime tool surfaces', () => {
     }
   });
 
+  it('exposes exactly four delegate tools in sdk and rpc modes', async () => {
+    const expected = [
+      'piwin_subagent_run',
+      'piwin_subagent_start',
+      'piwin_subagent_wait',
+      'piwin_subagent_cancel',
+    ];
+    for (const mode of ['sdk', 'rpc'] as const) {
+      const piwinRoot = await mkdtemp(join(tmpdir(), `piwin-tool-surface-delegate-${mode}-`));
+      const projectPath = join(piwinRoot, 'project');
+      await mkdir(projectPath, { recursive: true });
+      const runtime = new HostRuntime({ mode, mock: false, piwinRoot });
+      try {
+        const tools = await runtime.buildSessionHostToolsForSession(
+          `session-delegate-${mode}`,
+          `generation-delegate-${mode}`,
+          undefined,
+          'active',
+          projectPath,
+        );
+        expect(
+          tools.filter((tool) => tool.family === 'delegate').map((tool) => tool.descriptor.name),
+        ).toEqual(expected);
+      } finally {
+        await runtime.dispose();
+        await rm(piwinRoot, { recursive: true, force: true });
+      }
+    }
+  });
+
   it('omits browser_* tools on mock hosts', async () => {
     const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-tool-surface-mock-'));
     const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot });

@@ -48,6 +48,7 @@ import type { RuntimeResourceCoordinator } from './runtime-resource-coordinator.
 import type { SubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
 import {
   combineErrors,
+  createAcceptedLatch,
   createCompletionLatch,
   toError,
   type BatchState,
@@ -59,6 +60,7 @@ import { dispatchTask } from './subagent-orchestrator-task.js';
 import type {
   PreparedSubagentTask,
   SubagentBatchHandle,
+  SubagentBatchOwnerRecord,
   SubagentOrchestratorOptions,
   SubagentRunStorePort,
   SubagentTaskPreparationInput,
@@ -68,6 +70,7 @@ import type {
 export type {
   PreparedSubagentTask,
   SubagentBatchHandle,
+  SubagentBatchOwnerRecord,
   SubagentIntegrationPort,
   SubagentOrchestratorOptions,
   SubagentRunStorePort,
@@ -170,6 +173,7 @@ export class SubagentOrchestrator {
     this.runRegistry.start(runId);
 
     const completionLatch = createCompletionLatch();
+    const acceptedLatch = createAcceptedLatch();
     const batchState: BatchState = {
       runId,
       runtimeGenerationId,
@@ -181,6 +185,7 @@ export class SubagentOrchestrator {
       taskRunIds: new Map(),
       invocations: new Map(),
       errors: [],
+      ...acceptedLatch,
       ...completionLatch,
     };
     this.activeBatches.set(runId, batchState);
@@ -191,7 +196,10 @@ export class SubagentOrchestrator {
       void this.executeBatch(batchState);
     });
 
-    return { runId, completion: batchState.completion };
+    // Spawn/plan callers only await completion; observe accepted to avoid
+    // unhandled rejections when durable persistence fails.
+    void batchState.accepted.catch(() => {});
+    return { runId, accepted: batchState.accepted, completion: batchState.completion };
   }
 
   /** Compatibility helper for callers that still await batch completion. */
@@ -226,6 +234,13 @@ export class SubagentOrchestrator {
           activity: { kind: 'queued' },
         });
       }
+      if (batchState.errors.length > 0) {
+        throw combineErrors(
+          batchState.errors,
+          'subagent batch acceptance persistence failed',
+        );
+      }
+      batchState.resolveAccepted();
       this.emitPush(batchState, {
         type: 'subagent/batch-updated',
         runId: batchState.runId,
@@ -242,6 +257,7 @@ export class SubagentOrchestrator {
       }
     } catch (error) {
       fatalError = toError(error);
+      batchState.rejectAccepted(fatalError);
       cancelAll(batchState.schedulerState);
       this.runRegistry.cancelRun(batchState.runId);
     } finally {
@@ -385,6 +401,38 @@ export class SubagentOrchestrator {
     }
   }
 
+  async lookupBatchOwner(runId: string): Promise<SubagentBatchOwnerRecord | undefined> {
+    const active = this.activeBatches.get(runId);
+    if (active) {
+      return {
+        runId,
+        parentSessionId: active.request.parentSessionId,
+        ...(active.parentRunId ? { parentRunId: active.parentRunId } : {}),
+        invocationIds: uniqueInvocationIds(active.request.tasks, active.invocations),
+        active: true,
+        status: 'running',
+      };
+    }
+    const manifest = await this.runStore?.loadManifest?.(runId);
+    if (!manifest || typeof manifest.parentSessionId !== 'string' || !manifest.parentSessionId) {
+      return undefined;
+    }
+    const parentRunId =
+      manifest.parentRunId ??
+      firstDefined(
+        Object.values(manifest.invocations ?? {}).map((invocation) => invocation.parentRunId),
+      ) ??
+      firstDefined((manifest.tasks ?? []).map((task) => task.parentRunId));
+    return {
+      runId,
+      parentSessionId: manifest.parentSessionId,
+      ...(parentRunId ? { parentRunId } : {}),
+      invocationIds: uniqueInvocationIds(manifest.tasks ?? [], manifest.invocations ?? {}),
+      active: false,
+      status: manifest.status,
+    };
+  }
+
   async getBatch(runId: string): Promise<SubagentBatchResult | undefined> {
     const active = this.activeBatches.get(runId);
     if (active) return undefined;
@@ -489,4 +537,23 @@ export class SubagentOrchestrator {
       activeBatches: this.activeBatches,
     };
   }
+}
+
+function firstDefined(values: ReadonlyArray<string | undefined>): string | undefined {
+  return values.find((value): value is string => typeof value === 'string' && value.length > 0);
+}
+
+function uniqueInvocationIds(
+  tasks: ReadonlyArray<{ invocationId?: string }>,
+  invocations: Record<string, { id: string }> | Map<string, { id: string }>,
+): string[] {
+  const ids = new Set<string>();
+  for (const task of tasks) {
+    if (task.invocationId) ids.add(task.invocationId);
+  }
+  const recorded = invocations instanceof Map ? invocations.keys() : Object.keys(invocations);
+  for (const id of recorded) {
+    if (id) ids.add(id);
+  }
+  return [...ids];
 }

@@ -32,6 +32,9 @@ export interface BatchState {
   taskRunIds: Map<string, string>;
   invocations: Map<string, SubagentInvocation>;
   errors: Error[];
+  accepted: Promise<void>;
+  resolveAccepted: () => void;
+  rejectAccepted: (error: Error) => void;
   completion: Promise<SubagentBatchResult>;
   resolveCompletion: (result: SubagentBatchResult) => void;
   rejectCompletion: (error: Error) => void;
@@ -100,4 +103,36 @@ export function createCompletionLatch(): {
   }
 
   return { completion, resolveCompletion, rejectCompletion };
+}
+
+export function createAcceptedLatch(): {
+  accepted: Promise<void>;
+  resolveAccepted: () => void;
+  rejectAccepted: (error: Error) => void;
+} {
+  let settled = false;
+  let resolveAccepted: (() => void) | undefined;
+  let rejectAccepted: ((error: Error) => void) | undefined;
+  const accepted = new Promise<void>((resolve, reject) => {
+    resolveAccepted = resolve;
+    rejectAccepted = reject;
+  });
+
+  if (!resolveAccepted || !rejectAccepted) {
+    throw new Error('batch accepted latch was not initialized');
+  }
+
+  return {
+    accepted,
+    resolveAccepted: () => {
+      if (settled) return;
+      settled = true;
+      resolveAccepted?.();
+    },
+    rejectAccepted: (error: Error) => {
+      if (settled) return;
+      settled = true;
+      rejectAccepted?.(error);
+    },
+  };
 }

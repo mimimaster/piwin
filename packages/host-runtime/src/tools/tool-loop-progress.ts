@@ -107,6 +107,7 @@ const PROGRESS_NAMES = new Set([
   'execute_command',
   'run_command',
   'piwin_subagent_run',
+  'piwin_subagent_start',
 ]);
 
 type OpenTurn = {

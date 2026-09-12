@@ -20,6 +20,13 @@ describe('classifyToolLoopClass', () => {
     expect(classifyToolLoopClass('write_file')).toBe('progress');
     expect(classifyToolLoopClass('bash')).toBe('progress');
     expect(classifyToolLoopClass('run_bash')).toBe('progress');
+    expect(classifyToolLoopClass('piwin_subagent_run')).toBe('progress');
+    expect(classifyToolLoopClass('piwin_subagent_start')).toBe('progress');
+  });
+
+  it('treats wait and cancel as non-progress control tools', () => {
+    expect(classifyToolLoopClass('piwin_subagent_wait')).toBe('neutral');
+    expect(classifyToolLoopClass('piwin_subagent_cancel')).toBe('neutral');
   });
 });
 

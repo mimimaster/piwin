@@ -32,6 +32,13 @@ export type SubagentRunStorePort = {
     | {
         status: 'running' | 'completed' | 'failed' | 'cancelled' | 'needs-integration';
         results: Record<string, SubagentTaskResult>;
+        parentSessionId: string;
+        parentRunId?: string;
+        tasks?: ReadonlyArray<{
+          invocationId?: string;
+          parentRunId?: string;
+        }>;
+        invocations?: Record<string, { id: string; parentRunId?: string }>;
       }
     | undefined
   >;
@@ -94,9 +101,21 @@ export type PreparedSubagentTask = {
   providerSecrets?: readonly EphemeralProviderSecret[];
 };
 
-/** Synchronously accepted batch identity and its eventual completion. */
+/** Host-local owner facts for wait/cancel validation. */
+export type SubagentBatchOwnerRecord = {
+  runId: string;
+  parentSessionId: string;
+  parentRunId?: string;
+  invocationIds: string[];
+  active: boolean;
+  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'needs-integration';
+};
+
+/** Synchronously returned batch identity plus durable acceptance and completion. */
 export type SubagentBatchHandle = {
   runId: string;
+  /** Resolves after durable manifest + queued invocation persistence. */
+  accepted: Promise<void>;
   completion: Promise<SubagentBatchResult>;
 };
 
