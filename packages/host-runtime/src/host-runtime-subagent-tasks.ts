@@ -24,9 +24,9 @@ import {
   invocationStatusForResult,
 } from './subagent-invocation-state.js';
 import type { SubagentRunSeam } from './subagent-run-tool.js';
+import { createSubagentControlSeam } from './host-runtime-subagent-start.js';
 import type {
   SubagentBatchRequest,
-  SubagentBatchResult,
   SubagentTaskSpec,
   SubagentTaskResult,
   SubagentWorkspaceLease,
@@ -45,163 +45,47 @@ export function getSubagentSeam(
   }
   const orchestrator = deps.subagentOrchestrator;
 
-  return {
-    spawn: async (input) => {
-      // No batch may start until ownership-fenced startup reconciliation
-      // has repaired persisted runs (no replay; projections only).
-      await deps.whenSubagentStartupRecoveryReady();
-      const parentRunId = deps.runExecutionContext.getStore();
-      if (parentRunId && deps.runDelegationModes.get(parentRunId) === 'disabled') {
-        throw new Error(
-          'subagent-delegation-disabled: model-facing delegation is disabled for this turn',
-        );
-      }
-      const activeScheme = parentRunId ? deps.runOrchestrationSchemes.get(parentRunId) : undefined;
-      // ORCH §8.4: scheme ceilings gate concurrent scouts for this parent turn.
-      // Unbound (Off) runs skip the gate entirely.
-      const admission = await deps.schemeAdmissionGate.acquire(parentRunId, input.signal);
-      const releaseAdmission = (): void => {
-        admission?.release();
-      };
-      try {
-        if (input.signal?.aborted) {
-          throw new Error('aborted before subagent spawn');
-        }
-        const { applySchemeToSubagentSpawnInput } = await import('@piwin/contracts');
-        const schemeSpawn = applySchemeToSubagentSpawnInput(activeScheme, {
-          ...(input.role ? { role: input.role } : {}),
-          ...(input.profileId ? { profileId: input.profileId } : {}),
-          ...(input.model ? { model: input.model } : {}),
-          ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
-        });
-        // ORCH-V2: spawn-before unavailability → do not open a child session.
-        if (schemeSpawn.fallback) {
-          const reason = schemeSpawn.fallback.reason;
-          const roleLabel = schemeSpawn.fallback.role;
-          if (schemeSpawn.fallback.kind === 'none') {
-            throw new Error(`subagent role "${roleLabel}" unavailable (fallback=none): ${reason}`);
-          }
-          throw new Error(
-            `subagent-unavailable-fallback-main: role "${roleLabel}" unavailable (${reason}). ` +
-              'Complete this subtask in the main session yourself; keep context pollution minimal.',
-          );
-        }
-        // Soft-generic / member isolation: prefer member isolation; generic scouts default readonly.
-        let mode = input.mode;
-        if (schemeSpawn.isolation) {
-          mode = schemeSpawn.isolation;
-        } else if (activeScheme && !activeScheme.exposeSpawnMetadata) {
-          mode = 'readonly';
-        }
-        const resolvedModel = schemeSpawn.model;
-        const allowInputModel =
-          Boolean(input.model) &&
-          (!activeScheme || activeScheme.exposeSpawnMetadata) &&
-          !schemeSpawn.clearedModel &&
-          !resolvedModel;
-        // One model tool call = one task; turn-scoped gate limits parallel calls.
-        const preparedRequest = await deps.prepareSubagentBatch(
-          {
-            parentSessionId: sessionId,
-            tasks: [
-              {
-                id: randomUUID(),
-                parentSessionId: sessionId,
-                invocationId: input.invocationId,
-                parentRunId: input.parentRunId,
-                ...(input.parentToolCallId ? { parentToolCallId: input.parentToolCallId } : {}),
-                task: input.task,
-                ...(mode ? { isolationOverride: mode } : {}),
-                ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
-                ...(input.deliveryIntent ? { deliveryIntent: input.deliveryIntent } : {}),
-                ...(input.sessionName ? { sessionName: input.sessionName } : {}),
-                ...(schemeSpawn.role ? { role: schemeSpawn.role } : {}),
-                ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
-                ...(schemeSpawn.reportContract ? { reportContract: schemeSpawn.reportContract } : {}),
-                ...(resolvedModel
-                  ? { model: resolvedModel }
-                  : allowInputModel && input.model
-                    ? { model: input.model }
-                    : {}),
-                ...(schemeSpawn.thinkingLevel ? { thinkingLevel: schemeSpawn.thinkingLevel } : {}),
-              },
-            ],
-            maxConcurrency: 1,
-          },
-          'model-tool',
-        );
-        const handle = orchestrator.startBatch(preparedRequest, parentRunId);
-        const cancelBatch = (): void => {
-          void orchestrator.cancelBatch(handle.runId).catch(() => {
-            // The batch completion is still owned by the orchestrator; the
-            // model-facing tool only needs the abort request to be durable.
-          });
-        };
-        if (input.signal?.aborted) {
-          cancelBatch();
-        } else if (input.signal) {
-          input.signal.addEventListener('abort', cancelBatch, { once: true });
-        }
-        let result: SubagentBatchResult;
-        try {
-          result = await handle.completion;
-        } finally {
-          if (input.signal) {
-            input.signal.removeEventListener('abort', cancelBatch);
-          }
-        }
-        const taskResult = result.results[0];
-        const childSessionId = taskResult?.childSessionId ?? '';
-        if (taskResult && childSessionId) {
-          deps.subagentTaskResults.set(childSessionId, taskResult);
-        }
-        if (!childSessionId) {
-          if (taskResult?.error) {
-            throw new Error(taskResult.error);
-          }
-          throw new Error(`subagent batch ${result.status} without a child session result`);
-        }
-        if (!taskResult) {
-          throw new Error(`subagent batch ${result.status} did not return its task result`);
-        }
-        return {
-          childSessionId,
-          batchStatus: result.status,
-          executionStatus: taskResult.executionStatus,
-          integrationStatus: taskResult.integrationStatus,
-          ...(taskResult.error ? { error: taskResult.error } : {}),
-          ...(taskResult.worktreePath ? { worktreePath: taskResult.worktreePath } : {}),
-        };
-      } finally {
-        releaseAdmission();
-      }
-    },
-    merge: async (childSessionId) => {
-      const result = deps.subagentTaskResults.get(childSessionId);
-      if (!result) {
-        throw new Error(`subagent result not found: ${childSessionId}`);
-      }
-      const messageId = randomUUID();
-      const alreadyMerged = await deps.persistSubagentMerge(
-        sessionId,
+  const merge: SubagentRunSeam['merge'] = async (childSessionId) => {
+    const result = deps.subagentTaskResults.get(childSessionId);
+    if (!result) {
+      throw new Error(`subagent result not found: ${childSessionId}`);
+    }
+    const messageId = randomUUID();
+    const alreadyMerged = await deps.persistSubagentMerge(
+      sessionId,
+      childSessionId,
+      result,
+      messageId,
+    );
+    if (!alreadyMerged) {
+      deps.push({
+        type: 'subagent/merged',
+        parentSessionId: sessionId,
         childSessionId,
-        result,
         messageId,
-      );
-      if (!alreadyMerged) {
-        deps.push({
-          type: 'subagent/merged',
-          parentSessionId: sessionId,
-          childSessionId,
-          messageId,
-        });
-      }
-      return {
-        ...(result.summaryPreview ? { summaryPreview: result.summaryPreview } : {}),
-        alreadyMerged,
-      };
-    },
+      });
+    }
+    return {
+      ...(result.summaryPreview ? { summaryPreview: result.summaryPreview } : {}),
+      alreadyMerged,
+    };
   };
+
+  return createSubagentControlSeam(
+    {
+      orchestrator,
+      schemeAdmissionGate: deps.schemeAdmissionGate,
+      runRegistry: deps.runRegistry,
+      getParentRunId: () => deps.runExecutionContext.getStore(),
+      getDelegationMode: (runId) => deps.runDelegationModes.get(runId),
+      getActiveScheme: (runId) => deps.runOrchestrationSchemes.get(runId),
+      prepareBatch: (request, source) => deps.prepareSubagentBatch(request, source),
+      whenReady: () => deps.whenSubagentStartupRecoveryReady(),
+      taskResults: deps.subagentTaskResults,
+      merge,
+    },
+    sessionId,
+  );
 }
 
 export async function prepareSubagentBatch(

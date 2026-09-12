@@ -408,6 +408,9 @@ describe('conversation fast path (pure chat)', () => {
     { name: 'browser_navigate', description: 'Navigate browser', parameters: {} },
     { name: 'note_search', description: 'Search notes', parameters: {} },
     { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+    { name: 'piwin_subagent_start', description: 'Start subagent', parameters: {} },
+    { name: 'piwin_subagent_wait', description: 'Wait for subagent', parameters: {} },
+    { name: 'piwin_subagent_cancel', description: 'Cancel subagent', parameters: {} },
     { name: 'piwin_plan_create', description: 'Create plan', parameters: {} },
     { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
     {
@@ -433,7 +436,15 @@ describe('conversation fast path (pure chat)', () => {
       ['process', ['process_start']],
       ['browser', ['browser_navigate']],
       ['notes-read', ['note_search']],
-      ['delegate', ['piwin_subagent_run']],
+      [
+        'delegate',
+        [
+          'piwin_subagent_run',
+          'piwin_subagent_start',
+          'piwin_subagent_wait',
+          'piwin_subagent_cancel',
+        ],
+      ],
       ['planning', ['piwin_plan_create']],
       ['mcp', ['mcp_gateway']],
       ['artifact', ['artifact_instructions']],
@@ -538,6 +549,9 @@ describe('conversation fast path (pure chat)', () => {
       'browser_navigate',
       'note_search',
       'piwin_subagent_run',
+      'piwin_subagent_start',
+      'piwin_subagent_wait',
+      'piwin_subagent_cancel',
       'piwin_plan_create',
       'mcp_gateway',
     ]) {

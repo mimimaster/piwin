@@ -143,8 +143,33 @@ function makeBatch(
   };
 }
 
+function createDeferred<T = void>(): {
+  promise: Promise<T>;
+  resolve(value?: T): void;
+  reject(error: Error): void;
+} {
+  let resolvePromise: ((value: T) => void) | undefined;
+  let rejectPromise: ((error: Error) => void) | undefined;
+  const promise = new Promise<T>((resolveValue, rejectValue) => {
+    resolvePromise = resolveValue;
+    rejectPromise = rejectValue;
+  });
+  return {
+    promise,
+    resolve: (value?: T) => {
+      if (!resolvePromise) throw new Error('deferred promise was not initialized');
+      resolvePromise(value as T);
+    },
+    reject: (error: Error) => {
+      if (!rejectPromise) throw new Error('deferred promise was not initialized');
+      rejectPromise(error);
+    },
+  };
+}
+
 function makeFakeBackend(options: {
   delayMs?: number;
+  waitFor?: Promise<void>;
   failTaskIds?: Set<string>;
   executionStatus?: SubagentTaskRunOutput['executionStatus'];
   integrationStatus?: SubagentTaskRunOutput['integrationStatus'];
@@ -167,16 +192,39 @@ function makeFakeBackend(options: {
       activeCount++;
       maxActive = Math.max(maxActive, activeCount);
 
-      const delay = options.delayMs ?? 10;
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(resolve, delay);
-        if (!options.ignoreAbort) {
-          signal.addEventListener('abort', () => {
-            clearTimeout(timer);
-            reject(new Error('aborted'));
-          });
-        }
-      });
+      if (options.waitFor) {
+        await new Promise<void>((resolve, reject) => {
+          let settled = false;
+          const finish = (fn: () => void): void => {
+            if (settled) return;
+            settled = true;
+            fn();
+          };
+          options.waitFor?.then(
+            () => finish(resolve),
+            (error: unknown) =>
+              finish(() => reject(error instanceof Error ? error : new Error(String(error)))),
+          );
+          if (!options.ignoreAbort) {
+            signal.addEventListener(
+              'abort',
+              () => finish(() => reject(new Error('aborted'))),
+              { once: true },
+            );
+          }
+        });
+      } else {
+        const delay = options.delayMs ?? 10;
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, delay);
+          if (!options.ignoreAbort) {
+            signal.addEventListener('abort', () => {
+              clearTimeout(timer);
+              reject(new Error('aborted'));
+            });
+          }
+        });
+      }
 
       activeCount--;
       const failed = options.failTaskIds?.has(task.id);
@@ -775,6 +823,117 @@ describe('SubagentOrchestrator', () => {
     expect(result.results[0]?.integrationStatus).toBe('failed');
     expect(result.results[0]?.error).toContain('fake integration failure');
     expect(result.results[0]?.allowedOutputPaths).toEqual(['src/a.ts']);
+  });
+
+  it('resolves accepted only after deferred manifest and queued invocation persistence', async () => {
+    const childGate = createDeferred();
+    const manifestGate = createDeferred();
+    const invocationGate = createDeferred();
+    const backend = makeFakeBackend({ waitFor: childGate.promise });
+    const { push } = makePushCollector();
+    let acceptedSettled = false;
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      runStore: {
+        createManifest: async () => {
+          await manifestGate.promise;
+        },
+        recordInvocation: async () => {
+          await invocationGate.promise;
+        },
+        recordResult: async () => {},
+        setStatus: async () => {},
+      },
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+
+    const handle = orchestrator.startBatch(
+      makeBatch([makeTask({ id: 'a', invocationId: 'inv-a' })]),
+    );
+    void handle.accepted.then(() => {
+      acceptedSettled = true;
+    });
+    await Promise.resolve();
+    expect(acceptedSettled).toBe(false);
+    expect(backend.startedTasks).toHaveLength(0);
+
+    manifestGate.resolve();
+    await Promise.resolve();
+    expect(acceptedSettled).toBe(false);
+
+    invocationGate.resolve();
+    await handle.accepted;
+    expect(acceptedSettled).toBe(true);
+    expect(backend.startedTasks).toHaveLength(0);
+
+    childGate.resolve();
+    await handle.completion;
+    expect(backend.startedTasks).toEqual(['a']);
+  });
+
+  it('rejects accepted when durable manifest or invocation persistence fails', async () => {
+    const childGate = createDeferred();
+    const backend = makeFakeBackend({ waitFor: childGate.promise });
+    const { push } = makePushCollector();
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      runStore: {
+        createManifest: async () => {
+          throw new Error('manifest persist failed');
+        },
+        recordInvocation: async () => {},
+        recordResult: async () => {},
+        setStatus: async () => {},
+      },
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+
+    const handle = orchestrator.startBatch(
+      makeBatch([makeTask({ id: 'a', invocationId: 'inv-a' })]),
+    );
+    await expect(handle.accepted).rejects.toThrow('manifest persist failed');
+    await expect(handle.completion).rejects.toThrow('manifest persist failed');
+    childGate.resolve();
+  });
+
+  it('rejects accepted when queued invocation persistence fails after the manifest', async () => {
+    const childGate = createDeferred();
+    const backend = makeFakeBackend({ waitFor: childGate.promise });
+    const { push } = makePushCollector();
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      runStore: {
+        createManifest: async () => {},
+        recordInvocation: async () => {
+          throw new Error('invocation persist failed');
+        },
+        recordResult: async () => {},
+        setStatus: async () => {},
+      },
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+
+    const handle = orchestrator.startBatch(
+      makeBatch([makeTask({ id: 'a', invocationId: 'inv-a' })]),
+    );
+    await expect(handle.accepted).rejects.toThrow('invocation persist failed');
+    await expect(handle.completion).rejects.toThrow();
+    childGate.resolve();
   });
 
   it('keeps orchestrator modules under the source-file size cap', () => {

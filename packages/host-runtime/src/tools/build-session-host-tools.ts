@@ -31,6 +31,9 @@ import { createPlanCreateTool } from '../plan-create-tool.js';
 import { createPlanPresentTool } from '../plan-present-tool.js';
 import { createPlanStepTool } from '../plan-step-tool.js';
 import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-tool.js';
+import { createSubagentStartTool } from '../subagent-start-tool.js';
+import { createSubagentWaitTool } from '../subagent-wait-tool.js';
+import { createSubagentCancelTool } from '../subagent-cancel-tool.js';
 import { buildImageGenTool } from '../image-gen-tool.js';
 import { buildVideoGenTool } from '../video-gen-tool.js';
 import { buildArtifactInstructionsTool } from '../artifact-instructions-tool.js';
@@ -391,12 +394,25 @@ export async function buildSessionHostTools(
     tools.push(buildArtifactInstructionsTool(options.config.artifact));
   }
 
-  // --- Subagent run tool ---
+  // --- Subagent run / start / wait / cancel ---
   if (options.subagentSeam) {
+    const seam = options.subagentSeam;
     tools.push(
       createSubagentRunTool({
         sessionId: options.sessionId,
-        seam: options.subagentSeam,
+        seam,
+      }),
+      createSubagentStartTool({
+        sessionId: options.sessionId,
+        seam,
+      }),
+      createSubagentWaitTool({
+        sessionId: options.sessionId,
+        seam,
+      }),
+      createSubagentCancelTool({
+        sessionId: options.sessionId,
+        seam,
       }),
     );
   }

@@ -854,6 +854,9 @@ describe('compileBlueprintForWorker', () => {
       },
       { name: 'mcp__docs__search', description: 'MCP search', parameters: {} },
       { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+      { name: 'piwin_subagent_start', description: 'Start subagent', parameters: {} },
+      { name: 'piwin_subagent_wait', description: 'Wait for subagent', parameters: {} },
+      { name: 'piwin_subagent_cancel', description: 'Cancel subagent', parameters: {} },
       { name: 'image_gen', description: 'Generate image', parameters: {} },
     ];
 
@@ -915,7 +918,15 @@ describe('compileBlueprintForWorker', () => {
             ['toolbox', ['piwin_toolbox']],
             ['artifact', [ARTIFACT_INSTRUCTIONS_TOOL_NAME]],
             ['mcp', ['mcp__docs__search']],
-            ['delegate', ['piwin_subagent_run']],
+            [
+              'delegate',
+              [
+                'piwin_subagent_run',
+                'piwin_subagent_start',
+                'piwin_subagent_wait',
+                'piwin_subagent_cancel',
+              ],
+            ],
             ['image-generation', ['image_gen']],
           ]),
         ),
@@ -936,6 +947,9 @@ describe('compileBlueprintForWorker', () => {
     expect(compiledNames).toContain('piwin_plan_create');
     expect(compiledNames).toContain('piwin_plan_set_step');
     expect(compiledNames).toContain('piwin_subagent_run');
+    expect(compiledNames).toContain('piwin_subagent_start');
+    expect(compiledNames).toContain('piwin_subagent_wait');
+    expect(compiledNames).toContain('piwin_subagent_cancel');
     expect(compiledNames).toContain('piwin_toolbox');
     expect(compiledNames).toContain(ARTIFACT_INSTRUCTIONS_TOOL_NAME);
     expect(compiledNames).toContain('browser_navigate');
@@ -987,6 +1001,9 @@ describe('compileBlueprintForWorker', () => {
           { name: 'list_directory', description: 'List a directory', parameters: {} },
           { name: 'process_start', description: 'Start a process', parameters: {} },
           { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+          { name: 'piwin_subagent_start', description: 'Start subagent', parameters: {} },
+          { name: 'piwin_subagent_wait', description: 'Wait for subagent', parameters: {} },
+          { name: 'piwin_subagent_cancel', description: 'Cancel subagent', parameters: {} },
         ],
         hostToolFamilyIndex: createFamilyIndex(
           [
@@ -997,13 +1014,24 @@ describe('compileBlueprintForWorker', () => {
             { name: 'list_directory', description: 'List a directory', parameters: {} },
             { name: 'process_start', description: 'Start a process', parameters: {} },
             { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+            { name: 'piwin_subagent_start', description: 'Start subagent', parameters: {} },
+            { name: 'piwin_subagent_wait', description: 'Wait for subagent', parameters: {} },
+            { name: 'piwin_subagent_cancel', description: 'Cancel subagent', parameters: {} },
           ],
           familyAssignments([
             ['shell', ['bash', 'run_bash']],
             ['filesystem-write', ['write_file']],
             ['filesystem-read', ['read_file', 'list_directory']],
             ['process', ['process_start']],
-            ['delegate', ['piwin_subagent_run']],
+            [
+              'delegate',
+              [
+                'piwin_subagent_run',
+                'piwin_subagent_start',
+                'piwin_subagent_wait',
+                'piwin_subagent_cancel',
+              ],
+            ],
           ]),
         ),
       },
@@ -1015,6 +1043,9 @@ describe('compileBlueprintForWorker', () => {
     expect(hostToolNames).not.toContain('write_file');
     expect(hostToolNames).not.toContain('process_start');
     expect(hostToolNames).not.toContain('piwin_subagent_run');
+    expect(hostToolNames).not.toContain('piwin_subagent_start');
+    expect(hostToolNames).not.toContain('piwin_subagent_wait');
+    expect(hostToolNames).not.toContain('piwin_subagent_cancel');
     // Read-only tools should still be present.
     expect(hostToolNames).toContain('read_file');
     expect(hostToolNames).toContain('list_directory');
@@ -1038,6 +1069,9 @@ describe('compileBlueprintForWorker', () => {
           { name: 'read_file', description: 'Read a file', parameters: {} },
           { name: 'process_start', description: 'Start a process', parameters: {} },
           { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+          { name: 'piwin_subagent_start', description: 'Start subagent', parameters: {} },
+          { name: 'piwin_subagent_wait', description: 'Wait for subagent', parameters: {} },
+          { name: 'piwin_subagent_cancel', description: 'Cancel subagent', parameters: {} },
         ],
         hostToolFamilyIndex: createFamilyIndex(
           [
@@ -1046,13 +1080,24 @@ describe('compileBlueprintForWorker', () => {
             { name: 'read_file', description: 'Read a file', parameters: {} },
             { name: 'process_start', description: 'Start a process', parameters: {} },
             { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+            { name: 'piwin_subagent_start', description: 'Start subagent', parameters: {} },
+            { name: 'piwin_subagent_wait', description: 'Wait for subagent', parameters: {} },
+            { name: 'piwin_subagent_cancel', description: 'Cancel subagent', parameters: {} },
           ],
           familyAssignments([
             ['shell', ['bash']],
             ['filesystem-write', ['write_file']],
             ['filesystem-read', ['read_file']],
             ['process', ['process_start']],
-            ['delegate', ['piwin_subagent_run']],
+            [
+              'delegate',
+              [
+                'piwin_subagent_run',
+                'piwin_subagent_start',
+                'piwin_subagent_wait',
+                'piwin_subagent_cancel',
+              ],
+            ],
           ]),
         ),
       },
@@ -1063,6 +1108,9 @@ describe('compileBlueprintForWorker', () => {
     expect(hostToolNames).toContain('write_file');
     expect(hostToolNames).toContain('process_start');
     expect(hostToolNames).toContain('piwin_subagent_run');
+    expect(hostToolNames).toContain('piwin_subagent_start');
+    expect(hostToolNames).toContain('piwin_subagent_wait');
+    expect(hostToolNames).toContain('piwin_subagent_cancel');
     if (result.blueprint.scope.kind === 'project') {
       expect(result.blueprint.scope.trusted).toBe(true);
     }
@@ -1511,6 +1559,9 @@ describe('conversation fast path (pure chat)', () => {
     { name: 'browser_navigate', description: 'Navigate browser', parameters: {} },
     { name: 'note_search', description: 'Search notes', parameters: {} },
     { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+    { name: 'piwin_subagent_start', description: 'Start subagent', parameters: {} },
+    { name: 'piwin_subagent_wait', description: 'Wait for subagent', parameters: {} },
+    { name: 'piwin_subagent_cancel', description: 'Cancel subagent', parameters: {} },
     { name: 'piwin_plan_create', description: 'Create plan', parameters: {} },
     { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
   ];
@@ -1532,7 +1583,15 @@ describe('conversation fast path (pure chat)', () => {
       ['process', ['process_start']],
       ['browser', ['browser_navigate']],
       ['notes-read', ['note_search']],
-      ['delegate', ['piwin_subagent_run']],
+      [
+        'delegate',
+        [
+          'piwin_subagent_run',
+          'piwin_subagent_start',
+          'piwin_subagent_wait',
+          'piwin_subagent_cancel',
+        ],
+      ],
       ['planning', ['piwin_plan_create']],
       ['mcp', ['mcp_gateway']],
     ]),
@@ -1640,6 +1699,9 @@ describe('conversation fast path (pure chat)', () => {
       'browser_navigate',
       'note_search',
       'piwin_subagent_run',
+      'piwin_subagent_start',
+      'piwin_subagent_wait',
+      'piwin_subagent_cancel',
       'piwin_plan_create',
       'mcp_gateway',
     ]) {

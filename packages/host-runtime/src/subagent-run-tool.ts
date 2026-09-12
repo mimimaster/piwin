@@ -22,6 +22,7 @@ import type {
   SubagentBatchResult,
   SubagentExecutionStatus,
   SubagentIntegrationStatus,
+  SubagentSummaryStatus,
   SubagentApplyPolicy,
   SubagentDeliveryIntent,
   SubagentIsolationMode,
@@ -34,9 +35,7 @@ import {
   subagentStartInputParameters,
 } from './subagent-tool-input.js';
 
-export type SubagentRunSeam = {
-  /** Spawn a child subagent session and wait for it to finish. */
-  spawn: (input: {
+export type SubagentSpawnInput = {
     parentSessionId: string;
     invocationId: string;
     parentRunId: string;
@@ -55,19 +54,70 @@ export type SubagentRunSeam = {
     /** CE-SUB-PROF: per-call thinking level override. */
     thinkingLevel?: ThinkingLevel;
     signal?: AbortSignal;
-  }) => Promise<{
-    childSessionId: string;
-    batchStatus: SubagentBatchResult['status'];
-    executionStatus: SubagentExecutionStatus;
-    integrationStatus: SubagentIntegrationStatus;
-    error?: string;
-    worktreePath?: string;
-  }>;
+};
+
+export type SubagentSpawnResult = {
+  childSessionId: string;
+  batchStatus: SubagentBatchResult['status'];
+  executionStatus: SubagentExecutionStatus;
+  integrationStatus: SubagentIntegrationStatus;
+  error?: string;
+  worktreePath?: string;
+};
+
+export type SubagentWaitRunObservation = {
+  runId: string;
+  invocationId?: string;
+  childSessionId?: string;
+  title?: string;
+  summaryPreview?: string;
+  alreadyMerged?: boolean;
+  batchStatus: SubagentBatchResult['status'];
+  executionStatus: SubagentExecutionStatus;
+  integrationStatus: SubagentIntegrationStatus;
+  summaryStatus?: SubagentSummaryStatus;
+  error?: string;
+};
+
+export type SubagentWaitResult = {
+  runs: SubagentWaitRunObservation[];
+};
+
+export type SubagentCancelRunObservation = {
+  runId: string;
+  status: 'cancelling' | 'cancelled' | 'already-terminal';
+  invocationId?: string;
+  executionStatus?: SubagentExecutionStatus;
+};
+
+export type SubagentCancelResult = {
+  runs: SubagentCancelRunObservation[];
+};
+
+export type SubagentRunSeam = {
+  /** Spawn a child subagent session and wait for it to finish. */
+  spawn: (input: SubagentSpawnInput) => Promise<SubagentSpawnResult>;
   /** Merge a completed child session's summary into its parent. */
   merge: (childSessionId: string) => Promise<{
     summaryPreview?: string;
     alreadyMerged?: boolean;
   }>;
+  /** Start one child and return after durable acceptance. */
+  start?: (input: SubagentSpawnInput) => Promise<{
+    runId: string;
+    invocationId: string;
+  }>;
+  wait?: (input: {
+    runIds: string[];
+    parentSessionId: string;
+    parentRunId: string;
+    signal?: AbortSignal;
+  }) => Promise<SubagentWaitResult>;
+  cancel?: (input: {
+    runIds: string[];
+    parentSessionId: string;
+    parentRunId: string;
+  }) => Promise<SubagentCancelResult>;
 };
 
 export type SubagentRunToolOptions = {

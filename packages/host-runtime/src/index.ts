@@ -311,6 +311,7 @@ export type {
   SubagentTaskPreparationInput,
   PreparedSubagentTask,
   SubagentBatchHandle,
+  SubagentBatchOwnerRecord,
 } from './subagent-orchestrator.js';
 export { createSubagentWorkspaceService } from './subagent-workspace-service.js';
 export type { SubagentWorkspaceServiceOptions } from './subagent-workspace-service.js';
