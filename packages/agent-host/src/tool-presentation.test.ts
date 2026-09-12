@@ -31,6 +31,9 @@ describe('classifyToolKind', () => {
     expect(classifyToolKind('github.search')).toBe('mcp');
     expect(classifyToolKind('image_gen')).toBe('image');
     expect(classifyToolKind('piwin_subagent_run')).toBe('subagent');
+    expect(classifyToolKind('piwin_subagent_start')).toBe('subagent');
+    expect(classifyToolKind('piwin_subagent_wait')).toBe('other');
+    expect(classifyToolKind('piwin_subagent_cancel')).toBe('other');
     expect(classifyToolKind('health_read_context')).toBe('health');
     expect(classifyToolKind('mystery_tool')).toBe('other');
     // Must not treat a random name containing "file" as filesystem.
