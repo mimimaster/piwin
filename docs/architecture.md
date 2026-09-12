@@ -503,19 +503,31 @@ Settled worktree children freeze S0/S1 against the lease `baseCommit` (not
 parent `HEAD`). Parent apply uses the bounded turn-change writer after
 temporary-index three-way prepare. Conflicted/failed worktrees remain retained.
 
-Subagent presentation follows ADR 0046. Each model delegation owns a durable,
-revisioned `SubagentInvocation` keyed to its parent Run and normalized tool
-call. The parent transcript tool position is the visual anchor; low-frequency
-`subagent/invocation-updated` pushes carry lifecycle/latest activity while the
-ordered child Agent stream carries full conversation content. The run manifest
-is restart truth and repairs stale active-looking child records. Child sessions
-persist in the index but are excluded from `session/list` and `session/search`
-(same main-list rule as SIDE-D9). They remain reachable through the parent
-transcript inline panel and `session/list-children`. The Desktop child
-inspector reuses normal transcript/tool/permission/file rendering for
-observation; there is no standing apply/retain/discard bar and no
-composer-adjacent current-work dock. Parent-turn review and undo/redo are
-Host-owned (`turnChangeUndoV1`; CLI `piwin turn undo|redo`).
+Subagent presentation follows ADR 0046. Model-facing delegation tools are
+`piwin_subagent_run` (synchronous spawn+merge convenience),
+`piwin_subagent_start` (one task; returns after durable manifest + queued
+invocation acceptance), and control tools `piwin_subagent_wait` /
+`piwin_subagent_cancel` (1–8 `runIds`; not invocation topology nodes). Each
+start or synchronous run owns one durable, revisioned `SubagentInvocation`
+keyed to its parent Run and normalized tool call. Wait/cancel rows render from
+Host-normalized `ToolPresentation.subagentControl`; Desktop never parses raw
+tool output when that field exists. The parent transcript tool position is the
+visual anchor; low-frequency `subagent/invocation-updated` pushes carry
+lifecycle/latest activity while the ordered child Agent stream carries full
+conversation content. Missed-wait settlement is at most one Host-authored
+continuation with phase `waiting-subagents` (`joining-descendants` then
+`synthesizing-reports`); no fake user row. The run manifest is restart truth
+and repairs stale active-looking child records. Child sessions persist in the
+index but are excluded from `session/list` and `session/search` (same main-list
+rule as SIDE-D9). They remain reachable through the parent transcript inline
+panel, right-panel **Tasks** orchestration overview, composer **activity pill**
+(async subagents + live `process_start` jobs), and `session/list-children`.
+The Terminal tab pairs the zsh PTY with a job-log switcher (not a second
+scheduler). The Desktop child inspector reuses normal
+transcript/tool/permission/file rendering for observation; there is no
+standing apply/retain/discard bar and no composer-adjacent current-work dock
+(the activity pill is a compact reachability rail only). Parent-turn review
+and undo/redo are Host-owned (`turnChangeUndoV1`; CLI `piwin turn undo|redo`).
 
 Runtime reload is a Host-owned replacement transaction. Settings persistence
 records the active and desired revisions separately, then resident sessions
