@@ -1,0 +1,122 @@
+/* Async subagent lifecycle rows (wait/cancel) and invocation extras.
+   Invocation card typography/chips stay in transcript-ink-wash.css. */
+
+.subagent-invocation-elapsed {
+  font-family: var(--mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--text-4, #8f887d);
+  font-variant-numeric: tabular-nums;
+}
+
+.subagent-invocation-heading .ui-status-badge {
+  flex: 0 0 auto;
+}
+
+.subagent-control-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: var(--s-3, 6px) 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line-1, rgba(29, 27, 23, 0.08));
+  border-radius: 6px;
+  background: var(--surface-2, #f8f6f0);
+  min-width: 0;
+}
+
+.subagent-control-toggle {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 2px;
+  text-align: left;
+}
+
+.subagent-control-toggle.piwin-button {
+  width: 100%;
+}
+
+.subagent-control-verb {
+  flex: 0 0 auto;
+  font-family: var(--mono, 'JetBrains Mono', monospace);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-1, #1d1b17);
+}
+
+.subagent-control-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: 12px;
+  color: var(--text-3, #726b61);
+}
+
+.subagent-control-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-control-duration {
+  flex: 0 0 auto;
+  font-family: var(--mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  color: var(--text-4, #8f887d);
+  font-variant-numeric: tabular-nums;
+}
+
+.subagent-control-roster {
+  list-style: none;
+  margin: 0;
+  padding: 2px 2px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subagent-control-run {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.subagent-control-anchor,
+.subagent-control-run-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-1, #1d1b17);
+}
+
+.subagent-control-anchor {
+  text-decoration: none;
+}
+
+.subagent-control-anchor:hover {
+  text-decoration: underline;
+}
+
+.subagent-control-anchor:focus-visible {
+  outline: 2px solid var(--iris, #c6412a);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subagent-control-row,
+  .subagent-control-row *,
+  .subagent-invocation-elapsed {
+    transition: none !important;
+    animation: none !important;
+  }
+}

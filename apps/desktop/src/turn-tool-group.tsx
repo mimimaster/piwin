@@ -1,9 +1,14 @@
 /** Tool calls emitted by one Assistant response, in provider order. */
 import { useMemo, type ReactElement } from 'react';
-import type { SessionSummary, SubagentInvocation } from '@piwin/contracts';
+import type {
+  SessionSummary,
+  SubagentControlDisplay,
+  SubagentInvocation,
+} from '@piwin/contracts';
 import type { SubagentStreamState, ToolCardUi } from './chat-reducer';
 import { ToolCallCard, type DocumentOpenInput } from './tool-call-card';
 import { SubagentInvocationBlock } from './subagent-invocation-block';
+import { SubagentControlRow } from './subagent-control-row';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { DiffCardRequest } from './diff-card';
 import type { ToolCallDensity } from './ui-preferences';
@@ -14,6 +19,11 @@ import { ToolBatchCapsule } from './tool-batch-capsule';
 import { GoalDeliveryCard, GoalBlockedCard, GoalWaitCard, useGoalActions } from './goal';
 import { useSubagentInspectorToggle } from './subagent-inspector-context';
 import { SubagentInlineSession } from './subagent-inline-session';
+import {
+  deriveSubagentOrchestrationView,
+  subagentInvocationDomId,
+  type SubagentOrchestrationItem,
+} from './subagent-orchestration-view';
 
 export type TurnToolGroupProps = {
   tools: ToolCardUi[];
@@ -31,6 +41,45 @@ export type TurnToolGroupProps = {
   onInspectSubagent?: (selection: SubagentInspectorSelection) => void;
 };
 
+function readSubagentControl(tool: ToolCardUi): SubagentControlDisplay | undefined {
+  return tool.presentation?.subagentControl;
+}
+
+function isSubagentControlSurface(
+  control: SubagentControlDisplay | undefined,
+): control is Exclude<SubagentControlDisplay, { phase: 'accepted' }> {
+  return control !== undefined && control.phase !== 'accepted';
+}
+
+function isSubagentInvocationSurface(tool: ToolCardUi): boolean {
+  if (isSubagentControlSurface(readSubagentControl(tool))) return false;
+  if (readSubagentControl(tool)?.phase === 'accepted') return true;
+  if (tool.presentation?.kind === 'subagent') return true;
+  return tool.toolName === 'piwin_subagent_run';
+}
+
+function resolveInvocationForTool(
+  tool: ToolCardUi,
+  invocations: Record<string, SubagentInvocation> | undefined,
+): SubagentInvocation | undefined {
+  const values = Object.values(invocations ?? {});
+  const byTool = values.find((candidate) => candidate.parentToolCallId === tool.toolCallId);
+  if (byTool) return byTool;
+  const accepted = readSubagentControl(tool);
+  if (accepted?.phase === 'accepted') {
+    return values.find((candidate) => candidate.id === accepted.invocationId);
+  }
+  return undefined;
+}
+
+function findOrchestrationItem(
+  items: readonly SubagentOrchestrationItem[],
+  invocation: SubagentInvocation | undefined,
+): SubagentOrchestrationItem | undefined {
+  if (!invocation) return undefined;
+  return items.find((item) => item.invocationId === invocation.id);
+}
+
 /**
  * Renders tool calls from one response with automatic clustering for consecutive
  * read-only / exploratory actions into compact collapsible batch capsules.
@@ -43,6 +92,20 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
   const clusters = useMemo(() => clusterToolCalls(tools), [tools]);
   const inspectorToggle = useSubagentInspectorToggle();
   const goalActions = useGoalActions();
+  const orchestrationItems = useMemo(() => {
+    const invocations = props.subagentInvocations ?? {};
+    const children = props.subagentChildren ?? {};
+    const parentSessionId =
+      Object.values(invocations)[0]?.parentSessionId ??
+      Object.values(children)[0]?.parentSessionId;
+    if (!parentSessionId) return [];
+    return deriveSubagentOrchestrationView({
+      parentSessionId,
+      invocations,
+      children,
+      streams: props.subagentStreams ?? {},
+    }).items;
+  }, [props.subagentInvocations, props.subagentChildren, props.subagentStreams]);
 
   if (tools.length === 0) {
     return null;
@@ -72,29 +135,55 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
         }
 
         const tool = item.tool;
-        if (tool.presentation?.kind === 'subagent' || tool.toolName === 'piwin_subagent_run') {
-          const invocation = Object.values(props.subagentInvocations ?? {}).find(
-            (candidate) => candidate.parentToolCallId === tool.toolCallId,
+        const control = readSubagentControl(tool);
+        if (isSubagentControlSurface(control)) {
+          return (
+            <SubagentControlRow
+              key={tool.toolCallId}
+              control={control}
+              locale={props.locale ?? 'zh-CN'}
+              toolCallId={tool.toolCallId}
+              {...(typeof tool.presentation?.durationMs === 'number'
+                ? { durationMs: tool.presentation.durationMs }
+                : {})}
+              {...(props.subagentInvocations
+                ? { invocations: props.subagentInvocations }
+                : {})}
+            />
           );
+        }
+        if (isSubagentInvocationSurface(tool)) {
+          const invocation = resolveInvocationForTool(tool, props.subagentInvocations);
+          const orchestrationItem = findOrchestrationItem(orchestrationItems, invocation);
           const child = invocation?.childSessionId
             ? props.subagentChildren?.[invocation.childSessionId]
             : Object.values(props.subagentChildren ?? {}).find(
                 (candidate) => candidate.subagentParentToolCallId === tool.toolCallId,
               );
+          const startControl = readSubagentControl(tool);
+          const invocationId =
+            invocation?.id ??
+            (startControl?.phase === 'accepted' ? startControl.invocationId : undefined);
           // Only the top-level transcript activates anchors (nested child
           // transcripts never receive onInspectSubagent), so a nested block
           // can never claim the single expanded panel.
+          const selection = inspectorToggle?.selection;
           const expanded =
             props.onInspectSubagent !== undefined &&
             child !== undefined &&
-            inspectorToggle?.selection?.anchorId === tool.toolCallId &&
-            inspectorToggle.selection.childSessionId === child.id;
+            selection?.childSessionId === child.id &&
+            (selection.anchorId === tool.toolCallId ||
+              selection.anchorId === invocation?.id ||
+              selection.anchorId === undefined);
           return (
             <div
               key={tool.toolCallId}
               className="subagent-embed"
               data-testid="subagent-embed"
               data-expanded={expanded}
+              {...(invocationId !== undefined
+                ? { id: subagentInvocationDomId(invocationId) }
+                : {})}
             >
               <SubagentInvocationBlock
                 tool={tool}
@@ -102,6 +191,7 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
                 expanded={expanded}
                 {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
                 {...(invocation ? { invocation } : {})}
+                {...(orchestrationItem ? { orchestrationItem } : {})}
                 {...(child ? { child } : {})}
                 {...(child &&
                 props.subagentStreams?.[child.id] &&

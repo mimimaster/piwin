@@ -54,6 +54,11 @@ export type DeriveSubagentOrchestrationInput = {
   legacyActivities?: readonly SubagentActivityView[];
 };
 
+/** Transcript DOM id for an invocation card — used by wait/cancel roster links. */
+export function subagentInvocationDomId(invocationId: string): string {
+  return `subagent-invocation-${invocationId}`;
+}
+
 const ORCHESTRATION_STATUS_ORDER: Record<SubagentOrchestrationExecutionStatus, number> = {
   queued: 0,
   starting: 1,
