@@ -11,6 +11,7 @@ export function RightPanelTabs(props: {
   changesCount: number;
   runningJobCount: number;
   cardsDueCount: number | undefined;
+  tasksActiveCount: number;
   terminalAttention: boolean;
   onSelect: (tab: RightPanelTab) => void;
   onClose: (tab: RightPanelTab) => void;
@@ -38,7 +39,9 @@ export function RightPanelTabs(props: {
                 ? props.runningJobCount
                 : tab === 'cards'
                   ? props.cardsDueCount
-                  : undefined;
+                  : tab === 'tasks'
+                    ? props.tasksActiveCount
+                    : undefined;
           return (
             <div key={tab} className={`right-panel-tab itab${active ? ' active act' : ''}`}>
               <TabsTrigger

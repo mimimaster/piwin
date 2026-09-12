@@ -2,7 +2,7 @@
  * Right-inspector column of the desktop workbench (extracted from App.tsx).
  * Host commands and document/open callbacks stay with App; this file is the view.
  */
-import type { Dispatch, ReactElement, SetStateAction } from 'react';
+import type { Dispatch, ReactElement, ReactNode, SetStateAction } from 'react';
 import type {
   HostResponse,
   PromptContextRef,
@@ -125,6 +125,8 @@ export type WorkbenchInspectorProps = {
   terminalCwd: string;
   handleTerminalCwdChange: (cwd: string) => void;
   terminalRecentDirs: string[];
+  tasksContent?: ReactNode;
+  tasksActiveCount?: number;
 };
 
 export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement {
@@ -180,6 +182,8 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     terminalCwd,
     handleTerminalCwdChange,
     terminalRecentDirs,
+    tasksContent,
+    tasksActiveCount,
   } = props;
   useBrowserInspectorReveal(hostClient, (tab) => {
     shell.openInspector(tab);
@@ -458,6 +462,8 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               requestGit={requestGit}
             />
           }
+          {...(tasksContent !== undefined ? { tasksContent } : {})}
+          {...(tasksActiveCount !== undefined ? { tasksActiveCount } : {})}
         />
       </>
   );

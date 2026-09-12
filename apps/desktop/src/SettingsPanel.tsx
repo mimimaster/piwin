@@ -60,6 +60,7 @@ type SettingsPanelProps = {
   /** Live child summaries from host pushes (keyed by childSessionId). */
   subagentChildren?: Record<string, import('@piwin/contracts').SessionSummary>;
   subagentBatches?: Record<string, import('@piwin/contracts').SubagentBatchProjection>;
+  subagentInvocations?: Record<string, import('@piwin/contracts').SubagentInvocation>;
   onOpenSubagentSession?: (sessionId: string) => void;
   onThemeApplied: (theme: ThemeManifest) => void;
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
@@ -93,6 +94,7 @@ export const SettingsPanel = memo(function SettingsPanel({
   activeTheme,
   subagentChildren,
   subagentBatches,
+  subagentInvocations,
   onOpenSubagentSession,
   onThemeApplied,
   onPetActiveChanged,
@@ -520,6 +522,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       activeTheme,
       ...(subagentChildren ? { subagentChildren } : {}),
       ...(subagentBatches ? { subagentBatches } : {}),
+      ...(subagentInvocations ? { subagentInvocations } : {}),
       onThemeApplied,
       onPetActiveChanged,
       discoverProviderModels,
@@ -561,6 +564,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       activeTheme,
       subagentChildren,
       subagentBatches,
+      subagentInvocations,
       onThemeApplied,
       onPetActiveChanged,
       discoverProviderModels,

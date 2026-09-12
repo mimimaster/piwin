@@ -11,7 +11,8 @@ export type RightPanelTabKind =
   | 'cards'
   | 'canvas'
   | 'sideChat'
-  | 'docPreview';
+  | 'docPreview'
+  | 'tasks';
 
 export type StoredRightPanelState = {
   openTabs: RightPanelTabKind[];
@@ -33,6 +34,7 @@ const ALLOWED_KINDS: RightPanelTabKind[] = [
   'cards',
   'sideChat',
   'docPreview',
+  'tasks',
 ];
 
 function isAllowedKind(value: unknown): value is RightPanelTabKind {

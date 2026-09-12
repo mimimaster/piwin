@@ -3,13 +3,17 @@
  * Multi-tab right panel (Cursor-style strip).
  */
 
-import { describe, expect, it, afterEach } from 'vitest';
+import { describe, expect, it, afterEach, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import type { HostResponse, SessionSummary, SubagentInvocation } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { RightPanel, selectMountedRightPanelTabs, type RightPanelTab } from './right-panel';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { RIGHT_PANEL_STATE_STORAGE_KEY, writeStoredRightPanelState } from './right-panel-memory';
+import { DesktopLocaleProvider } from './desktop-locale-context';
+import { SubAgentPanel } from './SubAgentPanel';
+import { MAX_RECENT_TASK_ITEMS } from './subagent-tasks-overview';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -118,7 +122,8 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="right-panel-home-notes"]')).toBeNull();
     expect(container.querySelector('[data-testid="right-panel-home-sideChat"]')).not.toBeNull();
     expect(container.querySelector('.insp-h')).not.toBeNull();
-    expect(container.querySelectorAll('[data-testid^="right-panel-home-"]').length).toBe(5);
+    expect(container.querySelector('[data-testid="right-panel-home-tasks"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid^="right-panel-home-"]').length).toBe(6);
     expect(container.querySelectorAll('.right-panel-home-shortcut').length).toBe(5);
     expect(container.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();
   });
@@ -497,5 +502,237 @@ describe('RightPanel multi-tab', () => {
     expect(tabstrip && slot && drag).toBeTruthy();
     const children = [...(tabstrip?.children ?? [])];
     expect(children.indexOf(slot as Element)).toBeLessThan(children.indexOf(drag as Element));
+  });
+
+  it('shows aggregate task counts on the tab without raw run ids', async () => {
+    writeStoredRightPanelState({ openTabs: ['tasks'], activeTab: 'tasks' });
+    const running: SubagentInvocation = {
+      id: 'inv-live',
+      parentSessionId: 'parent-1',
+      runId: 'run-secret-id',
+      taskId: 'task-live',
+      task: 'Scout repo',
+      title: 'Scout repo',
+      role: 'scout',
+      status: 'running',
+      revision: 1,
+      createdAt: '2026-09-13T00:00:00.000Z',
+      updatedAt: '2026-09-13T00:02:00.000Z',
+      activity: { kind: 'thinking' },
+    };
+    const completed: SubagentInvocation = {
+      id: 'inv-done',
+      parentSessionId: 'parent-1',
+      runId: 'run-secret-id',
+      taskId: 'task-done',
+      task: 'Review auth',
+      title: 'Review auth',
+      role: 'reviewer',
+      status: 'completed',
+      revision: 1,
+      createdAt: '2026-09-13T00:00:00.000Z',
+      updatedAt: '2026-09-13T00:01:00.000Z',
+      activity: { kind: 'completed', summary: 'Finished review' },
+    };
+    const request = vi.fn(async (): Promise<HostResponse> => ({
+      type: 'response',
+      command: 'session/list-children',
+      success: true,
+      data: { sessions: [] },
+    }));
+
+    const rendered = renderPanel({
+      activeTab: 'tasks',
+      tasksActiveCount: 1,
+      tasksContent: (
+        <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+          <SubAgentPanel
+            parentSessionId="parent-1"
+            request={request}
+            onOpenSession={() => {}}
+            children={[]}
+            invocations={{ [running.id]: running, [completed.id]: completed }}
+            batches={{ 'run-secret-id': { runId: 'run-secret-id', status: 'running', results: [] } }}
+          />
+        </DesktopLocaleProvider>
+      ),
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const tab = container.querySelector('[data-testid="right-panel-open-tab-tasks"]');
+    expect(tab?.textContent).toContain('任务');
+    expect(tab?.querySelector('.right-panel-tab-badge')?.textContent).toBe('1');
+    expect(container.textContent).toContain('后台任务 2 · 运行中 1 · 已完成 1');
+    expect(container.textContent).toContain('scout · Scout repo');
+    expect(container.textContent).toContain('reviewer · Review auth');
+    expect(container.textContent).not.toContain('run-secret-id');
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('drops terminal children from the active badge while keeping bounded history', async () => {
+    writeStoredRightPanelState({ openTabs: [], activeTab: null });
+    const request = vi.fn(async (): Promise<HostResponse> => ({
+      type: 'response',
+      command: 'session/list-children',
+      success: true,
+      data: { sessions: [] },
+    }));
+    const completed = Array.from({ length: MAX_RECENT_TASK_ITEMS + 2 }, (_, index): SubagentInvocation => ({
+      id: `inv-done-${index}`,
+      parentSessionId: 'parent-1',
+      runId: `run-done-${index}`,
+      taskId: `task-done-${index}`,
+      task: `Done ${index}`,
+      title: `Done ${index}`,
+      status: 'completed',
+      revision: 1,
+      createdAt: '2026-09-13T00:00:00.000Z',
+      updatedAt: `2026-09-13T00:${String(index).padStart(2, '0')}:00.000Z`,
+      activity: { kind: 'completed', summary: `Finished ${index}` },
+      childSessionId: `child-done-${index}`,
+    }));
+    const running: SubagentInvocation = {
+      id: 'inv-live',
+      parentSessionId: 'parent-1',
+      runId: 'run-1',
+      taskId: 'task-live',
+      task: 'Still working',
+      title: 'Still working',
+      status: 'running',
+      revision: 1,
+      createdAt: '2026-09-13T00:00:00.000Z',
+      updatedAt: '2026-09-13T01:00:00.000Z',
+      activity: { kind: 'thinking' },
+    };
+    const child = (id: string, name: string, updatedAt: string): SessionSummary => ({
+      id,
+      scope: { kind: 'project', projectPath: '/tmp/project' },
+      workingDirectory: '/tmp/worktree',
+      projectPath: '/tmp/project',
+      name,
+      updatedAt,
+      messageCount: 1,
+      parentSessionId: 'parent-1',
+      kind: 'subagent',
+      subagentStatus: 'done',
+    });
+
+    const rendered = renderPanel({
+      open: true,
+      activeTab: null,
+      tasksActiveCount: 1,
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="right-panel-home-tasks-badge"]')?.textContent).toBe(
+      '1',
+    );
+
+    await act(async () => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <RightPanel
+            open
+            onOpen={() => {}}
+            onClose={() => {}}
+            activeTab="tasks"
+            onTabChange={() => {}}
+            panelWidthPx={320}
+            isResizing={false}
+            onResizePointerDown={() => {}}
+            onResizeReset={() => {}}
+            filesContent={<div data-testid="files-body">files</div>}
+            terminalContent={<div data-testid="terminal-body">terminal</div>}
+            reviewContent={<div data-testid="review-body">review</div>}
+            tasksActiveCount={1}
+            tasksContent={
+              <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+                <SubAgentPanel
+                  parentSessionId="parent-1"
+                  request={request}
+                  onOpenSession={() => {}}
+                  children={completed.map((item, index) =>
+                    child(`child-done-${index}`, `Done ${index}`, item.updatedAt),
+                  )}
+                  invocations={Object.fromEntries(
+                    [...completed, running].map((item) => [item.id, item]),
+                  )}
+                  batches={{ 'run-1': { runId: 'run-1', status: 'running', results: [] } }}
+                />
+              </DesktopLocaleProvider>
+            }
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(
+      container.querySelector('[data-testid="right-panel-open-tab-tasks"] .right-panel-tab-badge')
+        ?.textContent,
+    ).toBe('1');
+    expect(container.querySelectorAll('[data-testid="subagent-task-row"]').length).toBe(
+      MAX_RECENT_TASK_ITEMS + 1,
+    );
+    expect(container.textContent).toContain('Still working');
+
+    const settled: SubagentInvocation = {
+      ...running,
+      status: 'completed',
+      updatedAt: '2026-09-13T01:01:00.000Z',
+      activity: { kind: 'completed', summary: 'Wrapped up' },
+    };
+
+    await act(async () => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <RightPanel
+            open
+            onOpen={() => {}}
+            onClose={() => {}}
+            activeTab="tasks"
+            onTabChange={() => {}}
+            panelWidthPx={320}
+            isResizing={false}
+            onResizePointerDown={() => {}}
+            onResizeReset={() => {}}
+            filesContent={<div data-testid="files-body">files</div>}
+            terminalContent={<div data-testid="terminal-body">terminal</div>}
+            reviewContent={<div data-testid="review-body">review</div>}
+            tasksActiveCount={0}
+            tasksContent={
+              <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+                <SubAgentPanel
+                  parentSessionId="parent-1"
+                  request={request}
+                  onOpenSession={() => {}}
+                  children={[
+                    ...completed.map((item, index) =>
+                      child(`child-done-${index}`, `Done ${index}`, item.updatedAt),
+                    ),
+                    child('child-live', 'Still working', settled.updatedAt),
+                  ]}
+                  invocations={Object.fromEntries(
+                    [...completed, settled].map((item) => [item.id, item]),
+                  )}
+                  batches={{ 'run-1': { runId: 'run-1', status: 'completed', results: [] } }}
+                />
+              </DesktopLocaleProvider>
+            }
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(
+      container.querySelector('[data-testid="right-panel-open-tab-tasks"] .right-panel-tab-badge'),
+    ).toBeNull();
+    expect(container.querySelector('[data-testid="subagent-active-batches"]')).toBeNull();
+    expect(container.querySelector('[data-testid="subagent-tasks-recent"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="subagent-task-row"]').length).toBe(
+      MAX_RECENT_TASK_ITEMS,
+    );
+    expect(container.textContent).toContain('Still working');
   });
 });

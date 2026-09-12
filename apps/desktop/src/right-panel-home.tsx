@@ -10,6 +10,7 @@ import type { RightPanelTab } from './right-panel-sections';
 export type RightPanelHomeProps = {
   locale: DesktopLocale;
   onSelect: (tab: RightPanelTab) => void;
+  tasksActiveCount?: number;
 };
 
 export function RightPanelHome(props: RightPanelHomeProps): ReactElement {
@@ -33,7 +34,11 @@ export function RightPanelHome(props: RightPanelHomeProps): ReactElement {
                 </span>
                 <span className="right-panel-home-label">{label}</span>
               </span>
-              {tab.shortcut ? (
+              {tab.id === 'tasks' && (props.tasksActiveCount ?? 0) > 0 ? (
+                <span className="right-panel-tab-badge" data-testid="right-panel-home-tasks-badge">
+                  {props.tasksActiveCount}
+                </span>
+              ) : tab.shortcut ? (
                 <kbd className="right-panel-home-shortcut" aria-hidden>
                   {tab.shortcut}
                 </kbd>

@@ -348,6 +348,7 @@ export function WorkbenchSettingsOverlay(
         requestSubAgent={props.requestSubAgent as never}
         subagentChildren={props.state.subagentChildren}
         subagentBatches={props.state.subagentBatches}
+        subagentInvocations={props.state.subagentInvocations}
         activeSessionId={props.state.activeSessionId}
         onOpenSubagentSession={props.onOpenSubagentSession}
         onThemeApplied={props.onThemeApplied}

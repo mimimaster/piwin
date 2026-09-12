@@ -12,6 +12,7 @@ import {
   IconNote,
   IconSideChat,
   IconTerminal,
+  IconActivity,
 } from './shell-icons';
 import type { DesktopLocale } from './desktop-locale';
 import type { RightPanelTabKind } from './right-panel-memory';
@@ -35,6 +36,7 @@ export const SECTION_META: Array<{
   { id: 'browser', icon: <IconBrowser />, labelEn: 'Browser', labelZh: '浏览器', shortcut: '⌘T' },
   { id: 'files', icon: <IconFile />, labelEn: 'Files', labelZh: '文件', shortcut: '⌘P' },
   { id: 'terminal', icon: <IconTerminal />, labelEn: 'zsh', labelZh: 'zsh', shortcut: '⌘J' },
+  { id: 'tasks', icon: <IconActivity />, labelEn: 'Tasks', labelZh: '任务' },
   { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更', shortcut: '⌥⌘G' },
   { id: 'notes', icon: <IconNote />, labelEn: 'Notes', labelZh: '笔记', plusOnly: true },
   { id: 'cards', icon: <IconCards />, labelEn: 'Flashcards', labelZh: '知识卡片', plusOnly: true },
