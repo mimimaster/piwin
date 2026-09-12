@@ -28,6 +28,7 @@ import type {
   SubagentActivityView,
   SubagentBatchProjection,
   SubagentInvocation,
+  SubagentResultSummary,
   SubagentTaskResult,
   ToolPresentation,
   WalkthroughArtifact,
@@ -456,6 +457,18 @@ export type ChatUiState = {
   subagentBatches: Record<string, SubagentBatchProjection>;
   /** CE-SUB-ORCH: latest per-task results keyed by `${runId}:${taskId}`. */
   subagentTaskResults: Record<string, SubagentTaskResult>;
+  /** Review-loop result summaries keyed by resultId. */
+  subagentResults: Record<string, SubagentResultSummary>;
+  /** Delivery-verification facts keyed by verificationId. Ref-only is not pass. */
+  subagentVerifications: Record<
+    string,
+    {
+      verificationId: string;
+      revision: number;
+      resultId: string;
+      status: 'passed' | 'failed';
+    }
+  >;
   /**
    * Walkthrough artifacts keyed by owning assistant messageId (spec §5.1).
    * Cleared on session switch so stale artifacts never leak across sessions.
@@ -684,6 +697,11 @@ export type ChatUiAction =
       runId: string;
       parentSessionId: string;
       result: SubagentTaskResult;
+    }
+  | {
+      type: 'subagent/result-updated';
+      parentSessionId: string;
+      result: SubagentResultSummary;
     }
   | { type: 'walkthrough/hydrate'; artifacts: WalkthroughArtifact[] }
   | { type: 'walkthrough/updated'; artifact: WalkthroughArtifact }

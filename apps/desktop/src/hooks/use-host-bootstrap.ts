@@ -555,6 +555,14 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         });
         return;
       }
+      if (message.type === 'subagent/result-updated') {
+        dispatch({
+          type: 'subagent/result-updated',
+          parentSessionId: message.parentSessionId,
+          result: message.result,
+        });
+        return;
+      }
       if (message.type === 'permission/request') {
         dispatch({
           type: 'permission/show',

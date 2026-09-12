@@ -6,6 +6,7 @@ import {
 } from './subagent-activity-model';
 import {
   deriveSubagentOrchestrationView,
+  deriveSubagentReviewLoopView,
   mergeSubagentInvocationRecord,
 } from './subagent-orchestration-view';
 
@@ -287,6 +288,35 @@ describe('deriveSubagentOrchestrationView', () => {
 
     expect(view.items).toHaveLength(1);
     expect(view.items[0]?.anchorId).toBe('inv-legacy');
+  });
+});
+
+describe('review-loop composition', () => {
+  it('re-exports the review-loop view without changing orchestration item counts', () => {
+    const invocation = makeInvocation({
+      id: 'inv-worker',
+      status: 'completed',
+      childSessionId: 'child-1',
+      title: 'Fix login',
+    });
+    const orchestration = deriveSubagentOrchestrationView({
+      parentSessionId: 'parent-1',
+      invocations: { [invocation.id]: invocation },
+      children: {
+        'child-1': makeChild({ id: 'child-1', subagentExecutionStatus: 'completed' }),
+      },
+      streams: {},
+    });
+    const reviewLoop = deriveSubagentReviewLoopView({
+      parentSessionId: 'parent-1',
+      invocations: { [invocation.id]: invocation },
+      results: {},
+    });
+    expect(orchestration.items).toHaveLength(1);
+    expect(orchestration.activeCount).toBe(0);
+    expect(orchestration.completedCount).toBe(1);
+    expect(reviewLoop.loops).toHaveLength(1);
+    expect(reviewLoop.loops[0]?.legacy).toBe(true);
   });
 });
 
