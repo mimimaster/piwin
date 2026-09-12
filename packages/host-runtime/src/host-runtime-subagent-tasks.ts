@@ -147,6 +147,7 @@ export function getSubagentSeam(
           loadReview: async (ref) =>
             deps.subagentRunStore ? findPersistedReview(deps.subagentRunStore, ref) : undefined,
           isAdmissionClosed: (runId) => deps.runRegistry.isAdmissionClosed(runId),
+          continueGate: deps.reviewedContinueGate,
         },
         sessionId,
         input,

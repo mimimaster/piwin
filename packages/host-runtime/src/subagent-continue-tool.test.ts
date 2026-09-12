@@ -28,6 +28,7 @@ import { createSubagentResultService } from './subagent-result-service.js';
 import {
   PIWIN_CONTINUE_FINDINGS_MARKER,
   SUBAGENT_CONTINUE_TOOL_NAME,
+  createReviewedContinueGate,
 } from './subagent-continue.js';
 import { startReviewedContinuation } from './subagent-continue.js';
 import { createSubagentContinueTool } from './subagent-continue-tool.js';
@@ -375,6 +376,7 @@ function createHarness(options?: {
     loadReview: async (ref: SubagentReviewRef) =>
       reviews.get(`${ref.reviewId}:${String(ref.revision)}`),
     isAdmissionClosed: (runId: string) => runRegistry.isAdmissionClosed(runId),
+    continueGate: createReviewedContinueGate(),
   };
   const baseSeam = createSubagentControlSeam(controlDeps, SESSION_ID);
   const seam = {
@@ -640,6 +642,25 @@ describe('piwin_subagent_continue', () => {
     harness.runnerHold.resolve();
     expect(await second).toMatchObject({ ok: false, code: 'candidate-superseded' });
     expect(harness.batches).toHaveLength(1);
+  });
+
+  it('rejects a second overlapping same-v1 continue when maxConcurrency is 2', async () => {
+    const harness = createHarness({
+      maxConcurrency: 2,
+      maxTasksPerRun: 2,
+      holdRunner: true,
+    });
+    const first = executeTool(harness.continueTool, continueArgs());
+    const second = executeTool(harness.continueTool, continueArgs());
+    const settled = await Promise.all([first, second]);
+    const accepted = settled.filter((result) => result.ok);
+    const rejected = settled.filter((result) => !result.ok);
+    expect(accepted).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]).toMatchObject({ ok: false, code: 'candidate-superseded' });
+    expect(harness.batches).toHaveLength(1);
+    expect(harness.batches[0]?.tasks[0]?.candidateGeneration).toBe(2);
+    harness.runnerHold.resolve();
   });
 
   it('starts no continuation when the parent stops after validation', async () => {
