@@ -122,6 +122,9 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
     sessionId: state.activeSessionId,
   });
   const [selectedTerminalJobId, setSelectedTerminalJobId] = useState<string | null>(null);
+  useEffect(() => {
+    setSelectedTerminalJobId(null);
+  }, [state.activeSessionId]);
   const viewJobLogs = useCallback(
     (jobId: string): void => {
       setSelectedTerminalJobId(jobId);

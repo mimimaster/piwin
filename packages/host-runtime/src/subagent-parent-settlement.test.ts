@@ -202,6 +202,8 @@ describe('settleParentSubagents', () => {
     const settled = await settlePromise;
 
     expect(settled).toEqual({ status: 'completed', outcome: continuation });
+    expect(registry.get(parent.runId)?.phase).toBe('waiting-subagents');
+    expect(registry.get(parent.runId)?.phaseDetail).toBe('synthesizing-reports');
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toContain('Child admission is closed');
     expect(prompts[0]).toContain(expected.output);

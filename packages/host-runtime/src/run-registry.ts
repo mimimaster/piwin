@@ -400,9 +400,13 @@ export class RunRegistry {
         break;
     }
     if (nextPhase !== undefined && node.record.phase !== nextPhase) {
-      node.record.phase = nextPhase;
-      node.record.phaseUpdatedAt = new Date().toISOString();
-      changed = true;
+      const holdSettlementPresentation =
+        node.record.phase === 'waiting-subagents' && nextPhase !== 'waiting-permission';
+      if (!holdSettlementPresentation) {
+        node.record.phase = nextPhase;
+        node.record.phaseUpdatedAt = new Date().toISOString();
+        changed = true;
+      }
     }
     if (changed) {
       this.publishUpdated(node);
