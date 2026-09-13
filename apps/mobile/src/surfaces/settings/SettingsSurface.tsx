@@ -196,7 +196,7 @@ export function SettingsSurface({
 
       {/* 3. Mobile Shell Specification */}
       <Card className="mobile-slice-card" withBorder>
-        <p className="mobile-eyebrow">ABOUT PIWIN MOBILE</p>
+        <p className="mobile-eyebrow">ABOUT PIWIN SHELL</p>
         <h2>iOS 原生移动端外壳</h2>
         <ul className="mobile-slice-list">
           <li><strong>架构隔离</strong>：手机壳纯粹负责观察、审批与交互，Node/Pi/MCP 运算完全留在 Host。</li>

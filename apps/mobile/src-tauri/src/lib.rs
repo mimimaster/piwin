@@ -30,5 +30,5 @@ pub fn run() {
             credential_store::mobile_credential_clear,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Piwin Mobile");
+        .expect("error while running piwin shell");
 }
