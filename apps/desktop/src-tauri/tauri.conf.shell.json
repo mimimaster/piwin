@@ -1,5 +1,5 @@
 {
-  "productName": "piwinwin Shell",
+  "productName": "piwin shell",
   "identifier": "app.piwinwin.desktop.shell",
   "build": {
     "features": ["shell-only"],

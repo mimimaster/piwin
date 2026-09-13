@@ -110,7 +110,7 @@ pnpm package:desktop
 Installer: `apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe`.
 Silent current-user install: `piwinwin_0.0.0_x64-setup.exe /S`.
 
-Thin-shell product name is `piwinwin Shell` (`app.piwinwin.desktop.shell`).
+Thin-shell product name is `piwin shell` (`app.piwinwin.desktop.shell`).
 All-in-one remains `piwinwin`.
 
 ## Signing / notarization
