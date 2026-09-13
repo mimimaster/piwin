@@ -153,7 +153,7 @@ describe('clusterToolCalls', () => {
       makeTool('read', {
         status: 'error',
         presentation: {
-          kind: 'read',
+          kind: 'filesystem',
           title: 'read',
           error: { category: 'cancelled', message: 'This operation was aborted' },
         },
