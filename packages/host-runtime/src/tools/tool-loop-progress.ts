@@ -8,26 +8,32 @@
  * turns, 112 reads, 42 greps, one early bash, zero writes — and the Run stayed
  * live for almost two hours.
  *
- * This detector watches AgentEvents (the only surface that includes Pi
- * builtins) and asks Host to fail the Run once inspect-only work repeats
- * without a mutating tool.
+ * This detector can watch AgentEvents and fail a Run, but defaults are off.
+ * An inspect-only loop is the model not finishing, not a Host stall. Caps
+ * stay available as an explicit opt-in.
  */
 
-export const DEFAULT_MAX_INSPECT_ONLY_TURNS = 12;
-export const DEFAULT_MAX_INSPECT_STALL_ROUNDS = 10;
-export const DEFAULT_MAX_TOOL_LOOP_TURNS = 32;
+/** `0` — Host must not kill a run because the model kept searching. */
+export const DEFAULT_MAX_INSPECT_ONLY_TURNS = 0;
+/** `0` — repeating the same read is still the model's call. */
+export const DEFAULT_MAX_INSPECT_STALL_ROUNDS = 0;
+/** `0` — productive write/edit/bash loops must not hit a turn ceiling. */
+export const DEFAULT_MAX_TOOL_LOOP_TURNS = 0;
 
 export type ToolLoopClass = 'inspect' | 'progress' | 'neutral';
 
 export type ToolLoopLimits = {
-  /** Consecutive inspect-only tool-loop turns. `0` disables this bound. */
+  /** Consecutive inspect-only tool-loop turns. `0` disables. Default is off. */
   maxInspectOnlyTurns: number;
   /**
    * Consecutive inspect-only turns that added no new path/pattern fingerprint.
-   * `0` disables this bound.
+   * `0` disables. Default is off.
    */
   maxInspectStallRounds: number;
-  /** Total assistant turns that called at least one tool. `0` disables. */
+  /**
+   * Total assistant turns that called at least one tool. `0` disables.
+   * Default is off.
+   */
   maxToolLoopTurns: number;
 };
 
