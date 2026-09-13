@@ -2,7 +2,7 @@ import type { ThemeManifest } from '@piwin/contracts';
 
 export const MOBILE_THEME: ThemeManifest = {
   id: 'piwin-mobile-default',
-  name: 'Piwin Mobile',
+  name: 'piwin shell',
   version: '0.0.0',
   mode: 'dark',
   tokens: {

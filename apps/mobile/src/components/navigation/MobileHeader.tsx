@@ -43,7 +43,7 @@ export function MobileHeader({
     <header className="mobile-header">
       <div className="mobile-header-left">
         <div className="mobile-header-eyebrow-row">
-          <span className="mobile-header-eyebrow">PIWIN MOBILE</span>
+          <span className="mobile-header-eyebrow">PIWIN SHELL</span>
           {projectName ? <span className="mobile-header-project-pill">{projectName}</span> : null}
         </div>
         <h1 className="mobile-header-title">{getTitle()}</h1>

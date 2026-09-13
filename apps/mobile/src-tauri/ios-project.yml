@@ -10,7 +10,7 @@ configs:
 settingGroups:
   app:
     base:
-      PRODUCT_NAME: Piwin Mobile
+      PRODUCT_NAME: piwin shell
       PRODUCT_BUNDLE_IDENTIFIER: app.piwin.mobile
 targetTemplates:
   app:
@@ -50,8 +50,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.0.0
-        CFBundleVersion: '0.0.0'
+        CFBundleShortVersionString: 1.0.0
+        CFBundleVersion: '1.0.0.7'
         NSMicrophoneUsageDescription: '需要访问麦克风以支持语音实时转写输入'
         NSSpeechRecognitionUsageDescription: '需要语音识别权限以使用 iOS 原生语音听写功能'
         NSLocalNetworkUsageDescription: 'Piwin 需要访问局域网中的 Piwin Host，才能在手机上使用应用。'
@@ -65,6 +65,8 @@ targets:
         RUST_LOG: info
     settings:
       base:
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: F47G63A8DM
         ENABLE_BITCODE: false
         ARCHS: [arm64]
         VALID_ARCHS: arm64
