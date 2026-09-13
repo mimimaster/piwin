@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { HostRuntime } from './host-runtime.js';
+import { listModelToolSchemaDefects } from './model-tool-descriptor.js';
 import { SUBAGENT_RESULT_APPLY_TOOL_NAME } from './subagent-result-apply-tool.js';
 import { SUBAGENT_RESULT_READ_TOOL_NAME } from './subagent-result-read-tool.js';
 import { SUBAGENT_REVIEW_SUBMIT_TOOL_NAME } from './subagent-review-submit-tool.js';
@@ -180,6 +181,32 @@ describe('HostRuntime tool surfaces', () => {
     ]);
     expect(namesByMode.sdk.includes(SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME)).toBe(false);
     expect(namesByMode.rpc).toEqual(namesByMode.sdk);
+  });
+
+  it('does not send array schemas without items to the model', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-tool-surface-schema-'));
+    const projectPath = join(piwinRoot, 'project');
+    await mkdir(projectPath, { recursive: true });
+    const runtime = new HostRuntime({ mode: 'sdk', mock: false, piwinRoot });
+
+    try {
+      const tools = await runtime.buildSessionHostToolsForSession(
+        'session-schema',
+        'generation-schema',
+        undefined,
+        'active',
+        projectPath,
+      );
+      const defects = tools.flatMap((tool) =>
+        listModelToolSchemaDefects(tool.descriptor.parameters).map(
+          (path) => `${tool.descriptor.name}: ${path}`,
+        ),
+      );
+      expect(defects).toEqual([]);
+    } finally {
+      await runtime.dispose();
+      await rm(piwinRoot, { recursive: true, force: true });
+    }
   });
 
   it('omits browser_* tools on mock hosts', async () => {

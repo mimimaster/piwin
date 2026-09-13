@@ -186,6 +186,12 @@ export type SubagentReviewedApplyPorts = {
   probeWrite?: () => Promise<
     { ok: true } | { ok: false; code: 'permission-denied' | 'workspace-busy' | 'aborted' }
   >;
+  persistApply?: (input: {
+    batchRunId: string;
+    taskId: string;
+    appliedChanges: NonNullable<SubagentResultSummary['appliedChanges']>;
+    latestOperationId: string;
+  }) => Promise<void>;
   publish?: (message: HostPush) => void;
 };
 
@@ -264,6 +270,14 @@ export async function applyReviewedSubagentResult(
     const appliedChanges = applied.appliedChanges ?? applied.childChanges;
     if (!appliedChanges) {
       return applyError('review-data-expired', 'applied change version is unavailable');
+    }
+    if (ports.persistApply) {
+      await ports.persistApply({
+        batchRunId: applied.batchRunId,
+        taskId: applied.taskId,
+        appliedChanges,
+        latestOperationId: outcome.operationId,
+      });
     }
     ports.publish?.({
       type: 'subagent/result-updated',

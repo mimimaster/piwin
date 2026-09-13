@@ -153,6 +153,12 @@ function createHarness(options?: {
     operationId: string;
     status?: 'succeeded' | 'rejected' | 'needs-repair';
   }>;
+  persistApply?: (input: {
+    batchRunId: string;
+    taskId: string;
+    appliedChanges: { changeSetId: string; revision: number };
+    latestOperationId: string;
+  }) => Promise<void>;
 }) {
   const writes: string[] = [];
   const resultService = createSubagentResultService();
@@ -178,6 +184,7 @@ function createHarness(options?: {
             };
           }),
         ...(options?.probeWrite ? { probeWrite: options.probeWrite } : {}),
+        ...(options?.persistApply ? { persistApply: options.persistApply } : {}),
       },
       {
         parentSessionId: input.parentSessionId,
@@ -361,6 +368,30 @@ describe('piwin_subagent_result_apply', () => {
     expect(second).toMatchObject({ ok: false, code: 'already-applied' });
     expect(writes).toEqual(['result-v2']);
     expect(resultService.get('result-v2')?.appliedChanges).toEqual(CHANGES_V2);
+  });
+
+  it('persists apply fields after a successful write', async () => {
+    const persisted: Array<{
+      batchRunId: string;
+      taskId: string;
+      appliedChanges: { changeSetId: string; revision: number };
+      latestOperationId: string;
+    }> = [];
+    const { tool } = createHarness({
+      persistApply: async (input) => {
+        persisted.push(input);
+      },
+    });
+    const first = await executeTool(tool, { result: RESULT_V2, approvedBy: APPROVED_BY });
+    expect(first.ok).toBe(true);
+    expect(persisted).toEqual([
+      {
+        batchRunId: 'run-1',
+        taskId: 'task-1',
+        appliedChanges: CHANGES_V2,
+        latestOperationId: first.ok ? first.details?.operationId : undefined,
+      },
+    ]);
   });
 
   it('approved current head applies once through the real reservation + coordinator hash', async () => {

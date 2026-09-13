@@ -83,6 +83,18 @@ export function createHealthReadContextTool(
           range: {
             type: 'object',
             description: 'Local-date window; total including comparison must be ≤ 90 days',
+            properties: {
+              preset: {
+                type: 'string',
+                enum: ['today', 'last-7-days', 'last-30-days', 'custom'],
+              },
+              startDate: { type: 'string', description: 'YYYY-MM-DD when preset is custom' },
+              endDateExclusive: {
+                type: 'string',
+                description: 'YYYY-MM-DD exclusive end when preset is custom',
+              },
+            },
+            required: ['preset'],
           },
           granularity: { type: 'string', enum: ['summary', 'day'] },
           includePreviousPeriod: { type: 'boolean' },

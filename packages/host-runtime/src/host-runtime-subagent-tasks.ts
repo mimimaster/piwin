@@ -192,6 +192,12 @@ export function getSubagentSeam(
               throw error;
             }
           },
+          persistApply: async (input) => {
+            await deps.subagentRunStore?.projectResultApply(input.batchRunId, input.taskId, {
+              appliedChanges: input.appliedChanges,
+              latestOperationId: input.latestOperationId,
+            });
+          },
           ...(deps.turnChangeRuntime && projectPath
             ? {
                 probeWrite: async () => {

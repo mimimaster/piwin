@@ -429,6 +429,15 @@ export const subagentVerificationSubmitInputParameters = {
     checks: {
       type: 'array',
       description: 'Bounded parent-workspace checks. passed needs ≥1 check and no failed check.',
+      items: {
+        type: 'object',
+        properties: {
+          label: { type: 'string', description: 'Check name (e.g. typecheck).' },
+          status: { type: 'string', enum: ['passed', 'failed'] },
+          evidence: { type: 'string', description: 'What was run and what it produced.' },
+        },
+        required: ['label', 'status', 'evidence'],
+      },
     },
   },
   required: ['result', 'approvedBy', 'applyOperationId', 'status', 'checks'] as const,

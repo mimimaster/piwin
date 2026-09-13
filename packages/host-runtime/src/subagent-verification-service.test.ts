@@ -304,4 +304,31 @@ describe('subagent verification service', () => {
     expect(hydrated?.appliedChanges).toEqual(CHANGES);
     expect(hydrated?.latestOperationId).toBe(APPLY_OP);
   });
+
+  it('6. apply fields survive restart so the first verification can run', async () => {
+    const { dir, store } = await setup();
+    await store.projectResultApply('worker-run', 'worker-task', {
+      appliedChanges: CHANGES,
+      latestOperationId: APPLY_OP,
+    });
+
+    const restartedStore = createSubagentRunStore({ runsDir: dir });
+    const restartedResults = createSubagentResultService();
+    hydrateSubagentResultService(restartedResults, await restartedStore.listManifests());
+    expect(restartedResults.get('result-1')).toMatchObject({
+      appliedChanges: CHANGES,
+      latestOperationId: APPLY_OP,
+      integrationStatus: 'applied',
+    });
+
+    let ids = 0;
+    const service = createSubagentVerificationService({
+      runStore: restartedStore,
+      resultService: restartedResults,
+      now: () => new Date('2026-09-13T04:00:00.000Z'),
+      createId: () => `verify-restart-${String((ids += 1))}`,
+    });
+    const submitted = await service.submit(passedInput());
+    expect(submitted).toMatchObject({ ok: true, duplicate: false });
+  });
 });
