@@ -4,7 +4,9 @@
  */
 import type {
   SubagentDeliveryIntent,
+  SubagentDeliveryVerification,
   SubagentResultAvailability,
+  SubagentResultRef,
   SubagentResultSummary,
   SubagentTaskResult,
   SubagentWorkspaceLease,
@@ -26,6 +28,20 @@ export type SubagentResultProjectionSource = {
 
 function firstDefined<T>(...values: Array<T | undefined>): T | undefined {
   return values.find((value) => value !== undefined);
+}
+
+function matchingDeliveryVerification(
+  resultRef: SubagentResultRef | undefined,
+  verification: SubagentDeliveryVerification | undefined,
+): SubagentDeliveryVerification | undefined {
+  if (!resultRef || !verification) return undefined;
+  if (
+    verification.result.resultId !== resultRef.resultId ||
+    verification.result.revision !== resultRef.revision
+  ) {
+    return undefined;
+  }
+  return verification;
 }
 
 function isLegacyPersistedTask(task: SubagentPersistedTask | undefined, result: SubagentTaskResult): boolean {
@@ -106,17 +122,20 @@ export function projectSubagentResultSummary(
   const groupId = firstDefined(source.result.candidateGroupId, source.task?.candidateGroupId);
   const latestReview = firstDefined(source.result.latestReview, source.task?.latestReview);
   const storedReviewStatus = firstDefined(source.result.reviewStatus, source.task?.reviewStatus);
+  const verification = matchingDeliveryVerification(
+    resultRef,
+    source.task?.deliveryVerification,
+  );
   const latestVerification = firstDefined(
     source.result.latestVerification,
-    source.task?.latestVerification,
+    verification
+      ? { verificationId: verification.verificationId, revision: verification.revision }
+      : undefined,
   );
-  const appliedChanges = firstDefined(
-    source.result.appliedChanges,
-    source.task?.deliveryVerification?.appliedChanges,
-  );
+  const appliedChanges = firstDefined(source.result.appliedChanges, verification?.appliedChanges);
   const latestOperationId = firstDefined(
     source.result.latestOperationId,
-    source.task?.deliveryVerification?.applyOperationId,
+    verification?.applyOperationId,
   );
 
   return {

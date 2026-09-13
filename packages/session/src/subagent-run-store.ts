@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   pickSubagentLineageRefs,
+  type ChangeVersionRef,
   type ModelRef,
   type SubagentApplyPolicy,
   type SubagentBatchRequest,
@@ -195,6 +196,46 @@ function reviewPayloadEquals(
       verification: right.verification,
     })
   );
+}
+
+function sameResultRef(
+  left: SubagentResultRef | undefined,
+  right: SubagentResultRef | undefined,
+): boolean {
+  return (
+    left !== undefined &&
+    right !== undefined &&
+    left.resultId === right.resultId &&
+    left.revision === right.revision
+  );
+}
+
+function mergePersistedTaskResult(
+  previous: SubagentTaskResult | undefined,
+  next: SubagentTaskResult,
+): SubagentTaskResult {
+  if (!previous || !sameResultRef(previous.resultRef, next.resultRef)) {
+    return next;
+  }
+  return {
+    ...previous,
+    ...next,
+    ...(next.appliedChanges ?? previous.appliedChanges
+      ? { appliedChanges: next.appliedChanges ?? previous.appliedChanges }
+      : {}),
+    ...(next.latestOperationId ?? previous.latestOperationId
+      ? { latestOperationId: next.latestOperationId ?? previous.latestOperationId }
+      : {}),
+    ...(next.deliveryVerification ?? previous.deliveryVerification
+      ? { deliveryVerification: next.deliveryVerification ?? previous.deliveryVerification }
+      : {}),
+    ...(next.verificationRef ?? previous.verificationRef
+      ? { verificationRef: next.verificationRef ?? previous.verificationRef }
+      : {}),
+    ...(next.latestVerification ?? previous.latestVerification
+      ? { latestVerification: next.latestVerification ?? previous.latestVerification }
+      : {}),
+  };
 }
 
 function deliveryVerificationPayloadEquals(
@@ -420,7 +461,7 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     result: SubagentTaskResult,
   ): Promise<void> {
     await mutateManifest(runId, (manifest) => {
-      manifest.results[taskId] = result;
+      manifest.results[taskId] = mergePersistedTaskResult(manifest.results[taskId], result);
     });
   }
 
@@ -548,6 +589,26 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
       if (result) {
         manifest.results[taskId] = { ...result, latestReview, reviewStatus };
       }
+    });
+  }
+
+  async function projectResultApply(
+    runId: string,
+    taskId: string,
+    input: {
+      appliedChanges: ChangeVersionRef;
+      latestOperationId: string;
+    },
+  ): Promise<void> {
+    await mutateManifest(runId, (manifest) => {
+      const result = manifest.results[taskId];
+      if (!result) return false;
+      manifest.results[taskId] = {
+        ...result,
+        integrationStatus: 'applied',
+        appliedChanges: input.appliedChanges,
+        latestOperationId: input.latestOperationId,
+      };
     });
   }
 
@@ -729,6 +790,7 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     persistReviewerDecision,
     persistDeliveryVerification,
     projectResultReview,
+    projectResultApply,
     projectResultVerification,
     listInvocations,
     setStatus,

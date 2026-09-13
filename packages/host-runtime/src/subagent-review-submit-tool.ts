@@ -46,10 +46,32 @@ export const subagentReviewSubmitInputParameters = {
     findings: {
       type: 'array',
       description: 'Bounded findings. approved rejects critical/high; other decisions need a reason.',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+          title: { type: 'string' },
+          detail: { type: 'string' },
+          relativePath: { type: 'string' },
+          line: { type: 'number' },
+          evidence: { type: 'string' },
+        },
+        required: ['id', 'severity', 'title', 'detail'],
+      },
     },
     verification: {
       type: 'array',
       description: 'Reviewer-local checks. These do not mark delivery as verified.',
+      items: {
+        type: 'object',
+        properties: {
+          label: { type: 'string' },
+          status: { type: 'string', enum: ['passed', 'failed', 'not-run'] },
+          evidence: { type: 'string' },
+        },
+        required: ['label', 'status'],
+      },
     },
   },
   required: ['target', 'decision', 'findings', 'verification'] as const,

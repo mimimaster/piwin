@@ -239,6 +239,52 @@ describe('SubagentRunStore', () => {
     expect(loaded?.results.worker?.integrationStatus).toBe('applied');
   });
 
+  it('persists apply fields and keeps them across a same-result rewrite', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'worker', invocationId: 'inv-1' })]));
+    await store.recordResult('run-1', 'worker', {
+      runId: 'run-1',
+      taskId: 'worker',
+      childSessionId: 'worker-child',
+      executionStatus: 'completed',
+      summaryStatus: 'merged',
+      integrationStatus: 'applied',
+      resultRef: { resultId: 'result-1', revision: 1 },
+    });
+    await store.projectResultApply('run-1', 'worker', {
+      appliedChanges: { changeSetId: 'cs-1', revision: 1 },
+      latestOperationId: 'op-1',
+    });
+    await store.recordResult('run-1', 'worker', {
+      runId: 'run-1',
+      taskId: 'worker',
+      childSessionId: 'worker-child',
+      executionStatus: 'completed',
+      summaryStatus: 'merged',
+      integrationStatus: 'applied',
+      resultRef: { resultId: 'result-1', revision: 1 },
+    });
+    expect((await store.loadManifest('run-1'))?.results.worker).toMatchObject({
+      appliedChanges: { changeSetId: 'cs-1', revision: 1 },
+      latestOperationId: 'op-1',
+    });
+
+    await store.recordResult('run-1', 'worker', {
+      runId: 'run-1',
+      taskId: 'worker',
+      childSessionId: 'worker-child',
+      executionStatus: 'completed',
+      summaryStatus: 'merged',
+      integrationStatus: 'retained',
+      resultRef: { resultId: 'result-2', revision: 1 },
+    });
+    const replaced = (await store.loadManifest('run-1'))?.results.worker;
+    expect(replaced?.resultRef).toEqual({ resultId: 'result-2', revision: 1 });
+    expect(replaced?.appliedChanges).toBeUndefined();
+    expect(replaced?.latestOperationId).toBeUndefined();
+  });
+
   it('reads a legacy manifest without inventing lineage or delivery fields', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
     await writeFile(

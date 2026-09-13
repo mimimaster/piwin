@@ -117,6 +117,73 @@ describe('projectSubagentResultSummary', () => {
     expect(headV1?.reviewStatus).toBe('stale');
     expect(headV1?.availability.apply).toEqual({ allowed: false, reason: 'candidate-superseded' });
   });
+
+  it('does not inherit a task verification onto a different result', () => {
+    const summary = projectSubagentResultSummary({
+      parentSessionId: 'parent-1',
+      result: firstCandidateResult({
+        resultRef: { resultId: 'result-v2', revision: 1 },
+        integrationStatus: 'retained',
+      }),
+      task: {
+        id: 'task-1',
+        task: 'implement login',
+        deliveryIntent: 'candidate',
+        latestVerification: { verificationId: 'verify-old', revision: 1 },
+        deliveryVerification: {
+          verificationId: 'verify-old',
+          revision: 1,
+          parentSessionId: 'parent-1',
+          parentRunId: 'parent-run',
+          result: { resultId: 'result-v1', revision: 1 },
+          approvedBy: { reviewId: 'review-1', revision: 1 },
+          applyOperationId: 'op-old',
+          appliedChanges: { changeSetId: 'cs-old', revision: 1 },
+          status: 'passed',
+          checks: [{ label: 'typecheck', status: 'passed', evidence: 'ok' }],
+          createdAt: '2026-09-13T00:00:00.000Z',
+        },
+      },
+    });
+    expect(summary).toMatchObject({
+      resultId: 'result-v2',
+      latestVerification: null,
+      appliedChanges: null,
+      latestOperationId: null,
+    });
+  });
+
+  it('keeps a matching task verification on the applied result', () => {
+    const summary = projectSubagentResultSummary({
+      parentSessionId: 'parent-1',
+      result: firstCandidateResult({
+        integrationStatus: 'applied',
+      }),
+      task: {
+        id: 'task-1',
+        task: 'implement login',
+        deliveryIntent: 'candidate',
+        deliveryVerification: {
+          verificationId: 'verify-1',
+          revision: 1,
+          parentSessionId: 'parent-1',
+          parentRunId: 'parent-run',
+          result: { resultId: 'result-v1', revision: 1 },
+          approvedBy: { reviewId: 'review-1', revision: 1 },
+          applyOperationId: 'op-1',
+          appliedChanges: { changeSetId: 'cs-1', revision: 1 },
+          status: 'passed',
+          checks: [{ label: 'typecheck', status: 'passed', evidence: 'ok' }],
+          createdAt: '2026-09-13T00:00:00.000Z',
+        },
+      },
+    });
+    expect(summary).toMatchObject({
+      latestVerification: { verificationId: 'verify-1', revision: 1 },
+      appliedChanges: { changeSetId: 'cs-1', revision: 1 },
+      latestOperationId: 'op-1',
+    });
+  });
 });
 
 describe('persistSubagentTaskResult', () => {

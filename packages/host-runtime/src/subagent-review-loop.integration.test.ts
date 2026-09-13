@@ -460,6 +460,12 @@ async function createHarness(scripts: ReviewerScript[]) {
               integrationStatus: integrated.integrationStatus,
             };
           },
+          persistApply: async (persist) => {
+            await runStore.projectResultApply(persist.batchRunId, persist.taskId, {
+              appliedChanges: persist.appliedChanges,
+              latestOperationId: persist.latestOperationId,
+            });
+          },
         },
         {
           parentSessionId: SESSION_ID,
