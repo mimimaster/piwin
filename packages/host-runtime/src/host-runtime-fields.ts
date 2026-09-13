@@ -163,8 +163,9 @@ export class HostRuntimeFields {
   /** Structured lifecycle authority for every foreground and descendant Run. */
   runRegistry = undefined as unknown as RunRegistry;
   /**
-   * Detects a Pi tool loop that only re-reads / greps. Built-in inspect tools
-   * never hit Host admission, so this watches AgentEvents instead.
+   * Optional inspect-loop detector. Defaults are off: a model that keeps
+   * reading is still allowed to finish. Built-in inspect tools never hit
+   * Host admission, so this watches AgentEvents when a limit is set.
    */
   toolLoopProgress = new ToolLoopProgressTracker();
   /** Optional override used by router tests; production leaves this unset. */

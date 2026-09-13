@@ -49,8 +49,44 @@ describe('fingerprintToolLoopCall', () => {
 });
 
 describe('ToolLoopProgressTracker', () => {
-  it('stops the packaged inspect-only loop after 12 turns with no writes', () => {
+  it('does not stop an inspect-only loop by default', () => {
     const tracker = new ToolLoopProgressTracker();
+    for (let turn = 1; turn <= 20; turn += 1) {
+      tracker.observeTool('run-1', {
+        toolName: 'read',
+        targetPaths: [`apps/desktop/src/file-${turn}.tsx`],
+      });
+      tracker.observeTool('run-1', {
+        toolName: 'grep',
+        inputPreview: `pattern-${turn}`,
+      });
+      expect(tracker.closeAssistantTurn('run-1')).toEqual({ action: 'continue' });
+    }
+    expect(tracker.snapshot('run-1')).toMatchObject({
+      inspectOnlyTurns: 20,
+      stallRounds: 0,
+      toolLoopTurns: 20,
+      stopped: false,
+    });
+  });
+
+  it('does not stop repeated reads of the same file by default', () => {
+    const tracker = new ToolLoopProgressTracker();
+    for (let turn = 0; turn < 16; turn += 1) {
+      tracker.observeTool('run-1', { toolName: 'read', targetPaths: ['src/a.ts'] });
+      expect(tracker.closeAssistantTurn('run-1')).toEqual({ action: 'continue' });
+    }
+    expect(tracker.snapshot('run-1')).toMatchObject({
+      stallRounds: 15,
+      stopped: false,
+    });
+  });
+
+  it('stops an inspect-only loop only when an explicit inspect limit is set', () => {
+    const tracker = new ToolLoopProgressTracker({
+      maxInspectOnlyTurns: 12,
+      maxInspectStallRounds: 0,
+    });
     let last = { action: 'continue' } as ReturnType<ToolLoopProgressTracker['closeAssistantTurn']>;
     for (let turn = 1; turn <= 12; turn += 1) {
       tracker.observeTool('run-1', {
@@ -124,7 +160,25 @@ describe('ToolLoopProgressTracker', () => {
     expect(tracker.snapshot('run-1')).toBeUndefined();
   });
 
-  it('caps a long mixed tool loop that never finishes', () => {
+  it('does not stop a long mixed loop that is still making progress', () => {
+    const tracker = new ToolLoopProgressTracker();
+    let last = { action: 'continue' } as ReturnType<ToolLoopProgressTracker['closeAssistantTurn']>;
+    for (let turn = 1; turn <= 40; turn += 1) {
+      tracker.observeTool('run-1', {
+        toolName: turn % 2 === 0 ? 'write' : 'bash',
+        targetPaths: [`src/file-${turn}.ts`],
+      });
+      last = tracker.closeAssistantTurn('run-1');
+      expect(last).toEqual({ action: 'continue' });
+    }
+    expect(tracker.snapshot('run-1')).toMatchObject({
+      inspectOnlyTurns: 0,
+      toolLoopTurns: 40,
+      stopped: false,
+    });
+  });
+
+  it('caps a long mixed tool loop only when an explicit turn limit is set', () => {
     const tracker = new ToolLoopProgressTracker({
       maxInspectOnlyTurns: 0,
       maxInspectStallRounds: 0,
