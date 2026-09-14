@@ -307,7 +307,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
       data-testid="user-message-wrapper"
     >
       <div
-        className={`ucard user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasMediaAttachments ? 'has-attachments' : ''}${interventionStatus ? ' steer' : ''}${interventionStatus === 'applied' ? ' settled' : ''}`}
+        className={`ucard user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasMediaAttachments ? 'has-attachments' : ''}`}
         data-testid="user-message-collapsible-body"
         onClick={handleToggle}
         role={isCollapsible ? 'button' : undefined}
