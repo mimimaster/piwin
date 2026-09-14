@@ -5,6 +5,8 @@ import {
   callImageEndpoint,
   ImageGenConfigError,
   isImageGenerationModel,
+  resolveImageCallAuth,
+  type ResolveImageCallAuthOptions,
 } from './image-gen-tool.js';
 
 const DEFAULT_TEST_PROMPT =
@@ -16,6 +18,8 @@ export type ImageGenerationTestDependencies = {
   apiKey?: string;
   fetch?: typeof fetch;
   now?: () => number;
+  piwinRoot?: string;
+  loadSubscriptionMediaAuth?: ResolveImageCallAuthOptions['loadSubscriptionMediaAuth'];
 };
 
 /** Exercise the real image endpoint and discard bytes after validating the response. */
@@ -38,12 +42,14 @@ export async function testImageGenerationModel(
     );
   }
 
-  const oneShotApiKey = dependencies.apiKey?.trim();
-  const apiKey = oneShotApiKey
-    ? oneShotApiKey
-    : provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim()
-      ? await dependencies.secretResolver.resolveProviderSecret(provider)
-      : '';
+  const { apiKey, subscriptionAuth } = await resolveImageCallAuth(provider, {
+    secretResolver: dependencies.secretResolver,
+    ...(dependencies.apiKey?.trim() ? { oneShotApiKey: dependencies.apiKey } : {}),
+    ...(dependencies.piwinRoot !== undefined ? { piwinRoot: dependencies.piwinRoot } : {}),
+    ...(dependencies.loadSubscriptionMediaAuth
+      ? { loadSubscriptionMediaAuth: dependencies.loadSubscriptionMediaAuth }
+      : {}),
+  });
   const now = dependencies.now ?? Date.now;
   const startedAt = now();
   const images = await callImageEndpoint(
@@ -53,6 +59,7 @@ export async function testImageGenerationModel(
     apiKey,
     undefined,
     dependencies.fetch,
+    subscriptionAuth,
   );
   return {
     providerId: provider.id,

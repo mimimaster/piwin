@@ -34,8 +34,7 @@ import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { resolveAssistantRenderingPhase } from './streaming-caret';
 import type { DocumentOpenInput } from './tool-call-card';
 import type { DiffCardRequest } from './diff-card.js';
-import { IconBrain, IconChevronRight } from './shell-icons';
-import { WorkElapsed } from './work-fold-header.js';
+import { WorkFoldHeader } from './work-fold-header.js';
 import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 import { buildTurnPresentation } from './run-presentation.js';
 import { runtimeStatusText } from './run-activity-strings.js';
@@ -103,6 +102,8 @@ export function ConversationResponseContent(props: {
   /** Cross-message explore-flow role (anchor capsule / suppressed member). */
   exploreRole?: ExploreFlowRole;
   showThinking?: boolean;
+  /** Abort the live session run (same as composer Stop). */
+  onCancelGeneration?: () => void;
 }): ReactElement {
   const { message, locale } = props;
   const presentation = buildTurnPresentation({
@@ -121,27 +122,22 @@ export function ConversationResponseContent(props: {
   const isFlowMember = exploreRole?.kind === 'member';
   const isFoldThought = exploreRole?.kind === 'fold-thought';
   const hasThinking =
+    props.showThinking !== false &&
     message.thinking.trim().length > 0 &&
     !isFlowMember &&
     !isFoldThought &&
     !(isFlowAnchor && message.text.trim().length === 0);
   const liveStreaming = props.isStreaming === true;
-  // Keep reasoning visible for the whole live bubble. Turn presentation marks
-  // thinking inactive as soon as a caption or tool appears, which hid grok
-  // xhigh reasoning behind a frozen locator for minutes. Durable
-  // `status=streaming` after a missed terminal must not keep the spinner.
+  // Durable `status=streaming` after a missed terminal must not keep the
+  // spinner. Auto-open follows this flag so the body collapses when reasoning
+  // ends, not at message/end.
   const thinkingStreaming =
     liveStreaming &&
     message.status === 'streaming' &&
     hasThinking &&
     message.thinkingEndedAt === undefined;
   const thinkingOpen =
-    thinkingIntent === 'user-open' ||
-    (thinkingIntent === 'automatic' &&
-      liveStreaming &&
-      message.status === 'streaming' &&
-      hasThinking);
-  const thinkingLabelClass = behaviorTextClass('thinking', thinkingStreaming);
+    thinkingIntent === 'user-open' || (thinkingIntent === 'automatic' && thinkingStreaming);
   const composingToolArgs =
     liveStreaming &&
     message.status === 'streaming' &&
@@ -260,55 +256,27 @@ export function ConversationResponseContent(props: {
           className={`conversation-thinking-wrapper${thinkingOpen ? ' is-open' : ' is-collapsed'}`}
           data-testid="conversation-thinking-wrapper"
         >
-          <button
-            type="button"
+          <WorkFoldHeader
+            state={thinkingStreaming ? 'running' : 'done'}
+            locale={locale}
             className="turn-work-details-summary conversation-thinking-summary"
-            data-activity-id="thinking"
-            data-activity-animation={getBehaviorActivitySpec('thinking').animation}
-            data-tool-status={thinkingStreaming ? 'running' : 'done'}
-            aria-label={locale === 'zh-CN' ? '思考过程' : 'Thoughts'}
-            aria-expanded={thinkingOpen}
-            data-testid="conversation-thinking-summary"
-            onClick={() => setThinkingIntent(thinkingOpen ? 'user-closed' : 'user-open')}
+            testId="conversation-thinking-summary"
+            ariaLabel={locale === 'zh-CN' ? '思考过程' : 'Thoughts'}
+            doneIcon="brain"
+            open={thinkingOpen}
+            onToggle={() => setThinkingIntent(thinkingOpen ? 'user-closed' : 'user-open')}
+            {...(thinkingStreaming && message.thinkingStartedAt !== undefined
+              ? { runningSince: message.thinkingStartedAt }
+              : !thinkingStreaming && presentation.thoughtSeconds !== undefined
+                ? { elapsedMs: presentation.thoughtSeconds * 1000 }
+                : {})}
           >
-            {thinkingStreaming ? (
-              <span
-                className="turn-summary-active-animation"
-                data-testid="conversation-thinking-active-animation"
-                aria-hidden="true"
-              >
-                <RadialBellow
-                  size="sm"
-                  label={locale === 'zh-CN' ? '正在思考' : 'Thinking'}
-                  testId="conversation-thinking-radial-bellow"
-                />
-              </span>
-            ) : (
-              <IconBrain className="turn-summary-brain-icon" />
-            )}
-            <span className={`turn-work-details-label ${thinkingLabelClass}`}>
-              {thinkingStreaming
-                ? runtimeStatusText('thinking', locale)
-                : locale === 'zh-CN'
-                  ? '思考过程'
-                  : 'Thoughts'}
-            </span>
-            <span className="work-fold-trailing">
-              <WorkElapsed
-                {...(thinkingStreaming && message.thinkingStartedAt !== undefined
-                  ? { startedAt: message.thinkingStartedAt }
-                  : !thinkingStreaming && presentation.thoughtSeconds !== undefined
-                    ? { elapsedMs: presentation.thoughtSeconds * 1000 }
-                    : {})}
-              />
-              <span
-                className={`turn-work-details-chevron${thinkingOpen ? ' is-open' : ''}`}
-                aria-hidden
-              >
-                <IconChevronRight />
-              </span>
-            </span>
-          </button>
+            {thinkingStreaming
+              ? runtimeStatusText('thinking', locale)
+              : locale === 'zh-CN'
+                ? '思考过程'
+                : 'Thoughts'}
+          </WorkFoldHeader>
           {thinkingOpen ? (
             <div className="turn-work-details-body conversation-thinking-body">
               <div
@@ -425,6 +393,9 @@ export function ConversationResponseContent(props: {
           locale={locale}
           status={imageGenerationStatus}
           {...(imageGenerationTool ? { tool: imageGenerationTool } : {})}
+          {...(liveStreaming && imageGenerationStatus === 'running' && props.onCancelGeneration
+            ? { onCancel: props.onCancelGeneration }
+            : {})}
         />
       ) : null}
       {renderMediaChrome &&
@@ -434,6 +405,9 @@ export function ConversationResponseContent(props: {
           locale={locale}
           status={videoGenerationStatus}
           {...(videoGenerationTool ? { tool: videoGenerationTool } : {})}
+          {...(liveStreaming && videoGenerationStatus === 'running' && props.onCancelGeneration
+            ? { onCancel: props.onCancelGeneration }
+            : {})}
         />
       ) : null}
       {renderMediaChrome ? (

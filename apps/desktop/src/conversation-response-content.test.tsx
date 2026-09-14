@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
@@ -208,9 +208,10 @@ describe('ConversationResponseContent', () => {
     expect(
       container.querySelector('[data-testid="conversation-thinking-wrapper"]')?.className,
     ).toContain('is-open');
+    expect(container.querySelector('.work-fold-brain')).not.toBeNull();
   });
 
-  it('keeps live reasoning open after a caption starts on the same bubble', () => {
+  it('collapses reasoning when a caption starts on the same bubble', () => {
     const message: ChatMessageUi = {
       id: 'm-think-caption',
       role: 'assistant',
@@ -238,10 +239,13 @@ describe('ConversationResponseContent', () => {
       />,
     );
 
-    expect(container.querySelector('[data-testid="conversation-thinking"]')?.textContent).toContain(
-      'Keep drawing the pouch',
-    );
+    expect(container.querySelector('[data-testid="conversation-thinking"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="conversation-thinking-wrapper"]')?.className,
+    ).toContain('is-collapsed');
     expect(container.textContent).toContain('正在把鹈鹕画进循环骑行动画。');
+    expect(container.querySelector('.work-fold-brain')).not.toBeNull();
+    expect(container.querySelector('[data-testid="work-fold-elapsed"]')?.textContent).toBe('1s');
   });
 
   it('stops the thinking spinner and shows composing progress while tool args stream', () => {
@@ -1320,5 +1324,51 @@ describe('ConversationResponseContent', () => {
 
     expect(container.querySelector('[data-testid="image-generation-progress"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="message-attachments"]')).not.toBeNull();
+  });
+
+  it('cancels a live generation through onCancelGeneration', () => {
+    const onCancelGeneration = vi.fn();
+    const message: ChatMessageUi = {
+      id: 'm-image-cancel',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'image-call',
+          toolName: 'image_gen',
+          status: 'running',
+          output: '',
+        },
+      ],
+      attachments: [],
+      status: 'streaming',
+    };
+
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId="run-image"
+        locale="zh-CN"
+        isStreaming
+        artifactPreviewEnabled
+        renderMediaChrome
+        onCancelGeneration={onCancelGeneration}
+      />,
+    );
+
+    const cancel = container.querySelector<HTMLButtonElement>(
+      '[data-testid="media-generation-cancel"]',
+    );
+    expect(cancel).not.toBeNull();
+    act(() => {
+      cancel?.click();
+    });
+    expect(onCancelGeneration).toHaveBeenCalledTimes(1);
   });
 });

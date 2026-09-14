@@ -68,6 +68,12 @@ export const ChatMessageRow = memo(
       message.role === 'assistant' ? getGenerationTool(message, 'image') : null;
     const videoGenerationTool =
       message.role === 'assistant' ? getGenerationTool(message, 'video') : null;
+    const onCancelGeneration =
+      props.streaming &&
+      message.status === 'streaming' &&
+      (imageGenerationStatus === 'running' || videoGenerationStatus === 'running')
+        ? props.composerCard.onAbort
+        : undefined;
     const contextMenu = useDesktopContextMenu();
     const knowledgeCitations = useMemo(() => collectKnowledgeCitations(message), [message]);
     const citedKnowledgeSources = useMemo(
@@ -295,6 +301,7 @@ export const ChatMessageRow = memo(
               permissionPrompt={
                 props.isLastAssistantInTurn === true ? props.permissionPrompt : null
               }
+              showRunTerminalMessage={props.isLastAssistantInTurn === true}
               {...(props.onPermission !== undefined ? { onPermission: props.onPermission } : {})}
               workDetailsExpanded={props.workDetailsExpanded}
               toolDensity={props.toolDensity}
@@ -374,6 +381,7 @@ export const ChatMessageRow = memo(
             locale={props.locale ?? 'zh-CN'}
             status={imageGenerationStatus}
             {...(imageGenerationTool ? { tool: imageGenerationTool } : {})}
+            {...(onCancelGeneration ? { onCancel: onCancelGeneration } : {})}
           />
         ) : null}
         {videoGenerationStatus &&
@@ -382,6 +390,7 @@ export const ChatMessageRow = memo(
             locale={props.locale ?? 'zh-CN'}
             status={videoGenerationStatus}
             {...(videoGenerationTool ? { tool: videoGenerationTool } : {})}
+            {...(onCancelGeneration ? { onCancel: onCancelGeneration } : {})}
           />
         ) : null}
         {message.role === 'assistant' || isEditingThis ? (

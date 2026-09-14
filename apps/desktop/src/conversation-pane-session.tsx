@@ -524,6 +524,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
             : {})}
           {...(props.fileBrowseRoot !== undefined ? { fileBrowseRoot: props.fileBrowseRoot } : {})}
           onCompactAbort={handleCompactAbort}
+          onCancelGeneration={() => void handleStop()}
         />
         {state.error ? (
           <div className="conversation-pane-error" role="alert">
