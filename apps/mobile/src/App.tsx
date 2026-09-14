@@ -9,19 +9,20 @@ import { useMobileHost } from './hooks/use-mobile-host.js';
 import { ConnectionSurface } from './surfaces/connection/ConnectionSurface.js';
 
 /**
- * Inkstone mobile shell.
+ * Inkstone shell (visual truth: docs/design/inkstone/proto-08-mobile.html).
  *
- * ConnectionSurface handles host pairing & endpoint configuration.
+ * Always keep the paper/ink shell mounted. ConnectionSurface is an explicit
+ * overlay opened from 管理连接 — never replace the whole shell just because
+ * Host is offline (that was wiping the 砚台 theme on cold start).
  */
 export function App(): ReactElement {
   const host = useMobileHost();
   const [showConnectionConfig, setShowConnectionConfig] = useState(false);
   useKeyboardInset();
 
-  const connected = host.connectionState.kind === 'ready';
   const modelSelection = useInkstoneModelSelection(host);
 
-  if (!connected || showConnectionConfig) {
+  if (showConnectionConfig) {
     return (
       <PiwinUiProvider manifest={MOBILE_THEME}>
         <main className="inkstone-root">
@@ -40,14 +41,14 @@ export function App(): ReactElement {
               isNativeVault={host.isNativeVault}
               onRetryCredentialPersist={() => void host.retryCredentialPersist()}
               onConnect={(input) => {
-                void host.handleConnect(input).then((connected) => {
-                  if (connected) {
+                void host.handleConnect(input).then((ok) => {
+                  if (ok) {
                     setShowConnectionConfig(false);
                   }
                 });
               }}
               onDisconnect={() => void host.handleDisconnect()}
-              onBackToApp={connected ? () => setShowConnectionConfig(false) : undefined}
+              onBackToApp={() => setShowConnectionConfig(false)}
             />
           </div>
         </main>
@@ -60,6 +61,7 @@ export function App(): ReactElement {
     onOpenConnection: () => setShowConnectionConfig(true),
     modelSelection,
   };
+
   return (
     <PiwinUiProvider manifest={MOBILE_THEME}>
       <InkstoneApp hostContext={hostContext} />

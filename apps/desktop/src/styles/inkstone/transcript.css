@@ -182,6 +182,15 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-turn {
   box-sizing: border-box;
 }
 
+/* Inside a turn group the flex gap already separates user → assistant.
+   Stacking the turn's bottom margin on top of it left ~46px between the
+   assembly capsule and the model byline; keep the margin only on the
+   group's trailing turn. */
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-group > .chat-turn:not(:last-child),
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group > .chat-turn:not(:last-child) {
+  margin-bottom: 0;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .turn > div,
 html[data-theme-id='piwin-inkstone-ink'] .turn > div,
 html[data-theme-id='piwin-inkstone-paper'] .chat-turn > div,
@@ -331,35 +340,6 @@ html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible code {
   background: var(--s1);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .ucard.steer,
-html[data-theme-id='piwin-inkstone-ink'] .ucard.steer,
-html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible.steer,
-html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible.steer {
-  padding-left: var(--card-x);
-}
-
-html[data-theme-id='piwin-inkstone-paper'] .ucard.steer::before,
-html[data-theme-id='piwin-inkstone-ink'] .ucard.steer::before,
-html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible.steer::before,
-html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible.steer::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--lamp);
-  animation: breath 2.4s ease-in-out infinite;
-}
-
-html[data-theme-id='piwin-inkstone-paper'] .ucard.steer.settled::before,
-html[data-theme-id='piwin-inkstone-ink'] .ucard.steer.settled::before,
-html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible.steer.settled::before,
-html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible.steer.settled::before {
-  background: var(--pine);
-  animation: none;
-}
 
 /* S5.11: Steer mono status text */
 html[data-theme-id='piwin-inkstone-paper'] .user-message-time[data-testid='intervention-delivery-status'],

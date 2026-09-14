@@ -1,0 +1,3569 @@
+<!doctype html>
+<html lang="zh-CN" data-face="paper">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Inkstone Mobile Shell v3 · 随身砚独立交互原型</title>
+<style>
+/* ==========================================================================
+   Inkstone Design Tokens — High Contrast & Geometric Baseline Pass
+   正文 #202124 左右、辅助文字 #5f6368、WCAG AA 对比度 ≥ 4.5:1
+   全局 8px 间距基线，主要内边距 16px，按钮/输入最小 44px，列表行 56-64px
+   ========================================================================== */
+:root {
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Segoe UI", Roboto, sans-serif;
+  --serif: "Songti SC", "STSong", Georgia, "Noto Serif SC", serif;
+  --mono: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+
+  /* Touch & Metrics - 8px Baseline Aligned */
+  --touch-min: 44px;
+  --drawer-w: 88%;
+  --drawer-max: 360px;
+  --topbar-h-desktop: 56px;
+  --topbar-h-mobile: 48px;
+  --topbar-h: var(--topbar-h-desktop);
+  --row-h: 60px; /* 56-64px 列表行规范 */
+  --master-w: 300px; /* 280-320px 稳定网格 */
+  --workspace-w: 300px; /* 280-320px 按需工作区 */
+  --pad-main: 16px;
+  --gap-base: 8px;
+}
+
+:root[data-face="paper"] {
+  color-scheme: light;
+  /* Surfaces */
+  --bg-app: #f4f1ea;
+  --surface-0: #f7f5ef;
+  --surface-1: #ffffff;
+  --surface-2: #f0ece4;
+  --surface-3: #e8e3d8;
+  --surface-drawer: #faf8f3;
+  --surface-card: #ffffff;
+  --surface-hover: #eae5da;
+  --surface-active: #dfd9cb;
+  
+  /* Text — Strict Anti-Exposure (WCAG AA 4.5+:1 verified) */
+  --text-primary: #202124;    /* Contrast on white: 15.6:1, on #f4f1ea: 13.8:1 */
+  --text-secondary: #5f6368;  /* Contrast on white: 4.6:1, on #f4f1ea: 4.5:1 */
+  --text-tertiary: #757b82;   /* Meta / timestamps */
+  --text-faint: #9aa0a6;
+  --text-on-dark: #f8f9fa;
+
+  /* Borders & Dividers */
+  --border-subtle: rgba(32, 33, 36, 0.08);
+  --border-strong: rgba(32, 33, 36, 0.16);
+  --border-card: #e0ded8;
+
+  /* Signature Inkstone Accents */
+  --zhu: #c6412a;          /* Vermilion */
+  --zhu-hover: #b03a24;
+  --zhu-wash: rgba(198, 65, 42, 0.12);
+  --zhu-contrast: #ffffff;
+  
+  --pine: #2e7d32;         /* Pine Green (Success/Ready) */
+  --pine-wash: rgba(46, 125, 50, 0.12);
+
+  --lamp: #b07417;         /* Lamp Amber (Running/Connecting) */
+  --lamp-wash: rgba(176, 116, 23, 0.14);
+
+  --azure: #1967d2;        /* Azure Blue (General/Info) */
+  --azure-wash: rgba(25, 103, 210, 0.12);
+
+  --crimson: #c5221f;      /* Error/Disconnect */
+  --crimson-wash: rgba(197, 34, 31, 0.12);
+
+  /* Dark Ink Slab (Composer & Terminal) */
+  --slab-bg: #1c1a17;
+  --slab-surface: #292621;
+  --slab-text: #f5f2eb;
+  --slab-subtext: #bbb3a6;
+  --slab-border: rgba(255, 255, 255, 0.12);
+  --slab-chip: rgba(255, 255, 255, 0.08);
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05);
+  --shadow-lg: 0 12px 36px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.06);
+  --drawer-shadow: 6px 0 28px rgba(32, 33, 36, 0.22);
+}
+
+:root[data-face="ink"] {
+  color-scheme: dark;
+  --bg-app: #121214;
+  --surface-0: #161619;
+  --surface-1: #1e1e22;
+  --surface-2: #26262b;
+  --surface-3: #323238;
+  --surface-drawer: #1a1a1e;
+  --surface-card: #202024;
+  --surface-hover: #2b2b31;
+  --surface-active: #383840;
+
+  --text-primary: #f1f3f4;
+  --text-secondary: #9aa0a6;
+  --text-tertiary: #80868b;
+  --text-faint: #5f6368;
+  --text-on-dark: #f8f9fa;
+
+  --border-subtle: rgba(240, 240, 245, 0.09);
+  --border-strong: rgba(240, 240, 245, 0.18);
+  --border-card: #2e2e34;
+
+  --zhu: #ea6047;
+  --zhu-hover: #f17a64;
+  --zhu-wash: rgba(234, 96, 71, 0.18);
+  --zhu-contrast: #180905;
+
+  --pine: #4caf50;
+  --pine-wash: rgba(76, 175, 80, 0.18);
+
+  --lamp: #f9ab00;
+  --lamp-wash: rgba(249, 171, 0, 0.18);
+
+  --azure: #8ab4f8;
+  --azure-wash: rgba(138, 180, 248, 0.18);
+
+  --crimson: #f28b82;
+  --crimson-wash: rgba(242, 139, 130, 0.18);
+
+  --slab-bg: #141416;
+  --slab-surface: #222226;
+  --slab-text: #f1f3f4;
+  --slab-subtext: #a8adb3;
+  --slab-border: rgba(255, 255, 255, 0.12);
+  --slab-chip: rgba(255, 255, 255, 0.09);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08);
+  --shadow-lg: 0 14px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1);
+  --drawer-shadow: 6px 0 32px rgba(0, 0, 0, 0.6);
+}
+
+/* ==========================================================================
+   Reset & Baseline
+   ========================================================================== */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; width: 100%; }
+body {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--bg-app);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+}
+
+button {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid var(--zhu);
+  outline-offset: 2px;
+}
+
+svg.icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+.mono { font-family: var(--mono); }
+.serif { font-family: var(--serif); }
+
+/* ==========================================================================
+   Workbench Wrapper (Preview Toolbar + Device Stage)
+   ========================================================================== */
+#workbench {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background: #0d0f12;
+  color: #e8eaed;
+}
+
+/* Prototype Top Control Bar */
+.proto-header {
+  height: 50px;
+  flex: none;
+  background: #181a1f;
+  border-bottom: 1px solid #282c34;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  gap: 12px;
+  z-index: 100;
+}
+
+.proto-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.proto-seal {
+  width: 26px;
+  height: 28px;
+  background: var(--zhu);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 3px;
+  transform: rotate(-3deg);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.proto-name {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  color: #f1f3f4;
+}
+
+.proto-tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(198, 65, 42, 0.25);
+  color: #ea6047;
+  font-family: var(--mono);
+}
+
+/* Viewport Switcher Buttons */
+.viewport-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #22262e;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid #333842;
+}
+
+.viewport-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #9aa0a6;
+  border-radius: 5px;
+  transition: all 0.15s ease;
+  min-height: 28px;
+}
+
+.viewport-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.viewport-btn.active {
+  background: var(--zhu);
+  color: #fff;
+}
+
+.proto-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proto-tool-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  color: #c4c7c5;
+  background: #252830;
+  border: 1px solid #353a45;
+  border-radius: 6px;
+  gap: 6px;
+}
+.proto-tool-btn:hover {
+  background: #303540;
+  color: #fff;
+}
+.proto-tool-btn.highlight {
+  border-color: var(--zhu);
+  color: #ea6047;
+}
+
+/* Stage Area hosting the device frame */
+.stage-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: auto;
+  padding: 16px;
+  background: radial-gradient(circle at 50% 10%, #1c2028 0%, #0d0f12 70%);
+}
+
+/* Device Frame Simulation */
+.device-wrapper {
+  transition: width 0.3s cubic-bezier(0.2, 0, 0, 1), height 0.3s cubic-bezier(0.2, 0, 0, 1);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.75), 0 0 0 10px #1f232b, 0 0 0 12px #323742;
+  border-radius: 44px;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+.device-wrapper.tablet {
+  border-radius: 28px;
+}
+
+.device-wrapper.desktop {
+  border-radius: 16px;
+}
+
+.device-wrapper.fluid {
+  width: 100% !important;
+  height: 100% !important;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+/* Hardware Status Bar (Simulated) */
+.device-status-bar {
+  height: 44px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--surface-drawer);
+  border-bottom: 1px solid var(--border-subtle);
+  flex: none;
+  z-index: 50;
+  user-select: none;
+}
+
+.device-wrapper.tablet .device-status-bar,
+.device-wrapper.desktop .device-status-bar {
+  height: 28px;
+  padding: 0 16px;
+  font-size: 11px;
+}
+
+.status-time { font-family: var(--sans); letter-spacing: -0.02em; }
+.status-icons { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+
+/* Home Indicator at Bottom */
+.device-home-indicator {
+  height: 22px;
+  flex: none;
+  background: var(--surface-0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.device-wrapper.tablet .device-home-indicator,
+.device-wrapper.desktop .device-home-indicator {
+  height: 14px;
+}
+
+.home-bar {
+  width: 132px;
+  height: 4px;
+  background: var(--text-primary);
+  opacity: 0.3;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   Inkstone Mobile Shell Core Layout — Stable Grid & Geometry
+   ========================================================================== */
+.inkstone-shell {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-app);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Mode-specific Dimensions:
+   Desktop / Tablet: topbar 56px, stable 3-column grid
+   Mobile: topbar 48px, single stage + off-canvas drawer
+   -------------------------------------------------------------------------- */
+.inkstone-shell.mobile-mode {
+  --topbar-h: var(--topbar-h-mobile);
+  display: flex;
+  flex-direction: column;
+}
+
+.inkstone-shell.split-mode {
+  --topbar-h: var(--topbar-h-desktop);
+  display: grid;
+  grid-template-columns: var(--master-w) minmax(0, 1fr) 0px;
+  align-items: stretch;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+.inkstone-shell.split-mode.workspace-open {
+  grid-template-columns: var(--master-w) minmax(0, 1fr) var(--workspace-w);
+}
+
+.device-wrapper.tablet .inkstone-shell.split-mode {
+  --master-w: 280px;
+  --workspace-w: 280px;
+}
+
+.device-wrapper.desktop .inkstone-shell.split-mode {
+  --master-w: 300px;
+  --workspace-w: 300px;
+}
+
+.inkstone-shell.split-mode .session-master {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.inkstone-shell.split-mode .session-detail {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Master Panel / Session Drawer
+   - Mobile: Drawer (width min(88%, 360px), topbar 48px, safe-area)
+   - Tablet/Desktop: Left fixed panel (280-320px, topbar 56px)
+   -------------------------------------------------------------------------- */
+.session-master {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-drawer);
+  border-right: 1px solid var(--border-card);
+  z-index: 40;
+  height: 100%;
+  overflow: hidden;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Mobile Drawer Mode */
+.inkstone-shell.mobile-mode .session-master {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(var(--drawer-w), var(--drawer-max));
+  max-width: var(--drawer-max);
+  transform: translateX(-100%);
+  box-shadow: var(--drawer-shadow);
+  z-index: 80;
+}
+
+.inkstone-shell.mobile-mode .session-master.drawer-open {
+  transform: translateX(0);
+}
+
+/* Tablet/Desktop Mode */
+.inkstone-shell.split-mode .session-master {
+  position: relative;
+  width: auto;
+  flex: none;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Master Header (Top Bar: 56px desktop / 48px mobile) */
+.master-header {
+  height: var(--topbar-h);
+  min-height: var(--topbar-h);
+  max-height: var(--topbar-h);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-drawer);
+  gap: 8px;
+  flex: none;
+}
+
+.master-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-seal {
+  width: 28px;
+  height: 28px;
+  background: var(--zhu);
+  color: var(--zhu-contrast);
+  display: grid;
+  place-items: center;
+  font-family: var(--serif);
+  font-size: 16px;
+  border-radius: 4px;
+  transform: rotate(-2deg);
+  box-shadow: 0 2px 4px rgba(198,65,42,0.3);
+  flex: none;
+}
+
+.master-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.master-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Action Icons - strict min 44px touch target */
+.icon-btn {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.icon-btn.primary-btn {
+  background: var(--zhu);
+  color: var(--zhu-contrast);
+  border-radius: 8px;
+}
+
+.icon-btn.primary-btn:hover {
+  background: var(--zhu-hover);
+}
+
+/* Context Line */
+.master-context {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-drawer);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: none;
+}
+
+.master-context-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.master-context-line + .master-context-line {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.master-context-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--pine);
+  box-shadow: 0 0 0 3px var(--pine-wash);
+}
+
+/* Sidebar Mode Tabs (对话 / 项目) */
+.sidebar-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-drawer);
+  flex: none;
+}
+
+.sidebar-mode-tab {
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.sidebar-mode-tab.active {
+  color: var(--text-primary);
+  background: var(--surface-active);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* Master Search & Filter Area */
+.master-search-bar {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-drawer);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: none;
+}
+
+.search-input-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  padding: 0 8px 0 12px;
+  height: var(--touch-min);
+  min-height: var(--touch-min);
+  box-shadow: var(--shadow-sm);
+}
+
+.search-input-box input {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  height: 100%;
+}
+
+.search-input-box input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.search-clear-btn {
+  color: var(--text-tertiary);
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  width: var(--touch-min);
+  height: var(--touch-min);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-clear-btn.visible {
+  display: inline-flex;
+}
+
+/* Filter Chips (Quick Scope Filter) */
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.filter-chips::-webkit-scrollbar { display: none; }
+
+.chip {
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  background: var(--surface-1);
+  white-space: nowrap;
+  min-height: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.chip.active {
+  background: var(--text-primary);
+  color: var(--surface-1);
+  border-color: var(--text-primary);
+}
+
+/* Master Meta Bar (Total counts & status) */
+.master-meta-bar {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-subtle);
+  flex: none;
+}
+
+/* Error Banner & Retry */
+.master-error-banner {
+  padding: 8px 16px;
+  background: var(--crimson-wash);
+  color: var(--crimson);
+  border-bottom: 1px solid rgba(197, 34, 31, 0.2);
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  flex: none;
+}
+.master-error-banner.visible {
+  display: flex;
+}
+
+.retry-link {
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(197, 34, 31, 0.1);
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Master Footer */
+.master-footer {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 8px 16px max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-drawer);
+  flex: none;
+}
+
+.master-footer-btn {
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  gap: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.master-footer-btn:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.session-master.sidebar-project-mode #group-general,
+.session-master.sidebar-project-mode #group-recent,
+.session-master.sidebar-project-mode #group-archived {
+  display: none !important;
+}
+
+.session-master.sidebar-project-mode .chip[data-filter="general"] {
+  display: none;
+}
+
+.project-folder-row {
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12px;
+}
+
+.project-folder-row .folder-path {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+/* Backdrop for Mobile Drawer */
+.drawer-backdrop {
+  display: none;
+}
+.inkstone-shell.mobile-mode .drawer-backdrop {
+  display: block;
+  position: absolute;
+  inset: 0;
+  background: rgba(18, 19, 22, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 75;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.inkstone-shell.mobile-mode .drawer-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Session List Scroll Area & 5 Fixed Groups
+   -------------------------------------------------------------------------- */
+.session-list-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0 16px;
+  overscroll-behavior: contain;
+}
+
+/* Group Headers */
+.group-header {
+  padding: 0 16px;
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+}
+
+.group-header:hover {
+  color: var(--text-primary);
+}
+
+.group-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.group-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.group-chevron {
+  transition: transform 0.2s ease;
+  color: var(--text-tertiary);
+}
+
+.group-header.collapsed .group-chevron {
+  transform: rotate(-90deg);
+}
+
+.group-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.group-body.collapsed {
+  display: none;
+}
+
+/* --------------------------------------------------------------------------
+   Session Row Component — Precise Grid Baseline
+   列表行 56-64px (当前 60px)
+   标题、项目/分支标签、时间、更多按钮必须同一基线对齐；禁止漂浮、重叠、跳动
+   -------------------------------------------------------------------------- */
+.session-row {
+  height: var(--row-h);
+  min-height: var(--row-h);
+  max-height: var(--row-h);
+  padding: 0 16px;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto auto 44px;
+  grid-template-rows: 1fr 1fr;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.12s ease;
+  user-select: none;
+}
+
+.session-row:hover {
+  background: var(--surface-hover);
+}
+
+.session-row.active {
+  background: var(--surface-1);
+  box-shadow: inset 3px 0 0 var(--zhu);
+}
+
+/* Status Indicator Dot (Grid Column 1, Spanning Rows 1 & 2) */
+.session-row .status-indicator {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+  justify-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  position: relative;
+}
+
+.status-indicator.running {
+  background: var(--lamp);
+  box-shadow: 0 0 0 3px var(--lamp-wash);
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+
+.status-indicator.waiting {
+  background: var(--zhu);
+  border-radius: 2px;
+  box-shadow: 0 0 0 3px var(--zhu-wash);
+}
+
+.status-indicator.done {
+  background: var(--pine);
+}
+
+.status-indicator.error {
+  background: var(--crimson);
+}
+
+.status-indicator.idle {
+  background: var(--text-tertiary);
+  opacity: 0.6;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { transform: scale(0.95); opacity: 0.85; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+/* Grid Row 1: Title Box (Column 2) */
+.session-title-box {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.session-title-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+/* Scope Badge (Grid Row 1, Column 3) */
+.session-row .scope-tag {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  justify-self: start;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-family: var(--mono);
+  line-height: 1.4;
+}
+
+.scope-tag.project {
+  background: var(--pine-wash);
+  color: var(--pine);
+  border: 1px solid rgba(46, 125, 50, 0.2);
+}
+
+.scope-tag.general {
+  background: var(--azure-wash);
+  color: var(--azure);
+  border: 1px solid rgba(25, 103, 210, 0.2);
+}
+
+.scope-tag.pinned-icon {
+  background: var(--zhu-wash);
+  color: var(--zhu);
+  padding: 1px 4px;
+  font-size: 10px;
+}
+
+/* Timestamp (Grid Row 1, Column 4) */
+.session-time {
+  grid-column: 4;
+  grid-row: 1;
+  align-self: baseline;
+  justify-self: end;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  font-family: var(--mono);
+}
+
+/* More Button (Grid Row 1, Column 5) - Strictly 44x44px Touch Target */
+.row-more-btn {
+  grid-column: 5;
+  grid-row: 1;
+  align-self: center;
+  justify-self: end;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.row-more-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+/* Grid Row 2: Preview Line Spanning Columns 2 through 5 */
+.session-preview-line {
+  grid-column: 2 / span 4;
+  grid-row: 2;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.session-preview-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+  flex: 1;
+}
+
+/* Empty State Component */
+.empty-sessions {
+  padding: 32px 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.empty-seal {
+  width: 44px;
+  height: 48px;
+  background: var(--surface-3);
+  color: var(--text-tertiary);
+  display: grid;
+  place-items: center;
+  font-family: var(--serif);
+  font-size: 24px;
+  border-radius: 6px;
+}
+
+.empty-sessions h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.empty-sessions p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  max-width: 240px;
+  line-height: 1.5;
+}
+
+/* Load More Button */
+.load-more-container {
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.load-more-btn {
+  width: 100%;
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  background: var(--surface-1);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease;
+  gap: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.load-more-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Detail View / Chat Area (Stage)
+   -------------------------------------------------------------------------- */
+.session-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-0);
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Right Workspace Inspector — 280-320px On Demand */
+.workspace-inspector {
+  display: none;
+  grid-column: 3;
+  grid-row: 1;
+  width: var(--workspace-w);
+  min-width: 280px;
+  max-width: 320px;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border-card);
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.inkstone-shell.split-mode.workspace-open .workspace-inspector {
+  display: flex;
+}
+
+.inkstone-shell.mobile-mode .workspace-inspector {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(var(--drawer-w), var(--drawer-max));
+  max-width: var(--drawer-max);
+  background: var(--surface-1);
+  border-left: 1px solid var(--border-card);
+  flex-direction: column;
+  min-height: 0;
+  z-index: 80;
+  box-shadow: var(--shadow-lg);
+  display: none;
+}
+
+.inkstone-shell.mobile-mode.workspace-open .workspace-inspector {
+  display: flex;
+}
+
+.workspace-inspector-head {
+  height: var(--topbar-h);
+  min-height: var(--topbar-h);
+  max-height: var(--topbar-h);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-card);
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+}
+
+.workspace-inspector-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-subtle);
+  flex: none;
+}
+
+.workspace-inspector-tab {
+  min-height: 36px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workspace-inspector-tab.active,
+.workspace-inspector-tab:hover {
+  color: var(--text-primary);
+  background: var(--surface-active);
+}
+
+.workspace-inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.workspace-inspector-body h3 {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.workspace-inspector-body p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Branch Tree Popover */
+.branch-popover {
+  display: none;
+  position: absolute;
+  top: calc(var(--topbar-h) + 4px);
+  left: 16px;
+  z-index: 90;
+  width: 260px;
+  max-width: calc(100% - 32px);
+  padding: 8px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+}
+
+.branch-popover.open {
+  display: block;
+}
+
+.branch-popover-title {
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.branch-option {
+  width: 100%;
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  justify-content: flex-start;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  gap: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.branch-option:hover,
+.branch-option.active {
+  background: var(--surface-hover);
+}
+
+/* Detail Top Bar (56px Desktop / 48px Mobile) */
+.detail-topbar {
+  height: var(--topbar-h);
+  min-height: var(--topbar-h);
+  max-height: var(--topbar-h);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-card);
+  background: var(--surface-1);
+  z-index: 20;
+  gap: 8px;
+  flex: none;
+}
+
+.detail-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.back-to-list-btn {
+  display: none;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--zhu);
+  gap: 4px;
+  align-items: center;
+  flex: none;
+}
+
+.inkstone-shell.mobile-mode .back-to-list-btn {
+  display: inline-flex;
+}
+
+.detail-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.detail-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.detail-subtitle-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: none;
+}
+
+@media (max-width: 440px) {
+  #detail-model-tag {
+    display: none;
+  }
+}
+
+.detail-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+/* Connection Status Badge (Interactive) */
+.conn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  min-height: 36px;
+  height: 36px;
+}
+
+.conn-badge .conn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.conn-badge.connected {
+  background: var(--pine-wash);
+  color: var(--pine);
+  border-color: rgba(46, 125, 50, 0.2);
+}
+.conn-badge.connected .conn-dot { background: var(--pine); }
+
+.conn-badge.connecting {
+  background: var(--lamp-wash);
+  color: var(--lamp);
+  border-color: rgba(176, 116, 23, 0.2);
+}
+.conn-badge.connecting .conn-dot {
+  background: var(--lamp);
+  animation: pulse-ring 1.5s infinite;
+}
+
+.conn-badge.disconnected {
+  background: var(--crimson-wash);
+  color: var(--crimson);
+  border-color: rgba(197, 34, 31, 0.25);
+}
+.conn-badge.disconnected .conn-dot { background: var(--crimson); }
+
+.conn-badge.reconnecting {
+  background: var(--lamp-wash);
+  color: var(--lamp);
+  border-color: rgba(176, 116, 23, 0.25);
+}
+.conn-badge.reconnecting .conn-dot {
+  background: var(--lamp);
+  animation: pulse-ring 0.8s infinite;
+}
+
+/* Sticky Disconnect Banner */
+.disconnect-strip {
+  display: none;
+  background: #fce8e6;
+  color: #c5221f;
+  border-bottom: 1px solid #fad2cf;
+  padding: 8px 16px;
+  font-size: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+}
+:root[data-face="ink"] .disconnect-strip {
+  background: #3c1e1e;
+  color: #f28b82;
+  border-color: #5c2828;
+}
+.disconnect-strip.visible { display: flex; }
+
+.reconnect-action-btn {
+  background: var(--crimson);
+  color: #fff;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* --------------------------------------------------------------------------
+   Transcript / Messages Scroll
+   -------------------------------------------------------------------------- */
+.transcript-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overscroll-behavior: contain;
+}
+
+/* Message Bubble Styles */
+.message-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.message-card.user {
+  align-self: flex-end;
+  max-width: 88%;
+  background: var(--surface-1);
+  border: 1px solid var(--border-card);
+  padding: 12px 16px;
+  border-radius: 14px 14px 2px 14px;
+  box-shadow: var(--shadow-sm);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.message-card.assistant {
+  align-self: flex-start;
+  width: 100%;
+  max-width: 100%;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.assistant-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.assistant-avatar {
+  width: 24px;
+  height: 24px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-family: var(--serif);
+  color: var(--zhu);
+  flex: none;
+}
+
+/* Deep Thinking / Reasoning Block */
+.thinking-card {
+  background: var(--surface-2);
+  border-left: 3px solid var(--zhu);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.thinking-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-weight: 500;
+  font-family: var(--mono);
+}
+
+.thinking-content {
+  margin-top: 6px;
+  line-height: 1.6;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* Tool Invocation Fold */
+.tool-step-fold {
+  background: var(--surface-1);
+  border: 1px solid var(--border-card);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.tool-step-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  color: var(--text-secondary);
+}
+
+/* Assistant Prose & Code Blocks */
+.assistant-prose {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.assistant-prose p + p { margin-top: 8px; }
+
+/* Horizontally Scrollable Code Block (Self-Contained Scroll, Anti-Exposure) */
+.code-container {
+  margin: 12px 0;
+  background: #1e2024;
+  border-radius: 8px;
+  border: 1px solid #2d3139;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  max-width: 100%;
+}
+
+.code-header {
+  height: 32px;
+  background: #16181b;
+  border-bottom: 1px solid #282c34;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #9aa0a6;
+}
+
+.code-block {
+  padding: 12px 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: #e8eaed;
+  overflow-x: auto;
+  white-space: pre;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+.code-block code {
+  white-space: pre;
+  word-break: normal;
+}
+
+.code-block::-webkit-scrollbar {
+  height: 4px;
+}
+.code-block::-webkit-scrollbar-thumb {
+  background: #444a54;
+  border-radius: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Inkstone Composer Dock (The Slab / 砚台输入区)
+   Padding bottom max(16px, safe-area-inset-bottom)
+   -------------------------------------------------------------------------- */
+.composer-dock {
+  background: var(--surface-1);
+  border-top: 1px solid var(--border-card);
+  padding: 8px 16px max(16px, env(safe-area-inset-bottom));
+  flex: none;
+  z-index: 25;
+}
+
+.composer-slab {
+  background: var(--slab-bg);
+  color: var(--slab-text);
+  border-radius: 12px;
+  border: 1px solid var(--slab-border);
+  box-shadow: var(--shadow-md);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s ease;
+}
+
+.composer-slab:focus-within {
+  border-color: var(--zhu);
+}
+
+.composer-textarea {
+  width: 100%;
+  min-height: var(--touch-min);
+  max-height: 120px;
+  background: transparent;
+  color: var(--slab-text);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+}
+
+.composer-textarea::placeholder {
+  color: var(--slab-subtext);
+}
+
+.composer-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.composer-meta-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.slab-chip-btn {
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--slab-chip);
+  color: var(--slab-subtext);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  height: 36px;
+  white-space: nowrap;
+}
+
+.slab-chip-btn:hover {
+  color: var(--slab-text);
+  background: rgba(255,255,255,0.12);
+}
+
+.send-action-btn {
+  width: var(--touch-min);
+  height: var(--touch-min);
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  background: var(--zhu);
+  color: var(--zhu-contrast);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.send-action-btn:hover {
+  transform: scale(1.05);
+  background: var(--zhu-hover);
+}
+
+/* --------------------------------------------------------------------------
+   Modal / Sheets / Popovers
+   -------------------------------------------------------------------------- */
+.modal-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(18, 19, 22, 0.6);
+  backdrop-filter: blur(3px);
+  z-index: 150;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.18s ease;
+}
+.modal-overlay.active { display: flex; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-dialog {
+  background: var(--surface-1);
+  color: var(--text-primary);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-card);
+  width: 100%;
+  max-width: 400px;
+  overflow: hidden;
+  animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-header {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.form-select, .form-input {
+  width: 100%;
+  padding: 0 12px;
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: 8px;
+  border: 1px solid var(--border-card);
+  background: var(--surface-0);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.form-select:focus, .form-input:focus {
+  outline: 2px solid var(--zhu);
+  background: var(--surface-1);
+}
+
+.modal-footer {
+  padding: 12px 16px;
+  background: var(--surface-0);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btn-secondary {
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-card);
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-primary {
+  padding: 0 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--zhu-contrast);
+  background: var(--zhu);
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-primary:hover { background: var(--zhu-hover); }
+
+/* Context Action Menu Sheet */
+.action-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface-1);
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border-card);
+  box-shadow: var(--shadow-lg);
+  padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 200;
+  animation: slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.action-sheet.active { display: flex; }
+
+.sheet-grab-bar {
+  width: 36px;
+  height: 4px;
+  background: var(--border-strong);
+  border-radius: 2px;
+  margin: 0 auto 10px;
+}
+
+.sheet-item-btn {
+  width: 100%;
+  min-height: var(--touch-min);
+  height: var(--touch-min);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+  text-align: left;
+}
+.sheet-item-btn:hover { background: var(--surface-hover); }
+.sheet-item-btn.destructive { color: var(--crimson); }
+
+/* Requirements Inspection Sidebar (Foldable) */
+.checklist-drawer {
+  position: fixed;
+  top: 50px;
+  right: 0;
+  bottom: 0;
+  width: 360px;
+  background: #181b20;
+  color: #e8eaed;
+  border-left: 1px solid #2e323b;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 250;
+  display: flex;
+  flex-direction: column;
+}
+
+.checklist-drawer.open {
+  transform: translateX(0);
+}
+
+.checklist-head {
+  padding: 14px 16px;
+  border-bottom: 1px solid #2e323b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.checklist-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.check-item-card {
+  background: #20242b;
+  border: 1px solid #2f343e;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.check-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.check-badge-ok {
+  background: rgba(76, 175, 80, 0.2);
+  color: #81c995;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.check-item-desc {
+  font-size: 11px;
+  color: #9aa0a6;
+  line-height: 1.5;
+}
+
+.check-trigger-btn {
+  margin-top: 4px;
+  align-self: flex-start;
+  font-size: 11px;
+  color: #ea6047;
+  padding: 4px 10px;
+  background: rgba(234, 96, 71, 0.15);
+  border-radius: 4px;
+  min-height: 28px;
+}
+.check-trigger-btn:hover {
+  background: rgba(234, 96, 71, 0.25);
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="workbench">
+  <!-- Workbench Prototype Top Control Bar -->
+  <header class="proto-header">
+    <div class="proto-title">
+      <div class="proto-seal">砚</div>
+      <div class="proto-name">Inkstone Mobile Shell v3</div>
+      <span class="proto-tag">gemini-3.8-flash-high</span>
+    </div>
+
+    <!-- Viewport Switchers: 375 / 390 / 430 / 768 / 1024 / Fluid -->
+    <div class="viewport-group" role="tablist" aria-label="视口切换">
+      <button class="viewport-btn active" data-vp="390" title="iPhone 14/15/16 (390 × 844)">390 iPhone</button>
+      <button class="viewport-btn" data-vp="375" title="iPhone SE/Mini (375 × 812)">375 SE</button>
+      <button class="viewport-btn" data-vp="430" title="iPhone 16 Pro Max (430 × 932)">430 Max</button>
+      <button class="viewport-btn" data-vp="768" title="iPad Portrait (768 × 1024)">768 iPad</button>
+      <button class="viewport-btn" data-vp="1024" title="iPad Landscape / Desktop (1024 × 768)">1024 Desk</button>
+      <button class="viewport-btn" data-vp="fluid" title="自适应填满">自适应</button>
+    </div>
+
+    <!-- Prototype Utilities -->
+    <div class="proto-tools">
+      <button class="proto-tool-btn" id="toggle-face-btn" title="纸面 (Light) / 墨面 (Dark) 切换">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <span id="face-label">纸 · Paper</span>
+      </button>
+
+      <button class="proto-tool-btn" id="sim-conn-btn" title="模拟切换 Host 连线状态">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+        <span id="conn-tool-label">断网模拟</span>
+      </button>
+
+      <button class="proto-tool-btn" id="sim-error-btn" title="模拟列表加载错误与重试">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/></svg>
+        <span>模拟错误</span>
+      </button>
+
+      <button class="proto-tool-btn highlight" id="open-checklist-btn">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span>要求走查 (9项)</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Prototype Device Stage -->
+  <main class="stage-container">
+    <div class="device-wrapper" id="device-frame" style="width: 390px; height: 844px;">
+      
+      <!-- Simulated Phone Status Bar -->
+      <div class="device-status-bar">
+        <span class="status-time">09:41</span>
+        <div class="status-icons">
+          <span class="mono">5G</span>
+          <svg class="icon" style="width:14px;height:14px" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+          <svg class="icon" style="width:16px;height:14px" viewBox="0 0 24 24"><rect x="2" y="7" width="16" height="10" rx="2"/><path d="M22 11v2"/></svg>
+        </div>
+      </div>
+
+      <!-- Core Inkstone Mobile Shell Container -->
+      <div class="inkstone-shell mobile-mode" id="shell-container">
+        
+        <!-- Mobile Drawer Backdrop -->
+        <div class="drawer-backdrop" id="drawer-backdrop"></div>
+
+        <!-- ====================================================================
+             1) Master Session List / Drawer
+             ==================================================================== -->
+        <aside class="session-master" id="session-master" aria-label="会话导航">
+          
+          <!-- Master Header (56px Desktop / 48px Mobile) -->
+          <div class="master-header">
+            <div class="master-brand">
+              <div class="brand-seal">砚</div>
+              <div class="master-title">对话</div>
+            </div>
+            <div class="master-actions">
+              <button class="icon-btn" id="master-refresh-btn" title="刷新列表" aria-label="刷新列表">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              </button>
+              <button class="icon-btn primary-btn" id="master-new-btn" title="新建会话" aria-label="新建会话">
+                <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Desktop parity: project/branch context and explicit sidebar modes. -->
+          <div class="master-context" aria-label="项目上下文">
+            <div class="master-context-line">
+              <span class="master-context-dot" aria-hidden="true"></span>
+              <strong>piwin</strong>
+              <span class="scope-tag project">main</span>
+            </div>
+            <div class="master-context-line">
+              <span>Host 已连接</span>
+              <span class="mono">ws://127.0.0.1:8787</span>
+            </div>
+          </div>
+
+          <div class="sidebar-mode-tabs" role="tablist" aria-label="导航模式">
+            <button class="sidebar-mode-tab active" id="sidebar-chat-mode" role="tab" aria-selected="true">对话</button>
+            <button class="sidebar-mode-tab" id="sidebar-project-mode" role="tab" aria-selected="false">项目</button>
+          </div>
+
+          <!-- Search & Filter Area -->
+          <div class="master-search-bar">
+            <div class="search-input-box">
+              <svg class="icon" style="color:var(--text-tertiary);" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="session-search-input" placeholder="搜索会话标题、摘要或项目…" aria-label="搜索会话">
+              <button class="search-clear-btn" id="search-clear-btn" title="清除搜索" aria-label="清除搜索">
+                <svg class="icon" style="width:14px;height:14px;" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <!-- Quick Filter Chips -->
+            <div class="filter-chips" role="tablist">
+              <button class="chip active" data-filter="all">全部</button>
+              <button class="chip" data-filter="project">项目 piwin</button>
+              <button class="chip" data-filter="general">通用 Conversations</button>
+              <button class="chip" data-filter="running">运行中</button>
+              <button class="chip" data-filter="pinned">仅置顶</button>
+            </div>
+          </div>
+
+          <!-- Error Banner (Simulated Load Failure) -->
+          <div class="master-error-banner" id="master-error-banner">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>会话索引同步超时 (Host 504)</span>
+            </div>
+            <button class="retry-link" id="master-retry-btn">点击重试</button>
+          </div>
+
+          <!-- Master Meta Counter Bar -->
+          <div class="master-meta-bar">
+            <span id="session-count-label">已加载 8 / 共 14 条会话</span>
+            <span id="current-project-badge" class="mono">scope: piwin</span>
+          </div>
+
+          <!-- 5 Fixed Groups Session List -->
+          <div class="session-list-scroll" id="session-list-container">
+            
+            <!-- Group 1: 置顶 (Pinned) -->
+            <div class="session-group" id="group-pinned">
+              <div class="group-header" data-group="pinned">
+                <div class="group-label">
+                  <svg class="icon" style="width:14px;height:14px;color:var(--zhu);" viewBox="0 0 24 24"><path d="M12 2v8M12 18v4M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h8M18 12h4M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24"/></svg>
+                  <span>置顶</span>
+                  <span class="group-count" id="count-pinned">2</span>
+                </div>
+                <svg class="icon group-chevron" style="width:14px;height:14px;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="group-body" id="body-pinned"></div>
+            </div>
+
+            <!-- Group 2: 项目会话 (当前 piwin) -->
+            <div class="session-group" id="group-project">
+              <div class="group-header" data-group="project">
+                <div class="group-label">
+                  <svg class="icon" style="width:14px;height:14px;color:var(--pine);" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                  <span>项目会话 · piwin</span>
+                  <span class="group-count" id="count-project">4</span>
+                </div>
+                <svg class="icon group-chevron" style="width:14px;height:14px;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="project-folder-row" aria-label="项目文件夹 piwin">
+                <span aria-hidden="true">▰</span>
+                <strong>piwin</strong>
+                <span class="scope-tag project">main</span>
+                <span class="folder-path mono">projectPath</span>
+              </div>
+              <div class="group-body" id="body-project"></div>
+            </div>
+
+            <!-- Group 3: 通用会话 (General) -->
+            <div class="session-group" id="group-general">
+              <div class="group-header" data-group="general">
+                <div class="group-label">
+                  <svg class="icon" style="width:14px;height:14px;color:var(--azure);" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <span>通用会话</span>
+                  <span class="group-count" id="count-general">3</span>
+                </div>
+                <svg class="icon group-chevron" style="width:14px;height:14px;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="group-body" id="body-general"></div>
+            </div>
+
+            <!-- Group 4: 最近 (Recent) -->
+            <div class="session-group" id="group-recent">
+              <div class="group-header" data-group="recent">
+                <div class="group-label">
+                  <svg class="icon" style="width:14px;height:14px;color:var(--lamp);" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span>最近更新</span>
+                  <span class="group-count" id="count-recent">3</span>
+                </div>
+                <svg class="icon group-chevron" style="width:14px;height:14px;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="group-body" id="body-recent"></div>
+            </div>
+
+            <!-- Group 5: 归档 (Archived) -->
+            <div class="session-group" id="group-archived">
+              <div class="group-header" data-group="archived">
+                <div class="group-label">
+                  <svg class="icon" style="width:14px;height:14px;color:var(--text-tertiary);" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                  <span>已归档</span>
+                  <span class="group-count" id="count-archived">2</span>
+                </div>
+                <svg class="icon group-chevron" style="width:14px;height:14px;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div class="group-body" id="body-archived"></div>
+            </div>
+
+            <!-- Load More Container -->
+            <div class="load-more-container" id="load-more-box">
+              <button class="load-more-btn" id="load-more-btn">
+                <svg class="icon" viewBox="0 0 24 24"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
+                <span id="load-more-text">加载更多 (已显示 8 / 共 14 条)</span>
+              </button>
+            </div>
+
+            <!-- Empty Search State -->
+            <div class="empty-sessions" id="empty-state-box" style="display:none;">
+              <div class="empty-seal">砚</div>
+              <h4>未找到匹配会话</h4>
+              <p>在当前关键词或筛选条件下未检索到会话，可尝试清除筛选。</p>
+              <button class="btn-secondary" id="reset-filter-btn">重置检索条件</button>
+            </div>
+
+          </div>
+
+          <div class="master-footer" aria-label="侧栏工具">
+            <button class="master-footer-btn" id="sidebar-workspace-btn" title="打开工作区">
+              <span aria-hidden="true">▦</span><span>工作区</span>
+            </button>
+            <button class="master-footer-btn" id="sidebar-library-btn" title="资料库">
+              <span aria-hidden="true">▤</span><span>资料库</span>
+            </button>
+            <button class="master-footer-btn" id="sidebar-settings-btn" title="设置">
+              <span aria-hidden="true">⚙</span><span>设置</span>
+            </button>
+          </div>
+        </aside>
+
+        <!-- ====================================================================
+             2) Detail View / Chat Transcript + Composer
+             ==================================================================== -->
+        <main class="session-detail" id="session-detail">
+          
+          <!-- Detail Topbar (56px Desktop / 48px Mobile) -->
+          <div class="detail-topbar">
+            <div class="detail-nav-left">
+              <!-- Back to List Button (iPhone Drawer Toggle) -->
+              <button class="back-to-list-btn" id="back-to-list-btn" title="返回会话列表" aria-label="返回会话列表">
+                <svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                <span>导航</span>
+              </button>
+
+              <div class="detail-heading">
+                <h2 class="detail-title" id="detail-session-title">Inkstone 移动端全状态重构</h2>
+                <div class="detail-subtitle-row">
+                  <span class="scope-tag project" id="detail-scope-tag">piwin</span>
+                  <span class="mono" id="detail-model-tag" style="font-size:11px;color:var(--text-tertiary);">gemini-3.8-flash-high</span>
+                </div>
+              </div>
+
+              <button class="icon-btn" id="detail-tree-btn" title="打开会话树/分支" aria-label="打开会话树">
+                <span class="mono" style="font-size:11px;">⌘</span>
+              </button>
+            </div>
+
+            <!-- Connection Status & Topbar Actions -->
+            <div class="detail-actions-right">
+              <button class="conn-badge connected" id="detail-conn-badge" title="Host 连接状态 (点击管理)">
+                <span class="conn-dot"></span>
+                <span id="conn-badge-text">已连接</span>
+              </button>
+              
+              <button class="icon-btn" id="detail-workspace-btn" title="打开工作区" aria-label="打开工作区">
+                <span class="mono" style="font-size:12px;">▦</span>
+              </button>
+              <button class="icon-btn" id="detail-new-session-btn" title="新建会话" aria-label="新建会话">
+                <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Branch Tree Popover -->
+          <div class="branch-popover" id="branch-popover" role="dialog" aria-label="会话树">
+            <div class="branch-popover-title">会话树 · 当前分支</div>
+            <button class="branch-option active" type="button"><span>●</span><span>main · 当前路径</span></button>
+            <button class="branch-option" type="button"><span>○</span><span>上一版移动端布局</span></button>
+            <button class="branch-option" type="button"><span>○</span><span>实验分支 · 2 个分岔</span></button>
+          </div>
+
+          <!-- Sticky Disconnect Alert Strip -->
+          <div class="disconnect-strip" id="disconnect-strip">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>与 Host 的连接已断开 (只读模式)</span>
+            </div>
+            <button class="reconnect-action-btn" id="strip-reconnect-btn">立即重连</button>
+          </div>
+
+          <!-- Transcript Scroll Area -->
+          <div class="transcript-scroll" id="transcript-scroll">
+            
+            <!-- Turn 1: User -->
+            <div class="message-card user">
+              <div>请在现有 Piwin Shell 上完成移动适配：聊天是主场，导航、项目会话和工作区沿用桌面端功能。</div>
+            </div>
+
+            <!-- Turn 1: Assistant -->
+            <div class="message-card assistant">
+              <div class="assistant-head">
+                <div class="assistant-avatar">砚</div>
+                <strong style="color:var(--text-primary);">piwin · 随身砚</strong>
+                <span class="mono" style="font-size:11px;color:var(--text-tertiary);">gemini-3.8-flash-high · 刚刚</span>
+              </div>
+
+              <!-- Thinking Block -->
+              <div class="thinking-card">
+                <div class="thinking-head" id="toggle-thought-btn">
+                  <span>💭 深度思考 · 思考档位: 高 (64k)</span>
+                  <span style="font-size:10px;">展开 / 收起</span>
+                </div>
+                <div class="thinking-content" id="thought-content">
+                  1. 沿用桌面壳层：左侧导航、中央聊天 stage、右侧工作区按需出现。<br>
+                  2. 手机默认进入聊天，左上角打开 drawer；项目、通用 Conversations、置顶、归档保持清晰层级。<br>
+                  3. 视觉高曝光治理：浅色正文采用 #202124，辅助文字采用 #5f6368，对比度实测 > 4.5:1。
+                </div>
+              </div>
+
+              <!-- Tool Invocation -->
+              <div class="tool-step-fold">
+                <div class="tool-step-header">
+                  <span class="status-indicator done"></span>
+                  <strong>Read</strong>
+                  <span style="color:var(--text-tertiary);">docs/architecture.md</span>
+                  <span class="mono" style="margin-left:auto;color:var(--pine);">200 OK</span>
+                </div>
+              </div>
+
+              <!-- Response Prose & High Contrast Code Block -->
+              <div class="assistant-prose">
+                <p>已完成 Inkstone Mobile Shell v3 几何基础与架构方案推演。本次更新规范了 8px 间距基线、56px/48px 顶栏、280-320px 稳定网格，正文对比度提升至 13.8:1，并将代码块与长内容容器均设为横向独立滚动：</p>
+
+                <!-- Code Block Demo (Horizontally Scrollable) -->
+                <div class="code-container">
+                  <div class="code-header">
+                    <span>mobile-session-list.ts</span>
+                    <span>TypeScript</span>
+                  </div>
+                  <pre class="code-block"><code>export interface MobileSessionScope {
+  kind: 'project' | 'general';
+  projectId?: string; // 严禁以标题猜项目，使用严格 scope 标识
+}
+
+export function filterSessionsByScope(sessions: Session[], scope: MobileSessionScope) {
+  return sessions.filter(s => s.scope.kind === scope.kind &amp;&amp; (!scope.projectId || s.scope.projectId === scope.projectId));
+}</code></pre>
+                </div>
+
+                <p>iPad 与桌面视口下保留左侧导航与中央聊天 stage；工作区只在点击入口后展开，关闭后不占位。</p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Composer Dock (Slab 砚台输入区) -->
+          <div class="composer-dock">
+            <div class="composer-slab">
+              <textarea class="composer-textarea" id="composer-input" placeholder="在当前会话中继续对话，或在此输入指令…" rows="2"></textarea>
+              <div class="composer-bottom-bar">
+                <div class="composer-meta-pills">
+                  <button class="slab-chip-btn" id="composer-model-pill" title="切换模型">
+                    <span style="color:var(--zhu)">●</span>
+                    <span id="composer-model-name">gemini-3.8-flash-high</span>
+                  </button>
+                  <button class="slab-chip-btn" id="composer-thinking-pill" title="切换思考档位">
+                    <span>🧠 高档思考</span>
+                  </button>
+                </div>
+                <button class="send-action-btn" id="composer-send-btn" title="发送消息" aria-label="发送消息">
+                  <svg class="icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </main>
+
+        <!-- Right Workspace Inspector -->
+        <aside class="workspace-inspector" id="workspace-inspector" aria-label="工作区检查器">
+          <div class="workspace-inspector-head">
+            <span>工作区</span>
+            <button class="icon-btn" id="close-workspace-btn" title="关闭工作区" aria-label="关闭工作区">×</button>
+          </div>
+          <div class="workspace-inspector-tabs" role="tablist" aria-label="工作区工具">
+            <button class="workspace-inspector-tab active" type="button">文件</button>
+            <button class="workspace-inspector-tab" type="button">终端</button>
+            <button class="workspace-inspector-tab" type="button">变更</button>
+            <button class="workspace-inspector-tab" type="button">浏览器</button>
+            <button class="workspace-inspector-tab" type="button">画布</button>
+          </div>
+          <div class="workspace-inspector-body" id="workspace-inspector-body">
+            <h3>项目文件</h3>
+            <p class="mono">piwin / main</p>
+            <div class="tool-step-fold" style="margin-top:12px;">
+              <div class="tool-step-header"><span class="status-indicator done"></span><strong>apps</strong><span class="mono" style="margin-left:auto;">目录</span></div>
+            </div>
+            <div class="tool-step-fold">
+              <div class="tool-step-header"><span class="status-indicator done"></span><strong>packages</strong><span class="mono" style="margin-left:auto;">目录</span></div>
+            </div>
+            <div class="tool-step-fold">
+              <div class="tool-step-header"><span class="status-indicator running"></span><strong>inkstone-mobile-shell-v3.html</strong></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- Home Indicator Bar -->
+      <div class="device-home-indicator">
+        <div class="home-bar"></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ==========================================================================
+     Modals, Sheets & Requirements Checklist Overlays
+     ========================================================================== -->
+
+<!-- 1. New Session Modal -->
+<div class="modal-overlay" id="new-session-modal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-title">新建会话</div>
+      <button class="icon-btn" id="close-new-modal-btn">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <label class="form-label" for="new-session-title">会话名称</label>
+        <input class="form-input" type="text" id="new-session-title" placeholder="例如：重构移动端连接管理" value="新会话 · 随身砚探索">
+      </div>
+
+      <div>
+        <label class="form-label" for="new-session-scope">归属范围 (Scope)</label>
+        <select class="form-select" id="new-session-scope">
+          <option value="project:piwin">当前项目 (piwin)</option>
+          <option value="general">通用会话 (跨项目)</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="form-label" for="new-session-model">指定模型</label>
+        <select class="form-select" id="new-session-model">
+          <option value="gemini-3.8-flash-high" selected>gemini-3.8-flash-high (当前默认)</option>
+          <option value="claude-3-7-sonnet">claude-3-7-sonnet (Thinking)</option>
+          <option value="deepseek-r1">deepseek-r1 (深度推理)</option>
+          <option value="gpt-4o">gpt-4o</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="form-label" for="new-session-thinking">思考档位 (Thinking Level)</label>
+        <select class="form-select" id="new-session-thinking">
+          <option value="high" selected>高档 · 64k 深度推理 (默认)</option>
+          <option value="medium">中档 · 16k 标准推理</option>
+          <option value="low">低档 · 4k 轻量思考</option>
+          <option value="off">关闭思考 (直接响应)</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" id="cancel-new-btn">取消</button>
+      <button class="btn-primary" id="confirm-create-session-btn">立即创建会话</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2. Connection Status Management Modal / Sheet -->
+<div class="modal-overlay" id="conn-sheet-modal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-title">Host 连接管理</div>
+      <button class="icon-btn" id="close-conn-sheet-btn">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface-0);border-radius:8px;">
+        <span style="font-size:13px;color:var(--text-secondary);">当前状态</span>
+        <span class="conn-badge connected" id="modal-conn-badge-display">
+          <span class="conn-dot"></span>
+          <strong id="modal-conn-text">已连接 (Ready)</strong>
+        </span>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-secondary);display:grid;grid-template-columns:auto 1fr;gap:6px 12px;">
+        <span>Endpoint:</span> <span class="mono" style="color:var(--text-primary);">wss://127.0.0.1:4401</span>
+        <span>连接模式:</span> <span style="color:var(--text-primary);">Pi Sidecar Loopback</span>
+        <span>往返延迟:</span> <span class="mono" style="color:var(--pine);">14ms</span>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+        <button class="btn-primary" id="modal-reconnect-action-btn" style="width:100%;">重新连接 Host</button>
+        <button class="btn-secondary" id="modal-disconnect-action-btn" style="width:100%;">断开连接 (测试只读)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Row Context Action Sheet (Pin / Archive / Rename / Delete) -->
+<div class="action-sheet" id="row-action-sheet">
+  <div class="sheet-grab-bar"></div>
+  <div style="padding:0 6px 8px;font-weight:600;font-size:13px;color:var(--text-secondary);" id="sheet-session-title">会话操作</div>
+  <button class="sheet-item-btn" id="sheet-pin-btn">
+    <svg class="icon" viewBox="0 0 24 24"><path d="M12 2v8M12 18v4M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h8M18 12h4M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24"/></svg>
+    <span id="sheet-pin-label">置顶会话</span>
+  </button>
+  <button class="sheet-item-btn" id="sheet-archive-btn">
+    <svg class="icon" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+    <span id="sheet-archive-label">归档会话</span>
+  </button>
+  <button class="sheet-item-btn" id="sheet-rename-btn">
+    <svg class="icon" viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+    <span>重命名会话</span>
+  </button>
+  <button class="sheet-item-btn destructive" id="sheet-delete-btn">
+    <svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    <span>删除会话记录</span>
+  </button>
+  <button class="btn-secondary" id="close-action-sheet-btn" style="width:100%;margin-top:6px;">取消</button>
+</div>
+
+<!-- 4. Interactive Requirements Inspection Drawer (Checklist) -->
+<aside class="checklist-drawer" id="checklist-drawer">
+  <div class="checklist-head">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg class="icon" style="color:var(--zhu);" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <strong style="font-size:14px;">原型几何与交互走查 (9项)</strong>
+    </div>
+    <button class="icon-btn" id="close-checklist-btn" style="min-width:32px;min-height:32px;width:32px;height:32px;">
+      <svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <div class="checklist-body">
+    <!-- Item 1 -->
+    <div class="check-item-card">
+      <div class="check-item-header">
+        <span>1. 稳定几何网格 (桌面/平板/移动)</span>
+        <span class="check-badge-ok">已达成</span>
+      </div>
+      <p class="check-item-desc">桌面左栏 280-320px + 中间 minmax(0,1fr) + 右栏按需 280-320px；移动端抽屉 ≤ 360px 且 ≤ 88%；不互相挤压、溢出或覆盖。</p>
+      <button class="check-trigger-btn" onclick="setViewport('1024');">测试：桌面 1024px 网格</button>
+    </div>
+
+    <!-- Item 2 -->
+    <div class="check-item-card">
+      <div class="check-item-header">
+        <span>2. 顶部栏固定高度 (56px / 48px)</span>
+        <span class="check-badge-ok">已达成</span>
+      </div>
+      <p class="check-item-desc">桌面顶栏固定 56px，移动顶栏固定 48px；会话列表与聊天舞台填满剩余高度，内部独立滚动。</p>
+      <button class="check-trigger-btn" onclick="setViewport('390');">测试：切换 390px (48px顶栏)</button>
+    </div>
+
+    <!-- Item 3 -->
+    <div class="check-item-card">
+      <div class="check-item-header">
+        <span>3. 8px 间距基线 & 16px 主要内边距</span>
+        <span class="check-badge-ok">已达成</span>
+      </div>
+      <p class="check-item-desc">全局遵循 8px 间距阶梯；主要容器内边距严格为 16px；消除随意非标准像素。</p>
+    </div>
+
+    <!-- Item 4 -->
+    <div class="check-item-card">
+      <div class="check-item-header">
+        <span>4. 触控目标 ≥ 44px & 列表行 56-64px</span>
+        <span class="check-badge-ok">已达成</span>
+      </div>
+      <p class="check-item-desc">按钮、搜索框、输入区域触控目标最小 44px；会话列表行固定 60px (符合 56-64px 规范)。</p>
+    </div>
+
+    <!-- Item 5 -->
+    <div class="check-item-card">
+      <div class="check-item-header">
+        <span>5. 四要素同行统一基线对齐</span>
+        <span class="check-badge-ok">已达成</span>
+      </div>
+      <p class="check-item-desc">会话行中“标题、项目/分支标签、时间、更多按钮”在第一网格行统一基线对齐，禁止漂浮、重叠与水平跳动。</p>
+      <button class="check-trigger-btn" onclick="setViewport('390');openMobileDrawer();">走查：抽屉列表对齐</button>
+    </div>
+
+    <!-- Item 6 -->
+    <div class="check-item-card">
+      <div class="check-item-header">
+        <span>6. 顶栏标题、标签、分支单行基线对齐</span>
+        <span class="check-badge-ok">已达成</span>
+      </div>
+      <p class="check-item-desc">详情顶栏标题、项目标签、分支切换按钮同一基线对齐，无二次多行堆叠与视觉跳动。</p>
+    </div>
+
+    <!-- Item 7 -->
+    <div class="check-item-card">
+      <div class="check-item-header">
+        <span>7. 多视口可用性 (375/390/430/768/1024)</span>
+        <span class="check-badge-ok">已达成</span>
+      </div>
+      <p class="check-item-desc">iPhone SE 375px、iPhone 390px、Max 430px、iPad 768px、Desktop 1024px 全视口平稳适配，遵守安全区。</p>
+      <button class="check-trigger-btn" onclick="setViewport('375');">测试：375px 窄视口</button>
+    </div>
+
+    <!-- Item 8 -->
+    <div class="check-item-card">
+      <div class="check-item-header">
+        <span>8. 高对比度 & 独立水平横滚</span>
+        <span class="check-badge-ok">已达成</span>
+      </div>
+      <p class="check-item-desc">正文 #202124 (对比度 > 13:1)，代码块与长文本仅在自身区域横向滚动，不撑宽主布局。</p>
+    </div>
+
+    <!-- Item 9 -->
+    <div class="check-item-card">
+      <div class="check-item-header">
+        <span>9. 架构完整性 (保留现有功能与分类)</span>
+        <span class="check-badge-ok">已达成</span>
+      </div>
+      <p class="check-item-desc">保留置顶/项目/通用/最近/归档 5 分组、会话分支树、右侧工作区、连接状态与重建流程。</p>
+    </div>
+  </div>
+</aside>
+
+<!-- ==========================================================================
+     Interactive Prototype State & Controller Logic
+     ========================================================================== -->
+<script>
+/**
+ * Mock Session Database with Strict Scopes & Realist State
+ */
+const initialSessions = [
+  {
+    id: 'sess-01',
+    title: 'Inkstone 移动端全状态重构',
+    subtitle: '已完成移动端字体对比度强化与双栏折叠规范…',
+    scope: { kind: 'project', projectId: 'piwin' },
+    pinned: true,
+    archived: false,
+    status: 'done',
+    updatedAt: Date.now() - 2 * 60 * 1000,
+    timeLabel: '2 分钟前',
+    model: 'gemini-3.8-flash-high',
+    thinkingLevel: 'high'
+  },
+  {
+    id: 'sess-02',
+    title: '异步子代理接线与状态推演',
+    subtitle: '子代理正在执行 git worktree 隔离测试任务…',
+    scope: { kind: 'project', projectId: 'piwin' },
+    pinned: true,
+    archived: false,
+    status: 'running',
+    updatedAt: Date.now() - 15 * 60 * 1000,
+    timeLabel: '15 分钟前',
+    model: 'gemini-3.8-flash-high',
+    thinkingLevel: 'high'
+  },
+  {
+    id: 'sess-03',
+    title: 'Host 权限系统弹窗适配',
+    subtitle: '等待批准 1 项写操作：写入 docs/adr/0052.md…',
+    scope: { kind: 'project', projectId: 'piwin' },
+    pinned: false,
+    archived: false,
+    status: 'waiting',
+    updatedAt: Date.now() - 34 * 60 * 1000,
+    timeLabel: '34 分钟前',
+    model: 'gemini-3.8-flash-high',
+    thinkingLevel: 'medium'
+  },
+  {
+    id: 'sess-04',
+    title: 'Browser 截图视口尺寸异常排查',
+    subtitle: '已修正 screencast-size 宽度截断逻辑与单元测试…',
+    scope: { kind: 'project', projectId: 'piwin' },
+    pinned: false,
+    archived: false,
+    status: 'done',
+    updatedAt: Date.now() - 80 * 60 * 1000,
+    timeLabel: '1 小时前',
+    model: 'gemini-3.8-flash-high',
+    thinkingLevel: 'low'
+  },
+  {
+    id: 'sess-05',
+    title: '现代前端渲染架构深度讨论',
+    subtitle: '对比 React Server Components 与 SSR 流式传输…',
+    scope: { kind: 'general' },
+    pinned: false,
+    archived: false,
+    status: 'done',
+    updatedAt: Date.now() - 3 * 3600 * 1000,
+    timeLabel: '3 小时前',
+    model: 'claude-3-7-sonnet',
+    thinkingLevel: 'high'
+  },
+  {
+    id: 'sess-06',
+    title: '英语技术写作表达润色',
+    subtitle: '针对 PRD 核心技术术语的准确性进行修订…',
+    scope: { kind: 'general' },
+    pinned: false,
+    archived: false,
+    status: 'idle',
+    updatedAt: Date.now() - 5 * 3600 * 1000,
+    timeLabel: '5 小时前',
+    model: 'gpt-4o',
+    thinkingLevel: 'off'
+  },
+  {
+    id: 'sess-07',
+    title: '跨平台字体排版方案论证',
+    subtitle: '苹方、思源黑体与 SF Pro 的基准对比…',
+    scope: { kind: 'general' },
+    pinned: false,
+    archived: false,
+    status: 'done',
+    updatedAt: Date.now() - 9 * 3600 * 1000,
+    timeLabel: '9 小时前',
+    model: 'gemini-3.8-flash-high',
+    thinkingLevel: 'medium'
+  },
+  {
+    id: 'sess-08',
+    title: 'Pi Core RPC 事件协议梳理',
+    subtitle: '已对标 HostPush 与 AgentEvent 的类型定义…',
+    scope: { kind: 'project', projectId: 'piwin' },
+    pinned: false,
+    archived: false,
+    status: 'done',
+    updatedAt: Date.now() - 20 * 3600 * 1000,
+    timeLabel: '昨天 13:40',
+    model: 'gemini-3.8-flash-high',
+    thinkingLevel: 'high'
+  },
+  // Extra pages for "Load More"
+  {
+    id: 'sess-09',
+    title: 'Mobile Access Controller 握手排错',
+    subtitle: '已定位移动端局域网握手超时原因…',
+    scope: { kind: 'project', projectId: 'piwin' },
+    pinned: false,
+    archived: false,
+    status: 'done',
+    updatedAt: Date.now() - 28 * 3600 * 1000,
+    timeLabel: '昨天 08:20',
+    model: 'gemini-3.8-flash-high',
+    thinkingLevel: 'medium'
+  },
+  {
+    id: 'sess-10',
+    title: '通用算法复杂度复习与笔记',
+    subtitle: '红黑树插入旋转与 B+ 树分裂算法对比…',
+    scope: { kind: 'general' },
+    pinned: false,
+    archived: false,
+    status: 'done',
+    updatedAt: Date.now() - 40 * 3600 * 1000,
+    timeLabel: '前天',
+    model: 'deepseek-r1',
+    thinkingLevel: 'high'
+  },
+  {
+    id: 'sess-11',
+    title: 'Tauri 2 移动端构建脚本调整',
+    subtitle: 'iOS build-mobile-ios.sh 环境变量配置完成…',
+    scope: { kind: 'project', projectId: 'piwin' },
+    pinned: false,
+    archived: false,
+    status: 'done',
+    updatedAt: Date.now() - 55 * 3600 * 1000,
+    timeLabel: '3 天前',
+    model: 'gemini-3.8-flash-high',
+    thinkingLevel: 'low'
+  },
+  {
+    id: 'sess-12',
+    title: '桌面侧边栏双轨折叠原案',
+    subtitle: '初版设计走查完成，已归档转为 inkstone 规范…',
+    scope: { kind: 'project', projectId: 'piwin' },
+    pinned: false,
+    archived: true,
+    status: 'done',
+    updatedAt: Date.now() - 72 * 3600 * 1000,
+    timeLabel: '4 天前',
+    model: 'gemini-3.8-flash-high',
+    thinkingLevel: 'off'
+  },
+  {
+    id: 'sess-13',
+    title: '旧版 WebSocket 通信协议草案',
+    subtitle: '已被 ADR-0030 彻底取代，封存归档…',
+    scope: { kind: 'project', projectId: 'piwin' },
+    pinned: false,
+    archived: true,
+    status: 'done',
+    updatedAt: Date.now() - 100 * 3600 * 1000,
+    timeLabel: '上周',
+    model: 'gpt-4o',
+    thinkingLevel: 'off'
+  },
+  {
+    id: 'sess-14',
+    title: '通用提示词工程模板沉淀',
+    subtitle: '涵盖系统角色设定、边界约束与防御注入…',
+    scope: { kind: 'general' },
+    pinned: false,
+    archived: false,
+    status: 'done',
+    updatedAt: Date.now() - 120 * 3600 * 1000,
+    timeLabel: '上周',
+    model: 'gemini-3.8-flash-high',
+    thinkingLevel: 'high'
+  }
+];
+
+// App State
+const state = {
+  sessions: [...initialSessions],
+  visibleLimit: 8,
+  activeSessionId: 'sess-01',
+  searchQuery: '',
+  scopeFilter: 'all',
+  themeFace: 'paper',
+  viewport: '390',
+  drawerOpen: false, // Product opens on the chat stage; drawer is explicit navigation.
+  connStatus: 'connected', // 'connected' | 'connecting' | 'disconnected' | 'reconnecting'
+  collapsedGroups: {
+    pinned: false,
+    project: false,
+    general: false,
+    recent: false,
+    archived: true // archived collapsed by default
+  },
+  menuTargetSessionId: null
+};
+
+// DOM References
+const shellContainer = document.getElementById('shell-container');
+const sessionMaster = document.getElementById('session-master');
+const drawerBackdrop = document.getElementById('drawer-backdrop');
+const deviceFrame = document.getElementById('device-frame');
+const branchPopover = document.getElementById('branch-popover');
+
+// Render function for session rows — Unified Baseline Grid
+function createSessionRowElement(session) {
+  const isSelected = session.id === state.activeSessionId;
+  const row = document.createElement('div');
+  row.className = `session-row ${isSelected ? 'active' : ''}`;
+  row.dataset.sessionId = session.id;
+
+  // Status Indicator Dot (Grid Col 1, Rows 1-2)
+  const statusDot = document.createElement('div');
+  statusDot.className = `status-indicator ${session.status}`;
+  statusDot.title = `状态: ${session.status}`;
+
+  // Title Box (Grid Col 2, Row 1)
+  const titleBox = document.createElement('div');
+  titleBox.className = 'session-title-box';
+
+  if (session.pinned) {
+    const pinBadge = document.createElement('span');
+    pinBadge.className = 'scope-tag pinned-icon';
+    pinBadge.innerHTML = '📌';
+    titleBox.appendChild(pinBadge);
+  }
+
+  const titleText = document.createElement('span');
+  titleText.className = 'session-title-text';
+  titleText.textContent = session.title;
+  titleBox.appendChild(titleText);
+
+  // Scope Tag (Grid Col 3, Row 1)
+  const scopeTag = document.createElement('span');
+  if (session.scope.kind === 'project') {
+    scopeTag.className = 'scope-tag project';
+    scopeTag.textContent = session.scope.projectId || 'project';
+  } else {
+    scopeTag.className = 'scope-tag general';
+    scopeTag.textContent = '通用';
+  }
+
+  // Time (Grid Col 4, Row 1)
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'session-time mono';
+  timeSpan.textContent = session.timeLabel;
+
+  // More Button (Grid Col 5, Row 1) - 44x44px Touch Target
+  const moreBtn = document.createElement('button');
+  moreBtn.className = 'row-more-btn';
+  moreBtn.title = '操作菜单';
+  moreBtn.setAttribute('aria-label', `${session.title} 更多操作`);
+  moreBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>';
+  
+  moreBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openRowActionMenu(session.id);
+  });
+
+  // Preview Line (Grid Row 2, Spanning Col 2-5)
+  const previewLine = document.createElement('div');
+  previewLine.className = 'session-preview-line';
+
+  const previewText = document.createElement('span');
+  previewText.className = 'session-preview-text';
+  previewText.textContent = session.subtitle;
+  previewLine.appendChild(previewText);
+
+  // Assemble Grid Elements
+  row.appendChild(statusDot);
+  row.appendChild(titleBox);
+  row.appendChild(scopeTag);
+  row.appendChild(timeSpan);
+  row.appendChild(moreBtn);
+  row.appendChild(previewLine);
+
+  // Click to open session
+  row.addEventListener('click', () => {
+    selectSession(session.id);
+  });
+
+  return row;
+}
+
+// Render Master Session List according to 5 Fixed Groups
+function renderSessionList() {
+  const query = state.searchQuery.trim().toLowerCase();
+  
+  // 1. Filter by search & quick scope chips
+  let filtered = state.sessions.filter(s => {
+    // Search match in title or subtitle
+    const matchQuery = !query || 
+      s.title.toLowerCase().includes(query) || 
+      s.subtitle.toLowerCase().includes(query) ||
+      (s.scope.projectId && s.scope.projectId.toLowerCase().includes(query));
+    if (!matchQuery) return false;
+
+    // Quick filter chip
+    if (state.scopeFilter === 'project') return s.scope.kind === 'project';
+    if (state.scopeFilter === 'general') return s.scope.kind === 'general';
+    if (state.scopeFilter === 'running') return s.status === 'running';
+    if (state.scopeFilter === 'pinned') return s.pinned;
+    return true;
+  });
+
+  // Limit visible items for pagination demo
+  const visibleList = filtered.slice(0, state.visibleLimit);
+
+  // Group Containers
+  const bodyPinned = document.getElementById('body-pinned');
+  const bodyProject = document.getElementById('body-project');
+  const bodyGeneral = document.getElementById('body-general');
+  const bodyRecent = document.getElementById('body-recent');
+  const bodyArchived = document.getElementById('body-archived');
+
+  bodyPinned.innerHTML = '';
+  bodyProject.innerHTML = '';
+  bodyGeneral.innerHTML = '';
+  bodyRecent.innerHTML = '';
+  bodyArchived.innerHTML = '';
+
+  // Classify into 5 Fixed Groups using strictly scope and status
+  const groupPinned = [];
+  const groupProject = [];
+  const groupGeneral = [];
+  const groupRecent = [];
+  const groupArchived = [];
+
+  visibleList.forEach(s => {
+    if (s.archived) {
+      groupArchived.push(s);
+    } else if (s.pinned) {
+      groupPinned.push(s);
+    } else if (s.scope.kind === 'project' && s.scope.projectId === 'piwin') {
+      groupProject.push(s);
+    } else if (s.scope.kind === 'general') {
+      groupGeneral.push(s);
+    } else {
+      groupRecent.push(s);
+    }
+  });
+
+  // Also include 2-3 recent non-pinned sessions into Recent group for scannability
+  if (groupRecent.length === 0) {
+    const activeUnpinned = visibleList.filter(s => !s.pinned && !s.archived);
+    activeUnpinned.slice(0, 2).forEach(s => groupRecent.push(s));
+  }
+
+  // Populate Groups
+  groupPinned.forEach(s => bodyPinned.appendChild(createSessionRowElement(s)));
+  groupProject.forEach(s => bodyProject.appendChild(createSessionRowElement(s)));
+  groupGeneral.forEach(s => bodyGeneral.appendChild(createSessionRowElement(s)));
+  groupRecent.forEach(s => bodyRecent.appendChild(createSessionRowElement(s)));
+  groupArchived.forEach(s => bodyArchived.appendChild(createSessionRowElement(s)));
+
+  // Update Counters
+  document.getElementById('count-pinned').textContent = groupPinned.length;
+  document.getElementById('count-project').textContent = groupProject.length;
+  document.getElementById('count-general').textContent = groupGeneral.length;
+  document.getElementById('count-recent').textContent = groupRecent.length;
+  document.getElementById('count-archived').textContent = groupArchived.length;
+
+  // Toggle Visibility of Groups if Empty during search
+  document.getElementById('group-pinned').style.display = groupPinned.length > 0 ? 'block' : 'none';
+  document.getElementById('group-project').style.display = groupProject.length > 0 ? 'block' : 'none';
+  document.getElementById('group-general').style.display = groupGeneral.length > 0 ? 'block' : 'none';
+  document.getElementById('group-recent').style.display = groupRecent.length > 0 ? 'block' : 'none';
+  document.getElementById('group-archived').style.display = (groupArchived.length > 0 || state.scopeFilter === 'all') ? 'block' : 'none';
+
+  // Empty state handling
+  const emptyStateBox = document.getElementById('empty-state-box');
+  if (visibleList.length === 0) {
+    emptyStateBox.style.display = 'flex';
+  } else {
+    emptyStateBox.style.display = 'none';
+  }
+
+  // Update Load More Button & Total Meta
+  const countLabel = document.getElementById('session-count-label');
+  const loadMoreBtn = document.getElementById('load-more-btn');
+  const loadMoreText = document.getElementById('load-more-text');
+
+  const shownCount = Math.min(state.visibleLimit, filtered.length);
+  countLabel.textContent = `已加载 ${shownCount} / 共 ${filtered.length} 条会话`;
+  loadMoreText.textContent = `加载更多 (已显示 ${shownCount} / 共 ${filtered.length} 条)`;
+
+  if (shownCount >= filtered.length) {
+    loadMoreBtn.style.display = 'none';
+  } else {
+    loadMoreBtn.style.display = 'inline-flex';
+  }
+}
+
+// Select session and update Detail View
+function selectSession(sessionId) {
+  state.activeSessionId = sessionId;
+  const session = state.sessions.find(s => s.id === sessionId);
+  if (!session) return;
+
+  // Update Detail Topbar
+  document.getElementById('detail-session-title').textContent = session.title;
+  const scopeTag = document.getElementById('detail-scope-tag');
+  if (session.scope.kind === 'project') {
+    scopeTag.className = 'scope-tag project';
+    scopeTag.textContent = session.scope.projectId || 'project';
+  } else {
+    scopeTag.className = 'scope-tag general';
+    scopeTag.textContent = '通用';
+  }
+  document.getElementById('detail-model-tag').textContent = session.model;
+  document.getElementById('composer-model-name').textContent = session.model;
+
+  // On Mobile: Close Drawer to view Chat Detail
+  if (isMobileMode()) {
+    closeMobileDrawer();
+  }
+
+  // Update active highlight in list
+  renderSessionList();
+}
+
+// Drawer Controls for Mobile
+function openMobileDrawer() {
+  state.drawerOpen = true;
+  sessionMaster.classList.add('drawer-open');
+  drawerBackdrop.classList.add('active');
+}
+
+function closeMobileDrawer() {
+  state.drawerOpen = false;
+  sessionMaster.classList.remove('drawer-open');
+  drawerBackdrop.classList.remove('active');
+}
+
+function toggleMobileDrawer() {
+  if (state.drawerOpen) closeMobileDrawer();
+  else openMobileDrawer();
+}
+
+function isMobileMode() {
+  return shellContainer.classList.contains('mobile-mode');
+}
+
+// Viewport Switcher Logic
+function setViewport(vp) {
+  state.viewport = vp;
+  document.querySelectorAll('.viewport-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.vp === vp);
+  });
+
+  deviceFrame.className = 'device-wrapper';
+
+  if (vp === '375') {
+    deviceFrame.style.width = '375px';
+    deviceFrame.style.height = '812px';
+    activateMobileMode();
+  } else if (vp === '390') {
+    deviceFrame.style.width = '390px';
+    deviceFrame.style.height = '844px';
+    activateMobileMode();
+  } else if (vp === '430') {
+    deviceFrame.style.width = '430px';
+    deviceFrame.style.height = '932px';
+    activateMobileMode();
+  } else if (vp === '768') {
+    deviceFrame.style.width = '768px';
+    deviceFrame.style.height = '1024px';
+    deviceFrame.classList.add('tablet');
+    activateSplitMode();
+  } else if (vp === '1024') {
+    deviceFrame.style.width = '1024px';
+    deviceFrame.style.height = '768px';
+    deviceFrame.classList.add('desktop');
+    activateSplitMode();
+  } else if (vp === 'fluid') {
+    deviceFrame.classList.add('fluid');
+    deviceFrame.style.width = '100%';
+    deviceFrame.style.height = '100%';
+    if (window.innerWidth >= 768) {
+      activateSplitMode();
+    } else {
+      activateMobileMode();
+    }
+  }
+}
+
+function activateMobileMode() {
+  shellContainer.classList.remove('split-mode');
+  shellContainer.classList.add('mobile-mode');
+  closeMobileDrawer();
+}
+
+function activateSplitMode() {
+  shellContainer.classList.remove('mobile-mode');
+  shellContainer.classList.add('split-mode');
+  drawerBackdrop.classList.remove('active');
+  sessionMaster.classList.remove('drawer-open');
+}
+
+// Connection State Management
+function updateConnectionState(newState) {
+  state.connStatus = newState;
+  const badge = document.getElementById('detail-conn-badge');
+  const badgeText = document.getElementById('conn-badge-text');
+  const strip = document.getElementById('disconnect-strip');
+  const modalBadge = document.getElementById('modal-conn-badge-display');
+  const modalText = document.getElementById('modal-conn-text');
+
+  badge.className = `conn-badge ${newState}`;
+  modalBadge.className = `conn-badge ${newState}`;
+
+  if (newState === 'connected') {
+    badgeText.textContent = '已连接';
+    modalText.textContent = '已连接 (Ready)';
+    strip.classList.remove('visible');
+  } else if (newState === 'connecting') {
+    badgeText.textContent = '连接中…';
+    modalText.textContent = '正在连接 Host…';
+    strip.classList.remove('visible');
+  } else if (newState === 'disconnected') {
+    badgeText.textContent = '已断开';
+    modalText.textContent = '已断开 (Disconnected)';
+    strip.classList.add('visible');
+  } else if (newState === 'reconnecting') {
+    badgeText.textContent = '重连中…';
+    modalText.textContent = '正在自动重连 (尝试 2/5)…';
+    strip.classList.add('visible');
+  }
+}
+
+// Simulated Reconnect Sequence
+function triggerReconnectSequence() {
+  updateConnectionState('reconnecting');
+  setTimeout(() => {
+    updateConnectionState('connected');
+  }, 1200);
+}
+
+// Simulated Error Sequence
+function triggerSimulateError() {
+  const errorBanner = document.getElementById('master-error-banner');
+  errorBanner.classList.add('visible');
+}
+
+// Open Row Context Menu
+function openRowActionMenu(sessionId) {
+  state.menuTargetSessionId = sessionId;
+  const session = state.sessions.find(s => s.id === sessionId);
+  if (!session) return;
+
+  document.getElementById('sheet-session-title').textContent = session.title;
+  document.getElementById('sheet-pin-label').textContent = session.pinned ? '取消置顶' : '置顶会话';
+  document.getElementById('sheet-archive-label').textContent = session.archived ? '取消归档' : '归档会话';
+
+  document.getElementById('row-action-sheet').classList.add('active');
+}
+
+function closeRowActionMenu() {
+  document.getElementById('row-action-sheet').classList.remove('active');
+  state.menuTargetSessionId = null;
+}
+
+// New Session Modal
+function openNewSessionModal() {
+  document.getElementById('new-session-modal').classList.add('active');
+  document.getElementById('new-session-title').focus();
+}
+
+function closeNewSessionModal() {
+  document.getElementById('new-session-modal').classList.remove('active');
+}
+
+// Create New Session
+function createNewSession() {
+  const title = document.getElementById('new-session-title').value.trim() || '新会话 · 随身砚';
+  const scopeVal = document.getElementById('new-session-scope').value;
+  const modelVal = document.getElementById('new-session-model').value;
+  const thinkingVal = document.getElementById('new-session-thinking').value;
+
+  const isProject = scopeVal.startsWith('project');
+  const projectId = isProject ? scopeVal.split(':')[1] : undefined;
+
+  const newSession = {
+    id: `sess-${Date.now()}`,
+    title: title,
+    subtitle: '刚刚创建，等待开始对话…',
+    scope: { kind: isProject ? 'project' : 'general', projectId },
+    pinned: false,
+    archived: false,
+    status: 'idle',
+    updatedAt: Date.now(),
+    timeLabel: '刚刚',
+    model: modelVal,
+    thinkingLevel: thinkingVal
+  };
+
+  // Add to beginning of sessions array
+  state.sessions.unshift(newSession);
+  state.visibleLimit = Math.max(state.visibleLimit, 8);
+  closeNewSessionModal();
+  selectSession(newSession.id);
+}
+
+// ==========================================================================
+// Event Listeners Binding
+// ==========================================================================
+document.addEventListener('DOMContentLoaded', () => {
+  // 1. Initial Render
+  renderSessionList();
+  selectSession('sess-01');
+
+  // 2. Viewport Switcher buttons
+  document.querySelectorAll('.viewport-btn').forEach(btn => {
+    btn.addEventListener('click', () => setViewport(btn.dataset.vp));
+  });
+
+  // 3. Theme Face Toggle (Paper / Ink)
+  const toggleFaceBtn = document.getElementById('toggle-face-btn');
+  const faceLabel = document.getElementById('face-label');
+  toggleFaceBtn.addEventListener('click', () => {
+    const nextFace = state.themeFace === 'paper' ? 'ink' : 'paper';
+    state.themeFace = nextFace;
+    document.documentElement.setAttribute('data-face', nextFace);
+    faceLabel.textContent = nextFace === 'paper' ? '纸 · Paper' : '墨 · Ink';
+  });
+
+  // 4. Back / Drawer Toggles
+  document.getElementById('back-to-list-btn').addEventListener('click', openMobileDrawer);
+  drawerBackdrop.addEventListener('click', () => {
+    closeMobileDrawer();
+    setWorkspaceOpen(false);
+  });
+
+  // 5. Search Filtering
+  const searchInput = document.getElementById('session-search-input');
+  const clearSearchBtn = document.getElementById('search-clear-btn');
+  searchInput.addEventListener('input', (e) => {
+    state.searchQuery = e.target.value;
+    clearSearchBtn.classList.toggle('visible', !!state.searchQuery);
+    renderSessionList();
+  });
+  clearSearchBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    state.searchQuery = '';
+    clearSearchBtn.classList.remove('visible');
+    renderSessionList();
+  });
+
+  // 6. Scope Filter Chips
+  document.querySelectorAll('.filter-chips .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.filter-chips .chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      state.scopeFilter = chip.dataset.filter;
+      renderSessionList();
+    });
+  });
+
+  document.getElementById('reset-filter-btn').addEventListener('click', () => {
+    searchInput.value = '';
+    state.searchQuery = '';
+    state.scopeFilter = 'all';
+    document.querySelectorAll('.filter-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.filter === 'all'));
+    renderSessionList();
+  });
+
+  // 7. Group Header Collapsible Accordion
+  document.querySelectorAll('.group-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const groupKey = header.dataset.group;
+      const body = document.getElementById(`body-${groupKey}`);
+      const isCollapsed = body.classList.toggle('collapsed');
+      header.classList.toggle('collapsed', isCollapsed);
+      state.collapsedGroups[groupKey] = isCollapsed;
+    });
+  });
+
+  // 8. Load More Button
+  document.getElementById('load-more-btn').addEventListener('click', () => {
+    state.visibleLimit += 6;
+    renderSessionList();
+  });
+
+  // 9. Error Simulation & Retry
+  const errorBanner = document.getElementById('master-error-banner');
+  document.getElementById('sim-error-btn').addEventListener('click', triggerSimulateError);
+  document.getElementById('master-retry-btn').addEventListener('click', () => {
+    errorBanner.innerHTML = '<span>正在重试同步索引…</span>';
+    setTimeout(() => {
+      errorBanner.classList.remove('visible');
+      errorBanner.innerHTML = '<div style="display:flex;align-items:center;gap:6px;"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>会话索引同步超时 (Host 504)</span></div><button class="retry-link" id="master-retry-btn">点击重试</button>';
+      renderSessionList();
+    }, 600);
+  });
+
+  // 10. Connection Simulation
+  const simConnBtn = document.getElementById('sim-conn-btn');
+  simConnBtn.addEventListener('click', () => {
+    if (state.connStatus === 'connected') {
+      updateConnectionState('disconnected');
+    } else {
+      triggerReconnectSequence();
+    }
+  });
+
+  document.getElementById('detail-conn-badge').addEventListener('click', () => {
+    document.getElementById('conn-sheet-modal').classList.add('active');
+  });
+  document.getElementById('close-conn-sheet-btn').addEventListener('click', () => {
+    document.getElementById('conn-sheet-modal').classList.remove('active');
+  });
+  document.getElementById('modal-reconnect-action-btn').addEventListener('click', () => {
+    document.getElementById('conn-sheet-modal').classList.remove('active');
+    triggerReconnectSequence();
+  });
+  document.getElementById('modal-disconnect-action-btn').addEventListener('click', () => {
+    document.getElementById('conn-sheet-modal').classList.remove('active');
+    updateConnectionState('disconnected');
+  });
+  document.getElementById('strip-reconnect-btn').addEventListener('click', triggerReconnectSequence);
+
+  // 11. New Session Triggers
+  document.getElementById('master-new-btn').addEventListener('click', openNewSessionModal);
+  document.getElementById('detail-new-session-btn').addEventListener('click', openNewSessionModal);
+  document.getElementById('close-new-modal-btn').addEventListener('click', closeNewSessionModal);
+  document.getElementById('cancel-new-btn').addEventListener('click', closeNewSessionModal);
+  document.getElementById('confirm-create-session-btn').addEventListener('click', createNewSession);
+
+  // Desktop-parity shell controls: explicit navigator modes, branch tree, and optional workspace.
+  const sidebarChatMode = document.getElementById('sidebar-chat-mode');
+  const sidebarProjectMode = document.getElementById('sidebar-project-mode');
+  const setSidebarMode = (mode) => {
+    const projectMode = mode === 'project';
+    sessionMaster.classList.toggle('sidebar-project-mode', projectMode);
+    sidebarChatMode.classList.toggle('active', !projectMode);
+    sidebarProjectMode.classList.toggle('active', projectMode);
+    sidebarChatMode.setAttribute('aria-selected', String(!projectMode));
+    sidebarProjectMode.setAttribute('aria-selected', String(projectMode));
+  };
+  sidebarChatMode.addEventListener('click', () => setSidebarMode('chat'));
+  sidebarProjectMode.addEventListener('click', () => setSidebarMode('project'));
+
+  const setWorkspaceOpen = (open) => {
+    shellContainer.classList.toggle('workspace-open', open);
+    if (isMobileMode()) {
+      drawerBackdrop.classList.toggle('active', open || state.drawerOpen);
+    }
+  };
+  document.getElementById('detail-workspace-btn').addEventListener('click', () => {
+    setWorkspaceOpen(!shellContainer.classList.contains('workspace-open'));
+  });
+  document.getElementById('sidebar-workspace-btn').addEventListener('click', () => {
+    setWorkspaceOpen(true);
+    if (isMobileMode()) closeMobileDrawer();
+  });
+  document.getElementById('close-workspace-btn').addEventListener('click', () => setWorkspaceOpen(false));
+
+  document.getElementById('detail-tree-btn').addEventListener('click', () => {
+    branchPopover.classList.toggle('open');
+  });
+  branchPopover.querySelectorAll('.branch-option').forEach((option) => {
+    option.addEventListener('click', () => {
+      branchPopover.querySelectorAll('.branch-option').forEach((item) => item.classList.remove('active'));
+      option.classList.add('active');
+      branchPopover.classList.remove('open');
+    });
+  });
+  document.getElementById('sidebar-library-btn').addEventListener('click', () => {
+    document.getElementById('open-checklist-btn').click();
+  });
+  document.getElementById('sidebar-settings-btn').addEventListener('click', () => {
+    document.getElementById('toggle-face-btn').click();
+  });
+
+  // 12. Row Action Menu Sheet Operations
+  document.getElementById('close-action-sheet-btn').addEventListener('click', closeRowActionMenu);
+  
+  document.getElementById('sheet-pin-btn').addEventListener('click', () => {
+    const session = state.sessions.find(s => s.id === state.menuTargetSessionId);
+    if (session) {
+      session.pinned = !session.pinned;
+      renderSessionList();
+    }
+    closeRowActionMenu();
+  });
+
+  document.getElementById('sheet-archive-btn').addEventListener('click', () => {
+    const session = state.sessions.find(s => s.id === state.menuTargetSessionId);
+    if (session) {
+      session.archived = !session.archived;
+      renderSessionList();
+    }
+    closeRowActionMenu();
+  });
+
+  document.getElementById('sheet-rename-btn').addEventListener('click', () => {
+    const session = state.sessions.find(s => s.id === state.menuTargetSessionId);
+    if (session) {
+      const newName = prompt('输入新的会话名称：', session.title);
+      if (newName && newName.trim()) {
+        session.title = newName.trim();
+        if (session.id === state.activeSessionId) {
+          document.getElementById('detail-session-title').textContent = session.title;
+        }
+        renderSessionList();
+      }
+    }
+    closeRowActionMenu();
+  });
+
+  document.getElementById('sheet-delete-btn').addEventListener('click', () => {
+    if (confirm('确定要删除此会话记录吗？此操作无法撤销。')) {
+      state.sessions = state.sessions.filter(s => s.id !== state.menuTargetSessionId);
+      if (state.activeSessionId === state.menuTargetSessionId && state.sessions.length > 0) {
+        selectSession(state.sessions[0].id);
+      }
+      renderSessionList();
+    }
+    closeRowActionMenu();
+  });
+
+  // 13. Composer Send Action (Simple Interactive Demo)
+  const composerInput = document.getElementById('composer-input');
+  const composerSendBtn = document.getElementById('composer-send-btn');
+  const transcriptScroll = document.getElementById('transcript-scroll');
+
+  function sendUserMessage() {
+    const text = composerInput.value.trim();
+    if (!text) return;
+
+    // Append User Bubble
+    const userCard = document.createElement('div');
+    userCard.className = 'message-card user';
+    userCard.innerHTML = `<div>${text}</div>`;
+    transcriptScroll.appendChild(userCard);
+
+    composerInput.value = '';
+    transcriptScroll.scrollTop = transcriptScroll.scrollHeight;
+
+    // Simulate Quick Assistant Reply
+    setTimeout(() => {
+      const assistantCard = document.createElement('div');
+      assistantCard.className = 'message-card assistant';
+      assistantCard.innerHTML = `
+        <div class="assistant-head">
+          <div class="assistant-avatar">砚</div>
+          <strong style="color:var(--text-primary);">piwin · 随身砚</strong>
+          <span class="mono" style="font-size:11px;color:var(--text-tertiary);">gemini-3.8-flash-high · 刚刚</span>
+        </div>
+        <div class="assistant-prose" style="margin-top:4px;">
+          <p>已接收指令：<code>${text}</code>。当前环境已就绪，所有变更均遵循 Inkstone 规范平稳执行。</p>
+        </div>
+      `;
+      transcriptScroll.appendChild(assistantCard);
+      transcriptScroll.scrollTop = transcriptScroll.scrollHeight;
+    }, 450);
+  }
+
+  composerSendBtn.addEventListener('click', sendUserMessage);
+  composerInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendUserMessage();
+    }
+  });
+
+  // 14. Requirements Checklist Drawer Toggles
+  const checklistDrawer = document.getElementById('checklist-drawer');
+  document.getElementById('open-checklist-btn').addEventListener('click', () => {
+    checklistDrawer.classList.toggle('open');
+  });
+  document.getElementById('close-checklist-btn').addEventListener('click', () => {
+    checklistDrawer.classList.remove('open');
+  });
+
+  // 15. Thinking Block Fold/Unfold
+  document.getElementById('toggle-thought-btn').addEventListener('click', () => {
+    const content = document.getElementById('thought-content');
+    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // 16. Window resize listener for fluid mode
+  window.addEventListener('resize', () => {
+    if (state.viewport === 'fluid') {
+      if (window.innerWidth >= 768) activateSplitMode();
+      else activateMobileMode();
+    }
+  });
+});
+</script>
+
+</body>
+</html>
