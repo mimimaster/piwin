@@ -20,6 +20,7 @@ export type ConversationPaneTranscriptProps = {
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   fileBrowseRoot?: string | null;
   onCompactAbort?: () => void | Promise<void>;
+  onCancelGeneration?: () => void;
 };
 
 function createPendingAssistant(
@@ -158,6 +159,9 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
                   : {})}
                 isLatestAssistantResponse={latestAssistantId === message.id}
                 isStreaming={isLiveMessage}
+                {...(isLiveMessage && props.onCancelGeneration
+                  ? { onCancelGeneration: props.onCancelGeneration }
+                  : {})}
                 {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
                 {...(props.onOpenArtifactCanvas
                   ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }

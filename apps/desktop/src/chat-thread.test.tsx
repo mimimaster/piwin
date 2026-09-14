@@ -2109,6 +2109,56 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.querySelector('[data-testid="video-generation-progress"]')).not.toBeNull();
   });
 
+  it('cancels a live image generation through the same abort as Stop', () => {
+    const onAbort = vi.fn();
+    const imageTool: ToolCardUi = {
+      toolCallId: 'image-tool-cancel',
+      toolName: 'image_gen',
+      status: 'running',
+      output: '',
+    };
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThreadHarness
+            messages={[
+              {
+                id: 'image-generation-cancel',
+                role: 'assistant',
+                text: '',
+                thinking: '',
+                tools: [imageTool],
+                attachments: [],
+                status: 'streaming',
+              },
+            ]}
+            streaming
+            editingMessageId={null}
+            lastUserMessageId={null}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={{ ...composerCard, onAbort }}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const cancel = container.querySelector<HTMLButtonElement>(
+      '[data-testid="media-generation-cancel"]',
+    );
+    expect(cancel).not.toBeNull();
+    act(() => {
+      cancel?.click();
+    });
+    expect(onAbort).toHaveBeenCalledTimes(1);
+  });
+
   it('renders routed generation calls once and keeps non-generation toolbox calls generic', () => {
     function renderTool(tool: ToolCardUi): void {
       const message: ChatMessageUi = {
@@ -2425,7 +2475,8 @@ describe('ChatThread render isolation (E1)', () => {
       container.querySelector('[data-testid="turn-work-details"]')?.getAttribute('data-open'),
     ).toBe('false');
     const liveHeader = container.querySelector('[data-testid="turn-work-details-summary"]');
-    expect(liveHeader?.querySelector('.lamp')).not.toBeNull();
+    expect(liveHeader?.querySelector('.work-fold-brain')).not.toBeNull();
+    expect(liveHeader?.querySelector('.lamp')).toBeNull();
     expect(liveHeader?.textContent).toContain('思考过程');
   });
 

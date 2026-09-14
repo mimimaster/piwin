@@ -545,6 +545,49 @@ function imageRequestCredentials(
     : { authorization: `Bearer ${apiKey}` };
 }
 
+export type ResolveImageCallAuthOptions = {
+  secretResolver: Pick<SecretResolver, 'resolveProviderSecret'>;
+  piwinRoot?: string;
+  oneShotApiKey?: string;
+  loadSubscriptionMediaAuth?: typeof loadSubscriptionMediaAuth;
+};
+
+export type ResolvedImageCallAuth = {
+  apiKey: string;
+  subscriptionAuth?: SubscriptionMediaAuth;
+};
+
+/**
+ * Same credential rule for `image_gen` and Settings → Test call.
+ * Subscription rows use OAuth from auth.json; channels use a one-shot key or
+ * the stored ref. Never send an empty Authorization header and hope.
+ */
+export async function resolveImageCallAuth(
+  provider: ModelProviderConfig,
+  options: ResolveImageCallAuthOptions,
+): Promise<ResolvedImageCallAuth> {
+  if (providerUsesSubscriptionMedia(provider, 'image')) {
+    const loadAuth = options.loadSubscriptionMediaAuth ?? loadSubscriptionMediaAuth;
+    const loadOptions =
+      options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : undefined;
+    const subscriptionAuth = await loadAuth(provider.id, loadOptions).catch((error: unknown) => {
+      throw new ImageGenConfigError(
+        error instanceof Error ? error.message : `image_gen: ${String(error)}`,
+      );
+    });
+    return { apiKey: '', subscriptionAuth };
+  }
+
+  const oneShot = options.oneShotApiKey?.trim();
+  if (oneShot) {
+    return { apiKey: oneShot };
+  }
+  if (provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim()) {
+    return { apiKey: await options.secretResolver.resolveProviderSecret(provider) };
+  }
+  return { apiKey: '' };
+}
+
 /** Call a provider image endpoint and normalize all returned raster images. */
 export async function callImageEndpoint(
   provider: ModelProviderConfig,
@@ -718,17 +761,10 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
         typeof args.model === 'string' ? args.model : undefined,
         typeof args.provider === 'string' ? args.provider : undefined,
       );
-      const subscriptionAuth = providerUsesSubscriptionMedia(provider, 'image')
-        ? await loadSubscriptionMediaAuth(provider.id, { piwinRoot: options.piwinRoot }).catch((error: unknown) => {
-            throw new ImageGenConfigError(
-              error instanceof Error ? error.message : `image_gen: ${String(error)}`,
-            );
-          })
-        : undefined;
-      const apiKey =
-        subscriptionAuth || !(provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim())
-          ? ''
-          : await secretResolver.resolveProviderSecret(provider);
+      const { apiKey, subscriptionAuth } = await resolveImageCallAuth(provider, {
+        secretResolver,
+        piwinRoot: options.piwinRoot,
+      });
       const generated = await callImageEndpoint(
         provider,
         model,

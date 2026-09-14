@@ -156,8 +156,13 @@ export function MediaGenerationCard(props: MediaGenerationCardProps): ReactEleme
           </div>
         ) : null}
       </div>
-      {isRunning ? (
-        <button type="button" className="btn sm" onClick={props.onCancel}>
+      {isRunning && props.onCancel ? (
+        <button
+          type="button"
+          className="btn sm"
+          data-testid="media-generation-cancel"
+          onClick={props.onCancel}
+        >
           {isChinese ? '取消' : 'Cancel'}
         </button>
       ) : null}

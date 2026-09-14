@@ -717,6 +717,7 @@ export async function handleCatalogCommand(
           command.prompt,
           {
             secretResolver,
+            piwinRoot: getPiwinRoot(context.piwinRoot),
             ...(oneShotApiKey ? { apiKey: oneShotApiKey } : {}),
           },
         );

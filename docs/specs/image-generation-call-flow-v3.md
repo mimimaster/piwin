@@ -103,11 +103,11 @@ available. API keys and authorization values are never included in the error.
 
 ## Settings smoke test
 
-`models/image-test` accepts a provider and model id, resolves the same stored or
-one-shot secret used by other model operations, and invokes the same normalized
-adapter with one small deterministic prompt. It returns only duration, count,
-MIME types, and byte sizes. Bytes are discarded and no session/media record is
-created.
+`models/image-test` accepts a provider and model id, resolves the same stored,
+one-shot, or subscription OAuth credential used by `image_gen`, and invokes the
+same normalized adapter with one small deterministic prompt. It returns only
+duration, count, MIME types, and byte sizes. Bytes are discarded and no
+session/media record is created.
 
 ## Acceptance checks
 
