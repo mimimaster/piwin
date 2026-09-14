@@ -7,13 +7,8 @@ import {
 } from '@piwin/contracts';
 import { lookupCatalogByModelId } from './model-catalog-reader.js';
 import { buildThinkingLevelMap, type PiThinkingLevelMap } from './map-thinking-level.js';
-import {
-  providerNeedsNativeSearchWrapper,
-  wrapStreamSimpleForNativeSearch,
-  type NativeSearchModelFlags,
-  type NativeSearchStreamSimple,
-} from './native-web-search.js';
-import { resolvePiNativeSearchStream } from './pi-native-search-stream.js';
+import { resolveProviderStreamSimple } from './attach-provider-stream-simple.js';
+import type { NativeSearchModelFlags, NativeSearchStreamSimple } from './native-web-search.js';
 
 export type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai';
 
@@ -231,17 +226,14 @@ export function buildPiProviderRegistration(
     ...(model.capabilities ? { capabilities: model.capabilities } : {}),
     ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
   }));
-  if (providerNeedsNativeSearchWrapper(nativeFlags, options.searchRoute)) {
-    const wrapped = wrapStreamSimpleForNativeSearch(options.streamSimple, {
-      models: nativeFlags,
-      searchRoute: options.searchRoute ?? null,
-      fallbackStreamSimple: resolvePiNativeSearchStream(api),
-    });
-    if (wrapped) {
-      registration.streamSimple = wrapped;
-    }
-  } else if (options.streamSimple) {
-    registration.streamSimple = options.streamSimple;
+  const streamSimple = resolveProviderStreamSimple({
+    api,
+    models: nativeFlags,
+    searchRoute: options.searchRoute,
+    streamSimple: options.streamSimple,
+  });
+  if (streamSimple) {
+    registration.streamSimple = streamSimple;
   }
 
   return registration;
