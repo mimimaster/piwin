@@ -22,6 +22,19 @@ import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
 import { useTranscriptScrollPort } from './transcript-scroll-port.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
+/**
+ * Inline stream floor. The empty shell reports ~8px, which clamped to 40px and
+ * cropped the preparing placeholder to a bare spinner while the model wrote
+ * CSS. Holding it until the stream ends also avoids a 120 → 40 dip when the
+ * first short snapshot (often just a title) replaces the placeholder.
+ */
+const ARTIFACT_STREAM_MIN_HEIGHT = 120;
+
+function formatReceivedSource(source: string, locale: 'zh-CN' | 'en'): string {
+  const bytes = new TextEncoder().encode(source).length;
+  const size = bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+  return locale === 'zh-CN' ? `已接收 ${size}` : `${size} received`;
+}
 
 export type ArtifactSandboxPlan = Extract<ArtifactRenderPlan, { kind: 'render' }> & {
   document: { kind: 'sandbox'; srcdoc: string; csp: string };
@@ -176,6 +189,10 @@ export function ArtifactSandboxFrame(props: {
       paintedDocumentKey !== document.documentKey);
   const toolStatus =
     bridge.status === 'ready' ? 'done' : bridge.status === 'fallback' ? 'error' : 'running';
+  const stageHeight =
+    view.mode === 'stream-preview' && !canvas && !viewportChrome
+      ? Math.max(bridge.height, ARTIFACT_STREAM_MIN_HEIGHT)
+      : bridge.height;
   const pausedLabel =
     props.locale === 'zh-CN' ? '预览已暂停以节省内存' : 'Preview paused to save memory';
 
@@ -263,7 +280,7 @@ export function ArtifactSandboxFrame(props: {
                     overflow: 'hidden',
                     overscrollBehavior: 'contain',
                   }
-                : inlineStageStyle(bridge.height, appliedFrameMode, bridge.overflowsInlineFlow)
+                : inlineStageStyle(stageHeight, appliedFrameMode, bridge.overflowsInlineFlow)
             }
           >
             {preparingStableSnapshot ? (
@@ -281,6 +298,13 @@ export function ArtifactSandboxFrame(props: {
                   />
                   <span className="artifact-iframe-placeholder-copy" aria-hidden="true">
                     {props.locale === 'zh-CN' ? '正在准备稳定画面…' : 'Preparing a stable preview…'}
+                  </span>
+                  <span
+                    className="artifact-iframe-placeholder-meta"
+                    data-testid="artifact-stream-received"
+                    aria-hidden="true"
+                  >
+                    {formatReceivedSource(view.descriptor.source, props.locale)}
                   </span>
                 </div>
               </div>

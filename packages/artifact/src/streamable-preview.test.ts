@@ -51,23 +51,33 @@ describe('buildStreamableArtifactPreview', () => {
     const source = '<section><div><p>One</p></div><div><p>Two';
     const result = buildStreamableArtifactPreview(source);
     expect(result.canStream).toBe(true);
-    expect(result.previewSource).toContain('<p>One</p>');
-    expect(result.previewSource).not.toContain('Two');
+    expect(result.previewSource).toBe(
+      '<section><div><p>One</p></div><div><p>Two</p></div></section>',
+    );
   });
 
-  it('waits for a complete visual element after the CSS foundation', () => {
-    const incomplete = buildStreamableArtifactPreview(
+  it('streams text of an open element once the CSS foundation is complete', () => {
+    const streaming = buildStreamableArtifactPreview(
       '<style>.card { color: red; }</style><div class="card"><h2>Generat',
     );
-    const completed = buildStreamableArtifactPreview(
-      '<style>.card { color: red; }</style><div class="card"><h2>Generated</h2>',
+    const withoutFoundation = buildStreamableArtifactPreview(
+      '<style>.card { color: red; <div class="card"><h2>Generat',
     );
-    expect(incomplete.canStream).toBe(false);
-    expect(completed).toEqual({
+    expect(streaming).toEqual({
       canStream: true,
       previewSource:
-        '<style>.card { color: red; }</style><div class="card"><h2>Generated</h2></div>',
+        '<style>.card { color: red; }</style><div class="card"><h2>Generat</h2></div>',
     });
+    expect(withoutFoundation.canStream).toBe(false);
+  });
+
+  it('stops trailing text before a partial tag or character reference', () => {
+    expect(buildStreamableArtifactPreview('<div><p>Tom &amp; Je</p><p>A <sp').previewSource).toBe(
+      '<div><p>Tom &amp; Je</p><p>A </p></div>',
+    );
+    expect(buildStreamableArtifactPreview('<div><p>Tom &am').previewSource).toBe(
+      '<div><p>Tom </p></div>',
+    );
   });
 
   it('reveals only completed visual siblings', () => {

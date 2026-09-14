@@ -2,8 +2,8 @@
  * E2E-only Artifact gallery. Reached only through the build-time gated
  * fixture route in DesktopThemeRoot (`VITE_PIWIN_E2E_FIXTURES` + `#/e2e/artifacts`).
  */
-import { useMemo, useState, type CSSProperties, type ReactElement } from 'react';
-import { analyzeArtifactFence, createArtifactFenceRecord } from '@piwin/artifact';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
+import { analyzeArtifactFence, createArtifactFenceRecord, createDefaultArtifactTheme } from '@piwin/artifact';
 import {
   ARTIFACT_FIXTURES,
   STREAMING_DELTA_STEPS,
@@ -119,6 +119,76 @@ function ArtifactStreamingCase(): ReactElement {
   );
 }
 
+
+const SLOW_STREAM_HTML = [
+  '<style>',
+  '.wrap{width:100%;max-width:100%;min-width:0;box-sizing:border-box;container-type:inline-size}',
+  '.title{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:700;color:#b5412c;margin:0 0 16px}',
+  '.grid{display:grid;grid-template-columns:1fr;gap:16px}',
+  '@container (min-width:560px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+  '.card{border:1px solid rgba(127,127,127,.3);border-radius:10px;padding:16px}',
+  '.tag{display:inline-block;background:#b5412c;color:#fff;font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px}',
+  '.card h3{font-size:16px;margin:10px 0 6px}',
+  '.card p{font-size:13.5px;line-height:1.7;margin:0}',
+  '.card ul{margin:8px 0 0;padding-left:18px;font-size:13px;line-height:1.7}',
+  '.flow{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}',
+  '.step{padding:6px 10px;border-radius:6px;background:rgba(127,127,127,.15);font-size:12.5px}',
+  '</style>',
+  '<div class="wrap">',
+  '  <div class="title">HTTPS 抵御劫持的“三大铁律”</div>',
+  '  <div class="grid">',
+  ...['一', '二', '三'].flatMap((n) => [
+    '    <div class="card">',
+    `      <span class="tag">第${n}道防线</span>`,
+    '      <h3>内容加密：防窃听</h3>',
+    '      <p>运营商或中间人即使截获了数据包，看到的也只是经过对称加密后的密文，无法读取页面内容，也就无法在其中插入广告或脚本。</p>',
+    '      <ul><li>非对称加密协商会话密钥</li><li>对称加密传输正文</li><li>前向保密防止事后解密</li></ul>',
+    '    </div>',
+  ]),
+  '  </div>',
+  '  <div class="flow"><span class="step">ClientHello</span><span class="step">ServerHello + 证书</span><span class="step">密钥交换</span><span class="step">加密通信</span></div>',
+  '</div>',
+].join('\n');
+
+/** `?id=slow-stream&tps=15&fence=html` — token-paced stream for live-render diagnosis. */
+function ArtifactSlowStreamCase(props: { tps: number; fence: string; paper: boolean; script: boolean }): ReactElement {
+  const SOURCE = props.script ? `${SLOW_STREAM_HTML}\n<script>document.querySelectorAll('.card').forEach(function(c){c.onclick=function(){c.classList.toggle('on')}})</script>` : SLOW_STREAM_HTML;
+  const artifactTheme = useMemo(() => (props.paper ? createDefaultArtifactTheme('light') : undefined), [props.paper]);
+  useEffect(() => {
+    if (!props.paper) return;
+    document.documentElement.setAttribute('data-theme-id', 'piwin-inkstone-paper');
+    document.documentElement.setAttribute('data-theme-mode', 'light');
+  }, [props.paper]);
+  const prefix = `以下是原理拆解：\n\n\`\`\`${props.fence}\n`;
+  const suffix = '\n```\n\n以上就是 HTTPS 的三道防线。\n';
+  const [chars, setChars] = useState(0);
+  const done = chars >= SOURCE.length;
+  useEffect(() => {
+    if (done) return;
+    const charsPerToken = 2.2;
+    const timer = window.setTimeout(
+      () => setChars((current) => Math.min(SOURCE.length, current + Math.ceil(charsPerToken))),
+      1000 / props.tps,
+    );
+    return () => window.clearTimeout(timer);
+  }, [chars, done, props.tps]);
+  const text = `${prefix}${SOURCE.slice(0, chars)}${done ? suffix : ''}`;
+  return (
+    <section style={CASE_STYLE} data-testid="artifact-gallery-case" data-fixture-id="slow-stream">
+      <h3 data-testid="slow-stream-progress" data-done={done ? 'true' : 'false'} style={{ margin: '0 0 8px', fontSize: '13px', color: 'var(--muted)' }}>
+        {chars}/{SOURCE.length} chars @ {props.tps} tps
+      </h3>
+      <MarkdownView
+        text={text}
+        renderingPhase={done ? 'completed' : 'streaming'}
+        locale="zh-CN"
+        {...(artifactTheme ? { artifactTheme } : {})}
+        artifactOrigin={{ sessionId: ARTIFACT_GALLERY_SESSION, messageId: 'slow-stream' }}
+      />
+    </section>
+  );
+}
+
 function isFixtureId(value: string): value is ArtifactFixtureId {
   return ARTIFACT_FIXTURES.some((fixture) => fixture.id === value);
 }
@@ -127,6 +197,14 @@ export function ArtifactGallery(): ReactElement {
   const selection = useMemo(() => readGallerySelection(), []);
   const constrainedPane = window.location.hash.includes('&pane=1');
   if (selection === 'code-preview') return <CodePreviewGallery />;
+  if (selection === 'slow-stream') {
+    const params = new URLSearchParams(window.location.hash.slice(window.location.hash.indexOf('?') + 1));
+    return (
+      <div style={GALLERY_ROOT_STYLE} data-testid="artifact-gallery">
+        <ArtifactSlowStreamCase tps={Number(params.get('tps') ?? 15)} fence={params.get('fence') ?? 'html'} paper={params.get('theme') === 'paper'} script={params.get('script') === '1'} />
+      </div>
+    );
+  }
   const cases: ArtifactFixture[] =
     selection && isFixtureId(selection) ? [getArtifactFixture(selection)] : [...ARTIFACT_FIXTURES];
   const showStreaming = selection === null || selection === 'streaming';

@@ -11,6 +11,7 @@ function escapeCssValue(value: string): string {
 
 export function buildArtifactThemeCss(theme: ArtifactThemeVariables): string {
   const variables = Object.entries(theme)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     .map(([name, value]) => `  ${name}: ${escapeCssValue(value)};`)
     .join('\n');
   const colorScheme = theme['--piwin-artifact-theme'] === 'dark' ? 'dark' : 'light';
@@ -35,6 +36,10 @@ body {
   background: transparent;
   color: var(--piwin-artifact-text);
   font-family: var(--piwin-artifact-font);
+  font-size: var(--piwin-artifact-font-size, medium);
+  line-height: var(--piwin-artifact-line-height, normal);
+  letter-spacing: var(--piwin-artifact-letter-spacing, normal);
+  -webkit-font-smoothing: var(--piwin-artifact-font-smoothing, auto);
   overflow-wrap: break-word;
 }
 img, svg, canvas, video { max-width: 100%; height: auto; }

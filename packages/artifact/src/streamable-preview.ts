@@ -189,6 +189,16 @@ function findMissingStyleFoundationIndex(source: string): number | null {
   return null;
 }
 
+/**
+ * Text after the last complete tag, stopping before a partial tag or comment
+ * and dropping a half-received character reference (`&am`).
+ */
+function trailingTextLength(tail: string): number {
+  const partialTagIndex = tail.indexOf('<');
+  const text = partialTagIndex === -1 ? tail : tail.slice(0, partialTagIndex);
+  return text.replace(/&[#a-z0-9]*$/i, '').length;
+}
+
 function buildSyntheticClosers(openTagStack: string[]): string {
   return openTagStack
     .slice()
@@ -286,8 +296,10 @@ export function buildStreamableArtifactPreview(source: string): StreamablePrevie
     if (!tag.isClosing && GENERIC_STREAMABLE_TAGS.has(tag.tagName)) {
       hasStableStructure = true;
     }
+    // Every fully received tag is a boundary: an open element gets a synthetic
+    // closer, so its text can stream instead of popping in when it closes.
+    lastSafeEndIndex = tag.position + tag.tag.length;
     if (tag.isSelfClosing) {
-      lastSafeEndIndex = tag.position + tag.tag.length;
       continue;
     }
 
@@ -301,7 +313,6 @@ export function buildStreamableArtifactPreview(source: string): StreamablePrevie
           openTagStack = openTagStack.slice(0, recoveryIndex);
         }
       }
-      lastSafeEndIndex = tag.position + tag.tag.length;
       continue;
     }
 
@@ -311,6 +322,7 @@ export function buildStreamableArtifactPreview(source: string): StreamablePrevie
   if (!hasStableStructure || lastSafeEndIndex <= 0) {
     return { canStream: false, previewSource: sanitizedSource };
   }
+  lastSafeEndIndex += trailingTextLength(stableCandidateSource.slice(lastSafeEndIndex));
 
   const previewResult = buildPreviewFromSafePrefix(stableCandidateSource, lastSafeEndIndex);
   if (!previewResult.canStream) {

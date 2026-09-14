@@ -184,7 +184,7 @@ describe('materializeArtifact', () => {
     expect(styledPlan.renderSource).toContain('<style>.scene { display: grid; }</style>');
   });
 
-  it('waits for a complete SVG element before advancing the stream snapshot', () => {
+  it('streams the text of an open SVG element without its partial tail', () => {
     const analysis = analyze('svg', '<svg viewBox="0 0 80 20"><text x="2" y="14">Lo', {
       id: 'svg-stream',
       mode: 'stream-preview',
@@ -193,7 +193,7 @@ describe('materializeArtifact', () => {
     expect(analysis.kind).toBe('intent');
     if (analysis.kind !== 'intent') return;
     const plan = materializeArtifact(analysis.intent, { mode: 'stream-preview' });
-    expect(plan.renderSource).toBe('');
+    expect(plan.renderSource).toContain('<text x="2" y="14">Lo</text></svg>');
   });
 
   it('returns blocked for external script without materializing', () => {

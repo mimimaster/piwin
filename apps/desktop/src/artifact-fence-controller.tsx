@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState, type ReactElement } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   analyzeArtifactFence,
   createArtifactFenceRecord,
+  createDefaultArtifactTheme,
   materializeArtifact,
   type ArtifactRenderPlan,
 } from '@piwin/artifact';
@@ -12,6 +13,11 @@ import { createArtifactCanvasTarget } from './artifact-canvas-model.js';
 import { isShellLanguage, SourceCodeBlock } from './markdown-code-block.js';
 import type { MarkdownCodeFenceProps } from './markdown-code-fence.js';
 import { useArtifactSessionMediaObjectUrls } from './artifact-session-media.js';
+import {
+  readArtifactTypography,
+  sameArtifactTypography,
+  type ArtifactTypography,
+} from './artifact-typography.js';
 
 /**
  * Bound-fence source/preview/Canvas controller.
@@ -94,23 +100,46 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     ...(props.artifactOrigin ? { originSessionId: props.artifactOrigin.sessionId } : {}),
   });
 
+  // The sandbox iframe cannot inherit transcript typography. Measure the mount
+  // point before the first frame so stream paint matches the static final.
+  const previewRootRef = useRef<HTMLDivElement | null>(null);
+  const [typography, setTypography] = useState<ArtifactTypography | null>(null);
+  useLayoutEffect(() => {
+    const root = previewRootRef.current;
+    if (!willMountInlineFrame || root === null) return;
+    const next = readArtifactTypography(root);
+    setTypography((current) => (sameArtifactTypography(current, next) ? current : next));
+  }, [willMountInlineFrame, props.artifactThemeKey]);
+
   const plan = useMemo((): Extract<ArtifactRenderPlan, { kind: 'render' }> | null => {
-    if (!willMountInlineFrame || analysis?.kind !== 'intent') return null;
+    if (!willMountInlineFrame || typography === null || analysis?.kind !== 'intent') return null;
     return materializeArtifact(analysis.intent, {
       mode: liveFence ? 'stream-preview' : 'interactive',
       source: props.source,
       presentation: 'inline',
       mediaObjectUrls,
-      ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
+      theme: { ...(props.artifactTheme ?? createDefaultArtifactTheme('dark')), ...typography },
     });
   }, [
     willMountInlineFrame,
+    typography,
     analysis,
     liveFence,
     props.source,
     props.artifactTheme,
     mediaObjectUrls,
   ]);
+
+  const previewRoot = (children: ReactElement | null, live: boolean): ReactElement => (
+    <div
+      ref={previewRootRef}
+      className="artifact-with-source artifact-with-source--preview"
+      data-artifact-id={stickyFenceId ?? undefined}
+      {...(live ? { 'data-testid': 'artifact-stream-live' } : {})}
+    >
+      {children}
+    </div>
+  );
 
   if (boundFenceIndex === null || stickyFenceId === null || analysis === null) {
     return (
@@ -180,25 +209,25 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     );
   }
 
+  if (willMountInlineFrame && plan === null) {
+    // One layout pass to measure typography; nothing paints in between.
+    return previewRoot(null, liveFence);
+  }
+
   if (liveFence) {
     if (willMountInlineFrame && plan) {
-      return (
-        <div
-          className="artifact-with-source artifact-with-source--preview"
-          data-artifact-id={stickyFenceId}
-          data-testid="artifact-stream-live"
-        >
-          <ArtifactInlinePreview
-            plan={plan}
-            fenceId={stickyFenceId}
-            initPriority={props.initPriority}
-            locale={props.locale}
-            onShowSource={showArtifactSource}
-            {...(props.artifactThemeKey ? { artifactThemeKey: props.artifactThemeKey } : {})}
-            {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}
-            {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-          />
-        </div>
+      return previewRoot(
+        <ArtifactInlinePreview
+          plan={plan}
+          fenceId={stickyFenceId}
+          initPriority={props.initPriority}
+          locale={props.locale}
+          onShowSource={showArtifactSource}
+          {...(props.artifactThemeKey ? { artifactThemeKey: props.artifactThemeKey } : {})}
+          {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}
+          {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+        />,
+        true,
       );
     }
 
@@ -218,13 +247,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   }
 
   if (analysis.kind === 'code' || !props.artifactPreviewEnabled) {
-    return (
-      <SourceCodeBlock
-        language={props.language}
-        source={props.source}
-        isShell={isShell}
-      />
-    );
+    return <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
   }
 
   if (analysis.kind === 'blocked') {
@@ -245,32 +268,22 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   }
 
   if (layout === 'canvas') {
-    return (
-      <SourceCodeBlock
-        language={props.language}
-        source={props.source}
-        isShell={isShell}
-      />
-    );
+    return <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
   }
 
   if (willMountInlineFrame && plan) {
-    return (
-      <div
-        className="artifact-with-source artifact-with-source--preview"
-        data-artifact-id={stickyFenceId}
-      >
-        <ArtifactInlinePreview
-          plan={plan}
-          fenceId={stickyFenceId}
-          initPriority={props.initPriority}
-          locale={props.locale}
-          onShowSource={showArtifactSource}
-          {...(props.artifactThemeKey ? { artifactThemeKey: props.artifactThemeKey } : {})}
-          {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}
-          {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-        />
-      </div>
+    return previewRoot(
+      <ArtifactInlinePreview
+        plan={plan}
+        fenceId={stickyFenceId}
+        initPriority={props.initPriority}
+        locale={props.locale}
+        onShowSource={showArtifactSource}
+        {...(props.artifactThemeKey ? { artifactThemeKey: props.artifactThemeKey } : {})}
+        {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}
+        {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+      />,
+      false,
     );
   }
 

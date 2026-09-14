@@ -307,6 +307,31 @@ describe('ArtifactFrame chrome', () => {
     expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts');
   });
 
+  it('gives the inline preparing placeholder room and shows how much source arrived', async () => {
+    const empty = makeStreamPlan('', '<html>empty stable stream shell</html>');
+    const preparing = {
+      ...empty,
+      intent: {
+        ...empty.intent,
+        descriptor: { ...empty.intent.descriptor, source: '<style>.card{color:red' },
+      },
+    };
+    const { container, root } = renderFrame(preparing, 'inline', undefined, 'zh-CN');
+    instances.push({ container, root });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
+    const stage = container.querySelector<HTMLElement>('.artifact-iframe-stage');
+    expect(Number.parseInt(stage?.style.height ?? '0', 10)).toBeGreaterThanOrEqual(120);
+    expect(
+      container.querySelector('[data-testid="artifact-stream-received"]')?.textContent,
+    ).toBe('已接收 22 B');
+  });
+
   it('covers an unstable stream prefix until a stable snapshot arrives', async () => {
     const preparing = makeStreamPlan('', '<html>empty stable stream shell</html>');
     const { container, root } = renderFrame(preparing, 'canvas', undefined, 'zh-CN');

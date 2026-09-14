@@ -156,6 +156,38 @@ describe('useArtifactFrameBridge recovery', () => {
     expect(state?.dataset['height']).toBe('360');
   });
 
+  it('keeps the measured height when the stream document is replaced by the final one', async () => {
+    const iframe = await renderBridge('stream-preview');
+    act(() => {
+      iframe.dispatchEvent(new Event('load'));
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: iframe.contentWindow,
+          data: {
+            type: 'piwin-artifact:size',
+            channelId: 'height-bridge-test',
+            height: 436,
+            viewportHeight: 360,
+            revision: 0,
+          },
+        }),
+      );
+    });
+    const state = container.querySelector<HTMLOutputElement>('[data-testid="bridge-state"]');
+    expect(state?.dataset['height']).toBe('436');
+
+    await renderBridge('interactive');
+    expect(state?.dataset['status']).toBe('loading');
+    expect(state?.dataset['height']).toBe('436');
+
+    act(() => {
+      iframe.dispatchEvent(new Event('load'));
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(state?.dataset['status']).toBe('fallback');
+    expect(state?.dataset['height']).toBe('436');
+  });
+
   it('ignores a dual-channel copy with the same seq', async () => {
     const iframe = await renderBridge('interactive');
     const state = container.querySelector<HTMLOutputElement>('[data-testid="bridge-state"]');
