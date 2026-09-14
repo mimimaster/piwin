@@ -405,6 +405,38 @@ describe('pi-model-runtime', () => {
       }
     });
 
+    it('isolates Gemini OpenAI-compat turns with a last-user prompt_cache_key', async () => {
+      const payloads: unknown[] = [];
+      const stream: NativeSearchStreamSimple = async (model, _context, options) => {
+        const payload = {
+          model: model.id,
+          messages: [{ role: 'user', content: '你可以回滚' }],
+        };
+        const transformed = await options?.onPayload?.(payload, model);
+        payloads.push(transformed ?? payload);
+        return transformed ?? payload;
+      };
+      const provider: ModelProviderConfig = {
+        id: 'custom-openai',
+        protocol: 'openai-compatible',
+        name: 'Local gateway',
+        baseUrl: 'http://127.0.0.1:8317/v1',
+        models: [{ id: 'gemini-3.8-flash-high', capabilities: ['chat'] }],
+      };
+      const registration = buildPiProviderRegistration(provider, 'secret', {
+        streamSimple: stream,
+      });
+      expect(registration.streamSimple).toBeTypeOf('function');
+      const result = (await registration.streamSimple?.(
+        { id: 'gemini-3.8-flash-high', api: 'openai-completions', provider: 'custom-openai' },
+        {},
+        {},
+      )) as Record<string, unknown>;
+      expect(typeof result.prompt_cache_key).toBe('string');
+      expect(result.prompt_cache_key).toHaveLength(16);
+      expect(payloads[0]).toMatchObject({ prompt_cache_key: result.prompt_cache_key });
+    });
+
     it('strips native search fields when the route is external', async () => {
       const base = baseStreamSimple();
       const provider: ModelProviderConfig = {

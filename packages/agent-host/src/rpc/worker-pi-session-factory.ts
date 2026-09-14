@@ -33,12 +33,8 @@ import {
   type PiProviderApi,
 } from '../pi-model-runtime.js';
 
-import {
-  providerNeedsNativeSearchWrapper,
-  wrapStreamSimpleForNativeSearch,
-  type NativeSearchStreamSimple,
-} from '../native-web-search.js';
-import { resolvePiNativeSearchStream } from '../pi-native-search-stream.js';
+import { resolveProviderStreamSimple } from '../attach-provider-stream-simple.js';
+import type { NativeSearchStreamSimple } from '../native-web-search.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import type {
   SerializableBlueprint,
@@ -306,17 +302,14 @@ export function buildWorkerProviderRegistration(
     ...(model.capabilities ? { capabilities: model.capabilities } : {}),
     ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
   }));
-  if (providerNeedsNativeSearchWrapper(nativeFlags, searchRoute)) {
-    const wrapped = wrapStreamSimpleForNativeSearch(streamSimple, {
-      models: nativeFlags,
-      searchRoute: searchRoute ?? null,
-      fallbackStreamSimple: resolvePiNativeSearchStream(api),
-    });
-    if (wrapped) {
-      registration.streamSimple = wrapped;
-    }
-  } else if (streamSimple) {
-    registration.streamSimple = streamSimple;
+  const resolvedStream = resolveProviderStreamSimple({
+    api,
+    models: nativeFlags,
+    searchRoute,
+    streamSimple,
+  });
+  if (resolvedStream) {
+    registration.streamSimple = resolvedStream;
   }
   return registration;
 }

@@ -191,6 +191,13 @@ export type {
 } from './rpc-sdk-worker-protocol.js';
 
 export {
+  applyGeminiOpenAiSessionIsolation,
+  geminiOpenAiPromptCacheKey,
+  isGeminiOpenAiCompatModelId,
+  sanitizeGeminiOpenAiMessages,
+  wrapStreamSimpleForGeminiOpenAiSession,
+} from './gemini-openai-session-isolation.js';
+export {
   applyNativeSearchToPayload,
   normalizeNativeSearchCitations,
   providerNeedsNativeSearchWrapper,
