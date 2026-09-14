@@ -107,6 +107,10 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   const heightRef = useRef(input.bootstrapHeight);
   const overflowRef = useRef(false);
   const lastRevisionRef = useRef(-1);
+  // Channel whose real content height heightRef holds. Stream → final swaps the
+  // iframe document on the same channel; resetting to bootstrap there collapses
+  // the transcript for a frame (longer on WebKit data-URL loads).
+  const measuredChannelRef = useRef<string | null>(null);
   const lastPostSeqRef = useRef(-1);
   const statusRef = useRef<ArtifactBridgeStatus>(initialStatus);
   const dataHandlerRef = useRef<(data: unknown, trustedSource: boolean) => void>(() => undefined);
@@ -145,7 +149,12 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     }
     readyTimerRef.current = setTimeout(() => {
       readyTimerRef.current = null;
-      const fallbackHeight = ARTIFACT_FALLBACK_HEIGHT;
+      // A document swap on an already-measured channel keeps its real height;
+      // only a never-measured frame drops into the compact recovery viewport.
+      const fallbackHeight =
+        measuredChannelRef.current === current.channelId
+          ? heightRef.current
+          : ARTIFACT_FALLBACK_HEIGHT;
       heightRef.current = fallbackHeight;
       setHeight(fallbackHeight);
       updateStatus('fallback');
@@ -201,6 +210,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
       lastPostSeqRef.current = postSeq;
     }
     lastRevisionRef.current = message.revision;
+    measuredChannelRef.current = current.channelId;
     const wasRecovering = statusRef.current === 'fallback';
     const rawHeight = message.height;
     setContentHeight(rawHeight);
@@ -249,11 +259,17 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     if (!input.enabled) {
       return;
     }
-    const nextHeight = resolveStageHeight(input);
-    heightRef.current = nextHeight;
+    const keepMeasuredHeight =
+      input.measureHeight &&
+      !hostOwnsViewport(input.frameMode) &&
+      measuredChannelRef.current === input.channelId;
+    if (!keepMeasuredHeight) {
+      const nextHeight = resolveStageHeight(input);
+      heightRef.current = nextHeight;
+      setHeight(nextHeight);
+    }
     lastRevisionRef.current = -1;
     lastPostSeqRef.current = -1;
-    setHeight(nextHeight);
     updateStatus(
       input.measureHeight
         ? input.decision.mode === 'stream-preview'
@@ -264,7 +280,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     if (!hostOwnsViewport(input.frameMode)) {
       overflowRef.current = false;
       setOverflowsInlineFlow(false);
-      setContentHeight(input.bootstrapHeight);
+      if (!keepMeasuredHeight) setContentHeight(input.bootstrapHeight);
     }
 
     const onWindowMessage = (event: MessageEvent): void => {

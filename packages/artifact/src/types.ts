@@ -71,6 +71,15 @@ export type ArtifactThemeVariables = {
   '--piwin-artifact-border': string;
   '--piwin-artifact-radius': string;
   '--piwin-artifact-font': string;
+  /**
+   * Reading typography of the transcript that hosts an Inline Artifact.
+   * Static Shadow DOM inherits these; a sandbox iframe cannot, so the host
+   * measures them and passes them in to keep stream and final paint identical.
+   */
+  '--piwin-artifact-font-size'?: string;
+  '--piwin-artifact-line-height'?: string;
+  '--piwin-artifact-letter-spacing'?: string;
+  '--piwin-artifact-font-smoothing'?: string;
 };
 
 export type ArtifactThemeContractIssueKind =

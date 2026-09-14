@@ -317,6 +317,14 @@
   font-size: var(--fs-chrome);
 }
 
+.artifact-iframe-placeholder-meta {
+  margin-top: calc(var(--s-5) * -1 + var(--s-1));
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .artifact-iframe-load-btn {
   appearance: none;
   border: 0;
@@ -432,7 +440,7 @@
   padding: 0 6px;
   border-radius: 3px;
   flex: none;
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   font-size: var(--fs-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
