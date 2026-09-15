@@ -233,7 +233,7 @@ describe('useRunReconcile', () => {
     container.remove();
   });
 
-  it('does nothing while the Host still reports an active run', async () => {
+  it('on a sequence gap during a running run, reloads the transcript without settling the run', async () => {
     const fake = new FakeHostClient();
     const { endedAt: _endedAt, ...runningBase } = terminalRun();
     fake.scriptForegroundRun({
@@ -249,17 +249,57 @@ describe('useRunReconcile', () => {
     });
     await waitForAdmission(actions, 'ready');
     fake.requests.length = 0;
-    dispatch.mockClear();
+    actions.length = 0;
 
     await act(async () => {
       fake.emitGap();
     });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(actions.map((action) => action.type)).toContain('session/load-messages');
+      });
+    });
 
+    // Pushes lost in the hole are never replayed as live events.
     expect(fake.requests.map((command) => command.type)).toEqual([
       'permission/pending-list',
       'session/foreground-run',
+      'session/messages',
     ]);
-    expect(dispatch).not.toHaveBeenCalled();
+    expect(actions.map((action) => action.type)).toEqual(['session/load-messages']);
+    expect(actions[0]).toMatchObject({ preserveActiveTail: true });
+    root.unmount();
+    container.remove();
+  });
+
+  it('stays quiet on window focus while the Host still reports an active run', async () => {
+    const fake = new FakeHostClient();
+    const { endedAt: _endedAt, ...runningBase } = terminalRun();
+    fake.scriptForegroundRun({
+      kind: 'run',
+      run: { ...runningBase, status: 'running' },
+    });
+    const actions: ChatUiAction[] = [];
+    const { root, container } = mountProbe(
+      fake as unknown as HostClient,
+      (action) => actions.push(action),
+      { activeSessionId: 'session-1', activeRunId: 'run-1', runLive: true },
+    );
+    await waitForAdmission(actions, 'ready');
+    fake.requests.length = 0;
+    actions.length = 0;
+
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(fake.requests.map((command) => command.type)).toContain('session/foreground-run');
+      });
+    });
+
+    expect(fake.requests.map((command) => command.type)).not.toContain('session/messages');
+    expect(actions).toEqual([]);
     root.unmount();
     container.remove();
   });

@@ -213,9 +213,10 @@ the 2026-08-13 height observer bounds.
   often fail Window identity, so a non-parent source is accepted and bound by
   `channelId` — the same selector the native handler already uses. The parent
   page posting to itself is rejected. Native payloads stay trusted after the
-  bounded protocol parse. Out-of-order revisions are ignored. Timeout selects
-  the explicit 360px scrollable recovery viewport; a later valid revision
-  restores exact flow height and clears recovery styling.
+  bounded protocol parse. Out-of-order revisions are ignored.   Timeout selects
+  the explicit 360px scrollable recovery viewport only when the channel has
+  never produced a size; a later valid revision restores exact flow height
+  and clears recovery styling. See the 2026-09-15 amendment.
 - Canvas owns a fixed viewport and sends no size messages. It keeps the same
   sandbox/CSP/action transport, but is entirely outside the Inline height loop.
 - Transcript virtualization separates actual measurements from estimates:
@@ -236,6 +237,19 @@ when WK mis-labeled a sandbox data: frame as `isMainFrame()`.
 Decision: always post on both transports; Host dedupes by `seq`; measure
 `.piwin-artifact-root` or `document.body`; native handler trusts the bounded
 parser + channelId, not frame identity.
+
+## Amendment (2026-09-15): Null-source posts and measured-channel timeout
+
+WK sandboxed `data:` frames still drop Window identity (`event.source === null`).
+Rejecting those posts left only the native channel; when that channel is also
+silent, Desktop armed a 5s ready timer on iframe `load` after a valid size had
+already arrived, then treated the unchanged-height skip as failure and showed
+the recovery banner over a correctly sized preview.
+
+Decision: accept a non-parent browser source, including `null`, after protocol
+parse + `channelId` match. The iframe force-posts one post-load copy of the
+current height. Timeout enters the 360px recovery viewport only when this
+channel has never produced a size; a later valid revision still restores flow.
 
 ## Amendment (2026-08-24): Rendering convergence
 

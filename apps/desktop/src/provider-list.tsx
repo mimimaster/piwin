@@ -6,7 +6,6 @@ import {
   type ModelProviderConfig,
   type PiwinConfig,
 } from '@piwin/contracts';
-import { Button } from '@piwin/ui-kit';
 import type { ReactElement } from 'react';
 import { ProviderRow } from './provider-row.js';
 import type { ProviderTestStatus } from './provider-status.js';
@@ -193,26 +192,14 @@ export function ProviderList({
         )}
 
         <div className="provider-category-section" data-testid="provider-section-custom">
-          <div className="provider-section-header">
-            <div className="provider-list-count">
-              {packageProviders.length > 0
-                ? isChinese
-                  ? `自定义配置（${customProviders.length}）`
-                  : `Custom (${customProviders.length})`
-                : isChinese
-                  ? `已添加（${filteredProviders.length}）`
-                  : `Added (${filteredProviders.length})`}
-            </div>
-            <Button
-              size="compact"
-              onClick={onAddOpen}
-              data-testid="provider-add-open"
-              className="provider-list-add-btn"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <IconPlus width={14} height={14} />
-              {copy.addProvider}
-            </Button>
+          <div className="provider-list-count">
+            {packageProviders.length > 0
+              ? isChinese
+                ? `自定义配置（${customProviders.length}）`
+                : `Custom (${customProviders.length})`
+              : isChinese
+                ? `已添加（${filteredProviders.length}）`
+                : `Added (${filteredProviders.length})`}
           </div>
           {customProviders.map(renderProviderRow)}
           {filteredProviders.length === 0 && (

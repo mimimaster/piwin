@@ -19,6 +19,7 @@ import {
   BROWSER_STALE_TARGET,
   BROWSER_UNAVAILABLE,
   BROWSER_USER_HAS_CONTROL,
+  type BrowserRecoveryAction,
   type ToolResult,
   type ToolResultDetails,
   type ToolResultErrorCode,
@@ -103,7 +104,7 @@ export function userControlResult(error: unknown): ToolResult {
   throw error;
 }
 
-function recoveryActionFor(code: ToolResultErrorCode): string | undefined {
+function recoveryFor(code: ToolResultErrorCode): BrowserRecoveryAction | undefined {
   if (code === 'browser-user-has-control') return 'wait-for-user-handoff';
   if (code === 'browser-agent-has-control') return 'wait-for-agent-or-take-over';
   if (code === 'browser-runtime-gone') return 'retry-once-after-recovery';
@@ -117,10 +118,10 @@ function mappedResult(
   error: unknown,
   options: { retryable: boolean; details?: ToolResultDetails },
 ): MappedBrowserToolError {
-  const recoveryAction = recoveryActionFor(code);
+  const recovery = recoveryFor(code);
   const details =
-    options.details !== undefined || recoveryAction !== undefined
-      ? { ...(options.details ?? {}), ...(recoveryAction !== undefined ? { recoveryAction } : {}) }
+    options.details !== undefined || recovery !== undefined
+      ? { ...(options.details ?? {}), ...(recovery !== undefined ? { recovery } : {}) }
       : undefined;
   return {
     ok: false,
@@ -141,7 +142,7 @@ export function mapBrowserExecuteError(
       code: 'browser-action-failed',
       message: sanitizeBrowserErrorMessage(error),
       retryable: false,
-      details: { reason: 'overlay', recoveryAction: 'snapshot-or-dismiss-overlay' },
+      details: { reason: 'overlay', recovery: 'snapshot-or-dismiss-overlay' },
     };
   }
   if (
@@ -159,7 +160,7 @@ export function mapBrowserExecuteError(
       code: 'browser-action-failed',
       message: sanitizeBrowserErrorMessage(error),
       retryable: false,
-      details: { reason: 'timeout', recoveryAction: 'inspect-current-state' },
+      details: { reason: 'timeout', recovery: 'inspect-current-state' },
     };
   }
   if (kind === 'wait' && error instanceof Error && /wait_for requires|open page/i.test(error.message)) {

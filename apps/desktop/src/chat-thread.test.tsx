@@ -13,7 +13,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { AgentEvent, ExecutionRunRecord, TranscriptBranchPoint } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
-import { ChatThread, shouldCollapseTurnToolHistory, type ChatThreadProps } from './chat-thread';
+import { ChatThread, type ChatThreadProps } from './chat-thread';
 import { RightPanel } from './right-panel';
 import {
   chatUiReducer,
@@ -94,39 +94,6 @@ function createUserMessage(id: string, text: string): ChatMessageUi {
     status: 'done',
   };
 }
-
-it('keeps an active multi-tool call chain expanded and compacts it after completion', () => {
-  const workDetailsMessage: ChatMessageUi = {
-    id: 'active-chain',
-    role: 'assistant',
-    text: 'Working through the files',
-    thinking: '',
-    tools: Array.from({ length: 5 }, (_, index) => ({
-      toolCallId: `tool-${index}`,
-      toolName: 'bash',
-      status: 'done' as const,
-      output: '',
-    })),
-    attachments: [],
-    status: 'streaming',
-    runId: 'run-active-chain',
-  };
-
-  expect(
-    shouldCollapseTurnToolHistory({
-      workDetailsMessage,
-      activeRunId: 'run-active-chain',
-      answerText: workDetailsMessage.text,
-    }),
-  ).toBe(false);
-  expect(
-    shouldCollapseTurnToolHistory({
-      workDetailsMessage: { ...workDetailsMessage, status: 'done' },
-      activeRunId: null,
-      answerText: workDetailsMessage.text,
-    }),
-  ).toBe(true);
-});
 
 function createStreamingAssistant(id: string): ChatMessageUi {
   return {
@@ -569,7 +536,7 @@ describe('ChatThread render isolation (E1)', () => {
   // ————————————————————————————————————————————————————————————————
   // Run activity wiring
   // ————————————————————————————————————————————————————————————————
-  it('renders default dynamic carousel run-activity immediately on user send while streaming', () => {
+  it('renders the run status footer immediately on user send while streaming', () => {
     const userMessage = createUserMessage('u-pending', 'with images');
     act(() => {
       root.render(
@@ -594,12 +561,12 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="run-status-footer"]')).not.toBeNull();
     expect(container.textContent).toContain('Connecting to model…');
     expect(container.querySelector('[data-testid="assembly-summary-capsule"]')).toBeNull();
   });
 
-  it('renders run-activity slot when streaming and the last message is from the user', () => {
+  it('renders the run status footer when streaming and the last message is from the user', () => {
     const userMessage = createUserMessage('u1', 'Hello');
     act(() => {
       root.render(
@@ -624,13 +591,13 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    const slot = container.querySelector('[data-testid="run-activity-slot"]');
-    expect(slot).not.toBeNull();
-    expect(slot?.textContent).toContain('Connecting to model…');
-    expect(slot?.closest('[data-testid="current-response-turn"]')).not.toBeNull();
+    const footer = container.querySelector('[data-testid="run-status-footer"]');
+    expect(footer).not.toBeNull();
+    expect(footer?.textContent).toContain('Connecting to model…');
+    expect(footer?.closest('[data-testid="current-response-turn"]')).not.toBeNull();
   });
 
-  it('renders the run-activity slot when the optimistic transcript is still empty', () => {
+  it('renders the run status footer when the optimistic transcript is still empty', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -654,13 +621,13 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    const slot = container.querySelector('[data-testid="run-activity-slot"]');
-    expect(slot).not.toBeNull();
-    expect(slot?.textContent).toContain('Connecting to model…');
-    expect(slot?.closest('[data-testid="current-response-turn"]')).not.toBeNull();
+    const footer = container.querySelector('[data-testid="run-status-footer"]');
+    expect(footer).not.toBeNull();
+    expect(footer?.textContent).toContain('Connecting to model…');
+    expect(footer?.closest('[data-testid="current-response-turn"]')).not.toBeNull();
   });
 
-  it('hands off run-activity slot to turn-waiting-line upon assistant arrival without duplicating locators', () => {
+  it('keeps one run status footer from send through the first answer token', () => {
     const userMessage = createUserMessage('u2', 'Hello');
     const renderWith = (messages: ChatMessageUi[]): void => {
       act(() => {
@@ -688,24 +655,22 @@ describe('ChatThread render isolation (E1)', () => {
     };
 
     renderWith([userMessage]);
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="run-status-footer"]')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="agent-locator"]')).toHaveLength(1);
 
-    // When the streaming assistant bubble arrives before the first token,
-    // the waiting indicator is rendered inside TurnWorkDetails (turn-waiting-line),
-    // and run-activity-slot is dropped so there is exactly one locator.
+    // The empty assistant bubble no longer paints its own locator: the footer
+    // stays the single live line for the whole run.
     const pendingAssistant = createStreamingAssistant('a1');
     renderWith([userMessage, pendingAssistant]);
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
-    expect(container.querySelector('[data-testid="turn-waiting-line"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="run-status-footer"]')).toHaveLength(1);
     expect(container.querySelectorAll('[data-testid="agent-locator"]')).toHaveLength(1);
 
     renderWith([userMessage, { ...pendingAssistant, text: 'Here we go' }]);
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
-    expect(container.querySelector('[data-testid="turn-waiting-line"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="run-status-footer"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="agent-locator"]')).toHaveLength(1);
   });
 
-  it('keeps turn-waiting-line while Host preparing/streaming with empty assistant content', () => {
+  it('shows the preparing phrase on the footer while the assistant bubble is empty', () => {
     const userMessage = createUserMessage('u-prepare', 'Hello');
     const pendingAssistant: ChatMessageUi = {
       ...createStreamingAssistant('a-prepare'),
@@ -745,14 +710,14 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
-    expect(container.querySelector('[data-testid="turn-waiting-line"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="run-status-footer"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="agent-locator"]')).toHaveLength(1);
     expect(container.querySelector('[data-testid="agent-locator"]')?.textContent).toMatch(
-      /准备上下文|连接模型|正在思考|规划/,
+      /准备上下文|整理对话记忆|装载工作区/,
     );
   });
 
-  it('keeps turn-waiting-line during long hidden reasoning (verboseAgentChat off)', () => {
+  it('keeps the footer thinking phrase during long hidden reasoning (verboseAgentChat off)', () => {
     const userMessage = createUserMessage('u-hidden-think', 'Hello');
     const thinkingAssistant: ChatMessageUi = {
       ...createStreamingAssistant('a-hidden-think'),
@@ -792,13 +757,13 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
-    expect(container.querySelector('[data-testid="turn-waiting-line"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="run-status-footer"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="agent-locator"]')?.textContent).toMatch(
       /正在思考|解析上下文|规划执行|构思回复/,
     );
   });
 
-  it('keeps turn-waiting-line while live thinking is collapsed by default', () => {
+  it('keeps the footer thinking phrase while live thinking is collapsed by default', () => {
     const userMessage = createUserMessage('u-collapsed-think', 'Hello');
     const thinkingAssistant: ChatMessageUi = {
       ...createStreamingAssistant('a-collapsed-think'),
@@ -838,13 +803,13 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="turn-waiting-line"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="run-status-footer"]')).toHaveLength(1);
     expect(container.querySelector('[data-testid="agent-locator"]')?.textContent).toMatch(
       /正在思考|解析上下文|规划执行|构思回复/,
     );
   });
 
-  it('drops the run-activity slot once the pending assistant lifecycle runs a tool', () => {
+  it('names the running tool on the run status footer', () => {
     const userMessage = createUserMessage('u2-tool', 'Hello');
     const toolAssistant: ChatMessageUi = {
       ...createStreamingAssistant('a1-tool'),
@@ -873,7 +838,9 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+    const footers = container.querySelectorAll('[data-testid="run-status-footer"]');
+    expect(footers).toHaveLength(1);
+    expect(footers[0]?.textContent).toContain('Running bash');
   });
 
   it('renders one inline caret for a run with multiple assistant lifecycles', () => {
@@ -1108,8 +1075,10 @@ describe('ChatThread render isolation (E1)', () => {
     expect(
       container.querySelector('[data-testid="explore-flow-capsule"]')?.getAttribute('data-expanded'),
     ).toBe('false');
-    expect(container.querySelector('[data-testid="turn-waiting-line"]')).toBeNull();
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="agent-locator"]')).toHaveLength(1);
+    expect(
+      container.querySelector('[data-testid="agent-locator"]')?.closest('[data-testid="run-status-footer"]'),
+    ).not.toBeNull();
   });
 
   it('settles the previous call chain when a follow-up query arrives', () => {
@@ -1169,7 +1138,7 @@ describe('ChatThread render isolation (E1)', () => {
 
     const capsule = container.querySelector('[data-testid="explore-flow-capsule"]');
     expect(capsule?.getAttribute('data-live')).toBe('false');
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="run-status-footer"]')).toHaveLength(1);
   });
 
   it('folds the final answer thinking into the Work disclosure', () => {
@@ -1575,7 +1544,7 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.textContent).toContain('I need to ground the plan');
   });
 
-  it('removes run-activity slot when permissionPrompt is present or streaming is false', () => {
+  it('removes the run status footer when permissionPrompt is present or streaming is false', () => {
     const userMessage = createUserMessage('u3', 'Hello');
     act(() => {
       root.render(
@@ -1601,7 +1570,7 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="run-status-footer"]')).not.toBeNull();
 
     const permissionPrompt: PermissionPromptUi = {
       requestId: 'p1',
@@ -1634,7 +1603,7 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+    expect(container.querySelector('[data-testid="run-status-footer"]')).toBeNull();
 
     act(() => {
       root.render(
@@ -1659,10 +1628,10 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+    expect(container.querySelector('[data-testid="run-status-footer"]')).toBeNull();
   });
 
-  it('passes locale through ChatThread → ChatMessageRow → TurnWorkDetails', () => {
+  it('passes locale through ChatThread → RunStatusFooter', () => {
     const assistantMessage = createStreamingAssistant('a2');
     act(() => {
       root.render(
@@ -1686,9 +1655,9 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    const waitingLine = container.querySelector('[data-testid="turn-waiting-line"]');
-    expect(waitingLine).not.toBeNull();
-    expect(waitingLine?.textContent).toContain('Connecting to model…');
+    const footer = container.querySelector('[data-testid="run-status-footer"]');
+    expect(footer).not.toBeNull();
+    expect(footer?.textContent).toContain('Connecting to model…');
   });
 
   it('renders time display, copy button, and edit button on user messages', async () => {
@@ -3248,7 +3217,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
       'Thinking…',
     );
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+    expect(container.querySelector('[data-testid="run-status-footer"]')).toBeNull();
     expect(container.querySelector('[data-testid="agent-locator"]')).toBeNull();
   });
 

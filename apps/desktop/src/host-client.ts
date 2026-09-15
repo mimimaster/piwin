@@ -859,6 +859,13 @@ export class HostClient {
     }
 
     if (!hostChanged && previousSeq > 0 && batch.afterSeq > previousSeq) {
+      // Everything in the hole is gone as live events; reconcile reloads the
+      // transcript. Keep a trace so a missing tool row can be tied to a gap.
+      console.warn('[host] push sequence gap', {
+        hostInstanceId: batch.hostInstanceId,
+        missedFromSeq: previousSeq + 1,
+        receivedFromSeq: batch.afterSeq + 1,
+      });
       this.sequenceGapHandler?.({
         hostInstanceId: batch.hostInstanceId,
         missedFromSeq: previousSeq + 1,

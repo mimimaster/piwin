@@ -13,6 +13,7 @@ export type {
   BrowserControllerEvent,
   BrowserActor,
   BrowserOpOptions,
+  BrowserScrollOptions,
   BrowserReloadOptions,
   BrowserWaitForCondition,
   BrowserWaitForOptions,
@@ -68,6 +69,12 @@ export {
   BROWSER_SCREENSHOT_QUALITY,
 } from './screencast-size.js';
 export { readJpegSize } from './jpeg-size.js';
+export {
+  collectFindCandidates,
+  BROWSER_FIND_MAX_CANDIDATES,
+  type BrowserFindCandidate,
+  type BrowserFindResult,
+} from './find.js';
 export type { BrowserViewportSize, ResolveBrowserViewportInput } from './viewport.js';
 export { getBrowserInstallStatus, classifyBrowserLaunchError } from './install-status.js';
 export type { BrowserInstallStatus, BrowserInstallFailureReason } from './install-status.js';

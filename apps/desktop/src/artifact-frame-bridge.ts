@@ -50,18 +50,19 @@ function hostOwnsViewport(frameMode: ArtifactFrameMode): boolean {
 
 /**
  * Browser-channel trust. Prefer Window identity when WKWebView preserves it.
- * Sandboxed data: frames often fail `event.source === iframe.contentWindow`,
- * so a non-parent source is accepted and bound by channelId — the same
- * selector the native handler already uses.
+ * Sandboxed data: frames often fail `event.source === iframe.contentWindow`
+ * and frequently deliver `source === null`. Reject only the parent window
+ * posting to itself; bind everything else by channelId after parse — the
+ * same selector the native handler already uses.
  */
 function isTrustedArtifactFrameSource(
   event: MessageEvent,
   iframeWindow: Window | null | undefined,
 ): boolean {
-  if (event.source === iframeWindow) {
+  if (event.source === iframeWindow && event.source != null) {
     return true;
   }
-  return event.source !== null && event.source !== undefined && event.source !== window;
+  return event.source !== window;
 }
 
 function resolvePaneHeight(input: BridgeInput): number | null {
@@ -117,6 +118,10 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   // iframe document on the same channel; resetting to bootstrap there collapses
   // the transcript for a frame (longer on WebKit data-URL loads).
   const measuredChannelRef = useRef<string | null>(null);
+  // Document that produced the last accepted size. A report can land before
+  // iframe `load`; re-arming the ready timer after that creates a false
+  // recovery banner when the iframe skips an unchanged-height echo.
+  const measuredDocumentKeyRef = useRef<string | null>(null);
   // 0 until the first load; reports without an epoch predate any request.
   const documentEpochRef = useRef(0);
   const lastPostSeqRef = useRef(-1);
@@ -158,21 +163,23 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     }
     readyTimerRef.current = setTimeout(() => {
       readyTimerRef.current = null;
-      // A document swap on an already-measured channel keeps its real height;
-      // only a never-measured frame drops into the compact recovery viewport.
-      const fallbackHeight =
-        measuredChannelRef.current === current.channelId
-          ? heightRef.current
-          : ARTIFACT_FALLBACK_HEIGHT;
-      heightRef.current = fallbackHeight;
-      setHeight(fallbackHeight);
+      // A document swap on an already-measured channel keeps its real height
+      // and stays out of recovery chrome. Only a never-measured frame drops
+      // into the compact scrollable viewport.
+      if (measuredChannelRef.current === current.channelId) {
+        updateStatus(current.decision.mode === 'stream-preview' ? 'streaming' : 'ready');
+        requestMeasurement(false, true);
+        return;
+      }
+      heightRef.current = ARTIFACT_FALLBACK_HEIGHT;
+      setHeight(ARTIFACT_FALLBACK_HEIGHT);
       updateStatus('fallback');
       requestMeasurement(true);
       console.warn(
         'Artifact height bridge timed out; keeping the preview in a scrollable recovery viewport.',
         {
           channelId: current.channelId,
-          fallbackHeight,
+          fallbackHeight: ARTIFACT_FALLBACK_HEIGHT,
         },
       );
     }, ARTIFACT_READY_TIMEOUT_MS);
@@ -226,6 +233,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     }
     lastRevisionRef.current = message.revision;
     measuredChannelRef.current = current.channelId;
+    measuredDocumentKeyRef.current = current.documentKey;
     const wasRecovering = statusRef.current === 'fallback';
     const rawHeight = message.height;
     setContentHeight(rawHeight);
@@ -259,13 +267,18 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   };
 
   const onIframeLoad = useCallback((): void => {
+    const current = latestRef.current;
     documentEpochRef.current = nextDocumentEpoch;
     nextDocumentEpoch += 1;
     lastRevisionRef.current = -1;
     lastPostSeqRef.current = -1;
-    startReadyTimer();
     requestMeasurement(false);
-  }, [requestMeasurement, startReadyTimer]);
+    if (measuredDocumentKeyRef.current === current.documentKey) {
+      updateStatus(current.decision.mode === 'stream-preview' ? 'streaming' : 'ready');
+      return;
+    }
+    startReadyTimer();
+  }, [requestMeasurement, startReadyTimer, updateStatus]);
 
   const retryMeasurement = useCallback((): void => {
     startReadyTimer();
@@ -275,6 +288,9 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   useLayoutEffect(() => {
     if (!input.enabled) {
       return;
+    }
+    if (measuredDocumentKeyRef.current !== input.documentKey) {
+      measuredDocumentKeyRef.current = null;
     }
     const keepMeasuredHeight =
       input.measureHeight &&

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessageUi, RunRecordUi, ToolCardUi } from './chat-reducer';
 import { resolveModelWaitTail } from './model-wait-tail';
-import { modelWaitTailLabel } from './model-wait-tail-row';
 
 function tool(status: ToolCardUi['status']): ToolCardUi {
   return {
@@ -50,8 +49,7 @@ describe('resolveModelWaitTail', () => {
       messages: [assistant({ id: 'a1', tools: [tool('done')] })],
       runRecordsById: runs('waiting-first-token'),
     });
-    expect(tail).toMatchObject({ kind: 'waiting', since: 42_000, placeholderMessageIds: [] });
-    expect(tail && modelWaitTailLabel(tail, 'zh-CN')).toMatch(/正在处理结果…$/);
+    expect(tail).toEqual({ kind: 'waiting', placeholderMessageIds: [] });
   });
 
   it('stands in for empty message/start placeholders after the round', () => {
@@ -72,7 +70,7 @@ describe('resolveModelWaitTail', () => {
       messages: [assistant({ id: 'a1', tools: [tool('done')] })],
       runRecordsById: runs('connecting-model', 'attempt 2/3'),
     });
-    expect(tail && modelWaitTailLabel(tail, 'zh-CN')).toBe('正在重连模型 · attempt 2/3');
+    expect(tail?.kind).toBe('reconnecting');
   });
 
   it('stays away while tools run, tokens stream, permission blocks, or the run is idle', () => {
@@ -112,12 +110,12 @@ describe('resolveModelWaitTail', () => {
     ).toBeNull();
   });
 
-  it('falls back to the last tool end time without phase history', () => {
+  it('trusts a settled tool round when Host has not reported a phase yet', () => {
     const tail = resolveModelWaitTail({
       ...base,
       messages: [assistant({ id: 'a1', tools: [tool('done')] })],
       runRecordsById: runs(null),
     });
-    expect(tail?.since).toBe(Date.parse('2026-09-15T00:00:10.000Z'));
+    expect(tail).toEqual({ kind: 'waiting', placeholderMessageIds: [] });
   });
 });

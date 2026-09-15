@@ -113,11 +113,13 @@ export function shortModelLabel(modelId: string): string {
     return clean;
   }
 
-  // DeepSeek: DeepSeek-V3, DeepSeek-R1
-  const dsMatch = clean.match(/^deepseek[-_](r1|v3)/i);
+  // DeepSeek: DeepSeek-V3, DeepSeek-R1, deepseek-v4-1-flash -> DeepSeek V4.1 Flash
+  const dsMatch = clean.match(/^deepseek[-_]([rv]\d+)(?:[-_.](\d+))?(?:[-_]([a-z]+))?/i);
   if (dsMatch) {
-    const ver = dsMatch[1]?.toUpperCase() ?? '';
-    return `DeepSeek ${ver}`;
+    const ver = `${dsMatch[1]?.toUpperCase() ?? ''}${dsMatch[2] ? `.${dsMatch[2]}` : ''}`;
+    const tierRaw = dsMatch[3] ?? '';
+    const tier = tierRaw ? ` ${tierRaw.charAt(0).toUpperCase()}${tierRaw.slice(1).toLowerCase()}` : '';
+    return `DeepSeek ${ver}${tier}`;
   }
 
   // Fallback cleanup: strip leading vendor prefixes
@@ -125,8 +127,15 @@ export function shortModelLabel(modelId: string): string {
   const parts = stripped.split(/[-_.]/).filter(Boolean);
   if (parts.length === 0) return clean;
   const head = parts[0] ?? '';
-  const tailParts = parts.slice(1);
-  const name = head.charAt(0).toUpperCase() + head.slice(1);
+  let tailParts = parts.slice(1);
+  let name = head.charAt(0).toUpperCase() + head.slice(1);
+  // A versioned head keeps its minor: v4-1-flash -> V4.1 flash, not "V4 1 flash".
+  if (/\d$/.test(head)) {
+    while (tailParts[0] !== undefined && /^\d+$/.test(tailParts[0])) {
+      name += `.${tailParts[0]}`;
+      tailParts = tailParts.slice(1);
+    }
+  }
   if (tailParts.length === 0) return name;
   const tail = tailParts.every((p) => /^\d+$/.test(p))
     ? tailParts.join('.')
@@ -326,16 +335,22 @@ export function ChatTurnMarginalia(props: { data: TurnMarginaliaData }): ReactEl
       aria-hidden="true"
       {...(data.statusTone ? { 'data-status-tone': data.statusTone } : {})}
     >
-      {data.avatar !== null ? (
-        <div className={`av${modelRef ? ' has-model-icon' : ''}`}>{avatarContent}</div>
-      ) : null}
-      {data.who.length > 0 ? (
-        <span
-          className={isAssistant ? 'who' : 'who is-user'}
-          {...(data.fullModelId ? { title: data.fullModelId } : {})}
-        >
-          {data.who}
-        </span>
+      {data.who.length > 0 || data.avatar !== null ? (
+        // Name then glyph on one lead row; the row clips a glyph that would
+        // wrap, so a long name drops the mark instead of losing its tail.
+        <div className="turn-byline">
+          {data.who.length > 0 ? (
+            <span
+              className={isAssistant ? 'who' : 'who is-user'}
+              {...(data.fullModelId ? { title: data.fullModelId } : {})}
+            >
+              {data.who}
+            </span>
+          ) : null}
+          {data.avatar !== null ? (
+            <div className={`av${modelRef ? ' has-model-icon' : ''}`}>{avatarContent}</div>
+          ) : null}
+        </div>
       ) : null}
       {data.clock.length > 0 ? (
         <span className="turn-clock" title={data.clockExact || undefined}>

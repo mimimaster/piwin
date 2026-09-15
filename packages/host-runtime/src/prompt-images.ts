@@ -7,6 +7,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import type { PromptAttachment } from '@piwin/contracts';
+import { isNativeImageAttachment } from './prompt-media-attachments.js';
 
 export type PromptImageContent = {
   type: 'image';
@@ -27,7 +28,7 @@ export async function loadPromptImages(
 
   const images: PromptImageContent[] = [];
   for (const attachment of attachments) {
-    if (attachment.kind !== 'media') {
+    if (attachment.kind !== 'media' || !isNativeImageAttachment(attachment)) {
       continue;
     }
     const bytes = await readFile(attachment.path);

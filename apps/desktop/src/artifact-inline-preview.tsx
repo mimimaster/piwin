@@ -49,14 +49,14 @@ export function ArtifactInlinePreview(props: ArtifactInlinePreviewProps): ReactE
           className="artifact-floating-action-button"
           data-testid="artifact-download-source"
           disabled={!canExportSource}
-          onClick={() => {
-            if (!canExportSource) return;
-            downloadArtifactSource({
-              source: originalSource,
-              title: descriptor.title,
-              kind: exportKind,
-            });
-          }}
+            onClick={() => {
+              if (!canExportSource) return;
+              void downloadArtifactSource({
+                source: originalSource,
+                title: descriptor.title,
+                kind: exportKind,
+              });
+            }}
         >
           <IconDownload size={14} />
         </IconButton>

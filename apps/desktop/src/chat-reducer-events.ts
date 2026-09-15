@@ -36,6 +36,7 @@ import {
   finishMessageThinking,
   mergeToolPresentation,
   projectBoundedToolPresentation,
+  settleStreamingAssistants,
   startMessageThinking,
   updateMessage,
   updateOwnedTool,
@@ -76,6 +77,13 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
         );
       }
       const controlInFlight = isUserControlInFlight(state);
+      // Pi streams one assistant response at a time, so a new response closes
+      // any earlier one of the same run that never received its message/end.
+      const settledMessages = settleStreamingAssistants(
+        state.messages,
+        (previous) => previous.runId === resolvedRunId,
+        Date.now(),
+      );
       const message: ChatMessageUi = {
         id: event.messageId,
         role: 'assistant',
@@ -84,12 +92,15 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
         tools: [],
         attachments: [],
         status: 'streaming',
+        // The rail clock reads this; without it a live reply loses its age
+        // the moment it replaces the user turn as the byline source.
+        createdAt: new Date().toISOString(),
         ...(resolvedRunId ? { runId: resolvedRunId } : {}),
         ...(resolvedModel ? { model: resolvedModel } : {}),
       };
       return enforceBoundedTranscriptWindow({
         ...state,
-        messages: [...withoutEmptyAssistantPlaceholders(state.messages), message],
+        messages: [...withoutEmptyAssistantPlaceholders(settledMessages), message],
         runPhase: controlInFlight ? state.runPhase : 'streaming',
         ...(event.runId
           ? {
@@ -110,6 +121,10 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
         // start was lost or belongs to an older subscription.
         return state;
       }
+      const runEnded =
+        state.activeRunId === null &&
+        event.runId !== undefined &&
+        state.lastTerminalRunId === event.runId;
       return updateMessage(state, event.messageId, (message) => {
         const nextMessage =
           event.delta.length > 0 ? finishMessageThinking(message, Date.now()) : message;
@@ -128,7 +143,10 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
           textRetainedBytes: nextText.retainedBytes,
           textTruncated: nextText.truncated,
           ...(nextText.truncated || message.uiTruncated ? { uiTruncated: true } : {}),
-          status: 'streaming',
+          // message/start opens the row; a delta that races past message/end or
+          // run/terminal must not reopen a settled one, and one landing in the
+          // open placeholder of an ended run closes it.
+          status: runEnded ? 'done' : message.status,
         };
       });
     /** C1: complete text snapshot replaces, not appends. */
@@ -283,25 +301,8 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
       }
-      const messageId = event.messageId;
-      const thinkingEndedAt = Date.now();
-      const nextMessages = messageId
-        ? state.messages.map((message) =>
-            message.id === messageId
-              ? {
-                  ...finishMessageThinking(message, thinkingEndedAt),
-                  status: 'done' as const,
-                }
-              : message,
-          )
-        : state.messages.map((message) =>
-            message.status === 'streaming'
-              ? {
-                  ...finishMessageThinking(message, thinkingEndedAt),
-                  status: 'done' as const,
-                }
-              : message,
-          );
+      // Abort ends the run: nothing still streaming can receive output.
+      const nextMessages = settleStreamingAssistants(state.messages, () => true, Date.now());
       return enforceBoundedTranscriptWindow({
         ...state,
         messages: nextMessages,

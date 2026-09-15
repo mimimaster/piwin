@@ -45,4 +45,25 @@ describe('loadPromptImages', () => {
       data: png.toString('base64'),
     });
   });
+
+  it('does not encode markdown or other text files as native images', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-prompt-images-md-'));
+    const path = join(dir, 'candy-game.md');
+    await writeFile(path, '# Candy\n\nMatch three tiles.\n', 'utf8');
+
+    const images = await loadPromptImages([
+      {
+        id: 'md1',
+        kind: 'media',
+        path,
+        mimeType: 'text/markdown',
+        name: 'candy-game.md',
+        contentKind: 'text',
+        byteSize: 24,
+        source: 'file-picker',
+      },
+    ]);
+
+    expect(images).toEqual([]);
+  });
 });

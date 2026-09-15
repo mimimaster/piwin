@@ -94,7 +94,7 @@ export function createBrowserStageBcToolDefinitions(
           values: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Option values or labels to select',
+            description: 'Option values to select (value attribute), not labels or indices',
           },
           value: { type: 'string', description: 'Single option when values is omitted' },
         },

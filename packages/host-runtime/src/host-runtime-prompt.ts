@@ -33,6 +33,7 @@ import { getPiwinMediaDir, getPiwinRoot } from './paths.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import {
+  isNativeImageAttachment,
   isTextualAttachment,
   stripMediaAttachments,
   validateMediaAttachment,
@@ -108,7 +109,7 @@ export async function buildModelPromptInput(
         mediaAttachment.name !== undefined ? { name: mediaAttachment.name } : undefined,
       );
       extractedTextInjections.push(formatAttachmentTextInjection(extracted));
-    } else {
+    } else if (isNativeImageAttachment(mediaAttachment)) {
       imageMedia.push(mediaAttachment);
     }
   }
@@ -118,11 +119,10 @@ export async function buildModelPromptInput(
   const textInjections = [input.text, ...webInjections, ...extractedTextInjections].filter(Boolean);
 
   if (imageMedia.length === 0) {
-    return {
-      ...input,
-      text: textInjections.join('\n\n'),
-      ...(other.length > 0 ? { attachments: other } : {}),
-    };
+    // Must strip extracted files. Spreading `input` would keep the original
+    // media attachments, and loadPromptImages would then send a .md (or PDF)
+    // as a fake native image — OpenAI/Grok reject that as invalid base64.
+    return stripMediaAttachments(input, textInjections.join('\n\n'), other);
   }
 
   if (supportsImage) {

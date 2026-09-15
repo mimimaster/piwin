@@ -1,12 +1,6 @@
 import type { HostToolDescriptor, HostToolRegistration } from '@piwin/contracts';
 
-const BROWSER_WORKFLOW_PROMPT = `Browser workbench:
-- browser_status first when controller or lifecycle is unknown.
-- browser_snapshot before click/type; use refs from the latest snapshot.
-- Write tools auto-acquire the agent lock from idle. Do not call browser_lock first.
-- If the user has control, wait or ask them to give it back. Do not retry the same write.
-- After a write, check the returned page url/title; snapshot again if the page changed.
-- Visual QA requires a screenshot with inspect evidence; do not claim pixels you did not receive.`;
+const BROWSER_WORKFLOW_PROMPT = `When the task changes or evaluates visible web UI, or the user asks you to inspect or operate a page, use the shared browser proactively. Use browser_status to inspect the current page and control state, navigate only when needed, browser_snapshot for current refs, and browser_screenshot for visual layout. After actions, prefer browser_wait_for and verify the resulting state. Browser writes auto-acquire idle control; do not call browser_lock first. If the user has control, continue with read-only observations or wait for an explicit handoff; never loop or steal control. Refresh refs after navigation or a stale-target result. Do not claim visual verification unless screenshot pixels or a vision description were delivered.`;
 
 type NamedTool =
   | Pick<HostToolRegistration, 'descriptor'>

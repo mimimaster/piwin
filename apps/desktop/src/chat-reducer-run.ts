@@ -1,5 +1,6 @@
 import type { ExecutionRunRecord, SessionTranscriptMessage } from '@piwin/contracts';
 import { ensureFailedRunAssistant } from './run-failure-message';
+import { isAssistantContentEmpty } from './assistant-message-content';
 import type { ChatMessageUi, ChatUiAction, ChatUiState, RunRecordUi } from './chat-ui-types';
 import {
   applyBackgroundSessionTurnWorkingMarker,
@@ -13,6 +14,7 @@ import {
   parseAcceptedAt,
   parseEventTime,
 } from './chat-reducer-transcript';
+import { settleStreamingAssistants } from './chat-reducer-tools';
 import {
   dropPermissionPromptsForRun,
   permissionQueueFields,
@@ -200,6 +202,16 @@ export function applyRunRecord(
       run.failure === undefined ? undefined : { failure: run.failure },
     );
   }
+  // A lost message/end must not outlive its run. Untagged rows can only belong
+  // to the run that just ended; failure stamping above already picked its row.
+  // Empty rows stay open: they catch same-run deltas racing past the terminal.
+  messages = settleStreamingAssistants(
+    messages,
+    (message) =>
+      (message.runId === undefined || message.runId === run.runId) &&
+      !isAssistantContentEmpty(message),
+    Date.now(),
+  );
   return {
     ...state,
     messages,

@@ -123,7 +123,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.getByTestId('settings-open-shelf-btn').click();
     await page.getByTestId('settings-nav-models').click();
     await expect(page.getByTestId('provider-settings')).toBeVisible();
-    await page.getByTestId('provider-add-open').click();
+    await page.getByTestId('provider-add-block').click();
     await page.getByTestId('provider-preset-openai').click();
     await expect(page.getByTestId('provider-drawer')).toBeVisible();
     await expect(page.getByTestId('provider-baseurl-input')).toHaveValue(/api\.openai\.com/);
@@ -138,7 +138,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.getByTestId('settings-open-shelf-btn').click();
     await page.getByTestId('settings-nav-models').click();
     await expect(page.getByTestId('provider-settings')).toBeVisible();
-    await page.getByTestId('provider-add-open').click();
+    await page.getByTestId('provider-add-block').click();
     await page.getByTestId('provider-preset-gemini').click();
     await expect(page.getByTestId('provider-drawer')).toBeVisible();
     await expect(page.getByTestId('provider-baseurl-input')).toHaveValue(

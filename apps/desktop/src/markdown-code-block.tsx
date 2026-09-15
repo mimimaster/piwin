@@ -243,7 +243,7 @@ function DownloadCodeButton(props: { language: string; source: string }): ReactE
       data-testid="code-download-button"
       onClick={() => {
         const extension = codeExportExtension(props.language);
-        downloadTextFile({
+        void downloadTextFile({
           text: props.source,
           fileName: `code.${extension}`,
           mimeType: codeExportMimeType(extension),

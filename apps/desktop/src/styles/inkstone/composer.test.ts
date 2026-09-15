@@ -25,21 +25,11 @@ describe('Inkstone composer.css context capsules', () => {
     );
   });
 
-  it('keeps the slab perimeter orbit track idle-invisible and lamp-lit when active', () => {
-    expect(composer).toMatch(
-      /\.slab::before \{[\s\S]*?background: transparent;/,
-    );
-    expect(composer).not.toMatch(
-      /\.slab::before \{[\s\S]*?background: var\(--slab-line\);/,
-    );
-    expect(composer).toMatch(
-      /\.slab\.is-streaming::before[\s\S]*?animation: orbit/,
-    );
-    expect(composer).toContain('.composer-orbit-rail');
-    expect(composer).toContain('.composer-orbit-mask');
-    expect(composer).toContain('.composer-orbit-beam');
-    expect(composer).toMatch(/\.composer-orbit-beam[\s\S]*?offset-path:\s*rect\(/);
-    expect(composer).toMatch(/\.composer-orbit-beam[\s\S]*?animation:\s*orbit/);
+  it('does not include the perimeter orbit stream light effect', () => {
+    expect(composer).not.toContain('.composer-orbit-rail');
+    expect(composer).not.toContain('.composer-orbit-mask');
+    expect(composer).not.toContain('.composer-orbit-beam');
+    expect(composer).not.toMatch(/animation:\s*orbit/);
   });
 
   it('keeps focus-within on --sh3 without a Deck iris/zhu ring', () => {

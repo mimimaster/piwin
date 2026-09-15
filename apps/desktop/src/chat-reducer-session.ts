@@ -404,7 +404,16 @@ export function reduceChatSession(
       const candidateMessages = reuseUnchangedTranscriptMessages(
         state.messages,
         preserveMessageTail
-          ? mergeRefreshedTailWithLiveMessages(refreshedMessages, state.messages, state.streaming)
+          ? mergeRefreshedTailWithLiveMessages(
+              refreshedMessages,
+              state.messages,
+              state.streaming,
+              new Set(
+                action.messages
+                  .filter((message) => message.status === 'streaming')
+                  .map((message) => message.id),
+              ),
+            )
           : refreshedMessages,
       );
       const bounded = retainBoundedTranscriptWindow(

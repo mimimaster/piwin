@@ -14,17 +14,13 @@ import type {
   RunRecordUi,
   SubagentStreamState,
 } from './chat-reducer';
-import type { SkillActivityView } from './chat-reducer';
 import {
   buildTurnPresentation,
   resolveWorkDetailsDefaultOpen,
   type TurnPresentation,
 } from './run-presentation';
-import { turnPresentationToActivityInput } from './run-activity-mappers.js';
-import type { RunActivityInput } from './run-activity-types.js';
 import { runtimeStatusText } from './run-activity-strings.js';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
-import { AgentLocator, SkillActivityChip } from './agent-locator.js';
 import { TurnToolGroup } from './turn-tool-group';
 import { PlanExecutionGate } from './plan-execution-gate.js';
 import { isPlanProgressTool } from './plan-todo-model.js';
@@ -33,7 +29,7 @@ import { ExploreFlowCapsule } from './explore-flow-capsule';
 import type { ExploreFlowRole } from './explore-flow';
 import type { DocumentOpenInput } from './tool-call-card';
 import type { DiffCardRequest } from './diff-card';
-import type { AgentLocatorAnimation, WorkDetailsExpanded } from './ui-preferences.js';
+import type { WorkDetailsExpanded } from './ui-preferences.js';
 import { resolveGenerationToolKind } from './generation-tool-kind.js';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { ModelOption } from './model-options';
@@ -72,8 +68,6 @@ export type TurnWorkDetailsProps = {
   onOpenFile?: (absolutePath: string, relativePath?: string) => void;
   onOpenDiff?: (absolutePath: string, relativePath?: string) => void;
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
-  activeSkill?: SkillActivityView | null;
-  agentLocatorAnimation?: AgentLocatorAnimation;
   subagentChildren?: Record<string, SessionSummary>;
   subagentInvocations?: Record<string, SubagentInvocation>;
   subagentStreams?: Record<string, SubagentStreamState>;
@@ -88,27 +82,6 @@ export type TurnWorkDetailsProps = {
     captureKeyboard?: boolean;
   };
 };
-
-/** Prefer thinking/planning carousel copy while the bubble is still empty. */
-function resolveWaitingActivityInput(
-  presentation: TurnPresentation,
-  message: ChatMessageUi,
-  locale: 'zh-CN' | 'en',
-): RunActivityInput {
-  const base = turnPresentationToActivityInput(presentation, message, locale);
-  if (
-    base.kind === 'stopping' ||
-    base.kind === 'waiting-permission' ||
-    base.kind === 'failed' ||
-    base.kind === 'compacting'
-  ) {
-    return base;
-  }
-  if (base.kind === 'preparing' || base.kind === 'connecting-model') {
-    return base;
-  }
-  return { ...base, kind: 'waiting-first-token' };
-}
 
 export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | null {
   const locale = props.locale ?? 'zh-CN';
@@ -161,23 +134,8 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     permissionItem?.kind === 'permission'
       ? fileNameFromDetail(permissionItem.detail)
       : undefined;
-  // Keep a rotating locator whenever the bubble has no visible work chrome.
-  // Long model waits often land here: Host is preparing/streaming, or reasoning
-  // arrived while `verboseAgentChat` hides thinking — without this the Inkstone
-  // turn shows only the avatar/name byline.
-  const showWaitingLocator =
-    presentation.isActive &&
-    !presentation.answerStarted &&
-    callChainTools.length === 0 &&
-    // The explore capsule is the live work chrome. Folded tools used to look
-    // like "no work", so the waiting-first-token carousel spun under the chain.
-    !workFoldedIntoFlow &&
-    // Visible open thinking already fills the bubble; collapsed/hidden reasoning
-    // must still keep the carousel so long waits are not avatar-only.
-    !(hasThinking && thinkingOpen) &&
-    !permissionWaiting;
   // The header is the thinking toggle (or the permission wait). Live tool
-  // state belongs to the chain rows and the model-wait tail: a second
+  // state belongs to the chain rows and the run status footer: a second
   // 正在运行 · 第 N 个工具 line above them only repeated — and went stale
   // once the round settled while the model took its time.
   const showFoldHeader = hasThinking || foldState === 'waiting';
@@ -185,12 +143,10 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     isFlowAnchor ||
     hasThinking ||
     callChainTools.length > 0 ||
-    showWaitingLocator ||
     presentation.isWaitingForModel ||
     presentation.outcome !== undefined ||
     Boolean(terminalMessage) ||
-    Boolean(permissionItem) ||
-    Boolean(props.activeSkill && presentation.isActive);
+    Boolean(permissionItem);
 
   const planGate = props.planExecutionGate ? (
     <PlanExecutionGate
@@ -296,33 +252,9 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         </div>
       ) : null}
 
-      {showWaitingLocator ? (
-        <div className="turn-waiting-line" data-testid="turn-waiting-line">
-          <div className="agent-locator-stack">
-            {props.activeSkill ? (
-              <SkillActivityChip skill={props.activeSkill} loading locale={locale} />
-            ) : null}
-            <AgentLocator
-              input={resolveWaitingActivityInput(presentation, props.message, locale)}
-              {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
-            />
-          </div>
-        </div>
-      ) : null}
-
       {props.children}
 
       {anchorHasText ? exploreCapsule : null}
-
-      {props.activeSkill && presentation.isActive && tools.length > 0 ? (
-        <div className="turn-skill-activity-line" data-testid="turn-skill-activity-line">
-          <SkillActivityChip
-            skill={props.activeSkill}
-            loading={presentation.isWaitingForModel}
-            locale={locale}
-          />
-        </div>
-      ) : null}
 
       {permissionItem?.kind === 'permission' &&
       props.permissionPrompt !== null &&

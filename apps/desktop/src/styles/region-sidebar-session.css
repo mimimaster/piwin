@@ -221,45 +221,23 @@
   font-family: var(--serif, serif);
 }
 
-/* ── Pinned session: top-hanging ribbon & unboxed project tag ───────── */
+/* ── Pinned session: slender centered ribbon bookmark ───────── */
 .session-item-pinned-ribbon {
-  position: absolute;
-  top: 0;
-  left: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   width: 9px;
-  height: 18px;
+  height: 14px;
+  margin-right: 1px;
   color: var(--zhu, #c6412a);
   pointer-events: none;
-  z-index: 2;
 }
 
 .session-item-pinned-ribbon svg {
   display: block;
   width: 9px;
-  height: 18px;
-}
-
-.session-item[data-pinned-section='true'],
-.session-item.session-item--pinned {
-  padding-left: 26px;
-}
-
-.session-item-project-tag {
-  position: absolute;
-  right: var(--s-3, 8px);
-  top: 50%;
-  transform: translateY(-50%);
-  font-family: var(--font-mono, var(--mono, monospace));
-  font-size: var(--fs-micro, 11px);
-  color: var(--text-4, var(--t4, #8f887d));
-  pointer-events: none;
-  white-space: nowrap;
-  transition: opacity var(--t-1, 100ms) var(--ease-out, ease);
-}
-
-.session-row:hover .session-item-project-tag,
-.session-row:focus-within .session-item-project-tag {
-  opacity: 0;
+  height: 14px;
 }
 
 /* Subtitle for pinned project sessions */

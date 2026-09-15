@@ -150,19 +150,6 @@
   margin: var(--s-6) var(--s-1) var(--s-5);
 }
 
-.provider-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
-  margin: var(--s-6) 0 var(--s-5);
-  padding-left: var(--s-1);
-}
-
-.provider-section-header .provider-list-count {
-  margin: 0;
-}
-
 .provider-list-scroll {
   display: flex;
   flex-direction: column;

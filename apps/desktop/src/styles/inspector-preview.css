@@ -12,11 +12,17 @@
 
 .artifact-canvas-panel,
 .side-chat-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   height: 100%;
+}
+
+/* Canvas has no on-disk HTML (ADR 0029: message-backed). Export is Save As. */
+.artifact-canvas-panel > .artifact-canvas-export {
+  opacity: 1;
 }
 
 .artifact-canvas-panel > .artifact-frame {

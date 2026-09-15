@@ -310,3 +310,53 @@ never auto-replayed after recovery. Host detach of an attached CDP session
 must not `context.close()` the user's browser. Live headed + loopback CDP
 smoke on `79318f5c`:
 [`docs/evidence/2026-09-08-host-browser-smoke-79318f5c.md`](../evidence/2026-09-08-host-browser-smoke-79318f5c.md).
+
+### 2026-09-15 model-facing tool contract amendment
+
+Slice A of
+[`docs/specs/2026-09-12-browser-workbench-refactor.md`](../specs/2026-09-12-browser-workbench-refactor.md)
+landed the model-facing half of the workbench refactor. Host tools keep the
+ADR 0020 boundary (packages own their domain, Host composes) and stay
+first-class direct tools — no `piwin_toolbox` ceremony.
+
+- **Capability guidance**: `packages/host-runtime/src/browser-system-prompt.ts`
+  injects one short browser workflow via the blueprint compiler, and only when
+  the compiled Host surface actually exposes `browser_status` and
+  `browser_snapshot`. Tool descriptions stay short instead of repeating a
+  tutorial.
+- **Status**: `browser_status` is documented as a side-effect-free entry point
+  and now returns `controller`, `agentWantsLock`, `pendingDialog`, `mirror`
+  plus a stable `nextAction` (`continue`, `read-only-or-wait-for-user`,
+  `wait-for-recovery`, `restart`, `navigate-or-observe-will-start`).
+- **Page identity**: navigation/click/type successes attach a lightweight
+  `page` (`url`, `title`, `generation`, `pageId`, `pendingDialog`). Snapshots and
+  screenshots are never attached automatically.
+- **Control wording**: every write tool shares one suffix — idle writes
+  auto-acquire agent control, a user-held lock returns
+  `browser-user-has-control`, and read-only tools stay available meanwhile.
+- **`browser_find`**: returns up to 20 candidates `{ text, ref? }` plus the
+  total match count, derived from the same accessibility snapshot that produces
+  refs. A node without a ref is reported as text only; no selector is invented.
+- **`browser_scroll`**: accepts an optional `ref`/`selector` container and a
+  bounded `amount` (1–2000 CSS px, default 400). Without a target the page root
+  scrolls.
+- **`browser_select_option`** accepts values only; labels and indices were
+  removed from the description because they were never converted.
+- **Screenshot evidence**: `browser_screenshot` reports
+  `evidence.status` (`delivered` / `delegated` / `unavailable`). Media
+  persistence failure no longer degrades to a dimensions-only success. Captures
+  above the native image budget are re-encoded by
+  `@piwin/media` `createModelImageDerivative` into a bounded JPEG for the model
+  while the full-resolution original stays in the media library.
+- **Error recovery**: browser error details carry `recovery` — the action to
+  take instead of blindly retrying — while `retryable` keeps its narrow meaning
+  ("the same call may be retried"). The previously unused `details.recovery`
+  field was renamed `runtimeRecovery` to free the name for the spec'd action.
+- **File size**: shared registration/result/prepare helpers moved to
+  `browser-tool-helpers.ts`; `browser-tool-registrations.ts` left the >1000-line
+  band (AGENTS.md §3.2).
+
+Not yet implemented from the spec: Desktop two-layer icon chrome and viewport
+menu (Slice B UI), human pointer/modifier input (Slice C), page annotation
+(Slice D), remote binary frame channel (Slice E).
+

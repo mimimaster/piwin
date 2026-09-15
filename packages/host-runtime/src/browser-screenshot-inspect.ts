@@ -5,8 +5,14 @@
  */
 
 import { formatError, toMediaAttachmentRef } from '@piwin/contracts';
-import type { MediaAttachmentRef, PiwinConfig, ToolResultImage } from '@piwin/contracts';
-import { createMediaService } from '@piwin/media';
+import type {
+  BrowserScreenshotEvidence,
+  MediaAttachmentRef,
+  PiwinConfig,
+  ToolResultImage,
+} from '@piwin/contracts';
+import { createMediaService, createModelImageDerivative } from '@piwin/media';
+import type { ModelImageDerivative } from '@piwin/media';
 import { findEnabledProvider } from './provider-helpers.js';
 import type { SecretResolver } from './secret-resolver.js';
 import {
@@ -36,11 +42,26 @@ export type PersistBrowserScreenshotInput = {
   secretResolver?: SecretResolver;
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
+  /** Test seam; production derives through `@piwin/media`. */
+  deriveModelImage?: (input: {
+    bytes: Uint8Array;
+    maxBytes: number;
+  }) => Promise<ModelImageDerivative | undefined>;
+};
+
+export type ScreenshotDerivativeInfo = {
+  maxEdge: number;
+  quality: number;
+  width: number;
+  height: number;
+  sourceBytes: number;
 };
 
 export type ScreenshotInspectReport =
   | {
       status: 'native';
+      /** Present when the native image is a bounded derivative, not the original. */
+      derivative?: ScreenshotDerivativeInfo;
     }
   | {
       status: 'ok';
@@ -53,8 +74,6 @@ export type ScreenshotInspectReport =
       reason: string;
     };
 
-export type ScreenshotEvidence = 'delivered' | 'delegated' | 'unavailable';
-
 export type PersistBrowserScreenshotResult = {
   output: {
     status: 'success';
@@ -63,7 +82,7 @@ export type PersistBrowserScreenshotResult = {
     mediaId: string;
     mimeType: string;
     inspect: ScreenshotInspectReport;
-    evidence: ScreenshotEvidence;
+    evidence: BrowserScreenshotEvidence;
     notice: string;
   };
   details: {
@@ -116,12 +135,11 @@ export async function persistAndInspectBrowserScreenshot(
     },
     'generated',
   );
-  const images = nativeToolResultImages(input);
-  const inspect = images
-    ? ({ status: 'native' } as const)
+  const native = await resolveNativeImages(input);
+  const inspect: ScreenshotInspectReport = native
+    ? { status: 'native', ...(native.derivative ? { derivative: native.derivative } : {}) }
     : await describeScreenshotIfConfigured(input, asset.absolutePath);
-  const evidence: ScreenshotEvidence =
-    inspect.status === 'native' ? 'delivered' : inspect.status === 'ok' ? 'delegated' : 'unavailable';
+  const evidence = screenshotEvidence(inspect, asset.id);
   return {
     output: {
       status: 'success',
@@ -138,27 +156,77 @@ export async function persistAndInspectBrowserScreenshot(
       height: input.height,
       attachments: [attachment],
     },
-    ...(images ? { images } : {}),
+    ...(native ? { images: native.images } : {}),
   };
 }
 
-function nativeToolResultImages(
+type NativeImageSelection = {
+  images: ToolResultImage[];
+  derivative?: ScreenshotDerivativeInfo;
+};
+
+function toToolResultImage(bytes: Uint8Array): ToolResultImage {
+  return { mimeType: JPEG_MIME, dataBase64: Buffer.from(bytes).toString('base64') };
+}
+
+/**
+ * Vision primaries get the original when it fits. An oversized capture is
+ * downscaled into a bounded derivative instead of silently dropping pixels —
+ * dropping them made the model report a capture it never saw (spec §7).
+ */
+async function resolveNativeImages(
   input: PersistBrowserScreenshotInput,
-): ToolResultImage[] | undefined {
+): Promise<NativeImageSelection | undefined> {
   if (!input.primarySupportsImage) return undefined;
-  if (input.jpegBytes.byteLength === 0 || input.jpegBytes.byteLength > MAX_NATIVE_SCREENSHOT_BYTES) {
-    return undefined;
+  if (input.jpegBytes.byteLength === 0) return undefined;
+  if (input.jpegBytes.byteLength <= MAX_NATIVE_SCREENSHOT_BYTES) {
+    return { images: [toToolResultImage(input.jpegBytes)] };
   }
-  return [
-    {
-      mimeType: JPEG_MIME,
-      dataBase64: Buffer.from(input.jpegBytes).toString('base64'),
+  const derive = input.deriveModelImage ?? createModelImageDerivative;
+  let derivative: ModelImageDerivative | undefined;
+  try {
+    derivative = await derive({ bytes: input.jpegBytes, maxBytes: MAX_NATIVE_SCREENSHOT_BYTES });
+  } catch {
+    derivative = undefined;
+  }
+  if (derivative === undefined) return undefined;
+  return {
+    images: [toToolResultImage(derivative.bytes)],
+    derivative: {
+      maxEdge: derivative.maxEdge,
+      quality: derivative.quality,
+      width: derivative.width,
+      height: derivative.height,
+      sourceBytes: input.jpegBytes.byteLength,
     },
-  ];
+  };
+}
+
+/**
+ * Spec §7: only delivered/delegated count as model-visible pixels. Delegation
+ * and derivative failures keep the capture successful but report the reason.
+ */
+function screenshotEvidence(
+  inspect: ScreenshotInspectReport,
+  mediaId: string,
+): BrowserScreenshotEvidence {
+  if (inspect.status === 'native') return { status: 'delivered', mediaId };
+  if (inspect.status === 'ok') {
+    return {
+      status: 'delegated',
+      mediaId,
+      description: inspect.description,
+      model: `${inspect.model.providerId}/${inspect.model.modelId}`,
+    };
+  }
+  return { status: 'unavailable', mediaId, reason: inspect.reason };
 }
 
 function nativeNotice(inspect: ScreenshotInspectReport): string {
   if (inspect.status === 'native') {
+    if (inspect.derivative) {
+      return `The original capture exceeded the native image budget (${inspect.derivative.sourceBytes} bytes) and a downscaled derivative is attached. Inspect those pixels; the full-resolution capture stays in the media library. Do not embed markdown images or local file paths.`;
+    }
     return 'A screenshot image is attached to this tool result. Inspect the pixels and continue fixing. Do not embed markdown images or local file paths.';
   }
   if (inspect.status === 'ok') {

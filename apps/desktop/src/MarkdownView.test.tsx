@@ -215,6 +215,7 @@ describe('MarkdownView artifact preview policy', () => {
     });
     await act(async () => {
       await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(createObjectURL).toHaveBeenCalledOnce();

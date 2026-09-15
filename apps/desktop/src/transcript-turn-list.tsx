@@ -286,8 +286,12 @@ function VirtualizedTranscriptTurns(
     [props.scrollPort.sessionId, props.turns],
   );
   const measureElement = useCallback(
-    (element: HTMLElement) => {
-      const rawHeight = Math.max(element.offsetHeight, element.getBoundingClientRect().height);
+    (element: HTMLElement, entry: ResizeObserverEntry | undefined) => {
+      // ResizeObserver already measured every reflowed row. Reading layout
+      // again here interleaves forced reads with virtualizer DOM updates.
+      const rawHeight = entry?.borderBoxSize?.[0]?.blockSize
+        ?? entry?.contentRect.height
+        ?? Math.max(element.offsetHeight, element.getBoundingClientRect().height);
       const normalized = normalizeTranscriptTurnHeight(rawHeight);
       const turnId = element.dataset.turnId;
       if (normalized !== null && props.scrollPort.sessionId && turnId) {

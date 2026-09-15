@@ -11,7 +11,8 @@ describe('formatBrowserSystemPrompt', () => {
       { descriptor: { name: 'browser_status', description: '', parameters: {} } },
       { descriptor: { name: 'browser_snapshot', description: '', parameters: {} } },
     ]);
-    expect(prompt).toContain('browser_status first');
-    expect(prompt).toContain('auto-acquire');
+    expect(prompt).toContain('browser_status to inspect the current page');
+    expect(prompt).toContain('do not call browser_lock first');
+    expect(prompt).toContain('Do not claim visual verification');
   });
 });

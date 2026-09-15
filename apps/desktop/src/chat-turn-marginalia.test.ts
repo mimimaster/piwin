@@ -29,6 +29,9 @@ describe('chat-turn-marginalia', () => {
     expect(shortModelLabel('gemini-2.0-flash-thinking-exp-01-21')).toBe('Gemini 2.0 Flash');
     expect(shortModelLabel('deepseek-reasoner')).toBe('DeepSeek R1');
     expect(shortModelLabel('deepseek-chat')).toBe('DeepSeek V3');
+    expect(shortModelLabel('deepseek-v4-1-flash')).toBe('DeepSeek V4.1 Flash');
+    expect(shortModelLabel('deepseek-v4.1-flash')).toBe('DeepSeek V4.1 Flash');
+    expect(shortModelLabel('v4-1-flash')).toBe('V4.1 flash');
     expect(shortModelLabel('grok-4.6')).toBe('Grok 4.6');
     expect(shortModelLabel('grok-4-6')).toBe('Grok 4.6');
   });

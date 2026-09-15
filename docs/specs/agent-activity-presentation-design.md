@@ -239,7 +239,7 @@ Artifact 生成分为两个连续阶段：模型尚未输出可识别内容时�
 - MCP 已在 Host 侧 `ToolPresentation` 中拥有独立的 `mcp` 类型；直接工具、`piwin_toolbox` 目录动作、以及历史 `mcp_gateway` 的 `search / describe / call / status` 分别映射到 `mcp.call`、`mcp.discovery`、`mcp.server.status`。
 - Subagent 的父级批次、子任务和 Inspector 使用独立行为 ID；父级只展示聚合，子会话内部继续复用普通工具行为。
 - Skill 当前是资源加载与注入，不是普通 `tool-call`。V1 只对用户明确选择的 `/skill` 提交显示 `skill.load` / `skill.use` 芯片；安装、启用、禁用仍停留在设置页。未来若 Host 提供归一化资源活动事件，再扩展到自动注入的 Skill。
-- 全局定位器的展示入口是 `RunActivitySlot` 与等待模型的 `TurnWorkDetails`。
+- 全局定位器在 Agent 会话中只有一个展示入口：`RunStatusFooter`，运行期间固定在当前回合末尾，显示「动效 · 已运行时长 · 输出 token（客户端估算）· 轮播文案」。它取代了原 `RunActivitySlot`、`TurnWorkDetails` 气泡内等待行、模型等待尾行（2026-09-15），运行中也不显示回合 token 页脚。
 - **Superseded（2026-08-13）**：原"折叠态只显示一份 Run 摘要"的 `TurnWorkDetails`
   Run 级聚合与其引用的 [Model-turn tool timeline](./model-turn-tool-timeline.md)
   均已废弃，替代方案是按事件因果序 append-only 渲染的
@@ -261,7 +261,7 @@ Artifact 生成分为两个连续阶段：模型尚未输出可识别内容时�
 
 - `apps/desktop/src/behavior-activity.ts`：行为 ID 注册表、工具/运行状态归一化、文案与文字动效映射。
 - `apps/desktop/src/agent-locator.tsx`：唯一轻量全局 Locator、Skill 上下文芯片；默认使用 `RadialBellow`。
-- `apps/desktop/src/RunActivitySlot.tsx`、`turn-work-details.tsx`：接入运行定位器与 Skill 芯片，旧 `RunActivitySplash` 保持隐藏。
+- `apps/desktop/src/run-status-footer.tsx`、`run-status-footer-model.ts`：运行状态条（定位器 + 时长/token + Skill 芯片），旧 `RunActivitySplash` 保持隐藏。
 - `apps/desktop/src/transcript-turns.ts`、`chat-thread.tsx`：当前按
   [causal agent event stream](../plans/2026-08-12-causal-agent-event-stream.md)
   以事件因果序渲染；早期"按 `runId` 聚合出单份 Run 摘要 / 扁平化工具数组"的

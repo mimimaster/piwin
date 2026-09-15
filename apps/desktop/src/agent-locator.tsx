@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import {
   AsteriskBreath,
   BreathDot,
@@ -14,6 +14,8 @@ import type { RunActivityInput } from './run-activity-types.js';
 export type AgentLocatorProps = {
   input: RunActivityInput;
   animation?: AgentLocatorAnimation;
+  /** Live facts (elapsed, tokens) set between the marker and the phrase. */
+  meta?: ReactNode;
 };
 
 export type SkillActivityChipProps = {
@@ -69,6 +71,11 @@ export function AgentLocator(props: AgentLocatorProps): ReactElement {
       {animation !== 'none' ? (
         <span className="agent-locator-visual" aria-hidden="true">
           {renderLocatorAnimation(animation, locale)}
+        </span>
+      ) : null}
+      {props.meta ? (
+        <span className="agent-locator-meta" data-testid="agent-locator-meta">
+          {props.meta}
         </span>
       ) : null}
       <span

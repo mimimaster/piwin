@@ -73,7 +73,8 @@ describe('Inkstone transcript container query', () => {
     expect(css).toMatch(/\.chat-turn-assistant \{\s*--turn-lead-offset: 2px;\s*--turn-lead-h: 30px;/);
     expect(css).toMatch(/\.conversation-message-header\s*\+ \.markdown\s*\) \{\s*--turn-lead-offset: 0px;\s*--turn-lead-h: 25px;/);
     expect(css).toMatch(/\.turn-error-card\):not\([\s\S]*?\) \{\s*--turn-lead-offset: 20px;\s*--turn-lead-h: 24px;/);
-    expect(css).toMatch(/@container turn-rail \(max-width: 139px\)[\s\S]*?> \.av \{\s*display: none;/);
+    // A glyph that cannot fit beside the name wraps into the clipped line.
+    expect(css).toMatch(/> \.turn-byline \{[\s\S]*?flex-wrap: wrap;[\s\S]*?height: var\(--turn-lead-h, 30px\);\s*overflow: hidden;/);
   });
 
   it('pulses the glyph while running and keeps only the waiting label', () => {

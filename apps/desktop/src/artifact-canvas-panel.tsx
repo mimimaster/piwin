@@ -19,9 +19,10 @@ import {
   type ArtifactThemeVariables,
   type ComposerProposeTextActionPayload,
 } from '@piwin/artifact';
-import { Button } from '@piwin/ui-kit';
+import { Button, IconButton, IconDownload } from '@piwin/ui-kit';
 import { ArtifactFrame } from './ArtifactFrame';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
+import { artifactDownloadLabel, downloadArtifactSource } from './artifact-source-export.js';
 import { useDesktopLocale } from './desktop-locale-context';
 import { useArtifactSessionMediaObjectUrls } from './artifact-session-media.js';
 
@@ -76,6 +77,19 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
 
   function handleDismiss(): void {
     setPendingProposal(null);
+  }
+
+  const canExportSource = (activeTarget?.source.trim().length ?? 0) > 0;
+  const exportKind = activeTarget?.type === 'svg' ? 'svg' : 'html';
+  const downloadLabel = artifactDownloadLabel(locale, exportKind);
+
+  function handleDownloadSource(): void {
+    if (!activeTarget || !canExportSource) return;
+    void downloadArtifactSource({
+      source: activeTarget.source,
+      title: activeTarget.title,
+      kind: exportKind,
+    });
   }
 
   if (!activeTarget) {
@@ -135,6 +149,20 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
           {isZh ? `正在准备「${activeTarget.title}」…` : `Preparing “${activeTarget.title}”…`}
         </div>
       )}
+      {canExportSource ? (
+        <div className="artifact-floating-actions artifact-canvas-export">
+          <IconButton
+            label={downloadLabel}
+            title={downloadLabel}
+            size="sm"
+            className="artifact-floating-action-button artifact-canvas-download"
+            data-testid="artifact-canvas-panel-download"
+            onClick={handleDownloadSource}
+          >
+            <IconDownload size={14} />
+          </IconButton>
+        </div>
+      ) : null}
     </div>
   );
 }

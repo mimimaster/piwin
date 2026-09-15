@@ -54,7 +54,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     }),
     back: async () => {},
     forward: async () => {},
-    find: async () => ({ count: 0 }),
+    find: async () => ({ count: 0, candidates: [], truncated: false }),
     wait: async () => {},
     waitFor: async () => {},
     reload: async () => {},
@@ -63,6 +63,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     applyViewport: async (size) => size,
     status: () => ({
       lifecycle: 'stopped' as const,
+      mirror: 'off' as const,
       generation: 0,
       pageStateLost: false,
       recoveryCount: 0,

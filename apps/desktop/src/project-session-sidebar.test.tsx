@@ -1476,7 +1476,7 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
     expect(timeGroups.length).toBeGreaterThan(0);
   });
 
-  it('renders pinned section header and project subtitle for pinned project sessions', () => {
+  it('renders pinned section header and items without project subtitle', () => {
     const projectPinned = {
       id: 'proj-pin-1',
       name: 'Coding Agent Prompt Engi...',
@@ -1525,16 +1525,16 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
     expect(container.querySelector('[data-testid="pinned-section-title"]')?.textContent).toBe('置顶');
     expect(container.querySelector('[data-testid="pinned-section-count"]')?.textContent).toBe('2');
 
-    // Project subtitle is displayed for the project session
-    const projectSubtitles = container.querySelectorAll(
-      '[data-testid="session-project-subtitle"]',
-    );
-    expect(projectSubtitles).toHaveLength(1);
-    expect(projectSubtitles[0]?.textContent).toBe('piwin');
+    // In default 'code' mode pane, the project pinned session has the ribbon bookmark
+    const ribbons = container.querySelectorAll('[data-testid="session-pinned-ribbon"]');
+    expect(ribbons).toHaveLength(1);
+
+    // Project subtitle is omitted in pinned section to keep rows clean
+    expect(container.querySelectorAll('[data-testid="session-project-subtitle"]')).toHaveLength(0);
 
     // Clicking pinned toggle collapses the pinned sessions
     act(() => pinnedToggle?.click());
-    expect(container.querySelectorAll('[data-testid="session-project-subtitle"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-testid="session-pinned-ribbon"]')).toHaveLength(0);
   });
 
   it('does not render pinned section when there are no pinned sessions', () => {

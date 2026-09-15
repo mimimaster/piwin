@@ -152,6 +152,14 @@ export function buildArtifactBridgeBootstrapScript(
     if (!sizeEnabled || heightFrame !== null) return;
     heightFrame = requestAnimationFrame(reportHeight);
   };
+  // Parent iframe load often arms its ready timer after the first paint
+  // report. An unchanged root would then skip the echo and the parent would
+  // treat a live preview as a measurement failure. Force one post-load copy.
+  var confirmPostedHeight = function () {
+    if (!sizeEnabled || currentFrameMode === 'canvas') return;
+    lastReportedHeight = -1;
+    scheduleHeight();
+  };
   var onMeasureRequest = function (event) {
     var data = event.data;
     if (
@@ -374,11 +382,14 @@ export function buildArtifactBridgeBootstrapScript(
     if (currentFrameMode === 'inline-flow') startHeightObserver();
     else if (currentFrameMode === 'canvas') startCanvasStageFit();
     else scheduleHeight();
+    if (window.setTimeout) window.setTimeout(confirmPostedHeight, 0);
   } else {
     window.addEventListener('load', function () {
+      lastReportedHeight = -1;
       if (currentFrameMode === 'inline-flow') startHeightObserver();
       else if (currentFrameMode === 'canvas') startCanvasStageFit();
       else scheduleHeight();
+      if (window.setTimeout) window.setTimeout(confirmPostedHeight, 0);
     }, { once: true });
   }
 })();

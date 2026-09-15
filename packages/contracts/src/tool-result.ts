@@ -30,7 +30,9 @@ export type ToolResultDetails = Record<string, unknown> & {
   /** Browser write/observe dispatch stage when the result is not a clean success. */
   outcome?: 'not-started' | 'unknown';
   /** Whether Host already attempted a bounded runtime recovery. */
-  recovery?: 'none' | 'recovered' | 'failed';
+  runtimeRecovery?: import('./browser.js').BrowserRecoveryStatus;
+  /** Browser-only: the action to take instead of blindly retrying (spec §6.4). */
+  recovery?: import('./browser.js').BrowserRecoveryAction;
   pageStateLost?: boolean;
   nextAction?: string;
 };

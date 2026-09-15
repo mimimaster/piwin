@@ -63,6 +63,7 @@ describe('SourceCodeBlock download', () => {
     });
     await act(async () => {
       await Promise.resolve();
+      await Promise.resolve();
     });
 
     const blob = createObjectURL.mock.calls[0]?.[0];
@@ -84,6 +85,7 @@ describe('SourceCodeBlock download', () => {
       container.querySelector<HTMLButtonElement>('[data-testid="code-download-button"]')?.click();
     });
     await act(async () => {
+      await Promise.resolve();
       await Promise.resolve();
     });
     const anchor = click.mock.instances[0] as unknown as HTMLAnchorElement;

@@ -7,7 +7,7 @@ import { CitationCards } from '../CitationCards.js';
 import { ImageGenerationProgress } from '../image-generation-progress.js';
 import { VideoGenerationProgress } from '../video-generation-progress.js';
 import { WorkFoldHeader } from '../work-fold-header.js';
-import { ModelWaitTailRow } from '../model-wait-tail-row.js';
+import { RunStatusFooter } from '../run-status-footer.js';
 import { FlashcardStackView } from '../FlashcardView.js';
 import type { FlashcardReviewCard } from '@piwin/contracts';
 
@@ -210,13 +210,29 @@ export function InkstoneChainGallery(): ReactElement {
           <div className="thread turn-tool-sequence">
             <ToolCallCard tool={toolboxSearchTool} density="compact" locale="zh-CN" />
           </div>
-          <ModelWaitTailRow
-            tail={{
-              kind: 'waiting',
-              since: modelWaitSince,
-              modelLabel: 'Gemini 3.8 Flash',
-              placeholderMessageIds: [],
+          <RunStatusFooter
+            messages={[
+              {
+                id: 'gallery-streamed',
+                role: 'assistant',
+                text: '',
+                thinking: 'Composer steer queue walkthrough. '.repeat(220),
+                tools: [],
+                attachments: [],
+                status: 'done',
+                runId: 'gallery-run',
+              },
+            ]}
+            activeRunId="gallery-run"
+            runRecordsById={{
+              'gallery-run': {
+                runId: 'gallery-run',
+                phaseHistory: [{ phase: 'waiting-first-token', at: modelWaitSince }],
+                startedAt: modelWaitSince,
+                endedAt: null,
+              },
             }}
+            modelWaitTail={{ kind: 'waiting', placeholderMessageIds: [] }}
             locale="zh-CN"
           />
         </div>
