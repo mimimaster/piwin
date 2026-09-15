@@ -47,6 +47,7 @@
 @import './styles/artifact.css';
 @import './styles/region-conversation-message.css';
 @import './styles/region-conversation-panes.css';
+@import './styles/docking-workspace.css';
 @import './styles/conversation-pane-session.css';
 @import './styles/region-doccards.css';
 @import './styles/doccards-file-manifest.css';

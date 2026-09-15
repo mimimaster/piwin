@@ -66,9 +66,10 @@ export function useConversationPaneLayout(args: {
   }, [args.enabled, args.primarySessionId, args.scopeKey, loadedScopeKey]);
 
   useEffect(() => {
+    if (!args.enabled) return;
     if (loadedScopeKey !== args.scopeKey) return;
     saveConversationPaneLayout(layout, undefined, args.scopeKey);
-  }, [args.scopeKey, layout, loadedScopeKey]);
+  }, [args.enabled, args.scopeKey, layout, loadedScopeKey]);
 
   const update = useCallback(
     (transform: (current: ConversationPaneLayout) => ConversationPaneLayout): void => {

@@ -36,7 +36,7 @@ import { WorkbenchContextBar } from './workbench-context-bar';
 import { LiveBar } from './live/LiveBar.js';
 import { WorkbenchOverlays, WorkbenchSettingsOverlay } from './workbench-overlays';
 import { WorkbenchSidebar } from './workbench-sidebar';
-import { ConversationPaneWorkspace } from './conversation-pane-workspace';
+import { WorkbenchConversationStage } from './workbench-conversation-stage';
 import {
   PRIMARY_CONVERSATION_PANE_ID,
   listConversationPaneLeaves,
@@ -46,6 +46,10 @@ import {
   useConversationPaneLayout,
   useConversationPaneSubscriptions,
 } from './use-conversation-pane-layout';
+import { appendComposerProposal } from './artifact-canvas-model.js';
+import { isDockingWorkspaceEnabled } from './workbench/docking/flag.js';
+import { DockToolHostsProvider } from './workbench/docking/dock-tool-hosts.js';
+import { useDockingWorkspace } from './workbench/docking/use-docking-workspace.js';
 import { sessionScopeKey } from './session-scope-key';
 import { resolveEntityScope } from './session-entities';
 import { shouldBindSessionToSecondaryPane } from './conversation-pane-bind';
@@ -153,20 +157,26 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   } = terminal;
   const conversationPanesEnabled =
     state.activeScope.kind === 'general' || state.activeScope.kind === 'project';
+  const dockingEnabled = isDockingWorkspaceEnabled();
   const conversationPaneController = useConversationPaneLayout({
-    enabled: conversationPanesEnabled,
-    primarySessionId: conversationPanesEnabled ? state.activeSessionId : null,
+    enabled: conversationPanesEnabled && !dockingEnabled,
+    primarySessionId: conversationPanesEnabled && !dockingEnabled ? state.activeSessionId : null,
     ...(conversationPanesEnabled ? { scopeKey: sessionScopeKey(state.activeScope) } : {}),
   });
-  const liveSessionId = conversationPanesEnabled
-    ? resolveFocusedConversationSessionId({
-        layout: conversationPaneController.layout,
-        primarySessionId: state.activeSessionId,
-      })
-    : state.activeSessionId;
-  // `useWorkbenchKnowledge` (below, needs `model`'s handlers) writes this ref
-  // each render; `handleSend`, wired up inside `model`, only reads it later at
-  // send time, so the construction-order mismatch never surfaces a stale value.
+  const dockingWorkspace = useDockingWorkspace({
+    enabled: conversationPanesEnabled && dockingEnabled,
+    hostClient,
+    inspectorTab: rightPanelOpen ? rightPanelTab : null,
+    ...(conversationPanesEnabled ? { scopeKey: sessionScopeKey(state.activeScope) } : {}),
+  });
+  const liveSessionId = dockingEnabled
+    ? dockingWorkspace.state.sessionTargetId ?? state.activeSessionId
+    : conversationPanesEnabled
+      ? resolveFocusedConversationSessionId({
+          layout: conversationPaneController.layout,
+          primarySessionId: state.activeSessionId,
+        })
+      : state.activeSessionId;
   const knowledgeMountsRef = useRef<{
     mountedIds: readonly string[];
     clearDraft: () => void;
@@ -395,11 +405,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     }
     wasStreamingRef.current = state.streaming;
   }, [state.streaming]);
-  /**
-   * Library "Remix in Chat" — attaches the asset (when there is one) and
-   * drops its prompt in as a starting draft, appended after whatever the
-   * user was already drafting rather than overwriting it.
-   */
   const handleRemixToComposer = useCallback(
     (input: { text: string; item?: MediaLibraryItem }) => {
       if (input.item) {
@@ -448,7 +453,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     hostClient,
     activeSessionId: state.activeSessionId,
     paneLayout: conversationPaneController.layout,
-    panesEnabled: conversationPanesEnabled,
+    panesEnabled: conversationPanesEnabled && !dockingEnabled,
   });
   const handleCreatePaneConversation = useCallback(
     async (_paneId: string): Promise<string | null> => {
@@ -474,6 +479,23 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               <SubagentReviewLoopProvider value={reviewLoop}>
               <KnowledgeMountsProvider value={knowledgeSupported ? knowledge.mounts : null}>
               <KnowledgeCitationActionsProvider value={knowledge.citationActions}>
+              <DockToolHostsProvider
+                value={{
+                  hostClient,
+                  locale: desktopLocale,
+                  activeTheme,
+                  artifactThemeKey,
+                  projectPath: state.projectPath,
+                  requestGit,
+                  addWebElement,
+                  artifactTarget: artifactCanvas.activeTarget,
+                  onInsertCanvasProposal: (text) =>
+                    setComposer((current) => appendComposerProposal(current, text)),
+                  activeDocument,
+                  inspectorDiff: inspectorFileDiff.diff,
+                  ...(activeMedia ? { activeMedia } : {}),
+                }}
+              >
               <div
                 className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}${rightPanelOpen && inspectorPlacement === 'column' && rightPanelResize.isFullWidth ? ' right-panel-full-width' : ''}`}
                 style={appShellStyle}
@@ -531,6 +553,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                         setActiveSubPage(null);
                         if (isOverlayPresentation) {
                           shell.closeOverlay();
+                        }
+                        if (conversationPanesEnabled && dockingEnabled) {
+                          dockingWorkspace.openOrFocusSession(sessionId);
+                          return Promise.resolve();
                         }
                         if (conversationPanesEnabled) {
                           const leaves = listConversationPaneLeaves(
@@ -633,38 +659,36 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       .filter(Boolean)
                       .join(' ') || undefined
                   }
-                  renderStage={(primaryPane) => {
-                    if (conversationPanesEnabled) {
-                      return (
-                        <ConversationPaneWorkspace
-                          controller={conversationPaneController}
-                          phoneSinglePane={layoutMode === 'phone'}
-                          primaryPane={primaryPane}
-                          primarySessionName={
-                            activeSessionName ||
-                            (desktopLocale === 'zh-CN' ? '素笺' : 'Clean Slate')
-                          }
-                          sessions={
-                            state.activeScope.kind === 'general'
-                              ? state.generalSessions
-                              : state.sessions
-                          }
-                          hostClient={hostClient}
-                          activeTheme={activeTheme}
-                          artifactThemeKey={artifactThemeKey}
-                          artifactPreviewEnabled={config?.artifact?.enabled ?? true}
-                          readMedia={readTranscriptMedia}
-                          locale={desktopLocale}
-                          keyboardEnabled={!settingsOpen && !activeSubPage}
-                          onCreateConversation={handleCreatePaneConversation}
-                          onOpenDocument={handleOpenDocument}
-                          onOpenArtifactCanvas={handleOpenArtifactCanvas}
-                          fileBrowseRoot={fileBrowseRoot}
-                        />
-                      );
-                    }
-                    return primaryPane;
-                  }}
+                  renderStage={(primaryPane) => (
+                    <WorkbenchConversationStage
+                      primaryPane={primaryPane}
+                      dockingEnabled={dockingEnabled}
+                      docking={dockingWorkspace}
+                      conversationPanesEnabled={conversationPanesEnabled}
+                      conversationPaneController={conversationPaneController}
+                      phoneSinglePane={layoutMode === 'phone'}
+                      primarySessionName={
+                        activeSessionName ||
+                        (desktopLocale === 'zh-CN' ? '素笺' : 'Clean Slate')
+                      }
+                      sessions={
+                        state.activeScope.kind === 'general'
+                          ? state.generalSessions
+                          : state.sessions
+                      }
+                      hostClient={hostClient}
+                      activeTheme={activeTheme}
+                      artifactThemeKey={artifactThemeKey}
+                      artifactPreviewEnabled={config?.artifact?.enabled ?? true}
+                      readMedia={readTranscriptMedia}
+                      locale={desktopLocale}
+                      keyboardEnabled={!settingsOpen && !activeSubPage}
+                      onCreateConversation={handleCreatePaneConversation}
+                      onOpenDocument={handleOpenDocument}
+                      onOpenArtifactCanvas={handleOpenArtifactCanvas}
+                      fileBrowseRoot={fileBrowseRoot}
+                    />
+                  )}
                   transcript={
                     <WorkbenchTranscript
                       locale={desktopLocale}
@@ -754,6 +778,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       terminalAttention={terminalAttention}
                       onTerminalAttentionClear={() => setTerminalAttention(false)}
                       onViewChange={setRightPanelView}
+                      workspaceOwnsMovableTools={dockingEnabled}
                       locale={desktopLocale}
                       activeTheme={activeTheme}
                       onToggleAppearance={handleToggleAppearance}
@@ -959,6 +984,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 onSettingsSaved={handleSettingsSaved}
                 config={config}
               />
+              </DockToolHostsProvider>
               </KnowledgeCitationActionsProvider>
               </KnowledgeMountsProvider>
               </SubagentReviewLoopProvider>

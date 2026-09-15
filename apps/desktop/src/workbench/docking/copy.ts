@@ -1,0 +1,19 @@
+export const DOCKING_COPY = {
+  splitRight: '在右侧分屏',
+  splitLeft: '在左侧分屏',
+  splitUp: '在上方分屏',
+  splitDown: '在下方分屏',
+  joinGroup: '加入标签组',
+  dockRight: '停靠到右侧工具栏',
+  sessionNotInRight: '会话请放置于主工作区',
+  toolNotMovable: '该工具暂不支持放到主工作区',
+  fourLimit: '已达四格上限',
+  noSpace: '空间不足',
+  crossProject: '跨项目无法直接放置',
+  illegal: '不支持该排列',
+  viewLimit: '已打开 24 个视图，请关闭部分视图后再继续',
+  switchProjectPrefix: '该会话属于项目',
+  switchProjectAction: '点击切换到该项目',
+  migrateNotice: (extraTabCount: number): string =>
+    `工作台已升级为最多四格，原其余 ${String(extraTabCount)} 个会话已收纳至第 4 组的标签页中`,
+} as const;
