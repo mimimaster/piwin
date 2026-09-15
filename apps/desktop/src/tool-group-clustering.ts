@@ -31,77 +31,72 @@ export type ClusteredToolItem =
       summary: BatchClusterSummary;
     };
 
-/** Classify a tool into a high-level semantic cluster. */
+/** Split `grep_search` / `readFile` / `web-fetch` into lowercase word tokens. */
+function toolNameTokens(toolName: string): string[] {
+  return toolName
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 0);
+}
+
+/**
+ * Classify a tool into a high-level semantic cluster.
+ *
+ * Host `actionVerb` / `kind` win. Name matching is a legacy fallback and works
+ * on whole tokens: substring matching folded `send_notification` (cat),
+ * `code_review` (view) and `browser_click` (browser) into read-only explore
+ * capsules, hiding side effects inside a collapsed "探索了 N 项".
+ */
 export function resolveToolClusterKind(tool: ToolCardUi): ToolClusterKind {
   const name = (tool.toolName || '').toLowerCase().trim();
   const verb = (tool.presentation?.actionVerb || '').toLowerCase().trim();
   const kind = tool.presentation?.kind;
 
-  if (tool.presentation?.kind === 'subagent' || name === 'piwin_subagent_run') {
+  if (kind === 'subagent' || name === 'piwin_subagent_run') {
     return 'subagent';
   }
 
-  // 1. Check action verbs from presentation
+  // 1. Host-authored action verbs
   if (verb === 'searched' || verb === 'explored') return 'search';
   if (verb === 'read') return 'read';
   if (verb === 'edited') return 'edit';
   if (verb === 'ran command' || verb === 'ran tests' || verb === 'built') return 'command';
   if (verb === 'fetched') return 'web';
 
-  // 2. Check tool name patterns
+  // 2. Host kinds that are never read-only exploration, whatever the name says
+  if (kind === 'shell' || kind === 'process') return 'command';
   if (
-    name.includes('grep') ||
-    name.includes('search') ||
-    name.includes('find') ||
-    name.includes('locate')
+    kind === 'mcp' ||
+    kind === 'git' ||
+    kind === 'image' ||
+    kind === 'video' ||
+    kind === 'health' ||
+    verb.startsWith('mcp') ||
+    verb.startsWith('git') ||
+    name.startsWith('mcp__') ||
+    name.includes('.')
   ) {
-    return 'search';
-  }
-  if (
-    name.includes('glob') ||
-    name.includes('list_dir') ||
-    name === 'ls' ||
-    name.includes('read') ||
-    name.includes('view') ||
-    name.includes('cat')
-  ) {
-    return 'read';
-  }
-  if (
-    name.includes('write') ||
-    name.includes('edit') ||
-    name.includes('replace') ||
-    name.includes('patch')
-  ) {
-    return 'edit';
-  }
-  if (
-    name.includes('bash') ||
-    name.includes('shell') ||
-    name.includes('command') ||
-    name.includes('exec') ||
-    name.includes('terminal') ||
-    name.includes('test') ||
-    name.includes('build')
-  ) {
-    return 'command';
-  }
-  if (
-    name.includes('web') ||
-    name.includes('fetch') ||
-    name.includes('browser') ||
-    name.includes('url')
-  ) {
-    return 'web';
+    return 'other';
   }
 
-  // 3. Fallback to host ToolKind
+  // 3. Legacy name tokens
+  const tokens = toolNameTokens(tool.toolName || '');
+  const hasToken = (...words: string[]): boolean => words.some((word) => tokens.includes(word));
+  // Browser automation clicks/types/navigates: side effects, not exploration.
+  if (hasToken('browser', 'playwright', 'puppeteer', 'git')) return 'other';
+  if (hasToken('grep', 'rg', 'ripgrep', 'search', 'find', 'locate')) return 'search';
+  if (hasToken('glob', 'ls', 'dir', 'tree', 'read', 'view', 'cat')) return 'read';
+  if (hasToken('write', 'edit', 'editor', 'multiedit', 'replace', 'patch')) return 'edit';
+  if (hasToken('bash', 'shell', 'command', 'cmd', 'exec', 'terminal', 'test', 'tests', 'build')) {
+    return 'command';
+  }
+  if (hasToken('web', 'websearch', 'webfetch', 'fetch', 'url', 'http')) return 'web';
+
+  // 4. Fallback to host ToolKind
   switch (kind) {
     case 'filesystem':
       return 'read';
-    case 'shell':
-    case 'process':
-      return 'command';
     case 'web':
       return 'web';
     default:
@@ -156,25 +151,73 @@ function extractKeyTargets(tools: ToolCardUi[]): string[] {
   return Array.from(targets);
 }
 
+/**
+ * Distinct files an explore group actually read. Search/explore targets are
+ * directories and glob patterns (`src`, `**` globs), not files, and a failed
+ * read explored nothing.
+ */
+export function countExploredFiles(tools: readonly ToolCardUi[]): number {
+  const files = new Set<string>();
+  for (const tool of tools) {
+    if (tool.status === 'error' || resolveToolClusterKind(tool) !== 'read') continue;
+    const paths = (tool.presentation?.targetPaths ?? []).filter((path) => path.trim().length > 0);
+    if (paths.length === 0) {
+      files.add(`call:${tool.toolCallId}`);
+      continue;
+    }
+    for (const path of paths) files.add(path);
+  }
+  return files.size;
+}
+
+/**
+ * Tool-busy time for a group. Parallel calls overlap, so summing `durationMs`
+ * reported three parallel 2s reads as 6s. Timestamped calls merge as a union
+ * of intervals; calls with only `durationMs` are added as-is.
+ */
+export function summarizeToolBusyMs(tools: readonly ToolCardUi[]): number | undefined {
+  const intervals: Array<{ start: number; end: number }> = [];
+  let untimedMs = 0;
+  let hasDuration = false;
+  for (const tool of tools) {
+    const presentation = tool.presentation;
+    const start = presentation?.startedAt ? Date.parse(presentation.startedAt) : Number.NaN;
+    const end = presentation?.endedAt ? Date.parse(presentation.endedAt) : Number.NaN;
+    if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
+      intervals.push({ start, end });
+      hasDuration = true;
+    } else if (typeof presentation?.durationMs === 'number') {
+      untimedMs += presentation.durationMs;
+      hasDuration = true;
+    }
+  }
+  if (!hasDuration) return undefined;
+  intervals.sort((left, right) => left.start - right.start);
+  let busyMs = 0;
+  let open: { start: number; end: number } | undefined;
+  for (const interval of intervals) {
+    if (open && interval.start <= open.end) {
+      open.end = Math.max(open.end, interval.end);
+      continue;
+    }
+    if (open) busyMs += open.end - open.start;
+    open = { ...interval };
+  }
+  if (open) busyMs += open.end - open.start;
+  return busyMs + untimedMs;
+}
+
 /** Compute aggregate summary for a batch of tools. */
 export function computeBatchSummary(
   _clusterKind: ToolClusterKind,
   tools: ToolCardUi[],
 ): BatchClusterSummary {
-  let hasDuration = false;
-  let totalDurationMs = 0;
   let errorCount = 0;
   let hasRunning = false;
   let activeTool: ToolCardUi | undefined;
-
-  const uniqueFiles = new Set<string>();
   let searchCount = 0;
 
   for (const tool of tools) {
-    if (typeof tool.presentation?.durationMs === 'number') {
-      hasDuration = true;
-      totalDurationMs += tool.presentation.durationMs;
-    }
     if (tool.status === 'error' && tool.presentation?.error?.category !== 'cancelled') {
       errorCount += 1;
     }
@@ -184,18 +227,12 @@ export function computeBatchSummary(
         activeTool = tool;
       }
     }
-
-    const subKind = resolveToolClusterKind(tool);
-    if (subKind === 'search') {
+    if (resolveToolClusterKind(tool) === 'search') {
       searchCount += 1;
-    }
-    const paths = tool.presentation?.targetPaths ?? [];
-    for (const p of paths) {
-      if (p) uniqueFiles.add(p);
     }
   }
 
-  const fileCount = uniqueFiles.size > 0 ? uniqueFiles.size : tools.length - searchCount;
+  const totalDurationMs = summarizeToolBusyMs(tools);
 
   return {
     totalCount: tools.length,
@@ -203,9 +240,9 @@ export function computeBatchSummary(
     ...(activeTool ? { activeTool } : {}),
     hasError: errorCount > 0,
     errorCount,
-    ...(hasDuration ? { totalDurationMs } : {}),
+    ...(totalDurationMs !== undefined ? { totalDurationMs } : {}),
     keyTargets: extractKeyTargets(tools),
-    fileCount: Math.max(0, fileCount),
+    fileCount: countExploredFiles(tools),
     searchCount,
   };
 }

@@ -904,6 +904,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 refreshToken={mediaLibraryEpoch}
                 onRemixToComposer={handleRemixToComposer}
                 projectPath={state.projectPath}
+                sessionId={state.activeSessionId}
                 onConfigureEmbedding={() => {
                   closeSubPage();
                   openSettingsSection('knowledge');

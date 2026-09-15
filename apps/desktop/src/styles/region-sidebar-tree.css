@@ -231,6 +231,10 @@
   padding-left: 18px;
 }
 
+.sidebar-tree-row--pinned-session {
+  padding-left: 0;
+}
+
 .sidebar-tree-row--project-show-more {
   display: flex;
   align-items: center;

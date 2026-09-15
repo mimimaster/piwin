@@ -122,4 +122,5 @@ export * from './run-intervention.js';
 export * from './queued-turn.js';
 export * from './model-context.js';
 export * from './subscription-quota.js';
+export * from './subscription-billing-notice.js';
 export { waitForLiveMediaReady } from './live-media-readiness.js';

@@ -407,6 +407,42 @@ describe('transcript turn window', () => {
       .toBe('6920px');
     expect(committedHeights.at(-1)).toBe('6920px');
   });
+
+  it('does not restick the tail when a local fold asks for a remasure', async () => {
+    const turns = createTurns(2);
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, value: 640 },
+      offsetWidth: { configurable: true, value: 900 },
+      clientHeight: { configurable: true, value: 640 },
+    });
+    let grew = 0;
+    const notifyContentGrew = (): void => {
+      grew += 1;
+    };
+    await act(async () => {
+      root.render(
+        <TranscriptScrollProvider
+          sessionId="session-fold-measure"
+          scrollElementRef={scrollElementRef}
+          notifyContentGrew={notifyContentGrew}
+        >
+          <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={renderTurn} />
+        </TranscriptScrollProvider>,
+      );
+    });
+    const grewAfterMount = grew;
+    const turnBody = container.querySelector<HTMLElement>('.transcript-turn-window-item-body');
+    expect(turnBody).not.toBeNull();
+
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('piwin:transcript-turn-measure', { detail: { element: turnBody } }),
+      );
+    });
+
+    expect(grew).toBe(grewAfterMount);
+  });
 });
 
 describe('shouldAdjustTranscriptScrollOnItemSizeChange', () => {

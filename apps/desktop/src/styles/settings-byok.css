@@ -41,7 +41,7 @@
   gap: var(--s-3);
   font-size: var(--fs-chrome);
   margin-top: 0;
-  margin-right: var(--s-2);
+  margin-right: var(--s-1);
   color: var(--text-4);
 }
 
@@ -148,6 +148,19 @@
   letter-spacing: var(--tracking-micro);
   color: var(--text-4);
   margin: var(--s-6) var(--s-1) var(--s-5);
+}
+
+.provider-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin: var(--s-6) 0 var(--s-5);
+  padding-left: var(--s-1);
+}
+
+.provider-section-header .provider-list-count {
+  margin: 0;
 }
 
 .provider-list-scroll {

@@ -19,7 +19,8 @@
 
 | 动作 | 结果 |
 |------|------|
-| `pi install` / `pi remove` / `pi update` | 只改 `~/.pi`。piwin 不写回。 |
+| `pi install` / `pi remove` / `pi update` | 只改 `~/.pi`。被动跟随不写回。 |
+| 市场确认安装 Pi 生态包 | Host 通过 Pi 原生 PackageManager 安装并登记到 `~/.pi/agent/settings.json`，语义等同 `pi install`。 |
 | 打开扩展列表 | `extensions/list` 从磁盘重读，Pi 包出现在列表（`source: pi-native`，默认开）。 |
 | 点 **刷新** | 再读一遍；若有 `sessionId`，再 `extensions/apply`（闲着 `now`，忙着 `after-current-run`）。 |
 | 新开会话 / 下次编 Blueprint | 直接带上当前磁盘上的 Pi 包，不用先刷新。 |
@@ -32,7 +33,7 @@
 - 不拦 `pi`、不 `fs.watch`、不轮询、不在每条 `bash` 后对账
 - 不在 HostRuntime 里再做 fingerprint 缓存 / coordinator
 - 不把 Pi 包装进 `~/.piwin/extensions/revisions`
-- 不把手动安装登记进 `packages[]`
+- 不把 `extensions/install` 的本地/Git 受管扩展登记进 `packages[]`；市场的 Pi 生态包安装是明确的用户操作，按 Pi 原生语义登记
 - 不打开 `noExtensions: false`
 - **不拆掉 Phase A**：managed revision、local/git `extensions/install`、`set_enabled`、`extensions/apply`、`scanExtensions` 扫描 `~/.piwin`、extraPaths、shadow 诊断全部保留
 - 不跟随 Pi themes

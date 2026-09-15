@@ -6,6 +6,33 @@ import { IconButton, Popover } from '@piwin/ui-kit';
 import { IconChevronRight, IconClose } from './shell-icons';
 import { ConversationUsageDetails, contextUsageTone } from './conversation-usage-details.js';
 import type { ContextRingViewModel } from './context-telemetry-selector.js';
+import { getContextUsageCopy } from './conversation-usage-copy.js';
+
+/**
+ * Product-defined window used to *estimate* when the prompt cache expires.
+ * Pi does not expose a real TTL — never present this as a provider guarantee.
+ */
+export const CACHE_EXPIRY_ESTIMATE_MS = 5 * 60 * 1000;
+
+export function getCacheExpiryEstimateSeconds(
+  updatedAt: string | undefined,
+  now: number,
+): number | undefined {
+  if (!updatedAt) return undefined;
+  const updatedMs = Date.parse(updatedAt);
+  if (Number.isNaN(updatedMs)) return undefined;
+  const remainingMs = updatedMs + CACHE_EXPIRY_ESTIMATE_MS - now;
+  if (remainingMs <= 0) return undefined;
+  const remainingSeconds = Math.ceil(remainingMs / 1000);
+  const maxSeconds = CACHE_EXPIRY_ESTIMATE_MS / 1000;
+  return Math.min(remainingSeconds, maxSeconds);
+}
+
+export function formatCacheCountdown(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
 
 export type ContextUsageRingProps = {
   view: ContextRingViewModel;
@@ -26,10 +53,29 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
     previousPhase.current = view.phase;
   }, [view.phase, view.visible]);
 
+  const [, setTick] = useState(0);
+  const watchingEstimate = open || hovered;
+  const cacheExpirySeconds = getCacheExpiryEstimateSeconds(view.cacheAnchorAt, Date.now());
+  useEffect(() => {
+    if (!watchingEstimate || cacheExpirySeconds === undefined) {
+      return;
+    }
+    const id = window.setInterval(() => {
+      setTick((tick) => tick + 1);
+    }, 1000);
+    return () => {
+      window.clearInterval(id);
+    };
+  }, [watchingEstimate, cacheExpirySeconds, view.cacheAnchorAt]);
+
   if (!view.visible) {
     return null;
   }
 
+  const cacheEstimate =
+    cacheExpirySeconds !== undefined
+      ? getContextUsageCopy(view.locale).cacheEstimate(formatCacheCountdown(cacheExpirySeconds))
+      : undefined;
   const tone = contextUsageTone(view.percentText);
   const circumference = 2 * Math.PI * 9;
   const dashOffset = circumference * (1 - view.arcRatio);
@@ -94,7 +140,10 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
             <IconClose width={14} height={14} />
           </IconButton>
         </header>
-        <ConversationUsageDetails view={view} />
+        <ConversationUsageDetails
+          view={view}
+          {...(cacheEstimate !== undefined ? { cacheEstimate } : {})}
+        />
         {props.onOpenModelSettings ? (
           <footer className="context-usage-popover-footer">
             <button
@@ -121,6 +170,14 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
           <div className="context-usage-hover-tooltip-used">{view.labels.hover}</div>
           {view.labels.status ? (
             <div className="context-usage-hover-tooltip-cache">{view.labels.status}</div>
+          ) : null}
+          {cacheEstimate ? (
+            <div
+              className="context-usage-hover-tooltip-cache"
+              data-testid="context-usage-cache-estimate"
+            >
+              {cacheEstimate}
+            </div>
           ) : null}
         </div>
       ) : null}

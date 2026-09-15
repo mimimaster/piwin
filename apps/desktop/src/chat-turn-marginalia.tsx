@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import type { ContextUsageSnapshot, ModelRef } from '@piwin/contracts';
 import type { ChatMessageUi } from './chat-reducer';
+import { formatTimestamp } from './format-timestamp.js';
 import { ProviderIcon } from './provider-icons.js';
 
 /**
@@ -9,7 +10,9 @@ import { ProviderIcon } from './provider-icons.js';
  * One column-left rail per turn: who produced it, when, and what it cost.
  * A byline anchored to the top of its turn — it scrolls away with the message
  * (not sticky: a tall virtualized turn stranded the label at the viewport top
- * over unrelated content). The inline head is the same data for narrow stages.
+ * over unrelated content). The inline head repeats who/usage for cramped
+ * stages. User turns have no 「你」 byline. Assistant age sits on the left
+ * rail as a reserved clock; user age sits on the card and appears on hover.
  * CSS shows the rail via
  * `@container transcript-stage (min-width: 1000px)` on `.chat-stage`
  * (proto-01 `.stage`), never on the scrollport — querying the scrollport
@@ -21,6 +24,24 @@ export function formatTurnClock(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+/** User-card age: `1min ago` / `1h ago` / `1d ago`. Number sticks to the unit. */
+export function formatTurnRelativeAge(iso: string, nowMs = Date.now()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const delta = Math.max(0, nowMs - date.getTime());
+  const minutes = Math.floor(delta / 60_000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+export function formatTurnExactStamp(iso: string, locale?: 'zh-CN' | 'en'): string {
+  return formatTimestamp(iso, locale !== 'en');
 }
 
 /**
@@ -149,10 +170,16 @@ export type TurnMarginaliaData = {
   fullModelId?: string | null | undefined;
   avatar: string | null;
   clock: string;
+  clockExact?: string;
   usage: string | null;
   status?: string | null;
+  /** Live-run tone. Running stays a pulse on the glyph (the body's fold row
+   *  already says 运行中); waiting keeps its label because it needs the user. */
+  statusTone?: TurnStatusTone | null;
   model?: ModelRef | null | undefined;
 };
+
+export type TurnStatusTone = 'running' | 'waiting';
 
 export type ResolveTurnMarginaliaOptions = {
   editingMessageId?: string | null | undefined;
@@ -160,10 +187,24 @@ export type ResolveTurnMarginaliaOptions = {
   elapsedMs?: number | undefined;
   contextUsage?: ContextUsageSnapshot | null | undefined;
   status?: string | null | undefined;
+  statusTone?: TurnStatusTone | null | undefined;
   model?: ModelRef | null | undefined;
   forceRole?: 'user' | 'assistant' | undefined;
   themeId?: string | undefined;
+  isConversationSession?: boolean | undefined;
+  nowMs?: number | undefined;
 };
+
+function resolveAssistantClocks(
+  iso: string | undefined,
+  options?: ResolveTurnMarginaliaOptions,
+): Pick<TurnMarginaliaData, 'clock' | 'clockExact'> {
+  const createdAt = iso ?? '';
+  return {
+    clock: formatTurnRelativeAge(createdAt, options?.nowMs),
+    clockExact: formatTurnExactStamp(createdAt, options?.locale),
+  };
+}
 
 export function resolveTurnMarginalia(
   messages: readonly ChatMessageUi[],
@@ -191,9 +232,9 @@ export function resolveTurnMarginalia(
           : 'Intervention'
         : null;
     return {
-      who: options?.locale === 'en' ? 'You' : '你',
+      who: '',
       avatar: null,
-      clock: formatTurnClock(lead?.createdAt ?? ''),
+      clock: '',
       usage,
     };
   }
@@ -204,6 +245,20 @@ export function resolveTurnMarginalia(
   const modelId = model?.modelId ?? '';
   const label = modelId.length > 0 ? shortModelLabel(modelId) : 'piwin';
   const avatar = resolveModelAvatarInitial(modelId, model?.providerId, options?.themeId);
+
+  // Conversation byline is who + age. Cost/duration stay off the rail.
+  if (options?.isConversationSession === true) {
+    return {
+      who: label,
+      fullModelId: modelId.length > 0 ? modelId : label,
+      avatar,
+      ...resolveAssistantClocks(assistantMsg?.createdAt, options),
+      usage: null,
+      ...(model ? { model } : {}),
+      ...(options?.status ? { status: options.status } : {}),
+      ...(options?.status && options.statusTone ? { statusTone: options.statusTone } : {}),
+    };
+  }
 
   const durationMs =
     options?.elapsedMs !== undefined
@@ -230,11 +285,22 @@ export function resolveTurnMarginalia(
     who: label,
     fullModelId: modelId.length > 0 ? modelId : label,
     avatar,
-    clock: formatTurnClock(assistantMsg?.createdAt ?? ''),
+    ...resolveAssistantClocks(assistantMsg?.createdAt, options),
     usage,
     ...(model ? { model } : {}),
     ...(options?.status ? { status: options.status } : {}),
+    ...(options?.status && options.statusTone ? { statusTone: options.statusTone } : {}),
   };
+}
+
+export function hasTurnByline(data: TurnMarginaliaData): boolean {
+  return (
+    data.who.length > 0 ||
+    data.clock.length > 0 ||
+    data.usage !== null ||
+    Boolean(data.status) ||
+    data.avatar !== null
+  );
 }
 
 export function ChatTurnMarginalia(props: { data: TurnMarginaliaData }): ReactElement {
@@ -246,8 +312,8 @@ export function ChatTurnMarginalia(props: { data: TurnMarginaliaData }): ReactEl
       id={modelRef.providerId || 'piwin'}
       modelId={modelRef.modelId}
       name={data.who}
-      size={22}
-      radius="50%"
+      size={14}
+      variant="glyph"
       className="turn-model-icon"
     />
   ) : (
@@ -258,17 +324,24 @@ export function ChatTurnMarginalia(props: { data: TurnMarginaliaData }): ReactEl
     <aside
       className={`marg chat-marginalia ${isAssistant ? 'is-assistant' : 'is-user'}`}
       aria-hidden="true"
+      {...(data.statusTone ? { 'data-status-tone': data.statusTone } : {})}
     >
       {data.avatar !== null ? (
         <div className={`av${modelRef ? ' has-model-icon' : ''}`}>{avatarContent}</div>
       ) : null}
-      <span
-        className={isAssistant ? 'who' : 'who is-user'}
-        {...(data.fullModelId ? { title: data.fullModelId } : {})}
-      >
-        {data.who}
-      </span>
-      {data.clock.length > 0 ? <span>{data.clock}</span> : null}
+      {data.who.length > 0 ? (
+        <span
+          className={isAssistant ? 'who' : 'who is-user'}
+          {...(data.fullModelId ? { title: data.fullModelId } : {})}
+        >
+          {data.who}
+        </span>
+      ) : null}
+      {data.clock.length > 0 ? (
+        <span className="turn-clock" title={data.clockExact || undefined}>
+          {data.clock}
+        </span>
+      ) : null}
       {data.usage !== null ? <span>{data.usage}</span> : null}
       {data.status ? <span data-st="status">{data.status}</span> : null}
     </aside>
@@ -284,8 +357,8 @@ export function ChatTurnHead(props: { data: TurnMarginaliaData }): ReactElement 
       id={modelRef.providerId || 'piwin'}
       modelId={modelRef.modelId}
       name={data.who}
-      size={18}
-      radius="50%"
+      size={14}
+      variant="glyph"
       className="turn-model-icon"
     />
   ) : (
@@ -296,17 +369,19 @@ export function ChatTurnHead(props: { data: TurnMarginaliaData }): ReactElement 
     <div
       className={`head chat-turn-head ${isAssistant ? 'is-assistant' : 'is-user'}`}
       aria-hidden="true"
+      {...(data.statusTone ? { 'data-status-tone': data.statusTone } : {})}
     >
       {data.avatar !== null ? (
         <span className={`av${modelRef ? ' has-model-icon' : ''}`}>{avatarContent}</span>
       ) : null}
-      <span
-        className={isAssistant ? 'who' : 'who is-user'}
-        {...(data.fullModelId ? { title: data.fullModelId } : {})}
-      >
-        {data.who}
-      </span>
-      {data.clock.length > 0 ? <span>{data.clock}</span> : null}
+      {data.who.length > 0 ? (
+        <span
+          className={isAssistant ? 'who' : 'who is-user'}
+          {...(data.fullModelId ? { title: data.fullModelId } : {})}
+        >
+          {data.who}
+        </span>
+      ) : null}
       {data.usage !== null ? <span>{data.usage}</span> : null}
       {data.status ? <span data-st="status">{data.status}</span> : null}
     </div>

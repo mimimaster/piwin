@@ -9,8 +9,8 @@
   gap: 10px;
 }
 
-.back-button .icon {
-  transform: rotate(180deg);
+.back-button {
+  cursor: pointer;
 }
 
 .continue-meta button {
@@ -187,6 +187,7 @@
 
 .chat-scroll {
   padding-top: 7px;
+  padding-bottom: 32px;
 }
 
 .chat-context {
@@ -231,10 +232,28 @@
 .user-message {
   background: var(--s3);
   box-shadow: var(--sh1);
-  border-radius: 8px;
-  padding: 13px 14px;
-  font-size: 14px;
-  line-height: 1.85;
+  border: 1px solid var(--l2);
+  border-radius: 16px 16px 4px 16px;
+  padding: 10px 14px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  position: relative;
+  max-width: 82%;
+  margin-left: auto;
+  margin-top: 8px;
+  margin-bottom: 12px;
+  color: var(--t1);
+  word-break: break-word;
+}
+
+.user-message .user-time {
+  display: block;
+  text-align: right;
+  font-size: 10px;
+  color: var(--t3);
+  font-family: var(--mono);
+  margin-top: 4px;
+  opacity: 0.75;
 }
 
 .context-note {
@@ -305,6 +324,7 @@
 .assistant-prose {
   font-size: 15px;
   line-height: 1.9;
+  color: var(--t1);
 }
 
 .assistant-prose p + p {
@@ -315,9 +335,10 @@
   font-weight: 600;
   font-size: 15px;
   margin-bottom: 7px;
+  color: var(--t1);
 }
 
-.assistant-prose code {
+.assistant-prose :not(pre) > code {
   background: var(--code);
   padding: 2px 4px;
   border-radius: 3px;
@@ -618,4 +639,79 @@
   font-size: 13px;
   line-height: 1.9;
   margin: 18px 0;
+}
+
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.button-row > * {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.handover {
+  background: var(--s3);
+  border: 1px solid var(--lamp);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  text-align: left;
+}
+
+.handover p {
+  font: 13.5px/1.6 var(--serif);
+  margin: 6px 0 10px;
+}
+
+.dock-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 1px 6px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dock-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.dock-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 14px;
+  border: 1px solid var(--l2);
+  background: var(--s3);
+  font-size: 11px;
+  color: var(--t2);
+  white-space: nowrap;
+  border: 1px solid var(--l2);
+  cursor: pointer;
+}
+
+.dock-chip:hover {
+  background: var(--s2);
+  color: var(--t1);
+}
+
+.dock-chip .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.ring {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: conic-gradient(var(--lamp) calc(var(--p, 0) * 1%), var(--l2) 0);
+  display: inline-block;
 }

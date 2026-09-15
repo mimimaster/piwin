@@ -20,6 +20,7 @@ const TYPES = new Set<HostCommand['type']>([
   'browser/screenshot',
   'browser/stop',
   'browser/restart',
+  'browser/reload',
   'browser/input',
   'browser/lock',
   'browser/unlock',
@@ -135,6 +136,15 @@ export async function handleBrowserCommand(
       }
     }
 
+    case 'browser/reload': {
+      try {
+        await session.reload({ actor: 'user' });
+        return ok(requestId, 'browser/reload', { ok: true });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
     case 'browser/input': {
       try {
         await session.dispatchInput(command.events);
@@ -166,10 +176,36 @@ export async function handleBrowserCommand(
 
     case 'browser/resize': {
       try {
-        const viewport = await session.setViewport({
-          width: command.width,
-          height: command.height,
-        });
+        const origin = command.origin ?? 'explicit';
+        if (origin === 'follow') {
+          const owner = session.controllerState().owner;
+          if (owner === 'agent') {
+            return fail(requestId, command.type, 'follow resize is paused while the agent has control', {
+              code: 'browser-agent-has-control',
+              retryable: false,
+            });
+          }
+          if (session.mirrorLeaseCount() !== 1) {
+            return fail(
+              requestId,
+              command.type,
+              'follow resize is frozen while multiple clients mirror the browser',
+              { code: 'browser-action-failed', retryable: false },
+            );
+          }
+          if (command.leaseId !== undefined && !session.hasMirrorLease(command.leaseId)) {
+            return fail(requestId, command.type, 'follow resize lease is not active', {
+              code: 'browser-action-failed',
+              retryable: false,
+            });
+          }
+        }
+        const size = { width: command.width, height: command.height };
+        const mode = command.mode ?? (origin === 'follow' ? 'follow' : undefined);
+        const viewport =
+          mode !== undefined
+            ? await session.setViewport(size, { mode })
+            : await session.setViewport(size);
         return ok(requestId, 'browser/resize', { viewport });
       } catch (error) {
         return failFromBrowserError(requestId, command.type, error);

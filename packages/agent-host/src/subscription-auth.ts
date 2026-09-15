@@ -12,6 +12,9 @@ import {
   fetchSubscriptionQuota,
   resetSubscriptionQuota,
 } from './subscription-quota-fetcher.js';
+import {
+  materializeClaudeCodeCredentialFromAnthropic,
+} from './subscription-auth-credentials.js';
 import { thinkingLevelsFromPiMap } from './map-thinking-level.js';
 
 export type SubscriptionCredentialType = 'oauth' | 'api_key';
@@ -267,7 +270,14 @@ export async function createSubscriptionAuthPort(
         authPath: options.authPath,
         providerId,
         refreshCredentials: async () => {
-          await runtime.refresh({ providers: [providerId], allowNetwork: true });
+          const piId = providerId === 'anthropic-claude-code' ? 'anthropic' : providerId;
+          await runtime.refresh({ providers: [piId], allowNetwork: true });
+          if (providerId === 'anthropic-claude-code') {
+            await materializeClaudeCodeCredentialFromAnthropic(
+              options.authPath,
+              'anthropic-claude-code',
+            );
+          }
         },
       });
     },
@@ -276,7 +286,14 @@ export async function createSubscriptionAuthPort(
         authPath: options.authPath,
         providerId,
         refreshCredentials: async () => {
-          await runtime.refresh({ providers: [providerId], allowNetwork: true });
+          const piId = providerId === 'anthropic-claude-code' ? 'anthropic' : providerId;
+          await runtime.refresh({ providers: [piId], allowNetwork: true });
+          if (providerId === 'anthropic-claude-code') {
+            await materializeClaudeCodeCredentialFromAnthropic(
+              options.authPath,
+              'anthropic-claude-code',
+            );
+          }
         },
       });
     },

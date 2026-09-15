@@ -306,7 +306,7 @@ describe('resolveWorkDetailsDefaultOpen', () => {
     expect(resolveWorkDetailsDefaultOpen(base, 'collapsed')).toBe(false);
   });
 
-  it('keeps active thinking collapsed in auto mode while preserving failure details', () => {
+  it('keeps thinking collapsed in auto mode even when a tool failed', () => {
     const activeThinking = {
       ...base,
       isActive: true,
@@ -333,7 +333,7 @@ describe('resolveWorkDetailsDefaultOpen', () => {
     expect(resolveWorkDetailsDefaultOpen(activeThinking, 'auto')).toBe(false);
     expect(resolveWorkDetailsDefaultOpen(activeWithAnswer, 'auto')).toBe(false);
     expect(resolveWorkDetailsDefaultOpen(activeWithTools, 'auto')).toBe(false);
-    expect(resolveWorkDetailsDefaultOpen(failed, 'auto')).toBe(true);
+    expect(resolveWorkDetailsDefaultOpen(failed, 'auto')).toBe(false);
     expect(resolveWorkDetailsDefaultOpen(quiet, 'auto')).toBe(false);
   });
 });

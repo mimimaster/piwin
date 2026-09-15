@@ -19,15 +19,15 @@ describe('Inkstone titleband / sidebar seam', () => {
 
   it('clears native traffic lights before the sidebar toggle and keeps one centreline', () => {
     // Real Overlay lights span past the 52px fake-dot cluster; the toggle must
-    // sit to their right while .proto-nav align-items:center shares the
-    // traffic-light centreline through the icon.
+    // sit to their right. Flex centering alone leaves the glyph 1px high of
+    // the tauri y:18 light centreline, so the button keeps top: 1px.
     expect(titlebar).toMatch(/\.traffic\s*\{[\s\S]*?min-width:\s*60px/);
     expect(titlebar).toMatch(/\.traffic\s*\{[\s\S]*?margin-right:\s*10px/);
     expect(titlebar).toMatch(
       /html:not\(\[data-window-chrome='macos-overlay'\]\) \.context-bar \.traffic/,
     );
     expect(titlebar).toMatch(/\.proto-nav[\s\S]{0,200}?align-items:\s*center/);
-    expect(titlebar).not.toMatch(
+    expect(titlebar).toMatch(
       /\.context-bar-sessions-toggle\.ib\s*\{[\s\S]{0,500}?top:\s*1px/,
     );
     expect(titlebar).toMatch(
@@ -40,7 +40,8 @@ describe('Inkstone titleband / sidebar seam', () => {
 
   it('parks ←→ on the sidebar seam and starts the session title on the conversation column', () => {
     expect(titlebar).toMatch(/\.context-bar-leading[\s\S]{0,400}?width:\s*var\(--sidebar-width/);
-    expect(titlebar).toMatch(/\.proto-nav-spacer\s*\{[\s\S]{0,80}?flex:\s*1 1 auto/);
+    expect(titlebar).toMatch(/\.proto-nav-spacer\s*\{[\s\S]{0,160}?flex:\s*1 1 auto/);
+    expect(titlebar).toMatch(/\.proto-nav-spacer\s*\{[\s\S]{0,200}?-webkit-app-region:\s*drag/);
     const historyRule = titlebar.match(/\.context-bar-history \{[^}]+\}/)?.[0];
     expect(historyRule).toBeTruthy();
     expect(historyRule).toMatch(/margin-left:\s*auto/);

@@ -43,6 +43,29 @@ describe('presentTurnErrorCard', () => {
     });
   });
 
+  it('rewrites Anthropic extra-usage failures into product copy', () => {
+    expect(
+      presentTurnErrorCard({
+        error:
+          'Third-party apps now draw from your extra usage, not your plan limits. Add more at claude.ai/settings/usage and keep going.',
+        failure: {
+          code: 'provider-quota',
+          origin: 'provider',
+          message:
+            'Third-party apps now draw from your extra usage, not your plan limits. Add more at claude.ai/settings/usage and keep going.',
+          retriable: false,
+          httpStatus: 400,
+        },
+        locale: 'zh-CN',
+      }),
+    ).toMatchObject({
+      title: '需开通 extra usage',
+      detail: expect.stringContaining('claude.ai/settings/usage'),
+      category: 'quota',
+      showCategoryTag: true,
+    });
+  });
+
   it('keeps concrete detail prose under a structured title', () => {
     expect(
       presentTurnErrorCard({

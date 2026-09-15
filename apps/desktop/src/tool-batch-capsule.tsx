@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
 import type { DiffCardRequest } from './diff-card';
@@ -8,7 +9,11 @@ import {
   type DocumentOpenInput,
 } from './tool-call-card';
 import { inkLineNodeClass, toolStatusToNodeStatus } from './session-node-status.js';
-import type { ToolClusterKind, BatchClusterSummary } from './tool-group-clustering';
+import {
+  resolveToolClusterKind,
+  type ToolClusterKind,
+  type BatchClusterSummary,
+} from './tool-group-clustering';
 import { ActionMarquee } from './action-marquee';
 import {
   IconAlertCircle,
@@ -59,37 +64,36 @@ function getClusterIcon(kind: ToolClusterKind): ReactElement {
   }
 }
 
+function isArgsDumpText(text: string | undefined): boolean {
+  const trimmed = text?.trim() ?? '';
+  return trimmed.startsWith('{') || trimmed.startsWith('[');
+}
+
 export function formatActiveToolLabel(tool: ToolCardUi, isChinese: boolean): string {
-  const verb = tool.presentation?.actionVerb || tool.toolName;
+  const presentation = tool.presentation;
+  // Streaming summaries can still be a half-parsed args dump (`{"pattern":…`).
+  const summary = isArgsDumpText(presentation?.summary) ? undefined : presentation?.summary?.trim();
   const target =
-    tool.presentation?.targetPaths?.[0] ||
-    tool.presentation?.summary ||
-    tool.presentation?.title ||
+    presentation?.targetPaths?.[0] ||
+    summary ||
+    presentation?.command?.trim() ||
+    presentation?.title ||
     tool.toolName;
+  const clusterKind = resolveToolClusterKind(tool);
 
-  if (isChinese) {
-    if (verb === 'Read' || verb.includes('read') || verb.includes('view')) {
-      return `正在读取: ${target}`;
-    }
-    if (verb === 'Searched' || verb.includes('grep') || verb.includes('search')) {
-      return `正在检索: ${target}`;
-    }
-    if (verb.includes('command') || verb.includes('bash') || verb.includes('terminal')) {
-      return `正在执行: ${target}`;
-    }
-    return `正在执行: ${target}`;
+  if (clusterKind === 'read') {
+    return isChinese ? `正在读取: ${target}` : `Reading ${target}`;
   }
-
-  if (verb === 'Read' || verb.includes('read') || verb.includes('view')) {
-    return `Reading ${target}`;
+  if (clusterKind === 'search') {
+    return isChinese ? `正在检索: ${target}` : `Searching ${target}`;
   }
-  if (verb === 'Searched' || verb.includes('grep') || verb.includes('search')) {
-    return `Searching ${target}`;
+  if (clusterKind === 'web') {
+    return isChinese ? `正在抓取: ${target}` : `Fetching ${target}`;
   }
-  if (verb.includes('command') || verb.includes('bash') || verb.includes('terminal')) {
-    return `Running ${target}`;
+  if (clusterKind === 'command') {
+    return isChinese ? `正在执行: ${target}` : `Running ${target}`;
   }
-  return `Executing ${target}`;
+  return isChinese ? `正在执行: ${target}` : `Executing ${target}`;
 }
 
 /**
@@ -256,6 +260,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
   const [internalExpanded, setInternalExpanded] = useState(autoExpand);
   const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
   const expanded = internalExpanded;
+  const foldMeasure = useTranscriptLocalFoldMeasure(expanded);
 
   useEffect(() => {
     if (disclosureIntentRef.current !== 'automatic') {
@@ -267,6 +272,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
   }, [summary.hasError]);
 
   function toggleExpanded(): void {
+    foldMeasure.onUserToggle();
     const nextExpanded = !expanded;
     disclosureIntentRef.current = nextExpanded ? 'user-open' : 'user-closed';
     setInternalExpanded(nextExpanded);
@@ -303,6 +309,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
   const headerNodeClass = inkLineNodeClass(headerNodeKind);
   return (
     <div
+      ref={foldMeasure.setRoot}
       className={`tr tool-batch-capsule${expanded ? ' is-expanded' : ' is-collapsed'}${
         summary.hasError ? ' has-error fail' : ''
       }${summary.hasRunning ? ' is-running' : ''}`}

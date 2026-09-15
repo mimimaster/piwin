@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { MOBILE_THEME } from './mobile-theme.js';
 import { InkstoneApp } from './inkstone/InkstoneApp.js';
@@ -7,6 +7,12 @@ import { useInkstoneModelSelection } from './inkstone/host/use-inkstone-model-se
 import { useKeyboardInset } from './hooks/use-keyboard-inset.js';
 import { useMobileHost } from './hooks/use-mobile-host.js';
 import { ConnectionSurface } from './surfaces/connection/ConnectionSurface.js';
+import { FlashcardsSurface } from './surfaces/flashcards/FlashcardsSurface.js';
+import {
+  parseMobileFlashcardsRoute,
+  subscribeMobileFlashcardsRoute,
+  type MobileFlashcardsRoute,
+} from './mobile-flashcards-route.js';
 
 /**
  * Inkstone shell (visual truth: docs/design/inkstone/proto-08-mobile.html).
@@ -18,7 +24,12 @@ import { ConnectionSurface } from './surfaces/connection/ConnectionSurface.js';
 export function App(): ReactElement {
   const host = useMobileHost();
   const [showConnectionConfig, setShowConnectionConfig] = useState(false);
+  const [flashcardsRoute, setFlashcardsRoute] = useState<MobileFlashcardsRoute | null>(() =>
+    parseMobileFlashcardsRoute(),
+  );
   useKeyboardInset();
+
+  useEffect(() => subscribeMobileFlashcardsRoute(setFlashcardsRoute), []);
 
   const modelSelection = useInkstoneModelSelection(host);
 
@@ -52,6 +63,19 @@ export function App(): ReactElement {
             />
           </div>
         </main>
+      </PiwinUiProvider>
+    );
+  }
+
+  if (flashcardsRoute !== null) {
+    return (
+      <PiwinUiProvider manifest={MOBILE_THEME}>
+        <FlashcardsSurface
+          route={flashcardsRoute}
+          client={host.client}
+          hostStatus={host.hostStatus}
+          connectionState={host.connectionState}
+        />
       </PiwinUiProvider>
     );
   }

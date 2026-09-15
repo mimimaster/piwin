@@ -520,17 +520,17 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
   }
 
   if (row.kind === 'session') {
+    const rowClass = row.isPinnedSection
+      ? 'sidebar-tree-row sidebar-tree-row--pinned-session'
+      : row.scope.kind === 'project'
+        ? 'sidebar-tree-row sidebar-tree-row--project-session'
+        : 'sidebar-tree-row sidebar-tree-row--general-session';
     return (
-      <div
-        className={
-          row.scope.kind === 'project'
-            ? 'sidebar-tree-row sidebar-tree-row--project-session'
-            : 'sidebar-tree-row sidebar-tree-row--general-session'
-        }
-      >
+      <div className={rowClass}>
         <SessionRowItem
           session={row.session}
           projectSubtitle={row.projectSubtitle}
+          isPinnedSection={row.isPinnedSection}
           activeSessionId={props.activeSessionId}
           onResumeSession={props.onResumeSession}
           onOpenSessionMenu={props.onOpenSessionMenu}

@@ -79,7 +79,43 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 /* ── Subbar: Tabs & Filter Strip ───────────────────────────────────── */
 
+/* Keep one compact chrome row: tabs + categories left, search right. */
+.marketplace-stage .vault-filters {
+  height: 48px;
+  min-height: 48px;
+  overflow: hidden;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .marketplace-stage .vault-filters {
+  height: 34px;
+  min-height: 34px;
+}
+
+.marketplace-stage .vault-filters-leading {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.marketplace-stage .vault-filters-leading > .vault-search {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.market-filters-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+}
+
 .market-tab-wrap {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -92,6 +128,18 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-tab-wrap {
   background: var(--s1);
   border-color: var(--l1);
+}
+
+.market-filter-divider {
+  width: 1px;
+  height: 16px;
+  flex-shrink: 0;
+  background: var(--line-1);
+  opacity: 0.8;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-filter-divider {
+  background: var(--l1);
 }
 
 .market-tab-btn {
@@ -137,6 +185,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.market-category-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.market-category-strip .vault-chip {
+  flex-shrink: 0;
 }
 
 /* ── Notice Area ───────────────────────────────────────────────────── */
@@ -149,7 +210,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 .market-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 12px;
   padding: 16px 24px 32px;
 }
@@ -163,7 +224,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   border: 1px solid var(--line-1);
   border-radius: var(--r-card, 8px);
   box-shadow: var(--sh1);
-  transition: border-color var(--t-1) var(--ease-out), box-shadow var(--t-1) var(--ease-out);
+  transition: border-color var(--t-1) var(--ease-out), box-shadow var(--t-1) var(--ease-out),
+    transform var(--t-1) var(--ease-out);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-card {
@@ -175,6 +237,14 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 .market-card:hover {
   border-color: var(--line-2, var(--l2));
   box-shadow: var(--sh2);
+  transform: translateY(-1px);
+}
+
+.market-card-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .market-card-top {
@@ -212,6 +282,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-weight: 600;
   color: var(--text-1);
   line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-card-title {
@@ -226,9 +297,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   align-items: center;
   padding: 1px 6px;
   border-radius: 4px;
-  font-size: 10.5px;
+  font-size: 10px;
   font-family: var(--font-mono, monospace);
+  font-weight: 600;
   line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .market-source-pill.is-bundled {
@@ -283,6 +357,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0.85;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-card-meta {
@@ -324,6 +399,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   background: var(--surface-3);
   color: var(--text-3);
   border: 1px solid var(--line-1);
+  font-size: 10px;
+  opacity: 0.8;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-tier-badge.is-unverified {
@@ -336,11 +413,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-2);
-  margin: 4px 0 10px 0;
+  margin: 6px 0 10px 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  min-height: 36px;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-card-desc {
@@ -396,6 +474,88 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   line-height: 1.3;
 }
 
+/* Interactive Command Bar */
+.market-cmd-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  border: 1px solid var(--line-1);
+  color: var(--text-2);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.35;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 10px;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-cmd-bar {
+  background: var(--code);
+  border-color: var(--l1);
+  color: var(--t2);
+}
+
+.market-cmd-bar:hover {
+  background: color-mix(in srgb, var(--surface-3) 70%, var(--hover, rgba(0, 0, 0, 0.04)));
+  border-color: var(--line-2, var(--l2));
+  color: var(--text-1);
+}
+
+.market-cmd-prefix {
+  color: var(--text-3);
+  margin-right: 6px;
+  user-select: none;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.market-cmd-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: inherit;
+  font-size: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+}
+
+.market-cmd-action {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  color: var(--text-3);
+  flex-shrink: 0;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.market-cmd-bar:hover .market-cmd-action {
+  color: var(--text-1);
+}
+
+.market-cmd-bar.is-copied {
+  border-color: var(--pine);
+  background: var(--pine-wash);
+  color: var(--pine);
+}
+
+.market-cmd-copied-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--pine);
+}
+
+/* Card Footer & Action Groups */
 .market-card-footer {
   display: flex;
   align-items: center;
@@ -403,10 +563,43 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   padding-top: 10px;
   border-top: 1px solid var(--line-1);
   margin-top: auto;
+  gap: 8px;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-card-footer {
   border-top-color: var(--l1);
+}
+
+.market-card-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.market-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+  text-decoration: none;
+}
+
+.market-link-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-link-btn:hover {
+  background: var(--s1);
+  color: var(--t1);
 }
 
 .market-card-source {
@@ -423,6 +616,27 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.market-copy-btn {
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.market-copy-btn.is-copied {
+  background: var(--pine-wash) !important;
+  border-color: color-mix(in srgb, var(--pine) 35%, transparent) !important;
+  color: var(--pine) !important;
+}
+
+.market-btn-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.market-ecosystem-card.is-recently-copied {
+  border-color: color-mix(in srgb, var(--pine) 45%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pine) 25%, transparent), var(--sh2);
 }
 
 /* ── Installed Management List ─────────────────────────────────────── */
@@ -527,26 +741,53 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 .market-ecosystem {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 28px;
+  gap: 8px;
+  margin-bottom: 24px;
 }
 
 .market-ecosystem-header {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 16px 24px 0;
+}
+
+.market-ecosystem-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .market-ecosystem-title {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-1);
+  letter-spacing: -0.01em;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-ecosystem-title {
   font-family: var(--serif);
   color: var(--t1);
+}
+
+.market-ecosystem-count-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: var(--r-pill, 9999px);
+  background: var(--surface-3);
+  border: 1px solid var(--line-1);
+  color: var(--text-3);
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-ecosystem-count-tag {
+  background: var(--s1);
+  border-color: var(--l1);
+  color: var(--t3);
 }
 
 .market-ecosystem-sub,
@@ -561,3 +802,4 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-ecosystem-status {
   color: var(--t4);
 }
+

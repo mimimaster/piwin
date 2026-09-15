@@ -18,6 +18,10 @@
   /* The readable content column shared by transcript and composer. App.tsx
      updates --conversation-width from the Default / Narrow / Wide setting. */
   --chat-max: min(100%, var(--conversation-width));
+  /* Thinking/prose column. A length, not min(100%, …). Do not bake --gut
+     into another :root variable — it would freeze at 0. */
+  --measure: var(--conversation-width);
+  --gut: 0px;
   /* Stable stage gutter. Content width is controlled by --chat-max rather
      than by padding so each conversation-width option visibly changes size. */
   --chat-inline-pad: 28px;

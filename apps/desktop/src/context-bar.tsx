@@ -168,7 +168,6 @@ export function ContextBar(props: ContextBarProps): ReactElement {
     >
       <div
         className="context-bar-leading proto-nav"
-        data-no-window-drag
         role="group"
         aria-label={titlebarCopy.shellNavigation}
       >
@@ -194,9 +193,9 @@ export function ContextBar(props: ContextBarProps): ReactElement {
           </IconButton>
         ) : null}
 
-        <span className="proto-nav-spacer" />
+        <span className="proto-nav-spacer" data-tauri-drag-region />
 
-        <div className="context-bar-history">
+        <div className="context-bar-history" data-no-window-drag>
           <IconButton
             className="context-bar-history-btn ib"
             data-testid="titlebar-back-btn"

@@ -2,6 +2,11 @@
 
 export type MarketplaceSearchSource = 'npm-pi-package' | 'github';
 
+/** Installable Pi package sources returned by the live ecosystem search. */
+export type MarketplacePiPackageSource =
+  | { kind: 'npm'; packageName: string }
+  | { kind: 'git'; repositoryUrl: string };
+
 export type MarketplaceSearchHit = {
   entryId: string;
   name: string;
@@ -21,6 +26,10 @@ export type MarketplaceSearchResult = {
   hits: MarketplaceSearchHit[];
   /** Present when the live npm query failed. Hits may still be empty. */
   remoteError?: string;
+};
+
+export type MarketplacePiPackageInstallData = {
+  source: string;
 };
 
 export function isMarketplaceSearchResult(value: unknown): value is MarketplaceSearchResult {

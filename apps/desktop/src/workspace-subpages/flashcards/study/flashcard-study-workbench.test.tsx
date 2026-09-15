@@ -56,8 +56,12 @@ function ok(command: HostCommand, data: unknown): HostResponse {
 function makeRequester() {
   const study = createStudyHostFake(CARDS);
   const calls: HostCommand[] = [];
-  const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+  const startKeys: Array<string | undefined> = [];
+  const request = vi.fn(async (command: HostCommand, options?: { idempotencyKey?: string }): Promise<HostResponse> => {
     calls.push(command);
+    if (command.type === 'flashcards/study/start') {
+      startKeys.push(options?.idempotencyKey);
+    }
     if (command.type === 'flashcards/decks') {
       return ok(command, { decks: ['General', 'OS'] });
     }
@@ -69,7 +73,7 @@ function makeRequester() {
     }
     return ok(command, {});
   });
-  return { request, calls, study };
+  return { request, calls, study, startKeys };
 }
 
 async function flush(times = 12): Promise<void> {
@@ -145,6 +149,7 @@ describe('Flashcard study workbench', () => {
       mode: 'sequence',
       scope: { kind: 'sequence', sequenceId: 'seq_os' },
     });
+    expect(fake.startKeys[0]?.length).toBeGreaterThan(0);
   });
 
   it('opens a sequence round from a single card tile', async () => {

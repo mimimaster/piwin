@@ -32,6 +32,23 @@ describe('auth CLI', () => {
     log.mockRestore();
   });
 
+  it('warns when a logged-in Claude account only bills extra usage', async () => {
+    const client = createClient({
+      type: 'response',
+      command: 'auth/status',
+      success: true,
+      data: {
+        accounts: [{ providerId: 'anthropic', surface: 'v1', state: 'logged-in' }],
+      },
+    });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runAuthCommand(client, ['status']);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/extra usage/i));
+    log.mockRestore();
+    warn.mockRestore();
+  });
+
   it('rejects unknown providers before talking to Host', async () => {
     const client = createClient({
       type: 'response',

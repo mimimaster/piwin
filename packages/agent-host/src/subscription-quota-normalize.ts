@@ -337,6 +337,7 @@ export function normalizeClaudeUsagePayload(
   payload: Record<string, unknown>,
   emailOrId?: string,
   nowMs = Date.now(),
+  providerId = 'anthropic',
 ): SubscriptionAccountQuota {
   const windows: QuotaWindow[] = [];
   const fiveHour = claudeWindow(asRecord(payload.five_hour), 'five_hour', '5 小时限额', nowMs, false);
@@ -357,17 +358,16 @@ export function normalizeClaudeUsagePayload(
   }
 
   const extra = asRecord(payload.extra_usage);
-  const payg =
-    extra && extra.is_enabled === true
-      ? {
-          enabled: true,
-          usedText: `US$${(asFiniteNumber(extra.used_credits) ?? 0).toFixed(2)} / US$${(asFiniteNumber(extra.monthly_limit) ?? 0).toFixed(2)}`,
-        }
-      : undefined;
+  const payg = extra
+    ? {
+        enabled: extra.is_enabled === true,
+        usedText: `US$${(asFiniteNumber(extra.used_credits) ?? 0).toFixed(2)} / US$${(asFiniteNumber(extra.monthly_limit) ?? 0).toFixed(2)}`,
+      }
+    : undefined;
 
   const groups: QuotaGroup[] = [{ windows }];
   return {
-    providerId: 'anthropic',
+    providerId,
     ...(emailOrId ? { accountEmailOrId: emailOrId } : {}),
     planType: titleCasePlan(asString(payload.plan_type) ?? asString(payload.subscription_type), 'Pro'),
     groups,

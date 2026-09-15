@@ -7,8 +7,7 @@ export function InkstoneMessageIdentity({ message, locale }: {
   message: ChatMessageUi;
   locale: 'zh-CN' | 'en';
 }) {
-  const data = resolveTurnMarginalia([message]);
-  if (message.role === 'user') data.who = locale === 'zh-CN' ? '你' : 'You';
+  const data = resolveTurnMarginalia([message], { isConversationSession: true, locale });
   return (
     <div className="inkstone-message-identity">
       <ChatTurnHead data={data} />

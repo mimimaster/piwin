@@ -19,11 +19,18 @@ import {
   isModelEnabled,
   isProviderEnabled,
   isV1SubscriptionProviderId,
+  isSubscriptionOauthProviderId,
+  isClaudeCodeOauthProviderId,
+  piOauthLoginProviderId,
+  CLAUDE_CODE_OAUTH_PROVIDER_ID,
 } from '@piwin/contracts';
 import {
   createSubscriptionAuthPort,
   defaultPiAuthPaths,
   LIVE_CATALOG_REFRESH_TIMEOUT_MS,
+  deleteOauthCredential,
+  hasOauthCredential,
+  materializeClaudeCodeCredentialFromAnthropic,
   type HostAuthEvent,
   type HostAuthPrompt,
   type SubscriptionAuthPort,
@@ -162,7 +169,7 @@ export class SubscriptionAuthService {
   }
 
   markNeedsReauth(providerId: string): void {
-    if (!isV1SubscriptionProviderId(providerId)) {
+    if (!isSubscriptionOauthProviderId(providerId)) {
       return;
     }
     this.needsReauthProviderIds.add(providerId);
@@ -245,7 +252,7 @@ export class SubscriptionAuthService {
   }
 
   async login(input: AuthLoginInput): Promise<{ loginId: string } | { error: string; code: string }> {
-    if (!isV1SubscriptionProviderId(input.providerId)) {
+    if (!isSubscriptionOauthProviderId(input.providerId)) {
       return {
         error: `Unsupported subscription provider: ${input.providerId}`,
         code: 'unsupported-subscription-provider',
@@ -363,7 +370,7 @@ export class SubscriptionAuthService {
     providerId: string,
     cancelRuns?: (providerId: string) => Promise<void>,
   ): Promise<{ error?: string; code?: string }> {
-    if (!isV1SubscriptionProviderId(providerId)) {
+    if (!isSubscriptionOauthProviderId(providerId)) {
       return {
         error: `Unsupported subscription provider: ${providerId}`,
         code: 'unsupported-subscription-provider',
@@ -373,6 +380,17 @@ export class SubscriptionAuthService {
     if (cancel) {
       await cancel(providerId);
     }
+
+    if (isClaudeCodeOauthProviderId(providerId)) {
+      // Independent of plain anthropic extra-usage card.
+      await deleteOauthCredential(this.authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID);
+      this.syncErrorProviderIds.delete(providerId);
+      this.needsReauthProviderIds.delete(providerId);
+      await this.ensureLoggedInProviders();
+      this.emitUpdated();
+      return {};
+    }
+
     const port = await this.ensurePort();
     const outcome = await port.logout(providerId);
     if (outcome.kind === 'failed') {
@@ -423,7 +441,7 @@ export class SubscriptionAuthService {
       if (provider !== undefined && !isProviderEnabled(provider)) {
         continue;
       }
-      for (const model of port.getChatCatalog(account.providerId)) {
+      for (const model of this.chatCatalogFor(account.providerId)) {
         const configuredModel = provider?.models.find((entry) => entry.id === model.id);
         if (configuredModel !== undefined && !isModelEnabled(configuredModel)) {
           continue;
@@ -532,7 +550,12 @@ export class SubscriptionAuthService {
   }
 
   catalogModelIds(providerId: string): string[] {
-    return this.port?.getChatCatalog(providerId).map((model) => model.id) ?? [];
+    return this.chatCatalogFor(providerId).map((model) => model.id);
+  }
+
+  private chatCatalogFor(providerId: string) {
+    const catalogId = isClaudeCodeOauthProviderId(providerId) ? 'anthropic' : providerId;
+    return this.port?.getChatCatalog(catalogId) ?? [];
   }
 
   private async runLogin(providerId: string, signal: AbortSignal): Promise<void> {
@@ -541,17 +564,49 @@ export class SubscriptionAuthService {
       return;
     }
     const port = await this.ensurePort();
-    const outcome = await port.login(providerId, {
-      signal,
-      prompt: (prompt) => this.handlePrompt(prompt),
-      notify: (event) => this.handleNotify(event),
-    });
+    const authPath = this.authPath;
+    const claudeCode = isClaudeCodeOauthProviderId(providerId);
+    const piLoginId = piOauthLoginProviderId(providerId);
+    const hadPlainAnthropic =
+      claudeCode && authPath ? await hasOauthCredential(authPath, 'anthropic') : false;
+
+    let outcome: Awaited<ReturnType<typeof port.login>>;
+    if (claudeCode && authPath && (await hasOauthCredential(authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID))) {
+      outcome = { kind: 'ok' };
+    } else if (claudeCode && authPath && hadPlainAnthropic) {
+      // Independent card: clone existing anthropic OAuth into anthropic-claude-code.
+      const copied = await materializeClaudeCodeCredentialFromAnthropic(
+        authPath,
+        CLAUDE_CODE_OAUTH_PROVIDER_ID,
+      );
+      outcome = copied
+        ? { kind: 'ok' }
+        : { kind: 'failed', message: 'Failed to materialize Claude Code credentials' };
+    } else {
+      outcome = await port.login(piLoginId, {
+        signal,
+        prompt: (prompt) => this.handlePrompt(prompt),
+        notify: (event) => this.handleNotify(event),
+      });
+      if (outcome.kind === 'ok' && claudeCode && authPath) {
+        await materializeClaudeCodeCredentialFromAnthropic(authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID);
+        // Keep bottom Claude card independent: drop plain anthropic if it was not logged in before.
+        if (!hadPlainAnthropic) {
+          await deleteOauthCredential(authPath, 'anthropic');
+        }
+      }
+    }
+
     const finished: AuthLoginFinishedData = {
       loginId,
       providerId,
       ok: outcome.kind !== 'failed',
-      ...(outcome.kind === 'failed' && outcome.code ? { errorCode: outcome.code } : {}),
-      ...(outcome.kind === 'failed' ? { errorCode: outcome.code ?? 'provider-authentication' } : {}),
+      ...(outcome.kind === 'failed' && 'code' in outcome && outcome.code
+        ? { errorCode: outcome.code }
+        : {}),
+      ...(outcome.kind === 'failed'
+        ? { errorCode: ('code' in outcome && outcome.code) || 'provider-authentication' }
+        : {}),
       ...(this.active?.newChannelId !== undefined ? { newChannelId: this.active.newChannelId } : {}),
     };
     if (outcome.kind === 'sync-error') {
@@ -560,11 +615,12 @@ export class SubscriptionAuthService {
       this.syncErrorProviderIds.delete(providerId);
       this.needsReauthProviderIds.delete(providerId);
       try {
-        await port.refreshProvider(providerId);
+        await port.refreshProvider(piLoginId);
       } catch {
         this.syncErrorProviderIds.add(providerId);
       }
       await this.ensureProviderForAccount(providerId);
+      await this.evictSiblingClaudeAuth(providerId);
       await this.maybeSeedDefault(providerId);
       this.startWatch();
     }
@@ -669,6 +725,16 @@ export class SubscriptionAuthService {
         { code: 'auth-store-unreadable' },
       );
     }
+    // Claude Code keeps an isolated auth.json key Pi's listCredentials never sees.
+    if (await hasOauthCredential(this.authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID)) {
+      const already = credentials.some((entry) => entry.providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID);
+      if (!already) {
+        credentials = [
+          ...credentials,
+          { providerId: CLAUDE_CODE_OAUTH_PROVIDER_ID, type: 'oauth' },
+        ];
+      }
+    }
     const config = await this.loadConfig();
     return buildSubscriptionAccounts(credentials, config, {
       ...(this.active ? { loggingInProviderId: this.active.providerId } : {}),
@@ -751,7 +817,7 @@ export class SubscriptionAuthService {
     const accounts = await this.readAccounts();
     const config = await this.loadConfig();
     const next = ensureSubscriptionProviders(config, accounts, (providerId) =>
-      port.getChatCatalog(providerId),
+      this.chatCatalogFor(providerId),
     );
     if (next !== config) {
       await this.saveConfig(next);
@@ -759,13 +825,52 @@ export class SubscriptionAuthService {
     return next;
   }
 
+
+  /**
+   * Claude extra (`anthropic`) and extension-path (`anthropic-claude-code`) are
+   * mutually exclusive: logging into one signs the other out.
+   */
+  private async evictSiblingClaudeAuth(providerId: string): Promise<void> {
+    if (providerId !== 'anthropic' && !isClaudeCodeOauthProviderId(providerId)) {
+      return;
+    }
+    const siblingId =
+      providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID ? 'anthropic' : CLAUDE_CODE_OAUTH_PROVIDER_ID;
+    try {
+      if (isClaudeCodeOauthProviderId(siblingId)) {
+        await deleteOauthCredential(this.authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID);
+      } else {
+        try {
+          const port = await this.ensurePort();
+          await port.logout(siblingId);
+        } catch {
+          // already logged out
+        }
+        await deleteOauthCredential(this.authPath, siblingId);
+      }
+    } catch {
+      // ignore sibling eviction failures
+    }
+    this.syncErrorProviderIds.delete(siblingId);
+    this.needsReauthProviderIds.delete(siblingId);
+    try {
+      const config = await this.loadConfig();
+      const nextProviders = config.providers.filter((provider) => provider.id !== siblingId);
+      if (nextProviders.length !== config.providers.length) {
+        await this.saveConfig({ ...config, providers: nextProviders });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   private async ensureProviderForAccount(providerId: string): Promise<void> {
-    if (!isV1SubscriptionProviderId(providerId)) {
+    if (!isSubscriptionOauthProviderId(providerId)) {
       return;
     }
     const port = await this.ensurePort();
     const config = await this.loadConfig();
-    const next = upsertSubscriptionProvider(config, providerId, port.getChatCatalog(providerId));
+    const next = upsertSubscriptionProvider(config, providerId, this.chatCatalogFor(providerId));
     if (next !== config) {
       await this.saveConfig(next);
     }

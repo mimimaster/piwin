@@ -27,6 +27,59 @@ function stubHostClient(): HostClient {
   } as unknown as HostClient;
 }
 
+function sidebarHarnessProps(
+  overrides: Partial<WorkbenchSidebarProps> = {},
+): WorkbenchSidebarProps {
+  return {
+    state: {
+      ...createInitialChatUiState(),
+      hostReady: true,
+      activeScope: { kind: 'general' as const },
+    },
+    hostClient: stubHostClient(),
+    hostStatus: null,
+    recentProjects: [],
+    filteredSessions: [],
+    filteredGeneralSessions: [],
+    sessionGroups: [],
+    sessionListOrder: 'updated',
+    onSessionListOrderChange: () => {},
+    sessionSearch: '',
+    onOpenSessionSearch: () => {},
+    showArchivedSessions: false,
+    setShowArchivedSessions: () => {},
+    hydrateSessions: async () => [],
+    settingsOpen: false,
+    onOpenWorkspace: () => {},
+    onOpenProject: () => {},
+    onRemoveProject: () => {},
+    onNewSession: () => {},
+    onResumeSession: () => {},
+    onResumeDraft: async () => {},
+    draftSessions: [],
+    activeDraftId: null,
+    sessionMenu: null,
+    onOpenSessionMenu: () => {},
+    onSessionMenuAction: () => {},
+    onRequestDeleteSession: () => {},
+    openSettingsSection: () => {},
+    dispatch: () => {},
+    isOverlayPresentation: false,
+    locale: 'en',
+    sidebarResize: {
+      widthPx: 260,
+      isResizing: false,
+      onResizePointerDown: () => {},
+      setWidthPx: () => {},
+    },
+    backendServiceSessionIds: {},
+    shell: { closeOverlay: () => {} },
+    sidebarMode: 'chat',
+    onSidebarModeChange: () => {},
+    ...overrides,
+  };
+}
+
 describe('session chain phase 1', () => {
   // The project row and its "+" live in the sidebar's project pane.
   beforeEach(() => {
@@ -41,6 +94,42 @@ describe('session chain phase 1', () => {
     container?.remove();
     root = undefined;
     container = undefined;
+  });
+
+  it('keeps the chat pane when Conversations + starts a general session', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const onSidebarModeChange = vi.fn();
+    const onNewSession = vi.fn();
+    const dispatch = vi.fn();
+
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <WorkbenchSidebar
+            {...sidebarHarnessProps({
+              onSidebarModeChange,
+              onNewSession,
+              dispatch,
+              sidebarMode: 'chat',
+            })}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const plus = container.querySelector<HTMLButtonElement>(
+      '[data-testid="general-workspace-btn"]',
+    );
+    expect(plus).not.toBeNull();
+    await act(async () => {
+      plus?.click();
+    });
+
+    expect(onSidebarModeChange).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({ type: 'project/clear' });
+    expect(onNewSession).toHaveBeenCalledWith({ scope: { kind: 'general' } });
   });
 
   it('WorkbenchSidebar forwards the project + scope instead of dropping it', () => {

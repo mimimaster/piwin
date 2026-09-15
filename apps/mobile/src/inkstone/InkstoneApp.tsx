@@ -5,11 +5,17 @@ import { InkstoneIconSprite, Icon } from './icons.js';
 import { SessionsPage } from './pages/sessions.js';
 import { ChatPage } from './pages/chat.js';
 import { InboxPage } from './pages/inbox.js';
+import { ActivityPage } from './pages/activity.js';
 import { PlanPage } from './pages/plan.js';
 import { ReviewPage } from './pages/review.js';
 import { WorkspacePage } from './pages/workspace.js';
+import { WorkbenchPage } from './pages/workbench.js';
+import { TasksPage } from './pages/tasks.js';
 import { ShelfPage } from './pages/shelf.js';
+import { DeskPage } from './pages/desk.js';
 import { CardsPage } from './pages/cards.js';
+import { KnowledgePage } from './pages/knowledge.js';
+import { WikiDetailPage } from './pages/wiki-detail.js';
 import { VoicePage } from './pages/voice.js';
 import { SettingsDetailPage, SettingsPage } from './pages/settings.js';
 import {
@@ -29,11 +35,17 @@ const PAGES: Record<InkstoneRoute, () => ReactElement> = {
   sessions: SessionsPage,
   chat: ChatPage,
   inbox: InboxPage,
+  activity: ActivityPage,
   plan: PlanPage,
   review: ReviewPage,
   workspace: WorkspacePage,
+  workbench: WorkbenchPage,
+  tasks: TasksPage,
   shelf: ShelfPage,
+  desk: DeskPage,
   cards: CardsPage,
+  knowledge: KnowledgePage,
+  'wiki-detail': WikiDetailPage,
   voice: VoicePage,
   settings: SettingsPage,
   'settings-detail': SettingsDetailPage,
@@ -55,7 +67,11 @@ function readHashRoute(): InkstoneRoute {
 
 /** Deep links like #review must open the same scene the prototype's hash routing opens. */
 function initFromHash(state: typeof INITIAL_INKSTONE_STATE): typeof INITIAL_INKSTONE_STATE {
-  return { ...state, route: readHashRoute() };
+  const hash = window.location.hash.slice(1) as InkstoneRoute;
+  if (ROUTES.has(hash) && hash !== 'sessions') {
+    return { ...state, route: hash };
+  }
+  return state;
 }
 
 export function InkstoneApp({

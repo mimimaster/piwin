@@ -53,6 +53,8 @@ export type ScreenshotInspectReport =
       reason: string;
     };
 
+export type ScreenshotEvidence = 'delivered' | 'delegated' | 'unavailable';
+
 export type PersistBrowserScreenshotResult = {
   output: {
     status: 'success';
@@ -61,6 +63,7 @@ export type PersistBrowserScreenshotResult = {
     mediaId: string;
     mimeType: string;
     inspect: ScreenshotInspectReport;
+    evidence: ScreenshotEvidence;
     notice: string;
   };
   details: {
@@ -117,6 +120,8 @@ export async function persistAndInspectBrowserScreenshot(
   const inspect = images
     ? ({ status: 'native' } as const)
     : await describeScreenshotIfConfigured(input, asset.absolutePath);
+  const evidence: ScreenshotEvidence =
+    inspect.status === 'native' ? 'delivered' : inspect.status === 'ok' ? 'delegated' : 'unavailable';
   return {
     output: {
       status: 'success',
@@ -125,6 +130,7 @@ export async function persistAndInspectBrowserScreenshot(
       mediaId: asset.id,
       mimeType: JPEG_MIME,
       inspect,
+      evidence,
       notice: nativeNotice(inspect),
     },
     details: {

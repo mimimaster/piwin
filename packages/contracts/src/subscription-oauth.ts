@@ -15,6 +15,21 @@ export const V1_SUBSCRIPTION_PROVIDER_IDS = [
 
 export type V1SubscriptionProviderId = (typeof V1_SUBSCRIPTION_PROVIDER_IDS)[number];
 
+/**
+ * Claude Code / pi-anthropic-auth path — plan-quota shaping, independent of
+ * the v1 `anthropic` extra-usage card. Own auth.json key + Models provider.
+ */
+export const CLAUDE_CODE_OAUTH_PROVIDER_ID = 'anthropic-claude-code' as const;
+export type ClaudeCodeOauthProviderId = typeof CLAUDE_CODE_OAUTH_PROVIDER_ID;
+
+/** Every Host-managed subscription OAuth id (v1 cards + Claude Code card). */
+export const SUBSCRIPTION_OAUTH_PROVIDER_IDS = [
+  ...V1_SUBSCRIPTION_PROVIDER_IDS,
+  CLAUDE_CODE_OAUTH_PROVIDER_ID,
+] as const;
+
+export type SubscriptionOauthProviderId = (typeof SUBSCRIPTION_OAUTH_PROVIDER_IDS)[number];
+
 /** Extra stored oauth we may list in doctor but never put on a card. */
 export const IGNORED_SUBSCRIPTION_PROVIDER_IDS: readonly string[] = [];
 
@@ -195,8 +210,38 @@ export const V1_SUBSCRIPTION_PROVIDER_META: Record<
   'github-copilot': { name: 'GitHub Copilot', oauthOrigin: 'oauth://github-copilot' },
 };
 
+export const CLAUDE_CODE_OAUTH_PROVIDER_META = {
+  name: 'Claude Code',
+  oauthOrigin: 'oauth://anthropic-claude-code',
+} as const;
+
+export const SUBSCRIPTION_OAUTH_PROVIDER_META: Record<
+  SubscriptionOauthProviderId,
+  { readonly name: string; readonly oauthOrigin: string }
+> = {
+  ...V1_SUBSCRIPTION_PROVIDER_META,
+  [CLAUDE_CODE_OAUTH_PROVIDER_ID]: CLAUDE_CODE_OAUTH_PROVIDER_META,
+};
+
 export function isV1SubscriptionProviderId(providerId: string): providerId is V1SubscriptionProviderId {
   return (V1_SUBSCRIPTION_PROVIDER_IDS as readonly string[]).includes(providerId);
+}
+
+export function isClaudeCodeOauthProviderId(
+  providerId: string,
+): providerId is ClaudeCodeOauthProviderId {
+  return providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID;
+}
+
+export function isSubscriptionOauthProviderId(
+  providerId: string,
+): providerId is SubscriptionOauthProviderId {
+  return (SUBSCRIPTION_OAUTH_PROVIDER_IDS as readonly string[]).includes(providerId);
+}
+
+/** Pi login id used to obtain tokens (Claude Code reuses native anthropic OAuth). */
+export function piOauthLoginProviderId(providerId: string): string {
+  return isClaudeCodeOauthProviderId(providerId) ? 'anthropic' : providerId;
 }
 
 /** Models-page provider seeded from a v1 OAuth account. Not a BYOK channel. */

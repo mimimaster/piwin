@@ -268,15 +268,13 @@ function TranscriptLeafStates(): ReactElement {
       <GalleryStack title="Files-changed bar">
         <div className="files-changed-bar" data-testid="gallery-files-changed-bar">
           <div className="files-changed-bar-head">
-            <button type="button" className="files-changed-bar-toggle">
-              <span className="files-changed-bar-summary">
-                <span className="files-changed-bar-count">3 files changed</span>
-                <span className="files-changed-bar-stat">
-                  <span className="add">+42</span>
-                  <span className="del">−11</span>
-                </span>
+            <button type="button" className="files-changed-bar-toggle" aria-expanded>
+              <span className="files-changed-bar-chevron open">›</span>
+              <span className="files-changed-bar-count">3 files changed</span>
+              <span className="files-changed-bar-stat">
+                <span className="add">+42</span>
+                <span className="del">−11</span>
               </span>
-              <span className="files-changed-bar-chevron open">⌄</span>
             </button>
             <button type="button" className="files-changed-bar-review">
               Review

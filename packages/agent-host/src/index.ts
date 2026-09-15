@@ -69,10 +69,24 @@ export {
   LIVE_CATALOG_REFRESH_TIMEOUT_MS,
 } from './subscription-auth.js';
 export {
+  copyOauthCredential,
+  deleteOauthCredential,
+  hasOauthCredential,
+  readOauthAccessToken,
+  readAuthFileRoot,
+  materializeClaudeCodeCredentialFromAnthropic,
+  writeClaudeCodeApiKeyCredential,
+} from './subscription-auth-credentials.js';
+export {
   PIWIN_PI_AGENT_DIR_ENV,
   PIWIN_PI_AGENT_DIRNAME,
   resolvePiRuntimeAgentDir,
 } from './pi-runtime-agent-dir.js';
+export { installPiPackage } from './pi-package-installer.js';
+export type {
+  InstallPiPackageOptions,
+  InstallPiPackageResult,
+} from './pi-package-installer.js';
 export {
   fetchSubscriptionQuota,
   resetSubscriptionQuota,

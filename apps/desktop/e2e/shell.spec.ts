@@ -342,9 +342,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.getByTestId('composer-input').fill('tool card smoke');
     await page.getByTestId('send-btn').click();
 
-    // Quiet workbench: tools collapse into the turn summary chip when the answer starts.
-    await expect(page.getByTestId('turn-work-details-summary').first()).toBeVisible();
-    await page.getByTestId('turn-work-details-summary').first().click();
+    // Tool rows sit on the chain directly; the fold header is only the thinking toggle.
     await expect(page.getByTestId('tool-call-card').first()).toBeVisible();
   });
 

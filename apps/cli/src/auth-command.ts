@@ -2,7 +2,23 @@ import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import type { AuthPromptPayload, AuthStatusData, HostCommand, HostPush, HostResponse } from '@piwin/contracts';
-import { AUTH_CLI_PROVIDER_IDS, isV1SubscriptionProviderId } from '@piwin/contracts';
+import {
+  AUTH_CLI_PROVIDER_IDS,
+  getSubscriptionBillingNotice,
+  isV1SubscriptionProviderId,
+} from '@piwin/contracts';
+
+function authCliLocale(): 'zh-CN' | 'en' {
+  const lang = process.env.LANG ?? process.env.LC_ALL ?? '';
+  return /^zh/i.test(lang) ? 'zh-CN' : 'en';
+}
+
+function printSubscriptionBillingNotice(providerId: string): void {
+  const notice = getSubscriptionBillingNotice(providerId, authCliLocale());
+  if (notice) {
+    console.warn(`Warning: ${notice.compact} ${notice.manageUrl}`);
+  }
+}
 
 export type AuthHostClient = {
   handleCommand: (
@@ -23,6 +39,9 @@ export async function runAuthCommand(client: AuthHostClient, argv: string[]): Pr
     for (const account of data.accounts) {
       const collision = account.collidingChannelId ? ` collision=${account.collidingChannelId}` : '';
       console.log(`${account.providerId}\t${account.surface}\t${account.state}${collision}`);
+      if (account.state === 'logged-in') {
+        printSubscriptionBillingNotice(account.providerId);
+      }
     }
     return;
   }
@@ -50,6 +69,7 @@ export async function runAuthCommand(client: AuthHostClient, argv: string[]): Pr
     if (!isV1SubscriptionProviderId(providerId)) {
       throw new Error(`Usage: piwin auth login <${AUTH_CLI_PROVIDER_IDS}>`);
     }
+    printSubscriptionBillingNotice(providerId);
     await loginInteractive(client, providerId);
     return;
   }
@@ -102,6 +122,7 @@ async function loginInteractive(client: AuthHostClient, providerId: string): Pro
   }
   try {
     await finished;
+    printSubscriptionBillingNotice(providerId);
   } finally {
     process.off('SIGINT', onSigint);
     rl.close();

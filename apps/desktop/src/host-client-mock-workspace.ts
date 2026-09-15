@@ -746,6 +746,8 @@ export async function handleMockWorkspaceCommands(
           data: { pageStateLost: true, generation: 1 },
         };
       }
+      case 'browser/reload':
+        return { id, type: 'response', command: 'browser/reload', success: true, data: { ok: true } };
       case 'browser/input':
         return { id, type: 'response', command: 'browser/input', success: true, data: null };
       case 'browser/lock': {

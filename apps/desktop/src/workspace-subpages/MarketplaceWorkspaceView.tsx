@@ -1,7 +1,7 @@
 /**
  * Marketplace full-window subpage view.
  *
- * Implements native Pi extension & plugin discovery, 4-tier compatibility
+ * Implements native Pi extension discovery, 4-tier compatibility
  * classification, and turn-boundary live runtime hot-reloading.
  * Fully conforms to the Inkstone design system, pure typography-first layout.
  */
@@ -19,18 +19,16 @@ import { IconExtension } from '../shell-icons.js';
 import { StudioTopbar } from './studio/studio-chrome.js';
 import {
   INITIAL_EXTENSIONS,
-  INITIAL_PLUGINS,
   type MarketCategory,
   type MarketExtensionItem,
-  type MarketPluginItem,
   type MarketplaceToast,
   type MarketTab,
   MarketplaceExtensionCard,
-  MarketplacePluginCard,
   MarketplacePiPackageCard,
+  PiPackageInstallDialog,
   ExtensionInstallConsentDialog,
-  PluginSecretDialog,
   useMarketplaceEcosystemSearch,
+  useMarketplacePackageInstall,
 } from './marketplace/index.js';
 
 export type MarketplaceWorkspaceViewProps = {
@@ -38,6 +36,7 @@ export type MarketplaceWorkspaceViewProps = {
   onClose: () => void;
   request: (command: HostCommand) => Promise<HostResponse>;
   projectPath?: string | null | undefined;
+  sessionId?: string | null | undefined;
 };
 
 export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): ReactElement {
@@ -49,11 +48,9 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
   const [search, setSearch] = useState('');
   const [activeGen, setActiveGen] = useState(1);
   const [extensions, setExtensions] = useState<MarketExtensionItem[]>(INITIAL_EXTENSIONS);
-  const [plugins, setPlugins] = useState<MarketPluginItem[]>(INITIAL_PLUGINS);
   const [toast, setToast] = useState<MarketplaceToast | null>(null);
 
   const [consentTarget, setConsentTarget] = useState<MarketExtensionItem | null>(null);
-  const [secretTarget, setSecretTarget] = useState<MarketPluginItem | null>(null);
   const ecosystemQuery = tab === 'installed' ? '' : search;
   const ecosystem = useMarketplaceEcosystemSearch(ecosystemQuery, props.request);
 
@@ -80,7 +77,12 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
                   installed: true,
                   active: live.enabled,
                   source: live.source,
+                  bundled: live.source === 'bundled',
                   descriptionZh: live.description || existing.descriptionZh,
+                  author:
+                    live.source === 'bundled'
+                      ? resourceSourceLabel('bundled', isZh ? 'zh-CN' : 'en')
+                      : existing.author,
                 };
               } else {
                 merged.push({
@@ -122,6 +124,12 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     setToast({ text, type });
     window.setTimeout(() => setToast(null), 4000);
   };
+  const packageInstall = useMarketplacePackageInstall({
+    locale: props.locale,
+    sessionId: props.sessionId,
+    request: props.request,
+    showToast,
+  });
 
   const filteredExtensions = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -145,30 +153,15 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     });
   }, [extensions, category, search, isZh]);
 
-  const filteredPlugins = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return plugins.filter((plugin) => {
-      const matchCat = category === 'all' || (category === 'bundled' && plugin.bundled);
-      const matchSearch =
-        !q ||
-        plugin.name.toLowerCase().includes(q) ||
-        plugin.id.toLowerCase().includes(q) ||
-        (isZh ? plugin.descriptionZh : plugin.descriptionEn).toLowerCase().includes(q);
-      return matchCat && matchSearch;
-    });
-  }, [plugins, category, search, isZh]);
-
   const activeExtensionsCount = useMemo(
     () => extensions.filter((e) => e.installed && e.active).length,
     [extensions],
   );
 
-  const installedPluginsCount = useMemo(
-    () => plugins.filter((p) => p.installed).length,
-    [plugins],
+  const installedTotal = useMemo(
+    () => extensions.filter((e) => e.installed).length,
+    [extensions],
   );
-
-  const installedTotal = activeExtensionsCount + installedPluginsCount;
 
   const handleInstallExtension = (ext: MarketExtensionItem) => {
     setConsentTarget(ext);
@@ -206,37 +199,6 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     showToast(t(`Uninstalled [${ext.name}]`, `已卸载 [${ext.name}]`), 'info');
   };
 
-  const handleInstallPlugin = (plugin: MarketPluginItem) => {
-    if (plugin.secrets.length > 0) {
-      setSecretTarget(plugin);
-    } else {
-      setPlugins((prev) =>
-        prev.map((p) => (p.id === plugin.id ? { ...p, installed: true } : p)),
-      );
-      showToast(
-        t(`Added plugin [${plugin.name}], synced MCP configuration!`, `已添加插件 [${plugin.name}]，已同步 MCP 配置！`),
-        'success',
-      );
-    }
-  };
-
-  const handleConfirmPluginSecret = (
-    plugin: MarketPluginItem,
-    _secrets: Record<string, string>,
-  ) => {
-    setSecretTarget(null);
-    setPlugins((prev) =>
-      prev.map((p) => (p.id === plugin.id ? { ...p, installed: true } : p)),
-    );
-    showToast(
-      t(
-        `Secret saved securely to Keychain. Plugin [${plugin.name}] enabled!`,
-        `密钥已安全保存至 Keychain，插件 [${plugin.name}] 已启用！`,
-      ),
-      'success',
-    );
-  };
-
   const handleCopyPiInstall = (hit: MarketplaceSearchHit) => {
     void navigator.clipboard.writeText(hit.installCommand).then(
       () => {
@@ -254,13 +216,6 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     );
   };
 
-  const handleUninstallPlugin = (plugin: MarketPluginItem) => {
-    setPlugins((prev) =>
-      prev.map((p) => (p.id === plugin.id ? { ...p, installed: false } : p)),
-    );
-    showToast(t(`Removed plugin [${plugin.name}]`, `已移除插件 [${plugin.name}]`), 'info');
-  };
-
   const categories: Array<{ id: MarketCategory; label: string }> = [
     { id: 'all', label: t('All', '全部') },
     { id: 'bundled', label: t('bundled', '应用内置') },
@@ -270,7 +225,7 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
   ];
 
   const subbarFilters = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div className="market-filters-group">
       <div className="market-tab-wrap" role="tablist">
         <button
           type="button"
@@ -285,16 +240,6 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
         <button
           type="button"
           role="tab"
-          aria-selected={tab === 'plugins'}
-          className={`market-tab-btn${tab === 'plugins' ? ' is-active' : ''}`}
-          onClick={() => setTab('plugins')}
-        >
-          <span>{t('Plugins', '插件')}</span>
-          <span className="market-tab-count">({plugins.length})</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={tab === 'installed'}
           className={`market-tab-btn${tab === 'installed' ? ' is-active' : ''}`}
           onClick={() => setTab('installed')}
@@ -305,28 +250,26 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
       </div>
 
       {tab !== 'installed' && (
-        <div className="market-category-strip">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              className={`vault-chip${category === cat.id ? ' is-on' : ''}`}
-              onClick={() => setCategory(cat.id)}
-            >
-              <span>{cat.label}</span>
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="market-filter-divider" aria-hidden="true" />
+          <div className="market-category-strip">
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                className={`vault-chip${category === cat.id ? ' is-on' : ''}`}
+                onClick={() => setCategory(cat.id)}
+              >
+                <span>{cat.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
 
-  const currentCount =
-    tab === 'extensions'
-      ? filteredExtensions.length
-      : tab === 'plugins'
-        ? filteredPlugins.length
-        : installedTotal;
+  const currentCount = tab === 'extensions' ? filteredExtensions.length : installedTotal;
 
   return (
     <div className="vault-stage marketplace-stage" data-testid="marketplace-workspace">
@@ -338,7 +281,7 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
         kind="marketplace"
         layout="page"
         titleCount={currentCount}
-        searchPlaceholder={t('Search extensions & plugins…', '检索扩展与插件…')}
+        searchPlaceholder={t('Search extensions…', '检索扩展…')}
         searchTestId="marketplace-search-input"
         searchValue={search}
         onSearchChange={setSearch}
@@ -374,9 +317,16 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
             {search.trim() ? (
               <section className="market-ecosystem" data-testid="marketplace-ecosystem">
                 <header className="market-ecosystem-header">
-                  <h2 className="market-ecosystem-title">
-                    {t('Pi catalog', 'Pi 生态')}
-                  </h2>
+                  <div className="market-ecosystem-title-row">
+                    <h2 className="market-ecosystem-title">
+                      {t('Pi catalog', 'Pi 生态')}
+                    </h2>
+                    {ecosystem.hits.length > 0 && (
+                      <span className="market-ecosystem-count-tag">
+                        {t(`${ecosystem.hits.length} packages`, `${ecosystem.hits.length} 个扩展`)}
+                      </span>
+                    )}
+                  </div>
                   <p className="market-ecosystem-sub">
                     {t(
                       'Live search: npm packages tagged pi-package, plus GitHub repos with topic:pi-package.',
@@ -402,6 +352,18 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
                         hit={hit}
                         locale={props.locale}
                         onCopyInstall={handleCopyPiInstall}
+                        onInstall={packageInstall.select}
+                        installState={
+                          packageInstall.states[hit.entryId] ??
+                          (extensions.some(
+                            (extension) =>
+                              extension.installed &&
+                              extension.source === 'pi-native' &&
+                              (extension.id === hit.name || extension.name === hit.name),
+                          )
+                            ? 'installed'
+                            : 'idle')
+                        }
                       />
                     ))}
                   </div>
@@ -462,54 +424,15 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
           </>
         )}
 
-        {tab === 'plugins' && (
-          filteredPlugins.length === 0 ? (
-            <EmptyState
-              visual={<IconExtension width={28} height={28} aria-hidden="true" />}
-              seal={search.trim() ? '寻' : '空'}
-              badge={search.trim() ? t(`Query: "${search.trim()}"`, `搜索: "${search.trim()}"`) : undefined}
-              title={t('No plugins found', '未找到匹配的插件')}
-              description={t(
-                'Try adjusting your search query.',
-                '请尝试更换关键词。',
-              )}
-              suggestions={
-                search.trim()
-                  ? [{ label: t('Clear keyword', '清空关键词'), onClick: () => setSearch('') }]
-                  : undefined
-              }
-              action={
-                <Button variant="secondary" size="compact" onClick={() => setSearch('')}>
-                  {t('Clear search', '清空搜索')}
-                </Button>
-              }
-              size="spacious"
-              testId="marketplace-empty-plugins"
-            />
-          ) : (
-            <div className="market-grid">
-              {filteredPlugins.map((plugin) => (
-                <MarketplacePluginCard
-                  key={plugin.id}
-                  plugin={plugin}
-                  locale={props.locale}
-                  onInstall={handleInstallPlugin}
-                  onUninstall={handleUninstallPlugin}
-                />
-              ))}
-            </div>
-          )
-        )}
-
         {tab === 'installed' && (
           installedTotal === 0 ? (
             <EmptyState
               visual={<IconExtension width={28} height={28} aria-hidden="true" />}
               seal="墨"
-              title={t('No extensions or plugins installed yet', '尚未安装任何扩展或插件')}
+              title={t('No extensions installed yet', '尚未安装任何扩展')}
               description={t(
-                'Browse extensions or plugins in the marketplace to expand your Pi session capabilities.',
-                '前往扩展或插件专区一键安装，为当前会话注入更多专业能力。',
+                'Browse the marketplace to expand your Pi session capabilities.',
+                '前往扩展市场一键安装，为当前会话注入更多专业能力。',
               )}
               action={
                 <Button variant="primary" size="compact" onClick={() => setTab('extensions')}>
@@ -556,36 +479,6 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
                     </div>
                   </div>
                 ))}
-
-              {plugins
-                .filter((p) => p.installed)
-                .map((plugin) => (
-                  <div key={plugin.id} className="market-installed-item">
-                    <div className="market-installed-info">
-                      <div className="market-installed-texts">
-                        <div className="market-card-title-row">
-                          <strong className="market-installed-name">{plugin.name}</strong>
-                          <span className="market-source-pill is-native">plugin</span>
-                        </div>
-                        <span className="market-card-meta">
-                          {plugin.id} • v{plugin.version} • {plugin.category}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="market-installed-actions">
-                      <span className="market-card-status-active">
-                        {t('MCP Synced', 'MCP 已同步')}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="compact"
-                        onClick={() => handleUninstallPlugin(plugin)}
-                      >
-                        {t('Remove', '移除')}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
             </div>
           )
         )}
@@ -598,11 +491,11 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
         onCancel={() => setConsentTarget(null)}
       />
 
-      <PluginSecretDialog
-        plugin={secretTarget}
+      <PiPackageInstallDialog
+        hit={packageInstall.target}
         locale={props.locale}
-        onConfirm={handleConfirmPluginSecret}
-        onCancel={() => setSecretTarget(null)}
+        onConfirm={(hit) => void packageInstall.confirm(hit)}
+        onCancel={packageInstall.cancel}
       />
     </div>
   );

@@ -32,6 +32,12 @@ export type TranscriptScrollPort = {
    * activitySignal re-renders.
    */
   notifyContentGrew: () => void;
+  /**
+   * User opened or closed a local fold. Skip follow-tail sticks for the same
+   * two-frame window that pin-to-end uses, so remasure cannot yank the
+   * viewport off the row they just clicked.
+   */
+  beginLocalFoldLayout: () => void;
 };
 
 const TranscriptScrollContext = createContext<TranscriptScrollPort | null>(null);
@@ -44,6 +50,7 @@ export function TranscriptScrollProvider(props: {
   detachFromTail?: () => void;
   isFollowingTail?: () => boolean;
   beginProgrammaticScroll?: () => void;
+  beginLocalFoldLayout?: () => void;
   children: ReactNode;
 }): ReactElement {
   const [scrollElement, setScrollElement] = useState(props.scrollElementRef.current);
@@ -62,6 +69,8 @@ export function TranscriptScrollProvider(props: {
   isFollowingTailRef.current = props.isFollowingTail;
   const beginProgrammaticScrollRef = useRef(props.beginProgrammaticScroll);
   beginProgrammaticScrollRef.current = props.beginProgrammaticScroll;
+  const beginLocalFoldLayoutRef = useRef(props.beginLocalFoldLayout);
+  beginLocalFoldLayoutRef.current = props.beginLocalFoldLayout;
 
   const registerMessageScroller = useCallback((scroller: TranscriptMessageScroller) => {
     messageScrollerRef.current = scroller;
@@ -84,6 +93,10 @@ export function TranscriptScrollProvider(props: {
     beginProgrammaticScrollRef.current?.();
   }, []);
 
+  const beginLocalFoldLayout = useCallback((): void => {
+    beginLocalFoldLayoutRef.current?.();
+  }, []);
+
   const scrollToMessage = useCallback((messageId: string): boolean => {
     detachFromTailRef.current?.();
     return messageScrollerRef.current?.(messageId) ?? false;
@@ -103,6 +116,7 @@ export function TranscriptScrollProvider(props: {
       isFollowingTail,
       detachFromTail,
       beginProgrammaticScroll,
+      beginLocalFoldLayout,
       notifyContentGrew,
     }),
     [
@@ -114,6 +128,7 @@ export function TranscriptScrollProvider(props: {
       isFollowingTail,
       detachFromTail,
       beginProgrammaticScroll,
+      beginLocalFoldLayout,
       notifyContentGrew,
     ],
   );

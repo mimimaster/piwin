@@ -7,6 +7,7 @@ import { CitationCards } from '../CitationCards.js';
 import { ImageGenerationProgress } from '../image-generation-progress.js';
 import { VideoGenerationProgress } from '../video-generation-progress.js';
 import { WorkFoldHeader } from '../work-fold-header.js';
+import { ModelWaitTailRow } from '../model-wait-tail-row.js';
 import { FlashcardStackView } from '../FlashcardView.js';
 import type { FlashcardReviewCard } from '@piwin/contracts';
 
@@ -120,6 +121,25 @@ const exploreGroup: ExploreFlowGroup = {
   totalDurationMs: 1800,
 };
 
+const toolboxSearchTool = tool({
+  toolCallId: 'toolbox-search',
+  toolName: 'piwin_toolbox',
+  status: 'done',
+  output: JSON.stringify(
+    { tools: [{ id: 'flashcard_create' }, { id: 'library_search' }, { id: 'library_read' }] },
+    null,
+    2,
+  ),
+  presentation: {
+    kind: 'mcp',
+    title: 'Tool catalog',
+    actionVerb: 'Tool discovery',
+    summary: 'library',
+    inputPreview: '{"query":"library","action":"search"}',
+    durationMs: 420,
+  },
+});
+
 const galleryStyle = {
   maxWidth: 720,
   margin: '24px auto',
@@ -137,6 +157,7 @@ const galleryStyle = {
 export function InkstoneChainGallery(): ReactElement {
   // Fixed at mount so the running header's live clock actually ticks here.
   const [runStartedAt] = useState(() => Date.now() - 74_000);
+  const [modelWaitSince] = useState(() => Date.now() - 52_000);
   useEffect(() => {
     document.documentElement.setAttribute('data-theme-id', 'piwin-inkstone-paper');
     document.documentElement.setAttribute('data-theme-mode', 'light');
@@ -184,6 +205,20 @@ export function InkstoneChainGallery(): ReactElement {
           <ToolCallCard tool={failTool} density="compact" defaultExpanded />
           <ToolCallCard tool={writeTool} density="compact" />
           <ToolCallCard tool={bashTool} density="compact" />
+        </div>
+        <div className="turn-work-details" data-testid="gallery-model-wait">
+          <div className="thread turn-tool-sequence">
+            <ToolCallCard tool={toolboxSearchTool} density="compact" locale="zh-CN" />
+          </div>
+          <ModelWaitTailRow
+            tail={{
+              kind: 'waiting',
+              since: modelWaitSince,
+              modelLabel: 'Gemini 3.8 Flash',
+              placeholderMessageIds: [],
+            }}
+            locale="zh-CN"
+          />
         </div>
         <div data-testid="gallery-cites">
           <CitationCards

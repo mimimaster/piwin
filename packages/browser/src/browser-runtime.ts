@@ -89,6 +89,8 @@ export type BrowserRuntime = {
   peekPage(): Page | undefined;
   peekContext(): BrowserContext | undefined;
   hasActiveMirrorLease(): boolean;
+  mirrorLeaseCount(): number;
+  hasMirrorLease(leaseId: string): boolean;
   /** Returns false when a tombstoned lease must not resurrect the mirror. */
   acquireMirrorLease(leaseId?: string): boolean;
   /** Returns true when the caller should tear the runtime down. */
@@ -727,6 +729,14 @@ export function createBrowserRuntime(
     return legacyMirrorLeaseActive || activeMirrorLeaseIds.size > 0;
   }
 
+  function mirrorLeaseCount(): number {
+    return (legacyMirrorLeaseActive ? 1 : 0) + activeMirrorLeaseIds.size;
+  }
+
+  function hasMirrorLease(leaseId: string): boolean {
+    return activeMirrorLeaseIds.has(leaseId);
+  }
+
   function validateMirrorLeaseId(leaseId: string | undefined): string | undefined {
     if (leaseId === undefined) return undefined;
     if (leaseId.length === 0 || leaseId.length > MAX_MIRROR_LEASE_ID_CHARS) {
@@ -874,6 +884,8 @@ export function createBrowserRuntime(
     peekPage: () => page,
     peekContext: () => context,
     hasActiveMirrorLease,
+    mirrorLeaseCount,
+    hasMirrorLease,
     acquireMirrorLease,
     releaseMirrorLease,
     clearLeases(): void {

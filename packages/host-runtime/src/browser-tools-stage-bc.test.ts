@@ -116,6 +116,8 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     }),
     dispatchInput: async () => {},
     setViewport: async (size) => size,
+    mirrorLeaseCount: () => 1,
+    hasMirrorLease: () => true,
     takeOver: async () => ({ owner: 'user', agentWantsLock: true }),
     giveBack: async () => ({ owner: 'idle', agentWantsLock: false }),
     lock: async (owner) => ({ owner, agentWantsLock: owner === 'agent' }),

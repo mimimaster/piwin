@@ -349,6 +349,35 @@
 
 /* ── Collision Notice ─────────────────────────────────────────────────── */
 
+.oauth-billing-notice,
+.oauth-quota-billing-notice {
+  margin-top: var(--s-2);
+}
+
+.oauth-billing-notice .ui-notice,
+.oauth-quota-billing-notice .ui-notice {
+  align-items: flex-start;
+}
+
+.oauth-billing-notice-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.oauth-quota-plan-caption {
+  margin: 0;
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
 .oauth-collision-notice {
   display: flex;
   align-items: center;
@@ -442,3 +471,68 @@
   }
 }
 
+
+/* ── Claude Code OAuth (pi-anthropic-auth) ────────────────────────────── */
+
+.oauth-claude-code-section {
+  margin-top: 2px;
+}
+
+.oauth-claude-code-card {
+  border-color: color-mix(in srgb, var(--iris) 28%, var(--line-1));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--iris) 8%, transparent),
+      transparent 42%
+    ),
+    color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+
+.oauth-claude-code-card::before {
+  background: var(--iris);
+}
+
+.oauth-ext-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 0;
+  max-width: 100%;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  border: 1px solid color-mix(in srgb, var(--iris) 35%, var(--line-1));
+  background: color-mix(in srgb, var(--iris) 12%, var(--surface-1));
+  color: color-mix(in srgb, var(--iris) 80%, var(--text-1));
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oauth-claude-code-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-card);
+  border: 1px solid color-mix(in srgb, var(--iris) 18%, var(--line-1));
+  background: color-mix(in srgb, var(--surface-1) 80%, transparent);
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.oauth-claude-code-note p {
+  margin: 0;
+}
+
+.oauth-accounts-stat-badge.is-ready {
+  color: color-mix(in srgb, var(--mint) 85%, var(--text-1));
+  border-color: color-mix(in srgb, var(--mint) 30%, var(--line-1));
+}

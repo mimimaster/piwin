@@ -1,0 +1,12 @@
+{
+  "name": "pi-deepseek-cache",
+  "version": "1.0.4",
+  "description": "DeepSeek cache optimization: prefix cache alignment to reduce repeated token cost and first-token latency.",
+  "type": "module",
+  "private": true,
+  "pi": { "extensions": ["./index.ts"] },
+  "piwin": {
+    "bundledFrom": "npm:@rohaquinlop/pi-deepseek-cache",
+    "npmVersion": "1.0.4"
+  }
+}

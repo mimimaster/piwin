@@ -48,7 +48,7 @@ import { createSecretResolver, type SecretResolver } from './secret-resolver.js'
 import { getEnabledProviders, resolveDefaultModelRef } from './provider-helpers.js';
 import { oauthRuntimesForCompilation } from './blueprint-provider-runtime.js';
 import { resolveChatModel } from './resolve-chat-model.js';
-import { isChannelProvider, isV1SubscriptionProviderId } from '@piwin/contracts';
+import { isChannelProvider, isV1SubscriptionProviderId, isSubscriptionOauthProviderId } from '@piwin/contracts';
 import {
   compileSessionCapabilitySnapshot,
   type CompileSnapshotInput,
@@ -74,6 +74,7 @@ import {
 } from './capabilities/search-route-resolver.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { formatMountedKnowledgeBasePrompt } from './knowledge-system-prompt.js';
+import { formatBrowserSystemPrompt } from './browser-system-prompt.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
 import { discoverContextManifest } from './context-manifest-discovery.js';
@@ -383,11 +384,13 @@ async function compileAgentCapabilityPlan(
   const knowledgeAppendPrompt = formatMountedKnowledgeBasePrompt(
     options.mountedKnowledgeBaseNames ?? [],
   );
+  const browserAppendPrompt = formatBrowserSystemPrompt(snapshot.tools.hostTools);
   const appendSystemPromptParts = [
     DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
     artifactAppendPrompt,
     mcpAppendPrompt,
     knowledgeAppendPrompt,
+    browserAppendPrompt,
   ].filter((prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0);
   const appendSystemPrompt =
     appendSystemPromptParts.length > 0 ? appendSystemPromptParts.join('\n\n') : undefined;
@@ -435,7 +438,7 @@ async function assembleCompiledBlueprint(
     const resolved = resolveChatModel(config, input.model, options.subscriptionAccounts);
     if (
       !resolved &&
-      isV1SubscriptionProviderId(input.model.providerId) &&
+      isSubscriptionOauthProviderId(input.model.providerId) &&
       !config.providers.some((provider) => provider.id === input.model?.providerId)
     ) {
       throw Object.assign(
@@ -451,7 +454,7 @@ async function assembleCompiledBlueprint(
     const usable = new Set(options.usableSubscriptionProviderIds);
     const blocked = requiredProviderIds.find(
       (providerId) =>
-        isV1SubscriptionProviderId(providerId) &&
+        isSubscriptionOauthProviderId(providerId) &&
         !config.providers.some((provider) => provider.id === providerId) &&
         !usable.has(providerId),
     );
@@ -1181,7 +1184,7 @@ function selectProvidersForCompilation(
   );
   const providersById = new Map(enabledProviders.map((provider) => [provider.id, provider]));
   const missingProviderId = uniqueIds.find(
-    (providerId) => !providersById.has(providerId) && !isV1SubscriptionProviderId(providerId),
+    (providerId) => !providersById.has(providerId) && !isSubscriptionOauthProviderId(providerId),
   );
   if (missingProviderId) {
     throw new Error(`Configured provider is unavailable: ${missingProviderId}`);

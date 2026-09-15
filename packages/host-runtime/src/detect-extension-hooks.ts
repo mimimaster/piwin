@@ -23,6 +23,8 @@ const TUI_PATTERNS: readonly RegExp[] = [
 
 const AGENT_PATTERNS: readonly RegExp[] = [
   /\b(?:pi\.)?registerTool\b/,
+  /\b(?:pi\.)?registerProvider\b/,
+  /\b(?:pi\.)?registerCommand\b/,
   /\bpi\.on\s*\(/,
   /\b(?:ctx\.)?ui\.(?:confirm|select|input|notify)\s*\(/,
 ];

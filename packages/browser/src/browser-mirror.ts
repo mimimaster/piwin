@@ -11,9 +11,11 @@ import type { BrowserFramePush, BrowserSessionEvent } from './browser-session.js
 import {
   BROWSER_SCREENCAST_QUALITY,
   BROWSER_SCREENSHOT_QUALITY,
+  resolveBrowserScreencastFps,
   resolveBrowserScreencastSize,
   type BrowserScreencastSize,
 } from './screencast-size.js';
+import { readJpegSize } from './jpeg-size.js';
 
 export type BrowserMirrorDeps = {
   maxDimension: number;
@@ -38,6 +40,13 @@ function sameScreencastSize(left: BrowserScreencastSize, right: BrowserScreencas
 export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
   let screencastHandle: ScreencastHandle | undefined;
   let liveSize: BrowserScreencastSize | undefined;
+  let liveDpr: number | undefined;
+  let frameSeq = 0;
+
+  function nextFrameId(): string {
+    frameSeq += 1;
+    return String(frameSeq);
+  }
 
   function wantsFallbackFrames(): boolean {
     return (
@@ -51,6 +60,7 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
     const handle = screencastHandle;
     screencastHandle = undefined;
     liveSize = undefined;
+    liveDpr = undefined;
     if (handle !== undefined) await handle.stop();
   }
 
@@ -76,10 +86,17 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
         width: deps.maxDimension,
         height: deps.maxDimension,
       };
+      const encoded = readJpegSize(buffer) ?? {
+        width: viewport.width,
+        height: viewport.height,
+      };
       return {
         dataUrl: `data:image/jpeg;base64,${buffer.toString('base64')}`,
         width: viewport.width,
         height: viewport.height,
+        encodedWidth: encoded.width,
+        encodedHeight: encoded.height,
+        byteLength: buffer.byteLength,
       };
     },
     // HostRuntime keeps one event subscriber for the service lifetime so tool
@@ -89,7 +106,13 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
     hasSubscriber: () => wantsFallbackFrames(),
     intervalMs: Math.round(1000 / deps.maxFps),
     emit: (frame) => {
-      const event: BrowserFramePush = { type: 'browser/frame', ...frame };
+      const event: BrowserFramePush = {
+        type: 'browser/frame',
+        ...frame,
+        producer: 'screenshot-fallback',
+        quality: BROWSER_SCREENSHOT_QUALITY,
+        frameId: nextFrameId(),
+      };
       for (const listener of deps.subscribers) listener(event);
     },
   });
@@ -106,7 +129,12 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
       deviceScaleFactor,
     });
     if (!size) return;
-    if (screencastHandle !== undefined && liveSize && sameScreencastSize(liveSize, size)) {
+    if (
+      screencastHandle !== undefined &&
+      liveSize &&
+      sameScreencastSize(liveSize, size) &&
+      liveDpr === deviceScaleFactor
+    ) {
       frameLoop.stop();
       return;
     }
@@ -115,19 +143,30 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
     }
     frameLoop.stop();
     try {
+      const maxFps = resolveBrowserScreencastFps(size.width * size.height, deps.maxFps);
       screencastHandle = await startScreencast(activePage, {
         size,
         quality: BROWSER_SCREENCAST_QUALITY,
+        maxFps,
         emit: (frame) => {
           if (!deps.hasActiveMirrorLease()) return;
-          const event: BrowserFramePush = { type: 'browser/frame', ...frame };
+          const event: BrowserFramePush = {
+            type: 'browser/frame',
+            ...frame,
+            sourceDpr: deviceScaleFactor,
+            quality: BROWSER_SCREENCAST_QUALITY,
+            producer: 'screencast',
+            frameId: nextFrameId(),
+          };
           for (const listener of deps.subscribers) listener(event);
         },
       });
       liveSize = size;
+      liveDpr = deviceScaleFactor;
     } catch (error) {
       screencastHandle = undefined;
       liveSize = undefined;
+      liveDpr = undefined;
       console.warn(
         '[browser] screencast failed; falling back to screenshot frames',
         error instanceof Error ? error.message : error,

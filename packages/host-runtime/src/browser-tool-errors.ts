@@ -11,6 +11,7 @@ import {
   BrowserStaleTargetError,
   BrowserUnavailableError,
   BrowserUserHasControlError,
+  NavigateError,
 } from '@piwin/browser';
 import {
   BROWSER_AGENT_HAS_CONTROL,
@@ -102,18 +103,69 @@ export function userControlResult(error: unknown): ToolResult {
   throw error;
 }
 
+function recoveryActionFor(code: ToolResultErrorCode): string | undefined {
+  if (code === 'browser-user-has-control') return 'wait-for-user-handoff';
+  if (code === 'browser-agent-has-control') return 'wait-for-agent-or-take-over';
+  if (code === 'browser-runtime-gone') return 'retry-once-after-recovery';
+  if (code === 'browser-unavailable') return 'report-browser-unavailable';
+  if (code === 'browser-stale-target') return 'snapshot-and-retarget';
+  return undefined;
+}
+
 function mappedResult(
   code: ToolResultErrorCode,
   error: unknown,
   options: { retryable: boolean; details?: ToolResultDetails },
 ): MappedBrowserToolError {
+  const recoveryAction = recoveryActionFor(code);
+  const details =
+    options.details !== undefined || recoveryAction !== undefined
+      ? { ...(options.details ?? {}), ...(recoveryAction !== undefined ? { recoveryAction } : {}) }
+      : undefined;
   return {
     ok: false,
     code,
     message: sanitizeBrowserErrorMessage(error),
     retryable: options.retryable,
-    ...(options.details !== undefined ? { details: options.details } : {}),
+    ...(details !== undefined ? { details } : {}),
   };
+}
+
+export function mapBrowserExecuteError(
+  error: unknown,
+  kind: 'write' | 'wait' | 'reload' | 'key' | 'click',
+): ToolResult {
+  if (kind === 'click' && error instanceof Error && /intercepts pointer events/i.test(error.message)) {
+    return {
+      ok: false,
+      code: 'browser-action-failed',
+      message: sanitizeBrowserErrorMessage(error),
+      retryable: false,
+      details: { reason: 'overlay', recoveryAction: 'snapshot-or-dismiss-overlay' },
+    };
+  }
+  if (
+    kind === 'reload' &&
+    (error instanceof NavigateError || (error instanceof Error && error.name === 'NavigateError'))
+  ) {
+    return { ok: false, code: 'invalid-input', message: sanitizeBrowserErrorMessage(error) };
+  }
+  if (kind === 'key' && error instanceof Error && /valid key/i.test(error.message)) {
+    return { ok: false, code: 'invalid-input', message: sanitizeBrowserErrorMessage(error) };
+  }
+  if (kind === 'wait' && error instanceof Error && /timed out/i.test(error.message)) {
+    return {
+      ok: false,
+      code: 'browser-action-failed',
+      message: sanitizeBrowserErrorMessage(error),
+      retryable: false,
+      details: { reason: 'timeout', recoveryAction: 'inspect-current-state' },
+    };
+  }
+  if (kind === 'wait' && error instanceof Error && /wait_for requires|open page/i.test(error.message)) {
+    return { ok: false, code: 'invalid-input', message: sanitizeBrowserErrorMessage(error) };
+  }
+  return userControlResult(error);
 }
 
 function messageOf(error: unknown): string {

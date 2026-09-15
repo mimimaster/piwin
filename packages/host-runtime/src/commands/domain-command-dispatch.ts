@@ -121,7 +121,9 @@ export async function dispatchDomainCommands(
   const usage = await handleUsageCommand(command, requestId, context);
   if (usage) return usage;
 
-  const marketplaceSearch = await handleMarketplaceSearchCommand(command, requestId);
+  const marketplaceSearch = await handleMarketplaceSearchCommand(command, requestId, {
+    ...(context.piwinRoot === undefined ? {} : { piwinRoot: context.piwinRoot }),
+  });
   if (marketplaceSearch) return marketplaceSearch;
 
   const study = await handleFlashcardStudyCommand(command, requestId, context.flashcardStudy);

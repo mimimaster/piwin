@@ -5,6 +5,7 @@ import {
   isModelEnabled,
   isProviderEnabled,
   isSubscriptionProvider,
+  subscriptionUsesThirdPartyExtraUsage,
   modelSupportsCapability,
 } from '@piwin/contracts';
 import type {
@@ -265,7 +266,13 @@ export function ProviderRow({
               )}
             </b>
             <span className="provider-row-host" title={subscription ? t.oauthPlan : provider.baseUrl}>
-              {subscription ? t.oauthPlan : hostOf(provider.baseUrl)}
+              {subscription
+                ? subscriptionUsesThirdPartyExtraUsage(provider.id)
+                  ? isChinese
+                    ? 'OAuth · extra 计费'
+                    : 'OAuth · extra usage'
+                  : t.oauthPlan
+                : hostOf(provider.baseUrl)}
             </span>
           </div>
           <div className="provider-row-models-count">

@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import {
   createDefaultExtensionsConfig,
   isExtensionBlueprintEligible,
@@ -236,7 +236,18 @@ async function buildExtensionSummary(
 async function isBundledMarker(entryPath: string): Promise<boolean> {
   try {
     const raw = await readFile(entryPath, 'utf8');
-    return raw.includes('@piwin-bundled-extension');
+    if (raw.includes('@piwin-bundled-extension')) {
+      return true;
+    }
+  } catch {
+    // fall through to package.json
+  }
+  // Package-dir extensions: index.ts may omit the marker; honor package.json.
+  try {
+    const pkgPath = join(dirname(entryPath), 'package.json');
+    const raw = await readFile(pkgPath, 'utf8');
+    const parsed = JSON.parse(raw) as { piwin?: { bundledFrom?: unknown } };
+    return typeof parsed.piwin?.bundledFrom === 'string' && parsed.piwin.bundledFrom.length > 0;
   } catch {
     return false;
   }

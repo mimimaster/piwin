@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { IconBrain, IconChevronDown, IconChevronRight } from './shell-icons';
+import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 
 export type WorkFoldHeaderState = 'done' | 'running' | 'waiting';
 
@@ -47,7 +48,7 @@ export function formatLiveElapsed(elapsedMs: number): string {
  * phase. Returns undefined when there is nothing to count from, so callers
  * render no clock at all instead of a misleading `0s`.
  */
-function useLiveElapsed(startedAt: number | undefined): number | undefined {
+export function useLiveElapsed(startedAt: number | undefined): number | undefined {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (startedAt === undefined) return;
@@ -139,14 +140,14 @@ function WorkFoldIcon(props: {
   state: WorkFoldHeaderState;
   doneIcon: 'bulb' | 'brain';
 }): ReactElement {
+  if (props.doneIcon === 'brain') {
+    return <IconBrain className="i work-fold-brain" width={16} height={16} />;
+  }
   if (props.state === 'running') {
     return <span className="lamp" aria-hidden="true" />;
   }
   if (props.state === 'waiting') {
     return <span className="sq" aria-hidden="true" />;
-  }
-  if (props.doneIcon === 'brain') {
-    return <IconBrain className="i work-fold-brain" width={16} height={16} />;
   }
   return <IconBulb />;
 }
@@ -256,6 +257,7 @@ function WaitingLabel(props: {
 /** Proto-01 `.work-h` — bulb (work) / brain (thinking) / lamp / zhu square. */
 export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
   const open = props.open === true;
+  const foldMeasure = useTranscriptLocalFoldMeasure(open);
   const className = [
     'work-h',
     props.className,
@@ -313,7 +315,8 @@ export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
     </>
   );
 
-  if (props.onToggle) {
+  const onToggle = props.onToggle;
+  if (onToggle) {
     return (
       <button
         type="button"
@@ -323,7 +326,11 @@ export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
         aria-expanded={open}
         {...(props.ariaLabel !== undefined ? { 'aria-label': props.ariaLabel } : {})}
         {...(props.testId !== undefined ? { 'data-testid': props.testId } : {})}
-        onClick={props.onToggle}
+        onClick={() => {
+          foldMeasure.onUserToggle();
+          onToggle();
+        }}
+        ref={foldMeasure.setRoot}
       >
         {inner}
       </button>

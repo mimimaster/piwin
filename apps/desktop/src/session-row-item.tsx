@@ -141,6 +141,7 @@ export function SessionRowItem({
   isContextActive,
   copy,
   projectSubtitle,
+  isPinnedSection,
 }: {
   session: SessionListItemUi | DraftSessionItemUi;
   activeSessionId: string | null;
@@ -155,6 +156,7 @@ export function SessionRowItem({
   isContextActive?: boolean | undefined;
   copy: DesktopCopy['sidebar'];
   projectSubtitle?: string | undefined;
+  isPinnedSection?: boolean | undefined;
   workingSessionIds?: Record<string, true> | undefined;
   runPhase?: SessionRowRunPhase | undefined;
   backendServiceSessionIds?: Record<string, true> | undefined;
@@ -213,6 +215,7 @@ export function SessionRowItem({
         data-testid="session-item"
         data-session-id={session.id}
         data-pinned={isPinned ? 'true' : 'false'}
+        data-pinned-section={isPinnedSection ? 'true' : 'false'}
         data-archived={isArchived ? 'true' : 'false'}
         data-storage={storageState ?? 'local'}
         data-draft={isDraft ? 'true' : 'false'}
@@ -232,7 +235,8 @@ export function SessionRowItem({
               : isContextActive
                 ? 'session-item context-active'
                 : 'session-item',
-          ...(projectSubtitle ? ['has-project-subtitle'] : []),
+          ...(isPinnedSection ? ['session-item--pinned'] : []),
+          ...(projectSubtitle && !isPinnedSection ? ['has-project-subtitle'] : []),
           ...(formattedPreview ? ['has-preview'] : []),
         ].join(' ')}
         onClick={() => (isDraft ? onResumeDraft?.(session.id) : onResumeSession(session.id))}
@@ -242,9 +246,16 @@ export function SessionRowItem({
           onOpenSessionMenu(session.id, event.clientX, event.clientY);
         }}
       >
+        {isPinnedSection ? (
+          <span className="session-item-pinned-ribbon" data-testid="session-pinned-ribbon" aria-hidden>
+            <svg viewBox="0 0 9 18" width="9" height="18" fill="currentColor">
+              <path d="M0 0h9v18l-4.5-3.8-4.5 3.8z" />
+            </svg>
+          </span>
+        ) : null}
         <span
           className={
-            projectSubtitle
+            projectSubtitle && !isPinnedSection
               ? 'session-item-body has-project-subtitle'
               : formattedPreview
                 ? 'session-item-body has-preview'
@@ -276,14 +287,14 @@ export function SessionRowItem({
                 {copy.missingPack}
               </span>
             ) : null}
-            {isPinned ? (
+            {isPinned && !isPinnedSection ? (
               <span className="session-pin-mark" aria-hidden>
                 <IconBookmark width={12} height={12} />
               </span>
             ) : null}
             <span className="session-item-title-text">{session.name}</span>
           </span>
-          {projectSubtitle ? (
+          {projectSubtitle && !isPinnedSection ? (
             <span className="session-item-project-subtitle" data-testid="session-project-subtitle">
               <IconFolder width={12} height={12} className="session-item-project-icon" />
               <span className="session-item-project-name">{projectSubtitle}</span>
@@ -306,12 +317,22 @@ export function SessionRowItem({
           backendServiceLabel={copy.backendServiceActive}
           waitingOnYouLabel={copy.waitingOnYou}
         />
+        {isPinnedSection && projectSubtitle ? (
+          <span
+            className="session-item-project-tag"
+            data-testid="session-project-subtitle"
+            title={projectSubtitle}
+          >
+            {projectSubtitle}
+          </span>
+        ) : null}
         {session.updatedAt &&
         !isWorking &&
         !hasActiveBackendService &&
         !isWaitingOnPermission &&
         !hasCompletedAttention &&
-        !hasFailedAttention ? (
+        !hasFailedAttention &&
+        !(isPinnedSection && projectSubtitle) ? (
           <span className="session-item-time" aria-label={session.updatedAt}>
             {formatSessionRelativeTime(session.updatedAt)}
           </span>

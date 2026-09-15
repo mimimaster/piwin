@@ -187,6 +187,21 @@ describe('vendor payload normalizers', () => {
     expect(quota.payg?.usedText).toContain('12.50');
   });
 
+  it('keeps Claude extra usage visible when the vendor reports it disabled', () => {
+    const quota = normalizeClaudeUsagePayload(
+      {
+        five_hour: { utilization: 2, resets_at: '2026-09-09T22:00:00+00:00' },
+        extra_usage: { is_enabled: false, monthly_limit: 0, used_credits: 0 },
+      },
+      'claude@example.com',
+      NOW,
+    );
+    expect(quota.payg).toEqual({
+      enabled: false,
+      usedText: 'US$0.00 / US$0.00',
+    });
+  });
+
   it('maps Copilot quota_snapshots remaining percents', () => {
     const quota = normalizeCopilotUsagePayload(
       {

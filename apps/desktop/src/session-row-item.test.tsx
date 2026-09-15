@@ -19,6 +19,7 @@ function renderSessionRow(props: {
   session: SessionListItemUi | DraftSessionItemUi;
   projectSubtitle?: string;
   activeSessionId?: string | null;
+  isPinnedSection?: boolean;
 }) {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -29,6 +30,7 @@ function renderSessionRow(props: {
       <SessionRowItem
         session={props.session}
         projectSubtitle={props.projectSubtitle}
+        isPinnedSection={props.isPinnedSection}
         activeSessionId={props.activeSessionId ?? null}
         onResumeSession={vi.fn()}
         onOpenSessionMenu={vi.fn()}
@@ -172,6 +174,34 @@ describe('SessionRowItem', () => {
 
     const previewEl = container.querySelector('[data-testid="session-item-preview"]');
     expect(previewEl?.textContent).toBe('“Create exactly one flashcard”');
+  });
+
+  it('renders top-hanging ribbon and unboxed project tag when isPinnedSection is true', () => {
+    const session: SessionListItemUi = {
+      id: 'sess-pinned-1',
+      name: 'Pinned Session',
+      isPinned: true,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const { container } = renderSessionRow({
+      session,
+      projectSubtitle: 'piwin',
+      isPinnedSection: true,
+    });
+    activeContainers.push(container);
+
+    // Hanging ribbon is rendered
+    expect(container.querySelector('[data-testid="session-pinned-ribbon"]')).not.toBeNull();
+    // Redundant inline bookmark is omitted
+    expect(container.querySelector('.session-pin-mark')).toBeNull();
+    // Project tag is rendered as unboxed text
+    const projectTag = container.querySelector('[data-testid="session-project-subtitle"]');
+    expect(projectTag?.textContent).toBe('piwin');
+    expect(projectTag?.classList.contains('session-item-project-tag')).toBe(true);
+    // Button has data-pinned-section
+    const button = container.querySelector('[data-testid="session-item"]');
+    expect(button?.getAttribute('data-pinned-section')).toBe('true');
   });
 });
 

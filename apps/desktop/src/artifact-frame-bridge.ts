@@ -90,6 +90,12 @@ function resolveStageHeight(input: BridgeInput): number {
   return input.bootstrapHeight;
 }
 
+/**
+ * Process-wide so a remounted frame on the same channel never reuses an epoch
+ * that a replaced document may still echo through the native channel.
+ */
+let nextDocumentEpoch = 1;
+
 /** Owns the revisioned Inline size stream and whitelisted Artifact actions. */
 export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge {
   const initialStatus: ArtifactBridgeStatus = input.measureHeight
@@ -111,6 +117,8 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   // iframe document on the same channel; resetting to bootstrap there collapses
   // the transcript for a frame (longer on WebKit data-URL loads).
   const measuredChannelRef = useRef<string | null>(null);
+  // 0 until the first load; reports without an epoch predate any request.
+  const documentEpochRef = useRef(0);
   const lastPostSeqRef = useRef(-1);
   const statusRef = useRef<ArtifactBridgeStatus>(initialStatus);
   const dataHandlerRef = useRef<(data: unknown, trustedSource: boolean) => void>(() => undefined);
@@ -129,6 +137,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
         channelId: current.channelId,
         fallbackViewport,
         force,
+        epoch: documentEpochRef.current,
       },
       '*',
     );
@@ -171,6 +180,12 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
 
   dataHandlerRef.current = (data, trustedSource): void => {
     const current = latestRef.current;
+    const sizeEpoch = parseArtifactBridgeMessage(data)?.epoch;
+    if (sizeEpoch !== undefined && sizeEpoch !== documentEpochRef.current) {
+      // A replaced document's late report must not advance seq/revision and
+      // starve the new document's reports into the recovery fallback.
+      return;
+    }
     const postSeq = readArtifactPostSeq(data);
     if (postSeq !== null && postSeq <= lastPostSeqRef.current) {
       return;
@@ -244,6 +259,8 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   };
 
   const onIframeLoad = useCallback((): void => {
+    documentEpochRef.current = nextDocumentEpoch;
+    nextDocumentEpoch += 1;
     lastRevisionRef.current = -1;
     lastPostSeqRef.current = -1;
     startReadyTimer();

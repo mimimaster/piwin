@@ -210,11 +210,10 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       onNewSession={(options) => void onNewSession(options)}
       onNewGeneralSession={() => {
         void (async () => {
-          // Sequence: switch scope → hydrate general list → create new
-          // general session. Awaiting hydrate before create avoids the
-          // session/hydrate dispatch clobbering session/add, and the
-          // explicit general scope avoids reading stale activeScope.
-          onSidebarModeChange('code');
+          // Stay on the current pane. Conversations + lives on chat; No Repo
+          // + lives on code. Flipping to code here sent the chat plus into
+          // Projects. Scope switch is project/clear, not sidebarMode.
+          // Hydrate before create so session/hydrate cannot clobber session/add.
           dispatch({ type: 'project/clear' });
           await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
           await onNewSession({ scope: { kind: 'general' } });

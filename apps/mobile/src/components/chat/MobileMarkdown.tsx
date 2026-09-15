@@ -42,7 +42,7 @@ export const MobileMarkdown = memo(function MobileMarkdown({
         );
       },
       code({ className, children, ...rest }: ComponentProps<'code'>) {
-        const match = /language-(\w+)/.exec(className || '');
+        const match = /language-([\w-]+)/.exec(className || '');
         const isInline = !match && typeof children === 'string' && !children.includes('\n');
 
         if (isInline) {
@@ -84,6 +84,7 @@ export const MobileMarkdown = memo(function MobileMarkdown({
       >
         {content}
       </Streamdown>
+      {isStreaming ? <span className="modern-streaming-cursor inline" /> : null}
     </div>
   );
 });
@@ -98,6 +99,13 @@ function MobileCodeBlock({
   children: React.ReactNode;
 }): ReactElement {
   const [copied, setCopied] = useState(false);
+  const langLower = (language || '').toLowerCase();
+  const trimmed = codeText.trim();
+  const isSvg =
+    (langLower === 'svg' || langLower === 'xml' || langLower === 'html' || langLower === '') &&
+    trimmed.includes('<svg') &&
+    trimmed.includes('</svg>');
+  const [activeTab, setActiveTab] = useState<'preview' | 'code'>(isSvg ? 'preview' : 'code');
 
   const handleCopy = async () => {
     try {
@@ -109,23 +117,58 @@ function MobileCodeBlock({
     }
   };
 
+  if (isSvg && activeTab === 'preview') {
+    return (
+      <div className="mobile-artifact-inline-preview" data-testid="mobile-artifact-inline-preview">
+        <div
+          className="mobile-svg-preview-stage"
+          dangerouslySetInnerHTML={{ __html: codeText }}
+        />
+        <div className="mobile-artifact-floating-actions">
+          <button
+            type="button"
+            className="mobile-artifact-action-btn"
+            onClick={() => setActiveTab('code')}
+            aria-label="查看代码"
+          >
+            代码
+          </button>
+          <button
+            type="button"
+            className="mobile-artifact-action-btn"
+            onClick={() => void handleCopy()}
+            aria-label="复制代码"
+          >
+            {copied ? '✓ 已复制' : '复制'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mobile-code-block-card">
       <div className="mobile-code-block-header">
-        <div className="mobile-code-window-dots">
-          <span className="dot red" />
-          <span className="dot yellow" />
-          <span className="dot green" />
-          <span className="mobile-code-block-lang">{language || 'code'}</span>
+        <span className="mobile-code-block-lang">{language || 'code'}</span>
+        <div className="mobile-code-block-actions">
+          {isSvg ? (
+            <button
+              type="button"
+              className="mobile-code-copy-button"
+              onClick={() => setActiveTab('preview')}
+            >
+              预览
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="mobile-code-copy-button"
+            onClick={() => void handleCopy()}
+            aria-label="复制代码"
+          >
+            {copied ? '✓ 已复制' : '复制'}
+          </button>
         </div>
-        <button
-          type="button"
-          className="mobile-code-copy-button"
-          onClick={() => void handleCopy()}
-          aria-label="复制代码"
-        >
-          {copied ? '✓ 已复制' : '复制'}
-        </button>
       </div>
       <pre className="mobile-code-pre">{children}</pre>
     </div>

@@ -118,6 +118,20 @@
   padding-bottom: var(--s-2);
 }
 
+/* Empty chrome on the first row (around the pane switch / search) is a
+   window-move handle. Controls keep no-drag so clicks still fire. */
+.sidebar-sb-top,
+.sb-top {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.sidebar-sb-top button,
+.sb-top button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 .sidebar-overlay-header {
   display: flex;
   align-items: center;

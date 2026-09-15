@@ -46,6 +46,7 @@ import {
   IconCode,
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
+import { handleNativeWindowDragMouseDown } from './native-window-drag';
 
 const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 28;
 const SIDEBAR_SECTION_ROW_ESTIMATE_PX = 22;
@@ -561,7 +562,12 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       ) : null}
 
       {/* Prototype .sb-top: search plus the vermilion new-chat action. */}
-      <div className="sb-top sidebar-sb-top" data-testid="sidebar-sb-top">
+      <div
+        className="sb-top sidebar-sb-top"
+        data-testid="sidebar-sb-top"
+        data-tauri-drag-region
+        onMouseDown={handleNativeWindowDragMouseDown}
+      >
         {/* Pane switch. Two glyphs, no labels: it sits on the window-control
             line where a labelled tab row would cost a whole row of list. */}
         <div className="sidebar-mode" role="tablist" aria-label={copy.workspace}>

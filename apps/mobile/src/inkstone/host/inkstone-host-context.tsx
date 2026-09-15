@@ -21,9 +21,9 @@ export interface InkstoneHostContextValue {
 
 export const InkstoneHostContext = createContext<InkstoneHostContextValue | null>(null);
 
-/** Demo mode has no host; pages read this as null and render prototype data. */
-
-/** Host slice for pages; null unless a Host connection is ready. */
+/** A null context is the intentional offline/demo mode. A non-null context is
+ * authoritative even while connecting or recovering, so pages do not invent
+ * success states while the Host is unavailable. */
 export function useInkstoneHost(): InkstoneHostContextValue | null {
   return useContext(InkstoneHostContext);
 }

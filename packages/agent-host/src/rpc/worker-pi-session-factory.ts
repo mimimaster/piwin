@@ -48,6 +48,7 @@ import {
 } from '../seeded-pi-session.js';
 import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { resolvePiRuntimeAgentDir } from '../pi-runtime-agent-dir.js';
+import { registerClaudeCodeOauthProvider } from '../anthropic-oauth/register-claude-code-provider.js';
 import {
   readPiAutoCompactionEnabled,
   setPiAutoCompactionEnabled,
@@ -351,6 +352,11 @@ export function createWorkerPiSessionFactory(
         input.blueprint.searchRoute,
         input.bootstrapSecrets,
       );
+      for (const provider of providers) {
+        if (provider.auth.kind === 'oauth' && provider.providerId === 'anthropic-claude-code') {
+          await registerClaudeCodeOauthProvider(modelRuntime, agentDir, provider);
+        }
+      }
     }
     await modelRuntime.refresh({ allowNetwork: false });
 

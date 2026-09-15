@@ -117,6 +117,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .proto-nav-spacer {
   flex: 1 1 auto;
   min-width: 0;
+  -webkit-app-region: drag;
+  app-region: drag;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-history {
@@ -128,9 +130,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib {
-  /* Natural flex align-items:center aligns the toggle glyph to the exact
-     horizontal centreline of the traffic lights; keep left offset aligned with settings back button. */
+  /* Overlay lights sit at tauri y:18; the 30px band centres the 22px hit
+     target ~1px higher. Keep the 1px drop — flexbox alone leaves the
+     panel-left glyph riding above the light centreline. Left offset
+     matches the settings back button. */
   position: relative;
+  top: 1px;
   left: -2px;
   background: transparent !important;
   box-shadow: none !important;

@@ -43,6 +43,7 @@ export type SidebarTreeRow =
       session: SessionListItemUi | DraftSessionItemUi;
       projectSubtitle?: string;
       grouped?: true;
+      isPinnedSection?: true;
       key: string;
     }
   | {
@@ -390,6 +391,7 @@ export function collectPinnedSessionRows(
     scope,
     session,
     ...(projectSubtitle ? { projectSubtitle } : {}),
+    isPinnedSection: true as const,
     key: `session:pinned:${session.id}`,
   }));
 }

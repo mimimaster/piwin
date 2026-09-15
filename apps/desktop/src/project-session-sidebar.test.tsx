@@ -1411,7 +1411,9 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
       transportLabel: '本机 Host · 8787',
     });
 
-    expect(container.querySelector('[data-testid="sidebar-sb-top"]')).not.toBeNull();
+    const sbTop = container.querySelector('[data-testid="sidebar-sb-top"]');
+    expect(sbTop).not.toBeNull();
+    expect(sbTop?.hasAttribute('data-tauri-drag-region')).toBe(true);
     expect(container.querySelector('[data-testid="sidebar-shelf"]')).not.toBeNull();
 
     const searchBtn = container.querySelector<HTMLButtonElement>('[data-testid="session-search-btn-sb-top"]');

@@ -79,6 +79,7 @@ function RealGate({
   gate: InkstonePermissionGateView;
   hostCtx: InkstoneHostContextValue;
 }): ReactElement {
+  const { state, dispatch } = useInkstone();
   const { host } = hostCtx;
   return (
     <article className="gate">
@@ -102,13 +103,32 @@ function RealGate({
           </>
         ) : null}
         <dt>作用范围</dt>
-        <dd>仅本次操作 · Host 执行</dd>
+        <dd>{state.scope === 'once' ? '仅本次操作' : state.scope === 'session' ? '本次会话' : '此项目'} · Host 执行</dd>
       </dl>
+      <div className="scope-options" role="group" aria-label="批准范围">
+        {(
+          [
+            ['once', '仅这一次'],
+            ['session', '本次会话'],
+            ['project', '此项目'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            className={state.scope === value ? 'active' : ''}
+            aria-pressed={state.scope === value}
+            onClick={() => dispatch({ type: 'set-scope', scope: value })}
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="gate-footer">
         <span>读过之后，再落印。</span>
         <button
           className="seal-button ghost"
-          onClick={() => void host.handleResolvePermission('deny', gate.requestId)}
+          onClick={() => void host.handleResolvePermission('deny', gate.requestId, state.scope)}
           disabled={host.isResolvingPermission}
           aria-label="拒绝本次操作"
           type="button"
@@ -117,7 +137,7 @@ function RealGate({
         </button>
         <button
           className="seal-button"
-          onClick={() => void host.handleResolvePermission('allow', gate.requestId)}
+          onClick={() => void host.handleResolvePermission('allow', gate.requestId, state.scope)}
           disabled={host.isResolvingPermission}
           aria-label="允许本次操作"
           type="button"
@@ -139,8 +159,8 @@ function ConnectedInbox({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Rea
     projects: host.projects,
   });
   const otherPending = pending.filter((row) => row.sessionId !== host.activeSessionId);
-  const goSession = (sessionId: string) => {
-    void host.handleSelectSession(sessionId);
+  const goSession = async (sessionId: string): Promise<void> => {
+    await host.handleSelectSession(sessionId);
     dispatch({ type: 'navigate', route: 'chat' });
   };
   return (
@@ -180,7 +200,7 @@ function ConnectedInbox({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Rea
                     name="bulb"
                     title={row.title}
                     subtitle={row.subtitle}
-                    onClick={() => goSession(row.sessionId)}
+                    onClick={() => void goSession(row.sessionId)}
                   />
                 ))}
               </>
@@ -200,7 +220,7 @@ function ConnectedInbox({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Rea
                 name="bulb"
                 title={row.title}
                 subtitle={row.subtitle}
-                onClick={() => goSession(row.sessionId)}
+                onClick={() => void goSession(row.sessionId)}
               />
             ))}
           </>

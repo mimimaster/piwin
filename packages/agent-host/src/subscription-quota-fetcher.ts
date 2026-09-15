@@ -185,7 +185,8 @@ export async function fetchSubscriptionQuota(
         case 'xai':
           return fetchGrokQuota(material, fetchImpl, nowMs);
         case 'anthropic':
-          return fetchClaudeQuota(material, fetchImpl, nowMs);
+        case 'anthropic-claude-code':
+          return fetchClaudeQuota(material, fetchImpl, nowMs, providerId);
         case 'github-copilot':
           return fetchCopilotQuota(material, fetchImpl, nowMs);
         case 'kimi-coding':
@@ -305,6 +306,7 @@ async function fetchClaudeQuota(
   material: StoredOAuthMaterial,
   fetchImpl: typeof fetch,
   nowMs: number,
+  providerId: string,
 ): Promise<SubscriptionAccountQuota> {
   const result = await fetchJson(fetchImpl, CLAUDE_USAGE_URL, {
     headers: {
@@ -315,7 +317,12 @@ async function fetchClaudeQuota(
     },
   });
   const json = requireOk(result, 'claude usage');
-  return normalizeClaudeUsagePayload(json, material.email ?? extractEmailFromJwt(material.accessToken), nowMs);
+  return normalizeClaudeUsagePayload(
+    json,
+    material.email ?? extractEmailFromJwt(material.accessToken),
+    nowMs,
+    providerId,
+  );
 }
 
 async function fetchCopilotQuota(

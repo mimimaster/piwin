@@ -23,6 +23,8 @@ const MOBILE_SESSION_LIST_MAX_ITEMS = 80;
 export type MobileRemoteReadModelContext = {
   clientRef: { current: HostClient | undefined };
   activeSessionRef: { current: string | undefined };
+  /** Guards asynchronous hydration against a newer session selection. */
+  selectionGenerationRef: { current: number };
   setHostStatus: (status: RemoteHostStatusData | undefined) => void;
   setErrorMessage: (message: string | undefined) => void;
   setProjects: (projects: RemoteProjectSummary[]) => void;
@@ -35,7 +37,11 @@ export type MobileRemoteReadModelContext = {
   setActiveSessionId: (sessionId: string | undefined) => void;
   setMessages: (messages: ReturnType<typeof readSessionMessages>) => void;
   setPausedCheckpointId: (checkpointId: string | undefined) => void;
-  beginSessionForeground: (client: HostClient, sessionId: string) => Promise<void>;
+  beginSessionForeground: (
+    client: HostClient,
+    sessionId: string,
+    expectedGeneration?: number,
+  ) => Promise<void>;
 };
 
 export function createMobileRemoteReadModelRefresher(
@@ -86,20 +92,27 @@ export function createMobileRemoteReadModelRefresher(
         targetSessionId = sessionList[0].sessionId;
         context.activeSessionRef.current = targetSessionId;
         context.setActiveSessionId(targetSessionId);
+        context.selectionGenerationRef.current += 1;
       }
 
       if (targetSessionId !== undefined) {
+        const expectedGeneration = context.selectionGenerationRef.current;
         const resumeResponse = await client.request({
           type: 'session/resume',
           sessionId: targetSessionId,
         });
-        if (context.clientRef.current === client && resumeResponse.success) {
+        if (
+          context.clientRef.current !== client ||
+          context.activeSessionRef.current !== targetSessionId ||
+          context.selectionGenerationRef.current !== expectedGeneration
+        ) {
+          return;
+        }
+        if (resumeResponse.success) {
           context.setMessages(readSessionMessages(resumeResponse));
           context.setPausedCheckpointId(readPauseCheckpointId(resumeResponse.data));
         }
-        if (context.clientRef.current === client) {
-          await context.beginSessionForeground(client, targetSessionId);
-        }
+        await context.beginSessionForeground(client, targetSessionId, expectedGeneration);
       }
     } catch (error) {
       if (context.clientRef.current === client) {

@@ -37,6 +37,7 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
       locale={props.locale === 'en' ? 'en' : 'zh-CN'}
       onClose={props.onClose}
       request={props.request}
+      studyRequest={props.request}
       initialTab={props.entry === 'produce' ? 'documents' : 'flashcards'}
       initialFolderPath={props.initialFolderPath}
       projectPath={props.projectPath}

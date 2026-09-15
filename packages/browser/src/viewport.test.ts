@@ -83,7 +83,7 @@ describe('resolveBrowserViewport', () => {
     expect(next?.height).toBeGreaterThanOrEqual(BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT);
   });
 
-  it('preserves follow-panel aspect while scaling to the max edge', () => {
+  it('keeps a 1600×1000 follow panel without the 1280 longest-edge cap', () => {
     expect(
       resolveBrowserViewport({
         mode: 'follow',
@@ -91,10 +91,10 @@ describe('resolveBrowserViewport', () => {
         panelHeight: 1000,
         maxDimension: 1280,
       }),
-    ).toEqual({ width: 1280, height: 800 });
+    ).toEqual({ width: 1600, height: 1000 });
   });
 
-  it('never exceeds maxDimension after the follow min floor', () => {
+  it('fits follow into 1920×1200 after the min floor, ignoring maxDimension', () => {
     const next = resolveBrowserViewport({
       mode: 'follow',
       panelWidth: 40,
@@ -102,7 +102,8 @@ describe('resolveBrowserViewport', () => {
       maxDimension: 1280,
     });
     expect(next).not.toBeNull();
-    expect(Math.max(next?.width ?? 0, next?.height ?? 0)).toBeLessThanOrEqual(1280);
+    expect(next?.width ?? 0).toBeLessThanOrEqual(1920);
+    expect(next?.height ?? 0).toBeLessThanOrEqual(1200);
   });
 
   it('ignores hidden follow measurements', () => {

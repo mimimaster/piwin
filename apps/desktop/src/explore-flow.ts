@@ -25,7 +25,11 @@
  */
 import { isAssistantContentEmpty } from './assistant-message-content';
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
-import { resolveToolClusterKind } from './tool-group-clustering';
+import {
+  countExploredFiles,
+  resolveToolClusterKind,
+  summarizeToolBusyMs,
+} from './tool-group-clustering';
 import { resolveGenerationToolKind } from './generation-tool-kind.js';
 
 export type ExploreFlowItem =
@@ -47,7 +51,7 @@ export type ExploreFlowGroup = {
   memberMessageIds: string[];
   items: ExploreFlowItem[];
   toolCount: number;
-  /** Unique file/dir targets across all grouped tools. */
+  /** Distinct files read by the grouped tools (search dirs/globs excluded). */
   fileCount: number;
   searchCount: number;
   thoughtCount: number;
@@ -237,13 +241,10 @@ function finalizeRun(
     return;
   }
 
-  const uniqueTargets = new Set<string>();
   let searchCount = 0;
   let errorCount = 0;
   let cancelledCount = 0;
   let hasRunning = false;
-  let hasDuration = false;
-  let totalDurationMs = 0;
   for (const item of toolItems) {
     const clusterKind = resolveToolClusterKind(item.tool);
     if (clusterKind === 'search') searchCount += 1;
@@ -253,14 +254,9 @@ function finalizeRun(
       errorCount += 1;
     }
     if (item.tool.status === 'running') hasRunning = true;
-    for (const path of item.tool.presentation?.targetPaths ?? []) {
-      if (path) uniqueTargets.add(path);
-    }
-    if (typeof item.tool.presentation?.durationMs === 'number') {
-      hasDuration = true;
-      totalDurationMs += item.tool.presentation.durationMs;
-    }
   }
+  const groupedTools = toolItems.map((item) => item.tool);
+  const totalDurationMs = summarizeToolBusyMs(groupedTools);
 
   const collapsedItems = collapseCancelledExploreItems(run.items);
   const group: ExploreFlowGroup = {
@@ -268,7 +264,7 @@ function finalizeRun(
     memberMessageIds: run.memberMessageIds,
     items: collapsedItems,
     toolCount: toolItems.length,
-    fileCount: uniqueTargets.size,
+    fileCount: countExploredFiles(groupedTools),
     searchCount,
     thoughtCount: run.items.length - toolItems.length,
     hasRunning,
@@ -278,7 +274,7 @@ function finalizeRun(
     isLive: options.allowRunningLive === false ? false : options.isLive || hasRunning,
     errorCount,
     cancelledCount,
-    ...(hasDuration ? { totalDurationMs } : {}),
+    ...(totalDurationMs !== undefined ? { totalDurationMs } : {}),
   };
 
   roles.set(run.anchorMessageId, { kind: 'anchor', group });

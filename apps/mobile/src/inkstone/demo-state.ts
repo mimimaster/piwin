@@ -1,16 +1,22 @@
-/* Demo state and actions for the Inkstone mobile UI.
-   Ported 1:1 from docs/design/inkstone/proto-08-mobile.html (foundation state + app.js actions).
-   This round is UI-first: everything runs on local prototype data, nothing touches a Host. */
+/* Fallback state and actions for the Inkstone mobile UI.
+   The reducer powers the offline/demo shell only; connected pages call Host
+   commands directly and never use these values as a fake live read model. */
 
 export type InkstoneRoute =
   | 'sessions'
   | 'chat'
   | 'inbox'
+  | 'activity'
   | 'plan'
   | 'review'
   | 'workspace'
+  | 'workbench'
+  | 'tasks'
   | 'shelf'
+  | 'desk'
   | 'cards'
+  | 'knowledge'
+  | 'wiki-detail'
   | 'voice'
   | 'settings'
   | 'settings-detail'
@@ -27,6 +33,23 @@ export type InkstonePermission = 'pending' | 'approved' | 'denied';
 export interface InkstoneState {
   route: InkstoneRoute;
   face: InkstoneFace;
+  pane: '项目' | '对话';
+  activityTab: '需要你' | '进行中' | '已完成';
+  knowledgeTab: '维基' | '信源' | '闪卡';
+  wikiCategory: string;
+  wiki: string;
+  liveMini: boolean;
+  candidate: 'pending' | 'merged' | 'rejected';
+  question: 'pending' | 'answered' | 'dismissed';
+  failure: 'failed' | 'retrying' | 'resolved';
+  freshPlan: 'pending' | 'agents' | 'inline';
+  handover: boolean;
+  scope: 'once' | 'session' | 'project';
+  collapsed: string[];
+  mounts: string[];
+  knowledgeBaseId: string;
+  tool: string;
+  subagent: string;
   sessionFilter: string;
   inboxFilter: string;
   workspaceTab: string;
@@ -67,6 +90,23 @@ export interface InkstoneState {
 export const INITIAL_INKSTONE_STATE: InkstoneState = {
   route: 'sessions',
   face: 'paper',
+  pane: '项目',
+  activityTab: '需要你',
+  knowledgeTab: '维基',
+  wikiCategory: '全部',
+  wiki: 'host-authority',
+  liveMini: false,
+  candidate: 'pending',
+  question: 'pending',
+  failure: 'failed',
+  freshPlan: 'pending',
+  handover: false,
+  scope: 'once',
+  collapsed: ['piwin-docs'],
+  mounts: ['piwin 文档'],
+  knowledgeBaseId: 'notes',
+  tool: '文件',
+  subagent: 'test-runner',
   sessionFilter: '全部',
   inboxFilter: '待处理',
   workspaceTab: '文件',
@@ -82,7 +122,7 @@ export const INITIAL_INKSTONE_STATE: InkstoneState = {
   attachment: '',
   queue: '',
   messages: [],
-  currentTitle: '让会话拥有记忆',
+  currentTitle: '修复移动端重连',
   cardFlipped: false,
   studied: 0,
   browsed: 0,
@@ -141,6 +181,12 @@ export type InkstoneAction =
   | { type: 'cancel-queue' }
   | { type: 'intervene'; value: string }
   | { type: 'permission'; choice: 'approved' | 'denied'; scope: string }
+  | { type: 'set-scope'; scope: 'once' | 'session' | 'project' }
+  | { type: 'permission-decision'; decision: 'approved' | 'denied'; scope?: 'once' | 'session' | 'project' }
+  | { type: 'answer-question'; value: string }
+  | { type: 'candidate-decision'; decision: 'merged' | 'rejected' }
+  | { type: 'plan-gate'; choice: 'agents' | 'inline' }
+  | { type: 'retry-failure' }
   | { type: 'reset-permission' }
   | { type: 'execute-plan'; mode: string }
   | { type: 'save-comment'; value: string }
@@ -156,6 +202,21 @@ export type InkstoneAction =
   | { type: 'produce-cards' }
   | { type: 'mute-voice' }
   | { type: 'end-voice' }
+  | { type: 'shrink-live' }
+  | { type: 'expand-live' }
+  | { type: 'toggle-live-mute' }
+  | { type: 'end-live' }
+  | { type: 'handover-draft' }
+  | { type: 'handover-send' }
+  | { type: 'set-pane'; pane: '项目' | '对话' }
+  | { type: 'set-activity-tab'; tab: '需要你' | '进行中' | '已完成' }
+  | { type: 'set-knowledge-tab'; tab: '维基' | '信源' | '闪卡' }
+  | { type: 'set-wiki-category'; category: string }
+  | { type: 'open-wiki'; wikiId: string }
+  | { type: 'open-knowledge-source'; baseId: string }
+  | { type: 'toggle-project'; project: string }
+  | { type: 'open-tool'; tool: string }
+  | { type: 'open-subagent'; subagent: string }
   | { type: 'toggle-notifications' }
   | { type: 'toggle-handoff' }
   | { type: 'disconnect' }
@@ -193,7 +254,13 @@ function closeSheetOnly(state: InkstoneState): void {
 
 function navigate(state: InkstoneState, route: InkstoneRoute): void {
   closeSheetOnly(state);
-  state.route = route;
+  if (route === 'inbox') {
+    state.route = 'activity';
+  } else if (route === 'shelf' || route === 'settings') {
+    state.route = 'desk';
+  } else {
+    state.route = route;
+  }
 }
 
 function putDraft(state: InkstoneState, text: string): void {
@@ -416,8 +483,94 @@ export function inkstoneReducer(state: InkstoneState, action: InkstoneAction): I
     case 'mute-voice':
       next.muted = !next.muted;
       return next;
+    case 'shrink-live':
+      next.liveMini = true;
+      navigate(next, 'chat');
+      return withToast(next, '已收缩为悬浮小部件 · 可边说边工作');
+    case 'expand-live':
+      navigate(next, 'voice');
+      return next;
+    case 'toggle-live-mute':
+      next.muted = !next.muted;
+      return withToast(next, next.muted ? '已静音' : '我在听，你慢慢说');
+    case 'end-live':
+      next.liveMini = false;
+      next.handover = true;
+      navigate(next, 'chat');
+      return withToast(next, 'Live 已结束 · 交接卡已放入会话');
+    case 'handover-draft':
+      next.draft = '把刚才的恢复方案整理一下，先列计划，不要开始修改。';
+      next.handover = false;
+      return withToast(next, '已填入砚台草稿');
+    case 'handover-send':
+      next.handover = false;
+      next.messages.push('把刚才的恢复方案整理一下，先列计划，不要开始修改。');
+      return withToast(next, '交接指令已送达');
+    case 'set-pane':
+      next.pane = action.pane;
+      return next;
+    case 'set-activity-tab':
+      next.activityTab = action.tab;
+      return next;
+    case 'set-knowledge-tab':
+      next.knowledgeTab = action.tab;
+      return next;
+    case 'set-wiki-category':
+      next.wikiCategory = action.category;
+      return next;
+    case 'open-wiki':
+      next.wiki = action.wikiId;
+      navigate(next, 'wiki-detail');
+      return next;
+    case 'open-knowledge-source':
+      next.knowledgeBaseId = action.baseId;
+      next.sheet = 'source-detail';
+      return next;
+    case 'toggle-project':
+      next.collapsed = next.collapsed.includes(action.project)
+        ? next.collapsed.filter((p) => p !== action.project)
+        : [...next.collapsed, action.project];
+      return next;
+    case 'set-scope':
+      next.scope = action.scope;
+      return next;
+    case 'permission-decision':
+      if (!online(next)) return next;
+      next.permission = action.decision;
+      if (action.scope) next.scope = action.scope;
+      closeSheetOnly(next);
+      return withToast(next, action.decision === 'approved' ? '已落印批准' : '已拒绝执行');
+    case 'answer-question':
+      if (!action.value) {
+        next.question = 'dismissed';
+        return withToast(next, '已取消问题');
+      }
+      next.question = 'answered';
+      return withToast(next, `已选择：${action.value}`);
+    case 'candidate-decision':
+      next.candidate = action.decision;
+      return withToast(
+        next,
+        action.decision === 'merged' ? '已合入候选变更至主工作树' : '已交还主代理继续处理',
+      );
+    case 'plan-gate':
+      next.freshPlan = action.choice;
+      return withToast(next, action.choice === 'agents' ? '已派发至子代理探索' : '已在当前会话执行');
+    case 'retry-failure':
+      next.failure = 'retrying';
+      return withToast(next, '正在重试…');
+    case 'open-tool':
+      next.tool = action.tool;
+      navigate(next, 'workbench');
+      return next;
+    case 'open-subagent':
+      next.subagent = action.subagent;
+      navigate(next, 'tasks');
+      return next;
     case 'end-voice':
       next.muted = false;
+      next.liveMini = false;
+      next.handover = true;
       navigate(next, 'chat');
       return withToast(next, '语音演示已结束，对话仍在这里');
     case 'toggle-notifications':
@@ -577,4 +730,10 @@ export const SHEET_KEYS = new Set<string>([
   'storage-pack',
   'usage-model',
   'compact-context',
+  'plan-menu',
+  'mounts',
+  'knowledge-search',
+  'wiki-new',
+  'source-detail',
+  'wiki-menu',
 ]);

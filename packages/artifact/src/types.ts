@@ -121,6 +121,12 @@ export type ArtifactBridgeMessage = {
   height: number;
   viewportHeight: number;
   revision: number;
+  /**
+   * Host document epoch echoed from the latest measure request. Lets the host
+   * drop late reports from a replaced iframe document (WKWebView's native
+   * return channel can deliver them after the new document has loaded).
+   */
+  epoch?: number;
 };
 
 /** Whitelisted user-intent action from artifact UI (untrusted origin). */

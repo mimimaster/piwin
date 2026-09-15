@@ -1,8 +1,10 @@
 import type { PiwinConfig, SubscriptionAccount, SubscriptionAccountState } from '@piwin/contracts';
 import {
+  CLAUDE_CODE_OAUTH_PROVIDER_ID,
   IGNORED_SUBSCRIPTION_PROVIDER_IDS,
   V1_SUBSCRIPTION_PROVIDER_IDS,
   isChannelProvider,
+  isSubscriptionOauthProviderId,
   isV1SubscriptionProviderId,
 } from '@piwin/contracts';
 import type { SubscriptionCredentialInfo } from '@piwin/agent-host';
@@ -37,6 +39,16 @@ export function buildSubscriptionAccounts(
       buildAccount(providerId, 'v1', oauthIds.has(providerId), config, hints),
     );
   }
+  // Extension-path Claude — independent of v1 anthropic extra-usage card.
+  accounts.push(
+    buildAccount(
+      CLAUDE_CODE_OAUTH_PROVIDER_ID,
+      'v1',
+      oauthIds.has(CLAUDE_CODE_OAUTH_PROVIDER_ID),
+      config,
+      hints,
+    ),
+  );
   for (const providerId of IGNORED_SUBSCRIPTION_PROVIDER_IDS) {
     if (!oauthIds.has(providerId)) {
       continue;
@@ -53,7 +65,7 @@ export function collidingV1ChannelIds(
 ): ReadonlySet<string> {
   const blocked = new Set<string>();
   for (const account of accounts) {
-    if (!isV1SubscriptionProviderId(account.providerId)) {
+    if (!isSubscriptionOauthProviderId(account.providerId)) {
       continue;
     }
     if (!liveAccountStates.has(account.state)) {

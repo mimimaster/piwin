@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 
 // The editable sources stay split by responsibility; delivery is one offline HTML.
 const directory = new URL('./', import.meta.url);
-const destination = new URL('../proto-08-mobile.html', import.meta.url);
+const targetFilename = process.argv[2] || 'proto-08-mobile-gemini.html';
+const destination = new URL(`../${targetFilename}`, import.meta.url);
 let html = await readFile(new URL('index.html', directory), 'utf8');
 const styles = [...html.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)];
 for (const [tag, filename] of styles) {

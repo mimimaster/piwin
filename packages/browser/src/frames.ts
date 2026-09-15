@@ -3,7 +3,7 @@
  * Frames are size-capped JPEG data-URLs emitted at most every `intervalMs`
  * (~250 ms = 4 fps), and only while at least one subscriber is attached.
  */
-export type FramePayload = { dataUrl: string; width: number; height: number };
+export type FramePayload = { dataUrl: string; width: number; height: number; encodedWidth?: number; encodedHeight?: number; byteLength?: number };
 
 export type FrameEvent = FramePayload & { ts: number };
 

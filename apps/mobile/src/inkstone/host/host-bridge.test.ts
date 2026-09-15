@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   collectPendingPermissionSessionIds,
   collectRunningSessionIds,
+  cleanSessionPreview,
   formatClock,
+  formatModelLabel,
   mapActivityRows,
   mapPermissionGate,
   mapSessionGroups,
@@ -25,6 +27,41 @@ function iso(minutesAgo: number): string {
 }
 
 describe('inkstone host bridge', () => {
+  it('removes model-facing layout/context envelopes from list previews', () => {
+    expect(
+      cleanSessionPreview(
+        '[piwin-inline-artifact-layout]\nSending client chat column: approximately 896 CSS px at send time.\n[/piwin-inline-artifact-layout]\n真正的问题',
+      ),
+    ).toBe('真正的问题');
+    expect(cleanSessionPreview('<context_ref type="file">secret path</context_ref>标题')).toBe('标题');
+    expect(cleanSessionPreview('[piwin-inline-artifact-layout] Sending client chat column: 896px')).toBe('');
+    expect(
+      cleanSessionPreview(
+        '[piwin-mode:agent]\n[piwin-prompt-meta kind="mode:agent"]\nOperating contract\n\n---\nUser:\n真正的用户请求',
+      ),
+    ).toBe('真正的用户请求');
+    expect(
+      cleanSessionPreview(
+        '[piwin plan context v2 — follow this plan unless the user revises it]\nTitle: Internal\n[end plan context]\n用户摘要',
+      ),
+    ).toBe('用户摘要');
+    expect(
+      cleanSessionPreview(
+        '[piwin plan context v2 — follow this plan unless the user revises it] Title: Internal',
+      ),
+    ).toBe('');
+    expect(
+      cleanSessionPreview(
+        '[piwin-mode:agent]\nOperating contract for this turn: - **Pragmatic**',
+      ),
+    ).toBe('');
+    expect(
+      cleanSessionPreview(
+        '[piwin-skill:writing-plans]\nFollow the installed skill.\n---\n只做一步计划',
+      ),
+    ).toBe('只做一步计划');
+  });
+
   it('formats relative labels like the prototype list', () => {
     expect(relativeTime(iso(0), NOW)).toBe('刚刚');
     expect(relativeTime(iso(12), NOW)).toBe('12 分钟');
@@ -155,7 +192,75 @@ describe('inkstone host bridge', () => {
     }
     expect(tools.steps[0]?.meta).toBe('0.2s');
     expect(tools.steps[1]?.status).toBe('running');
-    expect(rows[2]).toMatchObject({ kind: 'assistant', streaming: true });
+    expect(rows[2]).toMatchObject({
+      kind: 'assistant',
+      streaming: true,
+      model: 'piwin',
+      time: '09:34',
+    });
+  });
+
+  it('maps streaming assistant message even when text is empty or only has thinking', () => {
+    const rows = mapTranscriptRows([
+      {
+        id: 'u1',
+        role: 'user',
+        text: '生成一张图片',
+        createdAt: '2026-09-05T09:32:00+08:00',
+        status: 'done',
+      },
+      {
+        id: 'a1',
+        role: 'assistant',
+        text: '',
+        thinking: '正在分析构图…',
+        status: 'streaming',
+        createdAt: '2026-09-05T09:32:05+08:00',
+        model: { providerId: 'custom-openai', modelId: 'grok-4.6' },
+      },
+    ]);
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({
+      kind: 'assistant',
+      id: 'a1',
+      text: '',
+      thinking: '正在分析构图…',
+      streaming: true,
+      model: 'Grok 4.6',
+    });
+  });
+
+  it('hides model-facing skill wrappers from user transcript bubbles', () => {
+    const rows = mapTranscriptRows([
+      {
+        id: 'wrapped-user',
+        role: 'user',
+        text: '[piwin-skill:writing-plans]\nFollow the installed skill.\n---\n真实请求',
+        createdAt: '2026-09-05T09:32:00+08:00',
+        status: 'done',
+      },
+    ]);
+    expect(rows).toEqual([
+      {
+        kind: 'user',
+        id: 'wrapped-user',
+        text: '真实请求',
+        attachments: [],
+        time: '09:32',
+      },
+    ]);
+  });
+
+  it('formats model labels into human-readable strings', () => {
+    expect(formatModelLabel('claude-3-5-sonnet-20241022')).toBe('Claude 3.5 Sonnet');
+    expect(formatModelLabel('claude-3-7-sonnet')).toBe('Claude 3.7 Sonnet');
+    expect(formatModelLabel('gpt-4o')).toBe('GPT-4o');
+    expect(formatModelLabel('gpt-5-codex')).toBe('GPT-5 Codex');
+    expect(formatModelLabel('grok-4.5')).toBe('Grok 4.5');
+    expect(formatModelLabel('deepseek-r1')).toBe('DeepSeek R1');
+    expect(formatModelLabel('gemini-2.0-flash')).toBe('Gemini Flash');
+    expect(formatModelLabel('assistant')).toBe('piwin');
+    expect(formatModelLabel(undefined)).toBe('piwin');
   });
 
   it('maps permission requests into the gate view', () => {

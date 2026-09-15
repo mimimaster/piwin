@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ChatMessageUi } from './chat-reducer';
+import { formatTurnExactStamp, formatTurnRelativeAge } from './chat-turn-marginalia.js';
 import { UserMessageContent } from './conversation-user-message.js';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -115,9 +116,34 @@ describe('UserMessageContent context chips', () => {
     expect(bubble).not.toBeNull();
     expect(footer).not.toBeNull();
     expect(bubble?.contains(footer as Node)).toBe(true);
-    expect(footer?.querySelector('[data-testid="user-message-time"]')).not.toBeNull();
-    expect(footer?.querySelector('[data-testid="message-copy-btn"]')).not.toBeNull();
+    const time = footer?.querySelector('[data-testid="user-message-time"]');
+    const copy = footer?.querySelector('[data-testid="message-copy-btn"]');
+    expect(time).not.toBeNull();
+    expect(time?.textContent).toBe(formatTurnRelativeAge(timed.createdAt ?? ''));
+    expect(time?.getAttribute('title')).toBe(formatTurnExactStamp(timed.createdAt ?? '', 'zh-CN'));
+    expect(copy).not.toBeNull();
     expect(footer?.querySelector('[data-testid="message-edit-btn"]')).not.toBeNull();
+    const children = [...(footer?.children ?? [])];
+    expect(children.indexOf(time as Element)).toBeLessThan(children.indexOf(copy?.parentElement as Element));
+  });
+
+  it('puts abbreviated age in the agent hover action row with copy and edit', () => {
+    const timed: ChatMessageUi = {
+      ...message,
+      createdAt: '2026-08-22T10:26:00.000Z',
+    };
+    render(
+      <UserMessageContent message={timed} onRetry={vi.fn()} locale="zh-CN" isConversationSession={false} />,
+    );
+    const actions = container?.querySelector('[data-testid="user-message-actions"]');
+    const time = actions?.querySelector('[data-testid="user-message-time"]');
+    const copy = actions?.querySelector('[data-testid="message-copy-btn"]');
+    expect(time).not.toBeNull();
+    expect(copy).not.toBeNull();
+    expect(time?.textContent).toBe(formatTurnRelativeAge(timed.createdAt ?? ''));
+    expect(time?.getAttribute('title')).toBe(formatTurnExactStamp(timed.createdAt ?? '', 'zh-CN'));
+    const children = [...(actions?.children ?? [])];
+    expect(children.indexOf(time as Element)).toBeLessThan(children.indexOf(copy as Element));
   });
 
   it('puts the proto fork foot under the paper card, not inside the bubble', () => {

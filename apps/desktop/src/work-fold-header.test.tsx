@@ -57,6 +57,26 @@ describe('WorkFoldHeader', () => {
     expect(waiting?.querySelector('code')?.textContent).toBe('composer-run-actions.tsx');
   });
 
+  it('keeps the brain on a running thinking header', () => {
+    act(() => {
+      root.render(
+        <WorkFoldHeader
+          state="running"
+          locale="zh-CN"
+          doneIcon="brain"
+          runningSince={Date.now() - 4_000}
+          testId="think-running"
+        >
+          思考过程
+        </WorkFoldHeader>,
+      );
+    });
+
+    const header = container.querySelector('[data-testid="think-running"]');
+    expect(header?.querySelector('.work-fold-brain')).not.toBeNull();
+    expect(header?.querySelector('.lamp')).toBeNull();
+  });
+
   it('uses the two-hemisphere brain for done thinking and marks the chevron by open state', () => {
     act(() => {
       root.render(
@@ -164,6 +184,48 @@ describe('WorkFoldHeader', () => {
     expect(elapsed?.parentElement?.className).toContain('work-fold-trailing');
     expect(header?.textContent).not.toContain('已思考');
     expect(header?.textContent).not.toContain('已工作');
+  });
+
+  it('asks the transcript virtualizer to remasure after a user toggle', () => {
+    const measureEvents: Event[] = [];
+    const onMeasure = (event: Event): void => {
+      measureEvents.push(event);
+    };
+    document.addEventListener('piwin:transcript-turn-measure', onMeasure);
+    let open = false;
+
+    const renderHeader = (): void => {
+      root.render(
+        <div className="transcript-turn-window-item-body">
+          <WorkFoldHeader
+            state="done"
+            locale="zh-CN"
+            doneIcon="brain"
+            open={open}
+            onToggle={() => {
+              open = !open;
+              renderHeader();
+            }}
+            testId="think-toggle"
+          >
+            思考过程
+          </WorkFoldHeader>
+        </div>,
+      );
+    };
+
+    act(() => {
+      renderHeader();
+    });
+    const measureCountBeforeToggle = measureEvents.length;
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="think-toggle"]')?.click();
+    });
+
+    expect(open).toBe(true);
+    expect(measureEvents.length).toBeGreaterThan(measureCountBeforeToggle);
+    document.removeEventListener('piwin:transcript-turn-measure', onMeasure);
   });
 
   it('keeps the proto bulb for done work disclosure', () => {

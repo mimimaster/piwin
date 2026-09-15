@@ -6,9 +6,11 @@ import { Icon } from '../icons.js';
 import { Dot, IconButton, Pill, TopBar } from '../inkstone-ui.js';
 import { useCopyText } from '../use-copy-text.js';
 import { MobileMarkdown } from '../../components/chat/MobileMarkdown.js';
+import { MobileThinkingBlock } from '../../components/chat/MobileThinkingBlock.js';
 import { endpointLabel } from './sessions.js';
-import { mapPermissionGate, mapTranscriptRows } from '../host/host-bridge.js';
+import { formatModelLabel, mapPermissionGate, mapTranscriptRows } from '../host/host-bridge.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
+import { ReconnectTranscript, ScopeOptionsSelector } from './reconnect-transcript.js';
 
 function ComposerDock(): ReactElement {
   const { state, dispatch } = useInkstone();
@@ -16,6 +18,40 @@ function ComposerDock(): ReactElement {
   const pauseMode = running && !state.draft;
   return (
     <div className="composer-dock">
+      <div className="dock-chips">
+        <button
+          className="dock-chip"
+          onClick={() => dispatch({ type: 'open-sheet', key: 'plan-menu' })}
+          type="button"
+        >
+          <Icon name="list" />
+          计划 2/4
+        </button>
+        <button
+          className="dock-chip"
+          onClick={() => dispatch({ type: 'navigate', route: 'tasks' })}
+          type="button"
+        >
+          <Dot status={running ? 'running' : 'waiting'} />
+          {state.scheme} · 后台 2
+        </button>
+        <button
+          className="dock-chip"
+          onClick={() => dispatch({ type: 'open-sheet', key: 'mounts' })}
+          type="button"
+        >
+          <Icon name="book" />
+          {state.mounts.length > 0 ? state.mounts[0] : '挂载知识库'}
+        </button>
+        <button
+          className="dock-chip"
+          onClick={() => dispatch({ type: 'open-sheet', key: 'context' })}
+          type="button"
+        >
+          <span className="ring" style={{ '--p': 37 } as React.CSSProperties} />
+          上下文 37%
+        </button>
+      </div>
       {state.queue !== '' ? (
         <div className="queue-strip">
           <Pill>排队 1</Pill>
@@ -99,35 +135,40 @@ function ComposerDock(): ReactElement {
 function RealMessageRows({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
   const copyText = useCopyText();
   const host = hostCtx.host;
+  const running = host.activeRunId !== undefined;
   const rows = mapTranscriptRows(host.messages);
   const lastAssistantIndex = rows.reduce(
     (found, row, index) => (row.kind === 'assistant' ? index : found),
     -1,
   );
+  const lastRow = rows[rows.length - 1];
+  const lastRowIsUser = lastRow?.kind === 'user';
+  const hasStreamingAssistantRow = rows.some((row) => row.kind === 'assistant' && row.streaming);
+  const selectedModel = host.configuredModels.find(
+    (model) =>
+      model.providerId === hostCtx.modelSelection.providerId &&
+      model.modelId === hostCtx.modelSelection.modelId,
+  );
+
   return (
     <>
       {rows.map((row, index) => {
         if (row.kind === 'user') {
           return (
-            <Fragment key={row.id}>
-              <div className="message-head">
-                <span className="avatar">予</span>你
-                {row.time !== '' ? <time>{row.time}</time> : null}
-              </div>
-              <div className="user-message">
-                {row.text}
-                {row.attachments.map((name) => (
-                  <span
-                    key={name}
-                    className="pill"
-                    style={{ marginTop: 9, display: 'inline-flex' }}
-                  >
-                    <Icon name="file" />
-                    {name}
-                  </span>
-                ))}
-              </div>
-            </Fragment>
+            <div className="user-message" key={row.id}>
+              {row.text}
+              {row.time !== '' ? <time className="user-time">{row.time}</time> : null}
+              {row.attachments.map((name) => (
+                <span
+                  key={name}
+                  className="pill"
+                  style={{ marginTop: 9, display: 'inline-flex' }}
+                >
+                  <Icon name="file" />
+                  {name}
+                </span>
+              ))}
+            </div>
           );
         }
         if (row.kind === 'tools') {
@@ -166,11 +207,30 @@ function RealMessageRows({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Re
             <div className="message-head">
               <span className="avatar">π</span>
               {row.model}
+              {row.streaming ? (
+                <span className="modern-streaming-indicator" style={{ marginLeft: 8 }}>
+                  <span className="modern-pulse-dot" />
+                  {row.text.length === 0 ? '正在思考…' : '正在输出…'}
+                </span>
+              ) : null}
+              {row.time !== '' ? <time>{row.time}</time> : null}
             </div>
+            {row.thinking ? (
+              <MobileThinkingBlock
+                thinking={row.thinking}
+                isStreaming={row.streaming && row.text.length === 0}
+              />
+            ) : null}
             <div className="assistant-prose">
-              <MobileMarkdown content={row.text} isStreaming={row.streaming} />
+              {row.text.length > 0 ? (
+                <MobileMarkdown content={row.text} isStreaming={row.streaming} />
+              ) : row.streaming && !row.thinking ? (
+                <div className="modern-streaming-placeholder">
+                  <span className="modern-streaming-cursor" />
+                </div>
+              ) : null}
             </div>
-            {index === lastAssistantIndex ? (
+            {index === lastAssistantIndex && !row.streaming && row.text.length > 0 ? (
               <div className="message-actions">
                 <IconButton
                   name="copy"
@@ -188,11 +248,17 @@ function RealMessageRows({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Re
       {rows.length === 0 ? (
         <div className="context-note">新的会话 · 以当前项目和模型开始</div>
       ) : null}
-      {rows.every((row) => row.kind !== 'assistant') && rows.length > 0 ? (
-        <p className="context-note">
-          <Dot status="running" />
-          Agent 正在工作，正文稍后出现在这里
-        </p>
+      {running && lastRowIsUser && !hasStreamingAssistantRow ? (
+        <div className="assistant-pending-state" style={{ marginTop: 8 }}>
+          <div className="message-head">
+            <span className="avatar">π</span>
+            {formatModelLabel(selectedModel?.modelId)}
+            <span className="modern-streaming-indicator" style={{ marginLeft: 8 }}>
+              <span className="modern-pulse-dot" />
+              Agent 正在思考…
+            </span>
+          </div>
+        </div>
       ) : null}
     </>
   );
@@ -263,7 +329,9 @@ function ConnectedChat({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Reac
             {endpointLabel(host.endpoint)}
           </>
         }
-        onBack={() => dispatch({ type: 'navigate', route: 'sessions' })}
+        onBack={() => {
+          dispatch({ type: 'navigate', route: 'sessions' });
+        }}
         right={
           <>
             <IconButton
@@ -279,18 +347,123 @@ function ConnectedChat({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Reac
           </>
         }
       />
-      {gate !== undefined ? (
-        <div className="chat-context">
-          <Pill variant="zhu" onClick={() => dispatch({ type: 'navigate', route: 'inbox' })}>
-            <Dot status="waiting" />
-            等待批准 · 查看请求
-          </Pill>
+      {gate !== undefined && host.permissionRequest !== undefined ? (
+        <div style={{ padding: '0 16px 12px' }}>
+          <article className="gate">
+            <div className="spread">
+              <Pill variant="zhu">
+                <Dot status="waiting" />
+                需要你的批准
+              </Pill>
+              <span className="muted mono" style={{ fontSize: 10 }}>
+                {gate.destructive ? '破坏性操作' : 'Host 请求'}
+              </span>
+            </div>
+            <h3>{gate.title}</h3>
+            <p>{gate.detail}</p>
+            {gate.command !== undefined ? <pre className="command">{gate.command}</pre> : null}
+            <dl className="facts">
+              {gate.cwd !== undefined ? (
+                <>
+                  <dt>工作目录</dt>
+                  <dd className="mono">{gate.cwd}</dd>
+                </>
+              ) : null}
+              <dt>作用范围</dt>
+              <dd>按所选范围允许 · Host 执行</dd>
+            </dl>
+            <ScopeOptionsSelector scope={state.scope} onSelect={(scope) => dispatch({ type: 'set-scope', scope })} />
+            <div className="gate-footer">
+              <button
+                className="text-link"
+                onClick={() => dispatch({ type: 'open-sheet', key: 'permission' })}
+                type="button"
+              >
+                展开详情
+              </button>
+              <div className="seals">
+                <button
+                  className="seal-button ghost"
+                  onClick={() => {
+                    void host
+                      .handleResolvePermission(
+                        'deny',
+                        host.permissionRequest?.requestId,
+                        state.scope,
+                      )
+                      .then((resolved) => {
+                        if (resolved) dispatch({ type: 'toast', message: '已拒绝本次操作' });
+                      });
+                  }}
+                  aria-label="拒绝"
+                  type="button"
+                >
+                  否
+                </button>
+                <button
+                  className="seal-button"
+                  id="seal-allow"
+                  onClick={() => {
+                    void host
+                      .handleResolvePermission(
+                        'allow',
+                        host.permissionRequest?.requestId,
+                        state.scope,
+                      )
+                      .then((resolved) => {
+                        if (resolved) {
+                          dispatch({ type: 'toast', message: '已允许本次操作 · Host 继续工作' });
+                        }
+                      });
+                  }}
+                  aria-label="允许"
+                  type="button"
+                >
+                  允
+                </button>
+              </div>
+            </div>
+          </article>
         </div>
       ) : null}
       <div className="screen-scroll chat-scroll" ref={chatScrollRef}>
         <RealMessageRows hostCtx={hostCtx} />
       </div>
       <div className="composer-dock">
+        <div className="dock-chips">
+          <button
+            className="dock-chip"
+            onClick={() => dispatch({ type: 'open-sheet', key: 'plan-menu' })}
+            type="button"
+          >
+            <Icon name="list" />
+            计划
+          </button>
+          <button
+            className="dock-chip"
+            onClick={() => dispatch({ type: 'navigate', route: 'workspace' })}
+            type="button"
+          >
+            <Icon name="folder" />
+            工作区
+          </button>
+          <button
+            className="dock-chip"
+            onClick={() => dispatch({ type: 'navigate', route: 'tasks' })}
+            type="button"
+          >
+            <Dot status={running ? 'running' : 'waiting'} />
+            {running ? '工作中' : '任务'}
+          </button>
+          <button
+            className="dock-chip"
+            onClick={() => dispatch({ type: 'open-sheet', key: 'context' })}
+            type="button"
+          >
+            <span className="ring" style={{ '--p': 37 } as React.CSSProperties} />
+            上下文
+          </button>
+        </div>
         {host.attachments.length > 0 ? (
           <div className="attachment-chip">
             <Icon name="file" />
@@ -350,6 +523,8 @@ function ConnectedChat({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Reac
   );
 }
 
+
+
 export function ChatPage(): ReactElement {
   const { state, dispatch } = useInkstone();
   const hostCtx = useInkstoneHost();
@@ -360,31 +535,48 @@ export function ChatPage(): ReactElement {
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const go = (route: InkstoneRoute) => () => dispatch({ type: 'navigate', route });
   const openSheet = (key: string) => () => dispatch({ type: 'open-sheet', key });
-  const running = state.run === 'running';
+  const isReconnect = state.currentTitle === '修复移动端重连';
+  const running = state.run === 'running' && !isReconnect;
   const messageCount = state.messages.length;
 
   useEffect(() => {
-    if (messageCount > 0) {
-      chatScrollRef.current?.scrollTo(0, 100000);
-    }
-  }, [messageCount]);
+    const scrollToBottom = () => {
+      if (chatScrollRef.current) {
+        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      }
+    };
+    scrollToBottom();
+    const raf = requestAnimationFrame(scrollToBottom);
+    const timer = setTimeout(scrollToBottom, 150);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [messageCount, state.currentTitle]);
 
   return (
     <>
       <TopBar
         title={state.currentTitle}
         subtitle={
-          <>
-            <Dot status={running ? 'running' : 'done'} />{' '}
-            {running
-              ? state.offline
-                ? '上次状态：工作中'
-                : '正在工作'
-              : state.run === 'paused'
-                ? '已暂停'
-                : '等待你的下一笔'}{' '}
-            · piwin
-          </>
+          isReconnect ? (
+            <>
+              <Dot status={state.permission === 'pending' ? 'waiting' : 'done'} />{' '}
+              {state.permission === 'pending' ? '等待批准' : '已就绪'} · piwin / feat/mobile-reconnect
+            </>
+          ) : (
+            <>
+              <Dot status={running ? 'running' : 'done'} />{' '}
+              {running
+                ? state.offline
+                  ? '上次状态：工作中'
+                  : '正在工作'
+                : state.run === 'paused'
+                  ? '已暂停'
+                  : '等待你的下一笔'}{' '}
+              · piwin
+            </>
+          )
         }
         onBack={go('sessions')}
         right={
@@ -406,32 +598,37 @@ export function ChatPage(): ReactElement {
         <div className="chat-context">
           <Pill onClick={openSheet('branches')}>
             <Icon name="branch" />
-            main
+            {isReconnect ? 'feat/mobile-reconnect' : 'main'}
           </Pill>
-          <Pill onClick={go('plan')}>
-            <Icon name="cards" />
-            计划 2/4
+          <Pill onClick={go(isReconnect ? 'review' : 'plan')}>
+            <Icon name={isReconnect ? 'git' : 'cards'} />
+            {isReconnect ? '待写入 1' : '计划 2/4'}
           </Pill>
-          <Pill onClick={go('review')}>
-            <Icon name="git" />
-            变更 3
-          </Pill>
+          {!isReconnect ? (
+            <Pill onClick={go('review')}>
+              <Icon name="git" />
+              变更 3
+            </Pill>
+          ) : null}
         </div>
       ) : null}
       <div className="screen-scroll chat-scroll" ref={chatScrollRef}>
         {!state.freshSession ? (
-          <>
-            <div className="message-head">
-              <span className="avatar">予</span>你<time>09:32</time>
-            </div>
-            <div className="user-message">
-              让会话拥有记忆。重新打开项目时，回到上次读到的地方，保留草稿，也记得展开过的工具。
-              <br />
-              <span className="pill" style={{ marginTop: 9 }}>
-                <Icon name="file" />
-                session-notes.md
-              </span>
-            </div>
+          isReconnect ? (
+            <ReconnectTranscript />
+          ) : (
+            <>
+              <div className="user-message">
+                <div className="user-message-body">
+                  让会话拥有记忆。重新打开项目时，回到上次读到的地方，保留草稿，也记得展开过的工具。
+                  <br />
+                  <span className="pill" style={{ marginTop: 9 }}>
+                    <Icon name="file" />
+                    session-notes.md
+                  </span>
+                </div>
+                <time className="user-time">09:32</time>
+              </div>
             <div className="context-note">
               <Dot status="done" />
               <button onClick={openSheet('context')} type="button">
@@ -464,7 +661,8 @@ export function ChatPage(): ReactElement {
             </details>
             <div className="message-head">
               <span className="avatar">π</span>
-              Claude Sonnet<time>09:34</time>
+              Claude Sonnet
+              <time>09:34</time>
             </div>
             <div className="assistant-prose">
               <p>记忆应该安静地发生。</p>
@@ -491,6 +689,93 @@ export function ChatPage(): ReactElement {
               </span>
               <Icon name="chevr" />
             </button>
+            {state.candidate === 'pending' ? (
+              <article className="card">
+                <div className="spread">
+                  <span className="pill">
+                    <Icon name="fork" />
+                    doc-writer · 已交付
+                  </span>
+                  <span className="muted mono" style={{ fontSize: 10 }}>
+                    {state.scheme}
+                  </span>
+                </div>
+                <h3 className="card-title">候选变更：同步恢复说明</h3>
+                <ul className="check-list">
+                  <li className="ok">
+                    <b>✓</b>文档与实现的函数名一致
+                  </li>
+                  <li className="ok">
+                    <b>✓</b>未改动公共接口
+                  </li>
+                  <li className="warn">
+                    <b>!</b>README 里的示例路径需要确认
+                  </li>
+                </ul>
+                <div className="card-foot">
+                  <span>
+                    2 个文件 · <span className="green">+31</span> <span className="red">−4</span> · 独立工作树
+                  </span>
+                  <button
+                    className="text-link"
+                    onClick={() => dispatch({ type: 'open-subagent', subagent: 'doc-writer' })}
+                    type="button"
+                  >
+                    看差异 <Icon name="chevr" />
+                  </button>
+                </div>
+                <div className="button-row">
+                  <button
+                    className="full-button"
+                    onClick={() => dispatch({ type: 'candidate-decision', decision: 'merged' })}
+                    type="button"
+                  >
+                    合入
+                  </button>
+                  <button
+                    className="full-button secondary"
+                    onClick={() => dispatch({ type: 'candidate-decision', decision: 'rejected' })}
+                    type="button"
+                  >
+                    让主代理处理
+                  </button>
+                </div>
+              </article>
+            ) : (
+              <div className="sealed">
+                <span className={`seal-mini ${state.candidate === 'merged' ? 'pine' : 'ghost'}`}>
+                  {state.candidate === 'merged' ? '合' : '交'}
+                </span>
+                <span className="grow">
+                  {state.candidate === 'merged'
+                    ? '已合入 doc-writer 的 2 个文件'
+                    : '已交还主代理，确认 README 示例路径'}
+                  <small>审阅交付 · 刚刚</small>
+                </span>
+              </div>
+            )}
+            {state.handover ? (
+              <div className="handover">
+                <span className="eyebrow">LIVE · 交接卡</span>
+                <p>“把刚才的恢复方案整理一下，先列计划，不要开始修改。”</p>
+                <div className="button-row">
+                  <button
+                    className="full-button"
+                    onClick={() => dispatch({ type: 'handover-draft' })}
+                    type="button"
+                  >
+                    放入砚台
+                  </button>
+                  <button
+                    className="full-button secondary"
+                    onClick={() => dispatch({ type: 'handover-send' })}
+                    type="button"
+                  >
+                    直接发送
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {state.permission === 'approved' ? (
               <p className="context-note green">允 · 已允许本次操作，Host 继续工作。</p>
             ) : null}
@@ -514,15 +799,16 @@ export function ChatPage(): ReactElement {
               <small>2.4k tokens · 12s</small>
             </div>
           </>
+          )
         ) : (
           <div className="context-note">新的会话 · 以当前项目和模型开始</div>
         )}
         {state.messages.map((message, index) => (
           <Fragment key={index}>
-            <div className="message-head">
-              <span className="avatar">予</span>你<time>刚刚</time>
+            <div className="user-message">
+              <div className="user-message-body">{message}</div>
+              <time className="user-time">刚刚</time>
             </div>
-            <div className="user-message">{message}</div>
             <p className="context-note">
               <Dot status="running" />
               已进入本轮演示，等待 Agent 继续

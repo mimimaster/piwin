@@ -37,6 +37,12 @@
   --sh1: 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2);
   --sh2: 0 2px 8px -2px rgba(60, 45, 20, 0.12), 0 0 0 1px var(--l2);
   --sh3: 0 14px 34px -12px rgba(50, 35, 15, 0.3), 0 0 0 1px var(--l3);
+  --text: var(--t1);
+  --text-strong: var(--t1);
+  --text-1: var(--t1);
+  --text-2: var(--t2);
+  --text-3: var(--t3);
+  --text-4: var(--t4);
 }
 
 :root[data-face='ink'] {
@@ -79,6 +85,12 @@
   --sh3:
     inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.7),
     0 14px 34px -10px rgba(0, 0, 0, 0.7);
+  --text: var(--t1);
+  --text-strong: var(--t1);
+  --text-1: var(--t1);
+  --text-2: var(--t2);
+  --text-3: var(--t3);
+  --text-4: var(--t4);
 }
 
 :root {

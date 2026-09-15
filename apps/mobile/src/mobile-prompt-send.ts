@@ -125,12 +125,13 @@ export function buildMobileAbortCommand(
 export function buildMobilePermissionResolveCommand(
   requestId: string,
   decision: 'allow' | 'deny',
+  rememberScope: 'once' | 'session' | 'project' = 'once',
 ): Extract<HostCommand, { type: 'permission/resolve' }> {
   return {
     type: 'permission/resolve',
     requestId,
     decision,
-    rememberScope: 'once',
+    rememberScope,
   };
 }
 

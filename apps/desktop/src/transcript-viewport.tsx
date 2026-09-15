@@ -267,6 +267,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       detachFromTail={scroll.detachFromTail}
       isFollowingTail={scroll.isFollowingTail}
       beginProgrammaticScroll={scroll.beginProgrammaticScroll}
+      beginLocalFoldLayout={scroll.beginLocalFoldLayout}
     >
       <div className={`transcript-viewport${opening ? ' is-opening' : ''}`}>
         {opening || (props.awaitingTranscript && !props.historyViewActive) ? (

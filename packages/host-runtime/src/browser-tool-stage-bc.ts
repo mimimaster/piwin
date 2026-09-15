@@ -61,7 +61,7 @@ export function createBrowserStageBcToolDefinitions(
   const hover = createRegistration(
     {
       name: 'browser_hover',
-      description: 'Hover over a page element targeting a snapshot ref or CSS selector.' + userControlHint,
+      description: 'Hover over a page element targeting a snapshot ref or CSS selector.' + userControlHint + ' Automatically acquires agent control when the workbench is idle.',
       parameters: {
         type: 'object',
         properties: {
@@ -94,7 +94,7 @@ export function createBrowserStageBcToolDefinitions(
           values: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Option values, labels, or indices to select',
+            description: 'Option values or labels to select',
           },
           value: { type: 'string', description: 'Single option when values is omitted' },
         },

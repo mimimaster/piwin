@@ -150,9 +150,29 @@ const SLOW_STREAM_HTML = [
   '</div>',
 ].join('\n');
 
+const SLOW_STREAM_SVG = [
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">',
+  '  <!-- Sky and ground -->',
+  '  <defs>',
+  '    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">',
+  '      <stop offset="0%" stop-color="#87ceeb"/>',
+  '      <stop offset="100%" stop-color="#e0f6ff"/>',
+  '    </linearGradient>',
+  '  </defs>',
+  '  <rect width="400" height="300" fill="url(#sky)"/>',
+  '  <rect y="240" width="400" height="60" fill="#8fbc8f"/>',
+  '  <circle cx="130" cy="220" r="40" fill="none" stroke="#333" stroke-width="6"/>',
+  '  <circle cx="280" cy="220" r="40" fill="none" stroke="#333" stroke-width="6"/>',
+  '  <path d="M130 220 L200 160 L280 220 M200 160 L240 160" stroke="#c0392b" stroke-width="6" fill="none"/>',
+  '  <ellipse cx="210" cy="120" rx="45" ry="28" fill="#fff" stroke="#999"/>',
+  '  <path d="M250 105 L320 118 L250 125 Z" fill="#f39c12"/>',
+  '  <text x="200" y="40" text-anchor="middle" font-size="18" fill="#2c3e50">Pelican on a bicycle</text>',
+  '</svg>',
+].join('\n');
+
 /** `?id=slow-stream&tps=15&fence=html` — token-paced stream for live-render diagnosis. */
 function ArtifactSlowStreamCase(props: { tps: number; fence: string; paper: boolean; script: boolean }): ReactElement {
-  const SOURCE = props.script ? `${SLOW_STREAM_HTML}\n<script>document.querySelectorAll('.card').forEach(function(c){c.onclick=function(){c.classList.toggle('on')}})</script>` : SLOW_STREAM_HTML;
+  const SOURCE = props.fence === 'svg' ? SLOW_STREAM_SVG : props.script ? `${SLOW_STREAM_HTML}\n<script>document.querySelectorAll('.card').forEach(function(c){c.onclick=function(){c.classList.toggle('on')}})</script>` : SLOW_STREAM_HTML;
   const artifactTheme = useMemo(() => (props.paper ? createDefaultArtifactTheme('light') : undefined), [props.paper]);
   useEffect(() => {
     if (!props.paper) return;

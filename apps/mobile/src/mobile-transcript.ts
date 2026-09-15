@@ -106,6 +106,9 @@ export function handleRemotePush(
     if (event.runId !== undefined) {
       message.runId = event.runId;
     }
+    if (event.model !== undefined) {
+      message.model = event.model;
+    }
     setMessages((current) => upsertMessage(current, message));
   } else if (event.type === 'message/thinking_delta') {
     setMessages((current) =>
@@ -150,8 +153,7 @@ export function handleRemotePush(
       event.presentation,
     );
     setMessages((current) => {
-      const msgId =
-        event.responseMessageId ?? current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
+      const msgId = resolveTargetAssistantMessageId(current, event.responseMessageId);
       if (!msgId) return current;
       return updateMessage(current, msgId, (message) => {
         const existing = message.toolCalls ?? [];
@@ -167,8 +169,7 @@ export function handleRemotePush(
     });
   } else if (event.type === 'tool/update') {
     setMessages((current) => {
-      const msgId =
-        event.responseMessageId ?? current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
+      const msgId = resolveTargetAssistantMessageId(current, event.responseMessageId);
       if (!msgId) return current;
       return updateMessage(current, msgId, (message) => {
         const existing = message.toolCalls ?? [];
@@ -190,8 +191,7 @@ export function handleRemotePush(
     });
   } else if (event.type === 'tool/end') {
     setMessages((current) => {
-      const msgId =
-        event.responseMessageId ?? current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
+      const msgId = resolveTargetAssistantMessageId(current, event.responseMessageId);
       if (!msgId) return current;
       return updateMessage(current, msgId, (message) => {
         const existing = message.toolCalls ?? [];
@@ -216,6 +216,20 @@ export function handleRemotePush(
       });
     });
   }
+}
+
+function resolveTargetAssistantMessageId(
+  messages: MobileTranscriptMessage[],
+  responseMessageId?: string,
+): string {
+  if (responseMessageId && responseMessageId.trim().length > 0) {
+    return responseMessageId;
+  }
+  const last = messages[messages.length - 1];
+  if (last && last.role === 'assistant') {
+    return last.id;
+  }
+  return `assistant-turn-${Date.now()}`;
 }
 
 function projectTranscriptMessage(raw: unknown): MobileTranscriptMessage {
