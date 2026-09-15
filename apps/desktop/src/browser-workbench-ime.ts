@@ -3,6 +3,7 @@
  * Composed Chinese must become insertText, not keydown character playback.
  */
 import { MAX_BROWSER_INSERT_TEXT_BYTES, type BrowserInputEvent } from '@piwin/contracts';
+import { isBrowserAppReservedShortcut } from './browser-shortcut-policy';
 
 const SPECIAL_KEYS = new Set([
   'Enter',
@@ -26,7 +27,12 @@ export type ImeKeyInput = {
   isComposing: boolean;
   metaKey: boolean;
   ctrlKey: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
 };
+
+const MODIFIER_KEYS = new Set(['Shift', 'Alt', 'Control', 'Meta']);
+const PAGE_EDIT_KEYS = new Set(['a', 'z']);
 
 export type ImeKeyDecision = BrowserInputEvent[] | 'ignore' | 'prevent-and-ignore';
 
@@ -47,12 +53,34 @@ function truncateInsertText(text: string): string {
 
 export function keyEventToBrowserInput(event: ImeKeyInput): ImeKeyDecision {
   if (event.isComposing) return 'ignore';
+  const action = event.type === 'keydown' ? 'down' : 'up';
+  if (MODIFIER_KEYS.has(event.key)) {
+    return [{ type: 'key', action, key: event.key }];
+  }
+  if (
+    isBrowserAppReservedShortcut({
+      key: event.key,
+      metaKey: event.metaKey,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey === true,
+      altKey: event.altKey === true,
+    })
+  ) {
+    return 'ignore';
+  }
   if (event.metaKey || event.ctrlKey) {
-    if (event.key.toLowerCase() === 'v' && event.type === 'keydown') return 'ignore';
+    const letter = event.key.toLowerCase();
+    // Paste is handled by the paste event as insertText.
+    if (letter === 'v') return event.type === 'keydown' ? 'ignore' : 'prevent-and-ignore';
+    // No remote clipboard round-trip this round (spec §4.4).
+    if (letter === 'c' || letter === 'x') return 'prevent-and-ignore';
+    if (PAGE_EDIT_KEYS.has(letter)) {
+      return [{ type: 'key', action, key: event.key.length === 1 ? event.key.toUpperCase() : event.key }];
+    }
     return 'prevent-and-ignore';
   }
   if (SPECIAL_KEYS.has(event.key)) {
-    return [{ type: 'key', action: event.type === 'keydown' ? 'down' : 'up', key: event.key }];
+    return [{ type: 'key', action, key: event.key }];
   }
   if (event.type === 'keydown' && event.key.length === 1) {
     return [{ type: 'insertText', text: event.key }];

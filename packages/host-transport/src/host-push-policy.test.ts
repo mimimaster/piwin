@@ -148,9 +148,19 @@ describe('classifyHostPush', () => {
   it('classifies replaceable browser frames and terminal Run barriers', () => {
     const browserFrame: HostPushVariant = {
       type: 'browser/frame',
-      dataUrl: 'data:image/png;base64,AAAA',
+      frameId: '1',
       width: 1,
       height: 1,
+      encodedWidth: 2,
+      encodedHeight: 2,
+      sourceDpr: 2,
+      quality: 80,
+      producer: 'screencast',
+      byteLength: 4,
+      generation: 1,
+      pageId: 'page-1',
+      documentRevision: 0,
+      payload: { kind: 'binary' },
       ts: 1,
     };
     expect(classifyHostPush(browserFrame)).toEqual({

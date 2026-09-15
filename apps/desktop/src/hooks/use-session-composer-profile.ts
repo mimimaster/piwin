@@ -90,6 +90,19 @@ export function useSessionComposerProfile(
   const [thinkingLevel, setThinkingLevelState] = useState<ThinkingLevel>('off');
   const lastAppliedSessionIdRef = useRef<string | null>(null);
   const lastAppliedResumeKeyRef = useRef('');
+  // A pane restored from a saved layout mounts before Host connects; that first
+  // catalog read fails and left the picker on "Default model" for good.
+  const [hostReadyEpoch, setHostReadyEpoch] = useState(0);
+
+  useEffect(
+    () =>
+      hostClient.subscribe((message) => {
+        if (message.type === 'host/status' && message.ready) {
+          setHostReadyEpoch((epoch) => epoch + 1);
+        }
+      }),
+    [hostClient],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +121,7 @@ export function useSessionComposerProfile(
     return () => {
       cancelled = true;
     };
-  }, [hostClient]);
+  }, [hostClient, hostReadyEpoch]);
 
   useEffect(() => {
     const resumeKey = modelKeyOf(resumeModel);

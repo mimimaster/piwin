@@ -397,9 +397,10 @@
 }
 
 /* ─── Jump to latest ──────────────────────────────────────────────────
-   Viewport chrome, not transcript content: anchored above the composer.
-   Center with a known box + negative margin — never `transform`. `deck-rise`
-   writes `transform` and would snap the control sideways on first paint. */
+   Viewport chrome, not transcript content. Shared by the main transcript
+   (above the composer) and the subagent preview. Center with a known box
+   + negative margin — never `transform`. `deck-rise` writes `transform`
+   and would snap the control sideways on first paint. */
 
 .jump-to-latest-btn {
   position: absolute;

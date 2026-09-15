@@ -520,21 +520,32 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
 
 .settings-main-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-4);
   width: 100%;
   max-width: none;
   min-width: 0;
   min-height: 44px;
-  margin: 0 0 var(--s-9);
+  margin: 0 0 var(--s-8);
   padding-bottom: 0;
   border-bottom: none;
   box-sizing: border-box;
 }
 
 .settings-main-heading {
-  flex: 1;
+  flex: 1 0 auto;
   min-width: 0;
+}
+
+.settings-main-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .settings-main-heading h1 {
@@ -568,12 +579,14 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   padding: 0;
 }
 
-/* Usage page: panel fills the card, scrolls internally within settings. */
+/* Usage page: panel fills the container, scrolls internally within settings. */
+.settings-usage-page,
 .settings-usage-body {
   min-height: 0;
   height: 100%;
 }
 
+.settings-usage-page .usage-panel,
 .settings-usage-body .usage-panel {
   height: auto;
   min-height: 380px;

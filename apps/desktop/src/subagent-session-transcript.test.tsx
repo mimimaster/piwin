@@ -229,3 +229,62 @@ describe('SubagentSessionTranscript work-details layout', () => {
     expect(container.querySelector('.markdown')).toBeNull();
   });
 });
+
+describe('SubagentSessionTranscript jump-to-latest', () => {
+  const mountedRoots: Array<{ root: Root; container: HTMLElement }> = [];
+
+  afterEach(() => {
+    for (const mountedRoot of mountedRoots.splice(0)) {
+      act(() => {
+        mountedRoot.root.unmount();
+      });
+      mountedRoot.container.remove();
+    }
+  });
+
+  it('reuses the shared arrow chrome instead of a labeled pill', async () => {
+    const css = await readFile(path.join(SRC_DIR, 'styles/subagent-session-inspector.css'), 'utf8');
+    expect(css).not.toContain('.subagent-inspector-jump-latest');
+    const viewportRule = /\.subagent-inspector-viewport\s*\{([^}]+)\}/s.exec(css)?.[1];
+    expect(viewportRule).toBeDefined();
+    expect(viewportRule).toMatch(/position:\s*relative/);
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+
+    act(() => {
+      renderTranscript({ root, showThinking: false });
+    });
+
+    const scroll = container.querySelector<HTMLDivElement>('.subagent-inspector-scroll');
+    expect(scroll).not.toBeNull();
+    if (scroll === null) {
+      throw new Error('Expected the subagent preview scrollport');
+    }
+    Object.defineProperty(scroll, 'scrollHeight', { configurable: true, value: 800 });
+    Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 200 });
+    Object.defineProperty(scroll, 'scrollTop', { configurable: true, writable: true, value: 0 });
+
+    act(() => {
+      scroll.dispatchEvent(new Event('scroll'));
+    });
+
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-testid="subagent-inspector-jump-latest"]',
+    );
+    expect(button).not.toBeNull();
+    expect(button?.className).toBe('jump-to-latest-btn');
+    expect(button?.getAttribute('aria-label')).toBe('Back to latest');
+    expect(button?.textContent?.trim()).toBe('');
+    expect(button?.querySelector('svg')).not.toBeNull();
+    expect(button?.parentElement?.className).toBe('subagent-inspector-viewport');
+
+    act(() => {
+      button?.click();
+    });
+    expect(scroll.scrollTop).toBe(800);
+    expect(container.querySelector('[data-testid="subagent-inspector-jump-latest"]')).toBeNull();
+  });
+});

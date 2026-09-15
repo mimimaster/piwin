@@ -442,7 +442,7 @@ export function WorkbenchComposerColumn(props: WorkbenchComposerColumnProps): Re
       {state.messages.length === 0 && !state.awaitingTranscript ? (
         <InkWashEmptyVignette theme={activeTheme} />
       ) : null}
-      <ComposerDock {...composerCard} />
+      <ComposerDock {...composerCard} goalMessages={state.messages} />
     </>
   );
 }

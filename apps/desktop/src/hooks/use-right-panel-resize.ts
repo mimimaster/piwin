@@ -16,6 +16,7 @@ import {
 } from '../right-panel-width';
 import { isOverlayShellLayout, type ShellLayoutMode } from '../shell-layout';
 import { usePanelWidthCommit } from './use-panel-width-commit.js';
+import { beginPanelResize } from '../panel-resize-activity.js';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
 function writeRightPanelWidthCss(shell: HTMLElement | null, widthPx: number): void {
@@ -84,6 +85,9 @@ export function useRightPanelResize(
   const pendingFrameRef = useRef<number | null>(null);
   const pendingWidthRef = useRef<number | null>(null);
   const liveWidthCommitRef = useRef(options.onLiveWidthCommit);
+  /** Releases the shared drag signal; the drag effect re-runs mid-drag, so only pointer end or unmount releases it. */
+  const releasePanelResizeRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => releasePanelResizeRef.current?.(), []);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -268,6 +272,8 @@ export function useRightPanelResize(
       startedFullWidth,
       collapsed: false,
     };
+    releasePanelResizeRef.current?.();
+    releasePanelResizeRef.current = beginPanelResize();
     setIsResizing(true);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
@@ -370,6 +376,8 @@ export function useRightPanelResize(
       flushPendingWidth();
       const commit = widthRef.current;
       writeLiveWidth(commit);
+      releasePanelResizeRef.current?.();
+      releasePanelResizeRef.current = null;
       setWidthState(commit);
       liveWidthCommitRef.current?.(commit);
       // Keep transitions / blur disabled briefly after drag ends so the panel

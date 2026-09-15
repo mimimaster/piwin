@@ -10,13 +10,13 @@ import { BROWSER_SCREENCAST_QUALITY } from './screencast-size.js';
 import { readJpegSize } from './jpeg-size.js';
 
 export type ScreencastFrame = {
-  dataUrl: string;
+  /** Raw JPEG bytes; base64 is a local-adapter concern (spec §4.1.2). */
+  bytes: Uint8Array;
   width: number;
   height: number;
   ts: number;
   encodedWidth: number;
   encodedHeight: number;
-  byteLength: number;
 };
 
 export type ScreencastHandle = {
@@ -94,12 +94,11 @@ export async function startScreencast(
         height: options.size.height,
       };
       options.emit({
-        dataUrl: `data:image/jpeg;base64,${Buffer.from(frame.data).toString('base64')}`,
+        bytes: jpeg,
         width: frame.viewportWidth,
         height: frame.viewportHeight,
         encodedWidth: encoded.width,
         encodedHeight: encoded.height,
-        byteLength: jpeg.byteLength,
         ts,
       });
     } catch {

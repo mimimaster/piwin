@@ -21,10 +21,10 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--s-6);
-  padding: var(--s-5) var(--s-7);
-  border-bottom: 1px solid var(--line-1);
-  background: color-mix(in srgb, var(--surface-1) 78%, transparent);
+  gap: var(--s-4);
+  padding: 0 0 var(--s-5);
+  border-bottom: 0;
+  background: transparent;
 }
 
 .usage-section-header h3 {
@@ -48,7 +48,6 @@
 }
 
 .usage-toolbar-stamp {
-  margin-right: var(--s-3);
   color: var(--text-3);
   font-size: var(--fs-micro);
   font-variant-numeric: tabular-nums;
@@ -60,8 +59,32 @@
   min-width: 132px;
 }
 
+.usage-refresh-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.usage-refresh-icon {
+  flex-shrink: 0;
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.usage-refresh-icon.is-spinning {
+  animation: usage-refresh-spin 0.8s linear infinite;
+}
+
+@keyframes usage-refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .usage-panel-error {
-  margin: var(--s-5) var(--s-7) 0;
+  margin: 0 0 var(--s-5);
   padding: var(--s-4) var(--s-5);
   border: 0;
   border-radius: var(--r-control);
@@ -77,8 +100,7 @@
   min-height: 0;
   flex-direction: column;
   gap: var(--s-6);
-  overflow-y: auto;
-  padding: var(--s-7);
+  padding: 0;
 }
 
 .usage-card,

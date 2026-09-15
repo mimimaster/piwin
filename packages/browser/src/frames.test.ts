@@ -2,12 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { createFrameLoop } from './frames.js';
 import type { FramePayload } from './frames.js';
 
+/** Minimal JPEG-ish payload; the loop only forwards bytes and metadata. */
+function testFrame(): FramePayload {
+  return {
+    bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+    width: 100,
+    height: 100,
+    encodedWidth: 200,
+    encodedHeight: 200,
+    sourceDpr: 2,
+  };
+}
+
 describe('createFrameLoop', () => {
   it('emits at most one frame per interval regardless of request bursts', async () => {
     let captured = 0;
     const capture = async (): Promise<FramePayload> => {
       captured += 1;
-      return { dataUrl: 'data:image/jpeg;base64,AAA', width: 100, height: 100 };
+      return testFrame();
     };
     let clock = 0;
     const emitted: number[] = [];
@@ -43,7 +55,7 @@ describe('createFrameLoop', () => {
     let captured = 0;
     const capture = async (): Promise<FramePayload> => {
       captured += 1;
-      return { dataUrl: 'data:image/jpeg;base64,AAA', width: 100, height: 100 };
+      return testFrame();
     };
     const emitted: unknown[] = [];
 
@@ -66,7 +78,7 @@ describe('createFrameLoop', () => {
     const capture = async (): Promise<FramePayload> => {
       captureCount += 1;
       await new Promise((resolve) => setTimeout(resolve, 5));
-      return { dataUrl: 'data:image/jpeg;base64,AAA', width: 100, height: 100 };
+      return testFrame();
     };
     const emitted: unknown[] = [];
 
@@ -93,7 +105,7 @@ describe('createFrameLoop', () => {
     const loop = createFrameLoop({
       capture: async () => {
         await captureGate;
-        return { dataUrl: 'data:image/jpeg;base64,AAA', width: 100, height: 100 };
+        return testFrame();
       },
       hasSubscriber: () => active,
       intervalMs: 0,
@@ -114,7 +126,7 @@ describe('createFrameLoop', () => {
     let shouldFail = true;
     const capture = async (): Promise<FramePayload> => {
       if (shouldFail) throw new Error('screenshot failed mid-navigation');
-      return { dataUrl: 'data:image/jpeg;base64,AAA', width: 100, height: 100 };
+      return testFrame();
     };
     const emitted: unknown[] = [];
     let clock = 0;
@@ -145,7 +157,7 @@ describe('createFrameLoop', () => {
     const capture = async (): Promise<FramePayload> => {
       captureCount += 1;
       if (captureCount === 1) throw new Error('boom');
-      return { dataUrl: 'data:image/jpeg;base64,AAA', width: 100, height: 100 };
+      return testFrame();
     };
     const emitted: unknown[] = [];
 

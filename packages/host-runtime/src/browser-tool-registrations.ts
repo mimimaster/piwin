@@ -708,7 +708,10 @@ export function createBrowserToolDefinitions(
         return { ok: false, code: 'invalid-input', message: 'viewport set requires a valid width and height' };
       }
       try {
-        const size = await session.applyViewport(resolved, agentWriteOptions(signal, context));
+        const size = await session.applyViewport(resolved, {
+          ...agentWriteOptions(signal, context),
+          ...(mode !== undefined ? { mode } : {}),
+        });
         return success({ ok: true, ...size }, size);
       } catch (error) {
         return mapBrowserExecuteError(error, 'write');

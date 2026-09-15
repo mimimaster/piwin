@@ -7,3 +7,4 @@ export * from './system-icons.js';
 export * from './action-icons.js';
 export * from './identity-icons.js';
 export * from './arrow-icons.js';
+export * from './browser-icons.js';

@@ -353,6 +353,9 @@ class FakeRuntime implements HostRuntimePort {
     this.sinks.set(sink.id, sink);
     return () => this.sinks.delete(sink.id);
   }
+  public attachBrowserFrameSink(_sink: unknown): () => void {
+    return () => undefined;
+  }
 
   public detachPushSink(id: string): void {
     this.sinks.delete(id);

@@ -20,6 +20,7 @@ import type { SessionRowMenuAction } from './session-row-menu';
 import type { ShellSettingsSection } from './shell-navigation';
 import { SIDEBAR_DEFAULT_WIDTH_PX } from './sidebar-width';
 import { listArchivedHydrationRequests } from './workbench-chrome-assembly';
+import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
 
 export type WorkbenchSidebarHydrateSessions = (
   projectPathOrScope?: string | { kind: 'general' } | { kind: 'project'; projectPath: string },
@@ -37,6 +38,12 @@ type SidebarShell = {
 
 /** Stable empty marker set so an empty permission queue does not churn memoized props. */
 const EMPTY_SESSION_ID_MARKERS: Record<string, true> = {};
+
+/**
+ * Every chat reducer commit (each streamed delta) re-renders this file with new
+ * inline handlers; only session-list data changes should repaint the navigator.
+ */
+const MemoProjectSessionSidebar = memoWithLatestCallbacks(ProjectSessionSidebar);
 
 export type WorkbenchSidebarProps = {
   state: ChatUiState;
@@ -150,7 +157,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
   }, [state.permissionQueue]);
 
   return (
-    <ProjectSessionSidebar
+    <MemoProjectSessionSidebar
       projectPath={state.projectPath}
       projectTrusted={state.projectTrusted}
       hostReady={state.hostReady}

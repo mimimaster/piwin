@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   coalesceMouseMoves,
   contentRectFromImage,
+  displayRectFromFilledViewport,
   displayRectFromViewport,
   viewportFromDisplay,
+  viewportFromFilledDisplay,
 } from './browser-workbench-pointer';
 
 describe('viewportFromDisplay', () => {
@@ -172,5 +174,35 @@ describe('coalesceMouseMoves', () => {
       { type: 'mouse', action: 'down', x: 2, y: 2 },
       { type: 'mouse', action: 'move', x: 3, y: 3 },
     ]);
+  });
+});
+
+describe('viewportFromFilledDisplay', () => {
+  it('maps the filled box without letterbox rejection', () => {
+    expect(
+      viewportFromFilledDisplay({
+        displayX: 50,
+        displayY: 25,
+        displayWidth: 100,
+        displayHeight: 50,
+        viewportWidth: 1280,
+        viewportHeight: 800,
+      }),
+    ).toEqual({ x: 640, y: 400 });
+  });
+
+  it('inverts a CSS box onto the filled display', () => {
+    expect(
+      displayRectFromFilledViewport({
+        viewportX: 128,
+        viewportY: 80,
+        viewportBoxWidth: 10,
+        viewportBoxHeight: 10,
+        displayWidth: 2560,
+        displayHeight: 1600,
+        viewportWidth: 1280,
+        viewportHeight: 800,
+      }),
+    ).toEqual({ x: 256, y: 160, width: 20, height: 20 });
   });
 });

@@ -11,10 +11,8 @@ export function UsagePage(): ReactElement {
   const { request, projectPath } = useSettings();
 
   return (
-    <div className="settings-card settings-card-flush" data-testid="settings-usage">
-      <div className="settings-usage-body">
-        <UsagePanel projectPath={projectPath} request={request} />
-      </div>
+    <div className="settings-usage-page" data-testid="settings-usage">
+      <UsagePanel projectPath={projectPath} request={request} />
     </div>
   );
 }

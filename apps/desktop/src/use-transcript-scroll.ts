@@ -14,6 +14,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TranscriptScrollPosition } from './transcript-scroll-memory';
 import { computeCurrentResponseMinHeight } from './transcript-response-viewport.js';
+import {
+  isPanelResizeActive,
+  subscribePanelResizeActivity,
+} from './panel-resize-activity.js';
 
 const BOTTOM_THRESHOLD_PX = 64;
 /** Treat near-full viewports as non-overflowing to avoid 1px thrash. */
@@ -248,7 +252,7 @@ export function useTranscriptScroll(options: {
    * resize notification; a single stick against a stale scrollHeight is a
    * no-op and leaves the viewport on older turns.
    */
-  const stickToBottomAcrossFrames = useCallback(() => {
+  const stickToBottomAcrossFramesNow = useCallback(() => {
     if (
       suppressFollowStickRef.current ||
       !followTailRef.current ||
@@ -276,13 +280,84 @@ export function useTranscriptScroll(options: {
     stickFramesRef.current.push(frame1);
   }, [applyMetrics, cancelScheduledSticks, stickToBottomIfFollowing]);
 
-  const measure = useCallback(() => {
+  const measureNow = useCallback(() => {
     const element = containerRef.current;
     if (!element) {
       return;
     }
     applyMetrics(element);
   }, [applyMetrics]);
+
+  /**
+   * A panel edge drag reflows this column every frame while ResizeObserver,
+   * virtualizer totalSize and stream activity each ask for a synchronous
+   * stick/measure. Coalesce those forced layout reads to one per frame during
+   * the drag; the release listener below settles with the full multi-frame
+   * stick once the final width is written.
+   */
+  const panelResizeFrameRef = useRef<number | null>(null);
+  const panelResizeWantsStickRef = useRef(false);
+  const deferDuringPanelResize = useCallback(
+    (wantsStick: boolean): boolean => {
+      if (!isPanelResizeActive()) {
+        return false;
+      }
+      panelResizeWantsStickRef.current ||= wantsStick;
+      if (panelResizeFrameRef.current === null) {
+        panelResizeFrameRef.current = window.requestAnimationFrame(() => {
+          panelResizeFrameRef.current = null;
+          const wantsStickThisFrame = panelResizeWantsStickRef.current;
+          panelResizeWantsStickRef.current = false;
+          if (wantsStickThisFrame) {
+            stickToBottomIfFollowing();
+          } else {
+            measureNow();
+          }
+        });
+      }
+      return true;
+    },
+    [measureNow, stickToBottomIfFollowing],
+  );
+
+  const stickToBottomAcrossFrames = useCallback(() => {
+    if (deferDuringPanelResize(true)) {
+      return;
+    }
+    stickToBottomAcrossFramesNow();
+  }, [deferDuringPanelResize, stickToBottomAcrossFramesNow]);
+
+  const measure = useCallback(() => {
+    if (deferDuringPanelResize(false)) {
+      return;
+    }
+    measureNow();
+  }, [deferDuringPanelResize, measureNow]);
+
+  useEffect(() => {
+    const unsubscribe = subscribePanelResizeActivity((active) => {
+      if (active) {
+        return;
+      }
+      if (panelResizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(panelResizeFrameRef.current);
+        panelResizeFrameRef.current = null;
+      }
+      panelResizeWantsStickRef.current = false;
+      if (followTailRef.current && !userDetachedRef.current) {
+        stickToBottomAcrossFramesNow();
+      } else {
+        measureNow();
+      }
+    });
+    return () => {
+      unsubscribe();
+      if (panelResizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(panelResizeFrameRef.current);
+        panelResizeFrameRef.current = null;
+      }
+    };
+  }, [measureNow, stickToBottomAcrossFramesNow]);
 
   const isFollowingTail = useCallback((): boolean => followTailRef.current, []);
 

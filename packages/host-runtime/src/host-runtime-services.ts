@@ -590,6 +590,15 @@ export function getMcpManager(deps: HostRuntimeKernel): McpLifecycleManager {
  * activate, and generation rebuild all compose tools; skipping this omits
  * the browser family even though bash/fs still appear.
  */
+/**
+ * Raw JPEG sink for the out-of-band browser frame channel. Host-server
+ * registers one per process; the local JSONL path never needs it.
+ */
+export type BrowserFrameBytesSink = (
+  header: import('@piwin/contracts').BrowserFrameBinaryHeader,
+  bytes: Uint8Array,
+) => void;
+
 export async function ensureBrowserSession(
   deps: HostRuntimeKernel,
 ): Promise<import('@piwin/browser').BrowserSession> {
@@ -607,6 +616,20 @@ export async function ensureBrowserSession(
         },
         headless: config.browser?.headless !== false,
         captureConsoleAndNetwork: true,
+        // Raw bytes stay available for the remote binary channel; the local
+        // JSON path keeps the inline payload (spec §4.1.2).
+        onFrameBytes: (header, bytes) => {
+          for (const sink of [...deps.browserFrameSinks]) {
+            try {
+              sink(header, bytes);
+            } catch (error) {
+              console.warn(
+                '[piwin host] browser frame sink failed',
+                error instanceof Error ? error.message : error,
+              );
+            }
+          }
+        },
         ...(config.browser?.cdpEndpoint !== undefined
           ? { cdpEndpoint: config.browser.cdpEndpoint }
           : {}),

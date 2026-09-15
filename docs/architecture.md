@@ -809,7 +809,10 @@ kill it) were recorded on `79318f5c` in
   children), so `@piwin/browser` derives the tree with a small dedicated line
   parser — no `yaml` dependency and no `page.accessibility` (removed in
   Playwright 1.x).
-- **Panel mirror** — `browser/frame` width/height are CSS viewport px. Console and
+- **Panel mirror** — `browser/frame` width/height are CSS viewport px. Local
+  sidecar carries an `inline` JPEG data URL; a remote Host sends metadata on
+  the JSON control channel and the JPEG on the same authenticated WebSocket
+  (`browserFrameBinary` capability, `PBF1` envelope). Console and
   network events are captured while a desktop mirror lease is held and shown in a
   collapsible drawer.
 - **Element pick → attach** — a user-initiated pick runs `elementFromPoint` in

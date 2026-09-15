@@ -9,9 +9,7 @@ import type { ChatMessageUi } from './chat-reducer';
 import { AgentLocator } from './agent-locator.js';
 
 import {
-  deriveGoalSessionView,
   GoalActionsProvider,
-  GoalStickyStrip,
   type GoalActions,
 } from './goal';
 import { focusComposerInput } from './context-menu/desktop-context-menu-value';
@@ -242,18 +240,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     );
   }, [chatMessages, props.activeRunId, props.runRecordsById, props.streaming]);
 
-  // The Goal loop's real phase, derived from the goal_* tool calls in the
-  // transcript rather than from run streaming state (see goal-session-model).
-  const goalView = useMemo(
-    () =>
-      deriveGoalSessionView({
-        messages: props.messages,
-        streaming: props.streaming,
-        agentMode: props.composerCard.agentMode,
-      }),
-    [props.messages, props.streaming, props.composerCard.agentMode],
-  );
-
   // Goal cards sit several levels down the transcript; their actions travel by
   // context rather than through every intermediate component's props.
   const onAgentModeChange = props.composerCard.onAgentModeChange;
@@ -288,14 +274,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         <div className="chat-doc-card-sequence-slot">
           <DocCardSequenceView sequence={docCardSequence} request={props.docCardRequest} />
         </div>
-      ) : null}
-      {goalView.phase !== 'idle' && props.messages.length > 0 ? (
-        <GoalStickyStrip
-          view={goalView}
-          messages={props.messages}
-          onAbort={props.composerCard.onAbort}
-          onExit={() => props.composerCard.onAgentModeChange('agent')}
-        />
       ) : null}
       <TranscriptTurnList
         turns={turnGroups}

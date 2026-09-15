@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBrowserMirror } from './browser-mirror.js';
-import type { BrowserSessionEvent } from './browser-session.js';
+import type { BrowserFrameResult } from './browser-mirror.js';
 import type { Page } from 'playwright-core';
 
 type OnFrame = (frame: {
@@ -40,9 +40,7 @@ function createPage(options?: { start?: ReturnType<typeof vi.fn> }) {
 }
 
 function createMirror(page: Page, options?: { lease?: boolean }) {
-  const events: BrowserSessionEvent[] = [];
-  const subscribers = new Set<(event: BrowserSessionEvent) => void>();
-  subscribers.add((event) => events.push(event));
+  const events: BrowserFrameResult[] = [];
   let lease = options?.lease ?? true;
   const mirror = createBrowserMirror({
     maxDimension: 1280,
@@ -50,7 +48,7 @@ function createMirror(page: Page, options?: { lease?: boolean }) {
     getPage: async () => page,
     hasActiveMirrorLease: () => lease,
     resolveDeviceScaleFactor: async () => 2,
-    subscribers,
+    onFrame: (frame) => events.push(frame),
   });
   return {
     mirror,
@@ -86,10 +84,11 @@ describe('createBrowserMirror', () => {
 
     expect(events).toEqual([
       expect.objectContaining({
-        type: 'browser/frame',
-        dataUrl: `data:image/jpeg;base64,${Buffer.from('abc').toString('base64')}`,
+        bytes: new Uint8Array(Buffer.from('abc')),
         width: 1024,
         height: 768,
+        sourceDpr: 2,
+        producer: 'screencast',
       }),
     ]);
 
@@ -121,7 +120,7 @@ describe('createBrowserMirror', () => {
 
     await mirror.frameLoop.requestFrame();
     expect(raw.screenshot).toHaveBeenCalledWith({ type: 'jpeg', quality: 80 });
-    expect(events.some((event) => event.type === 'browser/frame')).toBe(true);
+    expect(events.some((event) => event.producer === 'screenshot-fallback')).toBe(true);
 
     mirror.frameLoop.stop();
     warn.mockRestore();

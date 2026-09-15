@@ -98,6 +98,15 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     waitFor: async () => {},
     reload: async () => {},
     pressKey: async () => {},
+    currentTarget: () => ({ generation: 1, pageId: 'page-1', documentRevision: 0 }),
+    capture: async () => ({
+      bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+      mime: 'image/jpeg',
+      width: 1280,
+      height: 800,
+      encodedWidth: 1280,
+      encodedHeight: 800,
+    }),
     queryViewport: () => ({ width: 1280, height: 800 }),
     applyViewport: async (size) => size,
     status: () => ({

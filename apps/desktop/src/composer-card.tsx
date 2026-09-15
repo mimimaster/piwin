@@ -138,7 +138,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const selectedModelSupportsImage = selectedModel?.supportsImage === true;
   const showTextOnlyImageWarning =
     hasImageAttachment && !selectedModelSupportsImage && props.visionDelegationEnabled !== true;
-  const thinkingModels = toThinkingEffortModels(props.modelOptions);
+  const thinkingModels = useMemo(
+    () => toThinkingEffortModels(props.modelOptions),
+    [props.modelOptions],
+  );
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   /**

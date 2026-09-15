@@ -13,16 +13,15 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
-  type MouseEvent,
   type ReactElement,
-  type WheelEvent,
 } from 'react';
-import type { BrowserInputEvent, WebElementPickResult } from '@piwin/contracts';
+import type { WebElementPickResult } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 import { normalizeUrl } from './normalize-url';
-import { IconBrowser, IconClose } from './shell-icons';
+import { IconClose } from './shell-icons';
 import { BrowserSessionChrome } from './browser-session-chrome';
 import { BrowserConsoleDrawer } from './browser-console-drawer';
+import { BrowserViewportSurface } from './browser-viewport-surface';
 import {
   useBrowserSessionLease,
   type BrowserHighlightBox,
@@ -33,84 +32,53 @@ import {
   keyEventToBrowserInput,
   pasteToInsertText,
 } from './browser-workbench-ime';
-import { displayRectFromViewport, viewportFromDisplay } from './browser-workbench-pointer';
+import { displayRectFromFilledViewport } from './browser-workbench-pointer';
+import { useBrowserInput } from './hooks/use-browser-input';
+import { BrowserAnnotationOverlay } from './browser-annotation-overlay';
 import { useDesktopLocale } from './desktop-locale-context';
-import type { DesktopLocale } from './desktop-locale';
+import { openExternalUrl } from './open-external-url';
+import type { BrowserPanelNotice } from './browser-session-chrome';
+import { browserSessionCopy } from './browser-session-copy';
+import { formatBrowserDensityRatio, resolveBrowserMirrorDensity } from './browser-mirror-density';
+import {
+  resolveBrowserDisplayBox,
+  type BrowserDisplayZoom,
+} from './browser-display-box';
+import {
+  BROWSER_VIEWPORT_MENU_PRESETS,
+  resolveFollowViewportBox,
+  resolveViewportPresetId,
+  useBrowserViewport,
+  type BrowserViewportPresetId,
+} from './hooks/use-browser-viewport';
+import { loadBrowserViewportPreference, saveBrowserViewportPreference } from './ui-preferences';
 
 export type BrowserSessionPanelProps = {
   hostClient: HostClient;
   onAddWebElement: (pick: WebElementPickResult) => void;
+  onAddImageFile?: (file: File) => void;
+  activeSessionId?: string | null;
+  /**
+   * Panel-level actions come from the surface that hosts the browser. Omitted
+   * surfaces hide the buttons instead of rendering dead chrome (spec §4.2).
+   */
+  panelActions?: BrowserPanelPanelActions | undefined;
 };
 
-function browserCopy(locale: DesktopLocale) {
-  if (locale === 'zh-CN') {
-    return {
-      agentUsing: 'Agent 正在使用浏览器',
-      takeOver: '接管',
-      youHaveControl: '你有控制权',
-      giveBack: '交还',
-      release: '释放',
-      pickOn: '取元素中',
-      pickOff: '取元素',
-      pickDisabled: 'Agent 占用浏览器时无法取元素',
-      pickExit: '退出取元素',
-      pickEnter: '点选一个元素作为上下文',
-      pickPending: '正在解析元素…',
-      pickFailed: '无法解析该元素，请再试一次。',
-      mirrorStartFailed: '无法启动浏览器镜像。',
-      mirrorStopFailed: '无法停止浏览器镜像。',
-      urlPlaceholder: '输入网址或 localhost:3000',
-      go: '前往',
-      reload: '重载',
-      navigate: '导航',
-      back: '后退',
-      forward: '前进',
-      newTab: '新标签',
-      closeTab: '关闭标签',
-      acceptDialog: '接受',
-      dismissDialog: '取消',
-      starting: '正在启动浏览器会话…',
-      clearHighlight: '清除高亮',
-      frameAlt: '浏览器会话',
-    };
-  }
-  return {
-    agentUsing: 'Agent is using the browser',
-    takeOver: 'Take over',
-    youHaveControl: 'You have control',
-    giveBack: 'Give back',
-    release: 'Release',
-    pickOn: 'Pick mode: ON',
-    pickOff: 'Pick element',
-    pickDisabled: 'Pick disabled while the agent has the browser',
-    pickExit: 'Exit pick mode',
-    pickEnter: 'Pick an element to attach',
-    pickPending: 'Resolving element…',
-    pickFailed: 'Could not resolve element. Please try again.',
-    mirrorStartFailed: 'Could not start the browser mirror.',
-    mirrorStopFailed: 'Could not stop the browser mirror.',
-    urlPlaceholder: 'Enter URL or localhost:3000',
-    go: 'Go',
-    reload: 'Reload',
-    navigate: 'Navigate',
-    back: 'Back',
-    forward: 'Forward',
-    newTab: 'New tab',
-    closeTab: 'Close tab',
-    acceptDialog: 'Accept',
-    dismissDialog: 'Dismiss',
-    starting: 'Starting browser session…',
-    clearHighlight: 'Clear highlight',
-    frameAlt: 'Browser session',
-  };
-}
+export type BrowserPanelPanelActions = {
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onClose: () => void;
+};
 
 export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactElement {
-  const { hostClient, onAddWebElement } = props;
+  const { hostClient, onAddWebElement, onAddImageFile, activeSessionId } = props;
   const { locale } = useDesktopLocale();
-  const copy = browserCopy(locale);
+  const copy = browserSessionCopy(locale);
   const {
     frame,
+    committedUrl,
+    mirrorLeaseId,
     urlInput,
     setUrlInput,
     title,
@@ -122,14 +90,17 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     setPickError,
     mirrorError,
     owner,
-    agentWantsLock,
     consoleLines,
     networkLines,
     lifecycle,
     mirror,
+    generation,
+    pageId,
     tabs,
     pendingDialog,
     viewport,
+    documentRevision,
+    frameError,
   } = useBrowserSessionLease({
     hostClient,
     onAddWebElement,
@@ -137,12 +108,46 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     mirrorStopFailed: copy.mirrorStopFailed,
   });
   const [pickMode, setPickMode] = useState(false);
+  const [annotateMode, setAnnotateMode] = useState(false);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const imeRef = useRef<HTMLTextAreaElement>(null);
-  const pendingMoveRef = useRef<{ x: number; y: number } | null>(null);
-  const moveRafRef = useRef<number | null>(null);
+  // The preference is read once per panel mount; the menu that changes it ships
+  // with the two-layer chrome (spec §4.2).
+  const [viewportPreference, setViewportPreference] = useState(loadBrowserViewportPreference);
+  const [devDrawerOpen, setDevDrawerOpen] = useState(false);
+  const [notice, setNotice] = useState<BrowserPanelNotice | null>(null);
+  // Identical consecutive failures collapse into one bounded notice (§4.2).
+  const pushNotice = useCallback((message: string) => {
+    setNotice((current) =>
+      current !== null && current.message === message
+        ? { message, count: current.count + 1 }
+        : { message, count: 1 },
+    );
+  }, []);
+  useBrowserViewport({
+    containerRef,
+    enabled: viewportPreference.mode === 'follow',
+    leaseId: mirrorLeaseId,
+    controller: owner,
+    resize: (width, height, resizeOptions) =>
+      hostClient.browserResize(width, height, resizeOptions),
+  });
+  const [panelSize, setPanelSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    const apply = (): void => {
+      const box = resolveFollowViewportBox(element);
+      if (box) setPanelSize(box);
+    };
+    apply();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(apply);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const agentOwns = owner === 'agent';
   const runtimeStatus = resolveBrowserRuntimeStatus(locale, {
     lifecycle,
@@ -150,170 +155,27 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     mirrorError,
   });
   const interactEnabled = !agentOwns && runtimeStatus.interactEnabled;
-
-  useEffect(() => {
-    return () => {
-      if (moveRafRef.current !== null) cancelAnimationFrame(moveRafRef.current);
-    };
-  }, []);
-
-  const toViewport = useCallback(
-    (displayX: number, displayY: number): { x: number; y: number } | null => {
-      const img = imgRef.current;
-      if (!img || frame.viewportWidth === 0) return null;
-      return viewportFromDisplay({
-        displayX,
-        displayY,
-        displayWidth: img.clientWidth,
-        displayHeight: img.clientHeight,
-        viewportWidth: frame.viewportWidth,
-        viewportHeight: frame.viewportHeight,
-      });
+  const target =
+    generation !== undefined && pageId !== undefined && documentRevision !== undefined
+      ? { generation, pageId, documentRevision }
+      : undefined;
+  const input = useBrowserInput({
+    hostClient,
+    imgRef,
+    viewportWidth: frame.viewportWidth,
+    viewportHeight: frame.viewportHeight,
+    interactEnabled: interactEnabled && !annotateMode,
+    pickMode,
+    owner,
+    ...(target === undefined ? {} : { target }),
+    onPickStart: () => {
+      setPickPending(true);
+      setPickError(null);
+      setHighlight(null);
     },
-    [frame.viewportWidth, frame.viewportHeight],
-  );
-
-  const sendInput = useCallback(
-    (events: BrowserInputEvent[]): void => {
-      if (!interactEnabled || events.length === 0) return;
-      void hostClient.browserInput(events);
-    },
-    [interactEnabled, hostClient],
-  );
-
-  const viewportFromMouse = useCallback(
-    (event: { clientX: number; clientY: number }): { x: number; y: number } | null => {
-      const img = imgRef.current;
-      if (!img) return null;
-      const rect = img.getBoundingClientRect();
-      return toViewport(event.clientX - rect.left, event.clientY - rect.top);
-    },
-    [toViewport],
-  );
-
-  const sendClick = useCallback(
-    (viewport: { x: number; y: number }, button: 'left' | 'right', clickCount = 1): void => {
-      sendInput([
-        {
-          type: 'mouse',
-          action: 'down',
-          x: viewport.x,
-          y: viewport.y,
-          button,
-          ...(clickCount > 1 ? { clickCount } : {}),
-        },
-        {
-          type: 'mouse',
-          action: 'up',
-          x: viewport.x,
-          y: viewport.y,
-          button,
-          ...(clickCount > 1 ? { clickCount } : {}),
-        },
-      ]);
-    },
-    [sendInput],
-  );
-
-  const handleNavigate = useCallback(
-    async (event?: FormEvent): Promise<void> => {
-      event?.preventDefault();
-      if (!interactEnabled) return;
-      const normalized = normalizeUrl(urlInput);
-      if (!normalized) return;
-      setUrlInput(normalized);
-      await hostClient.browserNavigate(normalized);
-    },
-    [interactEnabled, hostClient, urlInput],
-  );
-
-  const handleImageClick = useCallback(
-    async (event: MouseEvent<HTMLImageElement>): Promise<void> => {
-      if (!interactEnabled) return;
-      const viewport = viewportFromMouse(event);
-      if (!viewport) return;
-      if (pickMode) {
-        setPickPending(true);
-        setPickError(null);
-        setHighlight(null);
-        try {
-          const response = await hostClient.browserPickAt(viewport.x, viewport.y);
-          setPickPending(false);
-          if (!response.success) {
-            setPickError(copy.pickFailed);
-            console.error('[browser-session] pick-at failed:', response.error);
-          }
-        } catch (error) {
-          setPickPending(false);
-          setPickError(copy.pickFailed);
-          console.error('[browser-session] pick-at failed:', error);
-        }
-        return;
-      }
-      sendClick(viewport, 'left');
-      imeRef.current?.focus();
-    },
-    [interactEnabled, pickMode, viewportFromMouse, hostClient, sendClick],
-  );
-
-  const handleDoubleClick = useCallback(
-    (event: MouseEvent<HTMLImageElement>): void => {
-      if (!interactEnabled || pickMode) return;
-      event.preventDefault();
-      const viewport = viewportFromMouse(event);
-      if (!viewport) return;
-      sendClick(viewport, 'left', 2);
-    },
-    [interactEnabled, pickMode, viewportFromMouse, sendClick],
-  );
-
-  const handleContextMenu = useCallback(
-    (event: MouseEvent<HTMLImageElement>): void => {
-      if (!interactEnabled || pickMode) return;
-      event.preventDefault();
-      const viewport = viewportFromMouse(event);
-      if (!viewport) return;
-      sendClick(viewport, 'right');
-    },
-    [interactEnabled, pickMode, viewportFromMouse, sendClick],
-  );
-
-  const handleMouseMove = useCallback(
-    (event: MouseEvent<HTMLImageElement>): void => {
-      if (!interactEnabled || pickMode) return;
-      const viewport = viewportFromMouse(event);
-      if (!viewport) return;
-      pendingMoveRef.current = viewport;
-      if (moveRafRef.current !== null) return;
-      moveRafRef.current = requestAnimationFrame(() => {
-        moveRafRef.current = null;
-        const next = pendingMoveRef.current;
-        pendingMoveRef.current = null;
-        if (next) sendInput([{ type: 'mouse', action: 'move', x: next.x, y: next.y }]);
-      });
-    },
-    [interactEnabled, pickMode, viewportFromMouse, sendInput],
-  );
-
-  const handleWheel = useCallback(
-    (event: WheelEvent<HTMLImageElement>): void => {
-      if (!interactEnabled || pickMode) return;
-      event.preventDefault();
-      const viewport = viewportFromMouse(event);
-      if (!viewport) return;
-      sendInput([
-        {
-          type: 'mouse',
-          action: 'wheel',
-          x: viewport.x,
-          y: viewport.y,
-          deltaX: event.deltaX,
-          deltaY: event.deltaY,
-        },
-      ]);
-    },
-    [interactEnabled, pickMode, viewportFromMouse, sendInput],
-  );
+    onPickFailed: () => setPickError(copy.pickFailed),
+    onPickSettled: () => setPickPending(false),
+  });
 
   const handleImeKey = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -323,18 +185,87 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         isComposing: event.nativeEvent.isComposing,
         metaKey: event.metaKey,
         ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
       });
       if (decision === 'ignore') return;
       event.preventDefault();
       if (decision === 'prevent-and-ignore') return;
-      sendInput(decision);
+      input.sendKeyEvents(decision);
     },
-    [sendInput],
+    [input],
   );
+
+
+  const handleNavigate = useCallback(
+    async (event?: FormEvent): Promise<void> => {
+      event?.preventDefault();
+      if (!interactEnabled) return;
+      const normalized = normalizeUrl(urlInput);
+      if (!normalized) return;
+      setUrlInput(normalized);
+      await hostClient
+        .browserNavigate(normalized)
+        .then((response) => {
+          if (!response.success) pushNotice(copy.commandFailed);
+        })
+        .catch(() => pushNotice(copy.commandFailed));
+    },
+    [interactEnabled, hostClient, urlInput, pushNotice, copy.commandFailed, setUrlInput],
+  );
+
+  const handleReload = useCallback((): void => {
+    void hostClient
+      .browserReload()
+      .then((response) => {
+        if (!response.success) pushNotice(copy.commandFailed);
+      })
+      .catch(() => pushNotice(copy.commandFailed));
+  }, [hostClient, pushNotice, copy.commandFailed]);
+
+  const handleToggleControl = useCallback((): void => {
+    const request =
+      owner === 'agent' ? hostClient.browserLock('user') : hostClient.browserUnlock('user');
+    void request
+      .then((response) => {
+        if (!response.success) pushNotice(copy.panelActionFailed);
+      })
+      .catch(() => pushNotice(copy.panelActionFailed));
+  }, [hostClient, owner, pushNotice, copy.panelActionFailed]);
+
+  const handleOpenExternal = useCallback((): void => {
+    if (committedUrl.length === 0) return;
+    void openExternalUrl(committedUrl).then((opened) => {
+      if (!opened) pushNotice(copy.panelActionFailed);
+    });
+  }, [committedUrl, pushNotice, copy.panelActionFailed]);
+
+  const handleSelectViewport = useCallback(
+    (selection: { id: BrowserViewportPresetId; width: number; height: number }): void => {
+      const mode = BROWSER_VIEWPORT_MENU_PRESETS[selection.id].mode;
+      const displayZoom = viewportPreference.displayZoom ?? 'fit';
+      setViewportPreference({ mode, width: selection.width, height: selection.height, displayZoom });
+      saveBrowserViewportPreference({ mode, width: selection.width, height: selection.height, displayZoom });
+      if (mode === 'follow') return;
+      void hostClient
+        .browserResize(selection.width, selection.height, { mode, origin: 'explicit' })
+        .then((response) => {
+          if (!response.success) pushNotice(copy.viewportFailed);
+        })
+        .catch(() => pushNotice(copy.viewportFailed));
+    },
+    [hostClient, pushNotice, copy.viewportFailed, viewportPreference.displayZoom],
+  );
+
+  const handleSelectDisplayZoom = useCallback((displayZoom: BrowserDisplayZoom): void => {
+    const next = { ...viewportPreference, displayZoom };
+    setViewportPreference(next);
+    saveBrowserViewportPreference(next);
+  }, [viewportPreference]);
 
   let overlay: BrowserHighlightBox | null = null;
   if (highlight && imgRef.current && frame.viewportWidth > 0) {
-    overlay = displayRectFromViewport({
+    overlay = displayRectFromFilledViewport({
       viewportX: highlight.x,
       viewportY: highlight.y,
       viewportBoxWidth: highlight.width,
@@ -354,38 +285,102 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     overlayOffsetY = imgRect.top - containerRect.top;
   }
 
+  const displayZoom: BrowserDisplayZoom =
+    viewportPreference.mode === 'follow' ? 'fit' : (viewportPreference.displayZoom ?? 'fit');
+  const displayBox = resolveBrowserDisplayBox({
+    panelWidth: panelSize.width,
+    panelHeight: panelSize.height,
+    viewportWidth: frame.viewportWidth,
+    viewportHeight: frame.viewportHeight,
+    zoom: displayZoom,
+  });
+  // Encoded JPEG size vs the pixels this panel needs (spec §4.1.1).
+  const density = resolveBrowserMirrorDensity({
+    frame,
+    displayWidth: imgRef.current?.clientWidth || displayBox.width,
+    displayHeight: imgRef.current?.clientHeight || displayBox.height,
+    devicePixelRatio: typeof window === 'undefined' ? 1 : window.devicePixelRatio,
+  });
+  const densityLabel = formatBrowserDensityRatio(density);
+  const diagnosticRows = [
+    ...(frame.viewportWidth > 0
+      ? [{ label: copy.diagCss, value: `${String(frame.viewportWidth)}x${String(frame.viewportHeight)}` }]
+      : []),
+    ...(frame.encodedWidth !== undefined && frame.encodedHeight !== undefined
+      ? [{ label: copy.diagEncoded, value: `${String(frame.encodedWidth)}x${String(frame.encodedHeight)}` }]
+      : []),
+    ...(frame.sourceDpr !== undefined
+      ? [{ label: copy.diagDpr, value: String(frame.sourceDpr) }]
+      : []),
+    ...(displayBox.width > 0
+      ? [{ label: copy.diagDisplay, value: `${String(displayBox.width)}x${String(displayBox.height)}` }]
+      : []),
+    ...(densityLabel !== undefined ? [{ label: copy.diagDensity, value: densityLabel }] : []),
+    ...(frame.quality !== undefined ? [{ label: copy.diagQuality, value: String(frame.quality) }] : []),
+    ...(frame.producer !== undefined && frame.producer.length > 0
+      ? [{ label: copy.diagProducer, value: frame.producer }]
+      : []),
+  ];
+
   return (
     <div className="browser-session-panel" data-testid="browser-session-panel">
       <BrowserSessionChrome
         hostClient={hostClient}
         copy={copy}
-        urlInput={urlInput}
-        onUrlInput={setUrlInput}
+        draftUrl={urlInput}
+        committedUrl={committedUrl}
+        onDraftUrl={setUrlInput}
         onNavigate={() => {
           void handleNavigate();
         }}
+        onReload={handleReload}
         interactEnabled={interactEnabled}
+        pickActive={pickMode}
+        onTogglePick={() => {
+          setAnnotateMode(false);
+          setPickMode((current) => !current);
+        }}
+        annotateActive={annotateMode}
+        onToggleAnnotate={() => {
+          setPickMode(false);
+          setAnnotateMode((current) => {
+            const next = !current;
+            if (next) {
+              void hostClient.browserCapture({
+                ...(activeSessionId ? { sessionId: activeSessionId } : {}),
+              });
+            }
+            return next;
+          });
+        }}
+        controller={owner}
+        onToggleControl={handleToggleControl}
+        producer={frame.producer}
         tabs={tabs}
         pendingDialog={pendingDialog}
         viewport={viewport}
+        viewportMode={resolveViewportPresetId(viewportPreference)}
+        viewportSize={viewportPreference}
+        viewportPresets={[
+          { id: 'responsive', label: copy.viewportResponsive },
+          { id: 'desktop', label: copy.viewportDesktop },
+          { id: 'mobile', label: copy.viewportMobile },
+          { id: 'tablet', label: copy.viewportTablet },
+          { id: 'custom', label: copy.viewportCustom },
+        ]}
+        onSelectViewport={handleSelectViewport}
+        displayZoom={displayZoom}
+        displayScale={displayBox.scale}
+        onSelectDisplayZoom={handleSelectDisplayZoom}
+        density={density}
+        devDrawerOpen={devDrawerOpen}
+        onToggleDevDrawer={() => setDevDrawerOpen((current) => !current)}
+        onOpenExternal={handleOpenExternal}
+        panelActions={props.panelActions}
+        notice={notice}
+        onDismissNotice={() => setNotice(null)}
       />
 
-      {agentOwns ? (
-        <div className="browser-session-banner br-banner agent" data-testid="browser-session-agent-banner">
-          <span>{copy.agentUsing}</span>
-          <button type="button" data-testid="browser-session-take-over" onClick={() => void hostClient.browserLock('user')}>
-            {copy.takeOver}
-          </button>
-        </div>
-      ) : null}
-      {owner === 'user' ? (
-        <div className="browser-session-banner br-banner user" data-testid="browser-session-user-banner">
-          <span>{copy.youHaveControl}</span>
-          <button type="button" data-testid="browser-session-give-back" onClick={() => void hostClient.browserUnlock('user')}>
-            {agentWantsLock ? copy.giveBack : copy.release}
-          </button>
-        </div>
-      ) : null}
       {runtimeStatus.showBanner ? (
         <div className="browser-session-banner br-banner" data-testid="browser-session-runtime-banner">
           <span>{runtimeStatus.message}</span>
@@ -400,16 +395,6 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       ) : null}
 
       <div className="browser-session-toolbar">
-        <button
-          type="button"
-          className={`browser-session-pick-toggle br-toggle${pickMode ? ' active act' : ''}`}
-          data-testid="browser-session-pick-toggle"
-          onClick={() => setPickMode((current) => !current)}
-          disabled={!interactEnabled}
-          title={!interactEnabled ? copy.pickDisabled : pickMode ? copy.pickExit : copy.pickEnter}
-        >
-          {pickMode ? copy.pickOn : copy.pickOff}
-        </button>
         {pickPending ? (
           <span className="browser-session-pick-pending" data-testid="browser-session-pick-pending">
             {copy.pickPending}
@@ -425,6 +410,13 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
             {mirrorError}
           </span>
         ) : null}
+        {frameError ? (
+          <span className="browser-session-pick-error" data-testid="browser-session-frame-error">
+            {frameError === 'client-update-required' || frameError === 'unavailable'
+              ? copy.frameUnavailable
+              : copy.commandFailed}
+          </span>
+        ) : null}
         {highlight ? (
           <button type="button" className="browser-session-clear-highlight" onClick={() => setHighlight(null)} aria-label={copy.clearHighlight}>
             <IconClose width={12} height={12} />
@@ -432,63 +424,68 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         ) : null}
       </div>
 
-      <div className="browser-session-frame-container" ref={containerRef} data-testid="browser-session-frame-container">
-        {frame.src ? (
-          <img
-            ref={imgRef}
-            className={`browser-session-frame${pickMode ? ' pick-mode' : ''}${runtimeStatus.interactEnabled ? '' : ' stale'}`}
-            data-testid="browser-session-frame"
-            data-stale={runtimeStatus.interactEnabled ? 'false' : 'true'}
-            src={frame.src}
-            alt={title || urlInput || copy.frameAlt}
-            onClick={handleImageClick}
-            onDoubleClick={handleDoubleClick}
-            onContextMenu={handleContextMenu}
-            onMouseMove={handleMouseMove}
-            onWheel={handleWheel}
-            draggable={false}
-          />
-        ) : (
-          <div className="browser-session-frame-placeholder">
-            <IconBrowser width={32} height={32} />
-            <span>{copy.starting}</span>
-          </div>
-        )}
-        {!pickMode && interactEnabled ? (
-          <textarea
-            ref={imeRef}
-            className="browser-session-ime"
-            data-testid="browser-session-ime"
-            aria-label="Browser keyboard"
-            onKeyDown={handleImeKey}
-            onKeyUp={handleImeKey}
-            onCompositionEnd={(event) => {
-              const insert = compositionEndToInsertText(event.data);
-              if (insert) sendInput([insert]);
-              event.currentTarget.value = '';
+      <BrowserViewportSurface
+        containerRef={containerRef}
+        imgRef={imgRef}
+        imeRef={imeRef}
+        frameSrc={frame.src}
+        frameAlt={title || urlInput || copy.frameAlt}
+        starting={copy.starting}
+        pickMode={pickMode}
+        interactEnabled={interactEnabled}
+        runtimeInteractEnabled={runtimeStatus.interactEnabled}
+        displayBox={displayBox}
+        zoom={displayZoom}
+        overlay={overlay}
+        overlayOffsetX={overlayOffsetX}
+        overlayOffsetY={overlayOffsetY}
+        onPointerDown={input.onPointerDown}
+        onPointerMove={input.onPointerMove}
+        onPointerUp={input.onPointerUp}
+        onPointerCancel={input.onPointerCancel}
+        onClick={input.onClick}
+        onWheel={input.onWheel}
+        onImeKey={handleImeKey}
+        onCompositionEnd={(event) => {
+          const insert = compositionEndToInsertText(event.data);
+          if (insert) input.sendKeyEvents([insert]);
+          event.currentTarget.value = '';
+        }}
+        onPaste={(event) => {
+          event.preventDefault();
+          const insert = pasteToInsertText(event.clipboardData.getData('text'));
+          if (insert) input.sendKeyEvents([insert]);
+        }}
+      >
+        {annotateMode && frame.src ? (
+          <BrowserAnnotationOverlay
+            imageSrc={frame.src}
+            copy={{
+              close: copy.annotateExit,
+              addToChat: copy.annotateAdd,
+              undo: copy.annotateUndo,
+              redo: copy.annotateRedo,
+              clear: copy.annotateClear,
+              pen: copy.annotatePen,
+              line: copy.annotateLine,
+              arrow: copy.annotateArrow,
+              rect: copy.annotateRect,
+              ellipse: copy.annotateEllipse,
+              text: copy.annotateText,
             }}
-            onPaste={(event) => {
-              event.preventDefault();
-              const insert = pasteToInsertText(event.clipboardData.getData('text'));
-              if (insert) sendInput([insert]);
-            }}
-          />
-        ) : null}
-        {overlay ? (
-          <div
-            className="browser-session-highlight"
-            data-testid="browser-session-highlight"
-            style={{
-              position: 'absolute',
-              left: `${overlay.x + overlayOffsetX}px`,
-              top: `${overlay.y + overlayOffsetY}px`,
-              width: `${overlay.width}px`,
-              height: `${overlay.height}px`,
-            }}
+            onClose={() => setAnnotateMode(false)}
+            onAddToChat={(file) => onAddImageFile?.(file)}
           />
         ) : null}
-      </div>
-      <BrowserConsoleDrawer consoleLines={consoleLines} networkLines={networkLines} />
+      </BrowserViewportSurface>
+      {devDrawerOpen ? (
+        <BrowserConsoleDrawer
+          open
+          consoleLines={consoleLines}
+          networkLines={networkLines}
+          diagnosticRows={diagnosticRows}
+        />
+      ) : null}
     </div>
   );
 }

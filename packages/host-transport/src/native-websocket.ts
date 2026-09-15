@@ -168,7 +168,9 @@ class NativeHostWebSocket implements WebSocketLike {
       return;
     }
     if (message.type === 'Binary') {
-      this.fail(new Error('Host transport received a non-text frame'));
+      // The workbench frame channel arrives here as a number array; forward it
+      // to the shared transport unchanged (spec §4.1.2).
+      this.onmessage?.({ data: new Uint8Array(message.data) });
     }
   }
 

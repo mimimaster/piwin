@@ -2,7 +2,7 @@
  * Desktop mirror lease + HostPush subscription for the browser workbench.
  * Pointer, IME, and CSS mapping stay in BrowserSessionPanel.
  */
-import { useCallback, useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type {
   BrowserController,
   BrowserDialogInfo,
@@ -20,18 +20,32 @@ import {
   type BrowserNetworkLine,
 } from './browser-console-drawer';
 import type { HostClient } from './host-client';
+import {
+  createBrowserFrameDecoder,
+  type BrowserFrameErrorReason,
+  type BrowserFrameView,
+} from './browser-frame-decoder';
 
 export type BrowserSessionFrame = {
   src: string;
   viewportWidth: number;
   viewportHeight: number;
+  /** Real JPEG dimensions; the density ratio is computed from these (spec §4.1.1). */
+  encodedWidth?: number;
+  encodedHeight?: number;
+  sourceDpr?: number;
+  quality?: number;
+  producer?: 'screencast' | 'screenshot-fallback';
 };
 
 export type BrowserHighlightBox = { x: number; y: number; width: number; height: number };
 
 export type BrowserSessionLeaseState = {
   frame: BrowserSessionFrame;
+  /** Draft shown in the address bar; only user input changes it. */
   urlInput: string;
+  /** Host-published URL. */
+  committedUrl: string;
   title: string;
   highlight: BrowserHighlightBox | null;
   pickPending: boolean;
@@ -47,16 +61,23 @@ export type BrowserSessionLeaseState = {
   tabs: BrowserTabInfo[];
   pendingDialog: BrowserDialogInfo | null;
   viewport: BrowserViewportConfig | undefined;
+  documentRevision: number | undefined;
+  frameError: BrowserFrameErrorReason | null;
 };
 
 export type BrowserSessionLeaseClient = {
   subscribe: (listener: (message: HostServerMessage) => void) => () => void;
+  subscribeBinary?: (listener: (bytes: Uint8Array) => void) => () => void;
   browserStart: (leaseId: string) => Promise<{ success: boolean }>;
   browserStop: (leaseId: string) => Promise<{ success: boolean }>;
 };
 
 export type BrowserSessionLease = {
   frame: BrowserSessionFrame;
+  /** Host-published URL — the only page the reload command targets (spec §4.2). */
+  committedUrl: string;
+  /** Mirror lease id; required by follow-mode `browser/resize` (spec §4.1). */
+  mirrorLeaseId: string;
   urlInput: string;
   setUrlInput: (urlInput: string) => void;
   title: string;
@@ -78,11 +99,14 @@ export type BrowserSessionLease = {
   tabs: BrowserTabInfo[];
   pendingDialog: BrowserDialogInfo | null;
   viewport: BrowserViewportConfig | undefined;
+  documentRevision: number | undefined;
+  frameError: BrowserFrameErrorReason | null;
 };
 
 export const EMPTY_BROWSER_SESSION_LEASE: BrowserSessionLeaseState = {
   frame: { src: '', viewportWidth: 0, viewportHeight: 0 },
   urlInput: '',
+  committedUrl: '',
   title: '',
   highlight: null,
   pickPending: false,
@@ -98,6 +122,8 @@ export const EMPTY_BROWSER_SESSION_LEASE: BrowserSessionLeaseState = {
   tabs: [],
   pendingDialog: null,
   viewport: undefined,
+  documentRevision: undefined,
+  frameError: null,
 };
 
 function browserTargetIdentityChanged(
@@ -122,27 +148,28 @@ export function reduceBrowserHostPush(
   message: HostServerMessage,
 ): BrowserSessionLeaseState {
   if (message.type === 'browser/frame') {
-    return {
-      ...state,
-      frame: {
-        src: message.dataUrl,
-        viewportWidth: message.width,
-        viewportHeight: message.height,
-      },
-    };
+    // Pictures go through the decoder (spec §4.1.2); the reducer never writes src.
+    return state;
   }
   if (message.type === 'browser/state') {
     const generation = message.generation ?? state.generation;
     const pageId = message.pageId ?? state.pageId;
+    const documentRevision = message.documentRevision ?? state.documentRevision;
     const identityChanged = browserTargetIdentityChanged(state, { generation, pageId });
+    // Draft vs committed (spec §4.2): Host pushes update `committedUrl` only.
+    // The draft mirrors it while the user is not editing.
+    const committedUrl = message.url ?? '';
+    const draftUntouched = state.urlInput.length === 0 || state.urlInput === state.committedUrl;
     return {
       ...state,
-      urlInput: message.url ?? '',
+      urlInput: draftUntouched ? committedUrl : state.urlInput,
+      committedUrl,
       title: message.title ?? '',
       lifecycle: message.lifecycle ?? state.lifecycle,
       mirror: message.mirror ?? state.mirror,
       generation,
       pageId,
+      documentRevision,
       tabs: message.tabs ?? (identityChanged ? [] : state.tabs),
       pendingDialog:
         message.pendingDialog === undefined
@@ -207,9 +234,11 @@ export function startBrowserSessionLease(input: {
   onMessage: (message: HostServerMessage) => void;
   onStartFailed: () => void;
   onStopFailed: () => void;
+  /** Caller-owned lease id. Follow-mode resize uses the same id (spec §4.1). */
+  mirrorLeaseId?: string;
 }): () => void {
   let cancelled = false;
-  const mirrorLeaseId = crypto.randomUUID();
+  const mirrorLeaseId = input.mirrorLeaseId ?? crypto.randomUUID();
   const unsubscribe = input.host.subscribe((message) => {
     if (cancelled) return;
     input.onMessage(message);
@@ -244,7 +273,9 @@ type BrowserSessionLeaseAction =
   | { type: 'url-input'; urlInput: string }
   | { type: 'highlight'; highlight: BrowserHighlightBox | null }
   | { type: 'pick-pending'; pickPending: boolean }
-  | { type: 'pick-error'; pickError: string | null };
+  | { type: 'pick-error'; pickError: string | null }
+  | { type: 'frame-ready'; view: BrowserFrameView }
+  | { type: 'frame-error'; reason: BrowserFrameErrorReason };
 
 function reduceBrowserSessionLease(
   state: BrowserSessionLeaseState,
@@ -261,6 +292,23 @@ function reduceBrowserSessionLease(
       return { ...state, pickPending: action.pickPending };
     case 'pick-error':
       return { ...state, pickError: action.pickError };
+    case 'frame-ready':
+      return {
+        ...state,
+        frameError: null,
+        frame: {
+          src: action.view.src,
+          viewportWidth: action.view.viewportWidth,
+          viewportHeight: action.view.viewportHeight,
+          encodedWidth: action.view.encodedWidth,
+          encodedHeight: action.view.encodedHeight,
+          sourceDpr: action.view.sourceDpr,
+          quality: action.view.quality,
+          producer: action.view.producer,
+        },
+      };
+    case 'frame-error':
+      return { ...state, frameError: action.reason };
   }
 }
 
@@ -273,14 +321,57 @@ export function useBrowserSessionLease(input: {
   const { hostClient, onAddWebElement, mirrorStartFailed, mirrorStopFailed } = input;
   const [state, dispatch] = useReducer(reduceBrowserSessionLease, EMPTY_BROWSER_SESSION_LEASE);
   const [mirrorError, setMirrorError] = useState<string | null>(null);
+  const mirrorLeaseId = useMemo(() => crypto.randomUUID(), []);
+
+  const decoderRef = useRef<ReturnType<typeof createBrowserFrameDecoder> | undefined>(undefined);
 
   useEffect(() => {
-    return startBrowserSessionLease({
+    const decoder = createBrowserFrameDecoder({
+      onReady: (view) => dispatch({ type: 'frame-ready', view }),
+      onError: (reason) => dispatch({ type: 'frame-error', reason }),
+      decode: async (src) => {
+        if (typeof Image === 'undefined') return;
+        const image = new Image();
+        image.src = src;
+        if (typeof image.decode !== 'function') return;
+        try {
+          await image.decode();
+        } catch {
+          // happy-dom and similar test DOMs reject synthetic JPEGs. An inline
+          // URL already passed prefix validation; blob payloads must decode.
+          if (!src.startsWith('data:image/jpeg;base64,')) throw new Error('decode-failed');
+        }
+      },
+    });
+    decoderRef.current = decoder;
+    let lastIdentity = { generation: undefined as number | undefined, pageId: undefined as string | undefined };
+    const unsubscribeBinary = hostClient.subscribeBinary?.((bytes) => decoder.ingestBinary(bytes));
+    const release = startBrowserSessionLease({
       host: hostClient,
+      mirrorLeaseId,
       onMessage: (message) => {
+        if (message.type === 'browser/frame') {
+          decoder.ingestPush(message);
+          return;
+        }
         dispatch({ type: 'host-push', message });
         if (message.type === 'browser/picked') {
           onAddWebElement(message.result);
+        }
+        if (message.type === 'browser/state') {
+          const nextGeneration = message.generation ?? lastIdentity.generation;
+          const nextPageId = message.pageId ?? lastIdentity.pageId;
+          if (
+            (nextGeneration !== undefined &&
+              lastIdentity.generation !== undefined &&
+              nextGeneration !== lastIdentity.generation) ||
+            (nextPageId !== undefined &&
+              lastIdentity.pageId !== undefined &&
+              nextPageId !== lastIdentity.pageId)
+          ) {
+            decoder.reset();
+          }
+          lastIdentity = { generation: nextGeneration, pageId: nextPageId };
         }
         if (
           message.type === 'browser/state' &&
@@ -296,7 +387,13 @@ export function useBrowserSessionLease(input: {
       onStartFailed: () => setMirrorError(mirrorStartFailed),
       onStopFailed: () => setMirrorError(mirrorStopFailed),
     });
-  }, [hostClient, onAddWebElement]);
+    return () => {
+      unsubscribeBinary?.();
+      decoder.dispose();
+      decoderRef.current = undefined;
+      release();
+    };
+  }, [hostClient, onAddWebElement, mirrorLeaseId, mirrorStartFailed, mirrorStopFailed]);
 
   const setUrlInput = useCallback((urlInput: string) => {
     dispatch({ type: 'url-input', urlInput });
@@ -313,6 +410,8 @@ export function useBrowserSessionLease(input: {
 
   return {
     frame: state.frame,
+    committedUrl: state.committedUrl,
+    mirrorLeaseId,
     urlInput: state.urlInput,
     setUrlInput,
     title: state.title,
@@ -334,5 +433,7 @@ export function useBrowserSessionLease(input: {
     tabs: state.tabs,
     pendingDialog: state.pendingDialog,
     viewport: state.viewport,
+    documentRevision: state.documentRevision,
+    frameError: state.frameError,
   };
 }

@@ -513,6 +513,11 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
             <div className="settings-main-heading">
               <h1>{activeSectionLabel}</h1>
             </div>
+            <div
+              id="settings-main-header-actions"
+              className="settings-main-header-actions"
+              data-testid="settings-main-header-actions"
+            />
           </header>
           {contextValue.remoteSettingsReadOnly ? (
             <Notice tone="info" testId="settings-remote-read-only">

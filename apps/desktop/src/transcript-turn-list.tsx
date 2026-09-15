@@ -286,7 +286,11 @@ function VirtualizedTranscriptTurns(
     [props.scrollPort.sessionId, props.turns],
   );
   const measureElement = useCallback(
-    (element: HTMLElement, entry: ResizeObserverEntry | undefined) => {
+    (
+      element: HTMLElement,
+      entry: ResizeObserverEntry | undefined,
+      instance: { itemSizeCache: ReadonlyMap<string | number | bigint, number> },
+    ) => {
       // ResizeObserver already measured every reflowed row. Reading layout
       // again here interleaves forced reads with virtualizer DOM updates.
       const rawHeight = entry?.borderBoxSize?.[0]?.blockSize
@@ -298,7 +302,14 @@ function VirtualizedTranscriptTurns(
         rememberTranscriptTurnHeight(props.scrollPort.sessionId, turnId, normalized);
         return normalized;
       }
-      return normalized ?? TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX;
+      if (normalized !== null) {
+        return normalized;
+      }
+      // No box (a `hidden` split pane, a detached node): keep the last real
+      // size. Writing the estimate would collapse every mounted turn and
+      // scramble the list when the pane is shown again.
+      return (turnId ? instance.itemSizeCache.get(turnId) : undefined)
+        ?? TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX;
     },
     [props.scrollPort.sessionId],
   );
@@ -335,14 +346,35 @@ function VirtualizedTranscriptTurns(
     () => buildTranscriptTurnsStructureKey(props.turns),
     [props.turns],
   );
+  const measureTurnBody = useCallback(
+    (element: HTMLElement): void => {
+      // measureElement keys a node by its data-index. A detached body keeps the
+      // index it last rendered at, so once a history page or bounded-window
+      // trim shifts turns it would claim that index's *current* key: cache the
+      // detached node's zero height (→ estimate) and unobserve the live body,
+      // leaving an under-sized slot that never heals and paints over neighbors.
+      if (!element.isConnected || !listRef.current?.contains(element)) {
+        return;
+      }
+      virtualizer.measureElement(element);
+    },
+    [virtualizer],
+  );
   const measureMountedTurns = useCallback((): void => {
     // measure() clears every exact size and falls back to estimates. Mounted
     // bodies may not resize afterward, so ResizeObserver cannot repair that
     // reset. Re-read only mounted bodies and retain off-screen measurements.
-    for (const element of virtualizer.elementsCache.values()) {
-      virtualizer.measureElement(element);
+    // Read them from the DOM: elementsCache still holds unmounted bodies.
+    const listElement = listRef.current;
+    if (!listElement) {
+      return;
     }
-  }, [virtualizer]);
+    for (const element of listElement.querySelectorAll<HTMLElement>(
+      ':scope > .transcript-turn-window-item > .transcript-turn-window-item-body',
+    )) {
+      measureTurnBody(element);
+    }
+  }, [measureTurnBody]);
   useLayoutEffect(() => {
     measureMountedTurns();
   }, [measureMountedTurns, turnsStructureKey]);
@@ -374,7 +406,8 @@ function VirtualizedTranscriptTurns(
       const detail = (event as CustomEvent<TranscriptTurnMeasureDetail>).detail;
       const target = detail?.element;
       if (target instanceof HTMLElement) {
-        virtualizer.measureElement(target);
+        // The event is document-wide; another transcript list may own target.
+        measureTurnBody(target);
       } else {
         measureMountedTurns();
       }
@@ -386,7 +419,7 @@ function VirtualizedTranscriptTurns(
     return () => {
       document.removeEventListener(TRANSCRIPT_TURN_MEASURE_EVENT, onTurnMeasure);
     };
-  }, [measureMountedTurns, props.scrollPort, virtualizer]);
+  }, [measureMountedTurns, measureTurnBody]);
 
   useLayoutEffect(() => {
     const listElement = listRef.current;

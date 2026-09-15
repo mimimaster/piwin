@@ -8,6 +8,7 @@ vi.mock('playwright-core', () => ({
 
 import {
   BrowserSessionClosedError,
+  BrowserStaleTargetError,
   BrowserUnavailableError,
   BrowserUserHasControlError,
   NavigateError,
@@ -268,11 +269,12 @@ describe('subscribe / frames', () => {
     expect(stateEvent.title).toBe('Example');
 
     const frameEvent = events.find((e) => (e as { type: string }).type === 'browser/frame') as {
-      dataUrl: string;
+      payload: { kind: string; dataUrl?: string };
       width: number;
       height: number;
     };
-    expect(frameEvent.dataUrl.startsWith('data:image/jpeg;base64,')).toBe(true);
+    expect(frameEvent.payload.kind).toBe('inline');
+    expect(frameEvent.payload.dataUrl?.startsWith('data:image/jpeg;base64,')).toBe(true);
     expect(frameEvent.width).toBe(1280);
     expect(frameEvent.height).toBe(800);
 
@@ -295,6 +297,78 @@ describe('session operations', () => {
 
     await session.setViewport({ width: 640, height: 900 });
     expect(page.setViewportSize).toHaveBeenCalledTimes(1);
+  });
+
+  it('publishes who last set the viewport on browser/state', async () => {
+    const { page } = installWorkingBrowser();
+    page.setViewportSize.mockImplementation(async (size: { width: number; height: number }) => {
+      page.viewportSize.mockReturnValue(size);
+    });
+    const session = createBrowserSession();
+    const events: Array<{ type: string; viewport?: { mode?: string; setBy?: string } }> = [];
+    session.subscribe((event) => {
+      events.push(event as { type: string; viewport?: { mode?: string; setBy?: string } });
+    });
+    await session.setViewport({ width: 800, height: 600 }, { mode: 'fixed', setBy: 'user' });
+    const userState = events.filter((event) => event.type === 'browser/state').at(-1);
+    expect(userState?.viewport).toMatchObject({ mode: 'fixed', setBy: 'user' });
+
+    await session.applyViewport({ width: 375, height: 812 }, { actor: 'agent', mode: 'mobile' });
+    const agentState = events.filter((event) => event.type === 'browser/state').at(-1);
+    expect(agentState?.viewport).toMatchObject({ mode: 'mobile', setBy: 'agent' });
+  });
+
+  it('bumps the document revision only for main-frame navigation', async () => {
+    const { page } = installWorkingBrowser();
+    const handlers = new Map<string, (arg?: unknown) => void>();
+    (page.on as unknown as { mockImplementation: (fn: unknown) => void }).mockImplementation(
+      (event: string, handler: (arg?: unknown) => void) => {
+        handlers.set(event, handler);
+      },
+    );
+    const mainFrame = { url: () => 'https://example.com' };
+    const childFrame = { url: () => 'https://example.com/frame' };
+    (page as unknown as { mainFrame: unknown }).mainFrame = vi.fn().mockReturnValue(mainFrame);
+
+    const session = createBrowserSession();
+    await session.navigate('https://example.com');
+    const before = session.currentTarget().documentRevision;
+    handlers.get('framenavigated')?.({ url: () => 'child' });
+    expect(session.currentTarget().documentRevision).toBe(before);
+    handlers.get('framenavigated')?.(childFrame);
+    expect(session.currentTarget().documentRevision).toBe(before);
+    handlers.get('framenavigated')?.(mainFrame);
+    expect(session.currentTarget().documentRevision).toBe(before + 1);
+  });
+
+  it('refuses input and pick whose target no longer matches the document', async () => {
+    const { page } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.navigate('https://example.com');
+    // Navigation is an agent write; the user must own the lock to send input.
+    await session.releaseAgentControl();
+    const target = session.currentTarget();
+
+    await session.dispatchInput([{ type: 'mouse', action: 'move', x: 1, y: 1 }], { target });
+    expect(page.mouse.move).toHaveBeenCalledWith(1, 1);
+
+    const stale = { ...target, documentRevision: target.documentRevision + 5 };
+    await expect(
+      session.dispatchInput([{ type: 'mouse', action: 'move', x: 2, y: 2 }], { target: stale }),
+    ).rejects.toBeInstanceOf(BrowserStaleTargetError);
+    await expect(session.pickElementAt(4, 4, { target: stale })).rejects.toBeInstanceOf(
+      BrowserStaleTargetError,
+    );
+  });
+
+  it('captures a JPEG for annotation without taking the controller', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    const capture = await session.capture();
+    expect(capture.mime).toBe('image/jpeg');
+    expect(capture.width).toBe(1280);
+    expect(capture.bytes.byteLength).toBeGreaterThan(0);
+    expect(session.controllerState().owner).toBe('idle');
   });
 
   it('type targets an aria ref, then types text', async () => {

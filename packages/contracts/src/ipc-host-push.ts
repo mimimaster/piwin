@@ -10,6 +10,7 @@ import type {
 import type { ExtensionUiKind } from './extension-ui.js';
 import type {
   BrowserControllerPush,
+  BrowserFramePush,
   BrowserStatePush,
   WebElementPickResult,
 } from './browser.js';
@@ -182,7 +183,7 @@ export type HostPushVariant =
   // width/height are CSS viewport px (screencast deviceWidth/Height or
   // Playwright viewportSize), not JPEG bitmap px. The panel maps clicks
   // against these values vs img.clientWidth — never img.naturalWidth.
-  | { type: 'browser/frame'; dataUrl: string; width: number; height: number; ts: number; encodedWidth?: number; encodedHeight?: number; sourceDpr?: number; quality?: number; producer?: 'screencast' | 'screenshot-fallback'; byteLength?: number; frameId?: string }
+  | BrowserFramePush
   | BrowserStatePush
   | { type: 'browser/picked'; result: WebElementPickResult }
   | {

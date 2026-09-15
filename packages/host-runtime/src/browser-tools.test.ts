@@ -139,6 +139,15 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     pressKey: async (key, options) => {
       calls.push({ method: 'pressKey', args: [key, options] });
     },
+    currentTarget: () => ({ generation: 1, pageId: 'page-1', documentRevision: 0 }),
+    capture: async () => ({
+      bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+      mime: 'image/jpeg',
+      width: 1280,
+      height: 800,
+      encodedWidth: 1280,
+      encodedHeight: 800,
+    }),
     queryViewport: () => {
       calls.push({ method: 'queryViewport', args: [] });
       return { width: 1280, height: 800 };

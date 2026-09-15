@@ -317,6 +317,14 @@ html[data-theme-visual-style='ink-wash'] .transcript-viewport {
   cursor: col-resize;
 }
 
+/* Every width sample re-wraps each mounted turn, including the overscanned
+   ones far off screen (a long turn is several thousand px of prose). Slots
+   keep their inline virtualizer height, so skipping off-screen content cannot
+   move the scroll range; release lays everything out once at the final width. */
+.app-shell.is-resizing-panels .transcript-turn-window-item {
+  content-visibility: auto;
+}
+
 /* ── App-level error boundary ──────────────────────────────────────── */
 
 .app-error-boundary {

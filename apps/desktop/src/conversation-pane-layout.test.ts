@@ -22,6 +22,7 @@ import {
 } from './conversation-pane-layout.js';
 import {
   focusConversationPaneDirection,
+  listConversationPaneRects,
   resizeFocusedConversationPane,
 } from './conversation-pane-navigation.js';
 
@@ -64,6 +65,27 @@ describe('conversation pane layout', () => {
     ]);
   });
 
+  it('lays preset panes out in reading order', () => {
+    const rowsOf = (count: 2 | 4 | 8): number[][] => {
+      const layout = applyConversationPanePreset(createConversationPaneLayout(), count, createIds());
+      const order = new Map(
+        listConversationPaneLeaves(layout.root).map((leaf, index) => [leaf.paneId, index + 1]),
+      );
+      const rows = new Map<number, Array<{ left: number; index: number }>>();
+      for (const rect of listConversationPaneRects(layout.root)) {
+        const row = rows.get(rect.top) ?? [];
+        row.push({ left: rect.left, index: order.get(rect.paneId) ?? 0 });
+        rows.set(rect.top, row);
+      }
+      return [...rows.entries()]
+        .sort(([top], [otherTop]) => top - otherTop)
+        .map(([, row]) => row.sort((a, b) => a.left - b.left).map((cell) => cell.index));
+    };
+    expect(rowsOf(2)).toEqual([[1, 2]]);
+    expect(rowsOf(4)).toEqual([[1, 2], [3, 4]]);
+    expect(rowsOf(8)).toEqual([[1, 2, 3, 4], [5, 6, 7, 8]]);
+  });
+
   it('focuses an existing pane instead of binding one session twice', () => {
     const createId = createIds();
     let layout = applyConversationPanePreset(createConversationPaneLayout('primary'), 4, createId);
@@ -84,19 +106,24 @@ describe('conversation pane layout', () => {
     let layout = applyConversationPanePreset(createConversationPaneLayout(), 4, createId);
     const leaves = listConversationPaneLeaves(layout.root);
     const first = leaves[0];
+    const second = leaves[1];
     const third = leaves[2];
-    if (!first || !third) throw new Error('four-pane preset did not create enough panes');
+    if (!first || !second || !third) throw new Error('four-pane preset did not create enough panes');
     layout = { ...layout, activePaneId: first.paneId };
     layout = focusConversationPaneDirection(layout, 'right');
-    expect(layout.activePaneId).toBe(third.paneId);
+    expect(layout.activePaneId).toBe(second.paneId);
+    layout = focusConversationPaneDirection(layout, 'down');
+    expect(layout.activePaneId).toBe(leaves[3]?.paneId);
+    layout = { ...layout, activePaneId: second.paneId };
     layout = resizeFocusedConversationPane(layout, 'left', 1);
-    const rootSplit = layout.root.kind === 'split' ? layout.root : null;
-    expect(rootSplit?.ratio).toBe(CONVERSATION_PANE_MIN_RATIO);
-    if (rootSplit) {
-      layout = setConversationPaneSplitRatio(layout, rootSplit.splitId, 999);
-      expect(layout.root.kind === 'split' ? layout.root.ratio : null).toBe(
-        CONVERSATION_PANE_MAX_RATIO,
-      );
+    const topRow =
+      layout.root.kind === 'split' && layout.root.first.kind === 'split' ? layout.root.first : null;
+    expect(topRow?.ratio).toBe(CONVERSATION_PANE_MIN_RATIO);
+    if (topRow) {
+      layout = setConversationPaneSplitRatio(layout, topRow.splitId, 999);
+      const nextTopRow =
+        layout.root.kind === 'split' && layout.root.first.kind === 'split' ? layout.root.first : null;
+      expect(nextTopRow?.ratio).toBe(CONVERSATION_PANE_MAX_RATIO);
     }
   });
 

@@ -97,10 +97,102 @@ export type BrowserDialogInfo = {
   timedOut: boolean;
 };
 
+export type BrowserViewportSetBy = 'agent' | 'user' | 'host';
+
 export type BrowserViewportConfig = {
   mode: BrowserViewportMode;
   width: number;
   height: number;
+  /** Who last changed the Host CSS viewport. Omitted by older emitters. */
+  setBy?: BrowserViewportSetBy;
+};
+
+/**
+ * Identity of the page a Desktop/Host command targets (spec §5.1). A mismatch
+ * against the live page returns `browser-stale-target` without dispatching.
+ */
+export type BrowserTargetIdentity = {
+  generation: number;
+  pageId: string;
+  documentRevision: number;
+};
+
+/** `browser/capture` result: Host media id, never base64 in the response. */
+export type BrowserCaptureResponse = {
+  attachment: MediaAttachmentRef;
+  target: BrowserTargetIdentity;
+  width: number;
+  height: number;
+};
+
+/**
+ * Live frame payload (spec §4.1.2). Local sidecar emits `inline`; a remote Host
+ * converts it to `binary` before projection and carries the JPEG out of band.
+ */
+export type BrowserFramePayload =
+  | { kind: 'inline'; dataUrl: string }
+  | { kind: 'binary' }
+  | { kind: 'unavailable'; reason: 'client-update-required' | 'frame-channel-unavailable' };
+
+export const BROWSER_FRAME_PRODUCERS = ['screencast', 'screenshot-fallback'] as const;
+export type BrowserFrameProducer = (typeof BROWSER_FRAME_PRODUCERS)[number];
+
+/**
+ * Binary browser-frame envelope (spec §4.1.2): magic + version, header length,
+ * UTF-8 JSON header, raw JPEG. Version 1 keeps the header self-describing so a
+ * decoder can reject a mismatched or malformed frame without closing the link.
+ */
+export const BROWSER_FRAME_BINARY_MAGIC = 0x50_42_46_31; // 'PBF1'
+export const BROWSER_FRAME_BINARY_VERSION = 1;
+export const BROWSER_FRAME_BINARY_MIME = 'image/jpeg';
+export const BROWSER_FRAME_HEADER_MAGIC_BYTES = 8;
+export const BROWSER_FRAME_MAX_HEADER_BYTES = 4 * 1024;
+/** Independent receive ceiling — never the generic JSON wire limit (spec §4.1.2). */
+export const MAX_BROWSER_FRAME_BINARY_BYTES = 12 * 1024 * 1024;
+/** Bounded decode ceiling for a received frame. */
+export const MAX_BROWSER_FRAME_DECODE_PIXELS = 16_000_000;
+/** Metadata arrived but its payload did not (spec §4.1.2). */
+export const BROWSER_FRAME_PAYLOAD_TIMEOUT_MS = 2_000;
+/** Why the panel shows a retry placeholder instead of a broken image. */
+export const BROWSER_FRAME_ERROR_HEADER = 'piwin-browser-frame-error';
+
+export type BrowserFrameBinaryHeader = {
+  version: number;
+  frameId: string;
+  generation: number;
+  pageId: string;
+  documentRevision: number;
+  /** CSS viewport px — the coordinate space of input and pick. */
+  width: number;
+  height: number;
+  /** Real JPEG bitmap px; the decode budget is checked against these. */
+  encodedWidth: number;
+  encodedHeight: number;
+  byteLength: number;
+  mime: string;
+};
+
+/**
+ * `browser/frame` push. `width`/`height` are the CSS viewport; `encodedWidth`/
+ * `encodedHeight` are the real JPEG bitmap, so density is never inferred from
+ * the requested capture size.
+ */
+export type BrowserFramePush = {
+  type: 'browser/frame';
+  ts: number;
+  frameId: string;
+  width: number;
+  height: number;
+  encodedWidth: number;
+  encodedHeight: number;
+  sourceDpr: number;
+  quality: number;
+  producer: BrowserFrameProducer;
+  byteLength: number;
+  generation: number;
+  pageId: string;
+  documentRevision: number;
+  payload: BrowserFramePayload;
 };
 
 export type BrowserRuntimeFailure = {

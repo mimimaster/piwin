@@ -72,11 +72,12 @@ describe('GoalStickyStrip', () => {
     });
   }
 
-  it('renders the phase label and matching dot class', () => {
+  it('renders the phase label and matching lid mark', () => {
     renderStrip('running');
     const strip = container.querySelector('[data-testid="goal-sticky-strip"]');
     expect(strip?.getAttribute('data-status')).toBe('running');
-    expect(strip?.querySelector('.dot-running')).not.toBeNull();
+    expect(strip?.classList.contains('goal-status-running')).toBe(true);
+    expect(strip?.querySelector('.goal-dock-mark.is-running')).not.toBeNull();
     expect(strip?.textContent).toContain('Goal running');
   });
 
@@ -92,6 +93,7 @@ describe('GoalStickyStrip', () => {
     });
     expect(container.querySelector('[data-testid="goal-abort-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="goal-exit-btn"]')).not.toBeNull();
+    expect(container.querySelector('.goal-dock-mark.is-completed svg')).not.toBeNull();
   });
 
   it('opens the timeline from the round pill', () => {

@@ -511,4 +511,21 @@ describe('UsagePanel', () => {
     expect(container?.querySelector('[data-testid="usage-recent-calls"]')).toBeNull();
     expect(container?.querySelector('.usage-panel-error')).toBeNull();
   });
+
+  it('mounts toolbar controls into the settings shell header slot when present', async () => {
+    const headerSlot = document.createElement('div');
+    headerSlot.id = 'settings-main-header-actions';
+    document.body.appendChild(headerSlot);
+
+    try {
+      ({ root, container } = renderPanel());
+      await flushLoad();
+
+      expect(headerSlot.querySelector('[data-testid="usage-time-select"]')).not.toBeNull();
+      expect(headerSlot.querySelector('[data-testid="usage-refresh-button"]')).not.toBeNull();
+      expect(container?.querySelector('.usage-toolbar')).toBeNull();
+    } finally {
+      headerSlot.remove();
+    }
+  });
 });

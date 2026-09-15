@@ -79,6 +79,9 @@ function sessionScopeLabel(
   return scope.kind === 'general' ? generalLabel : projectLabel(scope.projectPath, recentProjects);
 }
 
+/** Stable empty list while closed so effects keyed on `items.length` stay quiet. */
+const EMPTY_SESSION_SEARCH_ITEMS: SessionSearchDialogItem[] = [];
+
 export function SessionSearchDialog(props: SessionSearchDialogProps): ReactElement {
   const copy = getSessionSearchCopy(props.locale);
   const listId = useId();
@@ -86,13 +89,15 @@ export function SessionSearchDialog(props: SessionSearchDialogProps): ReactEleme
   const resultButtonsRef = useRef<Array<HTMLButtonElement | null>>([]);
   const items = useMemo(
     () =>
-      buildSessionSearchDialogItems({
-        primaryScope: props.primaryScope,
-        primarySessions: props.primarySessions,
-        generalSessions: props.generalSessions,
-        query: props.query,
-      }),
-    [props.generalSessions, props.primaryScope, props.primarySessions, props.query],
+      props.open
+        ? buildSessionSearchDialogItems({
+            primaryScope: props.primaryScope,
+            primarySessions: props.primarySessions,
+            generalSessions: props.generalSessions,
+            query: props.query,
+          })
+        : EMPTY_SESSION_SEARCH_ITEMS,
+    [props.generalSessions, props.open, props.primaryScope, props.primarySessions, props.query],
   );
   const hasQuery = props.query.trim().length > 0;
 
@@ -142,107 +147,112 @@ export function SessionSearchDialog(props: SessionSearchDialogProps): ReactEleme
       contentClassName="session-search-dialog"
       closeOnInteractOutside
     >
-      <h2 className="sr-only">{copy.dialogLabel}</h2>
-      <div className="session-search-input-row">
-        <IconSearch width={18} height={18} aria-hidden />
-        <input
-          type="search"
-          role="combobox"
-          aria-label={copy.inputLabel}
-          aria-controls={listId}
-          aria-expanded="true"
-          aria-autocomplete="list"
-          aria-activedescendant={items[activeIndex] ? `${listId}-option-${activeIndex}` : undefined}
-          data-testid="session-search-input"
-          value={props.query}
-          placeholder={copy.placeholder}
-          autoComplete="off"
-          spellCheck={false}
-          autoFocus
-          onChange={(event) => props.onQueryChange(event.target.value)}
-          onKeyDown={handleInputKeyDown}
-        />
-        <kbd className="session-search-escape-hint">Esc</kbd>
-      </div>
-
-      <div className="session-search-section-heading" aria-hidden>
-        <span>{hasQuery ? copy.results : copy.recent}</span>
-        <span>{items.length}</span>
-      </div>
-      <span className="sr-only" aria-live="polite">
-        {copy.resultCount(items.length)}
-      </span>
-
-      {items.length > 0 ? (
-        <ul id={listId} className="session-search-results" role="listbox">
-          {items.map((item, index) => {
-            const relativeTime = formatSessionRelativeTime(item.updatedAt);
-            const preview = item.lastPreview?.trim();
-            const showPreview =
-              hasQuery &&
-              preview !== undefined &&
-              preview.toLocaleLowerCase() !== item.name.trim().toLocaleLowerCase();
-            return (
-              <li key={`${item.scope.kind}:${item.id}`} role="presentation">
-                <button
-                  ref={(node) => {
-                    resultButtonsRef.current[index] = node;
-                  }}
-                  id={`${listId}-option-${index}`}
-                  type="button"
-                  role="option"
-                  aria-selected={index === activeIndex}
-                  className={`session-search-result${index === activeIndex ? ' active' : ''}`}
-                  data-testid="session-search-result"
-                  data-session-id={item.id}
-                  onPointerMove={() => setActiveIndex(index)}
-                  onFocus={() => setActiveIndex(index)}
-                  onClick={() => openItem(item)}
-                >
-                  <span className="session-search-result-icon" aria-hidden>
-                    <IconChat width={16} height={16} />
-                  </span>
-                  <span className="session-search-result-body">
-                    <span className="session-search-result-title">{item.name}</span>
-                    {showPreview ? (
-                      <span className="session-search-result-snippet">{preview}</span>
-                    ) : null}
-                  </span>
-                  <span className="session-search-result-meta">
-                    <span className="session-search-result-scope">
-                      {sessionScopeLabel(item.scope, props.recentProjects, copy.general)}
-                    </span>
-                    {relativeTime ? (
-                      <time dateTime={item.updatedAt} aria-label={item.updatedAt}>
-                        {relativeTime}
-                      </time>
-                    ) : null}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <div className="session-search-empty" data-testid="session-search-empty">
-          <IconSearch width={22} height={22} aria-hidden />
-          <strong>{copy.emptyTitle}</strong>
-          <span>{copy.emptyBody}</span>
+      {/* Closed content is unmounted; skip building result rows per parent render. */}
+      {props.open ? (
+        <>
+        <h2 className="sr-only">{copy.dialogLabel}</h2>
+        <div className="session-search-input-row">
+          <IconSearch width={18} height={18} aria-hidden />
+          <input
+            type="search"
+            role="combobox"
+            aria-label={copy.inputLabel}
+            aria-controls={listId}
+            aria-expanded="true"
+            aria-autocomplete="list"
+            aria-activedescendant={items[activeIndex] ? `${listId}-option-${activeIndex}` : undefined}
+            data-testid="session-search-input"
+            value={props.query}
+            placeholder={copy.placeholder}
+            autoComplete="off"
+            spellCheck={false}
+            autoFocus
+            onChange={(event) => props.onQueryChange(event.target.value)}
+            onKeyDown={handleInputKeyDown}
+          />
+          <kbd className="session-search-escape-hint">Esc</kbd>
         </div>
-      )}
 
-      <footer className="session-search-footer" aria-hidden>
-        <span>
-          <kbd>↑</kbd>
-          <kbd>↓</kbd> {props.locale === 'zh-CN' ? '选择' : 'Select'}
+        <div className="session-search-section-heading" aria-hidden>
+          <span>{hasQuery ? copy.results : copy.recent}</span>
+          <span>{items.length}</span>
+        </div>
+        <span className="sr-only" aria-live="polite">
+          {copy.resultCount(items.length)}
         </span>
-        <span>
-          <kbd>↵</kbd> {props.locale === 'zh-CN' ? '打开' : 'Open'}
-        </span>
-        <span>
-          <kbd>Esc</kbd> {props.locale === 'zh-CN' ? '关闭' : 'Close'}
-        </span>
-      </footer>
+
+        {items.length > 0 ? (
+          <ul id={listId} className="session-search-results" role="listbox">
+            {items.map((item, index) => {
+              const relativeTime = formatSessionRelativeTime(item.updatedAt);
+              const preview = item.lastPreview?.trim();
+              const showPreview =
+                hasQuery &&
+                preview !== undefined &&
+                preview.toLocaleLowerCase() !== item.name.trim().toLocaleLowerCase();
+              return (
+                <li key={`${item.scope.kind}:${item.id}`} role="presentation">
+                  <button
+                    ref={(node) => {
+                      resultButtonsRef.current[index] = node;
+                    }}
+                    id={`${listId}-option-${index}`}
+                    type="button"
+                    role="option"
+                    aria-selected={index === activeIndex}
+                    className={`session-search-result${index === activeIndex ? ' active' : ''}`}
+                    data-testid="session-search-result"
+                    data-session-id={item.id}
+                    onPointerMove={() => setActiveIndex(index)}
+                    onFocus={() => setActiveIndex(index)}
+                    onClick={() => openItem(item)}
+                  >
+                    <span className="session-search-result-icon" aria-hidden>
+                      <IconChat width={16} height={16} />
+                    </span>
+                    <span className="session-search-result-body">
+                      <span className="session-search-result-title">{item.name}</span>
+                      {showPreview ? (
+                        <span className="session-search-result-snippet">{preview}</span>
+                      ) : null}
+                    </span>
+                    <span className="session-search-result-meta">
+                      <span className="session-search-result-scope">
+                        {sessionScopeLabel(item.scope, props.recentProjects, copy.general)}
+                      </span>
+                      {relativeTime ? (
+                        <time dateTime={item.updatedAt} aria-label={item.updatedAt}>
+                          {relativeTime}
+                        </time>
+                      ) : null}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="session-search-empty" data-testid="session-search-empty">
+            <IconSearch width={22} height={22} aria-hidden />
+            <strong>{copy.emptyTitle}</strong>
+            <span>{copy.emptyBody}</span>
+          </div>
+        )}
+
+        <footer className="session-search-footer" aria-hidden>
+          <span>
+            <kbd>↑</kbd>
+            <kbd>↓</kbd> {props.locale === 'zh-CN' ? '选择' : 'Select'}
+          </span>
+          <span>
+            <kbd>↵</kbd> {props.locale === 'zh-CN' ? '打开' : 'Open'}
+          </span>
+          <span>
+            <kbd>Esc</kbd> {props.locale === 'zh-CN' ? '关闭' : 'Close'}
+          </span>
+        </footer>
+        </>
+      ) : null}
     </Dialog>
   );
 }

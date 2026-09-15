@@ -13,15 +13,23 @@ import { join } from 'node:path';
 import type { Page } from 'playwright-core';
 import type {
   BrowserControllerPush,
+  BrowserFrameBinaryHeader,
+  BrowserFramePayload,
   BrowserInputEvent,
   BrowserLifecycle,
   BrowserMirrorMode,
   BrowserSnapshotNode,
+  BrowserTargetIdentity,
   BrowserViewportMode,
+  BrowserViewportSetBy,
   HostPush,
   WebElementPickResult,
 } from '@piwin/contracts';
-import { BROWSER_USER_HAS_CONTROL } from '@piwin/contracts';
+import {
+  BROWSER_FRAME_BINARY_MIME,
+  BROWSER_FRAME_BINARY_VERSION,
+  BROWSER_USER_HAS_CONTROL,
+} from '@piwin/contracts';
 import { createExclusiveQueue, type RunExclusive } from './mutex.js';
 import { createBrowserController, type BrowserControllerState } from './controller.js';
 import { isMouseMoveOnly } from './input.js';
@@ -30,7 +38,9 @@ import {
   type BrowserLaunchPersistentContext,
   type BrowserRuntimeHooks,
 } from './browser-runtime.js';
-import { createBrowserMirror } from './browser-mirror.js';
+import { createBrowserMirror, type BrowserFrameResult } from './browser-mirror.js';
+import { toJpegDataUrl } from './frame-encoding.js';
+import { readJpegSize } from './jpeg-size.js';
 import type { BrowserFindResult } from './find.js';
 import {
   createBrowserOperations,
@@ -46,12 +56,14 @@ import type {
 } from './browser-observe.js';
 import type { BrowserDialogInfo, BrowserTabInfo } from './browser-pages.js';
 import {
+  BROWSER_CAPTURE_QUALITY,
   BROWSER_DEFAULT_DEVICE_SCALE_FACTOR,
   clampBrowserDeviceScaleFactor,
 } from './screencast-size.js';
 import {
   AbortOperationError,
   BrowserSessionError,
+  BrowserStaleTargetError,
   BrowserUserHasControlError,
 } from './browser-errors.js';
 
@@ -98,7 +110,18 @@ export type BrowserSessionOptions = {
   launchPersistentContext?: BrowserLaunchPersistentContext;
   /** Test seam for dialog auto-dismiss. */
   dialogTimeoutMs?: number;
+  /**
+   * How live frames reach the shell (spec §4.1.2). `inline` keeps base64 in the
+   * local JSON path; `binary` publishes metadata only and hands the JPEG bytes
+   * to `onFrameBytes` for the out-of-band channel.
+   */
+  frameTransport?: BrowserFrameTransport;
+  /** Sink for raw JPEG frames when `frameTransport` is `binary`. */
+  onFrameBytes?: (header: BrowserFrameBinaryHeader, bytes: Uint8Array) => void;
 };
+
+/** Local sidecar JSON path vs the remote binary frame channel. */
+export type BrowserFrameTransport = 'inline' | 'binary';
 
 export type BrowserSessionState = { url?: string; title?: string };
 
@@ -124,6 +147,17 @@ export type ScreenshotResult = {
   width: number;
   height: number;
   path?: string;
+};
+
+/** One high-quality capture for the annotation layer (spec §4.3). */
+export type BrowserCaptureResult = {
+  bytes: Uint8Array;
+  mime: string;
+  /** CSS viewport px. */
+  width: number;
+  height: number;
+  encodedWidth: number;
+  encodedHeight: number;
 };
 
 export type BrowserSession = {
@@ -171,20 +205,31 @@ export type BrowserSession = {
   pressKey(key: string, options?: BrowserOpOptions): Promise<void>;
   waitFor(condition: BrowserWaitForCondition, options?: BrowserWaitForOptions): Promise<void>;
   queryViewport(): { width: number; height: number };
+  /** Host-issued identity of the page input/pick commands must match (§5.1). */
+  currentTarget(): BrowserTargetIdentity;
+  /** Read-only high-quality capture for annotation; never takes the lock. */
+  capture(options?: {
+    signal?: AbortSignal;
+    quality?: number;
+    fullPage?: boolean;
+  }): Promise<BrowserCaptureResult>;
   applyViewport(
     size: { width: number; height: number },
-    options?: BrowserOpOptions,
+    options?: BrowserOpOptions & { mode?: BrowserViewportMode },
   ): Promise<{ width: number; height: number }>;
   pickElementAt(
     x: number,
     y: number,
-    options?: { signal?: AbortSignal; screenshotPath?: string },
+    options?: { signal?: AbortSignal; screenshotPath?: string; target?: BrowserTargetIdentity },
   ): Promise<WebElementPickResult>;
-  dispatchInput(events: BrowserInputEvent[], options?: { signal?: AbortSignal }): Promise<void>;
+  dispatchInput(
+    events: BrowserInputEvent[],
+    options?: { signal?: AbortSignal; target?: BrowserTargetIdentity },
+  ): Promise<void>;
   /** Fit the Playwright viewport to the panel CSS box; does not take the lock. */
   setViewport(
     size: { width: number; height: number },
-    options?: { signal?: AbortSignal; mode?: BrowserViewportMode },
+    options?: { signal?: AbortSignal; mode?: BrowserViewportMode; setBy?: BrowserViewportSetBy },
   ): Promise<{ width: number; height: number }>;
   mirrorLeaseCount(): number;
   hasMirrorLease(leaseId: string): boolean;
@@ -250,6 +295,15 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   const controller = createBrowserController();
   const state: BrowserSessionState = {};
   let viewportMode: BrowserViewportMode = 'follow';
+  let viewportSetBy: BrowserViewportSetBy = 'host';
+  const frameTransport: BrowserFrameTransport = options.frameTransport ?? 'inline';
+  /**
+   * Monotonic inside one BrowserSession. A main-frame navigation bumps it, so
+   * `generation + pageId + documentRevision` is a complete stale-target key.
+   */
+  let documentRevision = 0;
+  let frameSeq = 0;
+  let frameSeqGeneration = -1;
 
   const hooks: BrowserRuntimeHooks = {
     emitState: () => Promise.resolve(),
@@ -291,7 +345,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     getPage: () => runtime.getPage(),
     hasActiveMirrorLease: () => runtime.hasActiveMirrorLease(),
     resolveDeviceScaleFactor,
-    subscribers,
+    onFrame: (frame) => publishFrame(frame),
   });
 
   // Live screencast already paints after navigate; a screenshot would be a second producer.
@@ -306,6 +360,83 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     if (!runtime.hasActiveMirrorLease()) return 'off';
     if (mirror.hasScreencast()) return 'streaming';
     return 'degraded';
+  }
+
+  function currentTarget(): BrowserTargetIdentity {
+    return {
+      generation: runtime.generation(),
+      pageId: runtime.pageId() ?? '',
+      documentRevision,
+    };
+  }
+
+  function assertTargetMatches(target: BrowserTargetIdentity | undefined): void {
+    if (target === undefined) return;
+    const live = currentTarget();
+    if (
+      target.generation !== live.generation ||
+      target.pageId !== live.pageId ||
+      target.documentRevision !== live.documentRevision
+    ) {
+      throw new BrowserStaleTargetError(
+        'The browser moved to another document; refresh refs before sending input.',
+      );
+    }
+  }
+
+  /**
+   * Single frame delivery point: identity, payload shape, and the optional
+   * out-of-band byte sink (spec §4.1.2). The frame id is monotonic per
+   * generation so a delayed payload can never overwrite a newer picture.
+   */
+  function publishFrame(result: BrowserFrameResult): void {
+    const generation = runtime.generation();
+    if (frameSeqGeneration !== generation) {
+      frameSeqGeneration = generation;
+      frameSeq = 0;
+    }
+    frameSeq += 1;
+    const frameId = String(frameSeq);
+    const pageId = runtime.pageId() ?? '';
+    const payload: BrowserFramePayload =
+      frameTransport === 'binary'
+        ? { kind: 'binary' }
+        : { kind: 'inline', dataUrl: toJpegDataUrl(result.bytes) };
+    const event: BrowserFramePush = {
+      type: 'browser/frame',
+      ts: Date.now(),
+      frameId,
+      width: result.width,
+      height: result.height,
+      encodedWidth: result.encodedWidth,
+      encodedHeight: result.encodedHeight,
+      sourceDpr: result.sourceDpr,
+      quality: result.quality,
+      producer: result.producer,
+      byteLength: result.bytes.byteLength,
+      generation,
+      pageId,
+      documentRevision,
+      payload,
+    };
+    for (const listener of subscribers) listener(event);
+    if (frameTransport !== 'binary') return;
+    options.onFrameBytes?.(
+      {
+        version: BROWSER_FRAME_BINARY_VERSION,
+        frameId,
+        generation,
+        pageId,
+        documentRevision,
+        width: result.width,
+        height: result.height,
+        encodedWidth: result.encodedWidth,
+        encodedHeight: result.encodedHeight,
+        byteLength: result.bytes.byteLength,
+        mime: BROWSER_FRAME_BINARY_MIME,
+      },
+      result.bytes,
+    );
   }
 
   function emitState(): Promise<void> {
@@ -344,11 +475,13 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
           lifecycle: runtime.lifecycle(),
           mirror: currentMirrorMode(),
           generation: runtime.generation(),
+          documentRevision,
           ...(pageId !== undefined ? { pageId } : {}),
           viewport: {
             mode: viewportMode,
             width: viewportSize.width,
             height: viewportSize.height,
+            setBy: viewportSetBy,
           },
           tabs: tabs ?? [],
           pendingDialog: pendingDialog ?? null,
@@ -372,6 +505,9 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       });
   }
   hooks.emitState = emitState;
+  hooks.noteDocumentChange = () => {
+    documentRevision += 1;
+  };
 
   function emitController(reason?: string): void {
     const snapshot = controller.snapshot();
@@ -545,7 +681,11 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     applyViewport: (size, options) =>
       withAbort(async () => {
         assertActor(options?.actor ?? 'agent', 'agent-write', options?.runId);
-        return operations.setViewport(size);
+        viewportSetBy = options?.actor ?? 'agent';
+        if (options?.mode !== undefined) viewportMode = options.mode;
+        const next = await operations.setViewport(size, options?.mode);
+        await emitState();
+        return next;
       }, options?.signal),
     status: () => {
       const pageId = runtime.pageId();
@@ -583,7 +723,12 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         };
       }, options?.signal),
     pickElementAt: (x, y, options) =>
-      withAbort(() => operations.pickElementAt(x, y, options?.screenshotPath), options?.signal),
+      withAbort(() => {
+        // Pick is read-only, but it still must not act on a frame the user is
+        // no longer looking at (spec §5.1).
+        assertTargetMatches(options?.target);
+        return operations.pickElementAt(x, y, options?.screenshotPath);
+      }, options?.signal),
 
     dispatchInput: (events, options) => {
       if (events.length > MAX_INPUT_EVENTS) {
@@ -592,6 +737,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       if (events.length === 0) return Promise.resolve();
       const moveOnly = isMouseMoveOnly(events);
       const operate = async (): Promise<void> => {
+        assertTargetMatches(options?.target);
         if (moveOnly) {
           // Hover must not promote idle → user (that lock has no timeout).
           if (controller.snapshot().owner === 'agent') {
@@ -606,10 +752,34 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       return withAbort(operate, options?.signal);
     },
 
+    currentTarget: () => currentTarget(),
+    capture: (options) =>
+      withAbort(async () => {
+        const quality = options?.quality ?? BROWSER_CAPTURE_QUALITY;
+        const result = await operations.capture({
+          quality,
+          ...(options?.fullPage === true ? { fullPage: true } : {}),
+        });
+        const encoded = readJpegSize(result.bytes) ?? {
+          width: result.viewport.width,
+          height: result.viewport.height,
+        };
+        return {
+          bytes: result.bytes,
+          mime: BROWSER_FRAME_BINARY_MIME,
+          width: result.viewport.width,
+          height: result.viewport.height,
+          encodedWidth: encoded.width,
+          encodedHeight: encoded.height,
+        };
+      }, options?.signal),
     setViewport: (size, options) =>
       withAbort(async () => {
         if (options?.mode !== undefined) viewportMode = options.mode;
-        return operations.setViewport(size, options?.mode);
+        viewportSetBy = options?.setBy ?? 'user';
+        const next = await operations.setViewport(size, options?.mode);
+        await emitState();
+        return next;
       }, options?.signal),
     mirrorLeaseCount: () => runtime.mirrorLeaseCount(),
     hasMirrorLease: (leaseId) => runtime.hasMirrorLease(leaseId),

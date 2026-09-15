@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, type ReactElement } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useRef, type ReactElement } from 'react';
 import type { ModelRef, ThemeManifest } from '@piwin/contracts';
 import type { ChatMessageUi, ChatUiState } from './chat-reducer.js';
 import { CompactionActivity } from './compaction-activity.js';
@@ -40,8 +40,14 @@ function createPendingAssistant(
   };
 }
 
+/** Within this distance of the bottom the pane keeps following new output. */
+export const CONVERSATION_PANE_FOLLOW_THRESHOLD_PX = 48;
+
 export function ConversationPaneTranscript(props: ConversationPaneTranscriptProps): ReactElement {
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Follow the tail only while the reader is already there. Scrolling up to
+  // read history during a stream must not be yanked back on every token.
+  const followingRef = useRef(true);
   const messages = useMemo(() => {
     const visible = props.state.messages.filter((message) => {
       if (
@@ -74,13 +80,24 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
     return null;
   }, [messages]);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' });
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element || !followingRef.current) return;
+    // Scroll this pane only: scrollIntoView also moved ancestor scrollers and
+    // stopped short of the transcript's bottom padding.
+    element.scrollTop = element.scrollHeight;
   }, [messages]);
 
   return (
     <div
+      ref={scrollRef}
       className="conversation-pane-transcript"
+      onScroll={(event) => {
+        const element = event.currentTarget;
+        followingRef.current =
+          element.scrollHeight - element.clientHeight - element.scrollTop <=
+          CONVERSATION_PANE_FOLLOW_THRESHOLD_PX;
+      }}
       role="log"
       aria-live="polite"
       aria-label={props.locale === 'zh-CN' ? 'Chat 消息' : 'Chat messages'}
@@ -197,7 +214,6 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
           {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
         />
       ) : null}
-      <div ref={endRef} aria-hidden="true" />
     </div>
   );
 }

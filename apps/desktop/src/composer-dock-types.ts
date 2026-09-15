@@ -8,6 +8,7 @@ import type {
 } from './composer-plus-menu';
 import type { PendingContextRefItem } from './hooks/use-composer-context-refs';
 import type { AgentModeId } from './agent-mode';
+import type { ChatMessageUi } from './chat-ui-types';
 import type { PendingComposerAttachment } from './media-utils';
 import type { OrchestrationSchemeOption } from './OrchestrationSchemeControl';
 import type { ExtensionUiResolvePayload } from './extension-ui-prompt';
@@ -49,6 +50,11 @@ export type ComposerDockProps = {
   onComposerChange: (value: string) => void;
   agentMode: AgentModeId;
   onAgentModeChange: (mode: AgentModeId) => void;
+  /**
+   * Transcript the Goal lid derives its phase and timeline from. Only the
+   * session dock passes it; without it (side chat, centered start) no lid.
+   */
+  goalMessages?: readonly ChatMessageUi[];
   /** Whether the bundled goal extension is enabled; gates `/goal` in the slash menu. */
   goalExtensionEnabled?: boolean;
   pendingAttachments: PendingComposerAttachment[];

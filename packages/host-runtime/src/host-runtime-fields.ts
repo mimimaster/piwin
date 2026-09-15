@@ -29,6 +29,7 @@ import { createExtensionRevisionStore } from '@piwin/extensions';
 import { type McpGenerationSnapshot, type McpLifecycleManager } from '@piwin/mcp';
 import { SessionTodoStore } from '@piwin/automation';
 import { type PetStateStore } from './pet-state-store.js';
+import type { BrowserFrameBytesSink } from './host-runtime-services.js';
 
 import { createSubagentRunStore } from '@piwin/session';
 import type { ContextUsageSnapshot } from '@piwin/contracts';
@@ -235,6 +236,8 @@ export class HostRuntimeFields {
   browserSessionInit: Promise<import('@piwin/browser').BrowserSession> | null = null;
   /** Unsubscribe for the browser session push wiring. */
   browserSessionUnsubscribe: (() => void) | null = null;
+  /** Raw browser JPEG sinks (remote binary frame channel, spec §4.1.2). */
+  browserFrameSinks: Set<BrowserFrameBytesSink> = new Set();
   folderRag: import('@piwin/doc-rag').FolderRag | null = null;
   folderRagKey: string | null = null;
   notesServices: {

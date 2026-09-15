@@ -3,7 +3,7 @@
  * Reuses the main composer card + model picker chrome so those surfaces can
  * type, pick a model, and send without a second input design.
  */
-import { useCallback, useEffect, useRef, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
 import type { ThinkingLevel } from '@piwin/contracts';
 import { ComposerContextUsageControl } from './composer-context-controls.js';
 import type { ContextRingViewModel } from './context-telemetry-selector.js';
@@ -44,7 +44,10 @@ export function CompactPromptComposer(props: CompactPromptComposerProps): ReactE
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
   );
-  const thinkingModels = toThinkingEffortModels(props.modelOptions);
+  const thinkingModels = useMemo(
+    () => toThinkingEffortModels(props.modelOptions),
+    [props.modelOptions],
+  );
 
   const autoResize = useCallback(() => {
     const field = textareaRef.current;

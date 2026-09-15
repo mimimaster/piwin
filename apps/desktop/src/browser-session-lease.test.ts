@@ -46,19 +46,25 @@ function createFakeHost(options?: {
 }
 
 describe('reduceBrowserHostPush', () => {
-  it('maps browser/frame onto the mirror image', () => {
+  it('does not write a frame src from a raw push — the decoder owns pictures', () => {
     const next = reduceBrowserHostPush(EMPTY_BROWSER_SESSION_LEASE, {
       type: 'browser/frame',
-      dataUrl: 'data:image/png;base64,AAAA',
+      frameId: '1',
       width: 800,
       height: 600,
+      encodedWidth: 800,
+      encodedHeight: 600,
+      sourceDpr: 1,
+      quality: 80,
+      producer: 'screencast',
+      byteLength: 4,
+      generation: 1,
+      pageId: 'page-1',
+      documentRevision: 0,
+      payload: { kind: 'inline', dataUrl: 'data:image/jpeg;base64,/9j/' },
       ts: 1,
     });
-    expect(next.frame).toEqual({
-      src: 'data:image/png;base64,AAAA',
-      viewportWidth: 800,
-      viewportHeight: 600,
-    });
+    expect(next.frame).toEqual(EMPTY_BROWSER_SESSION_LEASE.frame);
     expect(next.urlInput).toBe('');
   });
 
@@ -293,9 +299,19 @@ describe('startBrowserSessionLease', () => {
     });
     const frame: HostServerMessage = {
       type: 'browser/frame',
-      dataUrl: 'data:image/png;base64,AAAA',
+      frameId: '1',
       width: 800,
       height: 600,
+      encodedWidth: 800,
+      encodedHeight: 600,
+      sourceDpr: 1,
+      quality: 80,
+      producer: 'screencast',
+      byteLength: 4,
+      generation: 1,
+      pageId: 'page-1',
+      documentRevision: 0,
+      payload: { kind: 'binary' },
       ts: 1,
     };
     host.emit(frame);

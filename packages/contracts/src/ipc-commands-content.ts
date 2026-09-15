@@ -1,5 +1,5 @@
 import type { CronJob, HookDefinition, SessionTodoList } from './automation.js';
-import type { BrowserInputEvent } from './browser.js';
+import type { BrowserInputEvent, BrowserTargetIdentity } from './browser.js';
 import type { IndexFolderOptions, RetrieveOptions } from './doc-rag.js';
 import type {
   FlashcardBatchCreateInput,
@@ -323,12 +323,13 @@ export type HostContentCommand =
     }
   | { id?: string; type: 'browser/start'; leaseId?: string }
   | { id?: string; type: 'browser/navigate'; url: string }
-  | { id?: string; type: 'browser/pick-at'; x: number; y: number }
+  | { id?: string; type: 'browser/pick-at'; x: number; y: number; target?: BrowserTargetIdentity }
   | { id?: string; type: 'browser/screenshot'; path?: string }
+  | { id?: string; type: 'browser/capture'; sessionId?: string; quality?: number; fullPage?: boolean }
   | { id?: string; type: 'browser/stop'; leaseId?: string }
   | { id?: string; type: 'browser/restart' }
   | { id?: string; type: 'browser/reload' }
-  | { id?: string; type: 'browser/input'; events: BrowserInputEvent[] }
+  | { id?: string; type: 'browser/input'; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }
   | { id?: string; type: 'browser/lock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/unlock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/resize'; width: number; height: number; leaseId?: string; origin?: 'follow' | 'explicit' }
