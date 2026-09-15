@@ -8,6 +8,7 @@ import {
   BrowserUserHasControlError,
 } from '@piwin/browser';
 import {
+  mapBrowserExecuteError,
   mapBrowserToolError,
   sanitizeBrowserErrorMessage,
   userControlResult,
@@ -29,6 +30,7 @@ describe('mapBrowserToolError', () => {
       code: 'browser-user-has-control',
       retryable: false,
       message: 'The user has the browser.',
+      details: { recoveryAction: 'wait-for-user-handoff' },
     });
   });
 
@@ -139,5 +141,19 @@ describe('userControlResult', () => {
     expect(() => userControlResult(new Error('not a browser error'))).toThrow(
       'not a browser error',
     );
+  });
+});
+
+describe('mapBrowserExecuteError', () => {
+  it('maps overlay intercept to snapshot-or-dismiss-overlay', () => {
+    const result = mapBrowserExecuteError(
+      new Error('<div> intercepts pointer events'),
+      'click',
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'browser-action-failed',
+      details: { reason: 'overlay', recoveryAction: 'snapshot-or-dismiss-overlay' },
+    });
   });
 });

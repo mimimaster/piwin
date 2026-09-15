@@ -23,6 +23,13 @@ describe('Inkstone transcript container query', () => {
     expect(css).toContain('max-width: none;');
   });
 
+  it('resolves the turn grid on the turn, not a frozen :root column token', () => {
+    expect(css).toContain(
+      'grid-template-columns: minmax(0, var(--gut)) minmax(0, var(--measure)) minmax(0, var(--gut));',
+    );
+    expect(css).not.toContain('var(--turn-columns)');
+  });
+
   it('sets --mg/--gut on stage descendants, not the container itself', () => {
     // A size container cannot style itself — --mg on `.chat-stage` inside
     // `@container transcript-stage` never applied (rail width 0 → vertical "1 工具").
@@ -30,10 +37,10 @@ describe('Inkstone transcript container query', () => {
     // leftover gutter must use 100cqw (the named stage) or the rail is 0
     // wide and `.who` vanishes after the head is hidden.
     expect(css).toMatch(
-      /@container transcript-stage \(min-width: 960px\)[\s\S]*?\.chat-stage\s+:is\(\.chat-thread, \.chat-turn, \.turn, \.composer-dock\)[\s\S]*?--gut: max\(0px, min\(140px, calc\(\(100cqw - var\(--measure\)\) \/ 2\)\)\)/,
+      /@container transcript-stage \(min-width: 960px\)[\s\S]*?\.chat-stage\s+> \*[\s\S]*?--gut: max\(0px, min\(140px, calc\(\(100cqw - var\(--conversation-width\)\) \/ 2\)\)\)/,
     );
     expect(css).toMatch(
-      /@container transcript-stage \(min-width: 1080px\)[\s\S]*?\.chat-stage\s+:is\(\.chat-thread, \.chat-turn, \.turn, \.composer-dock\)[\s\S]*?--gut: max\(0px, min\(160px, calc\(\(100cqw - var\(--measure\)\) \/ 2\)\)\)/,
+      /@container transcript-stage \(min-width: 1080px\)[\s\S]*?\.chat-stage\s+> \*[\s\S]*?--gut: max\(0px, min\(160px, calc\(\(100cqw - var\(--conversation-width\)\) \/ 2\)\)\)/,
     );
     expect(css).not.toMatch(/--gut:[\s\S]{0,80}24rem/);
     expect(css).not.toMatch(
@@ -53,6 +60,25 @@ describe('Inkstone transcript container query', () => {
     expect(gut960).not.toContain('display: none');
     expect(railSwap).toContain('.chat-turn-head');
     expect(railSwap).toContain('display: none !important');
+  });
+
+  it('keeps a dedicated reserved clock on the assistant rail', () => {
+    expect(css).toContain('.chat-marginalia');
+    expect(css).toContain('.turn-clock');
+    expect(css).toContain('min-width: 4.5em');
+  });
+
+  it('centres the rail byline on the body lead row, per lead kind', () => {
+    expect(css).toContain('padding: var(--turn-lead-offset, 0px) 14px 0 0;');
+    expect(css).toMatch(/\.chat-turn-assistant \{\s*--turn-lead-offset: 2px;\s*--turn-lead-h: 30px;/);
+    expect(css).toMatch(/\.conversation-message-header\s*\+ \.markdown\s*\) \{\s*--turn-lead-offset: 0px;\s*--turn-lead-h: 25px;/);
+    expect(css).toMatch(/\.turn-error-card\):not\([\s\S]*?\) \{\s*--turn-lead-offset: 20px;\s*--turn-lead-h: 24px;/);
+    expect(css).toMatch(/@container turn-rail \(max-width: 139px\)[\s\S]*?> \.av \{\s*display: none;/);
+  });
+
+  it('pulses the glyph while running and keeps only the waiting label', () => {
+    expect(css).toMatch(/\[data-status-tone='running'\]\s*> \[data-st='status'\] \{\s*display: none;/);
+    expect(css).toMatch(/\[data-status-tone='waiting'\]\s*> \[data-st='status'\] \{\s*color: var\(--ochre\);/);
   });
 
   it('keeps marginalia meta lines from wrapping into a vertical stack', () => {

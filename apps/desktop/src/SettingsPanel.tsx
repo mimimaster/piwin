@@ -276,12 +276,12 @@ export const SettingsPanel = memo(function SettingsPanel({
           setInfoMessage(null);
         }
       },
-      isError ? 6000 : 3500,
+      isError ? 6000 : infoTone === 'warning' ? 8000 : 3500,
     );
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [error, info]);
+  }, [error, info, infoTone]);
 
   const setInfo = useCallback(
     (message: string | null, tone: 'info' | 'success' | 'warning' = 'info'): void => {

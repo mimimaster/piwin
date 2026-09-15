@@ -610,6 +610,8 @@
   display: flex;
   width: 100%;
   max-width: 100%;
+  margin-left: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -747,12 +749,12 @@
   display: none;
 }
 
-/* Reasoning text hangs off a rail rather than sitting in a box — it is the
-   agent's inner voice, indented like a quotation. */
+/* The waiting locator (spinner + rotating phrases) sits below the thinking
+   fold header while the model hasn't produced content yet.  No quotation rail
+   here — the rail belongs on actual thinking text (.turn-thinking pre). */
 .turn-waiting-line {
   margin: var(--s-2) 0 var(--s-4);
   padding-left: var(--s-5);
-  border-left: 1.5px solid var(--line-1);
 }
 
 .turn-thinking {
@@ -843,5 +845,81 @@
     background: none;
     -webkit-text-fill-color: currentColor;
     color: var(--text-3);
+  }
+}
+
+/* ── Toolbox catalog lookups: tool id chips instead of raw JSON ── */
+.toolbox-catalog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.toolbox-catalog-hits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Collapsed rows hide outcome meta; the hit count is the subject here. */
+.toolbox-catalog-result {
+  color: var(--t4, var(--text-4));
+  font-size: var(--fs-chrome, 12px);
+  white-space: nowrap;
+}
+
+.toolbox-catalog-more,
+.toolbox-catalog-description {
+  margin: 0;
+  font-size: 12px;
+  color: var(--t3, var(--text-3));
+}
+
+/* ── Model wait tail: hollow node after the last settled tool round ── */
+.model-wait-tail-thread {
+  margin-top: -2px;
+}
+
+.model-wait-tail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  font-size: 12.5px;
+  color: var(--t3, var(--text-3));
+  white-space: nowrap;
+}
+
+.model-wait-tail .model-wait-label {
+  /* Line the text up with chain verbs (kind icon slot + gap). */
+  margin-left: 18px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-wait-tail .model-wait-meta {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 8px;
+  font: 11.5px var(--mono, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--t4, var(--text-4));
+}
+
+.model-wait-tail .model-wait-slow {
+  color: var(--lamp, var(--text-3));
+}
+
+.model-wait-tail > .node.model-wait-node {
+  background: transparent;
+  border-color: var(--lamp, currentColor);
+  animation: breath var(--breath, 2.4s) var(--ease-in-out, ease-in-out) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-wait-tail > .node.model-wait-node {
+    animation: none;
   }
 }

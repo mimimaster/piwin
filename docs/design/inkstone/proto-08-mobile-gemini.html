@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="zh-CN" data-face="paper">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f8f6f0">
+<title>Inkstone · 随身砚 — piwin 移动端原型</title>
+<style>
+/* theme.css */
+/* Canonical Inkstone tokens copied from proto-00-shell.html; prototype only. */
+:root[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--pine-wash:rgba(61,124,94,.12);--ochre:#94611a;--crimson:#9c2e3d;--crimson-wash:rgba(156,46,61,.1);--azure:#3a7797;--code:#efece4;--slab:#1f1c18;--slab-t:#efe9df;--slab-ph:#8d857a;--slab-chip:rgba(255,255,255,.07);--slab-line:rgba(255,255,255,.1);--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);--sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3)}
+:root[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--pine-wash:rgba(95,173,133,.14);--ochre:#c88f3c;--crimson:#d95f6e;--crimson-wash:rgba(217,95,110,.14);--azure:#6ba4c3;--code:#0f0e0c;--slab:#0e0d0b;--slab-t:#ebe5da;--slab-ph:#6f685f;--slab-chip:rgba(235,229,218,.07);--slab-line:rgba(235,229,218,.1);--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);--sh3:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.7),0 14px 34px -10px rgba(0,0,0,.7)}
+
+</style>
+<style>
+/* layout.css */
+/* Exhibition and portable mobile shell. No runtime application styles. */
+* { box-sizing: border-box; }
+:root { --sans: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", system-ui, sans-serif; --serif: "Noto Serif SC", "Songti SC", "STSong", "Source Han Serif SC", Georgia, serif; --mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; }
+body { margin: 0; background: var(--void); color: var(--t1); font: 14px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+button, input, textarea, select { font: inherit; } button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; } button { color: inherit; cursor: pointer; border: 0; background: none; } button:disabled { cursor: default; opacity: .45; }
+button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--zhu); outline-offset: 3px; } a { color: inherit; text-decoration: none; } svg { flex: none; }
+.icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; } h1, h2, h3, p { margin: 0; } .mono, code, time { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--t3); } .red { color: var(--zhu); } .green { color: var(--pine); } .blue { color: var(--azure); } .eyebrow { font: 11px/1.6 var(--mono); letter-spacing: .14em; color: var(--t3); }
+.exhibition { max-width: 1460px; min-height: 100dvh; margin: auto; padding: 38px 52px; display: grid; grid-template-columns: 250px minmax(400px, 1fr) 240px; gap: 40px; align-items: center; }
+.exhibit-nav { min-height: 810px; display: flex; flex-direction: column; }
+.wordmark { display: flex; align-items: center; gap: 11px; }
+.wordmark b { font: 600 25px var(--serif); letter-spacing: -.03em; }
+.brand-seal { width: 33px; height: 35px; background: var(--zhu); color: var(--on-zhu); display: inline-grid; place-items: center; font: 21px var(--serif); border-radius: 3px; outline: 1px solid var(--on-zhu); outline-offset: -4px; transform: rotate(-2deg); flex: none; }
+.edition { margin-left: auto; font: 10px var(--mono); color: var(--t3); letter-spacing: .08em; }
+.exhibit-intro { margin: 59px 0 32px; }
+.exhibit-intro h1 { font: 400 43px/1.4 var(--serif); letter-spacing: -.03em; margin: 15px 0; }
+.exhibit-intro p { font-size: 13px; line-height: 1.9; color: var(--t2); }
+#scene-nav { border-top: 1px solid var(--l2); padding-top: 13px; }
+.scene-link { display: flex; width: 100%; gap: 17px; align-items: center; padding: 9px 8px 9px 0; color: var(--t3); text-align: left; } .scene-link .scene-index { font: 11px var(--mono); opacity: .7; } .scene-link .scene-arrow { margin-left: auto; opacity: 0; } .scene-link.active { color: var(--zhu); } .scene-link.active .scene-arrow { opacity: 1; } .scene-link:hover { color: var(--t1); }
+.exhibit-bottom { margin-top: auto; padding-top: 28px; }
+.face-switch { display: flex; width: fit-content; gap: 3px; padding: 4px; border: 1px solid var(--l2); border-radius: 7px; }
+.face-switch button { padding: 7px 11px; font-size: 12px; border-radius: 4px; color: var(--t3); }
+.face-switch button[aria-pressed=true] { background: var(--s2); color: var(--t1); box-shadow: var(--sh1); }
+.exhibit-bottom p { font-size: 11px; line-height: 1.9; margin-top: 17px; color: var(--t3); }
+.specimen { min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.specimen-label { width: 390px; display: flex; gap: 16px; margin: 0 0 17px; font: 10px var(--mono); color: var(--t3); }
+.specimen-label button { margin-left: auto; font-size: 10px; padding: 0; }
+.device { width: 390px; height: 824px; background: var(--s2); border-radius: 39px; position: relative; overflow: hidden; display: flex; flex-direction: column; border: 6px solid var(--s1); box-shadow: 0 0 0 1px var(--l3), 0 24px 60px -25px rgba(39,28,15,.28), 0 4px 12px rgba(39,28,15,.06); transition: width 240ms ease; isolation: isolate; }
+.device.compact { width: 360px; }
+.phone-status { display: flex; justify-content: space-between; align-items: center; height: 46px; flex: none; padding: 3px 26px 0; font: 600 13px var(--sans); }
+.status-hardware { display: flex; align-items: center; gap: 6px; } .signal-bars { font-size: 10px; letter-spacing: -1px; } .wifi { font-size: 22px; line-height: 1; transform: rotate(180deg); }
+.battery { display: inline-block; width: 21px; height: 10px; border: 1px solid currentColor; border-radius: 3px; position: relative; padding: 1px; } .battery::before { content: ""; position: absolute; inset: 1px; right: 3px; background: currentColor; border-radius: 1px; } .battery::after { content: ""; position: absolute; height: 4px; width: 2px; top: 2px; right: -4px; background: currentColor; border-radius: 1px; }
+.phone { display: flex; flex-direction: column; flex: 1; min-height: 0; position: relative; }
+.phone::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: .035; mix-blend-mode: multiply; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px; }
+[data-face=ink] .phone::after { mix-blend-mode: screen; opacity: .02; }
+.home-indicator { height: 22px; flex: none; background: var(--s2); position: relative; }
+.home-indicator::after { content: ""; position: absolute; top: 9px; height: 4px; width: 120px; border-radius: 4px; background: var(--t1); left: calc(50% - 60px); }
+.device.compact .screen-scroll { padding-left: 14px; padding-right: 14px; } .device.compact .card { padding: 10px 12px; } .device.compact .scope-options button { font-size: 10px; }
+.specimen-footer { display: flex; width: 390px; align-items: center; gap: 7px; margin-top: 18px; font-size: 11px; color: var(--t3); } .specimen-footer .mono { margin-left: auto; font-size: 10px; }
+.small-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--pine); display: inline-block; }
+.exhibit-notes { align-self: center; padding-top: 100px; } .exhibit-notes h2 { font: 26px/1.5 var(--serif); margin: 18px 0; } .exhibit-notes p { font-size: 12px; color: var(--t2); line-height: 1.9; }
+.note-rule { width: 30px; height: 2px; background: var(--zhu); margin-bottom: 24px; }
+.note-item { margin-top: 26px; padding-top: 17px; border-top: 1px solid var(--l2); } .note-item b { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 550; }
+.note-tag { display: inline-block; font-size: 10px; color: var(--zhu); background: var(--zhu-wash); padding: 2px 6px; border-radius: 3px; margin-top: 18px; }
+.note-bottom { font: 10px/1.8 var(--mono); color: var(--t3); margin-top: 38px; }
+.topbar { display: flex; align-items: center; gap: 6px; padding: 3px 17px 9px; min-height: 51px; flex: none; }
+.topbar .brand-seal { width: 25px; height: 28px; font-size: 18px; }
+.topbar-title { flex: 1; min-width: 0; } button.topbar-title { text-align: left; padding: 2px 4px; border-radius: 8px; } button.topbar-title:hover { background: var(--s1); }
+.topbar-title h2 { font: 500 18px/1.45 var(--serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .topbar-title small { color: var(--t3); font-size: 11px; display: flex; gap: 7px; align-items: center; }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 44px; border-radius: 8px; flex: none; } .icon-button:hover { background: var(--s1); } .icon-button.red-fill { color: var(--on-zhu); background: var(--zhu); width: 40px; min-width: 40px; height: 40px; border-radius: 9px; }
+.screen-scroll { flex: 1; overflow: auto; overscroll-behavior: contain; min-height: 0; padding: 10px 22px 24px; scrollbar-width: none; } .screen-scroll::-webkit-scrollbar { display: none; }
+.screen-heading { margin-bottom: 20px; } .screen-heading h1 { font: 500 29px/1.5 var(--serif); letter-spacing: .01em; } .screen-heading p { color: var(--t3); font-size: 12px; margin-top: 3px; }
+.bottom-nav { display: flex; justify-content: space-around; padding: 5px 12px 0; border-top: 1px solid var(--l2); background: var(--s2); flex: none; }
+.bottom-nav button { display: flex; align-items: center; flex-direction: column; justify-content: center; min-width: 68px; min-height: 52px; gap: 3px; font-size: 11px; color: var(--t3); position: relative; }
+.bottom-nav button.active { color: var(--zhu); }
+.nav-counter { position: absolute; right: 12px; top: 0; background: var(--zhu); color: var(--on-zhu); font: 9px var(--mono); padding: 2px 4px; border-radius: 4px; }
+.toast { position: absolute; z-index: 20; left: 16px; right: 16px; bottom: 89px; padding: 12px 16px; border-radius: 8px; color: var(--slab-t); background: var(--slab); box-shadow: var(--sh3); opacity: 0; transform: translateY(8px); pointer-events: none; font-size: 13px; transition: 180ms ease; }
+.toast.show { opacity: 1; transform: translateY(0); }
+dialog { color: var(--t1); background: var(--s3); padding: 0; border: 0; border-radius: 22px 22px 0 0; width: var(--dialog-width, 378px); max-width: 100vw; max-height: var(--dialog-max-height, min(700px, 88dvh)); margin: 0; top: auto; bottom: var(--dialog-bottom, 0px); left: var(--dialog-left, 0px); box-shadow: var(--sh3); overflow: auto; overscroll-behavior: contain; }
+dialog::backdrop { background: rgba(20,17,12,.32); backdrop-filter: blur(2px); }
+.sheet-grab { width: 32px; height: 4px; background: var(--l3); border-radius: 4px; margin: 9px auto 3px; }
+.sheet-head { padding: 4px 15px 8px 22px; display: flex; align-items: center; justify-content: space-between; }
+.sheet-head h2 { font: 500 23px var(--serif); }
+.sheet-body { padding: 0 22px 28px; }
+.sheet-body p { color: var(--t2); line-height: 1.8; margin-bottom: 16px; }
+.sheet-body .full-button { margin-top: 12px; }
+@media (min-width: 1100px) and (max-height: 920px) { .exhibition { padding-top: 22px; padding-bottom: 22px; } .device { height: calc(100dvh - 110px); min-height: 560px; } .exhibit-nav { min-height: calc(100dvh - 44px); } .exhibit-intro { margin-top: 28px; margin-bottom: 20px; } .scene-link { padding-top: 6px; padding-bottom: 6px; } .exhibit-bottom { padding-top: 20px; } }
+@media (min-width: 1100px) and (max-height: 790px) { .exhibit-intro { margin: 20px 0 14px; } .exhibit-intro h1 { font-size: 34px; line-height: 1.25; margin: 12px 0; } .exhibit-intro p { font-size: 12px; } .scene-link { font-size: 12px; padding: 5px 0; } .exhibit-bottom { padding-top: 14px; } .exhibit-bottom p { margin-top: 10px; font-size: 10px; } .exhibit-notes { padding-top: 30px; } }
+@media (max-width: 1150px) { .exhibition { grid-template-columns: 230px minmax(380px, 1fr); padding: 30px; gap: 35px; max-width: 850px; } .exhibit-notes { display: none; } }
+@media (max-width: 700px) { .exhibition { display: block; padding: 0; height: 100dvh; } .exhibit-nav, .specimen-label, .specimen-footer { display: none; } .specimen { height: 100%; } .device, .device.compact { border: 0; box-shadow: none; border-radius: 0; width: 100%; height: 100%; min-height: 0; padding-top: env(safe-area-inset-top); } .phone-status { display: none; } .topbar { padding-top: 8px; min-height: 61px; } .home-indicator { height: max(12px, env(safe-area-inset-bottom)); } .home-indicator::after { display: none; } dialog { max-height: 90dvh; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+</style>
+<style>
+/* surfaces.css */
+/* Mobile surfaces: authentic Inkstone tactile vocabulary matching proto-00-shell-original. */
+.row { display: flex; align-items: center; gap: 10px; } .spread { display: flex; align-items: center; justify-content: space-between; gap: 12px; } .grow { flex: 1; min-width: 0; }
+.back-button .icon { transform: rotate(180deg); }
+.section-label { display: flex; justify-content: space-between; align-items: center; color: var(--t3); font-size: 11.5px; letter-spacing: .04em; margin: 18px 0 8px; } .section-label button { font-size: 11.5px; color: var(--t2); padding: 4px 0 4px 8px; }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 4px; background: var(--s1); color: var(--t2); font: 11px var(--mono); white-space: nowrap; } .pill .icon { width: 12px; height: 12px; }
+.pill.pine { color: var(--pine); background: var(--pine-wash); } .pill.zhu { color: var(--zhu); background: var(--zhu-wash); } .pill.azure { color: var(--azure); background: var(--azure-wash); } .pill.lamp { color: var(--ochre); background: var(--lamp-wash); }
+.dot { display: inline-block; width: 7px; height: 7px; border: 1px solid var(--t4); border-radius: 50%; flex: none; }
+.dot.running { background: var(--lamp); border-color: var(--lamp); box-shadow: 0 0 0 3px var(--lamp-wash); animation: breathe 2.4s ease-in-out infinite; }
+.dot.done { background: var(--pine); border-color: var(--pine); } .dot.waiting { background: var(--zhu); border-color: var(--zhu); border-radius: 1px; } .dot.failed { background: var(--crimson); border-color: var(--crimson); border-radius: 1px; } .dot.background { background: var(--azure); border-color: var(--azure); } .dot.paused { background: transparent; border-color: var(--lamp); box-shadow: inset 0 0 0 1.5px var(--lamp); }
+/* Cinnabar Seal (朱印) with carved inner border, tilt, and stamping physics */
+.seal { width: 38px; height: 38px; border-radius: 4px; background: var(--zhu); color: var(--on-zhu); font: 600 18px/1 var(--serif); display: grid; place-items: center; position: relative; transform: rotate(-1.5deg); box-shadow: 0 1px 0 rgba(0,0,0,.18), inset 0 0 0 1px rgba(255,255,255,.35); flex: none; cursor: pointer; transition: background .12s ease; }
+.seal::after { content: ""; position: absolute; inset: 3px; border: 1px solid rgba(255,255,255,.6); border-radius: 2px; pointer-events: none; } .seal:hover { background: var(--zhu-lift); }
+.seal.ghost { background: transparent; color: var(--t2); box-shadow: inset 0 0 0 1.5px var(--l3); transform: none; } .seal.ghost::after { display: none; } .seal.ghost:hover { background: var(--s2); color: var(--t1); }
+.seal.mini { width: 18px; height: 18px; font-size: 9.5px; border-radius: 2px; transform: rotate(-3deg); box-shadow: inset 0 0 0 1px rgba(255,255,255,.35); } .seal.mini::after { inset: 2px; border-radius: 1px; } .seal.stamping { animation: stamp .16s var(--spring) both; }
+.seal-mini { width: 22px; height: 24px; flex: none; display: grid; place-items: center; background: var(--zhu); color: var(--on-zhu); font: 13px var(--serif); border-radius: 2px; outline: 1px solid var(--on-zhu); outline-offset: -3px; transform: rotate(-2deg); } .seal-mini.pine { background: var(--pine); } .seal-mini.ghost { background: transparent; color: var(--t3); outline-color: var(--l3); }
+@keyframes stamp { 0% { transform: scale(.88) rotate(-7deg); opacity: .5; } 60% { transform: scale(1.05) rotate(-1deg); opacity: 1; } 100% { transform: scale(1) rotate(-1.5deg); } }
+@keyframes breathe { 0%,100% { opacity: .6; } 50% { opacity: 1; } }
+@keyframes grind { to { transform: rotate(360deg); } }
+@keyframes sheen { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+/* Tool threads & connecting nodes */
+.thread { position: relative; padding-left: 20px; } .thread::before { content: ""; position: absolute; left: 7px; top: 8px; bottom: 8px; width: 1.5px; border-radius: 1px; background: var(--l3); }
+.node { position: absolute; left: -17.5px; top: 50%; margin-top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--s2); border: 1.5px solid var(--l3); flex: none; }
+.node.done { background: var(--pine); border-color: var(--pine); } .node.bg { background: var(--azure); border-color: var(--azure); } .node.run { background: var(--lamp); border-color: var(--lamp); box-shadow: 0 0 0 3px var(--lamp-wash); animation: breathe 2.4s ease-in-out infinite; } .node.wait { border-radius: 1px; background: var(--zhu); border-color: var(--zhu); } .node.fail { background: var(--crimson); border-color: var(--crimson); }
+.tr { position: relative; display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 6px; border-radius: 6px; font-size: 12px; color: var(--t2); white-space: nowrap; } .tr:hover { background: var(--s3); box-shadow: var(--sh1); }
+.tr b { color: var(--t1); font-weight: 600; font-size: 12px; } .tr code { font: 11px var(--mono); color: var(--t1); background: var(--code); padding: 1px 4px; border-radius: 3px; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tr .meta { margin-left: auto; display: flex; gap: 6px; align-items: center; font: 10.5px var(--mono); color: var(--t4); font-variant-numeric: tabular-nums; flex: none; }
+.pm { font: 11px var(--mono); font-variant-numeric: tabular-nums; } .plus { color: var(--pine); } .minus { color: var(--crimson); }
+.run-m { display: inline-flex; gap: 5px; align-items: center; color: var(--lamp); } .grind { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--l3); border-top-color: var(--lamp); animation: grind 1.4s linear infinite; }
+/* Disclosed thinking & work header */
+.work { margin: 6px 0 10px; }
+.work-h { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; font-size: 12.5px; color: var(--t2); cursor: pointer; white-space: nowrap; overflow: hidden; }
+.work-h:hover { background: var(--s3); } .work-h b { color: var(--t1); font-weight: 500; } .work-h .icon { width: 14px; height: 14px; color: var(--t3); }
+.work-h .chev { margin-left: auto; width: 13px; height: 13px; color: var(--t4); transition: transform .2s ease; } .work-h.open .chev { transform: rotate(180deg); }
+.work-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--t2); padding: 4px 0; width: 100%; text-align: left; }
+.tool-thread { border-left: 1px solid var(--l3); margin: 4px 0 8px 6px; padding: 2px 0 2px 14px; }
+.tool-step { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--t3); min-height: 24px; } .tool-step code { font: 10.5px var(--mono); color: var(--t2); } .tool-step span { margin-left: auto; font: 10px var(--mono); color: var(--t4); }
+.thinking { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--t3); padding: 4px 0; cursor: pointer; }
+.thinking-body { font: italic 12.5px/1.7 var(--serif); color: var(--t2); padding: 6px 10px; border-left: 2px solid var(--l2); margin: 4px 0 8px 6px; }
+.think { margin: 4px 0 8px 14px; padding: 6px 0 6px 10px; border-left: 2px solid var(--l2); color: var(--t2); font: italic 12.5px/1.65 var(--serif); max-width: 580px; }
+.sq { width: 7px; height: 7px; background: var(--zhu); border-radius: 1px; display: inline-block; flex: none; }
+/* Code block preview with syntax colors */
+.code { width: 100%; max-width: 100%; box-sizing: border-box; background: var(--code); border-radius: 8px; box-shadow: var(--sh1); margin: 8px 0 10px; overflow: hidden; text-align: left; }
+.code-h { display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; border-bottom: 1px solid var(--l1); font: 11px var(--mono); color: var(--t3); }
+.code-h .icon { width: 12px; height: 12px; } .code-h .sep { color: var(--t4); }
+.code pre { max-width: 100%; padding: 9px 12px; font: 11.5px/1.65 var(--mono); color: var(--t1); overflow-x: auto; tab-size: 2; margin: 0; -webkit-overflow-scrolling: touch; }
+.k { color: var(--azure); } .s { color: var(--pine); } .c { color: var(--t4); } .fx { color: var(--ochre); }
+/* File change banner & action row */
+.fcb { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border-radius: 7px; background: var(--s3); border: 1px solid var(--l2); box-shadow: var(--sh1); font-size: 12px; color: var(--t2); margin-top: 10px; flex-wrap: wrap; box-sizing: border-box; }
+.fcb .icon { width: 14px; height: 14px; color: var(--t3); } .fcb .chip { min-height: 24px; padding: 0 8px; font-size: 11px; }
+.acts-f { display: flex; align-items: center; gap: 4px; margin-top: 6px; color: var(--t3); width: 100%; } .acts-f .icon-button { min-width: 32px; width: 32px; height: 32px; border-radius: 6px; } .acts-f .icon { width: 15px; height: 15px; } .fk { font: 10.5px var(--mono); color: var(--t4); margin-left: 4px; }
+/* Composer stone slab (砚台) */
+.composer-dock { padding: 6px 14px 10px; background: var(--s2); flex: none; width: 100%; box-sizing: border-box; position: relative; z-index: 5; }
+.slab { background: var(--slab); color: var(--slab-t); border-radius: 12px; box-shadow: var(--sh3); position: relative; overflow: hidden; border-top: 1px solid var(--slab-line); text-align: left; }
+.slab::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--slab-line); }
+.slab.running::before { background: linear-gradient(90deg, transparent 0, var(--lamp) 45%, var(--lamp-glow) 55%, transparent 100%); background-size: 200% 100%; animation: sheen 4.8s linear infinite; }
+.refs { display: flex; gap: 6px; padding: 7px 10px 0; flex-wrap: wrap; }
+.ref { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; border-radius: 3px; background: var(--slab-chip); font: 10.5px var(--mono); color: var(--slab-t); } .ref button { color: var(--slab-ph); padding: 0 2px; }
+.ta { display: block; width: 100%; min-height: 52px; padding: 8px 12px 2px; background: transparent; border: 0; color: var(--slab-t); font: 14.5px/1.6 var(--sans); resize: none; outline: 0; } .ta::placeholder { color: var(--slab-ph); }
+.bar { display: flex; align-items: center; gap: 2px; padding: 2px 6px 6px; }
+.sb-chip { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 7px; border-radius: 6px; color: var(--slab-ph); font-size: 11.5px; white-space: nowrap; }
+.sb-chip:hover { background: var(--slab-chip); color: var(--slab-t); } .sb-chip.on { color: var(--slab-t); } .sb-chip.ic { width: 28px; padding: 0; justify-content: center; }
+.sb-chip .av { background: var(--slab-chip); color: var(--slab-t); box-shadow: none; width: 16px; height: 16px; line-height: 16px; font-size: 9.5px; border-radius: 50%; display: grid; place-items: center; }
+.bar .ring { width: 15px; height: 15px; border-radius: 50%; margin: 0 5px; background: conic-gradient(var(--slab-t) calc(var(--p, 37) * 1%), var(--slab-chip) 0); -webkit-mask: radial-gradient(farthest-side, transparent 55%, #000 60%); mask: radial-gradient(farthest-side, transparent 55%, #000 60%); flex: none; display: inline-block; }
+.dock-chip .ring { width: 12px; height: 12px; border-radius: 50%; margin: 0; background: conic-gradient(var(--zhu) calc(var(--p, 37) * 1%), var(--l3) 0); -webkit-mask: radial-gradient(farthest-side, transparent 55%, #000 60%); mask: radial-gradient(farthest-side, transparent 55%, #000 60%); flex: none; display: inline-block; }
+.dock-chip .ring.warn { background: conic-gradient(var(--ochre) calc(var(--p, 37) * 1%), var(--l3) 0); }
+.send { width: 32px; height: 32px; border-radius: 50%; background: var(--zhu); color: var(--on-zhu); display: grid; place-items: center; flex: none; cursor: pointer; } .send:hover { background: var(--zhu-lift); }
+.send.pause { background: var(--slab-chip); color: var(--lamp); box-shadow: 0 0 0 2px var(--lamp); animation: breathe 2.4s ease-in-out infinite; }
+.hint { display: flex; gap: 10px; justify-content: center; margin-top: 5px; font: 10.5px var(--mono); color: var(--t4); flex-wrap: wrap; }
+/* Permission & Decision Gate */
+.tr-gate { position: relative; padding: 4px 0 6px; margin-left: 20px; } .tr-gate .node { top: 22px; margin-top: 0; left: -17.5px; }
+.gate { position: relative; margin: 4px 0 6px 4px; padding: 10px 12px; background: var(--s3); box-shadow: var(--sh2); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.gate::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--zhu); } .gate.question::before { background: var(--azure); }
+.gate .mic { font: 600 10.5px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--zhu); display: flex; align-items: center; gap: 6px; } .gate.question .mic { color: var(--azure); }
+.gate .cmd { margin: 2px 0 4px; font-size: 13px; color: var(--t1); line-height: 1.5; } .gate .cmd b { font-weight: 600; color: var(--t1); } .gate .cmd code { font: 11px var(--mono); color: var(--t1); background: var(--code); padding: 1px 4px; border-radius: 3px; }
+.gate .facts { display: flex; gap: 10px; flex-wrap: wrap; font: 11px var(--mono); color: var(--t3); margin-top: 2px; }
+.gate-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; border-top: 1px solid var(--l1); padding-top: 6px; gap: 6px; }
+.seals { display: flex; gap: 8px; align-items: center; } .gate .gh { font: 10.5px var(--mono); color: var(--t4); } .gate .gh u { color: var(--t3); margin-left: 2px; cursor: pointer; }
+.pc { display: inline-flex; align-items: center; gap: 4px; font: 11px var(--mono); color: var(--t1); background: var(--s3); box-shadow: var(--sh1); padding: 1px 5px; border-radius: 3px; vertical-align: -1px; cursor: pointer; }
+.att { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; height: 22px; padding: 0 7px; border-radius: 3px; background: var(--s1); box-shadow: var(--sh1); font: 11px var(--mono); color: var(--t2); }
+.cap { display: flex; align-items: center; gap: 6px; margin-top: 6px; font: 11px var(--mono); color: var(--t3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .cap i { width: 5px; height: 5px; border-radius: 50%; background: var(--t4); flex: none; }
+/* Cards & Structures */
+.card { width: 100%; max-width: 100%; box-sizing: border-box; background: var(--s3); border: 1px solid var(--l2); border-radius: 8px; padding: 12px 14px; margin: 10px 0; box-shadow: var(--sh1); text-align: left; position: relative; }
+.card.plan, .card.walk { border-left: 3px solid var(--pine); } .card.error { border-left: 3px solid var(--crimson); }
+.card-title { font: 600 15px/1.4 var(--sans); margin: 6px 0 8px; color: var(--t1); }
+.button-row { display: flex; gap: 8px; margin-top: 10px; width: 100%; } .button-row > * { flex: 1; min-width: 0; width: auto; }
+.todo-list { list-style: none; padding: 0; margin: 8px 0; }
+.todo-list li { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--l1); color: var(--t2); }
+.todo-list li:last-child { border-bottom: 0; } .todo-list li.done { color: var(--t3); text-decoration: line-through; } .todo-list li.running { color: var(--ochre); font-weight: 500; } .todo-list li small { margin-left: auto; font: 10px var(--mono); color: var(--t4); }
+.gate-title { font-size: 12px; font-weight: 600; color: var(--t2); margin: 10px 0 6px; }
+.gate-choices { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; width: 100%; }
+.gate-choice { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--l2); border-radius: 7px; background: var(--s2); text-align: left; width: 100%; box-sizing: border-box; }
+.gate-choice.recommended { border-color: var(--azure); background: var(--azure-wash); }
+.gate-choice kbd { width: 20px; height: 20px; border-radius: 4px; background: var(--s3); border: 1px solid var(--l2); font: 11px var(--mono); display: grid; place-items: center; flex: none; }
+.gate-choice strong { font-size: 12.5px; display: block; } .gate-choice small { font-size: 10.5px; color: var(--t3); display: block; margin-top: 2px; }
+.text-link { font-size: 11.5px; color: var(--zhu); display: inline-flex; align-items: center; gap: 4px; padding: 0; cursor: pointer; } .text-link.quiet { color: var(--t3); } .text-link.quiet:hover { color: var(--t1); }
+.live-tail { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--t2); margin: 12px 0 16px; padding: 7px 11px; background: var(--s3); border-radius: 6px; border: 1px solid var(--l2); box-shadow: var(--sh1); }
+.live-tail.tone-lamp { color: var(--ochre); } .live-tail.tone-zhu { color: var(--zhu); }
+.day-rule { display: flex; align-items: center; justify-content: center; font: 10.5px var(--mono); color: var(--t4); margin: 14px 0 10px; text-align: center; } .day-rule::before, .day-rule::after { content: ""; flex: 1; height: 1px; background: var(--l2); margin: 0 10px; }
+.command { background: var(--code); padding: 8px 10px; border-radius: 6px; font: 11px/1.7 var(--mono); color: var(--t1); overflow-x: auto; margin: 8px 0; white-space: pre-wrap; word-break: break-all; }
+.terminal { background: var(--code); padding: 12px 14px; border-radius: 7px; font: 11.5px/1.8 var(--mono); color: var(--t1); white-space: pre-wrap; overflow-x: auto; margin: 10px 0; text-align: left; width: 100%; box-sizing: border-box; }
+.agent-line { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 0; border-bottom: 1px solid var(--l1); } .agent-line:last-child { border-bottom: 0; } .agent-line strong { font-size: 13px; font-weight: 500; display: block; } .agent-line small { font-size: 11px; color: var(--t3); display: block; margin-top: 2px; } .agent-line time { font-size: 10.5px; color: var(--t4); margin-left: auto; }
+.monogram { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 12px var(--serif); background: var(--s2); border: 1px solid var(--l2); flex: none; }
+.monogram.running { background: var(--lamp-wash); color: var(--ochre); border-color: var(--lamp); } .monogram.done { background: var(--pine-wash); color: var(--pine); border-color: var(--pine); } .monogram.paused { background: var(--s2); color: var(--t3); }
+.attention { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--zhu-wash); border: 1px solid var(--zhu-lift); color: var(--zhu); text-align: left; margin: 8px 0 12px; cursor: pointer; box-sizing: border-box; } .attention strong { font-size: 13px; font-weight: 600; display: block; color: var(--t1); } .attention small { font-size: 11px; color: var(--t2); display: block; margin-top: 2px; }
+.interrupt { background: var(--s3); border: 1px solid var(--l2); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--sh2); text-align: left; } .interrupt.question { border-left: 3px solid var(--azure); } .facts-line { font-size: 10.5px; color: var(--t3); margin: 6px 0; }
+.goal-strip { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--s3); border-bottom: 1px solid var(--l2); font-size: 12px; text-align: left; flex: none; width: 100%; box-sizing: border-box; } .goal-strip strong { font-size: 12.5px; display: block; } .goal-strip small { font-size: 10.5px; color: var(--t3); display: block; }
+.lineage { display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 11.5px; color: var(--t3); background: var(--s1); border-bottom: 1px solid var(--l1); text-align: left; width: 100%; box-sizing: border-box; }
+.host-line { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--t3); padding: 1px 4px; border-radius: 4px; } .host-line:hover { background: var(--s1); }
+.icon-badge { position: absolute; top: 7px; right: 7px; background: var(--zhu); color: var(--on-zhu); font: 9px var(--mono); min-width: 14px; height: 14px; border-radius: 7px; display: grid; place-items: center; padding: 0 3px; }
+.paused-strip { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: var(--lamp-wash); color: var(--t1); font-size: 11.5px; margin-bottom: 6px; } .paused-strip button.primary { color: var(--zhu); font-weight: 550; }
+.queue-item { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 11px; border-top: 1px solid var(--l1); } .queue-item button { color: var(--t3); font-size: 10.5px; padding: 2px 4px; }
+.sealed { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--s3); border: 1px solid var(--l2); border-radius: 8px; margin: 10px 0; text-align: left; } .sealed small { display: block; font-size: 10.5px; color: var(--t3); margin-top: 2px; }
+.sources { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--t3); margin: 8px 0; flex-wrap: wrap; }
+.cite { display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--zhu-wash); color: var(--zhu); font: 9px var(--mono); vertical-align: super; margin: 0 2px; cursor: pointer; }
+.wikilink { color: var(--zhu); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.note-paper { border: 1px solid var(--l2); background: var(--s3); padding: 18px 16px; margin: 12px 0; border-radius: 8px; box-shadow: var(--sh1); text-align: left; width: 100%; box-sizing: border-box; }
+.note-paper h3 { font: 500 18px/1.45 var(--serif); margin: 12px 0 8px; } .note-paper p { font-size: 13px; line-height: 1.8; color: var(--t2); } .note-paper hr { border: 0; border-top: 1px solid var(--l2); margin: 14px 0; }
+.asset-thumb { width: 100%; height: 78px; border-radius: 4px; background: var(--s1); border: 1px solid var(--l2); margin-bottom: 8px; display: grid; place-items: center; } .asset-thumb.ink { background: #1a1714; }
+.more-hint { font-size: 11px; color: var(--t4); text-align: center; margin: 14px 0 8px; font-style: italic; }
+.msg-chips { display: inline-flex; margin-left: 6px; vertical-align: middle; }
+.files-bar { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border-radius: 7px; background: var(--s3); border: 1px solid var(--l2); font-size: 12px; color: var(--t2); margin: 10px 0; text-align: left; box-sizing: border-box; }
+.branch-switch { display: inline-flex; align-items: center; gap: 4px; font: 10.5px var(--mono); color: var(--t3); margin: 0 8px; } .branch-switch button { padding: 0 4px; font-size: 12px; color: var(--t2); }
+.handover { background: var(--s3); border: 1px solid var(--lamp); border-radius: 8px; padding: 12px 14px; margin: 12px 0; text-align: left; } .handover p { font: 13.5px/1.6 var(--serif); margin: 6px 0 10px; }
+.notice { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 7px; background: var(--s1); border: 1px solid var(--l2); font-size: 11.5px; color: var(--t2); margin: 10px 0; text-align: left; width: 100%; box-sizing: border-box; } .notice .icon { width: 15px; height: 15px; flex: none; margin-top: 1px; } .notice b { color: var(--t1); }
+.usage-chart { height: 90px; display: flex; align-items: flex-end; gap: 8px; border-bottom: 1px solid var(--l2); padding: 0 6px 4px; margin-top: 20px; width: 100%; box-sizing: border-box; } .usage-chart span { flex: 1; height: var(--height, 50%); background: var(--pine); opacity: .75; border-radius: 3px 3px 0 0; }
+.mini-progress { height: 3px; background: var(--l2); border-radius: 2px; overflow: hidden; margin: 6px 0 14px; } .mini-progress span { display: block; height: 100%; background: var(--pine); border-radius: 2px; }
+.qr { width: 140px; height: 140px; border: 2px dashed var(--l3); border-radius: 12px; margin: 20px auto; display: grid; place-items: center; color: var(--t3); } .qr .icon { width: 56px; height: 56px; }
+.message-actions { display: flex; align-items: center; gap: 2px; margin-top: 6px; color: var(--t3); font-size: 11px; width: 100%; } .message-actions .icon-button { min-width: 32px; width: 32px; height: 32px; } .message-actions small { font: 10px var(--mono); margin-left: auto; color: var(--t4); }
+.banner-offline { background: var(--zhu-wash); color: var(--zhu); padding: 6px 14px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; flex: none; width: 100%; box-sizing: border-box; } .banner-offline button { color: var(--zhu); text-decoration: underline; font-size: 11px; }
+.tone-lamp { color: var(--ochre); } .tone-zhu { color: var(--zhu); } .tone-crimson { color: var(--crimson); }
+.context-note { font-size: 11px; color: var(--t3); margin: 8px 0 12px; display: flex; align-items: center; gap: 6px; }
+.chat-scroll { padding-top: 10px; padding-bottom: 28px; width: 100%; box-sizing: border-box; }
+.wiki-list { width: 100%; }
+/* Flashcard (纸卡) with paper grain, Songti serif typography, & FSRS 4-grade rating */
+.flashcard { display: flex; flex-direction: column; justify-content: space-between; min-height: 290px; width: 100%; text-align: left; background: var(--s3); box-shadow: var(--sh2); border: 1px solid var(--l2); padding: 22px 20px; border-radius: 8px; margin: 14px 0; cursor: pointer; position: relative; }
+.flashcard::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .025; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px; }
+.flashcard h2 { font: 500 24px/1.65 var(--serif); color: var(--t1); margin: 22px 0 14px; letter-spacing: -.01em; } .flashcard p { font: 14.5px/1.9 var(--serif); color: var(--t1); }
+.rating-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0 4px; }
+.rating-grid button { border: 1px solid var(--l2); border-radius: 6px; padding: 9px 0; background: var(--s3); font-size: 12px; font-weight: 500; color: var(--t1); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.rating-grid button:hover { background: var(--s2); border-color: var(--l3); }
+.rating-grid button.again { color: var(--crimson); background: var(--crimson-wash); border-color: transparent; } .rating-grid button.hard { color: var(--ochre); background: var(--ochre-wash); border-color: transparent; } .rating-grid button.good { color: var(--pine); background: var(--pine-wash); border-color: transparent; } .rating-grid button.easy { color: var(--azure); background: var(--azure-wash); border-color: transparent; } .rating-grid small { font: 10px var(--mono); opacity: .8; }
+/* Unified Diff Card matching proto-10 */
+.diff-card { border: 1px solid var(--l2); border-radius: 8px; overflow: hidden; margin: 10px 0; background: var(--s3); box-shadow: var(--sh1); text-align: left; }
+.diff-heading { display: flex; justify-content: space-between; align-items: center; gap: 6px; font: 10.5px var(--mono); padding: 8px 12px; background: var(--s1); border-bottom: 1px solid var(--l1); color: var(--t2); }
+.diff-lines { overflow-x: auto; background: var(--code); padding: 6px 0; font: 11.5px/1.75 var(--mono); }
+.diff-line { display: flex; gap: 8px; padding: 0 8px; min-width: max-content; white-space: pre; color: var(--t2); } .diff-line em { color: var(--t4); font-style: normal; width: 20px; text-align: right; flex: none; user-select: none; }
+.diff-line.add { background: var(--pine-wash); color: var(--t1); } .diff-line.remove { background: var(--crimson-wash); color: var(--crimson); } .diff-line.commentable { cursor: pointer; } .diff-line.commentable:hover { outline: 1px dashed var(--zhu); }
+/* Subagent cards matching proto-11 */
+.subagent-card { background: var(--s3); border: 1px solid var(--l2); border-radius: 8px; padding: 12px 14px; margin: 10px 0; box-shadow: var(--sh1); text-align: left; }
+.candidate-card { background: var(--s3); border: 1px solid var(--l2); border-radius: 8px; padding: 12px 14px; margin: 10px 0; box-shadow: var(--sh2); text-align: left; position: relative; }
+.candidate-card::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 2px; background: var(--pine); }
+.step-bar { display: flex; gap: 3px; margin: 8px 0 4px; } .step-bar i { flex: 1; height: 3px; border-radius: 2px; background: var(--l2); } .step-bar i.on { background: var(--pine); } .step-bar i.now { background: var(--lamp); animation: breathe 2s infinite; }
+/* Sessions list & Sidebar Tree matching proto-00 & proto-09 */
+.session-item { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 10px; border-radius: 8px; background: var(--s3); box-shadow: var(--sh1); margin-bottom: 6px; position: relative; }
+.session-item:hover { background: var(--s4); box-shadow: var(--sh2); } .session-item.sel { border-left: 3px solid var(--zhu); }
+.session-open { flex: 1; min-width: 0; text-align: left; display: flex; flex-direction: column; gap: 2px; }
+.session-open strong { font: 500 13.5px/1.4 var(--serif); color: var(--t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
+.session-open small { font-size: 11px; color: var(--t3); display: flex; gap: 6px; align-items: center; }
+.inline-pin { width: 12px; height: 12px; color: var(--zhu); flex: none; }
+.group-label { display: flex; justify-content: space-between; align-items: center; font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--t3); margin: 14px 4px 6px; }
+.project-block { margin: 8px 0 14px; }
+.project-row { display: flex; align-items: center; gap: 6px; } .project-head { flex: 1; display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--s1); border-radius: 8px; text-align: left; }
+.project-head strong { font: 600 13px var(--sans); color: var(--t1); } .project-head small { font: 10.5px var(--mono); color: var(--t3); margin-left: 6px; }
+.tree-label { display: flex; align-items: center; gap: 5px; font: 11px var(--mono); color: var(--t3); margin: 8px 0 4px 14px; } .session-tree { position: relative; padding-left: 14px; margin-left: 10px; border-left: 1.5px solid var(--l2); }
+/* Workbench tool grid */
+.tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+.tool-tile { text-align: left; padding: 13px; border: 1px solid var(--l2); border-radius: 8px; background: var(--s3); min-height: 104px; display: flex; flex-direction: column; box-shadow: var(--sh1); transition: border-color .12s ease; }
+.tool-tile:hover { border-color: var(--l3); background: var(--s4); } .tool-tile .icon { color: var(--t2); width: 18px; height: 18px; }
+.tool-tile strong { font: 500 15px var(--serif); display: block; margin-top: auto; padding-top: 12px; } .tool-tile small { font-size: 11px; color: var(--t3); display: block; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; } .tool-tile kbd { font: 9px var(--mono); color: var(--t4); float: right; }
+/* Standard list row, search field, segmented buttons, buttons */
+.search-field { width: 100%; display: flex; align-items: center; padding: 0 12px; height: 42px; gap: 8px; border: 1px solid var(--l2); border-radius: 8px; background: var(--s1); color: var(--t3); } .search-field input { border: 0; background: transparent; min-width: 0; width: 100%; outline: none; color: var(--t1); font-size: 13.5px; } .search-field .icon { width: 16px; height: 16px; }
+.segmented { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--l2); border-radius: 8px; background: var(--s1); margin: 4px 0 8px; } .segmented button { flex: 1; min-height: 34px; border-radius: 6px; font-size: 12.5px; color: var(--t3); display: flex; align-items: center; justify-content: center; gap: 5px; } .segmented button[aria-pressed=true] { background: var(--s3); color: var(--t1); box-shadow: var(--sh1); } .segmented small { font: 10px var(--mono); color: var(--t4); }
+.full-button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; width: 100%; padding: 8px 14px; border-radius: 7px; background: var(--zhu); color: var(--on-zhu); font-size: 13.5px; font-weight: 500; cursor: pointer; }
+.full-button:hover { background: var(--zhu-lift); } .full-button.secondary { background: var(--s1); color: var(--t1); border: 1px solid var(--l2); } .full-button.secondary:hover { background: var(--s2); } .full-button.subtle { background: none; color: var(--t2); }
+.list-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; min-height: 56px; border-bottom: 1px solid var(--l1); padding: 8px 0; }
+.list-row > .icon { width: 18px; height: 18px; color: var(--t2); } .list-row strong { font-size: 13.5px; font-weight: 500; display: block; } .list-row small { font-size: 11px; color: var(--t3); display: block; margin-top: 2px; } .list-row .trailing { margin-left: auto; color: var(--t3); font-size: 11.5px; flex: none; }
+.host-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--l2); border-radius: 8px; width: 100%; text-align: left; background: var(--s3); box-shadow: var(--sh1); cursor: pointer; margin: 12px 0 16px; } .host-card:hover { background: var(--s4); }
+.host-card strong { font: 500 15px var(--sans); color: var(--t1); display: block; } .host-card small { display: block; font: 11px/1.4 var(--mono); color: var(--t3); margin-top: 3px; }
+.host-monogram { display: grid; place-items: center; height: 42px; width: 42px; border-radius: 8px; background: var(--s1); font: 22px var(--serif); border: 1px solid var(--l2); color: var(--t1); flex: none; }
+.shelf-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); border: 1px solid var(--l2); margin: 0 0 20px; background: var(--s3); border-radius: 8px; overflow: hidden; box-shadow: var(--sh1); }
+.shelf-tile { text-align: left; padding: 18px 16px; border-right: 1px solid var(--l2); border-bottom: 1px solid var(--l2); cursor: pointer; } .shelf-tile:nth-child(2n) { border-right: 0; } .shelf-tile:nth-last-child(-n+2) { border-bottom: 0; } .shelf-tile:hover { background: var(--s4); }
+.shelf-tile .icon { display: block; margin-bottom: 14px; color: var(--t2); width: 22px; height: 22px; } .shelf-tile strong { display: block; font: 500 17px/1.3 var(--serif); color: var(--t1); } .shelf-tile small { display: block; font-size: 11px; color: var(--t3); margin-top: 6px; line-height: 1.5; }
+.continue-card { padding: 14px 16px 12px; background: var(--s3); box-shadow: var(--sh2); border-radius: 8px; position: relative; margin: 12px 0 16px; text-align: left; }
+.continue-card::before { content: ""; position: absolute; top: 14px; bottom: 14px; left: 0; width: 2px; background: var(--lamp); } .continue-card h3 { font: 600 17px/1.5 var(--serif); margin: 6px 0 4px; } .continue-card p { color: var(--t2); font-size: 12px; line-height: 1.7; }
+.continue-meta { border-top: 1px solid var(--l1); margin-top: 10px; padding-top: 8px; font-size: 11px; color: var(--t3); } .continue-meta button { color: var(--zhu); font-size: 11.5px; min-height: 28px; display: flex; align-items: center; gap: 4px; }
+/* User message with hover timestamp & Assistant message with branded model icon */
+.user-message { position: relative; background: var(--s3); box-shadow: var(--sh1); border-radius: 8px; padding: 12px 14px 14px; font-size: 14px; line-height: 1.8; text-align: left; width: 100%; box-sizing: border-box; cursor: pointer; }
+.user-message .user-time { position: absolute; right: 10px; bottom: 4px; font: 10px var(--mono); color: var(--t4); opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+.user-message:hover .user-time, .user-message:focus-within .user-time, .user-message:active .user-time { opacity: 1; }
+.assistant-prose { font-size: 14.5px; line-height: 1.85; text-align: left; } .assistant-prose h3 { font: 600 15px/1.4 var(--sans); margin: 4px 0 6px; } .assistant-prose p { margin: 0 0 8px; } .assistant-prose code { background: var(--code); padding: 1px 4px; border-radius: 3px; font: 12px var(--mono); }
+.message-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--t2); margin: 12px 0 6px; } .message-head time { margin-left: auto; color: var(--t4); font: 10.5px var(--mono); }
+.avatar { font: 12.5px var(--serif); width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid var(--l2); border-radius: 50%; background: var(--s3); }
+.avatar.model-avatar { padding: 3px; } .avatar.model-avatar svg { width: 14px; height: 14px; fill: currentColor; stroke: none; }
+.avatar.model-avatar.model-openai { color: #10a37f; } .avatar.model-avatar.model-claude { color: #c9603f; } .avatar.model-avatar.model-gemini { color: #1a73e8; }
+[data-face=ink] .avatar.model-avatar.model-openai { color: #2ec49c; } [data-face=ink] .avatar.model-avatar.model-claude { color: #e58d71; } [data-face=ink] .avatar.model-avatar.model-gemini { color: #5aa1f9; }
+.dock-chips { display: flex; gap: 6px; overflow-x: auto; padding: 0 1px 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; } .dock-chips::-webkit-scrollbar { display: none; }
+.dock-chip { flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 9px; border-radius: 14px; border: 1px solid var(--l2); background: var(--s3); font-size: 11px; color: var(--t2); white-space: nowrap; }
+.dock-chip:hover { background: var(--s2); color: var(--t1); } .dock-chip .icon { width: 12px; height: 12px; }
+.queue-box { border: 1px solid var(--l2); border-radius: 8px; background: var(--s3); margin-bottom: 6px; padding: 2px 8px; font-size: 11.5px; }
+.switch { width: 34px; height: 20px; background: var(--l3); border-radius: 12px; position: relative; display: inline-block; flex: none; }
+.switch::after { content: ""; position: absolute; width: 14px; height: 14px; background: var(--s4); border-radius: 50%; top: 3px; left: 3px; transition: left .15s ease; }
+[aria-checked=true] .switch { background: var(--pine); } [aria-checked=true] .switch::after { left: 17px; }
+.live-stage { padding: 24px 12px; text-align: center; } .live-orbit { width: 118px; height: 118px; border-radius: 50%; border: 1px solid var(--l2); margin: 24px auto; display: grid; place-items: center; box-shadow: 0 0 0 12px var(--s1), 0 0 0 13px var(--l1); }
+.voice-bars { display: flex; align-items: center; justify-content: center; height: 44px; gap: 3px; margin: 24px 0; } .voice-bars i { width: 3px; height: calc(6px + var(--level) * 4px); background: var(--lamp); border-radius: 3px; animation: breathe 1.4s ease-in-out infinite alternate; }
+.live-controls { display: flex; justify-content: center; gap: 20px; margin-top: 28px; } .live-controls button { border: 1px solid var(--l2); background: var(--s3); width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; } .live-controls button.end-call { color: var(--on-zhu); background: var(--zhu); border-color: var(--zhu); }
+.live-capsule { flex: none; margin: 2px 12px 6px; background: var(--s3); border: 1px solid var(--l3); border-radius: 20px; padding: 4px 6px 4px 12px; display: flex; align-items: center; gap: 8px; box-shadow: var(--sh1); }
+.capsule-body { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; text-align: left; padding: 0; }
+.capsule-text { display: flex; flex-direction: column; min-width: 0; }
+.capsule-text strong { font-size: 11.5px; line-height: 1.2; color: var(--t1); white-space: nowrap; }
+.capsule-text small { font-size: 10px; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.capsule-controls { display: flex; align-items: center; gap: 5px; flex: none; }
+.capsule-btn { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--l2); background: var(--s2); display: grid; place-items: center; padding: 0; }
+.capsule-btn .icon { width: 12px; height: 12px; }
+.capsule-btn.capsule-hangup { color: var(--zhu); border-color: var(--zhu-wash); background: var(--zhu-wash); }
+.quote-note { border-left: 2px solid var(--l3); padding: 6px 12px; color: var(--t2); font-size: 12.5px; line-height: 1.8; margin: 12px 0; text-align: left; }
+.field { display: block; font-size: 12px; color: var(--t2); margin: 14px 0; text-align: left; } .field input, .field select, .field textarea { display: block; width: 100%; margin-top: 6px; min-height: 42px; padding: 8px 10px; border: 1px solid var(--l2); border-radius: 6px; background: var(--s2); color: var(--t1); font-size: 15px; } .field textarea { min-height: 80px; resize: vertical; }
+.metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; border-block: 1px solid var(--l2); padding: 14px 0; margin: 14px 0; } .metric-grid strong { font: 22px var(--serif); display: block; } .metric-grid small { color: var(--t3); font-size: 10px; }
+.asset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; } .asset-item { background: var(--s3); border: 1px solid var(--l2); padding: 12px; text-align: left; border-radius: 6px; box-shadow: var(--sh1); }
+.empty-state { padding: 36px 10px; text-align: center; color: var(--t2); } .empty-state .brand-seal { width: 40px; height: 44px; font-size: 26px; margin-bottom: 20px; } .empty-state h2 { font: 24px/1.5 var(--serif); margin-bottom: 10px; } .empty-state p { font-size: 12.5px; line-height: 1.8; color: var(--t3); }
+.tabs { display: flex; gap: 16px; border-bottom: 1px solid var(--l2); margin-top: 12px; overflow-x: auto; scrollbar-width: none; } .tabs button { flex: none; min-height: 40px; font-size: 13px; color: var(--t3); padding: 4px 0 8px; border-bottom: 2px solid transparent; } .tabs button.active { color: var(--t1); border-color: var(--zhu); font-weight: 500; }
+.chip-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 4px; } .chip { flex: none; min-height: 30px; padding: 0 10px; border-radius: 15px; border: 1px solid var(--l2); font-size: 11.5px; color: var(--t2); } .chip[aria-pressed=true] { color: var(--zhu); border-color: var(--zhu); background: var(--zhu-wash); }
+.wiki-row { width: 100%; display: block; text-align: left; padding: 11px 0; border-bottom: 1px solid var(--l1); } .wiki-row strong { font: 500 16px/1.4 var(--serif); display: block; } .wiki-row p { font-size: 12px; color: var(--t2); line-height: 1.7; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } .wiki-row small { font: 10px var(--mono); color: var(--t3); display: block; margin-top: 4px; }
+.card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--l1); margin-top: 8px; padding-top: 4px; font-size: 11px; color: var(--t3); flex-wrap: wrap; }
+.check-list { list-style: none; padding: 0; margin: 6px 0; } .check-list li { display: flex; gap: 8px; font-size: 12px; padding: 2px 0; color: var(--t2); word-break: break-word; } .check-list b { font-weight: 700; width: 12px; flex: none; } .check-list .ok b { color: var(--pine); } .check-list .warn b { color: var(--ochre); }
+.seen-box { width: 20px; height: 20px; border: 1px solid var(--l3); border-radius: 4px; display: grid; place-items: center; font-size: 11px; color: var(--on-zhu); flex: none; } .seen-box.on { background: var(--pine); border-color: var(--pine); }
+.scope-options { display: flex; gap: 5px; margin: 8px 0 0; } .scope-options button { flex: 1; min-height: 34px; font-size: 11px; border: 1px solid var(--l2); border-radius: 6px; color: var(--t2); padding: 0 2px; } .scope-options button[aria-pressed=true] { color: var(--zhu); border-color: var(--zhu); background: var(--zhu-wash); font-weight: 550; }
+.option-list { display: grid; gap: 6px; margin-top: 8px; } .option-list button { text-align: left; padding: 9px 12px; border: 1px solid var(--l2); border-radius: 7px; font-size: 12.5px; display: flex; justify-content: space-between; align-items: center; background: var(--s2); } .option-list button.recommended { border-color: var(--azure); background: var(--azure-wash); } .option-list button small { font: 10px var(--mono); color: var(--azure); }
+.line-comment { margin: 0; padding: 8px 12px; border-top: 1px solid var(--l2); font-size: 11.5px; display: flex; gap: 8px; align-items: baseline; background: var(--zhu-wash); text-align: left; } .line-comment code { font-size: 10px; color: var(--zhu); flex: none; } .line-comment span { flex: 1; color: var(--t1); } .line-comment button { font-size: 10.5px; color: var(--t3); }
+.quote-line { border-left: 2px solid var(--l3); padding-left: 8px; margin: 6px 0; color: var(--t2); font-size: 12px; }
+
+</style>
+
+
+
+
+
+
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="panel" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></symbol><symbol id="panelr" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></symbol><symbol id="folder" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol><symbol id="folderp" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5zM8 7.5v3M6.5 9h3"/></symbol><symbol id="branch" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M11.5 7c0 2.5-3 3-7 3.5"/></symbol><symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol><symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol><symbol id="chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol><symbol id="more" viewBox="0 0 16 16"><path d="M8 3.5v.01M8 8v.01M8 12.5v.01" stroke-width="2.2"/></symbol><symbol id="pin" viewBox="0 0 16 16"><path d="M8 14V9.5M4.5 9.5h7L10 5.5V3H6v2.5z"/></symbol><symbol id="archive" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="3" rx="1"/><path d="M3 6v6.5A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6M6.5 9h3"/></symbol><symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5"/></symbol><symbol id="fork" viewBox="0 0 16 16"><circle cx="8" cy="3" r="1.5"/><circle cx="4" cy="13" r="1.5"/><circle cx="12" cy="13" r="1.5"/><path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5"/></symbol>
+<symbol id="refresh" viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 11.6 4.5M13.5 2.5v3h-3"/></symbol><symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></symbol><symbol id="term" viewBox="0 0 16 16"><path d="M3 4l4 4-4 4M8.5 12h4.5"/></symbol><symbol id="globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.5 3 2.5 9 0 12M8 2c-2.5 3-2.5 9 0 12"/></symbol><symbol id="expand" viewBox="0 0 16 16"><path d="M9.5 2H14v4.5M6.5 14H2V9.5M14 2L9 7M2 14l5-5"/></symbol><symbol id="pip" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><rect x="8" y="7" width="5" height="5" rx="1"/></symbol><symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol><symbol id="mic" viewBox="0 0 16 16"><rect x="6" y="2" width="4" height="8" rx="2"/><path d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"/></symbol><symbol id="up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4"/></symbol>
+<symbol id="pause" viewBox="0 0 16 16"><path d="M6 4v8M10 4v8" stroke-width="2"/></symbol><symbol id="image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="7" r="1.2"/><path d="M14 11l-3.5-3.5L5 13"/></symbol><symbol id="cards" viewBox="0 0 16 16"><rect x="3" y="4.5" width="8.5" height="9" rx="1.5"/><path d="M6 4.5V3.5A1.5 1.5 0 0 1 7.5 2h4A1.5 1.5 0 0 1 13 3.5V10"/></symbol><symbol id="gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol><symbol id="sliders" viewBox="0 0 16 16"><path d="M2 5h4M10 5h4M2 11h8M14 11h0"/><circle cx="8" cy="5" r="2"/><circle cx="12" cy="11" r="2"/></symbol><symbol id="bulb" viewBox="0 0 16 16"><path d="M8 2.5A4.2 4.2 0 0 0 3.8 6.7c0 1.7 1 2.6 1.7 3.4.4.5.5.9.5 1.4h4c0-.5.1-.9.5-1.4.7-.8 1.7-1.7 1.7-3.4A4.2 4.2 0 0 0 8 2.5zM6.5 13.5h3"/></symbol>
+<symbol id="git" viewBox="0 0 16 16"><circle cx="8" cy="4" r="1.6"/><circle cx="8" cy="12" r="1.6"/><path d="M8 5.6v4.8"/></symbol><symbol id="bell" viewBox="0 0 16 16"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1.5H3zM6.5 14h3"/></symbol><symbol id="book" viewBox="0 0 16 16"><path d="M2.5 3.5H6a2 2 0 0 1 2 1.2 2 2 0 0 1 2-1.2h3.5V13H10a2 2 0 0 0-2 .8 2 2 0 0 0-2-.8H2.5zM8 4.7v9"/></symbol><symbol id="desk" viewBox="0 0 16 16"><path d="M2 5.5h12v4H2zM4 9.5v4M12 9.5v4M6.5 7.5h3"/></symbol><symbol id="target" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2.4"/></symbol><symbol id="list" viewBox="0 0 16 16"><path d="M6 4h7M6 8h7M6 12h7M3 4h.01M3 8h.01M3 12h.01" stroke-width="1.7"/></symbol><symbol id="drop" viewBox="0 0 16 16"><path d="M8 2.5c2.2 2.8 4 5 4 7a4 4 0 0 1-8 0c0-2 1.8-4.2 4-7z"/></symbol><symbol id="shield" viewBox="0 0 16 16"><path d="M8 2l5 2v4.5c0 3.2-2.3 5.5-5 6.5-2.7-1-5-3.3-5-6.5V4z"/></symbol>
+<symbol id="grid" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></symbol><symbol id="chat" viewBox="0 0 16 16"><path d="M3 3.5h10v7H7.5L4.5 13v-2.5H3z"/></symbol><symbol id="edit" viewBox="0 0 16 16"><path d="M3 13l1-3.5L10.5 3 13 5.5 6.5 12zM9 4.5l2.5 2.5"/></symbol><symbol id="check" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></symbol><symbol id="undo" viewBox="0 0 16 16"><path d="M5.5 4L2.5 7l3 3M2.5 7h6.5a3.5 3.5 0 0 1 0 7H6"/></symbol><symbol id="stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.5"/></symbol><symbol id="alert" viewBox="0 0 16 16"><path d="M8 2.5l6 10.5H2zM8 6.5v3M8 11.3v.01"/></symbol><symbol id="clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.2l2 1.3"/></symbol>
+<symbol id="puzzle" viewBox="0 0 16 16"><path d="M3 5h3a1.5 1.5 0 1 1 3 0h3v3a1.5 1.5 0 1 1 0 3v2H3z"/></symbol><symbol id="chart" viewBox="0 0 16 16"><path d="M2.5 13.5h11M4 11V8M7.5 11V4M11 11V6"/></symbol><symbol id="key" viewBox="0 0 16 16"><circle cx="5.5" cy="5.5" r="2.8"/><path d="M7.5 7.5L14 14M11 11l1.5 1.5M12.5 9.5l1.5 1.5"/></symbol><symbol id="bolt" viewBox="0 0 16 16"><path d="M9 2L4 8.5h4L7 14l6-6.5h-4z"/></symbol><symbol id="mobile-device" viewBox="0 0 16 16"><rect x="4.5" y="2" width="7" height="12" rx="1.5"/><path d="M7.5 12h1"/></symbol><symbol id="pointer" viewBox="0 0 16 16"><path d="M4 3l8 4-3.5 1.2L7 12z"/></symbol><symbol id="scan" viewBox="0 0 16 16"><path d="M2.5 5.5v-2h2M11.5 3.5h2v2M13.5 10.5v2h-2M4.5 12.5h-2v-2M5 8h6"/></symbol><symbol id="model-claude" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M4.71 15.95l4.72-2.65.08-.23-.08-.12H9.2l-.79-.05-2.7-.08-2.34-.1-2.26-.12-.57-.12L0 11.78l.05-.35.48-.32.69.06 1.52.1 2.28.16 1.65.1 2.45.25h.39l.05-.16-.13-.1-.1-.1L6.96 9.8 4.41 8.12 3.07 7.15l-.72-.5-.37-.46-.16-1 .66-.73.88.06.23.06.89.69 1.9 1.47 2.5 1.84.36.3.15-.1.02-.07-.17-.28L7.6 5.99l-1.44-2.5-.65-1.02-.17-.62a2.97 2.97 0 0 1-.1-.73L6.28.13 6.7 0l1 .13.41.37.62 1.41 1 2.23 1.56 3.03.46.9.24.83.09.25h.16V9l.13-1.7.23-2.1.23-2.7.08-.75.38-.91.75-.5.58.3.48.68-.07.45-.28 1.85-.56 2.9-.37 1.94h.22l.24-.24 1-1.3 1.65-2.07.73-.82.85-.9.55-.44h1.03l.76 1.13-.34 1.17-1.06 1.35-.89 1.14-1.26 1.7-.79 1.36.07.11.19-.02 2.86-.6 1.54-.28 1.84-.32.84.4.09.39-.33.8-1.97.5-2.3.46-3.45.81-.04.03.05.06 1.55.15.66.03h1.62l3.02.23.8.52.47.64-.08.48-1.2.62-1.65-.39-3.83-.9-1.31-.33h-.19v.1l1.1 1.07 2 1.81 2.52 2.33.12.58-.32.45-.34-.05-2.2-1.65-.86-.75-1.92-1.62h-.13v.17l.44.65 2.35 3.52.12 1.08-.17.35-.6.22-.68-.13-1.37-1.92-1.42-2.17-1.14-1.94-.14.08-.67 7.25-.32.37-.73.28-.6-.46-.33-.75.33-1.47.38-1.93.32-1.53.29-1.9.17-.63-.02-.04-.14.02-1.43 1.96-2.18 2.95-1.73 1.85-.41.16-.72-.37.07-.66.4-.6 2.39-3.03 1.44-1.88.93-1.09v-.15h-.05L4.13 18.56l-1.13.15-.49-.46.06-.75.23-.24 1.9-1.31z"/></symbol><symbol id="model-openai" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M9.2 8.66v-2.26c0-.2.08-.34.24-.43l4.54-2.62c.62-.36 1.36-.52 2.12-.52 2.85 0 4.66 2.21 4.66 4.57 0 .16 0 .35-.02.54l-4.71-2.76a.8.8 0 0 0-.86 0L9.2 8.66zm10.61 8.8V12.06c0-.33-.14-.57-.43-.74l-5.97-3.47 1.95-1.12a.43.433 0 0 1 .48 0l4.54 2.62c1.3.76 2.19 2.38 2.19 3.95 0 1.8-1.07 3.47-2.76 4.16zM7.8 12.7L5.85 11.56c-.17-.1-.24-.24-.24-.43V5.9c0-2.55 1.95-4.47 4.59-4.47 1 0 1.93.33 2.71.93L8.23 5.07c-.28.16-.43.4-.43.74v6.9zM12 15.13l-2.8-1.57v-3.33L12 8.66l2.8 1.57v3.33L12 15.13zm1.8 7.23c-1 0-1.93-.33-2.72-.93l4.69-2.71c.28-.17.43-.4.43-.74v-6.9l1.97 1.14c.17.1.24.24.24.43v5.23c0 2.55-1.97 4.48-4.61 4.48zm-5.64-5.3L3.62 14.44c-1.3-.76-2.19-2.38-2.19-3.95A4.48 4.48 0 0 1 4.21 6.33v5.42c0 .33.14.57.43.74l5.95 3.45-1.95 1.12a.43.43 0 0 1-.48 0zm-.26 3.9c-2.69 0-4.66-2.02-4.66-4.52 0-.19.02-.38.05-.57l4.68 2.71c.29.17.57.17.86 0l5.97-3.45v2.26c0 .2-.07.33-.24.43l-4.54 2.62c-.62.35-1.36.52-2.12.52zm5.9 2.83a5.95 5.95 0 0 0 5.83-4.76C22.29 18.34 24 15.84 24 13.3c0-1.67-.71-3.28-2-4.45.12-.5.2-1 .2-1.5 0-3.4-2.76-5.95-5.95-5.95-.64 0-1.26.1-1.88.31A5.96 5.96 0 0 0 10.2 0a5.95 5.95 0 0 0-5.82 4.76C1.71 5.45 0 7.95 0 10.49c0 1.67.71 3.28 2 4.45-.12.5-.2 1-.2 1.5 0 3.4 2.76 5.95 5.95 5.95.64 0 1.26-.1 1.88-.31a5.96 5.96 0 0 0 4.16 1.71z"/></symbol><symbol id="model-gemini" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M20.62 10.84a14.15 14.15 0 0 1-4.45-3 14.11 14.11 0 0 1-3.68-6.45.5.5 0 0 0-.98 0 14.13 14.13 0 0 1-3.68 6.45 14.16 14.16 0 0 1-4.45 3c-.65.28-1.32.5-2 .68a.5.5 0 0 0 0 .98c.68.17 1.35.4 2 .68a14.15 14.15 0 0 1 4.45 3 14.11 14.11 0 0 1 3.68 6.45.5.5 0 0 0 .98 0c.17-.68.4-1.35.68-2a14.15 14.15 0 0 1 3-4.45 14.11 14.11 0 0 1 6.45-3.68.5.5 0 0 0 0-.98 13.25 13.25 0 0 1-2-.68z"/></symbol>
+</defs></svg>
+<div class="exhibition">
+  <aside class="exhibit-nav">
+    <a class="wordmark" href="#sessions"><span class="brand-seal">砚</span><b>piwin</b><span class="edition">MOBILE / GEMINI</span></a>
+    <div class="exhibit-intro"><div class="eyebrow">INKSTONE · 随身砚</div><h1>把书案，<br>带在身边。</h1><p>对话与项目，一张侧栏折成两页；<br>同一台 Host，同一份工作。</p></div>
+    <nav id="scene-nav" aria-label="原型场景"></nav>
+    <div class="exhibit-bottom"><div class="face-switch" aria-label="原型主题"><button data-action="theme" data-value="paper" aria-pressed="true">纸 · Paper</button><button data-action="theme" data-value="ink" aria-pressed="false">墨 · Ink</button></div><p>可交互设计原型 · 所有数据均为演示<br>2026.09.14 · Gemini 增量版 · 对齐 Inkstone Desktop 现行功能</p></div>
+  </aside>
+  <main class="specimen">
+    <div class="specimen-label"><span id="scene-number">01 / 11</span><span id="scene-caption">会话 · 从这里继续</span><button data-action="compact" aria-label="切换手机宽度">390 ↔ 360</button></div>
+    <div class="device" id="device">
+      <div class="phone-status"><span>9:41</span><div class="status-hardware"><span class="signal-bars">▂▄▆</span><span class="wifi">⌁</span><span class="battery"></span></div></div>
+      <div id="phone" class="phone"></div>
+      <div class="home-indicator" aria-hidden="true"></div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      <dialog id="sheet" aria-labelledby="sheet-title"><div id="sheet-content"></div></dialog>
+    </div>
+    <div class="specimen-footer"><span class="small-dot"></span>点击手机内的控件，体验完整动线<span class="mono">1 : 1</span></div>
+  </main>
+  <aside class="exhibit-notes" id="scene-notes"></aside>
+</div>
+<noscript>请启用 JavaScript 以体验交互原型。</noscript>
+<script>
+/* foundation.js */
+/* Shared presentation helpers and deliberately fictional prototype state. */
+const Inkstone = (() => {
+  const state = {
+    route: 'sessions', from: {}, pane: '项目', activityTab: '需要你', knowledgeTab: '维基', wikiCategory: '全部', libraryFilter: '全部', marketTab: '扩展', marketFilter: '全部', reviewFilter: '全部', extensionTab: '技能',
+    sessionId: 'memory', menuSession: 'memory', tool: '文件', doc: 'plan', subagent: 'test-runner', wiki: 'host-authority', source: 'docs', settingsSection: '模型配置', scheme: '审阅交付', terminalTab: 'zsh',
+    model: 'Claude Sonnet', thinking: '中', runMode: '自动', goalArmed: false, goal: null,
+    run: 'running', offline: false, hostName: '书房的 Mac Studio', scope: 'once',
+    permission: 'pending', question: 'pending', answer: '', candidate: 'pending', candidateChoice: '', failure: 'failed', freshPlan: 'pending', cancelled: [],
+    draft: '', attachments: [], mounts: ['piwin 文档'], queue: [], comments: [], commentTarget: '', reviewed: ['draft-store.ts'], openFiles: ['session-index.ts'],
+    sent: {}, created: [], thinkingOpen: false, workOpen: false, branchIndex: 2, handover: false,
+    pinned: ['memory', 'hostdoc'], archived: [], titles: {}, collapsed: ['piwin-docs'], dismissed: [], freshTarget: '项目', freshProject: 'piwin',
+    cardFlipped: false, studied: 0, browsed: 0, studyMode: 'review', muted: false, liveLines: 2, liveMini: false,
+    notify: { approval: true, question: true, failure: true, done: false }, codeWrap: true, visionDelegate: true, embedding: false,
+    note: '把每次对话当成一张纸。\n\n状态在页边，内容在中央。\n朱色只留给真正需要我动手的地方。',
+  };
+  const escape = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+  const icon = (name, extra = '') => `<svg class="icon ${extra}" aria-hidden="true"><use href="#${name}"></use></svg>`;
+  const iconButton = (name, label, action, value = '', extra = '') => `<button class="icon-button ${extra}" data-action="${action}" data-value="${escape(value)}" aria-label="${escape(label)}">${icon(name)}</button>`;
+  const dot = (status) => `<i class="dot ${status}" aria-hidden="true"></i>`;
+  const pill = (text, tone = '') => `<span class="pill ${tone}">${text}</span>`;
+  const row = (name, title, subtitle, action, value = '', trailing = '') => `<button class="list-row" data-action="${action}" data-value="${escape(value)}">${icon(name)}<span class="grow"><strong>${title}</strong>${subtitle ? `<small>${subtitle}</small>` : ''}</span><span class="trailing">${trailing || icon('chevr')}</span></button>`;
+  const toggleRow = (title, subtitle, action, checked) => `<button class="list-row" role="switch" aria-checked="${checked}" data-action="${action}"><span class="grow"><strong>${title}</strong>${subtitle ? `<small>${subtitle}</small>` : ''}</span><span class="switch"></span></button>`;
+  const header = (title, subtitle = '', back = '', right = '') => `<header class="topbar">${back ? iconButton('chevr', '返回', 'navigate', back, 'back-button') : '<span class="brand-seal">砚</span>'}<div class="topbar-title"><h2>${title}</h2>${subtitle ? `<small>${subtitle}</small>` : ''}</div>${right}</header>`;
+  const heading = (title, subtitle = '') => `<div class="screen-heading"><h1>${title.replace('\n', '<br>')}</h1>${subtitle ? `<p>${subtitle}</p>` : ''}</div>`;
+  const tabs = (items, selected, action) => `<div class="tabs">${items.map((item) => `<button data-action="${action}" data-value="${item}" class="${selected === item ? 'active' : ''}" aria-pressed="${selected === item}">${item}</button>`).join('')}</div>`;
+  const segmented = (items, selected, action, label) => `<div class="segmented" role="group" aria-label="${label}">${items.map(([value, count]) => `<button data-action="${action}" data-value="${value}" aria-pressed="${selected === value}">${value}${count !== undefined ? `<small>${count}</small>` : ''}</button>`).join('')}</div>`;
+  const chips = (items, selected, action) => `<div class="chip-row">${items.map(([value, count]) => `<button class="chip" data-action="${action}" data-value="${value}" aria-pressed="${selected === value}">${value}${count !== undefined ? `<small>${count}</small>` : ''}</button>`).join('')}</div>`;
+  const fullButton = (title, action, value = '', extra = '') => `<button class="full-button ${extra}" data-action="${action}" data-value="${escape(value)}">${title}</button>`;
+  const field = (label, name, value = '', type = 'text') => `<label class="field">${label}<input name="${name}" type="${type}" value="${escape(value)}" autocomplete="off"></label>`;
+  const offlineBanner = () => state.offline ? '<div class="banner-offline"><span>连接中断 · 显示 09:38 的快照，草稿仍可写</span><button data-action="reconnect">重新连接</button></div>' : '';
+
+  // Sessions mirror the desktop sidebar: chat-mode conversations and project → worktree → session trees.
+  const sessionData = [
+    { id: 'memory', title: '让会话拥有记忆', mode: 'code', project: 'piwin', tree: 'main', kind: 'memory', time: '刚刚' },
+    { id: 'reconnect', title: '修复移动端重连', mode: 'code', project: 'piwin', tree: 'feat/mobile-reconnect', worktree: true, kind: 'reconnect', time: '26 分钟' },
+    { id: 'theme', title: 'Inkstone · 桌面主题', mode: 'code', project: 'piwin', tree: 'main', kind: 'delivered', time: '1 小时', snippet: '走查报告已就绪 · 4 个文件' },
+    { id: 'deps', title: '升级 Pi 依赖', mode: 'code', project: 'piwin', tree: 'main', kind: 'error', time: '昨天' },
+    { id: 'docsite', title: '文档站换肤', mode: 'code', project: 'piwin-docs', tree: 'main', kind: 'delivered', time: '3 天前', snippet: '已交付 · 6 个文件' },
+    { id: 'scratch', title: '润色一封英文邮件', mode: 'chat', kind: 'plain', day: '今天', time: '08:12', snippet: '语气保持礼貌，句子更短' },
+    { id: 'hostdoc', title: 'Host 的边界与职责', mode: 'chat', kind: 'plain', day: '昨天', time: '昨天', snippet: '引用 2 处知识库 · piwin 文档' },
+    { id: 'reading', title: '周末读书笔记', mode: 'chat', kind: 'plain', day: '更早', time: '周四', snippet: '已记下 5 条便签' },
+    { id: 'trip', title: '十月京都行程', mode: 'chat', kind: 'plain', day: '更早', time: '9月8日', snippet: '四天 · 不赶路的版本' },
+  ];
+  const sessions = () => sessionData.concat(state.created);
+  const session = (id) => sessions().find((item) => item.id === id) || sessionData[0];
+  const title = (id) => state.titles[id] || session(id).title;
+  const status = (id) => {
+    const item = session(id);
+    if (id === 'memory') return state.run === 'running' ? { dot: 'running', text: state.candidate === 'pending' ? '工作中 · 1 份交付待审阅' : '正在补全恢复路径测试', short: '正在工作' } : state.run === 'paused' ? { dot: 'paused', text: '已暂停 · 等你继续', short: '已暂停', tone: 'tone-lamp' } : { dot: 'done', text: '本轮已完成 · 走查报告就绪', short: '等你的下一笔' };
+    if (id === 'reconnect') return state.permission === 'pending' ? { dot: 'waiting', text: '等你批准 1 项操作', short: '等待批准', tone: 'tone-zhu' } : state.question === 'pending' ? { dot: 'waiting', text: 'Agent 在问你 1 个问题', short: '等你回答', tone: 'tone-zhu' } : { dot: 'running', text: state.permission === 'denied' ? '已拒绝测试 · 改用静态检查' : '正在验证重连不重复发送', short: '正在工作' };
+    if (id === 'deps') return state.failure === 'failed' ? { dot: 'failed', text: '运行失败 · 供应商限流 429', short: '运行失败', tone: 'tone-crimson' } : { dot: 'running', text: '正在从失败的步骤重试', short: '正在重试' };
+    if (item.kind === 'fresh') return state.freshPlan === 'pending' ? { dot: 'waiting', text: '计划已写好 · 选择执行方式', short: '等你选择', tone: 'tone-zhu' } : { dot: 'running', text: state.freshPlan === 'agents' ? '子代理执行中' : '按计划执行中', short: '正在工作' };
+    if (item.kind === 'forked') return { dot: 'done', text: `分支 · 源自「${title(item.from)}」`, short: '新的分支' };
+    if (state.sent[id]?.length) return { dot: 'running', text: 'Agent 正在回应', short: '正在工作' };
+    return { dot: 'done', text: item.snippet || '已完成', short: '已完成' };
+  };
+  const freshSession = () => state.created.find((item) => item.kind === 'fresh');
+  const attention = () => [
+    state.permission === 'pending' && { key: 'permission', session: 'reconnect', label: '等待批准' },
+    state.question === 'pending' && { key: 'question', session: 'reconnect', label: '等你回答' },
+    state.candidate === 'pending' && { key: 'candidate', session: 'memory', label: '交付待审阅' },
+    freshSession() && state.freshPlan === 'pending' && { key: 'plan', session: freshSession().id, label: '选择执行方式' },
+    state.failure === 'failed' && { key: 'failure', session: 'deps', label: '运行失败' },
+  ].filter(Boolean);
+  const subagents = () => [
+    { id: 'test-runner', mono: '测', role: '测试 · 补全恢复路径', status: state.cancelled.includes('test-runner') ? 'cancelled' : state.run === 'running' ? 'running' : 'paused', line: state.cancelled.includes('test-runner') ? '已取消 · 已完成的测试保留在工作树' : state.run === 'running' ? '运行 session-index.test.ts · 第 3 / 5 步' : '已暂停在第 3 步', time: '1:32', model: 'Claude Sonnet · 低', tree: 'wt/test-runner', steps: [3, 5] },
+    { id: 'doc-writer', mono: '文', role: '文档 · 同步恢复说明', status: 'done', line: state.candidate === 'pending' ? '已交付候选变更 · 等你审阅' : state.candidate === 'merged' ? '已合入主工作树' : '已交还主代理处理', time: '2:05', model: 'Claude Haiku', tree: 'wt/doc-writer', steps: [4, 4] },
+    { id: 'explorer', mono: '探', role: '探索 · 梳理草稿存储', status: 'done', line: '报告已收回主会话 · 无文件改动', time: '0:48', model: 'Claude Sonnet · 关', tree: '只读 · 不建工作树', steps: [3, 3] },
+  ];
+  const nav = (selected) => `<nav class="bottom-nav" aria-label="手机主导航">${[['sessions', 'panel', '会话'], ['activity', 'bell', '动态'], ['knowledge', 'book', '知识'], ['desk', 'desk', '案头']].map(([route, name, label]) => { const count = route === 'activity' ? attention().length : 0; return `<button class="${route === selected ? 'active' : ''}" data-action="navigate" data-value="${route}" ${route === selected ? 'aria-current="page"' : ''}>${icon(name)}<span>${label}</span>${count ? `<b class="nav-counter">${count}</b>` : ''}</button>`; }).join('')}</nav>`;
+  const back = (route, fallback) => state.from[route] || fallback;
+
+  // [route, caption, heading, lead, note title, note, note title, note]
+  const scenes = [
+    ['sessions', '会话 · 对话与项目', '一张侧栏，折成两页。', '和桌面侧栏一样分成「对话」与「项目」。没有工作区的闲谈平铺成一叠纸；项目下是工作树与会话的枝干。', '先看正在进行的', '需要你的事收成一条朱色细条；桌面上正在跑的工作只占一张续接卡。列表从第一屏就开始，不再被 Host 卡片和筛选挤到下面。', '改版 · 去掉三组筛选', '旧版的「全部 / 进行中 / 置顶」被分栏取代：置顶是每页的第一组，进行中看状态点，跨会话的待决去「动态」。'],
+    ['chat:memory', '对话 · 转录与砚台', '正文居中，过程折起。', '思考、工具链、计划、异步子代理、交付审阅都在转录里就地出现；页面顶端不再挂一排状态胶囊。', '砚台上方一行小签', '计划进度、编排方案与后台任务、知识库挂载、上下文占用收成砚台上方的一行小签。砚台只留 +、模型·思考、权限、语音与发送。', '工作中也能说话', 'Host 正在跑时发送，会先问排队、中断并发送或取消；排好的消息可以编辑，也可以改为「调整当前任务」。'],
+    ['chat:reconnect', '批准与提问', '需要你时，砚台让位。', '权限请求出现在砚台的位置，读完就在拇指下落印；Agent 的提问排在其后，选项在上、自定义回答在砚台。', '范围与桌面一致', '仅这一次、本次会话、此项目三档；默认只放行这一次。展开详情可看触发原因与授权对象。', '一条接一条', '同一会话有多条待决时标出「还有 1 条」。批准后的印章留在转录里，回看时知道谁在何时允许了什么。'],
+    ['activity', '动态 · 跨会话待决', '只在需要你时，来敲门。', '手机最常做的事，是在别处处理一件卡住的事。所有会话的批准、提问、交付审阅、执行方式与失败汇到这一页。', '分三格', '需要你 / 进行中 / 已完成。卡片可以就地落印或选择，也能一键回到原会话读上下文。', '和通知同一个口径', '推送只发「需要你」里的事件；安静完成的工作留在「已完成」，不打断你。'],
+    ['tasks', '子代理与后台任务', '远处的工作，看得见。', '异步子代理在转录里只占一张卡；任务页才展开每个角色的模型、工作树、步骤与交付。', '交付先审阅', '审阅交付方案下，候选变更附带审查项；可以合入，也可以交还主代理处理。并行探索会并排给出候选方案。', '随时介入', '追加要求在子代理当前步骤完成后应用；取消不会丢弃已经完成的工作树内容。'],
+    ['review', '变更与审阅', '在掌心，细读一笔。', '文件先给全貌，逐个展开统一差异；看过的打勾，进度在顶部一眼可见。', '批注回到砚台', '行内批注不另存一处，而是作为附件放进砚台，随下一条消息一起交给 Agent。', '检查点', '每一轮文件改动都有检查点。恢复到某一轮之前只撤回文件，对话完整保留。'],
+    ['workbench', '工作台', '把右侧面板，摊成一页。', '桌面右侧的侧聊、浏览器、文件、终端、任务、变更，在手机上是一页带摘要的工具目录，每个工具独占一页。', '先看摘要再点开', '每格写着此刻状态：变更行数、运行中的子代理、终端退出码、浏览器地址。', '诚实的边界', '终端展示 Host 输出与后台程序；命令回到对话由 Agent 执行。浏览器可选取元素放进砚台。'],
+    ['knowledge', '知识中心', '笔记、文件夹与维基，一处。', '与桌面一样合并为知识中心：维基词条、信源（便签库、维基库与入库文件夹）、闪卡复习三栏。', '挂载到对话', '在砚台 + 里把知识库挂到当前会话；回复里的引用角标可以点开读原文。', '入库状态可读', '可用、入库中、部分失败、找不到文件夹、未配置向量模型——每种状态都给出下一步。'],
+    ['cards', '闪卡复习', '把碎片时间，留给理解。', '纸卡、翻面和四档复习反馈。计划复习与随便看看分开；评分按钮上直接写出下次出现的时间。', '浏览与复习', '随便看看只有翻面与下一张；计划复习翻面后才出现评分。', '进度仍属于 Host', '手机与桌面、CLI 读写同一份卡片和学习记录，没有另一套手机调度器。'],
+    ['desk', '案头与设置', '自己的工具，自己的主机。', '案头合并了旧版的资料架与设置入口：Host、资料库、扩展与插件、自动化、用量，以及与桌面同构的四组设置。', '设置分组与桌面一致', '应用、Agent、集成、系统四组；外观与这台手机的通知单独提前。', '离线草稿', '断线可读快照、写草稿，不能批准或执行；恢复连接后由你确认发送。'],
+    ['voice', 'Live 与随手说', '让一句话，接上思路。', '语音转文字与 Live 分开。先看识别文字，再决定放进砚台；Live 结束后生成一张交接卡回到会话。', '随手说，认真落笔', '转写可以编辑、附图、挂知识库，再发给当前会话。', '收缩为小部件 · 边说边工作', '点击右上角可收缩为悬浮小部件，在浏览项目与对话时保持通话、波形与静音控制。'],
+  ];
+  return { state, escape, icon, iconButton, dot, pill, row, toggleRow, header, heading, tabs, segmented, chips, fullButton, field, offlineBanner, sessions, session, title, status, attention, subagents, freshSession, nav, back, scenes, pages: {}, sheets: {} };
+})();
+
+</script>
+<script>
+/* pages.js */
+/* Home lists, cross-session activity, and the conversation surface. */
+(() => {
+  const I = Inkstone;
+  const { state, escape, icon, iconButton, dot, pill, row, header, heading, tabs, segmented, fullButton, offlineBanner, pages } = I;
+  const sessionRow = (item) => { const st = I.status(item.id); return `<div class="session-item">${dot(st.dot)}<button class="session-open" data-action="open-session" data-value="${item.id}"><strong>${state.pinned.includes(item.id) ? icon('pin', 'inline-pin') : ''}${escape(I.title(item.id))}</strong><small><span class="${st.tone || ''}">${st.text}</span><span>· ${item.time}</span></small></button>${iconButton('more', `${I.title(item.id)}的更多操作`, 'session-menu', item.id)}</div>`; };
+  const group = (label, list, tree = false) => list.length ? `<div class="group-label"><span>${label}</span><span>${list.length}</span></div><div class="${tree ? 'session-tree' : 'session-list'}">${list.map(sessionRow).join('')}</div>` : '';
+
+  pages.sessions = () => {
+    const live = I.sessions().filter((item) => !state.archived.includes(item.id));
+    const chat = live.filter((item) => item.mode === 'chat'), code = live.filter((item) => item.mode === 'code');
+    const pinned = (item) => state.pinned.includes(item.id);
+    const items = I.attention();
+    const attention = items.length ? `<button class="attention" data-action="navigate" data-value="activity"><span class="seal-mini" aria-hidden="true">待</span><span class="grow"><strong>${items.length} 件事等你落笔</strong><small>${items.slice(0, 2).map((item) => `${escape(I.title(item.session))} · ${item.label}`).join('；')}</small></span>${icon('chevr')}</button>` : '';
+    const resume = state.run !== 'idle' && !state.archived.includes('memory') ? `<div class="continue-card compact"><div class="spread"><span class="eyebrow">桌面上正在进行</span>${pill(`${dot(state.run === 'running' ? 'running' : 'paused')}${state.run === 'running' ? '工作中' : '已暂停'}`)}</div><h3>${escape(I.title('memory'))}</h3><p>test-runner 正在补全恢复路径测试 · 你离开后又完成 2 步</p><div class="spread continue-meta"><span class="mono">piwin / main · 计划 2/4</span><button data-action="open-session" data-value="memory">接着看 ${icon('chevr')}</button></div></div>` : '';
+    const chatPane = `${group('置顶', chat.filter(pinned))}${['今天', '昨天', '更早'].map((day) => group(day, chat.filter((item) => !pinned(item) && item.day === day))).join('')}<p class="more-hint">归档的对话在「案头 › 归档管理」</p>`;
+    const projectPane = `${group('置顶', code.filter(pinned))}${[['piwin', '~/Developer/piwin'], ['piwin-docs', '~/Developer/piwin-docs']].map(([name, path]) => {
+      const list = code.filter((item) => item.project === name && !pinned(item)); const collapsed = state.collapsed.includes(name);
+      const trees = [...new Set(code.filter((item) => item.project === name).map((item) => item.tree))];
+      return `<section class="project-block ${collapsed ? 'collapsed' : ''}"><div class="project-row"><button class="project-head" data-action="toggle-project" data-value="${name}" aria-expanded="${!collapsed}">${icon('chevd', 'chev')}${icon('folder')}<span class="grow"><strong>${name}</strong><small>${path}</small></span><span class="mono muted" style="font-size:11px">${code.filter((item) => item.project === name).length}</span></button>${iconButton('plus', `在 ${name} 中新建会话`, 'new-in-project', name)}</div>${collapsed ? '' : trees.map((tree) => { const inTree = list.filter((item) => item.tree === tree); return inTree.length ? `<div class="tree-label">${icon('branch')}${tree}${inTree[0].worktree ? '<em>worktree</em>' : ''}</div><div class="session-tree">${inTree.map(sessionRow).join('')}</div>` : ''; }).join('') + (name === 'piwin' ? '<p class="more-hint">还有 4 个更早的会话，用搜索查找</p>' : '')}</section>`;
+    }).join('')}<div class="section-label"><span>更多项目</span><button data-action="sheet" data-value="projects">全部项目 · 6</button></div>${row('folderp', '打开 Host 上的文件夹', '选择目录 · 首次打开需确认信任', 'sheet', 'workspace-picker')}`;
+    return `<header class="topbar"><span class="brand-seal">砚</span><div class="topbar-title"><h2>会话</h2><button class="host-line" data-action="sheet" data-value="host">${dot(state.offline ? 'waiting' : 'done')}${escape(state.hostName)}${state.offline ? ' · 已断开' : ' · 已连接'}${icon('chevd')}</button></div>${iconButton('search', '搜索会话', 'sheet', 'search')}${iconButton('plus', '新建素笺', 'navigate', 'new', 'red-fill')}</header>${offlineBanner()}<div class="screen-scroll">${attention}${resume}${segmented([['对话', chat.length], ['项目', code.length]], state.pane, 'pane', '会话分栏')}${state.pane === '对话' ? chatPane : projectPane}</div>${I.nav('sessions')}`;
+  };
+
+  // Cards shared by the activity feed and conversation docks.
+  const scopeOptions = () => `<div class="scope-options" role="group" aria-label="批准范围">${[['once', '仅这一次'], ['session', '本次会话'], ['project', '此项目']].map(([value, label]) => `<button data-action="scope" data-value="${value}" aria-pressed="${state.scope === value}">${label}</button>`).join('')}</div>`;
+  const seals = () => `<div class="seals"><button class="seal ghost" data-action="permission" data-value="denied" aria-label="拒绝本次操作" ${state.offline ? 'disabled' : ''}>否</button><button class="seal" id="seal-allow" data-action="permission" data-value="approved" aria-label="按所选范围允许" ${state.offline ? 'disabled' : ''}>允</button></div>`;
+  I.permissionCard = () => `<article class="gate"><div class="spread">${pill(`${dot('waiting')}等待批准`, 'zhu')}<span class="muted mono" style="font-size:10px">2 分钟前</span></div><h3>${escape(I.title('reconnect'))}</h3><p>运行客户端测试，验证断线重连后不会重复发送上一条消息。</p><pre class="command">pnpm --filter @piwin/host-client test</pre><dl class="facts"><dt>工具</dt><dd>bash · 在 Host 执行</dd><dt>目录</dt><dd class="mono">~/Developer/piwin-reconnect</dd><dt>原因</dt><dd>运行模式为「每次询问」</dd></dl>${scopeOptions()}<div class="gate-footer"><button class="text-link" data-action="open-session" data-value="reconnect">看上下文 ${icon('chevr')}</button><span></span>${seals()}</div></article>`;
+  I.permissionDock = () => `<div class="interrupt"><div class="spread">${pill(`${dot('waiting')}需要你的批准`, 'zhu')}<span class="muted" style="font-size:10px">还有 1 条待决</span></div><h3>运行客户端测试</h3><p>验证断线重连后，不会再重复发送上一条消息。</p><pre class="command">pnpm --filter @piwin/host-client test</pre><div class="facts-line mono">bash · ~/Developer/piwin-reconnect · 每次询问</div>${scopeOptions()}<div class="gate-footer"><button class="text-link quiet" data-action="sheet" data-value="permission">展开详情</button><span></span>${seals()}</div></div>`;
+  const answers = [['直到发送或手动删除', '推荐'], ['保留 24 小时', ''], ['保留 7 天', '']];
+  I.questionCard = (dock) => `<article class="${dock ? 'interrupt question' : 'gate question'}"><div class="spread">${pill(`${dot('background')}Agent 正等待你的回答`, 'azure')}${dock ? `<button class="text-link quiet" data-action="answer" data-value="">取消问题</button>` : '<span class="muted mono" style="font-size:10px">2 分钟前</span>'}</div>${dock ? '' : `<p class="hint">${escape(I.title('reconnect'))}</p>`}<h3>离线时写下的草稿，要保留多久？</h3><div class="option-list">${answers.map(([label, tag]) => `<button data-action="answer" data-value="${label}">${label}${tag ? `<small>${tag}</small>` : ''}</button>`).join('')}</div><p class="hint">${dock ? '选择上方选项，或在下方砚台写自定义回答' : '也可以回到会话，写一段自己的回答'}</p></article>`;
+  I.candidateCard = (compact) => state.candidate === 'pending' ? `<article class="card"><div class="spread">${pill(`${icon('fork')}doc-writer · 已交付`)}<span class="muted mono" style="font-size:10px">${escape(state.scheme)}</span></div><h3 class="card-title">候选变更：同步恢复说明</h3><ul class="check-list"><li class="ok"><b>✓</b>文档与实现的函数名一致</li><li class="ok"><b>✓</b>未改动公共接口</li><li class="warn"><b>!</b>README 里的示例路径需要确认</li></ul><div class="card-foot"><span>2 个文件 · <span class="green">+31</span> <span class="red">−4</span> · 独立工作树</span><button class="text-link" data-action="open-subagent" data-value="doc-writer">${compact ? '查看' : '看差异'} ${icon('chevr')}</button></div><div class="button-row">${fullButton('合入', 'candidate', 'merged')}${fullButton('让主代理处理', 'candidate', 'handed', 'secondary')}</div></article>` : `<div class="sealed"><span class="seal-mini ${state.candidate === 'merged' ? 'pine' : 'ghost'}">${state.candidate === 'merged' ? '合' : '交'}</span><span class="grow">${state.candidate === 'merged' ? '已合入 doc-writer 的 2 个文件' : '已交还主代理，确认 README 示例路径'}<small>审阅交付 · 刚刚</small></span></div>`;
+  I.failureCard = (inFeed) => `<article class="card error"><span class="eyebrow">RUN FAILED · 运行失败</span>${inFeed ? `<p class="hint" style="margin-top:4px">${escape(I.title('deps'))}</p>` : ''}<h3 class="card-title">供应商限流（429）</h3><p>已自动重试 3 次仍未成功。已经完成的工具步骤会保留，重试会从失败的这一步继续。</p><dl class="facts"><dt>模型</dt><dd>Claude Opus · 高</dd><dt>发生于</dt><dd>昨天 21:14 · 第 3 个工具步骤后</dd><dt>请求</dt><dd class="mono">req_7f3a…c21</dd></dl><div class="button-row">${fullButton('重试', 'retry-failure')}${fullButton('换个模型重试', 'sheet', 'model', 'secondary')}</div><div class="card-foot">${inFeed ? `<button class="text-link" data-action="open-session" data-value="deps">打开会话 ${icon('chevr')}</button>` : '<span></span>'}<button class="text-link quiet" data-action="copy-diagnostics">复制诊断</button></div></article>`;
+  I.planCard = (fresh) => {
+    const todos = fresh ? [['', '列出现有导出入口'], ['', '合并为「分享」一个出口'], ['', '补齐导出格式测试']] : [['done', '梳理会话恢复边界'], ['done', '保留输入中的草稿'], [state.cancelled.includes('test-runner') ? '' : 'running', '补全恢复路径测试', 'test-runner'], ['', '走查并交付']];
+    const badge = fresh ? (state.freshPlan === 'pending' ? pill('待选择执行方式', 'zhu') : pill(state.freshPlan === 'agents' ? '子代理执行 · 已执行' : '直接执行 · 已执行', 'pine')) : pill('子代理执行 · 已执行', 'pine');
+    const gate = fresh && state.freshPlan === 'pending' ? `<div class="gate-title">选择执行方式</div><div class="gate-choices"><button class="gate-choice recommended" data-action="plan-gate" data-value="direct"><kbd>A</kbd><span class="grow"><strong>在当前会话直接执行</strong><small>推荐 · 步骤少、改动集中</small></span></button><button class="gate-choice" data-action="plan-gate" data-value="agents"><kbd>B</kbd><span class="grow"><strong>子代理执行</strong><small>按「${escape(state.scheme)}」方案分派，交付先审阅</small></span></button></div><p class="hint">也可以直接在砚台里继续提问，计划会保留</p>` : '';
+    return `<article class="card plan"><div class="spread"><span class="eyebrow">PLAN · 实施计划</span>${badge}</div><h3 class="card-title">${fresh ? '会话导出合并' : '会话恢复'}</h3><ol class="todo-list">${todos.map(([status, text, who]) => `<li class="${status}"><span>${text}</span>${who ? `<small>${who}</small>` : ''}</li>`).join('')}</ol>${gate}<div class="card-foot"><button class="text-link" data-action="open-doc" data-value="plan">查看计划文档 ${icon('chevr')}</button><span class="mono">${fresh ? '0 / 3' : '2 / 4'}</span></div></article>`;
+  };
+
+  pages.activity = () => {
+    const items = I.attention(); const has = (key) => items.some((item) => item.key === key);
+    const need = items.length ? `${has('permission') ? I.permissionCard() : ''}${has('question') ? I.questionCard(false) : ''}${has('candidate') ? `<div class="section-label" style="margin-top:22px"><span>${escape(I.title('memory'))}</span><button data-action="open-session" data-value="memory">打开</button></div>${I.candidateCard(true)}` : ''}${has('plan') ? `<div class="section-label" style="margin-top:22px"><span>${escape(I.title(I.freshSession().id))}</span><button data-action="open-session" data-value="${I.freshSession().id}">打开</button></div>${I.planCard(true)}` : ''}${has('failure') ? I.failureCard(true) : ''}` : '<div class="empty-state"><span class="brand-seal">砚</span><h2>都处理好了。</h2><p>新的批准、提问和交付会先出现在这里。</p></div>';
+    const running = `${I.status('memory').dot === 'running' ? row('bulb', escape(I.title('memory')), 'test-runner 正在补全测试 · 3 分 42 秒', 'open-session', 'memory', pill(`${dot('running')}工作中`)) : ''}${I.status('reconnect').dot === 'running' ? row('bulb', escape(I.title('reconnect')), I.status('reconnect').text, 'open-session', 'reconnect', pill(`${dot('running')}工作中`)) : ''}${I.status('deps').dot === 'running' ? row('refresh', escape(I.title('deps')), '从失败的步骤重试', 'open-session', 'deps', pill(`${dot('running')}重试中`)) : ''}${row('fork', 'test-runner', '子代理 · wt/test-runner · 1 分 32 秒', 'open-subagent', 'test-runner')}${row('term', 'pnpm dev', '后台程序 · 端口 5173 · 已运行 12 分钟', 'open-tool', '终端')}${row('clock', '每天回看未完成的工作', '自动化 · 下次明天 09:00', 'navigate', 'automations')}`;
+    const done = `${row('file', '走查报告 · 纸与墨', 'Inkstone · 桌面主题 · 1 小时前', 'open-doc', 'walkthrough', pill('就绪', 'pine'))}${state.dismissed.includes('docsite') ? '' : row('check', '文档站换肤', '会话已完成 · 点按确认后移出', 'dismiss-done', 'docsite')}${row('clock', '每天回看未完成的工作', '今天 09:00 完成 · 汇总 4 件事', 'navigate', 'automations')}${row('chat', '周末读书笔记', '已记下 5 条便签 · 周四', 'open-session', 'reading')}`;
+    return `${header('动态', '跨会话 · 需要你的先来', '', iconButton('sliders', '通知偏好', 'sheet', 'notifications'))}${offlineBanner()}<div class="screen-scroll">${heading('等你，一方印。', `${items.length} 件需要你 · 4 件进行中`)}${tabs(['需要你', '进行中', '已完成'], state.activityTab, 'activity-tab')}${state.activityTab === '需要你' ? need : state.activityTab === '进行中' ? running : done}</div>${I.nav('activity')}`;
+  };
+
+  // Conversation pieces.
+  const modelBrand = (name = '') => { const m = String(name).toLowerCase(); return (m.includes('codex') || m.includes('gpt') || m.includes('openai')) ? 'openai' : (m.includes('gemini') || m.includes('google')) ? 'gemini' : 'claude'; };
+  const you = (text, time, extra = '') => `<button class="user-message" data-action="sheet" data-value="message"><div class="user-message-body">${text}${extra}</div><time class="user-time">${time}</time></button>`;
+  const assistant = (model, time) => { const brand = modelBrand(model); return `<div class="message-head"><span class="avatar model-avatar model-${brand}">${icon(`model-${brand}`)}</span>${model}<time>${time}</time></div>`; };
+  const thinking = (seconds, body) => `<button class="thinking" data-action="toggle" data-value="thinkingOpen" aria-expanded="${state.thinkingOpen}">${icon('drop')}<span>思考 · ${seconds} 秒</span>${icon('chevd', 'chev')}</button>${state.thinkingOpen ? `<div class="thinking-body">${body}</div>` : ''}`;
+  const work = (summary, steps) => `<button class="work-toggle" data-action="toggle" data-value="workOpen" aria-expanded="${state.workOpen}">${dot(steps.some(([status]) => status === 'running') ? 'running' : 'done')}<span>${summary}</span>${icon('chevd', 'chev')}</button>${state.workOpen ? `<div class="tool-thread">${steps.map(([status, verb, target, time]) => `<div class="tool-step">${dot(status)}${verb} <code>${target}</code><span>${time}</span></div>`).join('')}</div>` : ''}`;
+  const actions = (meta, branches = false) => `<div class="message-actions">${iconButton('copy', '复制回复', 'copy-response')}${iconButton('fork', '从这里分叉', 'sheet', 'fork')}${iconButton('refresh', '重新生成', 'regenerate')}${branches ? `<span class="branch-switch"><button data-action="branch" data-value="-1" aria-label="上一个版本">‹</button>${state.branchIndex} / 2<button data-action="branch" data-value="1" aria-label="下一个版本">›</button></span>` : ''}<small>${meta}</small></div>`;
+  const filesBar = (count, add, del) => `<button class="files-bar" data-action="navigate" data-value="review">${icon('git')}<span class="grow">本轮改动 ${count} 个文件</span><span class="green mono">+${add}</span><span class="red mono">−${del}</span>${icon('chevr')}</button>`;
+  const tail = (id) => { const st = I.status(id); return st.dot === 'running' ? `<p class="live-tail">${dot('running')}${id === 'memory' ? 'test-runner 正在运行 session-index.test.ts…' : 'Agent 正在工作…'}</p>` : st.dot === 'paused' ? `<p class="live-tail tone-lamp">${dot('paused')}已暂停 · 子代理当前步骤完成后停下</p>` : st.dot === 'waiting' ? `<p class="live-tail tone-zhu">${dot('waiting')}${st.text}</p>` : ''; };
+  const sent = (id) => (state.sent[id] || []).map((text) => `${you(escape(text), '刚刚')}<p class="context-note">${dot('running')}已送达 Host · 等待 Agent 接续</p>`).join('');
+  const agentCard = () => `<article class="card"><div class="spread"><span class="eyebrow">异步子代理 · ${escape(state.scheme)}</span><button class="text-link" data-action="navigate" data-value="tasks">任务页 ${icon('chevr')}</button></div>${I.subagents().map((agent) => `<button class="agent-line" data-action="open-subagent" data-value="${agent.id}"><span class="monogram ${agent.status}">${agent.mono}</span><span class="grow"><strong>${agent.id}</strong><small>${agent.line}</small></span><time class="mono">${agent.time}</time></button>`).join('')}<div class="card-foot"><span>${state.run === 'paused' ? '已暂停 · 子代理当前步骤完成后停下' : '主代理在等子代理结果，不占用你的砚台'}</span></div></article>`;
+  const plainTalks = {
+    hostdoc: ['Host 和桌面、手机之间，状态到底归谁？', 'Claude Sonnet · 低', '检索知识库 · piwin 文档 · 命中 4 段', '<p>归 Host。<button class="cite" data-action="sheet" data-value="citation">1</button>桌面、手机和 CLI 都是客户端：发请求、呈现结果，不各自保存一份会话。</p><p>唯一留在设备上的，是“读到哪里”这类视图状态——两台设备可能正读不同的位置。<button class="cite" data-action="sheet" data-value="citation">2</button></p>', ['architecture.md', 'adr-0036-host-server.md']],
+    reading: ['帮我把这周读《系统之美》的笔记整理成 5 条便签。', 'Claude Haiku', '写入便签库 · 5 条', '<p>已记下 5 条便签，都放进了便签库，之后可以在知识中心检索或出卡。</p><p>1. 存量随流量变化，而不是直接被控制。<br>2. 调节回路趋向目标，增强回路放大变化。<br>3. 延迟会让系统振荡。</p>', ['便签库']],
+    trip: ['十月去京都四天，帮我排一个不赶路的行程。', 'Claude Sonnet · 关', '', '<p>第一天只走东山一带：清水寺清晨人少，午后在二年坂慢慢逛。</p><p>第二天去岚山，竹林要早，下午留给嵯峨野的小寺。后两天各留半天空白。</p>', []],
+    scratch: ['把这封英文邮件改得自然一点，语气保持礼貌。', 'Claude Sonnet · 关', '', '<p>改好了：句子拆短，把被动语态换成了主动，结尾的请求更直接。</p><p><code>Could you share the draft by Friday?</code> 比原来的写法更自然。</p>', []],
+  };
+
+  const transcripts = {
+    memory: () => `<div class="day-rule">今天 09:32 · 在桌面发起</div>${you('让会话拥有记忆。重新打开项目时，回到上次读到的地方，保留草稿，也记得展开过的工具。', '09:32', `<span class="msg-chips">${pill(`${icon('file')}session-notes.md`)}</span>`)}<div class="cap"><i></i>上下文已装配 · 12.4k tokens · 系统提示 · AGENTS.md · 2 个 @ 引用</div>${assistant('Claude Sonnet 4.6', '09:33')}<div class="work"><div class="work-h" data-action="toggle" data-value="workOpen">${icon('bulb')}<b>思考了 8 秒</b> · 5 个工具 · 2 个文件${icon('chevd', 'chev')}</div><div class="think">记忆应该安静地发生：Host 维护完整会话树，设备维护本地阅读刻度与草稿。先读 session-index.ts 确认生命周期。</div><div class="thread"><div class="tr"><span class="node done"></span><b>read</b><code>packages/session/src/session-index.ts</code><span class="meta">1.2k 行 · 40ms</span></div><div class="tr"><span class="node done"></span><b>grep</b><code>"restoreSession"</code><span class="meta">7 处 · 3 文件</span></div><div class="tr"><span class="node done"></span><b>bash</b><code>pnpm test session</code><span class="meta">45 通过 · 6.2s</span></div><div class="tr"><span class="node done"></span><b>write_file</b><code>packages/session/src/draft-store.ts</code><span class="meta"><span class="pm"><span class="plus">+48</span> <span class="minus">−12</span></span><span class="seal mini" title="已批准 · 允许一次">允</span></span></div><div class="tr last"><span class="node run"></span><b>bash</b><code>pnpm typecheck</code><span class="meta"><span class="run-m"><span class="grind"></span>4.1s</span></span></div></div></div><div class="assistant-prose"><h3>已分为两层恢复语义</h3><p>Host 记住完整会话树与未提交草稿；手机与桌面各自记住阅读刻度与展开状态。断线重连后先还原纸面，再无缝同步最新进度。</p><div class="code"><div class="code-h">${icon('file', 's12')}draft-store.ts<span class="sep">·</span>TypeScript<button class="icon-button" data-action="copy-response" title="复制" style="margin-left:auto">${icon('copy', 's12')}</button></div><pre><span class="k">export class</span> <span class="fx">DraftStore</span> {
+  <span class="k">private</span> drafts = <span class="k">new</span> <span class="fx">Map</span>&lt;<span class="k">string</span>, <span class="k">string</span>&gt;();
+  <span class="fx">get</span>(id: <span class="k">string</span>) { <span class="k">return</span> <span class="k">this</span>.drafts.<span class="fx">get</span>(id) || <span class="s">""</span>; }
+  <span class="c">// 断线重连由 Host 幂等校验，客户端保留未提交草稿</span>
+  <span class="fx">set</span>(id: <span class="k">string</span>, val: <span class="k">string</span>) { <span class="k">this</span>.drafts.<span class="fx">set</span>(id, val); }
+}</pre></div><p>回归测试在 <span class="pc">${icon('file', 's12')}session-index.test.ts</span> 新增「restores drafts on reconnect」；无需触碰侧栏。</p></div>${I.planCard(false)}${agentCard()}${I.candidateCard(false)}<div class="fcb">${icon('git')}2 个文件已修改<span class="pm"><span class="plus">+48</span> <span class="minus">−12</span></span><button class="chip" data-action="navigate" data-value="review" style="margin-left:auto">查看变更</button><button class="chip" data-action="navigate" data-value="walkthrough">走查报告</button></div><div class="acts-f"><button class="icon-button" data-action="copy-response" title="复制">${icon('copy')}</button><button class="icon-button" data-action="fork-session" title="从这里分叉">${icon('fork')}</button><button class="icon-button" data-action="regenerate" title="重新生成">${icon('refresh')}</button><span class="fk">1 个分叉</span></div>${state.handover ? `<div class="handover"><span class="eyebrow">LIVE · 交接卡</span><p>“把刚才的恢复方案整理一下，先列计划，不要开始修改。”</p><div class="button-row">${fullButton('放入砚台', 'handover-draft')}${fullButton('直接发送', 'handover-send', '', 'secondary')}</div></div>` : ''}${sent('memory')}${tail('memory')}`,
+    reconnect: () => `<div class="day-rule">今天 09:10 · 在手机发起</div>${you('移动端断线重连后，经常把上一条消息重复发一次。帮我查一下并修好。', '09:10')}${assistant('GPT-5 Codex · 高', '09:11')}<div class="work"><div class="work-h"><span class="sq"></span><b>等待你批准</b> · 写入 <code>send-queue.ts</code>${icon('chevd', 'chev')}</div><div class="think">重连时客户端会把“未确认”的发送重新推入队列，但 Host 其实已经收到过。需要写入幂等键过滤逻辑。</div><div class="thread"><div class="tr"><span class="node done"></span><b>read</b><code>packages/session/src/reconnect-policy.ts</code><span class="meta">120 行 · 20ms</span></div><div class="tr-gate"><span class="node wait"></span><div class="gate"><div><div class="mic">需要你批准 · 写文件</div><div class="cmd"><b>write_file</b> <code>packages/session/src/send-queue.ts</code></div><div class="facts"><span>工作区内</span><span>规则 · 文件写入门</span><span>风险 · 低</span><span>+36 −9</span></div></div><div class="seals"><button class="seal ghost" data-action="permission" data-value="denied" title="拒绝">否</button><button class="seal" id="seal-allow" data-action="permission" data-value="approved" title="允许一次">允</button></div><div class="gh">落印允许 · <u>允 · 仅这一次</u> · <u>允 · 本会话</u> · <u>允 · 项目</u></div></div></div><div class="tr last"><span class="node"></span><b>bash</b><code>pnpm test send-queue</code><span class="meta">待批准</span></div></div></div>${I.questionCard(false)}<div class="fcb">${icon('git')}1 个文件待写入<span class="pm"><span class="plus">+36</span> <span class="minus">−9</span></span><button class="chip" data-action="navigate" data-value="review" style="margin-left:auto">查看差异</button></div>${state.permission !== 'pending' ? `<div class="session-item" style="margin-top:8px"><span class="seal mini ${state.permission === 'denied' ? 'ghost' : ''}">${state.permission === 'denied' ? '否' : '允'}</span><span class="grow" style="font-size:12px">${state.permission === 'denied' ? '已拒绝运行测试 · Agent 改用静态检查' : `已允许 · ${{ once: '仅这一次', session: '本次会话', project: '此项目' }[state.scope]}`}</span><small class="mono">send-queue.ts</small></div>` : ''}${sent('reconnect')}${tail('reconnect')}`,
+    error: () => `<div class="day-rule">昨天 21:12</div>${you('把 Pi 依赖升级到最新的补丁版本，然后跑一遍类型检查。', '21:12')}${assistant('Claude Opus · 高', '21:13')}${work('读取 package.json · 运行 pnpm outdated · 修改 2 个文件', [['done', '读取', 'package.json', '0.1s'], ['done', '运行', 'pnpm outdated', '3.2s'], ['done', '编辑', 'pnpm-lock.yaml', '2.4s']])}<div class="assistant-prose"><p>三个 Pi 包都有补丁更新，我已经改好版本号，接下来跑类型检查。</p></div>${state.failure === 'failed' ? I.failureCard(false) : `<p class="context-note">${dot('done')}已从第 3 个工具步骤重试</p>`}${sent('deps')}${tail('deps')}`,
+    delivered: (item) => `<div class="day-rule">${item.id === 'theme' ? '今天 08:05' : '9月11日 14:20'}</div>${you(item.id === 'theme' ? '把 Inkstone 纸墨主题统一到桌面主工作区，完成后写一份走查报告。' : '文档站也换成 Inkstone 的纸墨风格。', item.id === 'theme' ? '08:05' : '14:20')}${assistant('Claude Sonnet · 中', item.id === 'theme' ? '08:31' : '14:52')}${work('12 次工具调用 · 修改 4 个文件', [['done', '编辑', 'theme.css', '1.8s'], ['done', '编辑', 'composer-card.tsx', '2.2s'], ['done', '运行', 'pnpm e2e:desktop', '41s']])}<div class="assistant-prose"><p>主题色、会话节点、砚台与权限印章已经统一到同一套纸墨语义。</p></div>${filesBar(4, 126, 40)}<article class="card walk"><div class="spread"><span class="eyebrow">WALKTHROUGH · 走查报告</span>${pill('就绪', 'pine')}</div><h3 class="card-title">纸与墨，终于有了同一种语气。</h3><p>交付了什么、怎样确认、仍需关注三部分，附 4 个文件的验证记录。</p><div class="card-foot"><button class="text-link" data-action="open-doc" data-value="walkthrough">作为文档查看 ${icon('chevr')}</button><span><button class="text-link quiet" data-action="copy-report">复制</button>　<button class="text-link quiet" data-action="regenerate">重新生成</button></span></div></article>${actions('6.1k tokens · 26 分')}${sent(item.id)}${tail(item.id)}`,
+    plain: (item) => { const [question, model, search, answer, sources] = plainTalks[item.id]; return `<div class="day-rule">${item.time}</div>${you(question, item.time === '昨天' ? '22:40' : '08:12', item.id === 'hostdoc' ? `<span class="msg-chips">${pill(`${icon('book')}piwin 文档`)}</span>` : '')}${assistant(model, item.time === '昨天' ? '22:41' : '08:13')}${search ? work(search, [['done', '检索', 'Host 状态 归属', '0.8s'], ['done', '读取', sources[0] || '便签库', '0.2s']]) : ''}<div class="assistant-prose">${answer}</div>${sources.length ? `<div class="sources">信源${sources.map((source) => `<button class="pill" data-action="sheet" data-value="citation">${icon('file')}${source}</button>`).join('')}</div>` : ''}${actions('1.1k tokens · 6s')}${sent(item.id)}${tail(item.id)}`; },
+    fresh: (item) => `<div class="day-rule">刚刚 · 素笺</div>${you(escape(item.prompt), '刚刚')}${assistant(`${escape(state.model)} · ${state.thinking}`, '刚刚')}${work('探索 · 读取 6 个文件', [['done', '检索', 'exportSession', '0.5s'], ['done', '读取', 'session-export-dialog.ts', '0.2s']])}<div class="assistant-prose"><p>先给你一份计划。确认执行方式后，我再动手改文件。</p></div>${I.planCard(true)}${sent(item.id)}${tail(item.id)}`,
+    forked: (item) => `<div class="day-rule">刚刚 · 分支</div><p class="context-note">${icon('fork')}已继承「${escape(I.title(item.from))}」到分叉点为止的 12 条消息</p><div class="empty-state" style="padding:28px 10px"><h2>从这里另起一页。</h2><p>源会话保持不变；这里的每一笔，都只写在分支上。</p></div>${sent(item.id)}${tail(item.id)}`,
+  };
+
+  const composer = (item) => {
+    const running = I.status(item.id).dot === 'running'; const pause = running && !state.draft.trim();
+    const slabChips = [...state.attachments.map((name, index) => `<span class="ref">${icon(name.startsWith('批注') ? 'edit' : 'file')}${escape(name)}<button data-action="remove-attachment" data-value="${index}">×</button></span>`), ...state.comments.filter((comment) => comment.attached).map((comment, index) => `<span class="ref">${icon('edit')}批注 L${comment.line}<button data-action="detach-comment" data-value="${index}">×</button></span>`), state.goalArmed ? `<span class="ref">${icon('target')}Goal<button data-action="disarm-goal">×</button></span>` : ''].filter(Boolean);
+    const placeholder = state.offline ? '先记下来，连接后再发送…' : state.goalArmed ? '设定目标与验收标准并自主运行…' : item.id === 'reconnect' && state.question === 'pending' ? '选择上方选项，或在此输入自定义回答…' : item.mode === 'chat' ? '问任何问题，或粘贴内容开始对话…' : '规划、搜索或构建任何内容';
+    const context = { memory: 37, reconnect: 58, deps: 71 }[item.id] || 12;
+    const queue = state.queue.filter((entry) => entry.session === item.id);
+    const dockChips = `<div class="dock-chips">${item.id === 'memory' ? `<button class="dock-chip" data-action="sheet" data-value="todos">${icon('list')}计划 2/4</button><button class="dock-chip" data-action="navigate" data-value="tasks">${dot(state.run === 'running' ? 'running' : 'paused')}${escape(state.scheme)} · 后台 ${I.subagents().filter((agent) => agent.status === 'running').length}</button>` : ''}${state.goal && state.goal.session === item.id ? `<button class="dock-chip" data-action="sheet" data-value="goal-timeline">${icon('target')}验收 ${state.goal.done}/3</button>` : ''}<button class="dock-chip" data-action="sheet" data-value="mounts">${icon('book')}${state.mounts.length ? `${escape(state.mounts[0])}${state.mounts.length > 1 ? ` +${state.mounts.length - 1}` : ''}` : '挂载知识库'}</button><button class="dock-chip" data-action="sheet" data-value="context"><span class="ring ${context > 60 ? 'warn' : ''}" style="--p:${context}"></span>上下文 ${context}%</button></div>`;
+    return `<div class="composer-dock">${item.id === 'reconnect' && state.question === 'pending' ? I.questionCard(true) : ''}${queue.length ? `<div class="queue-box"><header><span>接下来 · ${queue.length} 条等待中</span><span>当前任务结束后依次发送</span></header>${queue.map((entry) => `<div class="queue-item">${entry.steer ? pill('调整', 'lamp') : pill('排队')}<span class="grow">${escape(entry.text)}</span><button data-action="edit-queue" data-value="${state.queue.indexOf(entry)}">编辑</button>${entry.steer ? '' : `<button data-action="steer-queue" data-value="${state.queue.indexOf(entry)}">改为调整</button>`}<button data-action="cancel-queue" data-value="${state.queue.indexOf(entry)}" aria-label="移除后续消息">×</button></div>`).join('')}</div>` : ''}${item.id === 'memory' && state.run === 'paused' ? `<div class="paused-strip">${dot('paused')}<span class="grow">已暂停 · 子代理停在当前步骤</span><button class="primary" data-action="toggle-run">继续运行</button><button data-action="sheet" data-value="stop-run">停止</button></div>` : ''}${item.id === 'reconnect' && state.question === 'pending' ? '' : dockChips}<div class="slab ${running ? 'running' : ''}"><div class="refs">${slabChips.join('')}<span class="ref">@ session-index.ts</span><span class="ref">@ AGENTS.md §3.3</span></div><textarea id="composer-input" class="ta" aria-label="消息内容" placeholder="${placeholder}" rows="2">${escape(state.draft)}</textarea><div class="bar"><button class="sb-chip ic" data-action="sheet" data-value="plus" title="添加文件和上下文">${icon('plus')}</button><button class="sb-chip on" data-action="sheet" data-value="model"><span class="av">C</span>${escape(state.model.replace('Claude ', ''))} · ${state.thinking}${icon('chevd', 's12')}</button>${item.mode === 'code' ? `<button class="sb-chip" data-action="sheet" data-value="run">${icon('shield', 's12')}${state.runMode}${icon('chevd', 's12')}</button>` : ''}<span class="grow"></span><button class="sb-chip ic" data-action="sheet" data-value="dictation" title="语音输入">${icon('mic')}</button><span class="ring" style="--p:${context}" title="上下文 ${context}%"></span><button class="send ${pause ? 'pause' : ''}" data-action="send" aria-label="${pause ? '暂停' : running ? '排队' : '发送'}">${icon(pause ? 'pause' : 'up')}</button></div></div><div class="hint"><span>轻点发送</span><span>换行 ⇧↵</span><span>长按语音输入</span></div></div>`;
+  };
+
+  pages.chat = () => {
+    const item = I.session(state.sessionId); const st = I.status(item.id);
+    const goal = state.goal && state.goal.session === item.id ? `<div class="goal-strip ${state.goal.status}">${icon('target')}<span class="grow"><strong>${state.goal.status === 'achieved' ? '目标已达成' : '目标执行中'}</strong><small>${escape(state.goal.title)} · 验收 ${state.goal.done}/3</small></span><button class="text-link" data-action="sheet" data-value="goal-timeline">时间线</button><button class="text-link quiet" data-action="stop-goal">${state.goal.status === 'achieved' ? '收起' : '终止'}</button></div>` : '';
+    const right = `<button class="icon-button" data-action="navigate" data-value="workbench" aria-label="打开工作台">${icon('grid')}${item.mode === 'code' ? `<b class="icon-badge">${item.id === 'memory' ? 3 : item.id === 'reconnect' ? 2 : 4}</b>` : ''}</button>${iconButton('more', '会话操作', 'session-menu', item.id)}`;
+    const dock = item.id === 'reconnect' && state.permission === 'pending' ? `<div class="composer-dock">${I.permissionDock()}</div>` : composer(item);
+    return `<header class="topbar">${iconButton('chevr', '返回会话列表', 'navigate', 'sessions', 'back-button')}<button class="topbar-title" data-action="session-menu" data-value="${item.id}"><h2>${escape(I.title(item.id))}</h2><small>${dot(st.dot)} ${state.offline ? `上次状态：${st.short}` : st.short} · ${item.mode === 'code' ? `${item.project} / ${item.tree}` : '对话'}</small></button>${right}</header>${item.kind === 'forked' ? `<button class="lineage" data-action="open-session" data-value="${item.from}">${icon('fork')}分支 · 源会话「${escape(I.title(item.from))}」${icon('chevr')}</button>` : ''}${offlineBanner()}${goal}<div class="screen-scroll chat-scroll" id="chat-scroll">${transcripts[item.kind](item)}</div>${dock}`;
+  };
+
+  pages.new = () => `${header('素笺', '新的一页 · 在你的 Host 上开始', 'sessions')}<div class="screen-scroll"><div class="empty-state" style="padding:22px 10px 18px"><span class="brand-seal">砚</span><h2>研墨起笔。</h2><p>一句话，也可以是一个开始。</p></div>${segmented([['对话'], ['项目']], state.freshTarget, 'fresh-target', '会话归属')}${state.freshTarget === '项目' ? `${row('folder', '项目', `${escape(state.freshProject)} · 工作树 main`, 'sheet', 'projects')}` : '<p class="hint" style="margin:10px 0 4px">不绑定项目：没有文件、终端与变更，只是一段对话。</p>'}${row('bulb', '模型', `${escape(state.model)} · 思考 ${state.thinking}`, 'sheet', 'model')}<label class="field">写下你的想法<textarea id="new-prompt" placeholder="${state.freshTarget === '项目' ? '规划、搜索或构建任何内容' : '问任何问题，或粘贴内容开始对话…'}">${escape(state.draft)}</textarea></label>${fullButton('开始这段会话', 'start-session')}${fullButton(`${icon('mic')} 先说一句`, 'sheet', 'dictation', 'secondary')}<div class="section-label">最近的起笔</div>${row('git', '审阅最近的变更', '先列问题，再给建议', 'prefill', '帮我审阅最近的变更，先列出问题和建议。')}${row('list', '把会话导出合并成一个出口', '会先给计划，再选执行方式', 'prefill', '把现在分散的会话导出入口合并成一个「分享」出口。')}${row('target', '/goal 让恢复路径测试全部通过', '进入 Goal 模式 · 自主推进到验收', 'prefill-goal', '让恢复路径测试全部通过')}</div>`;
+  pages.interrupt = () => { state.sessionId = 'reconnect'; return pages.chat(); };
+})();
+
+</script>
+<script>
+/* workspace.js */
+/* Workbench overview, subagents, review, and desk/settings destinations. */
+(() => {
+  const I = Inkstone;
+  const { state, escape, icon, iconButton, dot, pill, row, header, heading, tabs, fullButton, field, pages } = I;
+
+  const diffFiles = [
+    { file: 'session-index.ts', path: 'packages/session/src', add: 24, del: 6, tag: 'M', code: [['', 41, 'async restoreSession(id) {'], ['remove', 42, '−  return createSession(id);'], ['add', 42, '+  const saved = await store.get(id);'], ['add', 43, '+  if (!saved) return createSession(id);'], ['add', 44, '+  return hydrateSession(saved);'], ['', 45, '}']] },
+    { file: 'draft-store.ts', path: 'packages/session/src', add: 18, del: 0, tag: 'A', code: [['add', 1, '+export class DraftStore {'], ['add', 2, '+  private drafts = new Map<string, string>();'], ['add', 3, '+  get(id) { return this.drafts.get(id) || ""; }'], ['add', 4, '+  set(id, val) { this.drafts.set(id, val); }'], ['add', 5, '+}']] },
+    { file: 'session-index.test.ts', path: 'packages/session/test', add: 6, del: 6, tag: 'M', code: [['', 18, 'it("restores drafts on reconnect", async () => {'], ['remove', 19, '−  const s = await restoreSession("foo");'], ['add', 19, '+  const s = await restoreSession("foo", { keepDraft: true });'], ['', 20, '  expect(s.draft).toBe("hello");'], ['', 21, '});']] },
+  ];
+
+  pages.workbench = () => {
+    const tools = [
+      { id: '变更', icon: 'git', title: '变更与差异', meta: '3 个文件 · +48 −12', tag: 'diff', action: 'navigate', val: 'review' },
+      { id: '任务', icon: 'fork', title: '子代理与任务', meta: `${I.subagents().filter((a) => a.status === 'running').length} 运行中 · ${state.scheme}`, tag: 'agents', action: 'navigate', val: 'tasks' },
+      { id: '终端', icon: 'term', title: '终端输出', meta: 'zsh · 退出码 0 · 快照', tag: 'zsh', action: 'open-tool', val: '终端' },
+      { id: '浏览器', icon: 'globe', title: 'Host 浏览器', meta: 'localhost:5173 · 预览', tag: 'web', action: 'open-tool', val: '浏览器' },
+      { id: '文件', icon: 'folder', title: '项目文件', meta: '3 个打开 · 2 个修改', tag: 'fs', action: 'open-tool', val: '文件' },
+      { id: '画布', icon: 'panelr', title: 'Artifact 画布', meta: '会话记忆 · 1 份就绪', tag: 'html', action: 'open-tool', val: '画布' },
+      { id: '文档', icon: 'file', title: '项目文档', meta: 'session-memory.md', tag: 'md', action: 'open-tool', val: '文档' },
+      { id: '笔记', icon: 'edit', title: '随手记', meta: '3 点想法 · 关联会话', tag: 'note', action: 'open-tool', val: '笔记' },
+      { id: '侧聊', icon: 'chat', title: '侧聊', meta: '正文共享，视图独立', tag: 'side', action: 'open-tool', val: '侧聊' },
+    ];
+    return `${header('工作台', `${escape(I.title(state.sessionId))} · 工具目录`, 'chat', iconButton('plus', '快捷操作', 'sheet', 'workspace-menu'))}<div class="screen-scroll">${heading('右侧面板，摊成一页。', '每个工具独占一屏，操作结论可随时带回砚台')}<div class="tool-grid">${tools.map((t) => `<button class="tool-tile" data-action="${t.action}" data-value="${t.val}">${icon(t.icon)}<strong>${t.title}</strong><small>${t.meta}</small><kbd>${t.tag}</kbd></button>`).join('')}</div><div class="section-label">后台服务</div>${row('term', 'pnpm dev', '本地开发服务 · 端口 5173 · 运行 14 分钟', 'open-tool', '终端')}${row('globe', 'Chrome Headless', '浏览器自动化驱动 · 内存 118MB', 'open-tool', '浏览器')}</div>`;
+  };
+
+  pages.tasks = () => {
+    const agents = I.subagents();
+    const paused = state.run === 'paused';
+    return `${header('子代理与任务', `${escape(state.scheme)} · 编排`, I.back('tasks', 'chat'), iconButton('sliders', '编排方案', 'sheet', 'scheme'))}<div class="screen-scroll">${heading('远处的工作，看得见。', '异步子代理独立工作树，交付方案先审阅')}<div class="continue-card compact"><div class="spread"><span class="eyebrow">编排方案 · ${escape(state.scheme)}</span>${pill(`${dot(paused ? 'paused' : 'running')}${paused ? '已暂停' : '执行中'}`)}</div><p>主代理等待子代理交付成果；随时可追加要求或取消。</p><div class="button-row">${fullButton(paused ? '继续运行' : '暂停全部', 'toggle-run')}${fullButton('追加要求', 'sheet', 'intervene', 'secondary')}</div></div>${state.candidate === 'pending' ? `<div class="section-label">待审阅交付</div>${I.candidateCard(false)}` : ''}<div class="section-label">活动子代理</div>${agents.map((agent) => `<article class="card" style="margin-bottom:10px"><div class="spread"><span class="pill"><span class="monogram ${agent.status}">${agent.mono}</span>${agent.id}</span><span class="mono muted" style="font-size:11px">${agent.time}</span></div><h3 class="card-title" style="margin:8px 0 4px">${agent.role}</h3><p style="font-size:12px;color:var(--t2)">${agent.line}</p><div class="step-bar">${Array.from({ length: agent.steps[1] }).map((_, i) => `<i class="${i < agent.steps[0] ? 'on' : i === agent.steps[0] && agent.status === 'running' ? 'now' : ''}"></i>`).join('')}</div><div class="card-foot"><span class="mono" style="font-size:11px">${agent.tree} · ${agent.model}</span><button class="text-link" data-action="sheet" data-value="subagent-output">工作记录 ${icon('chevr')}</button></div><div class="button-row">${fullButton('追加要求', 'sheet', 'intervene')}${agent.status === 'running' ? fullButton('取消', 'cancel-subagent', agent.id, 'secondary') : ''}</div></article>`).join('')}<div class="section-label">后台守护程序</div>${row('term', 'pnpm dev', 'Vite Dev Server · 5173', 'open-tool', '终端')}${row('clock', '定时检查依赖更新', '每周一 10:00 执行', 'navigate', 'automations')}</div>`;
+  };
+
+  pages.review = () => {
+    const isReviewed = (f) => state.reviewed.includes(f);
+    return `${header('变更与审阅', `${diffFiles.length} 个文件 · +48 −12`, I.back('review', 'chat'), iconButton('more', '审阅选项', 'sheet', 'review-options'))}<div class="screen-scroll">${heading('在掌心，细读一笔。', '看过的打勾，点击新增代码行直接留下批注')}<div class="spread" style="margin:12px 0 6px"><span class="pill pine">已审阅 ${state.reviewed.length} / ${diffFiles.length}</span><span class="mono muted" style="font-size:11px">检查点 #3</span></div><div class="mini-progress pine"><span style="width:${(state.reviewed.length / diffFiles.length) * 100}%"></span></div>${diffFiles.map((df) => {
+      const open = state.openFiles.includes(df.file);
+      const comments = state.comments.filter((c) => c.file === df.file);
+      return `<div class="diff-card"><div class="diff-heading"><button class="grow row" data-action="toggle-file" data-value="${df.file}"><span style="color:var(--ochre);font-weight:700">${df.tag}</span><code>${df.file}</code><span class="pm" style="margin-left:auto"><span class="plus">+${df.add}</span> <span class="minus">−${df.del}</span></span></button><button class="seen-box ${isReviewed(df.file) ? 'on' : ''}" data-action="toggle-seen" data-value="${df.file}" aria-label="标记看过">${isReviewed(df.file) ? '✓' : ''}</button></div>${open ? `<div class="diff-lines">${df.code.map(([type, no, text]) => `<div class="diff-line ${type} ${type === 'add' ? 'commentable' : ''}" ${type === 'add' ? `data-action="open-comment" data-value="${df.file}:${no}" role="button" tabindex="0"` : ''}><em>${no}</em>${escape(text)}</div>`).join('')}${comments.map((c) => `<div class="line-comment"><code>L${c.line}</code><span>${escape(c.text)}</span><button data-action="remove-comment" data-value="${c.id}">删除</button></div>`).join('')}</div>` : ''}</div>`;
+    }).join('')}<div class="notice">${icon('alert')}<b>检查点机制</b><span>回滚只会撤回文件修改，对话记录与思考树完整保留。</span></div><div class="button-row">${fullButton('将批注带入砚台', 'navigate', 'chat')}${fullButton('全部标记为看过', 'mark-all-reviewed', '', 'secondary')}</div></div>`;
+  };
+
+  const inspectors = {
+    '文件': () => `${heading('项目文件', 'piwin / main')}${row('folder', 'packages/session', '会话内核与草稿存储', 'sheet', 'folder')}${row('folder', 'apps/desktop', '桌面端主界面', 'sheet', 'folder')}${row('folder', 'docs/design', 'Inkstone 设计规范', 'sheet', 'folder')}${row('file', 'session-index.ts', 'packages/session/src · 已修改', 'sheet', 'file')}${row('file', 'draft-store.ts', 'packages/session/src · 新增', 'sheet', 'file')}`,
+    '终端': () => `${heading('终端输出', 'Host · zsh · 只读快照')}<div class="pill">${dot('done')}退出码 0</div><pre class="terminal"><span class="muted">~/Developer/piwin</span>\n$ pnpm --filter @piwin/session test\n\n RUN  v3.0.5\n<span class="green"> ✓ session-index.test.ts (8)</span>\n<span class="green"> ✓ draft-store.test.ts (6)</span>\n\n Test Files  2 passed (2)\n      Tests  14 passed (14)\n   Duration  1.42s\n<span class="muted">输出快照 · 09:38:12</span></pre>${fullButton('让 Agent 执行下一条命令', 'sheet', 'terminal-command', 'secondary')}`,
+    '变更': () => `${heading('本轮变更', '3 个文件 · +48 −12')}${fullButton('打开完整统一差异审阅', 'navigate', 'review')}`,
+    '浏览器': () => `${heading('Host 浏览器', 'localhost:5173 · 预览快照')}<div class="note-paper"><span class="eyebrow">PIWIN / INKSTONE</span><h3 style="margin-top:20px">一张纸，一块砚。</h3><p>让思路有安放的地方。</p><hr><p>会话 · 动态 · 知识 · 案头</p><span class="pill pine" style="margin-top:20px">示例页面快照</span></div>${fullButton('把页面截图加入对话', 'add-context', '浏览器页面快照', 'secondary')}`,
+    '画布': () => `${heading('Artifact 画布', '阅读预览 · 安全沙箱')}<div class="note-paper"><span class="eyebrow">SESSION MEMORY / 01</span><h3 style="margin-top:20px">一份安静的记忆</h3><p>会话内容交给 Host，阅读位置留在设备。</p><hr><div class="spread"><span class="pill">Host · 会话</span>→<span class="pill">设备 · 视图</span></div></div>${fullButton('查看 Artifact 源码', 'sheet', 'artifact-source', 'secondary')}`,
+    '文档': () => `${heading('会话记忆设计', 'session-memory.md · 阅读模式')}<article class="note-paper"><span class="eyebrow">设计规范 / 2026.09</span><h3 style="margin-top:18px">恢复的是思路，也是上下文。</h3><p>同一个会话可以在不同的设备继续。手机带走的是观察和输入的能力，执行仍然留在 Host。</p></article>${fullButton('引用此文档到会话', 'add-context', 'session-memory.md', 'secondary')}`,
+    '笔记': () => `${heading('随手记', '与当前会话关联')}<label class="field">移动端随手记<textarea id="note-editor" rows="7">${escape(state.note)}</textarea></label>${fullButton('保存笔记', 'save-note', '', 'secondary')}${fullButton('把笔记放入砚台草稿', 'add-context', state.note, 'subtle')}`,
+    '侧聊': () => `${heading('另起一页，问个细节', '关联当前会话 · 不打断主线')}<div class="quote-note">“Host 记住会话本身，设备记住你阅读的位置。”</div><div class="user-message">为什么阅读位置不也放在 Host？</div><div class="assistant-prose" style="margin-top:16px"><p>因为两台设备可能正在读不同的地方。正文共享，视图独立，就不会相互干扰。</p></div>${fullButton('把侧聊结论带回主会话', 'add-context', '侧聊结论：正文共享，视图独立', 'secondary')}`,
+  };
+
+  pages.workspace = () => `${header('工具详情', `${state.tool} · 当前会话`, 'workbench', iconButton('grid', '工作台目录', 'navigate', 'workbench'))}<div class="screen-scroll">${inspectors[state.tool] ? inspectors[state.tool]() : inspectors['文件']()}</div>`;
+
+  const settingsGroups = [
+    ['应用', [['通用与外观', 'gear', '外观主题与桌面接入'], ['权限与安全', 'shield', 'Auto / Ask / YOLO 三态规则']]],
+    ['Agent', [['模型配置', 'bulb', 'Claude · OpenAI · 自定义 API'], ['OAuth 登录', 'key', 'Codex 与 Gemini 账号凭据'], ['Hooks', 'bolt', '会话生命周期自动化检查'], ['智能体策略', 'fork', '子代理编排方案与沙箱']]],
+    ['集成', [['技能与扩展', 'puzzle', 'Skills · MCP · 插件市场'], ['网络搜索与抓取', 'globe', 'DuckDuckGo · 网页抓取'], ['知识库与向量', 'book', '向量索引与词条库']]],
+    ['系统', [['会话与运行时', 'term', '恢复策略与阅读断点保留'], ['冷存储', 'archive', '离线备份包与快照'], ['用量统计', 'chart', 'Token 输入输出统计'], ['归档管理', 'folder', '已归档历史会话恢复']]],
+  ];
+
+  pages.desk = () => {
+    return `${header('案头', '主机、资料与设置', '', iconButton('search', '搜索设置', 'sheet', 'settings-search'))}${I.offlineBanner()}<div class="screen-scroll">${heading('一方小案头。', '收下成果，也留住灵感。')}<button class="host-card" data-action="sheet" data-value="host"><span class="host-monogram">书</span><span class="grow"><strong>${escape(state.hostName)}</strong><small>${state.offline ? '连接中断 · 快照模式' : '已连接 · 2 台设备在线'}</small></span>${dot(state.offline ? 'waiting' : 'done')}</button><div class="shelf-grid">${[['image', '资料库', '图片 · 视频 · 收藏', 'library'], ['book', '知识中心', '维基 · 信源 · 闪卡', 'knowledge'], ['refresh', '自动化', '2 条定时任务', 'automations'], ['chart', '用量统计', '最近 30 天用量', 'settings-detail', '用量统计']].map(([iconName, title, subtitle, route, arg]) => `<button class="shelf-tile" data-action="${route === 'settings-detail' ? 'open-settings' : 'navigate'}" data-value="${arg || route}">${icon(iconName)}<strong>${title}</strong><small>${subtitle}</small></button>`).join('')}</div><div class="section-label">设置分类</div>${settingsGroups.map(([grp, items]) => `<div class="group-label"><span>${grp}</span><span>${items.length}</span></div>${items.map(([title, iconName, subtitle]) => row(iconName, title, subtitle, 'open-settings', title)).join('')}`).join('')}<div class="section-label">快捷随手记</div>${fullButton(`${icon('mic')} 说一句，存为便签`, 'sheet', 'dictation', 'secondary')}</div>${I.nav('desk')}`;
+  };
+
+  const settingsContent = {
+    '通用与外观': () => `<div class="face-switch" style="width:100%;margin:12px 0"><button style="flex:1" data-action="theme" data-value="paper" aria-pressed="${document.documentElement.dataset.face === 'paper'}">纸 · Paper</button><button style="flex:1" data-action="theme" data-value="ink" aria-pressed="${document.documentElement.dataset.face === 'ink'}">墨 · Ink</button></div>${row('globe', '私有 Host', '书房的 Mac Studio', 'navigate', 'connect')}${row('bell', '移动端通知偏好', '重要事件敲门 · 免打扰', 'sheet', 'notifications')}`,
+    '权限与安全': () => `<div class="scope-options" role="group">${['Auto', 'Ask', 'YOLO'].map((m) => `<button data-action="choose-mode" data-value="${m}" aria-pressed="${state.runMode === m}">${m}</button>`).join('')}</div><p class="hint" style="margin:8px 0">Auto：按规则询问。Ask：每次询问。YOLO：跳过询问。</p>${row('file', '权限规则', 'permissions.json', 'sheet', 'rules')}${row('folder', '项目可信状态', 'piwin · 已信任', 'sheet', 'trust')}`,
+    '模型配置': () => `${row('bulb', 'Anthropic Claude', 'Claude Sonnet / Opus', 'sheet', 'provider')}${row('bulb', 'OpenAI', '自定义 API 密钥', 'sheet', 'provider')}${fullButton('切换默认模型', 'sheet', 'model', 'secondary')}`,
+    'OAuth 登录': () => `${row('key', 'OpenAI Codex', '未登录 · 由 Host 管理凭据', 'sheet', 'oauth')}${row('key', 'Google Gemini', '未登录', 'sheet', 'oauth')}`,
+    'Hooks': () => `${row('bolt', '会话完成自动运行检查', 'session:end → pnpm typecheck', 'sheet', 'hook')}`,
+    '智能体策略': () => `${row('fork', '子代理编排方案', '当前：' + state.scheme, 'sheet', 'scheme')}${row('panelr', 'Artifact 沙箱渲染', '已启用', 'sheet', 'artifact-settings')}`,
+    '技能与扩展': () => `${tabs(['技能', 'MCP', '扩展'], state.extensionTab, 'extension-tab')}${row('puzzle', 'karpathy-guidelines', '已启用 · 极简编码准则', 'sheet', 'skill-detail')}${row('globe', 'GitHub MCP', '已连接 · 8 个工具', 'sheet', 'mcp')}`,
+    '网络搜索与抓取': () => `${row('search', '网络搜索', 'DuckDuckGo · 优先', 'sheet', 'web-search')}${row('globe', '网页抓取', 'Supermarkdown', 'sheet', 'web-fetch')}`,
+    '知识库与向量': () => `${row('book', '向量嵌入服务', 'Host 本地向量索引 · 就绪', 'sheet', 'knowledge-model')}`,
+    '会话与运行时': () => `${row('term', '会话恢复策略', '自动压缩 · 恢复草稿与阅读位置', 'sheet', 'session-policy')}`,
+    '冷存储': () => `${row('archive', '归档包管理', '2 个离线备份包', 'sheet', 'cold-storage')}`,
+    '用量统计': () => `<div class="metric-grid"><div><strong>2.8M</strong><small>Token 输入</small></div><div><strong>428k</strong><small>Token 输出</small></div><div><strong>36</strong><small>会话数</small></div></div><div class="usage-chart">${[30, 55, 45, 80, 62, 95, 68].map((h) => `<span style="--height:${h}%"></span>`).join('')}</div>`,
+    '归档管理': () => `${row('archive', '已归档会话 · 3 篇', '随时可恢复至会话列表', 'restore-archive', '')}`,
+  };
+
+  pages['settings-detail'] = () => `${header(escape(state.settingsSection), '设置 · 偏好', 'desk')}<div class="screen-scroll">${heading(escape(state.settingsSection))}${settingsContent[state.settingsSection] ? settingsContent[state.settingsSection]() : '<p>配置正在读取…</p>'}</div>`;
+
+  pages.library = () => `${header('资料库', 'Host 媒体资产', 'desk', iconButton('plus', '生成', 'sheet', 'media-new'))}<div class="screen-scroll">${heading('留下的，都在这里。', '图片、视频与收藏')}${tabs(['全部', '图片', '视频', '收藏'], state.libraryFilter, 'library-filter')}<div class="asset-grid">${[['image', '纸面外壳', '1440 × 900', 'ink'], ['image', '墨面外壳', '1440 × 900', ''], ['file', '恢复走查演示', '00:24', 'video']].map(([iconName, title, meta, cls]) => `<button class="asset-item" data-action="sheet" data-value="asset"><span class="asset-thumb ${cls}"></span><strong>${title}</strong><small>${meta}</small></button>`).join('')}</div></div>`;
+
+  pages.automations = () => `${header('自动化', 'Host 定时运行', 'desk', iconButton('plus', '新建', 'sheet', 'automation-new'))}<div class="screen-scroll">${heading('小事，按时发生。', 'Host 定时触发，手机随时审阅')}${row('refresh', '每日复盘未完工作', '每天 09:00 · 待办汇总', 'sheet', 'automation-edit', '已启用')}${row('git', '每周依赖安全走查', '每周一 10:00 · piwin', 'sheet', 'automation-edit', '已暂停')}</div>`;
+
+  pages.walkthrough = () => `${header('走查报告', 'Inkstone · 桌面主题', 'chat', iconButton('copy', '复制报告', 'copy-report'))}<div class="screen-scroll">${heading('纸与墨，\n终于有了同一种语气。', '交付验收报告 · 4 个文件验证记录')}<article class="assistant-prose"><p>已统一纸墨主题语义、会话节点、砚台与权限印章。</p><div class="command">✓ session restore 8 tests\n✓ draft persistence 6 tests\n✓ typecheck green</div></article>${fullButton('回到会话', 'navigate', 'chat')}</div>`;
+
+  pages.connect = () => `${header('私有 Host', '配对与连接', 'desk')}<div class="screen-scroll"><div class="empty-state"><span class="brand-seal">砚</span><h2>连回自己的书案。</h2><p>项目、模型与会话归 Host，手机是随身窗口。</p></div><button class="host-card" data-action="pair-demo"><span class="host-monogram">书</span><span class="grow"><strong>${escape(state.hostName)}</strong><small>已配对 · ${state.offline ? '离线' : '可连接'}</small></span>${dot(state.offline ? 'waiting' : 'done')}</button>${fullButton('扫描桌面接入码', 'sheet', 'pairing')}${fullButton('手动输入连接地址', 'sheet', 'manual-connect', 'secondary')}</div>`;
+
+  Inkstone.inspectors = inspectors;
+})();
+
+</script>
+<script>
+/* knowledge.js */
+/* Knowledge center, flashcard spaced repetition, and live voice surfaces. */
+(() => {
+  const I = Inkstone;
+  const { state, escape, icon, iconButton, dot, pill, row, header, heading, tabs, chips, fullButton, pages } = I;
+
+  const wikiEntries = [
+    { id: 'host-authority', cat: '架构', title: 'Host 唯一权威', date: '09.12', text: '状态与执行只归 Host。桌面、手机和 CLI 皆为无状态窗口，正文共享但阅读位置独立。', tags: ['架构', '核心'] },
+    { id: 'session-boundary', cat: '架构', title: '会话恢复边界', date: '09.10', text: '断线恢复时，优先保证设备草稿不丢，随后同步 Host 最新会话树，绝不重发旧命令。', tags: ['架构', '恢复'] },
+    { id: 'fsrs-study', cat: '策略', title: 'FSRS 闪卡调度', date: '09.08', text: '四档遗忘曲线算法在 Host 执行。手机只负责呈现正反面并回传评分，不自建调度器。', tags: ['策略', '卡片'] },
+    { id: 'artifact-sandbox', cat: '交互', title: 'Artifact 安全沙箱', date: '09.04', text: '生成式 HTML 严格置于沙箱 iframe 与 CSP 约束下，外部静态资源默认阻断。', tags: ['交互', '安全'] },
+  ];
+
+  const wikiContent = {
+    'host-authority': '<h3>Host 为什么是唯一权威？</h3><p>在 piwin 架构中，所有模型上下文、工具调用与会话历史都持久化在私有 Host 上。<button class="wikilink" data-action="open-wiki" data-value="session-boundary">会话恢复边界</button>指明设备只保留本地阅读刻度。</p><p>这保证了不论从桌面、手机或 CLI 接入，面对的都是同一份真实进度。</p>',
+    'session-boundary': '<h3>会话恢复边界</h3><p>设备在弱网或断线状态下仍可输入草稿。重连后，客户端以幂等键向 Host 探活，先还原纸面，再由用户确认发出草稿。</p>',
+    'fsrs-study': '<h3>FSRS 算法集成</h3><p>基于 Free Spaced Repetition Scheduler，每次评分（重来、较难、记得、轻松）实时预估下次复习间隔，并在 Host 上更新卡片记忆矩阵。</p>',
+    'artifact-sandbox': '<h3>Artifact 沙箱隔离</h3><p>所有生成的网页、图表和交互卡片均运行在无特权子域。防止未受信模型输出注入脚本或泄露本地凭据。</p>',
+  };
+
+  pages.knowledge = () => {
+    const cats = [['全部', wikiEntries.length], ['架构', 2], ['交互', 1], ['策略', 1]];
+    const filtered = state.wikiCategory === '全部' ? wikiEntries : wikiEntries.filter((w) => w.cat === state.wikiCategory);
+    const wikiPane = `${chips(cats, state.wikiCategory, 'wiki-category')}<div class="wiki-list">${filtered.map((item) => `<button class="wiki-row" data-action="open-wiki" data-value="${item.id}"><strong>${escape(item.title)}</strong><p>${escape(item.text)}</p><small>${item.cat} · ${item.date} · 引用 2 次</small></button>`).join('')}</div><div class="section-label">知识操作</div>${row('book', '从当前项目出卡', '选取 docs/ 目录生成闪卡', 'sheet', 'produce-cards')}${row('plus', '录入新维基条目', '将提炼的结论沉淀为词条', 'sheet', 'wiki-new')}`;
+    const sources = [
+      { name: '便签库', count: '14 条便签', st: '可用', dot: 'done', hint: '随手记与侧聊结论汇总' },
+      { name: '维基库', count: '8 篇词条', st: '可用', dot: 'done', hint: '已建立向量索引' },
+      { name: 'piwin 文档', count: '42 个文件', st: '已挂载', dot: 'done', hint: '~/Developer/piwin/docs' },
+      { name: '本地参考库', count: '128 个文件', st: '入库中 64%', dot: 'running', hint: '嵌入向量构建中' },
+    ];
+    const sourcePane = `<div class="notice">${icon('alert')}<b>信源状态</b><span>所有文档均由 Host 构建向量索引，手机本地不跑解析。</span></div>${sources.map((s) => row('folder', s.name, `${s.count} · ${s.hint}`, 'sheet', 'source-detail', pill(`${dot(s.dot)}${s.st}`, s.dot === 'running' ? 'lamp' : 'pine'))).join('')}<div class="section-label">挂载与同步</div>${fullButton('管理当前会话挂载', 'sheet', 'mounts')}${fullButton('添加外部文件夹', 'sheet', 'workspace-picker', 'secondary')}`;
+    const cardPane = `<div class="continue-card"><div class="spread"><span class="eyebrow">今日待复习</span>${pill(`${dot('running')}待过 12 张`)}</div><h3>碎片时间，加深记忆</h3><p>基于 Host 上的 FSRS 记忆曲线调度，同步桌面与手机学习进度。</p><div class="button-row">${fullButton('开始计划复习', 'navigate', 'cards')}${fullButton('随便看看', 'set-study-mode', 'browse', 'secondary')}</div></div><div class="section-label">最近掌握</div>${row('cards', 'Host 为什么是唯一权威？', '已掌握 · 下次复习 7 天后', 'navigate', 'cards')}${row('cards', '会话恢复幂等机制', '良好 · 下次复习 3 天后', 'navigate', 'cards')}`;
+    const content = state.knowledgeTab === '维基' ? wikiPane : state.knowledgeTab === '信源' ? sourcePane : cardPane;
+    return `${header('知识中心', '维基、信源与闪卡', 'sessions', iconButton('search', '搜索知识库', 'sheet', 'knowledge-search'))}${I.offlineBanner()}<div class="screen-scroll">${heading('留下的，皆成学问。', '在 Host 沉淀，随时在拇指下查阅')}${tabs(['维基', '信源', '闪卡'], state.knowledgeTab, 'knowledge-tab')}${content}</div>${I.nav('knowledge')}`;
+  };
+
+  pages['wiki-detail'] = () => {
+    const entry = wikiEntries.find((e) => e.id === state.wiki) || wikiEntries[0];
+    return `${header(escape(entry.title), `${entry.cat} · 词条`, 'knowledge', iconButton('more', '操作', 'sheet', 'wiki-menu'))}<div class="screen-scroll"><div class="notice">${icon('book')}<span>已挂载至当前会话 · 回复中可角标引用</span></div><article class="assistant-prose" style="margin:16px 0">${wikiContent[entry.id] || '<p>条目内容正在由 Host 整理中。</p>'}</article><div class="section-label">相关知识</div>${row('book', '会话恢复边界', '架构 · 2 处相互引用', 'open-wiki', 'session-boundary')}${fullButton('把本文加入砚台上下文', 'add-context', `@wiki/${entry.title}`)}${fullButton('基于本文出卡', 'sheet', 'produce-cards', 'secondary')}</div>`;
+  };
+
+  const cardQuestions = ['为什么会话状态\n应该属于 Host？', '断线以后，\n草稿应该如何发送？', 'Plan 与 Walkthrough\n有什么不同？'];
+  const cardAnswers = ['因为桌面、手机和 CLI 需要读写同一份会话。Host 是执行与状态的唯一权威，设备只负责呈现与输入。', '先保留设备上的草稿。连接恢复后，先同步最新状态，再由用户确认发送，避免重复执行。', 'Plan 是结构化的内部步骤与执行状态；Walkthrough 是面向用户的交付验收报告。'];
+  const cardIntervals = [['重来', '10分'], ['较难', '1天'], ['记得', '3天'], ['轻松', '7天']];
+
+  pages.cards = () => {
+    const idx = state.studyMode === 'review' ? state.studied : state.browsed;
+    if (state.studied >= 12 && state.studyMode === 'review') {
+      return `${header('知识卡片', '', 'knowledge')}<div class="screen-scroll"><div class="empty-state"><span class="brand-seal">砚</span><h2>今天的十二张，读完了。</h2><p>歇一会儿，让知识慢慢沉淀。</p></div>${fullButton('回到知识中心', 'navigate', 'knowledge')}${fullButton('重新体验这轮复习', 'reset-study', '', 'secondary')}</div>`;
+    }
+    return `${header('知识卡片', 'piwin · 架构与设计', 'knowledge', iconButton('more', '卡片选项', 'sheet', 'card-options'))}<div class="screen-scroll">${heading(state.studyMode === 'review' ? '今日，读懂一点。' : '随便翻翻。', state.studyMode === 'review' ? `待复习 ${Math.max(0, 12 - state.studied)} 张 · 进度随 Host 同步` : '浏览模式 · 不写入复习评分')}${tabs(['计划复习', '随便看看'], state.studyMode === 'review' ? '计划复习' : '随便看看', 'study-mode')}<div class="section-label"><span>架构 · Host</span><span class="mono">${String((idx % 3) + 1).padStart(2, '0')} / 12</span></div><button class="flashcard" data-action="flip-card" aria-label="${state.cardFlipped ? '查看问题' : '翻面查看答案'}"><span class="eyebrow">${state.cardFlipped ? 'ANSWER / 答案' : 'QUESTION / 问题'}</span>${state.cardFlipped ? `<p>${cardAnswers[idx % 3]}</p>` : `<h2>${cardQuestions[idx % 3].replace('\n', '<br>')}</h2>`}<span class="muted" style="font-size:11px">${state.cardFlipped ? '来自 docs/architecture.md' : '轻点纸面，翻看答案'} ↗</span></button>${state.cardFlipped ? (state.studyMode === 'review' ? `<p class="muted" style="font-size:12px;margin:20px 0 12px">这次记得怎么样？</p><div class="rating-grid">${cardIntervals.map(([label, interval]) => `<button data-action="rate-card" data-value="${label}">${label}<small>${interval}</small></button>`).join('')}</div>` : fullButton('下一张', 'next-card', '', 'secondary')) : fullButton('翻看答案', 'flip-card', '', 'secondary')}<div class="quote-note">${state.studyMode === 'review' ? '不用急着记住全部。每一次回想，都会留下新的痕迹。' : '只翻阅，不评分。遇到想再看的内容，可以留个记号。'}</div></div>`;
+  };
+
+  pages.voice = () => `${header('piwin Live', '移动语音 · 演示场景', I.back('voice', 'chat'), `${iconButton('pip', '收缩为小部件', 'shrink-live')}${iconButton('sliders', '语音设置', 'sheet', 'voice-settings')}`)}<div class="screen-scroll"><div class="live-stage"><span class="pill">${dot('running')}与当前会话连接</span><div class="live-orbit"><span class="brand-seal">砚</span></div><h2>${state.muted ? '安静一会儿。' : '我在听，你慢慢说。'}</h2><p>${escape(I.title(state.sessionId))} · piwin</p><div class="voice-bars" aria-hidden="true">${[1, 2, 4, 7, 5, 3, 8, 6, 4, 2, 5, 7, 3, 2, 1].map((level) => `<i style="--level:${state.muted ? 0 : level}"></i>`).join('')}</div><div class="quote-note" style="text-align:left">“把刚才的恢复方案整理一下，<br>先列计划，不要开始修改。”</div><p>演示转录 · 未使用麦克风</p><div class="live-controls"><button data-action="mute-voice" aria-label="${state.muted ? '取消静音' : '静音'}">${icon(state.muted ? 'close' : 'mic')}</button><button class="end-call" data-action="end-voice" aria-label="结束语音">${icon('close')}</button></div><p style="margin-top:17px">${state.muted ? '已静音' : '麦克风'}　　结束</p></div></div>`;
+})();
+
+</script>
+<script>
+/* sheets.js */
+/* Bottom sheets for model, context, subagents, review comments, and settings. */
+(() => {
+  const { state, escape, icon, dot, pill, row, tabs, fullButton, field, sheets } = Inkstone;
+  const define = (key, title, render) => { sheets[key] = { title, render }; };
+
+  define('model', '模型与思考', () => `<p>为接下来的回复选择模型。历史消息保持原有署名。</p>${['Claude Sonnet', 'Claude Opus', 'GPT-5 Codex', 'Gemini 2.5 Pro'].map((m) => row('bulb', m, m.includes('Sonnet') ? '日常编码 · 快速' : '高难度推理', 'choose-model', m, state.model.includes(m.split(' ')[1]) ? '✓' : '')).join('')}<div class="section-label">思考强度</div><div class="scope-options">${['关', '低', '中', '高'].map((e) => `<button data-action="choose-thinking" data-value="${e}" aria-pressed="${state.thinking === e}">${e}</button>`).join('')}</div>${fullButton('完成', 'close-sheet')}`);
+  define('run', '权限运行模式', () => `<p>控制 Host 上的工具执行询问策略。</p><div class="scope-options">${['自动', '询问', '放行'].map((m) => `<button data-action="choose-run-mode" data-value="${m}" aria-pressed="${state.runMode === m}">${m}</button>`).join('')}</div><div class="quote-note">自动：按策略放行读操作，写与执行询问。<br>询问：每次工具调用均需拇指落印。<br>放行：跳过询问，用于受限或沙箱任务。</div>${fullButton('完成', 'close-sheet')}`);
+  define('scheme', '子代理编排', () => `<p>选择多代理协作方案。由 Host 派生独立工作树。</p><div class="scope-options">${['单 Agent', '审阅交付', 'Ultra Code'].map((s) => `<button data-action="choose-scheme" data-value="${s}" aria-pressed="${state.scheme === s}">${s}</button>`).join('')}</div>${fullButton('应用方案', 'close-sheet')}`);
+  define('plus', '添加上下文与附件', () => `${row('image', '照片或截屏', '选取图片放入砚台', 'attach', '截图.png')}${row('file', '项目文件', '从工作树选取', 'sheet', 'references')}${row('book', '挂载知识库', '将维基或文档库关联当前会话', 'sheet', 'mounts')}${row('puzzle', '技能与指令', '调用已安装技能', 'sheet', 'skills')}${row('globe', 'MCP 工具', '在 Host 执行扩展工具', 'sheet', 'mcp')}${row('mic', '进入 piwin Live', '全屏语音对话', 'navigate', 'voice')}`);
+  define('references', '引用文件', () => `${row('file', 'session-index.ts', 'packages/session/src', 'attach', 'session-index.ts')}${row('file', 'draft-store.ts', 'packages/session/src', 'attach', 'draft-store.ts')}${row('file', 'architecture.md', 'docs/', 'attach', 'architecture.md')}`);
+  define('mounts', '当前会话挂载知识库', () => `<p>挂载后，Agent 回复中可直接检索并角标引用。</p>${['piwin 文档', '便签库', '架构维基'].map((m) => row('book', m, state.mounts.includes(m) ? '已挂载' : '未挂载', 'toggle-mount', m, state.mounts.includes(m) ? '✓' : '＋')).join('')}${fullButton('管理知识库', 'navigate', 'knowledge', 'secondary')}`);
+  define('todos', '实施计划 · 步骤', () => `<ol class="todo-list"><li class="done"><span>梳理会话恢复边界</span><small>done</small></li><li class="done"><span>保留输入中的草稿</span><small>done</small></li><li class="running"><span>补全恢复路径测试</span><small>test-runner</small></li><li><span>走查并交付</span></li></ol>${fullButton('查看计划完整文档', 'open-doc', 'plan')}`);
+  define('goal-timeline', 'Goal 模式验收标准', () => `<article class="card"><div class="spread"><span class="eyebrow">GOAL · 自主推进</span><span class="pill pine">2 / 3 通过</span></div><h3 class="card-title">恢复路径全面测试通过</h3><ul class="check-list"><li class="ok"><b>✓</b>断线草稿留存并可重新提交</li><li class="ok"><b>✓</b>幂等键拦截重复发送</li><li class="warn"><b>!</b>后台运行时状态恢复测试中</li></ul>${fullButton('终止 Goal 运行', 'stop-goal', '', 'secondary')}</article>`);
+  define('stop-run', '停止当前运行', () => `<p>停止会使所有子代理停止在当前步骤，已经完成的代码变更和工作树内容将保留。</p>${fullButton('确认停止', 'confirm-stop-run')}${fullButton('取消', 'close-sheet', '', 'subtle')}`);
+  define('subagent-output', '子代理工作记录', () => `<div class="tool-thread"><div class="tool-step">${dot('done')}读取 <code>reconnect-policy.ts</code> <span>0.2s</span></div><div class="tool-step">${dot('done')}编辑 <code>session-index.test.ts</code> <span>1.1s</span></div><div class="tool-step">${dot('running')}运行 <code>pnpm test</code> <span>工作中</span></div></div><div class="quote-note">独立工作树 wt/test-runner · 无需人工干预</div>${fullButton('查看变更', 'navigate', 'review', 'secondary')}`);
+  define('intervene', '补充一条要求', () => `<p>追加的要求会在子代理当前步骤完成后生效，不会重置任务。</p><label class="field">要求内容<textarea id="intervene-input" placeholder="例如：同时覆盖手机在后台时的重连恢复。"></textarea></label>${fullButton('排队追加', 'submit-intervene')}${fullButton('先暂停子代理', 'toggle-run', '', 'secondary')}`);
+  define('comment', '留下行内批注', () => `<p>批注将作为附件回到砚台，随下一条消息交给 Agent。</p><label class="field">批注内容<textarea id="comment-input" placeholder="例如：这里要考虑旧版本数据格式兼容。"></textarea></label>${fullButton('存入批注并带入砚台', 'submit-comment')}`);
+  define('review-options', '审阅选项', () => `${row('file', '全部标记为看过', '', 'mark-all-reviewed')}${row('refresh', '重置审阅状态', '', 'reset-review')}${row('git', '查看检查点历史', '', 'sheet', 'history')}`);
+  define('session-menu', '会话操作', () => { const s = state.menuSession, isPinned = state.pinned.includes(s); return `${row('pin', isPinned ? '取消置顶' : '置顶会话', '', 'toggle-pin', s)}${row('edit', '重命名', '', 'sheet', 'rename')}${row('fork', '从此处另起分支', '', 'fork-session', s)}${row('archive', '归档此会话', '', 'archive-session', s)}${row('copy', '导出会话 Markdown', '', 'export-session', s)}`; });
+  define('rename', '重命名会话', () => `${field('会话名称', 'session-title', Inkstone.title(state.menuSession))}${fullButton('保存名称', 'submit-rename')}`);
+  define('citation', '引用出处', () => `<div class="notice">${icon('book')}<b>docs/architecture.md · L48-L62</b><span>Host 负责维护完整的 Agent 状态树与工具执行沙箱。客户端通过幂等协议订阅事件流。</span></div>${fullButton('在知识中心打开', 'navigate', 'knowledge', 'secondary')}`);
+  define('permission', '权限申请详情', () => `<span class="pill zhu">Host 正在等待你</span><div class="command">pnpm --filter @piwin/host-client test</div><dl class="facts"><dt>工具</dt><dd>bash · 在 Host 执行</dd><dt>目录</dt><dd class="mono">~/Developer/piwin-reconnect</dd><dt>原因</dt><dd>运行模式为「每次询问」</dd></dl><div class="scope-options">${[['once', '仅这一次'], ['session', '本次会话'], ['project', '此项目']].map(([v, l]) => `<button data-action="scope" data-value="${v}" aria-pressed="${state.scope === v}">${l}</button>`).join('')}</div><div class="button-row">${fullButton('允 · 批准', 'permission', 'approved')}${fullButton('否 · 拒绝', 'permission', 'denied', 'secondary')}</div>`);
+  define('dictation', '语音输入', () => `<div class="voice-bars" aria-hidden="true">${[2, 4, 6, 3, 8, 5, 4, 7, 2].map((l) => `<i style="--level:${l}"></i>`).join('')}</div><p>本地语音转写 · 离线可用</p><label class="field">转写文本<textarea id="dictation-text">把刚才的恢复方案整理一下，先列计划，不要开始修改。</textarea></label>${fullButton('放入砚台', 'use-dictation')}${fullButton('进入 Live 实时对话', 'navigate', 'voice', 'secondary')}`);
+  define('host', '书案连接', () => `${row('panel', '书房的 Mac Studio', state.offline ? '连接已断开' : '已连接 · 私有局域网', 'pair-demo', '', state.offline ? '重连' : '✓')}${row('plus', '配对新 Host', '', 'navigate', 'connect')}${fullButton(state.offline ? '恢复连接' : '模拟断线', state.offline ? 'reconnect' : 'disconnect', '', 'secondary')}`);
+  define('notifications', '通知偏好', () => `<p>手机最重要是安静。只在真正需要你时敲门。</p>${[['approval', '需要审批时敲门'], ['question', 'Agent 提问时敲门'], ['failure', '任务异常失败时敲门'], ['done', '安静任务完成时也提醒']].map(([k, label]) => `<button class="list-row" role="switch" aria-checked="${state.notify[k]}" data-action="toggle-notify" data-value="${k}"><span class="grow"><strong>${label}</strong></span><span class="switch"></span></button>`).join('')}${fullButton('完成', 'close-sheet')}`);
+  define('card-options', '卡片选项', () => `${row('cards', '计划复习模式', '四档评分，FSRS 调度', 'set-study-mode', 'review')}${row('cards', '随便翻翻模式', '仅浏览，不计评分', 'set-study-mode', 'browse')}${row('plus', '从文档出卡', '选取 docs/ 提取概念', 'sheet', 'produce-cards')}`);
+  define('produce-cards', '从文档出卡', () => `${field('来源路径', 'card-source', 'docs/architecture.md')}<label class="field">出卡主题<textarea>Host 权威、断线幂等机制、视图状态隔离</textarea></label>${fullButton('生成 3 张卡片', 'submit-produce-cards')}`);
+  define('workspace-menu', '展开工具', () => `${[['git', '变更与审阅', 'review'], ['fork', '子代理任务', 'tasks'], ['term', '终端', '终端'], ['globe', '浏览器', '浏览器'], ['folder', '文件', '文件'], ['panelr', '画布', '画布'], ['file', '文档', '文档'], ['edit', '随手记', '笔记'], ['chat', '侧聊', '侧聊']].map(([ic, name, val]) => row(ic, name, '', val === 'review' || val === 'tasks' ? 'navigate' : 'open-tool', val)).join('')}`);
+  define('projects', '选择项目', () => `${row('folder', 'piwin', '~/Developer/piwin', 'choose-project', 'piwin', state.freshProject === 'piwin' ? '✓' : '')}${row('folder', 'piwin-docs', '~/Developer/piwin-docs', 'choose-project', 'piwin-docs', state.freshProject === 'piwin-docs' ? '✓' : '')}${row('plus', '打开 Host 目录', '', 'sheet', 'workspace-picker')}`);
+  define('workspace-picker', '打开 Host 工作区', () => `${field('目录绝对路径', 'wp-path', '~/Developer/piwin')}${fullButton('信任并打开', 'trust-project')}`);
+  define('pairing', '扫码接入', () => `<div class="qr">${icon('scan')}</div><p style="text-align:center">在桌面端打开「设置 › 设备与连接 › 手机接入」扫描配对码。</p>${fullButton('使用演示配对', 'pair-demo')}`);
+  define('manual-connect', '手动连接 Host', () => `${field('Host URL', 'h-url', 'wss://mac-studio.local:8787')}${field('配对 Token', 'h-token', 'pw_sec_9f81a')}${fullButton('连接', 'pair-demo')}`);
+  define('asset', '资料详情', () => `<div class="asset-thumb ink" style="height:120px"></div><dl class="facts"><dt>标题</dt><dd>纸面外壳 · 设计概念</dd><dt>尺寸</dt><dd>1440 × 900</dd><dt>格式</dt><dd>PNG · 840KB</dd></dl>${fullButton('放入当前砚台', 'add-context', '图片: 纸面外壳.png')}`);
+  define('media-new', '生成新资料', () => `${row('image', '生成图片', '在当前会话输入提示词', 'media-prompt', '生成一张深墨风格的主界面参考图')}${row('file', '生成视频', '描述镜头与动作', 'media-prompt', '生成一段演示断线重连的界面微动效')}`);
+  define('settings-search', '搜索设置项', () => `<label class="search-field">${icon('search')}<input id="settings-search" placeholder="输入搜索词，如模型、权限、用量…"></label><div id="settings-results"></div>`);
+  define('wiki-new', '录入新条目', () => `${field('条目名称', 'w-title', '')}${field('所属分类', 'w-cat', '架构')}<label class="field">核心要点<textarea id="w-content" placeholder="记录核心事实与设计结论…"></textarea></label>${fullButton('保存词条', 'submit-wiki')}`);
+  define('source-detail', '信源详情', () => `<div class="notice">${icon('folder')}<b>piwin 文档库</b><span>~/Developer/piwin/docs · 42 个 Markdown 文档已入库向量索引，支持余弦相似度检索。</span></div>${fullButton('更新向量索引', 'save-demo', '已触发 Host 索引增量扫描')}`);
+
+  const forms = [
+    ['provider', '供应商配置', [['显示名', 'Anthropic Claude'], ['API 端点', 'https://api.anthropic.com'], ['密钥环境变量', 'ANTHROPIC_API_KEY']]], ['automation-new', '新建定时任务', [['任务名称', '每日复盘未完工作'], ['Cron', '0 9 * * *'], ['执行提示词', '汇总待处理事项']]], ['automation-edit', '编辑定时任务', [['任务名称', '每日复盘未完工作'], ['Cron', '0 9 * * *']]], ['hook', '生命周期 Hook', [['名称', '提交前检查'], ['事件', 'session:end'], ['脚本', 'pnpm test']]], ['mcp', 'MCP 服务', [['服务名', 'github'], ['命令', 'npx -y @modelcontextprotocol/server-github']]], ['extension-install', '安装扩展', [['路径', '~/Developer/piwin/.agents/skills']]], ['prompt-template', '提示词模板', [['名称', '代码走查'], ['内容', '检查改动中的边界与回归风险']]], ['web-search', '搜索来源', [['默认', 'DuckDuckGo']]], ['web-fetch', '网页抓取', [['引擎', 'Supermarkdown']]], ['knowledge-model', '向量模型', [['模型', 'text-embedding-3-small']]], ['session-policy', '会话策略', [['策略', '按项目归档']]], ['cold-storage', '冷存储配置', [['目录', '~/piwin-archives']]], ['artifact-settings', 'Artifact 策略', [['CSP 沙箱', 'strict']]],
+  ];
+  forms.forEach(([key, title, fields]) => define(key, title, () => `<p>配置保存在 Host，手机仅作呈现。</p>${fields.map(([lbl, val], i) => field(lbl, `df-${i}`, val)).join('')}${fullButton('保存配置', 'save-demo')}`));
+
+  const readouts = [
+    ['oauth', 'OAuth 认证', 'Host 负责管理 OAuth Refresh Token。手机仅提供一键唤醒桌面认证。'], ['skill-detail', 'karpathy-guidelines', '思考再动手，极简优先，最小改动，目标驱动。在 Host 统一加载。'], ['rules', '权限规则', '{\n  "mode": "auto",\n  "allow": ["read", "search"],\n  "ask": ["exec", "write"]\n}'], ['runtime', '运行时驻留', '当前活跃 2 个 Session 运行时。闲置由 Host 自动休眠，保留持久化历史。'], ['storage-pack', '外部存储包', 'piwin-2026-09-01.pack (14MB)\n未挂载外部归档卷。'], ['usage-model', '模型用量', 'Claude Sonnet: 1.8M in / 312k out\nGPT-5 Codex: 940k in / 116k out'], ['compact-context', '整理上下文', '将前面 14 轮对话压缩为结构化摘要，保持注意力集中。'],
+  ];
+  readouts.forEach(([key, title, desc]) => define(key, title, () => `<div class="command">${escape(desc)}</div>${fullButton('知道了', 'close-sheet', '', 'secondary')}`));
+})();
+
+</script>
+<script>
+/* app.js */
+/* Local prototype controller and interaction dispatcher. */
+(() => {
+  const I = Inkstone;
+  const { state, escape, icon, pages, sheets, scenes } = I;
+  const phone = document.querySelector('.device > .phone') || document.querySelector('#phone');
+  const dialog = document.querySelector('#sheet');
+  const device = document.querySelector('#device');
+  const savedForms = new Map();
+  let currentSheet = '', previousFocus = null, toastTimer;
+
+  function toast(msg) {
+    const el = document.querySelector('#toast');
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  function positionSheet() {
+    const b = device.getBoundingClientRect(), inset = window.innerWidth <= 700 ? 0 : 6;
+    dialog.style.setProperty('--dialog-width', `${b.width - inset * 2}px`);
+    dialog.style.setProperty('--dialog-left', `${b.left + inset}px`);
+    dialog.style.setProperty('--dialog-bottom', `${Math.max(0, window.innerHeight - b.bottom + inset)}px`);
+    dialog.style.setProperty('--dialog-max-height', `${Math.max(280, b.height - 76)}px`);
+  }
+
+  function paintSheet() {
+    const s = sheets[currentSheet];
+    if (!s) return;
+    document.querySelector('#sheet-content').innerHTML = `<div class="sheet-grab"></div><div class="sheet-head"><h2 id="sheet-title">${s.title}</h2><button class="icon-button" data-action="close-sheet" aria-label="关闭">${icon('close')}</button></div><div class="sheet-body">${s.render()}</div>`;
+    const v = savedForms.get(currentSheet);
+    if (v) dialog.querySelectorAll('input[name],textarea[name]').forEach((input) => { if (v[input.name] !== undefined) input.value = v[input.name]; });
+    positionSheet();
+  }
+
+  function openSheet(key) {
+    if (!sheets[key]) { toast('演示入口暂未定义'); return; }
+    if (!dialog.open) previousFocus = document.activeElement;
+    currentSheet = key; paintSheet();
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function closeSheet() {
+    if (dialog.open) dialog.close();
+    currentSheet = '';
+    if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+  }
+
+  function sceneForRoute() {
+    if (state.route === 'chat') return state.sessionId === 'reconnect' ? 2 : 1;
+    const map = { sessions: 0, new: 0, activity: 3, tasks: 4, review: 5, workbench: 6, workspace: 6, knowledge: 7, 'wiki-detail': 7, cards: 8, desk: 9, settings: 9, 'settings-detail': 9, connect: 9, library: 9, automations: 9, walkthrough: 5, voice: 10 };
+    return map[state.route] ?? 0;
+  }
+
+  function render() {
+    const scroller = phone.querySelector('.screen-scroll'), scrollPos = scroller?.scrollTop || 0, prevRoute = phone.dataset.route;
+    let content = pages[state.route] ? pages[state.route]() : pages.sessions();
+    if (state.liveMini && state.route !== 'voice') {
+      content = content.replace('</header>', `</header><div class="live-capsule" role="region" aria-label="Live 悬浮小部件"><button class="capsule-body" data-action="expand-live" aria-label="返回全屏 Live"><i class="dot running"></i><span class="capsule-text"><strong>Live · ${state.muted ? '已静音' : '我在听'}</strong><small>${state.muted ? '轻点麦克风开麦' : '“把刚才的恢复方案整理一下…”'}</small></span></button><div class="capsule-controls"><button class="capsule-btn ${state.muted ? 'is-muted' : ''}" data-action="toggle-live-mute" aria-label="${state.muted ? '取消静音' : '静音'}">${icon(state.muted ? 'close' : 'mic')}</button><button class="capsule-btn" data-action="expand-live" aria-label="全屏 Live">${icon('expand')}</button><button class="capsule-btn capsule-hangup" data-action="end-live" aria-label="结束 Live">${icon('close')}</button></div></div>`);
+    }
+    phone.innerHTML = content;
+    phone.dataset.route = state.route;
+    if (prevRoute === state.route) phone.querySelector('.screen-scroll')?.scrollTo(0, scrollPos);
+    else if (state.route === 'chat') { const s = phone.querySelector('.screen-scroll'); if (s) s.scrollTop = s.scrollHeight; }
+    const sceneIdx = Math.max(0, sceneForRoute()), scene = scenes[sceneIdx];
+    document.querySelector('#scene-nav').innerHTML = scenes.map(([r, t], i) => `<button class="scene-link ${i === sceneIdx ? 'active' : ''}" data-action="nav-scene" data-value="${r}"><span class="scene-index">${String(i + 1).padStart(2, '0')}</span><span>${t}</span><span class="scene-arrow">↗</span></button>`).join('');
+    document.querySelector('#scene-number').textContent = `${String(sceneIdx + 1).padStart(2, '0')} / 11`;
+    document.querySelector('#scene-caption').textContent = scene[1];
+    document.querySelector('#scene-notes').innerHTML = `<div class="note-rule"></div><div class="eyebrow">DESIGN NOTE / ${String(sceneIdx + 1).padStart(2, '0')}</div><h2>${scene[2]}</h2><p>${scene[3]}</p><div class="note-item"><b>${scene[4]}</b><p>${scene[5]}</p></div><div class="note-item"><b>${scene[6]}</b><p>${scene[7]}</p></div><span class="note-tag">Inkstone 纸墨 · 拇指工学</span><div class="note-bottom">桌面同构 · 离线自包含<br>PROTOTYPE GEMINI INCREMENTAL</div>`;
+    document.querySelectorAll('[data-action="theme"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === document.documentElement.dataset.face)));
+    if (dialog.open) positionSheet();
+  }
+
+  function navigate(route) {
+    if (route === 'interrupt') { state.sessionId = 'reconnect'; route = 'chat'; }
+    if (!pages[route]) return;
+    closeSheet(); state.from[route] = state.route; state.route = route;
+    if (location.hash !== `#${route}`) history.pushState(null, '', `#${route}`);
+    render();
+  }
+
+  function theme(f) {
+    document.documentElement.dataset.face = f;
+    document.querySelector('meta[name="theme-color"]').content = f === 'ink' ? '#191714' : '#f8f6f0';
+    render();
+  }
+
+  function online() {
+    if (!state.offline) return true;
+    toast('处于断线快照模式。草稿保存在本地，连回 Host 后可发送。');
+    return false;
+  }
+
+  const actions = {
+    navigate, sheet: openSheet, 'close-sheet': closeSheet, theme, compact: () => device.classList.toggle('compact'),
+    'nav-scene': (t) => { if (t === 'interrupt' || t === 'chat:reconnect') { state.sessionId = 'reconnect'; navigate('chat'); } else if (t.startsWith('chat:')) { state.sessionId = t.split(':')[1]; navigate('chat'); } else navigate(t); },
+    'open-session': (id) => { state.sessionId = id; navigate('chat'); },
+    'session-menu': (id) => { state.menuSession = id; openSheet('session-menu'); },
+    pane: (p) => { state.pane = p; render(); },
+    'toggle-project': (n) => { state.collapsed = state.collapsed.includes(n) ? state.collapsed.filter((x) => x !== n) : [...state.collapsed, n]; render(); },
+    'new-in-project': (p) => { state.freshProject = p; state.freshTarget = '项目'; navigate('new'); },
+    'fresh-target': (t) => { state.freshTarget = t; render(); },
+    'choose-project': (p) => { state.freshProject = p; closeSheet(); render(); toast(`已选项目：${p}`); },
+    'trust-project': () => { closeSheet(); render(); toast('项目已标记为信任'); },
+    'choose-model': (m) => { state.model = m; render(); if (dialog.open) paintSheet(); },
+    'choose-thinking': (t) => { state.thinking = t; render(); if (dialog.open) paintSheet(); },
+    'choose-run-mode': (m) => { state.runMode = m; render(); if (dialog.open) paintSheet(); },
+    'choose-scheme': (s) => { state.scheme = s; render(); if (dialog.open) paintSheet(); },
+    scope: (v) => { state.scope = v; render(); if (dialog.open) paintSheet(); },
+    permission: (d, btn) => {
+      if (!online()) return;
+      const allowBtn = btn || document.querySelector('#seal-allow') || document.querySelector('[data-value="approved"]');
+      if (allowBtn && d === 'approved') {
+        allowBtn.classList.add('stamping');
+        setTimeout(() => { allowBtn.classList.remove('stamping'); state.permission = d; closeSheet(); render(); toast(`已落印批准 · ${{ once: '仅本次', session: '本次会话', project: '此项目' }[state.scope]}`); }, 220);
+        return;
+      }
+      state.permission = d; closeSheet(); render(); toast(d === 'approved' ? `已落印批准 · ${{ once: '仅本次', session: '本次会话', project: '此项目' }[state.scope]}` : '已拒绝执行');
+    },
+    answer: (v) => { if (!v) { state.question = 'dismissed'; render(); toast('已取消问题'); return; } state.question = 'answered'; state.answer = v; render(); toast(`已选择：${v}`); },
+    candidate: (c) => { state.candidate = c; render(); toast(c === 'merged' ? '已合入候选变更至主工作树' : '已交还主代理继续处理'); },
+    'plan-gate': (c) => { state.freshPlan = c; render(); toast(c === 'agents' ? '已派发至子代理探索' : '已在当前会话执行'); },
+    'retry-failure': () => { state.failure = 'retrying'; render(); toast('正在重试…'); setTimeout(() => { state.failure = 'resolved'; render(); }, 1000); },
+    toggle: (prop) => { state[prop] = !state[prop]; render(); },
+    'toggle-run': () => { state.run = state.run === 'running' ? 'paused' : 'running'; render(); toast(state.run === 'running' ? '已继续运行' : '已暂停运行'); },
+    'confirm-stop-run': () => { state.run = 'paused'; closeSheet(); render(); toast('已停止全部运行'); },
+    send: () => {
+      if (!online()) return;
+      const text = state.draft.trim();
+      if (!text) { if (state.run === 'running') { state.run = 'paused'; render(); toast('已暂停 Agent 运行'); } else if (state.run === 'paused') { state.run = 'running'; render(); toast('继续运行'); } return; }
+      if (state.run === 'running') { state.queue.push({ session: state.sessionId, text, steer: false }); state.draft = ''; render(); toast('已加入发送队列'); return; }
+      if (!state.sent[state.sessionId]) state.sent[state.sessionId] = [];
+      state.sent[state.sessionId].push(text); state.draft = ''; render(); toast('消息已发送至 Host');
+    },
+    'edit-queue': (idx) => { const e = state.queue.splice(Number(idx), 1)[0]; if (e) { state.draft = e.text; render(); toast('已取回草稿'); } },
+    'steer-queue': (idx) => { if (state.queue[idx]) { state.queue[idx].steer = true; render(); toast('已改为调整任务'); } },
+    'cancel-queue': (idx) => { state.queue.splice(Number(idx), 1); render(); toast('已移除排队消息'); },
+    'start-session': () => {
+      const text = (document.querySelector('#new-prompt')?.value || state.draft).trim() || '新会话';
+      const id = `fresh-${Date.now()}`;
+      state.created.push({ id, title: text.slice(0, 16), mode: state.freshTarget === '项目' ? 'code' : 'chat', project: state.freshProject, tree: 'main', kind: 'fresh', prompt: text, time: '刚刚' });
+      state.sessionId = id; state.draft = ''; navigate('chat'); toast('新会话已开启');
+    },
+    attach: (n) => { state.attachments.push(n); closeSheet(); render(); toast(`已附加：${n}`); },
+    'remove-attachment': (idx) => { state.attachments.splice(Number(idx), 1); render(); },
+    'detach-comment': (idx) => { if (state.comments[idx]) state.comments[idx].attached = false; render(); },
+    'add-context': (txt) => { state.attachments.push(txt); navigate('chat'); toast('已加入砚台上下文'); },
+    prefill: (txt) => { state.draft = txt; render(); },
+    'prefill-goal': (txt) => { state.draft = txt; state.goalArmed = true; render(); },
+    'disarm-goal': () => { state.goalArmed = false; render(); },
+    'stop-goal': () => { state.goal = null; render(); toast('已结束 Goal 模式'); },
+    'use-dictation': () => { const t = document.querySelector('#dictation-text')?.value || ''; state.draft = t; closeSheet(); navigate('chat'); toast('语音已转入砚台'); },
+    'shrink-live': () => { state.liveMini = true; navigate(state.from['voice'] || 'chat'); toast('已收缩为悬浮小部件 · 可边说边工作'); },
+    'expand-live': () => { navigate('voice'); },
+    'toggle-live-mute': () => { state.muted = !state.muted; render(); toast(state.muted ? '已静音' : '我在听，你慢慢说'); },
+    'end-live': () => { state.liveMini = false; state.handover = true; navigate('chat'); toast('Live 已结束 · 交接卡已放入会话'); },
+    'mute-voice': () => { state.muted = !state.muted; render(); },
+    'end-voice': () => { state.muted = false; state.liveMini = false; state.handover = true; navigate('chat'); toast('已生成交接卡并返回会话'); },
+    'handover-draft': () => { state.draft = '把刚才的恢复方案整理一下，先列计划，不要开始修改。'; state.handover = false; render(); toast('已填入砚台草稿'); },
+    'handover-send': () => {
+      state.handover = false; if (!state.sent[state.sessionId]) state.sent[state.sessionId] = [];
+      state.sent[state.sessionId].push('把刚才的恢复方案整理一下，先列计划，不要开始修改。'); render(); toast('交接指令已送达');
+    },
+    'open-tool': (t) => { state.tool = t; navigate('workspace'); },
+    'open-subagent': (a) => { state.subagent = a; navigate('tasks'); },
+    'open-doc': (d) => { state.doc = d; navigate('walkthrough'); },
+    'cancel-subagent': (id) => { state.cancelled.push(id); render(); toast(`已取消子代理 ${id}`); },
+    'submit-intervene': () => { const txt = document.querySelector('#intervene-input')?.value.trim(); if (txt) { state.queue.push({ session: state.sessionId, text: `[介入] ${txt}`, steer: true }); closeSheet(); render(); toast('介入要求已追加'); } },
+    'open-comment': (loc) => { state.commentTarget = loc; openSheet('comment'); },
+    'submit-comment': () => {
+      const [file, line] = state.commentTarget.split(':'), text = document.querySelector('#comment-input')?.value.trim();
+      if (text) { state.comments.push({ id: Date.now(), file, line: Number(line), text, attached: true }); closeSheet(); render(); toast('批注已放入砚台'); }
+    },
+    'remove-comment': (id) => { state.comments = state.comments.filter((c) => c.id !== Number(id)); render(); },
+    'toggle-file': (f) => { state.openFiles = state.openFiles.includes(f) ? state.openFiles.filter((x) => x !== f) : [...state.openFiles, f]; render(); },
+    'toggle-seen': (f) => { state.reviewed = state.reviewed.includes(f) ? state.reviewed.filter((x) => x !== f) : [...state.reviewed, f]; render(); },
+    'mark-all-reviewed': () => { state.reviewed = ['session-index.ts', 'draft-store.ts', 'session-index.test.ts']; render(); toast('已全部标记看过'); },
+    'knowledge-tab': (t) => { state.knowledgeTab = t; render(); },
+    'wiki-category': (c) => { state.wikiCategory = c; render(); },
+    'open-wiki': (id) => { state.wiki = id; navigate('wiki-detail'); },
+    'toggle-mount': (m) => { state.mounts = state.mounts.includes(m) ? state.mounts.filter((x) => x !== m) : [...state.mounts, m]; render(); if (dialog.open) paintSheet(); },
+    'flip-card': () => { state.cardFlipped = !state.cardFlipped; render(); },
+    'rate-card': (r) => { state.studied += 1; state.cardFlipped = false; render(); toast(`评分「${r}」已同步至 Host`); },
+    'next-card': () => { state.browsed += 1; state.cardFlipped = false; render(); },
+    'reset-study': () => { state.studied = 0; state.cardFlipped = false; render(); },
+    'study-mode': (m) => { state.studyMode = m === '计划复习' ? 'review' : 'browse'; state.cardFlipped = false; render(); },
+    'set-study-mode': (m) => { state.studyMode = m; state.cardFlipped = false; navigate('cards'); },
+    'submit-produce-cards': () => { closeSheet(); navigate('cards'); toast('已生成 3 张新卡片'); },
+    'toggle-pin': (id) => { state.pinned = state.pinned.includes(id) ? state.pinned.filter((x) => x !== id) : [...state.pinned, id]; closeSheet(); render(); },
+    'archive-session': (id) => { state.archived.push(id); closeSheet(); navigate('sessions'); toast('会话已归档'); },
+    'restore-archive': () => { state.archived = []; render(); toast('已恢复归档会话'); },
+    'fork-session': (id) => {
+      const src = I.session(id), forkId = `fork-${Date.now()}`;
+      state.created.push({ id: forkId, title: `${I.title(id)} · 分支`, mode: src.mode, project: src.project, tree: src.tree, kind: 'forked', from: id, time: '刚刚' });
+      state.sessionId = forkId; closeSheet(); navigate('chat'); toast('已开启独立分支');
+    },
+    'export-session': () => { closeSheet(); toast('已导出会话 Markdown'); },
+    'toggle-notify': (k) => { state.notify[k] = !state.notify[k]; paintSheet(); },
+    'open-settings': (s) => { state.settingsSection = s; navigate('settings-detail'); },
+    'save-demo': (msg) => { closeSheet(); toast(msg || '配置已保存'); },
+    disconnect: () => { state.offline = true; closeSheet(); render(); toast('已模拟断线'); },
+    reconnect: () => { state.offline = false; closeSheet(); render(); toast('Host 已重新连接'); },
+    'pair-demo': () => { state.offline = false; closeSheet(); navigate('sessions'); toast('已接入示例 Host'); },
+    'copy-report': () => { toast('走查报告已复制'); },
+    'copy-response': () => { toast('回复已复制'); },
+    'dismiss-done': (id) => { state.dismissed.push(id); render(); },
+    branch: (delta) => { state.branchIndex = Math.max(1, Math.min(2, state.branchIndex + Number(delta))); render(); },
+  };
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn || btn.disabled) return;
+    const act = actions[btn.dataset.action];
+    if (act) act(btn.dataset.value || '', btn);
+  });
+  document.addEventListener('input', (e) => { if (e.target.id === 'composer-input') state.draft = e.target.value; });
+  window.addEventListener('resize', positionSheet);
+  new ResizeObserver(positionSheet).observe(device);
+  window.addEventListener('popstate', () => { closeSheet(); let r = location.hash.slice(1); if (r === 'interrupt') { state.sessionId = 'reconnect'; r = 'chat'; } if (pages[r]) { state.route = r; render(); } });
+  let initRoute = location.hash.slice(1);
+  if (initRoute === 'interrupt') { state.sessionId = 'reconnect'; initRoute = 'chat'; }
+  if (pages[initRoute]) state.route = initRoute;
+  const face = new URLSearchParams(location.search).get('face');
+  if (face === 'ink') document.documentElement.dataset.face = 'ink';
+  render();
+})();
+
+</script>
+</body></html>

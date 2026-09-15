@@ -8,6 +8,7 @@
  * tool rows, matching the causal order of the underlying assistant messages.
  */
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 import type { DiffCardRequest } from './diff-card';
 import type { ExploreFlowGroup, ExploreFlowItem } from './explore-flow';
 import { ToolCallCard, ToolStatusDot, type DocumentOpenInput } from './tool-call-card';
@@ -83,15 +84,22 @@ function ThoughtFlowRow(props: {
   isChinese: boolean;
 }): ReactElement {
   const [open, setOpen] = useState(false);
+  const foldMeasure = useTranscriptLocalFoldMeasure(open);
   const elapsed = thoughtElapsedProps(props.item);
   return (
-    <div className={`tr sub explore-thought${props.item.live ? ' is-live' : ''}${open ? ' is-open' : ''}`}>
+    <div
+      ref={foldMeasure.setRoot}
+      className={`tr sub explore-thought${props.item.live ? ' is-live' : ''}${open ? ' is-open' : ''}`}
+    >
       <button
         type="button"
         className="explore-thought-row"
         data-testid="explore-thought-row"
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          foldMeasure.onUserToggle();
+          setOpen((current) => !current);
+        }}
       >
         <span
           className={`node sm ${props.item.live ? 'run' : 'done'}`}
@@ -131,6 +139,7 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
   const [internalExpanded, setInternalExpanded] = useState(hasError);
   const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
   const expanded = internalExpanded;
+  const foldMeasure = useTranscriptLocalFoldMeasure(expanded);
 
   // Explore stays folded unless a grouped tool failed (or the user pinned it).
   // Collapsing unmounts the list — `isLive` must not flicker across empty
@@ -145,6 +154,7 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
   }, [hasError]);
 
   function toggleExpanded(): void {
+    foldMeasure.onUserToggle();
     const nextExpanded = !expanded;
     disclosureIntentRef.current = nextExpanded ? 'user-open' : 'user-closed';
     setInternalExpanded(nextExpanded);
@@ -170,6 +180,7 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
   const headerNodeClass = inkLineNodeClass(headerNodeKind);
   return (
     <div
+      ref={foldMeasure.setRoot}
       className={`tr tool-batch-capsule explore-flow-capsule${
         expanded ? ' is-expanded' : ' is-collapsed'
       }${hasError ? ' has-error fail' : ''}${cancelledOnly ? ' is-cancelled' : ''}${

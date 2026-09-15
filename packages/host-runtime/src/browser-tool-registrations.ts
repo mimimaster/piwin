@@ -25,7 +25,6 @@ import type { BrowserOpOptions, BrowserSession, BrowserWaitForCondition } from '
 import {
   clampBrowserWaitForTimeout,
   isValidBrowserKey,
-  NavigateError,
   resolveBrowserViewport,
 } from '@piwin/browser';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
@@ -33,8 +32,9 @@ import {
   jpegBytesFromDataUrl,
   type PersistBrowserScreenshotResult,
 } from './browser-screenshot-inspect.js';
-import { sanitizeBrowserErrorMessage, userControlResult } from './browser-tool-errors.js';
+import { mapBrowserExecuteError, userControlResult } from './browser-tool-errors.js';
 import { createBrowserStageBcToolDefinitions } from './browser-tool-stage-bc.js';
+import { nextBrowserAction, readBrowserPageState } from './browser-tool-page-state.js';
 
 function createBrowserRegistration(
   descriptor: HostToolDescriptor,
@@ -68,8 +68,34 @@ function success(
   };
 }
 
+function successWithPage(
+  session: BrowserSession,
+  payload: Record<string, unknown>,
+  details?: Record<string, unknown>,
+): ToolResult {
+  const page = readBrowserPageState(session);
+  return success({ ...payload, ...(page ? { page } : {}) }, details);
+}
+
+function prepareBrowserTargetArgs(
+  rawArguments: Record<string, unknown>,
+  _context: HostToolExecutionContext,
+  signal: AbortSignal,
+): HostToolArgumentPreparation {
+  if (signal.aborted) return abortedPreparation();
+  const ref = rawArguments.ref;
+  const selector = rawArguments.selector;
+  const hasRef = typeof ref === 'string' && ref.trim().length > 0;
+  const hasSelector = typeof selector === 'string' && selector.trim().length > 0;
+  if (!hasRef && !hasSelector) {
+    return invalidPreparation('browser tool requires a ref or selector argument');
+  }
+  return { ok: true, arguments: rawArguments };
+}
+
 const USER_CONTROL_HINT =
   ' Fails with browser-user-has-control if the human took over the workbench; wait or ask them to give it back.';
+const AGENT_WRITE_HINT = ' Automatically acquires agent control when the workbench is idle.';
 
 function agentWriteOptions(
   signal: AbortSignal,
@@ -180,7 +206,7 @@ export function createBrowserToolDefinitions(
   const navigate = createBrowserRegistration(
     {
       name: 'browser_navigate',
-      description: 'Navigate the right-sidebar browser to an http(s) URL.' + USER_CONTROL_HINT,
+      description: 'Navigate the right-sidebar browser to an http(s) URL.' + USER_CONTROL_HINT + AGENT_WRITE_HINT,
       parameters: {
         type: 'object',
         properties: {
@@ -265,7 +291,8 @@ export function createBrowserToolDefinitions(
       name: 'browser_click',
       description:
         'Click a page element targeting a snapshot ref (e.g. "e5") or CSS selector.' +
-        USER_CONTROL_HINT,
+        USER_CONTROL_HINT +
+        AGENT_WRITE_HINT,
       parameters: {
         type: 'object',
         properties: {
@@ -282,8 +309,9 @@ export function createBrowserToolDefinitions(
       } catch (error) {
         return mapBrowserExecuteError(error, 'click');
       }
-      return success({ ok: true, target }, { target });
+      return successWithPage(session, { ok: true, target }, { target });
     },
+    prepareBrowserTargetArgs,
   );
 
   const type = createBrowserRegistration(
@@ -291,7 +319,8 @@ export function createBrowserToolDefinitions(
       name: 'browser_type',
       description:
         'Focus an element (via ref or CSS selector) and type text character by character.' +
-        USER_CONTROL_HINT,
+        USER_CONTROL_HINT +
+        AGENT_WRITE_HINT,
       parameters: {
         type: 'object',
         properties: {
@@ -311,8 +340,9 @@ export function createBrowserToolDefinitions(
       } catch (error) {
         return userControlResult(error);
       }
-      return success({ ok: true, target, length: text.length }, { target, length: text.length });
+      return successWithPage(session, { ok: true, target, length: text.length }, { target, length: text.length });
     },
+    prepareBrowserTargetArgs,
   );
 
   const fillForm = createBrowserRegistration(
@@ -571,7 +601,19 @@ export function createBrowserToolDefinitions(
       parameters: { type: 'object', properties: {}, required: [] },
     },
     permissionSpec('browser:status'),
-    async () => success(session.status()),
+    async () => {
+      const status = session.status();
+      const controller = session.controllerState().owner;
+      return success({
+        ...status,
+        controller,
+        nextAction: nextBrowserAction({
+          lifecycle: status.lifecycle,
+          controller,
+          pageStateLost: status.pageStateLost,
+        }),
+      });
+    },
   );
 
   const restart = createBrowserRegistration(
@@ -705,7 +747,7 @@ export function createBrowserToolDefinitions(
       } catch (error) {
         return mapBrowserExecuteError(error, 'wait');
       }
-      return success({ ok: true }, { timeout: timeoutMs });
+      return success({ ok: true, ...condition }, { timeout: timeoutMs });
     },
     prepareBrowserWaitForArgs,
   );
@@ -932,40 +974,3 @@ function parseViewportMode(value: unknown): BrowserViewportMode | undefined {
   return undefined;
 }
 
-function mapBrowserExecuteError(
-  error: unknown,
-  kind: 'write' | 'wait' | 'reload' | 'key' | 'click',
-): ToolResult {
-  if (kind === 'click' && error instanceof Error && /intercepts pointer events/i.test(error.message)) {
-    return {
-      ok: false,
-      code: 'browser-action-failed',
-      message: sanitizeBrowserErrorMessage(error),
-      retryable: false,
-      details: { reason: 'overlay' },
-    };
-  }
-  if (kind === 'reload' && isNavigateError(error)) {
-    return { ok: false, code: 'invalid-input', message: sanitizeBrowserErrorMessage(error) };
-  }
-  if (kind === 'key' && error instanceof Error && /valid key/i.test(error.message)) {
-    return { ok: false, code: 'invalid-input', message: sanitizeBrowserErrorMessage(error) };
-  }
-  if (kind === 'wait' && error instanceof Error && /timed out/i.test(error.message)) {
-    return {
-      ok: false,
-      code: 'browser-action-failed',
-      message: sanitizeBrowserErrorMessage(error),
-      retryable: false,
-      details: { reason: 'timeout' },
-    };
-  }
-  if (kind === 'wait' && error instanceof Error && /wait_for requires|open page/i.test(error.message)) {
-    return { ok: false, code: 'invalid-input', message: sanitizeBrowserErrorMessage(error) };
-  }
-  return userControlResult(error);
-}
-
-function isNavigateError(error: unknown): boolean {
-  return error instanceof NavigateError || (error instanceof Error && error.name === 'NavigateError');
-}

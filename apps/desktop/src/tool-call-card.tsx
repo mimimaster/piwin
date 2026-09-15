@@ -4,16 +4,15 @@
  * the original raw output is folded into a <details> below.
  */
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
-import type { DocumentTargetRef } from '@piwin/contracts';
-import { formatFilePillPath } from './activity-timeline';
 import { CitationCards } from './CitationCards';
 import { parseToolCitations } from './tool-citations';
 import { DiffCard, type DiffCardRequest } from './diff-card';
 import { CollapsibleContentBlock } from './collapsible-content-block';
 import { TokenSpans, useHighlight } from './syntax-highlight';
-import { IconChevronDown, IconFile, IconMore } from './shell-icons';
+import { IconChevronDown, IconMore } from './shell-icons';
 import { toolCallKindIcon } from './tool-call-kind-icon';
 import {
   extractCommandDescription,
@@ -54,6 +53,7 @@ import { useToolEditDiffStats } from './use-tool-edit-diff-stats';
 import { inkLineNodeClass, toolStatusToNodeStatus } from './session-node-status.js';
 import { DesktopHealthToolCard } from './health-tool-card.js';
 import { shouldShowApprovedSeal } from './tool-approved-seal.js';
+import { useThemeId } from './theme/theme-id.js';
 
 
 export type ToolCallCardProps = {
@@ -93,215 +93,22 @@ export type ToolCallCardProps = {
   showApprovedSeal?: boolean | undefined;
 };
 
-export type DocumentOpenInput = {
-  title: string;
-  path?: string;
-  /** Explicit inline content; empty string is a legal empty document. */
-  content?: string;
-  target?: DocumentTargetRef;
-  /** Owning assistant message id (tool snapshot recovery). */
-  messageId?: string;
-  toolCallId?: string;
-};
+import {
+  openPathLikeToolDocument,
+  openResolvedToolPath,
+  resolveToolOpenPath,
+  ToolDocumentTargetList,
+  ToolPathLinkList,
+  type DocumentOpenInput,
+} from './tool-call-path-links.js';
 
-/**
- * Resolve a tool path (absolute or project-relative) into open-file args.
- * Reuses the same absolute/relative rules as search result pills.
- */
-export function resolveToolOpenPath(
-  filePath: string,
-  projectPath?: string | null,
-): { absolutePath: string; relativePath: string } {
-  const formatted = formatFilePillPath(filePath, undefined, projectPath);
-  return {
-    absolutePath: formatted.absolutePath,
-    relativePath: formatted.relativePath,
-  };
-}
+export { resolveToolOpenPath, type DocumentOpenInput } from './tool-call-path-links.js';
 
-function openResolvedToolPath(
-  filePath: string,
-  projectPath: string | null | undefined,
-  onOpenFile: ((absolutePath: string, relativePath?: string) => void) | undefined,
-): void {
-  if (!onOpenFile) {
-    return;
-  }
-  const resolved = resolveToolOpenPath(filePath, projectPath);
-  onOpenFile(resolved.absolutePath, resolved.relativePath);
-}
+import { ToolStatusDot } from './tool-status-dot.js';
+import { ToolboxCatalogCard } from './toolbox-catalog-card.js';
+import { resolveToolboxCatalogView } from './toolbox-catalog-view.js';
 
-/**
- * Prefer the logical document opener so historical skill reads can recover
- * the persisted tool snapshot (messageId is filled in by the transcript row).
- * Falls back to onOpenFile when Doc Preview is not wired.
- */
-function openPathLikeToolDocument(input: {
-  filePath: string;
-  tool: ToolCardUi;
-  projectPath?: string | null | undefined;
-  onOpenDocument?: ((doc: DocumentOpenInput) => void) | undefined;
-}): boolean {
-  if (!input.onOpenDocument) {
-    return false;
-  }
-  const resolved = resolveToolOpenPath(input.filePath, input.projectPath);
-  const skillTarget = input.tool.presentation?.documentTargets?.find(
-    (target) => target.kind === 'skill',
-  );
-  const basename = resolved.absolutePath.split(/[\\/]/).pop() || resolved.absolutePath;
-  input.onOpenDocument({
-    title: skillTarget?.kind === 'skill' ? skillTarget.skillId : basename,
-    path: resolved.absolutePath,
-    ...(skillTarget ? { target: skillTarget } : {}),
-    toolCallId: input.tool.toolCallId,
-  });
-  return true;
-}
-
-/** Clickable path list for expanded tool body (targetPaths / changedPaths). */
-function ToolPathLinkList(props: {
-  paths: string[];
-  projectPath?: string | null | undefined;
-  onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
-  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
-  toolCallId?: string | undefined;
-  testId: string;
-  prefix?: string | undefined;
-}): ReactElement {
-  const canOpen = Boolean(props.onOpenDocument || props.onOpenFile);
-  return (
-    <div className="tool-call-paths" data-testid={props.testId}>
-      {props.prefix ? <span className="tool-call-paths-prefix">{props.prefix}</span> : null}
-      {props.paths.map((filePath) => {
-        const resolved = resolveToolOpenPath(filePath, props.projectPath);
-        if (!canOpen) {
-          return (
-            <span key={filePath} className="pc tool-call-path-link static" title={resolved.absolutePath}>
-              <IconFile className="i s12" />
-              <span>{filePath}</span>
-            </span>
-          );
-        }
-        return (
-          <button
-            key={filePath}
-            type="button"
-            className="pc tool-call-path-link"
-            title={resolved.absolutePath}
-            data-testid="tool-call-path-link"
-            data-full-path={resolved.absolutePath}
-            onClick={() => {
-              if (props.onOpenDocument) {
-                const basename = resolved.absolutePath.split(/[\\/]/).pop() || resolved.absolutePath;
-                props.onOpenDocument({
-                  title: basename,
-                  path: resolved.absolutePath,
-                  ...(props.toolCallId ? { toolCallId: props.toolCallId } : {}),
-                });
-                return;
-              }
-              openResolvedToolPath(filePath, props.projectPath, props.onOpenFile);
-            }}
-          >
-            <IconFile className="i s12" />
-            <span>{filePath}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * Logical document targets (skill:xxx / project-relative) for the expanded
- * tool body. Prefer these over raw absolute targetPaths — Host already
- * resolved identity and scope for us.
- */
-function ToolDocumentTargetList(props: {
-  targets: DocumentTargetRef[];
-  toolCallId: string;
-  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
-  testId: string;
-}): ReactElement {
-  const canOpen = Boolean(props.onOpenDocument);
-  return (
-    <div className="tool-call-doc-targets" data-testid={props.testId}>
-      {props.targets.map((target) => {
-        const label = target.displayRef;
-        if (!canOpen) {
-          return (
-            <span key={target.displayRef} className="pc tool-call-doc-target-link static" title={label}>
-              <IconFile className="i s12" />
-              <span>{label}</span>
-            </span>
-          );
-        }
-        return (
-          <button
-            key={target.displayRef}
-            type="button"
-            className="pc tool-call-doc-target-link"
-            data-testid="tool-call-doc-target"
-            data-target-ref={label}
-            title={label}
-            onClick={() => {
-              const title =
-                target.kind === 'skill'
-                  ? target.skillId
-                  : target.kind === 'media'
-                    ? target.displayRef
-                    : target.relativePath.split(/[\\/]/).pop() || target.relativePath;
-              props.onOpenDocument?.({
-                title,
-                target,
-                toolCallId: props.toolCallId,
-              });
-            }}
-          >
-            <IconFile className="i s12" />
-            <span>{label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * `data-kind` carries the shared six-state vocabulary (session-node-status.ts)
- * so this dot and the sidebar's InkLineNode are provably the same language,
- * not just coincidentally matching colors. Visual treatment (size, color,
- * breath) stays on the existing `.tool-status-dot`/`.status-*` classes —
- * unchanged, since it already renders identically to the shared node states.
- */
-export function ToolStatusDot(props: {
-  status: ToolCardUi['status'];
-  /** Prototype ink-line node (`.node` / `.node.sm`). */
-  inkLine?: boolean | undefined;
-  small?: boolean | undefined;
-}): ReactElement {
-  const kind = toolStatusToNodeStatus(props.status);
-  const protoClass = inkLineNodeClass(kind);
-  if (props.inkLine === true) {
-    return (
-      <span
-        className={`node${props.small === true ? ' sm' : ''}${protoClass ? ` ${protoClass}` : ''} tool-status-dot status-${props.status}`}
-        data-kind={kind}
-        title={props.status}
-        aria-label={props.status}
-      />
-    );
-  }
-  return (
-    <span
-      className={`tool-status-dot status-${props.status}`}
-      data-kind={kind}
-      title={props.status}
-      aria-label={props.status}
-    />
-  );
-}
+export { ToolStatusDot };
 
 function resolveDensity(
   density: ToolCallDensity | undefined,
@@ -335,6 +142,7 @@ function FetchCommandCode(props: { source: string }): ReactElement {
 export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const { tool } = props;
   const contextMenu = useDesktopContextMenu();
+  const themeId = useThemeId();
   const density = resolveDensity(props.density, props.compact);
   const expandWhileRunning = props.expandWhileRunning !== false;
   const terminalMustCollapse = props.collapseWhenTerminal === true && tool.status !== 'running';
@@ -381,6 +189,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const [internalExpanded, setInternalExpanded] = useState(autoExpand);
   const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
   const expanded = props.expanded ?? internalExpanded;
+  const foldMeasure = useTranscriptLocalFoldMeasure(expanded);
 
   useEffect(() => {
     if (props.expanded !== undefined) {
@@ -416,6 +225,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   ]);
 
   function toggleExpanded(): void {
+    foldMeasure.onUserToggle();
     const nextExpanded = !expanded;
     disclosureIntentRef.current = nextExpanded ? 'user-open' : 'user-closed';
     if (props.expanded === undefined) {
@@ -453,10 +263,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const actionVerb = localizeBehaviorAction(behaviorId, locale, rawActionVerb);
   // Proto-01 labels the chain with tool ids (`read` / `grep` / `bash` / `write_file`),
   // not Deck's Title-Case behavior verbs (`Read` / `Search` / `Bash`).
-  const inkstoneTheme =
-    typeof document !== 'undefined' &&
-    (document.documentElement.getAttribute('data-theme-id')?.startsWith('piwin-inkstone') ??
-      false);
+  const inkstoneTheme = themeId.startsWith('piwin-inkstone');
   const displayActionVerb =
     inkstoneTheme && !tool.toolName.includes('__') ? tool.toolName : actionVerb;
   const multiPath = targetPaths.length > 1;
@@ -640,6 +447,19 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       }
     : null;
 
+  const toolboxCatalog = resolveToolboxCatalogView(tool);
+  if (toolboxCatalog) {
+    return (
+      <ToolboxCatalogCard
+        tool={tool}
+        view={toolboxCatalog}
+        density={density}
+        locale={locale}
+        inkLineSubrow={props.inkLineSubrow}
+      />
+    );
+  }
+
   if (kind === 'health') {
     return (
       <div data-testid="tool-call-card" data-tool-kind="health" data-tool-name={tool.toolName}>
@@ -657,6 +477,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     props.showApprovedSeal !== false && shouldShowApprovedSeal(tool);
   const card = (
     <div
+      ref={foldMeasure.setRoot}
       className={`tr tool-call-card density-${density} status-${tool.status}${
         expanded ? ' is-expanded' : ''
       }${isFetchStyle ? ' is-fetch-style' : ''}${props.inkLineSubrow === true ? ' sub' : ''}${

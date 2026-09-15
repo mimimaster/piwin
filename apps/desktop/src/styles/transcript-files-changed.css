@@ -28,7 +28,7 @@
 .files-changed-bar-toggle {
   display: flex;
   align-items: center;
-  gap: var(--s-5);
+  gap: var(--s-3);
   flex: 1;
   min-width: 0;
   border: 0;
@@ -112,12 +112,85 @@
   flex-shrink: 0;
   width: 14px;
   height: 14px;
+  margin-left: auto;
   color: var(--text-4);
   transition: transform var(--t-2) var(--ease-out);
 }
 
 .files-changed-bar-chevron.open {
   transform: rotate(180deg);
+}
+
+.files-changed-bar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  flex: 1 1 0;
+  gap: var(--s-2);
+  min-width: 0;
+  height: 18px;
+  overflow: hidden;
+}
+
+.files-changed-bar-chip {
+  flex: none;
+  max-width: min(30ch, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
+.files-changed-bar-glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+
+.files-changed-bar-blocks {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+}
+
+.files-changed-bar-blocks i {
+  width: 7px;
+  height: 7px;
+  border-radius: 1.5px;
+  background: var(--line-2);
+}
+
+.files-changed-bar-blocks i.add {
+  background: var(--mint);
+}
+
+.files-changed-bar-blocks i.del {
+  background: var(--coral);
+}
+
+.files-changed-bar-row-tag {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.files-changed-bar-row-tag.add {
+  color: var(--mint);
+}
+
+.files-changed-bar-row-tag.del {
+  color: var(--coral);
 }
 
 .files-changed-bar-review {

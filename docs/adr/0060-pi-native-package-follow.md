@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Proposed |
+| Status | Accepted — amended 2026-09-14 |
 | Date | 2026-08-22 |
 | Extends | [ADR 0002](./0002-config-root-piwin.md), [ADR 0010](./0010-pi-extensions-channel.md), [ADR 0016](./0016-general-workspace-sessions.md), [ADR 0047](./0047-managed-pi-extension-activation.md), [ADR 0048](./0048-settings-runtime-hot-apply.md) |
 | Product spec | [Pi 原生包跟随](../specs/2026-08-22-pi-native-package-follow.md) |
@@ -13,7 +13,7 @@ Pi users install with `pi install`, which writes `~/.pi/agent/settings.json` `pa
 
 piwin already has a Settings hub with list + **Refresh**. That is a sync control. The missing work is: the catalog read does not include Pi's inventory.
 
-Manual install (`extensions/install`) stages into `~/.piwin/extensions/revisions` and injects paths at Runtime compile. It does not write Pi settings. Two disks, one view — that remains.
+Manual install (`extensions/install`) stages into `~/.piwin/extensions/revisions` and injects paths at Runtime compile. It does not write Pi settings. Two disks, one view — that remains. The marketplace also exposes Pi ecosystem packages whose correct installation semantics include npm dependencies, lifecycle scripts, and bundled Skills/Prompts; treating those as flat managed extensions is incorrect.
 
 ## Decision
 
@@ -26,10 +26,11 @@ Manual install (`extensions/install`) stages into `~/.piwin/extensions/revisions
 7. **Loader flags stay off.** `noExtensions` / `noSkills` / `noPromptTemplates` remain. Host is still the only discovery authority.
 8. **test-host / non-default `PIWIN_ROOT` does not follow** user-global `~/.pi/agent`. Project `.pi/` packages may still load when the session project is trusted.
 9. **TUI-incompatible extensions are listed, not loaded.** Static scan (no module execute) classifies `compatible` / `degraded` / `incompatible` / `unverified`. Only `compatible` is `enabled` by default and included in `collectExtensionEntryPaths`.
+10. **Explicit marketplace installation is the write exception.** A user-confirmed `marketplace/package-install` calls Pi's `PackageManager.installAndPersist` through `@piwin/agent-host`, targeting the Host user's Pi agent directory. This is equivalent to the displayed `pi install` operation, including dependency and lifecycle-script execution. Passive inventory reads, refresh, Blueprint compilation, and piwin managed installs remain read-only toward Pi settings. Desktop must identify unverified packages and disclose Host-user execution before confirmation.
 
 ## Consequences
 
-- `pi install` then Refresh (or a new session) is enough. Users who only know Pi do not learn a second installer.
+- `pi install` then Refresh (or a new session) is enough. The marketplace can perform the same Pi package installation after an explicit user confirmation, without requiring a terminal.
 - Standalone Pi TUI still does not see `~/.piwin` managed extensions.
 - Agent-driven `pi install` becomes live after the user Refresh-applies or the next generation compiles. That is a deliberate sync gesture, not silent self-authorization mid-run.
 

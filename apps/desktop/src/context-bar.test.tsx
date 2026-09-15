@@ -238,6 +238,27 @@ describe('ContextBar', () => {
     Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
   });
 
+  it('lets empty proto-nav chrome drag the window while controls stay interactive', () => {
+    renderContextBar(
+      createBaseProps({
+        runState: createIdleRunStatus(),
+        onToggleSessions: vi.fn(),
+        canGoBack: true,
+        onGoBack: vi.fn(),
+      }),
+      root,
+    );
+
+    const leading = container.querySelector('.context-bar-leading');
+    const spacer = container.querySelector('.proto-nav-spacer');
+    const history = container.querySelector('.context-bar-history');
+    const toggle = container.querySelector('[data-testid="rail-chats-btn"]');
+    expect(leading?.hasAttribute('data-no-window-drag')).toBe(false);
+    expect(spacer?.hasAttribute('data-tauri-drag-region')).toBe(true);
+    expect(history?.hasAttribute('data-no-window-drag')).toBe(true);
+    expect(toggle?.closest('[data-no-window-drag]')).toBeNull();
+  });
+
   it('does not render permission badge or activity status text in titleband', () => {
     renderContextBar(
       createBaseProps({

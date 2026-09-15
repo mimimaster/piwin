@@ -8,7 +8,7 @@ import type {
 import type { FlashcardStudyController, FlashcardStudyViewModel } from '@piwin/host-client';
 import { IconCheck, IconRefresh, IconRevert } from '../../../shell-icons';
 import { MarkdownView } from '../../../MarkdownView';
-import type { FlashcardStudyCopy } from './study-copy';
+import { flashcardStudyErrorMessage, type FlashcardStudyCopy } from './study-copy';
 import { resolveStudyKeyboard, type StudyKeyboardTarget } from './study-keyboard';
 import { StudyRateBar } from './study-rate-bar';
 
@@ -184,7 +184,7 @@ export function FlashcardStudyView(props: FlashcardStudyViewProps): ReactElement
     >
       {view.error ? (
         <Notice tone="error" testId="flashcards-study-error">
-          {view.error.message}
+          {flashcardStudyErrorMessage(view.error, copy)}
         </Notice>
       ) : null}
       {view.phase === 'disconnected' ? (

@@ -143,6 +143,9 @@ export function useTranscriptScroll(options: {
   /** True while we own scrollTop writes; soft-blocks followTail clear on onScroll. */
   const programmaticScrollRef = useRef(false);
   const stickFramesRef = useRef<number[]>([]);
+  /** Skip pin-to-end while a user-owned fold remasures (see beginLocalFoldLayout). */
+  const suppressFollowStickRef = useRef(false);
+  const suppressStickFramesRef = useRef<number[]>([]);
   const previousLiveTurnIdRef = useRef<string | null>(null);
   /** Last observed scroll geometry — distinguishes user scroll from growth. */
   const lastScrollGeometryRef = useRef({ scrollTop: 0, scrollHeight: 0 });
@@ -173,6 +176,28 @@ export function useTranscriptScroll(options: {
     stickFramesRef.current = [];
   }, []);
 
+  const cancelSuppressStickClear = useCallback(() => {
+    for (const frameId of suppressStickFramesRef.current) {
+      window.cancelAnimationFrame(frameId);
+    }
+    suppressStickFramesRef.current = [];
+  }, []);
+
+  const beginLocalFoldLayout = useCallback(() => {
+    suppressFollowStickRef.current = true;
+    cancelSuppressStickClear();
+    const frame1 = window.requestAnimationFrame(() => {
+      const frame2 = window.requestAnimationFrame(() => {
+        suppressFollowStickRef.current = false;
+        suppressStickFramesRef.current = suppressStickFramesRef.current.filter(
+          (id) => id !== frame1 && id !== frame2,
+        );
+      });
+      suppressStickFramesRef.current.push(frame2);
+    });
+    suppressStickFramesRef.current.push(frame1);
+  }, [cancelSuppressStickClear]);
+
   const detachFromTail = useCallback(() => {
     cancelScheduledSticks();
     userDetachedRef.current = true;
@@ -183,6 +208,8 @@ export function useTranscriptScroll(options: {
   useLayoutEffect(() => {
     if (options.historyViewActive) detachFromTail();
   }, [options.historyViewActive, detachFromTail]);
+
+  useEffect(() => () => cancelSuppressStickClear(), [cancelSuppressStickClear]);
 
   /**
    * Ignore only the synchronous scroll event from our own scrollTop write.
@@ -197,7 +224,13 @@ export function useTranscriptScroll(options: {
 
   const stickToBottomIfFollowing = useCallback(() => {
     const element = containerRef.current;
-    if (!element || !followTailRef.current || userDetachedRef.current || historyViewActiveRef.current) {
+    if (
+      !element ||
+      suppressFollowStickRef.current ||
+      !followTailRef.current ||
+      userDetachedRef.current ||
+      historyViewActiveRef.current
+    ) {
       return;
     }
     beginProgrammaticScroll();
@@ -216,7 +249,12 @@ export function useTranscriptScroll(options: {
    * no-op and leaves the viewport on older turns.
    */
   const stickToBottomAcrossFrames = useCallback(() => {
-    if (!followTailRef.current || userDetachedRef.current || historyViewActiveRef.current) {
+    if (
+      suppressFollowStickRef.current ||
+      !followTailRef.current ||
+      userDetachedRef.current ||
+      historyViewActiveRef.current
+    ) {
       return;
     }
     cancelScheduledSticks();
@@ -407,6 +445,10 @@ export function useTranscriptScroll(options: {
     }
 
     const remeasureFromResize = () => {
+      if (suppressFollowStickRef.current) {
+        measure();
+        return;
+      }
       if (followTailRef.current && !userDetachedRef.current) {
         stickToBottomAcrossFrames();
       } else {
@@ -463,6 +505,10 @@ export function useTranscriptScroll(options: {
     if (!element) {
       return;
     }
+    if (suppressFollowStickRef.current) {
+      measure();
+      return;
+    }
     if (followTailRef.current && !userDetachedRef.current) {
       stickToBottomAcrossFrames();
     } else {
@@ -480,6 +526,7 @@ export function useTranscriptScroll(options: {
     detachFromTail,
     isFollowingTail,
     beginProgrammaticScroll,
+    beginLocalFoldLayout,
     restorePosition,
     /** Immediate follow-tail stick for nested growers (Artifact iframe height). */
     notifyContentGrew: stickToBottomAcrossFrames,

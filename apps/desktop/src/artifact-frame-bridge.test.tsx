@@ -228,6 +228,52 @@ describe('useArtifactFrameBridge recovery', () => {
     expect(state?.dataset['height']).toBe('200');
   });
 
+  it('ignores a late native report from the replaced document', async () => {
+    let nativeHandler: ((payload: unknown) => void) | null = null;
+    vi.mocked(subscribeNativeArtifactBridge).mockImplementation(async (_channelId, handler) => {
+      nativeHandler = handler;
+      return () => undefined;
+    });
+    const sendNative = (payload: Record<string, unknown>): void => {
+      act(() =>
+        nativeHandler?.({
+          type: 'piwin-artifact:size',
+          channelId: 'height-bridge-test',
+          viewportHeight: 80,
+          ...payload,
+        }),
+      );
+    };
+    const lastMeasureEpoch = (spy: ReturnType<typeof vi.spyOn>): number => {
+      const requests = spy.mock.calls
+        .map(([message]) => message as { type?: string; epoch?: number })
+        .filter((message) => message.type === 'piwin-artifact:measure-request');
+      return requests.at(-1)?.epoch ?? -1;
+    };
+
+    const iframe = await renderBridge('stream-preview');
+    const postMessage = vi.spyOn(iframe.contentWindow as Window, 'postMessage');
+    act(() => iframe.dispatchEvent(new Event('load')));
+    const streamEpoch = lastMeasureEpoch(postMessage);
+    for (let revision = 0; revision < 4; revision += 1) {
+      sendNative({ height: 200, revision, seq: revision, epoch: streamEpoch });
+    }
+    const state = container.querySelector<HTMLOutputElement>('[data-testid="bridge-state"]');
+    expect(state?.dataset['height']).toBe('200');
+
+    await renderBridge('interactive');
+    act(() => iframe.dispatchEvent(new Event('load')));
+    const finalEpoch = lastMeasureEpoch(postMessage);
+    expect(finalEpoch).not.toBe(streamEpoch);
+
+    // The stream document's last report arrives after the final document loaded.
+    sendNative({ height: 200, revision: 3, seq: 3, epoch: streamEpoch });
+    // The final document starts its own seq/revision at zero.
+    sendNative({ height: 436, revision: 0, seq: 0, epoch: finalEpoch });
+    expect(state?.dataset['status']).toBe('ready');
+    expect(state?.dataset['height']).toBe('436');
+  });
+
   it('rejects a size posted by the parent window', async () => {
     const iframe = await renderBridge('interactive');
     const state = container.querySelector<HTMLOutputElement>('[data-testid="bridge-state"]');

@@ -2,6 +2,9 @@ import type { ReactElement } from 'react';
 import { useInkstone } from '../inkstone-context.js';
 import { type InkstoneRoute } from '../demo-state.js';
 import { FullButton, IconButton, ScreenHeading, TabsRow, TopBar } from '../inkstone-ui.js';
+import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
+import { FlashcardCatalogPage } from '../../surfaces/flashcards/FlashcardCatalogPage.js';
+import { navigateMobileFlashcardsRoute } from '../../mobile-flashcards-route.js';
 
 const CARD_QUESTIONS = [
   '为什么会话状态\n应该属于 Host？',
@@ -23,6 +26,10 @@ const RATINGS: [string, string][] = [
 ];
 
 export function CardsPage(): ReactElement {
+  const hostCtx = useInkstoneHost();
+  if (hostCtx !== null) {
+    return <ConnectedCardsPage hostCtx={hostCtx} />;
+  }
   const { state, dispatch } = useInkstone();
   const go = (route: InkstoneRoute) => () => dispatch({ type: 'navigate', route });
   const openSheet = (key: string) => () => dispatch({ type: 'open-sheet', key });
@@ -126,5 +133,30 @@ export function CardsPage(): ReactElement {
         </div>
       </div>
     </>
+  );
+}
+
+function ConnectedCardsPage({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
+  const { dispatch } = useInkstone();
+  const { host } = hostCtx;
+  const client = host.client;
+  return (
+    <FlashcardCatalogPage
+      request={(command, options) => {
+        if (client === undefined) {
+          return Promise.resolve({
+            type: 'response' as const,
+            command: command.type,
+            success: false as const,
+            error: 'Host 尚未连接。',
+          });
+        }
+        return client.request(command, options);
+      }}
+      connected={client !== undefined && host.connectionState.kind === 'ready'}
+      hasStudyCapability={() => host.hostStatus?.capabilities.flashcardStudy === true}
+      onOpenStudy={(roundId) => navigateMobileFlashcardsRoute({ kind: 'study', roundId }, 'push')}
+      onBack={() => dispatch({ type: 'navigate', route: 'shelf' })}
+    />
   );
 }

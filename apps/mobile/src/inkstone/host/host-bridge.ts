@@ -69,6 +69,57 @@ export function relativeTime(updatedAt: string | undefined, now: number): string
   return `${date.getMonth() + 1} 月 ${date.getDate()} 日`;
 }
 
+/**
+ * Session previews and user transcript bubbles can contain model-facing text
+ * in older Host indexes. Strip transport-only context/layout envelopes before
+ * showing them in a shell; the raw Host transcript remains available for
+ * forwarding/copying outside this display projection.
+ */
+export function cleanSessionPreview(value: string | undefined): string {
+  if (value === undefined) {
+    return '';
+  }
+  let cleaned = value;
+  // Explicit Skill activation stores a model-facing wrapper in the durable
+  // user message. Keep only the request section for shell-facing previews and
+  // transcript bubbles; the wrapper remains available in the Host record.
+  const skillRequest = cleaned.match(
+    /^\s*\[piwin-skill:[^\]]+\][\s\S]*?\n(?:## User request|---)\s*\n([\s\S]*)$/i,
+  );
+  if (skillRequest?.[1] !== undefined) {
+    cleaned = skillRequest[1];
+  }
+  const userSection = cleaned.match(/(?:^|\n)---\s*\n+\s*User:\s*\n?([\s\S]*)$/i);
+  if (userSection?.[1] !== undefined) {
+    cleaned = userSection[1];
+  } else {
+    const currentMessageSection = cleaned.match(/(?:^|\n)---\s*\n+\s*Current user message:\s*\n?([\s\S]*)$/i);
+    if (currentMessageSection?.[1] !== undefined) {
+      cleaned = currentMessageSection[1];
+    }
+  }
+  return cleaned
+    .replace(/\[piwin plan context v\d+[^\]]*\][\s\S]*?\[end plan context\]/gi, '')
+    // Search/index previews are bounded and may omit the closing marker. A
+    // plan-context prefix is transport metadata, never user-authored text;
+    // drop the remainder rather than leaking it into a session row.
+    .replace(/\[piwin plan context v\d+[^\]]*\][\s\S]*$/gi, '')
+    .replace(/\[piwin-inline-artifact-layout\][\s\S]*?\[\/piwin-inline-artifact-layout\]/gi, '')
+    // Older Host indexes truncated the preview before the closing tag.  Once
+    // this marker appears, the rest of that bounded preview is transport-only
+    // layout context, so do not surface it as if it were user text.
+    .replace(/\[piwin-inline-artifact-layout\][\s\S]*$/gi, '')
+    .replace(/<context_ref\b[^>]*>[\s\S]*?<\/context_ref>/gi, '')
+    .replace(/<startup_context>[\s\S]*?<\/startup_context>/gi, '')
+    .replace(/<side_chat_context\b[^>]*>[\s\S]*?<\/side_chat_context>/gi, '')
+    .replace(/<walkthrough-context\b[^>]*>[\s\S]*?<\/walkthrough-context>/gi, '')
+    .replace(/\[piwin-prompt-meta[^\]]*\][^\n]*/gi, '')
+    .replace(/\[piwin-mode:[^\]]*\]/gi, '')
+    .replace(/Operating contract for this turn:\s*[\s\S]*$/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function projectDisplayName(
   projects: RemoteProjectSummary[],
   projectId: string | undefined,
@@ -90,7 +141,7 @@ function sessionSubtitle(
   if (running) {
     return '正在工作';
   }
-  const preview = session.lastPreview?.trim();
+  const preview = cleanSessionPreview(session.lastPreview);
   if (preview !== undefined && preview.length > 0) {
     return preview.length > 42 ? `${preview.slice(0, 42)}…` : preview;
   }
@@ -168,9 +219,56 @@ function mapToolStep(tool: MobileToolCall): InkstoneToolStep {
   return { label, meta, status: tool.status === 'error' ? 'error' : tool.status };
 }
 
+/** Clean human-readable model label for message heads. */
+export function formatModelLabel(modelId: string | undefined): string {
+  if (!modelId || modelId === 'assistant' || modelId === 'piwin') {
+    return 'piwin';
+  }
+  const clean = modelId.trim();
+  const lower = clean.toLowerCase();
+  if (lower.startsWith('claude') || lower.includes('sonnet') || lower.includes('haiku') || lower.includes('opus')) {
+    if (lower.includes('3-5') || lower.includes('3.5')) return 'Claude 3.5 Sonnet';
+    if (lower.includes('3-7') || lower.includes('3.7')) return 'Claude 3.7 Sonnet';
+    if (lower.includes('haiku')) return 'Claude Haiku';
+    if (lower.includes('opus')) return 'Claude Opus';
+    return 'Claude Sonnet';
+  }
+  if (lower.includes('gpt-4o-mini')) return 'GPT-4o mini';
+  if (lower.includes('gpt-4o')) return 'GPT-4o';
+  if (lower.includes('gpt-4')) return 'GPT-4';
+  if (lower.includes('gpt-5') || lower.includes('codex')) return 'GPT-5 Codex';
+  if (lower.startsWith('o1')) return 'o1';
+  if (lower.startsWith('o3')) return 'o3';
+  if (lower.startsWith('grok')) {
+    const match = lower.match(/grok[-_.]?(\d+(?:[.-]\d+)?)/);
+    if (match?.[1]) {
+      return `Grok ${match[1].replace('-', '.')}`;
+    }
+    return 'Grok';
+  }
+  if (lower.startsWith('deepseek')) {
+    if (lower.includes('r1') || lower.includes('reasoner')) return 'DeepSeek R1';
+    return 'DeepSeek V3';
+  }
+  if (lower.startsWith('gemini')) {
+    if (lower.includes('flash')) return 'Gemini Flash';
+    if (lower.includes('pro')) return 'Gemini Pro';
+    return 'Gemini';
+  }
+  return clean;
+}
+
 export type InkstoneChatRow =
   | { kind: 'user'; id: string; text: string; attachments: string[]; time: string }
-  | { kind: 'assistant'; id: string; text: string; streaming: boolean; model: string }
+  | {
+      kind: 'assistant';
+      id: string;
+      text: string;
+      thinking?: string | undefined;
+      streaming: boolean;
+      model: string;
+      time: string;
+    }
   | { kind: 'tools'; id: string; label: string; steps: InkstoneToolStep[] };
 
 /** Project the remote transcript onto the prototype's chat row grammar. */
@@ -179,13 +277,14 @@ export function mapTranscriptRows(messages: MobileTranscriptMessage[]): Inkstone
   for (const message of messages) {
     if (message.role === 'user') {
       const attachments = (message.attachments ?? []).map((item) => item.name ?? '图片');
-      if (message.text.trim().length === 0 && attachments.length === 0) {
+      const text = cleanSessionPreview(message.text);
+      if (text.length === 0 && attachments.length === 0) {
         continue;
       }
       rows.push({
         kind: 'user',
         id: message.id,
-        text: message.text,
+        text,
         attachments,
         time: formatClock(message.createdAt),
       });
@@ -203,13 +302,18 @@ export function mapTranscriptRows(messages: MobileTranscriptMessage[]): Inkstone
         steps: message.toolCalls.map(mapToolStep),
       });
     }
-    if (message.text.trim().length > 0) {
+    const hasText = message.text.trim().length > 0;
+    const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0;
+    const isStreaming = message.status === 'streaming';
+    if (hasText || hasThinking || isStreaming) {
       rows.push({
         kind: 'assistant',
         id: message.id,
         text: message.text,
-        streaming: message.status === 'streaming',
-        model: message.model?.modelId ?? 'assistant',
+        ...(message.thinking !== undefined ? { thinking: message.thinking } : {}),
+        streaming: isStreaming,
+        model: formatModelLabel(message.model?.modelId),
+        time: formatClock(message.createdAt),
       });
     }
   }

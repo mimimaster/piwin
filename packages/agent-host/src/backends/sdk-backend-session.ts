@@ -51,6 +51,7 @@ import {
   type PiRunInterventionSession,
 } from '../run-intervention-stager.js';
 import { resolvePiRuntimeAgentDir } from '../pi-runtime-agent-dir.js';
+import { registerClaudeCodeOauthProvider } from '../anthropic-oauth/register-claude-code-provider.js';
 
 /** Options for backend-only SDK session creation. */
 export type PiSdkBackendOptions = {
@@ -220,6 +221,9 @@ async function createBackendModelRuntime(
   });
   for (const provider of providers) {
     if (provider.auth.kind === 'oauth') {
+      if (provider.providerId === 'anthropic-claude-code') {
+        await registerClaudeCodeOauthProvider(modelRuntime, agentDir, provider);
+      }
       continue;
     }
     modelRuntime.registerProvider(

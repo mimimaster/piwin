@@ -49,6 +49,14 @@ import {
   WorkspaceMenuSheet,
 } from './workspace-sheets.js';
 import { SettingsSearchSheet, SETTINGS_SHEETS } from './settings-sheets.js';
+import {
+  KnowledgeSearchSheet,
+  MountsSheet,
+  PlanMenuSheet,
+  SourceDetailSheet,
+  WikiMenuSheet,
+  WikiNewSheet,
+} from './knowledge-sheets.js';
 
 export interface SheetDefinition {
   title: string;
@@ -102,6 +110,12 @@ export const SHEETS: Record<string, SheetDefinition> = {
   'produce-cards': sheet('从文件里，留下一点知识', ProduceCardsSheet),
   asset: sheet('资料详情', AssetSheet),
   'media-new': sheet('想生成什么？', MediaNewSheet),
+  'plan-menu': sheet('当前计划', PlanMenuSheet),
+  mounts: sheet('会话知识库挂载', MountsSheet),
+  'knowledge-search': sheet('搜索知识库', KnowledgeSearchSheet),
+  'wiki-new': sheet('录入新维基条目', WikiNewSheet),
+  'source-detail': sheet('信源详情', SourceDetailSheet),
+  'wiki-menu': sheet('词条操作', WikiMenuSheet),
   'settings-search': sheet('查找设置', SettingsSearchSheet),
 };
 

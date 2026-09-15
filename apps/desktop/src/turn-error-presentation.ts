@@ -1,4 +1,8 @@
-import type { AgentFailure, SessionRunOutcome } from '@piwin/contracts';
+import {
+  formatAnthropicExtraUsageError,
+  type AgentFailure,
+  type SessionRunOutcome,
+} from '@piwin/contracts';
 import {
   classifyAgentFailure,
   type TurnErrorCategory,
@@ -67,8 +71,19 @@ export function presentTurnErrorCard(input: {
     input.locale === 'zh-CN' ||
     input.locale.startsWith('zh');
   const classification = classifyAgentFailure(input.failure);
-  const title = isChinese ? classification.titleZh : classification.titleEn;
-  const detail = formatTurnErrorDetail(input.error, isChinese);
+  const extraUsageDetail =
+    formatAnthropicExtraUsageError(input.error, isChinese ? 'zh-CN' : 'en') ??
+    (input.failure
+      ? formatAnthropicExtraUsageError(input.failure.message, isChinese ? 'zh-CN' : 'en')
+      : undefined);
+  const title = extraUsageDetail
+    ? isChinese
+      ? '需开通 extra usage'
+      : 'Extra usage required'
+    : isChinese
+      ? classification.titleZh
+      : classification.titleEn;
+  const detail = extraUsageDetail ?? formatTurnErrorDetail(input.error, isChinese);
   return {
     title,
     detail,

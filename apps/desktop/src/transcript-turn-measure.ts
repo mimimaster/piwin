@@ -16,3 +16,8 @@ export function requestTranscriptTurnMeasure(element?: HTMLElement | null): void
   }
   document.dispatchEvent(new CustomEvent(TRANSCRIPT_TURN_MEASURE_EVENT, { detail }));
 }
+
+export function transcriptTurnBodyFromFold(root: HTMLElement | null): HTMLElement | null {
+  const turnBody = root?.closest('.transcript-turn-window-item-body');
+  return turnBody instanceof HTMLElement ? turnBody : null;
+}

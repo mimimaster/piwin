@@ -1,7 +1,8 @@
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { Icon, type InkstoneIconName } from './icons.js';
+import { useInkstone } from './inkstone-context.js';
 
-export type DotStatus = 'running' | 'done' | 'waiting' | 'background' | '';
+export type DotStatus = 'running' | 'done' | 'waiting' | 'background' | 'paused' | 'failed' | '';
 
 export function Dot({ status }: { status: DotStatus }): ReactElement {
   return <i className={`dot ${status}`.trim()} aria-hidden="true" />;
@@ -58,6 +59,57 @@ export function IconButton({
   );
 }
 
+export function LiveCapsule(): ReactElement | null {
+  const { state, dispatch } = useInkstone();
+  if (!state.liveMini || state.route === 'voice') {
+    return null;
+  }
+  return (
+    <div className="live-capsule" role="region" aria-label="Live 悬浮小部件">
+      <button
+        className="capsule-body"
+        onClick={() => dispatch({ type: 'expand-live' })}
+        aria-label="返回全屏 Live"
+        type="button"
+      >
+        <Dot status="running" />
+        <span className="capsule-text">
+          <strong>Live · {state.muted ? '已静音' : '我在听'}</strong>
+          <small>
+            {state.muted ? '轻点麦克风开麦' : '“把刚才的恢复方案整理一下…”'}
+          </small>
+        </span>
+      </button>
+      <div className="capsule-controls">
+        <button
+          className={`capsule-btn ${state.muted ? 'is-muted' : ''}`.trim()}
+          onClick={() => dispatch({ type: 'toggle-live-mute' })}
+          aria-label={state.muted ? '取消静音' : '静音'}
+          type="button"
+        >
+          <Icon name={state.muted ? 'close' : 'mic'} />
+        </button>
+        <button
+          className="capsule-btn"
+          onClick={() => dispatch({ type: 'expand-live' })}
+          aria-label="全屏 Live"
+          type="button"
+        >
+          <Icon name="expand" />
+        </button>
+        <button
+          className="capsule-btn capsule-hangup"
+          onClick={() => dispatch({ type: 'end-live' })}
+          aria-label="结束 Live"
+          type="button"
+        >
+          <Icon name="close" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function TopBar({
   title,
   subtitle,
@@ -70,36 +122,43 @@ export function TopBar({
   right?: ReactNode;
 }): ReactElement {
   return (
-    <header className="topbar">
-      {onBack !== undefined ? (
-        <IconButton name="chevr" label="返回" onClick={onBack} extra="back-button" />
-      ) : (
-        <span className="brand-seal">砚</span>
-      )}
-      <div className="topbar-title">
-        <h2>{title}</h2>
-        {subtitle !== undefined ? <small>{subtitle}</small> : null}
-      </div>
-      {right}
-    </header>
+    <>
+      <header className="topbar">
+        {onBack !== undefined ? (
+          <IconButton name="chevl" label="返回" onClick={onBack} extra="back-button" />
+        ) : (
+          <span className="brand-seal">砚</span>
+        )}
+        <div className="topbar-title">
+          <h2>{title}</h2>
+          {subtitle !== undefined ? <small>{subtitle}</small> : null}
+        </div>
+        {right}
+      </header>
+      <LiveCapsule />
+    </>
   );
 }
 
 const BOTTOM_NAV_ITEMS: [string, InkstoneIconName, string][] = [
   ['sessions', 'panel', '会话'],
-  ['inbox', 'bulb', '待办'],
-  ['shelf', 'cards', '案头'],
+  ['activity', 'bell', '动态'],
+  ['knowledge', 'book', '知识'],
+  ['desk', 'desk', '案头'],
 ];
 
 export function BottomNav({
   selected,
-  inboxCount,
+  attentionCount = 0,
+  inboxCount = 0,
   onNavigate,
 }: {
   selected: string;
-  inboxCount: number;
+  attentionCount?: number;
+  inboxCount?: number;
   onNavigate: (route: string) => void;
 }): ReactElement {
+  const count = attentionCount || inboxCount;
   return (
     <nav className="bottom-nav" aria-label="手机主导航">
       {BOTTOM_NAV_ITEMS.map(([route, name, title]) => (
@@ -112,10 +171,67 @@ export function BottomNav({
         >
           <Icon name={name} />
           <span>{title}</span>
-          {route === 'inbox' && inboxCount > 0 ? <b className="nav-counter">{inboxCount}</b> : null}
+          {route === 'activity' && count > 0 ? (
+            <b className="nav-counter">{count}</b>
+          ) : null}
         </button>
       ))}
     </nav>
+  );
+}
+
+export function Segmented<T extends string>({
+  items,
+  selected,
+  onSelect,
+  label,
+}: {
+  items: [T, number | undefined][];
+  selected: T;
+  onSelect: (value: T) => void;
+  label?: string;
+}): ReactElement {
+  return (
+    <div className="segmented" role="group" aria-label={label}>
+      {items.map(([value, count]) => (
+        <button
+          key={value}
+          onClick={() => onSelect(value)}
+          aria-pressed={selected === value}
+          type="button"
+        >
+          {value}
+          {count !== undefined ? <small>{count}</small> : null}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Chips<T extends string>({
+  items,
+  selected,
+  onSelect,
+}: {
+  items: [T, number | undefined][];
+  selected: T;
+  onSelect: (value: T) => void;
+}): ReactElement {
+  return (
+    <div className="chip-row">
+      {items.map(([value, count]) => (
+        <button
+          key={value}
+          className="chip"
+          onClick={() => onSelect(value)}
+          aria-pressed={selected === value}
+          type="button"
+        >
+          {value}
+          {count !== undefined ? <small>{count}</small> : null}
+        </button>
+      ))}
+    </div>
   );
 }
 

@@ -48,6 +48,48 @@ const GENERIC_STREAMABLE_TAGS = new Set([
   'div',
 ]);
 const STREAM_REVEAL_IGNORED_BOUNDARY_TAGS = new Set(['style', 'script']);
+/** Elements that paint on their own even without text. */
+const VISIBLE_LEAF_TAGS = new Set([
+  'img',
+  'canvas',
+  'video',
+  'input',
+  'textarea',
+  'select',
+  'button',
+  'hr',
+  'progress',
+  'meter',
+  'path',
+  'rect',
+  'circle',
+  'ellipse',
+  'line',
+  'polyline',
+  'polygon',
+  'image',
+  'use',
+]);
+/** Containers whose descendants never paint in place (SVG paint servers, metadata). */
+const NON_RENDERING_TAGS = new Set([
+  'style',
+  'script',
+  'template',
+  'noscript',
+  'head',
+  'title',
+  'desc',
+  'metadata',
+  'defs',
+  'clippath',
+  'mask',
+  'pattern',
+  'symbol',
+  'marker',
+  'lineargradient',
+  'radialgradient',
+  'filter',
+]);
 
 type TagEntry = {
   tag: string;
@@ -199,6 +241,34 @@ function trailingTextLength(tail: string): number {
   return text.replace(/&[#a-z0-9]*$/i, '').length;
 }
 
+/**
+ * A snapshot that only opens containers (`<svg viewBox>`, `<defs><stop/>`,
+ * `<div class="grid">`) paints nothing. Treating it as stable dismisses the
+ * preparing placeholder and leaves an empty frame while the model keeps typing.
+ */
+function hasVisibleContent(prefix: string): boolean {
+  const source = prefix.replace(/<!--[\s\S]*?-->/g, '').replace(/<!doctype[^>]*>/gi, '');
+  const openTags: string[] = [];
+  let textStart = 0;
+  const rendering = (): boolean => !openTags.some((tagName) => NON_RENDERING_TAGS.has(tagName));
+  for (const tag of scanTags(source)) {
+    if (rendering() && source.slice(textStart, tag.position).trim().length > 0) {
+      return true;
+    }
+    textStart = tag.position + tag.tag.length;
+    if (tag.isClosing) {
+      const index = openTags.lastIndexOf(tag.tagName);
+      if (index !== -1) openTags.length = index;
+      continue;
+    }
+    if (rendering() && VISIBLE_LEAF_TAGS.has(tag.tagName)) {
+      return true;
+    }
+    if (!tag.isSelfClosing) openTags.push(tag.tagName);
+  }
+  return rendering() && source.slice(textStart).trim().length > 0;
+}
+
 function buildSyntheticClosers(openTagStack: string[]): string {
   return openTagStack
     .slice()
@@ -329,7 +399,10 @@ export function buildStreamableArtifactPreview(source: string): StreamablePrevie
     return { canStream: false, previewSource: sanitizedSource };
   }
 
-  if (!GENERIC_STREAMABLE_STRUCTURE_PATTERN.test(previewResult.previewSource)) {
+  if (
+    !GENERIC_STREAMABLE_STRUCTURE_PATTERN.test(previewResult.previewSource) ||
+    !hasVisibleContent(stableCandidateSource.slice(0, lastSafeEndIndex))
+  ) {
     return { canStream: false, previewSource: sanitizedSource };
   }
 

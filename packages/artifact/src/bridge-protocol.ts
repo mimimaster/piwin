@@ -53,12 +53,21 @@ export function parseArtifactBridgeMessage(data: unknown): ArtifactBridgeMessage
     return null;
   }
 
+  const epoch = data['epoch'];
+  if (
+    epoch !== undefined &&
+    (typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < 0)
+  ) {
+    return null;
+  }
+
   return {
     type,
     channelId,
     height: Math.max(0, Math.ceil(rawHeight)),
     viewportHeight: Math.max(0, Math.ceil(rawViewportHeight)),
     revision,
+    ...(epoch !== undefined ? { epoch } : {}),
   };
 }
 

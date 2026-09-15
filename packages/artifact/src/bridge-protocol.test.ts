@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { ARTIFACT_BRIDGE_SIZE_TYPE, ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE } from './constants.js';
-import { parseArtifactBridgeMessage, parseArtifactRenderSnapshot, readArtifactPostSeq } from './bridge-protocol.js';
+import {
+  parseArtifactBridgeMessage,
+  parseArtifactRenderSnapshot,
+  readArtifactPostSeq,
+} from './bridge-protocol.js';
 
 describe('parseArtifactBridgeMessage', () => {
+  it('keeps a valid document epoch and rejects a malformed one', () => {
+    const base = {
+      type: ARTIFACT_BRIDGE_SIZE_TYPE,
+      channelId: 'ch',
+      height: 10,
+      viewportHeight: 10,
+      revision: 0,
+    };
+    expect(parseArtifactBridgeMessage({ ...base, epoch: 3 })?.epoch).toBe(3);
+    expect(parseArtifactBridgeMessage(base)).not.toHaveProperty('epoch');
+    expect(parseArtifactBridgeMessage({ ...base, epoch: -1 })).toBeNull();
+    expect(parseArtifactBridgeMessage({ ...base, epoch: '3' })).toBeNull();
+  });
+
   it('accepts and normalizes a valid revisioned size message', () => {
     const message = parseArtifactBridgeMessage({
       type: ARTIFACT_BRIDGE_SIZE_TYPE,

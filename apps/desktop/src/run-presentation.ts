@@ -164,15 +164,13 @@ export function buildTurnPresentation(input: BuildTurnPresentationInput): TurnPr
 }
 
 export function resolveWorkDetailsDefaultOpen(
-  presentation: TurnPresentation,
+  _presentation: TurnPresentation,
   preference: 'auto' | 'always' | 'collapsed',
 ): boolean {
   if (preference === 'always') return true;
   if (preference === 'collapsed') return false;
-  // Keep the default transcript compact while preserving an explicit "always"
-  // preference and useful failure details. The summary row supplies the live
-  // thinking signal while the full reasoning remains user-expandable.
-  if (presentation.hasFailure) return true;
+  // Auto stays compact. Failure chrome lives on the tool card; this flag only
+  // opens thinking, so a tool error must not unfurl the reasoning body.
   return false;
 }
 

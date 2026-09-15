@@ -83,6 +83,7 @@ describe('extension-scanner', () => {
     expect(installed).toContain('path-guard');
     expect(installed).toContain('questionnaire');
     expect(installed).toContain('goal');
+    expect(installed).toContain('pi-anthropic-auth');
     expect(installed).not.toContain('questionnaire.test');
     expect(installed).not.toContain('goal.test');
     const again = await ensureBundledExtensionsInstalled(rootDir);
@@ -105,6 +106,12 @@ describe('extension-scanner', () => {
     expect(goal?.source).toBe('bundled');
     expect(goal?.description.toLowerCase()).toContain('goal');
 
+    const anthropicAuth = listed.find((item) => item.id === 'pi-anthropic-auth');
+    expect(anthropicAuth).toBeDefined();
+    expect(anthropicAuth?.source).toBe('bundled');
+    expect(anthropicAuth?.compatibility?.tier).toBe('compatible');
+    expect(anthropicAuth?.enabled).toBe(true);
+
     expect(listed.find((item) => item.name === 'questionnaire.test')).toBeUndefined();
     expect(listed.find((item) => item.name === 'goal.test')).toBeUndefined();
   });
@@ -116,3 +123,31 @@ describe('extensionIdFromPath', () => {
     expect(extensionIdFromPath('/tmp/extensions/my-pack/index.ts')).toBe('my-pack');
   });
 });
+
+  it('marks package dirs with @piwin-bundled-extension as bundled', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-ext-bundled-'));
+    const extensionsDir = join(rootDir, 'extensions');
+    const pkg = join(extensionsDir, 'pi-deepseek-cache');
+    await mkdir(pkg, { recursive: true });
+    await writeFile(
+      join(pkg, 'index.ts'),
+      '/**\n * DeepSeek cache\n * @piwin-bundled-extension\n */\nexport default async function () {}\n',
+      'utf8',
+    );
+    await writeFile(
+      join(pkg, 'package.json'),
+      JSON.stringify({
+        name: 'pi-deepseek-cache',
+        version: '1.0.4',
+        piwin: { bundledFrom: 'npm:@rohaquinlop/pi-deepseek-cache', npmVersion: '1.0.4' },
+      }),
+      'utf8',
+    );
+
+    const listed = await scanExtensions({
+      piwinRoot: rootDir,
+      config: { disabledIds: [], extraPaths: [] },
+    });
+    const hit = listed.find((item) => item.id === 'pi-deepseek-cache');
+    expect(hit?.source).toBe('bundled');
+  });

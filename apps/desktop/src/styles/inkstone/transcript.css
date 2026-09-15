@@ -15,7 +15,7 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-stage {
   container-type: inline-size;
   container-name: transcript-stage;
   --mg: 0px;
-  --measure: var(--chat-max, 720px);
+  --measure: var(--conversation-width);
   --rail: 0px;
   --row-pad: 8px;
   --card-x: 14px;
@@ -28,7 +28,7 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-stage {
      stand-in let the 160px rail open while 160+measure+160 still overflowed a
      sidebar-squeezed project stage — transcript shrank, composer stayed on
      --chat-max. */
-  --gut: max(0px, min(max(var(--mg), var(--rail)), calc((100% - var(--measure)) / 2)));
+  --gut: max(0px, min(max(var(--mg), var(--rail)), calc((100% - var(--conversation-width)) / 2)));
 }
 
 /* Deck locks the thread to `--chat-max`, which puts the 160px rail *inside*
@@ -76,8 +76,8 @@ html[data-theme-id='piwin-inkstone-paper'] .head .who,
 html[data-theme-id='piwin-inkstone-ink'] .head .who,
 html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .who,
 html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head .who {
-  font: 500 12.5px var(--serif);
-  color: var(--t2);
+  font: 400 12px var(--mono);
+  color: var(--t3);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .head .who.is-user,
@@ -91,14 +91,11 @@ html[data-theme-id='piwin-inkstone-paper'] .head .av,
 html[data-theme-id='piwin-inkstone-ink'] .head .av,
 html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head .av,
 html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
-  width: 18px;
-  height: 18px;
-  line-height: 18px;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
   font-size: 11px;
-  border-radius: 50%;
-  background: var(--s3);
-  box-shadow: var(--sh1);
-  color: var(--t1);
+  color: var(--t4);
   display: inline-grid;
   place-items: center;
   font-weight: 600;
@@ -118,12 +115,12 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
    `.who` (overflow:hidden) vanished, and usage like "1 工具" wrapped into a
    vertical stack.
 
-   `100%` on those descendants is the child's own box (often `--chat-max`),
-   not the stage. After the 960 swap hid `.head`, a 0-width rail ate 「你」
-   and the model name. `100cqw` is the named stage width.
+   `100%` on a nested child is that child's box, not the stage. After the
+   960 swap hid `.head`, a 0-width rail ate 「你」 and the model name.
+   `100cqw` is the named stage width.
 
-   Include `.composer-dock` so the dock inherits the same leftover gut as
-   the turn grid.
+   Set the leftover on `.chat-stage > *` (viewport, composer, gates). Turns
+   inherit. The composer slab uses `--conversation-width` only — not `--gut`.
 
    Keep the inline head until the leftover gutter can actually hold a
    byline (Wide measure is 840px; 840 + 2×80 ≈ 1000). Hiding it at 960
@@ -131,8 +128,8 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
 @container transcript-stage (min-width: 960px) {
   html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
     .chat-stage
-    :is(.chat-thread, .chat-turn, .turn, .composer-dock) {
-    --gut: max(0px, min(140px, calc((100cqw - var(--measure)) / 2)));
+    > * {
+    --gut: max(0px, min(140px, calc((100cqw - var(--conversation-width)) / 2)));
     --mg: var(--gut);
   }
 }
@@ -142,7 +139,7 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
   html[data-theme-id='piwin-inkstone-ink'] .marg,
   html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia,
   html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia {
-    display: flex !important;
+    display: grid !important;
   }
   html[data-theme-id='piwin-inkstone-paper'] .head,
   html[data-theme-id='piwin-inkstone-ink'] .head,
@@ -155,8 +152,8 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
 @container transcript-stage (min-width: 1080px) {
   html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
     .chat-stage
-    :is(.chat-thread, .chat-turn, .turn, .composer-dock) {
-    --gut: max(0px, min(160px, calc((100cqw - var(--measure)) / 2)));
+    > * {
+    --gut: max(0px, min(160px, calc((100cqw - var(--conversation-width)) / 2)));
     --mg: var(--gut);
   }
 }
@@ -174,6 +171,10 @@ html[data-theme-id='piwin-inkstone-ink'] .turn,
 html[data-theme-id='piwin-inkstone-paper'] .chat-turn,
 html[data-theme-id='piwin-inkstone-ink'] .chat-turn {
   display: grid;
+  /* Resolve --gut/--measure here, not via a :root --turn-columns token.
+     That token froze --gut at 0 and --measure at the :root 760 fallback,
+     so the body sat in a 760 track on the left of a 1040 turn and the
+     composer (720, centered) looked offset. */
   grid-template-columns: minmax(0, var(--gut)) minmax(0, var(--measure)) minmax(0, var(--gut));
   width: 100%;
   max-width: calc(var(--gut) * 2 + var(--measure));
@@ -219,10 +220,17 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group .chat-marginalia {
   grid-column: 1;
   justify-self: end;
   width: var(--mg);
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  padding: 5px 18px 0 0;
+  /* Byline row: name + glyph share one --turn-lead-h line centred on the
+     body's first row (fold header, prose line, card); clock / usage /
+     waiting status stack beneath it. */
+  grid-template-columns: minmax(0, auto) auto;
+  justify-content: end;
+  justify-items: end;
+  align-items: center;
+  align-content: start;
+  gap: 0;
+  padding: var(--turn-lead-offset, 0px) 14px 0 0;
+  container: turn-rail / inline-size;
   font: 11px var(--mono);
   color: var(--t4);
   text-align: right;
@@ -257,8 +265,8 @@ html[data-theme-id='piwin-inkstone-paper'] .turn .marg .who,
 html[data-theme-id='piwin-inkstone-ink'] .turn .marg .who,
 html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia .who,
 html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia .who {
-  font: 500 12.5px var(--serif);
-  color: var(--t2, var(--text-2, #5a554d));
+  font: 400 12px/var(--turn-lead-h, 30px) var(--mono);
+  color: var(--t3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -284,28 +292,137 @@ html[data-theme-id='piwin-inkstone-paper'] .marg .av,
 html[data-theme-id='piwin-inkstone-ink'] .marg .av,
 html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia .av,
 html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia .av {
-  width: 22px;
-  height: 22px;
-  line-height: 22px;
-  font-size: 12px;
-  border-radius: 50%;
-  background: var(--s3);
-  box-shadow: var(--sh1);
-  color: var(--t1);
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  font-size: 11px;
+  color: var(--t4);
   display: inline-grid;
   place-items: center;
   font-weight: 600;
   font-family: var(--serif);
-  margin-bottom: 2px;
   overflow: hidden;
 }
 
-.chat-marginalia .av.has-model-icon,
-.chat-turn-head .av.has-model-icon,
-.head .av.has-model-icon,
-.marg .av.has-model-icon {
-  background: transparent;
-  box-shadow: none;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-marginalia.is-assistant
+  > .who {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-marginalia.is-assistant
+  > .av {
+  grid-row: 1;
+  grid-column: 2;
+  margin-left: 6px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-marginalia.is-assistant
+  > :not(.who, .av) {
+  grid-column: 1 / -1;
+  line-height: 16px;
+}
+
+/* The body row the byline centres on. Default is a fold header (已工作 /
+   思考过程 / 运行中: a 30px row under `.work`'s 2px top margin). A reply that
+   opens straight into prose centres on its first 25px line; an error-only
+   reply skips the card's 8px margin + 12px padding to its 24px header. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-turn-assistant {
+  --turn-lead-offset: 2px;
+  --turn-lead-h: 30px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-turn-assistant:has(
+    > .chat-turn-body
+      > .chat-turn-head
+      + .chat-message-row
+      > .conversation-response
+      > .conversation-message-header
+      + .markdown
+  ) {
+  --turn-lead-offset: 0px;
+  --turn-lead-h: 25px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-turn-assistant:has(> .chat-turn-body > .chat-turn-head + .chat-message-row > .turn-error-card):not(
+    :has(
+      > .chat-turn-body
+        > .chat-turn-head
+        + .chat-message-row
+        > .conversation-response
+        > :is(.markdown, .conversation-thinking-wrapper, .turn-tool-sequence)
+    )
+  ) {
+  --turn-lead-offset: 20px;
+  --turn-lead-h: 24px;
+}
+
+/* A rail too narrow for name + glyph keeps the name; the glyph goes. */
+@container turn-rail (max-width: 139px) {
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+    .chat-marginalia.is-assistant
+    > .av {
+    display: none;
+  }
+}
+
+/* The brand mark stays grey until the reader is on that turn. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.chat-marginalia, .chat-turn-head)
+  .turn-model-icon {
+  filter: grayscale(1);
+  opacity: 0.55;
+  transition:
+    filter var(--t-1, 120ms) var(--ease-out, ease-out),
+    opacity var(--t-1, 120ms) var(--ease-out, ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-turn:hover
+  :is(.chat-marginalia, .chat-turn-head)
+  .turn-model-icon {
+  filter: none;
+  opacity: 1;
+}
+
+/* Running: the body's fold row already says 运行中 — pulse the glyph instead
+   of repeating it. Waiting needs the user, so its label stays, in lamp ink. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  [data-status-tone='running']
+  > [data-st='status'] {
+  display: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  [data-status-tone='waiting']
+  > [data-st='status'] {
+  color: var(--ochre);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  [data-status-tone='running']
+  > .av {
+  animation: turn-rail-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes turn-rail-breathe {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+    [data-status-tone='running']
+    > .av {
+    animation: none;
+  }
 }
 
 .chat-marginalia .av .turn-model-icon,
@@ -340,6 +457,29 @@ html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible code {
   background: var(--s1);
 }
 
+
+/* Age sits in the same hover chip as copy/edit — do not fade it separately. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-time[data-testid='user-message-time'] {
+  display: inline-flex;
+  font: 11px var(--mono);
+  color: var(--t4);
+  line-height: 1;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-marginalia
+  .turn-clock {
+  display: block;
+  min-width: 4.5em;
+  text-align: right;
+  min-height: 1.15em;
+  font: 11px var(--mono);
+  color: var(--t4);
+  line-height: 1.15;
+  white-space: nowrap;
+  cursor: default;
+}
 
 /* S5.11: Steer mono status text */
 html[data-theme-id='piwin-inkstone-paper'] .user-message-time[data-testid='intervention-delivery-status'],

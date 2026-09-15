@@ -112,6 +112,7 @@ export function buildArtifactBridgeBootstrapScript(
   var sizeEnabled = currentFrameMode !== 'canvas';
   var sizeRevision = 0;
   var lastReportedHeight = -1;
+  var hostEpoch = null;
   var heightFrame = null;
   var heightObserver = null;
   var contentObserver = null;
@@ -138,11 +139,13 @@ export function buildArtifactBridgeBootstrapScript(
     );
     if (height === lastReportedHeight) return;
     lastReportedHeight = height;
-    post(sizeType, {
+    var sizePayload = {
       height: height,
       viewportHeight: readHeight(window.innerHeight),
       revision: sizeRevision
-    });
+    };
+    if (hostEpoch !== null) sizePayload.epoch = hostEpoch;
+    post(sizeType, sizePayload);
     sizeRevision += 1;
   };
   var scheduleHeight = function () {
@@ -158,6 +161,7 @@ export function buildArtifactBridgeBootstrapScript(
       typeof data.fallbackViewport !== 'boolean' ||
       typeof data.force !== 'boolean'
     ) return;
+    if (typeof data.epoch === 'number' && isFinite(data.epoch)) hostEpoch = data.epoch;
     if (document.documentElement) {
       document.documentElement.setAttribute(
         'data-measurement-fallback',

@@ -5,9 +5,13 @@ import type {
   HostCommand,
   SubscriptionAccount,
   SubscriptionAccountQuota,
-  V1SubscriptionProviderId,
+  SubscriptionOauthProviderId,
 } from '@piwin/contracts';
-import { remoteCommandRequiresIdempotencyKey, V1_SUBSCRIPTION_PROVIDER_IDS } from '@piwin/contracts';
+import {
+  CLAUDE_CODE_OAUTH_PROVIDER_ID,
+  getSubscriptionBillingNotice,
+  remoteCommandRequiresIdempotencyKey,
+} from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
 import {
   AlertCircle,
@@ -27,7 +31,22 @@ import { InlineAuthPromptForm, readAuthPromptOpenUrl, type ProviderCardMeta } fr
 import { SubscriptionQuotaDrawer } from './subscription-quota-drawer.js';
 import { openExternalUrl } from './open-external-url.js';
 
-const CARD_COPY: Record<V1SubscriptionProviderId, ProviderCardMeta> = {
+const EXTENSION_PILL = '@gotgenes/pi-anthropic-auth';
+const EXTENSION_ID = 'pi-anthropic-auth';
+
+/** Official grid order: extension-path Claude sits directly under plain Claude. */
+const OAUTH_DISPLAY_PROVIDER_IDS: readonly SubscriptionOauthProviderId[] = [
+  'kimi-coding',
+  'openai-codex',
+  'anthropic',
+  CLAUDE_CODE_OAUTH_PROVIDER_ID,
+  'xai',
+  'github-copilot',
+];
+
+type OauthCardId = (typeof OAUTH_DISPLAY_PROVIDER_IDS)[number];
+
+const CARD_COPY: Record<OauthCardId, ProviderCardMeta> = {
   'kimi-coding': {
     title: 'Kimi Code',
     titleEn: 'Kimi Code',
@@ -47,8 +66,16 @@ const CARD_COPY: Record<V1SubscriptionProviderId, ProviderCardMeta> = {
   anthropic: {
     title: 'Claude',
     titleEn: 'Claude',
-    tagline: 'Anthropic 官方会员',
-    taglineEn: 'Anthropic Subscription',
+    tagline: 'Pro/Max OAuth · 按 extra 计费',
+    taglineEn: 'Pro/Max OAuth · extra usage',
+    login: '授权登录',
+    loginEn: 'Connect',
+  },
+  [CLAUDE_CODE_OAUTH_PROVIDER_ID]: {
+    title: 'Claude',
+    titleEn: 'Claude',
+    tagline: 'Pro/Max OAuth · 走的套餐',
+    taglineEn: 'Pro/Max OAuth · plan quota',
     login: '授权登录',
     loginEn: 'Connect',
   },
@@ -69,6 +96,10 @@ const CARD_COPY: Record<V1SubscriptionProviderId, ProviderCardMeta> = {
     loginEn: 'Connect',
   },
 };
+
+function isClaudeFamilyId(providerId: string): boolean {
+  return providerId === 'anthropic' || providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID;
+}
 
 const STATE_LABEL: Record<SubscriptionAccount['state'], { zh: string; en: string }> = {
   'logged-out': { zh: '未连接', en: 'Not connected' },
@@ -238,10 +269,38 @@ export function SubscriptionAccountsPanel(): ReactElement {
       if (message.type === 'auth/login-finished') {
         setActiveLogin(undefined);
         setRespondValue('');
+        if (message.result.ok) {
+          if (message.result.providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID) {
+            setInfo?.(
+              isChinese
+                ? '已登录 Claude 扩展路径（套餐额度）。若曾登录 extra Claude，已自动退出。'
+                : 'Signed in to Claude extension path (plan limits). Extra Claude was signed out if it was active.',
+              'success',
+            );
+          } else if (message.result.providerId === 'anthropic') {
+            const notice = getSubscriptionBillingNotice('anthropic', isChinese ? 'zh-CN' : 'en');
+            setInfo?.(
+              notice
+                ? notice.afterLogin
+                : isChinese
+                  ? '已登录 Claude extra。若曾登录扩展路径，已自动退出。'
+                  : 'Signed in to Claude extra. Extension-path Claude was signed out if it was active.',
+              notice ? 'warning' : 'success',
+            );
+          } else {
+            const notice = getSubscriptionBillingNotice(
+              message.result.providerId,
+              isChinese ? 'zh-CN' : 'en',
+            );
+            if (notice) {
+              setInfo?.(notice.afterLogin, 'warning');
+            }
+          }
+        }
         void refresh();
       }
     });
-  }, [hostClient, ownerDeviceId, refresh]);
+  }, [hostClient, isChinese, ownerDeviceId, refresh, setInfo]);
 
   const send = useCallback(
     async (command: HostCommand): Promise<boolean> => {
@@ -264,7 +323,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
     [hostClient, setError],
   );
 
-  async function startLogin(providerId: V1SubscriptionProviderId, collidingChannelId?: string): Promise<void> {
+  async function startLogin(providerId: OauthCardId, collidingChannelId?: string): Promise<void> {
     if (collidingChannelId) {
       const ok = await confirmDialog.confirm({
         title: isChinese ? '通道冲突' : 'Channel Conflict',
@@ -275,6 +334,32 @@ export function SubscriptionAccountsPanel(): ReactElement {
         cancelLabel: isChinese ? '取消' : 'Cancel',
       });
       if (!ok) return;
+    }
+    // Two Claude cards are mutually exclusive — warn before Host kicks the sibling.
+    if (isClaudeFamilyId(providerId)) {
+      const siblingId =
+        providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID ? 'anthropic' : CLAUDE_CODE_OAUTH_PROVIDER_ID;
+      const sibling = accounts.find((item) => item.providerId === siblingId);
+      if (sibling?.state === 'logged-in' || sibling?.state === 'needs-reauth' || sibling?.state === 'sync-error') {
+        const ok = await confirmDialog.confirm({
+          title: isChinese ? '切换 Claude 登录方式' : 'Switch Claude login mode',
+          description: isChinese
+            ? 'Claude extra 与扩展路径只能登录其中一个。继续将退出另一个 Claude 登录。'
+            : 'Only one Claude mode can be signed in. Continue will sign out the other Claude card.',
+          confirmLabel: isChinese ? '继续并顶掉另一个' : 'Continue and replace',
+          cancelLabel: isChinese ? '取消' : 'Cancel',
+          tone: 'danger',
+        });
+        if (!ok) return;
+      }
+    }
+    if (providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID && hostClient?.request) {
+      await hostClient.request({ type: 'extensions/ensure-bundled' });
+      await hostClient.request({
+        type: 'extensions/set_enabled',
+        extensionId: EXTENSION_ID,
+        enabled: true,
+      });
     }
     const ok = await send({
       type: 'auth/login',
@@ -298,7 +383,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
     }
   }
 
-  async function startLogout(providerId: V1SubscriptionProviderId): Promise<void> {
+  async function startLogout(providerId: OauthCardId): Promise<void> {
     const ok = await confirmDialog.confirm({
       title: isChinese ? '退出登录' : 'Sign out',
       description: isChinese
@@ -333,10 +418,11 @@ export function SubscriptionAccountsPanel(): ReactElement {
     }
   }, [prompt?.promptId]);
 
-  const connectedCount = V1_SUBSCRIPTION_PROVIDER_IDS.filter((id) => {
+  const connectedCount = OAUTH_DISPLAY_PROVIDER_IDS.filter((id) => {
     const acc = accounts.find((item) => item.providerId === id);
     return acc?.state === 'logged-in';
   }).length;
+  const displayCount = OAUTH_DISPLAY_PROVIDER_IDS.length;
 
   return (
     <section className="oauth-accounts" data-testid="subscription-accounts">
@@ -345,24 +431,25 @@ export function SubscriptionAccountsPanel(): ReactElement {
           <span className="oauth-accounts-header-title">
             {isChinese ? '官方订阅平台' : 'Official Subscription Providers'}
           </span>
-          <span className="oauth-accounts-header-count">{V1_SUBSCRIPTION_PROVIDER_IDS.length}</span>
+          <span className="oauth-accounts-header-count">{displayCount}</span>
         </div>
         <div className="oauth-accounts-header-right">
           <span className="oauth-accounts-stat-badge">
             <span className={`oauth-status-dot ${connectedCount > 0 ? 'is-pulse' : ''}`} />
             <span>
               {isChinese
-                ? `已连接 ${connectedCount} / ${V1_SUBSCRIPTION_PROVIDER_IDS.length}`
-                : `${connectedCount} of ${V1_SUBSCRIPTION_PROVIDER_IDS.length} connected`}
+                ? `已连接 ${connectedCount} / ${displayCount}`
+                : `${connectedCount} of ${displayCount} connected`}
             </span>
           </span>
         </div>
       </div>
 
       <div className="oauth-account-list oauth-account-grid">
-        {V1_SUBSCRIPTION_PROVIDER_IDS.map((providerId) => {
+        {OAUTH_DISPLAY_PROVIDER_IDS.map((providerId) => {
           const account = accounts.find((item) => item.providerId === providerId);
           const copy = CARD_COPY[providerId];
+          const isExtensionClaude = providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID;
           const isLoggingIn = activeLogin?.providerId === providerId;
           const state: SubscriptionAccount['state'] = isLoggingIn
             ? 'logging-in'
@@ -370,6 +457,8 @@ export function SubscriptionAccountsPanel(): ReactElement {
           const isConnected = state === 'logged-in';
           const isExpanded = isLoggingIn;
           const isExpandedQuota = isConnected && expandedQuotaIds.has(providerId);
+          const iconId = isExtensionClaude ? 'anthropic' : providerId;
+          const markClass = isExtensionClaude ? 'anthropic' : providerId;
 
           return (
             <article
@@ -380,12 +469,21 @@ export function SubscriptionAccountsPanel(): ReactElement {
               <div className="oauth-card-top oauth-row-top">
                 <div className="oauth-card-header oauth-row-header">
                   <div className="oauth-brand-wrapper">
-                    <span className={`oauth-account-mark is-${providerId}`} aria-hidden="true">
-                      <ProviderIcon id={providerId} name={copy.title} size={32} />
+                    <span className={`oauth-account-mark is-${markClass}`} aria-hidden="true">
+                      <ProviderIcon id={iconId} name={copy.title} size={32} />
                     </span>
                     <div className="oauth-brand-meta">
                       <div className="oauth-brand-title-row">
                         <strong className="oauth-brand-title">{isChinese ? copy.title : copy.titleEn}</strong>
+                        {isExtensionClaude ? (
+                          <span
+                            className="oauth-ext-pill"
+                            data-testid="claude-extension-pill"
+                            title={EXTENSION_PILL}
+                          >
+                            {EXTENSION_PILL}
+                          </span>
+                        ) : null}
                       </div>
                       <span className="oauth-brand-tagline">{isChinese ? copy.tagline : copy.taglineEn}</span>
                     </div>
@@ -490,6 +588,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
               {/* Expandable Quota Drawer for Connected Accounts */}
               {isExpandedQuota && (
                 <SubscriptionQuotaDrawer
+                  providerId={providerId}
                   quota={quotas.get(providerId)}
                   loading={loadingQuotaIds.has(providerId)}
                   isChinese={isChinese}

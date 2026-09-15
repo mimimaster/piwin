@@ -16,12 +16,20 @@ describe('native-window-drag', () => {
         <button id="btn">x</button>
         <div id="strip" class="context-bar-drag"></div>
         <span id="title">Session</span>
+        <div class="context-bar-leading">
+          <span id="spacer" class="proto-nav-spacer" data-tauri-drag-region></span>
+          <div class="context-bar-history" data-no-window-drag>
+            <button id="back">←</button>
+          </div>
+        </div>
       </div>
     `;
     document.body.appendChild(host);
     expect(isWindowDragBlockedTarget(host.querySelector('#btn'))).toBe(true);
     expect(isWindowDragBlockedTarget(host.querySelector('#strip'))).toBe(false);
     expect(isWindowDragBlockedTarget(host.querySelector('#title'))).toBe(false);
+    expect(isWindowDragBlockedTarget(host.querySelector('#spacer'))).toBe(false);
+    expect(isWindowDragBlockedTarget(host.querySelector('#back'))).toBe(true);
     host.remove();
   });
 

@@ -17,6 +17,7 @@ import type {
   BrowserLifecycle,
   BrowserMirrorMode,
   BrowserSnapshotNode,
+  BrowserViewportMode,
   HostPush,
   WebElementPickResult,
 } from '@piwin/contracts';
@@ -178,8 +179,10 @@ export type BrowserSession = {
   /** Fit the Playwright viewport to the panel CSS box; does not take the lock. */
   setViewport(
     size: { width: number; height: number },
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; mode?: BrowserViewportMode },
   ): Promise<{ width: number; height: number }>;
+  mirrorLeaseCount(): number;
+  hasMirrorLease(leaseId: string): boolean;
   takeOver(): Promise<BrowserControllerState>;
   giveBack(): Promise<BrowserControllerState>;
   lock(owner: BrowserActor, options?: BrowserOpOptions): Promise<BrowserControllerState>;
@@ -233,7 +236,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   const requestedViewport = options.viewport ?? { width: 1280, height: 800 };
   const deviceScaleFactor = options.deviceScaleFactor ?? BROWSER_DEFAULT_DEVICE_SCALE_FACTOR;
   const headless = options.headless ?? true;
-  const maxFps = options.maxFps ?? 4;
+  const maxFps = options.maxFps ?? 12;
   const profileDir = options.profileDir ?? join(homedir(), '.piwin', 'browser-profile');
   const captureConsoleAndNetwork = options.captureConsoleAndNetwork ?? false;
 
@@ -241,6 +244,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   const subscribers = new Set<(event: BrowserSessionEvent) => void>();
   const controller = createBrowserController();
   const state: BrowserSessionState = {};
+  let viewportMode: BrowserViewportMode = 'follow';
 
   const hooks: BrowserRuntimeHooks = {
     emitState: () => Promise.resolve(),
@@ -337,7 +341,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
           generation: runtime.generation(),
           ...(pageId !== undefined ? { pageId } : {}),
           viewport: {
-            mode: 'fixed',
+            mode: viewportMode,
             width: viewportSize.width,
             height: viewportSize.height,
           },
@@ -596,7 +600,13 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       return withAbort(operate, options?.signal);
     },
 
-    setViewport: (size, options) => withAbort(() => operations.setViewport(size), options?.signal),
+    setViewport: (size, options) =>
+      withAbort(async () => {
+        if (options?.mode !== undefined) viewportMode = options.mode;
+        return operations.setViewport(size, options?.mode);
+      }, options?.signal),
+    mirrorLeaseCount: () => runtime.mirrorLeaseCount(),
+    hasMirrorLease: (leaseId) => runtime.hasMirrorLease(leaseId),
 
     takeOver: async () => {
       const previous = controller.snapshot();

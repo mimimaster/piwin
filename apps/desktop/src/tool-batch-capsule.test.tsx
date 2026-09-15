@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import type { ToolCardUi } from './chat-reducer';
-import { ToolBatchCapsule } from './tool-batch-capsule';
+import { formatActiveToolLabel, ToolBatchCapsule } from './tool-batch-capsule';
 import { computeBatchSummary } from './tool-group-clustering';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 
@@ -172,5 +172,18 @@ describe('ToolBatchCapsule', () => {
     // 2nd click -> Collapse
     act(() => header?.click());
     expect(container.querySelector('[data-testid="tool-batch-body"]')).toBeNull();
+  });
+});
+
+describe('formatActiveToolLabel', () => {
+  it('never shows a half-parsed args dump as the marquee target', () => {
+    const tool: ToolCardUi = {
+      toolCallId: 'g',
+      toolName: 'grep',
+      status: 'running',
+      output: '',
+      presentation: { kind: 'filesystem', title: 'grep', actionVerb: 'Explored', summary: '{"pattern":"foo"' },
+    };
+    expect(formatActiveToolLabel(tool, true)).toBe('正在检索: grep');
   });
 });

@@ -35,6 +35,7 @@ import type {
 import type { NoteSearchQuery, NoteUpdateInput, NoteWriteInput } from './notes.js';
 import type { PetStoreQuery } from './pet.js';
 import type { PluginInstallSource } from './plugin.js';
+import type { MarketplacePiPackageSource } from './marketplace-search.js';
 import type {
   LocalFileExportCommandInput,
   LocalFilePreviewCommandInput,
@@ -286,6 +287,11 @@ export type HostContentCommand =
   | { id?: string; type: 'pty/list'; projectPath?: string }
   | { id?: string; type: 'skills/store-list' }
   | { id?: string; type: 'marketplace/search'; query: string; limit?: number }
+  | {
+      id?: string;
+      type: 'marketplace/package-install';
+      source: MarketplacePiPackageSource;
+    }
   | { id?: string; type: 'mcp/registry-list'; query?: string }
   | {
       id?: string;
@@ -321,10 +327,11 @@ export type HostContentCommand =
   | { id?: string; type: 'browser/screenshot'; path?: string }
   | { id?: string; type: 'browser/stop'; leaseId?: string }
   | { id?: string; type: 'browser/restart' }
+  | { id?: string; type: 'browser/reload' }
   | { id?: string; type: 'browser/input'; events: BrowserInputEvent[] }
   | { id?: string; type: 'browser/lock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/unlock'; owner: 'agent' | 'user' }
-  | { id?: string; type: 'browser/resize'; width: number; height: number }
+  | { id?: string; type: 'browser/resize'; width: number; height: number; leaseId?: string; origin?: 'follow' | 'explicit' }
   | { id?: string; type: 'browser/back' }
   | { id?: string; type: 'browser/forward' }
   | { id?: string; type: 'browser/new-tab'; url?: string }

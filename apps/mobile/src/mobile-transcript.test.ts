@@ -78,6 +78,7 @@ describe('mobile transcript health presentation', () => {
         messageId: 'msg-1',
         role: 'assistant',
         runId: 'run-1',
+        model: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
       }),
       harness.activeSessionRef,
       harness.setMessages,
@@ -97,6 +98,10 @@ describe('mobile transcript health presentation', () => {
       harness.setPausedCheckpointId,
       harness.setPermissionRequest,
     );
+    expect(harness.messages()[0]?.model).toEqual({
+      providerId: 'anthropic',
+      modelId: 'claude-3-5-sonnet',
+    });
     expect(harness.messages()[0]?.toolCalls?.[0]?.presentation).toEqual(HEALTH_PRESENTATION);
 
     handleRemotePush(

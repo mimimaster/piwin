@@ -74,6 +74,11 @@ export function projectHostSessionForRemoteClient(
   if (projected.messageCount !== undefined) mapped.messageCount = projected.messageCount;
   if (projected.pinned !== undefined) mapped.isPinned = projected.pinned;
   if (projected.archived !== undefined) mapped.isArchived = projected.archived;
+  if (projected.knowledgeBaseIds !== undefined) mapped.knowledgeBaseIds = projected.knowledgeBaseIds;
+  if (projected.subagentStatus !== undefined) mapped.subagentStatus = projected.subagentStatus;
+  if (projected.task !== undefined) mapped.task = projected.task;
+  if (projected.subagentRole !== undefined) mapped.subagentRole = projected.subagentRole;
+  if (projected.subagentModel !== undefined) mapped.subagentModel = projected.subagentModel;
   if (projected.projectId !== undefined) mapped.projectId = projected.projectId;
   if (projected.storage !== undefined) mapped.storage = projected.storage;
   if (projected.scope === 'project' && projected.projectId) {
@@ -305,6 +310,24 @@ function projectSessions(data: unknown): RemoteSessionSummary[] {
     if (record.isArchived === true || record.isArchived === false) {
       summary.archived = record.isArchived;
     }
+    if (Array.isArray(record.knowledgeBaseIds)) {
+      const ids = record.knowledgeBaseIds.filter(
+        (id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 256,
+      );
+      if (ids.length > 0) summary.knowledgeBaseIds = ids.slice(0, 32);
+    }
+    if (
+      record.subagentStatus === 'running' ||
+      record.subagentStatus === 'done' ||
+      record.subagentStatus === 'failed' ||
+      record.subagentStatus === 'cancelled'
+    ) {
+      summary.subagentStatus = record.subagentStatus;
+    }
+    copyBoundedString(record, 'task', summary, 'task', 1_000);
+    copyBoundedString(record, 'subagentRole', summary, 'subagentRole', 256);
+    const subagentModel = projectModelRef(record.subagentModel);
+    if (subagentModel !== undefined) summary.subagentModel = subagentModel;
     if (scopeIsProject(record)) {
       const projectPath = projectPathFromSessionRecord(record);
       if (projectPath !== undefined) {

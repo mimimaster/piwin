@@ -1,8 +1,10 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
+import type { HostResponse } from '@piwin/contracts';
 import { useInkstone } from '../inkstone-context.js';
 import { FullButton, ListRow } from '../inkstone-ui.js';
 import { Icon } from '../icons.js';
 import { SETTINGS_GROUPS } from '../pages/settings.js';
+import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 
 type FieldSpec = [label: string, value: string];
 
@@ -13,6 +15,10 @@ function DemoFormSheet({
   description: string;
   fields: FieldSpec[];
 }): ReactElement {
+  const hostCtx = useInkstoneHost();
+  if (hostCtx !== null) {
+    return <ConnectedSettingsFormSheet hostCtx={hostCtx} description={description} />;
+  }
   const { dispatch } = useInkstone();
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map(([, value], index) => [`demo-field-${index}`, value])),
@@ -33,6 +39,48 @@ function DemoFormSheet({
         </label>
       ))}
       <FullButton onClick={() => dispatch({ type: 'save-demo', values })}>保存演示配置</FullButton>
+    </>
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function readSettingsRevision(response: HostResponse): string | undefined {
+  if (!response.success || !isRecord(response.data) || !isRecord(response.data.snapshot)) return undefined;
+  return typeof response.data.snapshot.revision === 'string' ? response.data.snapshot.revision : undefined;
+}
+
+function ConnectedSettingsFormSheet({
+  hostCtx,
+  description,
+}: {
+  hostCtx: InkstoneHostContextValue;
+  description: string;
+}): ReactElement {
+  const { dispatch } = useInkstone();
+  const client = hostCtx.host.client;
+  const [revision, setRevision] = useState<string | undefined>();
+  const [error, setError] = useState<string | undefined>();
+  useEffect(() => {
+    if (client === undefined || !client.supportsCommand('settings/get')) return;
+    let active = true;
+    void client.request({ type: 'settings/get' }).then((response) => {
+      if (!active) return;
+      setRevision(readSettingsRevision(response));
+      setError(response.success ? undefined : response.error);
+    }).catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : '读取 Host 设置失败。'); });
+    return () => { active = false; };
+  }, [client]);
+  return (
+    <>
+      <p>{description}</p>
+      {client === undefined ? <p className="muted">正在连接 Host…</p> : null}
+      {revision !== undefined ? <p className="muted">Host 设置版本 · {revision}</p> : null}
+      {error !== undefined ? <p className="error-text">{error}</p> : null}
+      <p className="quote-note">当前壳不会用示例值覆盖 Host 配置。请在已提供的 Host 专用入口修改，修改结果会在这里刷新。</p>
+      <FullButton variant="secondary" onClick={() => dispatch({ type: 'close-sheet' })}>关闭</FullButton>
     </>
   );
 }
@@ -81,6 +129,10 @@ function ReadoutSheet({
   text: string;
   compact?: boolean;
 }): ReactElement {
+  const hostCtx = useInkstoneHost();
+  if (hostCtx !== null) {
+    return <ConnectedReadoutSheet hostCtx={hostCtx} compact={compact} />;
+  }
   const { dispatch } = useInkstone();
   return (
     <>
@@ -97,6 +149,37 @@ function ReadoutSheet({
           知道了
         </FullButton>
       )}
+    </>
+  );
+}
+
+function ConnectedReadoutSheet({
+  hostCtx,
+  compact,
+}: {
+  hostCtx: InkstoneHostContextValue;
+  compact: boolean;
+}): ReactElement {
+  const { dispatch } = useInkstone();
+  const client = hostCtx.host.client;
+  const sessionId = hostCtx.host.activeSessionId;
+  const [message, setMessage] = useState<string | undefined>();
+  const runCompact = async (): Promise<void> => {
+    if (client === undefined || sessionId === undefined || !client.supportsCommand('session/compact')) return;
+    const response = await client.request({ type: 'session/compact', sessionId });
+    setMessage(response.success ? 'Host 已接受上下文压缩请求。' : response.error);
+  };
+  return (
+    <>
+      {client === undefined ? <p className="muted">正在连接 Host…</p> : null}
+      {compact ? (
+        <>
+          <p>请求 Host 整理并压缩当前会话上下文，结果以 Host 返回为准。</p>
+          <FullButton onClick={() => void runCompact()} disabled={client === undefined || sessionId === undefined || !client.supportsCommand('session/compact')}>请求 Host 压缩</FullButton>
+        </>
+      ) : <p>当前页面只展示 Host 实时数据；移动端不会显示或保存固定示例内容。</p>}
+      {message !== undefined ? <p className="quote-note">{message}</p> : null}
+      <FullButton variant="secondary" onClick={() => dispatch({ type: 'close-sheet' })}>关闭</FullButton>
     </>
   );
 }

@@ -301,8 +301,9 @@
 }
 
 /* ─── Thread ──────────────────────────────────────────────────────────
-   One column at the shared --chat-max measure, matching the composer so
-   Narrow / Wide move both surfaces together. */
+   Deck: one --chat-max column (Inkstone overrides to full-stage; the turn
+   grid then spends leftover on avatar rails). Composer uses the same
+   --measure track, so Narrow / Wide still move both surfaces together. */
 
 .chat-thread {
   position: relative;
@@ -363,10 +364,21 @@
   padding-inline: 1px;
 }
 
-/* While a local fold (assembly summary) is open, let the panel paint until
-   the virtualizer remasures the turn body — otherwise overflow:hidden clips
-   the expanded detail mid-panel. */
-.transcript-turn-window-item:has(.assembly-summary.open) {
+/* While a local fold is open, let the panel paint until the virtualizer
+   remasures the turn body — otherwise overflow:hidden clips the expanded
+   detail mid-panel and the next remasure reads as a refresh. */
+.transcript-turn-window-item:has(
+  :is(
+    .assembly-summary.open,
+    .tool-call-card.is-expanded,
+    .tool-batch-capsule.is-expanded,
+    .explore-flow-capsule.is-expanded,
+    .turn-work-details.is-open,
+    .conversation-thinking-wrapper.is-open,
+    .turn-work-disclosure.open,
+    .explore-thought.is-open
+  )
+) {
   overflow: visible;
 }
 

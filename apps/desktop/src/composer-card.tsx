@@ -34,6 +34,7 @@ import {
 } from './at';
 import { ComposerModalEditor } from './ComposerModalEditor';
 import { ComposerQueuedEditBanner } from './composer-queued-edit-banner';
+import { composerSubscriptionBillingNotice } from './subscription-billing-notice.js';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
 import { KnowledgeMountChips } from './knowledge/KnowledgeMountChips.js';
@@ -844,6 +845,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           onCancel={() => props.onQueuedEditCancel?.()}
         />
       ) : null}
+
+      {composerSubscriptionBillingNotice(selectedModel, locale === 'en' ? 'en' : 'zh-CN')}
 
       <KnowledgeMountChips locale={locale === 'en' ? 'en' : 'zh-CN'} />
 

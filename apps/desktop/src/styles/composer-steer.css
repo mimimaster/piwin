@@ -8,9 +8,9 @@
 /* ─── Steer Queue Dock ──────────────────────────────────────────────── */
 
 .steer-queue-dock {
-  width: var(--chat-max);
+  width: 100%;
   max-width: 100%;
-  margin: 0 auto -1px;
+  margin: 0 0 -1px;
   box-sizing: border-box;
   border-radius: var(--r-panel) var(--r-panel) 0 0;
   border: 0;
@@ -355,4 +355,35 @@
 .composer-queued-edit-cancel:hover {
   color: var(--text-1);
   background: var(--hover);
+}
+
+.composer-billing-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  box-sizing: border-box;
+  padding: 6px var(--s-5);
+  border-bottom: 1px solid color-mix(in srgb, var(--amber) 28%, var(--line-1));
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
+
+.composer-billing-notice-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.composer-billing-notice-link {
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--amber);
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }

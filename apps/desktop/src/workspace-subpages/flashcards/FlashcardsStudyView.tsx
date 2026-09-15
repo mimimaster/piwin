@@ -3,9 +3,7 @@ import { Notice, Spinner } from '@piwin/ui-kit';
 import type {
   FlashcardCreateInput,
   FlashcardStudyCatalogPage,
-  HostCommand,
   HostPush,
-  HostResponse,
 } from '@piwin/contracts';
 import type { DesktopLocale } from '../../desktop-locale';
 import { useDesktopLocale } from '../../desktop-locale-context';
@@ -26,13 +24,13 @@ import {
   studyScopeForTile,
 } from './study/study-entry';
 import type { FlashcardStudyEntry } from './study/use-flashcard-study';
-import type { FlashcardStudyPorts } from './study/study-session';
+import type { FlashcardStudyPorts, FlashcardStudyRequest } from './study/study-session';
 import { TactileStudyStage } from './TactileStudyStage';
 import { FlashcardsLibraryStage } from './FlashcardsLibraryStage';
 
 export type FlashcardsStudyViewProps = {
   locale?: DesktopLocale;
-  request: (command: HostCommand) => Promise<HostResponse>;
+  request: FlashcardStudyRequest;
   subscribePush?: ((listener: (push: HostPush) => void) => () => void) | undefined;
   subscribeConnected?: ((listener: (connected: boolean) => void) => () => void) | undefined;
   hasStudyCapability?: (() => boolean) | undefined;

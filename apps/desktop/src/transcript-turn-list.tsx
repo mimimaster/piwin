@@ -374,7 +374,9 @@ function VirtualizedTranscriptTurns(
       } else {
         measureMountedTurns();
       }
-      props.scrollPort.notifyContentGrew();
+      // Local folds remasure the slot only. Pin-to-end here is what made
+      // clicking a call-chain dropdown look like a transcript refresh.
+      // Automatic folds re-stick from useTranscriptLocalFoldMeasure instead.
     };
     document.addEventListener(TRANSCRIPT_TURN_MEASURE_EVENT, onTurnMeasure);
     return () => {

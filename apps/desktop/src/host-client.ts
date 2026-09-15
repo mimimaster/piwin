@@ -114,6 +114,7 @@ function getHostRequestTimeoutMs(
     case 'skills/uninstall':
     case 'extensions/install':
     case 'extensions/apply':
+    case 'marketplace/package-install':
     case 'plugins/install':
     case 'plugins/uninstall':
     case 'plugins/registry/list':
@@ -935,6 +936,10 @@ export class HostClient {
     return this.request({ type: 'browser/restart' });
   }
 
+  async browserReload(): Promise<HostResponse> {
+    return this.request({ type: 'browser/reload' });
+  }
+
   async browserInput(events: BrowserInputEvent[]): Promise<HostResponse> {
     return this.request({ type: 'browser/input', events });
   }
@@ -947,8 +952,23 @@ export class HostClient {
     return this.request({ type: 'browser/unlock', owner });
   }
 
-  async browserResize(width: number, height: number): Promise<HostResponse> {
-    return this.request({ type: 'browser/resize', width, height });
+  async browserResize(
+    width: number,
+    height: number,
+    options?: {
+      leaseId?: string;
+      mode?: import('@piwin/contracts').BrowserViewportMode;
+      origin?: 'follow' | 'explicit';
+    },
+  ): Promise<HostResponse> {
+    return this.request({
+      type: 'browser/resize',
+      width,
+      height,
+      ...(options?.leaseId !== undefined ? { leaseId: options.leaseId } : {}),
+      ...(options?.mode !== undefined ? { mode: options.mode } : {}),
+      ...(options?.origin !== undefined ? { origin: options.origin } : {}),
+    });
   }
 
   // --- Side Chat commands (spec §8) -----------------------------------------

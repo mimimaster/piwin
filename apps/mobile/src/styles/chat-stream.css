@@ -231,6 +231,36 @@
   animation: emberPulse 1.6s infinite ease-in-out;
 }
 
+.modern-streaming-placeholder {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 0;
+  min-height: 24px;
+}
+
+.modern-streaming-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  background: var(--ember, #e87b35);
+  border-radius: 2px;
+  animation: modernCursorBlink 0.9s infinite ease-in-out;
+}
+
+.modern-streaming-cursor.inline {
+  vertical-align: -2px;
+  margin-left: 4px;
+}
+
+@keyframes modernCursorBlink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
 .modern-assistant-content {
   font-size: 15px;
   line-height: 1.65;

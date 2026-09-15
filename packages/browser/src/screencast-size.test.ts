@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   BROWSER_DEFAULT_DEVICE_SCALE_FACTOR,
-  BROWSER_SCREENCAST_MAX_PX,
+  BROWSER_SCREENCAST_MAX_ENCODED_AREA,
+  BROWSER_SCREENCAST_MAX_ENCODED_HEIGHT,
+  BROWSER_SCREENCAST_MAX_ENCODED_WIDTH,
   clampBrowserDeviceScaleFactor,
+  resolveBrowserScreencastFps,
   resolveBrowserScreencastSize,
 } from './screencast-size.js';
 
@@ -17,10 +20,17 @@ describe('clampBrowserDeviceScaleFactor', () => {
 });
 
 describe('resolveBrowserScreencastSize', () => {
-  it('maps the default CSS viewport at DSF 2 onto 2560×1600', () => {
+  it('maps 1280×800 CSS at DSF 2 onto 2560×1600', () => {
     expect(resolveBrowserScreencastSize({ width: 1280, height: 800 })).toEqual({
       width: 2560,
       height: 1600,
+    });
+  });
+
+  it('maps follow 1920×1200 CSS at DSF 2 onto 3840×2400', () => {
+    expect(resolveBrowserScreencastSize({ width: 1920, height: 1200 })).toEqual({
+      width: BROWSER_SCREENCAST_MAX_ENCODED_WIDTH,
+      height: BROWSER_SCREENCAST_MAX_ENCODED_HEIGHT,
     });
   });
 
@@ -34,22 +44,47 @@ describe('resolveBrowserScreencastSize', () => {
     ).toEqual({ width: 1280, height: 800 });
   });
 
-  it('keeps both axes covering the compositor until the longest-edge cap', () => {
+  it('fits both axes into the encoded rectangle instead of a longest-edge cap', () => {
     expect(
       resolveBrowserScreencastSize({
         width: 1920,
         height: 1080,
         deviceScaleFactor: 2,
-        maxPx: BROWSER_SCREENCAST_MAX_PX,
       }),
-    ).toEqual({ width: 2560, height: 1440 });
+    ).toEqual({ width: 3840, height: 2160 });
+  });
+
+  it('scales by area when the rectangle still exceeds max area', () => {
+    const size = resolveBrowserScreencastSize({
+      width: 4000,
+      height: 3000,
+      deviceScaleFactor: 2,
+    });
+    expect(size).not.toBeNull();
+    if (!size) return;
+    expect(size.width).toBeLessThanOrEqual(BROWSER_SCREENCAST_MAX_ENCODED_WIDTH);
+    expect(size.height).toBeLessThanOrEqual(BROWSER_SCREENCAST_MAX_ENCODED_HEIGHT);
+    expect(size.width * size.height).toBeLessThanOrEqual(BROWSER_SCREENCAST_MAX_ENCODED_AREA);
   });
 
   it('returns null for empty or non-finite boxes', () => {
     expect(resolveBrowserScreencastSize({ width: 0, height: 800 })).toBeNull();
     expect(resolveBrowserScreencastSize({ width: 1280, height: Number.NaN })).toBeNull();
     expect(
-      resolveBrowserScreencastSize({ width: 1280, height: 800, maxPx: 0 }),
+      resolveBrowserScreencastSize({ width: 1280, height: 800, maxEncodedWidth: 0 }),
     ).toBeNull();
+  });
+});
+
+describe('resolveBrowserScreencastFps', () => {
+  it('uses 12 fps at or under 5e6 encoded pixels and 8 fps above', () => {
+    expect(resolveBrowserScreencastFps(4_096_000)).toBe(12);
+    expect(resolveBrowserScreencastFps(5_000_000)).toBe(12);
+    expect(resolveBrowserScreencastFps(5_000_001)).toBe(8);
+  });
+
+  it('never exceeds the session maxFps', () => {
+    expect(resolveBrowserScreencastFps(4_096_000, 4)).toBe(4);
+    expect(resolveBrowserScreencastFps(9_000_000, 30)).toBe(8);
   });
 });

@@ -41,6 +41,26 @@ describe('pi-agent-failure', () => {
     });
   });
 
+  it('classifies Anthropic extra-usage 400 as quota before generic HTTP mapping', () => {
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage:
+          '400 {"type":"error","error":{"type":"invalid_request_error","message":"Third-party apps now draw from your extra usage, not your plan limits. Add more at claude.ai/settings/usage and keep going."}}',
+        httpStatus: 400,
+      }),
+    ).toMatchObject({
+      code: 'provider-quota',
+      origin: 'provider',
+      retriable: false,
+      httpStatus: 400,
+    });
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage: "You're out of extra usage. Add more at claude.ai/settings/usage and keep going.",
+      }).message,
+    ).toContain('claude.ai/settings/usage');
+  });
+
   it('maps rate limit, quota, context, and timeout fallbacks last', () => {
     expect(agentFailureFromPiFacts({ errorMessage: 'Too many requests' }).code).toBe(
       'provider-rate-limit',

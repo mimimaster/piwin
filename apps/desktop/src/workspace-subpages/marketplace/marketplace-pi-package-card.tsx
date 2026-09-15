@@ -1,34 +1,53 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import type { MarketplaceSearchHit } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import { openExternalUrl } from '../../open-external-url.js';
+import { IconCheck, IconCopy, IconGit } from '../../shell-icons.js';
 
 export type MarketplacePiPackageCardProps = {
   hit: MarketplaceSearchHit;
   locale?: DesktopLocale | undefined;
   onCopyInstall: (hit: MarketplaceSearchHit) => void;
+  onInstall: (hit: MarketplaceSearchHit) => void;
+  installState?: 'idle' | 'installing' | 'installed' | 'failed' | undefined;
 };
 
 export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): ReactElement {
   const isZh = props.locale === 'zh-CN';
   const t = (en: string, zh: string) => (isZh ? zh : en);
   const { hit } = props;
+  const [copied, setCopied] = useState(false);
+
   const slug = (hit.source === 'github' ? hit.entryId.replace(/^github:/, '') : hit.name).replace(
     /[@/]/g,
     '-',
   );
   const testId = hit.source === 'github' ? `market-github-${slug}` : `market-npm-${slug}`;
   const sourceLabel = hit.source === 'github' ? 'GitHub' : 'npm';
+  const installState = props.installState ?? 'idle';
+
+  const handleCopy = () => {
+    props.onCopyInstall(hit);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+
+  const metaText =
+    hit.source === 'github'
+      ? `${hit.entryId} • v${hit.version}`
+      : `v${hit.version}${hit.publisher ? ` • ${hit.publisher}` : ''}`;
 
   return (
-    <div className="market-card" data-testid={testId}>
-      <div>
+    <div className={`market-card market-ecosystem-card${copied ? ' is-recently-copied' : ''}`} data-testid={testId}>
+      <div className="market-card-content">
         <div className="market-card-top">
           <div className="market-card-identity">
             <div className="market-card-header-texts">
               <div className="market-card-title-row">
-                <strong className="market-card-title">{hit.name}</strong>
+                <strong className="market-card-title" title={hit.name}>
+                  {hit.name}
+                </strong>
                 <span className={`market-source-pill is-${hit.source === 'github' ? 'git' : 'npm'}`}>
                   {sourceLabel}
                 </span>
@@ -37,22 +56,19 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
                   title={
                     hit.source === 'github'
                       ? t(
-                          'GitHub repo tagged topic:pi-package. Not verified in the piwin desktop shell.',
-                          'GitHub 上带 topic:pi-package 的仓库。尚未在 piwin 桌面端实测。',
+                          'GitHub repo tagged topic:pi-package. Community package.',
+                          'GitHub 上带 topic:pi-package 的仓库。社区开源生态。',
                         )
                       : t(
-                          'Listed on the Pi npm catalog. Not verified to run in the piwin desktop shell.',
-                          '来自 Pi 的 npm 目录。尚未在 piwin 桌面端实测。',
+                          'Listed on the Pi npm catalog. Community package.',
+                          '来自 Pi 的 npm 目录。社区开源生态。',
                         )
                   }
                 >
                   {t('Unverified', '未实测')}
                 </span>
               </div>
-              <span className="market-card-meta">
-                {hit.entryId} • v{hit.version}
-                {hit.publisher ? ` • ${hit.publisher}` : ''}
-              </span>
+              <span className="market-card-meta">{metaText}</span>
             </div>
           </div>
         </div>
@@ -61,42 +77,72 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
           {hit.description || t('No description.', '暂无简介。')}
         </p>
 
-        <div className="market-card-tags">
-          <span className="market-code-tag">{hit.installCommand}</span>
-        </div>
+        <button
+          type="button"
+          className={`market-cmd-bar${copied ? ' is-copied' : ''}`}
+          onClick={handleCopy}
+          title={t('Click to copy install command', '点击复制安装命令')}
+          aria-label={t('Click to copy install command', '点击复制安装命令')}
+        >
+          <span className="market-cmd-prefix" aria-hidden="true">$</span>
+          <code className="market-cmd-text">{hit.installCommand}</code>
+          <span className="market-cmd-action" aria-hidden="true">
+            {copied ? (
+              <span className="market-cmd-copied-indicator">
+                <IconCheck width={12} height={12} />
+                <span>{t('Copied', '已复制')}</span>
+              </span>
+            ) : (
+              <IconCopy width={12} height={12} />
+            )}
+          </span>
+        </button>
       </div>
 
       <div className="market-card-footer">
-        <span className="market-card-source">
-          {hit.source === 'github'
-            ? t('Pi catalog · GitHub', 'Pi 生态 · GitHub')
-            : t('Pi catalog · npm', 'Pi 生态 · npm')}
-        </span>
-        <div className="market-card-actions">
+        <div className="market-card-links">
           {hit.repositoryUrl ? (
-            <Button
-              variant="ghost"
-              size="compact"
-              onClick={() => {
-                void openExternalUrl(hit.repositoryUrl ?? '');
-              }}
+            <button
+              type="button"
+              className="market-link-btn"
+              onClick={() => void openExternalUrl(hit.repositoryUrl ?? '')}
+              title={t('Open repository', '打开代码仓库')}
             >
-              GitHub
-            </Button>
+              <IconGit width={12} height={12} aria-hidden="true" />
+              <span>GitHub</span>
+            </button>
           ) : null}
           {hit.npmUrl ? (
-            <Button
-              variant="ghost"
-              size="compact"
-              onClick={() => {
-                void openExternalUrl(hit.npmUrl ?? '');
-              }}
+            <button
+              type="button"
+              className="market-link-btn"
+              onClick={() => void openExternalUrl(hit.npmUrl ?? '')}
+              title={t('Open npm package page', '打开 npm 页面')}
             >
-              npm
-            </Button>
+              <span>npm</span>
+            </button>
           ) : null}
-          <Button variant="primary" size="compact" onClick={() => props.onCopyInstall(hit)}>
-            {t('Copy install command', '复制安装命令')}
+        </div>
+
+        <div className="market-card-actions">
+          <Button
+            variant={installState === 'installed' ? 'secondary' : 'primary'}
+            size="compact"
+            data-testid={`${testId}-install`}
+            disabled={installState === 'installing' || installState === 'installed'}
+            aria-busy={installState === 'installing'}
+            onClick={() => props.onInstall(hit)}
+          >
+            {installState === 'installed' ? (
+              <span className="market-btn-inner">
+                <IconCheck width={12} height={12} aria-hidden="true" />
+                <span>{t('Installed', '已安装')}</span>
+              </span>
+            ) : installState === 'installing'
+              ? t('Installing…', '安装中…')
+              : installState === 'failed'
+                ? t('Retry install', '重试安装')
+                : t('Install', '安装')}
           </Button>
         </div>
       </div>

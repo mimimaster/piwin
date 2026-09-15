@@ -60,6 +60,8 @@ export type ContextRingViewModel = {
   offline: boolean;
   capabilityMissing: boolean;
   lastRequest?: ContextRingLastRequest;
+  /** Occupancy sample time; ring derives a 5-min cache-expiry estimate from it. */
+  cacheAnchorAt?: string;
   /** Locale the labels were built in; detail rows follow it. */
   locale: ConversationUsageLocale;
 };
@@ -262,6 +264,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
     offline,
     capabilityMissing: false,
     ...(lastRequest !== undefined ? { lastRequest } : {}),
+    cacheAnchorAt: resolveCacheAnchorAt(snapshot, known, occupancySource),
   };
 }
 
@@ -437,6 +440,20 @@ function isEstimatedAgainstSelectedModel(input: {
     typeof input.known?.tokensLimit === 'number' &&
     input.known.tokensLimit !== input.selectedModelContextWindow
   );
+}
+
+function resolveCacheAnchorAt(
+  snapshot: SessionContextSnapshot,
+  occupancy: KnownOccupancy | null,
+  occupancySource: 'current' | 'last-confirmed',
+): string {
+  if (occupancySource === 'last-confirmed' && snapshot.lastConfirmed) {
+    return snapshot.lastConfirmed.sampledAt;
+  }
+  if (occupancy) {
+    return occupancy.sampledAt;
+  }
+  return snapshot.updatedAt;
 }
 
 function projectLastRequest(

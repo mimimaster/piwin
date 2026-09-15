@@ -47,6 +47,19 @@ describe('classifyExtensionSource', () => {
     ).toBe('compatible');
   });
 
+
+  it('marks registerProvider-only extensions as compatible', () => {
+    expect(
+      classifyExtensionSource(`
+        export default function (pi) {
+          pi.unregisterProvider("anthropic");
+          pi.registerProvider("anthropic", { api: "anthropic-messages" });
+          pi.registerCommand("anthropic-auth:status", { handler() {} });
+        }
+      `).tier,
+    ).toBe('compatible');
+  });
+
   it('marks mixed agent + TUI as degraded and TUI-only as incompatible', () => {
     expect(
       classifyExtensionSource(`

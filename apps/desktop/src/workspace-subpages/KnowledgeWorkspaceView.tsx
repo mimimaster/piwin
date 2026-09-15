@@ -11,12 +11,15 @@ import {
   type KnowledgeBasesRequest,
 } from '../knowledge/use-knowledge-bases.js';
 import { FlashcardsStudyView } from './flashcards/FlashcardsStudyView.js';
+import type { FlashcardStudyRequest } from './flashcards/study/study-session.js';
 import { runDoccardsGenerate } from '../doccards-generate-client.js';
 
 export type KnowledgeWorkspaceViewProps = {
   locale: 'zh-CN' | 'en';
   onClose: () => void;
   request: KnowledgeBasesRequest;
+  /** Study mutations must keep the gesture key. Do not pass a wrapper that drops options. */
+  studyRequest?: FlashcardStudyRequest | undefined;
   subscribePush?: ((listener: (push: HostPush) => void) => () => void) | undefined;
   subscribeKnowledgePush?: ((listener: (push: HostPush) => void) => () => void) | undefined;
   subscribeConnected?: ((listener: (connected: boolean) => void) => () => void) | undefined;
@@ -332,7 +335,7 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
         {produceNotices}
         <FlashcardsStudyView
           locale={props.locale}
-          request={props.request}
+          request={props.studyRequest ?? props.request}
           subscribePush={props.subscribePush}
           subscribeConnected={props.subscribeConnected}
           hasStudyCapability={props.hasStudyCapability}

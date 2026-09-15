@@ -116,6 +116,15 @@ describe('mobile prompt send', () => {
     expect(calls.map((call) => call.key)).toEqual(['k-prompt', 'k-abort', 'k-perm']);
   });
 
+  it('forwards the selected permission remember scope to Host', () => {
+    expect(buildMobilePermissionResolveCommand('perm-1', 'allow', 'project')).toEqual({
+      type: 'permission/resolve',
+      requestId: 'perm-1',
+      decision: 'allow',
+      rememberScope: 'project',
+    });
+  });
+
   it('treats queue and replace as new attempts with distinct keys', async () => {
     const keys: string[] = [];
     const request = async (

@@ -29,7 +29,20 @@
 }
 
 .context-bar [data-no-window-drag],
-.context-bar > *:not(.context-bar-drag) {
+.context-bar > *:not(.context-bar-drag):not(.context-bar-leading) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Leading cluster is as wide as the sidebar. Empty chrome there (spacer,
+   padding around the lights) must move the window; only controls opt out. */
+.context-bar > .context-bar-leading {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.context-bar > .context-bar-leading button,
+.context-bar > .context-bar-leading [data-no-window-drag] {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }

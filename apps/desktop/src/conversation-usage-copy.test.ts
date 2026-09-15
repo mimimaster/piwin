@@ -66,7 +66,9 @@ describe('conversation usage copy', () => {
     expect(zh.compactedPending).toContain('已压缩');
     expect(zh.capabilityMissing).toContain('不支持');
     expect(zh.offline).toContain('离线');
+    expect(zh.cacheEstimate('4:32')).toBe('缓存预估 · 4:32 后过期');
     expect(en.title).toBe('Context usage');
+    expect(en.cacheEstimate('4:32')).toBe('Cache estimate · expires in 4:32');
     expect(en.capabilityMissing).toMatch(/does not support/i);
     expect(contextUsageCopyHasMixedEnglish('zh-CN')).toBe(false);
   });

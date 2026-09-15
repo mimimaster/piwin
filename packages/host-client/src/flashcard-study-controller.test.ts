@@ -76,6 +76,22 @@ function visibility(): FlashcardStudyVisibility & { hide: () => void } {
 }
 
 describe('flashcard study controller', () => {
+  it('sends a gesture key with study/start', async () => {
+    const keys: Array<string | undefined> = [];
+    const controller = createFlashcardStudyController({
+      request: async (command, options) => {
+        keys.push(options?.idempotencyKey);
+        return { type: 'response', command: command.type, success: true, data: snapshot(0) };
+      },
+      pending: createMemoryFlashcardStudyPendingStore(),
+      clock: clock(),
+      visibility: visibility(),
+      createIdempotencyKey: () => 'start-key',
+    });
+    await controller.start({ mode: 'sequence', scope: { kind: 'item', itemId: 'item-1' } });
+    expect(keys[0]).toBe('start-key');
+  });
+
   it('submits next once when double-clicked', async () => {
     const pending = createMemoryFlashcardStudyPendingStore();
     const requests: HostCommand[] = [];

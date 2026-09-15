@@ -5,6 +5,8 @@
 
 import {
   createUnknownAgentFailure,
+  formatAnthropicExtraUsageError,
+  isAnthropicExtraUsageErrorMessage,
   sanitizeAgentFailure,
   type AgentFailure,
   type AgentFailureCode,
@@ -46,6 +48,16 @@ export function agentFailureFromPiFacts(input: {
   const baseUrl = input.baseUrl?.trim();
   // Classify from the raw provider prose; only the display message is enriched.
   const message = enrichConnectionFailureMessage(rawMessage, { provider, baseUrl });
+  if (isAnthropicExtraUsageErrorMessage(rawMessage)) {
+    return sanitizeAgentFailure({
+      code: 'provider-quota',
+      origin: 'provider',
+      message: formatAnthropicExtraUsageError(rawMessage, 'en') ?? message,
+      retriable: false,
+      ...(httpStatus === undefined ? {} : { httpStatus }),
+      ...(nativeName ? { nativeName } : {}),
+    });
+  }
   const fromStatus = failureFromHttpStatus(httpStatus);
   if (fromStatus) {
     return sanitizeAgentFailure({

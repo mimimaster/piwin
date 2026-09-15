@@ -220,6 +220,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .sidebar-mode-btn.on {
   background: var(--s4);
   color: var(--t1);
+  box-shadow: var(--sh1);
 }
 
 /* ── Pin, as a bookmark ──────────────────────────────────────────────────

@@ -28,6 +28,39 @@ function baseConfig(): PiwinConfig {
   };
 }
 
+
+function extensionListOk(command: { type: string }) {
+  if (command.type === 'extensions/ensure-bundled') {
+    return {
+      type: 'response' as const,
+      command: command.type,
+      success: true as const,
+      data: { installed: ['pi-anthropic-auth'] },
+    };
+  }
+  if (command.type === 'extensions/list') {
+    return {
+      type: 'response' as const,
+      command: command.type,
+      success: true as const,
+      data: {
+        extensions: [
+          {
+            id: 'pi-anthropic-auth',
+            name: 'pi-anthropic-auth',
+            description: 'Anthropic OAuth',
+            source: 'bundled' as const,
+            path: '/tmp/pi-anthropic-auth',
+            enabled: true,
+            configuredEnabled: true,
+          },
+        ],
+      },
+    };
+  }
+  return null;
+}
+
 describe('OauthPage & SubscriptionAccountsPanel', () => {
   let root: Root | null = null;
   let container: HTMLElement | null = null;
@@ -48,8 +81,10 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     container = null;
   });
 
-  it('renders all 5 subscription providers with brand icons and badges', async () => {
+  it('renders all 5 subscription providers plus separate Claude Code card', async () => {
     const mockRequest = vi.fn(async (command) => {
+      const ext = extensionListOk(command);
+      if (ext) return ext;
       if (command.type === 'pi-environment/detect') {
         return {
           type: 'response' as const,
@@ -105,19 +140,92 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     expect(container!.querySelector('[data-testid="settings-oauth"]')).toBeTruthy();
     expect(container!.querySelector('[data-testid="subscription-accounts"]')).toBeTruthy();
 
-    for (const id of ['kimi-coding', 'openai-codex', 'anthropic', 'xai', 'github-copilot']) {
+    for (const id of ['kimi-coding', 'openai-codex', 'anthropic', 'anthropic-claude-code', 'xai', 'github-copilot']) {
       const card = container!.querySelector(`[data-testid="subscription-account-${id}"]`);
       expect(card).toBeTruthy();
       const stateBadge = container!.querySelector(`[data-testid="subscription-account-state-${id}"]`);
       expect(stateBadge).toBeTruthy();
     }
+    // Extension-path Claude sits under plain Claude in the same official list.
+    expect(container!.querySelector('[data-testid="claude-extension-oauth"]')).toBeNull();
+    expect(
+      container!.querySelector(
+        '[data-testid="subscription-account-anthropic-claude-code"] [data-testid="claude-extension-pill"]',
+      ),
+    ).toBeTruthy();
+    expect(
+      container!.querySelector(
+        '[data-testid="subscription-account-anthropic"] [data-testid="claude-extension-pill"]',
+      ),
+    ).toBeNull();
 
     const codexState = container!.querySelector('[data-testid="subscription-account-state-openai-codex"]');
     expect(codexState?.textContent).toContain('已连接');
+    expect(
+      container!.querySelector(
+        '[data-testid="subscription-account-anthropic"] [data-testid="subscription-billing-notice"]',
+      ),
+    ).toBeNull();
+  });
+
+  it('toasts the extra-usage warning after Claude OAuth login finishes', async () => {
+    let push: ((message: { type: string; result?: { loginId: string; providerId: string; ok: boolean } }) => void) | undefined;
+    const setInfo = vi.fn();
+    const mockRequest = vi.fn(async (command) => {
+      const ext = extensionListOk(command);
+      if (ext) return ext;
+      if (command.type === 'auth/status') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: {
+            accounts: [{ providerId: 'anthropic', surface: 'v1', state: 'logged-in' }],
+          },
+        };
+      }
+      return { type: 'response' as const, command: command.type, success: true as const, data: {} };
+    });
+    const hostClient = {
+      request: mockRequest,
+      subscribe: vi.fn((handler) => {
+        push = handler;
+        return () => {};
+      }),
+      getTransport: () => 'local',
+    };
+    const contextValue = {
+      config: baseConfig(),
+      hostClient,
+      setError: vi.fn(),
+      setInfo,
+    } as unknown as SettingsContextValue;
+
+    await act(async () => {
+      root!.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+            <SettingsProvider value={contextValue}>
+              <OauthPage />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>,
+      );
+    });
+
+    await act(async () => {
+      push?.({
+        type: 'auth/login-finished',
+        result: { loginId: 'login-1', providerId: 'anthropic', ok: true },
+      });
+    });
+    expect(setInfo).toHaveBeenCalledWith(expect.stringContaining('extra usage'), 'warning');
   });
 
   it('sends auth/login with a caller-owned idempotency key', async () => {
     const mockRequest = vi.fn(async (command) => {
+      const ext = extensionListOk(command);
+      if (ext) return ext;
       if (command.type === 'auth/status') {
         return {
           type: 'response' as const,
@@ -180,6 +288,8 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
 
   it('renders device code prompt dialog with copyable user code and verification link', async () => {
     const mockRequest = vi.fn(async (command) => {
+      const ext = extensionListOk(command);
+      if (ext) return ext;
       if (command.type === 'auth/status') {
         return {
           type: 'response' as const,
@@ -245,6 +355,8 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
 
   it('toggles quota drawer and displays heterogeneous quota windows on connected cards', async () => {
     const mockRequest = vi.fn(async (command) => {
+      const ext = extensionListOk(command);
+      if (ext) return ext;
       if (command.type === 'auth/status') {
         return {
           type: 'response' as const,
@@ -341,9 +453,87 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     expect(drawer?.textContent).toContain('主动重置可用次数');
   });
 
+  it('labels Claude quota windows as official-only and highlights extra usage', async () => {
+    const mockRequest = vi.fn(async (command) => {
+      const ext = extensionListOk(command);
+      if (ext) return ext;
+      if (command.type === 'auth/status') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: {
+            accounts: [{ providerId: 'anthropic', surface: 'v1', state: 'logged-in' }],
+          },
+        };
+      }
+      if (command.type === 'auth/quota') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: {
+            quota: {
+              providerId: 'anthropic',
+              planType: 'Max',
+              groups: [
+                {
+                  windows: [
+                    { label: '5 小时限额', type: 'used', percentage: 10, valueText: '已用 10%' },
+                  ],
+                },
+              ],
+              payg: { enabled: false, usedText: 'US$0.00 / US$0.00' },
+              lastUpdated: new Date().toISOString(),
+            },
+          },
+        };
+      }
+      return { type: 'response' as const, command: command.type, success: true as const, data: {} };
+    });
+    const hostClient = {
+      request: mockRequest,
+      subscribe: vi.fn(() => () => {}),
+      getTransport: () => 'local',
+    };
+    const contextValue = {
+      config: baseConfig(),
+      hostClient,
+      setError: vi.fn(),
+      setInfo: vi.fn(),
+    } as unknown as SettingsContextValue;
+
+    await act(async () => {
+      root!.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+            <SettingsProvider value={contextValue}>
+              <OauthPage />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>,
+      );
+    });
+
+    const toggleBtn = container!.querySelector(
+      '[data-testid="subscription-quota-toggle-anthropic"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      toggleBtn.click();
+    });
+
+    const drawer = container!.querySelector('[data-testid="subscription-quota-drawer-anthropic"]');
+    expect(drawer?.textContent).toContain('官方客户端');
+    expect(container!.querySelector('[data-testid="subscription-extra-usage-card"]')?.textContent).toContain(
+      'Extra usage',
+    );
+  });
+
   it('shows vendor error text in the drawer instead of a settings toast', async () => {
     const setError = vi.fn();
     const mockRequest = vi.fn(async (command) => {
+      const ext = extensionListOk(command);
+      if (ext) return ext;
       if (command.type === 'auth/status') {
         return {
           type: 'response' as const,
@@ -402,6 +592,8 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
 
   it('shows a recommended ingest button and applies after confirm', async () => {
     const mockRequest = vi.fn(async (command) => {
+      const ext = extensionListOk(command);
+      if (ext) return ext;
       if (command.type === 'pi-environment/detect') {
         return {
           type: 'response' as const,

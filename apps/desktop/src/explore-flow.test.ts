@@ -385,3 +385,22 @@ describe('exploreFlowRolesEqual', () => {
     ).toBe(false);
   });
 });
+
+describe('explore flow counts', () => {
+  it('does not count search directories as explored files', () => {
+    const searchInSrc: ToolCardUi = {
+      ...grepTool('g1'),
+      presentation: { ...grepTool('g1').presentation!, targetPaths: ['src'] },
+    };
+    const roles = buildExploreFlowRoles([
+      assistantStep('m1', { tools: [searchInSrc] }),
+      assistantStep('m2', { tools: [readTool('r1', 'src/a.ts')] }),
+      assistantStep('m3', { tools: [readTool('r2', 'src/a.ts')] }),
+    ]);
+    const anchor = roles.get('m1');
+    expect(anchor?.kind).toBe('anchor');
+    if (anchor?.kind !== 'anchor') return;
+    expect(anchor.group.fileCount).toBe(1);
+    expect(anchor.group.searchCount).toBe(1);
+  });
+});

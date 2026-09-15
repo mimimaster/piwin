@@ -252,7 +252,9 @@ export function ArtifactSandboxFrame(props: {
               {artifactOverflowHintCopy(props.locale)}
             </p>
           ) : null}
-          {!canvas && bridge.status === 'fallback' ? (
+          {/* Mid-stream the frame is still growing; the recovery copy only helps
+              once the document is final and the user can act on it. */}
+          {!canvas && bridge.status === 'fallback' && view.mode !== 'stream-preview' ? (
             <div
               className="artifact-height-recovery"
               data-testid="artifact-height-recovery"

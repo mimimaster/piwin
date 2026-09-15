@@ -37,7 +37,8 @@ test.describe('context usage ring', () => {
     await page.getByTestId('context-usage-ring').click();
     const popover = page.getByTestId('context-usage-popover');
     await expect(popover).toBeVisible();
-    await expect(popover).not.toContainText(/expires in|Cache estimate|Higher cost|Prompt cache/i);
+    await expect(popover).toContainText(/缓存预估|Cache estimate/);
+    await expect(popover).not.toContainText(/Higher cost|Prompt cache/i);
     await expect(popover).not.toContainText('~');
     await expect(popover).not.toContainText(/System prompt|Tool definitions/i);
 

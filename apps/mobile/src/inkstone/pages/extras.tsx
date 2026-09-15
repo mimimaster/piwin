@@ -1,4 +1,11 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
+import {
+  toModelRef,
+  type CronJob,
+  type HostResponse,
+  type MediaLibraryItem,
+  type WalkthroughArtifact,
+} from '@piwin/contracts';
 import { useInkstone } from '../inkstone-context.js';
 import { type InkstoneRoute } from '../demo-state.js';
 import { Icon } from '../icons.js';
@@ -13,6 +20,7 @@ import {
   TopBar,
 } from '../inkstone-ui.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
+import { MobileMarkdown } from '../../components/chat/MobileMarkdown.js';
 
 function ConnectedConnectPage({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
   const { dispatch } = useInkstone();
@@ -23,7 +31,7 @@ function ConnectedConnectPage({ hostCtx }: { hostCtx: InkstoneHostContextValue }
       <TopBar
         title="私有 Host"
         subtitle="设备与连接"
-        onBack={() => dispatch({ type: 'navigate', route: 'settings' })}
+        onBack={() => dispatch({ type: 'navigate', route: 'desk' })}
       />
       <div className="screen-scroll">
         <div className="empty-state">
@@ -35,7 +43,7 @@ function ConnectedConnectPage({ hostCtx }: { hostCtx: InkstoneHostContextValue }
             手机只是另一扇窗。
           </p>
         </div>
-        <button className="host-card" type="button">
+        <button className="host-card" onClick={onOpenConnection} type="button">
           <span className="host-monogram">书</span>
           <span className="grow">
             <strong>{(host.endpoint ?? '').replace(/^wss?:\/\//, '') || '私有 Host'}</strong>
@@ -63,7 +71,7 @@ export function ConnectPage(): ReactElement {
   const openSheet = (key: string) => () => dispatch({ type: 'open-sheet', key });
   return (
     <>
-      <TopBar title="私有 Host" subtitle="设备与连接" onBack={go('settings')} />
+      <TopBar title="私有 Host" subtitle="设备与连接" onBack={go('desk')} />
       <div className="screen-scroll">
         <div className="empty-state">
           <span className="brand-seal">砚</span>
@@ -98,6 +106,7 @@ function ConnectedNewSession({ hostCtx }: { hostCtx: InkstoneHostContextValue })
   const { state, dispatch } = useInkstone();
   const { host } = hostCtx;
   const [prompt, setPrompt] = useState(state.draft);
+  const [projectId, setProjectId] = useState<string | undefined>();
   const selectedModel = host.configuredModels.find(
     (model) =>
       model.providerId === hostCtx.modelSelection.providerId &&
@@ -109,10 +118,32 @@ function ConnectedNewSession({ hostCtx }: { hostCtx: InkstoneHostContextValue })
       dispatch({ type: 'toast', message: '先写一句你想做的事' });
       return;
     }
-    dispatch({ type: 'navigate', route: 'chat' });
-    void host.handleCreateSession(undefined).then(() => {
-      void host.handleSend({ text });
-    });
+    const start = async (): Promise<void> => {
+      const sessionId = await host.handleCreateSession(projectId);
+      if (sessionId === undefined) {
+        return;
+      }
+      dispatch({ type: 'navigate', route: 'chat' });
+      await host.handleSend({
+        text,
+        ...(selectedModel !== undefined
+          ? {
+              model: toModelRef({
+                providerId: selectedModel.providerId,
+                modelId: selectedModel.modelId,
+                ...(selectedModel.protocol !== undefined
+                  ? { protocol: selectedModel.protocol }
+                  : {}),
+                ...(selectedModel.source !== undefined ? { source: selectedModel.source } : {}),
+              }),
+            }
+          : {}),
+        ...(hostCtx.modelSelection.thinkingLevel !== undefined
+          ? { thinkingLevel: hostCtx.modelSelection.thinkingLevel }
+          : {}),
+      });
+    };
+    void start();
   };
   return (
     <>
@@ -133,6 +164,20 @@ function ConnectedNewSession({ hostCtx }: { hostCtx: InkstoneHostContextValue })
           subtitle={selectedModel?.label?.trim() || selectedModel?.modelId || '使用 Host 默认'}
           onClick={() => dispatch({ type: 'open-sheet', key: 'model' })}
         />
+        <label className="field">
+          项目
+          <select
+            value={projectId ?? ''}
+            onChange={(event) => setProjectId(event.target.value || undefined)}
+          >
+            <option value="">一般会话</option>
+            {host.projects.map((project) => (
+              <option key={project.projectId} value={project.projectId}>
+                {project.displayName}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="field">
           写下你的想法
           <textarea
@@ -234,6 +279,10 @@ export function NewSessionPage(): ReactElement {
 }
 
 export function WalkthroughPage(): ReactElement {
+  const hostCtx = useInkstoneHost();
+  if (hostCtx !== null) {
+    return <ConnectedWalkthroughPage hostCtx={hostCtx} />;
+  }
   const { dispatch } = useInkstone();
   const go = (route: InkstoneRoute) => () => dispatch({ type: 'navigate', route });
   const copyReport = async (): Promise<void> => {
@@ -251,7 +300,7 @@ export function WalkthroughPage(): ReactElement {
       <TopBar
         title="走查报告"
         subtitle="Inkstone · 桌面主题"
-        onBack={go('shelf')}
+        onBack={go('desk')}
         right={<IconButton name="copy" label="复制走查报告" onClick={() => void copyReport()} />}
       />
       <div className="screen-scroll">
@@ -318,6 +367,10 @@ const LIBRARY_ASSETS: Record<string, [IconName, string, string][]> = {
 type IconName = 'image' | 'file';
 
 export function LibraryPage(): ReactElement {
+  const hostCtx = useInkstoneHost();
+  if (hostCtx !== null) {
+    return <ConnectedLibraryPage hostCtx={hostCtx} />;
+  }
   const { state, dispatch } = useInkstone();
   const go = (route: InkstoneRoute) => () => dispatch({ type: 'navigate', route });
   const openSheet = (key: string) => () => dispatch({ type: 'open-sheet', key });
@@ -326,7 +379,7 @@ export function LibraryPage(): ReactElement {
       <TopBar
         title="资料库"
         subtitle="共享 Host 的成果"
-        onBack={go('shelf')}
+        onBack={go('desk')}
         right={
           <IconButton name="plus" label="生成新的图片或视频" onClick={openSheet('media-new')} />
         }
@@ -373,6 +426,10 @@ export function LibraryPage(): ReactElement {
 }
 
 export function AutomationsPage(): ReactElement {
+  const hostCtx = useInkstoneHost();
+  if (hostCtx !== null) {
+    return <ConnectedAutomationsPage hostCtx={hostCtx} />;
+  }
   const { dispatch } = useInkstone();
   const go = (route: InkstoneRoute) => () => dispatch({ type: 'navigate', route });
   const openSheet = (key: string) => () => dispatch({ type: 'open-sheet', key });
@@ -381,7 +438,7 @@ export function AutomationsPage(): ReactElement {
       <TopBar
         title="自动化"
         subtitle="定时交给 Host"
-        onBack={go('shelf')}
+        onBack={go('desk')}
         right={<IconButton name="plus" label="新建自动化" onClick={openSheet('automation-new')} />}
       />
       <div className="screen-scroll">
@@ -409,6 +466,230 @@ export function AutomationsPage(): ReactElement {
             查看待办
           </FullButton>
         </div>
+      </div>
+    </>
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function readWalkthroughArtifacts(response: HostResponse): WalkthroughArtifact[] {
+  if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.artifacts)) {
+    return [];
+  }
+  return response.data.artifacts.filter((artifact): artifact is WalkthroughArtifact => {
+    if (!isRecord(artifact) || typeof artifact.id !== 'string' || typeof artifact.status !== 'string') {
+      return false;
+    }
+    return artifact.status === 'generating' || artifact.status === 'ready' || artifact.status === 'error';
+  });
+}
+
+function ConnectedWalkthroughPage({
+  hostCtx,
+}: {
+  hostCtx: InkstoneHostContextValue;
+}): ReactElement {
+  const { dispatch } = useInkstone();
+  const { host } = hostCtx;
+  const client = host.client;
+  const sessionId = host.activeSessionId;
+  const [artifacts, setArtifacts] = useState<WalkthroughArtifact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
+
+  const load = async (): Promise<void> => {
+    if (client === undefined || sessionId === undefined) {
+      setLoading(false);
+      return;
+    }
+    if (!client.supportsCommand('walkthrough/list')) {
+      setError('当前 Host 未开放走查记录读取。');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await client.request({ type: 'walkthrough/list', sessionId });
+      if (!response.success) {
+        setError(response.error);
+      } else {
+        setArtifacts(readWalkthroughArtifacts(response));
+        setError(undefined);
+      }
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : '读取 Host 走查记录失败。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, [client, sessionId]);
+
+  const generate = async (): Promise<void> => {
+    if (client === undefined || sessionId === undefined || !client.supportsCommand('walkthrough/generate')) return;
+    const message = [...host.messages].reverse().find((item) => item.role === 'assistant');
+    if (message === undefined) {
+      setError('当前会话还没有可生成走查的助手消息。');
+      return;
+    }
+    const response = await client.request({
+      type: 'walkthrough/generate',
+      sessionId,
+      messageId: message.id,
+      ...(message.runId === undefined ? {} : { runId: message.runId }),
+    });
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    await load();
+  };
+
+  return (
+    <>
+      <TopBar title="走查报告" subtitle="Host · 当前会话" onBack={() => dispatch({ type: 'navigate', route: 'desk' })} />
+      <div className="screen-scroll">
+        <ScreenHeading title="把交付讲清楚。" subtitle="走查内容由 Host 生成并保存。" />
+        {client === undefined ? <p className="muted">正在连接 Host，暂时没有走查记录。</p> : null}
+        {sessionId === undefined ? <p className="muted">先选择一个 Host 会话。</p> : null}
+        {loading ? <p className="muted">正在读取 Host 走查记录…</p> : null}
+        {error !== undefined ? <p className="error-text">{error}</p> : null}
+        {!loading && artifacts.length === 0 && error === undefined ? <p className="muted">当前会话还没有走查报告。</p> : null}
+        {artifacts.map((artifact) => (
+          <article className="note-paper" key={artifact.id}>
+            <div className="spread">
+              <Pill variant={artifact.status === 'ready' ? 'pine' : artifact.status === 'error' ? 'zhu' : 'azure'}>
+                {artifact.status === 'ready' ? '已完成' : artifact.status === 'error' ? '生成失败' : '生成中'}
+              </Pill>
+              <span className="muted mono">{artifact.updatedAt}</span>
+            </div>
+            {artifact.status === 'ready' ? <article className="assistant-prose"><MobileMarkdown content={artifact.markdown} /></article> : null}
+            {artifact.status === 'error' ? <p className="error-text">{artifact.error.message}</p> : null}
+            {artifact.status === 'generating' ? <p className="muted">Host 正在生成走查内容…</p> : null}
+          </article>
+        ))}
+        <FullButton onClick={() => void generate()} disabled={client === undefined || sessionId === undefined || !client?.supportsCommand('walkthrough/generate')}>
+          请求 Host 生成走查
+        </FullButton>
+      </div>
+    </>
+  );
+}
+
+function readMediaItems(response: HostResponse): MediaLibraryItem[] {
+  if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.items)) return [];
+  return response.data.items.filter((item): item is MediaLibraryItem => {
+    if (!isRecord(item)) return false;
+    return typeof item.assetId === 'string' && typeof item.sessionId === 'string' && typeof item.mimeType === 'string' && typeof item.kind === 'string' && typeof item.createdAt === 'string';
+  });
+}
+
+function ConnectedLibraryPage({
+  hostCtx,
+}: {
+  hostCtx: InkstoneHostContextValue;
+}): ReactElement {
+  const { dispatch } = useInkstone();
+  const { host } = hostCtx;
+  const client = host.client;
+  const [items, setItems] = useState<MediaLibraryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
+  useEffect(() => {
+    if (client === undefined || !client.supportsCommand('media/list')) {
+      setLoading(false);
+      setError(client === undefined ? undefined : '当前 Host 未开放媒体资料库。');
+      return;
+    }
+    let active = true;
+    setLoading(true);
+    void client.request({ type: 'media/list', input: { limit: 40 } }).then((response) => {
+      if (!active) return;
+      if (!response.success) setError(response.error);
+      else {
+        setItems(readMediaItems(response));
+        setError(undefined);
+      }
+      setLoading(false);
+    }).catch((reason: unknown) => {
+      if (active) {
+        setError(reason instanceof Error ? reason.message : '读取 Host 资料库失败。');
+        setLoading(false);
+      }
+    });
+    return () => { active = false; };
+  }, [client]);
+  return (
+    <>
+      <TopBar title="资料库" subtitle="Host · 媒体与附件" onBack={() => dispatch({ type: 'navigate', route: 'desk' })} />
+      <div className="screen-scroll">
+        <ScreenHeading title="留下来的，都在这里。" subtitle="只展示 Host 返回的媒体元数据。" />
+        {client === undefined ? <p className="muted">正在连接 Host…</p> : null}
+        {loading ? <p className="muted">正在读取 Host 资料库…</p> : null}
+        {error !== undefined ? <p className="error-text">{error}</p> : null}
+        {!loading && error === undefined && items.length === 0 ? <p className="muted">Host 资料库还没有媒体。</p> : null}
+        {items.map((item) => (
+          <ListRow key={item.assetId} name={item.kind === 'image' ? 'image' : 'file'} title={item.name?.trim() || item.assetId} subtitle={`${item.kind} · ${item.mimeType} · ${item.byteSize} B`} />
+        ))}
+        <FullButton variant="secondary" onClick={() => dispatch({ type: 'navigate', route: 'chat' })}>回到会话</FullButton>
+      </div>
+    </>
+  );
+}
+
+function readCronJobs(response: HostResponse): CronJob[] {
+  if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.jobs)) return [];
+  return response.data.jobs.filter((job): job is CronJob => {
+    if (!isRecord(job)) return false;
+    return typeof job.id === 'string' && typeof job.name === 'string' && typeof job.schedule === 'string' && typeof job.enabled === 'boolean';
+  });
+}
+
+function ConnectedAutomationsPage({
+  hostCtx,
+}: {
+  hostCtx: InkstoneHostContextValue;
+}): ReactElement {
+  const { dispatch } = useInkstone();
+  const { host } = hostCtx;
+  const client = host.client;
+  const [jobs, setJobs] = useState<CronJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
+  useEffect(() => {
+    if (client === undefined || !client.supportsCommand('cron/list')) {
+      setLoading(false);
+      setError(client === undefined ? undefined : '当前 Host 未开放自动化任务读取。');
+      return;
+    }
+    let active = true;
+    setLoading(true);
+    void client.request({ type: 'cron/list' }).then((response) => {
+      if (!active) return;
+      if (!response.success) setError(response.error);
+      else { setJobs(readCronJobs(response)); setError(undefined); }
+      setLoading(false);
+    }).catch((reason: unknown) => {
+      if (active) { setError(reason instanceof Error ? reason.message : '读取 Host 自动化失败。'); setLoading(false); }
+    });
+    return () => { active = false; };
+  }, [client]);
+  return (
+    <>
+      <TopBar title="自动化" subtitle="Host · 定时任务" onBack={() => dispatch({ type: 'navigate', route: 'desk' })} right={<IconButton name="plus" label="新建自动化" onClick={() => dispatch({ type: 'open-sheet', key: 'automation-new' })} />} />
+      <div className="screen-scroll">
+        <ScreenHeading title="小事，按时发生。" subtitle="只展示 Host 已保存的定时任务。" />
+        {loading ? <p className="muted">正在读取 Host 自动化…</p> : null}
+        {error !== undefined ? <p className="error-text">{error}</p> : null}
+        {!loading && error === undefined && jobs.length === 0 ? <p className="muted">Host 还没有自动化任务。</p> : null}
+        {jobs.map((job) => (
+          <ListRow key={job.id} name="refresh" title={job.name} subtitle={`${job.schedule} · ${job.type}`} trailing={job.enabled ? '已启用' : '已暂停'} onClick={() => dispatch({ type: 'open-sheet', key: 'automation-edit' })} />
+        ))}
       </div>
     </>
   );

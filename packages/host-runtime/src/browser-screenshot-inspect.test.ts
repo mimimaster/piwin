@@ -58,6 +58,7 @@ describe('persistAndInspectBrowserScreenshot', () => {
         status: 'skipped',
         reason: 'vision-delegation-disabled',
       });
+      expect(result.output.evidence).toBe('unavailable');
       expect(JSON.stringify(result.output)).not.toContain(mediaRoot);
       const attachment = result.details.attachments[0];
       if (!attachment) throw new Error('expected attachment');
@@ -91,6 +92,7 @@ describe('persistAndInspectBrowserScreenshot', () => {
       });
       expect(fetched).toBe(false);
       expect(result.output.inspect).toEqual({ status: 'native' });
+      expect(result.output.evidence).toBe('delivered');
       expect(result.images).toEqual([
         {
           mimeType: 'image/jpeg',

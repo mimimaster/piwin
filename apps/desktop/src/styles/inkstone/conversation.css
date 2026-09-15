@@ -8,6 +8,21 @@
   display: none !important;
 }
 
+/* The lifted turn identity only wraps the (hidden) Deck message header, but
+   `.conversation-response` still reserves min-height: 32px — an empty band
+   above 已工作 that pushed the fold row below the rail byline. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .conversation-turn-identity {
+  display: none;
+}
+
+/* Deck's 32px floor sized the avatar header, which Inkstone hides. An
+   error-only reply would otherwise open with an empty band above its card. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .conversation-response {
+  min-height: 0;
+}
+
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation {
   width: 100%;
   max-width: 100%;
@@ -27,6 +42,20 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   width: 100%;
   align-self: stretch;
   text-align: left;
+}
+
+/* Work-h bleed is for Agent tool rows. Conversation thinking sits under the
+   assembly capsule, so it must share that 100% column — not inset 8px. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-thread.is-conversation
+  .conversation-thinking-summary.work-h,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-thread.is-conversation
+  .conversation-thinking-summary.turn-work-details-summary {
+  margin-left: 0;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-bubble {
@@ -77,10 +106,33 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   min-height: 0;
   background: transparent;
   white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-footer > .user-message-time {
-  display: none;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation:hover
+  .user-message-footer,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation:focus-within
+  .user-message-footer,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .bubble.role-user.is-conversation-bubble:hover
+  .user-message-footer,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .bubble.role-user.is-conversation-bubble:focus-within
+  .user-message-footer {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation
+  .user-message-footer
+  > .user-message-time[data-testid='user-message-time'] {
+  font: 11px var(--mono);
+  color: var(--t4);
+  line-height: 1;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])

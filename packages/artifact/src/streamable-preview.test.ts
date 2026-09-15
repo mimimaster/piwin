@@ -71,6 +71,31 @@ describe('buildStreamableArtifactPreview', () => {
     expect(withoutFoundation.canStream).toBe(false);
   });
 
+  it('keeps waiting while a prefix only opens containers or paint servers', () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">';
+    expect(buildStreamableArtifactPreview(svg).canStream).toBe(false);
+    expect(
+      buildStreamableArtifactPreview(
+        `${svg}\n  <!-- Sky -->\n  <defs><linearGradient id="sky"><stop offset="0" stop-color="#87ceeb"/>`,
+      ).canStream,
+    ).toBe(false);
+    expect(
+      buildStreamableArtifactPreview(
+        '<style>.a{color:red}</style><div class="wrap">\n  <div class="grid">',
+      ).canStream,
+    ).toBe(false);
+  });
+
+  it('streams once a shape or text paints outside paint servers', () => {
+    const svg = '<svg viewBox="0 0 400 300"><defs><linearGradient id="sky"></linearGradient></defs>';
+    expect(buildStreamableArtifactPreview(`${svg}<rect width="400" height="300"/>`).canStream).toBe(
+      true,
+    );
+    expect(
+      buildStreamableArtifactPreview('<style>.a{color:red}</style><div class="wrap"><h2>T').canStream,
+    ).toBe(true);
+  });
+
   it('stops trailing text before a partial tag or character reference', () => {
     expect(buildStreamableArtifactPreview('<div><p>Tom &amp; Je</p><p>A <sp').previewSource).toBe(
       '<div><p>Tom &amp; Je</p><p>A </p></div>',

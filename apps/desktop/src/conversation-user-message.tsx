@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
-import { formatMessageTime } from './conversation-message-identity';
+import { formatTurnExactStamp, formatTurnRelativeAge } from './chat-turn-marginalia.js';
 import { MessageAttachments } from './message-attachments';
 import { IconCheck, IconClose, IconCopy, IconEdit } from './shell-icons';
 import { VoiceHandoverCard } from './voice-handover-card.js';
@@ -13,6 +13,24 @@ import { InkstoneMessageIdentity } from './inkstone-message-identity.js';
 import { parseSlashMessageDisplay } from './slash/slash-parse.js';
 
 export const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
+
+function UserMessageAge(props: {
+  createdAt?: string;
+  locale?: 'zh-CN' | 'en';
+}): ReactElement | null {
+  const relative = formatTurnRelativeAge(props.createdAt ?? '');
+  if (!relative) return null;
+  const exact = formatTurnExactStamp(props.createdAt ?? '', props.locale);
+  return (
+    <span
+      className="user-message-time"
+      data-testid="user-message-time"
+      title={exact || undefined}
+    >
+      {relative}
+    </span>
+  );
+}
 
 export function UserMessageText(props: { text: string }): ReactElement {
   const parsed = parseSlashMessageDisplay(props.text);
@@ -81,7 +99,6 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [isTextOverflow, setIsTextOverflow] = useState(false);
   const textRef = useRef<HTMLDivElement | null>(null);
-  const formattedTime = formatMessageTime(message.createdAt);
   const hasMediaAttachments = message.attachments.length > 0;
   const interventionStatus = message.instructionDelivery?.status;
   const isChinese = props.locale !== 'en';
@@ -221,6 +238,10 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
                   {interventionLabel}
                 </span>
               ) : null}
+              <UserMessageAge
+                {...(message.createdAt !== undefined ? { createdAt: message.createdAt } : {})}
+                {...(props.locale !== undefined ? { locale: props.locale } : {})}
+              />
               <div className="user-message-action-buttons">
                 <button
                   type="button"
@@ -274,11 +295,6 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
                   </button>
                 ) : null}
               </div>
-              {formattedTime ? (
-                <span className="user-message-time" data-testid="user-message-time">
-                  {formattedTime}
-                </span>
-              ) : null}
             </div>
           </div>
           {props.branchSwitcher ? (
@@ -352,11 +368,10 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
             {interventionLabel}
           </span>
         ) : null}
-        {formattedTime ? (
-          <span className="user-message-time" data-testid="user-message-time">
-            {formattedTime}
-          </span>
-        ) : null}
+        <UserMessageAge
+          {...(message.createdAt !== undefined ? { createdAt: message.createdAt } : {})}
+          {...(props.locale !== undefined ? { locale: props.locale } : {})}
+        />
         <button
           type="button"
           className="user-msg-btn"

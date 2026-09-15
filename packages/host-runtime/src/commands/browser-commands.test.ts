@@ -76,6 +76,8 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     }),
     dispatchInput: async () => {},
     setViewport: async (size) => size,
+    mirrorLeaseCount: () => 1,
+    hasMirrorLease: () => true,
     takeOver: async () => ({ owner: 'user' as const, agentWantsLock: true }),
     giveBack: async () => ({ owner: 'agent' as const, agentWantsLock: true }),
     lock: async (owner) => ({ owner, agentWantsLock: owner === 'agent' }),
@@ -143,6 +145,7 @@ describe('isBrowserCommand', () => {
     expect(isBrowserCommand({ type: 'browser/screenshot' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/stop' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/restart' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/reload' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/input', events: [] })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/lock', owner: 'user' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/unlock', owner: 'user' })).toBe(true);
@@ -374,6 +377,14 @@ describe('handleBrowserCommand', () => {
     const result = await handleBrowserCommand({ type: 'browser/back' }, 'req-1', createContext(session));
     expect(back).toHaveBeenCalledWith({ actor: 'user' });
     expect(result).toMatchObject({ success: true, command: 'browser/back' });
+  });
+
+  it('browser/reload is a user-initiated page reload', async () => {
+    const reload = vi.fn().mockResolvedValue(undefined);
+    const session = createMockSession({ reload });
+    const result = await handleBrowserCommand({ type: 'browser/reload' }, 'req-1', createContext(session));
+    expect(reload).toHaveBeenCalledWith({ actor: 'user' });
+    expect(result).toMatchObject({ success: true, command: 'browser/reload' });
   });
 
   it('browser/resize maps the panel box onto the Playwright viewport', async () => {

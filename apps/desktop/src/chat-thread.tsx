@@ -40,6 +40,7 @@ import { CompactionActivity } from './compaction-activity.js';
 import {
   ChatTurnHead,
   ChatTurnMarginalia,
+  hasTurnByline,
   resolveTurnMarginalia,
 } from './chat-turn-marginalia.js';
 import {
@@ -48,6 +49,8 @@ import {
   findPlanPresentOwningRunId,
 } from './plan-execution-gate.js';
 import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
+import { resolveModelWaitTail } from './model-wait-tail.js';
+import { ModelWaitTailRow } from './model-wait-tail-row.js';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -334,6 +337,18 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         streaming={props.streaming === true}
         renderTurn={(turn) => {
           const turnMessages = turn.items.map((item) => item.message);
+          // Tool round settled, next model token not here yet: one tail node on
+          // the chain instead of a stale 正在运行 header or a second locator.
+          const modelWaitTail =
+            !conversationSession && turn.id === currentResponseTurnId
+              ? resolveModelWaitTail({
+                  messages: turnMessages,
+                  streaming: props.streaming === true,
+                  activeRunId: props.activeRunId ?? null,
+                  runRecordsById: props.runRecordsById ?? {},
+                  permissionPending: Boolean(props.permissionPrompt),
+                })
+              : null;
           const currentTurnStreaming =
             turn.id === currentResponseTurnId && props.streaming === true;
           const turnModel =
@@ -357,7 +372,12 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
             currentTurnStreaming,
           });
           const workDisclosureKey = `${props.sessionId ?? 'session'}:${turn.id}`;
-          const workDisclosureDefaultOpen = props.workDetailsExpanded === 'always';
+          const isLatestTurnForDisclosure = turn.id === currentResponseTurnId;
+          const workDisclosureDefaultOpen =
+            props.workDetailsExpanded === 'always' ||
+            (props.workDetailsExpanded !== 'collapsed' &&
+              !conversationSession &&
+              isLatestTurnForDisclosure);
           const workDisclosureOpen =
             workDisclosureOpenByTurnId[workDisclosureKey] ?? workDisclosureDefaultOpen;
           const identityItemIndex = conversationChrome?.identityMessageId
@@ -398,6 +418,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           const renderedAssistantItems: ReactElement[] = [];
 
           turn.items.forEach(({ message, messageIndex }, itemIndex) => {
+            if (modelWaitTail?.placeholderMessageIds.includes(message.id)) {
+              return;
+            }
             const planDisplay =
               turn.lastAssistantMessageId === message.id ? turnPlanDisplay : null;
             const isDisclosureWorkItem =
@@ -788,18 +811,33 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 renderedAssistantItems.push(runActivitySlot);
               }
 
+              if (modelWaitTail) {
+                renderedAssistantItems.push(
+                  <ModelWaitTailRow
+                    key={`model-wait-${turn.id}`}
+                    tail={modelWaitTail}
+                    locale={props.locale ?? 'zh-CN'}
+                  />,
+                );
+              }
+
               const hasAssistantActivity =
                 renderedAssistantItems.length > 0 ||
                 (currentTurnStreaming && (props.activeRunId !== null || runActivitySlot !== null));
 
-              const userMarginaliaData =
+              const userMarginaliaResolved =
                 renderedUserItems.length === 0
                   ? null
                   : resolveTurnMarginalia(userMessages, {
                       editingMessageId: props.editingMessageId,
                       locale: props.locale,
                       forceRole: 'user',
+                      isConversationSession: conversationSession,
                     });
+              const userMarginaliaData =
+                userMarginaliaResolved !== null && hasTurnByline(userMarginaliaResolved)
+                  ? userMarginaliaResolved
+                  : null;
 
               const assistantStatus = currentTurnStreaming
                 ? props.permissionPrompt
@@ -823,6 +861,12 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                         elapsedMs: workDisclosureProjection?.elapsedMs,
                         contextUsage: props.contextUsage,
                         status: assistantStatus,
+                        statusTone: currentTurnStreaming
+                          ? props.permissionPrompt
+                            ? 'waiting'
+                            : 'running'
+                          : null,
+                        isConversationSession: conversationSession,
                       },
                     );
 

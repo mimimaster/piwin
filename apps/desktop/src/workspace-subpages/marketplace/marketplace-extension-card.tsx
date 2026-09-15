@@ -181,11 +181,11 @@ export function MarketplaceExtensionCard({
               size="compact"
               disabled
               title={t(
-                'Incompatible: This extension depends on terminal TUI or raw TTY rendering and cannot run in the desktop shell.',
-                '不可安装：该扩展依赖终端 TUI / 原始 TTY 渲染，桌面端无法呈现。',
+                'Not supported yet: This extension depends on terminal TUI or raw TTY rendering and cannot run in the desktop shell.',
+                '暂不支持：该扩展依赖终端 TUI / 原始 TTY 渲染，桌面端无法呈现。',
               )}
             >
-              {t('Incompatible', '不可安装')}
+              {t('Not supported yet', '暂不支持')}
             </Button>
           ) : (
             <Button

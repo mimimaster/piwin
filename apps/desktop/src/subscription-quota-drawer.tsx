@@ -1,9 +1,14 @@
 import type { ReactElement } from 'react';
-import type { SubscriptionAccountQuota } from '@piwin/contracts';
+import {
+  getSubscriptionBillingNotice,
+  type SubscriptionAccountQuota,
+} from '@piwin/contracts';
 import { AlertCircle, CheckCircle2, Clock, Mail, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { Button } from '@piwin/ui-kit';
+import { SubscriptionBillingNoticeBanner } from './subscription-billing-notice.js';
 
 export type SubscriptionQuotaDrawerProps = {
+  providerId: string;
   quota: SubscriptionAccountQuota | undefined;
   loading: boolean;
   isChinese: boolean;
@@ -13,6 +18,7 @@ export type SubscriptionQuotaDrawerProps = {
 };
 
 export function SubscriptionQuotaDrawer({
+  providerId,
   quota,
   loading,
   isChinese,
@@ -20,10 +26,19 @@ export function SubscriptionQuotaDrawer({
   onReset,
   isResetting = false,
 }: SubscriptionQuotaDrawerProps): ReactElement {
+  const billing = getSubscriptionBillingNotice(providerId, isChinese ? 'zh-CN' : 'en');
+  const billingBanner = (
+    <SubscriptionBillingNoticeBanner
+      providerId={providerId}
+      locale={isChinese ? 'zh-CN' : 'en'}
+      variant="drawer"
+    />
+  );
   const hasWindows = Boolean(quota?.groups.some((group) => group.windows.length > 0));
   if (loading && !hasWindows) {
     return (
       <div className="oauth-quota-drawer is-loading" data-testid="subscription-quota-loading">
+        {billingBanner}
         <div className="oauth-quota-loading-state">
           <span className="oauth-status-dot is-spinning" />
           <span>{isChinese ? '正在读取最新额度与配额窗口...' : 'Fetching live quota and rate limit windows...'}</span>
@@ -35,6 +50,7 @@ export function SubscriptionQuotaDrawer({
   if (!quota || !hasWindows) {
     return (
       <div className="oauth-quota-drawer is-empty" data-testid="subscription-quota-empty">
+        {billingBanner}
         <div className="oauth-quota-empty-state">
           <AlertCircle size={14} className="text-muted" />
           <span>
@@ -52,6 +68,7 @@ export function SubscriptionQuotaDrawer({
 
   return (
     <div className="oauth-quota-drawer" data-testid={`subscription-quota-drawer-${quota.providerId}`}>
+      {billingBanner}
       {/* Account & Plan Meta Bar */}
       <div className="oauth-quota-meta-bar">
         <div className="oauth-quota-account-info">
@@ -171,7 +188,17 @@ export function SubscriptionQuotaDrawer({
                           <div className="oauth-quota-progress-track">
                             <div
                               className={`oauth-quota-progress-bar is-${colorTone}`}
-                              style={{ width: `${Math.min(100, Math.max(0, win.percentage))}%` }}
+                              style={{
+                                // Always fill by *used* so remaining-style windows (e.g. 剩余 0%)
+                                // still show a full bar instead of looking empty/unread.
+                                width: `${Math.min(
+                                  100,
+                                  Math.max(
+                                    0,
+                                    win.type === 'remaining' ? 100 - win.percentage : win.percentage,
+                                  ),
+                                )}%`,
+                              }}
                             />
                           </div>
                         )}
@@ -209,8 +236,34 @@ export function SubscriptionQuotaDrawer({
         })}
       </div>
 
-      {/* PAYG (Pay-As-You-Go) section (e.g. Grok) */}
-      {quota.payg && (
+      {billing ? (
+        <p className="oauth-quota-plan-caption">{billing.planWindowsCaption}</p>
+      ) : null}
+
+      {billing ? (
+        <div className="oauth-quota-payg-card" data-testid="subscription-extra-usage-card">
+          <div className="oauth-quota-payg-header">
+            <span className="oauth-quota-payg-label">{billing.extraUsageLabel}</span>
+            <span className={`oauth-quota-payg-status ${quota.payg?.enabled ? 'is-enabled' : 'is-disabled'}`}>
+              {quota.payg?.enabled
+                ? isChinese
+                  ? '已启用'
+                  : 'Enabled'
+                : isChinese
+                  ? '未启用'
+                  : 'Disabled'}
+            </span>
+          </div>
+          {quota.payg?.enabled ? (
+            <div className="oauth-quota-payg-usage">
+              <span>{isChinese ? '月度消耗' : 'Monthly Usage'}: {quota.payg.usedText}</span>
+              {quota.payg.resetText && <span>· {quota.payg.resetText}</span>}
+            </div>
+          ) : (
+            <div className="oauth-quota-payg-usage">{billing.extraUsageOffHint}</div>
+          )}
+        </div>
+      ) : quota.payg ? (
         <div className="oauth-quota-payg-card">
           <div className="oauth-quota-payg-header">
             <span className="oauth-quota-payg-label">{isChinese ? '按量付费 (PAYG)' : 'Pay As You Go (PAYG)'}</span>
@@ -225,7 +278,7 @@ export function SubscriptionQuotaDrawer({
             </div>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* Updated Footer */}
       <div className="oauth-quota-footer">

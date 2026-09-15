@@ -473,7 +473,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
   .composer-dock {
-    padding: 8px 28px 12px;
+    padding-top: 8px;
+    padding-bottom: 12px;
     background: linear-gradient(to bottom, transparent, var(--s2) 40%);
   }
   .composer-v2-toolbar { justify-content: space-between; }

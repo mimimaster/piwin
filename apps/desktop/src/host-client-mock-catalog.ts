@@ -816,6 +816,19 @@ export async function handleMockCatalogCommands(
           data: { query: command.query, hits },
         };
       }
+      case 'marketplace/package-install':
+        return {
+          id,
+          type: 'response',
+          command: 'marketplace/package-install',
+          success: true,
+          data: {
+            source:
+              command.source.kind === 'npm'
+                ? `npm:${command.source.packageName}`
+                : `git:${command.source.repositoryUrl}`,
+          },
+        };
       case 'skills/store-list':
         return {
           id,

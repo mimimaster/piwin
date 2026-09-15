@@ -4,7 +4,9 @@ import {
   clusterToolCalls,
   resolveToolClusterKind,
   computeBatchSummary,
+  countExploredFiles,
   isExploratoryKind,
+  summarizeToolBusyMs,
 } from './tool-group-clustering';
 
 function makeTool(
@@ -162,5 +164,84 @@ describe('clusterToolCalls', () => {
     const summary = computeBatchSummary('read', tools);
     expect(summary.hasError).toBe(false);
     expect(summary.errorCount).toBe(0);
+  });
+});
+
+describe('call-chain classification regressions', () => {
+  function batchShape(tools: ToolCardUi[]): string[] {
+    return clusterToolCalls(tools).map((item) =>
+      item.kind === 'batch' ? `batch:${item.clusterKind}` : `single:${item.tool.toolName}`,
+    );
+  }
+
+  it('matches whole name tokens, not substrings', () => {
+    expect(resolveToolClusterKind(makeTool('send_notification'))).toBe('other');
+    expect(resolveToolClusterKind(makeTool('code_review'))).toBe('other');
+    expect(resolveToolClusterKind(makeTool('preview_start'))).toBe('other');
+    expect(resolveToolClusterKind(makeTool('dispatch_job'))).toBe('other');
+    expect(resolveToolClusterKind(makeTool('readFile'))).toBe('read');
+    expect(resolveToolClusterKind(makeTool('str_replace_editor'))).toBe('edit');
+  });
+
+  it('never folds browser automation or MCP calls into an explore capsule', () => {
+    const mcp = (name: string): ToolCardUi =>
+      makeTool(name, {
+        presentation: { kind: 'mcp', title: name, actionVerb: 'MCP (playwright)' },
+      });
+    expect(batchShape([mcp('playwright.browser_click'), mcp('playwright.browser_type')])).toEqual([
+      'single:playwright.browser_click',
+      'single:playwright.browser_type',
+    ]);
+    expect(batchShape([makeTool('browser_click'), makeTool('browser_navigate')])).toEqual([
+      'single:browser_click',
+      'single:browser_navigate',
+    ]);
+    expect(
+      resolveToolClusterKind(
+        makeTool('git_fetch', { presentation: { kind: 'git', title: 'git', actionVerb: 'Git pull' } }),
+      ),
+    ).toBe('other');
+  });
+
+  it('counts only read files, not search directories or glob patterns', () => {
+    const tools = [
+      makeTool('grep', {
+        presentation: { kind: 'filesystem', title: 'grep', actionVerb: 'Searched', targetPaths: ['src'] },
+      }),
+      makeTool('find', {
+        presentation: { kind: 'filesystem', title: 'find', actionVerb: 'Searched', targetPaths: ['**/*.ts'] },
+      }),
+      makeTool('read', {
+        presentation: { kind: 'filesystem', title: 'read', actionVerb: 'Read', targetPaths: ['src/a.ts'] },
+      }),
+      makeTool('read', {
+        status: 'error',
+        presentation: { kind: 'filesystem', title: 'read', actionVerb: 'Read', targetPaths: ['src/missing.ts'] },
+      }),
+    ];
+    expect(countExploredFiles(tools)).toBe(1);
+    expect(computeBatchSummary('explore', tools).fileCount).toBe(1);
+  });
+
+  it('reports overlapping parallel calls as busy time, not a sum', () => {
+    const timed = (start: string, end: string): ToolCardUi =>
+      makeTool('read', {
+        presentation: {
+          kind: 'filesystem',
+          title: 'read',
+          actionVerb: 'Read',
+          startedAt: start,
+          endedAt: end,
+          durationMs: 2000,
+        },
+      });
+    const parallel = [
+      timed('2026-09-15T00:00:00.000Z', '2026-09-15T00:00:02.000Z'),
+      timed('2026-09-15T00:00:00.100Z', '2026-09-15T00:00:02.000Z'),
+      timed('2026-09-15T00:00:01.000Z', '2026-09-15T00:00:02.500Z'),
+      timed('2026-09-15T00:00:10.000Z', '2026-09-15T00:00:11.000Z'),
+    ];
+    expect(summarizeToolBusyMs(parallel)).toBe(3500);
+    expect(summarizeToolBusyMs([makeTool('read')])).toBeUndefined();
   });
 });

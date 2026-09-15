@@ -111,6 +111,7 @@ describe('context ring selector matrix', () => {
       const view = selectContextRingView({ telemetry: eligible, locale: 'en' });
       expect(view.visible).toBe(true);
       expect(view.quality).toBe('estimated');
+      expect(view.cacheAnchorAt).toBe('2026-08-30T00:00:00.000Z');
     }
 
     const hostNoise = selected(
@@ -329,6 +330,7 @@ describe('context ring selector matrix', () => {
     expect(view.visible).toBe(true);
     expect(view.tokensUsed).toBe(7_797);
     expect(view.occupancySource).toBe('last-confirmed');
+    expect(view.cacheAnchorAt).toBe('2026-09-01T08:23:05.531Z');
     expect(view.phase).toBe('invalidated');
     expect(view.labels.status).toBe(STALE_EN);
     expect(view.labels.quality).toBe(STALE_EN);

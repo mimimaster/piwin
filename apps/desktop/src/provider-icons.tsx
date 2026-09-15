@@ -39,6 +39,9 @@ export type ProviderIconProps = {
   modelId?: string;
   size?: number;
   radius?: number | string;
+  /** `avatar` (default) is the brand chip; `glyph` is the bare mark with no
+   *  tile, for quiet bylines where a filled disc would out-shout the text. */
+  variant?: 'avatar' | 'glyph';
   className?: string;
   style?: CSSProperties;
 };
@@ -246,6 +249,36 @@ export function ProviderIcon(props: ProviderIconProps): ReactElement {
   const brand = resolveBrand(props.id, props.modelId);
   const radius = props.radius ?? Math.max(8, Math.round(size * 0.29));
   const className = ['provider-icon', props.className].filter(Boolean).join(' ');
+
+  if (props.variant === 'glyph') {
+    const Glyph = brand ? (brand.Icon.Color ?? brand.Icon) : null;
+    return (
+      <span
+        className={`${className} is-glyph`}
+        aria-hidden
+        data-provider-icon={props.id}
+        data-provider-brand={brand ? (brand.Icon.title ?? 'brand') : 'mono'}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: size,
+          height: size,
+          flexShrink: 0,
+          userSelect: 'none',
+          ...props.style,
+        }}
+      >
+        {Glyph ? (
+          <Glyph size={size} style={{ display: 'block' }} />
+        ) : (
+          <span style={{ fontSize: Math.round(size * 0.78), fontWeight: 600, lineHeight: 1 }}>
+            {monogramFromName(props.name, props.id).mono}
+          </span>
+        )}
+      </span>
+    );
+  }
 
   // Prefer modelicons Avatar (official brand chip).
   if (brand?.Icon.Avatar) {

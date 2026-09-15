@@ -39,7 +39,6 @@ import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { ModelOption } from './model-options';
 import {
   fileNameFromDetail,
-  resolveWorkFoldCode,
   WorkFoldHeader,
   type WorkFoldHeaderState,
 } from './work-fold-header.js';
@@ -51,6 +50,11 @@ export type TurnWorkDetailsProps = {
   runRecordsById: Record<string, RunRecordUi>;
   activeRunId: string | null;
   permissionPrompt: PermissionPromptUi | null;
+  /**
+   * Show the run's non-failure terminal message. Only the last response of a
+   * run may own it — every response in a tool loop shares the same run record.
+   */
+  showRunTerminalMessage?: boolean;
   onPermission?: ((decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void) | undefined;
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity?: 'compact' | 'comfortable' | 'detailed';
@@ -84,20 +88,6 @@ export type TurnWorkDetailsProps = {
     captureKeyboard?: boolean;
   };
 };
-
-function thinkingSummaryLabel(input: {
-  isRunActive: boolean;
-  isThinkingActive: boolean;
-  locale: 'zh-CN' | 'en';
-}): string {
-  if (input.isThinkingActive) {
-    return runtimeStatusText('thinking', input.locale);
-  }
-  if (input.isRunActive) {
-    return runtimeStatusText('working', input.locale);
-  }
-  return input.locale === 'zh-CN' ? '思考过程' : 'Thoughts';
-}
 
 /** Prefer thinking/planning carousel copy while the bubble is still empty. */
 function resolveWaitingActivityInput(
@@ -161,16 +151,12 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     : presentation.isActive
       ? 'running'
       : 'done';
-  const runningToolIndex = tools.findIndex((tool) => tool.status === 'running');
-  const runningTool =
-    runningToolIndex >= 0 ? tools[runningToolIndex] : tools[tools.length - 1];
-  const runningCode = runningTool ? resolveWorkFoldCode(runningTool) : undefined;
-  const runningOrdinal =
-    tools.length === 0
-      ? undefined
-      : runningToolIndex >= 0
-        ? runningToolIndex + 1
-        : tools.length;
+  // Run state is shared by every response in a tool loop: the terminal line
+  // belongs to the last one only, and a failed run is owned by TurnErrorCard.
+  const terminalMessage =
+    props.showRunTerminalMessage === true && presentation.outcome !== 'failed'
+      ? presentation.terminalMessage
+      : undefined;
   const waitingCode =
     permissionItem?.kind === 'permission'
       ? fileNameFromDetail(permissionItem.detail)
@@ -190,10 +176,11 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     // must still keep the carousel so long waits are not avatar-only.
     !(hasThinking && thinkingOpen) &&
     !permissionWaiting;
-  const showFoldHeader =
-    hasThinking ||
-    (foldState === 'running' && (callChainTools.length > 0 || hasThinking)) ||
-    foldState === 'waiting';
+  // The header is the thinking toggle (or the permission wait). Live tool
+  // state belongs to the chain rows and the model-wait tail: a second
+  // 正在运行 · 第 N 个工具 line above them only repeated — and went stale
+  // once the round settled while the model took its time.
+  const showFoldHeader = hasThinking || foldState === 'waiting';
   const hasWorkDetails =
     isFlowAnchor ||
     hasThinking ||
@@ -201,7 +188,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     showWaitingLocator ||
     presentation.isWaitingForModel ||
     presentation.outcome !== undefined ||
-    Boolean(presentation.terminalMessage) ||
+    Boolean(terminalMessage) ||
     Boolean(permissionItem) ||
     Boolean(props.activeSkill && presentation.isActive);
 
@@ -269,27 +256,16 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       {!anchorHasText ? exploreCapsule : null}
       {showFoldHeader ? (
         <WorkFoldHeader
-          state={foldState}
+          state={foldState === 'waiting' ? 'waiting' : thinkingIsStreaming ? 'running' : 'done'}
           locale={locale}
           className="turn-work-details-summary"
           testId="turn-work-details-summary"
           ariaLabel={locale === 'zh-CN' ? '思考过程' : 'Thoughts'}
-          doneIcon="brain"
+          doneIcon={foldState === 'waiting' ? 'bulb' : 'brain'}
           {...(hasThinking
             ? {
                 open: thinkingOpen,
                 onToggle: () => setThinkingIntent(thinkingOpen ? 'user-closed' : 'user-open'),
-              }
-            : {})}
-          {...(foldState === 'running'
-            ? {
-                ...(runningOrdinal !== undefined ? { runningToolIndex: runningOrdinal } : {}),
-                ...(runningCode !== undefined ? { runningCode } : {}),
-                // Run start, not tool start: the live clock is the ticking
-                // form of the `已工作 Xs` the header freezes into once done.
-                ...(presentation.startedAt !== undefined
-                  ? { runningSince: presentation.startedAt }
-                  : {}),
               }
             : {})}
           {...(foldState === 'waiting' && permissionItem?.kind === 'permission'
@@ -298,22 +274,15 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
                 ...(waitingCode !== undefined ? { waitingCode } : {}),
               }
             : {})}
-          {...(foldState === 'done' && presentation.thoughtSeconds !== undefined
-            ? { elapsedMs: presentation.thoughtSeconds * 1000 }
-            : {})}
+          {...(foldState !== 'waiting' &&
+          thinkingIsStreaming &&
+          props.message.thinkingStartedAt !== undefined
+            ? { runningSince: props.message.thinkingStartedAt }
+            : foldState !== 'waiting' && presentation.thoughtSeconds !== undefined
+              ? { elapsedMs: presentation.thoughtSeconds * 1000 }
+              : {})}
         >
-          {foldState === 'done'
-            ? thinkingSummaryLabel({
-                isRunActive: presentation.isActive,
-                isThinkingActive: thinkingIsStreaming,
-                locale,
-              })
-            : hasThinking && showWaitingLocator
-              ? // Quiet toggle only — live meaning lives in the carousel below.
-                locale === 'zh-CN'
-                  ? '思考过程'
-                  : 'Thoughts'
-              : undefined}
+          {foldState === 'waiting' ? undefined : locale === 'zh-CN' ? '思考过程' : 'Thoughts'}
         </WorkFoldHeader>
       ) : null}
       {hasThinking && thinkingItem?.kind === 'thinking' && thinkingOpen ? (
@@ -398,8 +367,8 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
           : {})}
       />
 
-      {presentation.terminalMessage ? (
-        <div className="turn-terminal-message muted">{presentation.terminalMessage}</div>
+      {terminalMessage ? (
+        <div className="turn-terminal-message muted">{terminalMessage}</div>
       ) : null}
     </div>
   );

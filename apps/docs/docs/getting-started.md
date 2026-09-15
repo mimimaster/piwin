@@ -15,6 +15,8 @@ BYOK（Bring Your Own Key) 懂得都懂，这里在废话多说几句，现在�
 
 套餐账号（Account）是另一层：设置 → **OAuth 登录** 登录 Kimi Code、ChatGPT Codex、Claude Pro/Max、Grok、GitHub Copilot，凭证写在 Host 的 `~/.piwin/pi-agent/auth.json`，不会塞进通道 `apiKeyRef`。OpenRouter 仍是通道 Key。CLI：`piwin auth status | login <kimi-coding|openai-codex|anthropic|xai|github-copilot> | logout <id>`。
 
+Claude Pro/Max 的例外：从 2026-04-04 起，Anthropic 把第三方客户端（含 Pi / piwin）记到 **extra usage**，不扣套餐里的 5 小时 / 周限额。登录页、额度抽屉和选用 Claude 套餐模型时会提示；没开 extra 或额度用完会失败。套餐内额度只给 Claude.ai / Claude Code / Cowork。管理 extra：https://claude.ai/settings/usage 。
+
 
 
 ## 核心配置导航

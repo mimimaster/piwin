@@ -58,4 +58,71 @@ describe('handleMarketplaceSearchCommand', () => {
       /network down/,
     );
   });
+
+  it('installs an npm search hit through Pi package semantics', async () => {
+    const installPackage = vi.fn(async (input: {
+      source: string;
+      workingDirectory: string;
+      agentDirectory: string;
+    }) => ({ source: input.source, installedPath: '/tmp/pi-agent/npm/node_modules/pi-subagents' }));
+
+    const response = await handleMarketplaceSearchCommand(
+      {
+        type: 'marketplace/package-install',
+        source: { kind: 'npm', packageName: 'pi-subagents' },
+      },
+      'req-install',
+      {
+        piwinRoot: '/tmp/piwin',
+        agentDir: '/tmp/pi-agent',
+        installPackage,
+      },
+    );
+
+    expect(response?.success).toBe(true);
+    expect(installPackage).toHaveBeenCalledWith({
+      source: 'npm:pi-subagents',
+      workingDirectory: '/tmp/piwin',
+      agentDirectory: '/tmp/pi-agent',
+    });
+  });
+
+  it('rejects package sources outside the searched npm and GitHub shapes', async () => {
+    const installPackage = vi.fn();
+    const response = await handleMarketplaceSearchCommand(
+      {
+        type: 'marketplace/package-install',
+        source: { kind: 'git', repositoryUrl: 'file:///tmp/untrusted' },
+      },
+      'req-invalid',
+      { installPackage },
+    );
+
+    expect(response?.success).toBe(false);
+    expect(installPackage).not.toHaveBeenCalled();
+  });
+
+  it('normalizes a searched GitHub repository before installation', async () => {
+    const installPackage = vi.fn(async (input: {
+      source: string;
+      workingDirectory: string;
+      agentDirectory: string;
+    }) => ({ source: input.source }));
+    const response = await handleMarketplaceSearchCommand(
+      {
+        type: 'marketplace/package-install',
+        source: {
+          kind: 'git',
+          repositoryUrl: 'https://github.com/nicobailon/pi-subagents.git',
+        },
+      },
+      'req-git',
+      { installPackage },
+    );
+
+    expect(response?.success).toBe(true);
+    expect(installPackage).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'git:github.com/nicobailon/pi-subagents' }),
+    );
+  });
 });

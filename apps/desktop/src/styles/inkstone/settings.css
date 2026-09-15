@@ -565,6 +565,13 @@ html:is(
     border-radius: 8px;
   }
 
+  .oauth-billing-notice .ui-notice,
+  .oauth-quota-billing-notice .ui-notice {
+    box-shadow: var(--sh1);
+    border: 0;
+    border-radius: 8px;
+  }
+
   .oauth-accounts-footnote {
     color: var(--t3);
     font: 11.5px/1.5 var(--sans);

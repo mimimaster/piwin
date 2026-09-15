@@ -42,6 +42,8 @@ export type FlashcardStudyCopy = {
   endedBody: (processed: number, remaining: number) => string;
   emptyTitle: string;
   emptyBody: string;
+  keyRequired: string;
+  genericError: string;
   saveStatus: (kind: 'saving' | 'saved' | 'pending') => string;
 };
 
@@ -91,6 +93,8 @@ const ZH: FlashcardStudyCopy = {
     remaining > 0 ? `已处理 ${processed}，未学 ${remaining}` : `已处理 ${processed}`,
   emptyTitle: '这一轮没有卡片',
   emptyBody: '当前范围没有可学的卡片。',
+  keyRequired: '这一轮没能开始，请返回卡库后再试一次。',
+  genericError: '复习出了点问题，请返回卡库后再试。',
   saveStatus: (kind) => (kind === 'saving' ? '保存中' : kind === 'pending' ? '待确认' : '已保存'),
 };
 
@@ -144,9 +148,28 @@ const EN: FlashcardStudyCopy = {
       : `Processed ${processed}`,
   emptyTitle: 'No cards in this round',
   emptyBody: 'Nothing to study in the current scope.',
+  keyRequired: 'This round could not start. Go back to the library and try again.',
+  genericError: 'Study hit a problem. Go back to the library and try again.',
   saveStatus: (kind) => (kind === 'saving' ? 'Saving' : kind === 'pending' ? 'Pending' : 'Saved'),
 };
 
 export function flashcardStudyCopy(locale: 'zh-CN' | 'en'): FlashcardStudyCopy {
   return locale === 'en' ? EN : ZH;
+}
+
+const MACHINE_CODE = /^[a-z0-9]+(?:-[a-z0-9]+)+$/;
+
+/** Host problem codes must not land in the study chrome as raw kebab-case. */
+export function flashcardStudyErrorMessage(
+  error: { code: string; message: string },
+  copy: FlashcardStudyCopy,
+): string {
+  if (error.code === 'idempotency-key-required' || error.message === 'idempotency-key-required') {
+    return copy.keyRequired;
+  }
+  if (error.code === 'host-too-old') return copy.hostTooOld;
+  if (error.message.length === 0 || MACHINE_CODE.test(error.message)) {
+    return copy.genericError;
+  }
+  return error.message;
 }

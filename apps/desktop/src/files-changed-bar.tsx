@@ -4,7 +4,6 @@
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { GitDiffSummary, HostResponse } from '@piwin/contracts';
-import { FileTypeIcon } from '@piwin/ui-kit';
 import type { ToolCardUi } from './chat-reducer';
 import {
   collectMessageChangedFiles,
@@ -13,7 +12,7 @@ import {
   type MessageChangedFile,
   type MessageChangedFileStat,
 } from './collect-message-changed-files';
-import { IconChevronDown, IconFile, IconFileDiff, IconMore } from './shell-icons';
+import { IconChevronDown, IconGit } from './shell-icons';
 import {
   formatDisplayPathParts,
   getRelativeFilePath,
@@ -50,6 +49,8 @@ function pruneGitDiffSummaryCache(now: number): void {
 }
 
 const DEFAULT_MAX_VISIBLE_ROWS = 5;
+/** Chips that do not fit wrap onto a clipped second line instead of squeezing. */
+const MAX_HEAD_CHIPS = 3;
 
 function requestGitDiffSummaryCached(
   request: FilesChangedBarRequest,
@@ -106,10 +107,6 @@ function formatCountLabel(count: number, isZh: boolean): string {
     return count === 1 ? '1 个文件已更改' : `${count} 个文件已更改`;
   }
   return count === 1 ? '1 File Changed' : `${count} files changed`;
-}
-
-export function FileExtBadge({ path }: { path: string }): ReactElement {
-  return <FileTypeIcon filePathOrExt={path} className="files-changed-bar-row-icon" />;
 }
 
 export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | null {
@@ -175,9 +172,14 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
       ? files.slice(0, DEFAULT_MAX_VISIBLE_ROWS)
       : files;
   const hiddenCount = files.length - visibleFiles.length;
+  const chipFiles = files.slice(0, MAX_HEAD_CHIPS);
 
   return (
-    <div className="fcb files-changed-bar" data-testid="files-changed-bar">
+    <div
+      className="fcb files-changed-bar"
+      data-expanded={expanded ? 'true' : 'false'}
+      data-testid="files-changed-bar"
+    >
       <div className="files-changed-bar-head">
         <button
           type="button"
@@ -186,27 +188,29 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
           aria-expanded={expanded}
           data-testid="files-changed-bar-toggle"
         >
-          <span className="files-changed-bar-summary">
-            <span className="files-changed-bar-count">{countLabel}</span>
-            {stats ? (
+          <IconGit className="i files-changed-bar-glyph" />
+          <span className="files-changed-bar-count">{countLabel}</span>
+          {stats ? (
+            <>
               <span className="files-changed-bar-stat pm" data-testid="files-changed-bar-stat">
-                <span className="add plus">+{stats.additions}</span>
-                <span className="del minus">-{stats.deletions}</span>
+                <span className="add plus">+{stats.additions}</span>{' '}
+                <span className="del minus">−{stats.deletions}</span>
               </span>
-            ) : null}
-            {files.slice(0, 4).map((file) => {
-              const parts = formatDisplayPathParts(file.path, props.projectPath);
-              return (
+              <DiffBlocks additions={stats.additions} deletions={stats.deletions} />
+            </>
+          ) : null}
+          {expanded ? null : (
+            <span className="files-changed-bar-chips">
+              {chipFiles.map((file) => (
                 <span key={file.path} className="pc files-changed-bar-chip" title={file.path}>
-                  <IconFile className="i s12 files-changed-bar-chip-icon" />
-                  {parts.fileName}
+                  {formatDisplayPathParts(file.path, props.projectPath).fileName}
                 </span>
-              );
-            })}
-            <IconChevronDown
-              className={expanded ? 'files-changed-bar-chevron open' : 'files-changed-bar-chevron'}
-            />
-          </span>
+              ))}
+            </span>
+          )}
+          <IconChevronDown
+            className={expanded ? 'files-changed-bar-chevron open' : 'files-changed-bar-chevron'}
+          />
         </button>
         {props.onReview ? (
           <button
@@ -215,8 +219,7 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
             onClick={props.onReview}
             data-testid="files-changed-bar-review"
           >
-            <IconFileDiff className="files-changed-bar-review-icon" />
-            <span>{reviewLabel}</span>
+            {reviewLabel} <span aria-hidden="true">↗</span>
           </button>
         ) : null}
       </div>
@@ -245,8 +248,7 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
               }}
               data-testid="files-changed-bar-more"
             >
-              <IconMore className="files-changed-bar-more-icon" />
-              <span>{isZh ? `展开剩余 ${hiddenCount} 个文件` : `Show ${hiddenCount} more`}</span>
+              {isZh ? `展开剩余 ${hiddenCount} 个文件` : `Show ${hiddenCount} more`}
             </li>
           ) : null}
         </ul>
@@ -255,6 +257,39 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
   );
 }
 
+const DIFF_BLOCK_COUNT = 5;
+
+/** GitHub-style diffstat: five squares split by the add/delete ratio. */
+function DiffBlocks(props: { additions: number; deletions: number }): ReactElement {
+  const total = props.additions + props.deletions;
+  let added = total === 0 ? 0 : Math.round((props.additions / total) * DIFF_BLOCK_COUNT);
+  if (props.additions > 0 && added === 0) added = 1;
+  if (props.deletions > 0 && added === DIFF_BLOCK_COUNT) added = DIFF_BLOCK_COUNT - 1;
+  const deleted = total === 0 ? 0 : DIFF_BLOCK_COUNT - added;
+  return (
+    <span className="files-changed-bar-blocks" aria-hidden="true">
+      {Array.from({ length: DIFF_BLOCK_COUNT }, (_, index) => (
+        <i
+          key={index}
+          className={index < added ? 'add' : index < added + deleted ? 'del' : undefined}
+        />
+      ))}
+    </span>
+  );
+}
+
+const MODIFIED_TAG = { letter: 'M', tone: 'mod' };
+const STATUS_TAGS: Record<string, { letter: string; tone: string }> = {
+  added: { letter: 'A', tone: 'add' },
+  untracked: { letter: 'A', tone: 'add' },
+  modified: MODIFIED_TAG,
+  typechange: { letter: 'M', tone: 'mod' },
+  deleted: { letter: 'D', tone: 'del' },
+  renamed: { letter: 'R', tone: 'ren' },
+  copied: { letter: 'C', tone: 'ren' },
+  conflicted: { letter: 'U', tone: 'del' },
+};
+
 function FilesChangedRow(props: {
   file: MessageChangedFile;
   projectPath?: string | null | undefined;
@@ -262,6 +297,8 @@ function FilesChangedRow(props: {
   onReview?: (() => void) | undefined;
 }): ReactElement {
   const parts = formatDisplayPathParts(props.file.path, props.projectPath);
+
+  const tag = STATUS_TAGS[props.stat?.status ?? 'modified'] ?? MODIFIED_TAG;
 
   return (
     <li
@@ -278,14 +315,17 @@ function FilesChangedRow(props: {
       }}
       data-testid="files-changed-bar-row"
     >
-      <FileExtBadge path={props.file.path} />
+      <span className={`files-changed-bar-row-tag ${tag.tone}`}>{tag.letter}</span>
       <span className="files-changed-bar-row-name">{parts.fileName}</span>
       {parts.dirPath ? <span className="files-changed-bar-row-dir">{parts.dirPath}</span> : null}
       {props.stat ? (
-        <span className="files-changed-bar-row-stat">
-          <span className="add">+{props.stat.additions}</span>
-          <span className="del">-{props.stat.deletions}</span>
+        <span className="files-changed-bar-row-stat pm">
+          <span className="add">+{props.stat.additions}</span>{' '}
+          <span className="del">−{props.stat.deletions}</span>
         </span>
+      ) : null}
+      {props.stat ? (
+        <DiffBlocks additions={props.stat.additions} deletions={props.stat.deletions} />
       ) : null}
     </li>
   );

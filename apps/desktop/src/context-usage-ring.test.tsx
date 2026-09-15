@@ -4,7 +4,13 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
-import { ContextUsageRing, type ContextUsageRingProps } from './context-usage-ring.js';
+import {
+  CACHE_EXPIRY_ESTIMATE_MS,
+  ContextUsageRing,
+  formatCacheCountdown,
+  getCacheExpiryEstimateSeconds,
+  type ContextUsageRingProps,
+} from './context-usage-ring.js';
 import {
   applyContextTelemetry,
   createInitialContextTelemetryState,
@@ -96,6 +102,24 @@ const eligibleSnapshot = makeContextSnapshot({
   },
 });
 
+describe('cache expiry estimate helpers', () => {
+  const now = Date.parse('2026-07-26T00:06:00.000Z');
+
+  it('returns 300s when the sample is now, then hides after the window', () => {
+    expect(getCacheExpiryEstimateSeconds('2026-07-26T00:06:00.000Z', now)).toBe(300);
+    expect(getCacheExpiryEstimateSeconds('2026-07-26T00:01:00.000Z', now)).toBeUndefined();
+    expect(getCacheExpiryEstimateSeconds(undefined, now)).toBeUndefined();
+    expect(getCacheExpiryEstimateSeconds('not-a-date', now)).toBeUndefined();
+    expect(getCacheExpiryEstimateSeconds('2026-07-26T00:10:00.000Z', now)).toBe(300);
+  });
+
+  it('formats M:SS', () => {
+    expect(formatCacheCountdown(300)).toBe('5:00');
+    expect(formatCacheCountdown(61)).toBe('1:01');
+    expect(formatCacheCountdown(5)).toBe('0:05');
+  });
+});
+
 describe('ContextUsageRing', () => {
   let container: HTMLElement;
   let root: Root;
@@ -117,6 +141,7 @@ describe('ContextUsageRing', () => {
       container.parentNode.removeChild(container);
     }
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+    vi.useRealTimers();
   });
 
   it('T01: does not render when the selector hides empty/waiting states', () => {
@@ -316,22 +341,108 @@ describe('ContextUsageRing', () => {
     expect(queryPopover()?.textContent).not.toContain('128K');
   });
 
-  it('T25: never shows a cache countdown or higher-cost copy', () => {
+  it('T25: shows a 5-min cache estimate and never invents higher-cost copy', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-07-26T00:06:00.000Z'));
-    render({ view: capableView(eligibleSnapshot) }, root);
+    const now = '2026-07-26T00:06:00.000Z';
+    vi.setSystemTime(new Date(now));
+    const view = capableView(
+      makeContextSnapshot({
+        sessionId: 'session-test',
+        phase: 'idle',
+        occupancy: makeKnownOccupancy({
+          tokensUsed: 40_000,
+          tokensLimit: 200_000,
+          quality: 'measured',
+          sampledAt: now,
+        }),
+        updatedAt: now,
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      }),
+    );
+    render({ view }, root);
     act(() => {
       queryTrigger().focus();
     });
+    expect(document.querySelector('[data-testid="context-usage-cache-estimate"]')?.textContent).toBe(
+      'Cache estimate · expires in 5:00',
+    );
     activateTrigger();
-    const text = `${queryPopover()?.textContent ?? ''}${
-      document.querySelector('[data-testid="context-usage-hover-tooltip"]')?.textContent ?? ''
-    }`;
-    expect(text).not.toContain('expires in');
-    expect(text).not.toContain('Cache estimate');
+    const text = queryPopover()?.textContent ?? '';
+    expect(text).toContain('Cache estimate · expires in 5:00');
     expect(text).not.toContain('Higher cost');
     expect(text).not.toContain('Prompt cache');
-    vi.useRealTimers();
+  });
+
+  it('ticks the cache estimate down and hides it after the 5-min window', () => {
+    vi.useFakeTimers();
+    const now = '2026-07-26T00:06:00.000Z';
+    vi.setSystemTime(new Date(now));
+    const view = capableView(
+      makeContextSnapshot({
+        sessionId: 'session-test',
+        phase: 'idle',
+        occupancy: makeKnownOccupancy({
+          tokensUsed: 40_000,
+          tokensLimit: 200_000,
+          quality: 'measured',
+          sampledAt: now,
+        }),
+        updatedAt: now,
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      }),
+    );
+    render({ view }, root);
+    activateTrigger();
+    expect(queryPopover()?.textContent).toContain('expires in 5:00');
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(queryPopover()?.textContent).toContain('expires in 4:59');
+    act(() => {
+      vi.advanceTimersByTime(CACHE_EXPIRY_ESTIMATE_MS);
+    });
+    expect(queryPopover()?.textContent).not.toContain('expires in');
+  });
+
+  it('renders the zh-CN cache estimate on hover', () => {
+    vi.useFakeTimers();
+    const now = '2026-07-26T00:06:00.000Z';
+    vi.setSystemTime(new Date(now));
+    render(
+      {
+        view: capableView(
+          makeContextSnapshot({
+            sessionId: 'session-test',
+            phase: 'idle',
+            occupancy: makeKnownOccupancy({
+              tokensUsed: 40_000,
+              tokensLimit: 200_000,
+              quality: 'measured',
+              sampledAt: now,
+            }),
+            updatedAt: now,
+            responseEvidence: {
+              currentRunHasResponse: false,
+              historyHasDisplayableResponse: true,
+            },
+          }),
+          { locale: 'zh-CN' },
+        ),
+      },
+      root,
+    );
+    act(() => {
+      queryTrigger().focus();
+    });
+    expect(document.querySelector('[data-testid="context-usage-cache-estimate"]')?.textContent).toBe(
+      '缓存预估 · 5:00 后过期',
+    );
   });
 
   it('T26: does not invent category rows from percentages', () => {

@@ -246,7 +246,9 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
         if (item.kind === 'batch') {
           return (
             <ToolBatchCapsule
-              key={`batch-${item.clusterKind}-${index}-${item.tools[0]?.toolCallId}`}
+              // Anchor on the first call id, not the list index: a reclassified
+              // earlier row must not remount (and re-collapse) later capsules.
+              key={`batch-${item.tools[0]?.toolCallId ?? index}`}
               clusterKind={item.clusterKind}
               tools={item.tools}
               summary={item.summary}

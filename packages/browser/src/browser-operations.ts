@@ -4,11 +4,11 @@
  */
 import { existsSync, statSync } from 'node:fs';
 import type { Page } from 'playwright-core';
-import type { BrowserInputEvent, BrowserSnapshotNode, WebElementPickResult } from '@piwin/contracts';
+import type { BrowserInputEvent, BrowserSnapshotNode, BrowserViewportMode, WebElementPickResult } from '@piwin/contracts';
 import { parseAriaSnapshot } from './snapshot.js';
 import { pickElementAt } from './pick.js';
 import { dispatchBrowserInput } from './input.js';
-import { clampBrowserViewport } from './viewport.js';
+import { clampBrowserViewport, resolveBrowserViewport } from './viewport.js';
 import { BROWSER_SCREENSHOT_QUALITY } from './screencast-size.js';
 import {
   AbortOperationError,
@@ -156,7 +156,7 @@ export type BrowserOperations = {
   queryViewport(): { width: number; height: number } | undefined;
   pickElementAt(x: number, y: number, screenshotPath?: string): Promise<WebElementPickResult>;
   dispatchEvents(events: BrowserInputEvent[], signal?: AbortSignal): Promise<void>;
-  setViewport(size: { width: number; height: number }): Promise<{ width: number; height: number }>;
+  setViewport(size: { width: number; height: number }, mode?: BrowserViewportMode): Promise<{ width: number; height: number }>;
 };
 
 /** Enter/Tab/Escape, named keys, chords like Control+l. Rejects empty/whitespace. */
@@ -497,8 +497,15 @@ export function createBrowserOperations(deps: BrowserOperationsDeps): BrowserOpe
       }
     },
 
-    setViewport: async (size) => {
-      const next = clampBrowserViewport(size.width, size.height, maxDimension);
+    setViewport: async (size, mode) => {
+      const next =
+        mode === 'follow'
+          ? resolveBrowserViewport({
+              mode: 'follow',
+              panelWidth: size.width,
+              panelHeight: size.height,
+            })
+          : clampBrowserViewport(size.width, size.height, maxDimension);
       if (!next) {
         return { width: 0, height: 0 };
       }

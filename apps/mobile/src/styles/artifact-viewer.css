@@ -4,8 +4,8 @@
   margin: 10px 0 10px 0;
   border-radius: var(--radius-md);
   background: var(--surface-3);
-  border: 1px solid var(--line-2);
-  box-shadow: var(--elev-1);
+  border: 1px solid transparent;
+  box-shadow: none;
   overflow: hidden;
 }
 

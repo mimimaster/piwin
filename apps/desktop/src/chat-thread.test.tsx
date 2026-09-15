@@ -2424,9 +2424,11 @@ describe('ChatThread render isolation (E1)', () => {
 
     act(() => renderThread('run-thinking-timer', null));
     let summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');
-    expect(summary?.textContent).toContain('正在运行');
-    expect(summary?.textContent).not.toContain('已思考');
-    expect(summary?.querySelector('.lamp')).not.toBeNull();
+    // Live tool state lives on the chain; the header stays the frozen thought.
+    expect(summary?.textContent).toContain('思考过程');
+    expect(summary?.textContent).not.toContain('正在运行');
+    expect(summary?.querySelector('.lamp')).toBeNull();
+    expect(summary?.querySelector('[data-testid="work-fold-elapsed"]')?.textContent).toBe('4s');
 
     act(() => renderThread(null, 1_707_000));
     summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');

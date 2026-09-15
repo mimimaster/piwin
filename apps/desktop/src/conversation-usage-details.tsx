@@ -14,6 +14,7 @@ import {
 export type ConversationUsageDetailsProps = {
   view: ContextRingViewModel;
   locale?: ConversationUsageLocale;
+  cacheEstimate?: string;
 };
 
 export type ContextUsageTone = 'ok' | 'warn' | 'critical';
@@ -180,6 +181,11 @@ export function ConversationUsageDetails(
               {limitNote}
             </span>
           ) : null}
+        </p>
+      ) : null}
+      {props.cacheEstimate ? (
+        <p className="context-usage-note" data-testid="context-usage-cache-estimate">
+          {props.cacheEstimate}
         </p>
       ) : null}
       {view.exceedsLimit ? (

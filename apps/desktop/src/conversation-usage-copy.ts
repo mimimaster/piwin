@@ -41,6 +41,8 @@ export type ContextUsageCopy = {
   accessibleLabel: (used: string, limit: string, percent: string | undefined) => string;
   hover: (used: string, limit: string, percent: string | undefined) => string;
   percentFull: (percent: number) => string;
+  /** Client-side 5-min estimate; not a provider TTL. */
+  cacheEstimate: (countdown: string) => string;
 };
 
 const COPY: Record<ConversationUsageLocale, ContextUsageCopy> = {
@@ -77,6 +79,7 @@ const COPY: Record<ConversationUsageLocale, ContextUsageCopy> = {
     hover: (used, limit, percent) =>
       percent ? `${percent}（${used} / ${limit}）上下文已占用` : `${used} / ${limit} 上下文已占用`,
     percentFull: (percent) => `${percent}% 已占用`,
+    cacheEstimate: (countdown) => `缓存预估 · ${countdown} 后过期`,
   },
   en: {
     title: 'Context usage',
@@ -111,6 +114,7 @@ const COPY: Record<ConversationUsageLocale, ContextUsageCopy> = {
         ? `${percent} (${used} / ${limit}) context used`
         : `${used} / ${limit} context used`,
     percentFull: (percent) => `${percent}% full`,
+    cacheEstimate: (countdown) => `Cache estimate · expires in ${countdown}`,
   },
 };
 
@@ -328,6 +332,7 @@ export function contextUsageCopyHasMixedEnglish(locale: ConversationUsageLocale)
     copy.total,
     copy.duration,
     copy.percentFull(12),
+    copy.cacheEstimate('4:32'),
   ];
   return samples.some((sample) => LATIN_IN_ZH.test(sample));
 }

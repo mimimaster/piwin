@@ -179,9 +179,10 @@ describe('orphan streaming chrome', () => {
         artifactPreviewEnabled={false}
       />,
     );
-    expect(
-      container.querySelector('[data-testid="conversation-thinking-active-animation"]'),
-    ).not.toBeNull();
+    expect(container.querySelector('.work-fold-brain')).not.toBeNull();
+    expect(container.querySelector('[data-testid="conversation-thinking-wrapper"]')?.className).toContain(
+      'is-open',
+    );
   });
 
   it('does not paint a query locator under a live call chain after a follow-up', () => {

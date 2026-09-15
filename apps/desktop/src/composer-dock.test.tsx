@@ -1762,6 +1762,28 @@ describe('ComposerDock host status', () => {
     expect(onAgentModeChange).toHaveBeenCalledWith('agent');
   });
 
+  it('shows the Claude extra-usage bar only for subscription models', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        selectedModelKey="anthropic::claude-sonnet-4-6"
+        modelOptions={[
+          {
+            providerId: 'anthropic',
+            modelId: 'claude-sonnet-4-6',
+            label: '套餐 / Claude Sonnet',
+            source: 'subscription',
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    expect(container.querySelector('[data-testid="composer-billing-notice"]')?.textContent).toMatch(
+      /extra usage/i,
+    );
+  });
+
   it('renders Inkstone .slab card structure', () => {
     const rendered = renderDock(<ComposerDock {...baseProps} />);
     root = rendered.root;

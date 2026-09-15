@@ -8,6 +8,9 @@ import {
   formatDurationSeconds,
   formatTokensK,
   formatTurnClock,
+  formatTurnExactStamp,
+  formatTurnRelativeAge,
+  hasTurnByline,
   resolveTurnMarginalia,
   shortModelLabel,
 } from './chat-turn-marginalia';
@@ -43,7 +46,25 @@ describe('chat-turn-marginalia', () => {
     expect(formatTurnClock('invalid')).toBe('');
   });
 
-  it('resolves user turn marginalia with "你"', () => {
+  it('formats abbreviated relative age with the number stuck to the unit', () => {
+    const now = Date.parse('2026-09-14T17:10:00.000Z');
+    expect(formatTurnRelativeAge('2026-09-14T17:09:30.000Z', now)).toBe('just now');
+    expect(formatTurnRelativeAge('2026-09-14T17:09:00.000Z', now)).toBe('1min ago');
+    expect(formatTurnRelativeAge('2026-09-14T16:25:00.000Z', now)).toBe('45min ago');
+    expect(formatTurnRelativeAge('2026-09-14T16:10:00.000Z', now)).toBe('1h ago');
+    expect(formatTurnRelativeAge('2026-09-14T15:10:00.000Z', now)).toBe('2h ago');
+    expect(formatTurnRelativeAge('2026-09-13T17:10:00.000Z', now)).toBe('1d ago');
+    expect(formatTurnRelativeAge('invalid', now)).toBe('');
+  });
+
+  it('formats an exact stamp for the user-card age title', () => {
+    const exact = formatTurnExactStamp('2026-09-14T16:10:00.000Z', 'zh-CN');
+    expect(exact.length).toBeGreaterThan(0);
+    expect(exact).toMatch(/2026/);
+    expect(formatTurnExactStamp('', 'zh-CN')).toBe('');
+  });
+
+  it('drops the user "你" byline from rail and inline data', () => {
     const userMsg: ChatMessageUi = {
       id: 'msg-1',
       role: 'user',
@@ -55,12 +76,13 @@ describe('chat-turn-marginalia', () => {
       attachments: [],
     };
     const data = resolveTurnMarginalia([userMsg]);
-    expect(data.who).toBe('你');
+    expect(data.who).toBe('');
     expect(data.avatar).toBeNull();
     expect(data.usage).toBeNull();
+    expect(hasTurnByline(data)).toBe(false);
   });
 
-  it('resolves user turn marginalia with "编辑中" when editing', () => {
+  it('keeps edit/intervention usage on the user byline without "你"', () => {
     const userMsg: ChatMessageUi = {
       id: 'msg-1',
       role: 'user',
@@ -72,11 +94,12 @@ describe('chat-turn-marginalia', () => {
       attachments: [],
     };
     const dataZh = resolveTurnMarginalia([userMsg], { editingMessageId: 'msg-1', locale: 'zh-CN' });
-    expect(dataZh.who).toBe('你');
+    expect(dataZh.who).toBe('');
     expect(dataZh.usage).toBe('编辑中');
+    expect(hasTurnByline(dataZh)).toBe(true);
 
     const dataEn = resolveTurnMarginalia([userMsg], { editingMessageId: 'msg-1', locale: 'en' });
-    expect(dataEn.who).toBe('You');
+    expect(dataEn.who).toBe('');
     expect(dataEn.usage).toBe('Editing');
   });
 
@@ -134,6 +157,58 @@ describe('chat-turn-marginalia', () => {
       { themeId: 'piwin-deck-dark' },
     );
     expect(dataUnknown.avatar).toBe('智');
+  });
+
+  it('keeps assistant turn marginalia clean in conversation session (no usage/duration; rail age only)', () => {
+    const asstMsg: ChatMessageUi = {
+      id: 'msg-grok',
+      role: 'assistant',
+      text: 'reply',
+      thinking: 'reasoning content',
+      thinkingStartedAt: 1000,
+      thinkingEndedAt: 3000,
+      tools: [],
+      status: 'done',
+      createdAt: '2026-09-05T14:03:00.000Z',
+      attachments: [],
+      model: { providerId: 'xai', modelId: 'grok-4.6' },
+    };
+    const nowMs = Date.parse('2026-09-05T16:03:00.000Z');
+    const data = resolveTurnMarginalia([asstMsg], { isConversationSession: true, nowMs });
+    expect(data.who).toBe('Grok 4.6');
+    expect(data.avatar).toBe('G');
+    expect(data.clock).toBe('2h ago');
+    expect(data.clockExact).toMatch(/2026/);
+    expect(data.usage).toBeNull();
+  });
+
+  it('keeps age off the user rail and on the assistant rail', () => {
+    const userMsg: ChatMessageUi = {
+      id: 'msg-1',
+      role: 'user',
+      text: 'hello',
+      thinking: '',
+      tools: [],
+      status: 'done',
+      createdAt: '2026-09-05T14:02:00.000Z',
+      attachments: [],
+    };
+    const asstMsg: ChatMessageUi = {
+      id: 'msg-2',
+      role: 'assistant',
+      text: 'reply',
+      thinking: '',
+      tools: [],
+      status: 'done',
+      createdAt: '2026-09-05T14:03:00.000Z',
+      attachments: [],
+      model: { providerId: 'xai', modelId: 'grok-4.5' },
+    };
+    const nowMs = Date.parse('2026-09-05T15:03:00.000Z');
+    expect(resolveTurnMarginalia([userMsg], { nowMs }).clock).toBe('');
+    expect(resolveTurnMarginalia([userMsg], { isConversationSession: true, nowMs }).clock).toBe('');
+    expect(resolveTurnMarginalia([asstMsg], { nowMs }).clock).toBe('1h ago');
+    expect(resolveTurnMarginalia([asstMsg], { isConversationSession: true, nowMs }).clock).toBe('1h ago');
   });
 
   it('builds colophon meta as tokens-only — never repeats the model label', () => {
@@ -200,5 +275,65 @@ describe('chat-turn-marginalia', () => {
     expect(headHtml).toContain('turn-model-icon');
     expect(headHtml).toContain('data-provider-brand="Grok"');
     expect(headHtml).toContain('has-model-icon');
+    // Byline marks are bare glyphs, not the filled brand chip.
+    expect(marginaliaHtml).toContain('is-glyph');
+    expect(headHtml).toContain('is-glyph');
+  });
+
+  it('tags the byline with the live run tone only while a status is shown', () => {
+    const msg: ChatMessageUi = {
+      id: 'msg-tone',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [],
+      status: 'streaming',
+      createdAt: '2026-09-05T14:03:00.000Z',
+      attachments: [],
+      model: { providerId: 'google', modelId: 'gemini-3-8-flash' },
+    };
+    const waiting = resolveTurnMarginalia([msg], {
+      isConversationSession: true,
+      status: '等待批准',
+      statusTone: 'waiting',
+    });
+    expect(waiting.statusTone).toBe('waiting');
+    expect(renderToStaticMarkup(createElement(ChatTurnMarginalia, { data: waiting }))).toContain(
+      'data-status-tone="waiting"',
+    );
+    expect(renderToStaticMarkup(createElement(ChatTurnHead, { data: waiting }))).toContain(
+      'data-status-tone="waiting"',
+    );
+
+    const idle = resolveTurnMarginalia([msg], { isConversationSession: true, statusTone: 'running' });
+    expect(idle.statusTone).toBeUndefined();
+    expect(renderToStaticMarkup(createElement(ChatTurnMarginalia, { data: idle }))).not.toContain(
+      'data-status-tone',
+    );
+  });
+
+  it('renders assistant age on the rail with an exact title, never on the cramped head', () => {
+    const grokMsg: ChatMessageUi = {
+      id: 'msg-grok',
+      role: 'assistant',
+      text: 'hello from grok',
+      thinking: '',
+      tools: [],
+      status: 'done',
+      createdAt: '2026-09-05T14:03:00.000Z',
+      attachments: [],
+      model: { providerId: 'xai', modelId: 'grok-4.5' },
+    };
+    const data = resolveTurnMarginalia([grokMsg], { nowMs: Date.parse('2026-09-05T15:03:00.000Z') });
+    expect(data.clock).toBe('1h ago');
+
+    const marginaliaHtml = renderToStaticMarkup(createElement(ChatTurnMarginalia, { data }));
+    expect(marginaliaHtml).toContain('turn-clock');
+    expect(marginaliaHtml).toContain('1h ago');
+    expect(marginaliaHtml).toContain(`title="${data.clockExact}"`);
+
+    const headHtml = renderToStaticMarkup(createElement(ChatTurnHead, { data }));
+    expect(headHtml).not.toContain('turn-clock');
+    expect(headHtml).not.toContain('ago');
   });
 });

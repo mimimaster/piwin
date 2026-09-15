@@ -1,7 +1,7 @@
-import { useLayoutEffect, useRef, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import type { ContextSummaryPush } from '@piwin/contracts';
 import { IconChevronDown } from './shell-icons';
-import { requestTranscriptTurnMeasure } from './transcript-turn-measure.js';
+import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 
 export function resolveAssemblySummaryForUserMessage(input: {
   messageId: string;
@@ -75,15 +75,8 @@ export function AssemblySummaryCapsule(props: {
   locale: 'zh-CN' | 'en';
 }): ReactElement {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const foldMeasure = useTranscriptLocalFoldMeasure(open);
   const zh = props.locale === 'zh-CN';
-
-  // Local expand is invisible to turnsStructureKey; force the virtualizer to
-  // re-read this turn body so overflow:hidden on the slot cannot clip the panel.
-  useLayoutEffect(() => {
-    const turnBody = rootRef.current?.closest('.transcript-turn-window-item-body');
-    requestTranscriptTurnMeasure(turnBody instanceof HTMLElement ? turnBody : null);
-  }, [open]);
 
   if (props.summary === undefined) {
     return (
@@ -121,7 +114,7 @@ export function AssemblySummaryCapsule(props: {
 
   return (
     <div
-      ref={rootRef}
+      ref={foldMeasure.setRoot}
       className={`fw assembly-summary${open ? ' open' : ''}`}
       data-testid="assembly-summary-capsule"
     >
@@ -131,7 +124,10 @@ export function AssemblySummaryCapsule(props: {
         data-fold=""
         data-testid="assembly-summary-toggle"
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          foldMeasure.onUserToggle();
+          setOpen((current) => !current);
+        }}
       >
         <i aria-hidden="true" />
         <span>{title}</span>

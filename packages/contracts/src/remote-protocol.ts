@@ -308,7 +308,13 @@ export type RemoteSessionSummary = {
   lastPreview?: string;
   pinned?: boolean;
   archived?: boolean;
+  /** Knowledge bases mounted on this session; omitted when none are mounted. */
+  knowledgeBaseIds?: string[];
   parentSessionId?: string;
+  subagentStatus?: 'running' | 'done' | 'failed' | 'cancelled';
+  task?: string;
+  subagentRole?: string;
+  subagentModel?: ModelRef;
   /** Remote-safe storage residency. Host pack paths are never included. */
   storage?: import('./session-storage.js').RemoteSessionStorageInfo;
 };

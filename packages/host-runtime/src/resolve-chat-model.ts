@@ -3,6 +3,7 @@ import {
   isModelEnabled,
   isSubscriptionProvider,
   isV1SubscriptionProviderId,
+  isSubscriptionOauthProviderId,
   modelSupportsCapability,
   type ModelRef,
   type SubscriptionAccount,
@@ -77,7 +78,7 @@ function resolveSubscription(
   config: { providers: readonly import('@piwin/contracts').ModelProviderConfig[] },
   accounts: ResolveChatModelAccounts,
 ): ResolvedChatModel | undefined {
-  if (!isV1SubscriptionProviderId(ref.providerId)) {
+  if (!isSubscriptionOauthProviderId(ref.providerId)) {
     return undefined;
   }
   if (config.providers.some((provider) => provider.id === ref.providerId && isChannelProvider(provider))) {

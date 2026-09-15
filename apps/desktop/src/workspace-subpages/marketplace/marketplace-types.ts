@@ -1,5 +1,5 @@
 /**
- * Type definitions for the Pi Extension and Plugin Marketplace.
+ * Type definitions for the Pi Extension Marketplace.
  */
 import type {
   ExtensionCompatibilityTier,
@@ -7,7 +7,7 @@ import type {
   ExtensionSource,
 } from '@piwin/contracts';
 
-export type MarketTab = 'extensions' | 'plugins' | 'installed';
+export type MarketTab = 'extensions' | 'installed';
 
 export type MarketCategory = 'all' | 'bundled' | 'workflow' | 'tools' | 'guard';
 

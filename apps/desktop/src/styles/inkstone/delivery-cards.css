@@ -39,24 +39,317 @@ html[data-theme-id='piwin-inkstone-ink'] .diff-card {
   border: 0;
 }
 
-/* S5.14: Files changed bar (.fcb) */
-html[data-theme-id='piwin-inkstone-paper'] .fcb,
-html[data-theme-id='piwin-inkstone-ink'] .fcb,
-html[data-theme-id='piwin-inkstone-paper'] .files-changed-bar,
-html[data-theme-id='piwin-inkstone-ink'] .files-changed-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 4px 10px;
+/* S5.14: Files changed bar (.fcb)
+   A slip filed under the reply, drawn from the .dc-h header vocabulary:
+   git glyph, count, +/− with a five-square diffstat, up to two label chips
+   (.pc) and a +N tally, then the fold chevron and a ghost 审查 ↗ (.btn.sm).
+   Unfolded, files read as a ledger: status tag, name, faint dir, figures. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb {
+  display: block;
+  min-height: 0;
+  margin: 10px 0 2px;
+  padding: 0;
+  border: 0;
   border-radius: 8px;
   background: var(--s3);
   box-shadow: var(--sh1);
+  overflow: hidden;
+  container-type: inline-size;
   font-size: 12.5px;
   color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  min-height: 0;
+  padding: 0 6px 0 4px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  font: 12.5px var(--sans);
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-toggle:focus-visible {
+  outline: 1.5px solid var(--zhu);
+  outline-offset: -1.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--t3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-count {
+  flex: none;
+  color: var(--t1);
+  font-weight: 500;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-stat,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-stat {
+  display: inline;
+  flex: none;
+  font: 11.5px var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-stat .add,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-stat .add {
+  color: var(--pine);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-stat .del,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-stat .del {
+  color: var(--crimson);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-blocks {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-blocks i {
+  width: 7px;
+  height: 7px;
+  border-radius: 1.5px;
+  background: var(--l2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-blocks i.add {
+  background: var(--pine);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-blocks i.del {
+  background: var(--crimson);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-chips {
+  display: flex;
   flex-wrap: wrap;
-  margin-top: 6px;
-  border: 0;
+  align-content: flex-start;
+  align-items: center;
+  flex: 1 1 0;
+  gap: 6px;
+  min-width: 0;
+  height: 22px;
+  margin-left: 4px;
+  padding: 1px;
+  overflow: hidden;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-chip {
+  display: block;
+  flex: none;
+  max-width: min(30ch, 100%);
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--s2);
+  box-shadow: var(--sh1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11.5px/20px var(--mono);
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-chevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  color: var(--t4);
+  transition:
+    transform 0.24s ease-out,
+    color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-chevron.open {
+  transform: rotate(180deg);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-toggle:hover .files-changed-bar-chevron,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-toggle:hover .files-changed-bar-count {
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-review {
+  flex: none;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: transparent;
+  font: 11.5px var(--sans);
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-review:hover {
+  background: var(--s2);
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-list {
+  margin: 0;
+  padding: 4px;
+  gap: 0;
+  border-top: 1px solid var(--l1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row {
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-more:hover {
+  background: var(--s2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-tag {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--l1);
+  font: 600 11px/1 var(--mono);
+  color: var(--t3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-tag.add {
+  background: var(--pine-wash);
+  color: var(--pine);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-tag.del {
+  background: var(--crimson-wash);
+  color: var(--crimson);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-tag.ren {
+  background: var(--azure-wash);
+  color: var(--azure);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 12px var(--mono);
+  font-weight: 400;
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-dir {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 11px var(--mono);
+  color: var(--t4);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-stat {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 11px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row .files-changed-bar-blocks i {
+  width: 6px;
+  height: 6px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-more {
+  min-height: 26px;
+  padding: 0 8px 0 32px;
+  border-radius: 6px;
+  font: 11.5px var(--mono);
+  color: var(--t3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-more:hover {
+  color: var(--t1);
+}
+
+@container (max-width: 520px) {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-chips {
+  display: none;
+}
+
+}
+
+@container (max-width: 340px) {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-blocks,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-glyph {
+  display: none;
+}
+
 }
 
 /* S5.15: Walkthrough card (.card.wt) */
@@ -389,39 +682,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     box-shadow: var(--sh1);
     color: var(--t2);
   }
-}
-
-html[data-theme-id='piwin-inkstone-paper'] .fcb .pc,
-html[data-theme-id='piwin-inkstone-ink'] .fcb .pc,
-html[data-theme-id='piwin-inkstone-paper'] .files-changed-bar-chip,
-html[data-theme-id='piwin-inkstone-ink'] .files-changed-bar-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font: 12px var(--mono);
-  color: var(--t1);
-  background: var(--s3);
-  box-shadow: var(--sh1);
-  padding: 1px 6px;
-  border-radius: 3px;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-html[data-theme-id='piwin-inkstone-paper'] .fcb .pc:hover,
-html[data-theme-id='piwin-inkstone-ink'] .fcb .pc:hover,
-html[data-theme-id='piwin-inkstone-paper'] .files-changed-bar-chip:hover,
-html[data-theme-id='piwin-inkstone-ink'] .files-changed-bar-chip:hover {
-  background: var(--s4);
-}
-
-html[data-theme-id='piwin-inkstone-paper'] .fcb .pc .i,
-html[data-theme-id='piwin-inkstone-ink'] .fcb .pc .i,
-html[data-theme-id='piwin-inkstone-paper'] .fcb .pc svg,
-html[data-theme-id='piwin-inkstone-ink'] .fcb .pc svg,
-html[data-theme-id='piwin-inkstone-paper'] .files-changed-bar-chip-icon,
-html[data-theme-id='piwin-inkstone-ink'] .files-changed-bar-chip-icon {
-  color: var(--t3);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .walkthrough-card-footer,

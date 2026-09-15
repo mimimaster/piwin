@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { EphemeralProviderSecret, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 import {
   isChannelProvider,
+  isClaudeCodeOauthProviderId,
+  isSubscriptionOauthProviderId,
+  isSubscriptionProvider,
   isV1SubscriptionProviderId,
   modelSupportsCapability,
 } from '@piwin/contracts';
@@ -90,7 +93,7 @@ function selectProvidersForCompilation(
   );
   const providersById = new Map(enabledProviders.map((provider) => [provider.id, provider]));
   const missingProviderId = uniqueIds.find(
-    (providerId) => !providersById.has(providerId) && !isV1SubscriptionProviderId(providerId),
+    (providerId) => !providersById.has(providerId) && !isSubscriptionOauthProviderId(providerId),
   );
   if (missingProviderId) {
     throw new Error(`Configured provider is unavailable: ${missingProviderId}`);
@@ -185,22 +188,48 @@ export function oauthRuntimesForCompilation(
   const channelIds = new Set(
     config.providers.filter(isChannelProvider).map((provider) => provider.id),
   );
+  const configById = new Map(
+    config.providers.filter(isSubscriptionProvider).map((provider) => [provider.id, provider]),
+  );
   const usable =
     usableSubscriptionProviderIds === undefined
       ? undefined
       : new Set(usableSubscriptionProviderIds);
   return [...new Set(requiredProviderIds)]
     .filter((providerId) => {
-      if (!isV1SubscriptionProviderId(providerId) || channelIds.has(providerId)) {
+      if (!isSubscriptionOauthProviderId(providerId) || channelIds.has(providerId)) {
         return false;
       }
       return usable === undefined || usable.has(providerId);
     })
-    .map((providerId) => ({
-      providerId,
-      models: [],
-      auth: { kind: 'oauth' as const, providerId },
-    }));
+    .map((providerId) => {
+      const seeded = configById.get(providerId);
+      const models =
+        seeded?.models
+          .filter((model) => modelSupportsCapability(model, 'chat'))
+          .map((model) => ({
+            id: model.id,
+            ...(model.label ? { label: model.label } : {}),
+            ...(model.input ? { input: [...model.input] } : {}),
+            ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+            ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
+            ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+            ...(model.maxOutputTokens !== undefined
+              ? { maxOutputTokens: model.maxOutputTokens }
+              : {}),
+            ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
+          })) ?? [];
+      const runtime: SerializableProviderRuntime = {
+        providerId,
+        models,
+        auth: { kind: 'oauth' as const, providerId },
+      };
+      if (isClaudeCodeOauthProviderId(providerId)) {
+        runtime.protocol = 'anthropic-compatible';
+        runtime.baseUrl = seeded?.baseUrl?.trim() || 'https://api.anthropic.com';
+      }
+      return runtime;
+    });
 }
 
 function buildProviderRuntime(

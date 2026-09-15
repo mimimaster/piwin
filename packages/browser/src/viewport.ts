@@ -15,6 +15,9 @@ export const BROWSER_VIEWPORT_MIN_PX = 200;
 /** Follow-mode desktop floor. Not applied to fixed / mobile / custom. */
 export const BROWSER_FOLLOW_VIEWPORT_MIN_WIDTH = 1024;
 export const BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT = 640;
+/** Follow-mode CSS viewport ceiling. Independent of fixed-mode maxDimension. */
+export const BROWSER_FOLLOW_VIEWPORT_MAX_WIDTH = 1920;
+export const BROWSER_FOLLOW_VIEWPORT_MAX_HEIGHT = 1200;
 
 export type BrowserViewportSize = { width: number; height: number };
 
@@ -99,7 +102,7 @@ function resolveFixedViewport(
 function resolveFollowViewport(
   panelWidth: number | undefined,
   panelHeight: number | undefined,
-  maxDimension: number,
+  _maxDimension: number,
 ): BrowserViewportSize | null {
   if (
     panelWidth === undefined ||
@@ -122,7 +125,25 @@ function resolveFollowViewport(
   );
   width *= upScale;
   height *= upScale;
-  return fitWithinMaxDimension(width, height, maxDimension);
+  return fitWithinRectangle(
+    width,
+    height,
+    BROWSER_FOLLOW_VIEWPORT_MAX_WIDTH,
+    BROWSER_FOLLOW_VIEWPORT_MAX_HEIGHT,
+  );
+}
+
+function fitWithinRectangle(
+  width: number,
+  height: number,
+  maxWidth: number,
+  maxHeight: number,
+): BrowserViewportSize {
+  const scale = Math.min(1, maxWidth / width, maxHeight / height);
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
 }
 
 function fitExplicitSize(

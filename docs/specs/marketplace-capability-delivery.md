@@ -243,6 +243,19 @@ export type MarketplaceInstalledListData = {
 | MCP | `mcp/registry-install-draft` 或编辑后 `mcp/save` → `mcp/start` → `mcp/list_tools` | `mcp/status` + 统一库存 |
 | Plugin | `plugins/install` → 分组件查询 Skill/MCP 状态 | `plugins/list` + 统一库存 |
 
+Pi 生态实时搜索结果不是精选目录中的单一 Extension descriptor；一个 Pi package 可能同时包含 Extension、Skill 和 Prompt，并需要 npm 依赖或生命周期脚本。因此它使用专用的用户手势命令：
+
+```ts
+| {
+    type: 'marketplace/package-install';
+    source:
+      | { kind: 'npm'; packageName: string }
+      | { kind: 'git'; repositoryUrl: string };
+  }
+```
+
+Host 只接受合法 npm 包名或 `https://github.com/<owner>/<repo>`，通过 `@piwin/agent-host` 调用 Pi PackageManager 的 `installAndPersist`，不在 Desktop 执行 shell。未实测社区包在执行前必须展示 Host 用户权限和安装脚本风险；成功后有当前会话则调用 `extensions/apply`，没有当前会话则在新会话生效。该命令是明确的 Pi 原生包安装，不替代本地/Git 受管 Extension 的 `extensions/install`。
+
 这种分派只负责选择已有命令，不允许 Desktop 自己改配置或文件。
 
 从市场发起时，在现有 `extensions/install`、`skills/install`、`mcp/registry-install-draft`、`plugins/install` 增加可选 `catalogEntryId`。Host 校验该 entry 的类型、capability ID 和 install descriptor 与请求一致，安装成功后自行写 install link。高级本地、Git 或 JSON 安装不传该字段。

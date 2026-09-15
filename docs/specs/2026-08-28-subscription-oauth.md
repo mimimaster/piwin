@@ -572,7 +572,9 @@ Tokens yes. Cost column may be “—” for subscription rows. Remaining **subs
 | ChatGPT Codex | `GET https://chatgpt.com/backend-api/wham/usage` + `…/wham/rate-limit-reset-credits` | Bearer + `ChatGPT-Account-Id` | 5h / weekly `used_percent`, `additional_rate_limits[]` (nested `rate_limit.primary_window`), banked resets |
 | Codex reset | `POST …/wham/rate-limit-reset-credits/consume` `{ idempotency_key }` | same | Consumes the next available reset credit |
 | Grok / SuperGrok | `GET https://cli-chat-proxy.grok.com/v1/billing?format=credits` + `/v1/settings` | Bearer + `X-XAI-Token-Auth: xai-grok-cli` | `config.creditUsagePercent`, `productUsage` (GrokBuild / Imagine / Tasks), PAYG `onDemandCap.val`, plan from `subscription_tier_display`. Not `api.x.ai/v1/api-key`. |
-| Claude | `GET https://api.anthropic.com/api/oauth/usage` | Bearer + `anthropic-beta: oauth-2025-04-20` | `five_hour` / `seven_day` / scoped weekly `utilization`, extra usage |
+| Claude | `GET https://api.anthropic.com/api/oauth/usage` | Bearer + `anthropic-beta: oauth-2025-04-20` | `five_hour` / `seven_day` / scoped weekly `utilization` (official-client plan meters) + extra usage (this client) |
+
+Since 2026-04-04 Anthropic bills third-party OAuth (Pi / piwin) from **extra usage**, not Pro/Max plan limits. Official clients remain Claude.ai / Claude Code / Cowork. Product surfaces this from `getSubscriptionBillingNotice('anthropic')`: login-finished toast, quota drawer caption + Extra usage card, composer compact bar when a Claude **subscription** model is selected, CLI `auth status` / `auth login`, and rewritten `400` extra-usage errors (`provider-quota`). The OAuth account card keeps the extra-usage tagline only — no inline warning banner. Do not hide the 5h/weekly meters — they are still the official-client pool — but never imply piwin consumes them.
 | GitHub Copilot | `GET https://api.github.com/copilot_internal/user` | GitHub OAuth Bearer | `quota_snapshots` remaining % + plan |
 | Kimi Code | `GET https://api.kimi.com/coding/v1/usages` (fallback `.ai`) | Bearer | weekly `usage.limit/used/remaining` + 5h `limits[]` (`duration: 300 TIME_UNIT_MINUTE`) |
 

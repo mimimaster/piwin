@@ -2,11 +2,12 @@
 .mobile-markdown-root {
   font-size: 15px;
   line-height: 1.6;
-  color: var(--text);
+  color: var(--t1, var(--text));
 }
 
 .mobile-markdown-root p {
   margin: 0 0 10px;
+  color: inherit;
 }
 
 .mobile-markdown-root p:last-child {
@@ -69,7 +70,76 @@
   color: var(--accent);
 }
 
-/* ── Code Block Card with Mac-like header ── */
+/* ── Artifact Inline Preview (Desktop parity: transparent border) ── */
+.mobile-artifact-inline-preview {
+  position: relative;
+  margin: 12px 0;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.mobile-artifact-inline-preview .mobile-svg-preview-stage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  min-height: 180px;
+  max-height: 440px;
+  overflow: auto;
+}
+
+.mobile-artifact-inline-preview .mobile-svg-preview-stage svg {
+  max-width: 100%;
+  max-height: 380px;
+  height: auto;
+  border-radius: var(--radius-sm, 6px);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.12));
+}
+
+.mobile-artifact-floating-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(30, 32, 38, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  opacity: 0.88;
+  pointer-events: auto;
+}
+
+.mobile-artifact-action-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 0;
+  color: #c9d1d9;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--motion-quick) var(--motion-ease);
+}
+
+.mobile-artifact-action-btn:active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+/* ── Code Block Card (Syntax & Fallback) ── */
 .mobile-code-block-card {
   margin: 12px 0;
   border-radius: var(--radius-control);
@@ -88,29 +158,18 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.mobile-code-window-dots {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.mobile-code-window-dots .dot {
-  width: 7px;
-  height: 7px;
-  border-radius: var(--radius-full);
-}
-
-.mobile-code-window-dots .dot.red { background: #ff5f56; }
-.mobile-code-window-dots .dot.yellow { background: #ffbd2e; }
-.mobile-code-window-dots .dot.green { background: #27c93f; }
-
 .mobile-code-block-lang {
   font-size: 11px;
   font-weight: 600;
   color: #8b949e;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-left: 4px;
+}
+
+.mobile-code-block-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .mobile-code-copy-button {
@@ -133,12 +192,25 @@
 .mobile-code-pre {
   margin: 0;
   padding: 12px 14px;
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 380px;
   font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.55;
   -webkit-overflow-scrolling: touch;
   color: #e6edf3;
+  background: #0d1117;
+}
+
+.mobile-code-pre code,
+.mobile-code-pre span {
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  color: #e6edf3 !important;
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .mobile-table-wrapper {

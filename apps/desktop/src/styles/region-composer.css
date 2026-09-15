@@ -12,21 +12,23 @@
 /* ─── Dock ──────────────────────────────────────────────────────────── */
 
 .composer-dock {
-  /* Positioned at stage bottom; upward popovers (slash, thinking) open above. */
+  /* Slab = thinking/prose column only. Do not add --gut here: leftover
+     rails grow when the stage is stretched, and the bar would grow with
+     them. Center the same --conversation-width the turn measure uses. */
   position: relative;
   z-index: 10;
   flex-shrink: 0;
+  align-self: center;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  /* The transcript owns the responsive output-floor clearance above this card. */
-  padding: 0 var(--chat-inline-pad) var(--s-6);
+  width: min(var(--conversation-width), calc(100% - 2 * var(--chat-inline-pad)));
+  max-width: var(--conversation-width);
+  margin-inline: auto;
+  padding: 0 0 var(--s-6);
   box-sizing: border-box;
   border: none;
-  /* Transparent so the stage ember wash reads behind the card while running. */
   background: transparent;
   box-shadow: none;
 }
@@ -37,10 +39,7 @@
 }
 
 .composer-dock.layout-centered {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0;
+  align-self: stretch;
   width: 100%;
   max-width: none;
   margin: 0;
@@ -77,18 +76,6 @@
   box-shadow: var(--elev-2);
 }
 
-/* This is the concrete conversation-width boundary. It intentionally matches
-   .chat-thread, so Default equals the composer width and Narrow / Wide change
-   both visible surfaces together. */
-.composer-card-v2,
-.composer-footer-row,
-.composer-context-rail {
-  width: var(--chat-max);
-  max-width: 100%;
-  margin-right: auto;
-  margin-left: auto;
-}
-
 .composer-footer-row {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -116,9 +103,8 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: var(--chat-max);
+  width: 100%;
   max-width: 100%;
-  margin: 0 auto;
   border: 0;
   border-radius: var(--r-panel);
   /* `--slab` defaults to `--surface-3` (see apply-appearance.ts) so this is a
@@ -192,7 +178,7 @@
 
 /* Empty session: a single focused prompt card, without landing-page chrome. */
 .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
-  width: var(--chat-max);
+  width: 100%;
   border-radius: var(--r-overlay);
   box-shadow: var(--elev-4);
 }

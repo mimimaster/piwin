@@ -8,6 +8,10 @@ import {
   isIgnoredSubscriptionProviderId,
   isSubscriptionProvider,
   isV1SubscriptionProviderId,
+  isSubscriptionOauthProviderId,
+  isClaudeCodeOauthProviderId,
+  piOauthLoginProviderId,
+  CLAUDE_CODE_OAUTH_PROVIDER_ID,
 } from './subscription-oauth.js';
 
 describe('subscription oauth contracts', () => {
@@ -18,6 +22,11 @@ describe('subscription oauth contracts', () => {
     expect(isV1SubscriptionProviderId('xai')).toBe(true);
     expect(isV1SubscriptionProviderId('github-copilot')).toBe(true);
     expect(isV1SubscriptionProviderId('openrouter')).toBe(false);
+    expect(isV1SubscriptionProviderId(CLAUDE_CODE_OAUTH_PROVIDER_ID)).toBe(false);
+    expect(isSubscriptionOauthProviderId(CLAUDE_CODE_OAUTH_PROVIDER_ID)).toBe(true);
+    expect(isClaudeCodeOauthProviderId(CLAUDE_CODE_OAUTH_PROVIDER_ID)).toBe(true);
+    expect(piOauthLoginProviderId(CLAUDE_CODE_OAUTH_PROVIDER_ID)).toBe('anthropic');
+    expect(piOauthLoginProviderId('anthropic')).toBe('anthropic');
     expect(isV1SubscriptionProviderId('antigravity')).toBe(false);
     expect(isIgnoredSubscriptionProviderId('anthropic')).toBe(false);
     expect(isSubscriptionProvider({ source: 'subscription' })).toBe(true);

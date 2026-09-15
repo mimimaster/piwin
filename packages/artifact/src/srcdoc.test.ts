@@ -262,6 +262,25 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(session.messages.at(-1)).toMatchObject({ height: 240, revision: 1 });
   });
 
+  it('echoes the host document epoch on every later size report', () => {
+    const root = createMeasuredRoot(240);
+    const session = runBridgeSession(root);
+    expect(session.messages.at(-1)).not.toHaveProperty('epoch');
+
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE,
+      channelId: 'test-channel',
+      fallbackViewport: false,
+      force: true,
+      epoch: 7,
+    });
+    expect(session.messages.at(-1)).toMatchObject({ height: 240, epoch: 7 });
+
+    root.height = 360;
+    session.remeasure();
+    expect(session.messages.at(-1)).toMatchObject({ height: 360, epoch: 7 });
+  });
+
   it('switches flow to viewport: data-frame-mode, observer disconnect, one size', () => {
     const root = createMeasuredRoot(240);
     const session = runBridgeSession(root, { enableRenderCommand: true });

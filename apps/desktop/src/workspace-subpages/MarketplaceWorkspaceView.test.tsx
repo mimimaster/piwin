@@ -83,26 +83,22 @@ describe('MarketplaceWorkspaceView', () => {
     const webAccessCard = container.querySelector('[data-testid="market-ext-pi-web-access"]');
     expect(webAccessCard).not.toBeNull();
     expect(webAccessCard?.textContent).toContain('降级可用');
+    const degradedInstallButton = webAccessCard?.querySelector<HTMLButtonElement>(
+      '.market-card-actions button',
+    );
+    expect(degradedInstallButton?.disabled).toBe(false);
+    expect(degradedInstallButton?.textContent).toContain('降级安装');
   });
 
-  it('supports tab switching between extensions, plugins, and installed', () => {
+  it('supports tab switching between extensions and installed', () => {
     renderView();
 
     const tabs = container.querySelectorAll<HTMLButtonElement>('.market-tab-btn');
-    expect(tabs.length).toBe(3);
-
-    // Switch to plugins
-    const pluginsTab = tabs[1]!;
-    act(() => {
-      pluginsTab.click();
-    });
-
-    const pluginCard = container.querySelector('[data-testid="market-plugin-fullstack-web-suite"]');
-    expect(pluginCard).not.toBeNull();
-    expect(pluginCard?.textContent).toContain('Fullstack Web 专家插件包');
+    expect(tabs.length).toBe(2);
+    expect(Array.from(tabs).some((tab) => tab.textContent?.includes('插件'))).toBe(false);
 
     // Switch to installed
-    const installedTab = tabs[2]!;
+    const installedTab = tabs[1]!;
     act(() => {
       installedTab.click();
     });
@@ -145,9 +141,11 @@ describe('MarketplaceWorkspaceView', () => {
     expect(powerlineCard?.textContent).toContain('仅限终端 TUI');
 
     // Action button is disabled
-    const installBtn = powerlineCard?.querySelector('button');
+    const installBtn = powerlineCard?.querySelector<HTMLButtonElement>(
+      '.market-card-actions button',
+    );
     expect(installBtn?.disabled).toBe(true);
-    expect(installBtn?.textContent).toContain('不可安装');
+    expect(installBtn?.textContent).toContain('暂不支持');
   });
 
   it('searches the Pi npm catalog when the local list has no match', async () => {
@@ -180,7 +178,12 @@ describe('MarketplaceWorkspaceView', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <MarketplaceWorkspaceView locale="zh-CN" onClose={vi.fn()} request={request} />
+          <MarketplaceWorkspaceView
+            locale="zh-CN"
+            onClose={vi.fn()}
+            request={request}
+            sessionId="session-marketplace"
+          />
         </PiwinUiProvider>,
       );
     });
@@ -201,6 +204,46 @@ describe('MarketplaceWorkspaceView', () => {
     expect(card).not.toBeNull();
     expect(card?.textContent).toContain('pi install npm:pi-subagents');
     expect(container.querySelector('[data-testid="marketplace-empty"]')).toBeNull();
+
+    const installButton = card?.querySelector<HTMLButtonElement>(
+      '[data-testid="market-npm-pi-subagents-install"]',
+    );
+    expect(installButton?.textContent).toContain('安装');
+    act(() => {
+      installButton?.click();
+    });
+    const installDialog = document.body.querySelector(
+      '[data-testid="marketplace-package-install-dialog"]',
+    );
+    expect(installDialog?.textContent).toContain('未经 piwin 实测');
+    const confirmButton = installDialog?.querySelector<HTMLButtonElement>(
+      '.piwin-button--primary',
+    );
+    await act(async () => {
+      confirmButton?.click();
+      await flush();
+    });
+    expect(request).toHaveBeenCalledWith({
+      type: 'marketplace/package-install',
+      source: { kind: 'npm', packageName: 'pi-subagents' },
+    });
+    expect(request).toHaveBeenCalledWith({
+      type: 'extensions/apply',
+      sessionId: 'session-marketplace',
+      when: 'after-current-run',
+    });
+    expect(installButton?.textContent).toContain('已安装');
+
+    // Verify clicking interactive command bar triggers copy and shows immediate copied feedback
+    const cmdBar = card?.querySelector<HTMLButtonElement>('.market-cmd-bar');
+    expect(cmdBar).not.toBeNull();
+    expect(cmdBar?.classList.contains('is-copied')).toBe(false);
+    await act(async () => {
+      cmdBar?.click();
+      await flush();
+    });
+    expect(cmdBar?.classList.contains('is-copied')).toBe(true);
+    expect(card?.textContent).toContain('已复制');
   });
 
   it('renders theme-conforming EmptyState with seal, query badge, and suggestion chips when search yields no results', async () => {
@@ -265,4 +308,3 @@ describe('MarketplaceWorkspaceView', () => {
     expect(searchInput?.value).toBe('');
   });
 });
-

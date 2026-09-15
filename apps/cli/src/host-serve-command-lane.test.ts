@@ -23,6 +23,15 @@ describe('classifyHostServeCommand', () => {
     expect(classifyHostServeCommand(command)).toBe('serialized');
   });
 
+  it('serializes Pi package installation mutations', () => {
+    expect(
+      classifyHostServeCommand({
+        type: 'marketplace/package-install',
+        source: { kind: 'npm', packageName: 'pi-subagents' },
+      }),
+    ).toBe('serialized');
+  });
+
   it('classifies settings/get as concurrent', () => {
     const command: HostCommand = { type: 'settings/get' };
     expect(classifyHostServeCommand(command)).toBe('concurrent');

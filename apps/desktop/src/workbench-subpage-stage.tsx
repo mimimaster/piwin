@@ -30,6 +30,7 @@ export type WorkbenchSubpageStageProps = {
   requestFlashcards: (command: HostCommand, options?: HostRequestOptions) => Promise<HostResponse>;
   refreshToken?: number;
   projectPath?: string | null | undefined;
+  sessionId?: string | null | undefined;
   onConfigureEmbedding?: (() => void) | undefined;
   subscribePush?: (listener: (push: HostPush) => void) => () => void;
   subscribeKnowledgePush?: (listener: (push: HostPush) => void) => () => void;
@@ -89,6 +90,7 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         locale={props.locale === 'en' ? 'en' : 'zh-CN'}
         onClose={props.onClose}
         request={props.request}
+        studyRequest={props.requestFlashcards}
         initialTab={initialTab}
         initialFolderPath={props.flashcardsFolderPath}
         projectPath={props.projectPath}
@@ -114,6 +116,7 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         onClose={props.onClose}
         request={props.request}
         projectPath={props.projectPath}
+        sessionId={props.sessionId}
       />
     );
   }
