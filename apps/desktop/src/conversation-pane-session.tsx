@@ -14,6 +14,7 @@ import {
   type ModelRef,
   type SessionResumeData,
   type SessionScope,
+  type PromptAttachment,
   type SessionTranscriptMessage,
   type ThinkingLevel,
   type ThemeManifest,
@@ -42,6 +43,7 @@ import type { MediaPreviewReader } from './transcript-media-preview.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
 import { useSessionComposerProfile } from './hooks/use-session-composer-profile.js';
+import { attachmentsFromFiles } from './pane-composer-attachments.js';
 
 type PaneResumeData = Omit<SessionResumeData, 'scope'> & {
   scope?: SessionScope | 'general' | 'project' | 'unknown';
@@ -105,6 +107,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
   const stateRef = useRef(state);
   stateRef.current = state;
   const [composer, setComposer] = useState('');
+  const [attachments, setAttachments] = useState<PromptAttachment[]>([]);
   const [resumeModel, setResumeModel] = useState<ModelRef | null>(null);
   const [resumeThinkingLevel, setResumeThinkingLevel] = useState<ThinkingLevel | undefined>(
     undefined,
@@ -340,9 +343,23 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     };
   }, [hydrateForegroundRun, props.hostClient, props.sessionId]);
 
+  async function handleAttach(files: File[], source: 'paste' | 'drop' | 'file-picker'): Promise<void> {
+    try {
+      const saved = await attachmentsFromFiles({
+        files,
+        source,
+        sessionId: props.sessionId,
+        request: (command) => props.hostClient.request(command),
+      });
+      if (saved.length > 0) setAttachments((current) => [...current, ...saved]);
+    } catch (error) {
+      dispatch({ type: 'error', message: formatError(error) });
+    }
+  }
+
   async function handleSend(): Promise<void> {
     const text = composer.trim();
-    if (!text || busy) return;
+    if ((!text && attachments.length === 0) || busy) return;
     const reserved = parseComposerSlashSubmit(text, []);
     if (reserved.kind === 'command' && reserved.commandId === 'compact') {
       setComposer('');
@@ -371,7 +388,9 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
       return;
     }
     const clientMessageId = crypto.randomUUID();
+    const outgoingAttachments = attachments;
     setComposer('');
+    setAttachments([]);
     setBusy(true);
     if (state.streaming) {
       const instructionId = crypto.randomUUID();
@@ -421,6 +440,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           text,
           clientMessageId,
           ...(inlineArtifactWidthPx === undefined ? {} : { inlineArtifactWidthPx }),
+          ...(outgoingAttachments.length > 0 ? { attachments: outgoingAttachments } : {}),
           ...sessionComposer.promptFields,
         },
         allowReplaceConfirm: false,
@@ -437,6 +457,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
             : hostFailureNotice(response, props.locale),
         });
         setComposer(text);
+        setAttachments(outgoingAttachments);
         return;
       }
       const run = readRun(response.data);
@@ -446,6 +467,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
       dispatch({ type: 'user/send-rollback', clientMessageId });
       dispatch({ type: 'error', message: formatError(error) });
       setComposer(text);
+      setAttachments(outgoingAttachments);
     } finally {
       setBusy(false);
     }
@@ -538,6 +560,12 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           <CompactPromptComposer
             value={composer}
             onChange={setComposer}
+            onAttachFiles={(files, source) => void handleAttach(files, source)}
+            attachLabel={props.locale === 'zh-CN' ? '添加附件' : 'Attach files'}
+            attachmentNames={attachments.map((item) => ('name' in item && item.name ? item.name : item.id))}
+            onRemoveAttachment={(index) =>
+              setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))
+            }
             placeholder={props.locale === 'zh-CN' ? '输入消息…' : 'Message…'}
             ariaLabel={props.locale === 'zh-CN' ? 'Chat 输入框' : 'Chat composer'}
             testId="conversation-pane-composer"

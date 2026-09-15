@@ -1,0 +1,262 @@
+/* Region: Docking workspace (ADR 0071).
+   Group chrome, stable surface hosts, drop previews, and the v1 right panel.
+   Deliberately glass-free: every blur is whitelisted in
+   renderer-resource-boundaries.test.ts, so this file uses solid surfaces. */
+
+.docking-stage {
+  position: relative;
+}
+
+.docking-workspace-row {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: row;
+  min-width: 0;
+  min-height: 0;
+}
+
+.docking-workspace-row > .conversation-pane-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* One DOM node per view, reused for the whole lifetime of the view. React
+   portals render into it, so changing group, tab, or maximize state only
+   reparents the node and never remounts the pane. */
+.docking-surface-host {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.docking-surface-host > .chat-column {
+  width: 100%;
+  height: 100%;
+  padding-top: 0;
+}
+
+/* Inactive views stay mounted here: parked, not unmounted. */
+.docking-surface-pool {
+  display: none;
+}
+
+/* Single-pane mode must not use `display: contents` for docking: the host has
+   to stay a measurable box, and `contents` would also out-rank [hidden] and
+   paint stale panes. */
+.docking-workspace.is-single-pane {
+  display: flex;
+}
+
+.docking-workspace.is-single-pane .conversation-pane-stage {
+  display: block;
+}
+
+.docking-workspace.is-single-pane .conversation-pane,
+.docking-workspace.is-single-pane .conversation-pane-frame,
+.docking-workspace.is-single-pane .conversation-pane-body {
+  display: flex;
+}
+
+.docking-workspace .conversation-pane[hidden],
+.docking-workspace.is-single-pane .conversation-pane[hidden] {
+  display: none;
+}
+
+.docking-separator {
+  z-index: 7;
+}
+
+/* --- drag layer ------------------------------------------------------- */
+
+.docking-workspace.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.docking-drag-overlay {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  pointer-events: none;
+}
+
+.docking-drop-preview {
+  position: absolute;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--iris-lift) 16%, transparent);
+  box-shadow: inset 0 0 0 1px var(--iris-lift);
+  transition:
+    left var(--t-1) var(--ease-out),
+    top var(--t-1) var(--ease-out),
+    width var(--t-1) var(--ease-out),
+    height var(--t-1) var(--ease-out);
+}
+
+.docking-drop-label {
+  position: absolute;
+  left: 50%;
+  bottom: var(--s-6);
+  max-width: min(420px, calc(100% - var(--s-8)));
+  padding: var(--s-2) var(--s-5);
+  transform: translateX(-50%);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  box-shadow:
+    var(--elev-3),
+    inset 0 0 0 1px var(--line-2);
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.docking-drop-label.is-rejected {
+  background: var(--surface-2);
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px var(--line-3);
+  color: var(--text-3);
+}
+
+/* --- right panel ------------------------------------------------------ */
+
+.docking-right-panel {
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--surface-1);
+  box-shadow: inset 1px 0 0 var(--line-1);
+  transition: width var(--t-2) var(--ease-out);
+}
+
+.docking-right-panel-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.docking-right-rail {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: var(--s-7);
+  border: 0;
+  background: var(--surface-2);
+  box-shadow: inset 1px 0 0 var(--line-1);
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.docking-right-rail:hover {
+  color: var(--text-1);
+}
+
+/* --- tool placeholder ------------------------------------------------- */
+
+.docking-tool-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: var(--s-6);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  text-align: center;
+}
+
+.docking-tool-placeholder b {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.conversation-pane-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.conversation-pane-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.conversation-pane-tab {
+  flex: 0 1 auto;
+  max-width: 160px;
+  min-width: 0;
+  height: 20px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grab;
+}
+
+.conversation-pane-tab.is-active {
+  background: var(--surface-1);
+  color: var(--text-1);
+}
+
+.conversation-pane-tab:hover {
+  color: var(--text-1);
+}
+
+.conversation-pane-tab:active {
+  cursor: grabbing;
+}
+
+.compact-prompt-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 0;
+}
+
+.compact-prompt-attachment {
+  max-width: 160px;
+  padding: 2px 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.composer-v2-attach-btn {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.composer-v2-attach-btn:hover {
+  color: var(--text-1);
+}

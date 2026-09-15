@@ -36,6 +36,7 @@ import type { DesktopLocale } from './desktop-locale';
 import type { NotificationAction } from './notification-queue';
 import type { HostRequestAdapters } from './host-request-adapters';
 import { useBrowserInspectorReveal } from './hooks/use-browser-inspector-reveal';
+import { DockingOwnedToolNotice } from './workbench/docking/dock-tool-hosts.js';
 import type { NotesPanelProps } from './NotesPanel';
 import type { FlashcardsPanelProps } from './FlashcardsPanel';
 import type { FileTreeRequest } from './file-tree-panel';
@@ -130,6 +131,8 @@ export type WorkbenchInspectorProps = {
   tasksContent?: ReactNode;
   tasksActiveCount?: number;
   terminalJobMonitor?: Omit<TerminalJobMonitorProps, 'children' | 'locale'> | undefined;
+  /** Docking workspace owns browser/canvas hosts so inspector must not double-lease. */
+  workspaceOwnsMovableTools?: boolean;
 };
 
 export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement {
@@ -190,6 +193,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     tasksActiveCount,
     terminalJobMonitor,
   } = props;
+  const workspaceOwnsMovableTools = props.workspaceOwnsMovableTools === true;
   useBrowserInspectorReveal(hostClient, (tab) => {
     shell.openInspector(tab);
   });
@@ -339,6 +343,9 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
             )
           }
           canvasContent={
+            workspaceOwnsMovableTools ? (
+              <DockingOwnedToolNotice kind="canvas" locale={locale} />
+            ) : (
             <ArtifactCanvasPanel
               activeTarget={artifactTarget}
               artifactTheme={mapThemeToArtifactVariables(activeTheme)}
@@ -354,9 +361,12 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
                 setComposer((current) => appendComposerProposal(current, proposal.text))
               }
             />
+            )
           }
           browserContent={
-            hostClient.supportsCommand('browser/start') ? (
+            workspaceOwnsMovableTools ? (
+              <DockingOwnedToolNotice kind="browser" locale={locale} />
+            ) : hostClient.supportsCommand('browser/start') ? (
               <DeferredBrowserSessionPanel
                 hostClient={hostClient}
                 onAddWebElement={addWebElement}
