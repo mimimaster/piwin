@@ -1,5 +1,11 @@
 # ADR 0063: Conversation multi-pane workspace
 
+> **Partial supersession (2026-09-15):** Desktop docking v1 topology, 4-group
+> cap, and Group/View identity are defined in [ADR 0071](./0071-docking-workspace-topology.md).
+> This ADR still governs Host session authority, device-local layout, one
+> session per window view, and close-view-does-not-stop-run.
+
+
 - Status: accepted
 - Date: 2026-08-24
 
