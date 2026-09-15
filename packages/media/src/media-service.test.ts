@@ -133,6 +133,8 @@ describe('media-service', () => {
       const text = await extractAttachmentText(textPath, 'text/markdown');
       expect(text.text).toContain('Keep this bounded.');
       expect(formatAttachmentTextInjection(text)).toContain('[attached file: notes.md]');
+      const sniffed = await extractAttachmentText(textPath, 'application/octet-stream');
+      expect(sniffed.text).toContain('Keep this bounded.');
 
       const pdfPath = join(rootDir, 'report.pdf');
       await writeFile(pdfPath, createSinglePagePdf('Hello PDF'));

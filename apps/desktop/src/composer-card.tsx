@@ -8,7 +8,6 @@ import {
   type ReactElement,
 } from 'react';
 import { isPauseContinueUtterance } from '@piwin/contracts';
-import { ComposerOrbitBeam } from './composer-orbit-beam';
 import { AttachmentFailureDialog } from './attachment-failure-dialog';
 import type { AgentModeId } from './agent-mode';
 import { isFailedMediaAttachment } from './media-utils';
@@ -825,8 +824,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         props.onDrop(event);
       }}
     >
-      <ComposerOrbitBeam />
-
       {/* Drop Zone Overlay */}
       {props.dropActive ? (
         <div className="composer-v2-drop-overlay">

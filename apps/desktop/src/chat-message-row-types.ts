@@ -22,7 +22,6 @@ import type {
   ChatMessageUi,
   PermissionPromptUi,
   RunRecordUi,
-  SkillActivityView,
   SubagentStreamState,
   ToolCardUi,
 } from './chat-reducer';
@@ -30,7 +29,7 @@ import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { ExploreFlowRole } from './explore-flow';
 import type { DocumentOpenInput } from './tool-call-card';
 import type { FilesChangedBarRequest } from './chat-turn-files-summary';
-import type { AgentLocatorAnimation, ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
+import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import type { ComposerDockProps } from './composer-dock';
 import type { DiffCardRequest } from './diff-card';
 import type { ModelOption } from './model-options';
@@ -58,8 +57,6 @@ export type ChatMessageRowProps = {
   /** Keyed Run projection for this row; avoids whole-map memo invalidation. */
   runRecord?: RunRecordUi;
   activeRunId: string | null;
-  activeSkill: SkillActivityView | null;
-  agentLocatorAnimation?: AgentLocatorAnimation;
   permissionPrompt: PermissionPromptUi | null;
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity: ToolCallDensity;

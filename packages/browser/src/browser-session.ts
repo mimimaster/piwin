@@ -31,6 +31,7 @@ import {
   type BrowserRuntimeHooks,
 } from './browser-runtime.js';
 import { createBrowserMirror } from './browser-mirror.js';
+import type { BrowserFindResult } from './find.js';
 import {
   createBrowserOperations,
   type BrowserReloadOptions,
@@ -70,6 +71,9 @@ export type BrowserActor = 'agent' | 'user';
 
 export type BrowserOpOptions = { signal?: AbortSignal; actor?: BrowserActor; runId?: string };
 
+/** `scroll` may target a ref/selector container instead of the page root. */
+export type BrowserScrollOptions = BrowserOpOptions & { target?: string };
+
 export type BrowserSessionOptions = {
   /** Default true. When false the browser runs headed (useful for debugging). */
   headless?: boolean;
@@ -100,6 +104,7 @@ export type BrowserSessionState = { url?: string; title?: string };
 
 export type BrowserSessionStatus = {
   lifecycle: BrowserLifecycle;
+  mirror: BrowserMirrorMode;
   generation: number;
   pageStateLost: boolean;
   recoveryCount: number;
@@ -153,11 +158,11 @@ export type BrowserSession = {
   ownership(): BrowserOwnership;
   type(target: string, text: string, options?: BrowserOpOptions): Promise<void>;
   fillForm(fields: Record<string, string>, options?: BrowserOpOptions): Promise<void>;
-  scroll(delta: { x?: number; y?: number }, options?: BrowserOpOptions): Promise<void>;
+  scroll(delta: { x?: number; y?: number }, options?: BrowserScrollOptions): Promise<void>;
   screenshot(path?: string, options?: { signal?: AbortSignal }): Promise<ScreenshotResult>;
   back(options?: BrowserOpOptions): Promise<void>;
   forward(options?: BrowserOpOptions): Promise<void>;
-  find(text: string, options?: { signal?: AbortSignal }): Promise<{ count: number }>;
+  find(text: string, options?: { signal?: AbortSignal }): Promise<BrowserFindResult>;
   wait(ms: number, options?: { signal?: AbortSignal }): Promise<void>;
   /** Read lifecycle without launching Chromium. */
   status(): BrowserSessionStatus;
@@ -547,6 +552,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       const current = { ...state };
       return {
         lifecycle: runtime.lifecycle(),
+        mirror: currentMirrorMode(),
         generation: runtime.generation(),
         pageStateLost: runtime.pageStateLost(),
         recoveryCount: runtime.recoveryCount(),

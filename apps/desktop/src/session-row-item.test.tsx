@@ -191,14 +191,12 @@ describe('SessionRowItem', () => {
     });
     activeContainers.push(container);
 
-    // Hanging ribbon is rendered
+    // Ribbon bookmark is rendered
     expect(container.querySelector('[data-testid="session-pinned-ribbon"]')).not.toBeNull();
     // Redundant inline bookmark is omitted
     expect(container.querySelector('.session-pin-mark')).toBeNull();
-    // Project tag is rendered as unboxed text
-    const projectTag = container.querySelector('[data-testid="session-project-subtitle"]');
-    expect(projectTag?.textContent).toBe('piwin');
-    expect(projectTag?.classList.contains('session-item-project-tag')).toBe(true);
+    // Project tag is not rendered in pinned section
+    expect(container.querySelector('[data-testid="session-project-subtitle"]')).toBeNull();
     // Button has data-pinned-section
     const button = container.querySelector('[data-testid="session-item"]');
     expect(button?.getAttribute('data-pinned-section')).toBe('true');

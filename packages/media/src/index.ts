@@ -40,6 +40,15 @@ export {
   MAX_ATTACHMENT_TEXT_BYTES,
 } from './document-extractor.js';
 
+export {
+  createModelImageDerivative,
+  MODEL_IMAGE_MAX_EDGE_LADDER,
+  MODEL_IMAGE_QUALITY_LADDER,
+} from './image-derivative.js';
+export type {
+  CreateModelImageDerivativeInput,
+  ModelImageDerivative,
+} from './image-derivative.js';
 export { cloneSessionMedia, cleanupFailedMediaClone } from './clone-session-media.js';
 export type { CloneSessionMediaOptions, CloneSessionMediaResult } from './clone-session-media.js';
 export { listMediaLibrary, writeMediaLibraryMeta } from './media-library.js';

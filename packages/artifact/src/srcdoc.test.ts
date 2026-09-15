@@ -68,6 +68,8 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).not.toContain("root.querySelector('canvas, video')");
     expect(srcdoc).toContain('window.MutationObserver(scheduleHeight)');
     expect(srcdoc).toContain('readHeight(node.scrollHeight)');
+    expect(srcdoc).toContain('confirmPostedHeight');
+    expect(srcdoc).toContain('window.setTimeout(confirmPostedHeight, 0)');
     expect(srcdoc).not.toContain('scheduleMeasureLadder');
   });
 
@@ -243,6 +245,16 @@ describe('buildHtmlArtifactSrcdoc', () => {
     root.height = 360;
     session.remeasure();
     expect(session.messages.at(-1)).toMatchObject({ height: 360, revision: 1 });
+  });
+
+  it('reposts the current height after load so the parent handshake cannot miss it', () => {
+    const root = createMeasuredRoot(240);
+    const session = runBridgeSession(root);
+    expect(session.messages).toHaveLength(1);
+
+    session.flushTimeouts();
+    expect(session.messages).toHaveLength(2);
+    expect(session.messages.at(-1)).toMatchObject({ height: 240, revision: 1 });
   });
 
   it('forces an unchanged height report when the parent requests remeasurement', () => {
@@ -576,6 +588,7 @@ function runBridgeSession(
   scriptActivateCount: () => number;
   observeWithoutFlush: () => void;
   flushAnimationFrames: () => void;
+  flushTimeouts: () => void;
   remeasure: () => void;
   dispatchRenderCommand: (data: unknown) => void;
   attachStreamRoot: (nextRoot: MeasuredRoot) => void;
@@ -586,6 +599,7 @@ function runBridgeSession(
   const resizeCallbacks = new Set<() => void>();
   const mutationCallbacks = new Set<() => void>();
   const animationCallbacks: Array<() => void> = [];
+  const timeoutCallbacks: Array<() => void> = [];
   const messageListeners: Array<(event: { data: unknown }) => void> = [];
   const documentListeners = new Map<string, Array<() => void>>();
   const documentElement = {
@@ -596,6 +610,10 @@ function runBridgeSession(
   };
   const windowObject = {
     innerHeight: 80,
+    setTimeout: (callback: () => void): number => {
+      timeoutCallbacks.push(callback);
+      return timeoutCallbacks.length;
+    },
     dispatchEvent: () => undefined,
     addEventListener: (type: string, listener: (event: { data: unknown }) => void) => {
       if (type === 'message') messageListeners.push(listener);
@@ -745,6 +763,10 @@ function runBridgeSession(
       for (const callback of [...resizeCallbacks]) callback();
     },
     flushAnimationFrames,
+    flushTimeouts: (): void => {
+      while (timeoutCallbacks.length > 0) timeoutCallbacks.shift()?.();
+      flushAnimationFrames();
+    },
     remeasure: (): void => {
       for (const callback of [...resizeCallbacks]) callback();
       flushAnimationFrames();

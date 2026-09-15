@@ -137,7 +137,7 @@ describe('ProviderSettings', () => {
     instances.push({ container, root });
     expect(container.querySelector('[data-testid="provider-settings"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="provider-search-input"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-add-open"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="provider-add-open"]')).toBeNull();
     expect(container.querySelector('[data-testid="provider-add-block"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="provider-row-openai"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="provider-row-custom-local"]')).not.toBeNull();
@@ -353,7 +353,7 @@ describe('ProviderSettings', () => {
   it('opens add dialog, picks a preset, and opens a new-provider drawer', async () => {
     const { container, root } = renderProviderSettings(makeProps());
     instances.push({ container, root });
-    const addBtn = container.querySelector<HTMLButtonElement>('[data-testid="provider-add-open"]');
+    const addBtn = container.querySelector<HTMLButtonElement>('[data-testid="provider-add-block"]');
     await act(async () => {
       addBtn?.click();
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -382,7 +382,7 @@ describe('ProviderSettings', () => {
     const { container, root } = renderProviderSettings(makeProps(onSave));
     instances.push({ container, root });
 
-    const addBtn = container.querySelector<HTMLButtonElement>('[data-testid="provider-add-open"]');
+    const addBtn = container.querySelector<HTMLButtonElement>('[data-testid="provider-add-block"]');
     await act(async () => {
       addBtn?.click();
       await new Promise((resolve) => setTimeout(resolve, 0));

@@ -6,7 +6,6 @@ import type { PlanExecutionMode } from '@piwin/contracts';
 
 import { pickArtifactFenceSecurity } from './artifact-fence-security';
 import type { ChatMessageUi } from './chat-reducer';
-import { RunActivitySlot } from './RunActivitySlot.js';
 import { AgentLocator } from './agent-locator.js';
 
 import {
@@ -50,22 +49,7 @@ import {
 } from './plan-execution-gate.js';
 import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
 import { resolveModelWaitTail } from './model-wait-tail.js';
-import { ModelWaitTailRow } from './model-wait-tail-row.js';
-
-/** Legacy helper retained for callers that still compute the old preference. */
-/** @deprecated Run Inspector disclosure is now explicitly user-owned. */
-export function shouldCollapseTurnToolHistory(input: {
-  workDetailsMessage: ChatMessageUi;
-  activeRunId: string | null;
-  answerText: string;
-}): boolean {
-  void input.answerText;
-  const runId = input.workDetailsMessage.runId;
-  const runActive =
-    input.workDetailsMessage.status === 'streaming' ||
-    (runId !== undefined && input.activeRunId !== null && runId === input.activeRunId);
-  return !runActive;
-}
+import { RunStatusFooter } from './run-status-footer.js';
 
 /** Render-only copy used to place the final answer's reasoning in Work. */
 function createThinkingOnlyMessage(message: ChatMessageUi): ChatMessageUi {
@@ -155,17 +139,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     [docCardSequence, effectiveMessages],
   );
 
-  const activeToolName = useMemo(() => {
-    for (let i = transcriptMessages.length - 1; i >= 0; i--) {
-      const msg = transcriptMessages[i];
-      if (msg?.role === 'assistant') {
-        const runningTool = msg.tools.find((t) => t.status === 'running');
-        if (runningTool) return runningTool.toolName;
-      }
-    }
-    return undefined;
-  }, [transcriptMessages]);
-
   const turnGroups = useMemo(() => groupTranscriptTurns(chatMessages), [chatMessages]);
   const [workDisclosureOpenByTurnId, setWorkDisclosureOpenByTurnId] = useState<
     Record<string, boolean>
@@ -205,53 +178,46 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     }
     return currentResponseTurnId;
   }, [currentResponseTurnId, props.compactionActivity, turnGroups]);
-  const transcriptTail = transcriptMessages[transcriptMessages.length - 1];
   const conversationSession = props.isConversationSession === true;
   const effectiveTail = chatMessages[chatMessages.length - 1];
+  // Agent sessions carry live run state on RunStatusFooter (rendered per turn).
   const showRunActivity =
+    conversationSession &&
     props.streaming &&
     !props.permissionPrompt &&
-    (conversationSession
-      ? chatMessages.length === 0 || effectiveTail?.role === 'user'
-      : transcriptMessages.length === 0 || transcriptTail?.role === 'user');
+    (chatMessages.length === 0 || effectiveTail?.role === 'user');
   const conversationActivityKind = conversationSession
     ? resolveConversationActivityKind({
         streaming: props.streaming,
         tools: transcriptMessages.flatMap((message) => message.tools),
       })
     : null;
-  const runActivitySlot = showRunActivity ? (
-    conversationSession ? (
-      conversationActivityKind ? (
-        <div key="conversation-activity-slot" className="chat-run-activity-line" data-testid="conversation-activity">
-          <div className="agent-locator-stack">
-            <AgentLocator
-              input={{
-                kind:
-                  conversationActivityKind === 'stopping'
-                    ? 'stopping'
-                    : conversationActivityKind === 'thinking'
-                      ? 'waiting-first-token'
-                      : 'working',
-                locale: props.locale ?? 'zh-CN',
-              }}
-              {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
-            />
-          </div>
+  // An agent run accepted before its user row lands has no turn to foot yet.
+  const pendingRunStatusFooter =
+    !conversationSession &&
+    props.streaming === true &&
+    !props.permissionPrompt &&
+    !props.compactionActivity &&
+    chatMessages.length === 0;
+  const runActivitySlot =
+    showRunActivity && conversationActivityKind ? (
+      <div key="conversation-activity-slot" className="chat-run-activity-line" data-testid="conversation-activity">
+        <div className="agent-locator-stack">
+          <AgentLocator
+            input={{
+              kind:
+                conversationActivityKind === 'stopping'
+                  ? 'stopping'
+                  : conversationActivityKind === 'thinking'
+                    ? 'waiting-first-token'
+                    : 'working',
+              locale: props.locale ?? 'zh-CN',
+            }}
+            {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
+          />
         </div>
-      ) : null
-    ) : (
-      <RunActivitySlot
-        key="agent-run-activity-slot"
-        activeRunId={props.activeRunId ?? null}
-        runRecordsById={props.runRecordsById ?? {}}
-        {...(activeToolName ? { activeToolName } : {})}
-        {...(props.locale ? { locale: props.locale } : {})}
-        {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
-        {...(props.activeSkill ? { skill: props.activeSkill } : {})}
-      />
-    )
-  ) : null;
+      </div>
+    ) : null;
   const changedFilePathsByTurnId = useMemo(() => {
     const pathsByTurnId = new Map<string, string[]>();
     for (const turn of turnGroups) {
@@ -337,8 +303,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         streaming={props.streaming === true}
         renderTurn={(turn) => {
           const turnMessages = turn.items.map((item) => item.message);
-          // Tool round settled, next model token not here yet: one tail node on
-          // the chain instead of a stale 正在运行 header or a second locator.
+          // Tool round settled, next model token not here yet: the run status
+          // footer switches to the model-wait phrase and the empty
+          // `message/start` placeholders it stands in for stay hidden.
           const modelWaitTail =
             !conversationSession && turn.id === currentResponseTurnId
               ? resolveModelWaitTail({
@@ -641,10 +608,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       ? { runRecord: props.runRecordsById[message.runId] }
                       : {})}
                     activeRunId={props.activeRunId ?? null}
-                    activeSkill={props.activeSkill ?? null}
-                    {...(props.agentLocatorAnimation
-                      ? { agentLocatorAnimation: props.agentLocatorAnimation }
-                      : {})}
                     permissionPrompt={props.permissionPrompt ?? null}
                     {...(props.onPermission !== undefined ? { onPermission: props.onPermission } : {})}
                     workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
@@ -811,12 +774,26 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 renderedAssistantItems.push(runActivitySlot);
               }
 
-              if (modelWaitTail) {
+              // One live line at the foot of the running turn. Permission gates
+              // and compaction own their chrome while they are up.
+              const showRunStatusFooter =
+                !conversationSession &&
+                currentTurnStreaming &&
+                !props.permissionPrompt &&
+                !(turn.id === compactionActivityTurnId && props.compactionActivity);
+              if (showRunStatusFooter) {
                 renderedAssistantItems.push(
-                  <ModelWaitTailRow
-                    key={`model-wait-${turn.id}`}
-                    tail={modelWaitTail}
+                  <RunStatusFooter
+                    key={`run-status-${turn.id}`}
+                    messages={turnMessages}
+                    activeRunId={props.activeRunId ?? null}
+                    runRecordsById={props.runRecordsById ?? {}}
+                    modelWaitTail={modelWaitTail}
                     locale={props.locale ?? 'zh-CN'}
+                    {...(props.agentLocatorAnimation
+                      ? { animation: props.agentLocatorAnimation }
+                      : {})}
+                    {...(props.activeSkill ? { skill: props.activeSkill } : {})}
                   />,
                 );
               }
@@ -900,7 +877,8 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               );
             }}
       />
-      {currentResponseTurnId === null && (runActivitySlot !== null || props.compactionActivity) ? (
+      {currentResponseTurnId === null &&
+      (runActivitySlot !== null || pendingRunStatusFooter || props.compactionActivity) ? (
         <section
           className="chat-turn-group is-current-response"
           data-testid="current-response-turn"
@@ -913,6 +891,17 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
             />
           ) : null}
           {runActivitySlot}
+          {pendingRunStatusFooter ? (
+            <RunStatusFooter
+              messages={[]}
+              activeRunId={props.activeRunId ?? null}
+              runRecordsById={props.runRecordsById ?? {}}
+              modelWaitTail={null}
+              locale={props.locale ?? 'zh-CN'}
+              {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
+              {...(props.activeSkill ? { skill: props.activeSkill } : {})}
+            />
+          ) : null}
         </section>
       ) : null}
       </div>

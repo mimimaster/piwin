@@ -62,8 +62,6 @@ export function areChatMessageRowPropsEqual(
     previous.artifactThemeKey === next.artifactThemeKey &&
     previous.runRecord === next.runRecord &&
     previous.activeRunId === next.activeRunId &&
-    previous.activeSkill === next.activeSkill &&
-    previous.agentLocatorAnimation === next.agentLocatorAnimation &&
     previous.permissionPrompt === next.permissionPrompt &&
     previous.workDetailsExpanded === next.workDetailsExpanded &&
     previous.toolDensity === next.toolDensity &&

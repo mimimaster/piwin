@@ -10,6 +10,17 @@ import {
   downloadTextFile,
 } from './artifact-source-export.js';
 
+const dialogSave = vi.fn();
+const invokeMock = vi.fn();
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  save: (options: unknown) => dialogSave(options),
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (command: string, args: unknown) => invokeMock(command, args),
+}));
+
 describe('artifactExportFileName', () => {
   it('uses the title stem and html extension', () => {
     expect(artifactExportFileName('Git cheatsheet', 'html')).toBe('Git-cheatsheet.html');
@@ -55,12 +66,11 @@ describe('downloadArtifactSource', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     const source = '<section data-original="yes"><h1>Hi</h1></section>';
 
-    downloadArtifactSource({
+    await downloadArtifactSource({
       source,
       title: 'HTML UI',
       kind: 'html',
     });
-    await Promise.resolve();
 
     expect(createObjectURL).toHaveBeenCalledOnce();
     const blob = createObjectURL.mock.calls[0]?.[0];
@@ -87,17 +97,54 @@ describe('downloadTextFile', () => {
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
 
-    downloadTextFile({
+    await downloadTextFile({
       text: '<!DOCTYPE html>',
       fileName: 'code.html',
       mimeType: 'text/html;charset=utf-8',
     });
-    await Promise.resolve();
 
     expect(createObjectURL).toHaveBeenCalledOnce();
     const blob = createObjectURL.mock.calls[0]?.[0];
     expect(await (blob as Blob).text()).toBe('<!DOCTYPE html>');
     const anchor = click.mock.instances[0] as unknown as HTMLAnchorElement;
     expect(anchor.download).toBe('code.html');
+  });
+});
+
+describe('downloadArtifactSource on Desktop', () => {
+  afterEach(() => {
+    dialogSave.mockReset();
+    invokeMock.mockReset();
+    delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  });
+
+  it('opens the native Save As dialog instead of a blob download', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      configurable: true,
+    });
+    dialogSave.mockResolvedValue('/Users/me/Desktop/HTML-UI.html');
+    invokeMock.mockResolvedValue(undefined);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    const result = await downloadArtifactSource({
+      source: '<h1>Hi</h1>',
+      title: 'HTML UI',
+      kind: 'html',
+    });
+
+    expect(result).toEqual({ kind: 'saved' });
+    expect(dialogSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Save As',
+        defaultPath: 'HTML-UI.html',
+      }),
+    );
+    expect(invokeMock).toHaveBeenCalledWith(
+      'write_saved_file',
+      expect.objectContaining({ path: '/Users/me/Desktop/HTML-UI.html' }),
+    );
+    expect(click).not.toHaveBeenCalled();
+    click.mockRestore();
   });
 });

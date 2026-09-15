@@ -2,7 +2,7 @@
  * Pointer-driven horizontal resize for the right workspace panel.
  * Updates CSS --right-panel-width via onWidthChange; persists on pointer-up.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   clampRightPanelWidth,
   clampRightPanelWidthForViewport,
@@ -15,6 +15,7 @@ import {
   RIGHT_PANEL_STAGE_MIN_PX,
 } from '../right-panel-width';
 import { isOverlayShellLayout, type ShellLayoutMode } from '../shell-layout';
+import { usePanelWidthCommit } from './use-panel-width-commit.js';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
 function writeRightPanelWidthCss(shell: HTMLElement | null, widthPx: number): void {
@@ -166,12 +167,7 @@ export function useRightPanelResize(
     [writeLiveWidth],
   );
 
-  // After every React commit, re-assert the live width so an unrelated App
-  // re-render cannot snap --right-panel-width back to a stale style prop
-  // while the user is mid-drag (or between rAF state flushes).
-  useLayoutEffect(() => {
-    writeLiveWidth(widthRef.current);
-  });
+  usePanelWidthCommit(widthPx, isResizing, widthRef, writeLiveWidth);
 
   const resolveClamp = useCallback(
     (candidate: number): number => {

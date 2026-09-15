@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import {
+  attachmentContentKindForFile,
   attachmentNameFromPath,
   contentKindForMimeType,
   type AttachmentContentKind,
@@ -49,9 +50,11 @@ export async function extractAttachmentTextFromBytes(
   options?: { maxBytes?: number; name?: string },
 ): Promise<ExtractedAttachmentText> {
   const normalizedMimeType = mimeType.trim().toLowerCase();
-  const contentKind = contentKindForMimeType(normalizedMimeType);
-  const maxBytes = options?.maxBytes ?? MAX_ATTACHMENT_TEXT_BYTES;
   const name = options?.name?.trim() || 'document';
+  const contentKind =
+    contentKindForMimeType(normalizedMimeType) ??
+    attachmentContentKindForFile(name, normalizedMimeType);
+  const maxBytes = options?.maxBytes ?? MAX_ATTACHMENT_TEXT_BYTES;
   if (contentKind === 'text') {
     const result = truncateUtf8(new TextDecoder().decode(bytes), maxBytes);
     return {

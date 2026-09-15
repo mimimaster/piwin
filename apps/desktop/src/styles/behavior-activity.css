@@ -207,6 +207,40 @@
   animation: wb-shimmer var(--shimmer) linear infinite;
 }
 
+/* Live facts between the marker and the phrase: `3m 40s · 1.9k tokens · `. */
+.agent-locator-meta {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-status-footer-fact::after {
+  content: '·';
+  margin: 0 0.45em;
+  opacity: 0.7;
+}
+
+/* Pinned to the foot of the current response for the whole run. */
+.run-status-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 30px;
+  margin: var(--s-2, 4px) 0 var(--s-4, 12px);
+  font-size: 13px;
+}
+
+.run-status-footer .agent-locator {
+  min-width: 0;
+}
+
+.run-status-footer .agent-locator-copy {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .agent-locator-stack {
   display: inline-flex;
   align-items: center;

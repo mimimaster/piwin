@@ -294,10 +294,6 @@ export const ChatMessageRow = memo(
               message={message}
               runRecordsById={props.runRecordsById}
               activeRunId={props.isLastAssistantInTurn === true ? props.activeRunId : null}
-              activeSkill={props.isLastAssistantInTurn === true ? props.activeSkill : null}
-              {...(props.agentLocatorAnimation
-                ? { agentLocatorAnimation: props.agentLocatorAnimation }
-                : {})}
               permissionPrompt={
                 props.isLastAssistantInTurn === true ? props.permissionPrompt : null
               }
@@ -553,6 +549,9 @@ export const ChatMessageRow = memo(
         {message.role === 'assistant' &&
         message.status === 'done' &&
         props.isLastAssistantInTurn === true &&
+        // Between tool rounds the latest response is `done` but the run is not:
+        // the run status footer owns live tokens, so no colophon until it ends.
+        !(props.streaming && props.isLatestAssistantResponse === true) &&
         (props.onForkFromMessage ||
           message.text ||
           (props.isLatestAssistantResponse === true &&

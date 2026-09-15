@@ -44,6 +44,24 @@ export function finishMessageThinking(message: ChatMessageUi, endedAt: number): 
 }
 
 /**
+ * Close assistant rows that are still `streaming` but can no longer receive
+ * output: an earlier response of a run whose next response already started,
+ * or any response of a run that ended. A lost `message/end` otherwise leaves
+ * the row live forever — thought clock ticking, waiting chrome spinning.
+ */
+export function settleStreamingAssistants(
+  messages: readonly ChatMessageUi[],
+  belongsToRun: (message: ChatMessageUi) => boolean,
+  endedAt: number,
+): ChatMessageUi[] {
+  return messages.map((message) =>
+    message.role === 'assistant' && message.status === 'streaming' && belongsToRun(message)
+      ? { ...finishMessageThinking(message, endedAt), status: 'done' as const }
+      : message,
+  );
+}
+
+/**
  * Prefer the assistant message that owns this run; fall back only for legacy
  * events without runId to the latest assistant bubble still streaming/open.
  */

@@ -155,7 +155,7 @@ describe('ChatThread model wait tail', () => {
     });
   }
 
-  it('shows one waiting node after a settled tool round instead of a stale running header', () => {
+  it('moves the run status footer to the model-wait phrase after a settled tool round', () => {
     render(
       [
         userMessage('u1', '资料库默认设置'),
@@ -169,12 +169,17 @@ describe('ChatThread model wait tail', () => {
       'waiting-first-token',
     );
 
-    const tail = container.querySelector('[data-testid="model-wait-tail"]');
-    expect(tail?.textContent).toContain('正在处理结果');
-    expect(tail?.querySelector('[data-testid="model-wait-elapsed"]')?.textContent).toBe('等待 12s');
+    const footers = container.querySelectorAll('[data-testid="run-status-footer"]');
+    expect(footers).toHaveLength(1);
+    expect(footers[0]?.querySelector('[data-testid="agent-locator"]')?.getAttribute('data-kind')).toBe(
+      'waiting-first-token',
+    );
+    // Clock counts from run start, not from the wait.
+    expect(footers[0]?.querySelector('[data-testid="agent-locator-meta"]')?.textContent).toContain('1m 00s');
     expect(container.textContent).not.toContain('正在运行');
     // The empty message/start bubble must not paint a second locator.
     expect(container.querySelector('#msg-a2')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="agent-locator"]')).toHaveLength(1);
 
     const row = container.querySelector('[data-toolbox-action="search"]');
     expect(row?.textContent).toContain('查找可用工具');
@@ -183,7 +188,23 @@ describe('ChatThread model wait tail', () => {
     expect(row?.textContent).not.toContain('{');
   });
 
-  it('drops the tail as soon as the model streams again', () => {
+  it('keeps live tokens on the footer and holds the reply colophon until the run ends', () => {
+    const messages = [
+      userMessage('u1', '资料库默认设置'),
+      assistant({ id: 'a1', text: 'x'.repeat(8_000), tools: [toolboxSearch] }),
+    ];
+    render(messages, 'tool-running');
+
+    const meta = container.querySelector('[data-testid="agent-locator-meta"]');
+    expect(meta?.textContent).toMatch(/1m 00s.*2(\.\d)?k tokens/);
+    expect(container.querySelector('[data-testid="assistant-response-actions"]')).toBeNull();
+
+    render(messages, 'tool-running', { streaming: false, activeRunId: null });
+    expect(container.querySelector('[data-testid="run-status-footer"]')).toBeNull();
+    expect(container.querySelector('[data-testid="assistant-response-actions"]')).not.toBeNull();
+  });
+
+  it('shows the streaming bubble again once the model writes, under the same footer', () => {
     render(
       [
         userMessage('u1', '资料库默认设置'),
@@ -192,6 +213,7 @@ describe('ChatThread model wait tail', () => {
       ],
       'streaming',
     );
-    expect(container.querySelector('[data-testid="model-wait-tail"]')).toBeNull();
+    expect(container.querySelector('#msg-a2')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="run-status-footer"]')).toHaveLength(1);
   });
 });

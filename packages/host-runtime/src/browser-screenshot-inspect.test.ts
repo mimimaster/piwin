@@ -58,7 +58,11 @@ describe('persistAndInspectBrowserScreenshot', () => {
         status: 'skipped',
         reason: 'vision-delegation-disabled',
       });
-      expect(result.output.evidence).toBe('unavailable');
+      expect(result.output.evidence).toEqual({
+        status: 'unavailable',
+        mediaId: result.output.mediaId,
+        reason: 'vision-delegation-disabled',
+      });
       expect(JSON.stringify(result.output)).not.toContain(mediaRoot);
       const attachment = result.details.attachments[0];
       if (!attachment) throw new Error('expected attachment');
@@ -92,7 +96,10 @@ describe('persistAndInspectBrowserScreenshot', () => {
       });
       expect(fetched).toBe(false);
       expect(result.output.inspect).toEqual({ status: 'native' });
-      expect(result.output.evidence).toBe('delivered');
+      expect(result.output.evidence).toEqual({
+        status: 'delivered',
+        mediaId: result.output.mediaId,
+      });
       expect(result.images).toEqual([
         {
           mimeType: 'image/jpeg',
@@ -187,6 +194,97 @@ describe('persistAndInspectBrowserScreenshot', () => {
       });
       expect(result.output.inspect.status).toBe('skipped');
       expect(result.details.attachments).toHaveLength(1);
+    } finally {
+      await rm(mediaRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('oversized native screenshots', () => {
+  const OVERSIZED_BYTES = 1_600_000;
+
+  function oversizedJpeg(): Uint8Array {
+    const bytes = new Uint8Array(OVERSIZED_BYTES);
+    bytes.set([0xff, 0xd8, 0xff, 0xd9], 0);
+    return bytes;
+  }
+
+  it('attaches a bounded derivative instead of dropping pixels', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-shot-derive-'));
+    try {
+      const jpegBytes = oversizedJpeg();
+      let seenMaxBytes = 0;
+      const result = await persistAndInspectBrowserScreenshot({
+        jpegBytes,
+        width: 3840,
+        height: 2400,
+        sessionId: 'session-derive',
+        mediaRoot,
+        primarySupportsImage: true,
+        deriveModelImage: async ({ maxBytes }) => {
+          seenMaxBytes = maxBytes;
+          return {
+            bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9, 0x00]),
+            width: 1280,
+            height: 800,
+            maxEdge: 1280,
+            quality: 60,
+          };
+        },
+      });
+      expect(seenMaxBytes).toBe(1_500_000);
+      expect(result.output.inspect).toEqual({
+        status: 'native',
+        derivative: {
+          maxEdge: 1280,
+          quality: 60,
+          width: 1280,
+          height: 800,
+          sourceBytes: OVERSIZED_BYTES,
+        },
+      });
+      expect(result.output.evidence).toEqual({ status: 'delivered', mediaId: result.output.mediaId });
+      expect(result.images).toEqual([
+        {
+          mimeType: 'image/jpeg',
+          dataBase64: Buffer.from([0xff, 0xd8, 0xff, 0xd9, 0x00]).toString('base64'),
+        },
+      ]);
+      // The full-resolution original stays in the library, not in the prompt.
+      const attachment = result.details.attachments[0];
+      if (!attachment) throw new Error('expected attachment');
+      const saved = await readFile(attachment.path);
+      expect(saved.byteLength).toBe(OVERSIZED_BYTES);
+      // Metadata is fine; raw pixels and filesystem paths are not.
+      expect(JSON.stringify(result.output)).not.toContain('data:image');
+      expect(JSON.stringify(result.output)).not.toContain(mediaRoot);
+    } finally {
+      await rm(mediaRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('reports unavailable when no derivative fits the budget', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-shot-derive-fail-'));
+    try {
+      const result = await persistAndInspectBrowserScreenshot({
+        jpegBytes: oversizedJpeg(),
+        width: 3840,
+        height: 2400,
+        sessionId: 'session-derive-fail',
+        mediaRoot,
+        primarySupportsImage: true,
+        deriveModelImage: async () => undefined,
+      });
+      expect(result.output.inspect).toEqual({
+        status: 'skipped',
+        reason: 'vision-delegation-disabled',
+      });
+      expect(result.output.evidence).toEqual({
+        status: 'unavailable',
+        mediaId: result.output.mediaId,
+        reason: 'vision-delegation-disabled',
+      });
+      expect(result.images).toBeUndefined();
     } finally {
       await rm(mediaRoot, { recursive: true, force: true });
     }

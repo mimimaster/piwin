@@ -9,175 +9,51 @@
  * link-local / private ranges go through the rule engine with default `ask`
  * (never blanket-allow private, to avoid an SSRF hole via cloud metadata).
  */
-import { resolve as resolvePath } from 'node:path';
 import type {
   BrowserViewportMode,
   HostToolArgumentPreparation,
-  HostToolDescriptor,
   HostToolExecutionContext,
-  HostToolExecutor,
-  HostToolPermissionSpec,
   HostToolRegistration,
   ToolResult,
-  ToolResultImage,
 } from '@piwin/contracts';
 import type { BrowserOpOptions, BrowserSession, BrowserWaitForCondition } from '@piwin/browser';
+import {
+  BROWSER_SCROLL_DEFAULT_AMOUNT_PX,
+  BROWSER_SCROLL_MAX_AMOUNT_PX,
+} from '@piwin/contracts';
 import {
   clampBrowserWaitForTimeout,
   isValidBrowserKey,
   resolveBrowserViewport,
 } from '@piwin/browser';
-import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import {
   jpegBytesFromDataUrl,
   type PersistBrowserScreenshotResult,
 } from './browser-screenshot-inspect.js';
-import { mapBrowserExecuteError, userControlResult } from './browser-tool-errors.js';
+import {
+  mapBrowserExecuteError,
+  sanitizeBrowserErrorMessage,
+  userControlResult,
+} from './browser-tool-errors.js';
 import { createBrowserStageBcToolDefinitions } from './browser-tool-stage-bc.js';
 import { nextBrowserAction, readBrowserPageState } from './browser-tool-page-state.js';
 
-function createBrowserRegistration(
-  descriptor: HostToolDescriptor,
-  permissionSpec: HostToolPermissionSpec,
-  execute: HostToolExecutor,
-  prepareArgs?: HostToolRegistration['prepareArgs'],
-): HostToolRegistration {
-  return {
-    descriptor,
-    family: 'browser',
-    permissionSpec,
-    execute,
-    ...(prepareArgs
-      ? { prepareArgs }
-      : permissionSpec.readOnly === true
-        ? {}
-        : { prepareArgs: passThroughPrepareArgs }),
-  };
-}
+import {
+  AGENT_WRITE_HINT,
+  USER_CONTROL_HINT,
+  abortedPreparation,
+  agentWriteOptions,
+  createBrowserRegistration,
+  normalizeScreenshotPath,
+  permissionSpec,
+  prepareBrowserFindArgs,
+  invalidPreparation,
+  prepareBrowserTargetArgs,
+  screenshotEvidenceFailure,
+  success,
+  successWithPage,
+} from './browser-tool-helpers.js';
 
-function success(
-  output: unknown,
-  details?: Record<string, unknown>,
-  images?: ToolResultImage[],
-): ToolResult {
-  return {
-    ok: true,
-    output: typeof output === 'string' ? output : JSON.stringify(output),
-    ...(details ? { details } : {}),
-    ...(images && images.length > 0 ? { images } : {}),
-  };
-}
-
-function successWithPage(
-  session: BrowserSession,
-  payload: Record<string, unknown>,
-  details?: Record<string, unknown>,
-): ToolResult {
-  const page = readBrowserPageState(session);
-  return success({ ...payload, ...(page ? { page } : {}) }, details);
-}
-
-function prepareBrowserTargetArgs(
-  rawArguments: Record<string, unknown>,
-  _context: HostToolExecutionContext,
-  signal: AbortSignal,
-): HostToolArgumentPreparation {
-  if (signal.aborted) return abortedPreparation();
-  const ref = rawArguments.ref;
-  const selector = rawArguments.selector;
-  const hasRef = typeof ref === 'string' && ref.trim().length > 0;
-  const hasSelector = typeof selector === 'string' && selector.trim().length > 0;
-  if (!hasRef && !hasSelector) {
-    return invalidPreparation('browser tool requires a ref or selector argument');
-  }
-  return { ok: true, arguments: rawArguments };
-}
-
-const USER_CONTROL_HINT =
-  ' Fails with browser-user-has-control if the human took over the workbench; wait or ask them to give it back.';
-const AGENT_WRITE_HINT = ' Automatically acquires agent control when the workbench is idle.';
-
-function agentWriteOptions(
-  signal: AbortSignal,
-  context: HostToolExecutionContext,
-): BrowserOpOptions {
-  return { signal, actor: 'agent', runId: context.runId };
-}
-
-function permissionSpec(action: string, projectRoot = process.cwd()): HostToolPermissionSpec {
-  const readOnlyActions = new Set([
-    'browser:snapshot',
-    'browser:find',
-    'browser:wait',
-    'browser:status',
-    'browser:console',
-    'browser:network',
-  ]);
-  if (readOnlyActions.has(action)) {
-    return { action, risk: 'unknown', rememberable: false, readOnly: true };
-  }
-  if (action === 'browser:screenshot') {
-    return {
-      action,
-      risk: 'file-write',
-      rememberable: false,
-      subjectBuilder: (args) => {
-        const path = normalizeScreenshotPath(args.path, projectRoot);
-        return path ? { kind: 'file-write', path } : { kind: 'tool', action: 'browser:screenshot' };
-      },
-    };
-  }
-  return {
-    action,
-    risk: 'unknown',
-    rememberable: false,
-    subjectBuilder: () => ({ kind: 'tool', action }),
-  };
-}
-
-/**
- * Keep routed browser calls tolerant of the common `query` spelling while
- * preserving the canonical model-facing schema (`text`).
- */
-function prepareBrowserFindArgs(
-  rawArguments: Record<string, unknown>,
-  _context: HostToolExecutionContext,
-  signal: AbortSignal,
-): HostToolArgumentPreparation {
-  if (signal.aborted) {
-    return {
-      ok: false,
-      result: { ok: false, code: 'aborted', message: 'tool preparation aborted' },
-    };
-  }
-
-  const directText = rawArguments.text;
-  const legacyQuery = rawArguments.query;
-  const text =
-    typeof directText === 'string' && directText.trim().length > 0
-      ? directText
-      : typeof legacyQuery === 'string'
-        ? legacyQuery
-        : undefined;
-  if (typeof text !== 'string' || text.trim().length === 0) {
-    return {
-      ok: false,
-      result: { ok: false, code: 'invalid-input', message: 'text is required' },
-    };
-  }
-
-  const canonicalArguments = Object.fromEntries(
-    Object.entries(rawArguments).filter(([key]) => key !== 'query'),
-  );
-  return { ok: true, arguments: { ...canonicalArguments, text } };
-}
-
-function normalizeScreenshotPath(value: unknown, projectRoot: string): string | undefined {
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    return undefined;
-  }
-  return resolvePath(projectRoot, value.trim());
-}
 
 /**
  * Build `browser_*` host tools bound to a `BrowserSession`. Tools are appended
@@ -206,7 +82,10 @@ export function createBrowserToolDefinitions(
   const navigate = createBrowserRegistration(
     {
       name: 'browser_navigate',
-      description: 'Navigate the right-sidebar browser to an http(s) URL.' + USER_CONTROL_HINT + AGENT_WRITE_HINT,
+      description:
+        'Navigate the right-sidebar browser to an http(s) URL. Use this when the page needs JS, login state or real interaction; prefer web_fetch for reading static documents.' +
+        USER_CONTROL_HINT +
+        AGENT_WRITE_HINT,
       parameters: {
         type: 'object',
         properties: {
@@ -272,7 +151,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_snapshot',
       description:
-        'Capture an accessibility tree snapshot. Returns low-token structural elements with ref IDs (e.g. "e5") for click/type targeting.',
+        'Capture an accessibility tree snapshot. Returns low-token structural elements with ref IDs (e.g. "e5") for click/type targeting. Refs are valid only for the current document revision; re-snapshot after navigation or a browser-stale-target result.',
       parameters: {
         type: 'object',
         properties: {},
@@ -318,7 +197,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_type',
       description:
-        'Focus an element (via ref or CSS selector) and type text character by character.' +
+        'Focus an element (via ref or CSS selector) and type text character by character. Typing appends to existing content; use browser_fill_form to replace a field value.' +
         USER_CONTROL_HINT +
         AGENT_WRITE_HINT,
       parameters: {
@@ -349,7 +228,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_fill_form',
       description:
-        'Batch fill multiple form fields at once by mapping refs or selectors to values.' +
+        'Batch fill text-like form fields by mapping refs or selectors to values. Use browser_set_checked for checkboxes/radios and browser_select_option for <select>.' +
         USER_CONTROL_HINT,
       parameters: {
         type: 'object',
@@ -395,7 +274,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_scroll',
       description:
-        'Scroll page in a specified direction (up | down | left | right).' +
+        'Scroll the page or a specific scroll container. Give direction and an optional amount in CSS px (1-2000, default 400). Without ref/selector the page root scrolls.' +
         USER_CONTROL_HINT,
       parameters: {
         type: 'object',
@@ -403,7 +282,16 @@ export function createBrowserToolDefinitions(
           direction: {
             type: 'string',
             enum: ['up', 'down', 'left', 'right'],
-            description: 'Scroll direction (convenience for common deltas)',
+            description: 'Scroll direction (default down)',
+          },
+          amount: {
+            type: 'number',
+            description: `CSS px to scroll (1-${BROWSER_SCROLL_MAX_AMOUNT_PX}, default ${BROWSER_SCROLL_DEFAULT_AMOUNT_PX})`,
+          },
+          ref: { type: 'string', description: 'Scroll container ref from browser_snapshot' },
+          selector: {
+            type: 'string',
+            description: 'Scroll container CSS selector (used when ref is omitted)',
           },
         },
       },
@@ -411,19 +299,43 @@ export function createBrowserToolDefinitions(
     permissionSpec('browser:scroll'),
     async (args, signal, context) => {
       const direction = String(args.direction ?? 'down');
-      const deltaMap: Record<string, { x?: number; y?: number }> = {
-        up: { y: -400 },
-        down: { y: 400 },
-        left: { x: -400 },
-        right: { x: 400 },
-      };
-      const delta = deltaMap[direction] ?? { y: 400 };
+      const amount = resolveScrollAmount(args.amount) ?? BROWSER_SCROLL_DEFAULT_AMOUNT_PX;
+      const sign = direction === 'up' || direction === 'left' ? -1 : 1;
+      const distance = sign * amount;
+      const delta =
+        direction === 'left' || direction === 'right' ? { x: distance } : { y: distance };
+      const target = optionalTarget(args);
       try {
-        await session.scroll(delta, agentWriteOptions(signal, context));
+        await session.scroll(delta, {
+          ...agentWriteOptions(signal, context),
+          ...(target !== undefined ? { target } : {}),
+        });
       } catch (error) {
         return userControlResult(error);
       }
-      return success({ ok: true, direction }, { direction });
+      return success(
+        { ok: true, direction, amount, ...(target !== undefined ? { target } : {}) },
+        { direction, amount, ...(target !== undefined ? { target } : {}) },
+      );
+    },
+    (rawArguments, _context, signal) => {
+      if (signal.aborted) return abortedPreparation();
+      if (resolveScrollAmount(rawArguments.amount) === undefined) {
+        return invalidPreparation(
+          `amount must be a number between 1 and ${BROWSER_SCROLL_MAX_AMOUNT_PX}`,
+        );
+      }
+      const direction = rawArguments.direction;
+      if (
+        direction !== undefined &&
+        direction !== 'up' &&
+        direction !== 'down' &&
+        direction !== 'left' &&
+        direction !== 'right'
+      ) {
+        return invalidPreparation('direction must be up, down, left, or right');
+      }
+      return { ok: true, arguments: rawArguments };
     },
   );
 
@@ -431,7 +343,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_screenshot',
       description:
-        'Capture a visual page screenshot for UI layout verification. Multimodal models inspect the JPEG directly in tool results.',
+        'Capture a visual page screenshot for UI layout verification. Check evidence.status in the result: only "delivered" or "delegated" means the model received pixels; "unavailable" is not visual evidence.',
       parameters: {
         type: 'object',
         properties: {
@@ -446,42 +358,44 @@ export function createBrowserToolDefinitions(
     async (args, signal) => {
       const path = normalizeScreenshotPath(args.path, projectRoot);
       const result = await session.screenshot(path, { signal });
+      const base = {
+        width: result.width,
+        height: result.height,
+        ...(result.path !== undefined ? { path: result.path } : {}),
+      };
       const inspect = options.inspectScreenshot;
-      if (inspect) {
-        const jpegBytes = jpegBytesFromDataUrl(result.dataUrl);
-        if (jpegBytes) {
-          try {
-            const inspected = await inspect({
-              jpegBytes,
-              width: result.width,
-              height: result.height,
-              signal,
-            });
-            return success(inspected.output, inspected.details, inspected.images);
-          } catch {
-            // ponytail: capture still counts if media/inspect fails
-          }
-        }
+      if (!inspect) {
+        // No media pipeline configured: capture is real, evidence delivery is not.
+        return screenshotEvidenceFailure(base, 'no-media-pipeline');
       }
-      return success(
-        {
+      const jpegBytes = jpegBytesFromDataUrl(result.dataUrl);
+      if (!jpegBytes) {
+        return screenshotEvidenceFailure(base, 'capture-encoding-invalid');
+      }
+      try {
+        const inspected = await inspect({
+          jpegBytes,
           width: result.width,
           height: result.height,
-          ...(result.path !== undefined ? { path: result.path } : {}),
-        },
-        {
-          width: result.width,
-          height: result.height,
-          ...(result.path ? { path: result.path } : {}),
-        },
-      );
+          signal,
+        });
+        return success(inspected.output, inspected.details, inspected.images);
+      } catch (error) {
+        // Capture success and evidence delivery are separate outcomes: never
+        // degrade to a bare width/height "success" (spec §7).
+        return screenshotEvidenceFailure(
+          base,
+          `media-persist-failed: ${sanitizeBrowserErrorMessage(error)}`,
+        );
+      }
     },
   );
 
   const find = createBrowserRegistration(
     {
       name: 'browser_find',
-      description: 'Search for matching text occurrences on the current page.',
+      description:
+        'Search the accessibility tree for matching text. Returns up to 20 candidates { text, ref? } plus the total count; a candidate with a ref can be used directly as a click/type target.',
       parameters: {
         type: 'object',
         properties: {
@@ -541,7 +455,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_wait',
       description:
-        'Wait for a fixed duration in milliseconds for page transitions or animations.',
+        'Fixed short delay for animations and transitions. This is not evidence that a page finished loading; use browser_wait_for to confirm a state instead.',
       parameters: {
         type: 'object',
         properties: {
@@ -597,20 +511,22 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_status',
       description:
-        'Read browser workbench lifecycle without launching Chromium (stopped/starting/ready/recovering/failed).',
+        'Read-only workbench entry point; launches nothing. Returns current URL, page identity, control ownership, mirror/lifecycle, pending dialog and a nextAction hint.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     permissionSpec('browser:status'),
     async () => {
       const status = session.status();
-      const controller = session.controllerState().owner;
+      const controller = session.controllerState();
+      const pendingDialog = session.pendingDialog() ?? null;
       return success({
         ...status,
-        controller,
+        controller: controller.owner,
+        agentWantsLock: controller.agentWantsLock,
+        pendingDialog,
         nextAction: nextBrowserAction({
           lifecycle: status.lifecycle,
-          controller,
-          pageStateLost: status.pageStateLost,
+          controller: controller.owner,
         }),
       });
     },
@@ -712,7 +628,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_wait_for',
       description:
-        'Wait until exactly one condition is true: text, url, or selector (optional visible). Default timeout 10s.',
+        'Preferred wait for navigation, rendering and async results. Exactly one condition must be given: text, url, or selector (optional visible). Default timeout 10s.',
       parameters: {
         type: 'object',
         properties: {
@@ -836,22 +752,29 @@ export function createBrowserToolDefinitions(
   ];
 }
 
+/**
+ * Optional ref-or-selector target. Unlike `resolveTarget`, a missing target is
+ * valid here: scroll falls back to the page root (spec §6.3).
+ */
+function optionalTarget(args: Record<string, unknown>): string | undefined {
+  if (typeof args.ref === 'string' && args.ref !== '') return args.ref;
+  if (typeof args.selector === 'string' && args.selector !== '') return args.selector;
+  return undefined;
+}
+
+function resolveScrollAmount(value: unknown): number | undefined {
+  if (value === undefined) return BROWSER_SCROLL_DEFAULT_AMOUNT_PX;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const rounded = Math.round(value);
+  if (rounded < 1 || rounded > BROWSER_SCROLL_MAX_AMOUNT_PX) return undefined;
+  return rounded;
+}
+
 /** Resolve a ref-or-selector target from tool args. Refs take precedence. */
 function resolveTarget(args: Record<string, unknown>): string {
   if (typeof args.ref === 'string' && args.ref !== '') return args.ref;
   if (typeof args.selector === 'string' && args.selector !== '') return args.selector;
   throw new Error('browser tool requires a ref or selector argument');
-}
-
-function abortedPreparation(): HostToolArgumentPreparation {
-  return {
-    ok: false,
-    result: { ok: false, code: 'aborted', message: 'tool preparation aborted' },
-  };
-}
-
-function invalidPreparation(message: string): HostToolArgumentPreparation {
-  return { ok: false, result: { ok: false, code: 'invalid-input', message } };
 }
 
 function prepareBrowserReloadArgs(

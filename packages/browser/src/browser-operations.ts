@@ -6,6 +6,7 @@ import { existsSync, statSync } from 'node:fs';
 import type { Page } from 'playwright-core';
 import type { BrowserInputEvent, BrowserSnapshotNode, BrowserViewportMode, WebElementPickResult } from '@piwin/contracts';
 import { parseAriaSnapshot } from './snapshot.js';
+import { collectFindCandidates, type BrowserFindResult } from './find.js';
 import { pickElementAt } from './pick.js';
 import { dispatchBrowserInput } from './input.js';
 import { clampBrowserViewport, resolveBrowserViewport } from './viewport.js';
@@ -16,7 +17,12 @@ import {
   BrowserStaleTargetError,
   NavigateError,
 } from './browser-errors.js';
-import type { BrowserActor, BrowserOpOptions, ScreenshotResult } from './browser-session.js';
+import type {
+  BrowserActor,
+  BrowserOpOptions,
+  BrowserScrollOptions,
+  ScreenshotResult,
+} from './browser-session.js';
 
 const HTTP_URL_RE = /^https?:\/\//i;
 const FILE_URL_RE = /^file:\/\//i;
@@ -144,11 +150,11 @@ export type BrowserOperations = {
   uploadFiles(target: string, files: string[], options?: BrowserOpOptions): Promise<void>;
   type(target: string, text: string, options?: BrowserOpOptions): Promise<void>;
   fillForm(fields: Record<string, string>, options?: BrowserOpOptions): Promise<void>;
-  scroll(delta: { x?: number; y?: number }, options?: BrowserOpOptions): Promise<void>;
+  scroll(delta: { x?: number; y?: number }, options?: BrowserScrollOptions): Promise<void>;
   screenshot(path?: string): Promise<ScreenshotResult>;
   back(options?: BrowserOpOptions): Promise<void>;
   forward(options?: BrowserOpOptions): Promise<void>;
-  find(text: string): Promise<{ count: number }>;
+  find(text: string): Promise<BrowserFindResult>;
   wait(ms: number, signal?: AbortSignal): Promise<void>;
   waitFor(condition: BrowserWaitForCondition, options?: BrowserWaitForOptions): Promise<void>;
   reload(options?: BrowserReloadOptions): Promise<void>;
@@ -308,6 +314,18 @@ export function createBrowserOperations(deps: BrowserOperationsDeps): BrowserOpe
     scroll: async (delta, options) => {
       assertActor(options?.actor ?? 'agent', 'agent-write', options?.runId);
       const activePage = await getPage();
+      const target = options?.target;
+      if (typeof target === 'string' && target.length > 0) {
+        // Scroll the container itself; moving the real mouse would change
+        // hover state on a page the agent is not operating.
+        await activePage
+          .locator(toLocator(target))
+          .first()
+          .evaluate((element, scroll) => {
+            element.scrollBy({ left: scroll.x, top: scroll.y, behavior: 'instant' });
+          }, { x: delta.x ?? 0, y: delta.y ?? 0 });
+        return;
+      }
       await activePage.mouse.wheel(delta.x ?? 0, delta.y ?? 0);
     },
 
@@ -357,8 +375,10 @@ export function createBrowserOperations(deps: BrowserOperationsDeps): BrowserOpe
 
     find: async (text) => {
       const activePage = await getPage();
-      const count = await activePage.getByText(text, { exact: false }).count();
-      return { count };
+      // Candidates must be usable as click/type targets, so match the same
+      // accessibility snapshot that produces refs instead of DOM text nodes.
+      const yamlText = await activePage.locator('html').ariaSnapshot({ mode: 'ai', boxes: true });
+      return collectFindCandidates(parseAriaSnapshot(yamlText), text);
     },
 
     wait: (ms, signal) => abortableSleep(ms, signal),

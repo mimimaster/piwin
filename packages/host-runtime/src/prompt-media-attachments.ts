@@ -1,5 +1,10 @@
-import type { MediaAttachmentRef, PromptAttachment, PromptInput } from '@piwin/contracts';
-import { contentKindForMimeType } from '@piwin/contracts';
+import type {
+  AttachmentContentKind,
+  MediaAttachmentRef,
+  PromptAttachment,
+  PromptInput,
+} from '@piwin/contracts';
+import { attachmentContentKindForFile } from '@piwin/contracts';
 import { assertInsideMediaRoot } from '@piwin/media';
 
 /** Drop media attachments from the model-facing prompt (keep web-element if any). */
@@ -43,7 +48,21 @@ export function validateMediaAttachment(
   return safeAttachment;
 }
 
+/** Prefer stamped contentKind; otherwise infer from MIME and filename. */
+export function resolveMediaContentKind(
+  attachment: Pick<MediaAttachmentRef, 'contentKind' | 'mimeType' | 'name' | 'path'>,
+): AttachmentContentKind | null {
+  if (attachment.contentKind !== undefined) {
+    return attachment.contentKind;
+  }
+  return attachmentContentKindForFile(attachment.name ?? attachment.path, attachment.mimeType);
+}
+
 export function isTextualAttachment(attachment: MediaAttachmentRef): boolean {
-  const contentKind = attachment.contentKind ?? contentKindForMimeType(attachment.mimeType);
+  const contentKind = resolveMediaContentKind(attachment);
   return contentKind === 'text' || contentKind === 'document';
+}
+
+export function isNativeImageAttachment(attachment: MediaAttachmentRef): boolean {
+  return resolveMediaContentKind(attachment) === 'image';
 }

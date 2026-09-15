@@ -75,7 +75,7 @@ export function ArtifactCanvasLauncher(props: ArtifactCanvasLauncherProps): Reac
             disabled={!canExportSource}
             onClick={() => {
               if (!canExportSource) return;
-              downloadArtifactSource({
+              void downloadArtifactSource({
                 source: props.source,
                 title,
                 kind: exportKind,

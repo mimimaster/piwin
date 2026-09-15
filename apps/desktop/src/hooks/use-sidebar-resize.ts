@@ -2,7 +2,7 @@
  * Pointer-driven horizontal resize for the left navigator.
  * Updates CSS --sidebar-width via onWidthChange; persists on pointer-up.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   clampSidebarWidth,
   clampSidebarWidthForViewport,
@@ -12,6 +12,7 @@ import {
   shouldExpandSidebar,
 } from '../sidebar-width';
 import { isOverlayShellLayout, type ShellLayoutMode } from '../shell-layout';
+import { usePanelWidthCommit } from './use-panel-width-commit.js';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
 function writeSidebarWidthCss(shell: HTMLElement | null, widthPx: number): void {
@@ -120,11 +121,7 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
     [writeLiveWidth],
   );
 
-  // Re-assert after every commit so an unrelated App re-render cannot snap
-  // --sidebar-width back to a stale React style value mid-drag.
-  useLayoutEffect(() => {
-    writeLiveWidth(widthRef.current);
-  });
+  usePanelWidthCommit(widthPx, isResizing, widthRef, writeLiveWidth);
 
   const resolveClamp = useCallback(
     (candidate: number): number => {

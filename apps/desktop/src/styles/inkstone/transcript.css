@@ -139,7 +139,7 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
   html[data-theme-id='piwin-inkstone-ink'] .marg,
   html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia,
   html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia {
-    display: grid !important;
+    display: flex !important;
   }
   html[data-theme-id='piwin-inkstone-paper'] .head,
   html[data-theme-id='piwin-inkstone-ink'] .head,
@@ -223,14 +223,10 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group .chat-marginalia {
   /* Byline row: name + glyph share one --turn-lead-h line centred on the
      body's first row (fold header, prose line, card); clock / usage /
      waiting status stack beneath it. */
-  grid-template-columns: minmax(0, auto) auto;
-  justify-content: end;
-  justify-items: end;
-  align-items: center;
-  align-content: start;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 0;
   padding: var(--turn-lead-offset, 0px) 14px 0 0;
-  container: turn-rail / inline-size;
   font: 11px var(--mono);
   color: var(--t4);
   text-align: right;
@@ -305,24 +301,37 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia .av {
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .chat-marginalia.is-assistant
+  .chat-marginalia
+  > .turn-byline {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  align-content: flex-start;
+  column-gap: 6px;
+  max-width: 100%;
+  height: var(--turn-lead-h, 30px);
+  overflow: hidden;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-marginalia
+  > .turn-byline
   > .who {
-  grid-row: 1;
-  grid-column: 1;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .chat-marginalia.is-assistant
+  .chat-marginalia
+  > .turn-byline
   > .av {
-  grid-row: 1;
-  grid-column: 2;
-  margin-left: 6px;
+  flex: none;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .chat-marginalia.is-assistant
-  > :not(.who, .av) {
-  grid-column: 1 / -1;
+  > :not(.turn-byline) {
   line-height: 16px;
 }
 
@@ -363,15 +372,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   --turn-lead-h: 24px;
 }
 
-/* A rail too narrow for name + glyph keeps the name; the glyph goes. */
-@container turn-rail (max-width: 139px) {
-  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-    .chat-marginalia.is-assistant
-    > .av {
-    display: none;
-  }
-}
-
 /* The brand mark stays grey until the reader is on that turn. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   :is(.chat-marginalia, .chat-turn-head)
@@ -407,7 +407,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   [data-status-tone='running']
-  > .av {
+  .av {
   animation: turn-rail-breathe 1.6s ease-in-out infinite;
 }
 
@@ -420,7 +420,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 @media (prefers-reduced-motion: reduce) {
   html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
     [data-status-tone='running']
-    > .av {
+    .av {
     animation: none;
   }
 }

@@ -95,8 +95,13 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
     [dispatch, hostClient],
   );
 
-  /** Live-run path: gap / focus / visibility. Idle sessions stay quiet. */
-  const reconcileLive = useCallback(async (): Promise<void> => {
+  /**
+   * Live-run path: gap / catch-up / focus / visibility. Idle sessions stay quiet.
+   * `eventsLost` (sequence gap, reconnect) also pulls the transcript while the
+   * run keeps going: pushes that fell in the hole — a `message/end`, a
+   * `tool/start`, a whole response — are never replayed as live events.
+   */
+  const reconcileLive = useCallback(async (options?: { eventsLost?: boolean }): Promise<void> => {
     const sessionId = sessionRef.current;
     if (!sessionId || !runLiveRef.current) {
       return;
@@ -124,6 +129,9 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
     }
     const decision = planRunReconcile(run);
     if (decision === 'none') {
+      if (options?.eventsLost === true) {
+        await loadTranscript(sessionId, { preserveActiveTail: true });
+      }
       return;
     }
 
@@ -148,7 +156,7 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
       return;
     }
     if (runLiveRef.current) {
-      await reconcileLive();
+      await reconcileLive({ eventsLost: true });
       return;
     }
     await loadTranscript(sessionId);
@@ -246,33 +254,43 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
   admitSelectedSessionRef.current = admitSelectedSession;
   const reconcilingRef = useRef(false);
   const rerunLiveRef = useRef(false);
+  const rerunGapRef = useRef(false);
   const rerunCatchUpRef = useRef(false);
 
   const schedule = useCallback(
-    (mode: 'live' | 'catch-up'): void => {
+    (mode: 'live' | 'gap' | 'catch-up'): void => {
       if (reconcilingRef.current) {
         if (mode === 'live') {
           rerunLiveRef.current = true;
+        } else if (mode === 'gap') {
+          rerunGapRef.current = true;
         } else {
           rerunCatchUpRef.current = true;
         }
         return;
       }
       reconcilingRef.current = true;
-      const work = mode === 'live' ? reconcileLive() : reconcileCatchUp();
+      const work =
+        mode === 'catch-up'
+          ? reconcileCatchUp()
+          : reconcileLive(mode === 'gap' ? { eventsLost: true } : undefined);
       void work
         .catch(() => undefined)
         .finally(() => {
           reconcilingRef.current = false;
-          if (rerunCatchUpRef.current) {
-            rerunCatchUpRef.current = false;
-            rerunLiveRef.current = false;
-            schedule('catch-up');
-            return;
-          }
-          if (rerunLiveRef.current) {
-            rerunLiveRef.current = false;
-            schedule('live');
+          // The widest pending pass covers the narrower ones.
+          const next = rerunCatchUpRef.current
+            ? 'catch-up'
+            : rerunGapRef.current
+              ? 'gap'
+              : rerunLiveRef.current
+                ? 'live'
+                : null;
+          rerunCatchUpRef.current = false;
+          rerunGapRef.current = false;
+          rerunLiveRef.current = false;
+          if (next !== null) {
+            schedule(next);
           }
         });
     },
@@ -282,7 +300,7 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
   useEffect(() => {
     hostClient.registerSequenceGapHandler(() => {
       void reconcilePendingPermissions({ hostClient, dispatch });
-      schedule('live');
+      schedule('gap');
     });
     return () => hostClient.registerSequenceGapHandler(null);
   }, [dispatch, hostClient, schedule]);

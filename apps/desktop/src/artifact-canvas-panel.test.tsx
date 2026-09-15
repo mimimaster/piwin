@@ -96,6 +96,7 @@ describe('ArtifactCanvasPanel', () => {
       });
       container.remove();
     }
+    vi.restoreAllMocks();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -104,6 +105,57 @@ describe('ArtifactCanvasPanel', () => {
     instances.push({ container, root });
     expect(container.querySelector('[data-testid="artifact-canvas-empty"]')).not.toBeNull();
     expect(container.querySelector('iframe')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-canvas-panel-download"]')).toBeNull();
+  });
+
+  it('hides the canvas export control when the target has no source', async () => {
+    const { container, root } = renderPanel({
+      activeTarget: makeTarget({
+        intent: makeIntent('<div class="config">stack</div>'),
+        source: '',
+      }),
+    });
+    instances.push({ container, root });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.querySelector('[data-testid="artifact-canvas-panel-download"]')).toBeNull();
+  });
+
+  it('exports original source from the canvas panel via Save As', async () => {
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:canvas-panel');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const clickAnchor = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+
+    const { container, root } = renderPanel({
+      activeTarget: makeTarget({
+        title: 'Deployment configurator',
+        source: '<div class="config">stack</div>',
+      }),
+    });
+    instances.push({ container, root });
+    const download = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-canvas-panel-download"]',
+    );
+    expect(download).not.toBeNull();
+    expect(download?.getAttribute('aria-label')).toBe('下载 HTML');
+
+    act(() => {
+      download?.click();
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    const blob = createObjectURL.mock.calls[0]?.[0];
+    expect(blob).toBeInstanceOf(Blob);
+    expect(await (blob as Blob).text()).toBe('<div class="config">stack</div>');
+    const anchor = clickAnchor.mock.instances[0] as unknown as HTMLAnchorElement;
+    expect(anchor.download).toBe('Deployment-configurator.html');
   });
 
   it('materializes stream-preview while the live target is still streaming', async () => {

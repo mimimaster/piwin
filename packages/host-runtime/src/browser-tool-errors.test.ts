@@ -30,7 +30,7 @@ describe('mapBrowserToolError', () => {
       code: 'browser-user-has-control',
       retryable: false,
       message: 'The user has the browser.',
-      details: { recoveryAction: 'wait-for-user-handoff' },
+      details: { recovery: 'wait-for-user-handoff' },
     });
   });
 
@@ -153,7 +153,7 @@ describe('mapBrowserExecuteError', () => {
     expect(result).toMatchObject({
       ok: false,
       code: 'browser-action-failed',
-      details: { reason: 'overlay', recoveryAction: 'snapshot-or-dismiss-overlay' },
+      details: { reason: 'overlay', recovery: 'snapshot-or-dismiss-overlay' },
     });
   });
 });

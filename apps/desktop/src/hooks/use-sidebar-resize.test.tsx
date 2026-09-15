@@ -15,6 +15,7 @@ type ResizeHarness = {
   container: HTMLDivElement;
   shell: HTMLDivElement;
   handle: HTMLDivElement;
+  rerender: () => void;
   latest: () => UseSidebarResizeResult;
 };
 
@@ -76,6 +77,7 @@ function renderHarness(options?: {
     container,
     shell,
     handle,
+    rerender: () => act(() => root.render(<HarnessComponent />)),
     latest: () => {
       if (latest === undefined) {
         throw new Error('resize result was not captured');
@@ -118,6 +120,32 @@ describe('useSidebarResize drag scheduling', () => {
     vi.unstubAllGlobals();
     document.body.replaceChildren();
     localStorage.clear();
+  });
+
+  it('keeps stream-driven rerenders from bypassing the pending resize frame', () => {
+    const harness = renderHarness();
+    const setProperty = vi.spyOn(harness.shell.style, 'setProperty');
+    const addEventListener = vi.spyOn(window, 'addEventListener');
+    act(() => {
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 17, 240));
+    });
+    const move = addEventListener.mock.calls.find(([type]) => type === 'pointermove')?.[1];
+    if (typeof move !== 'function') {
+      throw new Error('expected a pointermove listener');
+    }
+    setProperty.mockClear();
+    act(() => move(createPointerEvent('pointermove', 17, 290)));
+    harness.rerender();
+    harness.rerender();
+    expect(setProperty).not.toHaveBeenCalled();
+    const frame = frameCallbacks[1];
+    if (!frame) throw new Error('expected a resize frame');
+    act(() => frame(16));
+    expect(setProperty).toHaveBeenCalledTimes(1);
+    setProperty.mockClear();
+    harness.rerender();
+    expect(setProperty).not.toHaveBeenCalled();
+    disposeHarness(harness);
   });
 
   it('writes at most once per animation frame and keeps the newest width', () => {

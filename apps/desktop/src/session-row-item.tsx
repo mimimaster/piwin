@@ -248,8 +248,8 @@ export function SessionRowItem({
       >
         {isPinnedSection ? (
           <span className="session-item-pinned-ribbon" data-testid="session-pinned-ribbon" aria-hidden>
-            <svg viewBox="0 0 9 18" width="9" height="18" fill="currentColor">
-              <path d="M0 0h9v18l-4.5-3.8-4.5 3.8z" />
+            <svg viewBox="0 0 9 14" width="9" height="14" fill="currentColor">
+              <path d="M0 0h9v14l-4.5-3.5-4.5 3.5z" />
             </svg>
           </span>
         ) : null}
@@ -317,22 +317,12 @@ export function SessionRowItem({
           backendServiceLabel={copy.backendServiceActive}
           waitingOnYouLabel={copy.waitingOnYou}
         />
-        {isPinnedSection && projectSubtitle ? (
-          <span
-            className="session-item-project-tag"
-            data-testid="session-project-subtitle"
-            title={projectSubtitle}
-          >
-            {projectSubtitle}
-          </span>
-        ) : null}
         {session.updatedAt &&
         !isWorking &&
         !hasActiveBackendService &&
         !isWaitingOnPermission &&
         !hasCompletedAttention &&
-        !hasFailedAttention &&
-        !(isPinnedSection && projectSubtitle) ? (
+        !hasFailedAttention ? (
           <span className="session-item-time" aria-label={session.updatedAt}>
             {formatSessionRelativeTime(session.updatedAt)}
           </span>

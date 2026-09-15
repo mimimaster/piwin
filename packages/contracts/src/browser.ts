@@ -157,6 +157,44 @@ export type BrowserControllerPush = {
   reason?: string;
 };
 
+/** Stable guidance for the model after a browser tool failure (spec §6.4). */
+export type BrowserRecoveryAction =
+  | 'wait-for-user-handoff'
+  | 'wait-for-agent-or-take-over'
+  | 'snapshot-and-retarget'
+  | 'snapshot-or-dismiss-overlay'
+  | 'retry-once-after-recovery'
+  | 'report-browser-unavailable'
+  | 'inspect-current-state';
+
+/** Model-facing next step derived from lifecycle + control ownership (spec §5.2). */
+export type BrowserToolNextAction =
+  | 'continue'
+  | 'read-only-or-wait-for-user'
+  | 'wait-for-recovery'
+  | 'restart'
+  | 'navigate-or-observe-will-start';
+
+/** Lightweight page identity attached to browser tool successes (spec §6.3). */
+export type BrowserToolPageState = {
+  url: string;
+  title?: string;
+  generation: number;
+  pageId?: string;
+  documentRevision?: number;
+  pendingDialog: boolean;
+};
+
+/** Whether the model actually received pixels for a screenshot (spec §7). */
+export type BrowserScreenshotEvidence =
+  | { status: 'delivered'; mediaId: string }
+  | { status: 'delegated'; mediaId: string; description: string; model: string }
+  | { status: 'unavailable'; mediaId?: string; reason: string };
+
+/** `browser_scroll` amount bounds in CSS px (spec §6.3). */
+export const BROWSER_SCROLL_DEFAULT_AMOUNT_PX = 400;
+export const BROWSER_SCROLL_MAX_AMOUNT_PX = 2000;
+
 /** Model-facing byte caps for picked web-element payloads. */
 export const MAX_WEB_ELEMENT_TEXT_BYTES = 2 * 1024; // ~2 KB
 export const MAX_WEB_ELEMENT_HTML_BYTES = 8 * 1024; // ~8 KB

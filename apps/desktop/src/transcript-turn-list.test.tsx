@@ -253,6 +253,39 @@ describe('transcript turn window', () => {
     expect(container.querySelector('#msg-user-250')).toBeNull();
   });
 
+  it('uses delivered row sizes without forcing layout again during a streaming resize', async () => {
+    const turns = createTurns(3);
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, value: 640 },
+      offsetWidth: { configurable: true, value: 900 },
+      clientHeight: { configurable: true, value: 640 },
+      scrollHeight: { configurable: true, value: 2_000 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+    await act(async () => {
+      root.render(
+        <TranscriptScrollProvider sessionId="session-resize-cost" scrollElementRef={scrollElementRef}>
+          <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={renderTurn} streaming />
+        </TranscriptScrollProvider>,
+      );
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+    const body = container.querySelector<HTMLElement>('.transcript-turn-window-item-body');
+    if (!body) throw new Error('expected a mounted turn');
+    const observer = resizeObserverHarnesses.find((harness) => harness.targets.has(body));
+    if (!observer) throw new Error('expected a row resize observer');
+    const bounds = vi.spyOn(body, 'getBoundingClientRect');
+    const offset = vi.spyOn(body, 'offsetHeight', 'get');
+    act(() => observer.callback([{
+      target: body,
+      borderBoxSize: [{ blockSize: 250.25, inlineSize: 600 }],
+    } as unknown as ResizeObserverEntry], observer.observer));
+    expect(bounds).not.toHaveBeenCalled();
+    expect(offset).not.toHaveBeenCalled();
+    expect(body.parentElement?.style.height).toBe('251px');
+  });
+
   it('reserves the full measured height of a mounted turn above the cache ceiling', async () => {
     const turns = createTurns(21);
     turnHeightOverrides.set('turn-user-0', 6_000);

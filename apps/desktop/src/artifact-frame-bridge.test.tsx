@@ -184,7 +184,54 @@ describe('useArtifactFrameBridge recovery', () => {
       iframe.dispatchEvent(new Event('load'));
       vi.advanceTimersByTime(5_000);
     });
-    expect(state?.dataset['status']).toBe('fallback');
+    expect(state?.dataset['status']).toBe('ready');
+    expect(state?.dataset['height']).toBe('436');
+  });
+
+  it('accepts a size whose MessageEvent.source is null', async () => {
+    const iframe = await renderBridge('interactive');
+    const state = container.querySelector<HTMLOutputElement>('[data-testid="bridge-state"]');
+    act(() => {
+      iframe.dispatchEvent(new Event('load'));
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: null,
+          data: {
+            type: 'piwin-artifact:size',
+            channelId: 'height-bridge-test',
+            height: 436,
+            viewportHeight: 80,
+            revision: 0,
+            seq: 0,
+          },
+        }),
+      );
+    });
+    expect(state?.dataset['status']).toBe('ready');
+    expect(state?.dataset['height']).toBe('436');
+  });
+
+  it('does not fall back when height arrived before iframe load', async () => {
+    const iframe = await renderBridge('interactive');
+    const state = container.querySelector<HTMLOutputElement>('[data-testid="bridge-state"]');
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: iframe.contentWindow,
+          data: {
+            type: 'piwin-artifact:size',
+            channelId: 'height-bridge-test',
+            height: 436,
+            viewportHeight: 80,
+            revision: 0,
+            seq: 0,
+          },
+        }),
+      );
+      iframe.dispatchEvent(new Event('load'));
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(state?.dataset['status']).toBe('ready');
     expect(state?.dataset['height']).toBe('436');
   });
 

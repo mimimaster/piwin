@@ -125,7 +125,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     },
     find: async (text, options) => {
       calls.push({ method: 'find', args: [text, options] });
-      return { count: 1 };
+      return { count: 1, candidates: [{ text: 'One match', ref: 'e7' }], truncated: false };
     },
     wait: async (ms, options) => {
       calls.push({ method: 'wait', args: [ms, options] });
@@ -151,6 +151,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
       calls.push({ method: 'status', args: [] });
       return {
         lifecycle: 'ready' as const,
+        mirror: 'streaming' as const,
         generation: 1,
         pageId: 'p-1-1',
         pageStateLost: false,
@@ -518,6 +519,7 @@ describe('createBrowserToolDefinitions — execute paths', () => {
             mediaId: 'shot-1',
             mimeType: 'image/jpeg',
             inspect: { status: 'skipped', reason: 'vision-delegation-disabled' },
+            evidence: { status: 'unavailable', mediaId: 'shot-1', reason: 'vision-delegation-disabled' },
             notice: 'The client UI already rendered this screenshot as an attachment.',
           },
           details: {
@@ -555,6 +557,26 @@ describe('createBrowserToolDefinitions — execute paths', () => {
     ]);
   });
 
+  it('browser_screenshot reports unavailable evidence when media persistence fails', async () => {
+    const session = createMockSession();
+    const tools = createBrowserToolDefinitions(session, {
+      inspectScreenshot: async () => {
+        throw new Error('media root unavailable');
+      },
+    });
+    const ss = tools.find((t) => t.descriptor.name === 'browser_screenshot');
+    if (!ss) throw new Error('browser_screenshot missing');
+    const result = await executeTool(ss, {});
+    expect(result.ok).toBe(true);
+    const payload = JSON.parse(outputOf(result)) as {
+      status: string;
+      evidence: { status: string; reason: string };
+    };
+    expect(payload.status).toBe('success');
+    expect(payload.evidence.status).toBe('unavailable');
+    expect(payload.evidence.reason).toContain('media-persist-failed');
+  });
+
   it('browser_screenshot puts native images on ToolResult for vision models', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session, {
@@ -566,6 +588,7 @@ describe('createBrowserToolDefinitions — execute paths', () => {
           mediaId: 'shot-2',
           mimeType: 'image/jpeg',
           inspect: { status: 'native' },
+          evidence: { status: 'delivered', mediaId: 'shot-2' },
           notice: 'A screenshot image is attached to this tool result.',
         },
         details: {
@@ -802,6 +825,7 @@ describe('browser_reload permission from currentState', () => {
       currentState: () => ({ url: 'https://example.com/page', title: 'Example' }),
       status: () => ({
         lifecycle: 'ready',
+        mirror: 'streaming',
         generation: 1,
         pageId: 'p-1-1',
         pageStateLost: false,
@@ -827,6 +851,7 @@ describe('browser_reload permission from currentState', () => {
       currentState: () => ({ url: 'https://example.com/page', title: 'Example' }),
       status: () => ({
         lifecycle: 'ready',
+        mirror: 'streaming',
         generation: 1,
         pageId: 'p-1-1',
         pageStateLost: false,
@@ -853,6 +878,7 @@ describe('browser_reload permission from currentState', () => {
       currentState: () => ({ url, title: 'Example' }),
       status: () => ({
         lifecycle: 'ready',
+        mirror: 'streaming',
         generation: 1,
         pageId: 'p-1-1',
         pageStateLost: false,
@@ -883,6 +909,7 @@ describe('browser_reload permission from currentState', () => {
       currentState: () => ({}),
       status: () => ({
         lifecycle: 'stopped',
+        mirror: 'off',
         generation: 0,
         pageStateLost: false,
         recoveryCount: 0,

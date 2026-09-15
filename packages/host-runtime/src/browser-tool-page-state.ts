@@ -1,39 +1,40 @@
 import type { BrowserSession } from '@piwin/browser';
-import type { BrowserLifecycle } from '@piwin/contracts';
+import type { BrowserLifecycle, BrowserToolNextAction, BrowserToolPageState } from '@piwin/contracts';
 
-export type BrowserPageState = {
-  url: string;
-  title?: string;
-  pageId?: string;
-};
-
-export type BrowserNextAction =
-  | 'wait-for-ready'
-  | 'snapshot-and-retarget'
-  | 'wait-for-user-handoff'
-  | 'continue';
-
-export function readBrowserPageState(session: BrowserSession): BrowserPageState | undefined {
+/**
+ * Lightweight page identity for browser tool successes (spec §6.3). Deliberately
+ * small: the model decides whether to follow up with snapshot/screenshot.
+ */
+export function readBrowserPageState(session: BrowserSession): BrowserToolPageState | undefined {
   const state = session.currentState();
   const status = session.status();
   const url = state.url ?? status.url;
   if (typeof url !== 'string' || url.length === 0) return undefined;
   const title = state.title ?? status.title;
-  const pageId = status.pageId;
   return {
     url,
     ...(typeof title === 'string' && title.length > 0 ? { title } : {}),
-    ...(typeof pageId === 'string' && pageId.length > 0 ? { pageId } : {}),
+    generation: status.generation,
+    ...(typeof status.pageId === 'string' && status.pageId.length > 0
+      ? { pageId: status.pageId }
+      : {}),
+    pendingDialog: session.pendingDialog() !== undefined,
   };
 }
 
+/**
+ * Stable next step for the model (spec §5.2). Derived only from lifecycle and
+ * control ownership — never from frame timing, so an idle static page does not
+ * look broken.
+ */
 export function nextBrowserAction(input: {
   lifecycle: BrowserLifecycle;
   controller: 'idle' | 'agent' | 'user';
-  pageStateLost: boolean;
-}): BrowserNextAction {
-  if (input.lifecycle === 'starting' || input.lifecycle === 'recovering') return 'wait-for-ready';
-  if (input.pageStateLost || input.lifecycle === 'failed') return 'snapshot-and-retarget';
-  if (input.controller === 'user') return 'wait-for-user-handoff';
-  return 'continue';
+}): BrowserToolNextAction {
+  if (input.lifecycle === 'recovering') return 'wait-for-recovery';
+  if (input.lifecycle === 'failed' || input.lifecycle === 'disposed') return 'restart';
+  if (input.lifecycle === 'stopped' || input.lifecycle === 'starting') {
+    return 'navigate-or-observe-will-start';
+  }
+  return input.controller === 'user' ? 'read-only-or-wait-for-user' : 'continue';
 }

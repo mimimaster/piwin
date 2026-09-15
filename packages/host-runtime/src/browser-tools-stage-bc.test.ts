@@ -93,7 +93,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     screenshot: async () => ({ dataUrl: 'data:image/jpeg;base64,AA==', width: 1, height: 1 }),
     back: async () => {},
     forward: async () => {},
-    find: async () => ({ count: 0 }),
+    find: async () => ({ count: 0, candidates: [], truncated: false }),
     wait: async () => {},
     waitFor: async () => {},
     reload: async () => {},
@@ -102,6 +102,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     applyViewport: async (size) => size,
     status: () => ({
       lifecycle: 'ready',
+      mirror: 'off',
       generation: 1,
       pageStateLost: false,
       recoveryCount: 0,
