@@ -100,7 +100,10 @@ describe('transcript turn window', () => {
       .mockImplementation(function getTestBounds(this: HTMLElement): DOMRect {
         const turnId = this.dataset.turnId;
         // Measure the inner body (natural height). Outer slots are height-locked.
-        const height = this.classList.contains('transcript-turn-window-item-body')
+        // A detached node has no box, as in a real layout engine.
+        const height = !this.isConnected
+          ? 0
+          : this.classList.contains('transcript-turn-window-item-body')
           ? ((turnId ? turnHeightOverrides.get(turnId) : undefined) ?? 120)
           : this.classList.contains('transcript-turn-window-item')
             ? Number.parseFloat(this.style.height || '0') || 0
@@ -439,6 +442,81 @@ describe('transcript turn window', () => {
     expect(container.querySelector<HTMLElement>('.transcript-turn-window')?.style.height)
       .toBe('6920px');
     expect(committedHeights.at(-1)).toBe('6920px');
+  });
+
+  it('does not let a detached turn body take over the key now at its index', async () => {
+    const messages = (headId: string): ChatMessageUi[] =>
+      [headId, 'user-1', 'user-2'].map((id) => ({
+        id,
+        role: 'user',
+        text: id,
+        thinking: '',
+        tools: [],
+        attachments: [],
+        status: 'done',
+      }));
+    turnHeightOverrides.set('turn-user-old-head', 300);
+    turnHeightOverrides.set('turn-user-new-head', 900);
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, value: 640 },
+      offsetWidth: { configurable: true, value: 900 },
+      clientHeight: { configurable: true, value: 640 },
+    });
+    const render = (headId: string): void => {
+      root.render(
+        <TranscriptScrollProvider sessionId="session-detached-body" scrollElementRef={scrollElementRef}>
+          <TranscriptTurnList
+            turns={groupTranscriptTurns(messages(headId))}
+            pinnedMessageId={null}
+            renderTurn={renderTurn}
+          />
+        </TranscriptScrollProvider>,
+      );
+    };
+    await act(async () => render('user-old-head'));
+
+    // A history page or bounded-window trim replaces the head turn in place:
+    // the old body leaves the DOM still carrying data-index="0".
+    await act(async () => render('user-new-head'));
+
+    const body = container.querySelector<HTMLElement>(
+      '[data-turn-id="turn-user-new-head"]',
+    );
+    if (!body) throw new Error('expected the new head turn to mount');
+    expect(body.parentElement?.style.height).toBe('900px');
+    expect(resizeObserverHarnesses.some((harness) => harness.targets.has(body))).toBe(true);
+  });
+
+  it('keeps the last real turn height while its pane is hidden', async () => {
+    const turns = createTurns(2);
+    turnHeightOverrides.set('turn-user-0', 900);
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, value: 640 },
+      offsetWidth: { configurable: true, value: 900 },
+      clientHeight: { configurable: true, value: 640 },
+    });
+    await act(async () => {
+      root.render(
+        <TranscriptScrollProvider sessionId="session-hidden-pane" scrollElementRef={scrollElementRef}>
+          <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={renderTurn} />
+        </TranscriptScrollProvider>,
+      );
+    });
+    const body = container.querySelector<HTMLElement>('[data-turn-id="turn-user-0"]');
+    if (!body) throw new Error('expected a mounted turn');
+    expect(body.parentElement?.style.height).toBe('900px');
+    const observer = resizeObserverHarnesses.find((harness) => harness.targets.has(body));
+    if (!observer) throw new Error('expected a row resize observer');
+
+    // display:none on the pane reports a zero box for every observed body.
+    act(() => observer.callback([{
+      target: body,
+      borderBoxSize: [{ blockSize: 0, inlineSize: 0 }],
+    } as unknown as ResizeObserverEntry], observer.observer));
+
+    expect(body.parentElement?.style.height).toBe('900px');
   });
 
   it('does not restick the tail when a local fold asks for a remasure', async () => {

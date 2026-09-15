@@ -3,13 +3,17 @@ import { decodeHostWireMessage, encodeHostWireMessage } from './protocol-codec.j
 import type {
   HostClientHelloFactory,
   HostTransport,
+  HostTransportBinaryListener,
   HostTransportMessageListener,
   HostTransportState,
   HostTransportStateListener,
 } from './host-transport.js';
+import { readBinaryFrameBytes } from './binary-frame-bytes.js';
 
 export type WebSocketLike = {
   readonly readyState: number;
+  /** Browser sockets expose this; absent on the Tauri native bridge. */
+  binaryType?: string;
   onopen: (() => void) | null;
   onmessage: ((event: { data: unknown }) => void) | null;
   onerror: ((event: unknown) => void) | null;
@@ -54,6 +58,7 @@ export class WebSocketHostTransport implements HostTransport {
   private readonly reconnectMaxDelayMs: number;
   private readonly heartbeatIntervalMs: number;
   private readonly messageListeners = new Set<HostTransportMessageListener>();
+  private readonly binaryListeners = new Set<HostTransportBinaryListener>();
   private readonly stateListeners = new Set<HostTransportStateListener>();
   private socket: WebSocketLike | undefined;
   private state: HostTransportState = { kind: 'idle' };
@@ -160,6 +165,11 @@ export class WebSocketHostTransport implements HostTransport {
     return () => this.messageListeners.delete(listener);
   }
 
+  public subscribeBinary(listener: HostTransportBinaryListener): () => void {
+    this.binaryListeners.add(listener);
+    return () => this.binaryListeners.delete(listener);
+  }
+
   public subscribeState(listener: HostTransportStateListener): () => void {
     this.stateListeners.add(listener);
     listener(this.state);
@@ -190,6 +200,13 @@ export class WebSocketHostTransport implements HostTransport {
     }
     try {
       const socket = this.webSocketFactory(this.endpoint);
+      // Ask a webview socket for bytes instead of a Blob; the Tauri bridge
+      // ignores the hint and delivers number arrays.
+      try {
+        if (socket.binaryType !== 'arraybuffer') socket.binaryType = 'arraybuffer';
+      } catch {
+        // Read-only or absent: the normalizer handles whatever arrives.
+      }
       this.socket = socket;
       socket.onopen = () => this.handleOpen(socket);
       socket.onmessage = (event) => this.handleMessage(socket, event.data);
@@ -257,7 +274,17 @@ export class WebSocketHostTransport implements HostTransport {
       return;
     }
     if (typeof data !== 'string') {
-      this.handleSocketError(socket, 'Host transport received a non-text frame');
+      // Out-of-band binary frames (browser JPEG) are a supported message kind,
+      // never a protocol error.
+      void readBinaryFrameBytes(data)
+        .then((bytes) => {
+          if (bytes === undefined || this.socket !== socket || this.binaryListeners.size === 0) {
+            return;
+          }
+          this.noteInboundLiveness();
+          for (const listener of this.binaryListeners) listener(bytes);
+        })
+        .catch(() => undefined);
       return;
     }
 

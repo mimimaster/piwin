@@ -112,6 +112,7 @@ import {
   isRpcWorkerMode,
   ensurePetStateStore,
 } from './host-runtime-services.js';
+import type { BrowserFrameBytesSink } from './host-runtime-services.js';
 import {
   composeSubagentOrchestrator,
   whenSubagentStartupRecoveryReady,
@@ -1026,6 +1027,18 @@ export class HostRuntime extends HostRuntimeFields {
 
   attachPushSink(sink: PushSink): () => void {
     return attachHostPushSink(this.asKernel(), sink);
+  }
+
+  /**
+   * Register a raw browser-frame sink. Frames are delivered only while the
+   * browser session is alive; the sink must not retain the bytes.
+   */
+  attachBrowserFrameSink(sink: BrowserFrameBytesSink): () => void {
+    const kernel = this.asKernel();
+    kernel.browserFrameSinks.add(sink);
+    return () => {
+      kernel.browserFrameSinks.delete(sink);
+    };
   }
 
   countProductionPushSinks(): number {

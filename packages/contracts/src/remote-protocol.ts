@@ -45,6 +45,12 @@ export type HostClientCapabilities = {
   liveSubscriptions?: boolean;
   /** Bounded device-tool advertisements. Absent on old clients. */
   clientTools?: readonly ClientToolCapabilityAdvertisement[];
+  /**
+   * Client can receive the out-of-band binary browser-frame channel
+   * (`version + headerLength + JSON header + JPEG`). Absent on old clients,
+   * which receive an explicit unavailable payload instead of `[redacted]`.
+   */
+  browserFrameBinary?: true;
 };
 
 export type HostClientHello = {
@@ -224,6 +230,8 @@ export type RemoteCapabilitySummary = {
   logicalProjectRefs?: boolean;
   /** Host can hydrate activity/run state for reconnecting shells. */
   activityHydration?: boolean;
+  /** Host carries live browser JPEG on the out-of-band binary channel. */
+  browserFrameBinary?: boolean;
   /**
    * Host will send targeted client-tool request/cancel frames to this
    * connection. Absent on old Hosts; never implied by protocol version alone.

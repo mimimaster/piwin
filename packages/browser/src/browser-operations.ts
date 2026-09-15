@@ -10,7 +10,7 @@ import { collectFindCandidates, type BrowserFindResult } from './find.js';
 import { pickElementAt } from './pick.js';
 import { dispatchBrowserInput } from './input.js';
 import { clampBrowserViewport, resolveBrowserViewport } from './viewport.js';
-import { BROWSER_SCREENSHOT_QUALITY } from './screencast-size.js';
+import { BROWSER_CAPTURE_QUALITY, BROWSER_SCREENSHOT_QUALITY } from './screencast-size.js';
 import {
   AbortOperationError,
   BrowserSessionError,
@@ -160,6 +160,10 @@ export type BrowserOperations = {
   reload(options?: BrowserReloadOptions): Promise<void>;
   pressKey(key: string, options?: BrowserOpOptions): Promise<void>;
   queryViewport(): { width: number; height: number } | undefined;
+  capture(options: {
+    quality?: number;
+    fullPage?: boolean;
+  }): Promise<{ bytes: Uint8Array; viewport: { width: number; height: number } }>;
   pickElementAt(x: number, y: number, screenshotPath?: string): Promise<WebElementPickResult>;
   dispatchEvents(events: BrowserInputEvent[], signal?: AbortSignal): Promise<void>;
   setViewport(size: { width: number; height: number }, mode?: BrowserViewportMode): Promise<{ width: number; height: number }>;
@@ -349,6 +353,21 @@ export function createBrowserOperations(deps: BrowserOperationsDeps): BrowserOpe
         result.path = path;
       }
       return result;
+    },
+
+    capture: async (captureOptions) => {
+      // Read-only: annotation works while the agent holds the lock (spec §4.3).
+      const activePage = await getPage();
+      const buffer = await activePage.screenshot({
+        type: 'jpeg',
+        quality: captureOptions.quality ?? BROWSER_CAPTURE_QUALITY,
+        ...(captureOptions.fullPage === true ? { fullPage: true } : {}),
+      });
+      const viewport = activePage.viewportSize() ?? {
+        width: maxDimension,
+        height: maxDimension,
+      };
+      return { bytes: new Uint8Array(buffer), viewport };
     },
 
     back: async (options) => {

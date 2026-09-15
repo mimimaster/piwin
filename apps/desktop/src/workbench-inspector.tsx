@@ -110,6 +110,7 @@ export type WorkbenchInspectorProps = {
   artifactBlockExternalScripts?: boolean;
   artifactBlockExternalResources?: boolean;
   addWebElement: (pick: WebElementPickResult) => void;
+  onAddImageFile?: (file: File) => void;
   inspectorDiff: { relativePath: string } | null;
   activeMedia: ActiveDocumentMedia | undefined;
   activeDocument: ActiveDocument | null;
@@ -168,6 +169,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     artifactBlockExternalScripts,
     artifactBlockExternalResources,
     addWebElement,
+    onAddImageFile,
     inspectorDiff,
     activeMedia,
     activeDocument,
@@ -358,6 +360,25 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               <DeferredBrowserSessionPanel
                 hostClient={hostClient}
                 onAddWebElement={addWebElement}
+                {...(onAddImageFile === undefined ? {} : { onAddImageFile })}
+                panelActions={{
+                  expanded: isOverlayPresentation
+                    ? rightPanelResize.widthPx > 450
+                    : rightPanelResize.isFullWidth,
+                  onToggleExpand: () => {
+                    if (isOverlayPresentation) {
+                      rightPanelResize.setWidthPx(
+                        rightPanelResize.widthPx > 450 ? RIGHT_PANEL_DEFAULT_WIDTH_PX : 600,
+                      );
+                      return;
+                    }
+                    rightPanelResize.toggleFullWidth();
+                  },
+                  onClose: () => {
+                    rightPanelResize.setFullWidth(false);
+                    shell.closeOverlay();
+                  },
+                }}
               />
             ) : (
               <RemoteUnavailableSurface feature="browser" locale={locale} />

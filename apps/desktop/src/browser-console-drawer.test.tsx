@@ -38,9 +38,10 @@ describe('BrowserConsoleDrawer', () => {
     container.remove();
   });
 
-  it('shows console text after the drawer is opened', () => {
+  it('renders nothing while the chrome keeps it collapsed', () => {
     const tree: ReactElement = (
       <BrowserConsoleDrawer
+        open={false}
         consoleLines={[{ level: 'error', text: 'boom', ts: 1 }]}
         networkLines={[]}
       />
@@ -48,12 +49,23 @@ describe('BrowserConsoleDrawer', () => {
     act(() => {
       root.render(tree);
     });
-    const toggle = container.querySelector('[data-testid="browser-session-dev-toggle"]');
-    expect(toggle).not.toBeNull();
     expect(container.querySelector('[data-testid="browser-session-dev-body"]')).toBeNull();
+    expect(container.textContent).not.toContain('boom');
+  });
+
+  it('renders console and network lines when the chrome opens it', () => {
+    const tree: ReactElement = (
+      <BrowserConsoleDrawer
+        open
+        consoleLines={[{ level: 'error', text: 'boom', ts: 1 }]}
+        networkLines={[{ method: 'GET', url: '/health', status: 200, duration: 12, ts: 2 }]}
+      />
+    );
     act(() => {
-      toggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      root.render(tree);
     });
+    expect(container.querySelector('[data-testid="browser-session-dev-body"]')).not.toBeNull();
     expect(container.textContent).toContain('boom');
+    expect(container.textContent).toContain('GET 200 /health (12ms)');
   });
 });

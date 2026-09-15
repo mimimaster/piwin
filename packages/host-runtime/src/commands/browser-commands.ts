@@ -8,8 +8,11 @@
  * mirrors the agent's Chromium instance.
  */
 import type { HostCommand, HostPush, HostResponse } from '@piwin/contracts';
+import { toMediaAttachmentRef } from '@piwin/contracts';
 import type { BrowserSession } from '@piwin/browser';
+import { createMediaService } from '@piwin/media';
 import { mapBrowserToolError, sanitizeBrowserErrorMessage } from '../browser-tool-errors.js';
+import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
 
@@ -18,6 +21,7 @@ const TYPES = new Set<HostCommand['type']>([
   'browser/navigate',
   'browser/pick-at',
   'browser/screenshot',
+  'browser/capture',
   'browser/stop',
   'browser/restart',
   'browser/reload',
@@ -96,7 +100,9 @@ export async function handleBrowserCommand(
 
     case 'browser/pick-at': {
       try {
-        const result = await session.pickElementAt(command.x, command.y);
+        const result = await session.pickElementAt(command.x, command.y, {
+          ...(command.target === undefined ? {} : { target: command.target }),
+        });
         context.push({ type: 'browser/picked', result });
         return ok(requestId, 'browser/pick-at', { result });
       } catch (error) {
@@ -111,6 +117,40 @@ export async function handleBrowserCommand(
           width: screenshot.width,
           height: screenshot.height,
           ...(screenshot.path !== undefined ? { path: screenshot.path } : {}),
+        });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/capture': {
+      try {
+        const captured = await session.capture({
+          ...(command.quality === undefined ? {} : { quality: command.quality }),
+          ...(command.fullPage === true ? { fullPage: true } : {}),
+        });
+        const sessionId = command.sessionId ?? 'browser-workbench';
+        const media = createMediaService({
+          mediaRoot: getPiwinMediaDir(getPiwinRoot(context.piwinRoot)),
+          maxPasteBytes: 10 * 1024 * 1024,
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+        });
+        const asset = await media.saveMediaAsset({
+          sessionId,
+          bytes: captured.bytes,
+          mimeType: captured.mime,
+          name: 'browser-capture.jpg',
+          source: 'generated',
+        });
+        const attachment = toMediaAttachmentRef(
+          { ...asset, width: captured.width, height: captured.height },
+          'generated',
+        );
+        return ok(requestId, 'browser/capture', {
+          attachment,
+          target: session.currentTarget(),
+          width: captured.width,
+          height: captured.height,
         });
       } catch (error) {
         return failFromBrowserError(requestId, command.type, error);
@@ -147,7 +187,9 @@ export async function handleBrowserCommand(
 
     case 'browser/input': {
       try {
-        await session.dispatchInput(command.events);
+        await session.dispatchInput(command.events, {
+          ...(command.target === undefined ? {} : { target: command.target }),
+        });
         return ok(requestId, 'browser/input', { count: command.events.length });
       } catch (error) {
         return failFromBrowserError(requestId, command.type, error);
@@ -202,10 +244,10 @@ export async function handleBrowserCommand(
         }
         const size = { width: command.width, height: command.height };
         const mode = command.mode ?? (origin === 'follow' ? 'follow' : undefined);
-        const viewport =
-          mode !== undefined
-            ? await session.setViewport(size, { mode })
-            : await session.setViewport(size);
+        const viewport = await session.setViewport(size, {
+          ...(mode !== undefined ? { mode } : {}),
+          setBy: 'user',
+        });
         return ok(requestId, 'browser/resize', { viewport });
       } catch (error) {
         return failFromBrowserError(requestId, command.type, error);

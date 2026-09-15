@@ -33,6 +33,10 @@ class FakeSocket implements WebSocketLike {
   public emitMessage(message: HostWireMessage): void {
     this.onmessage?.({ data: encodeHostWireMessage(message) });
   }
+
+  public emitBinary(bytes: Uint8Array): void {
+    this.onmessage?.({ data: bytes });
+  }
 }
 
 const CAPABILITIES = {
@@ -79,6 +83,72 @@ describe('WebSocketHostTransport', () => {
 
     await expect(connection).resolves.toEqual(hello);
     await transport.close();
+  });
+
+  it('delivers binary frames to the binary subscriber without erroring the socket', async () => {
+    const sockets: FakeSocket[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://127.0.0.1:1',
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'client-binary',
+        lastSeq,
+      }),
+      webSocketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+    });
+    const received: Uint8Array[] = [];
+    transport.subscribeBinary((bytes) => received.push(bytes));
+    const connect = transport.connect();
+    const socket = sockets[0];
+    if (socket === undefined) throw new Error('socket missing');
+    socket.emitOpen();
+    socket.emitMessage(createHostHello('host-1'));
+    await connect;
+
+    socket.emitBinary(new Uint8Array([0x50, 0x42, 0x46, 0x31]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(received).toHaveLength(1);
+    expect(Array.from(received[0] as Uint8Array)).toEqual([0x50, 0x42, 0x46, 0x31]);
+    // A binary frame is not a text-frame protocol error.
+    expect(socket.readyState).toBe(1);
+  });
+
+  it('ignores binary frames when nothing subscribes', async () => {
+    const sockets: FakeSocket[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://127.0.0.1:1',
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'client-binary',
+        lastSeq,
+      }),
+      webSocketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+    });
+    const connect = transport.connect();
+    const socket = sockets[0];
+    if (socket === undefined) throw new Error('socket missing');
+    socket.emitOpen();
+    socket.emitMessage(createHostHello('host-1'));
+    await connect;
+
+    socket.emitBinary(new Uint8Array([1]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(socket.readyState).toBe(1);
   });
 
   it('reconnects with the last cursor after an unexpected close', async () => {

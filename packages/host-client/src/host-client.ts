@@ -27,7 +27,11 @@ import {
   remoteCommandRequiresIdempotencyKey,
   remoteHostSupportsCommand,
 } from '@piwin/contracts';
-import type { HostTransport, HostTransportState } from '@piwin/host-transport';
+import type {
+  HostTransport,
+  HostTransportBinaryListener,
+  HostTransportState,
+} from '@piwin/host-transport';
 import {
   addCommandId,
   countAdmissionKeys,
@@ -154,11 +158,13 @@ export class HostClient {
   private readonly batchListeners = new Set<HostClientBatchListener>();
   private readonly snapshotListeners = new Set<HostClientSnapshotListener>();
   private readonly hydrationListeners = new Set<HostClientHydrationListener>();
+  private readonly binaryListeners = new Set<HostTransportBinaryListener>();
   private readonly clientToolRequestListeners = new Set<HostClientToolRequestListener>();
   private readonly clientToolCancelListeners = new Set<HostClientToolCancelListener>();
   private readonly pendingPushes = new Map<number, HostPushFrame>();
   private readonly unsubscribeTransport: () => void;
   private readonly unsubscribeTransportState: () => void;
+  private readonly unsubscribeTransportBinary: () => void;
   private state: HostClientState = { kind: 'idle' };
   private hostHello: HostHello | undefined;
   private lastSeq: number;
@@ -215,6 +221,10 @@ export class HostClient {
     this.unsubscribeTransportState = this.transport.subscribeState((state) =>
       this.handleTransportState(state),
     );
+    this.unsubscribeTransportBinary =
+      this.transport.subscribeBinary?.((bytes) => {
+        for (const listener of this.binaryListeners) listener(bytes);
+      }) ?? (() => undefined);
   }
 
   public getState(): HostClientState {
@@ -253,6 +263,12 @@ export class HostClient {
   public subscribePush(listener: HostClientPushListener): () => void {
     this.pushListeners.add(listener);
     return () => this.pushListeners.delete(listener);
+  }
+
+  /** Out-of-band browser JPEG frames (spec §4.1.2). Local JSONL never fires. */
+  public subscribeBinary(listener: HostTransportBinaryListener): () => void {
+    this.binaryListeners.add(listener);
+    return () => this.binaryListeners.delete(listener);
   }
 
   public subscribeBatch(listener: HostClientBatchListener): () => void {
@@ -338,6 +354,7 @@ export class HostClient {
     this.clientToolCancelListeners.clear();
     this.unsubscribeTransport();
     this.unsubscribeTransportState();
+    this.unsubscribeTransportBinary();
     for (const [requestId, pending] of this.pendingRequests) {
       clearTimeout(pending.timer);
       pending.reject(new Error('Host client closed'));

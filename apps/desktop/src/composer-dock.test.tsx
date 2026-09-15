@@ -1799,3 +1799,127 @@ describe('ComposerDock host status', () => {
     expect(toolbar?.classList.contains('bar')).toBe(true);
   });
 });
+
+describe('ComposerDock Goal lid', () => {
+  const objective: import('./chat-ui-types').ChatMessageUi = {
+    id: 'u-goal',
+    role: 'user',
+    text: 'Ship it',
+    thinking: '',
+    tools: [],
+    attachments: [],
+    status: 'done',
+    agentMode: 'goal',
+  };
+  let rendered: { container: HTMLElement; root: Root } | null = null;
+
+  afterEach(() => {
+    if (!rendered) return;
+    const { root, container } = rendered;
+    act(() => root.unmount());
+    container.remove();
+    rendered = null;
+  });
+
+  it('rests the Goal lid directly above the composer card, not in the transcript', () => {
+    rendered = renderDock(
+      <ComposerDock {...baseProps} agentMode="goal" streaming goalMessages={[objective]} />,
+    );
+    const dock = rendered.container.querySelector('[data-testid="composer-dock"]');
+    const lid = dock?.querySelector(':scope > [data-testid="goal-sticky-strip"]');
+    expect(lid).not.toBeNull();
+    expect(lid?.getAttribute('data-status')).toBe('running');
+    expect(lid?.nextElementSibling?.classList.contains('composer-card-v2')).toBe(true);
+  });
+
+  it('renders no lid outside Goal mode, without a transcript, or in the centered layout', () => {
+    rendered = renderDock(<ComposerDock {...baseProps} goalMessages={[objective]} />);
+    expect(rendered.container.querySelector('[data-testid="goal-sticky-strip"]')).toBeNull();
+    act(() => {
+      rendered?.root.render(
+        <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ComposerDock {...baseProps} agentMode="goal" goalMessages={[]} />
+            <ComposerDock
+              {...baseProps}
+              layoutMode="centered"
+              agentMode="goal"
+              goalMessages={[objective]}
+            />
+          </PiwinUiProvider>
+        </DesktopLocaleProvider>,
+      );
+    });
+    expect(rendered.container.querySelector('[data-testid="goal-sticky-strip"]')).toBeNull();
+  });
+
+  it('separates Abort (cancel the run) from Leave Goal (exit the mode)', () => {
+    const onAbort = vi.fn();
+    const onAgentModeChange = vi.fn();
+    rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        agentMode="goal"
+        streaming
+        runPhase="streaming"
+        onAbort={onAbort}
+        onAgentModeChange={onAgentModeChange}
+        goalMessages={[objective]}
+      />,
+    );
+    const abort = rendered.container.querySelector<HTMLButtonElement>(
+      '[data-testid="goal-abort-btn"]',
+    );
+    act(() => abort?.click());
+    // Abort cancels the run only; leaving the mode is a separate, explicit
+    // gesture so a cancelled attempt can be resumed under the same objective.
+    expect(onAbort).toHaveBeenCalledTimes(1);
+    expect(onAgentModeChange).not.toHaveBeenCalled();
+
+    const exit = rendered.container.querySelector<HTMLButtonElement>(
+      '[data-testid="goal-exit-btn"]',
+    );
+    act(() => exit?.click());
+    expect(onAgentModeChange).toHaveBeenCalledWith('agent');
+    expect(onAbort).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports blocked from the transcript even when the run has settled', () => {
+    rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        agentMode="goal"
+        goalMessages={[
+          objective,
+          {
+            id: 'a-goal',
+            role: 'assistant',
+            text: '',
+            thinking: '',
+            attachments: [],
+            status: 'done',
+            tools: [
+              {
+                toolCallId: 'call-blocked',
+                toolName: 'goal_blocked',
+                status: 'done',
+                output: '',
+                presentation: {
+                  kind: 'other',
+                  title: 'Goal Blocked',
+                  goal: { phase: 'blocked', reason: 'pick a strategy' },
+                },
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    const lid = rendered.container.querySelector('[data-testid="goal-sticky-strip"]');
+    expect(lid?.getAttribute('data-status')).toBe('blocked');
+    expect(lid?.textContent).toContain('pick a strategy');
+    expect(rendered.container.querySelector('[data-testid="goal-objective"]')?.textContent).toBe(
+      'Ship it',
+    );
+  });
+});

@@ -270,6 +270,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     draftSessions,
     activeDraftId,
     addWebElement,
+    enqueueAttachmentFile,
     addExistingMediaAttachment,
     handleSend,
     handleOpenDocument,
@@ -778,6 +779,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       artifactThemeKey={artifactThemeKey}
                       {...artifactFenceSecurityProps(config?.artifact)}
                       addWebElement={addWebElement}
+                      onAddImageFile={(file) => enqueueAttachmentFile(file, 'file-picker')}
                       inspectorDiff={inspectorFileDiff.diff}
                       activeMedia={activeMedia}
                       activeDocument={activeDocument}

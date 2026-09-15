@@ -2,7 +2,8 @@
  * Desktop UI preferences (localStorage). Cursor-like tool density etc.
  * Not product config under ~/.piwin — pure presentation.
  */
-import type { ThemeManifest } from '@piwin/contracts';
+import type { BrowserViewportMode, ThemeManifest } from '@piwin/contracts';
+import type { BrowserDisplayZoom } from './browser-display-box';
 
 import {
   PIWIN_APPEARANCE_BONE,
@@ -185,6 +186,7 @@ const DARK_THEME_KEY = 'piwin.desktop.darkTheme';
 const TERMINAL_LAST_CWD_KEY = 'piwin.desktop.terminalLastCwd';
 const TERMINAL_RECENT_DIRS_KEY = 'piwin.desktop.terminalRecentDirs';
 const AGENT_LOCATOR_ANIMATION_KEY = 'piwin.desktop.agentLocatorAnimation';
+const BROWSER_VIEWPORT_KEY = 'piwin.desktop.browserViewport';
 /** Last successfully applied theme id — used for pre-paint bootstrap (no FOUC). */
 const LAST_THEME_ID_KEY = 'piwin.desktop.lastThemeId';
 
@@ -392,4 +394,63 @@ export function saveLastThemeId(themeId: string): void {
     return;
   }
   writeString(LAST_THEME_ID_KEY, trimmed);
+}
+
+/** Browser workbench viewport preference (spec §4.1). localStorage, not product config. */
+export type BrowserViewportPreference = {
+  mode: BrowserViewportMode;
+  /** Size used by fixed/mobile/custom. Ignored in follow mode. */
+  width: number;
+  height: number;
+  /** Display zoom for fixed/mobile/custom. Follow always fits. Default fit. */
+  displayZoom?: BrowserDisplayZoom;
+};
+
+/** New installs, and installs without a stored choice, follow the panel. */
+export const DEFAULT_BROWSER_VIEWPORT_PREFERENCE: BrowserViewportPreference = {
+  mode: 'follow',
+  width: 1280,
+  height: 800,
+  displayZoom: 'fit',
+};
+
+const BROWSER_VIEWPORT_MODES: readonly BrowserViewportMode[] = ['fixed', 'follow', 'mobile', 'custom'];
+
+function parseBrowserViewportMode(value: unknown): BrowserViewportMode | undefined {
+  return typeof value === 'string' && (BROWSER_VIEWPORT_MODES as readonly string[]).includes(value)
+    ? (value as BrowserViewportMode)
+    : undefined;
+}
+
+function parseViewportEdge(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const rounded = Math.round(value);
+  return rounded >= 1 ? rounded : undefined;
+}
+
+export function loadBrowserViewportPreference(): BrowserViewportPreference {
+  const raw = readString(BROWSER_VIEWPORT_KEY);
+  if (raw === null) return { ...DEFAULT_BROWSER_VIEWPORT_PREFERENCE };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) {
+      return { ...DEFAULT_BROWSER_VIEWPORT_PREFERENCE };
+    }
+    const record = parsed as Record<string, unknown>;
+    const mode = parseBrowserViewportMode(record.mode);
+    if (mode === undefined) return { ...DEFAULT_BROWSER_VIEWPORT_PREFERENCE };
+    const displayZoom: BrowserDisplayZoom = record.displayZoom === '100' ? '100' : 'fit';
+    return {
+      mode,
+      width: parseViewportEdge(record.width) ?? DEFAULT_BROWSER_VIEWPORT_PREFERENCE.width,
+      height: parseViewportEdge(record.height) ?? DEFAULT_BROWSER_VIEWPORT_PREFERENCE.height,
+      displayZoom,
+    };
+  } catch {
+    return { ...DEFAULT_BROWSER_VIEWPORT_PREFERENCE };
+  }
+}
+
+export function saveBrowserViewportPreference(preference: BrowserViewportPreference): void {
+  writeString(BROWSER_VIEWPORT_KEY, JSON.stringify(preference));
 }

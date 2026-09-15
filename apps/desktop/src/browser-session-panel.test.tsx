@@ -9,9 +9,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { HostPush, HostResponse, WebElementPickResult } from '@piwin/contracts';
+import type { BrowserFramePush, HostPush, HostResponse, WebElementPickResult } from '@piwin/contracts';
+import { PiwinUiProvider } from '@piwin/ui-kit';
 import { HostClient } from './host-client';
 import { BrowserSessionPanel } from './browser-session-panel';
+import { BROWSER_FOLLOW_RESIZE_DEBOUNCE_MS } from './hooks/use-browser-viewport';
+import { loadBrowserViewportPreference, saveBrowserViewportPreference } from './ui-preferences';
+import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -20,6 +24,29 @@ declare global {
 function createMockHostClient(): HostClient {
   return new HostClient({ transport: 'mock' });
 }
+
+
+function browserFramePush(overrides: Partial<BrowserFramePush> = {}): BrowserFramePush {
+  return {
+    type: 'browser/frame',
+    frameId: '1',
+    width: 800,
+    height: 600,
+    encodedWidth: 800,
+    encodedHeight: 600,
+    sourceDpr: 1,
+    quality: 80,
+    producer: 'screencast',
+    byteLength: 4,
+    generation: 1,
+    pageId: 'page-1',
+    documentRevision: 0,
+    payload: { kind: 'inline', dataUrl: 'data:image/jpeg;base64,/9j/4AAQ' },
+    ts: 1,
+    ...overrides,
+  };
+}
+
 
 describe('BrowserSessionPanel', () => {
   let container: HTMLElement;
@@ -35,6 +62,9 @@ describe('BrowserSessionPanel', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    localStorage.clear();
     act(() => {
       root.unmount();
     });
@@ -47,12 +77,16 @@ describe('BrowserSessionPanel', () => {
   function renderPanel(props: {
     hostClient: HostClient;
     onAddWebElement?: (pick: WebElementPickResult) => void;
+    panelActions?: { expanded: boolean; onToggleExpand: () => void; onClose: () => void };
   }): void {
     const tree: ReactElement = (
-      <BrowserSessionPanel
-        hostClient={props.hostClient}
-        onAddWebElement={props.onAddWebElement ?? vi.fn()}
-      />
+      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+        <BrowserSessionPanel
+          hostClient={props.hostClient}
+          onAddWebElement={props.onAddWebElement ?? vi.fn()}
+          panelActions={props.panelActions}
+        />
+      </PiwinUiProvider>
     );
     act(() => {
       root.render(tree);
@@ -62,6 +96,60 @@ describe('BrowserSessionPanel', () => {
   function stubImgMetrics(img: HTMLImageElement, width: number, height: number): void {
     Object.defineProperty(img, 'clientWidth', { value: width, configurable: true });
     Object.defineProperty(img, 'clientHeight', { value: height, configurable: true });
+  }
+
+  /** The frame container is the page viewport the follow controller measures. */
+  function stubFrameContainerBox(size: { width: number; height: number }): void {
+    const box = {
+      width: size.width,
+      height: size.height,
+      top: 0,
+      left: 0,
+      right: size.width,
+      bottom: size.height,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect;
+    // spyOn (not defineProperty) so other tests can still stub element boxes
+    // and so afterEach restores the original measurement.
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(box);
+  }
+
+
+  /** Radix DropdownMenu triggers open on pointerdown, items select on click. */
+  async function openRadixMenu(testId: string): Promise<void> {
+    const trigger = queryByTestId(testId) as HTMLButtonElement | null;
+    expect(trigger).not.toBeNull();
+    await act(async () => {
+      trigger?.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      trigger?.dispatchEvent(new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+      trigger?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+  }
+
+  async function selectMenuItem(item: HTMLElement): Promise<void> {
+    await act(async () => {
+      item.dispatchEvent(new window.PointerEvent('pointermove', { bubbles: true, cancelable: true }));
+      item.dispatchEvent(new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+      item.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+  }
+
+  async function typeInto(input: HTMLInputElement, value: string): Promise<void> {
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    )?.set;
+    await act(async () => {
+      nativeInputValueSetter?.call(input, value);
+      input.dispatchEvent(new window.Event('input', { bubbles: true }));
+    });
+  }
+
+  function pressMenuItem(item: HTMLElement | null): Promise<void> {
+    if (!item) throw new Error('menu item missing');
+    return selectMenuItem(item);
   }
 
   function queryByTestId(testId: string): HTMLElement | null {
@@ -74,23 +162,59 @@ describe('BrowserSessionPanel', () => {
 
     expect(queryByTestId('browser-session-panel')).not.toBeNull();
     expect(queryByTestId('browser-session-url-input')).not.toBeNull();
-    expect(queryByTestId('browser-session-go-btn')).not.toBeNull();
+    // Icon-only chrome (spec §4.2): Enter submits, no permanent Go/Reload text.
+    expect(queryByTestId('browser-session-go-btn')).toBeNull();
+    expect(queryByTestId('browser-session-reload')).not.toBeNull();
+    expect(queryByTestId('browser-session-open-external')).not.toBeNull();
+    expect(queryByTestId('browser-session-pick-toggle')).not.toBeNull();
+    expect(queryByTestId('browser-session-viewport-menu-btn')).not.toBeNull();
     // No frame yet → placeholder is shown, not the <img>.
     expect(queryByTestId('browser-session-frame')).toBeNull();
   });
 
-  it('keeps a fixed Host CSS viewport and exposes history controls', async () => {
+  it('exposes history controls', async () => {
     const client = createMockHostClient();
-    const resizeSpy = vi.spyOn(client, 'browserResize');
     const requestSpy = vi.spyOn(client, 'request');
     renderPanel({ hostClient: client });
     expect(queryByTestId('browser-session-back')).not.toBeNull();
     expect(queryByTestId('browser-session-forward')).not.toBeNull();
-    expect(resizeSpy).not.toHaveBeenCalled();
     await act(async () => {
       queryByTestId('browser-session-back')?.click();
     });
     expect(requestSpy).toHaveBeenCalledWith({ type: 'browser/back' });
+  });
+
+  it('follow mode resizes the Host viewport from the panel box after the debounce', async () => {
+    vi.useFakeTimers();
+    const client = createMockHostClient();
+    const resizeSpy = vi.spyOn(client, 'browserResize');
+    stubFrameContainerBox({ width: 1024.4, height: 700.6 });
+    renderPanel({ hostClient: client });
+    expect(resizeSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BROWSER_FOLLOW_RESIZE_DEBOUNCE_MS + 10);
+    });
+    expect(resizeSpy).toHaveBeenCalledTimes(1);
+    expect(resizeSpy).toHaveBeenCalledWith(
+      1024,
+      701,
+      expect.objectContaining({ mode: 'follow', origin: 'follow' }),
+    );
+  });
+
+  it('fixed mode never sends follow resizes', async () => {
+    vi.useFakeTimers();
+    saveBrowserViewportPreference({ mode: 'fixed', width: 1280, height: 800 });
+    const client = createMockHostClient();
+    const resizeSpy = vi.spyOn(client, 'browserResize');
+    stubFrameContainerBox({ width: 1024, height: 700 });
+    renderPanel({ hostClient: client });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BROWSER_FOLLOW_RESIZE_DEBOUNCE_MS + 10);
+    });
+    expect(resizeSpy).not.toHaveBeenCalled();
   });
 
   it('acquires Chromium on mount and releases it when the browser surface unmounts', () => {
@@ -147,7 +271,12 @@ describe('BrowserSessionPanel', () => {
 
     const toggle = queryByTestId('browser-session-pick-toggle') as HTMLButtonElement;
     expect(toggle.disabled).toBe(true);
-    expect(queryByTestId('browser-session-agent-banner')).not.toBeNull();
+    // Ownership lives in the mode group now; pending dialogs and recovery keep
+    // their own banners (spec §4.2).
+    expect(queryByTestId('browser-session-agent-banner')).toBeNull();
+    const control = queryByTestId('browser-session-control');
+    expect(control?.getAttribute('data-owner')).toBe('agent');
+    expect(control?.getAttribute('title')).toContain('接管');
     expect((queryByTestId('browser-session-url-input') as HTMLInputElement).disabled).toBe(true);
   });
 
@@ -158,19 +287,7 @@ describe('BrowserSessionPanel', () => {
     renderPanel({ hostClient: client, onAddWebElement });
 
     // Push a synthetic frame so the <img> renders.
-    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
-    const framePush: HostPush = {
-      type: 'browser/frame',
-      dataUrl: 'data:image/png;base64,AAAA',
-      width: 800,
-      height: 600,
-      ts: Date.now(),
-    };
-    act(() => {
-      for (const listener of listeners) {
-        listener(framePush);
-      }
-    });
+    await emitHostPush(client, browserFramePush({ width: 800, height: 600, ts: Date.now() }));
 
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
     expect(img).not.toBeNull();
@@ -235,18 +352,7 @@ describe('BrowserSessionPanel', () => {
     const pickAtSpy = vi.spyOn(client, 'browserPickAt');
     renderPanel({ hostClient: client });
 
-    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
-    act(() => {
-      for (const listener of listeners) {
-        listener({
-          type: 'browser/frame',
-          dataUrl: 'data:image/png;base64,AAAA',
-          width: 800,
-          height: 600,
-          ts: Date.now(),
-        } as HostPush);
-      }
-    });
+    await emitHostPush(client, browserFramePush({ width: 800, height: 600, ts: Date.now() }));
 
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
     stubImgMetrics(img, 800, 600);
@@ -294,18 +400,7 @@ describe('BrowserSessionPanel', () => {
     const pickAtSpy = vi.spyOn(client, 'browserPickAt');
     renderPanel({ hostClient: client });
 
-    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
-    act(() => {
-      for (const listener of listeners) {
-        listener({
-          type: 'browser/frame',
-          dataUrl: 'data:image/png;base64,AAAA',
-          width: 800,
-          height: 600,
-          ts: Date.now(),
-        } as HostPush);
-      }
-    });
+    await emitHostPush(client, browserFramePush({ width: 800, height: 600, ts: Date.now() }));
 
     const containerEl = queryByTestId('browser-session-frame-container') as HTMLDivElement;
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
@@ -372,18 +467,7 @@ describe('BrowserSessionPanel', () => {
     const pickAtSpy = vi.spyOn(client, 'browserPickAt').mockRejectedValue(new Error('boom'));
     renderPanel({ hostClient: client, onAddWebElement });
 
-    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
-    act(() => {
-      for (const listener of listeners) {
-        listener({
-          type: 'browser/frame',
-          dataUrl: 'data:image/png;base64,AAAA',
-          width: 800,
-          height: 600,
-          ts: Date.now(),
-        } as HostPush);
-      }
-    });
+    await emitHostPush(client, browserFramePush({ width: 800, height: 600, ts: Date.now() }));
 
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
     stubImgMetrics(img, 800, 600);
@@ -437,18 +521,7 @@ describe('BrowserSessionPanel', () => {
     } as HostResponse);
     renderPanel({ hostClient: client });
 
-    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
-    act(() => {
-      for (const listener of listeners) {
-        listener({
-          type: 'browser/frame',
-          dataUrl: 'data:image/png;base64,AAAA',
-          width: 800,
-          height: 600,
-          ts: Date.now(),
-        } as HostPush);
-      }
-    });
+    await emitHostPush(client, browserFramePush({ width: 800, height: 600, ts: Date.now() }));
 
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
     stubImgMetrics(img, 800, 600);
@@ -494,18 +567,7 @@ describe('BrowserSessionPanel', () => {
     const inputSpy = vi.spyOn(client, 'browserInput');
     const pickAtSpy = vi.spyOn(client, 'browserPickAt');
     renderPanel({ hostClient: client });
-    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
-    act(() => {
-      for (const listener of listeners) {
-        listener({
-          type: 'browser/frame',
-          dataUrl: 'data:image/png;base64,AAAA',
-          width: 800,
-          height: 600,
-          ts: Date.now(),
-        });
-      }
-    });
+    await emitHostPush(client, browserFramePush({ width: 800, height: 600, ts: Date.now() }));
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
     stubImgMetrics(img, 800, 600);
     img.getBoundingClientRect = () => ({
@@ -530,7 +592,7 @@ describe('BrowserSessionPanel', () => {
     expect(events?.[0]).toMatchObject({ type: 'mouse', action: 'down', x: 40, y: 20 });
   });
 
-  it('Take over sends browser/lock owner user', async () => {
+  it('clicking the control dot while the agent owns the page takes over', async () => {
     const client = createMockHostClient();
     const lockSpy = vi.spyOn(client, 'browserLock');
     renderPanel({ hostClient: client });
@@ -540,14 +602,14 @@ describe('BrowserSessionPanel', () => {
         listener({ type: 'browser/controller', owner: 'agent', agentWantsLock: true, ts: Date.now() });
       }
     });
-    const button = queryByTestId('browser-session-take-over') as HTMLButtonElement;
+    const button = queryByTestId('browser-session-control') as HTMLButtonElement;
     await act(async () => {
       button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     });
     expect(lockSpy).toHaveBeenCalledWith('user');
   });
 
-  it('shows Give back whenever the user owns the page, even without an agent claim', async () => {
+  it('clicking the control dot while the user owns the page gives it back', async () => {
     const client = createMockHostClient();
     const unlockSpy = vi.spyOn(client, 'browserUnlock');
     renderPanel({ hostClient: client });
@@ -557,39 +619,204 @@ describe('BrowserSessionPanel', () => {
         listener({ type: 'browser/controller', owner: 'user', ts: Date.now() });
       }
     });
-    const button = queryByTestId('browser-session-give-back') as HTMLButtonElement;
-    expect(button).not.toBeNull();
-    expect(button.textContent).toBe('释放');
+    const button = queryByTestId('browser-session-control') as HTMLButtonElement;
+    expect(button.getAttribute('data-owner')).toBe('user');
+    expect(button.getAttribute('title')).toContain('交还');
     await act(async () => {
       button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     });
     expect(unlockSpy).toHaveBeenCalledWith('user');
   });
 
-  it('labels Give back when a run still wants the lock', () => {
+  it('disables the control dot while nobody controls the page', () => {
     const client = createMockHostClient();
     renderPanel({ hostClient: client });
-    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
-    act(() => {
-      for (const listener of listeners) {
-        listener({
-          type: 'browser/controller',
-          owner: 'user',
-          agentWantsLock: true,
-          ts: Date.now(),
-        });
-      }
-    });
-    expect(queryByTestId('browser-session-give-back')?.textContent).toBe('交还');
+    const button = queryByTestId('browser-session-control') as HTMLButtonElement;
+    expect(button.getAttribute('data-owner')).toBe('idle');
+    expect(button.disabled).toBe(true);
   });
 
-  function emitHostPush(client: HostClient, message: HostPush): void {
+  it('applies a viewport preset explicitly and persists it', async () => {
+    const client = createMockHostClient();
+    const resizeSpy = vi.spyOn(client, 'browserResize');
+    renderPanel({ hostClient: client });
+    await openRadixMenu('browser-session-viewport-menu-btn');
+    await pressMenuItem(
+      document.querySelector<HTMLElement>('[data-testid="browser-session-viewport-desktop"]'),
+    );
+    expect(resizeSpy).toHaveBeenCalledWith(
+      1280,
+      800,
+      expect.objectContaining({ mode: 'fixed', origin: 'explicit' }),
+    );
+    expect(loadBrowserViewportPreference()).toEqual({ mode: 'fixed', width: 1280, height: 800, displayZoom: 'fit' });
+  });
+
+  it('leaves Responsive to the follow controller instead of sending a preset size', async () => {
+    saveBrowserViewportPreference({ mode: 'fixed', width: 1280, height: 800 });
+    const client = createMockHostClient();
+    const resizeSpy = vi.spyOn(client, 'browserResize');
+    renderPanel({ hostClient: client });
+    await openRadixMenu('browser-session-viewport-menu-btn');
+    await pressMenuItem(
+      document.querySelector<HTMLElement>('[data-testid="browser-session-viewport-responsive"]'),
+    );
+    expect(resizeSpy).not.toHaveBeenCalled();
+    expect(loadBrowserViewportPreference().mode).toBe('follow');
+  });
+
+  it('reload refreshes the committed page without reading the address draft', async () => {
+    const client = createMockHostClient();
+    const reloadSpy = vi.spyOn(client, 'browserReload');
+    const navigateSpy = vi.spyOn(client, 'browserNavigate');
+    renderPanel({ hostClient: client });
+    await typeInto(queryByTestId('browser-session-url-input') as HTMLInputElement, 'example.com');
+    await act(async () => {
+      (queryByTestId('browser-session-reload') as HTMLButtonElement).click();
+    });
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+    expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  it('toggles the developer drawer from the chrome', async () => {
+    const client = createMockHostClient();
+    renderPanel({ hostClient: client });
+    expect(queryByTestId('browser-session-dev-body')).toBeNull();
+    await act(async () => {
+      (queryByTestId('browser-session-dev-drawer') as HTMLButtonElement).click();
+    });
+    expect(queryByTestId('browser-session-dev-body')).not.toBeNull();
+  });
+
+  it('collapses repeated command failures into one bounded, dismissible notice', async () => {
+    const client = createMockHostClient();
+    vi.spyOn(client, 'browserReload').mockResolvedValue({
+      id: 'reload',
+      type: 'response',
+      command: 'browser/reload',
+      success: false,
+      error: 'nope',
+    } as HostResponse);
+    renderPanel({ hostClient: client });
+    const reload = queryByTestId('browser-session-reload') as HTMLButtonElement;
+    await act(async () => {
+      reload.click();
+    });
+    expect(queryByTestId('browser-session-notice')?.textContent).toContain('浏览器命令失败');
+    await act(async () => {
+      reload.click();
+    });
+    expect(queryByTestId('browser-session-notice')?.textContent).toContain('重复 2 次');
+    await act(async () => {
+      (queryByTestId('browser-session-notice-dismiss') as HTMLButtonElement).click();
+    });
+    expect(queryByTestId('browser-session-notice')).toBeNull();
+  });
+
+  it('flags a low-density mirror from the real encoded size', async () => {
+    const client = createMockHostClient();
+    renderPanel({ hostClient: client });
+    const framePush: HostPush = browserFramePush({
+      width: 1600,
+      height: 900,
+      encodedWidth: 800,
+      encodedHeight: 450,
+      producer: 'screencast',
+      ts: Date.now(),
+    });
+    await emitHostPush(client, framePush);
+    const img = queryByTestId('browser-session-frame') as HTMLImageElement;
+    stubImgMetrics(img, 1600, 900);
+    await emitHostPush(client, framePush);
+    expect(queryByTestId('browser-session-density-dot')).not.toBeNull();
+
+    await emitHostPush(client, { ...framePush, frameId: '2', encodedWidth: 3400, encodedHeight: 1900 });
+    expect(queryByTestId('browser-session-density-dot')).toBeNull();
+  });
+
+  it('renders panel-level actions only when the hosting surface provides them', async () => {
+    const client = createMockHostClient();
+    const onClose = vi.fn();
+    const onToggleExpand = vi.fn();
+    renderPanel({ hostClient: client });
+    expect(queryByTestId('browser-session-close-panel')).toBeNull();
+    expect(queryByTestId('browser-session-expand')).toBeNull();
+
+    renderPanel({
+      hostClient: client,
+      panelActions: { expanded: false, onToggleExpand, onClose },
+    });
+    await act(async () => {
+      (queryByTestId('browser-session-expand') as HTMLButtonElement).click();
+      (queryByTestId('browser-session-close-panel') as HTMLButtonElement).click();
+    });
+    expect(onToggleExpand).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the Agent-set viewport note from Host state', async () => {
+    const client = createMockHostClient();
+    renderPanel({ hostClient: client });
+    await emitHostPush(client, {
+      type: 'browser/state',
+      ts: Date.now(),
+      viewport: { mode: 'fixed', width: 1280, height: 800, setBy: 'agent' },
+    });
+    expect(queryByTestId('browser-session-viewport-set-by')?.textContent).toBe('由 Agent 设置');
+  });
+
+  it('switches fixed-mode display to 100% without sending a resize', async () => {
+    saveBrowserViewportPreference({ mode: 'fixed', width: 1280, height: 800 });
+    const client = createMockHostClient();
+    const resizeSpy = vi.spyOn(client, 'browserResize');
+    renderPanel({ hostClient: client });
+    await openRadixMenu('browser-session-viewport-menu-btn');
+    await pressMenuItem(
+      document.querySelector<HTMLElement>('[data-testid="browser-session-viewport-100"]'),
+    );
+    expect(resizeSpy).not.toHaveBeenCalled();
+    expect(loadBrowserViewportPreference().displayZoom).toBe('100');
+    expect(queryByTestId('browser-session-frame-container')?.getAttribute('data-zoom')).toBe('100');
+  });
+
+  it('lists mirror diagnostics in the developer drawer', async () => {
+    const client = createMockHostClient();
+    renderPanel({ hostClient: client });
+    await emitHostPush(client, browserFramePush({
+      width: 1280,
+      height: 800,
+      encodedWidth: 2560,
+      encodedHeight: 1600,
+      sourceDpr: 2,
+      quality: 80,
+      producer: 'screencast',
+      ts: Date.now(),
+    }));
+    await act(async () => {
+      (queryByTestId('browser-session-dev-drawer') as HTMLButtonElement).click();
+    });
+    const metrics = queryByTestId('browser-session-dev-metrics')?.textContent ?? '';
+    expect(metrics).toContain('CSS 视口');
+    expect(metrics).toContain('1280x800');
+    expect(metrics).toContain('2560x1600');
+    expect(metrics).toContain('screencast');
+  });
+
+  async function flushDecoder(): Promise<void> {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  async function emitHostPush(client: HostClient, message: HostPush): Promise<void> {
     const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
     act(() => {
       for (const listener of listeners) {
         listener(message);
       }
     });
+    await flushDecoder();
   }
 
   function stubFrameClickTarget(img: HTMLImageElement): void {
@@ -612,14 +839,8 @@ describe('BrowserSessionPanel', () => {
     const inputSpy = vi.spyOn(client, 'browserInput');
     const pickAtSpy = vi.spyOn(client, 'browserPickAt');
     renderPanel({ hostClient: client });
-    emitHostPush(client, {
-      type: 'browser/frame',
-      dataUrl: 'data:image/png;base64,AAAA',
-      width: 800,
-      height: 600,
-      ts: Date.now(),
-    });
-    emitHostPush(client, {
+    await emitHostPush(client, browserFramePush({ width: 800, height: 600, ts: Date.now() }));
+    await emitHostPush(client, {
       type: 'browser/state',
       lifecycle: 'recovering',
       mirror: 'off',
@@ -634,7 +855,7 @@ describe('BrowserSessionPanel', () => {
     expect(queryByTestId('browser-session-restart')).not.toBeNull();
     expect((queryByTestId('browser-session-pick-toggle') as HTMLButtonElement).disabled).toBe(true);
     expect((queryByTestId('browser-session-url-input') as HTMLInputElement).disabled).toBe(true);
-    expect((queryByTestId('browser-session-go-btn') as HTMLButtonElement).disabled).toBe(true);
+    expect((queryByTestId('browser-session-reload') as HTMLButtonElement).disabled).toBe(true);
     expect(queryByTestId('browser-session-ime')).toBeNull();
 
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
@@ -658,7 +879,7 @@ describe('BrowserSessionPanel', () => {
     const client = createMockHostClient();
     const restartSpy = vi.spyOn(client, 'browserRestart');
     renderPanel({ hostClient: client });
-    emitHostPush(client, {
+    await emitHostPush(client, {
       type: 'browser/state',
       lifecycle: 'failed',
       mirror: 'off',
@@ -683,7 +904,7 @@ describe('BrowserSessionPanel', () => {
     expect(queryByTestId('browser-session-mirror-error')).not.toBeNull();
     expect(queryByTestId('browser-session-runtime-banner')).not.toBeNull();
 
-    emitHostPush(client, {
+    await emitHostPush(client, {
       type: 'browser/state',
       lifecycle: 'ready',
       mirror: 'streaming',

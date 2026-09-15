@@ -178,6 +178,8 @@ export type HostSequenceGapHandler = (gap: HostPushSequenceGap) => void;
 
 export class HostClient {
   private readonly listeners = new Set<HostClientListener>();
+  private readonly binaryListeners = new Set<(bytes: Uint8Array) => void>();
+  private unsubscribeRemoteBinary: (() => void) | null = null;
   private readonly transport: TransportMode;
   private readonly hostMock: boolean;
   private readonly remoteTarget: DesktopRemoteHostTarget | undefined;
@@ -268,6 +270,26 @@ export class HostClient {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  /**
+   * Remote JPEG frames. Local sidecar uses inline JSONL payloads instead.
+   */
+  subscribeBinary(listener: (bytes: Uint8Array) => void): () => void {
+    this.binaryListeners.add(listener);
+    if (this.remoteClient !== null && this.unsubscribeRemoteBinary === null) {
+      this.attachRemoteBinary(this.remoteClient);
+    }
+    return () => {
+      this.binaryListeners.delete(listener);
+    };
+  }
+
+  private attachRemoteBinary(remote: ReturnType<typeof createDesktopRemoteHostClient>): void {
+    this.unsubscribeRemoteBinary?.();
+    this.unsubscribeRemoteBinary = remote.subscribeBinary((bytes) => {
+      for (const listener of this.binaryListeners) listener(bytes);
+    });
   }
 
   async connect(): Promise<void> {
@@ -774,8 +796,11 @@ export class HostClient {
       unsubscribeHydration();
       unsubscribeSnapshot();
       unsubscribeState();
+      this.unsubscribeRemoteBinary?.();
+      this.unsubscribeRemoteBinary = null;
     };
     this.remoteClient = remote;
+    this.attachRemoteBinary(remote);
     return remote;
   }
 
@@ -918,11 +943,33 @@ export class HostClient {
   }
 
   /** Pick the web element at viewport CSS coordinates (x, y). */
-  async browserPickAt(x: number, y: number): Promise<HostResponse> {
-    return this.request({ type: 'browser/pick-at', x, y });
+  async browserPickAt(
+    x: number,
+    y: number,
+    target?: import('@piwin/contracts').BrowserTargetIdentity,
+  ): Promise<HostResponse> {
+    return this.request({
+      type: 'browser/pick-at',
+      x,
+      y,
+      ...(target === undefined ? {} : { target }),
+    });
   }
 
   /** Capture a screenshot; when `path` is omitted the host chooses the path. */
+  async browserCapture(options?: {
+    sessionId?: string;
+    quality?: number;
+    fullPage?: boolean;
+  }): Promise<HostResponse> {
+    return this.request({
+      type: 'browser/capture',
+      ...(options?.sessionId === undefined ? {} : { sessionId: options.sessionId }),
+      ...(options?.quality === undefined ? {} : { quality: options.quality }),
+      ...(options?.fullPage === true ? { fullPage: true } : {}),
+    });
+  }
+
   async browserScreenshot(path?: string): Promise<HostResponse> {
     return this.request({
       type: 'browser/screenshot',
@@ -947,8 +994,15 @@ export class HostClient {
     return this.request({ type: 'browser/reload' });
   }
 
-  async browserInput(events: BrowserInputEvent[]): Promise<HostResponse> {
-    return this.request({ type: 'browser/input', events });
+  async browserInput(
+    events: BrowserInputEvent[],
+    target?: import('@piwin/contracts').BrowserTargetIdentity,
+  ): Promise<HostResponse> {
+    return this.request({
+      type: 'browser/input',
+      events,
+      ...(target === undefined ? {} : { target }),
+    });
   }
 
   async browserLock(owner: 'agent' | 'user'): Promise<HostResponse> {

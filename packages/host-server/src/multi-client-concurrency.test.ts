@@ -31,12 +31,16 @@ class CountingRuntime implements HostRuntimePort {
     return { type: 'response', command: command.type, success: true, data: {} };
   }
 
+
   public attachPushSink(sink: PushSink): () => void {
     const id = `${this.sinks.size}`;
     this.sinks.set(id, sink);
     return () => {
       this.sinks.delete(id);
     };
+  }
+  public attachBrowserFrameSink(_sink: unknown): () => void {
+    return () => undefined;
   }
 }
 

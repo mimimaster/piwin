@@ -80,6 +80,8 @@ export type BrowserRuntimeHooks = {
   emitState: () => Promise<void>;
   requestFrame: () => Promise<void>;
   stopScreencast: () => Promise<void>;
+  /** Main-frame navigation observed: the document revision advances. */
+  noteDocumentChange?: () => void;
 };
 
 export type BrowserRuntime = {
@@ -604,7 +606,10 @@ export function createBrowserRuntime(
   }
 
   function attachPageSideEffects(activePage: Page): void {
-    activePage.on('framenavigated', () => {
+    activePage.on('framenavigated', (frame) => {
+      // Only a main-frame navigation invalidates the document revision that
+      // Desktop input/pick targets carry (spec §5.1).
+      if (frame === activePage.mainFrame()) hooks.noteDocumentChange?.();
       void hooks.emitState();
     });
     activePage.on('load', () => {

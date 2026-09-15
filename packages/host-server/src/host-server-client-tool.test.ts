@@ -52,6 +52,9 @@ class FakeRuntime implements HostRuntimePort {
   public attachPushSink(_sink: PushSink): () => void {
     return () => undefined;
   }
+  public attachBrowserFrameSink(_sink: unknown): () => void {
+    return () => undefined;
+  }
 }
 
 class MessageInbox {

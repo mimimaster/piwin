@@ -97,6 +97,63 @@ export function displayRectFromViewport(input: {
   };
 }
 
+/**
+ * Map a click on a filled display box (object-fit:fill, same aspect as the CSS
+ * viewport) into CSS viewport px. Letterboxing is a container concern — the
+ * image element itself is the page.
+ */
+export function viewportFromFilledDisplay(input: {
+  displayX: number;
+  displayY: number;
+  displayWidth: number;
+  displayHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+}): { x: number; y: number } | null {
+  if (
+    input.displayWidth <= 0 ||
+    input.displayHeight <= 0 ||
+    input.viewportWidth <= 0 ||
+    input.viewportHeight <= 0
+  ) {
+    return null;
+  }
+  if (
+    input.displayX < 0 ||
+    input.displayY < 0 ||
+    input.displayX > input.displayWidth ||
+    input.displayY > input.displayHeight
+  ) {
+    return null;
+  }
+  return {
+    x: Math.round((input.displayX / input.displayWidth) * input.viewportWidth),
+    y: Math.round((input.displayY / input.displayHeight) * input.viewportHeight),
+  };
+}
+
+/** Inverse of `viewportFromFilledDisplay` for the pick highlight. */
+export function displayRectFromFilledViewport(input: {
+  viewportX: number;
+  viewportY: number;
+  viewportBoxWidth: number;
+  viewportBoxHeight: number;
+  displayWidth: number;
+  displayHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+}): DisplayRect | null {
+  if (input.viewportWidth <= 0 || input.viewportHeight <= 0) return null;
+  const scaleX = input.displayWidth / input.viewportWidth;
+  const scaleY = input.displayHeight / input.viewportHeight;
+  return {
+    x: input.viewportX * scaleX,
+    y: input.viewportY * scaleY,
+    width: input.viewportBoxWidth * scaleX,
+    height: input.viewportBoxHeight * scaleY,
+  };
+}
+
 /** Collapse consecutive mouse-move events, preserving order of everything else. */
 export function coalesceMouseMoves(events: BrowserInputEvent[]): BrowserInputEvent[] {
   const coalesced: BrowserInputEvent[] = [];

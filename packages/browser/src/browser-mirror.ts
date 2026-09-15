@@ -5,9 +5,9 @@
  * relaunching the browser.
  */
 import type { Page } from 'playwright-core';
+import type { BrowserFrameProducer } from '@piwin/contracts';
 import { createFrameLoop, type FrameLoop } from './frames.js';
 import { startScreencast, type ScreencastHandle } from './screencast.js';
-import type { BrowserFramePush, BrowserSessionEvent } from './browser-session.js';
 import {
   BROWSER_SCREENCAST_QUALITY,
   BROWSER_SCREENSHOT_QUALITY,
@@ -17,13 +17,29 @@ import {
 } from './screencast-size.js';
 import { readJpegSize } from './jpeg-size.js';
 
+/**
+ * One captured frame as the mirror produced it. Identity, payload shape and
+ * delivery are the session's concern (spec §4.1.2).
+ */
+export type BrowserFrameResult = {
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+  encodedWidth: number;
+  encodedHeight: number;
+  sourceDpr: number;
+  quality: number;
+  producer: BrowserFrameProducer;
+};
+
 export type BrowserMirrorDeps = {
   maxDimension: number;
   maxFps: number;
   getPage: () => Promise<Page>;
   hasActiveMirrorLease: () => boolean;
   resolveDeviceScaleFactor: (page: Page) => Promise<number>;
-  subscribers: Set<(event: BrowserSessionEvent) => void>;
+  /** Single delivery path for both producers. */
+  onFrame: (frame: BrowserFrameResult) => void;
 };
 
 export type BrowserMirror = {
@@ -41,19 +57,9 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
   let screencastHandle: ScreencastHandle | undefined;
   let liveSize: BrowserScreencastSize | undefined;
   let liveDpr: number | undefined;
-  let frameSeq = 0;
-
-  function nextFrameId(): string {
-    frameSeq += 1;
-    return String(frameSeq);
-  }
 
   function wantsFallbackFrames(): boolean {
-    return (
-      screencastHandle === undefined &&
-      deps.hasActiveMirrorLease() &&
-      deps.subscribers.size > 0
-    );
+    return screencastHandle === undefined && deps.hasActiveMirrorLease();
   }
 
   async function clearScreencastHandle(): Promise<void> {
@@ -86,17 +92,18 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
         width: deps.maxDimension,
         height: deps.maxDimension,
       };
-      const encoded = readJpegSize(buffer) ?? {
+      const bytes = new Uint8Array(buffer);
+      const encoded = readJpegSize(bytes) ?? {
         width: viewport.width,
         height: viewport.height,
       };
       return {
-        dataUrl: `data:image/jpeg;base64,${buffer.toString('base64')}`,
+        bytes,
         width: viewport.width,
         height: viewport.height,
         encodedWidth: encoded.width,
         encodedHeight: encoded.height,
-        byteLength: buffer.byteLength,
+        sourceDpr: await deps.resolveDeviceScaleFactor(activePage),
       };
     },
     // HostRuntime keeps one event subscriber for the service lifetime so tool
@@ -106,14 +113,16 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
     hasSubscriber: () => wantsFallbackFrames(),
     intervalMs: Math.round(1000 / deps.maxFps),
     emit: (frame) => {
-      const event: BrowserFramePush = {
-        type: 'browser/frame',
-        ...frame,
-        producer: 'screenshot-fallback',
+      deps.onFrame({
+        bytes: frame.bytes,
+        width: frame.width,
+        height: frame.height,
+        encodedWidth: frame.encodedWidth,
+        encodedHeight: frame.encodedHeight,
+        sourceDpr: frame.sourceDpr,
         quality: BROWSER_SCREENSHOT_QUALITY,
-        frameId: nextFrameId(),
-      };
-      for (const listener of deps.subscribers) listener(event);
+        producer: 'screenshot-fallback',
+      });
     },
   });
 
@@ -150,15 +159,16 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
         maxFps,
         emit: (frame) => {
           if (!deps.hasActiveMirrorLease()) return;
-          const event: BrowserFramePush = {
-            type: 'browser/frame',
-            ...frame,
+          deps.onFrame({
+            bytes: frame.bytes,
+            width: frame.width,
+            height: frame.height,
+            encodedWidth: frame.encodedWidth,
+            encodedHeight: frame.encodedHeight,
             sourceDpr: deviceScaleFactor,
             quality: BROWSER_SCREENCAST_QUALITY,
             producer: 'screencast',
-            frameId: nextFrameId(),
-          };
-          for (const listener of deps.subscribers) listener(event);
+          });
         },
       });
       liveSize = size;

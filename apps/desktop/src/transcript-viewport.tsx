@@ -23,12 +23,11 @@ import { useTranscriptScroll } from './use-transcript-scroll';
 import { HistoryTicksDrawer } from './history-ticks-drawer';
 import { TranscriptScrollProvider } from './transcript-scroll-port';
 import { useTranscriptReveal } from './use-transcript-reveal.js';
-import { IconArrowDown } from './shell-icons';
+import { JumpToLatestButton } from './jump-to-latest-button';
 import './styles/transcript-opening.css';
 
 /** Load the next older page when within this many px of the transcript top. */
 const TRANSCRIPT_TOP_AUTO_LOAD_PX = 120;
-const JUMP_TO_LATEST_ICON_PX = 16;
 
 export type TranscriptViewportProps = {
   messageCount: number;
@@ -338,16 +337,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           {props.children}
         </div>
         {showJumpToLatest ? (
-          <button
-            type="button"
-            className="jump-to-latest-btn"
-            data-testid="jump-to-latest-btn"
-            onClick={handleJumpToLatest}
-            aria-label={jumpToLatestLabel}
-            title={jumpToLatestLabel}
-          >
-            <IconArrowDown width={JUMP_TO_LATEST_ICON_PX} height={JUMP_TO_LATEST_ICON_PX} />
-          </button>
+          <JumpToLatestButton label={jumpToLatestLabel} onClick={handleJumpToLatest} />
         ) : null}
         {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}
         <div

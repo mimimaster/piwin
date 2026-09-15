@@ -12,6 +12,7 @@ import type { HostRuntime } from '@piwin/host-runtime';
 import { WebSocket, WebSocketServer } from 'ws';
 import {
   decodeHostWireMessage,
+  encodeBrowserFrameBinary,
   encodeHostWireMessage,
   HOST_WIRE_HARD_FRAME_BYTES,
   HostProtocolError,
@@ -71,7 +72,10 @@ import {
   liveOwnerCommandRejectedReason,
 } from './live-remote-gate.js';
 
-export type HostRuntimePort = Pick<HostRuntime, 'handleCommand' | 'attachPushSink'> & {
+export type HostRuntimePort = Pick<
+  HostRuntime,
+  'handleCommand' | 'attachPushSink' | 'attachBrowserFrameSink'
+> & {
   runWithDevicePrincipal?: HostRuntime['runWithDevicePrincipal'];
 };
 
@@ -129,6 +133,13 @@ type ClientConnection = {
   clientId: string | undefined;
   lastInboundAt: number;
   ingressTail: Promise<void>;
+  /** Client declared the out-of-band binary browser-frame channel. */
+  browserFrameBinary: boolean;
+  /** Lease id from this client's successful `browser/start`; undefined when idle. */
+  browserMirrorLease: string | undefined;
+  /** Latest-only pending frame; a newer frame overwrites an unsent one. */
+  pendingBrowserFrame: Uint8Array | undefined;
+  browserFrameFlush: ReturnType<typeof setTimeout> | undefined;
 };
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -167,6 +178,7 @@ export class HostServer {
   private readonly clientToolRouter: ClientToolFrameRouter | undefined;
   private server: WebSocketServer | undefined;
   private livenessTimer: ReturnType<typeof setInterval> | undefined;
+  private browserFrameDetach: (() => void) | undefined;
 
   public constructor(options: HostServerOptions) {
     if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 0)) {
@@ -246,6 +258,9 @@ export class HostServer {
     if (this.server !== undefined) {
       throw new Error('Host server is already started');
     }
+    this.browserFrameDetach = this.runtime.attachBrowserFrameSink((header, bytes) => {
+      this.deliverBrowserFrame(header, bytes);
+    });
     if (
       this.authToken === undefined &&
       this.devicePairing === undefined &&
@@ -310,6 +325,15 @@ export class HostServer {
   }
 
   public async stop(closeReason = 'Host server stopping'): Promise<void> {
+    this.browserFrameDetach?.();
+    this.browserFrameDetach = undefined;
+    for (const connection of this.connections) {
+      if (connection.browserFrameFlush !== undefined) {
+        clearTimeout(connection.browserFrameFlush);
+        connection.browserFrameFlush = undefined;
+      }
+      connection.pendingBrowserFrame = undefined;
+    }
     if (this.ownsEgressHub) {
       this.clientToolBroker?.dispose();
     }
@@ -410,6 +434,10 @@ export class HostServer {
       clientId: undefined,
       lastInboundAt: Date.now(),
       ingressTail: Promise.resolve(),
+      browserFrameBinary: false,
+      browserMirrorLease: undefined,
+      pendingBrowserFrame: undefined,
+      browserFrameFlush: undefined,
       handshakeTimer: setTimeout(() => {
         if (!connection.authenticated) {
           this.sendError(connection, 'authentication-required', 'Host hello is required');
@@ -673,6 +701,7 @@ export class HostServer {
     connection.clientId = message.clientId.trim();
     connection.hydrationEnabled = message.capabilities?.hydration === true;
     connection.liveSubscriptions = message.capabilities?.liveSubscriptions === true;
+    connection.browserFrameBinary = message.capabilities?.browserFrameBinary === true;
     connection.subscribedSessionIds = connection.liveSubscriptions
       ? normalizeHydrationSessionIds(message.subscriptions?.sessionIds).slice(
           0,
@@ -710,8 +739,9 @@ export class HostServer {
       canSend: () =>
         connection.socket.readyState === OPEN_READY_STATE &&
         connection.socket.bufferedAmount < HOST_SOCKET_SEND_BUDGET_BYTES,
-      sendNow: (frame) => this.send(connection, this.projectOutboundPush(frame)),
-      sendBatchNow: (frame) => this.send(connection, this.projectOutboundBatch(frame)),
+      sendNow: (frame) => this.send(connection, this.projectOutboundPush(frame, connection)),
+      sendBatchNow: (frame) =>
+        this.send(connection, this.projectOutboundBatch(frame, connection)),
       closeSlowConsumer: (reason) => {
         this.onConnectionEvent({
           phase: 'slow-consumer',
@@ -841,6 +871,13 @@ export class HostServer {
       return;
     }
 
+    // The binary frame channel is gated on this client actually mirroring the
+    // workbench (spec §4.1.2): remember its lease while it is the panel owner.
+    const browserLeaseCommand =
+      frame.command.type === 'browser/start' || frame.command.type === 'browser/stop'
+        ? frame.command
+        : undefined;
+
     try {
       const safeResponse = await admitAndExecuteHostCommand({
         registry: this.idempotencyRegistry,
@@ -867,6 +904,15 @@ export class HostServer {
           return projectRemoteResponse(frame.command, response, this.projectionContext(connection));
         },
       });
+      if (browserLeaseCommand !== undefined && safeResponse.success) {
+        connection.browserMirrorLease =
+          browserLeaseCommand.type === 'browser/start'
+            ? (browserLeaseCommand.leaseId ?? 'default')
+            : undefined;
+        if (connection.browserMirrorLease === undefined) {
+          connection.pendingBrowserFrame = undefined;
+        }
+      }
       await this.sendResponse(connection, {
         type: 'response',
         requestId: frame.requestId,
@@ -911,6 +957,9 @@ export class HostServer {
       capabilities: this.capabilities,
       remoteMediaPaths: this.remoteMediaPaths,
       ...(liveOwner ? { liveOwner: true } : {}),
+      ...(connection === undefined || !connection.browserFrameBinary
+        ? {}
+        : { browserFrameBinary: true }),
     };
   }
 
@@ -974,19 +1023,71 @@ export class HostServer {
     this.send(connection, errorFrame);
   }
 
+  /**
+   * Raw JPEG delivery for the out-of-band channel (spec §4.1.2). Only clients
+   * that declared the capability and hold a mirror lease receive frames, each
+   * keeps at most one pending frame (newest wins), and a frame that cannot be
+   * sent within the socket budget is dropped rather than queued.
+   */
+  private deliverBrowserFrame(
+    header: import('@piwin/contracts').BrowserFrameBinaryHeader,
+    bytes: Uint8Array,
+  ): void {
+    let envelope: Uint8Array;
+    try {
+      envelope = encodeBrowserFrameBinary(header, bytes);
+    } catch (error) {
+      // Oversized (or otherwise unencodable) frames are dropped with a
+      // diagnostic; they must never close the control connection.
+      this.onConnectionEvent({
+        phase: 'slow-consumer',
+        connectionId: 'browser-frame',
+        reason: `browser-frame-dropped:${
+          error instanceof Error ? error.message : 'unknown'
+        }`,
+      });
+      return;
+    }
+    for (const connection of this.connections) {
+      if (!connection.browserFrameBinary) continue;
+      if (connection.browserMirrorLease === undefined) continue;
+      if (connection.socket.readyState !== OPEN_READY_STATE) continue;
+      // A newer frame replaces the unsent one; the client waits for the next
+      // live frame after a reconnect instead of replaying stale pixels.
+      connection.pendingBrowserFrame = envelope;
+      if (connection.browserFrameFlush !== undefined) continue;
+      connection.browserFrameFlush = setTimeout(() => {
+        connection.browserFrameFlush = undefined;
+        const pending = connection.pendingBrowserFrame;
+        connection.pendingBrowserFrame = undefined;
+        if (pending === undefined) return;
+        if (connection.socket.readyState !== OPEN_READY_STATE) return;
+        if (connection.socket.bufferedAmount >= HOST_SOCKET_SEND_BUDGET_BYTES) return;
+        try {
+          connection.socket.send(pending);
+        } catch (error) {
+          this.onError(toError(error, 'Unable to send browser frame'));
+        }
+      }, 0);
+      connection.browserFrameFlush.unref?.();
+    }
+  }
+
   private projectOutboundPush(
     frame: Extract<HostWireMessage, { type: 'push' }>,
+    connection?: ClientConnection,
   ): Extract<HostWireMessage, { type: 'push' }> {
     return {
       ...frame,
-      push: projectRemotePush(frame.push, this.projectionContext()),
+      push: projectRemotePush(frame.push, this.projectionContext(connection)),
     };
   }
 
   private projectOutboundBatch(
     frame: Extract<HostWireMessage, { type: 'push/batch' }>,
+    connection?: ClientConnection,
   ): Extract<HostWireMessage, { type: 'push/batch' }> {
-    const context = this.projectionContext();
+    const context = this.projectionContext(connection);
     return {
       ...frame,
       items: frame.items.map((item) => ({

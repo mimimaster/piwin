@@ -161,176 +161,182 @@ export function ThinkingEffortControl({
           </button>
         }
       >
-        {showThinking ? (
-          /* Thinking / Reasoning Effort Section */
-          <section className="thinking-effort-section">
-            <header className="thinking-effort-section-title">
-              <span>{isZh ? '思考' : 'Thinking'}</span>
-              <span className="thinking-effort-active-tag">{effortLabel}</span>
-            </header>
-            <div
-              className="thinking-effort-chip-row"
-              role="radiogroup"
-              aria-label="Thinking effort"
-            >
-              {levels.map((level) => {
-                const isActive = level === effectiveValue;
-                return (
-                  <button
-                    key={level}
-                    type="button"
-                    role="radio"
-                    aria-checked={isActive}
-                    className={isActive ? 'thinking-effort-chip is-active' : 'thinking-effort-chip'}
-                    disabled={disabled}
-                    onPointerDown={keepPopoverThroughPointer}
-                    onClick={() => onChange(level)}
-                    data-testid={`thinking-level-${level}`}
-                  >
-                    {formatThinkingLabel(level, isZh)}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
-
-        {/* Model Selection Section */}
-        <section className="thinking-effort-section">
-          <header className="thinking-effort-section-title">
-            <span>{isZh ? '模型' : 'Model Engine'}</span>
-          </header>
-          {models.length === 0 ? (
-            <div className="thinking-effort-model-empty" data-testid="thinking-model-empty">
-              {modelLabel || (isZh ? '未配置模型' : 'No models configured')}
-            </div>
-          ) : (
-            <>
-              {/* Model search / filter */}
-              <div className="thinking-effort-model-search">
-                <IconSearch width={13} height={13} aria-hidden />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={modelSearchQuery}
-                  onChange={(event) => setModelSearchQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && filteredModels[0]) {
-                      chooseModel(filteredModels[0].key);
-                    }
-                  }}
-                  placeholder={isZh ? '搜索模型…' : 'Search models…'}
-                  aria-label={isZh ? '搜索模型' : 'Search models'}
-                  data-testid="thinking-model-search-input"
-                  disabled={disabled}
-                  spellCheck={false}
-                  autoComplete="off"
-                />
-                {modelSearchQuery ? (
-                  <button
-                    type="button"
-                    className="thinking-effort-model-search-clear"
-                    aria-label="Clear model search"
-                    data-testid="thinking-model-search-clear"
-                    disabled={disabled}
-                    onClick={() => setModelSearchQuery('')}
-                  >
-                    <IconClose width={12} height={12} />
-                  </button>
-                ) : null}
-              </div>
-
-              {filteredModels.length > 0 ? (
+        {/* Radix unmounts closed content; skip building the model list JSX on every
+            parent render (streaming commits re-render the composer). */}
+        {open ? (
+          <>
+            {showThinking ? (
+              /* Thinking / Reasoning Effort Section */
+              <section className="thinking-effort-section">
+                <header className="thinking-effort-section-title">
+                  <span>{isZh ? '思考' : 'Thinking'}</span>
+                  <span className="thinking-effort-active-tag">{effortLabel}</span>
+                </header>
                 <div
-                  className="thinking-effort-model-list"
-                  role="listbox"
-                  aria-label="Model"
-                  data-testid="thinking-model-select"
+                  className="thinking-effort-chip-row"
+                  role="radiogroup"
+                  aria-label="Thinking effort"
                 >
-                  {filteredModels.map((model) => {
-                    const isSelected = model.key === selectedModelKey;
-                    const { provider, name } = parseModelLabel(model.label);
+                  {levels.map((level) => {
+                    const isActive = level === effectiveValue;
                     return (
                       <button
-                        key={model.key}
+                        key={level}
                         type="button"
-                        role="option"
-                        aria-selected={isSelected}
-                        className={
-                          isSelected
-                            ? 'thinking-effort-model-option is-selected'
-                            : 'thinking-effort-model-option'
-                        }
+                        role="radio"
+                        aria-checked={isActive}
+                        className={isActive ? 'thinking-effort-chip is-active' : 'thinking-effort-chip'}
                         disabled={disabled}
-                        onPointerDown={(event) => {
-                          keepPopoverThroughPointer(event);
-                          if (event.button === 0) {
-                            chooseModel(model.key);
-                          }
-                        }}
-                        title={model.label}
+                        onPointerDown={keepPopoverThroughPointer}
+                        onClick={() => onChange(level)}
+                        data-testid={`thinking-level-${level}`}
                       >
-                        <span className="thinking-effort-model-icon" aria-hidden>
-                          <IconSpark width={14} height={14} />
-                        </span>
-                        <span className="thinking-effort-model-info">
-                          <span className="thinking-effort-model-option-label">
-                            {name}
-                            {model.supportsImage ? (
-                              <span
-                                className="thinking-effort-model-vision-tag"
-                                data-testid={`model-vision-tag-${model.key}`}
-                                title="Vision"
-                              >
-                                {' '}
-                                · vision
-                              </span>
-                            ) : null}
-                            {model.reasoning ? (
-                              <span
-                                className="thinking-effort-model-reason-tag"
-                                data-testid={`model-reason-tag-${model.key}`}
-                                title="Reasoning"
-                              >
-                                {' '}
-                                · reason
-                              </span>
-                            ) : null}
-                            {model.supportsImageGeneration ? (
-                              <span
-                                className="thinking-effort-model-image-gen-tag"
-                                data-testid={`model-image-gen-tag-${model.key}`}
-                                title="Image generation"
-                              >
-                                {' '}
-                                · image-gen
-                              </span>
-                            ) : null}
-                          </span>
-                          {provider ? (
-                            <span className="thinking-effort-model-provider-badge">{provider}</span>
-                          ) : null}
-                        </span>
-                        {isSelected ? (
-                          <span className="thinking-effort-model-check" aria-hidden>
-                            ✓
-                          </span>
-                        ) : null}
+                        {formatThinkingLabel(level, isZh)}
                       </button>
                     );
                   })}
                 </div>
-              ) : (
-                <div
-                  className="thinking-effort-model-no-results"
-                  data-testid="thinking-model-no-results"
-                >
-                  No models match “{modelSearchQuery.trim()}”
+              </section>
+            ) : null}
+
+            {/* Model Selection Section */}
+            <section className="thinking-effort-section">
+              <header className="thinking-effort-section-title">
+                <span>{isZh ? '模型' : 'Model Engine'}</span>
+              </header>
+              {models.length === 0 ? (
+                <div className="thinking-effort-model-empty" data-testid="thinking-model-empty">
+                  {modelLabel || (isZh ? '未配置模型' : 'No models configured')}
                 </div>
+              ) : (
+                <>
+                  {/* Model search / filter */}
+                  <div className="thinking-effort-model-search">
+                    <IconSearch width={13} height={13} aria-hidden />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={modelSearchQuery}
+                      onChange={(event) => setModelSearchQuery(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && filteredModels[0]) {
+                          chooseModel(filteredModels[0].key);
+                        }
+                      }}
+                      placeholder={isZh ? '搜索模型…' : 'Search models…'}
+                      aria-label={isZh ? '搜索模型' : 'Search models'}
+                      data-testid="thinking-model-search-input"
+                      disabled={disabled}
+                      spellCheck={false}
+                      autoComplete="off"
+                    />
+                    {modelSearchQuery ? (
+                      <button
+                        type="button"
+                        className="thinking-effort-model-search-clear"
+                        aria-label="Clear model search"
+                        data-testid="thinking-model-search-clear"
+                        disabled={disabled}
+                        onClick={() => setModelSearchQuery('')}
+                      >
+                        <IconClose width={12} height={12} />
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {filteredModels.length > 0 ? (
+                    <div
+                      className="thinking-effort-model-list"
+                      role="listbox"
+                      aria-label="Model"
+                      data-testid="thinking-model-select"
+                    >
+                      {filteredModels.map((model) => {
+                        const isSelected = model.key === selectedModelKey;
+                        const { provider, name } = parseModelLabel(model.label);
+                        return (
+                          <button
+                            key={model.key}
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            className={
+                              isSelected
+                                ? 'thinking-effort-model-option is-selected'
+                                : 'thinking-effort-model-option'
+                            }
+                            disabled={disabled}
+                            onPointerDown={(event) => {
+                              keepPopoverThroughPointer(event);
+                              if (event.button === 0) {
+                                chooseModel(model.key);
+                              }
+                            }}
+                            title={model.label}
+                          >
+                            <span className="thinking-effort-model-icon" aria-hidden>
+                              <IconSpark width={14} height={14} />
+                            </span>
+                            <span className="thinking-effort-model-info">
+                              <span className="thinking-effort-model-option-label">
+                                {name}
+                                {model.supportsImage ? (
+                                  <span
+                                    className="thinking-effort-model-vision-tag"
+                                    data-testid={`model-vision-tag-${model.key}`}
+                                    title="Vision"
+                                  >
+                                    {' '}
+                                    · vision
+                                  </span>
+                                ) : null}
+                                {model.reasoning ? (
+                                  <span
+                                    className="thinking-effort-model-reason-tag"
+                                    data-testid={`model-reason-tag-${model.key}`}
+                                    title="Reasoning"
+                                  >
+                                    {' '}
+                                    · reason
+                                  </span>
+                                ) : null}
+                                {model.supportsImageGeneration ? (
+                                  <span
+                                    className="thinking-effort-model-image-gen-tag"
+                                    data-testid={`model-image-gen-tag-${model.key}`}
+                                    title="Image generation"
+                                  >
+                                    {' '}
+                                    · image-gen
+                                  </span>
+                                ) : null}
+                              </span>
+                              {provider ? (
+                                <span className="thinking-effort-model-provider-badge">{provider}</span>
+                              ) : null}
+                            </span>
+                            {isSelected ? (
+                              <span className="thinking-effort-model-check" aria-hidden>
+                                ✓
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div
+                      className="thinking-effort-model-no-results"
+                      data-testid="thinking-model-no-results"
+                    >
+                      No models match “{modelSearchQuery.trim()}”
+                    </div>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </section>
+            </section>
+          </>
+        ) : null}
       </Popover>
     </div>
   );

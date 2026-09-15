@@ -1,9 +1,18 @@
 /**
  * Throttled screenshot frame capture for the desktop mirror panel (ADR 0020 §2).
- * Frames are size-capped JPEG data-URLs emitted at most every `intervalMs`
- * (~250 ms = 4 fps), and only while at least one subscriber is attached.
+ * A frame is JPEG bytes plus metadata; only the local JSON adapter turns that
+ * into base64 (spec §4.1.2). Emitted at most every `intervalMs` and only while
+ * the mirror still owns a lease.
  */
-export type FramePayload = { dataUrl: string; width: number; height: number; encodedWidth?: number; encodedHeight?: number; byteLength?: number };
+export type FramePayload = {
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+  encodedWidth: number;
+  encodedHeight: number;
+  /** Page compositor DPR that produced the pixels (spec §4.1.1). */
+  sourceDpr: number;
+};
 
 export type FrameEvent = FramePayload & { ts: number };
 

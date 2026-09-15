@@ -1,7 +1,7 @@
 /** Remaining HostCommand variants (host, project, media, tools, jobs, …). */
 
 import type { PermissionDecision, PermissionRememberScope } from './host.js';
-import type { BrowserInputEvent, BrowserViewportMode } from './browser.js';
+import type { BrowserInputEvent, BrowserTargetIdentity, BrowserViewportMode } from './browser.js';
 import type { ModelProviderConfig } from './config.js';
 import type {
   MediaSaveAbortInput,
@@ -468,12 +468,13 @@ export type PlatformHostCommand =
     }
   | { id?: string; type: 'browser/start'; leaseId?: string }
   | { id?: string; type: 'browser/navigate'; url: string }
-  | { id?: string; type: 'browser/pick-at'; x: number; y: number }
+  | { id?: string; type: 'browser/pick-at'; x: number; y: number; target?: BrowserTargetIdentity }
   | { id?: string; type: 'browser/screenshot'; path?: string }
+  | { id?: string; type: 'browser/capture'; sessionId?: string; quality?: number; fullPage?: boolean }
   | { id?: string; type: 'browser/stop'; leaseId?: string }
   | { id?: string; type: 'browser/restart' }
   | { id?: string; type: 'browser/reload' }
-  | { id?: string; type: 'browser/input'; events: BrowserInputEvent[] }
+  | { id?: string; type: 'browser/input'; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }
   | { id?: string; type: 'browser/lock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/unlock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/resize'; width: number; height: number; leaseId?: string; mode?: BrowserViewportMode; origin?: 'follow' | 'explicit' }

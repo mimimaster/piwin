@@ -11,7 +11,7 @@ import { MarkdownView } from './MarkdownView';
 import { Button } from '@piwin/ui-kit';
 import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
-import { IconChevronDown } from './shell-icons';
+import { JumpToLatestButton } from './jump-to-latest-button';
 import { TurnWorkDetails } from './turn-work-details';
 import { CitationCards } from './CitationCards';
 import { MessageAttachments } from './message-attachments';
@@ -267,7 +267,8 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
 
   return (
     <MediaPreviewReadProvider sessionId={previewSessionId} readMedia={previewRead.readMedia}>
-    <div className="subagent-inspector-scroll" ref={scrollRef} onScroll={handleScroll}>
+      <div className="subagent-inspector-viewport">
+        <div className="subagent-inspector-scroll" ref={scrollRef} onScroll={handleScroll}>
       {props.historicalMessages.map((message) => {
         if (message.role === 'assistant') {
           return (
@@ -332,22 +333,18 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
         />
       ) : null}
 
-      {isEmpty && !props.loading && props.error === null ? (
-        <div className="subagent-inspector-state">{isChinese ? '尚无输出' : 'No output yet'}</div>
-      ) : null}
-
-      {showJumpToLatest ? (
-        <button
-          type="button"
-          className="subagent-inspector-jump-latest"
-          data-testid="subagent-inspector-jump-latest"
-          onClick={jumpToLatest}
-        >
-          <IconChevronDown width={12} height={12} aria-hidden="true" />
-          {isChinese ? '回到最新' : 'Back to latest'}
-        </button>
-      ) : null}
-    </div>
+          {isEmpty && !props.loading && props.error === null ? (
+            <div className="subagent-inspector-state">{isChinese ? '尚无输出' : 'No output yet'}</div>
+          ) : null}
+        </div>
+        {showJumpToLatest ? (
+          <JumpToLatestButton
+            label={isChinese ? '回到最新' : 'Back to latest'}
+            onClick={jumpToLatest}
+            testId="subagent-inspector-jump-latest"
+          />
+        ) : null}
+      </div>
     </MediaPreviewReadProvider>
   );
 }

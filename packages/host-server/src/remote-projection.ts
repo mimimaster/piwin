@@ -49,6 +49,12 @@ export type RemoteProjectionContext = {
   remoteMediaPaths?: ReadonlyMap<string, string>;
   /** Local loopback Desktop may keep one-shot Live start bootstrap. */
   liveOwner?: boolean;
+  /**
+   * This client declared the out-of-band binary browser-frame channel. When
+   * false the frame carries an explicit unavailable payload instead of a
+   * `[redacted]` pseudo-image (spec §4.1.2).
+   */
+  browserFrameBinary?: boolean;
 };
 
 export function projectRemoteResponse(
@@ -254,6 +260,7 @@ export function createRemoteCapabilities(
     permissionResolve: true,
     mediaUpload: true,
     mediaRead: true,
+    browserFrameBinary: true,
     trustedTextPreview: true,
     pushBatching: true,
     cursorBatches: true,
@@ -280,8 +287,23 @@ export function createRemoteCapabilities(
 
 export function projectRemotePush(
   message: HostPush,
-  context?: Pick<RemoteProjectionContext, 'remoteMediaPaths'>,
+  context?: Pick<
+    RemoteProjectionContext,
+    'remoteMediaPaths' | 'browserFrameBinary'
+  >,
 ): HostPush {
+  if (message.type === 'browser/frame') {
+    // Live pixels never travel as a projected JSON string. Capable clients get
+    // the metadata push on the control channel and the JPEG on the binary
+    // channel; everyone else gets a truthful unavailable state.
+    return {
+      ...message,
+      payload:
+        context?.browserFrameBinary === true
+          ? { kind: 'binary' }
+          : { kind: 'unavailable', reason: 'client-update-required' },
+    };
+  }
   if (message.type === 'session/index-updated') {
     const projectedSession =
       message.session === undefined

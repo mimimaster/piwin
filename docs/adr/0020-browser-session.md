@@ -356,7 +356,23 @@ first-class direct tools — no `piwin_toolbox` ceremony.
   `browser-tool-helpers.ts`; `browser-tool-registrations.ts` left the >1000-line
   band (AGENTS.md §3.2).
 
-Not yet implemented from the spec: Desktop two-layer icon chrome and viewport
-menu (Slice B UI), human pointer/modifier input (Slice C), page annotation
-(Slice D), remote binary frame channel (Slice E).
+Slices B–E of the same spec landed 2026-09-15 on Desktop + Host:
+
+- **Slice B**: two-layer icon chrome, follow/fixed/mobile/custom viewport,
+  fit/100% display, density warning, controller status dot.
+- **Slice C**: Pointer Events with capture, modifier keys, pick-at as a
+  read-only overlay, `generation + pageId + documentRevision` stale-target
+  checks on input/pick.
+- **Slice D**: `browser/capture` returns a media attachment (never base64);
+  Desktop annotation overlay freezes the current frame and can add a PNG to
+  the composer.
+- **Slice E**: `browser/frame` uses a discriminated payload. Local sidecar
+  keeps `inline` JPEG data URLs. Remote Host projects `{ kind: 'binary' }`
+  and sends JPEG on the authenticated WebSocket (`PBF1` envelope, 12 MiB
+  cap). Clients without the capability get `{ kind: 'unavailable' }` instead
+  of `[redacted]`. Desktop decodes, pairs by `frameId`, and never replaces
+  `<img src>` until `img.decode()` succeeds.
+
+`HOST_WIRE_HARD_FRAME_BYTES` stays 1 MiB. `dataUrl` remains in
+`REMOTE_SECRET_KEYS`.
 

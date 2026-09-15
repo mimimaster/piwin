@@ -1,9 +1,45 @@
 /**
  * Static Goal-mode fixtures for visual regression. Live Goal cards need a
  * `goal_*` tool payload the mock host cannot produce, so the gallery paints
- * the same class names the product uses (see `styles/goal.css`).
+ * the same class names the product uses (see `styles/goal.css`); the lid
+ * renders the real component from static views.
  */
 import type { ReactElement, ReactNode } from 'react';
+import type { ChatMessageUi } from '../chat-ui-types';
+import { GoalStickyStrip } from '../goal/GoalStickyStrip';
+import type { GoalSessionView } from '../goal/goal-session-model';
+
+const GALLERY_OBJECTIVE: ChatMessageUi = {
+  id: 'gallery-goal-objective',
+  role: 'user',
+  text: 'ship the auth fix',
+  thinking: '',
+  tools: [],
+  attachments: [],
+  status: 'done',
+  agentMode: 'goal',
+};
+
+function galleryView(
+  phase: GoalSessionView['phase'],
+  latest: GoalSessionView['latest'] = null,
+): GoalSessionView {
+  return {
+    phase,
+    objective: 'ship the auth fix',
+    roundCount: 1,
+    latest,
+    latestToolCallId: null,
+    objectiveIndex: 0,
+  };
+}
+
+const GALLERY_LID_VIEWS: readonly GoalSessionView[] = [
+  galleryView('running'),
+  galleryView('waiting'),
+  galleryView('blocked', { phase: 'blocked', reason: 'pick a strategy' }),
+  galleryView('completed', { phase: 'completed', summary: 'Auth tests pass' }),
+];
 
 function GalleryStack(props: { title: string; children: ReactNode }): ReactElement {
   return (
@@ -27,61 +63,17 @@ function GalleryStack(props: { title: string; children: ReactNode }): ReactEleme
 export function GoalGalleryStates(): ReactElement {
   return (
     <>
-      <GalleryStack title="Goal strip">
-        <div
-          className="goal-sticky-strip goal-status-running"
-          data-testid="gallery-goal-strip-running"
-          data-status="running"
-        >
-          <div className="goal-strip-main">
-            <div className="goal-strip-badge">
-              <span className="goal-status-dot dot-running" aria-hidden />
-              <span className="goal-status-text">Goal running</span>
-              <span className="goal-turn-pill">Turn 1</span>
-            </div>
-            <div className="goal-strip-title">ship the auth fix</div>
+      <GalleryStack title="Goal lid">
+        {GALLERY_LID_VIEWS.map((view) => (
+          <div key={view.phase} data-testid={`gallery-goal-strip-${view.phase}`}>
+            <GoalStickyStrip
+              view={view}
+              messages={[GALLERY_OBJECTIVE]}
+              onAbort={() => undefined}
+              onExit={() => undefined}
+            />
           </div>
-        </div>
-        <div
-          className="goal-sticky-strip goal-status-waiting"
-          data-testid="gallery-goal-strip-waiting"
-          data-status="waiting"
-        >
-          <div className="goal-strip-main">
-            <div className="goal-strip-badge">
-              <span className="goal-status-dot dot-waiting" aria-hidden />
-              <span className="goal-status-text">Goal waiting</span>
-            </div>
-            <div className="goal-strip-title">ship the auth fix</div>
-          </div>
-        </div>
-        <div
-          className="goal-sticky-strip goal-status-blocked"
-          data-testid="gallery-goal-strip-blocked"
-          data-status="blocked"
-        >
-          <div className="goal-strip-main">
-            <div className="goal-strip-badge">
-              <span className="goal-status-dot dot-blocked" aria-hidden />
-              <span className="goal-status-text">Goal blocked</span>
-            </div>
-            <div className="goal-strip-title">ship the auth fix</div>
-            <div className="goal-strip-blocker">pick a strategy</div>
-          </div>
-        </div>
-        <div
-          className="goal-sticky-strip goal-status-completed"
-          data-testid="gallery-goal-strip-completed"
-          data-status="completed"
-        >
-          <div className="goal-strip-main">
-            <div className="goal-strip-badge">
-              <span className="goal-status-dot dot-completed" aria-hidden />
-              <span className="goal-status-text">Goal completed</span>
-            </div>
-            <div className="goal-strip-title">ship the auth fix</div>
-          </div>
-        </div>
+        ))}
       </GalleryStack>
 
       <GalleryStack title="Goal cards">

@@ -31,9 +31,19 @@ describe('shouldRevealBrowserInspector', () => {
     expect(
       shouldRevealBrowserInspector({
         type: 'browser/frame',
-        dataUrl: 'data:image/jpeg;base64,xx',
+        frameId: '1',
         width: 1280,
         height: 800,
+        encodedWidth: 1280,
+        encodedHeight: 800,
+        sourceDpr: 1,
+        quality: 80,
+        producer: 'screencast',
+        byteLength: 4,
+        generation: 1,
+        pageId: 'page-1',
+        documentRevision: 0,
+        payload: { kind: 'binary' },
         ts: 0,
       }),
     ).toBe(false);

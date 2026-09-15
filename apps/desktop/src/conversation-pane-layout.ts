@@ -332,9 +332,8 @@ export function closeConversationPane(
   };
 }
 
-function buildBalancedPaneTree(
+function buildPaneRow(
   leaves: ConversationPaneLeaf[],
-  orientation: ConversationPaneOrientation,
   createId: ConversationPaneIdFactory,
 ): ConversationPaneNode {
   const firstLeaf = leaves[0];
@@ -342,14 +341,35 @@ function buildBalancedPaneTree(
     return firstLeaf;
   }
   const middle = Math.ceil(leaves.length / 2);
-  const alternate: ConversationPaneOrientation = orientation === 'row' ? 'column' : 'row';
   return {
     kind: 'split',
     splitId: createId('split'),
-    orientation,
+    orientation: 'row',
     ratio: 0.5,
-    first: buildBalancedPaneTree(leaves.slice(0, middle), alternate, createId),
-    second: buildBalancedPaneTree(leaves.slice(middle), alternate, createId),
+    first: buildPaneRow(leaves.slice(0, middle), createId),
+    second: buildPaneRow(leaves.slice(middle), createId),
+  };
+}
+
+/**
+ * 2 → one row; 4 → 2×2; 8 → 4×2. Panes read left-to-right, top-to-bottom so
+ * the pane numbers, ⌘[ / ⌘] order and the retained panes' positions match.
+ */
+function buildPresetPaneTree(
+  leaves: ConversationPaneLeaf[],
+  createId: ConversationPaneIdFactory,
+): ConversationPaneNode {
+  if (leaves.length <= 2) {
+    return buildPaneRow(leaves, createId);
+  }
+  const perRow = Math.ceil(leaves.length / 2);
+  return {
+    kind: 'split',
+    splitId: createId('split'),
+    orientation: 'column',
+    ratio: 0.5,
+    first: buildPaneRow(leaves.slice(0, perRow), createId),
+    second: buildPaneRow(leaves.slice(perRow), createId),
   };
 }
 
@@ -368,7 +388,7 @@ export function applyConversationPanePreset(
   while (leaves.length < count) {
     leaves.push({ kind: 'leaf', paneId: createId('pane'), sessionId: null });
   }
-  const root = buildBalancedPaneTree(leaves, 'row', createId);
+  const root = buildPresetPaneTree(leaves, createId);
   const retainedPaneIds = new Set(leaves.map((leaf) => leaf.paneId));
   return {
     ...layout,

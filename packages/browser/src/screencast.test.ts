@@ -61,7 +61,7 @@ describe('startScreencast', () => {
 
     expect(emitted).toEqual([
       expect.objectContaining({
-        dataUrl: `data:image/jpeg;base64,${Buffer.from('abc').toString('base64')}`,
+        bytes: new Uint8Array(Buffer.from('abc')),
         width: 1024,
         height: 768,
       }),

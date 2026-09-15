@@ -29,6 +29,7 @@ export const DESKTOP_REMOTE_HOST_CLIENT_CAPABILITIES: HostClientCapabilities = {
   boundedReplay: true,
   hydration: false,
   liveSubscriptions: true,
+  browserFrameBinary: true,
 };
 
 const TARGET_KEY = 'piwin.desktop.remote-host-target';

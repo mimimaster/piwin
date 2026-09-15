@@ -59,6 +59,15 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     waitFor: async () => {},
     reload: async () => {},
     pressKey: async () => {},
+    currentTarget: () => ({ generation: 1, pageId: 'page-1', documentRevision: 0 }),
+    capture: async () => ({
+      bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+      mime: 'image/jpeg',
+      width: 1280,
+      height: 800,
+      encodedWidth: 1280,
+      encodedHeight: 800,
+    }),
     queryViewport: () => ({ width: 1280, height: 800 }),
     applyViewport: async (size) => size,
     status: () => ({
@@ -144,6 +153,7 @@ describe('isBrowserCommand', () => {
     expect(isBrowserCommand({ type: 'browser/navigate', url: 'http://x' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/pick-at', x: 1, y: 2 })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/screenshot' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/capture' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/stop' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/restart' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/reload' })).toBe(true);
@@ -396,7 +406,10 @@ describe('handleBrowserCommand', () => {
       'req-1',
       createContext(session),
     );
-    expect(setViewport).toHaveBeenCalledWith({ width: 640, height: 900 });
+    expect(setViewport).toHaveBeenCalledWith(
+      { width: 640, height: 900 },
+      expect.objectContaining({ setBy: 'user' }),
+    );
     expect(result).toMatchObject({
       success: true,
       command: 'browser/resize',
@@ -462,5 +475,36 @@ describe('handleBrowserCommand', () => {
     });
     expect(result && 'error' in result ? result.error : '').not.toContain('Call log');
     expect(result && 'error' in result ? result.error : '').not.toContain('secret');
+  });
+});
+
+describe('browser/capture', () => {
+  it('persists a JPEG via media and returns an attachment, not bytes', async () => {
+    const { mkdtemp, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const root = await mkdtemp(join(tmpdir(), 'piwin-capture-'));
+    try {
+      const session = createMockSession();
+      const result = await handleBrowserCommand(
+        { type: 'browser/capture', sessionId: 'session-1' },
+        'req-capture',
+        createContext(session, [], { piwinRoot: root }),
+      );
+      expect(result?.success).toBe(true);
+      expect(result).toMatchObject({
+        command: 'browser/capture',
+        data: {
+          width: 1280,
+          height: 800,
+          target: { generation: 1, pageId: 'page-1', documentRevision: 0 },
+        },
+      });
+      const data = (result as { data?: { attachment?: { id?: string } } }).data;
+      expect(data?.attachment?.id).toEqual(expect.any(String));
+      expect(JSON.stringify(result)).not.toContain('bytes');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

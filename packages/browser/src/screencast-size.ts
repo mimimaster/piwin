@@ -14,6 +14,8 @@ export const BROWSER_SCREENCAST_HIGH_FPS = 12;
 export const BROWSER_SCREENCAST_LOW_FPS = 8;
 export const BROWSER_SCREENCAST_QUALITY = 80;
 export const BROWSER_SCREENSHOT_QUALITY = 80;
+/** Annotation capture is one-shot and read off screen, so it keeps more detail. */
+export const BROWSER_CAPTURE_QUALITY = 92;
 
 export type BrowserScreencastSize = { width: number; height: number };
 
