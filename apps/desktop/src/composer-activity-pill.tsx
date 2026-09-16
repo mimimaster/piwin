@@ -22,7 +22,7 @@ import {
   type ComposerActivityLocale,
 } from './composer-activity-model.js';
 import { useDesktopLocale } from './desktop-locale-context';
-import { IconClose } from './shell-icons';
+import { IconChevronDown, IconClose } from './shell-icons';
 import { isOrchestrationExecutionActive } from './subagent-activity-model.js';
 import type {
   SubagentOrchestrationItem,
@@ -189,7 +189,7 @@ export function ComposerActivityPill(props: ComposerActivityPillProps): ReactEle
             <ComposerActivitySpinner spinning={model.spinning} reducedMotion={reducedMotion} />
             <span className="composer-activity-pill-label">{model.label}</span>
             <span className="composer-activity-pill-chevron" aria-hidden>
-              ▾
+              <IconChevronDown width={10} height={10} />
             </span>
           </button>
         }

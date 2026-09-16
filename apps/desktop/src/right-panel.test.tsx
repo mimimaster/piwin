@@ -487,6 +487,31 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="side-chat-body"]')).not.toBeNull();
   });
 
+  it('lets browser page tabs replace the lone browser tool tab in the titlebar', () => {
+    writeStoredRightPanelState({ openTabs: ['browser'], activeTab: 'browser' });
+    const rendered = renderPanel({
+      activeTab: 'browser',
+      browserContent: <div data-testid="browser-body">browser</div>,
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).toBeNull();
+    const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
+    expect(tabstrip?.classList.contains('has-browser-tabs')).toBe(true);
+    const tabsSlot = container.querySelector('[data-testid="right-panel-side-chat-tabs-slot"]');
+    const actionsSlot = container.querySelector('[data-testid="right-panel-surface-actions-slot"]');
+    expect(tabsSlot?.hasAttribute('hidden')).toBe(false);
+    expect(actionsSlot?.hasAttribute('hidden')).toBe(false);
+
+    const closeBrowser = container.querySelector<HTMLButtonElement>(
+      '[data-testid="right-panel-close-browser-btn"]',
+    );
+    expect(closeBrowser).not.toBeNull();
+    act(() => closeBrowser?.click());
+    expect(container.querySelector('[data-testid="browser-body"]')).toBeNull();
+  });
+
   it('keeps the titlebar drag region after the side-chat slot so +/sync can pack to the tabs', () => {
     writeStoredRightPanelState({ openTabs: ['sideChat'], activeTab: 'sideChat' });
     const rendered = renderPanel({

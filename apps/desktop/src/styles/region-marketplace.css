@@ -803,3 +803,18 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--t4);
 }
 
+
+/* ── Install button progress state ────────────────────────────────── */
+
+.market-btn-installing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.market-btn-progress-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}

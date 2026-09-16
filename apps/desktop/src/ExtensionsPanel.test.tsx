@@ -39,6 +39,15 @@ describe('ExtensionsPanel refresh', () => {
                 compatibility: { tier: 'compatible' },
               },
               {
+                id: 'mixed-tools',
+                name: 'mixed-tools',
+                description: 'tools plus optional status UI',
+                source: 'pi-native',
+                path: '/pi/mixed.ts',
+                enabled: true,
+                compatibility: { tier: 'degraded' },
+              },
+              {
                 id: 'tui-theme',
                 name: 'tui-theme',
                 description: 'theme',
@@ -92,6 +101,12 @@ describe('ExtensionsPanel refresh', () => {
     expect(container.querySelector('[data-testid="extension-compat-pi-build-ios-apps"]')?.textContent).toBe(
       'compatible',
     );
+    expect(container.querySelector('[data-testid="extension-compat-mixed-tools"]')?.textContent).toBe(
+      'partially supported',
+    );
+    expect(
+      (container.querySelector('[aria-label="Enable mixed-tools"]') as HTMLButtonElement).disabled,
+    ).toBe(false);
     expect(container.querySelector('[data-testid="extension-compat-tui-theme"]')?.textContent).toBe(
       'Pi TUI only',
     );

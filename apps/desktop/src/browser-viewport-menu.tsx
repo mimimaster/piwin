@@ -2,7 +2,14 @@
  * Viewport preset menu, custom size editor, fit/100% zoom, and Agent-set note.
  */
 import { useEffect, useState, type ReactElement } from 'react';
-import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, IconButton, NumberInput } from '@piwin/ui-kit';
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  IconButton,
+  NumberInput,
+} from '@piwin/ui-kit';
 import type { BrowserViewportConfig } from '@piwin/contracts';
 import type { BrowserDisplayZoom } from './browser-display-box';
 import { formatBrowserZoomPercent } from './browser-display-box';
@@ -113,7 +120,13 @@ export function BrowserViewportMenu(props: BrowserViewportMenuProps): ReactEleme
           <IconButton
             className="browser-session-icon-btn"
             data-testid="browser-session-viewport-menu-btn"
-            label={density.low ? densityTooltip(copy, density, producer ?? '') : copy.viewportTitle}
+            label={
+              density.low
+                ? densityTooltip(copy, density, producer ?? '')
+                : chip
+                  ? `${copy.viewportTitle} · ${chip}`
+                  : copy.viewportTitle
+            }
             size={28}
           >
             <>
@@ -125,6 +138,15 @@ export function BrowserViewportMenu(props: BrowserViewportMenuProps): ReactEleme
           </IconButton>
         }
       >
+        {/* The live size lives here, not as a chip squeezing the address bar. */}
+        {chip ? (
+          <>
+            <DropdownMenuLabel className="browser-session-viewport">
+              {chip}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         {viewportPresets.map((preset) => (
           <DropdownMenuItem
             key={preset.id}
@@ -213,11 +235,6 @@ export function BrowserViewportMenu(props: BrowserViewportMenuProps): ReactEleme
             <IconCheck width={13} height={13} />
           </IconButton>
         </div>
-      ) : null}
-      {chip ? (
-        <span className="browser-session-viewport" data-testid="browser-session-viewport">
-          {chip}
-        </span>
       ) : null}
       {viewport?.setBy === 'agent' ? (
         <span className="browser-session-viewport-set-by" data-testid="browser-session-viewport-set-by">

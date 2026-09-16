@@ -26,8 +26,6 @@ const TYPES = new Set<HostCommand['type']>([
   'browser/restart',
   'browser/reload',
   'browser/input',
-  'browser/lock',
-  'browser/unlock',
   'browser/resize',
   'browser/back',
   'browser/forward',
@@ -196,37 +194,12 @@ export async function handleBrowserCommand(
       }
     }
 
-    case 'browser/lock': {
-      try {
-        const state =
-          command.owner === 'user' ? await session.takeOver() : await session.lock('agent');
-        return ok(requestId, 'browser/lock', { state });
-      } catch (error) {
-        return failFromBrowserError(requestId, command.type, error);
-      }
-    }
-
-    case 'browser/unlock': {
-      try {
-        const state =
-          command.owner === 'user' ? await session.giveBack() : await session.unlock('agent');
-        return ok(requestId, 'browser/unlock', { state });
-      } catch (error) {
-        return failFromBrowserError(requestId, command.type, error);
-      }
-    }
-
     case 'browser/resize': {
       try {
         const origin = command.origin ?? 'explicit';
+        // Follow resizes queue behind agent operations (runExclusive) rather
+        // than being refused while an agent run is active.
         if (origin === 'follow') {
-          const owner = session.controllerState().owner;
-          if (owner === 'agent') {
-            return fail(requestId, command.type, 'follow resize is paused while the agent has control', {
-              code: 'browser-agent-has-control',
-              retryable: false,
-            });
-          }
           if (session.mirrorLeaseCount() !== 1) {
             return fail(
               requestId,

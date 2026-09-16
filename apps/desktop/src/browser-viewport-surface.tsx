@@ -24,6 +24,8 @@ export type BrowserViewportSurfaceProps = {
   interactEnabled: boolean;
   runtimeInteractEnabled: boolean;
   displayBox: BrowserDisplayBox;
+  /** Stretch the frame over the whole container (follow mode). */
+  fillPanel?: boolean;
   zoom: BrowserDisplayZoom;
   overlay: BrowserHighlightBox | null;
   overlayOffsetX: number;
@@ -41,8 +43,11 @@ export type BrowserViewportSurfaceProps = {
 };
 
 export function BrowserViewportSurface(props: BrowserViewportSurfaceProps): ReactElement {
-  const displayStyle =
-    props.displayBox.width > 0 && props.displayBox.height > 0
+  // Filling is plain CSS so a panel drag reflows the frame in the same paint,
+  // without waiting for a ResizeObserver → React render.
+  const displayStyle = props.fillPanel
+    ? { width: '100%', height: '100%' }
+    : props.displayBox.width > 0 && props.displayBox.height > 0
       ? { width: `${String(props.displayBox.width)}px`, height: `${String(props.displayBox.height)}px` }
       : undefined;
 
@@ -52,6 +57,7 @@ export function BrowserViewportSurface(props: BrowserViewportSurfaceProps): Reac
       ref={props.containerRef}
       data-testid="browser-session-frame-container"
       data-zoom={props.zoom}
+      data-fill={props.fillPanel ? 'true' : 'false'}
     >
       {props.frameSrc ? (
         <img

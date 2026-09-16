@@ -272,7 +272,7 @@ describe('createBrowserToolDefinitions — schema golden', () => {
   const session = createMockSession();
   const tools = createBrowserToolDefinitions(session);
 
-  it('registers all 26 browser tools', () => {
+  it('registers all 25 browser tools without a control lock tool', () => {
     expect(tools.map((t) => t.descriptor.name).sort()).toEqual([
       'browser_back',
       'browser_click',
@@ -282,7 +282,6 @@ describe('createBrowserToolDefinitions — schema golden', () => {
       'browser_find',
       'browser_forward',
       'browser_hover',
-      'browser_lock',
       'browser_navigate',
       'browser_network',
       'browser_press_key',
@@ -301,13 +300,6 @@ describe('createBrowserToolDefinitions — schema golden', () => {
       'browser_wait',
       'browser_wait_for',
     ]);
-  });
-
-  it('browser_lock describes action=unlock and does not register browser_unlock', () => {
-    const lock = tools.find((t) => t.descriptor.name === 'browser_lock');
-    if (!lock) throw new Error('browser_lock missing');
-    expect(lock.descriptor.description).toContain('action=unlock');
-    expect(tools.some((t) => t.descriptor.name === 'browser_unlock')).toBe(false);
   });
 
   it('browser_navigate has url param required', () => {
@@ -420,45 +412,6 @@ describe('createBrowserToolDefinitions — execute paths', () => {
       ok: false,
       code: 'browser-runtime-gone',
       retryable: true,
-    });
-  });
-
-  it('browser_lock lock acquires agent control', async () => {
-    const lock = vi.fn(async () => ({ owner: 'agent' as const, agentWantsLock: true }));
-    const session = createMockSession({ lock });
-    const tools = createBrowserToolDefinitions(session);
-    const tool = tools.find((t) => t.descriptor.name === 'browser_lock');
-    if (!tool) throw new Error('browser_lock missing');
-    const raw = outputOf(await executeTool(tool, { action: 'lock' }));
-    expect(lock).toHaveBeenCalledWith('agent', expect.objectContaining({ runId: 'run-1' }));
-    expect((JSON.parse(raw) as { owner: string }).owner).toBe('agent');
-  });
-
-  it('browser_lock unlock yields agent control', async () => {
-    const unlock = vi.fn(async () => ({ owner: 'idle' as const, agentWantsLock: false }));
-    const session = createMockSession({ unlock });
-    const tools = createBrowserToolDefinitions(session);
-    const tool = tools.find((t) => t.descriptor.name === 'browser_lock');
-    if (!tool) throw new Error('browser_lock missing');
-    const raw = outputOf(await executeTool(tool, { action: 'unlock' }));
-    expect(unlock).toHaveBeenCalledWith('agent');
-    expect((JSON.parse(raw) as { owner: string }).owner).toBe('idle');
-  });
-
-  it('browser_lock lock returns browser-user-has-control when the human owns the page', async () => {
-    const session = createMockSession({
-      lock: async () => {
-        throw new BrowserUserHasControlError('The user has the browser.');
-      },
-    });
-    const tools = createBrowserToolDefinitions(session);
-    const tool = tools.find((t) => t.descriptor.name === 'browser_lock');
-    if (!tool) throw new Error('browser_lock missing');
-    const result = await executeTool(tool, { action: 'lock' });
-    expect(result).toMatchObject({
-      ok: false,
-      code: 'browser-user-has-control',
-      retryable: false,
     });
   });
 

@@ -56,7 +56,9 @@
 }
 
 .composer-activity-pill-chevron {
-  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-3);
   transition: color var(--t-1) var(--ease-out);
 }

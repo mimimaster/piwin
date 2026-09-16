@@ -24,7 +24,15 @@ describe('ui-kit notifications', () => {
       expect.objectContaining({
         message: 'Something failed',
         color: 'red',
+        mod: { tone: 'error' },
       }),
+    );
+  });
+
+  it('stamps data-tone through mod so the shared toast CSS can paint the tone', () => {
+    showUiNotification({ tone: 'warning', message: 'Careful' });
+    expect(notifications.show).toHaveBeenCalledWith(
+      expect.objectContaining({ mod: { tone: 'warning' } }),
     );
   });
 

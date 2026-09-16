@@ -1,13 +1,23 @@
 import type { CSSProperties, ReactElement, RefCallback } from 'react';
 import { ConversationPaneEmptyState } from '../../conversation-pane-empty-state.js';
-import { IconButton } from '@piwin/ui-kit';
+import {
+  ContextMenu,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  IconButton,
+} from '@piwin/ui-kit';
 import {
   IconArrowDown,
+  IconArrowLeft,
+  IconArrowRight,
+  IconArrowUp,
   IconClose,
   IconCompress,
   IconExpand,
   IconPanelRight,
 } from '../../shell-icons.js';
+import { DOCKING_COPY } from './copy.js';
 import type { DockViewRenderContext } from './docking-surface-content.js';
 import { resolveViewTitle } from './docking-surface-content.js';
 import type { DropEdge, DropSource, WorkspaceGroup, WorkspaceState } from './types.js';
@@ -29,6 +39,8 @@ export type DockingGroupViewProps = {
   onActivate: () => void;
   onFocusView: (viewId: string) => void;
   onCloseView: (viewId: string) => void;
+  /** Non-drag path for the split actions (spec §4.4): move this view out to an edge. */
+  onMoveViewToEdge: (viewId: string, edge: DropEdge) => void;
   onToggleMaximize: () => void;
   onSplit: (edge: DropEdge) => void;
   onStartDrag: (origin: { x: number; y: number }, source: DropSource) => void;
@@ -38,6 +50,13 @@ export type DockingGroupViewProps = {
 export function DockingGroupView(props: DockingGroupViewProps): ReactElement {
   const { group, state, ctx } = props;
   const isChinese = ctx.locale === 'zh-CN';
+  const maximizeLabel = props.maximized
+    ? isChinese
+      ? '恢复窗格'
+      : 'Restore pane'
+    : isChinese
+      ? '最大化窗格'
+      : 'Maximize pane';
   const style: CSSProperties = props.spanStage
     ? { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }
     : {
@@ -65,25 +84,83 @@ export function DockingGroupView(props: DockingGroupViewProps): ReactElement {
                 const view = state.views[viewId];
                 if (!view) return null;
                 const isActive = viewId === group.activeViewId;
+                const title = resolveViewTitle({ view, sessions: ctx.sessions, locale: ctx.locale });
                 return (
-                  <button
+                  <ContextMenu
                     key={viewId}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    className={`conversation-pane-tab${isActive ? ' is-active' : ''}`}
-                    data-docking-tab={viewId}
-                    data-docking-tab-group={group.groupId}
-                    data-docking-tab-index={index}
-                    data-tauri-drag-region="false"
-                    onClick={() => props.onFocusView(viewId)}
-                    onPointerDown={(event) => {
-                      if (event.button !== 0) return;
-                      props.onStartDrag({ x: event.clientX, y: event.clientY }, { kind: 'view', viewId });
-                    }}
+                    label={title}
+                    testId={`docking-tab-menu-${viewId}`}
+                    content={
+                      <>
+                        {props.splitDisabled ? (
+                          <ContextMenuLabel>{DOCKING_COPY.fourLimit}</ContextMenuLabel>
+                        ) : null}
+                        <ContextMenuItem
+                          testId="docking-tab-move-left"
+                          disabled={props.splitDisabled}
+                          onSelect={() => props.onMoveViewToEdge(viewId, 'left')}
+                        >
+                          <IconArrowLeft width={ICON_PX} height={ICON_PX} />
+                          {isChinese ? '向左移动分屏' : 'Move to left split'}
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          testId="docking-tab-move-right"
+                          disabled={props.splitDisabled}
+                          onSelect={() => props.onMoveViewToEdge(viewId, 'right')}
+                        >
+                          <IconArrowRight width={ICON_PX} height={ICON_PX} />
+                          {isChinese ? '向右移动分屏' : 'Move to right split'}
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          testId="docking-tab-move-up"
+                          disabled={props.splitDisabled}
+                          onSelect={() => props.onMoveViewToEdge(viewId, 'up')}
+                        >
+                          <IconArrowUp width={ICON_PX} height={ICON_PX} />
+                          {isChinese ? '向上移动分屏' : 'Move to top split'}
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          testId="docking-tab-move-down"
+                          disabled={props.splitDisabled}
+                          onSelect={() => props.onMoveViewToEdge(viewId, 'down')}
+                        >
+                          <IconArrowDown width={ICON_PX} height={ICON_PX} />
+                          {isChinese ? '向下移动分屏' : 'Move to bottom split'}
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem testId="docking-tab-maximize" onSelect={props.onToggleMaximize}>
+                          {props.maximized ? (
+                            <IconCompress width={ICON_PX} height={ICON_PX} />
+                          ) : (
+                            <IconExpand width={ICON_PX} height={ICON_PX} />
+                          )}
+                          {maximizeLabel}
+                        </ContextMenuItem>
+                        <ContextMenuItem testId="docking-tab-close" onSelect={() => props.onCloseView(viewId)}>
+                          <IconClose width={ICON_PX} height={ICON_PX} />
+                          {isChinese ? '关闭标签' : 'Close tab'}
+                        </ContextMenuItem>
+                      </>
+                    }
                   >
-                    {resolveViewTitle({ view, sessions: ctx.sessions, locale: ctx.locale })}
-                  </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      className={`conversation-pane-tab${isActive ? ' is-active' : ''}`}
+                      data-docking-tab={viewId}
+                      data-docking-tab-group={group.groupId}
+                      data-docking-tab-index={index}
+                      data-tauri-drag-region="false"
+                      onClick={() => props.onFocusView(viewId)}
+                      onPointerDown={(event) => {
+                        if (event.button !== 0) return;
+                        props.onStartDrag({ x: event.clientX, y: event.clientY }, { kind: 'view', viewId });
+                      }}
+                    >
+                      {title}
+                    </button>
+                  </ContextMenu>
                 );
               })}
             </div>
@@ -103,18 +180,7 @@ export function DockingGroupView(props: DockingGroupViewProps): ReactElement {
             >
               <IconArrowDown width={ICON_PX} height={ICON_PX} />
             </IconButton>
-            <IconButton
-              label={
-                props.maximized
-                  ? isChinese
-                    ? '恢复窗格'
-                    : 'Restore pane'
-                  : isChinese
-                    ? '最大化窗格'
-                    : 'Maximize pane'
-              }
-              onClick={props.onToggleMaximize}
-            >
+            <IconButton label={maximizeLabel} onClick={props.onToggleMaximize}>
               {props.maximized ? (
                 <IconCompress width={ICON_PX} height={ICON_PX} />
               ) : (

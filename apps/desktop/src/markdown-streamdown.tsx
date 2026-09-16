@@ -174,7 +174,8 @@ export function createStreamdownComponents(optionsRef: {
     }
 
     const startOffset = node?.position?.start?.offset;
-    const languageMatch = /(?:^|\s)language-([A-Za-z0-9_-]+)/.exec(className ?? '');
+    // Whole info word: a ```12:40:src/a.ts reference must not be cut to "12".
+    const languageMatch = /(?:^|\s)language-(\S+)/.exec(className ?? '');
     const fallbackLanguage = languageMatch?.[1] ?? '';
     const record = lookupIndexedFence({
       fences: options.fences,

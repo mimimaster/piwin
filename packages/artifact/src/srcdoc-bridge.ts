@@ -41,16 +41,18 @@ export function buildArtifactBridgeBootstrapScript(
       payload || {},
     );
     postSeq += 1;
-    var nativeHandler =
-      window.webkit &&
-      window.webkit.messageHandlers &&
-      window.webkit.messageHandlers.piwinArtifact;
-    if (nativeHandler) {
-      try {
+    // WebKit may throw while resolving a sandbox's native handler, before
+    // postMessage is called. Keep browser delivery independent of that lookup.
+    try {
+      var nativeHandler =
+        window.webkit &&
+        window.webkit.messageHandlers &&
+        window.webkit.messageHandlers.piwinArtifact;
+      if (nativeHandler) {
         nativeHandler.postMessage(JSON.stringify(message));
-      } catch (error) {
-        warnBridge('piwin artifact native post failed', error);
       }
+    } catch (error) {
+      warnBridge('piwin artifact native post failed', error);
     }
     try {
       parent.postMessage(message, '*');
@@ -157,8 +159,11 @@ export function buildArtifactBridgeBootstrapScript(
   // treat a live preview as a measurement failure. Force one post-load copy.
   var confirmPostedHeight = function () {
     if (!sizeEnabled || currentFrameMode === 'canvas') return;
+    // Load/retry acknowledgements must work even when offscreen frame animation
+    // callbacks are suspended. Resize/mutation updates still coalesce via RAF.
+    if (heightFrame !== null) cancelAnimationFrame(heightFrame);
     lastReportedHeight = -1;
-    scheduleHeight();
+    reportHeight();
   };
   var onMeasureRequest = function (event) {
     var data = event.data;
@@ -177,8 +182,7 @@ export function buildArtifactBridgeBootstrapScript(
       );
     }
     if (data.force) {
-      lastReportedHeight = -1;
-      scheduleHeight();
+      confirmPostedHeight();
     }
   };
   window.addEventListener('message', onMeasureRequest);

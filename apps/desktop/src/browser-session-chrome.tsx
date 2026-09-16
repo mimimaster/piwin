@@ -1,12 +1,15 @@
 /**
  * Browser workbench chrome (spec §4.2).
  *
- * Row 1: tabs and panel actions. Row 2: navigation, address bar, mode group.
+ * Row 1: tabs and panel actions — inside the right panel it merges into that
+ * panel's titlebar instead. Row 2: navigation, address bar, mode group.
+ * Secondary tools (console, open external, restart) live in the ⋯ menu.
  * Controls are icon-only — the address bar submits on Enter, Reload always
  * targets the Host-committed page and never reads the draft, and the mode group
  * keeps pick/viewport directly reachable.
  */
 import { type FormEvent, type ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   BrowserController,
   BrowserDialogInfo,
@@ -15,6 +18,7 @@ import type {
 } from '@piwin/contracts';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, IconButton } from '@piwin/ui-kit';
 import type { HostClient } from './host-client';
+import { useSurfaceTitlebar } from './surface-titlebar.js';
 import {
   requestBrowserBack,
   requestBrowserCloseTab,
@@ -71,11 +75,7 @@ export type BrowserSessionChromeCopy = {
   dismissNotice: string;
   /** Shown when identical failures repeat: `{count}` is replaced. */
   noticeRepeat: string;
-  idle: string;
-  youHaveControl: string;
   agentUsing: string;
-  takeOver: string;
-  giveBack: string;
   viewportTitle: string;
   viewportResponsive: string;
   viewportDesktop: string;
@@ -115,8 +115,8 @@ export type BrowserSessionChromeProps = {
   onTogglePick: () => void;
   annotateActive: boolean;
   onToggleAnnotate: () => void;
+  /** Activity indicator only: the agent never locks the user out. */
   controller: BrowserController;
-  onToggleControl: () => void;
   /** Writer of the last delivered frame, shown in the density tooltip. */
   producer?: string | undefined;
   tabs: BrowserTabInfo[];
@@ -153,7 +153,6 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
     annotateActive,
     onToggleAnnotate,
     controller,
-    onToggleControl,
     producer,
     tabs,
     pendingDialog,
@@ -179,160 +178,191 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
     onNavigate();
   }
 
-  const controlLabel =
-    controller === 'agent'
-      ? copy.agentUsing
-      : controller === 'user'
-        ? copy.youHaveControl
-        : copy.idle;
-  const controlAction = controller === 'agent' ? copy.takeOver : copy.giveBack;
+  // A host panel may hand us its titlebar: page tabs then replace its
+  // redundant 「浏览器」 tool tab instead of stacking a second row under it.
+  const titlebar = useSurfaceTitlebar();
+  const tabsSlot = titlebar?.tabsSlot ?? null;
+  const actionsSlot = titlebar?.actionsSlot ?? null;
+  const inTitlebar = tabsSlot !== null && actionsSlot !== null;
+
+  const tabsNode = (
+    <>
+      {tabs.map((tab) => (
+        <span
+          key={tab.pageId}
+          className={`browser-session-tab${tab.active ? ' active' : ''}`}
+          data-testid={`browser-session-tab-${tab.pageId}`}
+        >
+          <button
+            type="button"
+            className="browser-session-tab-select"
+            disabled={!interactEnabled}
+            onClick={() => {
+              void requestBrowserSelectTab(hostClient, tab.pageId);
+            }}
+          >
+            <IconBrowser width={12} height={12} />
+            <span className="browser-session-tab-label">{tab.title || tab.url || tab.pageId}</span>
+          </button>
+          <button
+            type="button"
+            className="browser-session-tab-close"
+            data-testid={`browser-session-tab-close-${tab.pageId}`}
+            aria-label={copy.closeTab}
+            disabled={!interactEnabled}
+            onClick={() => {
+              void requestBrowserCloseTab(hostClient, tab.pageId);
+            }}
+          >
+            <IconClose width={10} height={10} />
+          </button>
+        </span>
+      ))}
+      <IconButton
+        className="browser-session-icon-btn"
+        data-testid="browser-session-new-tab"
+        label={copy.newTab}
+        size={24}
+        disabled={!interactEnabled}
+        onClick={() => {
+          void requestBrowserNewTab(hostClient);
+        }}
+      >
+        <IconPlus width={14} height={14} />
+      </IconButton>
+    </>
+  );
+
+  // One overflow menu instead of a row of rarely used icons.
+  const moreMenu = (
+    <DropdownMenu
+      testId="browser-session-more-menu"
+      align="end"
+      label={copy.more}
+      trigger={
+        <IconButton
+          className={`browser-session-icon-btn${devDrawerOpen ? ' active' : ''}`}
+          data-testid="browser-session-more"
+          label={copy.more}
+          size={28}
+        >
+          <IconMore width={15} height={15} />
+        </IconButton>
+      }
+    >
+      <DropdownMenuItem
+        testId="browser-session-dev-drawer"
+        icon={<IconTerminal width={13} height={13} />}
+        onSelect={onToggleDevDrawer}
+        {...(devDrawerOpen ? { shortcut: '✓' } : {})}
+      >
+        {copy.devDrawer}
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        testId="browser-session-more-external"
+        icon={<IconExternalLink width={13} height={13} />}
+        disabled={committedUrl.length === 0}
+        onSelect={onOpenExternal}
+      >
+        {copy.openExternal}
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        testId="browser-session-more-restart"
+        icon={<IconRefresh width={13} height={13} />}
+        disabled={!interactEnabled}
+        onSelect={() => {
+          void hostClient.browserRestart();
+        }}
+      >
+        {copy.restart}
+      </DropdownMenuItem>
+      {pendingDialog ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            testId="browser-session-more-dialog-accept"
+            disabled={!interactEnabled}
+            onSelect={() => {
+              void requestBrowserDialog(hostClient, 'accept');
+            }}
+          >
+            {copy.acceptDialog}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            testId="browser-session-more-dialog-dismiss"
+            disabled={!interactEnabled}
+            onSelect={() => {
+              void requestBrowserDialog(hostClient, 'dismiss');
+            }}
+          >
+            {copy.dismissDialog}
+          </DropdownMenuItem>
+        </>
+      ) : null}
+    </DropdownMenu>
+  );
+
+  // In a host titlebar the host's own expand/close sit right after this slot.
+  const actionsNode = inTitlebar ? (
+    moreMenu
+  ) : (
+    <>
+      {moreMenu}
+      {panelActions ? (
+        <>
+          <IconButton
+            className={`browser-session-icon-btn${panelActions.expanded ? ' active' : ''}`}
+            data-testid="browser-session-expand"
+            label={panelActions.expanded ? copy.collapse : copy.expand}
+            size={28}
+            aria-pressed={panelActions.expanded}
+            onClick={panelActions.onToggleExpand}
+          >
+            {panelActions.expanded ? (
+              <IconCompress width={15} height={15} />
+            ) : (
+              <IconExpand width={15} height={15} />
+            )}
+          </IconButton>
+          <IconButton
+            className="browser-session-icon-btn"
+            data-testid="browser-session-close-panel"
+            label={copy.closePanel}
+            size={28}
+            onClick={panelActions.onClose}
+          >
+            <IconClose width={15} height={15} />
+          </IconButton>
+        </>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="browser-session-chrome" data-testid="browser-session-chrome">
-      <div className="browser-session-chrome-row browser-session-tabs" data-testid="browser-session-tabs">
-        {tabs.map((tab) => (
-          <span
-            key={tab.pageId}
-            className={`browser-session-tab${tab.active ? ' active' : ''}`}
-            data-testid={`browser-session-tab-${tab.pageId}`}
-          >
-            <button
-              type="button"
-              className="browser-session-tab-select"
-              disabled={!interactEnabled}
-              onClick={() => {
-                void requestBrowserSelectTab(hostClient, tab.pageId);
-              }}
+      {tabsSlot && actionsSlot ? (
+        <>
+          {createPortal(
+            <div
+              className="browser-session-tabs browser-session-titlebar-tabs"
+              data-testid="browser-session-tabs"
             >
-              <IconBrowser width={12} height={12} />
-              <span className="browser-session-tab-label">{tab.title || tab.url || tab.pageId}</span>
-            </button>
-            <button
-              type="button"
-              className="browser-session-tab-close"
-              data-testid={`browser-session-tab-close-${tab.pageId}`}
-              aria-label={copy.closeTab}
-              disabled={!interactEnabled}
-              onClick={() => {
-                void requestBrowserCloseTab(hostClient, tab.pageId);
-              }}
-            >
-              <IconClose width={10} height={10} />
-            </button>
-          </span>
-        ))}
-        <IconButton
-          className="browser-session-icon-btn"
-          data-testid="browser-session-new-tab"
-          label={copy.newTab}
-          size={24}
-          disabled={!interactEnabled}
-          onClick={() => {
-            void requestBrowserNewTab(hostClient);
-          }}
-        >
-          <IconPlus width={14} height={14} />
-        </IconButton>
-
-        <div className="browser-session-chrome-spacer" />
-
-        <div className="browser-session-chrome-actions">
-          <IconButton
-            className={`browser-session-icon-btn${devDrawerOpen ? ' active' : ''}`}
-            data-testid="browser-session-dev-drawer"
-            label={copy.devDrawer}
-            size={28}
-            aria-pressed={devDrawerOpen}
-            onClick={onToggleDevDrawer}
-          >
-            <IconTerminal width={15} height={15} />
-          </IconButton>
-          <DropdownMenu
-            testId="browser-session-more-menu"
-            align="end"
-            label={copy.more}
-            trigger={
-              <IconButton
-                className="browser-session-icon-btn"
-                data-testid="browser-session-more"
-                label={copy.more}
-                size={28}
-              >
-                <IconMore width={15} height={15} />
-              </IconButton>
-            }
-          >
-            <DropdownMenuItem
-              testId="browser-session-more-external"
-              icon={<IconExternalLink width={13} height={13} />}
-              onSelect={onOpenExternal}
-            >
-              {copy.openExternal}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              testId="browser-session-more-restart"
-              icon={<IconRefresh width={13} height={13} />}
-              disabled={!interactEnabled}
-              onSelect={() => {
-                void hostClient.browserRestart();
-              }}
-            >
-              {copy.restart}
-            </DropdownMenuItem>
-            {pendingDialog ? (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  testId="browser-session-more-dialog-accept"
-                  disabled={!interactEnabled}
-                  onSelect={() => {
-                    void requestBrowserDialog(hostClient, 'accept');
-                  }}
-                >
-                  {copy.acceptDialog}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  testId="browser-session-more-dialog-dismiss"
-                  disabled={!interactEnabled}
-                  onSelect={() => {
-                    void requestBrowserDialog(hostClient, 'dismiss');
-                  }}
-                >
-                  {copy.dismissDialog}
-                </DropdownMenuItem>
-              </>
-            ) : null}
-          </DropdownMenu>
-
-          {panelActions ? (
-            <>
-              <IconButton
-                className={`browser-session-icon-btn${panelActions.expanded ? ' active' : ''}`}
-                data-testid="browser-session-expand"
-                label={panelActions.expanded ? copy.collapse : copy.expand}
-                size={28}
-                aria-pressed={panelActions.expanded}
-                onClick={panelActions.onToggleExpand}
-              >
-                {panelActions.expanded ? (
-                  <IconCompress width={15} height={15} />
-                ) : (
-                  <IconExpand width={15} height={15} />
-                )}
-              </IconButton>
-              <IconButton
-                className="browser-session-icon-btn"
-                data-testid="browser-session-close-panel"
-                label={copy.closePanel}
-                size={28}
-                onClick={panelActions.onClose}
-              >
-                <IconClose width={15} height={15} />
-              </IconButton>
-            </>
-          ) : null}
+              {tabsNode}
+            </div>,
+            tabsSlot,
+          )}
+          {createPortal(
+            <div className="browser-session-chrome-actions browser-session-titlebar-actions">{actionsNode}</div>,
+            actionsSlot,
+          )}
+        </>
+      ) : titlebar ? null : (
+        <div className="browser-session-chrome-row browser-session-tabs" data-testid="browser-session-tabs">
+          {tabsNode}
+          <div className="browser-session-chrome-spacer" />
+          <div className="browser-session-chrome-actions">{actionsNode}</div>
         </div>
-      </div>
+      )}
 
       <div className="browser-session-chrome-row browser-session-urlbar">
         <IconButton
@@ -384,32 +414,16 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
             spellCheck={false}
           />
         </form>
-        <IconButton
-          className="browser-session-icon-btn"
-          data-testid="browser-session-open-external"
-          label={copy.openExternal}
-          size={28}
-          disabled={committedUrl.length === 0}
-          onClick={onOpenExternal}
-        >
-          <IconExternalLink width={15} height={15} />
-        </IconButton>
-
         <div className="browser-session-mode-group" data-testid="browser-session-mode-group">
-          <button
-            type="button"
-            className="browser-session-control"
-            data-testid="browser-session-control"
-            data-owner={controller}
-            title={`${controlLabel} · ${controlAction}`}
-            aria-label={`${controlLabel} · ${controlAction}`}
-            // Take-over stays available while the agent owns the page; only the
-            // nobody-holds-it state has no action to offer.
-            disabled={controller === 'idle'}
-            onClick={onToggleControl}
-          >
-            <span className="browser-session-control-dot" aria-hidden="true" />
-          </button>
+          {controller === 'agent' ? (
+            <span
+              className="browser-session-agent-activity"
+              data-testid="browser-session-agent-activity"
+              role="status"
+              title={copy.agentUsing}
+              aria-label={copy.agentUsing}
+            />
+          ) : null}
 
           <IconButton
             className={`browser-session-icon-btn${annotateActive ? ' active' : ''}`}

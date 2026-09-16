@@ -51,6 +51,8 @@ export type WorkbenchContextBarProps = {
   appearanceMode: 'light' | 'dark';
   sessionsExpanded: boolean;
   workPanelOpen: boolean;
+  /** Overrides the default inspector toggle (docking owns the right column). */
+  onToggleWorkPanel?: () => void;
   rightPanelTab: RightPanelTab | null;
   shell: ContextBarShell;
   onStop: () => void | Promise<void>;
@@ -183,7 +185,7 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
       onToggleAppearance={onToggleAppearance}
       onOpenSettings={() => openSettingsSection('general')}
       workPanelOpen={workPanelOpen}
-      onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
+      onToggleWorkPanel={props.onToggleWorkPanel ?? (() => shell.toggleInspector(rightPanelTab))}
       {...(activeSessionOrigin ? { origin: activeSessionOrigin } : {})}
       {...(activeSessionOrigin?.kind === 'fork'
         ? {

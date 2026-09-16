@@ -158,8 +158,6 @@ describe('isBrowserCommand', () => {
     expect(isBrowserCommand({ type: 'browser/restart' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/reload' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/input', events: [] })).toBe(true);
-    expect(isBrowserCommand({ type: 'browser/lock', owner: 'user' })).toBe(true);
-    expect(isBrowserCommand({ type: 'browser/unlock', owner: 'user' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/resize', width: 640, height: 900 })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/back' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/forward' })).toBe(true);
@@ -356,30 +354,6 @@ describe('handleBrowserCommand', () => {
     );
     expect(dispatchInput).toHaveBeenCalled();
     expect(result).toMatchObject({ success: true, command: 'browser/input' });
-  });
-
-  it('browser/lock owner user calls takeOver', async () => {
-    const takeOver = vi.fn().mockResolvedValue({ owner: 'user', agentWantsLock: true });
-    const session = createMockSession({ takeOver });
-    const result = await handleBrowserCommand(
-      { type: 'browser/lock', owner: 'user' },
-      'req-1',
-      createContext(session),
-    );
-    expect(takeOver).toHaveBeenCalled();
-    expect(result).toMatchObject({ success: true, command: 'browser/lock' });
-  });
-
-  it('browser/unlock owner user calls giveBack', async () => {
-    const giveBack = vi.fn().mockResolvedValue({ owner: 'agent', agentWantsLock: true });
-    const session = createMockSession({ giveBack });
-    const result = await handleBrowserCommand(
-      { type: 'browser/unlock', owner: 'user' },
-      'req-1',
-      createContext(session),
-    );
-    expect(giveBack).toHaveBeenCalled();
-    expect(result).toMatchObject({ success: true, command: 'browser/unlock' });
   });
 
   it('browser/back is a user-initiated history write', async () => {

@@ -1,6 +1,14 @@
 import type { RightPanelTab } from '../../right-panel.js';
 import type { MovableToolKind } from './types.js';
 
+/** Inspector tabs whose surface moves into the docking workspace. */
+export const DOCKING_OWNED_INSPECTOR_TABS: readonly RightPanelTab[] = [
+  'browser',
+  'review',
+  'canvas',
+  'docPreview',
+];
+
 export function inspectorTabToToolKind(tab: RightPanelTab | null): MovableToolKind | null {
   if (tab === 'browser') return 'browser';
   if (tab === 'review') return 'changes';

@@ -64,7 +64,8 @@ describe('nextBrowserAction', () => {
 
     expect(act('ready', 'idle')).toBe('continue');
     expect(act('ready', 'agent')).toBe('continue');
-    expect(act('ready', 'user')).toBe('read-only-or-wait-for-user');
+    // The human sharing the page never sends the agent into a wait.
+    expect(act('ready', 'user')).toBe('continue');
     expect(act('recovering', 'idle')).toBe('wait-for-recovery');
     expect(act('failed', 'idle')).toBe('restart');
     expect(act('stopped', 'idle')).toBe('navigate-or-observe-will-start');

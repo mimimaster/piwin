@@ -17,6 +17,8 @@ import { Surface } from './surface.js';
 import { StatusBadge } from './status-badge.js';
 import { Notice } from './notice.js';
 import { Spinner } from './spinner.js';
+import { ProgressRing } from './progress-ring.js';
+import { Toast } from './toast.js';
 import { TextArea } from './textarea.js';
 import { NumberInput } from './number-input.js';
 import { EmptyState } from './empty-state.js';
@@ -135,6 +137,41 @@ describe('primitive class contract', () => {
   it('Spinner exposes ui-spinner', () => {
     const markup = renderToStaticMarkup(createElement(Spinner, {}));
     expect(markup).toContain('ui-spinner');
+  });
+
+  it('ProgressRing exposes ui-progress-ring and tone class', () => {
+    const markup = renderToStaticMarkup(createElement(ProgressRing, { value: 50, tone: 'pine' }));
+    expect(markup).toContain('ui-progress-ring');
+    expect(markup).toContain('ui-progress-ring--pine');
+    expect(markup).toContain('is-determinate');
+  });
+
+  it('Toast exposes ui-toast, tone modifier, seal, and body classes', () => {
+    const markup = renderToStaticMarkup(
+      createElement(Toast, { tone: 'success', title: 'Saved', children: 'All good' }),
+    );
+    expect(markup).toContain('ui-toast');
+    expect(markup).toContain('tone-success');
+    expect(markup).toContain('ui-toast-seal');
+    expect(markup).toContain('ui-toast-title');
+    expect(markup).toContain('ui-toast-message');
+  });
+
+  it('Toast stacks and offers a show-more control when multiline', () => {
+    const markup = renderToStaticMarkup(
+      createElement(Toast, {
+        tone: 'error',
+        title: 'Failed',
+        multiline: true,
+        expandLabel: 'Show more',
+        collapseLabel: 'Show less',
+        children: 'A very long failure explanation',
+      }),
+    );
+    expect(markup).toContain('is-multiline');
+    expect(markup).toContain('ui-toast-expand');
+    expect(markup).toContain('Show more');
+    expect(markup).not.toContain('ui-toast-sep');
   });
 
   it('NumberInput exposes piwin-number-input and shared text-input chrome classes', () => {

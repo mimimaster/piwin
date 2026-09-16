@@ -28,7 +28,6 @@ export type BrowserStageBcHelpers = {
     details?: Record<string, unknown>,
     images?: ToolResultImage[],
   ) => ToolResult;
-  userControlHint: string;
   agentWriteOptions: (signal: AbortSignal, context: HostToolExecutionContext) => BrowserOpOptions;
   resolveTarget: (args: Record<string, unknown>) => string;
   mapExecuteError: (
@@ -49,7 +48,6 @@ export function createBrowserStageBcToolDefinitions(
     createRegistration,
     permissionSpec,
     success,
-    userControlHint,
     agentWriteOptions,
     resolveTarget,
     mapExecuteError,
@@ -61,7 +59,7 @@ export function createBrowserStageBcToolDefinitions(
   const hover = createRegistration(
     {
       name: 'browser_hover',
-      description: 'Hover over a page element targeting a snapshot ref or CSS selector.' + userControlHint + ' Automatically acquires agent control when the workbench is idle.',
+      description: 'Hover over a page element targeting a snapshot ref or CSS selector.',
       parameters: {
         type: 'object',
         properties: {
@@ -85,7 +83,7 @@ export function createBrowserStageBcToolDefinitions(
   const selectOption = createRegistration(
     {
       name: 'browser_select_option',
-      description: 'Select one or more options in a <select> element.' + userControlHint,
+      description: 'Select one or more options in a <select> element.',
       parameters: {
         type: 'object',
         properties: {
@@ -128,7 +126,7 @@ export function createBrowserStageBcToolDefinitions(
   const setChecked = createRegistration(
     {
       name: 'browser_set_checked',
-      description: 'Check or uncheck a checkbox or radio input.' + userControlHint,
+      description: 'Check or uncheck a checkbox or radio input.',
       parameters: {
         type: 'object',
         properties: {
@@ -155,8 +153,7 @@ export function createBrowserStageBcToolDefinitions(
     {
       name: 'browser_tabs',
       description:
-        'List, open, select, or close workbench tabs. pageId is stable for this session. Popups are listed as kind=popup and are not auto-selected.' +
-        userControlHint,
+        'List, open, select, or close workbench tabs. pageId is stable for this session. Popups are listed as kind=popup and are not auto-selected.',
       parameters: {
         type: 'object',
         properties: {
@@ -251,8 +248,7 @@ export function createBrowserStageBcToolDefinitions(
     {
       name: 'browser_dialog',
       description:
-        'Accept or dismiss the current page dialog (alert/confirm/prompt). Times out instead of hanging.' +
-        userControlHint,
+        'Accept or dismiss the current page dialog (alert/confirm/prompt). Times out instead of hanging.',
       parameters: {
         type: 'object',
         properties: {
@@ -299,8 +295,7 @@ export function createBrowserStageBcToolDefinitions(
     {
       name: 'browser_upload',
       description:
-        'Set files on a file input from Host-accessible paths. Paths are gated by file permission.' +
-        userControlHint,
+        'Set files on a file input from Host-accessible paths. Paths are gated by file permission.',
       parameters: {
         type: 'object',
         properties: {

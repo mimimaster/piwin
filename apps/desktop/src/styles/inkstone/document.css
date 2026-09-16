@@ -71,7 +71,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     font: 11.5px var(--mono);
     color: var(--t3);
   }
-  .markdown .md-code-lang {
+  .markdown .md-code-lang,
+  .markdown .md-code-reference {
     font: inherit;
     letter-spacing: 0;
   }

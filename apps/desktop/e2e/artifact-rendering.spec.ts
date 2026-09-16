@@ -145,6 +145,33 @@ test('6,000px flow: iframe last marker is reachable and trailing Markdown is con
   expect(gap).toBeLessThan(MAX_TRAILING_GAP_PX);
 });
 
+for (const failure of ['suspended-animation', 'native-handler-lookup'] as const) {
+  test(`flow measures through ${failure} without clipping its last item`, async ({ page }) => {
+    await page.addInitScript((failureMode) => {
+      if (window.parent === window) return;
+      if (failureMode === 'suspended-animation') {
+        window.requestAnimationFrame = () => 1;
+        window.cancelAnimationFrame = () => undefined;
+      } else {
+        Object.defineProperty(window, 'webkit', {
+          get() { throw new Error('Native bridge unavailable'); },
+        });
+      }
+    }, failure);
+    const section = await openFixture(page, 'flow-6000');
+    const iframe = await waitForSandboxFrame(section);
+    expect((await iframe.boundingBox())?.height).toBeGreaterThanOrEqual(6000);
+    await iframe.evaluate((node) => node.scrollIntoView({ block: 'end' }));
+    expect(await markerIntersectsIframeViewport(
+      page, iframeCss('flow-6000', false), '[data-artifact-end="flow-6000"]',
+    )).toBe(true);
+    await expect(section.getByTestId('artifact-height-recovery')).toHaveCount(0);
+    const gap = await trailingGapPx(section, section.getByTestId('artifact-frame'));
+    expect(gap).toBeGreaterThanOrEqual(0);
+    expect(gap).toBeLessThan(MAX_TRAILING_GAP_PX);
+  });
+}
+
 test('20,000px overflow uses host viewport chrome instead of a 16384px hidden crop', async ({
   page,
 }) => {

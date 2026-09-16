@@ -183,12 +183,12 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-turn {
   box-sizing: border-box;
 }
 
-/* Inside a turn group the flex gap already separates user → assistant.
-   Stacking the turn's bottom margin on top of it left ~46px between the
-   assembly capsule and the model byline; keep the margin only on the
-   group's trailing turn. */
-html[data-theme-id='piwin-inkstone-paper'] .chat-turn-group > .chat-turn:not(:last-child),
-html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group > .chat-turn:not(:last-child) {
+/* Inside a turn group the flex gap already separates user → assistant, and
+   the virtualizer's TRANSCRIPT_TURN_GAP_PX separates groups. Keeping the
+   turn's bottom margin on the trailing turn stacked 26px on top of that
+   gap (~46px under the colophon), so drop it for every grouped turn. */
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-group > .chat-turn,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group > .chat-turn {
   margin-bottom: 0;
 }
 
@@ -885,8 +885,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .acts-f .ib {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 6px;
   display: inline-grid;
   place-items: center;
@@ -913,8 +913,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .acts-f .ib svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   display: block;
 }
 

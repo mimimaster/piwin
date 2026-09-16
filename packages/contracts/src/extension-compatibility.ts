@@ -183,11 +183,14 @@ export type ExtensionCompatibility = {
  * Both 'compatible' and 'degraded' are eligible; 'incompatible' and 'unverified' require user action/review.
  */
 export function isExtensionEligibleForRuntime(compat: ExtensionCompatibility): boolean {
-  if (compat.tier === 'incompatible') {
+  if (compat.tier === 'incompatible' || compat.tier === 'unverified') {
     return false;
   }
+  if (compat.tier === 'compatible') {
+    return true;
+  }
   if (compat.capabilities === undefined) {
-    return compat.tier === 'compatible' || compat.tier === 'degraded';
+    return true;
   }
   return (
     compat.capabilities.tools.length > 0 ||
@@ -197,9 +200,9 @@ export function isExtensionEligibleForRuntime(compat: ExtensionCompatibility): b
   );
 }
 
-/** Only compatible extensions are loaded into a Blueprint by default. */
+/** Compatible and safely degraded Agent extensions may enter a Blueprint. */
 export function isExtensionBlueprintEligible(
   compatibility: ExtensionCompatibility | undefined,
 ): boolean {
-  return compatibility?.tier === 'compatible';
+  return compatibility !== undefined && isExtensionEligibleForRuntime(compatibility);
 }

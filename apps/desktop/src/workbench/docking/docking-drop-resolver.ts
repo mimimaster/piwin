@@ -99,6 +99,8 @@ export function resolveDockDrag(args: {
   panelElement: HTMLElement | null;
   rightPanelVisible: boolean;
   createId: WorkspaceIdFactory;
+  /** Active sidebar scope; sidebar drags from another project are rejected. */
+  activeProjectScopeKey?: string;
   apply: (state: WorkspaceState) => void;
 }): DockDragResolution | null {
   const input = buildHitTestInput({
@@ -115,6 +117,9 @@ export function resolveDockDrag(args: {
   const decision = proposeDrop(args.state, args.source, zone, {
     createId: args.createId,
     stageSize: { width: args.stageSize.width, height: args.stageSize.height },
+    ...(args.activeProjectScopeKey !== undefined
+      ? { activeProjectScopeKey: args.activeProjectScopeKey }
+      : {}),
   });
   if (!decision.ok) {
     return {

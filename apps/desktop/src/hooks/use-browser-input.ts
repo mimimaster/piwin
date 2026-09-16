@@ -13,7 +13,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import type { BrowserController, BrowserInputEvent, BrowserTargetIdentity } from '@piwin/contracts';
+import type { BrowserInputEvent, BrowserTargetIdentity } from '@piwin/contracts';
 import { viewportFromFilledDisplay } from '../browser-workbench-pointer';
 
 export type BrowserInputHost = {
@@ -35,7 +35,6 @@ export type UseBrowserInputOptions = {
   viewportHeight: number;
   interactEnabled: boolean;
   pickMode: boolean;
-  owner: BrowserController;
   target?: BrowserTargetIdentity;
   onPickStart?: () => void;
   onPickFailed?: () => void;
@@ -104,10 +103,6 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
       },
     ]);
   }, [send]);
-
-  useEffect(() => {
-    if (options.owner === 'agent') releaseHeldButtons();
-  }, [options.owner, releaseHeldButtons]);
 
   useEffect(() => {
     const onBlur = (): void => releaseHeldButtons();

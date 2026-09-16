@@ -222,6 +222,26 @@
   font-size: 0.9em;
 }
 
+/* Programming-font ligatures (JetBrains Mono / Fira Code draw them through
+   calt) turn `!==` into ≢ and `=>` into an arrow. In code the literal glyphs
+   matter more, so every markdown code surface opts out. font-feature-settings
+   replaces the root list wholesale, so its character variants are repeated
+   here and only liga/calt flip off. */
+.md-code,
+.md-inline-code,
+.enhanced-code,
+.enhanced-inline-code {
+  font-variant-ligatures: none;
+  font-feature-settings:
+    'cv02',
+    'cv03',
+    'cv04',
+    'cv11',
+    'kern' 1,
+    'liga' 0,
+    'calt' 0;
+}
+
 .md-code {
   margin: 0.4em 0 0.8em;
   padding: var(--s-4) var(--s-5);
@@ -260,7 +280,7 @@
 
 .md-code-line-num {
   flex: 0 0 auto;
-  min-width: 2.5ch;
+  min-width: var(--md-code-gutter-width, 2.5ch);
   box-sizing: content-box;
   text-align: right;
   padding-right: var(--s-5);
@@ -366,6 +386,7 @@
   display: flex;
   align-items: center;
   gap: var(--s-3);
+  min-width: 0;
 }
 
 .md-code-header-actions {
@@ -396,6 +417,30 @@
   color: var(--text-3);
   font-weight: 500;
   text-transform: lowercase;
+}
+
+/* ```start:end:path reference fences: file paths keep their case and truncate
+   with an ellipsis instead of pushing the header actions off. */
+.md-code-reference {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.md-code-reference-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.md-code-reference-range {
+  flex: 0 0 auto;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
 }
 
 .md-code-block[data-is-shell='true'] .md-code-line-num {

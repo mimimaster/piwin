@@ -23,8 +23,8 @@ export function readBrowserPageState(session: BrowserSession): BrowserToolPageSt
 }
 
 /**
- * Stable next step for the model (spec §5.2). Derived only from lifecycle and
- * control ownership — never from frame timing, so an idle static page does not
+ * Stable next step for the model (spec §5.2). Derived only from lifecycle —
+ * the user sharing the page never blocks the agent, and never from frame timing, so an idle static page does not
  * look broken.
  */
 export function nextBrowserAction(input: {
@@ -36,5 +36,5 @@ export function nextBrowserAction(input: {
   if (input.lifecycle === 'stopped' || input.lifecycle === 'starting') {
     return 'navigate-or-observe-will-start';
   }
-  return input.controller === 'user' ? 'read-only-or-wait-for-user' : 'continue';
+  return 'continue';
 }

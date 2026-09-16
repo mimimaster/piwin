@@ -50,6 +50,7 @@ import { appendComposerProposal } from './artifact-canvas-model.js';
 import { isDockingWorkspaceEnabled } from './workbench/docking/flag.js';
 import { DockToolHostsProvider } from './workbench/docking/dock-tool-hosts.js';
 import { useDockingWorkspace } from './workbench/docking/use-docking-workspace.js';
+import { inspectorTabToToolKind } from './workbench/docking/docking-tool-bridge.js';
 import { sessionScopeKey } from './session-scope-key';
 import { resolveEntityScope } from './session-entities';
 import { shouldBindSessionToSecondaryPane } from './conversation-pane-bind';
@@ -169,6 +170,35 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     inspectorTab: rightPanelOpen ? rightPanelTab : null,
     ...(conversationPanesEnabled ? { scopeKey: sessionScopeKey(state.activeScope) } : {}),
   });
+  // The docking hook above has already moved a movable tool into the
+  // workspace; fold the inspector away instead of leaving a placeholder
+  // column that squeezes the chat. Clearing the tab keeps the next inspector
+  // toggle from handing the same tool over again and closing at once.
+  const dockingTakesInspectorTool =
+    conversationPanesEnabled &&
+    dockingEnabled &&
+    rightPanelOpen &&
+    inspectorTabToToolKind(rightPanelTab) !== null;
+  // With tools docked, the titlebar panel toggle folds that column; the
+  // inspector keeps the toggle only while it is open or nothing is docked.
+  const dockedRightGroupId = dockingWorkspace.state.rightPanel.groupIds[0];
+  const hasDockedTools =
+    conversationPanesEnabled &&
+    dockingEnabled &&
+    (dockedRightGroupId ? dockingWorkspace.state.groups[dockedRightGroupId]?.viewIds.length ?? 0 : 0) > 0;
+  const dockedToolsExpanded = hasDockedTools && !dockingWorkspace.state.rightPanel.collapsed;
+  const setDockingState = dockingWorkspace.setState;
+  const toggleDockedTools = useCallback(() => {
+    setDockingState((current) => ({
+      ...current,
+      rightPanel: { ...current.rightPanel, collapsed: !current.rightPanel.collapsed },
+    }));
+  }, [setDockingState]);
+  useEffect(() => {
+    if (!dockingTakesInspectorTool) return;
+    shell.setInspectorTab(null);
+    shell.closeOverlay();
+  }, [dockingTakesInspectorTool, shell]);
   const liveSessionId = dockingEnabled
     ? dockingWorkspace.state.sessionTargetId ?? state.activeSessionId
     : conversationPanesEnabled
@@ -555,7 +585,14 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                         if (isOverlayPresentation) {
                           shell.closeOverlay();
                         }
-                        if (conversationPanesEnabled && dockingEnabled) {
+                        // Docking owns sidebar session clicks in the normal
+                        // layout: an unopened session appends a tab to the
+                        // active stage group (product spec §4.1).
+                        if (
+                          conversationPanesEnabled &&
+                          dockingEnabled &&
+                          layoutMode !== 'phone'
+                        ) {
                           dockingWorkspace.openOrFocusSession(sessionId);
                           return Promise.resolve();
                         }
@@ -632,7 +669,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       locale={desktopLocale}
                       appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
                       sessionsExpanded={navDrawerOpen}
-                      workPanelOpen={rightPanelOpen}
+                      workPanelOpen={rightPanelOpen || dockedToolsExpanded}
+                      {...(hasDockedTools && !rightPanelOpen ? { onToggleWorkPanel: toggleDockedTools } : {})}
                       rightPanelTab={rightPanelTab}
                       shell={shell}
                       onStop={handleAbort}
@@ -668,6 +706,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       conversationPanesEnabled={conversationPanesEnabled}
                       conversationPaneController={conversationPaneController}
                       phoneSinglePane={layoutMode === 'phone'}
+                      primarySessionId={state.activeSessionId}
+                      onPromoteSession={(sessionId) => void handleResumeSession(sessionId)}
+                      activeProjectScopeKey={sessionScopeKey(state.activeScope)}
                       primarySessionName={
                         activeSessionName ||
                         (desktopLocale === 'zh-CN' ? '素笺' : 'Clean Slate')

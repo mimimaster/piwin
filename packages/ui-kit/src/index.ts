@@ -19,6 +19,12 @@ export type { EmptyStateProps, EmptyStateSuggestion } from './empty-state.js';
 export { Spinner } from './spinner.js';
 export type { SpinnerProps } from './spinner.js';
 
+export { ProgressRing } from './progress-ring.js';
+export type { ProgressRingProps, ProgressRingTone } from './progress-ring.js';
+
+export { Toast, ToastHost } from './toast.js';
+export type { ToastProps, ToastTone, ToastHostProps, ToastHostPosition } from './toast.js';
+
 export {
   ContextMenu,
   ContextMenuItem,

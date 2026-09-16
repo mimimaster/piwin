@@ -1,9 +1,14 @@
-import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { Button } from '@piwin/ui-kit';
 import { CollapsibleContentBlock } from './collapsible-content-block.js';
 import { computeDiffLineNumbers } from './diff-line-numbers.js';
 import { parseUnifiedDiff } from './diff-view.js';
 import { downloadTextFile } from './artifact-source-export.js';
+import {
+  dedentCodeLines,
+  fileNameFromCodeReferencePath,
+  parseCodeReferenceFence,
+} from './markdown-code-reference.js';
 import { normalizeLanguage, TokenSpans, useHighlight, type TokenLine } from './syntax-highlight.js';
 
 const SHELL_LANGUAGES = new Set([
@@ -29,12 +34,14 @@ function CodeLinesRenderer({
   language,
   isDiff,
   highlightEnabled,
+  startLine,
 }: {
   lines: string[];
   source: string;
   language: string;
   isDiff: boolean;
   highlightEnabled: boolean;
+  startLine: number;
 }): ReactElement {
   const normalizedLanguage = normalizeLanguage(language);
   const tokenLines = useHighlight(source, normalizedLanguage, highlightEnabled);
@@ -43,8 +50,14 @@ function CodeLinesRenderer({
     return computeDiffLineNumbers(parseUnifiedDiff(source));
   }, [isDiff, source]);
 
+  const lastLineNumber = startLine + Math.max(lines.length - 1, 0);
+  const gutterStyle =
+    !isDiff && lastLineNumber > 99
+      ? ({ '--md-code-gutter-width': `${String(lastLineNumber).length}ch` } as CSSProperties)
+      : undefined;
+
   return (
-    <pre className={`md-code${isDiff ? ' md-code-diff' : ''}`}>
+    <pre className={`md-code${isDiff ? ' md-code-diff' : ''}`} style={gutterStyle}>
       <div
         className="md-code-content"
         data-language={language || undefined}
@@ -76,7 +89,7 @@ function CodeLinesRenderer({
           } else {
             gutter = (
               <span className="md-code-line-num" aria-hidden>
-                {index + 1}
+                {startLine + index}
               </span>
             );
           }
@@ -100,9 +113,12 @@ function CodeBodyWithLineNumbers({
   language,
   defaultCollapsed = true,
   highlightEnabled = true,
+  startLine = 1,
 }: {
   source: string;
   language: string;
+  /** Gutter number of the first line (code-reference fences quote mid-file). */
+  startLine?: number;
   /** When false (e.g. streaming), keep expanded so new lines stay visible. */
   defaultCollapsed?: boolean;
   /** Streaming blocks stay plain until completion to avoid retaining token trees per delta. */
@@ -110,15 +126,24 @@ function CodeBodyWithLineNumbers({
 }): ReactElement {
   const normalizedLanguage = normalizeLanguage(language);
   const isDiff = normalizedLanguage === 'diff';
-  const lines = useMemo(() => source.split('\n'), [source]);
+  // Dedent only settled blocks: a growing fence would shift left as lines arrive.
+  const shouldDedent = !isDiff && highlightEnabled;
+  const lines = useMemo(() => {
+    const raw = source.split('\n');
+    return shouldDedent ? dedentCodeLines(raw) : raw;
+  }, [shouldDedent, source]);
+  const displaySource = useMemo(
+    () => (shouldDedent ? lines.join('\n') : source),
+    [lines, shouldDedent, source],
+  );
   const isTall = lines.length > 12;
   const previewLines = useMemo(
     () => (isTall ? lines.slice(0, CODE_FENCE_PREVIEW_LINES) : lines),
     [isTall, lines],
   );
   const previewSource = useMemo(
-    () => (isTall ? previewLines.join('\n') : source),
-    [isTall, previewLines, source],
+    () => (isTall ? previewLines.join('\n') : displaySource),
+    [displaySource, isTall, previewLines],
   );
 
   return (
@@ -134,24 +159,27 @@ function CodeBodyWithLineNumbers({
           language={language}
           isDiff={isDiff}
           highlightEnabled={highlightEnabled}
+          startLine={startLine}
         />
       )}
       renderExpanded={() => (
         <CodeLinesRenderer
           lines={lines}
-          source={source}
+          source={displaySource}
           language={language}
           isDiff={isDiff}
           highlightEnabled={highlightEnabled}
+          startLine={startLine}
         />
       )}
     >
       <CodeLinesRenderer
         lines={lines}
-        source={source}
+        source={displaySource}
         language={language}
         isDiff={isDiff}
         highlightEnabled={highlightEnabled}
+        startLine={startLine}
       />
     </CollapsibleContentBlock>
   );
@@ -167,6 +195,8 @@ export function SourceCodeBlock(props: {
   blockedReason?: string;
   incompatible?: boolean;
 }): ReactElement {
+  const reference = parseCodeReferenceFence(props.language);
+  const language = reference?.language ?? props.language;
   return (
     <div
       className="md-code-block"
@@ -180,14 +210,30 @@ export function SourceCodeBlock(props: {
               $
             </span>
           ) : null}
-          <span className="md-code-lang muted">
-            {props.language || (props.isShell ? 'bash' : 'code')}
-          </span>
+          {reference ? (
+            <span className="md-code-reference muted" title={reference.path}>
+              <span className="md-code-reference-path">{reference.path}</span>
+              <span className="md-code-reference-range">
+                L{reference.startLine}
+                {reference.endLine > reference.startLine ? `–${reference.endLine}` : ''}
+              </span>
+            </span>
+          ) : (
+            <span className="md-code-lang muted">
+              {props.language || (props.isShell ? 'bash' : 'code')}
+            </span>
+          )}
         </div>
         {props.previewAction || props.source.length > 0 ? (
           <div className="md-code-header-actions">
             {props.source.length > 0 ? (
-              <DownloadCodeButton language={props.language} source={props.source} />
+              <DownloadCodeButton
+                language={language}
+                source={props.source}
+                {...(reference
+                  ? { fileName: fileNameFromCodeReferencePath(reference.path) }
+                  : {})}
+              />
             ) : null}
             {!props.streaming ? <CopyCodeButton text={props.source} /> : null}
             {props.previewAction}
@@ -196,8 +242,9 @@ export function SourceCodeBlock(props: {
       </div>
       <CodeBodyWithLineNumbers
         source={props.source}
-        language={props.language}
+        language={language}
         highlightEnabled={!props.streaming}
+        {...(reference ? { startLine: reference.startLine } : {})}
         {...(props.streaming
           ? { defaultCollapsed: false }
           : props.defaultCollapsed !== undefined
@@ -235,7 +282,11 @@ function codeExportMimeType(extension: string): string {
 }
 
 /** Save original model source. Never srcdoc or theme-repaired renderSource. */
-function DownloadCodeButton(props: { language: string; source: string }): ReactElement {
+function DownloadCodeButton(props: {
+  language: string;
+  source: string;
+  fileName?: string;
+}): ReactElement {
   return (
     <Button
       variant="ghost"
@@ -245,7 +296,7 @@ function DownloadCodeButton(props: { language: string; source: string }): ReactE
         const extension = codeExportExtension(props.language);
         void downloadTextFile({
           text: props.source,
-          fileName: `code.${extension}`,
+          fileName: props.fileName ?? `code.${extension}`,
           mimeType: codeExportMimeType(extension),
         });
       }}

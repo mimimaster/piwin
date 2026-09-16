@@ -552,7 +552,7 @@ input.project-path-input {
 
 .ui-menu-content,
 .ui-popover-content {
-  z-index: var(--layer-toast);
+  z-index: var(--layer-popover);
 }
 
 /* ── Session lineage popover ──────────────────────────────────────────

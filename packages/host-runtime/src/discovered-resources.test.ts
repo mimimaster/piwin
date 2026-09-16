@@ -31,9 +31,21 @@ async function seedPiwinAndPi(): Promise<{ piwinRoot: string; agentDir: string }
     'utf8',
   );
   await mkdir(join(agentDir, 'extensions'), { recursive: true });
+  // Loose Pi-native entry that collides with the user `hello.ts` by filename,
+  // which is what source precedence (shadowing) is for.
+  await writeFile(
+    join(agentDir, 'extensions', 'hello.ts'),
+    'export default function () {}\n',
+    'utf8',
+  );
   await writeFile(
     join(agentDir, 'extensions', 'tui-only.ts'),
     'ctx.ui.custom({});\nregisterTheme();\n',
+    'utf8',
+  );
+  await writeFile(
+    join(agentDir, 'extensions', 'mixed-agent.ts'),
+    "pi.registerTool({ name: 'agent_tool' });\nctx.ui.setStatus('mixed', 'ready');\n",
     'utf8',
   );
   return { piwinRoot, agentDir };
@@ -69,7 +81,11 @@ describe('loadDiscoveredResources', () => {
     expect(loaded.extensionPaths.some((path) => path.includes(join(piwinRoot, 'extensions')))).toBe(
       true,
     );
-    expect(loaded.extensionPaths.some((path) => path.includes(join(agentDir, 'npm')))).toBe(false);
+    // The user entry wins the `hello` collision; the loose pi-native copy loses.
+    expect(loaded.extensionPaths).not.toContain(join(agentDir, 'extensions', 'hello.ts'));
+    // The packaged extension carries a package-scoped id, so it is not
+    // collateral damage in that collision.
+    expect(loaded.extensionPaths.some((path) => path.includes(join(agentDir, 'npm')))).toBe(true);
   });
 
   it('honors disabledIds for pi-native entries', async () => {
@@ -102,6 +118,27 @@ describe('loadDiscoveredResources', () => {
       followPiNativeInventory: true,
     });
     expect(loaded.extensionPaths.some((path) => path.includes('tui-only'))).toBe(false);
+  });
+
+  it('keeps Agent tools active when only their auxiliary TUI surface is degraded', async () => {
+    const { piwinRoot, agentDir } = await seedPiwinAndPi();
+    const listed = await loadDiscoveredResources({
+      piwinRoot,
+      agentDir,
+      followPiNativeInventory: true,
+    });
+    const mixed = listed.extensions.find((item) => item.id === 'mixed-agent');
+    expect(mixed?.compatibility?.tier).toBe('degraded');
+    expect(mixed?.enabled).toBe(true);
+
+    const loaded = await createPiResourceLoader({
+      cwd: piwinRoot,
+      agentDir,
+      piwinRoot,
+      scope: { kind: 'general' },
+      followPiNativeInventory: true,
+    });
+    expect(loaded.extensionPaths).toContain(join(agentDir, 'extensions', 'mixed-agent.ts'));
   });
 
   it('classifies a seeded product skill as bundled and a custom skill as user', async () => {

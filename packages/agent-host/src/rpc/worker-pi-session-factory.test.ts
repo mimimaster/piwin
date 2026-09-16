@@ -133,6 +133,56 @@ describe('createBlueprintResourceLoader', () => {
     expect(call.additionalPromptTemplatePaths).toEqual([]);
   });
 
+  it('loads the exact tool surface from successive immutable extension revisions', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-extension-generation-'));
+    temporaryRoots.push(root);
+    const workingDirectory = join(root, 'work');
+    const agentDir = join(root, 'agent');
+    await mkdir(workingDirectory, { recursive: true });
+    await mkdir(agentDir, { recursive: true });
+
+    const writeRevision = async (revision: string, toolName: string): Promise<string> => {
+      const revisionDir = join(root, 'revisions', revision);
+      const entryPath = join(revisionDir, 'index.ts');
+      await mkdir(revisionDir, { recursive: true });
+      await writeFile(
+        entryPath,
+        `import { Type } from 'typebox';\nexport default function (pi) {\n  pi.registerTool({\n    name: '${toolName}',\n    label: '${toolName}',\n    description: 'generation marker',\n    parameters: Type.Object({}),\n    execute: async () => ({ content: [{ type: 'text', text: '${revision}' }], details: {} }),\n  });\n}\n`,
+        'utf8',
+      );
+      return entryPath;
+    };
+
+    const revisionOne = await writeRevision('revision-one', 'generation_marker_v1');
+    const revisionTwo = await writeRevision('revision-two', 'generation_marker_v2');
+    const piModule = (await import('@earendil-works/pi-coding-agent')) as Record<string, unknown>;
+
+    const loadToolNames = async (entryPath: string): Promise<string[]> => {
+      const loader = (await createBlueprintResourceLoader(
+        {
+          ...blueprint,
+          workingDirectory,
+          activeSkillPaths: [],
+          activeExtensionPaths: [entryPath],
+          activePromptPaths: [],
+        },
+        agentDir,
+        piModule,
+      )) as {
+        getExtensions: () => {
+          extensions: Array<{ tools: Map<string, unknown> }>;
+          errors: Array<{ path: string; error: string }>;
+        };
+      };
+      const loaded = loader.getExtensions();
+      expect(loaded.errors).toEqual([]);
+      return loaded.extensions.flatMap((extension) => [...extension.tools.keys()]);
+    };
+
+    await expect(loadToolNames(revisionOne)).resolves.toEqual(['generation_marker_v1']);
+    await expect(loadToolNames(revisionTwo)).resolves.toEqual(['generation_marker_v2']);
+  });
+
   it('injects only files from the compiled context manifest', async () => {
     const root = await mkdtemp(join(tmpdir(), 'piwin-worker-context-'));
     temporaryRoots.push(root);

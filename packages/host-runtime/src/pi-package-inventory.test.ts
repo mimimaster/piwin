@@ -1,7 +1,8 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { collectExtensionEntryPaths } from './extension-scanner.js';
 import {
   gitCloneRelativePath,
   loadPiNativeInventory,
@@ -87,6 +88,47 @@ describe('loadPiNativeInventory', () => {
     expect(packaged?.description).toContain('React Native');
     expect(inventory.skills.map((item) => item.id)).toEqual(['pi-build-ios-apps']);
     expect(inventory.skills[0]?.path).toContain(`${join('skills', 'pi-build-ios-apps')}`);
+  });
+
+  it('identifies same-named entries of different packages by package', async () => {
+    const agentDir = await mkdtemp(join(tmpdir(), 'pi-agent-collide-'));
+    const packages: Array<[string, string]> = [
+      ['@gotgenes/pi-anthropic-auth', 'src/index.ts'],
+      ['@amaster.ai/pi-computer-use', 'dist/index.js'],
+    ];
+    for (const [name, entry] of packages) {
+      const packageRoot = join(agentDir, 'npm', 'node_modules', name);
+      const entryPath = join(packageRoot, entry);
+      await mkdir(dirname(entryPath), { recursive: true });
+      await writeJson(join(packageRoot, 'package.json'), {
+        name,
+        pi: { extensions: [`./${entry}`] },
+      });
+      await writeFile(entryPath, 'export default function () {}\n', 'utf8');
+    }
+    await writeJson(join(agentDir, 'settings.json'), {
+      packages: ['npm:@gotgenes/pi-anthropic-auth', 'npm:@amaster.ai/pi-computer-use'],
+    });
+
+    const inventory = await loadPiNativeInventory({ agentDir });
+    expect(inventory.diagnostics).toEqual([]);
+    expect(inventory.extensions.map((item) => item.id)).toEqual([
+      'gotgenes-pi-anthropic-auth',
+      'amaster-ai-pi-computer-use',
+    ]);
+    expect(inventory.extensions[1]?.name).toBe('@amaster.ai/pi-computer-use');
+
+    // Regression: both entries used to share the id `index`, and the blueprint
+    // collector dedupes by id, so the second package never reached Pi.
+    const paths = collectExtensionEntryPaths({
+      piwinRoot: agentDir,
+      discovered: inventory.extensions,
+    });
+    expect(paths).toHaveLength(2);
+    expect(paths.some((resourcePath) => resourcePath.endsWith(join('src', 'index.ts')))).toBe(true);
+    expect(paths.some((resourcePath) => resourcePath.endsWith(join('dist', 'index.js')))).toBe(
+      true,
+    );
   });
 
   it('skips missing package roots without throwing', async () => {

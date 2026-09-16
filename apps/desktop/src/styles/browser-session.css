@@ -119,6 +119,52 @@
   flex-shrink: 0;
 }
 
+/* ---- host titlebar (right panel / docked panel): page tabs replace the
+   「浏览器」 tool tab ---- */
+.browser-session-titlebar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  height: 100%;
+  flex-shrink: 1;
+  padding: 0;
+  border-bottom: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.browser-session-titlebar-tabs .browser-session-tab {
+  height: 22px;
+}
+
+.browser-session-titlebar-tabs .browser-session-icon-btn,
+.browser-session-titlebar-actions .browser-session-icon-btn {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+}
+
+.right-panel-surface-actions-slot {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.right-panel-surface-actions-slot[hidden] {
+  display: none;
+}
+
+.browser-session-titlebar-actions {
+  gap: 2px;
+}
+
+/* Default theme pins actions absolutely; reserve room for ⋯ + expand + close. */
+.right-panel-tabstrip.has-browser-tabs {
+  padding-right: 100px;
+}
+
 /* ---- chrome row 2: navigation + address + mode group ---- */
 .browser-session-urlbar {
   height: 44px;
@@ -196,39 +242,29 @@
   flex-shrink: 0;
 }
 
-.browser-session-control {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-}
-
-.browser-session-control:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-.browser-session-control-dot {
+.browser-session-agent-activity {
+  flex-shrink: 0;
   width: 8px;
   height: 8px;
+  margin: 0 var(--s-2);
   border-radius: 50%;
-  background: var(--text-3);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-3) 18%, transparent);
+  background: var(--lamp, var(--iris-lift));
+  animation: browser-session-agent-pulse 1.4s var(--ease-out, ease-out) infinite;
 }
 
-.browser-session-control[data-owner='user'] .browser-session-control-dot {
-  background: var(--iris-lift);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--iris) 26%, transparent);
+@keyframes browser-session-agent-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--lamp, var(--iris)) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--lamp, var(--iris)) 0%, transparent);
+  }
 }
 
-.browser-session-control[data-owner='agent'] .browser-session-control-dot {
-  background: var(--lamp, var(--danger));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--lamp, var(--danger)) 26%, transparent);
+@media (prefers-reduced-motion: reduce) {
+  .browser-session-agent-activity {
+    animation: none;
+  }
 }
 
 .browser-session-density-dot {

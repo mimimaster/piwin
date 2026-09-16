@@ -18,10 +18,6 @@ import type { BrowserOpOptions, BrowserSession } from '@piwin/browser';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import { readBrowserPageState } from './browser-tool-page-state.js';
 
-export const USER_CONTROL_HINT =
-  ' Fails with browser-user-has-control if the human took over the workbench; wait or ask them to give it back.';
-export const AGENT_WRITE_HINT =
-  ' Automatically acquires agent control when the workbench is idle. If the user has control, the call returns browser-user-has-control; do not retry until the user hands it back. Read-only browser tools remain available.';
 
 export function createBrowserRegistration(
   descriptor: HostToolDescriptor,

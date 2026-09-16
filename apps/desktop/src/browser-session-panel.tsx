@@ -3,7 +3,8 @@
  *
  * Mirrors Host Chromium via `browser/frame`. Default mode is Interact
  * (pointer/IME forwarded as `browser/input`). Pick remains a modifier that
- * attaches a composer chip. Controller lock comes from `browser/controller`,
+ * attaches a composer chip. `browser/controller` is only an activity indicator:
+ * the human and the agent share the page and neither locks the other out,
  * not from whether the LLM is streaming.
  */
 import {
@@ -130,7 +131,6 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     containerRef,
     enabled: viewportPreference.mode === 'follow',
     leaseId: mirrorLeaseId,
-    controller: owner,
     resize: (width, height, resizeOptions) =>
       hostClient.browserResize(width, height, resizeOptions),
   });
@@ -148,13 +148,12 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  const agentOwns = owner === 'agent';
   const runtimeStatus = resolveBrowserRuntimeStatus(locale, {
     lifecycle,
     mirror,
     mirrorError,
   });
-  const interactEnabled = !agentOwns && runtimeStatus.interactEnabled;
+  const interactEnabled = runtimeStatus.interactEnabled;
   const target =
     generation !== undefined && pageId !== undefined && documentRevision !== undefined
       ? { generation, pageId, documentRevision }
@@ -166,7 +165,6 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     viewportHeight: frame.viewportHeight,
     interactEnabled: interactEnabled && !annotateMode,
     pickMode,
-    owner,
     ...(target === undefined ? {} : { target }),
     onPickStart: () => {
       setPickPending(true);
@@ -223,16 +221,6 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       .catch(() => pushNotice(copy.commandFailed));
   }, [hostClient, pushNotice, copy.commandFailed]);
 
-  const handleToggleControl = useCallback((): void => {
-    const request =
-      owner === 'agent' ? hostClient.browserLock('user') : hostClient.browserUnlock('user');
-    void request
-      .then((response) => {
-        if (!response.success) pushNotice(copy.panelActionFailed);
-      })
-      .catch(() => pushNotice(copy.panelActionFailed));
-  }, [hostClient, owner, pushNotice, copy.panelActionFailed]);
-
   const handleOpenExternal = useCallback((): void => {
     if (committedUrl.length === 0) return;
     void openExternalUrl(committedUrl).then((opened) => {
@@ -287,13 +275,26 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
 
   const displayZoom: BrowserDisplayZoom =
     viewportPreference.mode === 'follow' ? 'fit' : (viewportPreference.displayZoom ?? 'fit');
-  const displayBox = resolveBrowserDisplayBox({
-    panelWidth: panelSize.width,
-    panelHeight: panelSize.height,
-    viewportWidth: frame.viewportWidth,
-    viewportHeight: frame.viewportHeight,
-    zoom: displayZoom,
-  });
+  // Follow mode keeps the Host viewport at the panel size, so the frame always
+  // fills the panel. While a resize is still in flight the last frame stretches
+  // for a moment instead of shrinking into a letterboxed island. A viewport the
+  // agent or a preset pinned to another mode keeps the aspect-true fit.
+  const fillPanel =
+    viewportPreference.mode === 'follow' && (viewport === undefined || viewport.mode === 'follow');
+  const displayBox =
+    fillPanel && frame.viewportWidth > 0 && panelSize.width > 0
+      ? {
+          width: panelSize.width,
+          height: panelSize.height,
+          scale: panelSize.width / frame.viewportWidth,
+        }
+      : resolveBrowserDisplayBox({
+          panelWidth: panelSize.width,
+          panelHeight: panelSize.height,
+          viewportWidth: frame.viewportWidth,
+          viewportHeight: frame.viewportHeight,
+          zoom: displayZoom,
+        });
   // Encoded JPEG size vs the pixels this panel needs (spec §4.1.1).
   const density = resolveBrowserMirrorDensity({
     frame,
@@ -354,7 +355,6 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           });
         }}
         controller={owner}
-        onToggleControl={handleToggleControl}
         producer={frame.producer}
         tabs={tabs}
         pendingDialog={pendingDialog}
@@ -435,6 +435,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         interactEnabled={interactEnabled}
         runtimeInteractEnabled={runtimeStatus.interactEnabled}
         displayBox={displayBox}
+        fillPanel={fillPanel}
         zoom={displayZoom}
         overlay={overlay}
         overlayOffsetX={overlayOffsetX}

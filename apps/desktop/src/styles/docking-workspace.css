@@ -61,6 +61,33 @@
   display: flex;
 }
 
+/* Primary layout (one stage group, at most one session view): the stage is
+   the ordinary workbench chat, not a pane inside it. With nothing docked the
+   whole workspace drops out of the box tree exactly like the v1 single pane;
+   with docked tools the row stays a real box so the right panel can sit
+   beside the chat. */
+.docking-workspace.is-primary-layout:not(.has-docked-tools),
+.docking-workspace.is-primary-layout:not(.has-docked-tools) .docking-workspace-row,
+.docking-workspace.is-primary-layout:not(.has-docked-tools) .docking-stage,
+.docking-workspace.is-primary-layout:not(.has-docked-tools) .docking-primary-slot {
+  display: contents;
+}
+
+.docking-workspace.is-primary-layout.has-docked-tools .docking-primary-slot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.docking-workspace.is-primary-layout.has-docked-tools .docking-primary-slot > .chat-column {
+  width: 100%;
+  height: 100%;
+  padding-top: 0;
+}
+
 .docking-workspace .conversation-pane[hidden],
 .docking-workspace.is-single-pane .conversation-pane[hidden] {
   display: none;
@@ -144,21 +171,6 @@
   min-height: 0;
 }
 
-.docking-right-rail {
-  flex: 0 0 auto;
-  align-self: stretch;
-  width: var(--s-7);
-  border: 0;
-  background: var(--surface-2);
-  box-shadow: inset 1px 0 0 var(--line-1);
-  color: var(--text-3);
-  cursor: pointer;
-}
-
-.docking-right-rail:hover {
-  color: var(--text-1);
-}
-
 /* --- tool placeholder ------------------------------------------------- */
 
 .docking-tool-placeholder {
@@ -190,6 +202,36 @@
 }
 
 .conversation-pane-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* A docked browser's page tabs share the right panel header row. */
+.docking-right-panel .conversation-pane-tabs {
+  flex: 0 1 auto;
+}
+
+.docking-right-panel-surface-tabs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
+  height: 100%;
+  overflow: hidden;
+}
+
+.docking-right-panel-header-spacer {
+  flex: 1 1 auto;
+  min-width: var(--s-2);
+}
+
+.docking-right-panel-surface-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.docking-right-panel-surface-tabs[hidden],
+.docking-right-panel-surface-actions[hidden] {
   display: none;
 }
 

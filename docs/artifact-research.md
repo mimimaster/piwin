@@ -38,6 +38,11 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   unstyled DOM.
 - **16 384 px overflow:** Inline flow that exceeds the defensive ceiling
   enters `inline-overflow` (host-owned viewport + hint). No silent crop.
+- **Height recovery (2026-09-16):** load confirmation and explicit measurement
+  requests do not wait for animation callbacks. Native handler lookup failures
+  cannot suppress browser delivery. A stream height is retained during document
+  replacement, but only the replacement document's report confirms readiness;
+  a missing report enables the scrollable recovery viewport.
 - **Flashcards:** structured `FlashcardDisplayPayload` in tool presentation.
   Generic Artifact does not special-case `data-card-id`.
 - **Deleted live APIs:** `evaluateCodeFence`, `splitMarkdownBlocks`,

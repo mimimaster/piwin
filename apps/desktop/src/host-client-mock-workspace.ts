@@ -750,35 +750,6 @@ export async function handleMockWorkspaceCommands(
         return { id, type: 'response', command: 'browser/reload', success: true, data: { ok: true } };
       case 'browser/input':
         return { id, type: 'response', command: 'browser/input', success: true, data: null };
-      case 'browser/lock': {
-        if (command.owner === 'agent') host.mockBrowserAgentWantsLock = true;
-        const owner = command.owner === 'user' ? 'user' : 'agent';
-        host.emitPush({
-          type: 'browser/controller',
-          owner,
-          ts: Date.now(),
-          ...(host.mockBrowserAgentWantsLock ? { agentWantsLock: true } : {}),
-        });
-        return { id, type: 'response', command: 'browser/lock', success: true, data: null };
-      }
-      case 'browser/unlock': {
-        const owner =
-          command.owner === 'user'
-            ? host.mockBrowserAgentWantsLock
-              ? 'agent'
-              : 'idle'
-            : 'idle';
-        if (command.owner !== 'user' || !host.mockBrowserAgentWantsLock) {
-          host.mockBrowserAgentWantsLock = false;
-        }
-        host.emitPush({
-          type: 'browser/controller',
-          owner,
-          ts: Date.now(),
-          ...(host.mockBrowserAgentWantsLock ? { agentWantsLock: true } : {}),
-        });
-        return { id, type: 'response', command: 'browser/unlock', success: true, data: null };
-      }
       case 'browser/resize':
         return {
           id,

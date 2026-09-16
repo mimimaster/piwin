@@ -319,7 +319,6 @@ describe('WP4 task 4: tool family matrix', () => {
         'browser_screenshot',
         'browser_click',
         'browser_wait',
-        'browser_lock',
         'browser_status',
         'browser_restart',
         'browser_reload',

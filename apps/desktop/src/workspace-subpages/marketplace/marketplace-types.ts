@@ -53,5 +53,6 @@ export type MarketPluginItem = {
 
 export type MarketplaceToast = {
   text: string;
+  title?: string | undefined;
   type: 'info' | 'success' | 'warning' | 'error';
 };
