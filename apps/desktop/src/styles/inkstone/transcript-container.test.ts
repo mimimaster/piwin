@@ -25,22 +25,31 @@ describe('Inkstone transcript container query', () => {
 
   it('resolves the turn grid on the turn, not a frozen :root column token', () => {
     expect(css).toContain(
-      'grid-template-columns: minmax(0, var(--gut)) minmax(0, var(--measure)) minmax(0, var(--gut));',
+      'grid-template-columns: minmax(0, 1fr) minmax(0, var(--measure)) minmax(0, 1fr);',
     );
     expect(css).not.toContain('var(--turn-columns)');
   });
 
-  it('sets --mg/--gut on stage descendants, not the container itself', () => {
+  it('keeps absolute --gut via 100cqw for marginalia width only (never inherited 100%)', () => {
+    expect(css).toMatch(
+      /\.chat-stage\s+>\s*\*[\s\S]*?--gut: max\(\s*0px,\s*calc\(\(100cqw - 2 \* var\(--chat-inline-pad\) - var\(--conversation-width\)\) \/ 2\)\s*\)/,
+    );
+    // Stage itself keeps a literal zero — percentage guts re-resolve on turns.
+    expect(css).toMatch(
+      /container-name: transcript-stage;[\s\S]*?--gut: 0px;/,
+    );
+    expect(css).not.toContain('calc((100% - 2 * var(--chat-inline-pad)');
+  });
+
+  it('sets --mg/--gut on stage descendants for rail width, not turn centering', () => {
     // A size container cannot style itself — --mg on `.chat-stage` inside
     // `@container transcript-stage` never applied (rail width 0 → vertical "1 工具").
-    // `100%` on descendants is the child's box (often --chat-max), so the
-    // leftover gutter must use 100cqw (the named stage) or the rail is 0
-    // wide and `.who` vanishes after the head is hidden.
+    // Turn centering uses 1fr | measure | 1fr so WKWebView matches Blink.
     expect(css).toMatch(
-      /@container transcript-stage \(min-width: 960px\)[\s\S]*?\.chat-stage\s+> \*[\s\S]*?--gut: max\(0px, min\(140px, calc\(\(100cqw - var\(--conversation-width\)\) \/ 2\)\)\)/,
+      /@container transcript-stage \(min-width: 960px\)[\s\S]*?\.chat-stage\s+> \*[\s\S]*?--gut: max\(\s*0px,\s*min\(140px, calc\(\(100cqw - 2 \* var\(--chat-inline-pad\) - var\(--conversation-width\)\) \/ 2\)\)\s*\)/,
     );
     expect(css).toMatch(
-      /@container transcript-stage \(min-width: 1080px\)[\s\S]*?\.chat-stage\s+> \*[\s\S]*?--gut: max\(0px, min\(160px, calc\(\(100cqw - var\(--conversation-width\)\) \/ 2\)\)\)/,
+      /@container transcript-stage \(min-width: 1080px\)[\s\S]*?\.chat-stage\s+> \*[\s\S]*?--gut: max\(\s*0px,\s*min\(160px, calc\(\(100cqw - 2 \* var\(--chat-inline-pad\) - var\(--conversation-width\)\) \/ 2\)\)\s*\)/,
     );
     expect(css).not.toMatch(/--gut:[\s\S]{0,80}24rem/);
     expect(css).not.toMatch(

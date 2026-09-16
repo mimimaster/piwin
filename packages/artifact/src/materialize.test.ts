@@ -64,16 +64,29 @@ describe('materializeArtifact', () => {
     const analysis = analyze('artifact-html', source, { id: 'media-bind' });
     expect(analysis.kind).toBe('intent');
     if (analysis.kind !== 'intent') return;
-    const blobUrl = 'blob:http://localhost/media-1';
+    const dataUrl = 'data:image/webp;base64,UklGRhYAAABXRUJQVlA4TAoAAAAvAAAAAA==';
     const plan = materializeArtifact(analysis.intent, {
       mode: 'interactive',
-      mediaObjectUrls: new Map([[mediaId, blobUrl]]),
+      mediaDataUrls: new Map([[mediaId, dataUrl]]),
     });
-    expect(plan.renderSource).toContain(`src="${blobUrl}"`);
+    expect(plan.renderSource).toContain(`src="${dataUrl}"`);
     expect(plan.renderSource).toContain(`data-piwin-media="${mediaId}"`);
-    expect(analysis.intent.descriptor.source).not.toContain('blob:');
     expect(analysis.intent.descriptor.source).toContain(`data-piwin-media="${mediaId}"`);
-    expect(analysis.intent.descriptor.source).not.toContain(`src="${blobUrl}"`);
+    expect(analysis.intent.descriptor.source).not.toContain(`src="${dataUrl}"`);
+  });
+
+  it('drops a blob: media URL the sandbox opaque origin could never read', () => {
+    const mediaId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const source = `<section><img data-piwin-media="${mediaId}" alt="icon"></section>`;
+    const analysis = analyze('artifact-html', source, { id: 'media-blob' });
+    expect(analysis.kind).toBe('intent');
+    if (analysis.kind !== 'intent') return;
+    const plan = materializeArtifact(analysis.intent, {
+      mode: 'interactive',
+      mediaDataUrls: new Map([[mediaId, 'blob:http://localhost/media-1']]),
+    });
+    expect(plan.renderSource).not.toContain('blob:');
+    expect(plan.renderSource).toContain(`data-piwin-media="${mediaId}"`);
   });
 
   it('hosts full-document stream-preview in a fragment root so updates can land', () => {

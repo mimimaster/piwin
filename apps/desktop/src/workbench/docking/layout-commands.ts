@@ -26,7 +26,7 @@ import type {
   WorkspaceTemplate,
 } from './types.js';
 import { isMovableToolKind } from './types.js';
-import { detachView, insertView, okOp, rejectOp } from './view-commands.js';
+import { detachView, discardView, insertView, okOp, rejectOp } from './view-commands.js';
 
 function edgeOrientation(edge: DropEdge): SplitOrientation {
   return edge === 'left' || edge === 'right' ? 'row' : 'column';
@@ -99,6 +99,12 @@ export function moveViewToGroup(
     return okOp(putGroup(state, { ...group, viewIds: without, activeViewId: viewId }));
   }
   let next = detachView(state, viewId);
+  if (view.kind === 'session') {
+    const occupantId = next.groups[targetGroupId]?.viewIds.find(
+      (id) => id !== viewId && next.views[id]?.kind === 'session',
+    );
+    if (occupantId) next = discardView(next, occupantId);
+  }
   next = insertView(next, targetGroupId, view, index);
   if (sourceGroupId && isStageGroupId(next, sourceGroupId)) {
     next = collapseEmptyStageGroups(next);

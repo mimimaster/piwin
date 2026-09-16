@@ -12,7 +12,7 @@ import { ArtifactInlinePreview } from './artifact-inline-preview.js';
 import { createArtifactCanvasTarget } from './artifact-canvas-model.js';
 import { isShellLanguage, SourceCodeBlock } from './markdown-code-block.js';
 import type { MarkdownCodeFenceProps } from './markdown-code-fence.js';
-import { useArtifactSessionMediaObjectUrls } from './artifact-session-media.js';
+import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
 import {
   readArtifactTypography,
   sameArtifactTypography,
@@ -95,7 +95,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     mountsInline &&
     !(liveFence && artifactCodeFirst);
 
-  const mediaObjectUrls = useArtifactSessionMediaObjectUrls({
+  const mediaDataUrls = useArtifactSessionMediaDataUrls({
     source: props.source,
     ...(props.artifactOrigin ? { originSessionId: props.artifactOrigin.sessionId } : {}),
   });
@@ -117,7 +117,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
       mode: liveFence ? 'stream-preview' : 'interactive',
       source: props.source,
       presentation: 'inline',
-      mediaObjectUrls,
+      mediaDataUrls,
       theme: { ...(props.artifactTheme ?? createDefaultArtifactTheme('dark')), ...typography },
     });
   }, [
@@ -127,7 +127,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     liveFence,
     props.source,
     props.artifactTheme,
-    mediaObjectUrls,
+    mediaDataUrls,
   ]);
 
   const previewRoot = (children: ReactElement | null, live: boolean): ReactElement => (

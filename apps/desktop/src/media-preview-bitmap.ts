@@ -162,6 +162,67 @@ export async function createLimitedPreviewUrlFromHref(
   }
 }
 
+function bitmapToDataUrl(bitmap: ImageBitmap): string | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const context = canvas.getContext('2d');
+  if (!context || typeof canvas.toDataURL !== 'function') {
+    return null;
+  }
+  context.drawImage(bitmap, 0, 0);
+  for (const type of ['image/webp', 'image/jpeg'] as const) {
+    const url = canvas.toDataURL(type, 0.8);
+    // A browser that cannot encode `type` silently returns a PNG data URL.
+    if (url.startsWith('data:image/')) {
+      return url;
+    }
+  }
+  return null;
+}
+
+/**
+ * Size-capped still as a self-contained `data:` URL, for consumers that cannot
+ * read a host-origin object URL — an Artifact sandbox runs on an opaque origin
+ * and a `blob:` src errors there instead of painting.
+ */
+export async function createLimitedDataUrl(
+  source: Blob,
+  maxEdgePx: number,
+): Promise<string | null> {
+  try {
+    const bitmap = await decodeLimitedBitmap(source, maxEdgePx);
+    try {
+      return bitmapToDataUrl(bitmap);
+    } finally {
+      bitmap.close();
+    }
+  } catch (error) {
+    warnPreviewFailure(error);
+    return null;
+  }
+}
+
+/** Same as `createLimitedDataUrl` for an already-resolved href (`blob:`, `asset:`, https:). */
+export async function createLimitedDataUrlFromHref(
+  href: string,
+  maxEdgePx: number,
+): Promise<string | null> {
+  try {
+    const response = await fetch(href);
+    if (!response.ok) {
+      return null;
+    }
+    return await createLimitedDataUrl(await response.blob(), maxEdgePx);
+  } catch (error) {
+    warnPreviewFailure(error);
+    return null;
+  }
+}
+
 /**
  * Lightbox keeps the original File object URL (not decoded until opened).
  * The chip `onReady` URL is a size-capped still. Caller must revoke both.

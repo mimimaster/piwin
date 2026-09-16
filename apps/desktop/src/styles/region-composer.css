@@ -2,8 +2,9 @@
    Dock, card, input area, toolbar, toolbar pills, send/stop.
 
    The composer is the most-touched control in the product, so it is the one
-   surface allowed to sit clearly above the stage: raised fill, real elevation,
-   and an iris focus ring. Everything else in the shell stays recessive.
+   surface allowed to sit clearly above the stage: raised fill and real
+   elevation. Focus does not draw a ring — the slab is already the object.
+   Everything else in the shell stays recessive.
 
    Sibling files (same region, split per AGENTS.md 3.2): composer-context-rail,
    composer-interrupt, composer-attachments, composer-steer, composer-menus,
@@ -12,25 +13,35 @@
 /* ─── Dock ──────────────────────────────────────────────────────────── */
 
 .composer-dock {
-  /* Slab = thinking/prose column only. Do not add --gut here: leftover
-     rails grow when the stage is stretched, and the bar would grow with
-     them. Center the same --conversation-width the turn measure uses. */
+  /* Same containing box as `.chat-stream`: full stage width + identical
+     inline pad, then center the measure child. No viewport-unit or gutter overrides —
+     WKWebView and Blink both resolve this the same way. */
   position: relative;
   z-index: 10;
   flex-shrink: 0;
-  align-self: center;
+  align-self: stretch;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  width: min(var(--conversation-width), calc(100% - 2 * var(--chat-inline-pad)));
-  max-width: var(--conversation-width);
-  margin-inline: auto;
-  padding: 0 0 var(--s-6);
+  align-items: center;
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  padding: 0 var(--chat-inline-pad) var(--s-6);
   box-sizing: border-box;
   border: none;
   background: transparent;
   box-shadow: none;
+}
+
+.composer-dock > * {
+  box-sizing: border-box;
+  width: min(100%, var(--conversation-width));
+  max-width: var(--conversation-width);
+  margin-inline: auto;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-self: center;
 }
 
 .composer-dock::before,
@@ -42,10 +53,20 @@
   align-self: stretch;
   width: 100%;
   max-width: none;
-  margin: 0;
+  margin-inline: 0;
   padding: var(--s-3) var(--chat-inline-pad) var(--s-8);
   box-sizing: border-box;
   border-top: none;
+  background: transparent;
+}
+
+.composer-dock.layout-centered > * {
+  box-sizing: border-box;
+  width: min(100%, var(--conversation-width));
+  max-width: var(--conversation-width);
+  margin-inline: auto;
+  flex: 0 0 auto;
+  align-self: center;
 }
 
 /* Empty stage: the composer is the only central interaction surface. */
@@ -53,7 +74,7 @@
   flex: 0 0 auto;
   width: 100%;
   max-width: none;
-  margin: 0;
+  margin-inline: 0;
   padding: 0 var(--chat-inline-pad);
   box-sizing: border-box;
   border-top: 0;
@@ -65,9 +86,20 @@
 }
 
 .composer-sticky-banner {
-  width: var(--chat-max);
-  max-width: 100%;
-  margin: 0 auto var(--s-4);
+  /* Same pad + centered measure as `.composer-dock`. */
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 var(--s-4);
+  padding: 0 var(--chat-inline-pad);
+  box-sizing: border-box;
+}
+
+.composer-sticky-banner > * {
+  box-sizing: border-box;
+  width: min(100%, var(--conversation-width));
+  max-width: var(--conversation-width);
+  margin-inline: auto;
 }
 
 .composer-sticky-banner .ui-notice {
@@ -96,16 +128,18 @@
 
 /* ─── Card ────────────────────────────────────────────────────────────
    Elevation instead of a border: the rim light on top and the shadow beneath
-   are what lift it off the stage. Focus adds an iris ring rather than
-   changing the fill, so the card never appears to move when you click into it. */
+   are what lift it off the stage. Focus does not add a ring — a stroked edge
+   reads as a mask outline on an already-elevated slab. */
 
 .composer-card-v2 {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   width: 100%;
-  max-width: 100%;
+  /* Cap to the conversation measure even when a parent stretches to full stage. */
+  max-width: min(100%, var(--conversation-width));
   border: 0;
+  outline: none;
   border-radius: var(--r-panel);
   /* `--slab` defaults to `--surface-3` (see apply-appearance.ts) so this is a
      no-op fill for every non-Inkstone theme; only inkstone-overrides.css
@@ -131,18 +165,15 @@
 
 .composer-card-v2:focus-within,
 .composer-card-v2:hover:focus-within {
-  box-shadow:
-    var(--elev-3),
-    0 0 0 1px var(--iris);
+  outline: none;
+  box-shadow: var(--elev-3);
 }
 
 .composer-card-v2.drop-active {
   /* `--slab-raised` defaults to `--surface-4` (see apply-appearance.ts); on
      Inkstone the drop highlight must stay on the slab, not flash paper. */
   background: var(--slab-raised);
-  box-shadow:
-    var(--elev-4),
-    0 0 0 2px var(--iris);
+  box-shadow: var(--elev-4);
 }
 
 /* While the agent is running the card takes an ember rim — the same signal as
@@ -176,11 +207,13 @@
   padding: var(--s-1) var(--s-4) var(--s-3);
 }
 
-/* Empty session: a single focused prompt card, without landing-page chrome. */
+/* Empty session: a single focused prompt card, without landing-page chrome.
+   Keep elevation soft — --elev-4's 1px hairline reads as a stroked mask edge. */
 .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
   width: 100%;
+  max-width: min(100%, var(--conversation-width));
   border-radius: var(--r-overlay);
-  box-shadow: var(--elev-4);
+  box-shadow: var(--elev-3);
 }
 
 .chat-column-empty .composer-dock.layout-centered .composer-v2-input-area {
@@ -217,6 +250,8 @@
   box-shadow: none;
   resize: none;
   background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
   /* `--slab-text` defaults to `--text-1` (see apply-appearance.ts) — a no-op
      for every non-Inkstone theme. On the slab it must not read `--text-1`
      directly: Inkstone paper's `--text-1` is near-black, illegible on the

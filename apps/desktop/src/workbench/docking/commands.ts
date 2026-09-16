@@ -11,6 +11,7 @@ export {
   closeView,
   createWorkspaceState,
   detachView,
+  discardView,
   insertView,
   openSessionView,
   openToolView,

@@ -391,8 +391,14 @@ export async function persistSubagentSessionStart(
   });
 }
 
+/** Only what the projection reads, so a caller can pass a narrow stand-in. */
+export type SubagentTaskResultProjectionDeps = Pick<
+  HostRuntimeKernel,
+  'options' | 'push' | 'subagentResultService' | 'subagentRunStore'
+>;
+
 export async function persistSubagentTaskResult(
-  deps: HostRuntimeKernel,
+  deps: SubagentTaskResultProjectionDeps,
   parentSessionId: string,
   result: SubagentTaskResult,
 ): Promise<void> {

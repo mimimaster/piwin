@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   bindArtifactSessionMedia,
-  isArtifactMediaObjectUrl,
+  isArtifactMediaRenderUrl,
   isBindableArtifactMediaId,
   listArtifactSessionMediaIds,
 } from './bind-session-media.js';
 
 const MEDIA_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+const DATA_URL = 'data:image/webp;base64,UklGRhYAAABXRUJQVlA4TAoAAAAvAAAAAA==';
 const BLOB_URL = 'blob:http://localhost/media-1';
 
 describe('isBindableArtifactMediaId', () => {
@@ -18,13 +19,17 @@ describe('isBindableArtifactMediaId', () => {
   });
 });
 
-describe('isArtifactMediaObjectUrl', () => {
-  it('accepts blob URLs and rejects other schemes', () => {
-    expect(isArtifactMediaObjectUrl(BLOB_URL)).toBe(true);
-    expect(isArtifactMediaObjectUrl('javascript:alert(1)')).toBe(false);
-    expect(isArtifactMediaObjectUrl('file:///tmp/x.png')).toBe(false);
-    expect(isArtifactMediaObjectUrl('https://evil.example/x.png')).toBe(false);
-    expect(isArtifactMediaObjectUrl('data:image/png;base64,abc')).toBe(false);
+describe('isArtifactMediaRenderUrl', () => {
+  it('accepts base64 data images and rejects everything the sandbox cannot read', () => {
+    expect(isArtifactMediaRenderUrl(DATA_URL)).toBe(true);
+    expect(isArtifactMediaRenderUrl('data:image/png;base64,abc')).toBe(true);
+    // A blob URL belongs to the host origin; the opaque-origin frame errors on it.
+    expect(isArtifactMediaRenderUrl(BLOB_URL)).toBe(false);
+    expect(isArtifactMediaRenderUrl('javascript:alert(1)')).toBe(false);
+    expect(isArtifactMediaRenderUrl('file:///tmp/x.png')).toBe(false);
+    expect(isArtifactMediaRenderUrl('https://evil.example/x.png')).toBe(false);
+    expect(isArtifactMediaRenderUrl('data:text/html;base64,abc')).toBe(false);
+    expect(isArtifactMediaRenderUrl('data:image/svg+xml,<svg onload=alert(1)>')).toBe(false);
   });
 });
 
@@ -41,10 +46,10 @@ describe('listArtifactSessionMediaIds', () => {
 });
 
 describe('bindArtifactSessionMedia', () => {
-  it('rewrites known ids to blob src and leaves copy-source attributes', () => {
+  it('rewrites known ids to a data src and leaves copy-source attributes', () => {
     const source = `<img data-piwin-media="${MEDIA_ID}" alt="Inkstone slab">`;
-    const bound = bindArtifactSessionMedia(source, new Map([[MEDIA_ID, BLOB_URL]]));
-    expect(bound).toContain(`src="${BLOB_URL}"`);
+    const bound = bindArtifactSessionMedia(source, new Map([[MEDIA_ID, DATA_URL]]));
+    expect(bound).toContain(`src="${DATA_URL}"`);
     expect(bound).toContain(`data-piwin-media="${MEDIA_ID}"`);
     expect(source).toBe(`<img data-piwin-media="${MEDIA_ID}" alt="Inkstone slab">`);
   });
@@ -57,8 +62,11 @@ describe('bindArtifactSessionMedia', () => {
     expect(bound.toLowerCase()).not.toContain('src=');
   });
 
-  it('rejects non-blob map values', () => {
+  it('rejects map values the sandbox cannot read', () => {
     const source = `<img data-piwin-media="${MEDIA_ID}">`;
+    expect(bindArtifactSessionMedia(source, new Map([[MEDIA_ID, BLOB_URL]]))).not.toContain(
+      'blob:',
+    );
     expect(
       bindArtifactSessionMedia(source, new Map([[MEDIA_ID, 'javascript:alert(1)']])),
     ).not.toContain('javascript:');
@@ -72,6 +80,6 @@ describe('bindArtifactSessionMedia', () => {
 
   it('leaves ordinary images untouched', () => {
     const source = '<img src="data:image/png;base64,abc" alt="inline">';
-    expect(bindArtifactSessionMedia(source, new Map([[MEDIA_ID, BLOB_URL]]))).toBe(source);
+    expect(bindArtifactSessionMedia(source, new Map([[MEDIA_ID, DATA_URL]]))).toBe(source);
   });
 });

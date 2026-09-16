@@ -146,7 +146,7 @@ describe('extensionIdFromPath', () => {
 
     const listed = await scanExtensions({
       piwinRoot: rootDir,
-      config: { disabledIds: [], extraPaths: [] },
+      extensionsConfig: { disabledIds: [], extraPaths: [] },
     });
     const hit = listed.find((item) => item.id === 'pi-deepseek-cache');
     expect(hit?.source).toBe('bundled');

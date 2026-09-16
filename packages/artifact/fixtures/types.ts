@@ -5,6 +5,7 @@ export const ARTIFACT_TRAILING_MARKDOWN = 'After artifact';
 export const ARTIFACT_FIXTURE_IDS = [
   'inert-fragment',
   'script-fragment',
+  'session-media',
   'native-svg',
   'full-html-document',
   'viewport-100vh',

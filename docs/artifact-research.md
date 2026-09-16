@@ -43,6 +43,11 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   cannot suppress browser delivery. A stream height is retained during document
   replacement, but only the replacement document's report confirms readiness;
   a missing report enables the scrollable recovery viewport.
+- **Session media (2026-09-16):** vault images bind as size-capped `data:`
+  URLs, never `blob:`. The sandbox iframe has an opaque origin
+  (`allow-scripts`, no `allow-same-origin`), so a host-origin blob URL errors
+  instead of painting; `img-src data:` is already in the strict CSP. Decode is
+  capped at 1024px and the inlined total is budgeted per artifact.
 - **Flashcards:** structured `FlashcardDisplayPayload` in tool presentation.
   Generic Artifact does not special-case `data-card-id`.
 - **Deleted live APIs:** `evaluateCodeFence`, `splitMarkdownBlocks`,

@@ -95,13 +95,24 @@
   padding: var(--s-6) clamp(var(--s-5), 3vw, var(--s-8)) var(--s-8);
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-gutter: stable;
+  /* Both edges keep the centred column on the same axis as the composer. */
+  scrollbar-gutter: stable both-edges;
   overscroll-behavior: contain;
 }
 
+/* Every message shares one centred reading column. The assistant markdown
+   already caps itself at --chat-max; without the same cap on the message, user
+   bubbles and thinking rows ran full pane width beside an inset answer. */
 .conversation-pane-message {
   width: 100%;
+  max-width: var(--chat-max, 720px);
   min-width: 0;
+  margin-inline: auto;
+}
+
+.conversation-pane-message.role-assistant .markdown {
+  max-width: none;
+  margin-inline: 0;
 }
 
 .conversation-pane-message .conversation-response {
@@ -148,9 +159,18 @@
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
-  padding: var(--s-4) var(--s-5) var(--s-5);
+  padding: var(--s-4) clamp(var(--s-5), 3vw, var(--s-8)) var(--s-5);
+  scrollbar-gutter: stable both-edges;
   background: transparent;
   box-shadow: none;
+}
+
+/* The composer sits in the same reading column as the messages above it
+   (outranks the compact card's own full-width rule). */
+.conversation-pane-session .conversation-pane-composer > .composer-card-v2 {
+  width: 100%;
+  max-width: var(--chat-max, 720px);
+  margin-inline: auto;
 }
 
 .conversation-pane-error {

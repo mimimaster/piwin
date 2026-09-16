@@ -11,7 +11,7 @@ import type { HostRuntime } from '@piwin/host-runtime';
 export type MobileAccessServeSend = (message: HostServerMessage) => Promise<void>;
 
 export async function createSidecarMobileAccess(options: {
-  runtime: Pick<HostRuntime, 'handleCommand' | 'attachPushSink'>;
+  runtime: Pick<HostRuntime, 'handleCommand' | 'attachPushSink' | 'attachBrowserFrameSink'>;
   instanceId: string;
   piwinRoot: string;
   clientToolBroker?: import('@piwin/host-server').DeviceToolBroker;

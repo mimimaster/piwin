@@ -4,26 +4,72 @@
 
 html[data-theme-id='piwin-inkstone-paper'] .slab,
 html[data-theme-id='piwin-inkstone-ink'] .slab {
-  background: var(--slab);
+  /* Fill lives on `.slab-face`, not here. WKWebView punches a white hole
+     through `background + border-radius + overflow: visible` (the webview
+     default #fff shows as a composer-width cap). Proto-02 uses
+     `overflow: hidden` on the slab; we keep overflow visible for menus and
+     move the fill to a clipped child. */
+  background: transparent;
   color: var(--slab-t);
   border-radius: 10px;
-  box-shadow: var(--sh3);
+  /* No elevation, no hairline — fill alone defines the slab. */
+  box-shadow: none;
+  /* Deck `--elev-3` on a light face is `inset 0 1px 0 rgba(255,255,255,0.9)`.
+     region-composer.css still writes `box-shadow: var(--elev-3)` on hover /
+     focus / drop. Zero the tokens here so that declaration paints nothing
+     instead of a white rim standing off the top of the dark slab. */
+  --elev-3: none;
+  --elev-4: none;
   position: relative;
   /* Slash/mention menus are anchored children and must escape the slab. */
   overflow: visible;
   border: 0;
-}
-
-/* Kill Deck's `.composer-card-v2:focus-within` iris ring. On Inkstone elevation
-   alone marks the object (--sh3 keeps top highlight + hairline + diffuse shadow). */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .slab:is(:focus-within, :hover:focus-within) {
-  box-shadow: var(--sh3);
+  outline: none;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .slab.is-streaming {
-  box-shadow: var(--sh3);
+  .slab-face {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--slab);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .slab.drop-active
+  .slab-face {
+  background: var(--slab-raised);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .slab
+  > :not(.slab-face) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Kill Deck elev/focus/drop rings. Rest and focus share a flat slab. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.slab, .composer-card-v2),
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.slab, .composer-card-v2):is(:focus-within, :hover:focus-within, :hover, .is-streaming, .drop-active),
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-column-empty
+  .composer-dock
+  :is(.slab, .composer-card-v2),
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-column-empty
+  .composer-dock
+  :is(.slab, .composer-card-v2):is(:focus-within, :hover:focus-within, .is-streaming, .drop-active) {
+  outline: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  --elev-3: none;
+  --elev-4: none;
 }
 
 /* Light face paper-slab mapping (remaps dark slab to cream paper card) */
@@ -60,7 +106,7 @@ html[data-theme-id='piwin-inkstone-ink'] [data-slab='paper'] .slab {
   --slab-active: rgba(29, 27, 23, 0.09);
   background: var(--slab);
   color: var(--slab-t);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 14px 34px -8px rgba(0, 0, 0, 0.75);
+  box-shadow: none;
 }
 
 html[data-theme-id='piwin-inkstone-ink'][data-slab='paper'] .slab .send,
@@ -79,7 +125,7 @@ html[data-theme-id='piwin-inkstone-ink'][data-slab='paper'] .slab .context-usage
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab {
   border-radius: 10px;
-  box-shadow: var(--sh3);
+  box-shadow: none;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
@@ -209,11 +255,16 @@ html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-textarea {
   padding: 0;
   background: transparent;
   border: 0;
+  border-radius: 0;
   color: var(--slab-t);
   font: 13.5px / 1.6 var(--sans);
   resize: none;
   outline: 0;
   box-shadow: none;
+  /* macOS WKWebView paints the native Aqua field chrome (light rounded
+     bezel) when appearance is auto — a white bar on the dark slab. */
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .slab .ta::placeholder,

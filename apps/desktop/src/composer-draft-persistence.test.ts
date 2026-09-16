@@ -122,6 +122,7 @@ describe('composer draft persistence', () => {
     expect(attachmentHintsFromChips([chip])).toEqual([
       { name: 'shot.png', mimeType: 'image/png', byteSize: 4 },
     ]);
+    const justNow = new Date(Date.now() - 1_000).toISOString();
     const built = buildComposerDraftStore({
       hostInstanceId: 'host-1',
       drafts: [
@@ -129,8 +130,10 @@ describe('composer draft persistence', () => {
           id: 'd1',
           name: 'shot.png',
           text: 'caption',
-          createdAt: '2026-09-01T00:00:00.000Z',
-          updatedAt: '2026-09-01T00:00:00.000Z',
+          // Relative to now: a calendar date would eventually age past
+          // COMPOSER_DRAFT_MAX_AGE_MS and drop the row on both write and read.
+          createdAt: justNow,
+          updatedAt: justNow,
           scope: { kind: 'project', projectPath: '/p' },
           isDraft: true,
         },

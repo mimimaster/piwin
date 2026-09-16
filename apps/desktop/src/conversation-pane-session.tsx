@@ -68,7 +68,9 @@ export type ConversationPaneSessionProps = {
 function isSupportedPaneScope(scope: PaneResumeData['scope']): boolean {
   return (
     scope === undefined ||
+    // Host resume reports the scope kind as a bare string.
     scope === 'general' ||
+    scope === 'project' ||
     (typeof scope === 'object' && (scope.kind === 'general' || scope.kind === 'project'))
   );
 }

@@ -26,12 +26,9 @@ describe('docking identity and live budget', () => {
     const first = openSessionView(createWorkspaceState(createId), 'a', createId);
     expect(first.ok).toBe(true);
     if (!first.ok) return;
-    const second = openSessionView(first.state, 'b', createId);
-    expect(second.ok).toBe(true);
-    if (!second.ok) return;
-    const viewB = Object.values(second.state.views).find((view) => view.sessionId === 'b');
-    if (!viewB) throw new Error('missing b');
-    const closed = closeView(second.state, viewB.viewId);
+    const viewA = Object.values(first.state.views).find((view) => view.sessionId === 'a');
+    if (!viewA) throw new Error('missing a');
+    const closed = closeView(first.state, viewA.viewId);
     expect(closed.sessionTargetId).toBeNull();
   });
 

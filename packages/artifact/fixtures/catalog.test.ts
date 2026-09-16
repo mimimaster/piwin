@@ -12,6 +12,7 @@ import {
 const REQUIRED_IDS = [
   'inert-fragment',
   'script-fragment',
+  'session-media',
   'native-svg',
   'full-html-document',
   'viewport-100vh',
@@ -27,6 +28,7 @@ const REQUIRED_IDS = [
 const SCROLLABLE_IDS = [
   'inert-fragment',
   'script-fragment',
+  'session-media',
   'flow-6000',
   'overflow-20000',
   'full-html-document',

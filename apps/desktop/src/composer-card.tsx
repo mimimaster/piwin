@@ -827,6 +827,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         props.onDrop(event);
       }}
     >
+      <div className="slab-face" aria-hidden />
       {/* Drop Zone Overlay */}
       {props.dropActive ? (
         <div className="composer-v2-drop-overlay">

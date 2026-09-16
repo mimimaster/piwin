@@ -33,6 +33,7 @@ class FakeRemoteClient {
   private hello: HostHello | undefined;
   private readonly stateListeners = new Set<(state: RemoteState) => void>();
   private readonly pushListeners = new Set<(push: HostPush) => void>();
+  private readonly binaryListeners = new Set<(bytes: Uint8Array) => void>();
   deferConnect = false;
   private pendingConnectResolve: ((hello: HostHello) => void) | undefined;
 
@@ -79,6 +80,14 @@ class FakeRemoteClient {
 
   subscribeHydration(): () => void {
     return () => undefined;
+  }
+
+  /** Remote JPEG frames; HostClient attaches this as soon as it has a client. */
+  subscribeBinary(listener: (bytes: Uint8Array) => void): () => void {
+    this.binaryListeners.add(listener);
+    return () => {
+      this.binaryListeners.delete(listener);
+    };
   }
 
   subscribeSnapshot(): () => void {

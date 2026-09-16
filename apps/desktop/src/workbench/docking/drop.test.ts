@@ -108,6 +108,26 @@ describe('docking drop matrix', () => {
     expect(Object.values(back.state.views).filter((view) => view.kind === 'browser')).toHaveLength(1);
   });
 
+  it('switches the pane session instead of stacking a tab on center drop', () => {
+    const createId = createSequentialIdFactory();
+    const opened = openSessionView(createWorkspaceState(createId), 's1', createId);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    const groupId = listStageGroupIds(opened.state.stage)[0];
+    if (!groupId) throw new Error('missing group');
+    const decision = proposeDrop(
+      opened.state,
+      { kind: 'unopened-session', sessionId: 's2' },
+      { kind: 'group-center', groupId },
+      { createId },
+    );
+    expect(decision.ok).toBe(true);
+    if (!decision.ok) return;
+    expect(decision.label).toBe(DOCKING_COPY.switchPane);
+    expect(Object.keys(decision.state.views)).toHaveLength(1);
+    expect(Object.values(decision.state.views)[0]?.sessionId).toBe('s2');
+  });
+
   it('no-ops dropping the only tab onto its own edge', () => {
     const createId = createSequentialIdFactory();
     const opened = openSessionView(createWorkspaceState(createId), 'only', createId);

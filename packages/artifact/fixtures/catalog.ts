@@ -10,6 +10,7 @@ import {
   NATIVE_SVG_SOURCE,
   OVERFLOW_20000_HTML,
   SCRIPT_FRAGMENT_HTML,
+  SESSION_MEDIA_HTML,
   VIEWPORT_100VH_HTML,
 } from './html.js';
 import { wrapArtifactMarkdown } from './markdown.js';
@@ -49,6 +50,14 @@ const FIXTURES: Record<ArtifactFixtureId, ArtifactFixture> = {
     'html',
     'artifact-html',
     SCRIPT_FRAGMENT_HTML,
+    true,
+  ),
+  'session-media': fixture(
+    'session-media',
+    'Session vault image',
+    'html',
+    'artifact-html',
+    SESSION_MEDIA_HTML,
     true,
   ),
   'native-svg': fixture('native-svg', 'Native SVG', 'svg', 'svg', NATIVE_SVG_SOURCE, false),

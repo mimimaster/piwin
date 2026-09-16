@@ -36,17 +36,14 @@ function seed(): {
   state = a.state;
   const b = openSessionView(state, 'b', createId, second);
   if (!b.ok) throw new Error('open b failed');
-  state = b.state;
-  const c = openSessionView(state, 'c', createId, second);
-  if (!c.ok) throw new Error('open c failed');
-  return { state: c.state, createId, groupRects: rects(groups) };
+  return { state: b.state, createId, groupRects: rects(groups) };
 }
 
 describe('docking drag resolution', () => {
   it('resolves a group edge drop into a split preview and commits it', () => {
     const { state, createId, groupRects } = seed();
     const root = document.createElement('div');
-    const viewId = Object.values(state.views).find((view) => view.sessionId === 'c')?.viewId;
+    const viewId = Object.values(state.views).find((view) => view.sessionId === 'b')?.viewId;
     if (!viewId) throw new Error('missing view c');
     const applied: WorkspaceState[] = [];
 
@@ -71,7 +68,7 @@ describe('docking drag resolution', () => {
     resolution?.commit();
     expect(applied).toHaveLength(1);
     const committed = applied[0];
-    expect(committed ? stageGroupCount(committed.stage) : 0).toBe(3);
+    expect(committed ? stageGroupCount(committed.stage) : 0).toBe(2);
   });
 
   it('rejects a session dropped on the right dock band with product copy', () => {

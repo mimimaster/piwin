@@ -12,6 +12,7 @@ import {
 import { openTurnChangeStore } from '@piwin/git';
 import { handleSubagentCommand, type SubagentCommandContext } from './commands/subagent-commands.js';
 import { createSubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
+import type { WorktreeIntegrationResult } from './subagent-integration-coordinator.js';
 import {
   applyStatusFromIntegration,
   subagentApplyIdempotencyKey,
@@ -215,13 +216,7 @@ const WORKTREE_LEASE = {
 async function createHostPairHarness(options?: {
   summaries?: SubagentResultSummary[];
   reviews?: SubagentReviewRecord[];
-  integrateWorktree?: () => Promise<{
-    success: boolean;
-    conflict?: boolean;
-    conflictFiles?: string[];
-    changedFiles?: string[];
-    allowedOutputPaths: string[];
-  }>;
+  integrateWorktree?: () => Promise<WorktreeIntegrationResult>;
 }) {
   const dir = await mkdtemp(join(tmpdir(), 'piwin-apply-host-pair-'));
   dirs.push(dir);
@@ -417,7 +412,7 @@ describe('piwin_subagent_result_apply', () => {
     });
     expect(first.ok && second.ok).toBe(true);
     if (first.ok && second.ok) {
-      expect(second.details.operationId).toBe(first.details.operationId);
+      expect(second.details?.operationId).toBe(first.details?.operationId);
     }
     expect(harness.integrateCalls).toBe(1);
     expect(harness.store.getSubagentApplyReservation({ resultId: 'result-v2' })?.status).toBe(

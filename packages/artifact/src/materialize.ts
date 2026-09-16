@@ -35,10 +35,12 @@ export type MaterializeArtifactOptions = {
    */
   presentation?: ArtifactSurface;
   /**
-   * Session-vault object URLs keyed by mediaId. Only `blob:` values are
-   * written into render HTML. Descriptor source is never rewritten.
+   * Session-vault images keyed by mediaId, as self-contained `data:` URLs.
+   * A `blob:` URL cannot be read from the sandbox's opaque origin, so only
+   * `data:` values are written into render HTML. Descriptor source is never
+   * rewritten.
    */
-  mediaObjectUrls?: ReadonlyMap<string, string>;
+  mediaDataUrls?: ReadonlyMap<string, string>;
 };
 
 function frameModeFor(
@@ -82,7 +84,7 @@ export function materializeArtifact(
   if (contract.changed) {
     bodySource = contract.source;
   }
-  bodySource = bindArtifactSessionMedia(bodySource, options.mediaObjectUrls ?? new Map());
+  bodySource = bindArtifactSessionMedia(bodySource, options.mediaDataUrls ?? new Map());
 
   const frameMode = frameModeFor(intent, presentation);
   const useStatic =

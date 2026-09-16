@@ -4,15 +4,26 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  align-self: stretch;
   width: 100%;
+  max-width: none;
   flex-shrink: 0;
+  padding: 0 var(--chat-inline-pad);
+  box-sizing: border-box;
+  margin-inline: 0;
+}
+
+.composer-plan-stack > * {
+  width: min(100%, var(--conversation-width));
+  max-width: var(--conversation-width);
+  margin-inline: auto;
 }
 
 .plan-todo-tray {
-  width: var(--chat-max);
-  max-width: 100%;
-  margin: 0 auto;
-  padding: var(--s-3) var(--chat-inline-pad) var(--s-4);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: var(--s-3) 0 var(--s-4);
   box-sizing: border-box;
 }
 

@@ -585,16 +585,17 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                         if (isOverlayPresentation) {
                           shell.closeOverlay();
                         }
-                        // Docking owns sidebar session clicks in the normal
-                        // layout: an unopened session appends a tab to the
-                        // active stage group (product spec §4.1).
+                        // Sidebar click switches the conversation. Docking
+                        // rebinds the focused pane (never appends a session tab).
+                        const clickedScope = resolveEntityScope(state, sessionId);
                         if (
                           conversationPanesEnabled &&
                           dockingEnabled &&
-                          layoutMode !== 'phone'
+                          layoutMode !== 'phone' &&
+                          clickedScope !== null &&
+                          sessionScopeKey(clickedScope) === sessionScopeKey(state.activeScope)
                         ) {
                           dockingWorkspace.openOrFocusSession(sessionId);
-                          return Promise.resolve();
                         }
                         if (conversationPanesEnabled) {
                           const leaves = listConversationPaneLeaves(

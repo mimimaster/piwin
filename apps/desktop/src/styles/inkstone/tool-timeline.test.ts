@@ -88,12 +88,15 @@ describe('Inkstone tool-call timeline spine and row layout', () => {
     );
   });
 
-  it('bounds thinking draft box in squeezed stage and expands only at >=1080px', () => {
+  it('keeps work-h and thinking draft inside the measure column', () => {
+    expect(css).toMatch(
+      /\.turn-work-details-summary \{[\s\S]*?margin-left: 0;[\s\S]*?width: 100%;/,
+    );
     expect(css).toMatch(
       /\.turn-work-details-body,\s*\n[^{]*\.conversation-thinking-body\s*\{[\s\S]*?margin-left:\s*0;[\s\S]*?width:\s*100%;/,
     );
-    expect(css).toMatch(
-      /@container transcript-stage \(min-width: 1080px\)[\s\S]*?\.turn-work-details-body,[\s\S]*?\.conversation-thinking-body\s*\{[\s\S]*?margin-left:\s*calc\(-1 \* var\(--row-pad\)\);[\s\S]*?width:\s*calc\(100% \+ var\(--row-pad\) \* 2\);/,
+    expect(css).not.toMatch(
+      /@container transcript-stage \(min-width: 1080px\)[\s\S]*?\.turn-work-details-body,[\s\S]*?margin-left:\s*calc\(-1 \* var\(--row-pad\)\)/,
     );
   });
 });

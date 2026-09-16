@@ -18,11 +18,15 @@ import {
 import { createAnthropicOAuthStreamSimple } from './oauth-transport.js';
 import type { SerializableProviderRuntime } from '../rpc/serializable-blueprint.js';
 import { buildThinkingLevelMap } from '../map-thinking-level.js';
-import { resolvePiModelLimits } from '../pi-model-runtime.js';
+import { resolvePiModelLimits, type PiModelRuntime } from '../pi-model-runtime.js';
+import type { NativeSearchStreamSimple } from '../native-web-search.js';
 
-export type ClaudeCodeModelRuntime = {
-  registerProvider: (providerId: string, config: Record<string, unknown>) => void;
-};
+/**
+ * Only the registration seam this module needs. Taking the runtime's own
+ * parameter type keeps a `PiModelRuntime` assignable here — a widened
+ * `Record<string, unknown>` parameter is contravariant and would not be.
+ */
+export type ClaudeCodeModelRuntime = Pick<PiModelRuntime, 'registerProvider'>;
 
 const DEFAULT_BASE = 'https://api.anthropic.com';
 
@@ -71,7 +75,11 @@ export async function registerClaudeCodeOauthProvider(
   if (typeof transport !== 'function') {
     throw new Error('Pi anthropicMessagesApi().streamSimple is unavailable');
   }
-  const streamSimple = createAnthropicOAuthStreamSimple(transport);
+  // Pi hands the same `Model<Api>` to both shapes at runtime; the registration
+  // type only describes its model argument more loosely.
+  const streamSimple = createAnthropicOAuthStreamSimple(
+    transport,
+  ) as unknown as NativeSearchStreamSimple;
   const baseUrl = provider.baseUrl?.trim() || DEFAULT_BASE;
   const models = provider.models.map((model) => {
     const limits = resolvePiModelLimits(model);

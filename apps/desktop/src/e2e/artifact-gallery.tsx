@@ -12,6 +12,7 @@ import {
   type ArtifactFixtureId,
 } from '@piwin/artifact/fixtures';
 import { ArtifactCanvasPanel } from '../artifact-canvas-panel';
+import { MediaPreviewReadProvider } from '../media-preview-read-context';
 import { createArtifactCanvasTarget, type ArtifactCanvasTarget } from '../artifact-canvas-model';
 import { MarkdownView } from '../MarkdownView';
 import { CodePreviewGallery } from './code-preview-gallery.js';
@@ -61,6 +62,20 @@ function canvasTargetFor(fixture: ArtifactFixture): ArtifactCanvasTarget | null 
   });
 }
 
+/** 8x8 opaque PNG, stands in for a session-vault asset. */
+const GALLERY_MEDIA_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR42mOwbvqGFTEMLQkAT35swbMuMlMAAAAASUVORK5CYII=';
+
+/**
+ * Stand-in for the Host `media/read` vault reader: it hands back a blob object
+ * URL exactly as the real one does, so the gallery exercises the whole
+ * blob → size-capped `data:` conversion the sandbox depends on.
+ */
+async function readGalleryMedia(): Promise<string | null> {
+  const blob = await (await fetch(GALLERY_MEDIA_PNG)).blob();
+  return URL.createObjectURL(blob);
+}
+
 function ArtifactGalleryCase(props: { fixture: ArtifactFixture }): ReactElement {
   const autoCanvas = props.fixture.id === 'explicit-canvas';
   const [canvasTarget, setCanvasTarget] = useState<ArtifactCanvasTarget | null>(() =>
@@ -75,13 +90,15 @@ function ArtifactGalleryCase(props: { fixture: ArtifactFixture }): ReactElement 
       <h3 style={{ margin: '0 0 8px', fontSize: '13px', color: 'var(--muted)' }}>
         {props.fixture.title}
       </h3>
-      <MarkdownView
-        text={props.fixture.markdown}
-        renderingPhase="completed"
-        locale="en"
-        artifactOrigin={{ sessionId: ARTIFACT_GALLERY_SESSION, messageId: props.fixture.id }}
-        onOpenArtifactCanvas={(target) => setCanvasTarget(target)}
-      />
+      <MediaPreviewReadProvider sessionId={ARTIFACT_GALLERY_SESSION} readMedia={readGalleryMedia}>
+        <MarkdownView
+          text={props.fixture.markdown}
+          renderingPhase="completed"
+          locale="en"
+          artifactOrigin={{ sessionId: ARTIFACT_GALLERY_SESSION, messageId: props.fixture.id }}
+          onOpenArtifactCanvas={(target) => setCanvasTarget(target)}
+        />
+      </MediaPreviewReadProvider>
       {canvasTarget ? (
         <div data-testid="artifact-gallery-canvas-stage" style={CANVAS_STAGE_STYLE}>
           <ArtifactCanvasPanel activeTarget={canvasTarget} />

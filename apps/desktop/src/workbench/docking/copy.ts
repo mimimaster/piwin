@@ -4,6 +4,7 @@ export const DOCKING_COPY = {
   splitUp: '在上方分屏',
   splitDown: '在下方分屏',
   joinGroup: '加入标签组',
+  switchPane: '切换此窗格',
   dockRight: '停靠到右侧工具栏',
   sessionNotInRight: '会话请放置于主工作区',
   toolNotMovable: '该工具暂不支持放到主工作区',

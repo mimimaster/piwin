@@ -97,6 +97,16 @@ export function detachView(state: WorkspaceState, viewId: string): WorkspaceStat
   return putGroup(state, { ...group, viewIds, activeViewId: fallback });
 }
 
+/** Close a view without pushing the reopen stack (layout recovery, not a user close). */
+export function discardView(state: WorkspaceState, viewId: string): WorkspaceState {
+  const closed = closeView(state, viewId);
+  return { ...closed, reopenStack: state.reopenStack };
+}
+
+function groupSessionViewId(state: WorkspaceState, groupId: string): string | undefined {
+  return state.groups[groupId]?.viewIds.find((viewId) => state.views[viewId]?.kind === 'session');
+}
+
 export function openSessionView(
   state: WorkspaceState,
   sessionId: string,
@@ -105,13 +115,24 @@ export function openSessionView(
 ): WorkspaceOpResult {
   const existing = findSessionViewId(state, sessionId);
   if (existing) return okOp(focusView(state, existing));
-  if (Object.keys(state.views).length >= WORKSPACE_VIEW_HARD_LIMIT) {
-    return rejectOp(state, 'view-limit', DOCKING_COPY.viewLimit);
-  }
   const groupId =
     (targetGroupId && isStageGroupId(state, targetGroupId) ? targetGroupId : null) ??
     (isStageGroupId(state, state.activeGroupId) ? state.activeGroupId : listStageGroupIds(state.stage)[0]);
   if (!groupId) return rejectOp(state, 'missing-target', DOCKING_COPY.illegal);
+  const occupantId = groupSessionViewId(state, groupId);
+  if (occupantId) {
+    const occupant = state.views[occupantId];
+    if (!occupant) return rejectOp(state, 'missing-target', DOCKING_COPY.illegal);
+    return okOp(
+      focusView(
+        { ...state, views: { ...state.views, [occupantId]: { ...occupant, sessionId } } },
+        occupantId,
+      ),
+    );
+  }
+  if (Object.keys(state.views).length >= WORKSPACE_VIEW_HARD_LIMIT) {
+    return rejectOp(state, 'view-limit', DOCKING_COPY.viewLimit);
+  }
   const viewId = createId('view');
   const view: WorkspaceView = { viewId, kind: 'session', sessionId };
   return okOp(focusView(insertView(state, groupId, view), viewId));

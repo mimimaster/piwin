@@ -15,7 +15,6 @@ import type {
   SubagentReviewRef,
   SubagentTaskResult,
   SubagentTaskRunInput,
-  SubagentWaitRunObservation,
   SubagentWorkspaceLease,
   ToolResult,
 } from '@piwin/contracts';
@@ -61,7 +60,7 @@ import { createSubagentWorkspaceService } from './subagent-workspace-service.js'
 import { getPiwinSessionIndexPath } from './paths.js';
 import { RunRegistry } from './run-registry.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
-import type { SubagentRunSeam } from './subagent-run-tool.js';
+import type { SubagentRunSeam, SubagentWaitRunObservation } from './subagent-run-tool.js';
 
 const SESSION_ID = 'parent-1';
 const PARENT_RUN_ID = 'run-1';
