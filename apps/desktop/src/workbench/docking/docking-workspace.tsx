@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { STAGE_GROUP_HARD_LIMIT } from './constants.js';
 import {
@@ -11,23 +11,41 @@ import {
 } from './commands.js';
 import { listStageRects, listStageSeparatorRects } from './geometry.js';
 import { focusView, maximizeGroup, setDisplayMode } from './identity.js';
+import { moveViewToEdge } from './layout-commands.js';
 import { listStageGroupIds } from './topology.js';
+import {
+  isPrimaryDockingLayout,
+  primaryLayoutSessionId,
+  syncPrimarySessionView,
+} from './primary-layout.js';
+import { resolveConversationPaneShortcut } from '../../conversation-pane-shortcuts.js';
 import type { Point, Rect } from './drag-hit-test.js';
 import type { DockDragResolution } from './use-docking-drag.js';
 import { useDockingDrag } from './use-docking-drag.js';
 import { DockingDragOverlay } from './docking-drag-overlay.js';
 import { DockingGroupView } from './docking-group-view.js';
-import { DockingRightPanel, DockingRightPanelRail } from './docking-right-panel.js';
+import { DockingRightPanel } from './docking-right-panel.js';
 import { DockingSeparator } from './docking-separator.js';
 import { resolveDockDrag } from './docking-drop-resolver.js';
+import { useSessionDrag, type SessionDragRequest } from './docking-session-drag.js';
+import { resolveSidebarDragSource } from './session-drag-source.js';
 import { DockViewContent, type DockViewRenderContext } from './docking-surface-content.js';
 import { placeSurfaceHosts, useDockingSurfaceHosts } from './surface-pool.js';
 import type { DockingWorkspaceController } from './use-docking-workspace.js';
 import type { WorkspaceGroup, WorkspaceTemplate } from './types.js';
+import { SurfaceTitlebarProvider, type SurfaceTitlebar } from '../../surface-titlebar.js';
 
 export type DockingWorkspaceProps = Omit<DockViewRenderContext, 'onCloseView'> & {
   controller: DockingWorkspaceController;
   phoneSinglePane?: boolean;
+  /** The workbench's full chat column, bound to the active session. */
+  primaryPane: ReactNode;
+  primarySessionId: string | null;
+  /** A docking change left a different session as the lone stage view. */
+  onPromoteSession?: (sessionId: string) => void;
+  keyboardEnabled?: boolean;
+  /** Scope key of the active sidebar scope; guarding sidebar drags across projects. */
+  activeProjectScopeKey?: string;
 };
 
 const TEMPLATES: WorkspaceTemplate[] = ['single', 'columns', 'rows', 'quad'];
@@ -58,6 +76,10 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
     phoneSinglePane || state.displayMode === 'focused' || state.displayMode === 'maximized';
   const soloGroupId = state.displayMode === 'maximized' ? state.maximizedGroupId : state.activeGroupId;
   const multiple = stageGroupIds.length > 1 && !phoneSinglePane && state.displayMode !== 'focused';
+  // A phone-width stage shows one chat at a time: that is the workbench chat.
+  const primaryLayout = phoneSinglePane || isPrimaryDockingLayout(state);
+  const primarySessionId = props.primarySessionId;
+  const { onPromoteSession } = props;
 
   const isGroupVisible = useCallback(
     (groupId: string): boolean => {
@@ -85,6 +107,11 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
     if (phoneSinglePane && state.displayMode !== 'focused') {
       controller.setState((current) => setDisplayMode(current, 'focused'));
     }
+    // Focused is only the phone presentation; widening the window must bring
+    // the split back instead of stranding one pane on stage.
+    if (!phoneSinglePane && state.displayMode === 'focused') {
+      controller.setState((current) => setDisplayMode(current, 'normal'));
+    }
   }, [controller, phoneSinglePane, state.displayMode]);
 
   useEffect(() => {
@@ -100,6 +127,54 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [controller]);
+
+  // Keep the primary layout's lone view and the workbench session in step.
+  // The workbench session leads (sidebar, new chat, restore, layout
+  // hydration). The one exception is collapsing a split or tab strip back to
+  // a lone session view: the conversation left on stage becomes the
+  // workbench session.
+  const layoutSessionId = isPrimaryDockingLayout(state) ? primaryLayoutSessionId(state) : undefined;
+  const promoteSessionRef = useRef(onPromoteSession);
+  promoteSessionRef.current = onPromoteSession;
+  const syncRef = useRef<{ primary: string | null; view: string | null | undefined } | null>(null);
+  const { setState: setWorkspaceState, createId: createWorkspaceId } = controller;
+  useEffect(() => {
+    const previous = syncRef.current;
+    syncRef.current = { primary: primarySessionId, view: layoutSessionId };
+    if (layoutSessionId === undefined || layoutSessionId === primarySessionId) return;
+    const collapsedToLoneView =
+      previous !== null && previous.primary === primarySessionId && previous.view === undefined;
+    const promote = promoteSessionRef.current;
+    if (collapsedToLoneView && layoutSessionId !== null && promote) {
+      promote(layoutSessionId);
+      return;
+    }
+    setWorkspaceState((current) => syncPrimarySessionView(current, primarySessionId, createWorkspaceId));
+  }, [createWorkspaceId, layoutSessionId, primarySessionId, setWorkspaceState]);
+
+  useEffect(() => {
+    if (props.keyboardEnabled === false || phoneSinglePane) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented) return;
+      const command = resolveConversationPaneShortcut(event);
+      if (command?.type !== 'split') return;
+      event.preventDefault();
+      const current = stateRef.current;
+      const result = splitGroupAtEdge(
+        current,
+        current.activeGroupId,
+        command.orientation === 'row' ? 'right' : 'down',
+        controller.createId,
+      );
+      if (!result.ok) {
+        controller.pushNotice(result.message);
+        return;
+      }
+      controller.setState(() => result.state);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [controller, phoneSinglePane, props.keyboardEnabled]);
 
   const ctx: DockViewRenderContext = {
     sessions: props.sessions,
@@ -123,6 +198,15 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
   const rightPanelVisible = Boolean(
     rightGroup && rightGroup.viewIds.length > 0 && !state.rightPanel.collapsed,
   );
+  const hasDockedTools = Boolean(rightGroup && rightGroup.viewIds.length > 0);
+  // The active docked browser puts its page tabs in the right panel header.
+  const [rightTabsSlot, setRightTabsSlot] = useState<HTMLElement | null>(null);
+  const [rightActionsSlot, setRightActionsSlot] = useState<HTMLElement | null>(null);
+  const rightTitlebarViewId =
+    rightGroup?.activeViewId && state.views[rightGroup.activeViewId]?.kind === 'browser'
+      ? rightGroup.activeViewId
+      : null;
+  const rightTitlebar: SurfaceTitlebar = { tabsSlot: rightTabsSlot, actionsSlot: rightActionsSlot };
 
   const pxRects = useMemo(() => {
     if (usesFullStage) {
@@ -165,10 +249,13 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         panelElement: rightPanelRef.current,
         rightPanelVisible,
         createId: controller.createId,
+        ...(props.activeProjectScopeKey !== undefined
+          ? { activeProjectScopeKey: props.activeProjectScopeKey }
+          : {}),
         apply: (next) => controller.setState(() => next),
       });
     },
-    [controller, pxRects, rightPanelVisible, stagePx.height, stagePx.width],
+    [controller, props.activeProjectScopeKey, pxRects, rightPanelVisible, stagePx.height, stagePx.width],
   );
 
   const { drag, startDrag } = useDockingDrag({
@@ -177,6 +264,21 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
     onCommit: (commit) => commit(),
   });
 
+  // Sidebar session rows start their drag outside the stage, so the engine's
+  // starter is published to the provider the sidebar reads (spec §3.1).
+  const sessionDragBridge = useSessionDrag();
+  const registerSessionDrag = sessionDragBridge?.registerStarter;
+  useEffect(() => {
+    if (!registerSessionDrag) return;
+    registerSessionDrag((request: SessionDragRequest) => {
+      startDrag(
+        request.origin,
+        resolveSidebarDragSource(stateRef.current, request.sessionId, request.projectScopeKey),
+      );
+    });
+    return () => registerSessionDrag(null);
+  }, [registerSessionDrag, startDrag]);
+
   const templateLabel: Record<WorkspaceTemplate, string> = {
     single: locale === 'zh-CN' ? '单窗' : 'Single',
     columns: locale === 'zh-CN' ? '左右' : 'Columns',
@@ -184,22 +286,20 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
     quad: locale === 'zh-CN' ? '四宫格' : 'Quad',
   };
 
-  const toggleRightCollapsed = (): void => {
-    controller.setState((current) => ({
-      ...current,
-      rightPanel: { ...current.rightPanel, collapsed: !current.rightPanel.collapsed },
-    }));
-  };
-
   return (
     <div
-      className={`conversation-pane-workspace docking-workspace${multiple ? '' : ' is-single-pane'}${drag ? ' is-dragging' : ''}`}
+      className={`conversation-pane-workspace docking-workspace${multiple ? '' : ' is-single-pane'}${primaryLayout ? ' is-primary-layout' : ''}${hasDockedTools ? ' has-docked-tools' : ''}${drag ? ' is-dragging' : ''}`}
       data-testid="docking-workspace"
       data-group-count={stageGroupIds.length}
     >
       <div className="docking-workspace-row">
       <div ref={rootRef} className="conversation-pane-stage docking-stage">
-        {stageGroupIds.map((groupId) => {
+        {primaryLayout ? (
+          <div className="docking-primary-slot" data-testid="docking-primary-slot">
+            {props.primaryPane}
+          </div>
+        ) : null}
+        {primaryLayout ? null : stageGroupIds.map((groupId) => {
           const group = state.groups[groupId];
           if (!group) return null;
           const rect = usesFullStage
@@ -217,7 +317,7 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
               group={group}
               rect={rect}
               spanStage={usesFullStage && groupId === soloGroupId}
-              active={state.activeGroupId === groupId}
+              active={multiple && state.activeGroupId === groupId}
               hidden={!isGroupVisible(groupId)}
               showChrome={multiple || group.viewIds.length > 1}
               ctx={ctx}
@@ -231,6 +331,15 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
               }}
               onFocusView={(viewId) => controller.setState((current) => focusView(current, viewId))}
               onCloseView={(viewId) => controller.setState((current) => closeView(current, viewId))}
+              onMoveViewToEdge={(viewId, edge) => {
+                const result = moveViewToEdge(state, viewId, groupId, edge, controller.createId);
+                if (!result.ok) {
+                  // 'no-op' carries no message: a lone tab on its own edge is legal silence.
+                  if (result.message) controller.pushNotice(result.message);
+                  return;
+                }
+                controller.setState(() => result.state);
+              }}
               onToggleMaximize={() => controller.setState((current) => maximizeGroup(current, groupId))}
               maximized={state.displayMode === 'maximized' && state.maximizedGroupId === groupId}
               splitDisabled={stageGroupIds.length >= STAGE_GROUP_HARD_LIMIT}
@@ -296,11 +405,10 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         }}
         onFocusView={(viewId) => controller.setState((current) => focusView(current, viewId))}
         onCloseView={(viewId) => controller.setState((current) => closeView(current, viewId))}
-        onToggleCollapsed={toggleRightCollapsed}
+        titlebarViewId={rightTitlebarViewId}
+        titlebarTabsSlotRef={setRightTabsSlot}
+        titlebarActionsSlotRef={setRightActionsSlot}
       />
-      {rightGroup && rightGroup.viewIds.length > 0 && state.rightPanel.collapsed ? (
-        <DockingRightPanelRail hidden={false} locale={locale} onToggleCollapsed={toggleRightCollapsed} />
-      ) : null}
       </div>
       {multiple ? (
         <div className="conversation-pane-presets">
@@ -323,8 +431,16 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         const host = hosts.get(viewId);
         const view = state.views[viewId];
         if (!host || !view) return null;
+        // The workbench session is always the full chat column, never a
+        // second compact subscriber; the primary layout renders it inline.
+        if (view.kind === 'session' && view.sessionId === primarySessionId) {
+          return primaryLayout ? null : createPortal(props.primaryPane, host, viewId);
+        }
+        // Always wrap so entering/leaving the titlebar never remounts the view.
         return createPortal(
-          <DockViewContent viewId={viewId} view={view} ctx={ctxRef.current} />,
+          <SurfaceTitlebarProvider value={viewId === rightTitlebarViewId ? rightTitlebar : null}>
+            <DockViewContent viewId={viewId} view={view} ctx={ctxRef.current} />
+          </SurfaceTitlebarProvider>,
           host,
           viewId,
         );

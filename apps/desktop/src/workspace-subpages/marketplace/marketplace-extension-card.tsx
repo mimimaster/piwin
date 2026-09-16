@@ -3,7 +3,7 @@
  * Clean, icon-free design aligned with Settings -> Pi 扩展.
  */
 import type { ReactElement } from 'react';
-import { Button } from '@piwin/ui-kit';
+import { Button, ProgressRing } from '@piwin/ui-kit';
 import { resourceSourceLabel } from '@piwin/contracts';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import type { MarketExtensionItem, MarketExtensionSource } from './marketplace-types.js';
@@ -19,6 +19,8 @@ export type MarketplaceExtensionCardProps = {
   onInstall: (ext: MarketExtensionItem) => void;
   onUninstall: (ext: MarketExtensionItem) => void;
   onToggleActive?: ((ext: MarketExtensionItem) => void) | undefined;
+  installState?: 'idle' | 'installing' | 'installed' | 'failed' | undefined;
+  installProgress?: number | undefined;
 };
 
 export function MarketplaceExtensionCard({
@@ -26,6 +28,8 @@ export function MarketplaceExtensionCard({
   locale,
   onInstall,
   onUninstall,
+  installState = 'idle',
+  installProgress,
 }: MarketplaceExtensionCardProps): ReactElement {
   const isZh = locale === 'zh-CN';
   const t = (en: string, zh: string) => (isZh ? zh : en);
@@ -163,7 +167,25 @@ export function MarketplaceExtensionCard({
         </span>
 
         <div className="market-card-actions">
-          {extension.installed && extension.active ? (
+          {installState === 'installing' ? (
+            <Button variant="primary" size="compact" disabled aria-busy={true}>
+              <span className="market-btn-inner market-btn-installing">
+                <ProgressRing
+                  size={13}
+                  strokeWidth={2.2}
+                  value={installProgress}
+                  tone="pine"
+                  testId={`market-ext-${extension.id}-progress-ring`}
+                />
+                <span className="market-btn-progress-label">
+                  {typeof installProgress === 'number' && installProgress > 0
+                    ? `${installProgress}% `
+                    : ''}
+                  {t('Installing…', '安装中…')}
+                </span>
+              </span>
+            </Button>
+          ) : extension.installed && extension.active ? (
             <div className="market-card-action-group">
               {!extension.bundled && (
                 <Button

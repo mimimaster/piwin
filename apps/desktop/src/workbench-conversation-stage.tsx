@@ -18,6 +18,8 @@ export type WorkbenchConversationStageProps = {
   conversationPaneController: ConversationPaneLayoutController;
   phoneSinglePane: boolean;
   primarySessionName: string;
+  primarySessionId: string | null;
+  onPromoteSession?: (sessionId: string) => void;
   sessions: readonly SessionListItemUi[];
   hostClient: HostClient;
   activeTheme: ThemeManifest;
@@ -26,6 +28,7 @@ export type WorkbenchConversationStageProps = {
   readMedia: MediaPreviewReader | null;
   locale: 'zh-CN' | 'en';
   keyboardEnabled: boolean;
+  activeProjectScopeKey?: string;
   onCreateConversation: (paneId: string) => Promise<string | null>;
   onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
@@ -38,6 +41,13 @@ export function WorkbenchConversationStage(props: WorkbenchConversationStageProp
       <DockingWorkspace
         controller={props.docking}
         phoneSinglePane={props.phoneSinglePane}
+        primaryPane={props.primaryPane}
+        primarySessionId={props.primarySessionId}
+        {...(props.onPromoteSession ? { onPromoteSession: props.onPromoteSession } : {})}
+        keyboardEnabled={props.keyboardEnabled}
+        {...(props.activeProjectScopeKey !== undefined
+          ? { activeProjectScopeKey: props.activeProjectScopeKey }
+          : {})}
         sessions={props.sessions}
         hostClient={props.hostClient}
         activeTheme={props.activeTheme}

@@ -359,7 +359,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .composer-dock {
     padding-top: 8px;
     padding-bottom: 12px;
-    background: linear-gradient(to bottom, transparent, var(--s2) 40%);
+    background: transparent;
   }
   .composer-v2-toolbar { justify-content: space-between; }
   .composer-v2-toolbar-left { gap: 2px; flex: 1 1 auto; min-width: 0; }

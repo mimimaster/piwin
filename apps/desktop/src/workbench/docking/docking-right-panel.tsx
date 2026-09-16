@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactElement, RefCallback } from 'react';
 import { IconButton } from '@piwin/ui-kit';
-import { IconPanelLeft, IconPanelRight } from '../../shell-icons.js';
+import { IconClose } from '../../shell-icons.js';
 import { DEFAULT_RIGHT_PANEL_WIDTH_PX } from './constants.js';
 import type { DockViewRenderContext } from './docking-surface-content.js';
 import { resolveViewTitle } from './docking-surface-content.js';
@@ -13,7 +13,10 @@ export type DockingRightPanelProps = {
   panelRef: RefCallback<HTMLDivElement>;
   onFocusView: (viewId: string) => void;
   onCloseView: (viewId: string) => void;
-  onToggleCollapsed: () => void;
+  /** Active view that owns the header (browser page tabs), if any. */
+  titlebarViewId?: string | null;
+  titlebarTabsSlotRef?: RefCallback<HTMLDivElement>;
+  titlebarActionsSlotRef?: RefCallback<HTMLDivElement>;
 };
 
 export function DockingRightPanel(props: DockingRightPanelProps): ReactElement {
@@ -22,6 +25,7 @@ export function DockingRightPanel(props: DockingRightPanelProps): ReactElement {
   const group = groupId ? state.groups[groupId] : undefined;
   const isChinese = ctx.locale === 'zh-CN';
   const collapsed = state.rightPanel.collapsed;
+  const titlebarViewId = props.titlebarViewId ?? null;
 
   if (!group || group.viewIds.length === 0) return <div ref={props.panelRef} hidden />;
 
@@ -35,7 +39,8 @@ export function DockingRightPanel(props: DockingRightPanelProps): ReactElement {
           <div className="conversation-pane-tabs" role="tablist">
             {group.viewIds.map((viewId, index) => {
               const view = state.views[viewId];
-              if (!view) return null;
+              // Its page tabs render in the slot below instead of one tool tab.
+              if (!view || viewId === titlebarViewId) return null;
               const isActive = viewId === group.activeViewId;
               return (
                 <button
@@ -54,33 +59,31 @@ export function DockingRightPanel(props: DockingRightPanelProps): ReactElement {
               );
             })}
           </div>
-          <IconButton
-            label={isChinese ? '折叠右栏' : 'Collapse right panel'}
-            onClick={props.onToggleCollapsed}
-          >
-            <IconPanelRight width={14} height={14} />
-          </IconButton>
+          <div
+            ref={props.titlebarTabsSlotRef}
+            className="docking-right-panel-surface-tabs"
+            data-testid="docking-right-panel-surface-tabs"
+            hidden={titlebarViewId === null}
+          />
+          <div className="docking-right-panel-header-spacer" />
+          <div
+            ref={props.titlebarActionsSlotRef}
+            className="docking-right-panel-surface-actions"
+            data-testid="docking-right-panel-surface-actions"
+            hidden={titlebarViewId === null}
+          />
+          {titlebarViewId ? (
+            <IconButton
+              label={isChinese ? '关闭浏览器' : 'Close browser'}
+              data-testid="docking-right-panel-close-surface"
+              onClick={() => props.onCloseView(titlebarViewId)}
+            >
+              <IconClose width={14} height={14} />
+            </IconButton>
+          ) : null}
         </header>
         <div className="conversation-pane-body" ref={props.slotRef} />
       </div>
     </aside>
-  );
-}
-
-export function DockingRightPanelRail(props: {
-  hidden: boolean;
-  locale: 'zh-CN' | 'en';
-  onToggleCollapsed: () => void;
-}): ReactElement {
-  if (props.hidden) return <span hidden />;
-  return (
-    <div className="docking-right-rail">
-      <IconButton
-        label={props.locale === 'zh-CN' ? '展开右栏' : 'Expand right panel'}
-        onClick={props.onToggleCollapsed}
-      >
-        <IconPanelLeft width={14} height={14} />
-      </IconButton>
-    </div>
   );
 }

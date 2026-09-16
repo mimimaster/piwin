@@ -16,6 +16,7 @@ import { Streamdown, type Components, type ExtraProps } from 'streamdown';
 import { PathChip } from './path-chip';
 import { MermaidBlock } from './MermaidBlock';
 import { escapeRawHtmlInMarkdown } from './markdown-html-escape';
+import { parseCodeReferenceFence } from './markdown-code-reference';
 import { renderKatex, isMermaidFenceLanguage, isMathFenceLanguage } from './markdown-math';
 import { IconCommentAction } from './shell-icons';
 import { useHighlight, TokenSpans, normalizeLanguage, type TokenLine } from './syntax-highlight';
@@ -416,7 +417,8 @@ function createEnhancedStreamdownComponents(
       return <code className="enhanced-inline-code">{children}</code>;
     }
 
-    const languageMatch = /(?:^|\s)language-([A-Za-z0-9_-]+)/.exec(className ?? '');
+    // Whole info word: a ```12:40:src/a.ts reference must not be cut to "12".
+    const languageMatch = /(?:^|\s)language-(\S+)/.exec(className ?? '');
     const language = languageMatch?.[1] ?? '';
     const lineText = source || language || 'code';
     const lineId = enhancedLineId('code', node, lineText);
@@ -1126,6 +1128,7 @@ function CodeBlockView({
 }): ReactElement {
   const [expanded, setExpanded] = useState(false);
   const lines = source.split('\n');
+  const reference = parseCodeReferenceFence(language);
   const isDiff =
     language.toLowerCase() === 'diff' ||
     lines.some((l) => l.startsWith('+ ') || l.startsWith('- '));
@@ -1133,13 +1136,17 @@ function CodeBlockView({
   const isLong = lines.length > FOLD_THRESHOLD;
   const visibleLines = isLong && !expanded ? lines.slice(0, FOLD_THRESHOLD) : lines;
   const visibleSource = useMemo(() => visibleLines.join('\n'), [visibleLines]);
-  const highlightLang = isDiff ? 'diff' : normalizeLanguage(language);
+  const highlightLang = isDiff ? 'diff' : normalizeLanguage(reference?.language ?? language);
   const tokenLines = useHighlight(visibleSource, highlightLang);
 
   return (
     <div className={`enhanced-code-block${isLong && !expanded ? ' folded' : ''}`}>
       <div className="enhanced-code-header">
-        <span className="code-lang">{language || (isDiff ? 'diff' : 'code')}</span>
+        <span className="code-lang" {...(reference ? { title: reference.path } : {})}>
+          {reference
+            ? `${reference.path}:${reference.startLine}`
+            : language || (isDiff ? 'diff' : 'code')}
+        </span>
         <div className="code-header-actions">
           {isLong ? (
             <Button variant="ghost" size="compact" onClick={() => setExpanded((prev) => !prev)}>

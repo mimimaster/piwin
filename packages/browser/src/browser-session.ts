@@ -28,7 +28,6 @@ import type {
 import {
   BROWSER_FRAME_BINARY_MIME,
   BROWSER_FRAME_BINARY_VERSION,
-  BROWSER_USER_HAS_CONTROL,
 } from '@piwin/contracts';
 import { createExclusiveQueue, type RunExclusive } from './mutex.js';
 import { createBrowserController, type BrowserControllerState } from './controller.js';
@@ -64,7 +63,6 @@ import {
   AbortOperationError,
   BrowserSessionError,
   BrowserStaleTargetError,
-  BrowserUserHasControlError,
 } from './browser-errors.js';
 
 export type BrowserFramePush = Extract<HostPush, { type: 'browser/frame' }>;
@@ -521,16 +519,10 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     for (const listener of subscribers) listener(event);
   }
 
+  // Never rejects: the human and the agent share the page. Agent writes only
+  // flip the activity indicator shown in the panel.
   function assertActor(actor: BrowserActor, reason: string, runId?: string): void {
     const result = controller.acquire(actor, actor === 'agent' ? runId : undefined);
-    if (!result.ok) {
-      if (result.code === BROWSER_USER_HAS_CONTROL) {
-        throw new BrowserUserHasControlError(
-          'The user has the browser. Wait or ask them to give it back.',
-        );
-      }
-      throw new BrowserSessionError('The agent is using the browser.');
-    }
     if (result.changed) emitController(reason);
   }
 
@@ -738,14 +730,6 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       const moveOnly = isMouseMoveOnly(events);
       const operate = async (): Promise<void> => {
         assertTargetMatches(options?.target);
-        if (moveOnly) {
-          // Hover must not promote idle → user (that lock has no timeout).
-          if (controller.snapshot().owner === 'agent') {
-            throw new BrowserSessionError('The agent is using the browser.');
-          }
-        } else {
-          assertActor('user', 'user-write');
-        }
         await operations.dispatchEvents(events);
       };
       if (moveOnly) return operate();

@@ -163,10 +163,10 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     }
     readyTimerRef.current = setTimeout(() => {
       readyTimerRef.current = null;
-      // A document swap on an already-measured channel keeps its real height
-      // and stays out of recovery chrome. Only a never-measured frame drops
-      // into the compact scrollable viewport.
-      if (measuredChannelRef.current === current.channelId) {
+      // A stream height cannot certify a replacement document: its final
+      // content may be much taller. Only this document's acknowledgement can
+      // skip recovery; otherwise retain an accessible inner scrollport.
+      if (measuredDocumentKeyRef.current === current.documentKey) {
         updateStatus(current.decision.mode === 'stream-preview' ? 'streaming' : 'ready');
         requestMeasurement(false, true);
         return;

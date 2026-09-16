@@ -1005,14 +1005,6 @@ export class HostClient {
     });
   }
 
-  async browserLock(owner: 'agent' | 'user'): Promise<HostResponse> {
-    return this.request({ type: 'browser/lock', owner });
-  }
-
-  async browserUnlock(owner: 'agent' | 'user'): Promise<HostResponse> {
-    return this.request({ type: 'browser/unlock', owner });
-  }
-
   async browserResize(
     width: number,
     height: number,

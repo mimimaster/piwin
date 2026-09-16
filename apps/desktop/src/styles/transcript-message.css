@@ -565,8 +565,8 @@ button.att:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
   background: transparent;
@@ -592,8 +592,8 @@ button.att:focus-visible {
 }
 .assistant-response-actions .msg-action-btn svg,
 .acts-f .ib svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 .assistant-response-actions .fk,
 .acts-f .fk {

@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import type { MarketplaceSearchHit } from '@piwin/contracts';
-import { Button } from '@piwin/ui-kit';
+import { Button, ProgressRing } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import { openExternalUrl } from '../../open-external-url.js';
 import { IconCheck, IconCopy, IconGit } from '../../shell-icons.js';
@@ -11,6 +11,7 @@ export type MarketplacePiPackageCardProps = {
   onCopyInstall: (hit: MarketplaceSearchHit) => void;
   onInstall: (hit: MarketplaceSearchHit) => void;
   installState?: 'idle' | 'installing' | 'installed' | 'failed' | undefined;
+  installProgress?: number | undefined;
 };
 
 export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): ReactElement {
@@ -26,6 +27,7 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
   const testId = hit.source === 'github' ? `market-github-${slug}` : `market-npm-${slug}`;
   const sourceLabel = hit.source === 'github' ? 'GitHub' : 'npm';
   const installState = props.installState ?? 'idle';
+  const installProgress = props.installProgress;
 
   const handleCopy = () => {
     props.onCopyInstall(hit);
@@ -138,11 +140,27 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
                 <IconCheck width={12} height={12} aria-hidden="true" />
                 <span>{t('Installed', '已安装')}</span>
               </span>
-            ) : installState === 'installing'
-              ? t('Installing…', '安装中…')
-              : installState === 'failed'
-                ? t('Retry install', '重试安装')
-                : t('Install', '安装')}
+            ) : installState === 'installing' ? (
+              <span className="market-btn-inner market-btn-installing">
+                <ProgressRing
+                  size={13}
+                  strokeWidth={2.2}
+                  value={installProgress}
+                  tone="pine"
+                  testId={`${testId}-progress-ring`}
+                />
+                <span className="market-btn-progress-label">
+                  {typeof installProgress === 'number' && installProgress > 0
+                    ? `${installProgress}% `
+                    : ''}
+                  {t('Installing…', '安装中…')}
+                </span>
+              </span>
+            ) : installState === 'failed' ? (
+              t('Retry install', '重试安装')
+            ) : (
+              t('Install', '安装')
+            )}
           </Button>
         </div>
       </div>

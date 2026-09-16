@@ -148,7 +148,7 @@ describe('MarketplaceWorkspaceView', () => {
     expect(installBtn?.textContent).toContain('暂不支持');
   });
 
-  it('searches the Pi npm catalog when the local list has no match', async () => {
+  it('searches the Pi npm catalog, installs with progress ring, and renders Inkstone success toast', async () => {
     vi.useFakeTimers();
     const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
       if (command.type === 'marketplace/search') {
@@ -234,6 +234,22 @@ describe('MarketplaceWorkspaceView', () => {
     });
     expect(installButton?.textContent).toContain('已安装');
 
+    // Verify universal success toast is rendered with Inkstone design elements
+    const toast = container.querySelector('[data-testid="marketplace-toast"]');
+    expect(toast).not.toBeNull();
+    expect(toast?.classList.contains('tone-success')).toBe(true);
+    expect(toast?.textContent).toContain('扩展安装成功');
+    expect(toast?.textContent).toContain('pi-subagents');
+    expect(toast?.textContent).toContain('当前会话与运行时已无缝就绪');
+
+    // Verify dismiss button on the toast
+    const dismissBtn = toast?.querySelector<HTMLButtonElement>('.ui-toast-dismiss');
+    expect(dismissBtn).not.toBeNull();
+    act(() => {
+      dismissBtn?.click();
+    });
+    expect(container.querySelector('[data-testid="marketplace-toast"]')).toBeNull();
+
     // Verify clicking interactive command bar triggers copy and shows immediate copied feedback
     const cmdBar = card?.querySelector<HTMLButtonElement>('.market-cmd-bar');
     expect(cmdBar).not.toBeNull();
@@ -244,6 +260,58 @@ describe('MarketplaceWorkspaceView', () => {
     });
     expect(cmdBar?.classList.contains('is-copied')).toBe(true);
     expect(card?.textContent).toContain('已复制');
+  });
+
+  it('installs a staged extension with live progress ring and universal Inkstone success toast', async () => {
+    vi.useFakeTimers();
+    renderView();
+
+    const webAccessCard = container.querySelector('[data-testid="market-ext-pi-web-access"]');
+    expect(webAccessCard).not.toBeNull();
+
+    const installButton = webAccessCard?.querySelector<HTMLButtonElement>(
+      '.market-card-actions button',
+    );
+    expect(installButton).not.toBeNull();
+    act(() => {
+      installButton?.click();
+    });
+
+    // Consent dialog opens
+    const consentDialog = document.body.querySelector(
+      '[data-testid="market-install-consent-dialog"]',
+    );
+    expect(consentDialog).not.toBeNull();
+    expect(consentDialog?.textContent).toContain('安装即时扩展');
+
+    const confirmBtn = consentDialog?.querySelector<HTMLButtonElement>(
+      '.market-dialog-footer .piwin-button--primary',
+    );
+    expect(confirmBtn).not.toBeNull();
+    act(() => {
+      confirmBtn?.click();
+    });
+
+    // During installation: progress ring is present on the card button
+    const progressRing = webAccessCard?.querySelector(
+      '[data-testid="market-ext-pi-web-access-progress-ring"]',
+    );
+    expect(progressRing).not.toBeNull();
+    expect(progressRing?.getAttribute('role')).toBe('progressbar');
+
+    // Advance timers to complete hot-reload
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700);
+    });
+    await flush();
+
+    // Toast displays universal success info
+    const toast = container.querySelector('[data-testid="marketplace-toast"]');
+    expect(toast).not.toBeNull();
+    expect(toast?.classList.contains('tone-success')).toBe(true);
+    expect(toast?.textContent).toContain('扩展安装成功');
+    expect(toast?.textContent).toContain('pi-web-access');
+    expect(toast?.textContent).toContain('运行时热重载完成');
   });
 
   it('renders theme-conforming EmptyState with seal, query badge, and suggestion chips when search yields no results', async () => {

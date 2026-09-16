@@ -95,7 +95,7 @@ export { resolveDropHighlight } from './drag-preview.js';
 export type { DropHighlight } from './drag-preview.js';
 export { DockingDragOverlay } from './docking-drag-overlay.js';
 export { DockingGroupView } from './docking-group-view.js';
-export { DockingRightPanel, DockingRightPanelRail } from './docking-right-panel.js';
+export { DockingRightPanel } from './docking-right-panel.js';
 export { DockingSeparator } from './docking-separator.js';
 export { DockViewContent, resolveViewTitle } from './docking-surface-content.js';
 export type { DockViewRenderContext } from './docking-surface-content.js';

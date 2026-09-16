@@ -25,6 +25,7 @@ import {
   type MarketTab,
   MarketplaceExtensionCard,
   MarketplacePiPackageCard,
+  MarketplaceToastView,
   PiPackageInstallDialog,
   ExtensionInstallConsentDialog,
   useMarketplaceEcosystemSearch,
@@ -48,6 +49,10 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
   const [search, setSearch] = useState('');
   const [activeGen, setActiveGen] = useState(1);
   const [extensions, setExtensions] = useState<MarketExtensionItem[]>(INITIAL_EXTENSIONS);
+  const [extInstallStates, setExtInstallStates] = useState<
+    Record<string, 'idle' | 'installing' | 'installed' | 'failed'>
+  >({});
+  const [extInstallProgress, setExtInstallProgress] = useState<Record<string, number>>({});
   const [toast, setToast] = useState<MarketplaceToast | null>(null);
 
   const [consentTarget, setConsentTarget] = useState<MarketExtensionItem | null>(null);
@@ -64,12 +69,19 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
           ...(props.projectPath ? { projectPath: props.projectPath } : {}),
         } as HostCommand);
 
-        if (!unmounted && res.success && res.data && Array.isArray((res.data as { extensions?: ExtensionSummary[] }).extensions)) {
+        if (
+          !unmounted &&
+          res.success &&
+          res.data &&
+          Array.isArray((res.data as { extensions?: ExtensionSummary[] }).extensions)
+        ) {
           const liveList = (res.data as { extensions: ExtensionSummary[] }).extensions;
           setExtensions((current) => {
             const merged = [...current];
             for (const live of liveList) {
-              const existingIdx = merged.findIndex((m) => m.id === live.id || m.name === live.name);
+              const existingIdx = merged.findIndex(
+                (m) => m.id === live.id || m.name === live.name,
+              );
               if (existingIdx >= 0) {
                 const existing = merged[existingIdx]!;
                 merged[existingIdx] = {
@@ -118,12 +130,17 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     return () => {
       unmounted = true;
     };
-  }, [props.request, props.projectPath]);
+  }, [props.request, props.projectPath, isZh]);
 
-  const showToast = (text: string, type: MarketplaceToast['type'] = 'info') => {
-    setToast({ text, type });
-    window.setTimeout(() => setToast(null), 4000);
+  const showToast = (
+    text: string,
+    type: MarketplaceToast['type'] = 'info',
+    title?: string,
+  ) => {
+    setToast({ text, type, title });
+    window.setTimeout(() => setToast(null), 4200);
   };
+
   const packageInstall = useMarketplacePackageInstall({
     locale: props.locale,
     sessionId: props.sessionId,
@@ -169,25 +186,42 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
 
   const handleConfirmInstallExtension = (target: MarketExtensionItem) => {
     setConsentTarget(null);
+    setExtInstallStates((prev) => ({ ...prev, [target.id]: 'installing' }));
+    setExtInstallProgress((prev) => ({ ...prev, [target.id]: 25 }));
     showToast(
       t(
         `Staging [${target.name}] and hot-reloading active runtime...`,
         `正在暂存 [${target.name}]，并在当前会话热重载生效...`,
       ),
       'info',
+      t('Staging Extension', '正在暂存扩展'),
     );
 
+    const progressTimer = setInterval(() => {
+      setExtInstallProgress((prev) => {
+        const current = prev[target.id] ?? 25;
+        if (current < 85) {
+          return { ...prev, [target.id]: current + 25 };
+        }
+        return prev;
+      });
+    }, 160);
+
     window.setTimeout(() => {
+      clearInterval(progressTimer);
+      setExtInstallProgress((prev) => ({ ...prev, [target.id]: 100 }));
+      setExtInstallStates((prev) => ({ ...prev, [target.id]: 'installed' }));
       setExtensions((prev) =>
         prev.map((e) => (e.id === target.id ? { ...e, installed: true, active: true } : e)),
       );
       setActiveGen((g) => g + 1);
       showToast(
         t(
-          `[${target.name}] installed and live reloaded (Gen v${activeGen + 1})!`,
-          `[${target.name}] 已安装并成功热重载（Runtime Gen v${activeGen + 1}）！`,
+          `[${target.name}] extension installed successfully. Runtime live reloaded (Gen v${activeGen + 1}).`,
+          `[${target.name}] 扩展安装成功，运行时热重载完成（Gen v${activeGen + 1}），所有能力已就绪。`,
         ),
         'success',
+        t('Extension Installed', '扩展安装成功'),
       );
     }, 600);
   };
@@ -208,10 +242,15 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
             `已复制 ${hit.installCommand}。运行后到 设置 → 扩展 点刷新。`,
           ),
           'success',
+          t('Command Copied', '已复制命令'),
         );
       },
       () => {
-        showToast(t('Could not copy install command', '无法复制安装命令'), 'error');
+        showToast(
+          t('Could not copy install command', '无法复制安装命令'),
+          'error',
+          t('Copy Failed', '复制失败'),
+        );
       },
     );
   };
@@ -304,13 +343,11 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
       />
 
       <main className="vault-main marketplace-main" id="vault-main">
-        {toast && (
-          <div className="market-notice-wrap">
-            <Notice tone={toast.type} testId="marketplace-toast">
-              {toast.text}
-            </Notice>
-          </div>
-        )}
+        <MarketplaceToastView
+          toast={toast}
+          locale={props.locale}
+          onDismiss={() => setToast(null)}
+        />
 
         {tab === 'extensions' && (
           <>
@@ -364,6 +401,7 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
                             ? 'installed'
                             : 'idle')
                         }
+                        installProgress={packageInstall.progress[hit.entryId]}
                       />
                     ))}
                   </div>
@@ -417,6 +455,8 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
                     locale={props.locale}
                     onInstall={handleInstallExtension}
                     onUninstall={handleUninstallExtension}
+                    installState={extInstallStates[ext.id]}
+                    installProgress={extInstallProgress[ext.id]}
                   />
                 ))}
               </div>

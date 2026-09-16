@@ -159,6 +159,9 @@
   --layer-menu: 50;
   --layer-settings: 60;
   --layer-dialog: 70;
+  /* Menus and popovers clear dialogs but stay under toasts, so a toast fired
+     from a menu action is never hidden behind the menu that fired it. */
+  --layer-popover: 75;
   --layer-toast: 80;
 
   /* Font fallbacks prevent a flash before the first applyAppearanceToDocument

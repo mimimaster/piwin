@@ -4,8 +4,6 @@ import {
   BROWSER_DEFAULT_VIEWPORT_WIDTH,
 } from '@piwin/contracts';
 import {
-  BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT,
-  BROWSER_FOLLOW_VIEWPORT_MIN_WIDTH,
   BROWSER_VIEWPORT_MIN_PX,
   clampBrowserViewport,
   resolveBrowserViewport,
@@ -71,16 +69,16 @@ describe('resolveBrowserViewport', () => {
     ).toEqual({ width: 1024, height: 768 });
   });
 
-  it('raises a 40×40 follow panel to at least 1024×640', () => {
-    const next = resolveBrowserViewport({
-      mode: 'follow',
-      panelWidth: 40,
-      panelHeight: 40,
-      maxDimension: 1280,
-    });
-    expect(next).toEqual({ width: 1024, height: 1024 });
-    expect(next?.width).toBeGreaterThanOrEqual(BROWSER_FOLLOW_VIEWPORT_MIN_WIDTH);
-    expect(next?.height).toBeGreaterThanOrEqual(BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT);
+  it('tracks a narrow follow panel 1:1 instead of scaling up a desktop page', () => {
+    expect(
+      resolveBrowserViewport({ mode: 'follow', panelWidth: 360.4, panelHeight: 700.6, maxDimension: 1280 }),
+    ).toEqual({ width: 360, height: 701 });
+  });
+
+  it('keeps a tiny follow panel at the 200px floor', () => {
+    expect(
+      resolveBrowserViewport({ mode: 'follow', panelWidth: 40, panelHeight: 40, maxDimension: 1280 }),
+    ).toEqual({ width: 200, height: 200 });
   });
 
   it('keeps a 1600×1000 follow panel without the 1280 longest-edge cap', () => {
@@ -94,7 +92,7 @@ describe('resolveBrowserViewport', () => {
     ).toEqual({ width: 1600, height: 1000 });
   });
 
-  it('fits follow into 1920×1200 after the min floor, ignoring maxDimension', () => {
+  it('fits follow into 1920×1200, ignoring maxDimension', () => {
     const next = resolveBrowserViewport({
       mode: 'follow',
       panelWidth: 40,

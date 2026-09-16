@@ -32,7 +32,7 @@ export type AssistantResponseActionsProps = {
   locale: 'zh-CN' | 'en';
 };
 
-const ICON = { width: 16, height: 16, stroke: 1.6 } as const;
+const ICON = { width: 14, height: 14, stroke: 1.6 } as const;
 
 export function AssistantResponseActions(
   props: AssistantResponseActionsProps,

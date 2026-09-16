@@ -360,6 +360,70 @@
   vertical-align: middle;
 }
 
+/* ── Progress Ring ─────────────────────────────────────────── */
+
+.ui-progress-ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.ui-progress-ring-svg {
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  display: block;
+}
+
+.ui-progress-ring.is-indeterminate .ui-progress-ring-svg {
+  animation: piwin-spin 1.2s linear infinite;
+}
+
+.ui-progress-ring-track {
+  stroke: var(--line-1, rgba(255, 255, 255, 0.12));
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-progress-ring-track {
+  stroke: var(--l1, rgba(0, 0, 0, 0.08));
+}
+
+.ui-progress-ring-indicator {
+  stroke: var(--pine, var(--accent, #3d7c5e));
+  transition: stroke-dashoffset 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ui-progress-ring--pine .ui-progress-ring-indicator {
+  stroke: var(--pine, #3d7c5e);
+}
+
+.ui-progress-ring--zhu .ui-progress-ring-indicator {
+  stroke: var(--zhu, #c6412a);
+}
+
+.ui-progress-ring--lamp .ui-progress-ring-indicator {
+  stroke: var(--lamp, #b8801f);
+}
+
+.ui-progress-ring--azure .ui-progress-ring-indicator {
+  stroke: var(--azure, #3a7797);
+}
+
+.ui-progress-ring--neutral .ui-progress-ring-indicator {
+  stroke: var(--text-2, currentColor);
+}
+
+.ui-progress-ring-text {
+  position: absolute;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-1, var(--t1, currentColor));
+  user-select: none;
+  line-height: 1;
+}
+
 @keyframes piwin-spin {
   to {
     transform: rotate(360deg);
@@ -1241,83 +1305,384 @@
   }
 }
 
-/* ── Mantine Notifications (Toast system) ────────────────────────── */
+/* ── Toast system ─────────────────────────────────────────────────────
+   Two DOM shapes share one appearance: `.ui-toast` (ui-kit's own bubble,
+   hosted by `ToastHost`) and Mantine's notification, which the
+   `showUiNotification` bridge stamps with `data-tone`. Rules that touch
+   Mantine's own classes must also neutralise the vendor defaults they sit
+   on top of — a property Mantine sets and we leave alone survives, since
+   the two declarations never collide. */
 
-.mantine-Notifications-root {
+.mantine-Notifications-root,
+.ui-toast-host {
   z-index: var(--layer-toast, 9000);
   pointer-events: none;
 }
 
-.mantine-Notification-root {
+/* Mantine defaults to 16px, which puts the bubble under the window chrome.
+   Match the 64px the ui-kit host uses so both systems land in one place. */
+.mantine-Notifications-root[data-position='top-center'],
+.mantine-Notifications-root[data-position='top-left'],
+.mantine-Notifications-root[data-position='top-right'] {
+  top: 64px;
+}
+
+.ui-toast-host {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-toast-host--top-center {
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.ui-toast-host--top-right {
+  top: 64px;
+  right: 24px;
+}
+
+.ui-toast-host--bottom-center {
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.mantine-Notification-root,
+.ui-toast {
   pointer-events: auto;
   position: relative;
-  border-radius: var(--radius-md, 10px);
-  background: var(--surface-popover, var(--panel, #1e1e1e));
-  border: 1px solid var(--line-soft, var(--border, rgba(255, 255, 255, 0.1)));
-  /* Multi-tier solid shadow + top specular hairline for premium depth without compositor blur */
-  box-shadow:
-    0 16px 40px -6px rgba(0, 0, 0, 0.52),
-    0 6px 16px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  padding: 10px 14px;
-  color: var(--text, #ededed);
-  min-width: 280px;
-  max-width: 480px;
   overflow: hidden;
-  transition: transform 180ms ease, opacity 180ms ease;
+  align-items: center;
+  gap: 8px;
+  min-width: 280px;
+  max-width: 500px;
+  min-height: 36px;
+  padding: 8px 12px 8px 16px;
+  border-radius: var(--radius-md, var(--r-card, 8px));
+  background: var(--surface-popover, var(--surface-2, #1e1e1e));
+  color: var(--text-1, #ededed);
+  border: 1px solid var(--line-soft, var(--line-1, rgba(255, 255, 255, 0.1)));
+  box-shadow: var(--sh3, 0 14px 34px -12px rgba(0, 0, 0, 0.5));
 }
 
-.mantine-Notification-root::before {
+.ui-toast {
+  display: inline-flex;
+  animation: ui-toast-in 200ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: min-height 150ms ease;
+}
+
+/* Mantine centres the fixed container, not the bubble inside it, so a
+   short notification would hug the container's left edge under inline-flex.
+   Shrink-to-fit plus auto margins keeps it optically centred. */
+.mantine-Notification-root {
+  display: flex;
+  width: fit-content;
+  margin-inline: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast {
+    animation: none;
+  }
+}
+
+@keyframes ui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .mantine-Notification-root,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-toast {
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  color: var(--t1);
+  box-shadow: var(--sh3);
+}
+
+/* 100% straight vertical indicator bar along the left edge — never concave.
+   Mantine hides its own bar whenever an icon is present, and every bridged
+   notification carries a seal, so `display` has to be restated here. */
+.mantine-Notification-root::before,
+.mantine-Notification-root[data-with-icon]::before,
+.ui-toast::before {
   content: '';
+  display: block;
   position: absolute;
   left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  border-radius: 0 2px 2px 0;
-  background: var(--notification-color, var(--accent, #3b82f6));
+  top: 0;
+  bottom: 0;
+  width: 3.5px;
+  border-radius: 0;
+  background: var(--azure, var(--state-waiting, #3a7797));
 }
 
-.mantine-Notification-root[data-with-icon] {
-  padding-left: 12px;
+.ui-toast.tone-success::before,
+.mantine-Notification-root[data-tone='success']::before {
+  background: var(--pine, var(--ok, #3d7c5e));
 }
 
+.ui-toast.tone-error::before,
+.mantine-Notification-root[data-tone='error']::before {
+  background: var(--crimson, var(--danger, #9c2e3d));
+}
+
+.ui-toast.tone-warning::before,
+.mantine-Notification-root[data-tone='warning']::before {
+  background: var(--ochre, var(--warn, #94611a));
+}
+
+.ui-toast.tone-info::before,
+.mantine-Notification-root[data-tone='info']::before {
+  background: var(--azure, var(--state-waiting, #3a7797));
+}
+
+.ui-toast-seal-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.ui-toast.is-multiline .ui-toast-seal-wrap {
+  margin-top: 2px;
+}
+
+.ui-toast-seal,
 .mantine-Notification-icon {
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  border-radius: 7px;
-  background: var(--surface-control, rgba(255, 255, 255, 0.06));
-  color: var(--notification-color, var(--text, #ededed));
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  /* Mantine ships a 16px inline margin on the icon; the flex gap owns the
+     spacing now. */
+  margin-inline-end: 0;
+  border-radius: 50%;
+  background: var(--surface-control, rgba(255, 255, 255, 0.08));
+  color: var(--text-1, #ededed);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
 }
 
+.ui-toast-seal.tone-success,
+.mantine-Notification-root[data-tone='success'] .mantine-Notification-icon {
+  background: var(--pine-wash, color-mix(in srgb, var(--ok, #3d7c5e) 14%, transparent));
+  color: var(--pine, var(--ok, #3d7c5e));
+}
+
+.ui-toast-seal.tone-error,
+.mantine-Notification-root[data-tone='error'] .mantine-Notification-icon {
+  background: var(--crimson-wash, color-mix(in srgb, var(--danger, #9c2e3d) 12%, transparent));
+  color: var(--crimson, var(--danger, #9c2e3d));
+}
+
+.ui-toast-seal.tone-warning,
+.mantine-Notification-root[data-tone='warning'] .mantine-Notification-icon {
+  background: var(--lamp-wash, color-mix(in srgb, var(--warn, #94611a) 14%, transparent));
+  color: var(--ochre, var(--warn, #94611a));
+}
+
+.ui-toast-seal.tone-info,
+.mantine-Notification-root[data-tone='info'] .mantine-Notification-icon {
+  background: var(--azure-wash, color-mix(in srgb, var(--state-waiting, #3a7797) 14%, transparent));
+  color: var(--azure, var(--state-waiting, #3a7797));
+}
+
+/* A short toast reads as `title · message` on one line; anything longer
+   stacks so the bubble can grow instead of truncating. */
+.ui-toast-body {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.ui-toast.is-multiline {
+  align-items: flex-start;
+  min-height: 52px;
+  max-width: 520px;
+  padding: 10px 12px 10px 16px;
+}
+
+.ui-toast.is-multiline .ui-toast-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.mantine-Notification-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Drops Mantine's own trailing margin; the root's gap spaces the close
+     button. */
+  margin-inline-end: 0;
+}
+
+.ui-toast-title,
 .mantine-Notification-title {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--text, #ededed);
-  line-height: 1.4;
-  margin-bottom: 2px;
+  color: var(--text-1, #ededed);
+  line-height: 1.35;
   letter-spacing: -0.01em;
+  /* `.mantine-Notification-body` owns vertical rhythm through its gap. */
+  margin-bottom: 0;
 }
 
+.ui-toast:not(.is-multiline) .ui-toast-title {
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-toast-title,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .mantine-Notification-title {
+  font-family: var(--serif);
+  color: var(--t1);
+}
+
+.ui-toast-sep {
+  color: var(--text-3, #71717a);
+  font-size: 11px;
+  user-select: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-toast-sep {
+  color: var(--t4, var(--t3));
+}
+
+.ui-toast-message,
 .mantine-Notification-description {
   font-size: 12px;
-  color: var(--muted, #a1a1aa);
+  color: var(--text-2, #a1a1aa);
   line-height: 1.45;
   word-break: break-word;
+  margin: 0;
 }
 
+/* Most bridged notifications carry no title, which makes the message the
+   primary text rather than a subordinate line. */
+.mantine-Notification-description:not([data-with-title]),
+.ui-toast-body > .ui-toast-message:first-child {
+  color: var(--text-1, #ededed);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .mantine-Notification-description:not([data-with-title]),
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .ui-toast-body > .ui-toast-message:first-child {
+  color: var(--t1);
+}
+
+.ui-toast:not(.is-multiline) .ui-toast-message {
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-toast.is-multiline .ui-toast-message {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ui-toast.is-multiline .ui-toast-message.is-expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-toast-message,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .mantine-Notification-description {
+  color: var(--t2);
+}
+
+.ui-toast-expand {
+  font-size: 11px;
+  color: var(--text-3, #71717a);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-top: 1px;
+  transition: color var(--t-1, 150ms) var(--ease-out, ease-out);
+}
+
+.ui-toast-expand:hover {
+  color: var(--text-1, #ededed);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-toast-expand {
+  color: var(--t3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-toast-expand:hover {
+  color: var(--t1);
+}
+
+.ui-toast-dismiss,
 .mantine-Notification-closeButton {
-  color: var(--muted, #71717a);
-  border-radius: 6px;
-  transition: background 120ms ease, color 120ms ease;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-3, #71717a);
+  font-size: 15px;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  /* Mantine's CloseButton carries a 28px min-height that would otherwise
+     stretch the control past the seal it sits opposite. */
+  min-width: 20px;
+  min-height: 20px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  padding: 0;
+  margin-left: 2px;
+  transition: background var(--t-1, 150ms) var(--ease-out, ease-out),
+    color var(--t-1, 150ms) var(--ease-out, ease-out);
 }
 
+.ui-toast.is-multiline .ui-toast-dismiss {
+  margin-top: -1px;
+}
+
+/* Mantine sizes its close glyph to 16px through an inline custom property,
+   which all but fills the 20px control. `!important` is what it takes to
+   beat an inline declaration. */
+.mantine-Notification-closeButton {
+  --cb-icon-size: 12px !important;
+}
+
+.ui-toast-dismiss:hover,
 .mantine-Notification-closeButton:hover {
   background: var(--surface-hover, rgba(255, 255, 255, 0.08));
-  color: var(--text, #ededed);
+  color: var(--text-1, #ededed);
 }
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-toast-dismiss:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .mantine-Notification-closeButton:hover {
+  background: var(--s1);
+  color: var(--t1);
+}

@@ -22,6 +22,7 @@ import {
   RIGHT_PANEL_SIDE_CHAT_TABS_SLOT_ID,
   RightPanelChromeProvider,
 } from './right-panel-chrome.js';
+import { SurfaceTitlebarProvider } from './surface-titlebar.js';
 import { RIGHT_PANEL_MAX_WIDTH_PX, RIGHT_PANEL_MIN_WIDTH_PX } from './right-panel-width';
 import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
 import { DeferredSurfaceBoundary } from './deferred-desktop-surfaces';
@@ -68,7 +69,11 @@ export type RightPanelProps = {
   onOpenMcp?: () => void;
   onOpenSettings?: () => void;
   onToggleSessions?: () => void;
+  /** Tabs another surface owns (docking): never listed, restored, or remembered here. */
+  handedOffTabs?: readonly RightPanelTab[];
 };
+
+const NO_HANDED_OFF_TABS: readonly RightPanelTab[] = [];
 
 export type { RightPanelTab } from './right-panel-sections';
 
@@ -122,9 +127,14 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const tasksActiveCount = props.tasksActiveCount ?? 0;
   const terminalAttention = props.terminalAttention === true;
 
+  const handedOffTabs = props.handedOffTabs ?? NO_HANDED_OFF_TABS;
+  const handedOffKey = handedOffTabs.join('|');
+  const keepsTab = (tab: RightPanelTab): boolean => !handedOffTabs.includes(tab);
   const initial = useMemo(() => readStoredRightPanelState(), []);
-  const [openTabs, setOpenTabs] = useState<RightPanelTab[]>(() => initial.openTabs);
+  const [openTabs, setOpenTabs] = useState<RightPanelTab[]>(() => initial.openTabs.filter(keepsTab));
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [titlebarTabsSlot, setTitlebarTabsSlot] = useState<HTMLElement | null>(null);
+  const [titlebarActionsSlot, setTitlebarActionsSlot] = useState<HTMLElement | null>(null);
   const previousActiveTabRef = useRef(props.activeTab);
   const previousOpenRef = useRef(props.open);
 
@@ -149,19 +159,21 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       return;
     }
     const stored = readStoredRightPanelState();
+    const storedTabs = stored.openTabs.filter(keepsTab);
     const requested = props.activeTab;
     if (requested != null) {
+      if (!keepsTab(requested)) return;
       setOpenTabs((current) => {
-        const base = current.length > 0 ? current : stored.openTabs;
+        const base = current.length > 0 ? current : storedTabs;
         return base.includes(requested) ? base : [...base, requested];
       });
       setPickerOpen(false);
       return;
     }
-    if (stored.openTabs.length > 0) {
-      setOpenTabs(stored.openTabs);
+    if (storedTabs.length > 0) {
+      setOpenTabs(storedTabs);
       setPickerOpen(false);
-      if (stored.activeTab) {
+      if (stored.activeTab && keepsTab(stored.activeTab)) {
         props.onTabChange(stored.activeTab);
       }
       return;
@@ -177,12 +189,20 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     }
     const previous = previousActiveTabRef.current;
     previousActiveTabRef.current = requested;
-    if (previous === requested) {
+    if (previous === requested || !keepsTab(requested)) {
       return;
     }
     setOpenTabs((current) => (current.includes(requested) ? current : [...current, requested]));
     setPickerOpen(false);
   }, [props.activeTab, props.open]);
+
+  // A tab picked from the menu may be handed off right away; drop it here too.
+  useEffect(() => {
+    setOpenTabs((current) =>
+      current.some((tab) => !keepsTab(tab)) ? current.filter(keepsTab) : current,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by handedOffKey
+  }, [handedOffKey, openTabs]);
 
   useEffect(() => {
     if (
@@ -223,7 +243,10 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     requested != null && openTabs.includes(requested) ? requested : (openTabs[0] ?? null);
   const mountedTabs = selectMountedRightPanelTabs(openTabs, active, props.open);
   const sideChatTitlebar = active === 'sideChat';
-  const toolTabs = sideChatTitlebar ? [] : openTabs;
+  // Browser page tabs replace the lone 「浏览器」 tool tab in the titlebar.
+  const browserTitlebar = active === 'browser' && props.browserContent !== undefined;
+  const surfaceTitlebar = sideChatTitlebar || browserTitlebar;
+  const toolTabs = surfaceTitlebar ? [] : openTabs;
 
   const panelClass = [
     'right-panel',
@@ -267,7 +290,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
 
       {/* Cursor-style tab strip */}
       <div
-        className={`right-panel-tabstrip right-panel-titlebar-box insp-h${sideChatTitlebar ? ' has-side-chat-tabs' : ''}`}
+        className={`right-panel-tabstrip right-panel-titlebar-box insp-h${sideChatTitlebar ? ' has-side-chat-tabs' : ''}${browserTitlebar ? ' has-browser-tabs' : ''}`}
         data-testid="right-panel-tabstrip"
         data-tauri-drag-region
         onMouseDown={handleNativeWindowDragMouseDown}
@@ -286,7 +309,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         {toolTabs.length > 0 ? (
           <RightPanelTabs
             tabs={toolTabs}
-            active={sideChatTitlebar ? null : active}
+            active={surfaceTitlebar ? null : active}
             locale={locale}
             changesCount={changesCount}
             runningJobCount={runningJobCount}
@@ -300,10 +323,11 @@ export function RightPanel(props: RightPanelProps): ReactElement {
 
         <div
           id={RIGHT_PANEL_SIDE_CHAT_TABS_SLOT_ID}
+          ref={setTitlebarTabsSlot}
           className="right-panel-side-chat-tabs-slot"
           data-testid="right-panel-side-chat-tabs-slot"
           data-no-window-drag
-          hidden={!sideChatTitlebar}
+          hidden={!surfaceTitlebar}
         />
 
         <WindowDragRegion
@@ -313,6 +337,12 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         />
 
         <div className="right-panel-actions insp-actions" data-no-window-drag>
+          <div
+            ref={setTitlebarActionsSlot}
+            className="right-panel-surface-actions-slot"
+            data-testid="right-panel-surface-actions-slot"
+            hidden={!browserTitlebar}
+          />
           <IconButton
             className={`right-panel-action-btn ib${props.isExpanded ? ' active' : ''}`}
             data-testid="right-panel-expand-btn"
@@ -354,6 +384,19 @@ export function RightPanel(props: RightPanelProps): ReactElement {
               <IconExpand width={14} height={14} />
             )}
           </IconButton>
+
+          {browserTitlebar && !props.isOverlayPresentation ? (
+            <IconButton
+              className="right-panel-action-btn ib"
+              data-testid="right-panel-close-browser-btn"
+              size={22}
+              label={locale === 'zh-CN' ? '关闭浏览器' : 'Close browser'}
+              title={locale === 'zh-CN' ? '关闭浏览器' : 'Close browser'}
+              onClick={() => closeTab('browser')}
+            >
+              <IconClose width={14} height={14} />
+            </IconButton>
+          ) : null}
 
           {props.isOverlayPresentation ? (
             <IconButton
@@ -418,11 +461,22 @@ export function RightPanel(props: RightPanelProps): ReactElement {
                   </div>
                 ) : (
                   <div className="right-panel-section">
-                    <DeferredSurfaceBoundary
-                      label={locale === 'zh-CN' ? `正在加载${label}` : `Loading ${label}`}
+                    <SurfaceTitlebarProvider
+                      value={
+                        tab === 'browser' && browserTitlebar
+                          ? {
+                              tabsSlot: titlebarTabsSlot,
+                              actionsSlot: titlebarActionsSlot,
+                            }
+                          : null
+                      }
                     >
-                      {content}
-                    </DeferredSurfaceBoundary>
+                      <DeferredSurfaceBoundary
+                        label={locale === 'zh-CN' ? `正在加载${label}` : `Loading ${label}`}
+                      >
+                        {content}
+                      </DeferredSurfaceBoundary>
+                    </SurfaceTitlebarProvider>
                   </div>
                 )}
               </div>

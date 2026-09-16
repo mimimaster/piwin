@@ -5,10 +5,6 @@ import type { DesktopLocale } from './desktop-locale';
 import type { BrowserSessionChromeCopy } from './browser-session-chrome';
 
 export type BrowserSessionCopy = BrowserSessionChromeCopy & {
-  agentUsing: string;
-  takeOver: string;
-  youHaveControl: string;
-  giveBack: string;
   pickPending: string;
   pickFailed: string;
   mirrorStartFailed: string;
@@ -51,7 +47,7 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
       closeTab: '关闭标签',
       acceptDialog: '接受',
       dismissDialog: '取消',
-      pickDisabled: 'Agent 占用浏览器时无法取元素',
+      pickDisabled: '浏览器就绪后才能取元素',
       pickExit: '退出取元素',
       pickEnter: '选择元素（⇧⌘S）',
       annotate: '标注页面',
@@ -65,11 +61,7 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
       restart: '重启浏览器会话',
       dismissNotice: '关闭提示',
       noticeRepeat: '重复 {count} 次',
-      idle: '浏览器空闲',
-      youHaveControl: '你在控制',
-      agentUsing: 'Agent 正在控制',
-      takeOver: '接管',
-      giveBack: '交还',
+      agentUsing: 'Agent 正在操作这个页面，你也可以随时操作',
       viewportTitle: '视口',
       viewportResponsive: '响应式',
       viewportDesktop: '桌面',
@@ -126,7 +118,7 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
     closeTab: 'Close tab',
     acceptDialog: 'Accept',
     dismissDialog: 'Dismiss',
-    pickDisabled: 'Pick disabled while the agent has the browser',
+    pickDisabled: 'Pick is available once the browser is ready',
     pickExit: 'Exit pick mode',
     pickEnter: 'Pick element (⇧⌘S)',
     annotate: 'Annotate page',
@@ -140,11 +132,7 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
     restart: 'Restart browser session',
     dismissNotice: 'Dismiss',
     noticeRepeat: 'Repeated {count} times',
-    idle: 'Browser idle',
-    youHaveControl: 'You have control',
-    agentUsing: 'Agent is controlling',
-    takeOver: 'Take over',
-    giveBack: 'Give back',
+    agentUsing: 'The agent is using this page; you can still interact',
     viewportTitle: 'Viewport',
     viewportResponsive: 'Responsive',
     viewportDesktop: 'Desktop',

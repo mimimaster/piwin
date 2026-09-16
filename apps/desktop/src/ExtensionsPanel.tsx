@@ -635,6 +635,7 @@ function compatibilityLabel(
     case 'compatible':
       return isChinese ? '可用' : 'compatible';
     case 'degraded':
+      return isChinese ? '部分可用' : 'partially supported';
     case 'incompatible':
       return isChinese ? '仅 Pi 终端' : 'Pi TUI only';
     case 'unverified':

@@ -1,7 +1,7 @@
 /**
  * Host CSS viewport policy (completeness plan §6.1).
- * Default is a fixed 1280×800 page; panel ResizeObserver boxes must not
- * shrink Playwright. `clampBrowserViewport` stays for legacy callers.
+ * Default is a fixed 1280×800 page; only follow mode tracks the panel box,
+ * 1:1. `clampBrowserViewport` stays for legacy callers.
  */
 import {
   BROWSER_DEFAULT_VIEWPORT_HEIGHT,
@@ -12,9 +12,6 @@ import {
 /** Smallest Playwright viewport we will request for the workbench mirror. */
 export const BROWSER_VIEWPORT_MIN_PX = 200;
 
-/** Follow-mode desktop floor. Not applied to fixed / mobile / custom. */
-export const BROWSER_FOLLOW_VIEWPORT_MIN_WIDTH = 1024;
-export const BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT = 640;
 /** Follow-mode CSS viewport ceiling. Independent of fixed-mode maxDimension. */
 export const BROWSER_FOLLOW_VIEWPORT_MAX_WIDTH = 1920;
 export const BROWSER_FOLLOW_VIEWPORT_MAX_HEIGHT = 1200;
@@ -115,16 +112,11 @@ function resolveFollowViewport(
     return null;
   }
 
-  let width = panelWidth;
-  let height = panelHeight;
-  // Raise to the desktop floor without distorting the panel aspect ratio.
-  const upScale = Math.max(
-    1,
-    BROWSER_FOLLOW_VIEWPORT_MIN_WIDTH / width,
-    BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT / height,
-  );
-  width *= upScale;
-  height *= upScale;
+  // 1 CSS px per panel px: the page lays out for the space it really has,
+  // text stays sharp, and the frame fills the panel with no letterbox. Pages
+  // that need a desktop layout use the fixed/desktop preset instead.
+  const width = Math.max(BROWSER_VIEWPORT_MIN_PX, Math.round(panelWidth));
+  const height = Math.max(BROWSER_VIEWPORT_MIN_PX, Math.round(panelHeight));
   return fitWithinRectangle(
     width,
     height,

@@ -156,7 +156,7 @@ describe('useArtifactFrameBridge recovery', () => {
     expect(state?.dataset['height']).toBe('360');
   });
 
-  it('keeps the measured height when the stream document is replaced by the final one', async () => {
+  it('preserves height during replacement but recovers if the final document never confirms it', async () => {
     const iframe = await renderBridge('stream-preview');
     act(() => {
       iframe.dispatchEvent(new Event('load'));
@@ -184,8 +184,8 @@ describe('useArtifactFrameBridge recovery', () => {
       iframe.dispatchEvent(new Event('load'));
       vi.advanceTimersByTime(5_000);
     });
-    expect(state?.dataset['status']).toBe('ready');
-    expect(state?.dataset['height']).toBe('436');
+    expect(state?.dataset['status']).toBe('fallback');
+    expect(state?.dataset['height']).toBe('360');
   });
 
   it('accepts a size whose MessageEvent.source is null', async () => {

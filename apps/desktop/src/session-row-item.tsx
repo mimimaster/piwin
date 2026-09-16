@@ -15,6 +15,8 @@ import {
 import { InkLineNode } from './ink-line-node';
 import { formatSessionRelativeTime } from './session-relative-time';
 import { sessionRowIsWorking, type SessionRowRunPhase } from './session-row-working';
+import { sessionScopeKey } from './session-scope-key';
+import { useSessionDrag } from './workbench/docking/docking-session-drag.js';
 
 /** proto-03 `.i.s12` inside `.ib.s22` hit targets. */
 const SESSION_ACTION_ICON_PX = 12;
@@ -170,6 +172,9 @@ export function SessionRowItem({
   const isArchived = 'isArchived' in session && session.isArchived === true;
   const storageState = !isDraft && 'storage' in session ? session.storage?.state : undefined;
   const isActive = isDraft ? session.id === activeDraftId : session.id === activeSessionId;
+  const sessionDrag = useSessionDrag();
+  const sessionScope = 'scope' in session ? session.scope : undefined;
+  const dragScopeKey = sessionScope ? sessionScopeKey(sessionScope) : undefined;
   const isWorking = sessionRowIsWorking({
     sessionId: session.id,
     isDraft,
@@ -225,6 +230,17 @@ export function SessionRowItem({
         data-context-active={isContextActive ? 'true' : 'false'}
         aria-current={isActive ? 'page' : undefined}
         aria-label={isDraft ? `${session.name} (draft)` : session.name}
+        data-tauri-drag-region="false"
+        onPointerDown={(event) => {
+          // Threshold + drop resolution live in the docking engine; a plain
+          // click without travel still resumes the session below.
+          if (isDraft || event.button !== 0) return;
+          sessionDrag?.startSessionDrag({
+            sessionId: session.id,
+            origin: { x: event.clientX, y: event.clientY },
+            ...(dragScopeKey ? { projectScopeKey: dragScopeKey } : {}),
+          });
+        }}
         className={[
           isActive
             ? isWorking

@@ -317,12 +317,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
             currentTurnStreaming,
           });
           const workDisclosureKey = `${props.sessionId ?? 'session'}:${turn.id}`;
-          const isLatestTurnForDisclosure = turn.id === currentResponseTurnId;
-          const workDisclosureDefaultOpen =
-            props.workDetailsExpanded === 'always' ||
-            (props.workDetailsExpanded !== 'collapsed' &&
-              !conversationSession &&
-              isLatestTurnForDisclosure);
+          const workDisclosureDefaultOpen = props.workDetailsExpanded === 'always';
           const workDisclosureOpen =
             workDisclosureOpenByTurnId[workDisclosureKey] ?? workDisclosureDefaultOpen;
           const identityItemIndex = conversationChrome?.identityMessageId

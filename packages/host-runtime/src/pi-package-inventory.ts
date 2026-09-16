@@ -360,30 +360,41 @@ async function listPackageResources(
   const skillGlobs = manifest.skills.length > 0 ? manifest.skills : ['skills'];
   const promptGlobs = manifest.prompts.length > 0 ? manifest.prompts : ['prompts'];
 
-  const extensions = await collectExtensions(packageRoot, extensionGlobs, spec.filter.extensions, source);
+  const extensions = await collectExtensions(
+    packageRoot,
+    extensionGlobs,
+    spec.filter.extensions,
+    source,
+    manifest.name ?? spec.locator,
+  );
   const skills = await collectSkills(packageRoot, skillGlobs, spec.filter.skills, source);
   const prompts = await collectPrompts(packageRoot, promptGlobs, spec.filter.prompts, source);
   return { extensions, skills, prompts };
 }
 
 async function readPiManifest(packageRoot: string): Promise<{
+  name: string | undefined;
   extensions: string[];
   skills: string[];
   prompts: string[];
 }> {
+  const empty = { name: undefined, extensions: [], skills: [], prompts: [] };
   try {
     const raw = await readFile(join(packageRoot, 'package.json'), 'utf8');
     const document = JSON.parse(raw) as unknown;
-    if (!isRecord(document) || !isRecord(document.pi)) {
-      return { extensions: [], skills: [], prompts: [] };
+    if (!isRecord(document)) {
+      return empty;
     }
+    const pi = isRecord(document.pi) ? document.pi : {};
+    const declaredName = typeof document.name === 'string' ? document.name.trim() : '';
     return {
-      extensions: asStringArray(document.pi.extensions),
-      skills: asStringArray(document.pi.skills),
-      prompts: asStringArray(document.pi.prompts),
+      name: declaredName.length > 0 ? declaredName : undefined,
+      extensions: asStringArray(pi.extensions),
+      skills: asStringArray(pi.skills),
+      prompts: asStringArray(pi.prompts),
     };
   } catch {
-    return { extensions: [], skills: [], prompts: [] };
+    return empty;
   }
 }
 
@@ -392,13 +403,40 @@ async function collectExtensions(
   globs: string[],
   filter: string[] | undefined,
   source: InventorySource,
+  packageName: string,
 ): Promise<ExtensionSummary[]> {
   const selected = await expandGlobs(packageRoot, applyFilter(globs, filter));
   const results: ExtensionSummary[] = [];
   for (const absolute of selected) {
     results.push(...(await scanExtensionEntry(absolute, source)));
   }
-  return results;
+  return scopePackageExtensionIdentity(results, packageName);
+}
+
+/**
+ * Identify a package's extensions by the package, not by the entry filename.
+ *
+ * A bare basename is not an identity: `npm:@amaster.ai/pi-computer-use` ships
+ * `dist/index.js` and `npm:@gotgenes/pi-anthropic-auth` ships `src/index.ts`,
+ * so both became id `index`. The blueprint collects entry paths into a set
+ * keyed by id, which silently dropped whichever package came second — the
+ * extension never reached Pi at all. One entry means the package *is* the
+ * extension; several entries keep the entry name inside the package namespace.
+ */
+function scopePackageExtensionIdentity(
+  entries: ExtensionSummary[],
+  packageName: string,
+): ExtensionSummary[] {
+  if (entries.length === 0) {
+    return entries;
+  }
+  const namespace = normalizeResourceId(packageName);
+  const single = entries.length === 1;
+  return entries.map((entry) => ({
+    ...entry,
+    id: single ? namespace : normalizeResourceId(`${namespace}-${entry.id}`),
+    ...(single ? { name: packageName } : {}),
+  }));
 }
 
 async function collectSkills(

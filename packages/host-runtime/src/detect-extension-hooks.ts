@@ -6,6 +6,11 @@ const PI_ON_EVENT = /\bpi\.on\(\s*['"]([A-Za-z_][\w-]*)['"]/g;
 
 const TUI_PATTERNS: readonly RegExp[] = [
   /\b(?:ctx\.)?ui\.custom\s*\(/,
+  /\brenderCall\b/,
+  /\brenderResult\b/,
+  /\bregisterMessageRenderer\b/,
+  /\bregisterEntryRenderer\b/,
+  /\bregisterMarkdownTransformer\b/,
   /\bregisterTheme\b/,
   /\bsetTheme\b/,
   /\bregisterShortcut\b/,
@@ -19,6 +24,11 @@ const TUI_PATTERNS: readonly RegExp[] = [
   /\bsetHeader\b/,
   /\bsetFooter\b/,
   /\bsetStatus\b/,
+];
+
+const TERMINAL_REQUIRED_PATTERNS: readonly RegExp[] = [
+  /\bprocess\.stdin\.setRawMode\s*\(/,
+  /\b(?:from|require\s*\()\s*['"](?:blessed|neo-blessed)['"]/,
 ];
 
 const AGENT_PATTERNS: readonly RegExp[] = [
@@ -45,6 +55,9 @@ export function detectExtensionHookEvents(source: string): string[] {
 }
 
 export function classifyExtensionSource(source: string): ExtensionCompatibility {
+  if (TERMINAL_REQUIRED_PATTERNS.some((pattern) => pattern.test(source))) {
+    return { tier: 'incompatible', incompatibilityReason: 'requires-terminal-tty' };
+  }
   const hasTui = TUI_PATTERNS.some((pattern) => pattern.test(source));
   const hasAgent = AGENT_PATTERNS.some((pattern) => pattern.test(source));
   if (hasTui && hasAgent) {

@@ -13,7 +13,6 @@ import type { BrowserFramePush, HostPush, HostResponse, WebElementPickResult } f
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { HostClient } from './host-client';
 import { BrowserSessionPanel } from './browser-session-panel';
-import { BROWSER_FOLLOW_RESIZE_DEBOUNCE_MS } from './hooks/use-browser-viewport';
 import { loadBrowserViewportPreference, saveBrowserViewportPreference } from './ui-preferences';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 
@@ -136,6 +135,16 @@ describe('BrowserSessionPanel', () => {
     });
   }
 
+  /** Toggle items must see exactly one select: a lone click, no pointerup. */
+  async function toggleDevDrawer(): Promise<void> {
+    await openRadixMenu('browser-session-more');
+    const item = queryByTestId('browser-session-dev-drawer');
+    expect(item).not.toBeNull();
+    await act(async () => {
+      item?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+  }
+
   async function typeInto(input: HTMLInputElement, value: string): Promise<void> {
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
@@ -165,7 +174,9 @@ describe('BrowserSessionPanel', () => {
     // Icon-only chrome (spec §4.2): Enter submits, no permanent Go/Reload text.
     expect(queryByTestId('browser-session-go-btn')).toBeNull();
     expect(queryByTestId('browser-session-reload')).not.toBeNull();
-    expect(queryByTestId('browser-session-open-external')).not.toBeNull();
+    // Open-external and the console live in the ⋯ menu, not the URL bar.
+    expect(queryByTestId('browser-session-open-external')).toBeNull();
+    expect(queryByTestId('browser-session-more')).not.toBeNull();
     expect(queryByTestId('browser-session-pick-toggle')).not.toBeNull();
     expect(queryByTestId('browser-session-viewport-menu-btn')).not.toBeNull();
     // No frame yet → placeholder is shown, not the <img>.
@@ -184,23 +195,20 @@ describe('BrowserSessionPanel', () => {
     expect(requestSpy).toHaveBeenCalledWith({ type: 'browser/back' });
   });
 
-  it('follow mode resizes the Host viewport from the panel box after the debounce', async () => {
-    vi.useFakeTimers();
+  it('follow mode resizes the Host viewport from the panel box right away', async () => {
     const client = createMockHostClient();
     const resizeSpy = vi.spyOn(client, 'browserResize');
     stubFrameContainerBox({ width: 1024.4, height: 700.6 });
     renderPanel({ hostClient: client });
-    expect(resizeSpy).not.toHaveBeenCalled();
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(BROWSER_FOLLOW_RESIZE_DEBOUNCE_MS + 10);
-    });
     expect(resizeSpy).toHaveBeenCalledTimes(1);
     expect(resizeSpy).toHaveBeenCalledWith(
       1024,
       701,
       expect.objectContaining({ mode: 'follow', origin: 'follow' }),
     );
+    // Follow mode fills the panel instead of letterboxing the frame.
+    expect(queryByTestId('browser-session-frame-container')?.getAttribute('data-fill')).toBe('true');
   });
 
   it('fixed mode never sends follow resizes', async () => {
@@ -212,9 +220,10 @@ describe('BrowserSessionPanel', () => {
     renderPanel({ hostClient: client });
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(BROWSER_FOLLOW_RESIZE_DEBOUNCE_MS + 10);
+      await vi.advanceTimersByTimeAsync(10);
     });
     expect(resizeSpy).not.toHaveBeenCalled();
+    expect(queryByTestId('browser-session-frame-container')?.getAttribute('data-fill')).toBe('false');
   });
 
   it('acquires Chromium on mount and releases it when the browser surface unmounts', () => {
@@ -259,7 +268,7 @@ describe('BrowserSessionPanel', () => {
     expect(navigateSpy).toHaveBeenCalledWith('http://localhost:3000');
   });
 
-  it('disables pick and URL chrome while the agent owns the browser', () => {
+  it('keeps pick and URL chrome usable while the agent is using the browser', () => {
     const client = createMockHostClient();
     renderPanel({ hostClient: client });
     const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
@@ -269,15 +278,9 @@ describe('BrowserSessionPanel', () => {
       }
     });
 
-    const toggle = queryByTestId('browser-session-pick-toggle') as HTMLButtonElement;
-    expect(toggle.disabled).toBe(true);
-    // Ownership lives in the mode group now; pending dialogs and recovery keep
-    // their own banners (spec §4.2).
-    expect(queryByTestId('browser-session-agent-banner')).toBeNull();
-    const control = queryByTestId('browser-session-control');
-    expect(control?.getAttribute('data-owner')).toBe('agent');
-    expect(control?.getAttribute('title')).toContain('接管');
-    expect((queryByTestId('browser-session-url-input') as HTMLInputElement).disabled).toBe(true);
+    expect(queryByTestId('browser-session-agent-activity')).not.toBeNull();
+    expect(queryByTestId('browser-session-control')).toBeNull();
+    expect((queryByTestId('browser-session-url-input') as HTMLInputElement).disabled).toBe(false);
   });
 
   it('forwards scaled coordinates on pick-mode click and calls onAddWebElement on browser/picked', async () => {
@@ -592,48 +595,9 @@ describe('BrowserSessionPanel', () => {
     expect(events?.[0]).toMatchObject({ type: 'mouse', action: 'down', x: 40, y: 20 });
   });
 
-  it('clicking the control dot while the agent owns the page takes over', async () => {
-    const client = createMockHostClient();
-    const lockSpy = vi.spyOn(client, 'browserLock');
-    renderPanel({ hostClient: client });
-    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
-    act(() => {
-      for (const listener of listeners) {
-        listener({ type: 'browser/controller', owner: 'agent', agentWantsLock: true, ts: Date.now() });
-      }
-    });
-    const button = queryByTestId('browser-session-control') as HTMLButtonElement;
-    await act(async () => {
-      button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-    });
-    expect(lockSpy).toHaveBeenCalledWith('user');
-  });
-
-  it('clicking the control dot while the user owns the page gives it back', async () => {
-    const client = createMockHostClient();
-    const unlockSpy = vi.spyOn(client, 'browserUnlock');
-    renderPanel({ hostClient: client });
-    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
-    act(() => {
-      for (const listener of listeners) {
-        listener({ type: 'browser/controller', owner: 'user', ts: Date.now() });
-      }
-    });
-    const button = queryByTestId('browser-session-control') as HTMLButtonElement;
-    expect(button.getAttribute('data-owner')).toBe('user');
-    expect(button.getAttribute('title')).toContain('交还');
-    await act(async () => {
-      button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-    });
-    expect(unlockSpy).toHaveBeenCalledWith('user');
-  });
-
-  it('disables the control dot while nobody controls the page', () => {
-    const client = createMockHostClient();
-    renderPanel({ hostClient: client });
-    const button = queryByTestId('browser-session-control') as HTMLButtonElement;
-    expect(button.getAttribute('data-owner')).toBe('idle');
-    expect(button.disabled).toBe(true);
+  it('shows no activity dot while the agent is not using the page', () => {
+    renderPanel({ hostClient: createMockHostClient() });
+    expect(queryByTestId('browser-session-agent-activity')).toBeNull();
   });
 
   it('applies a viewport preset explicitly and persists it', async () => {
@@ -682,9 +646,7 @@ describe('BrowserSessionPanel', () => {
     const client = createMockHostClient();
     renderPanel({ hostClient: client });
     expect(queryByTestId('browser-session-dev-body')).toBeNull();
-    await act(async () => {
-      (queryByTestId('browser-session-dev-drawer') as HTMLButtonElement).click();
-    });
+    await toggleDevDrawer();
     expect(queryByTestId('browser-session-dev-body')).not.toBeNull();
   });
 
@@ -792,9 +754,7 @@ describe('BrowserSessionPanel', () => {
       producer: 'screencast',
       ts: Date.now(),
     }));
-    await act(async () => {
-      (queryByTestId('browser-session-dev-drawer') as HTMLButtonElement).click();
-    });
+    await toggleDevDrawer();
     const metrics = queryByTestId('browser-session-dev-metrics')?.textContent ?? '';
     expect(metrics).toContain('CSS 视口');
     expect(metrics).toContain('1280x800');

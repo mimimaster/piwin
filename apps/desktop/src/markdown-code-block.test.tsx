@@ -92,4 +92,39 @@ describe('SourceCodeBlock download', () => {
     expect(anchor.download).toBe('code.python');
     expect(createObjectURL).toHaveBeenCalledOnce();
   });
+
+  it('renders a start:end:path reference with its path, offset gutter, and file name', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:code-ref');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const source = '        if (ready) {\n          start();\n        }';
+    const container = renderBlock(
+      <SourceCodeBlock
+        language="574:576:apps/desktop/src/workbench-app.tsx"
+        source={source}
+        isShell={false}
+      />,
+    );
+
+    expect(container.querySelector('.md-code-reference-path')?.textContent).toBe(
+      'apps/desktop/src/workbench-app.tsx',
+    );
+    expect(container.querySelector('.md-code-reference-range')?.textContent).toBe('L574–576');
+    expect(container.querySelector('.md-code-lang')).toBeNull();
+    expect(container.querySelector('.md-code-content')?.getAttribute('data-language')).toBe('tsx');
+    const gutters = [...container.querySelectorAll('.md-code-line-num')].map((n) => n.textContent);
+    expect(gutters).toEqual(['574', '575', '576']);
+    const firstLine = container.querySelector('.md-code-line-text')?.textContent ?? '';
+    expect(firstLine.startsWith('if (ready)')).toBe(true);
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="code-download-button"]')?.click();
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const anchor = click.mock.instances[0] as unknown as HTMLAnchorElement;
+    expect(anchor.download).toBe('workbench-app.tsx');
+  });
 });

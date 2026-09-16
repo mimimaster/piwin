@@ -475,8 +475,6 @@ export type PlatformHostCommand =
   | { id?: string; type: 'browser/restart' }
   | { id?: string; type: 'browser/reload' }
   | { id?: string; type: 'browser/input'; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }
-  | { id?: string; type: 'browser/lock'; owner: 'agent' | 'user' }
-  | { id?: string; type: 'browser/unlock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/resize'; width: number; height: number; leaseId?: string; mode?: BrowserViewportMode; origin?: 'follow' | 'explicit' }
   | { id?: string; type: 'browser/back' }
   | { id?: string; type: 'browser/forward' }

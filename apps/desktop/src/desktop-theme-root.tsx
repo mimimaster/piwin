@@ -8,6 +8,7 @@ import type { ThemeManifest } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { App } from './App';
 import { AppErrorBoundary } from './AppErrorBoundary';
+import { SessionDragProvider } from './workbench/docking/docking-session-drag.js';
 import { ArtifactGallery } from './e2e/artifact-gallery';
 import { InkstoneChainGallery } from './e2e/inkstone-chain-gallery';
 import { PrimitiveGallery } from './e2e/primitive-gallery';
@@ -136,7 +137,9 @@ export function DesktopThemeRoot() {
         ) : isE2eFixtureRoute('#/e2e/transcript-scroll') ? (
           <TranscriptScrollGallery />
         ) : (
-          <App activeTheme={activeTheme} onThemeApplied={applyResolvedTheme} />
+          <SessionDragProvider>
+            <App activeTheme={activeTheme} onThemeApplied={applyResolvedTheme} />
+          </SessionDragProvider>
         )}
       </AppErrorBoundary>
     </PiwinUiProvider>

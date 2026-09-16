@@ -6,14 +6,15 @@
  * optimistically — a failed request keeps the previous actual viewport.
  */
 import { useEffect, useRef, type RefObject } from 'react';
-import type { BrowserController, BrowserViewportMode } from '@piwin/contracts';
+import type { BrowserViewportMode } from '@piwin/contracts';
 
 export type BrowserViewportSize = { width: number; height: number };
 
-/** Continuous ResizeObserver churn is debounced before a `browser/resize`. */
-export const BROWSER_FOLLOW_RESIZE_DEBOUNCE_MS = 150;
-/** Axis changes smaller than this are not worth a round trip. */
-export const BROWSER_FOLLOW_RESIZE_MIN_DELTA_PX = 8;
+/**
+ * Axis changes smaller than this are not worth a round trip. 1px: the frame is
+ * shown filled, so any leftover difference would read as a seam or stretch.
+ */
+export const BROWSER_FOLLOW_RESIZE_MIN_DELTA_PX = 1;
 
 export type BrowserViewportPresetId = 'responsive' | 'desktop' | 'mobile' | 'tablet' | 'custom';
 
@@ -63,7 +64,6 @@ export function shouldSendFollowResize(
 
 export type BrowserViewportFollowController = {
   observe(size: BrowserViewportSize | undefined): void;
-  setController(controller: BrowserController): void;
   /** Last size the Host accepted (undefined until the first success). */
   lastAccepted(): BrowserViewportSize | undefined;
   dispose(): void;
@@ -71,59 +71,33 @@ export type BrowserViewportFollowController = {
 
 export type BrowserViewportFollowControllerOptions = {
   send: (size: BrowserViewportSize) => Promise<unknown>;
-  debounceMs?: number;
   minDeltaPx?: number;
-  /** Test seams; production uses window timers. */
-  setTimer?: (callback: () => void, ms: number) => ReturnType<typeof setTimeout>;
-  clearTimer?: (handle: ReturnType<typeof setTimeout>) => void;
 };
 
 /**
- * Debounce + ownership gate for follow-mode resizes.
- *
- * The agent owns the page while it holds the lock; a resize then would move the
- * coordinate space under a running action, so the intent is held and committed
- * once the lock is released (spec §4.1).
+ * Follow-mode resizes without a debounce: the first change goes out at once,
+ * changes during an in-flight request collapse into the latest size, and that
+ * size is sent as soon as the Host answers. A panel drag therefore tracks the
+ * pointer at the Host's own pace instead of waiting for the drag to stop.
+ * Agent activity does not hold resizes back — the Host queues them between
+ * agent operations.
  */
 export function createBrowserViewportFollowController(
   options: BrowserViewportFollowControllerOptions,
 ): BrowserViewportFollowController {
-  const debounceMs = options.debounceMs ?? BROWSER_FOLLOW_RESIZE_DEBOUNCE_MS;
   const minDeltaPx = options.minDeltaPx ?? BROWSER_FOLLOW_RESIZE_MIN_DELTA_PX;
-  const setTimer = options.setTimer ?? ((callback, ms) => setTimeout(callback, ms));
-  const clearTimer = options.clearTimer ?? ((handle) => clearTimeout(handle));
 
   let accepted: BrowserViewportSize | undefined;
-  let pending: BrowserViewportSize | undefined;
-  let controller: BrowserController = 'idle';
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let latest: BrowserViewportSize | undefined;
   let sending = false;
   let disposed = false;
 
-  function cancelTimer(): void {
-    if (timer !== undefined) {
-      clearTimer(timer);
-      timer = undefined;
-    }
-  }
-
-  // Read through a helper so the type checker does not keep the narrowed
-  // 'idle' | 'user' union from the early return below.
-  function agentHoldsLock(): boolean {
-    return controller === 'agent';
-  }
-
-  async function commit(): Promise<void> {
+  async function flush(): Promise<void> {
     if (disposed || sending) return;
-    const next = pending;
-    if (next === undefined) return;
-    if (controller === 'agent') return;
-    if (!shouldSendFollowResize(accepted, next, minDeltaPx)) {
-      pending = undefined;
-      return;
-    }
+    const next = latest;
+    latest = undefined;
+    if (next === undefined || !shouldSendFollowResize(accepted, next, minDeltaPx)) return;
     sending = true;
-    pending = undefined;
     try {
       await options.send(next);
       // Only a Host-accepted resize moves the coordinate space.
@@ -132,40 +106,20 @@ export function createBrowserViewportFollowController(
       // Keep the previous accepted size; the next observation retries.
     } finally {
       sending = false;
-      if (pending !== undefined && !agentHoldsLock()) void commit();
+      if (latest !== undefined) void flush();
     }
-  }
-
-  function schedule(): void {
-    cancelTimer();
-    timer = setTimer(() => {
-      timer = undefined;
-      void commit();
-    }, debounceMs);
   }
 
   return {
     observe(size) {
       if (disposed || size === undefined) return;
-      if (!shouldSendFollowResize(accepted, size, minDeltaPx)) return;
-      pending = size;
-      schedule();
-    },
-    setController(next) {
-      // Only a real release flushes the held intent. The mount-time call is a
-      // no-op, otherwise the first observation would skip the debounce.
-      const wasAgent = controller === 'agent';
-      controller = next;
-      if (wasAgent && next !== 'agent' && pending !== undefined) {
-        cancelTimer();
-        void commit();
-      }
+      latest = size;
+      void flush();
     },
     lastAccepted: () => accepted,
     dispose() {
       disposed = true;
-      cancelTimer();
-      pending = undefined;
+      latest = undefined;
     },
   };
 }
@@ -189,19 +143,16 @@ export type UseBrowserViewportInput = {
   enabled: boolean;
   /** Mirror lease id; the Host only accepts follow resizes from one live lease. */
   leaseId: string | undefined;
-  controller: BrowserController;
   resize: BrowserViewportResize;
 };
 
 /**
  * Sends follow-mode `browser/resize` requests for the panel content box.
- * No-ops when follow is not the active mode, and never resizes while the agent
- * holds the lock — the held intent is committed after release.
+ * No-ops when follow is not the active mode.
  */
 export function useBrowserViewport(input: UseBrowserViewportInput): void {
   const latest = useRef(input);
   latest.current = input;
-  const followRef = useRef<BrowserViewportFollowController | null>(null);
 
   useEffect(() => {
     if (!input.enabled) return;
@@ -217,9 +168,7 @@ export function useBrowserViewport(input: UseBrowserViewportInput): void {
         });
       },
     });
-    follow.setController(latest.current.controller);
     follow.observe(resolveFollowViewportBox(element));
-    followRef.current = follow;
     const observer =
       typeof ResizeObserver === 'undefined'
         ? null
@@ -230,13 +179,8 @@ export function useBrowserViewport(input: UseBrowserViewportInput): void {
     return () => {
       observer?.disconnect();
       follow.dispose();
-      if (followRef.current === follow) followRef.current = null;
     };
   }, [input.enabled, input.containerRef]);
-
-  useEffect(() => {
-    followRef.current?.setController(input.controller);
-  }, [input.controller]);
 }
 
 /**

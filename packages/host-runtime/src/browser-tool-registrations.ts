@@ -39,8 +39,6 @@ import { createBrowserStageBcToolDefinitions } from './browser-tool-stage-bc.js'
 import { nextBrowserAction, readBrowserPageState } from './browser-tool-page-state.js';
 
 import {
-  AGENT_WRITE_HINT,
-  USER_CONTROL_HINT,
   abortedPreparation,
   agentWriteOptions,
   createBrowserRegistration,
@@ -83,9 +81,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_navigate',
       description:
-        'Navigate the right-sidebar browser to an http(s) URL. Use this when the page needs JS, login state or real interaction; prefer web_fetch for reading static documents.' +
-        USER_CONTROL_HINT +
-        AGENT_WRITE_HINT,
+        'Navigate the right-sidebar browser to an http(s) URL. Use this when the page needs JS, login state or real interaction; prefer web_fetch for reading static documents.',
       parameters: {
         type: 'object',
         properties: {
@@ -169,9 +165,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_click',
       description:
-        'Click a page element targeting a snapshot ref (e.g. "e5") or CSS selector.' +
-        USER_CONTROL_HINT +
-        AGENT_WRITE_HINT,
+        'Click a page element targeting a snapshot ref (e.g. "e5") or CSS selector.',
       parameters: {
         type: 'object',
         properties: {
@@ -197,9 +191,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_type',
       description:
-        'Focus an element (via ref or CSS selector) and type text character by character. Typing appends to existing content; use browser_fill_form to replace a field value.' +
-        USER_CONTROL_HINT +
-        AGENT_WRITE_HINT,
+        'Focus an element (via ref or CSS selector) and type text character by character. Typing appends to existing content; use browser_fill_form to replace a field value.',
       parameters: {
         type: 'object',
         properties: {
@@ -228,8 +220,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_fill_form',
       description:
-        'Batch fill text-like form fields by mapping refs or selectors to values. Use browser_set_checked for checkboxes/radios and browser_select_option for <select>.' +
-        USER_CONTROL_HINT,
+        'Batch fill text-like form fields by mapping refs or selectors to values. Use browser_set_checked for checkboxes/radios and browser_select_option for <select>.',
       parameters: {
         type: 'object',
         properties: {
@@ -274,8 +265,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_scroll',
       description:
-        'Scroll the page or a specific scroll container. Give direction and an optional amount in CSS px (1-2000, default 400). Without ref/selector the page root scrolls.' +
-        USER_CONTROL_HINT,
+        'Scroll the page or a specific scroll container. Give direction and an optional amount in CSS px (1-2000, default 400). Without ref/selector the page root scrolls.',
       parameters: {
         type: 'object',
         properties: {
@@ -420,7 +410,7 @@ export function createBrowserToolDefinitions(
   const back = createBrowserRegistration(
     {
       name: 'browser_back',
-      description: 'Navigate backward in browser history.' + USER_CONTROL_HINT,
+      description: 'Navigate backward in browser history.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     permissionSpec('browser:back'),
@@ -437,7 +427,7 @@ export function createBrowserToolDefinitions(
   const forward = createBrowserRegistration(
     {
       name: 'browser_forward',
-      description: 'Navigate forward in browser history.' + USER_CONTROL_HINT,
+      description: 'Navigate forward in browser history.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     permissionSpec('browser:forward'),
@@ -475,38 +465,6 @@ export function createBrowserToolDefinitions(
     },
   );
 
-  const browserLock = createBrowserRegistration(
-    {
-      name: 'browser_lock',
-      description:
-        'Acquire or release agent control over the shared browser workbench. Use action=unlock to release; there is no separate browser_unlock tool.',
-      parameters: {
-        type: 'object',
-        properties: {
-          action: { type: 'string', enum: ['lock', 'unlock'], description: 'lock or unlock' },
-        },
-        required: ['action'],
-      },
-    },
-    permissionSpec('browser:lock'),
-    async (args, signal, context) => {
-      const action = String(args.action ?? '');
-      if (action !== 'lock' && action !== 'unlock') {
-        return { ok: false, code: 'invalid-input', message: 'action must be lock or unlock' };
-      }
-      try {
-        if (action === 'lock') {
-          const state = await session.lock('agent', agentWriteOptions(signal, context));
-          return success({ ok: true, action, ...state }, { action, owner: state.owner });
-        }
-        const state = await session.unlock('agent');
-        return success({ ok: true, action, ...state }, { action, owner: state.owner });
-      } catch (error) {
-        return userControlResult(error);
-      }
-    },
-  );
-
   const status = createBrowserRegistration(
     {
       name: 'browser_status',
@@ -536,8 +494,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_restart',
       description:
-        'Restart the Host-owned Chromium workbench. The previous page is lost (pageStateLost).' +
-        USER_CONTROL_HINT,
+        'Restart the Host-owned Chromium workbench. The previous page is lost (pageStateLost).',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     permissionSpec('browser:restart'),
@@ -555,8 +512,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_reload',
       description:
-        'Reload the current page. Host binds the live URL for permission; do not pass url.' +
-        USER_CONTROL_HINT,
+        'Reload the current page. Host binds the live URL for permission; do not pass url.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     {
@@ -598,8 +554,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_press_key',
       description:
-        'Press a keyboard key or chord (Enter, Tab, Escape, Control+l, ArrowDown).' +
-        USER_CONTROL_HINT,
+        'Press a keyboard key or chord (Enter, Tab, Escape, Control+l, ArrowDown).',
       parameters: {
         type: 'object',
         properties: {
@@ -732,7 +687,6 @@ export function createBrowserToolDefinitions(
     back,
     forward,
     wait,
-    browserLock,
     status,
     restart,
     reload,
@@ -744,7 +698,6 @@ export function createBrowserToolDefinitions(
       createRegistration: createBrowserRegistration,
       permissionSpec,
       success,
-      userControlHint: USER_CONTROL_HINT,
       agentWriteOptions,
       resolveTarget,
       mapExecuteError: mapBrowserExecuteError,

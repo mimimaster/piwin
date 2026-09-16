@@ -2,6 +2,7 @@
  * Right-inspector column of the desktop workbench (extracted from App.tsx).
  * Host commands and document/open callbacks stay with App; this file is the view.
  */
+import { DOCKING_OWNED_INSPECTOR_TABS } from './workbench/docking/docking-tool-bridge.js';
 import type { Dispatch, ReactElement, ReactNode, SetStateAction } from 'react';
 import type {
   HostResponse,
@@ -195,6 +196,8 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
   } = props;
   const workspaceOwnsMovableTools = props.workspaceOwnsMovableTools === true;
   useBrowserInspectorReveal(hostClient, (tab) => {
+    // Docking reveals the browser in the workspace itself.
+    if (workspaceOwnsMovableTools) return;
     shell.openInspector(tab);
   });
   const hostPathStyle = hostClient.getRemoteCapabilities()?.pathStyle;
@@ -236,6 +239,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
             shell.closeOverlay();
           }}
           activeTab={rightPanelTab}
+          {...(workspaceOwnsMovableTools ? { handedOffTabs: DOCKING_OWNED_INSPECTOR_TABS } : {})}
           onTabChange={(tab) => {
             shell.setInspectorTab(tab);
             if (!rightPanelOpen) {

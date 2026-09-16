@@ -74,6 +74,26 @@ describe('classifyExtensionSource', () => {
       `).tier,
     ).toBe('incompatible');
   });
+
+  it('degrades custom renderers but blocks extensions that require raw terminal mode', () => {
+    expect(
+      classifyExtensionSource(`
+        pi.registerTool({
+          name: 'hello',
+          renderCall() {},
+        });
+      `).tier,
+    ).toBe('degraded');
+    expect(
+      classifyExtensionSource(`
+        pi.registerTool({ name: 'hello' });
+        process.stdin.setRawMode(true);
+      `),
+    ).toEqual({
+      tier: 'incompatible',
+      incompatibilityReason: 'requires-terminal-tty',
+    });
+  });
 });
 
 describe('readExtensionCompatibility', () => {
