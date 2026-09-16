@@ -128,29 +128,54 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [controller]);
 
-  // Keep the primary layout's lone view and the workbench session in step.
-  // The workbench session leads (sidebar, new chat, restore, layout
-  // hydration). The one exception is collapsing a split or tab strip back to
-  // a lone session view: the conversation left on stage becomes the
+  // Keep the unsplit stage and the workbench session in step. Sidebar clicks
+  // switch the conversation; leftover session tabs on an unsplit stage are
+  // folded away. The one exception is collapsing a split (or leftover tabs)
+  // back to a lone session view: the conversation left on stage becomes the
   // workbench session.
-  const layoutSessionId = isPrimaryDockingLayout(state) ? primaryLayoutSessionId(state) : undefined;
+  const unsplit = state.stage.kind === 'group';
+  const unsplitViewCount =
+    state.stage.kind === 'group' ? (state.groups[state.stage.groupId]?.viewIds.length ?? 0) : 0;
+  const activeUnsplitSessionId = unsplit ? primaryLayoutSessionId(state) : null;
+  const layoutSessionId = isPrimaryDockingLayout(state) ? activeUnsplitSessionId : undefined;
   const promoteSessionRef = useRef(onPromoteSession);
   promoteSessionRef.current = onPromoteSession;
   const syncRef = useRef<{ primary: string | null; view: string | null | undefined } | null>(null);
   const { setState: setWorkspaceState, createId: createWorkspaceId } = controller;
   useEffect(() => {
     const previous = syncRef.current;
+    const workbenchChanged = previous !== null && previous.primary !== primarySessionId;
     syncRef.current = { primary: primarySessionId, view: layoutSessionId };
-    if (layoutSessionId === undefined || layoutSessionId === primarySessionId) return;
     const collapsedToLoneView =
       previous !== null && previous.primary === primarySessionId && previous.view === undefined;
     const promote = promoteSessionRef.current;
-    if (collapsedToLoneView && layoutSessionId !== null && promote) {
+    if (
+      collapsedToLoneView &&
+      layoutSessionId !== null &&
+      layoutSessionId !== undefined &&
+      layoutSessionId !== primarySessionId &&
+      promote
+    ) {
       promote(layoutSessionId);
       return;
     }
+    if (!unsplit) return;
+    if (unsplitViewCount > 1) {
+      const keep = workbenchChanged ? primarySessionId : activeUnsplitSessionId;
+      setWorkspaceState((current) => syncPrimarySessionView(current, keep, createWorkspaceId));
+      return;
+    }
+    if (layoutSessionId === undefined || layoutSessionId === primarySessionId) return;
     setWorkspaceState((current) => syncPrimarySessionView(current, primarySessionId, createWorkspaceId));
-  }, [createWorkspaceId, layoutSessionId, primarySessionId, setWorkspaceState]);
+  }, [
+    activeUnsplitSessionId,
+    createWorkspaceId,
+    layoutSessionId,
+    primarySessionId,
+    setWorkspaceState,
+    unsplit,
+    unsplitViewCount,
+  ]);
 
   useEffect(() => {
     if (props.keyboardEnabled === false || phoneSinglePane) return;

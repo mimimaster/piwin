@@ -229,8 +229,9 @@ export function buildPiProviderRegistration(
   const streamSimple = resolveProviderStreamSimple({
     api,
     models: nativeFlags,
-    searchRoute: options.searchRoute,
-    streamSimple: options.streamSimple,
+    // Optional under exactOptionalPropertyTypes: omit rather than pass undefined.
+    ...(options.searchRoute === undefined ? {} : { searchRoute: options.searchRoute }),
+    ...(options.streamSimple === undefined ? {} : { streamSimple: options.streamSimple }),
   });
   if (streamSimple) {
     registration.streamSimple = streamSimple;

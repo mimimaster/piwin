@@ -2,10 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ModelProviderConfig, ModelRef, PiwinConfig } from '@piwin/contracts';
 import { composeLiveReviewer } from './compose-live-reviewer.js';
 import { createDefaultPiwinConfig } from '../config-store.js';
+import { getPiwinPiAgentDir } from '../paths.js';
 
 const model: ModelRef = { providerId: 'xai', modelId: 'grok-4.6', source: 'subscription' };
 const request = { sessionId: 'session', instruction: '不用确认啦', tasks: [], signal: new AbortController().signal };
 const channel: ModelProviderConfig = { id: 'local', name: 'Local', protocol: 'openai-compatible', baseUrl: 'http://localhost/v1', models: [{ id: 'local-model' }] };
+
+const PIWIN_ROOT = '/tmp/piwin-voice-test';
+const agentDir = getPiwinPiAgentDir(PIWIN_ROOT);
 
 function setup(config: Pick<PiwinConfig, 'providers'> = { providers: [] }, desired: ModelRef = model) {
   const complete = vi.fn<NonNullable<Parameters<typeof composeLiveReviewer>[0]['complete']>>(async () => '{"kind":"conversation"}');
@@ -15,6 +19,7 @@ function setup(config: Pick<PiwinConfig, 'providers'> = { providers: [] }, desir
     loadConfig: async () => ({ ...createDefaultPiwinConfig(), ...config }),
     resolveAccounts: async () => ({ accounts: [{ providerId: 'xai', surface: 'v1', state: 'logged-in' }], catalogModelIds: new Map([['xai', ['grok-4.6']]]) }),
     resolveSessionModel, secrets: { resolveProviderSecret: secret }, complete,
+    piwinRoot: PIWIN_ROOT,
   });
   return { review, complete, secret, resolveSessionModel };
 }
@@ -24,7 +29,7 @@ describe('Host intent model composition', () => {
     const fixture = setup();
     expect(await fixture.review(request)).toEqual({ kind: 'conversation' });
     expect(fixture.resolveSessionModel).toHaveBeenCalledWith('session');
-    expect(fixture.complete).toHaveBeenCalledWith(expect.objectContaining({ model, maxOutputTokens: 512 }), {});
+    expect(fixture.complete).toHaveBeenCalledWith(expect.objectContaining({ model, maxOutputTokens: 512 }), { agentDir });
     expect(fixture.secret).not.toHaveBeenCalled();
   });
 
@@ -34,7 +39,7 @@ describe('Host intent model composition', () => {
     const fixture = setup({ providers: [provider] }, selected);
     await fixture.review(request);
     expect(fixture.complete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.objectContaining(selected) }), {
-      provider, ...(keyConfigured ? { apiKey: 'test-key' } : {}),
+      provider, ...(keyConfigured ? { apiKey: 'test-key' } : {}), agentDir,
     });
     expect(fixture.secret).toHaveBeenCalledTimes(keyConfigured ? 1 : 0);
   });

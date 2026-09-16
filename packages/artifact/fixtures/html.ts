@@ -25,6 +25,22 @@ export const SCRIPT_FRAGMENT_HTML = [
   artifactEndMarker('script-fragment'),
 ].join('');
 
+/**
+ * Vault image id is a placeholder; the host binds it at materialize time.
+ * The script keeps this fixture on the sandbox path, where a `blob:` src
+ * would be unreadable and only an inlined `data:` image can paint.
+ */
+export const SESSION_MEDIA_MEDIA_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+export const SESSION_MEDIA_HTML = [
+  '<figure style="margin:0"><img data-piwin-media="' +
+    SESSION_MEDIA_MEDIA_ID +
+    '" alt="Vault asset" data-testid="session-media-img" style="width:64px;height:64px">',
+  '<figcaption>Session vault image</figcaption></figure>',
+  '<script>window.__piwinFixture="session-media"</script>',
+  artifactEndMarker('session-media'),
+].join('');
+
 export const NATIVE_SVG_SOURCE =
   '<svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg"><circle cx="60" cy="40" r="24" fill="teal" /></svg>';
 

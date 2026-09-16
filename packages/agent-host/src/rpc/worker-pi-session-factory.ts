@@ -306,8 +306,9 @@ export function buildWorkerProviderRegistration(
   const resolvedStream = resolveProviderStreamSimple({
     api,
     models: nativeFlags,
-    searchRoute,
-    streamSimple,
+    // Optional under exactOptionalPropertyTypes: omit rather than pass undefined.
+    ...(searchRoute === undefined ? {} : { searchRoute }),
+    ...(streamSimple === undefined ? {} : { streamSimple }),
   });
   if (resolvedStream) {
     registration.streamSimple = resolvedStream;

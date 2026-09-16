@@ -59,6 +59,8 @@
   min-height: 0;
   overflow: visible;
   padding: 0 var(--chat-inline-pad);
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .chat-column-empty:has(.empty-stage-landing) .transcript-stage,
@@ -72,8 +74,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  width: min(660px, 100%);
-  max-width: 660px;
+  width: min(var(--conversation-width), calc(100% - 2 * var(--chat-inline-pad)));
+  max-width: var(--conversation-width);
   margin: 0 auto 28px;
   order: 1;
   box-sizing: border-box;
@@ -90,10 +92,11 @@
 
 .chat-column-empty .composer-dock.layout-centered {
   order: 2;
-  width: min(660px, 100%);
-  max-width: 660px;
-  margin: 0 auto;
-  padding: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 var(--chat-inline-pad);
+  box-sizing: border-box;
 }
 
 .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
@@ -104,8 +107,8 @@
   display: flex;
   flex-direction: column;
   order: 3;
-  width: min(660px, 100%);
-  max-width: 660px;
+  width: min(var(--conversation-width), calc(100% - 2 * var(--chat-inline-pad)));
+  max-width: var(--conversation-width);
   margin: 16px auto 0;
   box-sizing: border-box;
 }
@@ -248,6 +251,26 @@
   padding: var(--transcript-top-pad, 24px) var(--chat-inline-pad)
     var(--transcript-output-floor-gap, clamp(72px, 8vh, 96px));
   background: transparent;
+  /* Content dissolves into the stage at both scroll edges instead of being
+     sheared off by the title band and the composer. Masked on the scrollport,
+     not the viewport, so the floating scrollbar and jump button stay crisp.
+     Theme-agnostic: ink-wash stages are transparent, a color overlay is not. */
+  --transcript-edge-fade-top: 20px;
+  --transcript-edge-fade-bottom: 56px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--transcript-edge-fade-top),
+    #000 calc(100% - var(--transcript-edge-fade-bottom)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--transcript-edge-fade-top),
+    #000 calc(100% - var(--transcript-edge-fade-bottom)),
+    transparent 100%
+  );
 }
 
 .chat-stream::-webkit-scrollbar {

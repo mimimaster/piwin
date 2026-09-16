@@ -24,7 +24,7 @@ import { ArtifactFrame } from './ArtifactFrame';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { artifactDownloadLabel, downloadArtifactSource } from './artifact-source-export.js';
 import { useDesktopLocale } from './desktop-locale-context';
-import { useArtifactSessionMediaObjectUrls } from './artifact-session-media.js';
+import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
 
 export type ArtifactCanvasProposal = ComposerProposeTextActionPayload;
 
@@ -50,7 +50,7 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const [pendingProposal, setPendingProposal] = useState<ArtifactCanvasProposal | null>(null);
-  const mediaObjectUrls = useArtifactSessionMediaObjectUrls({
+  const mediaDataUrls = useArtifactSessionMediaDataUrls({
     source: activeTarget?.source ?? '',
     ...(activeTarget ? { originSessionId: activeTarget.sessionId } : {}),
   });
@@ -61,10 +61,10 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
       mode: activeTarget.streaming === true ? 'stream-preview' : 'interactive',
       source: activeTarget.source,
       presentation: 'canvas',
-      mediaObjectUrls,
+      mediaDataUrls,
       ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
     });
-  }, [activeTarget, props.artifactTheme, mediaObjectUrls]);
+  }, [activeTarget, props.artifactTheme, mediaDataUrls]);
 
   function handleInsert(): void {
     if (pendingProposal && props.onInsertProposal) {

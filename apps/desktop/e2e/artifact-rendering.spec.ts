@@ -104,7 +104,7 @@ test('artifact gallery mounts behind the e2e fixture gate', async ({ page }) => 
   await page.setViewportSize({ width: 1280, height: 840 });
   await page.goto(GALLERY);
   await expect(page.getByTestId('artifact-gallery')).toBeVisible();
-  await expect(page.getByTestId('artifact-gallery-case')).toHaveCount(13);
+  await expect(page.getByTestId('artifact-gallery-case')).toHaveCount(14);
 });
 
 test('script fragment mounts a sandboxed iframe without allow-same-origin', async ({ page }) => {
@@ -114,6 +114,21 @@ test('script fragment mounts a sandboxed iframe without allow-same-origin', asyn
   const after = section.getByText(ARTIFACT_TRAILING_MARKDOWN, { exact: true });
   await after.scrollIntoViewIfNeeded();
   await expect(after).toBeVisible();
+});
+
+test('session vault image paints inside the sandbox instead of erroring', async ({ page }) => {
+  const section = await openFixture(page, 'session-media');
+  const iframe = await waitForSandboxFrame(section);
+  // A blob: src belongs to the host origin and cannot be read from the
+  // sandbox's opaque origin; only an inlined data: image decodes here.
+  const image = await iframe.contentFrame().locator('[data-testid="session-media-img"]');
+  await expect(image).toHaveAttribute('src', /^data:image\//);
+  await expect
+    .poll(async () => image.evaluate((node: HTMLImageElement) => node.naturalWidth), {
+      timeout: 10_000,
+    })
+    .toBeGreaterThan(0);
+  expect(await image.evaluate((node: HTMLImageElement) => node.complete)).toBe(true);
 });
 
 test('inert fragment uses static flow and keeps trailing Markdown visible', async ({ page }) => {

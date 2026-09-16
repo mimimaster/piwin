@@ -59,7 +59,7 @@ function proposeUnopenedSession(
     }
     const opened = openSessionView(state, sessionId, context.createId, groupId);
     if (!opened.ok) return fail(opened.code, opened.message);
-    return { ok: true, state: opened.state, label: DOCKING_COPY.joinGroup };
+    return { ok: true, state: opened.state, label: DOCKING_COPY.switchPane };
   }
   if (zone.kind === 'group-edge') {
     if (!isStageGroupId(state, zone.groupId)) {
@@ -139,7 +139,11 @@ function proposeExistingView(
       zone.kind === 'group-tab' ? zone.index : undefined,
     );
     if (!moved.ok) return fail(moved.code, moved.message);
-    return { ok: true, state: moved.state, label: DOCKING_COPY.joinGroup };
+    return {
+      ok: true,
+      state: moved.state,
+      label: view.kind === 'session' ? DOCKING_COPY.switchPane : DOCKING_COPY.joinGroup,
+    };
   }
 
   if (zone.kind === 'group-edge') {

@@ -10,9 +10,11 @@
 /* ─── Agent interruption dock (shared shell, ADR 0023 + 0024) ──────── */
 
 .agent-interruption {
-  width: var(--chat-max);
-  max-width: 100%;
-  margin: 0 auto 0;
+  /* Measure-centered on the stage — same as turn body in the padded stream. */
+  width: min(100%, var(--conversation-width));
+  max-width: var(--conversation-width);
+  margin: 0 auto;
+  box-sizing: border-box;
   border-radius: var(--r-panel) var(--r-panel) 0 0;
   border: 0;
   background: var(--surface-3);

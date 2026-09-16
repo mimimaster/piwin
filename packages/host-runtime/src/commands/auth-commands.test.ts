@@ -93,6 +93,7 @@ describe('auth commands', () => {
       'anthropic',
       'xai',
       'github-copilot',
+      'anthropic-claude-code',
     ]);
 
     const unknown = await handleAuthCommand(

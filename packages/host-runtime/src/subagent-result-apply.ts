@@ -22,10 +22,15 @@ import type {
 
 export const SUBAGENT_RESULT_APPLY_TOOL_NAME = 'piwin_subagent_result_apply';
 
+/**
+ * Every code the invariant evaluator and the apply service can refuse with.
+ * It stays a strict subset of `SubagentResultApplyOutcome`; `mapInvariantCode`
+ * is what widens a refusal into the tool-facing `ToolResult` vocabulary.
+ */
 export type ReviewedApplyInvariantCode = Extract<
-  ToolResult,
+  SubagentResultApplyOutcome,
   { ok: false }
->['code'] | Extract<SubagentResultApplyOutcome, { ok: false }>['code'];
+>['code'];
 
 export type ReviewedApplyInvariantResult =
   | { ok: true; summary: SubagentResultSummary }
@@ -308,7 +313,6 @@ function mapInvariantCode(code: ReviewedApplyInvariantCode): Extract<ToolResult,
 function messageForApplyCode(code: ReviewedApplyInvariantCode): string {
   switch (code) {
     case 'not-found':
-    case 'review-target-not-found':
       return 'result was not found; refresh result state';
     case 'stale-revision':
       return 'result revision is stale';
@@ -317,7 +321,6 @@ function messageForApplyCode(code: ReviewedApplyInvariantCode): string {
     case 'candidate-group-selected':
       return 'another candidate in this group was already selected';
     case 'needs-repair':
-    case 'subagent-needs-integration':
       return 'integration conflict retained the candidate; needs-integration';
     case 'review-missing':
       return 'structured review is missing; collect a valid reviewer first';

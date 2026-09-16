@@ -80,13 +80,22 @@ export function reviewObservationFromRecord(
   };
 }
 
+/**
+ * Asks only for the manifest shape this read actually touches, so any store
+ * that can hand back reviewed tasks qualifies — including in-memory fakes.
+ */
+export type PersistedReviewManifestReader = {
+  loadManifest: (
+    runId: string,
+  ) => Promise<{ tasks: readonly { review?: SubagentReviewRecord }[] } | undefined>;
+};
+
 export async function loadPersistedReviewObservation(
-  store: Pick<SubagentRunStore, 'loadManifest'>,
+  store: PersistedReviewManifestReader,
   runId: string,
 ): Promise<SubagentReviewObservation | undefined> {
   const manifest = await store.loadManifest(runId);
-  const task = manifest?.tasks.find((candidate) => candidate.review) ??
-    manifest?.tasks.find((candidate) => candidate.reviewRef);
+  const task = manifest?.tasks.find((candidate) => candidate.review);
   if (task?.review) return reviewObservationFromRecord(task.review);
   return undefined;
 }
@@ -250,14 +259,17 @@ export function createSubagentReviewService(
       if (!decisionCheck.ok) {
         return reviewError('invalid-input', decisionCheck.issues[0]?.message ?? 'invalid review decision');
       }
+      const frozenRelativePaths = collectFrozenRelativePaths(
+        options.resultService,
+        summary.resultId,
+        summary.childChanges.revision,
+      );
       const bounds = validateSubagentReviewBounds({
         findings: input.findings,
         verification: input.verification,
-        frozenRelativePaths: collectFrozenRelativePaths(
-          options.resultService,
-          summary.resultId,
-          summary.childChanges.revision,
-        ),
+        // Optional under exactOptionalPropertyTypes: omit it rather than
+        // passing an explicit undefined when the listing could not be read.
+        ...(frozenRelativePaths === undefined ? {} : { frozenRelativePaths }),
       });
       if (!bounds.ok) {
         return reviewError('invalid-input', bounds.issues[0]?.message ?? 'review exceeds bounds');

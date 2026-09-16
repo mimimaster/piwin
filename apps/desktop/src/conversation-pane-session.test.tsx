@@ -29,6 +29,9 @@ class FakeHostClient {
     return 'remote';
   }
 
+  /** What the Host reports; real resumes send the bare kind string. */
+  resumeScope: unknown = { kind: 'general' };
+
   isReady(): boolean {
     return true;
   }
@@ -84,7 +87,7 @@ class FakeHostClient {
         success: true,
         data: {
           sessionId: command.sessionId,
-          scope: { kind: 'general' },
+          scope: this.resumeScope,
           name: 'Auxiliary Chat',
           messages: [
             message('user-1', 'user', 'Pane question'),
@@ -391,6 +394,19 @@ describe('ConversationPaneSession', () => {
     );
     expect(container?.querySelector('[aria-label="Stop response"]')).toBeNull();
     expect(container?.textContent).toContain('Pane answer');
+  });
+
+  it('loads a project conversation whose resume reports the bare "project" scope', async () => {
+    const host = new FakeHostClient();
+    host.resumeScope = 'project';
+    ({ container, root } = renderSession(host));
+
+    await vi.waitFor(() =>
+      expect(
+        container?.querySelector<HTMLElement>('[data-testid="conversation-pane-session"]')?.dataset,
+      ).toMatchObject({ awaitingTranscript: 'false', messageCount: '2' }),
+    );
+    expect(container?.textContent).not.toContain('Multi-pane can only open');
   });
 
   it('clears a stale binding when the Host reports that the session no longer exists', async () => {

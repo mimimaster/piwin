@@ -215,8 +215,8 @@ html[data-theme-id='piwin-inkstone-ink'] .intr.plan-execution-gate {
 
 html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray,
 html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray {
-  width: var(--chat-max, 720px);
-  max-width: calc(100% - 32px);
+  width: 100%;
+  max-width: var(--conversation-width);
   padding: 4px 0 8px;
 }
 

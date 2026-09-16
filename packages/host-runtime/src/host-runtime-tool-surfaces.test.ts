@@ -175,12 +175,13 @@ describe('HostRuntime tool surfaces', () => {
         await rm(piwinRoot, { recursive: true, force: true });
       }
     }
-    expect(namesByMode.sdk).toEqual([
+    const sdkNames = namesByMode.sdk ?? [];
+    expect(sdkNames).toEqual([
       SUBAGENT_RESULT_READ_TOOL_NAME,
       SUBAGENT_REVIEW_SUBMIT_TOOL_NAME,
     ]);
-    expect(namesByMode.sdk.includes(SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME)).toBe(false);
-    expect(namesByMode.rpc).toEqual(namesByMode.sdk);
+    expect(sdkNames.includes(SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME)).toBe(false);
+    expect(namesByMode.rpc).toEqual(sdkNames);
   });
 
   it('does not send array schemas without items to the model', async () => {

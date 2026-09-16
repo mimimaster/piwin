@@ -14,25 +14,48 @@ function dockBlock(): string {
 }
 
 describe('composer measure column', () => {
-  it('caps the slab at --conversation-width so a wide stage cannot grow it', () => {
+  it('uses stream-matching pad then centers the measure child', () => {
     const dock = dockBlock();
-    expect(dock).toContain('max-width: var(--conversation-width);');
+    expect(dock).toContain('align-self: stretch;');
+    expect(dock).toContain('width: 100%;');
+    expect(dock).toContain('padding: 0 var(--chat-inline-pad) var(--s-6);');
     expect(dock).toContain(
-      'width: min(var(--conversation-width), calc(100% - 2 * var(--chat-inline-pad)));',
+      'width: min(100%, var(--conversation-width));',
     );
-    expect(dock).toContain('min-width: 0;');
-    expect(dock).not.toContain('var(--gut)');
+    expect(dock).not.toMatch(/calc\(100cqw/);
+    expect(dock).not.toMatch(/var\(--gut/);
   });
 
-  it('does not let Inkstone restomp horizontal padding with the stream gutter', () => {
+  it('lets Inkstone zero Deck elevation tokens so the light-face white inset rim cannot leak', () => {
+    expect(inkstoneComposerCss).toContain('--elev-3: none;');
+    expect(inkstoneComposerCss).toContain('--elev-4: none;');
+    expect(composerCss).toContain('box-shadow: var(--elev-3);');
+  });
+
+  it('strips native field appearance so WKWebView cannot paint a white bezel', () => {
+    expect(composerCss).toMatch(
+      /\.composer-v2-textarea \{[\s\S]*?-webkit-appearance: none;/,
+    );
+  });
+
+  it('does not draw an iris focus ring on the slab', () => {
+    expect(composerCss).toMatch(
+      /\.composer-card-v2:focus-within,\s*\n\.composer-card-v2:hover:focus-within \{\s*outline: none;\s*box-shadow: var\(--elev-3\);/,
+    );
+    expect(composerCss).not.toMatch(
+      /\.composer-card-v2:focus-within[\s\S]{0,80}0 0 0 1px var\(--iris\)/,
+    );
+  });
+
+  it('does not let Inkstone restomp horizontal padding with a second gutter', () => {
     expect(inkstoneComposerCss).not.toMatch(
       /\.composer-dock \{[^}]*padding:\s*8px\s+var\(--chat-inline-pad\)/,
     );
   });
 
-  it('keeps the empty landing from inheriting the conversation cap', () => {
+  it('keeps empty landing on the same pad+measure path', () => {
     expect(composerCss).toMatch(
-      /\.composer-dock\.layout-centered \{[\s\S]*?max-width: none;/,
+      /\.chat-column-empty \.composer-dock\.layout-centered \{[\s\S]*?padding: 0 var\(--chat-inline-pad\);/,
     );
   });
 });

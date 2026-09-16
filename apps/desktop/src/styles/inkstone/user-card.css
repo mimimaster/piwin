@@ -1,0 +1,245 @@
+/* Inkstone user card (.ucard) & user edit card (.ucard.edit) per proto-01.
+   Split from inkstone/transcript.css per AGENTS.md 3.2 (<1000 lines). */
+
+/* User card (.ucard) */
+html[data-theme-id='piwin-inkstone-paper'] .ucard,
+html[data-theme-id='piwin-inkstone-ink'] .ucard,
+html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible,
+html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible {
+  position: relative;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  border-radius: 8px;
+  padding: var(--card-y) var(--card-x);
+  font-size: 14.5px;
+  line-height: 1.72;
+  color: var(--t1);
+  border: 0;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .ucard code,
+html[data-theme-id='piwin-inkstone-ink'] .ucard code,
+html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible code,
+html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible code {
+  background: var(--s1);
+}
+
+
+/* User card in Agent Mode resets outer bubble container so only .ucard renders the card (ADR: 禁止卡中卡) */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble),
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user.is-editing,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.is-editing,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble).is-editing {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  margin: var(--s-1) 0 var(--s-3) !important;
+  width: 100%;
+  max-width: 100%;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble):hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user.is-editing:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble).is-editing:hover {
+  box-shadow: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble)::before,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble)::after,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user.is-editing::before,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user.is-editing::after,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble).is-editing::before,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble).is-editing::after {
+  content: none !important;
+  display: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .bubble.role-user:not(.is-conversation-bubble)
+  .user-message-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .bubble.role-user:not(.is-conversation-bubble)
+  .user-message-collapsible {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .bubble.role-user:not(.is-conversation-bubble)
+  .user-message-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  margin: 0;
+  z-index: 2;
+}
+
+/* User edit card (.ucard.edit) per proto-01 */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit {
+  position: relative;
+  background: var(--s3);
+  box-shadow: 0 0 0 1.5px var(--zhu), var(--sh1);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 2px 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit textarea,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit textarea:focus,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit textarea:focus-visible,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit textarea:active {
+  display: block;
+  width: 100%;
+  min-height: 74px;
+  border: 0 !important;
+  background: transparent !important;
+  resize: none;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  color: var(--t1);
+  font: 14.5px/1.72 var(--sans);
+  box-sizing: border-box;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font: 11px var(--mono);
+  color: var(--t4);
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .acts {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  min-width: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-control,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-control {
+  flex: none;
+  min-width: 0;
+  margin-right: 4px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-trigger,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-trigger {
+  height: 22px;
+  max-width: 200px;
+  padding: 0 6px;
+  color: var(--t2);
+  font-family: var(--sans);
+  font-size: 11.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-trigger:hover:not(:disabled),
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-trigger:hover:not(:disabled) {
+  background: var(--s2);
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 3px;
+  font: 500 11px var(--serif);
+  background: var(--s2);
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-model {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--t2);
+  font-size: 11.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-value,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-prefix {
+  color: var(--t3);
+  font-size: 11.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--t2);
+  font-size: 11.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-chevron,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-chevron {
+  display: block;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .ml {
+  margin-left: auto;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t2);
+  white-space: nowrap;
+  flex: none;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn:hover {
+  background: var(--s2);
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn.pri {
+  background: var(--zhu);
+  color: var(--on-zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn.pri:hover {
+  background: var(--zhu-lift);
+  color: var(--on-zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn.sm {
+  height: 22px;
+  padding: 0 7px;
+  font-size: 11.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

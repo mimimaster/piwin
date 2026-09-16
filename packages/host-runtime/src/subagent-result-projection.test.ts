@@ -207,17 +207,24 @@ describe('persistSubagentTaskResult', () => {
     const runStore = createSubagentRunStore({ runsDir: join(piwinRoot, 'subagent-runs') });
     await runStore.createManifest('run-1', {
       parentSessionId: 'parent-1',
-      tasks: [{ id: 'task-1', task: 'implement login', deliveryIntent: 'candidate' }],
+      tasks: [
+        {
+          id: 'task-1',
+          task: 'implement login',
+          deliveryIntent: 'candidate',
+          parentSessionId: 'parent-1',
+        },
+      ],
     });
     const resultService = createSubagentResultService();
     const result = firstCandidateResult();
     await persistSubagentTaskResult(
       {
-        options: { piwinRoot },
+        options: { mode: 'sdk', piwinRoot },
         subagentResultService: resultService,
         subagentRunStore: runStore,
         push() {},
-      } as HostRuntimeKernel,
+      },
       'parent-1',
       result,
     );

@@ -32,14 +32,29 @@ describe('Inkstone composer.css context capsules', () => {
     expect(composer).not.toMatch(/animation:\s*orbit/);
   });
 
-  it('keeps focus-within on --sh3 without a Deck iris/zhu ring', () => {
+  it('keeps the slab flat — no elevation, no stroked outline', () => {
     expect(composer).toMatch(
-      /\.slab:is\(:focus-within, :hover:focus-within\) \{\s*box-shadow: var\(--sh3\);/,
+      /html\[data-theme-id='piwin-inkstone-paper'\] \.slab,\s*\nhtml\[data-theme-id='piwin-inkstone-ink'\] \.slab \{[\s\S]*?box-shadow: none;/,
+    );
+    expect(composer).toContain('--elev-3: none;');
+    expect(composer).toContain('--elev-4: none;');
+    expect(composer).toContain('outline: none !important;');
+    expect(composer).toContain('box-shadow: none !important;');
+    expect(composer).not.toMatch(
+      /:focus-within[\s\S]{0,200}0 0 0 1px var\(--(?:iris|zhu|l3)\)/,
     );
     expect(composer).not.toMatch(
-      /\.slab:is\(:focus-within[\s\S]{0,80}0 0 0 1px var\(--(?:iris|zhu)\)/,
+      /box-shadow: 0 14px 34px/,
     );
   });
+
+  it('paints the slab fill on a clipped face so WKWebView cannot punch a white cap', () => {
+    expect(composer).toContain('background: transparent;');
+    expect(composer).toMatch(/\.slab-face \{[\s\S]*?background: var\(--slab\);[\s\S]*?overflow: hidden;/);
+    expect(composer).not.toContain('transform: translateZ(0);');
+    expect(composer).toContain('-webkit-appearance: none;');
+  });
+
 
   it('pins toolbar icon buttons to proto-02 .sb-chip.ic, including Mantine --ai-size', () => {
     expect(composer).toMatch(

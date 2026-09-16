@@ -12,6 +12,7 @@ import type { BackendSessionHandle } from './backends/pi-session-backend.js';
 import { createBackendSdkSession } from './backends/sdk-backend-session.js';
 import { WorkerSessionBackend } from './backends/worker-rpc-session-backend.js';
 import { AgentWorkerSupervisor } from './agent-worker-supervisor.js';
+import { PIWIN_PI_AGENT_DIR_ENV } from './pi-runtime-agent-dir.js';
 import type { SerializableProviderRuntime } from './rpc/serializable-blueprint.js';
 import {
   FIXTURE_API_KEY,
@@ -153,6 +154,11 @@ export async function openTurnAuthorityBackend(input: {
     worker: {
       env: {
         HOME: input.home.homeDir,
+        // Name the agentDir outright, as the SDK branch does. The worker
+        // resolves it via resolvePiRuntimeAgentDir, which no longer derives
+        // `$HOME/.pi/agent`; without this it reads no fixture settings.json
+        // and falls back to Pi's default retry count and idle timeout.
+        [PIWIN_PI_AGENT_DIR_ENV]: input.home.agentDir,
         [FIXTURE_API_KEY_ENV]: FIXTURE_API_KEY,
       },
     },

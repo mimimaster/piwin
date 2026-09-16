@@ -32,6 +32,20 @@ describe('docking workspace commands', () => {
     expect(second.state.sessionTargetId).toBe('s1');
   });
 
+  it('rebinds the group session instead of stacking a second tab', () => {
+    const { createId, state } = setup();
+    const first = openSessionView(state, 's1', createId);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const viewId = first.state.focusedViewId;
+    const second = openSessionView(first.state, 's2', createId);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(Object.keys(second.state.views)).toHaveLength(1);
+    expect(second.state.focusedViewId).toBe(viewId);
+    expect(second.state.sessionTargetId).toBe('s2');
+  });
+
   it('hard-caps stage groups at four and keeps two-level topology', () => {
     const { createId } = setup();
     let state = createWorkspaceState(createId);
@@ -119,7 +133,12 @@ describe('docking workspace commands', () => {
     const opened = openSessionView(createWorkspaceState(createId), 'keep', createId);
     expect(opened.ok).toBe(true);
     if (!opened.ok) return;
-    const extra = openSessionView(opened.state, 'gone', createId);
+    const groupId = listStageGroupIds(opened.state.stage)[0];
+    if (!groupId) throw new Error('missing group');
+    const split = splitGroupAtEdge(opened.state, groupId, 'right', createId);
+    expect(split.ok).toBe(true);
+    if (!split.ok) return;
+    const extra = openSessionView(split.state, 'gone', createId, split.state.activeGroupId);
     expect(extra.ok).toBe(true);
     if (!extra.ok) return;
     const gone = Object.values(extra.state.views).find((view) => view.sessionId === 'gone');

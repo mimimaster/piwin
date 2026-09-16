@@ -151,6 +151,15 @@ export function createSubagentResultReadTool(
         };
       }
 
+      // summary can report "no changes"; files/diff have nothing to page over.
+      const childChanges = authorized.summary.childChanges;
+      if (childChanges === null) {
+        return reviewError(
+          'review-target-not-found',
+          'result froze no child changes, so there are no files to read',
+        );
+      }
+
       if (modeRaw === 'files') {
         if (args.cursor !== undefined && typeof args.cursor !== 'string') {
           return reviewError('invalid-input', 'cursor must be a string');
@@ -163,7 +172,7 @@ export function createSubagentResultReadTool(
         }
         const page = options.resultService.listFiles({
           resultId: parsedResult.value.resultId,
-          revision: authorized.summary.childChanges.revision,
+          revision: childChanges.revision,
           ...(typeof args.cursor === 'string' ? { cursor: args.cursor } : {}),
           ...(typeof args.limit === 'number' ? { limit: args.limit } : {}),
         });
@@ -185,7 +194,7 @@ export function createSubagentResultReadTool(
       }
       const diff = await options.resultService.diffFile({
         resultId: parsedResult.value.resultId,
-        revision: authorized.summary.childChanges.revision,
+        revision: childChanges.revision,
         fileId,
       });
       if (!diff.ok) {
