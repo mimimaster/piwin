@@ -509,6 +509,10 @@ export type ChatUiState = {
    */
   attentionVisibleSessionIds: Record<string, true>;
   /**
+   * True when a settings subpage or overlay covers the conversation stage (AN-R04).
+   */
+  attentionConversationCovered: boolean;
+  /**
    * Frozen composer model for the in-flight turn. Stamped onto assistant rows
    * when Host omits `message/start.model`. Historic headers must not read the
    * live composer selection.
@@ -737,4 +741,4 @@ export type ChatUiAction =
   | { type: 'context-telemetry/host-instance'; hostInstanceId: string | null }
   | { type: 'context-telemetry/invalidate'; sessionId: string }
   | { type: 'attention/presence'; presence: 'active' | 'inactive' }
-  | { type: 'attention/visible-sessions'; sessionIds: readonly string[] };
+  | { type: 'attention/visible-sessions'; sessionIds: readonly string[]; conversationCovered?: boolean };
