@@ -16,6 +16,7 @@ import {
   permissionQueueFields,
   reconcilePermissionQueue,
 } from './permission-queue';
+import { reduceAttentionAction } from './chat-reducer-attention';
 
 export type {
   ChatMessageUi,
@@ -126,6 +127,8 @@ export function createInitialChatUiState(): ChatUiState {
     workingSessionIds: {},
     completedAttentionSessionIds: {},
     failedAttentionSessionIds: {},
+    attentionPresence: 'active',
+    attentionVisibleSessionIds: {},
     pendingTurnModel: null,
   };
 }
@@ -288,6 +291,9 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       }
       return { ...state, ...permissionQueueFields(nextQueue) };
     }
+    case 'attention/presence':
+    case 'attention/visible-sessions':
+      return reduceAttentionAction(state, action);
     case 'error':
       return {
         ...state,

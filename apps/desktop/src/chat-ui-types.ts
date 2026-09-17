@@ -500,6 +500,15 @@ export type ChatUiState = {
    */
   failedAttentionSessionIds: Record<string, true>;
   /**
+   * Window presence for attention notifications (AN-I05).
+   * `active` means the main window is focused and the document is visible.
+   */
+  attentionPresence: 'active' | 'inactive';
+  /**
+   * Session IDs currently visible in the conversation stage (AN-R04).
+   */
+  attentionVisibleSessionIds: Record<string, true>;
+  /**
    * Frozen composer model for the in-flight turn. Stamped onto assistant rows
    * when Host omits `message/start.model`. Historic headers must not read the
    * live composer selection.
@@ -726,4 +735,6 @@ export type ChatUiAction =
   | { type: 'context-telemetry/disconnect' }
   | { type: 'context-telemetry/reconnect' }
   | { type: 'context-telemetry/host-instance'; hostInstanceId: string | null }
-  | { type: 'context-telemetry/invalidate'; sessionId: string };
+  | { type: 'context-telemetry/invalidate'; sessionId: string }
+  | { type: 'attention/presence'; presence: 'active' | 'inactive' }
+  | { type: 'attention/visible-sessions'; sessionIds: readonly string[] };

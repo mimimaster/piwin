@@ -4,3 +4,7 @@ export * from './host-request-attempt.js';
 export * from './flashcard-study-pending.js';
 export * from './flashcard-study-view-model.js';
 export * from './flashcard-study-controller.js';
+export * from './attention-signal.js';
+export * from './attention-policy.js';
+export * from './attention-notify-ledger.js';
+export * from './attention-copy.js';
