@@ -3,12 +3,46 @@ import { access, mkdir, mkdtemp, realpath, symlink, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { crc32, deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import type { ProjectRecord } from '@piwin/contracts';
+import {
+  PROJECT_PREVIEW_CHUNK_BYTES,
+  type HostResponse,
+  type ProjectRecord,
+} from '@piwin/contracts';
 import { handleProjectCommand } from './project-commands.js';
 import { getPiwinGeneralWorkspacePath } from '../paths.js';
 
 const execFileAsync = promisify(execFile);
+
+/** Stored (level 0) RGBA PNG: large on disk, trivially decodable. */
+function uncompressedGradientPng(width: number, height: number): Buffer {
+  const chunk = (type: string, body: Buffer): Buffer => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(body.byteLength);
+    const typed = Buffer.concat([Buffer.from(type, 'ascii'), body]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(typed));
+    return Buffer.concat([length, typed, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+  const rows = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y += 1) {
+    const row = y * (width * 4 + 1);
+    for (let x = 0; x < width; x += 1) {
+      rows.set([x % 256, y % 256, 128, 255], row + 1 + x * 4);
+    }
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(rows, { level: 0 })),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 describe('project commands', () => {
   it('removes a remembered project without deleting its project directory', async () => {
@@ -42,6 +76,96 @@ describe('project commands', () => {
       data: { projects: [] },
     });
     await expect(access(projectPath)).resolves.toBeUndefined();
+  });
+
+  it('splits image previews that would overflow one Host wire frame into ranged slices', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-read-image-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(projectPath);
+    const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const small = Buffer.concat([pngSignature, Buffer.alloc(80 * 1024, 1)]);
+    const large = Buffer.concat([
+      pngSignature,
+      Buffer.from(Array.from({ length: 1_400_000 }, (_, index) => (index * 31) % 256)),
+    ]);
+    await writeFile(join(projectPath, 'small.png'), small);
+    await writeFile(join(projectPath, 'icon_white.png'), large);
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open', rootDir);
+    const wireBytes = (value: unknown): number => Buffer.byteLength(JSON.stringify(value));
+    const dataOf = (response: HostResponse | null): unknown =>
+      response?.success ? response.data : undefined;
+
+    const inline = await handleProjectCommand(
+      { type: 'project/read-file', projectPath, relativePath: 'small.png' },
+      'small',
+      rootDir,
+    );
+    expect(dataOf(inline)).toMatchObject({
+      previewDataUrl: `data:image/png;base64,${small.toString('base64')}`,
+    });
+
+    const head = await handleProjectCommand(
+      { type: 'project/read-file', projectPath, relativePath: 'icon_white.png' },
+      'large',
+      rootDir,
+    );
+    const headData = dataOf(head) as { previewDataUrl?: string; previewChunkBytes?: number };
+    expect(head?.success).toBe(true);
+    expect(headData.previewDataUrl).toBeUndefined();
+    expect(headData.previewChunkBytes).toBe(PROJECT_PREVIEW_CHUNK_BYTES);
+
+    const parts: string[] = [];
+    for (let offset = 0; offset < large.byteLength; offset += PROJECT_PREVIEW_CHUNK_BYTES) {
+      const slice = await handleProjectCommand(
+        {
+          type: 'project/read-file',
+          projectPath,
+          relativePath: 'icon_white.png',
+          previewRange: { offset, length: PROJECT_PREVIEW_CHUNK_BYTES },
+        },
+        `slice-${offset}`,
+        rootDir,
+      );
+      expect(wireBytes(slice)).toBeLessThan(1_000_000);
+      const chunk = (dataOf(slice) as { previewChunk?: { offset: number; base64Data: string } })
+        .previewChunk;
+      expect(chunk?.offset).toBe(offset);
+      parts.push(chunk?.base64Data ?? '');
+    }
+    expect(parts.join('')).toBe(large.toString('base64'));
+
+    const outOfRange = await handleProjectCommand(
+      {
+        type: 'project/read-file',
+        projectPath,
+        relativePath: 'icon_white.png',
+        previewRange: { offset: large.byteLength, length: 10 },
+      },
+      'bad-range',
+      rootDir,
+    );
+    expect(outOfRange?.success).toBe(false);
+  });
+
+  it('sends a decodable WebP placeholder with a ranged image preview', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-read-thumb-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(projectPath);
+    await writeFile(join(projectPath, 'gradient.png'), uncompressedGradientPng(900, 900));
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open', rootDir);
+
+    const read = await handleProjectCommand(
+      { type: 'project/read-file', projectPath, relativePath: 'gradient.png' },
+      'thumb',
+      rootDir,
+    );
+    const data = (read?.success ? read.data : undefined) as {
+      previewChunkBytes?: number;
+      previewThumbDataUrl?: string;
+    };
+    expect(data.previewChunkBytes).toBe(PROJECT_PREVIEW_CHUNK_BYTES);
+    expect(data.previewThumbDataUrl).toMatch(/^data:image\/webp;base64,UklGR/);
+    expect(Buffer.byteLength(JSON.stringify(read))).toBeLessThan(1_000_000);
   });
 
   it('reads a text file under a registered project root', async () => {

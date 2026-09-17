@@ -116,7 +116,7 @@ function DockDocSurface(props: { hosts: DockToolHosts }): ReactElement {
   );
 }
 
-export function DockToolSurface(props: { view: WorkspaceView }): ReactElement {
+export function DockToolSurface(props: { view: WorkspaceView; inRightPanel?: boolean }): ReactElement {
   const hosts = useDockToolHosts();
   const locale = hosts?.locale ?? 'en';
   if (!hosts) {
@@ -149,7 +149,8 @@ export function DockToolSurface(props: { view: WorkspaceView }): ReactElement {
         activeTarget={hosts.artifactTarget}
         artifactTheme={mapThemeToArtifactVariables(hosts.activeTheme)}
         artifactThemeKey={hosts.artifactThemeKey}
-onInsertProposal={(proposal) => hosts.onInsertCanvasProposal(proposal.text)}
+        onInsertProposal={(proposal) => hosts.onInsertCanvasProposal(proposal.text)}
+        hideFloatingDownload={props.inRightPanel === true}
       />
     );
   }

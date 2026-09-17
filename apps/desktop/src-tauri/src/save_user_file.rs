@@ -55,7 +55,8 @@ mod tests {
         .expect("copy");
         assert_eq!(fs::read(&copied).expect("read copy"), b"hello");
 
-        write_saved_file(written.to_string_lossy().into_owned(), b"pixels".to_vec()).expect("write");
+        write_saved_file(written.to_string_lossy().into_owned(), b"pixels".to_vec())
+            .expect("write");
         assert_eq!(fs::read(&written).expect("read write"), b"pixels");
 
         let _ = fs::remove_dir_all(&dir);

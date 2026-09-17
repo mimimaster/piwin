@@ -1,11 +1,18 @@
 /**
  * project/open + remove + trust + permissions + list-dir + read-file.
  */
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { open, readFile, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { HostCommand, HostResponse, ProjectReadFileData, ProjectRecord } from '@piwin/contracts';
-import { formatError, inferAttachmentMimeType } from '@piwin/contracts';
+import {
+  formatError,
+  inferAttachmentMimeType,
+  PROJECT_PREVIEW_CHUNK_BYTES,
+  PROJECT_PREVIEW_INLINE_WIRE_BYTES,
+  PROJECT_PREVIEW_THUMB_EDGE_PX,
+} from '@piwin/contracts';
+import { renderImagePreviewWebp } from '@piwin/media';
 import {
   listProjects,
   listRememberedPermissions,
@@ -156,6 +163,7 @@ export async function handleProjectCommand(
         command.maxBytes,
         requestId,
         rootDir,
+        command.previewRange,
       );
     }
     default:
@@ -287,6 +295,8 @@ const DEFAULT_MAX_READ_BYTES = 256 * 1024;
 const HARD_MAX_READ_BYTES = 512 * 1024;
 /** Image previews may be larger than text; still capped to bound IPC payload. */
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024;
+/** Raw WebP cap for the ranged-image placeholder (~800 KB once base64'd). */
+const PROJECT_PREVIEW_THUMB_MAX_BYTES = 600 * 1024;
 
 function isInlineImagePreviewMime(mimeType: string): boolean {
   return mimeType.startsWith('image/');
@@ -306,6 +316,7 @@ async function readProjectFile(
   maxBytesInput: number | undefined,
   requestId: string | undefined,
   piwinRoot: string,
+  previewRange?: { offset: number; length: number },
 ): Promise<HostResponse> {
   const rootCheck = await requireBrowseRoot(
     projectsPath,
@@ -347,6 +358,17 @@ async function readProjectFile(
     return fail(requestId, 'project/read-file', 'path is not a file');
   }
 
+  if (previewRange !== undefined) {
+    return readProjectPreviewSlice({
+      requestId,
+      projectPath: resolved.rootReal,
+      relativePath: relativeNormalized,
+      absolutePath: targetAbsolute,
+      byteSize: fileStats.size,
+      range: previewRange,
+    });
+  }
+
   let buffer: Buffer;
   try {
     buffer = await readFile(targetAbsolute);
@@ -363,15 +385,40 @@ async function readProjectFile(
     (isBinary ? 'application/octet-stream' : 'text/plain');
 
   if (isInlineImagePreviewMime(inferredMime) && byteSize <= IMAGE_PREVIEW_MAX_BYTES) {
-    const data: ProjectReadFileData = {
+    const base = {
       projectPath: resolved.rootReal,
       relativePath: relativeNormalized,
       absolutePath: targetAbsolute,
-      content: isBinary ? '' : buffer.toString('utf8'),
       byteSize,
-      truncated: false,
       isBinary,
       mimeHint: inferredMime,
+    };
+    // A whole data URL beyond one Host wire frame fails the send (remote hosts
+    // surfaced it as "file not found"); announce ranged slices instead.
+    const inlineCost = Math.ceil(byteSize / 3) * 4 + (isBinary ? 0 : byteSize);
+    if (inlineCost > PROJECT_PREVIEW_INLINE_WIRE_BYTES) {
+      const thumb = isBinary
+        ? await renderImagePreviewWebp(targetAbsolute, {
+            edge: PROJECT_PREVIEW_THUMB_EDGE_PX,
+            quality: 80,
+          })
+        : null;
+      const data: ProjectReadFileData = {
+        ...base,
+        content: '',
+        truncated: !isBinary,
+        previewChunkBytes: PROJECT_PREVIEW_CHUNK_BYTES,
+        // Only when it saves a real trip and still fits the frame.
+        ...(thumb && thumb.byteLength <= PROJECT_PREVIEW_THUMB_MAX_BYTES
+          ? { previewThumbDataUrl: `data:image/webp;base64,${thumb.toString('base64')}` }
+          : {}),
+      };
+      return ok(requestId, 'project/read-file', data);
+    }
+    const data: ProjectReadFileData = {
+      ...base,
+      content: isBinary ? '' : buffer.toString('utf8'),
+      truncated: false,
       previewDataUrl: `data:${inferredMime};base64,${buffer.toString('base64')}`,
     };
     return ok(requestId, 'project/read-file', data);
@@ -408,6 +455,59 @@ async function readProjectFile(
     isBinary: false,
     mimeHint: inferredMime,
   });
+}
+
+/** One raw slice of an image preview that was too large to inline. */
+async function readProjectPreviewSlice(input: {
+  requestId: string | undefined;
+  projectPath: string;
+  relativePath: string;
+  absolutePath: string;
+  byteSize: number;
+  range: { offset: number; length: number };
+}): Promise<HostResponse> {
+  const { offset, length } = input.range;
+  if (
+    !Number.isSafeInteger(offset) ||
+    !Number.isSafeInteger(length) ||
+    offset < 0 ||
+    length <= 0 ||
+    length > PROJECT_PREVIEW_CHUNK_BYTES ||
+    offset >= input.byteSize
+  ) {
+    return fail(input.requestId, 'project/read-file', 'invalid preview range');
+  }
+  if (input.byteSize > IMAGE_PREVIEW_MAX_BYTES) {
+    return fail(input.requestId, 'project/read-file', 'file exceeds image preview limit');
+  }
+  let handle;
+  try {
+    handle = await open(input.absolutePath, 'r');
+    const sample = Buffer.alloc(Math.min(input.byteSize, 8000));
+    await handle.read(sample, 0, sample.length, 0);
+    const mimeType = inferAttachmentMimeType(input.relativePath, undefined, sample);
+    if (!mimeType || !isInlineImagePreviewMime(mimeType)) {
+      return fail(input.requestId, 'project/read-file', 'preview ranges are limited to images');
+    }
+    const slice = Buffer.alloc(Math.min(length, input.byteSize - offset));
+    const { bytesRead } = await handle.read(slice, 0, slice.length, offset);
+    const data: ProjectReadFileData = {
+      projectPath: input.projectPath,
+      relativePath: input.relativePath,
+      absolutePath: input.absolutePath,
+      content: '',
+      byteSize: input.byteSize,
+      truncated: false,
+      isBinary: true,
+      mimeHint: mimeType,
+      previewChunk: { offset, base64Data: slice.subarray(0, bytesRead).toString('base64') },
+    };
+    return ok(input.requestId, 'project/read-file', data);
+  } catch (error) {
+    return fail(input.requestId, 'project/read-file', `cannot read file: ${formatError(error)}`);
+  } finally {
+    await handle?.close();
+  }
 }
 
 /**

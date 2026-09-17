@@ -26,6 +26,7 @@ export type ProviderListCopy = {
 export type ModelTestState = {
   tone: 'ok' | 'error' | 'busy';
   message: string;
+  errorMessage?: string;
 };
 
 export type ProviderListProps = {

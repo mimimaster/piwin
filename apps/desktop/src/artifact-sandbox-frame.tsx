@@ -16,6 +16,7 @@ import { useArtifactFrameLease } from './artifact-frame-lifecycle.js';
 import {
   useArtifactDocument,
   useArtifactStreamPublisher,
+  usePublishedArtifactDocument,
   type ArtifactSandboxView,
 } from './artifact-frame-stream.js';
 import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
@@ -147,6 +148,7 @@ export function ArtifactSandboxFrame(props: {
     presentation: props.presentation,
     streaming: view.mode === 'stream-preview',
   });
+  usePublishedArtifactDocument(document, lease.hostIframe && lease.initGranted);
   const scrollPort = useTranscriptScrollPort();
   const bootstrapHeight = resolveBootstrapHeight(props.plan, props.presentation, frameWidth);
   const measureHeight = props.presentation === 'inline' && plannedFrameMode === 'inline-flow';

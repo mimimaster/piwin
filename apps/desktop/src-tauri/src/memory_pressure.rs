@@ -319,9 +319,8 @@ fn sample_available_ratio() -> Option<f64> {
     }
 
     let mut stats: libc::vm_statistics64_data_t = unsafe { mem::zeroed() };
-    let mut count =
-        (mem::size_of::<libc::vm_statistics64_data_t>() / mem::size_of::<libc::natural_t>())
-            as libc::mach_msg_type_number_t;
+    let mut count = (mem::size_of::<libc::vm_statistics64_data_t>()
+        / mem::size_of::<libc::natural_t>()) as libc::mach_msg_type_number_t;
     let result = unsafe {
         libc::host_statistics64(
             host,
@@ -418,7 +417,10 @@ mod tests {
             level_from_available_ratio(0.059),
             MemoryPressureLevel::Critical
         );
-        assert_eq!(level_from_available_ratio(0.0), MemoryPressureLevel::Critical);
+        assert_eq!(
+            level_from_available_ratio(0.0),
+            MemoryPressureLevel::Critical
+        );
     }
 
     #[test]

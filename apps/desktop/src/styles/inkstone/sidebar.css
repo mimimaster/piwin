@@ -128,7 +128,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .sidebar-tree-flow-item:first-child
+  :is(.sidebar-tree-flow-item, .sidebar-tree-virtual-item):first-child
   .sidebar-section-label {
   margin-top: 4px;
 }
@@ -144,9 +144,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 /* The conversations header used to sit below the projects section and carried
    a rule to divide them. It leads its own pane now, so the divider would be a
-   second line right under the destinations block's. */
+   second line right under the destinations block's. Lists with >60 rows wrap
+   as .sidebar-tree-virtual-item, so both wrappers have to match. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .sidebar-tree-flow-item:first-child
+  :is(.sidebar-tree-flow-item, .sidebar-tree-virtual-item):first-child
   .sidebar-section-label-row--conversations {
   margin-top: 4px;
   padding-top: 0;

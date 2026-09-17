@@ -114,4 +114,34 @@ export type ProjectReadFileData = {
    * file-tree viewer (asset protocol cannot scope arbitrary project paths).
    */
   previewDataUrl?: string;
+  /**
+   * Set instead of `previewDataUrl` when the inline data URL would not fit in
+   * one Host wire frame. The client fetches `previewRange` slices of this raw
+   * size and concatenates their base64 into the data URL.
+   */
+  previewChunkBytes?: number;
+  /**
+   * Downscaled WebP sent alongside `previewChunkBytes` so the viewer paints
+   * in one round trip while the full-resolution slices load.
+   */
+  previewThumbDataUrl?: string;
+  /** Present on a `previewRange` read: base64 of the requested raw slice. */
+  previewChunk?: { offset: number; base64Data: string };
 };
+
+/**
+ * Raw bytes per ranged image-preview slice. Same wire budget as media reads;
+ * a multiple of 3 so every non-final slice base64-encodes without padding and
+ * slices concatenate into one valid data URL.
+ */
+export const PROJECT_PREVIEW_CHUNK_BYTES = 384 * 1024;
+
+/**
+ * Encoded bytes a `project/read-file` response may spend on inline preview
+ * payload (data URL + text content) before switching to ranged slices. Stays
+ * under the 1 MiB Host wire frame with envelope headroom.
+ */
+export const PROJECT_PREVIEW_INLINE_WIRE_BYTES = 900 * 1024;
+
+/** Longest edge of the placeholder preview for a ranged image. */
+export const PROJECT_PREVIEW_THUMB_EDGE_PX = 1024;

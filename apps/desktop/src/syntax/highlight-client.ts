@@ -32,6 +32,8 @@ export type HighlightRequestOptions = {
   theme: 'github-dark' | 'github-light';
   lineStart?: number;
   lineEnd?: number;
+  /** Aborting drops a still-queued request; a dispatched one runs to completion. */
+  signal?: AbortSignal;
 };
 
 type PendingEntry = {
@@ -86,9 +88,24 @@ export class HighlightClient {
     };
 
     return new Promise<TokenLine[]>((resolve, reject) => {
+      const signal = options.signal;
+      if (signal?.aborted) {
+        reject(new Error('Highlight request aborted'));
+        return;
+      }
       const entry: PendingEntry = { request, resolve, reject };
       if (this.inFlight >= this.maxInFlight) {
         this.queue.push(entry);
+        signal?.addEventListener(
+          'abort',
+          () => {
+            const index = this.queue.indexOf(entry);
+            if (index === -1) return;
+            this.queue.splice(index, 1);
+            reject(new Error('Highlight request aborted'));
+          },
+          { once: true },
+        );
       } else {
         this.dispatchRequest(entry);
       }

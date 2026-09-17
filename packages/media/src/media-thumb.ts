@@ -61,6 +61,26 @@ async function writeOneThumb(
   }
 }
 
+/**
+ * Downscaled WebP for previewing an arbitrary (already path-checked) image,
+ * held in memory rather than written beside the source. Null when sharp
+ * cannot decode the file.
+ */
+export async function renderImagePreviewWebp(
+  sourcePath: string,
+  input: { edge: number; quality: number },
+): Promise<Buffer | null> {
+  try {
+    return await sharp(sourcePath)
+      .rotate()
+      .resize(input.edge, input.edge, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: input.quality })
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+
 export async function writeMediaThumbFromFile(
   options: Pick<MediaServiceOptions, 'mediaRoot'>,
   input: { sessionDir: string; assetId: string; sourcePath: string; edge?: MediaThumbEdge },

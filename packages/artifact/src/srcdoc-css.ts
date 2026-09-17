@@ -266,11 +266,13 @@ html[data-frame-mode="canvas"] .piwin-artifact-root {
   min-height: 100%;
 }
 /* Canvas is a viewport, not a gallery mat. The iframe is the design size;
-   host chrome must not center a phone card or add stage padding. */
+   host chrome must not center a phone card or add stage padding.
+   Layout defaults sit at zero specificity (:where) so the author's own body
+   layout (e.g. a vertically centered stage) still wins. */
 html[data-frame-mode="canvas"] {
   container-type: size;
 }
-html[data-frame-mode="canvas"] body {
+:where(html[data-frame-mode="canvas"] body) {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -278,16 +280,17 @@ html[data-frame-mode="canvas"] body {
   padding: 0;
   box-sizing: border-box;
 }
-html[data-frame-mode="canvas"] body > * {
+/* A full-height stage may give up spare room, but never shrink below its
+   content: a tall document scrolls in body instead of being crushed into
+   the panel height (cards overlapping, the last section cut off). */
+:where(html[data-frame-mode="canvas"] body > *) {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
   flex: 0 1 auto;
-  min-height: 0;
 }
-html[data-frame-mode="canvas"] .piwin-artifact-root {
-  flex: 1 1 auto;
-  height: 100%;
+:where(html[data-frame-mode="canvas"] .piwin-artifact-root) {
+  flex: 1 0 auto;
   align-items: stretch;
   justify-content: flex-start;
 }

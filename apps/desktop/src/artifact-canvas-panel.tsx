@@ -43,6 +43,8 @@ export type ArtifactCanvasPanelProps = {
    * `appendComposerProposal` and never auto-sends.
    */
   onInsertProposal?: (proposal: ArtifactCanvasProposal) => void;
+  /** The surrounding header renders Download, so no button floats over the artwork. */
+  hideFloatingDownload?: boolean;
 };
 
 export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactElement {
@@ -141,6 +143,7 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
           key={`${props.artifactThemeKey ?? 'default'}:${activeTarget.id}`}
           plan={plan}
           presentation="canvas"
+          locale={locale}
           initPriority={0}
           onComposerProposal={setPendingProposal}
         />
@@ -149,7 +152,7 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
           {isZh ? `正在准备「${activeTarget.title}」…` : `Preparing “${activeTarget.title}”…`}
         </div>
       )}
-      {canExportSource ? (
+      {canExportSource && props.hideFloatingDownload !== true ? (
         <div className="artifact-floating-actions artifact-canvas-export">
           <IconButton
             label={downloadLabel}

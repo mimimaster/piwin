@@ -33,8 +33,9 @@ mod macos {
                 _controller: &WKUserContentController,
                 message: &WKScriptMessage,
             ) {
-                // Sandboxed data: frames may be mis-reported as the main frame
-                // or about:blank, so frame identity is not a stable trust signal.
+                // Sandboxed artifact frames (piwin-artifact scheme or data: in browsers)
+                // may be mis-reported as the main frame or about:blank, so frame
+                // identity is not a stable trust signal.
                 // The bounded protocol parser plus UI channelId match remain.
                 unsafe {
                     let body = message.body();

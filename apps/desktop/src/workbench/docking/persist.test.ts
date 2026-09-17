@@ -10,7 +10,7 @@ import {
   saveWorkspaceState,
   serializeWorkspaceState,
 } from './persist.js';
-import { createWorkspaceState, openSessionView } from './view-commands.js';
+import { createWorkspaceState, openSessionView, openToolView } from './view-commands.js';
 
 class MemoryStorage {
   private readonly data = new Map<string, string>();
@@ -33,6 +33,29 @@ describe('docking persist', () => {
     expect(parsed?.displayMode).toBe('normal');
     expect(parsed?.maximizedGroupId).toBeNull();
     expect(parsed?.sessionTargetId).toBe('live');
+  });
+
+  it('drops cloned tool views saved by older layouts', () => {
+    const createId = createSequentialIdFactory();
+    const opened = openToolView(createWorkspaceState(createId), 'canvas', createId);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    const rightGroupId = opened.state.rightPanel.groupIds[0] ?? '';
+    const rightGroup = opened.state.groups[rightGroupId];
+    if (!rightGroup) throw new Error('missing right group');
+    const clone = { viewId: 'view-clone', kind: 'canvas' as const };
+    const cloned = {
+      ...opened.state,
+      views: { ...opened.state.views, [clone.viewId]: clone },
+      groups: {
+        ...opened.state.groups,
+        [rightGroupId]: { ...rightGroup, viewIds: [...rightGroup.viewIds, clone.viewId], activeViewId: clone.viewId },
+      },
+    };
+    const parsed = parseWorkspaceState(serializeWorkspaceState(cloned));
+    expect(Object.values(parsed?.views ?? {}).filter((view) => view.kind === 'canvas')).toHaveLength(1);
+    expect(parsed?.groups[rightGroupId]?.viewIds).toEqual(rightGroup.viewIds);
+    expect(parsed?.groups[rightGroupId]?.activeViewId).toBe(rightGroup.viewIds[0]);
   });
 
   it('migrates v1 storage after writing a one-shot backup', () => {

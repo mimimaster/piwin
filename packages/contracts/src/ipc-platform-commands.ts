@@ -143,6 +143,11 @@ export type PlatformHostCommand =
       relativePath: string;
       /** Soft cap in bytes (host may enforce a lower max). */
       maxBytes?: number;
+      /**
+       * Read one raw slice of an image preview announced via
+       * `previewChunkBytes`; `length` is capped at `PROJECT_PREVIEW_CHUNK_BYTES`.
+       */
+      previewRange?: { offset: number; length: number };
     }
   | { id?: string; type: 'media/save'; input: MediaSaveCommandInput }
   | { id?: string; type: 'media/save-begin'; input: MediaSaveBeginInput }
