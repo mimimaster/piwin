@@ -8,6 +8,7 @@ export type ComposerActivityCopy = {
   jumpHint: string;
   close: string;
   stop: string;
+  stopping: string;
   zsh: string;
 };
 
@@ -21,6 +22,7 @@ export function composerActivityCopy(locale: ComposerActivityLocale): ComposerAc
       jumpHint: 'Click to jump to the card',
       close: 'Close',
       stop: 'Stop',
+      stopping: 'Stopping…',
       zsh: 'zsh',
     };
   }
@@ -32,6 +34,7 @@ export function composerActivityCopy(locale: ComposerActivityLocale): ComposerAc
     jumpHint: '点击可跳至卡片',
     close: '关闭',
     stop: '停止',
+    stopping: '停止中…',
     zsh: 'zsh',
   };
 }

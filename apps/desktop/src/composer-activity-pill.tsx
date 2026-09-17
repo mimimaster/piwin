@@ -44,6 +44,9 @@ export type ComposerActivityPillProps = {
   onViewJobLogs: (jobId: string) => void;
   onStopJob: (jobId: string) => void;
   onCancelSubagentBatch: (runId: string) => void;
+  /** Stop-all for batches; falls back to one onCancelSubagentBatch per run. */
+  onCancelSubagentBatches?: (runIds: readonly string[]) => void;
+  isSubagentStopping?: (runId: string) => boolean;
   onOpenTasks: () => void;
   locale?: ComposerActivityLocale | undefined;
 };
@@ -107,20 +110,26 @@ function jobRowMeta(job: JobRecord): string {
 
 function renderSubagentStop(
   item: SubagentOrchestrationItem,
-  stopLabel: string,
+  copy: { stop: string; stopping: string },
   onCancelSubagentBatch: (runId: string) => void,
+  isSubagentStopping: ((runId: string) => boolean) | undefined,
 ): ReactElement | null {
   const runId = item.runId;
   if (runId === undefined || !isOrchestrationExecutionActive(item.executionStatus)) {
     return null;
   }
+  const stopping = isSubagentStopping?.(runId) === true;
+  const label = stopping ? copy.stopping : copy.stop;
   return (
     <button
       type="button"
       className="composer-activity-row-stop"
       data-testid="composer-activity-stop-subagent"
-      aria-label={stopLabel}
-      title={stopLabel}
+      data-stopping={stopping}
+      aria-label={label}
+      aria-busy={stopping}
+      title={label}
+      disabled={stopping}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -206,6 +215,9 @@ export function ComposerActivityPill(props: ComposerActivityPillProps): ReactEle
                   runIds: model.stopRunIds,
                   jobIds: model.stopJobIds,
                   cancelBatch: props.onCancelSubagentBatch,
+                  ...(props.onCancelSubagentBatches
+                    ? { cancelBatches: props.onCancelSubagentBatches }
+                    : {}),
                   stopJob: props.onStopJob,
                 });
                 setOpen(false);
@@ -238,7 +250,12 @@ export function ComposerActivityPill(props: ComposerActivityPillProps): ReactEle
                       <span className="composer-activity-row-title">{item.title}</span>
                       <span className="composer-activity-row-meta">{item.activity}</span>
                     </button>
-                    {renderSubagentStop(item, copy.stop, props.onCancelSubagentBatch)}
+                    {renderSubagentStop(
+                      item,
+                      copy,
+                      props.onCancelSubagentBatch,
+                      props.isSubagentStopping,
+                    )}
                   </div>
                 </li>
               ))}

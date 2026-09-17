@@ -19,12 +19,9 @@ import {
   resolveWorkDetailsDefaultOpen,
   type TurnPresentation,
 } from './run-presentation';
-import { runtimeStatusText } from './run-activity-strings.js';
-import { getBehaviorActivitySpec } from './behavior-activity.js';
 import { TurnToolGroup } from './turn-tool-group';
 import { PlanExecutionGate } from './plan-execution-gate.js';
 import { isPlanProgressTool } from './plan-todo-model.js';
-import { GateCard } from './gate-card';
 import { ExploreFlowCapsule } from './explore-flow-capsule';
 import type { ExploreFlowRole } from './explore-flow';
 import type { DocumentOpenInput } from './tool-call-card';
@@ -255,29 +252,6 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       {props.children}
 
       {anchorHasText ? exploreCapsule : null}
-
-      {permissionItem?.kind === 'permission' &&
-      props.permissionPrompt !== null &&
-      props.onPermission !== undefined ? (
-        <GateCard
-          prompt={props.permissionPrompt}
-          projectPath={props.projectPath ?? null}
-          onPermission={props.onPermission}
-        />
-      ) : permissionItem?.kind === 'permission' ? (
-        <div
-          className="turn-permission-wait behavior-gate-surface"
-          data-testid="turn-permission-wait"
-          data-activity-id="permission"
-          data-activity-animation={getBehaviorActivitySpec('permission').animation}
-          data-tool-status="running"
-          role="status"
-        >
-          <strong>{runtimeStatusText('asking', locale)}</strong>
-          <div>{permissionItem.action}</div>
-          {permissionItem.detail ? <div className="muted">{permissionItem.detail}</div> : null}
-        </div>
-      ) : null}
 
       <TurnToolGroup
         tools={callChainTools}

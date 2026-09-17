@@ -386,6 +386,7 @@ async function finalizePausedRun(
     if (run === undefined || run.runId !== runId || !context.isPauseRequested(runId)) {
       return;
     }
+    const interruptedSubagentRunIds = context.getPauseInterruptedSubagentRunIds(runId);
     const checkpoint = await context.withTranscriptStore(sessionId, async (store) => {
       const sourceUserMessage = await store.lastMessageByRole('user');
       const lastAssistantMessage = await store.lastMessageByRole('assistant');
@@ -404,6 +405,7 @@ async function finalizePausedRun(
           ? { lastAssistantMessageId: lastAssistantMessage.id }
           : {}),
         transcriptRevision: await store.getRevision(),
+        ...(interruptedSubagentRunIds.length > 0 ? { interruptedSubagentRunIds } : {}),
       });
     });
     context.attachResumeCheckpoint(runId, checkpoint.checkpointId);
@@ -508,13 +510,10 @@ export async function handleRunControlCommand(
         };
         return ok(requestId, 'session/pause', data);
       }
-      if (context.hasActiveDescendants(active.runId)) {
-        return fail(
-          requestId,
-          'session/pause',
-          'pause-unsupported-active-descendants: foreground run owns active child runs',
-        );
-      }
+      // Child Runs are not checkpointed. Pausing the parent cancels and joins
+      // them on the terminal path (ADR 0030), exactly like Stop, so a turn
+      // waiting on subagents stays pausable.
+      const cancelsDescendants = context.hasActiveDescendants(active.runId);
       const pauseReason = createPauseRequestedAbortReason();
       context.updateRunPhase(active.runId, 'pausing', 'Saving a resumable checkpoint');
       const requested = context.requestPauseRun(command.sessionId, active.runId, pauseReason);
@@ -532,6 +531,7 @@ export async function handleRunControlCommand(
         sessionId: command.sessionId,
         runId: active.runId,
         state: 'pausing',
+        ...(cancelsDescendants ? { reason: 'active-descendants' as const } : {}),
       } satisfies SessionPauseAcceptedData);
     }
     case 'session/resume-run': {
@@ -559,7 +559,7 @@ export async function handleRunControlCommand(
         type: 'session/prompt',
         sessionId: command.sessionId,
         input: {
-          text: resolveResumePromptText(command.text),
+          text: resolveResumePromptText(command.text, checkpoint.interruptedSubagentRunIds),
           source: 'resume',
           resumeCheckpointId: checkpoint.checkpointId,
         },

@@ -8,9 +8,9 @@
 /* ─── Steer Queue Dock ──────────────────────────────────────────────── */
 
 .steer-queue-dock {
-  width: 100%;
-  max-width: 100%;
-  margin: 0 0 -1px;
+  /* Width comes from `.composer-dock > *` (the conversation measure), the
+     same cap as the card it lids; a 100% width here overhangs the card. */
+  margin-block: 0 -1px;
   box-sizing: border-box;
   border-radius: var(--r-panel) var(--r-panel) 0 0;
   border: 0;

@@ -72,9 +72,32 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   --elev-4: none;
 }
 
+/* Steer queue lid: the slab's fill lives on `.slab-face`, so a Deck
+   `--surface-3` lid reads as a separate box. Paint the lid from the same slab
+   tokens (and the same paper remaps below) and re-point the queue's app
+   tokens at them so rows stay legible on either slab. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .steer-queue-dock {
+  --text-1: var(--slab-text);
+  --text-3: var(--slab-text-3);
+  --hover: var(--slab-hover);
+  --active: var(--slab-active);
+  --surface-4: var(--slab-chip);
+  background: var(--slab);
+  color: var(--slab-t);
+  border-radius: 10px 10px 0 0;
+  box-shadow: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .composer-dock.has-steer-queue
+  .slab {
+  border-radius: 0 0 10px 10px;
+}
+
 /* Light face paper-slab mapping (remaps dark slab to cream paper card) */
-html[data-slab='paper'] .slab,
-[data-slab='paper'] .slab {
+html[data-slab='paper'] :is(.slab, .steer-queue-dock),
+[data-slab='paper'] :is(.slab, .steer-queue-dock) {
   --slab: var(--s3);
   --slab-t: var(--t1);
   --slab-ph: var(--t4);
@@ -90,8 +113,8 @@ html[data-slab='paper'] .slab,
 
 /* Dark face paper-slab mapping: when "墨" (ink) theme is paired with "纸" (paper) slab,
    the composer adopts the "明" "纸" warm paper background (#fffdf8) with dark ink text. */
-html[data-theme-id='piwin-inkstone-ink'][data-slab='paper'] .slab,
-html[data-theme-id='piwin-inkstone-ink'] [data-slab='paper'] .slab {
+html[data-theme-id='piwin-inkstone-ink'][data-slab='paper'] :is(.slab, .steer-queue-dock),
+html[data-theme-id='piwin-inkstone-ink'] [data-slab='paper'] :is(.slab, .steer-queue-dock) {
   --slab: #fffdf8;
   --slab-t: #1d1b17;
   --slab-ph: #8f887d;
@@ -460,7 +483,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
   .plus-menu-caption {
     padding: 6px 8px 4px;
-    font: 600 10.5px var(--sans);
+    font: 600 11px var(--sans);
     letter-spacing: 0.06em;
     color: var(--t3);
   }

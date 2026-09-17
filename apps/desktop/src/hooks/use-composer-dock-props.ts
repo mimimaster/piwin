@@ -35,6 +35,10 @@ import type { OrchestrationSchemeOption } from '../OrchestrationSchemeControl';
 import { showErrorNotification } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../desktop-locale-context.js';
 import {
+  useSubagentStopController,
+  type SubagentStopController,
+} from '../subagent-stop-controller';
+import {
   isChatCompactPendingOccupancy,
   selectContextRingView,
 } from '../context-telemetry-selector.js';
@@ -159,6 +163,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   composerCard: ComposerDockProps;
   composerLayoutMode: 'centered' | 'docked';
   live: LiveCallController;
+  subagentStop: SubagentStopController;
 } {
   const {
     hostClient,
@@ -389,11 +394,26 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     },
     [openInspector, viewJobLogs],
   );
+  const requestHost = useCallback(
+    (command: Parameters<HostClient['request']>[0]) => hostClient.request(command),
+    [hostClient],
+  );
+  const subagentStop = useSubagentStopController({
+    request: requestHost,
+    items: orchestrationView.items,
+    locale: locale === 'en' ? 'en' : 'zh-CN',
+  });
   const handleCancelSubagentBatch = useCallback(
     (runId: string): void => {
-      void hostClient.request({ type: 'subagent/batch-cancel', runId });
+      void subagentStop.stop(runId);
     },
-    [hostClient],
+    [subagentStop],
+  );
+  const handleCancelSubagentBatches = useCallback(
+    (runIds: readonly string[]): void => {
+      void subagentStop.stopMany(runIds);
+    },
+    [subagentStop],
   );
   const handleOpenTasks = useCallback((): void => {
     openInspector('tasks');
@@ -448,6 +468,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       },
       onViewJobLogs: handleViewJobLogs,
       onCancelSubagentBatch: handleCancelSubagentBatch,
+      onCancelSubagentBatches: handleCancelSubagentBatches,
+      isSubagentStopping: subagentStop.isStopping,
       onOpenTasks: handleOpenTasks,
       agentMode,
       onAgentModeChange: setAgentMode,
@@ -613,6 +635,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       handleComposerSend,
       handleComposerSteer,
       handleCancelSubagentBatch,
+      handleCancelSubagentBatches,
       handleOpenHostSettings,
       handleOpenTasks,
       handleViewJobLogs,
@@ -693,10 +716,11 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       state.streaming,
       steerQueueMessages,
       stopJob,
+      subagentStop.isStopping,
       thinkingLevel,
       activeJobs,
     ],
   );
 
-  return { composerCard, composerLayoutMode, live };
+  return { composerCard, composerLayoutMode, live, subagentStop };
 }

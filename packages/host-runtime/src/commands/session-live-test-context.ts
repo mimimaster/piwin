@@ -167,6 +167,7 @@ export function createControlContext(
       runId === undefined ? undefined : registry.requestPause(runId, reason),
     isPauseRequested: (runId) => registry.isPauseRequested(runId),
     hasActiveDescendants: (runId) => registry.hasActiveDescendants(runId),
+    getPauseInterruptedSubagentRunIds: (runId) => registry.getPauseInterruptedBatchRunIds(runId),
     attachResumeCheckpoint: (runId, checkpointId): void => {
       registry.attachResumeCheckpoint(runId, checkpointId);
     },

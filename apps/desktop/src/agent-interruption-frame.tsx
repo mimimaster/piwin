@@ -9,6 +9,7 @@ export type AgentInterruptionFrameProps = {
   statusLabel: string;
   title: string;
   description?: string | undefined;
+  badgeTrailing?: ReactNode | undefined;
   children: ReactNode;
   testId: string;
   /** Optional call-chain identity used to bind the shared behavior motion. */
@@ -38,7 +39,10 @@ export function AgentInterruptionFrame(props: AgentInterruptionFrameProps): Reac
       aria-label={props.statusLabel}
     >
       <header className="agent-interruption-header">
-        <StatusBadge tone={statusTone} label={props.statusLabel} />
+        <div className="agent-interruption-header-badge-row">
+          <StatusBadge tone={statusTone} label={props.statusLabel} />
+          {props.badgeTrailing !== undefined ? props.badgeTrailing : null}
+        </div>
         <h2 className="agent-interruption-title">{props.title}</h2>
         {props.description ? (
           <p className="agent-interruption-description">{props.description}</p>

@@ -214,6 +214,10 @@ export type ComposerDockProps = {
   orchestrationView?: import('./subagent-orchestration-view').SubagentOrchestrationView;
   /** Stop a live batch (`subagent/batch-cancel`). */
   onCancelSubagentBatch?: (runId: string) => void;
+  /** Stop-all: one confirmation for every running batch. */
+  onCancelSubagentBatches?: (runIds: readonly string[]) => void;
+  /** Whether a stop request for this batch is still in flight. */
+  isSubagentStopping?: (runId: string) => boolean;
   /** Open the Tasks inspector when a subagent card is not in the DOM. */
   onOpenTasks?: () => void;
   /**

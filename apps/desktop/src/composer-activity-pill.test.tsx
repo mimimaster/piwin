@@ -238,6 +238,43 @@ describe('ComposerActivityPill', () => {
     expect(onCancelSubagentBatch.mock.calls.every((call) => call.length === 1)).toBe(true);
   });
 
+  it('disables a row stop while its request is in flight and routes stop-all as one batch call', () => {
+    const onCancelSubagentBatch = vi.fn();
+    const onCancelSubagentBatches = vi.fn();
+    act(() =>
+      root.render(
+        <Harness
+          orchestrationView={viewFromItems([
+            makeItem({ anchorId: 'inv-a', title: 'Scout', runId: 'run-1' }),
+            makeItem({ anchorId: 'inv-b', title: 'Writer', runId: 'run-2' }),
+          ])}
+          onViewJobLogs={vi.fn()}
+          onStopJob={vi.fn()}
+          onCancelSubagentBatch={onCancelSubagentBatch}
+          onCancelSubagentBatches={onCancelSubagentBatches}
+          isSubagentStopping={(runId) => runId === 'run-1'}
+          onOpenTasks={vi.fn()}
+        />,
+      ),
+    );
+    activatePill();
+    const stops = [
+      ...document.querySelectorAll('[data-testid="composer-activity-stop-subagent"]'),
+    ] as HTMLButtonElement[];
+    expect(stops.map((button) => button.disabled)).toEqual([true, false]);
+    expect(stops[0]?.getAttribute('aria-label')).toBe('Stopping…');
+
+    const stopAll = document.querySelector('[data-testid="composer-activity-stop-all"]');
+    if (!(stopAll instanceof HTMLElement)) {
+      throw new Error('stop-all was not rendered');
+    }
+    act(() => {
+      stopAll.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onCancelSubagentBatches).toHaveBeenCalledWith(['run-1', 'run-2']);
+    expect(onCancelSubagentBatch).not.toHaveBeenCalled();
+  });
+
   it('prefers-reduced-motion does not require the braille animation', () => {
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
       matches: query.includes('prefers-reduced-motion'),

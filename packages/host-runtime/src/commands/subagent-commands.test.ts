@@ -28,7 +28,7 @@ describe('subagent command handlers', () => {
       status: 'running' as const,
       results: [],
     }),
-    cancelBatch: async () => {},
+    cancelBatch: async () => 'cancelled' as const,
     continueChild: async () => ({ runId: 'continuation-run' }),
     actOnWorktree: async () => ({ integrationStatus: 'retained' as const }),
   };
@@ -49,7 +49,7 @@ describe('subagent command handlers', () => {
           status: 'running',
           results: [],
         }),
-        cancelBatch: async () => {},
+        cancelBatch: async () => 'cancelled' as const,
         continueChild: async () => ({ runId: 'continuation-run' }),
         actOnWorktree: async () => ({ integrationStatus: 'retained' as const }),
       },
@@ -62,6 +62,27 @@ describe('subagent command handlers', () => {
       command: 'subagent/batch-start',
       success: true,
       data: { runId: 'run-1' },
+    });
+  });
+
+  it('marks a shell batch cancel as user-initiated and reports its status', async () => {
+    const calls: Array<{ runId: string; initiator?: string }> = [];
+    const response = await handleSubagentCommand(
+      { type: 'subagent/batch-cancel', runId: 'run-1' },
+      'request-cancel',
+      {
+        ...context,
+        cancelBatch: async (runId, options) => {
+          calls.push({ runId, ...(options?.initiator ? { initiator: options.initiator } : {}) });
+          return 'detached';
+        },
+      },
+    );
+
+    expect(calls).toEqual([{ runId: 'run-1', initiator: 'user' }]);
+    expect(response).toMatchObject({
+      success: true,
+      data: { cancelled: true, status: 'detached' },
     });
   });
 

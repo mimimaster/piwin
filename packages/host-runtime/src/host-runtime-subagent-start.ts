@@ -484,6 +484,9 @@ export function formatWaitToolResult(result: SubagentWaitResult): {
         `${run.runId}:${run.executionStatus}` +
         (run.integrationStatus ? `/${run.integrationStatus}` : '') +
         (run.reviewDecision ? ` review=${run.reviewDecision}` : '') +
+        (run.executionStatus !== 'completed' && run.error
+          ? ` reason=${run.error.slice(0, 240)}`
+          : '') +
         (run.summaryPreview ? ` ${run.summaryPreview}` : ''),
     )
     .join('\n');

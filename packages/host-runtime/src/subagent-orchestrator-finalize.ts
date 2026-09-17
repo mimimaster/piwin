@@ -8,6 +8,91 @@ import {
 } from './subagent-orchestrator-batch.js';
 import { recordTaskResult } from './subagent-orchestrator-invocation.js';
 
+/**
+ * Reason stamped on tasks the user stopped, so the parent model does not
+ * treat the cancellation as a transient failure and re-dispatch the task.
+ */
+export const USER_STOPPED_SUBAGENT_MESSAGE =
+  'Stopped by the user. Do not restart this task unless the user asks for it.';
+
+function cancelledFallbackResult(
+  batchState: BatchState,
+  task: BatchState['request']['tasks'][number],
+  forcedStatus: 'failed' | undefined,
+  error: string | undefined,
+): SubagentTaskResult {
+  return {
+    runId: batchState.runId,
+    taskId: task.id,
+    executionStatus: forcedStatus === 'failed' ? 'failed' : 'cancelled',
+    summaryStatus: 'not-requested',
+    integrationStatus: 'not-requested',
+    ...(error ? { error } : {}),
+    ...(task.role ? { role: task.role } : {}),
+    ...(task.profileId ? { profileId: task.profileId } : {}),
+    ...(task.model ? { model: task.model } : {}),
+    ...(task.allowedOutputPaths !== undefined
+      ? { allowedOutputPaths: [...task.allowedOutputPaths] }
+      : {}),
+  };
+}
+
+/** Attach the user-stop reason to cancelled results that carry no error yet. */
+async function stampUserStop(
+  deps: SubagentOrchestratorContext,
+  batchState: BatchState,
+): Promise<void> {
+  if (batchState.cancelledByUser !== true) return;
+  for (const [taskId, result] of batchState.results) {
+    if (result.executionStatus !== 'cancelled' || result.error) continue;
+    const stamped = { ...result, error: USER_STOPPED_SUBAGENT_MESSAGE };
+    batchState.results.set(taskId, stamped);
+    try {
+      await deps.runStore?.recordResult(batchState.runId, taskId, stamped);
+    } catch (error) {
+      batchState.errors.push(toError(error));
+    }
+  }
+}
+
+/**
+ * Settle waiters for a cancelled batch whose runners never unwound. The run
+ * tree and invocations become cancelled now; if a runner unwinds later,
+ * finalizeBatch still records its real outcome.
+ */
+export async function detachCancelledBatch(
+  deps: SubagentOrchestratorContext,
+  batchState: BatchState,
+  message: string,
+): Promise<SubagentBatchResult> {
+  const reason = batchState.cancelledByUser === true ? USER_STOPPED_SUBAGENT_MESSAGE : message;
+  for (const task of batchState.request.tasks) {
+    if (batchState.results.has(task.id)) continue;
+    const fallback = cancelledFallbackResult(batchState, task, undefined, reason);
+    batchState.results.set(task.id, fallback);
+    await recordTaskResult(deps, batchState, fallback);
+  }
+  await stampUserStop(deps, batchState);
+  deps.runRegistry.forceTerminateDescendants(batchState.runId, message);
+  deps.runRegistry.terminate(batchState.runId, 'cancelled', 'cancelled', message);
+  const result: SubagentBatchResult = {
+    runId: batchState.runId,
+    status: 'cancelled',
+    results: batchState.request.tasks.flatMap((task) => {
+      const taskResult = batchState.results.get(task.id);
+      return taskResult ? [taskResult] : [];
+    }),
+  };
+  deps.emitPush(batchState, {
+    type: 'subagent/batch-updated',
+    runId: batchState.runId,
+    parentSessionId: batchState.request.parentSessionId,
+    result,
+  });
+  batchState.resolveCompletion(result);
+  return result;
+}
+
 export async function releaseWorkspaceLeases(
   deps: SubagentOrchestratorContext,
   batchState: BatchState,
@@ -31,23 +116,16 @@ export async function finalizeBatch(
 ): Promise<SubagentBatchResult> {
   for (const task of batchState.request.tasks) {
     if (batchState.results.has(task.id)) continue;
-    const fallback: SubagentTaskResult = {
-      runId: batchState.runId,
-      taskId: task.id,
-      executionStatus: forcedStatus === 'failed' ? 'failed' : 'cancelled',
-      summaryStatus: 'not-requested',
-      integrationStatus: 'not-requested',
-      ...(forcedStatus === 'failed' && fatalError ? { error: fatalError.message } : {}),
-      ...(task.role ? { role: task.role } : {}),
-      ...(task.profileId ? { profileId: task.profileId } : {}),
-      ...(task.model ? { model: task.model } : {}),
-      ...(task.allowedOutputPaths !== undefined
-        ? { allowedOutputPaths: [...task.allowedOutputPaths] }
-        : {}),
-    };
+    const fallback = cancelledFallbackResult(
+      batchState,
+      task,
+      forcedStatus,
+      forcedStatus === 'failed' ? fatalError?.message : undefined,
+    );
     batchState.results.set(task.id, fallback);
     await recordTaskResult(deps, batchState, fallback);
   }
+  await stampUserStop(deps, batchState);
   const hasIntegrationConflict = [...batchState.results.values()].some(
     (result) => result.integrationStatus === 'conflict',
   );

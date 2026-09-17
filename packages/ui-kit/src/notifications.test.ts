@@ -1,3 +1,4 @@
+import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { notifications } from '@mantine/notifications';
 import {
@@ -15,6 +16,30 @@ vi.mock('@mantine/notifications', () => ({
     hide: vi.fn(),
   },
 }));
+
+type ActionButtonProps = {
+  type?: string;
+  className?: string;
+  'data-tone'?: string;
+  onClick?: () => void;
+  children?: ReactNode;
+};
+
+function getActionButton(message: ReactNode): ReactElement<ActionButtonProps> {
+  if (!isValidElement(message)) {
+    throw new Error('expected wrapped notification message');
+  }
+  const children = (message.props as { children?: ReactNode }).children;
+  const list = Array.isArray(children) ? children : [children];
+  const button = list.find(
+    (child): child is ReactElement<ActionButtonProps> =>
+      isValidElement(child) && child.type === 'button',
+  );
+  if (!button) {
+    throw new Error('expected action button');
+  }
+  return button;
+}
 
 describe('ui-kit notifications', () => {
   it('delegates showUiNotification to @mantine/notifications with tone color', () => {
@@ -74,5 +99,45 @@ describe('ui-kit notifications', () => {
   it('delegates hideUiNotification to @mantine/notifications', () => {
     hideUiNotification('test-id');
     expect(notifications.hide).toHaveBeenCalledWith('test-id');
+  });
+
+  it('renders an action button that runs onClick then closes the notification', () => {
+    vi.mocked(notifications.show).mockClear();
+    vi.mocked(notifications.hide).mockClear();
+    const onClick = vi.fn();
+
+    showUiNotification({
+      id: 'notice-1',
+      tone: 'info',
+      message: 'Turn finished',
+      action: { label: 'Open', onClick },
+    });
+
+    const payload = vi.mocked(notifications.show).mock.calls[0]?.[0] as {
+      id?: string;
+      message: ReactNode;
+      color?: string;
+      mod?: { tone?: string };
+    };
+    expect(payload.id).toBe('notice-1');
+    expect(payload.color).toBe('blue');
+    expect(payload.mod).toEqual({ tone: 'info' });
+
+    const button = getActionButton(payload.message);
+    expect(button.props.type).toBe('button');
+    expect(button.props.className).toBe('ui-notification-action');
+    expect(button.props['data-tone']).toBe('info');
+    expect(button.props.children).toBe('Open');
+
+    button.props.onClick?.();
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(notifications.hide).toHaveBeenCalledTimes(1);
+    expect(notifications.hide).toHaveBeenCalledWith('notice-1');
+    const clickOrder = onClick.mock.invocationCallOrder[0];
+    const hideOrder = vi.mocked(notifications.hide).mock.invocationCallOrder[0];
+    if (clickOrder === undefined || hideOrder === undefined) {
+      throw new Error('expected invocation order for onClick and hide');
+    }
+    expect(clickOrder).toBeLessThan(hideOrder);
   });
 });

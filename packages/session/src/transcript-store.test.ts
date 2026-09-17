@@ -1317,6 +1317,20 @@ describe('SessionTranscriptStore', () => {
     store.close();
   });
 
+  it('round-trips the subagent runs a pause interrupted', async () => {
+    const { store } = await openStore('pause-checkpoint-subagents');
+    const created = await store.createPauseCheckpoint({
+      sessionId: 'session-pause-checkpoint-subagents',
+      sourceRunId: 'run-1',
+      createdAt: '2026-09-17T00:00:00.000Z',
+      transcriptRevision: 2,
+      interruptedSubagentRunIds: ['batch-a', 'batch-b'],
+    });
+    expect(created.interruptedSubagentRunIds).toEqual(['batch-a', 'batch-b']);
+    expect(await store.getActivePauseCheckpoint()).toEqual(created);
+    store.close();
+  });
+
   it('allows replacing an active checkpoint only when its id is retained', async () => {
     const { store } = await openStore('pause-checkpoint-replace');
     const first = await store.createPauseCheckpoint({

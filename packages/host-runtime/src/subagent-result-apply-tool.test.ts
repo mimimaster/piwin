@@ -319,7 +319,7 @@ function orchestrationContext(
     prepareBatch: async (input) => input,
     startBatch: () => ({ runId: 'run-1' }),
     getBatchProjection: async () => ({ runId: 'run-1', status: 'running', results: [] }),
-    cancelBatch: async () => {},
+    cancelBatch: async () => 'cancelled' as const,
     continueChild: async () => ({ runId: 'continuation-run' }),
     actOnWorktree: async () => ({ integrationStatus: 'retained', applyStatus: 'succeeded' }),
     resultService,

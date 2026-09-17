@@ -1,13 +1,19 @@
 /**
  * Freeze a child worktree against its create-time base commit (S0), not parent HEAD.
  * S1 is the live worktree. Result objects stay in the CAS after the copy is gone.
+ *
+ * Only paths Git reports as changed (tracked diff vs base + untracked, non-ignored)
+ * are read, so installed dependencies and build output never enter the CAS.
+ * Files over the object limit, symlinks and other non-regular entries are omitted
+ * and mark coverage incomplete: the CAS only models regular file bytes.
  */
 import { execFile } from 'node:child_process';
-import { lstat, readdir, readFile } from 'node:fs/promises';
+import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { composeFileActions, type ComposedFileAction, type ComposeCoverage } from './compose.js';
+import { DEFAULT_TURN_CHANGE_MAX_OBJECT_BYTES } from './object-store.js';
 import { runGitCommand } from '../git-command-runner.js';
 import { assertSafeRef } from '../path-safety.js';
 
@@ -17,7 +23,9 @@ type FreezeObjectStore = {
 };
 
 const execFileAsync = promisify(execFile);
-const MAX_BLOB_BYTES = 20 * 1024 * 1024;
+const MAX_BLOB_BYTES = DEFAULT_TURN_CHANGE_MAX_OBJECT_BYTES;
+const PATH_LIST_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+const PATH_LIST_TIMEOUT_MS = 60_000;
 
 export type FrozenWorktreeSnapshot = {
   coverage: ComposeCoverage;
@@ -25,97 +33,126 @@ export type FrozenWorktreeSnapshot = {
   baseCommit: string;
 };
 
+type Side = { kind: 'absent' } | { kind: 'bytes'; bytes: Uint8Array } | { kind: 'omitted' };
+
 export async function freezeWorktreeAgainstBase(input: {
   worktreePath: string;
   baseCommit: string;
   store: FreezeObjectStore;
 }): Promise<FrozenWorktreeSnapshot> {
   const baseCommit = assertSafeRef(input.baseCommit);
-  const baseline = await loadBaselineBlobs(input.worktreePath, baseCommit);
-  const live = await loadLiveBlobs(input.worktreePath);
-  const paths = new Set([...baseline.keys(), ...live.keys()]);
+  const changedPaths = await listChangedPaths(input.worktreePath, baseCommit);
+  const baseline = await listBaselineBlobs(input.worktreePath, baseCommit);
   const actions: ComposedFileAction[] = [];
+  let coverage: ComposeCoverage = 'complete';
 
-  for (const relativePath of [...paths].sort()) {
-    const beforeBytes = baseline.get(relativePath);
-    const afterBytes = live.get(relativePath);
-    const beforeSha = beforeBytes ? (await putBytes(input.store, beforeBytes)).sha256 : null;
-    const afterSha = afterBytes ? (await putBytes(input.store, afterBytes)).sha256 : null;
+  for (const relativePath of [...changedPaths].sort()) {
+    const before = await readBaselineSide(input.worktreePath, baseline.get(relativePath));
+    const after = await readLiveSide(input.worktreePath, relativePath);
+    if (before.kind === 'omitted' || after.kind === 'omitted') {
+      coverage = 'incomplete';
+      continue;
+    }
+    const beforeSha =
+      before.kind === 'bytes' ? (await putBytes(input.store, before.bytes)).sha256 : null;
+    const afterSha =
+      after.kind === 'bytes' ? (await putBytes(input.store, after.bytes)).sha256 : null;
     actions.push({
       relativePath,
       beforeSha,
       afterSha,
-      beforeExists: beforeBytes !== undefined,
-      afterExists: afterBytes !== undefined,
+      beforeExists: before.kind === 'bytes',
+      afterExists: after.kind === 'bytes',
     });
   }
 
   const composed = composeFileActions(actions);
   return {
-    coverage: composed.coverage,
+    coverage: coverage === 'incomplete' ? 'incomplete' : composed.coverage,
     files: composed.files,
     baseCommit,
   };
 }
 
-async function loadBaselineBlobs(
+async function listChangedPaths(worktreePath: string, baseCommit: string): Promise<Set<string>> {
+  // Working tree (including any child commits) vs base; renames split into delete + add.
+  const tracked = await runGitCommand({
+    cwd: worktreePath,
+    args: ['diff', '--name-only', '--no-renames', '-z', baseCommit, '--'],
+    maxBufferBytes: PATH_LIST_MAX_BUFFER_BYTES,
+    timeoutMs: PATH_LIST_TIMEOUT_MS,
+  });
+  const untracked = await runGitCommand({
+    cwd: worktreePath,
+    args: ['ls-files', '--others', '--exclude-standard', '-z'],
+    maxBufferBytes: PATH_LIST_MAX_BUFFER_BYTES,
+    timeoutMs: PATH_LIST_TIMEOUT_MS,
+  });
+  const paths = new Set<string>();
+  for (const output of [tracked.stdout, untracked.stdout]) {
+    for (const path of output.split('\0')) {
+      if (path) paths.add(path);
+    }
+  }
+  return paths;
+}
+
+type BaselineBlob = { sha: string; size: number; symlink: boolean };
+
+async function listBaselineBlobs(
   worktreePath: string,
   baseCommit: string,
-): Promise<Map<string, Uint8Array>> {
+): Promise<Map<string, BaselineBlob>> {
   const listed = await runGitCommand({
     cwd: worktreePath,
-    args: ['ls-tree', '-r', '-z', '--full-tree', baseCommit],
+    args: ['ls-tree', '-r', '-z', '--long', '--full-tree', baseCommit],
+    maxBufferBytes: PATH_LIST_MAX_BUFFER_BYTES,
+    timeoutMs: PATH_LIST_TIMEOUT_MS,
   });
-  const blobs = new Map<string, Uint8Array>();
-  for (const entry of parseLsTree(listed.stdout)) {
+  const blobs = new Map<string, BaselineBlob>();
+  for (const entry of parseLsTreeLong(listed.stdout)) {
     if (entry.kind !== 'blob') continue;
-    blobs.set(entry.path, await catBlob(worktreePath, entry.sha));
+    blobs.set(entry.path, { sha: entry.sha, size: entry.size, symlink: entry.mode === '120000' });
   }
   return blobs;
 }
 
-async function loadLiveBlobs(worktreePath: string): Promise<Map<string, Uint8Array>> {
-  const blobs = new Map<string, Uint8Array>();
-  await walkFiles(worktreePath, '', blobs);
-  return blobs;
+async function readBaselineSide(
+  worktreePath: string,
+  blob: BaselineBlob | undefined,
+): Promise<Side> {
+  if (!blob) return { kind: 'absent' };
+  if (blob.symlink || blob.size > MAX_BLOB_BYTES) return { kind: 'omitted' };
+  return { kind: 'bytes', bytes: await catBlob(worktreePath, blob.sha) };
 }
 
-async function walkFiles(
-  root: string,
-  relativeDir: string,
-  blobs: Map<string, Uint8Array>,
-): Promise<void> {
-  const absoluteDir = relativeDir ? join(root, relativeDir) : root;
-  const entries = await readdir(absoluteDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.name === '.git') continue;
-    const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
-    const absolutePath = join(root, relativePath);
-    if (entry.isDirectory()) {
-      await walkFiles(root, relativePath, blobs);
-      continue;
-    }
-    const meta = await lstat(absolutePath);
-    if (!meta.isFile()) continue;
-    blobs.set(relativePath, new Uint8Array(await readFile(absolutePath)));
-  }
+async function readLiveSide(worktreePath: string, relativePath: string): Promise<Side> {
+  const absolutePath = join(worktreePath, relativePath);
+  const meta = await lstat(absolutePath).catch((error: unknown) => {
+    if (isNotFound(error)) return undefined;
+    throw error;
+  });
+  if (!meta) return { kind: 'absent' };
+  // A symlink or gitlink directory is not a deletion; it just is not representable.
+  if (!meta.isFile() || meta.size > MAX_BLOB_BYTES) return { kind: 'omitted' };
+  const bytes = new Uint8Array(await readFile(absolutePath));
+  if (bytes.byteLength > MAX_BLOB_BYTES) return { kind: 'omitted' };
+  return { kind: 'bytes', bytes };
 }
 
-type LsTreeEntry = { kind: string; sha: string; path: string };
+type LsTreeLongEntry = { mode: string; kind: string; sha: string; size: number; path: string };
 
-function parseLsTree(stdout: string): LsTreeEntry[] {
-  const entries: LsTreeEntry[] = [];
+function parseLsTreeLong(stdout: string): LsTreeLongEntry[] {
+  const entries: LsTreeLongEntry[] = [];
   for (const record of stdout.split('\0')) {
     if (!record) continue;
     const tab = record.indexOf('\t');
     if (tab < 0) continue;
-    const meta = record.slice(0, tab);
+    // "<mode> <type> <object> <padded size or ->"
+    const [mode, kind, sha, size] = record.slice(0, tab).trim().split(/\s+/);
     const path = record.slice(tab + 1);
-    const parts = meta.split(' ');
-    const kind = parts[1];
-    const sha = parts[2];
-    if (!kind || !sha || !path) continue;
-    entries.push({ kind, sha, path });
+    if (!mode || !kind || !sha || !size || !path) continue;
+    entries.push({ mode, kind, sha, size: size === '-' ? 0 : Number(size), path });
   }
   return entries;
 }
@@ -141,4 +178,13 @@ async function catBlob(worktreePath: string, sha: string): Promise<Uint8Array> {
     timeout: 15_000,
   });
   return new Uint8Array(stdout);
+}
+
+function isNotFound(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+  );
 }

@@ -30,6 +30,26 @@ function admittedResultFacts(task: SubagentTaskSpec): Partial<SubagentTaskResult
   };
 }
 
+/**
+ * Freezing is bookkeeping after the child already stopped. Its failure must not
+ * rewrite a finished child as an execution failure or skip integration, which
+ * reads the worktree through Git on its own. The result just lacks frozen refs.
+ */
+async function freezeChildResultBestEffort(
+  freeze: NonNullable<SubagentOrchestratorContext['freezeChildResult']>,
+  result: SubagentTaskResult,
+  lease: SubagentWorkspaceLease,
+): Promise<SubagentTaskResult> {
+  try {
+    return await freeze({ result, lease });
+  } catch (error) {
+    console.warn(
+      `[subagent] freeze of task ${result.taskId} failed; continuing without frozen changes: ${redactPersistedMessage(toError(error).message)}`,
+    );
+    return result;
+  }
+}
+
 /** Dispatch a single task: acquire resource, workspace, run, settle, integrate. */
 export async function dispatchTask(
   deps: SubagentOrchestratorContext,
@@ -189,7 +209,7 @@ export async function dispatchTask(
     }
 
     if (lease?.mode === 'worktree' && deps.freezeChildResult) {
-      result = await deps.freezeChildResult({ result, lease });
+      result = await freezeChildResultBestEffort(deps.freezeChildResult, result, lease);
     }
 
     if (

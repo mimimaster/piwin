@@ -29,6 +29,7 @@ import {
   type SubagentOrchestrationItem,
 } from './subagent-orchestration-view';
 import { useSubagentReviewLoopBinding } from './subagent-review-loop-context';
+import { isStoppableSubagentStatus, SubagentInvocationStop } from './subagent-invocation-stop';
 import { SubagentReviewSummary } from './subagent-review-summary';
 import {
   mergeVerificationFacts,
@@ -309,12 +310,15 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
             (selection.anchorId === tool.toolCallId ||
               selection.anchorId === invocation?.id ||
               selection.anchorId === undefined);
+          const stopRunId = orchestrationItem?.runId ?? invocation?.runId;
+          const stopStatus = orchestrationItem?.executionStatus ?? invocation?.status;
           return (
             <div
               key={tool.toolCallId}
               className="subagent-embed"
               data-testid="subagent-embed"
               data-expanded={expanded}
+              data-stoppable={stopRunId !== undefined && isStoppableSubagentStatus(stopStatus)}
               {...(invocationId !== undefined
                 ? { id: subagentInvocationDomId(invocationId) }
                 : {})}
@@ -339,6 +343,11 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
                   ? { onInspect: props.onInspectSubagent }
                   : {})}
                 {...(reviewLoopAttach !== undefined ? { reviewLoopAttach } : {})}
+              />
+              <SubagentInvocationStop
+                runId={stopRunId}
+                status={stopStatus}
+                locale={props.locale ?? 'zh-CN'}
               />
               {expanded ? <SubagentInlineSession /> : null}
             </div>

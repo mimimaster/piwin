@@ -69,22 +69,31 @@ export function collectComposerActivityStopAllTargets(input: {
   };
 }
 
+/**
+ * Finished work is split by outcome: a failed or stopped child is not "done",
+ * and calling it that hides exactly the rows that need attention.
+ */
 export function formatComposerActivityLabel(input: {
   workingCount: number;
   finishedCount: number;
+  failedCount?: number;
+  cancelledCount?: number;
   locale: ComposerActivityLocale;
 }): string {
-  const { workingCount, finishedCount, locale } = input;
+  const { workingCount, locale } = input;
+  const failedCount = input.failedCount ?? 0;
+  const cancelledCount = input.cancelledCount ?? 0;
+  const doneCount = Math.max(0, input.finishedCount - failedCount - cancelledCount);
   const isZh = locale === 'zh-CN';
-  if (workingCount > 0 && finishedCount > 0) {
-    return isZh
-      ? `${workingCount} 运行中 · ${finishedCount} 完成`
-      : `${workingCount} Working · ${finishedCount} done`;
+  const parts: string[] = [];
+  if (workingCount > 0) parts.push(isZh ? `${workingCount} 运行中` : `${workingCount} Working`);
+  if (doneCount > 0) parts.push(isZh ? `${doneCount} 完成` : `${doneCount} done`);
+  if (failedCount > 0) parts.push(isZh ? `${failedCount} 失败` : `${failedCount} failed`);
+  if (cancelledCount > 0) {
+    parts.push(isZh ? `${cancelledCount} 已停止` : `${cancelledCount} stopped`);
   }
-  if (workingCount > 0) {
-    return isZh ? `${workingCount} 运行中` : `${workingCount} Working`;
-  }
-  return isZh ? `${finishedCount} 完成` : `${finishedCount} done`;
+  if (parts.length === 0) return isZh ? '0 完成' : '0 done';
+  return parts.join(' · ');
 }
 
 export function deriveComposerActivityModel(input: {
@@ -110,6 +119,8 @@ export function deriveComposerActivityModel(input: {
     label: formatComposerActivityLabel({
       workingCount,
       finishedCount,
+      failedCount: finishedItems.filter((item) => item.executionStatus === 'failed').length,
+      cancelledCount: finishedItems.filter((item) => item.executionStatus === 'cancelled').length,
       locale: input.locale,
     }),
     spinning: workingCount > 0,

@@ -54,7 +54,8 @@ function shouldDefaultExpand(prompt: PermissionPromptUi): boolean {
 
 export function PermissionBar(props: PermissionBarProps): ReactElement {
   const { prompt, projectPath } = props;
-  const { translator } = useDesktopLocale();
+  const { translator, locale } = useDesktopLocale();
+  const isZh = locale === 'zh-CN';
   const copy = translator.interruption;
   const [expanded, setExpanded] = useState(() => shouldDefaultExpand(prompt));
   const [stamping, setStamping] = useState(false);
@@ -100,19 +101,40 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [prompt.requestId]);
 
+  const queueBadge =
+    queuedRemaining > 0 ? (
+      <span className="permission-queue-pill" data-testid="permission-queue-badge">
+        {copy.queuedRemaining(queuedRemaining)}
+      </span>
+    ) : null;
+
   return (
     <AgentInterruptionFrame
       tone={tone}
       statusLabel={copy.approvalRequired}
       title={subject}
-      {...(queuedRemaining > 0
-        ? { description: copy.queuedRemaining(queuedRemaining) }
-        : {})}
+      badgeTrailing={queueBadge}
       testId="permission-bar"
       activityId="permission"
       activityAnimation={getBehaviorActivitySpec('permission').animation}
       activityStatus="running"
     >
+      <div className="permission-bar-quick-facts">
+        {projectPath ? (
+          <span className="permission-fact-item">
+            {isZh ? '工作目录' : 'Workspace'} · <code>{projectPath}</code>
+          </span>
+        ) : null}
+        <span className="permission-fact-item">
+          {isZh ? '规则' : 'Rule'} · <code>{prompt.defaultDecision}</code>
+        </span>
+        {context?.destructive ? (
+          <span className="permission-fact-item permission-risk-danger">
+            {isZh ? '风险 · 破坏性操作' : 'Risk · Destructive'}
+          </span>
+        ) : null}
+      </div>
+
       <button
         type="button"
         className="permission-bar-disclosure"

@@ -15,6 +15,8 @@ describe('resolveSubagentSealChar', () => {
   it('maps known english roles to appropriate single Chinese characters', () => {
     expect(resolveSubagentSealChar('reviewer')).toBe('审');
     expect(resolveSubagentSealChar('scout')).toBe('探');
+    expect(resolveSubagentSealChar('explorer')).toBe('探');
+    expect(resolveSubagentSealChar('implementer')).toBe('实');
     expect(resolveSubagentSealChar('tester')).toBe('测');
     expect(resolveSubagentSealChar('coder')).toBe('编');
     expect(resolveSubagentSealChar('planner')).toBe('划');
@@ -112,6 +114,38 @@ describe('SubagentInvocationBlock component', () => {
 
     const modelChip = container.querySelector('[data-testid="subagent-model-chip"]');
     expect(modelChip).not.toBeNull();
+  });
+
+  it('derives the seal from profileId when role is absent, matching the role chip', () => {
+    const invocation: SubagentInvocation = {
+      id: 'inv-profile',
+      runId: 'run-1',
+      taskId: 'task-1',
+      revision: 1,
+      parentSessionId: 'sess-parent',
+      parentToolCallId: 'tool-call-1',
+      childSessionId: 'child-1',
+      status: 'running',
+      profileId: 'implementer',
+      title: 'AN-D1 ADR',
+      task: 'Write the ADR',
+      activity: { kind: 'thinking' },
+      createdAt: '2026-09-07T10:00:00.000Z',
+      updatedAt: '2026-09-07T10:00:12.000Z',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentInvocationBlock tool={sampleTool} invocation={invocation} locale="zh-CN" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="subagent-seal"]')?.textContent).toBe('实');
+    expect(container.querySelector('[data-testid="subagent-role-chip"]')?.textContent).toBe(
+      'implementer',
+    );
   });
 
   it('renders completed subagent with completed status pill and trigger inspector on click', () => {

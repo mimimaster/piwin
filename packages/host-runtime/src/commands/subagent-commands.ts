@@ -19,7 +19,10 @@ export type SubagentCommandContext = {
   prepareBatch: (request: SubagentBatchRequest) => Promise<SubagentBatchRequest>;
   startBatch: (request: SubagentBatchRequest, parentRunId?: string) => { runId: string };
   getBatchProjection: (runId: string) => Promise<SubagentBatchProjection>;
-  cancelBatch: (runId: string) => Promise<void>;
+  cancelBatch: (
+    runId: string,
+    options?: { initiator?: 'user' },
+  ) => Promise<'cancelled' | 'detached' | 'requested'>;
   continueChild: (childSessionId: string, text: string) => Promise<{ runId: string }>;
   actOnWorktree: (
     childSessionId: string,
@@ -137,8 +140,10 @@ export async function handleSubagentCommand(
       return ok(requestId, command.type, projection);
     }
     case 'subagent/batch-cancel': {
-      await context.cancelBatch(command.runId);
-      return ok(requestId, command.type, { cancelled: true });
+      // Shell controls are the only user-initiated stop; model and parent
+      // cancellations keep their own semantics.
+      const status = await context.cancelBatch(command.runId, { initiator: 'user' });
+      return ok(requestId, command.type, { cancelled: true, status });
     }
     case 'subagent/continue': {
       const text = command.text.trim();

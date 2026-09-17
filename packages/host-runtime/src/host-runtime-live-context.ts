@@ -219,6 +219,8 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     },
     isPauseRequested: (runId) => deps.runRegistry.isPauseRequested(runId),
     hasActiveDescendants: (runId) => deps.runRegistry.hasActiveDescendants(runId),
+    getPauseInterruptedSubagentRunIds: (runId) =>
+      deps.runRegistry.getPauseInterruptedBatchRunIds(runId),
     attachResumeCheckpoint: (runId, checkpointId) => {
       const attached = deps.runRegistry.attachResumeCheckpoint(runId, checkpointId);
       if (!attached) {

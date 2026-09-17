@@ -32,6 +32,8 @@ export interface BatchState {
   taskRunIds: Map<string, string>;
   invocations: Map<string, SubagentInvocation>;
   errors: Error[];
+  /** Set when the user stopped this batch from a shell control. */
+  cancelledByUser?: boolean;
   accepted: Promise<void>;
   hasAccepted: () => boolean;
   resolveAccepted: () => void;
