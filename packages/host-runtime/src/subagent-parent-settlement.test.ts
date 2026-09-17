@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
   ContextSummaryPush,
   SessionHandle,
@@ -14,6 +14,7 @@ import { formatWaitToolResult } from './host-runtime-subagent-start.js';
 import { RunRegistry } from './run-registry.js';
 import { terminateHostRun } from './run-terminalizer.js';
 import {
+  cancelAndJoinParentDescendants,
   settleParentSubagents,
   type ParentSubagentSettlementPorts,
 } from './subagent-parent-settlement.js';
@@ -520,5 +521,71 @@ describe('non-success parent descendant barrier', () => {
     await expect(terminatePromise).resolves.toBe(true);
     expect(order).toEqual(['jobs', 'cancel', 'join-wait', 'joined', 'transcript', 'terminate']);
     expect(registry.get(parent.runId)?.status).toBe('failed');
+  });
+});
+
+describe('bounded descendant cancellation', () => {
+  it('force-terminates a child that never acknowledges cancellation', async () => {
+    const registry = new RunRegistry();
+    const parent = registry.createForegroundRun(SESSION_ID);
+    const batch = registry.create({
+      kind: 'subagent-batch',
+      sessionId: SESSION_ID,
+      parentRunId: parent.runId,
+    });
+    registry.start(batch.runId);
+    const task = registry.create({
+      kind: 'subagent-task',
+      sessionId: SESSION_ID,
+      parentRunId: batch.runId,
+    });
+    registry.start(task.runId);
+
+    const result = await cancelAndJoinParentDescendants({
+      parentRunId: parent.runId,
+      hasActiveDescendants: (id) => registry.hasActiveDescendants(id),
+      cancelBatchesForParentRun: () => undefined,
+      snapshotBatchRunIds: () => [batch.runId],
+      joinBatch: () => new Promise<never>(() => undefined),
+      joinDescendants: async (id) => {
+        await Promise.all(registry.snapshotActiveDescendantIds(id).map((d) => registry.join(d)));
+      },
+      forceTerminateDescendants: (id) => registry.forceTerminateDescendants(id, 'detached'),
+      timeoutMs: 10,
+    });
+
+    expect(result.forcedRunIds).toEqual([task.runId, batch.runId]);
+    expect(registry.get(batch.runId)).toMatchObject({ status: 'cancelled', error: 'detached' });
+    expect(registry.hasActiveDescendants(parent.runId)).toBe(false);
+    expect(registry.terminate(parent.runId, 'interrupted', 'paused')?.status).toBe('interrupted');
+    expect(registry.terminate(task.runId, 'completed', 'completed')).toBeUndefined();
+  });
+
+  it('does not force anything when children settle before the deadline', async () => {
+    const registry = new RunRegistry();
+    const parent = registry.createForegroundRun(SESSION_ID);
+    const batch = registry.create({
+      kind: 'subagent-batch',
+      sessionId: SESSION_ID,
+      parentRunId: parent.runId,
+    });
+    registry.start(batch.runId);
+    const forceTerminateDescendants = vi.fn(() => [] as string[]);
+
+    const result = await cancelAndJoinParentDescendants({
+      parentRunId: parent.runId,
+      hasActiveDescendants: (id) => registry.hasActiveDescendants(id),
+      cancelBatchesForParentRun: () => {
+        registry.terminate(batch.runId, 'cancelled', 'cancelled');
+      },
+      snapshotBatchRunIds: () => [batch.runId],
+      joinBatch: (id) => registry.join(id),
+      joinDescendants: async () => undefined,
+      forceTerminateDescendants,
+      timeoutMs: 10_000,
+    });
+
+    expect(result.forcedRunIds).toEqual([]);
+    expect(forceTerminateDescendants).not.toHaveBeenCalled();
   });
 });

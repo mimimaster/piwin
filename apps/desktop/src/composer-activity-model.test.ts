@@ -113,7 +113,7 @@ describe('deriveComposerActivityModel', () => {
     });
     expect(model.visible).toBe(true);
     expect(model.attentionCount).toBe(1);
-    expect(model.label).toBe('1 done');
+    expect(model.label).toBe('1 failed');
   });
 });
 
@@ -125,6 +125,26 @@ describe('formatComposerActivityLabel', () => {
     expect(
       formatComposerActivityLabel({ workingCount: 2, finishedCount: 0, locale: 'zh-CN' }),
     ).toBe('2 运行中');
+  });
+
+  it('does not count failed or stopped children as done', () => {
+    expect(
+      formatComposerActivityLabel({
+        workingCount: 1,
+        finishedCount: 3,
+        failedCount: 3,
+        locale: 'zh-CN',
+      }),
+    ).toBe('1 运行中 · 3 失败');
+    expect(
+      formatComposerActivityLabel({
+        workingCount: 0,
+        finishedCount: 4,
+        failedCount: 1,
+        cancelledCount: 1,
+        locale: 'en',
+      }),
+    ).toBe('2 done · 1 failed · 1 stopped');
   });
 });
 

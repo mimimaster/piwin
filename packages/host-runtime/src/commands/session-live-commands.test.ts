@@ -1138,6 +1138,63 @@ describe('session live control commands', () => {
     expect(registry.getForegroundRun(session.id)).toBeUndefined();
   });
 
+  it('pauses a run waiting on subagents by cancelling its child runs', async () => {
+    const session = createDelayedSessionHandle();
+    const { context, activeRun, registry } = createControlContext(session);
+    const batch = registry.create({
+      kind: 'subagent-batch',
+      sessionId: session.id,
+      parentRunId: activeRun.runId,
+    });
+    registry.start(batch.runId);
+    const transcriptStore = {
+      lastMessageByRole: async () => undefined,
+      getRevision: async () => 4,
+      createPauseCheckpoint: async (
+        input: Parameters<SessionTranscriptStore['createPauseCheckpoint']>[0],
+      ) => ({
+        ...input,
+        checkpointId: 'checkpoint-with-children',
+        status: 'active' as const,
+      }),
+    } as unknown as SessionTranscriptStore;
+    const createPauseCheckpoint = vi.spyOn(
+      transcriptStore as unknown as Pick<SessionTranscriptStore, 'createPauseCheckpoint'>,
+      'createPauseCheckpoint',
+    );
+    context.withTranscriptStore = async (_sessionId, operation) => operation(transcriptStore);
+    const terminateParent = context.terminateRun;
+    // Mirrors terminateHostRun: descendants are cancelled and joined first.
+    context.terminateRun = async (...args) => {
+      registry.cancelRun(batch.runId);
+      registry.terminate(batch.runId, 'cancelled', 'cancelled');
+      return terminateParent(...args);
+    };
+
+    const response = await handleSessionLiveCommand(
+      { type: 'session/pause', sessionId: session.id, runId: activeRun.runId },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: { state: 'pausing', runId: activeRun.runId, reason: 'active-descendants' },
+    });
+    await vi.waitFor(() => {
+      expect(registry.get(activeRun.runId)).toMatchObject({
+        status: 'interrupted',
+        terminalCode: 'paused',
+        resumeCheckpointId: 'checkpoint-with-children',
+      });
+    });
+    expect(registry.get(batch.runId)?.status).toBe('cancelled');
+    expect(createPauseCheckpoint).toHaveBeenCalledWith(
+      expect.objectContaining({ interruptedSubagentRunIds: [batch.runId] }),
+    );
+    expect(registry.getForegroundRun(session.id)).toBeUndefined();
+  });
+
   it('returns prompt ack without waiting for delayed preparation', async () => {
     const session = createDelayedSessionHandle();
     const promptContext = createPromptContext(session);

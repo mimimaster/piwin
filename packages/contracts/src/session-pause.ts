@@ -33,6 +33,11 @@ export type SessionPauseCheckpoint = {
   sourceUserMessageId?: string;
   lastAssistantMessageId?: string;
   transcriptRevision: number;
+  /**
+   * Subagent batch runs that were still running when the pause was requested.
+   * Pausing cancels them; their worktrees and partial results stay retained.
+   */
+  interruptedSubagentRunIds?: string[];
   status: 'active' | 'consumed' | 'cleared';
   consumedAt?: string;
 };

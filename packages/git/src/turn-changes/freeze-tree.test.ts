@@ -1,10 +1,11 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runGitCommand } from '../git-command-runner.js';
 import { freezeWorktreeAgainstBase } from './freeze-tree.js';
+import { DEFAULT_TURN_CHANGE_MAX_OBJECT_BYTES } from './object-store.js';
 import { openTurnChangeStore } from './store.js';
 
 const temporaryDirectories: string[] = [];
@@ -102,5 +103,104 @@ describe('freezeWorktreeAgainstBase', () => {
       'hello.txt',
     ]);
     store.close();
+  });
+
+  async function initRepo(worktreePath: string): Promise<void> {
+    await git(worktreePath, ['init']);
+    await git(worktreePath, ['config', 'user.email', 't@example.com']);
+    await git(worktreePath, ['config', 'user.name', 't']);
+  }
+
+  function recordingStore() {
+    const putSizes: number[] = [];
+    return {
+      putSizes,
+      put(bytes: Uint8Array): Promise<{ sha256: string }> {
+        putSizes.push(bytes.byteLength);
+        return Promise.resolve({ sha256: `sha-${putSizes.length}` });
+      },
+    };
+  }
+
+  it('reads only Git-visible changes, skipping ignored dependencies and unchanged files', async () => {
+    const worktreePath = await createTempDir('piwin-freeze-ignored-');
+    await initRepo(worktreePath);
+    await writeFile(join(worktreePath, '.gitignore'), 'node_modules/\n', 'utf8');
+    await writeFile(join(worktreePath, 'keep.txt'), 'same\n', 'utf8');
+    await writeFile(join(worktreePath, 'edit.txt'), 'base\n', 'utf8');
+    await writeFile(join(worktreePath, 'gone.txt'), 'bye\n', 'utf8');
+    await git(worktreePath, ['add', '.']);
+    await git(worktreePath, ['commit', '-m', 'base']);
+    const baseCommit = await git(worktreePath, ['rev-parse', 'HEAD']);
+
+    await mkdir(join(worktreePath, 'node_modules', 'pkg'), { recursive: true });
+    await writeFile(
+      join(worktreePath, 'node_modules', 'pkg', 'huge.wasm'),
+      Buffer.alloc(DEFAULT_TURN_CHANGE_MAX_OBJECT_BYTES + 1),
+    );
+    await writeFile(join(worktreePath, 'edit.txt'), 'child\n', 'utf8');
+    await rm(join(worktreePath, 'gone.txt'));
+    await writeFile(join(worktreePath, 'committed.txt'), 'child commit\n', 'utf8');
+    await git(worktreePath, ['add', 'committed.txt']);
+    await git(worktreePath, ['commit', '-m', 'child commit']);
+
+    const store = recordingStore();
+    const frozen = await freezeWorktreeAgainstBase({ worktreePath, baseCommit, store });
+
+    expect(frozen.coverage).toBe('complete');
+    expect(frozen.files.map((file) => file.relativePath)).toEqual([
+      'committed.txt',
+      'edit.txt',
+      'gone.txt',
+    ]);
+    const gone = frozen.files.find((file) => file.relativePath === 'gone.txt');
+    expect(gone?.beforeExists).toBe(true);
+    expect(gone?.afterExists).toBe(false);
+    expect(Math.max(...store.putSizes)).toBeLessThan(1024);
+    expect(store.putSizes).toHaveLength(4);
+  });
+
+  it('omits an oversized changed file and marks coverage incomplete instead of failing', async () => {
+    const worktreePath = await createTempDir('piwin-freeze-oversized-');
+    await initRepo(worktreePath);
+    await writeFile(join(worktreePath, 'edit.txt'), 'base\n', 'utf8');
+    await git(worktreePath, ['add', '.']);
+    await git(worktreePath, ['commit', '-m', 'base']);
+    const baseCommit = await git(worktreePath, ['rev-parse', 'HEAD']);
+
+    await writeFile(join(worktreePath, 'edit.txt'), 'child\n', 'utf8');
+    await writeFile(
+      join(worktreePath, 'artifact.bin'),
+      Buffer.alloc(DEFAULT_TURN_CHANGE_MAX_OBJECT_BYTES + 1),
+    );
+
+    const store = recordingStore();
+    const frozen = await freezeWorktreeAgainstBase({ worktreePath, baseCommit, store });
+
+    expect(frozen.coverage).toBe('incomplete');
+    expect(frozen.files.map((file) => file.relativePath)).toEqual(['edit.txt']);
+  });
+
+  it('never records a changed or new symlink as a deleted file', async () => {
+    const worktreePath = await createTempDir('piwin-freeze-symlink-');
+    await initRepo(worktreePath);
+    await writeFile(join(worktreePath, 'a.txt'), 'a\n', 'utf8');
+    await writeFile(join(worktreePath, 'b.txt'), 'b\n', 'utf8');
+    await symlink('a.txt', join(worktreePath, 'link.txt'));
+    await symlink('a.txt', join(worktreePath, 'stable-link.txt'));
+    await git(worktreePath, ['add', '.']);
+    await git(worktreePath, ['commit', '-m', 'base']);
+    const baseCommit = await git(worktreePath, ['rev-parse', 'HEAD']);
+
+    await rm(join(worktreePath, 'link.txt'));
+    await symlink('b.txt', join(worktreePath, 'link.txt'));
+    await symlink('b.txt', join(worktreePath, 'new-link.txt'));
+
+    const store = recordingStore();
+    const frozen = await freezeWorktreeAgainstBase({ worktreePath, baseCommit, store });
+
+    expect(frozen.coverage).toBe('incomplete');
+    expect(frozen.files).toEqual([]);
+    expect(store.putSizes).toHaveLength(0);
   });
 });

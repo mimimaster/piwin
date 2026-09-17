@@ -36,10 +36,16 @@ export function applyComposerStopAll(input: {
   runIds: readonly string[];
   jobIds: readonly string[];
   cancelBatch: (runId: string) => void;
+  /** Batch-aware stop that confirms once for the whole set. */
+  cancelBatches?: (runIds: readonly string[]) => void;
   stopJob: (jobId: string) => void;
 }): void {
-  for (const runId of input.runIds) {
-    input.cancelBatch(runId);
+  if (input.cancelBatches && input.runIds.length > 0) {
+    input.cancelBatches(input.runIds);
+  } else {
+    for (const runId of input.runIds) {
+      input.cancelBatch(runId);
+    }
   }
   for (const jobId of input.jobIds) {
     input.stopJob(jobId);

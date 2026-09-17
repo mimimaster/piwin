@@ -225,7 +225,8 @@ export async function buildDomainContext(
               subagentOrchestrator.startBatch(request, parentRunId),
             getBatchProjection: (runId: string) =>
               subagentOrchestrator.getBatchProjectionAsync(runId),
-            cancelBatch: (runId: string) => subagentOrchestrator.cancelBatch(runId),
+            cancelBatch: (runId: string, options?: { initiator?: 'user' }) =>
+              subagentOrchestrator.cancelBatch(runId, options),
             continueChild: (childSessionId: string, text: string) =>
               deps.continueSubagentChild(subagentOrchestrator, childSessionId, text),
             actOnWorktree: (childSessionId: string, action: 'apply' | 'retain' | 'discard') =>

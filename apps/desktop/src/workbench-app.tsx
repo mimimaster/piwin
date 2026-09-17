@@ -15,6 +15,7 @@ import type { HostLogEntry } from './HostLogPanel';
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import { DesktopContextMenuProvider } from './context-menu';
 import { SubagentInspectorProvider } from './subagent-inspector-context';
+import { SubagentStopProvider } from './subagent-stop-controller';
 import {
   SubagentReviewLoopProvider,
   useSubagentReviewLoopValue,
@@ -341,6 +342,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     handleInspectSubagent,
     subagentInspectorToggle,
     subagentInspectorPanel,
+    subagentStop,
     handleCancelMessageEdit,
     handleInterventionEdit,
     handleInterventionCancel,
@@ -502,6 +504,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               toggle={subagentInspectorToggle}
               panel={subagentInspectorPanel}
             >
+              <SubagentStopProvider value={subagentStop}>
+              {subagentStop.dialog}
               <SubagentReviewLoopProvider value={reviewLoop}>
               <KnowledgeMountsProvider value={knowledgeSupported ? knowledge.mounts : null}>
               <KnowledgeCitationActionsProvider value={knowledge.citationActions}>
@@ -1026,6 +1030,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               </KnowledgeCitationActionsProvider>
               </KnowledgeMountsProvider>
               </SubagentReviewLoopProvider>
+              </SubagentStopProvider>
             </SubagentInspectorProvider>
           </DesktopContextMenuProvider>
         </MediaPreviewReadProvider>

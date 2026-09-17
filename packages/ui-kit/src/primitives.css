@@ -1724,3 +1724,63 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   background: var(--s1);
   color: var(--t1);
 }
+
+/* Optional action control inside a bridged Mantine notification (AN-I13). */
+.ui-notification-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ui-notification-action {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--line-soft, var(--line-1, rgba(255, 255, 255, 0.12)));
+  background: var(--surface-control, rgba(255, 255, 255, 0.06));
+  color: var(--text-1, #ededed);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition:
+    background var(--t-1, 150ms) var(--ease-out, ease-out),
+    color var(--t-1, 150ms) var(--ease-out, ease-out),
+    border-color var(--t-1, 150ms) var(--ease-out, ease-out);
+}
+
+.ui-notification-action:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+}
+
+.ui-notification-action[data-tone='info'] {
+  color: var(--azure, var(--state-waiting, #3a7797));
+  border-color: color-mix(in srgb, var(--azure, var(--state-waiting, #3a7797)) 40%, transparent);
+  background: var(--azure-wash, color-mix(in srgb, var(--state-waiting, #3a7797) 14%, transparent));
+}
+
+.ui-notification-action[data-tone='success'] {
+  color: var(--pine, var(--ok, #3d7c5e));
+  border-color: color-mix(in srgb, var(--pine, var(--ok, #3d7c5e)) 40%, transparent);
+  background: var(--pine-wash, color-mix(in srgb, var(--ok, #3d7c5e) 14%, transparent));
+}
+
+.ui-notification-action[data-tone='warning'] {
+  color: var(--ochre, var(--warn, #94611a));
+  border-color: color-mix(in srgb, var(--ochre, var(--warn, #94611a)) 40%, transparent);
+  background: var(--lamp-wash, color-mix(in srgb, var(--warn, #94611a) 14%, transparent));
+}
+
+.ui-notification-action[data-tone='error'] {
+  color: var(--crimson, var(--danger, #9c2e3d));
+  border-color: color-mix(in srgb, var(--crimson, var(--danger, #9c2e3d)) 40%, transparent);
+  background: var(--crimson-wash, color-mix(in srgb, var(--danger, #9c2e3d) 12%, transparent));
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-notification-action:hover {
+  background: var(--s1);
+}

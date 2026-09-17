@@ -387,6 +387,176 @@ html[data-theme-id='piwin-inkstone-ink'] .intr .pill.zhu-p {
   color: var(--zhu);
 }
 
+/* S5.10: Docked AgentInterruptionFrame & PermissionBar in Inkstone */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .agent-interruption {
+  background: var(--s3);
+  border-radius: 10px 10px 0 0;
+  box-shadow: var(--sh2);
+  border: 0;
+  position: relative;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .agent-interruption::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .agent-interruption--danger::before {
+  background: var(--crimson);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .agent-interruption-header {
+  padding: 10px 14px 4px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .agent-interruption-title {
+  font: 600 13.5px var(--sans);
+  color: var(--t1);
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-queue-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--zhu-wash);
+  color: var(--zhu);
+  font: 600 11px var(--mono);
+  letter-spacing: 0.02em;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .agent-interruption-content {
+  padding: 0 14px 10px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-quick-facts {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font: 11px var(--mono);
+  color: var(--t3);
+  margin-top: 4px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-quick-facts code {
+  color: var(--t2);
+  font-family: inherit;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-quick-facts .permission-risk-danger {
+  color: var(--crimson);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-disclosure {
+  font: 11px var(--mono);
+  color: var(--t3);
+  padding: 4px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-disclosure:hover {
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-detail-inner {
+  border-top: 1px solid var(--l1);
+  padding-top: 6px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-allow-session {
+  background: var(--zhu) !important;
+  color: var(--on-zhu) !important;
+  font: 600 12px var(--sans) !important;
+  border: 0 !important;
+  border-radius: 4px !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.35) !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-allow-session:hover {
+  background: var(--zhu-lift) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-allow-session.is-stamping {
+  animation: stamp 160ms var(--spring) forwards !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-allow-session .agent-interruption-choice-badge {
+  background: rgba(255, 255, 255, 0.25) !important;
+  color: #fff !important;
+  font-family: var(--mono) !important;
+  border-radius: 2px !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-allow-once,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-allow-project {
+  background: var(--s2) !important;
+  color: var(--t1) !important;
+  font: 500 12px var(--sans) !important;
+  border: 0 !important;
+  border-radius: 4px !important;
+  box-shadow: var(--sh1) !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-allow-once:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-allow-project:hover {
+  background: var(--s4) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-deny {
+  background: transparent !important;
+  color: var(--crimson, #c6412a) !important;
+  font: 500 12px var(--sans) !important;
+  border: 0 !important;
+  border-radius: 4px !important;
+  box-shadow: inset 0 0 0 1px var(--crimson-wash, rgba(198, 65, 42, 0.25)) !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-deny:hover {
+  background: var(--crimson, #c6412a) !important;
+  color: #fff !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-kbd-hint {
+  font: 11px var(--mono);
+  color: var(--t4);
+  margin-top: 6px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-kbd-hint kbd {
+  font-family: inherit;
+  background: var(--s1);
+  color: var(--t3);
+  border: 1px solid var(--l2);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
 @media (max-width: 480px) {
   html[data-theme-id='piwin-inkstone-paper'] .gate,
   html[data-theme-id='piwin-inkstone-ink'] .gate {

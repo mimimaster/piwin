@@ -20,6 +20,16 @@ describe('resolveResumePromptText', () => {
   });
 });
 
+describe('resolveResumePromptText with interrupted subagents', () => {
+  it('points the model at the retained child runs before the user instruction', () => {
+    const resolved = resolveResumePromptText('继续', ['batch-a', 'batch-b']);
+    expect(resolved.startsWith(RESUME_CONTINUATION_PROMPT)).toBe(true);
+    expect(resolved).toContain('batch-a, batch-b');
+    expect(resolved).toContain('piwin_subagent_wait');
+    expect(resolveResumePromptText('只做 A', ['batch-a']).endsWith('只做 A')).toBe(true);
+  });
+});
+
 describe('TURN_CONTINUATION_PROMPT', () => {
   it('tells the model not to regenerate landed media', () => {
     expect(TURN_CONTINUATION_PROMPT).toContain('mediaIds');

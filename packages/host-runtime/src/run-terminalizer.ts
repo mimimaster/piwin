@@ -65,7 +65,7 @@ export async function terminateHostRun(
       });
     }
   }
-  await cancelAndJoinParentDescendants({
+  const descendantCancellation = await cancelAndJoinParentDescendants({
     parentRunId: runId,
     hasActiveDescendants: (id) => deps.runRegistry.hasActiveDescendants(id),
     cancelBatchesForParentRun: (id) => {
@@ -86,7 +86,27 @@ export async function terminateHostRun(
       }
       return deps.runRegistry.join(id);
     },
+    joinDescendants: async (id) => {
+      const registry = deps.runRegistry;
+      const active = registry.snapshotActiveDescendantIds(id);
+      for (const descendantId of active) {
+        registry.cancelRun(descendantId);
+      }
+      await Promise.all(active.map((descendantId) => registry.join(descendantId)));
+    },
+    forceTerminateDescendants: (id) =>
+      deps.runRegistry.forceTerminateDescendants(
+        id,
+        'Child run did not acknowledge cancellation in time and was detached.',
+      ),
   });
+  if (descendantCancellation.forcedRunIds.length > 0) {
+    deps.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `descendant cancellation timed out for ${runId}; detached ${descendantCancellation.forcedRunIds.join(', ')}`,
+    });
+  }
   const effectiveOutcome = cleanupFailed ? 'failed' : outcome;
   const abortReason =
     deps.runRegistry.getAbortReason(runId) ?? deps.runRegistry.getSignal(runId)?.reason;

@@ -70,7 +70,7 @@ function orchestrationContext(
       status: 'running',
       results: [],
     }),
-    cancelBatch: async () => {},
+    cancelBatch: async () => 'cancelled' as const,
     continueChild: async () => ({ runId: 'continuation-run' }),
     actOnWorktree: async () => ({ integrationStatus: 'retained' }),
     ...overrides,

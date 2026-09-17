@@ -66,6 +66,10 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         onStopJob={props.onStopJob ?? (() => {})}
         onViewJobLogs={props.onViewJobLogs ?? (() => {})}
         onCancelSubagentBatch={props.onCancelSubagentBatch ?? (() => {})}
+        {...(props.onCancelSubagentBatches
+          ? { onCancelSubagentBatches: props.onCancelSubagentBatches }
+          : {})}
+        {...(props.isSubagentStopping ? { isSubagentStopping: props.isSubagentStopping } : {})}
         onOpenTasks={props.onOpenTasks ?? (() => {})}
       />
       {goalView && goalView.phase !== 'idle' && goalMessages ? (

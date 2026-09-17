@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { createElement, type ReactNode } from 'react';
 import { notifications } from '@mantine/notifications';
 import { renderToneSealIcon } from './tone-icon.js';
 
@@ -12,6 +12,7 @@ export type UiNotificationInput = {
   icon?: ReactNode;
   autoClose?: number | false;
   onClose?: () => void;
+  action?: { label: string; onClick: () => void };
 };
 
 const MANTINE_NOTIFICATION_COLORS: Record<UiNotificationTone, string> = {
@@ -20,6 +21,42 @@ const MANTINE_NOTIFICATION_COLORS: Record<UiNotificationTone, string> = {
   warning: 'yellow',
   error: 'red',
 };
+
+let nextActionNotificationId = 0;
+
+function allocateNotificationId(): string {
+  nextActionNotificationId += 1;
+  return `ui-notification-${nextActionNotificationId}`;
+}
+
+function renderActionMessage(
+  message: string,
+  tone: UiNotificationTone,
+  action: { label: string; onClick: () => void },
+  notificationId: string,
+): ReactNode {
+  return createElement(
+    'span',
+    { className: 'ui-notification-with-action' },
+    message,
+    createElement(
+      'button',
+      {
+        type: 'button',
+        className: 'ui-notification-action',
+        'data-tone': tone,
+        onClick: () => {
+          try {
+            action.onClick();
+          } finally {
+            hideUiNotification(notificationId);
+          }
+        },
+      },
+      action.label,
+    ),
+  );
+}
 
 /**
  * Product-facing notification entry point. Keeping Mantine behind ui-kit
@@ -31,9 +68,17 @@ const MANTINE_NOTIFICATION_COLORS: Record<UiNotificationTone, string> = {
  * Notifications container assigns.
  */
 export function showUiNotification(input: UiNotificationInput): string {
+  const action = input.action;
+  const notificationId =
+    action !== undefined ? (input.id ?? allocateNotificationId()) : input.id;
+  const message =
+    action === undefined || notificationId === undefined
+      ? input.message
+      : renderActionMessage(input.message, input.tone, action, notificationId);
+
   return notifications.show({
-    ...(input.id !== undefined ? { id: input.id } : {}),
-    message: input.message,
+    ...(notificationId !== undefined ? { id: notificationId } : {}),
+    message,
     color: MANTINE_NOTIFICATION_COLORS[input.tone],
     mod: { tone: input.tone },
     icon: input.icon ?? renderToneSealIcon(input.tone),

@@ -322,6 +322,8 @@ export type SessionLiveContext = {
   ) => ExecutionRunRecord | undefined;
   isPauseRequested: (runId: string) => boolean;
   hasActiveDescendants: (runId: string) => boolean;
+  /** Subagent batches still running when this run's pause was first requested. */
+  getPauseInterruptedSubagentRunIds: (runId: string) => string[];
   attachResumeCheckpoint: (runId: string, checkpointId: string) => void;
   getActivePauseCheckpoint: (sessionId: string) => Promise<SessionPauseCheckpoint | undefined>;
   getPauseCheckpoint: (

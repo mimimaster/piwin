@@ -61,7 +61,8 @@ export function createTranscriptPauseOps(
               `UPDATE pause_checkpoint
                SET source_run_id = ?, runtime_generation_id = ?, created_at = ?,
                    source_user_message_id = ?, last_assistant_message_id = ?,
-                   transcript_revision = ?, status = 'active', consumed_at = NULL
+                   transcript_revision = ?, interrupted_subagent_run_ids_json = ?,
+                   status = 'active', consumed_at = NULL
                WHERE checkpoint_id = ? AND session_id = ?`,
             ).run(
               input.sourceRunId,
@@ -70,6 +71,7 @@ export function createTranscriptPauseOps(
               input.sourceUserMessageId ?? null,
               input.lastAssistantMessageId ?? null,
               input.transcriptRevision,
+              runIdListJson(input.interruptedSubagentRunIds),
               existing.checkpointId,
               options.sessionId,
             );
@@ -94,13 +96,16 @@ export function createTranscriptPauseOps(
         if (input.lastAssistantMessageId !== undefined) {
           checkpoint.lastAssistantMessageId = input.lastAssistantMessageId;
         }
+        if (input.interruptedSubagentRunIds !== undefined && input.interruptedSubagentRunIds.length > 0) {
+          checkpoint.interruptedSubagentRunIds = [...input.interruptedSubagentRunIds];
+        }
         try {
           db.prepare(
             `INSERT INTO pause_checkpoint(
                checkpoint_id, session_id, source_run_id, runtime_generation_id,
                created_at, source_user_message_id, last_assistant_message_id,
-               transcript_revision, status
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+               transcript_revision, interrupted_subagent_run_ids_json, status
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
           ).run(
             checkpoint.checkpointId,
             checkpoint.sessionId,
@@ -110,6 +115,7 @@ export function createTranscriptPauseOps(
             checkpoint.sourceUserMessageId ?? null,
             checkpoint.lastAssistantMessageId ?? null,
             checkpoint.transcriptRevision,
+            runIdListJson(checkpoint.interruptedSubagentRunIds),
           );
         } catch (error) {
           if (isSqliteUniqueConstraint(error)) {
@@ -154,4 +160,8 @@ export function createTranscriptPauseOps(
         return result.changes > 0;
       }
   };
+}
+
+function runIdListJson(runIds: readonly string[] | undefined): string | null {
+  return runIds === undefined || runIds.length === 0 ? null : JSON.stringify(runIds);
 }

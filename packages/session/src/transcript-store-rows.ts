@@ -49,6 +49,7 @@ export type PauseCheckpointRow = {
   transcript_revision: number;
   status: string;
   consumed_at: string | null;
+  interrupted_subagent_run_ids_json?: string | null;
 };
 
 export type RunInterventionRow = {
@@ -258,7 +259,23 @@ export type QueuedTurnRow = {
     if (row.consumed_at !== null) {
       checkpoint.consumedAt = row.consumed_at;
     }
+    const interruptedSubagentRunIds = parseRunIdList(row.interrupted_subagent_run_ids_json);
+    if (interruptedSubagentRunIds.length > 0) {
+      checkpoint.interruptedSubagentRunIds = interruptedSubagentRunIds;
+    }
     return checkpoint;
+  }
+
+  function parseRunIdList(json: string | null | undefined): string[] {
+    if (!json) return [];
+    try {
+      const parsed: unknown = JSON.parse(json);
+      return Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === 'string' && value.length > 0)
+        : [];
+    } catch {
+      return [];
+    }
   }
 
 /**

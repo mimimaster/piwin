@@ -52,6 +52,8 @@ interface RunNode {
   inFlightToolIds: Set<string>;
   /** Host-owned abort intent; survives after the live AbortSignal is gone. */
   abortReason?: RunAbortReason;
+  /** Subagent batches still running when the first pause request arrived. */
+  pauseInterruptedBatchRunIds?: string[];
 }
 
 export type TerminateRunRecordOptions = {
@@ -433,6 +435,43 @@ export class RunRegistry {
     return false;
   }
 
+  /** Non-terminal runs below this run, excluding the run itself. */
+  snapshotActiveDescendantIds(runId: string): string[] {
+    const node = this.nodes.get(runId);
+    if (!node) return [];
+    const active: string[] = [];
+    for (const childId of node.children) {
+      this.collectNonTerminalSubtree(childId, active);
+    }
+    return active;
+  }
+
+  /**
+   * Terminalize descendants whose owners never acknowledged cancellation, so
+   * the parent's descendant barrier (SC-09) cannot hold it open forever.
+   * Leaves go first; late owner terminal calls become no-ops.
+   */
+  forceTerminateDescendants(runId: string, error: string): string[] {
+    const forced: string[] = [];
+    for (const descendantId of this.sortLeavesFirst(this.snapshotActiveDescendantIds(runId))) {
+      const node = this.nodes.get(descendantId);
+      if (!node || isRunTerminal(node.record.status)) continue;
+      node.admissionClosed = true;
+      if (!node.abortController.signal.aborted) {
+        node.abortController.abort();
+      }
+      if (this.terminate(descendantId, 'cancelled', 'cancelled', error)) {
+        forced.push(descendantId);
+      }
+    }
+    return forced;
+  }
+
+  /** Subagent batches that were still running when this run was asked to pause. */
+  getPauseInterruptedBatchRunIds(runId: string): string[] {
+    return [...(this.nodes.get(runId)?.pauseInterruptedBatchRunIds ?? [])];
+  }
+
   /** Whether this run was asked to pause rather than irreversibly cancel. */
   isPauseRequested(runId: string): boolean {
     return this.nodes.get(runId)?.pauseRequested === true;
@@ -647,6 +686,11 @@ export class RunRegistry {
     if (!node || isRunTerminal(node.record.status)) return undefined;
     persistAbortReason(node, reason);
     node.admissionClosed = true;
+    if (!node.pauseRequested) {
+      node.pauseInterruptedBatchRunIds = this.snapshotDirectChildren(runId)
+        .filter((child) => child.kind === 'subagent-batch' && !isRunTerminal(child.status))
+        .map((child) => child.runId);
+    }
     node.pauseRequested = true;
     let changed = false;
     if (node.record.status !== 'cancelling') {

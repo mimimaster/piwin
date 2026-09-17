@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
+import { USER_STOPPED_SUBAGENT_MESSAGE } from './subagent-orchestrator-finalize.js';
 import { RunRegistry } from './run-registry.js';
 import type { SubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
 import type {
@@ -767,6 +768,91 @@ describe('SubagentOrchestrator', () => {
     expect(pushes.filter((push) => push.type === 'subagent/task-updated')).toHaveLength(0);
   });
 
+  it('detaches a user-stopped batch whose runner ignores cancellation past the deadline', async () => {
+    const backend = makeFakeBackend({ delayMs: 400, ignoreAbort: true });
+    const { push, pushes } = makePushCollector();
+    const runRegistry = new RunRegistry();
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry,
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+
+    const handle = orchestrator.startBatch(makeBatch([makeTask({ id: 'a' })]));
+    await vi.waitFor(() => {
+      expect(backend.startedTasks).toHaveLength(1);
+    });
+    const status = await orchestrator.cancelBatch(handle.runId, {
+      initiator: 'user',
+      timeoutMs: 20,
+    });
+    const result = await handle.completion;
+
+    expect(status).toBe('detached');
+    expect(result.status).toBe('cancelled');
+    expect(result.results[0]).toMatchObject({
+      executionStatus: 'cancelled',
+      error: USER_STOPPED_SUBAGENT_MESSAGE,
+    });
+    expect(runRegistry.get(handle.runId)?.status).toBe('cancelled');
+    expect(runRegistry.hasActiveDescendants(handle.runId)).toBe(false);
+    expect(pushes.some((message) => message.type === 'host/log')).toBe(true);
+  });
+
+  it('marks a user stop that settles in time without detaching', async () => {
+    const backend = makeFakeBackend({ delayMs: 400 });
+    const { push } = makePushCollector();
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+
+    const handle = orchestrator.startBatch(makeBatch([makeTask({ id: 'a' })]));
+    await vi.waitFor(() => {
+      expect(backend.startedTasks).toHaveLength(1);
+    });
+    const status = await orchestrator.cancelBatch(handle.runId, { initiator: 'user' });
+    const result = await handle.completion;
+
+    expect(status).toBe('cancelled');
+    expect(result.results[0]).toMatchObject({
+      executionStatus: 'cancelled',
+      error: USER_STOPPED_SUBAGENT_MESSAGE,
+    });
+  });
+
+  it('does not attribute a non-user cancellation to the user', async () => {
+    const backend = makeFakeBackend({ delayMs: 400 });
+    const { push } = makePushCollector();
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+
+    const handle = orchestrator.startBatch(makeBatch([makeTask({ id: 'a' })]));
+    await vi.waitFor(() => {
+      expect(backend.startedTasks).toHaveLength(1);
+    });
+    await orchestrator.cancelBatch(handle.runId);
+    const result = await handle.completion;
+
+    expect(result.results[0]?.error ?? '').not.toContain('Stopped by the user');
+  });
+
   it('rejects construction without explicit task preparation', () => {
     const backend = makeFakeBackend({});
     const { push } = makePushCollector();
@@ -799,6 +885,38 @@ describe('SubagentOrchestrator', () => {
     expect(result.status).toBe('completed');
     expect(taskRun?.sessionId).not.toBe('parent-1');
     expect(taskRun?.runtimeGenerationId).toBe(RUNTIME_GENERATION_ID);
+  });
+
+  it('keeps a finished child completed and integrated when result freeze fails', async () => {
+    const backend = makeFakeBackend({ integrationStatus: 'pending' });
+    const { push } = makePushCollector();
+    const integrationCoordinator = makeFakeIntegrationCoordinator();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator,
+      freezeChildResult: () =>
+        Promise.reject(new Error('object exceeds maxObjectBytes (20971520)')),
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+
+    try {
+      const result = await orchestrator.runBatch(
+        makeBatch([makeTask({ id: 'a', isolationOverride: 'worktree' })]),
+      );
+      expect(result.status).toBe('completed');
+      expect(result.results[0]?.executionStatus).toBe('completed');
+      expect(result.results[0]?.integrationStatus).toBe('applied');
+      expect(result.results[0]?.error).toBeUndefined();
+      expect(result.results[0]?.childChanges).toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('maxObjectBytes'));
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('does not complete a worktree batch when integration fails', async () => {

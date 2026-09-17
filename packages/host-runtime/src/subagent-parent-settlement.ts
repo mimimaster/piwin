@@ -96,18 +96,44 @@ export async function settleParentSubagents(
   return continueOnceFromUncollected(input, observations);
 }
 
+/** How long a terminating parent waits for cancelled descendants to settle. */
+export const DEFAULT_DESCENDANT_CANCEL_TIMEOUT_MS = 10_000;
+
+/**
+ * Cancel a terminating parent's descendants and join them within a deadline.
+ * A child whose owner never acknowledges cancellation is force-terminated so
+ * Stop and Pause always reach the parent terminal.
+ */
 export async function cancelAndJoinParentDescendants(input: {
   parentRunId: string;
   hasActiveDescendants: (runId: string) => boolean;
   cancelBatchesForParentRun: (parentRunId: string) => void;
   snapshotBatchRunIds: (parentRunId: string) => string[];
   joinBatch: (runId: string) => Promise<unknown>;
-}): Promise<void> {
-  if (!input.hasActiveDescendants(input.parentRunId)) return;
+  joinDescendants: (parentRunId: string) => Promise<void>;
+  forceTerminateDescendants: (parentRunId: string) => string[];
+  timeoutMs?: number;
+}): Promise<{ forcedRunIds: string[] }> {
+  if (!input.hasActiveDescendants(input.parentRunId)) return { forcedRunIds: [] };
   input.cancelBatchesForParentRun(input.parentRunId);
-  for (const runId of input.snapshotBatchRunIds(input.parentRunId)) {
-    await input.joinBatch(runId);
+  const joined = Promise.allSettled([
+    ...input.snapshotBatchRunIds(input.parentRunId).map((runId) => input.joinBatch(runId)),
+    input.joinDescendants(input.parentRunId),
+  ]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(
+      () => resolve('timeout'),
+      input.timeoutMs ?? DEFAULT_DESCENDANT_CANCEL_TIMEOUT_MS,
+    );
+  });
+  try {
+    await Promise.race([joined, deadline]);
+  } finally {
+    clearTimeout(timer);
   }
+  if (!input.hasActiveDescendants(input.parentRunId)) return { forcedRunIds: [] };
+  return { forcedRunIds: input.forceTerminateDescendants(input.parentRunId) };
 }
 
 function snapshotBatchChildren(

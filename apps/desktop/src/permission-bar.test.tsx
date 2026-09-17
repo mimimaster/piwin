@@ -252,4 +252,24 @@ describe('PermissionBar', () => {
     );
     expect(denyBtn?.textContent).toContain('Deny');
   });
+
+  it('renders queue badge when queuedRemaining > 0', () => {
+    act(() =>
+      root.render(
+        <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <PermissionBar
+              prompt={basePrompt}
+              projectPath="/repo"
+              queuedRemaining={3}
+              onPermission={vi.fn()}
+            />
+          </PiwinUiProvider>
+        </DesktopLocaleProvider>,
+      ),
+    );
+    const badge = container.querySelector('[data-testid="permission-queue-badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toContain('还有 3 条待审批');
+  });
 });

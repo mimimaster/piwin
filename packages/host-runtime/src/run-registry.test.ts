@@ -1415,7 +1415,31 @@ describe('RunRegistry checkpoint pause', () => {
     );
   });
 
-  it('reports active descendants so callers can reject partial tree pauses', () => {
+  it('remembers subagent batches that were running when pause was first requested', () => {
+    const reg = makeRegistry();
+    const parent = reg.createForegroundRun('sess-pause');
+    const running = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-pause',
+      parentRunId: parent.runId,
+    });
+    reg.start(running.runId);
+    const finished = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-pause',
+      parentRunId: parent.runId,
+    });
+    reg.start(finished.runId);
+    reg.terminate(finished.runId, 'completed', 'completed');
+
+    reg.requestPause(parent.runId);
+    reg.terminate(running.runId, 'cancelled', 'cancelled');
+    reg.requestPause(parent.runId);
+
+    expect(reg.getPauseInterruptedBatchRunIds(parent.runId)).toEqual([running.runId]);
+  });
+
+  it('reports active descendants still owned by a run', () => {
     const reg = makeRegistry();
     const parent = reg.createForegroundRun('sess-pause');
     const child = reg.create({

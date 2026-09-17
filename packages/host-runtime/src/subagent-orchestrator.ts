@@ -54,7 +54,11 @@ import {
   type BatchState,
   type SubagentOrchestratorContext,
 } from './subagent-orchestrator-batch.js';
-import { finalizeBatch, releaseWorkspaceLeases } from './subagent-orchestrator-finalize.js';
+import {
+  detachCancelledBatch,
+  finalizeBatch,
+  releaseWorkspaceLeases,
+} from './subagent-orchestrator-finalize.js';
 import { updateInvocation } from './subagent-orchestrator-invocation.js';
 import { dispatchTask } from './subagent-orchestrator-task.js';
 import type {
@@ -78,6 +82,17 @@ export type {
   SubagentTaskPreflightContext,
   SubagentWorkspaceService,
 } from './subagent-orchestrator-types.js';
+
+/** How long a cancel request waits for a batch's runners to unwind. */
+export const SUBAGENT_CANCEL_ACK_TIMEOUT_MS = 10_000;
+
+export type SubagentBatchCancelStatus =
+  /** The batch finished unwinding within the deadline. */
+  | 'cancelled'
+  /** Runners missed the deadline; run tree and waiters were settled as cancelled. */
+  | 'detached'
+  /** Not active in this Host; a durable cancel request was recorded. */
+  | 'requested';
 
 export class SubagentOrchestrator {
   private readonly taskRunner: SubagentTaskRunner;
@@ -385,16 +400,47 @@ export class SubagentOrchestrator {
     }
   }
 
-  /** Cancel a running batch and join its completion. */
-  async cancelBatch(runId: string): Promise<void> {
+  /**
+   * Cancel a running batch and join its completion within a deadline. A batch
+   * whose runners never unwind is detached so callers and waiters return.
+   */
+  async cancelBatch(
+    runId: string,
+    options: { initiator?: 'user'; timeoutMs?: number } = {},
+  ): Promise<SubagentBatchCancelStatus> {
     const batchState = this.activeBatches.get(runId);
     if (!batchState) {
       await this.runStore?.requestCancel?.(runId);
-      return;
+      return 'requested';
     }
 
+    if (options.initiator === 'user') {
+      batchState.cancelledByUser = true;
+    }
     this.cancelBatchState(batchState);
-    await batchState.completion;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const outcome = await Promise.race([
+      batchState.completion.then(
+        () => 'settled' as const,
+        () => 'settled' as const,
+      ),
+      new Promise<'timeout'>((resolve) => {
+        timer = setTimeout(
+          () => resolve('timeout'),
+          options.timeoutMs ?? SUBAGENT_CANCEL_ACK_TIMEOUT_MS,
+        );
+      }),
+    ]);
+    clearTimeout(timer);
+    if (outcome === 'settled') return 'cancelled';
+    const message = 'Subagent did not acknowledge cancellation in time and was detached.';
+    this.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `subagent batch ${runId} cancellation timed out; detached`,
+    });
+    await detachCancelledBatch(this.context(), batchState, message);
+    return 'detached';
   }
 
   /** Cancel every batch owned by a parent plan or foreground Run. */

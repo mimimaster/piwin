@@ -213,12 +213,14 @@ const ROLE_CHAR_MAP: Record<string, string> = {
   reviewer: '审',
   review: '审',
   scout: '探',
+  explorer: '探',
   research: '探',
   search: '搜',
   tester: '测',
   test: '测',
   coder: '编',
   code: '编',
+  implementer: '实',
   engineer: '工',
   developer: '发',
   architect: '构',
@@ -390,7 +392,7 @@ export function SubagentInvocationBlock(
   const canInspect = props.child !== undefined && props.onInspect !== undefined;
   const expanded = props.expanded === true;
   const behaviorId = behaviorIdForStatus(status);
-  const sealChar = resolveSubagentSealChar(role, title, props.locale);
+  const sealChar = resolveSubagentSealChar(role ?? profileId, title, props.locale);
   const startedAt = props.orchestrationItem?.startedAt ?? props.invocation?.createdAt;
   const endedAt = props.orchestrationItem?.updatedAt ?? props.invocation?.updatedAt;
   const elapsed =

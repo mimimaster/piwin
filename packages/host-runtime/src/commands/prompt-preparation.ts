@@ -178,11 +178,22 @@ export const RESUME_CONTINUATION_PROMPT =
 export const TURN_CONTINUATION_PROMPT =
   'The previous attempt ended before the deliverable was finished (truncated output or a provider failure after work already landed). Continue from the current transcript and tool state. First inspect what has already been completed, including generated mediaIds and partial artifacts. Do not repeat successful side effects. Do not regenerate media already produced. Do not embed image bytes, markdown images, or filesystem paths. Finish only the unfinished work.';
 
-export function resolveResumePromptText(userText: string | undefined): string {
-  if (userText === undefined || isPauseContinueUtterance(userText)) {
-    return RESUME_CONTINUATION_PROMPT;
+export function resolveResumePromptText(
+  userText: string | undefined,
+  interruptedSubagentRunIds: readonly string[] = [],
+): string {
+  let text = RESUME_CONTINUATION_PROMPT;
+  if (interruptedSubagentRunIds.length > 0) {
+    text +=
+      `\n\nPausing cancelled these subagent runs before they finished: ${interruptedSubagentRunIds.join(', ')}. ` +
+      'Their worktrees and partial results are retained. Before redoing that work, call ' +
+      'piwin_subagent_wait with these runIds to read each final status and summary, then ' +
+      'reuse what is usable and restart only what is missing.';
   }
-  return `${RESUME_CONTINUATION_PROMPT}\n\nAdditional user instruction:\n${userText.trim()}`;
+  if (userText === undefined || isPauseContinueUtterance(userText)) {
+    return text;
+  }
+  return `${text}\n\nAdditional user instruction:\n${userText.trim()}`;
 }
 
 class PromptPreparationCancelledError extends Error {

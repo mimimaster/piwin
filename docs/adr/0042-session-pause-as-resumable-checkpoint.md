@@ -43,9 +43,24 @@ Implement pause as a cooperative, resumable checkpoint:
    ready, clear the exact superseded checkpoint, without deleting history or
    rolling back tool side effects.
 
-The first version only pauses a foreground session turn with no active child
-Runs. A request with active descendants is rejected with a stable error rather
-than partially pausing a Run tree.
+Child Runs are not checkpointed. Pausing a foreground turn that still owns
+active descendants (for example while it waits on subagents) cancels and joins
+them on the terminal path, as Stop does and as ADR 0030 specifies, then saves
+the parent checkpoint. The acknowledgement carries `reason:
+'active-descendants'`. (The first version rejected this case, which left a turn
+waiting on subagents with no usable composer control.)
+
+- **Bounded join.** Every parent terminal (Stop, Pause, failure) cancels its
+  descendants and joins them for at most
+  `DEFAULT_DESCENDANT_CANCEL_TIMEOUT_MS` (10s). A child that never
+  acknowledges is force-terminated as `cancelled` and logged as detached, so the
+  parent always reaches its terminal; the child's late terminal call is a no-op.
+- **Salvage on resume.** The Run registry records which `subagent-batch`
+  children were still running when the pause was first requested. The
+  checkpoint persists them as `interruptedSubagentRunIds`, and
+  `session/resume-run` tells the model to read them with `piwin_subagent_wait`
+  (status, summary, retained worktree) before redoing that work. A new user
+  prompt that retires the checkpoint does not carry this hint.
 
 ### Product UI (shells)
 

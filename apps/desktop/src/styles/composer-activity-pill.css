@@ -205,6 +205,13 @@
   background: var(--hover);
 }
 
+/* A stop request is in flight: the row stays until the Host settles it. */
+.composer-activity-row-stop:disabled {
+  cursor: default;
+  opacity: 0.45;
+  background: transparent;
+}
+
 .composer-active-job-dot.is-failed {
   background: var(--coral, #9c2e3d);
 }
