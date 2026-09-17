@@ -12,6 +12,8 @@ describe('settings search index', () => {
     ['image-generation', 'models'],
     ['编排', 'subagents'],
     ['orchestration', 'subagents'],
+    ['通知', 'notifications'],
+    ['badge', 'notifications'],
   ])('routes %s to %s', (query, id) => {
     expect(matchesSettingsSearch(query, { id: id as SettingsSectionId })).toBe(true);
   });

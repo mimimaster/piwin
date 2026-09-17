@@ -11,6 +11,10 @@ const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[
     'locator', 'shortcut', 'shortcuts', 'keyboard', 'companion', 'pet',
     '外观', '主题', '字体', '语言', '动效', '快捷键', '键盘', '灵动伴侣', '桌宠',
   ],
+  notifications: [
+    'notification', 'notifications', 'alert', 'badge', 'sound', 'dock', 'attention',
+    '通知', '提醒', '角标', '声音', '弹跳',
+  ],
   permissions: ['permission', 'permissions', 'rules', 'allow', 'deny', '权限', '规则', '允许', '拒绝'],
   models: [
     'model', 'models', 'provider', 'providers', 'vision', 'image generation', 'image-generation',

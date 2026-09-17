@@ -12,6 +12,7 @@ import type { DesktopTranslator } from '../desktop-locale';
 
 export type SettingsSectionId =
   | 'general'
+  | 'notifications'
   | 'permissions'
   | 'models'
   | 'oauth'
@@ -72,6 +73,7 @@ export type SettingsSectionMeta = {
 /** Nav order within each group follows array order. */
 export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'general', group: 'application', labelKey: 'general' },
+  { id: 'notifications', group: 'application', labelKey: 'notifications' },
   { id: 'permissions', group: 'application', labelKey: 'permissions' },
   { id: 'models', group: 'agent', labelKey: 'models' },
   { id: 'oauth', group: 'agent', labelKey: 'oauth' },

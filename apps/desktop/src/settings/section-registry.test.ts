@@ -12,6 +12,7 @@ import {
 
 const ALL_SECTION_IDS: SettingsSectionId[] = [
   'general',
+  'notifications',
   'permissions',
   'models',
   'oauth',
@@ -78,5 +79,14 @@ describe('section registry', () => {
     expect(isLegacySettingsSectionId('subagents')).toBe(false);
     expect(isSettingsSectionId('subagents')).toBe(true);
     expect(Object.keys(LEGACY_SETTINGS_REDIRECTS).length).toBeGreaterThanOrEqual(13);
+  });
+
+  it('places notifications immediately after general in the application group', () => {
+    const ids = SETTINGS_SECTIONS.map((section) => section.id);
+    expect(ids.indexOf('notifications')).toBe(ids.indexOf('general') + 1);
+    expect(SETTINGS_SECTIONS.find((section) => section.id === 'notifications')).toMatchObject({
+      group: 'application',
+      labelKey: 'notifications',
+    });
   });
 });

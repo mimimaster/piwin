@@ -73,4 +73,9 @@ describe('desktop locale preference', () => {
     expect(getDesktopCopy('en').interruption.cancelQuestion).toBe('Cancel question');
     expect(getDesktopCopy('en').interruption.allowForSession).toBe('Allow for this session');
   });
+
+  it('exposes the notifications settings nav label', () => {
+    expect(getDesktopTranslator('zh-CN').settings.nav.notifications).toBe('通知');
+    expect(getDesktopTranslator('en').settings.nav.notifications).toBe('Notifications');
+  });
 });
