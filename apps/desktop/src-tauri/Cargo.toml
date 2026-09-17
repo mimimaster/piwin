@@ -30,7 +30,10 @@ base64 = "0.22"
 # NSSet/NSDate + the WKWebsiteDataStore features power the memory-governor
 # purge command (removeDataOfTypes:[MemoryCache]).
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSString", "NSURL", "NSURLRequest", "NSSet", "NSDate"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSString", "NSURL", "NSURLRequest", "NSSet", "NSDate", "NSBundle", "NSDictionary", "NSArray", "NSError"] }
+# UserNotifications: self-built UNUserNotificationCenter bridge (AN-N1). Keep
+# default-features off so we do not pull objc2-core-location.
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "bitflags", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSettings", "UNNotificationSound", "UNNotificationTrigger"] }
 objc2-web-kit = { version = "0.3", default-features = false, features = ["WKFrameInfo", "WKScriptMessage", "WKScriptMessageHandler", "WKUserContentController", "WKWebView", "WKWebViewConfiguration", "WKWebsiteDataStore", "WKWebsiteDataRecord", "block2"] }
 # Escaping Objective-C completion handler for the WKWebsiteDataStore purge.
 # Already a transitive dependency of objc2-web-kit; declared for direct use.

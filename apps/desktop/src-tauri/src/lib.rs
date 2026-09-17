@@ -1,5 +1,6 @@
 mod artifact_bridge;
 mod artifact_protocol;
+mod attention_notifications;
 mod host_bridge;
 mod memory_pressure;
 mod pet_overlay;
@@ -12,6 +13,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use artifact_bridge::install_artifact_bridge;
+use attention_notifications::AttentionNotificationState;
 use host_bridge::{
     host_is_running, host_request, host_request_blocking, host_start, host_stop,
     observe_host_process_blocking, HostBridgeState, HostObservability,
@@ -208,6 +210,7 @@ pub fn run() {
         .manage(HostBridgeState::default())
         .manage(PtyHostState::default())
         .manage(ShutdownState::default())
+        .manage(AttentionNotificationState::default())
         .invoke_handler(tauri::generate_handler![
             host_start,
             host_stop,
@@ -228,10 +231,18 @@ pub fn run() {
             save_user_file::copy_local_file,
             save_user_file::write_saved_file,
             memory_pressure::purge_webview_memory,
-            memory_pressure::relaunch_webview_renderer
+            memory_pressure::relaunch_webview_renderer,
+            attention_notifications::attention_capabilities,
+            attention_notifications::attention_authorization_status,
+            attention_notifications::attention_request_authorization,
+            attention_notifications::attention_deliver,
+            attention_notifications::attention_remove_delivered,
+            attention_notifications::attention_take_pending_activation,
+            attention_notifications::attention_open_system_settings
         ])
         .setup(|application| {
             install_artifact_bridge(application.handle())?;
+            attention_notifications::install(application.handle());
             // Feeds the frontend Memory Governor; no-op on unsupported platforms.
             memory_pressure::spawn_memory_pressure_monitor(application.handle().clone());
             // macOS may fall back to productName for an empty config title.
