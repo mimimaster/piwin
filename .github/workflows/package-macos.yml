@@ -46,9 +46,6 @@ jobs:
       CARGO_TERM_COLOR: always
       npm_config_fetch_timeout: '600000'
       npm_config_fetch_retries: '5'
-      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
       PIWIN_REQUIRE_DEVELOPER_ID: ${{ github.ref_type == 'tag' && '1' || (inputs.require_developer_id && '1' || '0') }}
 
     steps:
@@ -98,7 +95,11 @@ jobs:
         run: pnpm store prune
 
       - name: Import Developer ID certificate
-        if: runner.environment == 'github-hosted' && env.APPLE_CERTIFICATE != ''
+        if: runner.environment == 'github-hosted'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: bash scripts/import-apple-certificate.sh
 
       - name: Apply desktop version
@@ -130,11 +131,29 @@ jobs:
             exit 1
           fi
           cp -v "${dmgs[@]}" dist-ci/
+          ls -lh
+
+      - name: Notarize DMG
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          shopt -s nullglob
+          dmgs=(dist-ci/*.dmg)
+          if [ "${#dmgs[@]}" -eq 0 ]; then
+            echo "no DMG in dist-ci" >&2
+            exit 1
+          fi
+          bash scripts/notarize-macos-dmg.sh "${dmgs[0]}"
+
+      - name: Hash DMG
+        run: |
           cd dist-ci
+          rm -f *.sha256
           for artifact in *.dmg; do
             shasum -a 256 "${artifact}" | tee "${artifact}.sha256"
           done
-          ls -lh
 
       - name: Drop intermediate build trees
         if: runner.environment == 'github-hosted'
@@ -163,9 +182,9 @@ jobs:
             gh release create "${GITHUB_REF_NAME}" dist-ci/*.dmg dist-ci/*.sha256 \
               --draft \
               --title "${GITHUB_REF_NAME}" \
-              --notes "macOS all-in-one Desktop (aarch64). Built by pnpm package:desktop. Not notarized yet (D-ENG-03b). Clean-machine smoke (ADR 0017 S5) is still required before treating this as public-ready."
+              --notes "macOS all-in-one Desktop (aarch64). Built by pnpm package:desktop. Notarized when App Store Connect API secrets are present. Clean-machine smoke (ADR 0017 S5) is still required before treating this as public-ready."
           fi
 
       - name: Remove temporary signing keychain
-        if: always() && runner.environment == 'github-hosted' && env.APPLE_CERTIFICATE != ''
+        if: always() && runner.environment == 'github-hosted' && env.PIWIN_SIGNING_KEYCHAIN == '1'
         run: bash scripts/import-apple-certificate.sh --cleanup

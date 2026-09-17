@@ -107,6 +107,7 @@ fi
 if [[ -n "${GITHUB_ENV:-}" ]]; then
   {
     echo "APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY}"
+    echo "PIWIN_SIGNING_KEYCHAIN=1"
   } >> "${GITHUB_ENV}"
 fi
 
