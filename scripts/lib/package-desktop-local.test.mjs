@@ -14,6 +14,7 @@ test('leftoverPiwinDmgImagePaths picks rw temp images and ignores other volumes'
   const info = `
 image-path      : /Volumes/BigDisk/scratch.dmg
 image-path      : /Users/me/src-tauri/target/release/bundle/macos/rw.85830.piwinwin_0.0.0_aarch64.dmg
+image-path      : /Users/me/src-tauri/target/release/bundle/dmg/piwinwin_0.0.0_aarch64.dmg
 image-path      : /tmp/other.dmg
 `;
   assert.deepEqual(leftoverPiwinDmgImagePaths(info), [
