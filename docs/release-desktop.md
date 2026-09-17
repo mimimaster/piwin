@@ -46,9 +46,17 @@ pnpm install
 pnpm package:desktop
 ```
 
+0. Resolve the macOS signing identity: `APPLE_SIGNING_IDENTITY` if set, else the
+   single `Developer ID Application` identity in the keychain (several → set the
+   env; none → ad-hoc with a warning)
 1. `pnpm bundle:host` — `dist-host/host-serve.mjs` + `host-listen.mjs` + worker + pruned `node_modules`
 2. `pnpm fetch:node-runtime` — Node `v22.19.0` → `apps/desktop/src-tauri/binaries/piwin-host-<triple>`
-3. `tauri build` with `tauri.conf.sidecar.json` — embeds Host files
+3. `pnpm sign:host-macho` — Developer-ID-sign Host natives with that identity
+4. `tauri build` with `tauri.conf.sidecar.json` — embeds Host files, signs app + sidecar
+
+Avoid ad-hoc builds for daily use: an ad-hoc signature is a new code identity
+every build, so macOS drops Desktop / external-volume grants and the first
+`git` probe of such a project waits on a permission prompt.
 
 `bundle:host` also copies the build machine's `~/.piwin/config.json` to
 `host/bundled-assets/default-config.json`. A packaged Host reads this seed only

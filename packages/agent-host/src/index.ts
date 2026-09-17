@@ -51,8 +51,12 @@ export {
   resolvePiApiForProvider,
   resolvePiModelCompat,
 } from './pi-model-runtime.js';
-export { buildPiSessionToolAllowlist } from './pi-session-tool-allowlist.js';
-export type { PiSessionToolAllowlistInput } from './pi-session-tool-allowlist.js';
+export {
+  activatePiBuiltinTools,
+  buildPiSessionExcludedToolNames,
+  PI_NATIVE_TOOL_NAMES,
+} from './pi-session-tool-selection.js';
+export type { PiSessionToolSelectionInput } from './pi-session-tool-selection.js';
 export type {
   PiModelRegistration,
   PiModelCompat,

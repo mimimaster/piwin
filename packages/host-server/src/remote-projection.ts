@@ -86,7 +86,10 @@ export function projectRemoteResponse(
   if (command.type === 'project/list') {
     return {
       ...response,
-      data: { projects: projectProjects(response.data) },
+      data: {
+        projects: projectProjects(response.data),
+        ...(isGitWorkspacePending(response.data) ? { gitWorkspacePending: true } : {}),
+      },
     };
   }
   if (command.type === 'project/open' || command.type === 'project/trust') {
@@ -489,6 +492,10 @@ function projectProjectMutation(data: unknown): {
     trusted,
     trust: trusted ? 'trusted' : 'untrusted',
   };
+}
+
+function isGitWorkspacePending(data: unknown): boolean {
+  return asRecord(data)?.gitWorkspacePending === true;
 }
 
 function projectProjects(data: unknown): RemoteProjectSummary[] {

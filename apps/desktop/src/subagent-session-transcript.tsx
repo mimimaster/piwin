@@ -169,6 +169,7 @@ function SubagentInspectorAssistant({
       {message.tools.length > 0 ? (
         <FilesChangedBar
           tools={message.tools}
+          visible={message.status !== 'streaming'}
           {...(projectPath !== undefined ? { projectPath } : {})}
           {...(filesChangedRequest ? { request: filesChangedRequest } : {})}
           locale={locale}

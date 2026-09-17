@@ -55,7 +55,10 @@ import {
   type PiCompactionSettingsManager,
 } from '../pi-compaction-settings.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
-import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
+import {
+  activatePiBuiltinTools,
+  buildPiSessionExcludedToolNames,
+} from '../pi-session-tool-selection.js';
 import {
   createStalledStreamFailure,
   isOpenAiCompletionsStreamProtocol,
@@ -426,12 +429,9 @@ export function createWorkerPiSessionFactory(
       );
     }
 
-    // Pi's `tools` is a global allowlist (built-ins + customTools/proxy tools).
-    // Host proxy tools must be named here or Pi drops them before the model.
-    sessionOptions.tools = buildPiSessionToolAllowlist({
-      piBuiltinToolNames: blueprint.tools.piBuiltinToolNames,
-      hostTools: blueprint.tools.hostTools,
-    });
+    // Pi's `tools` allowlist would also drop Pi Extension tools, so exclude
+    // only the Pi-native tools the policy does not grant.
+    sessionOptions.excludeTools = buildPiSessionExcludedToolNames(blueprint.tools);
 
     const result = (await (
       createAgentSession as (options: Record<string, unknown>) => Promise<unknown>
@@ -441,6 +441,7 @@ export function createWorkerPiSessionFactory(
     if (!piSession) {
       throw new Error('createAgentSession returned no session');
     }
+    activatePiBuiltinTools(piSession, blueprint.tools.piBuiltinToolNames);
 
     const extensionUiPort = input.extensionUi;
     if (extensionUiPort) {

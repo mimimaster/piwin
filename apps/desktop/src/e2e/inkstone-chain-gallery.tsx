@@ -9,6 +9,8 @@ import { VideoGenerationProgress } from '../video-generation-progress.js';
 import { WorkFoldHeader } from '../work-fold-header.js';
 import { RunStatusFooter } from '../run-status-footer.js';
 import { FlashcardStackView } from '../FlashcardView.js';
+import { FilesChangedBar } from '../files-changed-bar.js';
+import { galleryChangedFileTools, galleryChangedFilesRequest } from './gallery-changed-files.js';
 import type { FlashcardReviewCard } from '@piwin/contracts';
 
 function tool(partial: ToolCardUi): ToolCardUi {
@@ -205,6 +207,22 @@ export function InkstoneChainGallery(): ReactElement {
           <ToolCallCard tool={failTool} density="compact" defaultExpanded />
           <ToolCallCard tool={writeTool} density="compact" />
           <ToolCallCard tool={bashTool} density="compact" />
+        </div>
+        <div data-testid="gallery-files-changed">
+          <FilesChangedBar
+            tools={galleryChangedFileTools.slice(0, 1)}
+            projectPath="/workspace/piwin"
+            request={galleryChangedFilesRequest}
+            locale="zh-CN"
+            onReview={() => undefined}
+          />
+          <FilesChangedBar
+            tools={galleryChangedFileTools}
+            projectPath="/workspace/piwin"
+            request={galleryChangedFilesRequest}
+            locale="zh-CN"
+            onReview={() => undefined}
+          />
         </div>
         <div className="turn-work-details" data-testid="gallery-model-wait">
           <div className="thread turn-tool-sequence">

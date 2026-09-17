@@ -46,6 +46,11 @@ export type ProjectStoreDocument = {
 /** Response for `project/list`; ordered by most recently opened first. */
 export type ProjectListData = {
   projects: ProjectRecord[];
+  /**
+   * Some projects missed the Host's git budget and are listed without git
+   * enrichment; list again shortly to pick it up.
+   */
+  gitWorkspacePending?: true;
 };
 
 export function createEmptyNetworkPolicy(): ProjectNetworkPolicy {

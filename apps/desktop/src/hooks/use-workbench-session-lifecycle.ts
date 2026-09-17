@@ -23,6 +23,7 @@ import {
 import {
   mapWithConcurrency,
   planLastSessionRestore,
+  planProjectListRetryDelay,
   planRecentProjectSessionHydration,
   planRemoteSessionCatchUp,
   shouldHydrateInitialGeneralSessions,
@@ -100,23 +101,45 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
       return;
     }
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retriesSoFar = 0;
     async function loadRecentProjects(): Promise<void> {
       const response = await hostClient.request({ type: 'project/list' });
       if (cancelled) {
         return;
       }
-      if (!response.success) {
-        console.warn('project/list failed; sidebar projects stay empty', response.error);
+      let outcome: 'failed' | 'git-pending' | 'complete';
+      if (response.success) {
+        const fetched = mapListedProjects(response.data);
+        setRecentProjects((prev) =>
+          mergeRecentProjects(prev, fetched, projectPath ? [projectPath] : []),
+        );
+        const data = response.data as { gitWorkspacePending?: unknown } | undefined;
+        outcome = data?.gitWorkspacePending === true ? 'git-pending' : 'complete';
+      } else {
+        outcome = 'failed';
+      }
+      const delayMs = planProjectListRetryDelay({ outcome, retriesSoFar });
+      if (outcome === 'failed') {
+        console.warn(
+          delayMs === null
+            ? 'project/list failed; giving up, sidebar projects stay as they are'
+            : `project/list failed; retrying in ${delayMs}ms`,
+          response.success ? undefined : response.error,
+        );
+      }
+      if (delayMs === null) {
         return;
       }
-      const fetched = mapListedProjects(response.data);
-      setRecentProjects((prev) =>
-        mergeRecentProjects(prev, fetched, projectPath ? [projectPath] : []),
-      );
+      retriesSoFar += 1;
+      retryTimer = setTimeout(() => {
+        void loadRecentProjects();
+      }, delayMs);
     }
     void loadRecentProjects();
     return () => {
       cancelled = true;
+      clearTimeout(retryTimer);
     };
   }, [hostClient, hostReady, projectPath]);
 

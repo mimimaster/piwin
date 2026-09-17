@@ -5,6 +5,7 @@ import {
   mapWithConcurrency,
   planLastSessionPersist,
   planLastSessionRestore,
+  planProjectListRetryDelay,
   resolveSessionScopeHintFromSearchHits,
   planRecentProjectSessionHydration,
   planRemoteSessionCatchUp,
@@ -378,5 +379,25 @@ describe('mapWithConcurrency', () => {
       }
     });
     expect(seen.sort()).toEqual([1, 3, 4]);
+  });
+});
+
+describe('planProjectListRetryDelay', () => {
+  it('backs off after failures and eventually stops', () => {
+    const delays: Array<number | null> = [];
+    for (let retriesSoFar = 0; retriesSoFar < 7; retriesSoFar += 1) {
+      delays.push(planProjectListRetryDelay({ outcome: 'failed', retriesSoFar }));
+    }
+    expect(delays).toEqual([1_000, 3_000, 10_000, 30_000, 30_000, 30_000, null]);
+  });
+
+  it('re-lists while git enrichment is pending, within a cap', () => {
+    expect(planProjectListRetryDelay({ outcome: 'git-pending', retriesSoFar: 0 })).toBe(5_000);
+    expect(planProjectListRetryDelay({ outcome: 'git-pending', retriesSoFar: 23 })).toBe(5_000);
+    expect(planProjectListRetryDelay({ outcome: 'git-pending', retriesSoFar: 24 })).toBeNull();
+  });
+
+  it('stops once a list comes back complete', () => {
+    expect(planProjectListRetryDelay({ outcome: 'complete', retriesSoFar: 0 })).toBeNull();
   });
 });

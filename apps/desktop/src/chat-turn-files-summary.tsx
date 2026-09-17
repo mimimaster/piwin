@@ -13,6 +13,8 @@ export type { FilesChangedBarRequest };
 export type ChatTurnFilesSummaryProps = {
   isConversationSession?: boolean;
   role: ChatMessageUi['role'];
+  /** The turn is still running: its file set and line counts are not final yet. */
+  turnInProgress?: boolean;
   tools: readonly ToolCardUi[];
   projectPath?: string | null;
   request?: FilesChangedBarRequest;
@@ -23,6 +25,7 @@ export type ChatTurnFilesSummaryProps = {
 export function ChatTurnFilesSummary(props: ChatTurnFilesSummaryProps): ReactElement | null {
   if (props.isConversationSession === true) return null;
   if (props.role !== 'assistant') return null;
+  if (props.turnInProgress === true) return null;
   if (props.tools.length === 0) return null;
   return (
     <FilesChangedBar
