@@ -141,8 +141,7 @@ export function resolveWorkspacePresentation(input: {
   state: WorkspaceState;
 }): WorkspacePresentation {
   const min = stageMinSize(input.state);
-  const reservedRight =
-    input.rightPanelOpen && !input.state.rightPanel.collapsed ? input.rightPanelWidth : 0;
+  const reservedRight = input.rightPanelOpen ? input.rightPanelWidth : 0;
   const withRight = {
     width: input.stageSize.width - reservedRight,
     height: input.stageSize.height,

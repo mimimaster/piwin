@@ -217,6 +217,7 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
   deps.generationToolSurfaces.clear();
   deps.generationMcpConfigs.clear();
   deps.generationMcpSnapshots.clear();
+  deps.generationSessionMcpOverrideKeys.clear();
   deps.generationPermissionRuleRevisions.clear();
   deps.preparedRuntimeGenerations.clear();
   deps.retiredRuntimeSessions.clear();

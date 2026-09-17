@@ -100,6 +100,45 @@ export function DropdownMenuItem(props: DropdownMenuItemProps): ReactElement {
   );
 }
 
+export type DropdownMenuSwitchItemProps = {
+  children: ReactNode;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean | undefined;
+  testId?: string | undefined;
+  icon?: ReactNode | undefined;
+};
+
+/**
+ * A menu row that toggles in place: `menuitemcheckbox` semantics with a
+ * switch-shaped indicator, and selecting it keeps the menu open so several
+ * rows can be flipped in one visit.
+ */
+export function DropdownMenuSwitchItem(props: DropdownMenuSwitchItemProps): ReactElement {
+  return (
+    <DropdownMenuPrimitive.CheckboxItem
+      className="ui-menu-item ui-menu-switch-item"
+      checked={props.checked}
+      onCheckedChange={(checked) => props.onCheckedChange(checked === true)}
+      onSelect={(event) => event.preventDefault()}
+      {...(props.disabled !== undefined ? { disabled: props.disabled } : {})}
+      {...(props.testId !== undefined ? { 'data-testid': props.testId } : {})}
+    >
+      {props.icon ? (
+        <span className="ui-menu-item-icon" aria-hidden="true">
+          {props.icon}
+        </span>
+      ) : null}
+      <span className="ui-menu-item-label">{props.children}</span>
+      <span
+        className="ui-menu-switch"
+        data-checked={props.checked ? 'true' : 'false'}
+        aria-hidden="true"
+      />
+    </DropdownMenuPrimitive.CheckboxItem>
+  );
+}
+
 export function DropdownMenuSeparator(): ReactElement {
   return <DropdownMenuPrimitive.Separator className="ui-menu-separator" />;
 }

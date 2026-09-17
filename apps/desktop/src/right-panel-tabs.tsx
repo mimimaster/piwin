@@ -13,6 +13,10 @@ export function RightPanelTabs(props: {
   cardsDueCount: number | undefined;
   tasksActiveCount: number;
   terminalAttention: boolean;
+  /** Overrides the registry label (a docked canvas shows its artifact title). */
+  labels?: Partial<Record<RightPanelTab, string>>;
+  /** Docked tools carry drop-target geometry for the docking workspace. */
+  dockedGroup?: { groupId: string; tabs: readonly RightPanelTab[] };
   onSelect: (tab: RightPanelTab) => void;
   onClose: (tab: RightPanelTab) => void;
 }) {
@@ -31,7 +35,16 @@ export function RightPanelTabs(props: {
       >
         {props.tabs.map((tab) => {
           const active = props.active === tab;
-          const label = sectionLabel(tab, props.locale);
+          const label = props.labels?.[tab] ?? sectionLabel(tab, props.locale);
+          const dockedIndex = props.dockedGroup?.tabs.indexOf(tab) ?? -1;
+          const dockedAttributes =
+            props.dockedGroup && dockedIndex >= 0
+              ? {
+                  'data-docking-right-tab': tab,
+                  'data-docking-right-tab-group': props.dockedGroup.groupId,
+                  'data-docking-right-tab-index': String(dockedIndex),
+                }
+              : {};
           const count =
             tab === 'review'
               ? props.changesCount
@@ -43,7 +56,11 @@ export function RightPanelTabs(props: {
                     ? props.tasksActiveCount
                     : undefined;
           return (
-            <div key={tab} className={`right-panel-tab itab${active ? ' active act' : ''}`}>
+            <div
+              key={tab}
+              className={`right-panel-tab itab${active ? ' active act' : ''}`}
+              {...dockedAttributes}
+            >
               <TabsTrigger
                 value={tab}
                 className="right-panel-tab-main"
@@ -53,7 +70,9 @@ export function RightPanelTabs(props: {
                 <span className="right-panel-tab-icon" aria-hidden="true">
                   {sectionIcon(tab)}
                 </span>
-                <span className="right-panel-tab-label">{label}</span>
+                <span className="right-panel-tab-label" title={label}>
+                  {label}
+                </span>
                 {count !== undefined && count > 0 ? (
                   <span className="right-panel-tab-badge">{count}</span>
                 ) : null}

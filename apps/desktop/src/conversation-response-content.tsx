@@ -25,7 +25,7 @@ import { ImageGenerationProgress } from './image-generation-progress';
 import { MessageAttachments } from './message-attachments';
 import { extractFlashcardItemIdsFromText } from './resolve-conversation-flashcards.js';
 import { FlashcardResultProjection } from './FlashcardResultProjection';
-import { extractFlashcardRecords, getMessageTools } from './flashcard-result-extract.js';
+import { extractFlashcardRecords } from './flashcard-result-extract.js';
 import { collectKnowledgeCitations } from './knowledge/knowledge-citation-collect.js';
 import { citationsForRefs, citedKnowledgeRefs } from './knowledge/knowledge-citations.js';
 import { KnowledgeCitationSources } from './knowledge/KnowledgeCitationSources.js';
@@ -38,7 +38,6 @@ import { WorkFoldHeader } from './work-fold-header.js';
 import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 import { buildTurnPresentation } from './run-presentation.js';
 import { runtimeStatusText } from './run-activity-strings.js';
-import { useRunActivityPhrases } from './run-activity-hooks.js';
 import { TurnToolGroup } from './turn-tool-group.js';
 import { ExploreFlowCapsule } from './explore-flow-capsule.js';
 import type { ExploreFlowRole } from './explore-flow.js';
@@ -219,12 +218,6 @@ export function ConversationResponseContent(props: {
   const showHeader = props.showHeader !== false;
   const renderMediaChrome = props.renderMediaChrome === true;
 
-  const isAwaitingFirstToken =
-    liveStreaming &&
-    message.text.trim().length === 0 &&
-    message.thinking.trim().length === 0 &&
-    getMessageTools(message, props.sourceTools).length === 0;
-
   return (
     <div
       className={`conversation-response${showHeader ? '' : ' is-continuation'}`}
@@ -247,9 +240,6 @@ export function ConversationResponseContent(props: {
           {...(props.usageChip !== undefined ? { usageChip: props.usageChip } : {})}
           locale={locale}
         />
-      ) : null}
-      {isAwaitingFirstToken ? (
-        <ConversationAwaitingFirstToken locale={locale} />
       ) : null}
       {hasThinking ? (
         <div
@@ -460,39 +450,3 @@ function formatArgumentCharCount(count: number): string | undefined {
   return `${Math.round(thousands)}k`;
 }
 
-function ConversationAwaitingFirstToken(props: { locale: 'zh-CN' | 'en' }): ReactElement {
-  const { currentPhrase } = useRunActivityPhrases({
-    kind: 'waiting-first-token',
-    locale: props.locale,
-  });
-  // A status line, not a fold header: nothing to open, so no button chrome,
-  // hover pad, or "expanded" highlight (Inkstone paints open headers grey).
-  return (
-    <div className="conversation-awaiting-first-token" data-testid="conversation-activity">
-      <div
-        className="conversation-awaiting-first-token-row"
-        role="status"
-        data-activity-id="thinking"
-        data-tool-status="running"
-      >
-        <span
-          className="turn-summary-active-animation"
-          data-testid="conversation-thinking-active-animation"
-          aria-hidden="true"
-        >
-          <RadialBellow
-            size="sm"
-            label={currentPhrase}
-            testId="conversation-thinking-radial-bellow"
-          />
-        </span>
-        <span
-          className="turn-work-details-label turn-work-details-label--running agent-locator-copy--shimmer"
-          data-testid="conversation-activity-copy"
-        >
-          {currentPhrase}
-        </span>
-      </div>
-    </div>
-  );
-}

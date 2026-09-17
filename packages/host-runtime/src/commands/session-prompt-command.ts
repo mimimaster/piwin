@@ -171,17 +171,23 @@ export async function handleSessionPromptCommand(
       // native setModel path without a rebuild.
       // Desired = input.model ?? index record ?? last-applied. Voice-delegation
       // omits input.model; Host still applies the desired composer profile.
-      const {
-        previousModel,
-        requiresModelRuntimeReplacement,
-        desiredModel,
-        desiredThinkingLevel,
-      } = resolveSessionTurnProfile({
+      const turnProfile = resolveSessionTurnProfile({
         input: command.input,
         record: promptRecord,
         appliedModel: context.sessionModels.get(command.sessionId),
         hasLiveHandle: context.sessions.has(command.sessionId),
       });
+      const { previousModel, desiredModel, desiredThinkingLevel } = turnProfile;
+      // A session MCP switch changes the frozen tool surface, which only a
+      // rebuilt generation can pick up — same detached replacement path as a
+      // cross-Provider model switch.
+      const requiresModelRuntimeReplacement =
+        turnProfile.requiresModelRuntimeReplacement ||
+        (context.sessions.has(command.sessionId) &&
+          context.sessionMcpOverrideChanged?.(
+            command.sessionId,
+            promptRecord?.disabledMcpServerIds,
+          ) === true);
       const explicitForeground = command.foreground;
       let reservedAdmission = false;
       if (explicitForeground !== undefined) {

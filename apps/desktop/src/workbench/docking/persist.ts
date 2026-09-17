@@ -4,7 +4,6 @@ import {
 } from '../../conversation-pane-storage.js';
 import {
   CONVERSATION_PANE_V1_BACKUP_SUFFIX,
-  DEFAULT_RIGHT_PANEL_WIDTH_PX,
   RIGHT_PANEL_GROUP_LIMIT_V1,
   STAGE_GROUP_HARD_LIMIT,
   WORKSPACE_LAYOUT_SCHEMA_VERSION,
@@ -165,10 +164,6 @@ export function parseWorkspaceState(value: unknown): WorkspaceState | null {
   }
   if (rightGroupIds.length === 0) return null;
 
-  const width =
-    typeof value.rightPanel.width === 'number' && Number.isFinite(value.rightPanel.width)
-      ? value.rightPanel.width
-      : DEFAULT_RIGHT_PANEL_WIDTH_PX;
   const activeGroupId =
     typeof value.activeGroupId === 'string' && groups[value.activeGroupId]
       ? value.activeGroupId
@@ -181,10 +176,10 @@ export function parseWorkspaceState(value: unknown): WorkspaceState | null {
     stage,
     groups,
     views,
+    // Older layouts also stored `collapsed` and `width`; the workbench right
+    // panel owns both now, so they are ignored.
     rightPanel: {
       groupIds: rightGroupIds,
-      collapsed: value.rightPanel.collapsed === true,
-      width,
     },
     activeGroupId,
     focusedViewId: null,
@@ -203,8 +198,6 @@ export function serializeWorkspaceState(state: WorkspaceState): unknown {
     views: state.views,
     rightPanel: {
       groupIds: state.rightPanel.groupIds,
-      collapsed: state.rightPanel.collapsed,
-      width: state.rightPanel.width,
     },
     activeGroupId: state.activeGroupId,
     sessionTargetId: state.sessionTargetId,

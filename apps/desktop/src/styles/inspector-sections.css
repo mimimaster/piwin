@@ -171,7 +171,8 @@
   gap: var(--s-2);
 }
 
-.right-panel-body[data-right-panel-tab='canvas'] {
+.right-panel-body[data-right-panel-tab='canvas'],
+.right-panel-body[data-right-panel-docked] {
   overflow: hidden;
 }
 

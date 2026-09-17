@@ -15,11 +15,13 @@ import { healthProviderDisclosure } from './health-turn-display.js';
 import { effectivePermissionMode } from './effective-permission-mode.js';
 import { loadMcpConfig, createMcpGenerationSnapshot } from '@piwin/mcp';
 import { listProjects } from '@piwin/project';
+import { getSessionRecord } from '@piwin/session';
 
 import { type ProductAgentHostToolRegistrationMode } from './product-agent-host.js';
 import { loadPiwinConfig } from './config-store.js';
 import { createSecretResolver } from './secret-resolver.js';
-import { getPiwinProjectsPath, getPiwinRoot } from './paths.js';
+import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import { applySessionMcpOverrides, sessionMcpOverrideKey } from './session-mcp-overrides.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { loadMergedPermissionRules } from './permission-rule-loader.js';
@@ -125,12 +127,27 @@ export async function composeSessionHostToolsForSession(
     });
     // Invalid/unreadable MCP config fails closed for this generation.
   }
+  let sessionDisabledMcpServerIds: string[] | undefined;
+  try {
+    const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
+    sessionDisabledMcpServerIds = record?.disabledMcpServerIds;
+  } catch (error) {
+    deps.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `session MCP overrides unreadable; using global MCP servers: ${formatError(error)}`,
+    });
+  }
   const mcpSnapshot = createMcpGenerationSnapshot(
-    mcpConfig ?? { mcpServers: {} },
+    applySessionMcpOverrides(mcpConfig ?? { mcpServers: {} }, sessionDisabledMcpServerIds),
     `${sessionId}\u0000${runtimeGenerationId}`,
   );
   deps.generationMcpConfigs.set(`${sessionId}\u0000${runtimeGenerationId}`, mcpSnapshot.config);
   deps.generationMcpSnapshots.set(`${sessionId}\u0000${runtimeGenerationId}`, mcpSnapshot);
+  deps.generationSessionMcpOverrideKeys.set(
+    `${sessionId}\u0000${runtimeGenerationId}`,
+    sessionMcpOverrideKey(sessionDisabledMcpServerIds),
+  );
   let rules = createBundledRuleSet();
   let mcpCapabilityBrief: McpCapabilityBrief | undefined;
   let projectTrusted = false;
@@ -339,6 +356,11 @@ export function clearGenerationToolSurfaces(deps: HostRuntimeKernel, sessionId: 
       deps.generationMcpSnapshots.delete(key);
     }
   }
+  for (const key of deps.generationSessionMcpOverrideKeys.keys()) {
+    if (key.startsWith(prefix)) {
+      deps.generationSessionMcpOverrideKeys.delete(key);
+    }
+  }
   for (const key of deps.generationPermissionRuleRevisions.keys()) {
     if (key.startsWith(prefix)) {
       deps.generationPermissionRuleRevisions.delete(key);
@@ -355,6 +377,7 @@ export function clearGenerationToolSurface(
   deps.generationToolSurfaces.delete(key);
   deps.generationMcpConfigs.delete(key);
   deps.generationMcpSnapshots.delete(key);
+  deps.generationSessionMcpOverrideKeys.delete(key);
   deps.generationPermissionRuleRevisions.delete(key);
 }
 

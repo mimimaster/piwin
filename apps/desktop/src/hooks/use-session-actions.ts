@@ -215,6 +215,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
        * race for the very first turn.
        */
       knowledgeBaseIds?: readonly string[];
+      /** MCP servers the draft switched off, applied from the first prompt. */
+      disabledMcpServerIds?: readonly string[];
     }): Promise<string | null> => {
       const requestedScope = options?.scope;
       const requestedProjectPath =
@@ -243,6 +245,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
           sessionName?: string;
           knowledgeBaseIds?: string[];
+          disabledMcpServerIds?: string[];
         };
 
         if (useGeneral) {
@@ -276,6 +279,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         }
         if (options?.knowledgeBaseIds && options.knowledgeBaseIds.length > 0) {
           createInput.knowledgeBaseIds = [...options.knowledgeBaseIds];
+        }
+        if (options?.disabledMcpServerIds && options.disabledMcpServerIds.length > 0) {
+          createInput.disabledMcpServerIds = [...options.disabledMcpServerIds];
         }
         const created = await hostClient.request(
           {

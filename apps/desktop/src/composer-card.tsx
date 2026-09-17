@@ -48,6 +48,7 @@ import {
 } from './prompt-history';
 import type { ComposerDockProps } from './composer-dock-types';
 import { ComposerCardToolbar } from './composer-card-toolbar';
+import { decideComposerEnterKey } from './composer-enter-ime';
 import { toThinkingEffortModels } from './ThinkingEffortControl';
 
 function getAgentPlaceholder(
@@ -189,6 +190,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   // IME Composition Guard Refs
   const isComposingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
+  const endedCompositionWithEnterRef = useRef(false);
 
   // Cold start / empty workspace: caret lands in the box.
   useEffect(() => {
@@ -552,6 +554,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (isComposingRef.current && event.key !== 'Enter') {
+      endedCompositionWithEnterRef.current = false;
+    }
     if (isExtensionUiActive) {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -764,16 +769,22 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
     // 6. Enter queues a follow-up while a Run is live; Cmd/Ctrl+Enter above
     // steers the current Run. Ordinary Send stays non-destructive.
-    const now = Date.now();
-    const isRecentlyComposing = isComposingRef.current || now - lastCompositionEndRef.current < 100;
-
-    if (
-      event.key === 'Enter' &&
-      !event.shiftKey &&
-      !isRecentlyComposing &&
-      !event.nativeEvent.isComposing
-    ) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      const enterDecision = decideComposerEnterKey({
+        isComposing: event.nativeEvent.isComposing || isComposingRef.current,
+        keyCode: event.nativeEvent.keyCode,
+        endedCompositionWithEnter: endedCompositionWithEnterRef.current,
+        msSinceCompositionEnd: Date.now() - lastCompositionEndRef.current,
+      });
+      if (enterDecision === 'let-ime') {
+        endedCompositionWithEnterRef.current = true;
+        return;
+      }
       event.preventDefault();
+      endedCompositionWithEnterRef.current = false;
+      if (enterDecision === 'swallow') {
+        return;
+      }
       const reserved = isReservedComposerSlashCommand(props.composer);
       // Paused empty / continue-only → resume via triggerSend; a real draft sends.
       if (canKeyboardSend || reserved) {
@@ -921,6 +932,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           }}
           onCompositionStart={() => {
             isComposingRef.current = true;
+            endedCompositionWithEnterRef.current = false;
           }}
           onCompositionEnd={() => {
             isComposingRef.current = false;

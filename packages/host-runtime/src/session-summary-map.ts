@@ -42,6 +42,7 @@ export function indexRecordToSummary(
     | 'model'
     | 'thinkingLevel'
     | 'knowledgeBaseIds'
+    | 'disabledMcpServerIds'
     | 'storage'
   >,
 ): SessionSummary {
@@ -61,6 +62,9 @@ export function indexRecordToSummary(
   if (record.thinkingLevel !== undefined) summary.thinkingLevel = record.thinkingLevel;
   if (record.knowledgeBaseIds && record.knowledgeBaseIds.length > 0) {
     summary.knowledgeBaseIds = record.knowledgeBaseIds;
+  }
+  if (record.disabledMcpServerIds && record.disabledMcpServerIds.length > 0) {
+    summary.disabledMcpServerIds = record.disabledMcpServerIds;
   }
   if (record.lastPreview) summary.lastPreview = record.lastPreview;
   if (record.parentSessionId) summary.parentSessionId = record.parentSessionId;

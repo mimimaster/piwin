@@ -3100,19 +3100,17 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     expect(container.querySelector('[data-testid="turn-work-details"]')).not.toBeNull();
   });
 
-  it('shows Conversation activity instead of AgentLocator while waiting', () => {
+  it('shows the run status footer while a Conversation waits for its first token', () => {
     renderConversation([createUserMessage('u-wait', 'hello')], {
       streaming: true,
       activeRunId: 'run-wait',
     });
-    expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
-      'Thinking…',
-    );
-    expect(container.querySelector('[data-testid="run-status-footer"]')).toBeNull();
-    expect(container.querySelector('[data-testid="agent-locator"]')).toBeNull();
+    const footers = container.querySelectorAll('[data-testid="run-status-footer"]');
+    expect(footers).toHaveLength(1);
+    expect(footers[0]?.closest('[data-testid="current-response-turn"]')).not.toBeNull();
   });
 
-  it('immediately renders assistant avatar, header, and thinking indicator upon user send while streaming', () => {
+  it('immediately renders assistant avatar, header, and run status footer upon user send while streaming', () => {
     renderConversation([createUserMessage('u-live', 'solve this problem')], {
       streaming: true,
       activeRunId: 'run-live',
@@ -3126,34 +3124,30 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
 
     expect(container.querySelector('[data-testid="conversation-message-header"]')).not.toBeNull();
     expect(container.querySelector('.conversation-message-provider-icon')).not.toBeNull();
-    expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
-      '正在思考…',
-    );
+    expect(container.querySelectorAll('[data-testid="run-status-footer"]')).toHaveLength(1);
   });
 
-  it('keeps Conversation activity while the opened reply has no content yet', () => {
-    // Conversation replies have no in-bubble waiting line, so an empty
-    // streaming bubble would otherwise render nothing but the model header.
+  it('keeps the Conversation run status footer while the reply streams text', () => {
     renderConversation(
       [
-        createUserMessage('u-silent', 'hello'),
+        createUserMessage('u-stream', 'draw a pelican'),
         {
-          id: 'a-silent',
+          id: 'a-stream',
           role: 'assistant',
-          text: '',
+          text: '```html\n<div class="scene">',
           thinking: '',
           tools: [],
           attachments: [],
           status: 'streaming',
-          runId: 'run-silent',
+          runId: 'run-stream',
         },
       ],
-      { streaming: true, activeRunId: 'run-silent' },
+      { streaming: true, activeRunId: 'run-stream' },
     );
 
-    expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
-      'Thinking…',
-    );
+    const footers = container.querySelectorAll('[data-testid="run-status-footer"]');
+    expect(footers).toHaveLength(1);
+    expect(footers[0]?.textContent).toContain('tokens');
   });
 
   it('shows flip cards on the visible Conversation reply after a cloze batch-create', () => {

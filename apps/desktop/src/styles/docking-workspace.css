@@ -62,30 +62,14 @@
 }
 
 /* Primary layout (one stage group, at most one session view): the stage is
-   the ordinary workbench chat, not a pane inside it. With nothing docked the
-   whole workspace drops out of the box tree exactly like the v1 single pane;
-   with docked tools the row stays a real box so the right panel can sit
-   beside the chat. */
-.docking-workspace.is-primary-layout:not(.has-docked-tools),
-.docking-workspace.is-primary-layout:not(.has-docked-tools) .docking-workspace-row,
-.docking-workspace.is-primary-layout:not(.has-docked-tools) .docking-stage,
-.docking-workspace.is-primary-layout:not(.has-docked-tools) .docking-primary-slot {
+   the ordinary workbench chat, not a pane inside it, so the whole workspace
+   drops out of the box tree exactly like the v1 single pane. Docked tools
+   live in the workbench right panel, never beside the chat here. */
+.docking-workspace.is-primary-layout,
+.docking-workspace.is-primary-layout .docking-workspace-row,
+.docking-workspace.is-primary-layout .docking-stage,
+.docking-workspace.is-primary-layout .docking-primary-slot {
   display: contents;
-}
-
-.docking-workspace.is-primary-layout.has-docked-tools .docking-primary-slot {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-.docking-workspace.is-primary-layout.has-docked-tools .docking-primary-slot > .chat-column {
-  width: 100%;
-  height: 100%;
-  padding-top: 0;
 }
 
 .docking-workspace .conversation-pane[hidden],
@@ -150,65 +134,6 @@
   color: var(--text-3);
 }
 
-/* --- right panel ------------------------------------------------------ */
-
-.docking-right-panel {
-  position: relative;
-  flex: 0 0 auto;
-  min-width: 0;
-  /* A narrowed window must not push the stage below one session's width. */
-  max-width: max(280px, calc(100% - 420px));
-  height: 100%;
-  overflow: hidden;
-  background: var(--surface-1);
-  box-shadow: inset 1px 0 0 var(--line-1);
-  transition: width var(--t-2) var(--ease-out);
-}
-
-.docking-right-panel.is-resizing {
-  transition: none;
-}
-
-.docking-right-panel-resize-handle {
-  position: absolute;
-  z-index: 5;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 8px;
-  cursor: col-resize;
-  touch-action: none;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-
-.docking-right-panel-resize-handle::after {
-  position: absolute;
-  top: 50%;
-  left: 1px;
-  width: 2px;
-  height: 40px;
-  border-radius: var(--r-pill);
-  background: transparent;
-  content: '';
-  transform: translateY(-50%);
-  transition: background-color var(--t-2) var(--ease-out);
-}
-
-.docking-right-panel-resize-handle:hover::after,
-.docking-right-panel.is-resizing .docking-right-panel-resize-handle::after {
-  background: var(--iris);
-}
-
-.docking-right-panel-inner {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-}
-
 /* --- tool placeholder ------------------------------------------------- */
 
 .docking-tool-placeholder {
@@ -242,113 +167,6 @@
 .conversation-pane-tabs::-webkit-scrollbar {
   display: none;
 }
-
-/* Tool tabs: one per docked tool, icon + label, raised when active. */
-.docking-right-panel .conversation-pane-header.docking-right-panel-header {
-  flex: 0 0 var(--card-header-height, 30px);
-  height: var(--card-header-height, 30px);
-  min-height: var(--card-header-height, 30px);
-  max-height: var(--card-header-height, 30px);
-  box-sizing: border-box;
-  overflow: hidden;
-  gap: var(--s-1);
-  padding: 0 var(--s-2);
-}
-
-.docking-right-panel .docking-right-panel-tabs {
-  flex: 0 1 auto;
-  align-items: center;
-  gap: var(--s-1);
-}
-
-.docking-right-panel-tab.conversation-pane-tab {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 5px;
-  box-sizing: border-box;
-  height: 18px;
-  min-height: 18px;
-  max-height: 18px;
-  max-width: 180px;
-  padding: 0 7px;
-  border-radius: var(--r-chip);
-  font-size: 11px;
-  line-height: 18px;
-  cursor: pointer;
-  transition:
-    background-color var(--t-1) var(--ease-out),
-    color var(--t-1) var(--ease-out);
-}
-
-.docking-right-panel-tab.conversation-pane-tab svg {
-  flex: none;
-  width: 12px;
-  height: 12px;
-}
-
-.docking-right-panel-header .piwin-icon-button {
-  width: 22px;
-  min-width: 22px;
-  height: 22px;
-  min-height: 22px;
-}
-
-.docking-right-panel-header .piwin-icon-button svg {
-  width: 12px;
-  height: 12px;
-}
-
-.docking-right-panel-tab.conversation-pane-tab:hover {
-  background: var(--hover);
-}
-
-.docking-right-panel-tab.conversation-pane-tab.is-active {
-  background: var(--surface-3);
-  box-shadow: var(--elev-1);
-  color: var(--text-1);
-}
-
-.docking-right-panel-tab-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.docking-right-panel-surface-bar {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  min-width: 0;
-  min-height: 32px;
-  padding: 0 var(--s-2);
-  box-shadow: inset 0 -1px 0 var(--line-1);
-}
-
-.docking-right-panel-surface-bar[hidden] {
-  display: none;
-}
-
-.docking-right-panel-surface-tabs {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  flex: 0 1 auto;
-  height: 100%;
-  overflow: hidden;
-}
-
-.docking-right-panel-header-spacer {
-  flex: 1 1 auto;
-  min-width: var(--s-2);
-}
-
-.docking-right-panel-surface-actions {
-  display: flex;
-  align-items: center;
-  flex: none;
-}
-
 
 .conversation-pane-tab {
   flex: 0 1 auto;

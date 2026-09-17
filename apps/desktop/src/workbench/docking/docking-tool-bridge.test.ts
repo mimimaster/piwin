@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { inspectorTabToToolKind, tryOpenDockingTool } from './docking-tool-bridge.js';
+import { inspectorTabToToolKind, toolKindToInspectorTab, tryOpenDockingTool } from './docking-tool-bridge.js';
 
 describe('docking tool bridge', () => {
   it('maps inspector tabs to movable tool kinds', () => {
@@ -9,6 +9,13 @@ describe('docking tool bridge', () => {
     expect(inspectorTabToToolKind('docPreview')).toBe('doc');
     expect(inspectorTabToToolKind('files')).toBeNull();
     expect(inspectorTabToToolKind(null)).toBeNull();
+  });
+
+  it('maps movable tool kinds back to their inspector tabs', () => {
+    for (const tab of ['browser', 'review', 'canvas', 'docPreview'] as const) {
+      const kind = inspectorTabToToolKind(tab);
+      expect(kind && toolKindToInspectorTab(kind)).toBe(tab);
+    }
   });
 
   it('opens the docking tool only when the flag is on and the tab is movable', () => {

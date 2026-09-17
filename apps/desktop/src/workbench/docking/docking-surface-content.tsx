@@ -36,7 +36,6 @@ export function DockViewContent(props: {
   viewId: string;
   view: WorkspaceView;
   ctx: DockViewRenderContext;
-  inRightPanel?: boolean;
 }): ReactElement {
   const { view, ctx } = props;
   if (view.kind === 'session' && view.sessionId) {
@@ -56,7 +55,7 @@ export function DockViewContent(props: {
       />
     );
   }
-  return <DockToolSurface view={view} inRightPanel={props.inRightPanel === true} />;
+  return <DockToolSurface view={view} />;
 }
 
 export function resolveViewTitle(args: {

@@ -3,6 +3,7 @@ import type { ContextUsageSnapshot, HostStatusData, ProjectRecord } from '@piwin
 import type { LiveCallView, LiveReadyMissing } from '@piwin/contracts';
 import type {
   ComposerMcpOption,
+  ComposerPlusMenuProps,
   ComposerPlusSubmenu,
   ComposerSkillOption,
 } from './composer-plus-menu';
@@ -96,6 +97,8 @@ export type ComposerDockProps = {
   visionDelegationEnabled?: boolean;
   menuSkills: ComposerSkillOption[];
   menuMcp: ComposerMcpOption[];
+  /** Session-level MCP switches for the plus menu's Connectors flyout. */
+  menuMcpSwitches?: ComposerPlusMenuProps['mcpSwitches'];
   onRefreshComposerMenus: () => void;
   onOpenSkillsPanel: () => void;
   onOpenMcpPanel: () => void;
@@ -167,10 +170,6 @@ export type ComposerDockProps = {
   runtimeRemoteHostLabel?: string;
   onSelectLocalRuntime?: () => void;
   onSelectAttachRuntime?: () => void;
-  /** Open knowledge bases (`knowledge`) or the flashcards home (`doccards` / `cards`). */
-  onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'knowledge') => void) | undefined;
-  /** Open the flashcards home from the plus menu. */
-  onOpenCardsPanel?: (() => void) | undefined;
   /** True when the configured ASR provider/model is currently usable. */
   speechConfigured?: boolean;
   /** Transient Desktop → Host ASR request; audio is never saved by the composer. */

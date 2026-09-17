@@ -95,6 +95,7 @@ async function seedPromptSession(options: {
   recordModel: ModelRef;
   appliedModel: ModelRef;
   thinkingLevel?: 'off' | 'low' | 'high';
+  disabledMcpServerIds?: string[];
 }): Promise<{
   session: SessionHandle;
   context: ReturnType<typeof createPromptContext>['context'];
@@ -122,6 +123,7 @@ async function seedPromptSession(options: {
     model: options.recordModel,
     ...(options.thinkingLevel === undefined ? {} : { thinkingLevel: options.thinkingLevel }),
   });
+  if (options.disabledMcpServerIds) record.disabledMcpServerIds = options.disabledMcpServerIds;
   await upsertSessionRecord(getPiwinSessionIndexPath(rootDir), record);
   context.sessionModels.set(session.id, options.appliedModel);
   const replaceCalls: number[] = [];
@@ -214,5 +216,47 @@ describe('session/prompt desired composer profile', () => {
     expect(received[0]?.model).toEqual(typedSameProvider());
     expect(replaceCalls).toEqual([]);
     expect(context.sessionModels.get(session.id)).toEqual(typedSameProvider());
+  });
+
+  it('rebuilds the runtime when the session MCP switches changed since it was composed', async () => {
+    const { session, context, replaceCalls } = await seedPromptSession({
+      recordModel: sameProviderOld(),
+      appliedModel: sameProviderOld(),
+      disabledMcpServerIds: ['github'],
+    });
+    const seen: Array<readonly string[] | undefined> = [];
+    context.sessionMcpOverrideChanged = (_sessionId, disabledServerIds) => {
+      seen.push(disabledServerIds);
+      return true;
+    };
+
+    const response = await handleSessionLiveCommand(
+      { type: 'session/prompt', sessionId: session.id, input: { text: 'use fewer tools' } },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({ success: true });
+    await vi.waitFor(() => expect(context.getForegroundRun(session.id)).toBeUndefined());
+    expect(seen).toEqual([['github']]);
+    expect(replaceCalls).toEqual([1]);
+  });
+
+  it('keeps the live runtime when the session MCP switches are unchanged', async () => {
+    const { session, context, replaceCalls } = await seedPromptSession({
+      recordModel: sameProviderOld(),
+      appliedModel: sameProviderOld(),
+    });
+    context.sessionMcpOverrideChanged = () => false;
+
+    const response = await handleSessionLiveCommand(
+      { type: 'session/prompt', sessionId: session.id, input: { text: 'same tools' } },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({ success: true });
+    await vi.waitFor(() => expect(context.getForegroundRun(session.id)).toBeUndefined());
+    expect(replaceCalls).toEqual([]);
   });
 });

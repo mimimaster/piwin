@@ -674,6 +674,14 @@ export async function handleMockCatalogCommands(
           success: true,
           data: { servers: [] },
         };
+      case 'session/set-mcp-servers':
+        return {
+          id,
+          type: 'response',
+          command: command.type,
+          success: true,
+          data: { sessionId: command.sessionId, disabledServerIds: command.disabledServerIds },
+        };
       case 'mcp/start':
       case 'mcp/stop': {
         const health: {

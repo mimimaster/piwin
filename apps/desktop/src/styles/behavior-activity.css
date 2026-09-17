@@ -241,13 +241,6 @@
   text-overflow: ellipsis;
 }
 
-.agent-locator-stack {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 30px;
-}
-
 /* Compaction is one row of the agent's tool chain, so it inherits the whole
  * tool-call treatment (head row, status dot, duration, expandable body) from
  * transcript-tool-card.css. Only the chain's own left/right rhythm belongs

@@ -25,6 +25,7 @@ export function summaryToListItem(
   if (session.scope) item.scope = session.scope;
   if (session.storage && session.storage.state !== 'local') item.storage = session.storage;
   if (session.knowledgeBaseIds) item.knowledgeBaseIds = session.knowledgeBaseIds;
+  if (session.disabledMcpServerIds) item.disabledMcpServerIds = session.disabledMcpServerIds;
   return item;
 }
 
@@ -49,5 +50,8 @@ export function mapSummariesToListItems(
     ...(session.scope ? { scope: session.scope } : {}),
     ...(session.storage && session.storage.state !== 'local' ? { storage: session.storage } : {}),
     ...(session.knowledgeBaseIds ? { knowledgeBaseIds: session.knowledgeBaseIds } : {}),
+    ...(session.disabledMcpServerIds
+      ? { disabledMcpServerIds: session.disabledMcpServerIds }
+      : {}),
   }));
 }

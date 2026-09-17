@@ -250,6 +250,8 @@ export type PlatformHostCommand =
   | { id?: string; type: 'mcp/status' }
   | { id?: string; type: 'mcp/start'; serverId: string }
   | { id?: string; type: 'mcp/stop'; serverId: string }
+  /** Replaces the MCP servers this session opts out of; applies from the next prompt. */
+  | { id?: string; type: 'session/set-mcp-servers'; sessionId: string; disabledServerIds: string[] }
   | { id?: string; type: 'git/status'; projectPath: string }
   | {
       id?: string;

@@ -95,11 +95,10 @@ export function ComposerCardToolbar({
               skills={props.menuSkills}
               onOpenSkillsPanel={props.onOpenSkillsPanel}
               mcpServers={props.menuMcp}
+              {...(props.menuMcpSwitches ? { mcpSwitches: props.menuMcpSwitches } : {})}
               onOpenMcpPanel={props.onOpenMcpPanel}
               onAttachFile={props.onAttachFile}
               onAttachImage={props.onAttachImage}
-              onOpenKnowledge={props.onOpenKnowledge}
-              onOpenCardsPanel={props.onOpenCardsPanel}
               hideAgentExtras={props.isConversationSession === true}
             />
           </div>

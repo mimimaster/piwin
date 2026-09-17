@@ -50,7 +50,8 @@ import { appendComposerProposal } from './artifact-canvas-model.js';
 import { isDockingWorkspaceEnabled } from './workbench/docking/flag.js';
 import { DockToolHostsProvider } from './workbench/docking/dock-tool-hosts.js';
 import { useDockingWorkspace } from './workbench/docking/use-docking-workspace.js';
-import { inspectorTabToToolKind } from './workbench/docking/docking-tool-bridge.js';
+import { inspectorTabToToolKind, toolKindToInspectorTab } from './workbench/docking/docking-tool-bridge.js';
+import { findViewGroupId, isStageGroupId } from './workbench/docking/topology.js';
 import { sessionScopeKey } from './session-scope-key';
 import { resolveEntityScope } from './session-entities';
 import { shouldBindSessionToSecondaryPane } from './conversation-pane-bind';
@@ -164,41 +165,35 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     primarySessionId: conversationPanesEnabled && !dockingEnabled ? state.activeSessionId : null,
     ...(conversationPanesEnabled ? { scopeKey: sessionScopeKey(state.activeScope) } : {}),
   });
+  const dockingActive = conversationPanesEnabled && dockingEnabled;
   const dockingWorkspace = useDockingWorkspace({
-    enabled: conversationPanesEnabled && dockingEnabled,
+    enabled: dockingActive,
     hostClient,
     inspectorTab: rightPanelOpen ? rightPanelTab : null,
+    rightPanelOpen,
+    onRevealRightTool: (kind) => shell.openInspector(toolKindToInspectorTab(kind)),
     ...(conversationPanesEnabled ? { scopeKey: sessionScopeKey(state.activeScope) } : {}),
   });
-  // The docking hook above has already moved a movable tool into the
-  // workspace; fold the inspector away instead of leaving a placeholder
-  // column that squeezes the chat. Clearing the tab keeps the next inspector
-  // toggle from handing the same tool over again and closing at once.
-  const dockingTakesInspectorTool =
-    conversationPanesEnabled &&
-    dockingEnabled &&
-    rightPanelOpen &&
-    inspectorTabToToolKind(rightPanelTab) !== null;
-  // With tools docked, the titlebar panel toggle folds that column; the
-  // inspector keeps the toggle only while it is open or nothing is docked.
-  const dockedRightGroupId = dockingWorkspace.state.rightPanel.groupIds[0];
-  const hasDockedTools =
-    conversationPanesEnabled &&
-    dockingEnabled &&
-    (dockedRightGroupId ? dockingWorkspace.state.groups[dockedRightGroupId]?.viewIds.length ?? 0 : 0) > 0;
-  const dockedToolsExpanded = hasDockedTools && !dockingWorkspace.state.rightPanel.collapsed;
-  const setDockingState = dockingWorkspace.setState;
-  const toggleDockedTools = useCallback(() => {
-    setDockingState((current) => ({
-      ...current,
-      rightPanel: { ...current.rightPanel, collapsed: !current.rightPanel.collapsed },
-    }));
-  }, [setDockingState]);
+  // Docked tools are tabs of the right panel itself. The one exception is a
+  // tool the user moved onto the stage: the docking hook above focuses it
+  // there, so drop the inspector tab, and fold the panel away again when it
+  // was opened only to show that tool.
+  const requestedDockTool = dockingActive && rightPanelOpen ? inspectorTabToToolKind(rightPanelTab) : null;
+  const requestedDockToolOnStage =
+    requestedDockTool !== null &&
+    Object.values(dockingWorkspace.state.views).some((view) => {
+      if (view.kind !== requestedDockTool) return false;
+      const groupId = findViewGroupId(dockingWorkspace.state, view.viewId);
+      return groupId !== null && isStageGroupId(dockingWorkspace.state, groupId);
+    });
+  const inspectorWasOpenRef = useRef(rightPanelOpen);
   useEffect(() => {
-    if (!dockingTakesInspectorTool) return;
+    const wasOpen = inspectorWasOpenRef.current;
+    inspectorWasOpenRef.current = rightPanelOpen;
+    if (!requestedDockToolOnStage) return;
     shell.setInspectorTab(null);
-    shell.closeOverlay();
-  }, [dockingTakesInspectorTool, shell]);
+    if (!wasOpen) shell.closeOverlay();
+  }, [requestedDockToolOnStage, rightPanelOpen, shell]);
   const liveSessionId = dockingEnabled
     ? dockingWorkspace.state.sessionTargetId ?? state.activeSessionId
     : conversationPanesEnabled
@@ -670,8 +665,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       locale={desktopLocale}
                       appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
                       sessionsExpanded={navDrawerOpen}
-                      workPanelOpen={rightPanelOpen || dockedToolsExpanded}
-                      {...(hasDockedTools && !rightPanelOpen ? { onToggleWorkPanel: toggleDockedTools } : {})}
+                      workPanelOpen={rightPanelOpen}
                       rightPanelTab={rightPanelTab}
                       shell={shell}
                       onStop={handleAbort}
@@ -821,7 +815,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       terminalAttention={terminalAttention}
                       onTerminalAttentionClear={() => setTerminalAttention(false)}
                       onViewChange={setRightPanelView}
-                      workspaceOwnsMovableTools={dockingEnabled}
+                      docking={dockingActive ? dockingWorkspace : null}
                       locale={desktopLocale}
                       activeTheme={activeTheme}
                       onToggleAppearance={handleToggleAppearance}

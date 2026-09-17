@@ -397,6 +397,14 @@ export type SessionLiveContext = {
   }) => Promise<{ generationId: string; settingsRevision: string }>;
   /** Rebuild a resident generation when the next turn changes Provider. */
   replaceRuntimeForModel: (sessionId: string, excludeSeedMessageId?: string) => Promise<void>;
+  /**
+   * True when the active generation froze a different session MCP opt-out set
+   * than the session record now holds (`session/set-mcp-servers`).
+   */
+  sessionMcpOverrideChanged?: (
+    sessionId: string,
+    disabledServerIds: readonly string[] | undefined,
+  ) => boolean;
   /** Bind this run to a turn-change attempt after userMessageId is known. */
   beginTurnChangeRun?: (input: {
     sessionId: string;

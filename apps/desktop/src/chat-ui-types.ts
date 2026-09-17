@@ -282,6 +282,8 @@ export type SessionListItemUi = {
   storage?: import('@piwin/contracts').SessionStorageInfo;
   /** Knowledge bases mounted on this session. */
   knowledgeBaseIds?: string[];
+  /** MCP servers switched off for this session. */
+  disabledMcpServerIds?: string[];
 };
 
 export type RunTerminalState =

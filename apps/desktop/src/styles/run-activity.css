@@ -173,15 +173,6 @@
 
 /* ── RunActivitySplash (hidden in product; deck tokens for tests) ─── */
 
-.chat-run-activity-line {
-  display: flex;
-  align-items: center;
-  padding: var(--s-2) var(--s-5);
-  margin: var(--s-1) 0 var(--s-4);
-  background: transparent;
-  border: none;
-}
-
 .run-activity-splash {
   position: relative;
   display: flex;

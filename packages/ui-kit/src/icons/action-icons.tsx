@@ -17,8 +17,8 @@ export const IconAlertCircle = createIcon(
 
 export const IconCopy = createIcon(
   <>
-    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-    <path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5" />
+    <rect x="5.5" y="5.5" width="8" height="8" rx="2" />
+    <path d="M2.5 9.5v-5a2 2 0 0 1 2-2h5" />
   </>,
   16,
 );

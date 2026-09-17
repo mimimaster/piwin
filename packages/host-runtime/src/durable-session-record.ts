@@ -22,6 +22,7 @@ export type PersistDurableSessionInput = {
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
   knowledgeBaseIds?: string[];
+  disabledMcpServerIds?: string[];
 };
 
 /**
@@ -48,6 +49,9 @@ export async function persistDurableSessionRecord(
     }
     if (input.knowledgeBaseIds && input.knowledgeBaseIds.length > 0) {
       current.knowledgeBaseIds = input.knowledgeBaseIds;
+    }
+    if (input.disabledMcpServerIds && input.disabledMcpServerIds.length > 0) {
+      current.disabledMcpServerIds = input.disabledMcpServerIds;
     }
     await upsertSessionRecord(input.indexPath, current);
     return current;
@@ -77,6 +81,9 @@ export async function persistDurableSessionRecord(
   const record = createSessionRecord(recordInput);
   if (input.knowledgeBaseIds && input.knowledgeBaseIds.length > 0) {
     record.knowledgeBaseIds = input.knowledgeBaseIds;
+  }
+  if (input.disabledMcpServerIds && input.disabledMcpServerIds.length > 0) {
+    record.disabledMcpServerIds = input.disabledMcpServerIds;
   }
   await upsertSessionRecord(input.indexPath, record);
   return record;

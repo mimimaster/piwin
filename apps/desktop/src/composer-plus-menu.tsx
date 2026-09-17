@@ -1,24 +1,27 @@
 /**
- * Composer "+" menu: P0/P1 attachments plus Skills, MCP, and Flashcards.
- * Modes live on the toolbar (Agent / Goal); this menu is attachments + Skills/MCP.
+ * Composer "+" menu: attachments, plus Skills and Connectors in Agent sessions.
+ * Modes live on the toolbar (Agent / Goal). Connectors lists MCP servers with a
+ * per-session switch; Conversation chat never loads MCP, so it only attaches.
  * Built on ui-kit menu primitives (Radix portal, positioning, Escape, arrow nav).
  */
 
 import { type ReactElement, type ReactNode } from 'react';
-import type { SkillSource } from '@piwin/contracts';
+import type { McpServerRuntimeStatus, SkillSource } from '@piwin/contracts';
 import {
   DropdownMenu,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
+  DropdownMenuSwitchItem,
 } from '@piwin/ui-kit';
-import { IconCards, IconFile, IconMcp, IconPaperclip, IconSkill } from './shell-icons';
+import { IconFile, IconImage, IconMcp, IconPlug, IconSkill } from './shell-icons';
 import { useDesktopLocale } from './desktop-locale-context';
-import { KnowledgeMountSubmenu } from './knowledge/KnowledgeMountSubmenu.js';
+import type { SessionMcpSwitches } from './hooks/use-session-mcp-switches';
 
-export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp' | 'knowledge';
+export type ComposerPlusSubmenu = 'none' | 'skills' | 'connectors';
 
 export type ComposerSkillOption = {
   id: string;
@@ -31,7 +34,9 @@ export type ComposerSkillOption = {
 export type ComposerMcpOption = {
   id: string;
   name: string;
-  running: boolean;
+  status: McpServerRuntimeStatus | 'unknown';
+  toolCount?: number;
+  globallyDisabled: boolean;
 };
 
 export type ComposerPlusMenuProps = {
@@ -44,20 +49,40 @@ export type ComposerPlusMenuProps = {
   skills: ComposerSkillOption[];
   onOpenSkillsPanel: () => void;
   mcpServers: ComposerMcpOption[];
+  /** Session-level MCP switches; rows render read-only without them. */
+  mcpSwitches?: Pick<
+    SessionMcpSwitches,
+    'supported' | 'disabledServerIds' | 'error' | 'setServerEnabled'
+  >;
   onOpenMcpPanel: () => void;
-  onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'knowledge') => void) | undefined;
-  onOpenCardsPanel?: (() => void) | undefined;
   /** Optional for isolated menu consumers that do not expose file uploads. */
   onAttachFile?: () => void;
   /** Optional image-only picker for quick access to screenshots. */
   onAttachImage?: () => void;
-  /** Conversation chat keeps attachments and hides Skills / MCP. */
+  /** Conversation chat keeps attachments and hides Skills / Connectors. */
   hideAgentExtras?: boolean;
 };
+
+function connectorMeta(server: ComposerMcpOption, isZh: boolean): string | null {
+  if (server.globallyDisabled) return isZh ? '全局已停用' : 'Off globally';
+  if (server.status === 'error') return isZh ? '出错' : 'Error';
+  if (server.status === 'starting') return isZh ? '启动中' : 'Starting';
+  if (server.toolCount !== undefined) {
+    return isZh ? `${server.toolCount} 个工具` : `${server.toolCount} tools`;
+  }
+  return null;
+}
 
 export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
+  const hasAttachments = Boolean(props.onAttachFile || props.onAttachImage);
+  const showAgentExtras = props.hideAgentExtras !== true;
+  const switches = props.mcpSwitches?.supported === true ? props.mcpSwitches : null;
+  const enabledConnectorCount = props.mcpServers.filter(
+    (server) => !server.globallyDisabled && !switches?.disabledServerIds.includes(server.id),
+  ).length;
+
   return (
     <DropdownMenu
       open={props.open}
@@ -71,7 +96,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
       contentClassName="plus-menu"
       trigger={props.trigger}
     >
-      {props.onAttachFile || props.onAttachImage ? (
+      {hasAttachments ? (
         <DropdownMenuLabel className="plus-menu-caption muted">
           {isZh ? '附件' : 'Attachments'}
         </DropdownMenuLabel>
@@ -89,43 +114,15 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
       {props.onAttachImage ? (
         <DropdownMenuItem onSelect={props.onAttachImage} testId="plus-menu-image">
           <span className="plus-menu-icon">
-            <IconPaperclip width={16} height={16} />
+            <IconImage width={16} height={16} />
           </span>
           <span className="plus-menu-label">{isZh ? '添加图片' : 'Attach image'}</span>
         </DropdownMenuItem>
       ) : null}
 
-      {props.onOpenKnowledge || props.onOpenCardsPanel ? (
-        <DropdownMenuItem
-          onSelect={() => {
-            if (props.onOpenCardsPanel) {
-              props.onOpenCardsPanel();
-              return;
-            }
-            props.onOpenKnowledge?.();
-          }}
-          testId="plus-menu-open-flashcards"
-        >
-          <span className="plus-menu-icon">
-            <IconCards width={16} height={16} />
-          </span>
-          <span className="plus-menu-label">{isZh ? '闪卡' : 'Flashcards'}</span>
-        </DropdownMenuItem>
-      ) : null}
+      {showAgentExtras && hasAttachments ? <DropdownMenuSeparator /> : null}
 
-      <KnowledgeMountSubmenu
-        open={props.submenu === 'knowledge'}
-        onOpenChange={(open) => props.onSubmenu(open ? 'knowledge' : 'none')}
-        locale={isZh ? 'zh-CN' : 'en'}
-      />
-
-      {props.hideAgentExtras === true ? null : (
-        <DropdownMenuLabel className="plus-menu-caption muted">
-          {isZh ? '技能与 MCP' : 'Skills & MCP'}
-        </DropdownMenuLabel>
-      )}
-
-      {props.hideAgentExtras === true ? null : (
+      {showAgentExtras ? (
         <>
           <DropdownMenuSub
             open={props.submenu === 'skills'}
@@ -136,7 +133,6 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
                 <IconSkill width={16} height={16} />
               </span>
               <span className="plus-menu-label">{isZh ? '技能' : 'Skills'}</span>
-              <span className="plus-menu-chevron">›</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="plus-submenu" label="Skills">
               <DropdownMenuLabel className="plus-menu-caption muted">
@@ -166,6 +162,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
                   </DropdownMenuLabel>
                 ))
               )}
+              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={props.onOpenSkillsPanel} testId="plus-menu-manage-skills">
                 {isZh ? '管理技能…' : 'Manage skills…'}
               </DropdownMenuItem>
@@ -173,49 +170,77 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
           </DropdownMenuSub>
 
           <DropdownMenuSub
-            open={props.submenu === 'mcp'}
-            onOpenChange={(open) => props.onSubmenu(open ? 'mcp' : 'none')}
+            open={props.submenu === 'connectors'}
+            onOpenChange={(open) => props.onSubmenu(open ? 'connectors' : 'none')}
           >
-            <DropdownMenuSubTrigger testId="plus-menu-mcp">
+            <DropdownMenuSubTrigger testId="plus-menu-connectors">
               <span className="plus-menu-icon">
-                <IconMcp width={16} height={16} />
+                <IconPlug width={16} height={16} />
               </span>
-              <span className="plus-menu-label">MCP Servers</span>
-              <span className="plus-menu-chevron">›</span>
+              <span className="plus-menu-label">{isZh ? '连接器' : 'Connectors'}</span>
+              {enabledConnectorCount > 0 ? (
+                <span className="plus-menu-count">{enabledConnectorCount}</span>
+              ) : null}
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="plus-submenu" label="MCP Servers">
-              <DropdownMenuLabel className="plus-menu-caption muted">MCP servers</DropdownMenuLabel>
+            <DropdownMenuSubContent className="plus-submenu plus-connectors" label="Connectors">
+              <DropdownMenuLabel className="plus-menu-caption muted">
+                {isZh ? '本会话的 MCP 服务器' : 'MCP servers in this session'}
+              </DropdownMenuLabel>
               {props.mcpServers.length === 0 ? (
                 <DropdownMenuLabel className="plus-menu-empty muted">
                   {isZh ? '未配置任何服务器' : 'No servers configured'}
                 </DropdownMenuLabel>
               ) : (
-                props.mcpServers.map((server) => (
-                  <DropdownMenuLabel key={server.id} className="plus-menu-static">
-                    <span className="plus-menu-label">{server.name}</span>
+                props.mcpServers.map((server) => {
+                  const meta = connectorMeta(server, isZh);
+                  const metaNode = meta ? (
                     <span
-                      className={`plus-menu-state-dot${server.running ? ' is-on' : ''}`}
-                      role="img"
-                      aria-label={
-                        server.running
-                          ? isZh
-                            ? '在线'
-                            : 'online'
-                          : isZh
-                            ? '离线'
-                            : 'offline'
-                      }
-                    />
-                  </DropdownMenuLabel>
-                ))
+                      className={`plus-menu-meta${server.status === 'error' ? ' is-error' : ''}`}
+                    >
+                      {meta}
+                    </span>
+                  ) : null;
+                  if (!switches) {
+                    return (
+                      <DropdownMenuLabel key={server.id} className="plus-menu-static">
+                        <span className="plus-menu-icon">
+                          <IconMcp width={14} height={14} />
+                        </span>
+                        <span className="plus-menu-label">{server.name}</span>
+                        {metaNode}
+                      </DropdownMenuLabel>
+                    );
+                  }
+                  const checked =
+                    !server.globallyDisabled && !switches.disabledServerIds.includes(server.id);
+                  return (
+                    <DropdownMenuSwitchItem
+                      key={server.id}
+                      checked={checked}
+                      disabled={server.globallyDisabled}
+                      onCheckedChange={(next) => switches.setServerEnabled(server.id, next)}
+                      testId={`plus-menu-connector-${server.id}`}
+                      icon={<IconMcp width={14} height={14} />}
+                    >
+                      <span className="plus-menu-connector-name">{server.name}</span>
+                      {metaNode}
+                    </DropdownMenuSwitchItem>
+                  );
+                })
               )}
+              {switches?.error ? (
+                <DropdownMenuLabel className="plus-menu-empty plus-menu-error">
+                  {switches.error}
+                </DropdownMenuLabel>
+              ) : null}
+              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={props.onOpenMcpPanel} testId="plus-menu-open-mcp">
-                {isZh ? '打开 MCP 设置' : 'Open MCP Settings'}
+                {isZh ? '管理连接器…' : 'Manage connectors…'}
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         </>
-      )}
+      ) : null}
     </DropdownMenu>
   );
 }

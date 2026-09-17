@@ -435,3 +435,55 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .slab :is(.run-mode-trigger, .orchestration-scheme-trigger) :is(span, svg) { color: inherit; }
 }
 .thinking-effort-avatar { display: none; }
+
+/* "+" menu and its flyouts — proto-02 `.pop` (b10): s4 sheet, sh3 lift,
+   32px rows, mono meta. Portaled to <body>, so these sit outside `.slab`. A
+   connector switch reads "on" as zhu, never pine (pine means "completed"). */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
+  .ui-menu-content:is(.plus-menu, .plus-submenu) {
+    padding: 6px;
+    border-radius: 12px;
+    background: var(--s4);
+    box-shadow: var(--sh3);
+    font-family: var(--sans);
+  }
+  .ui-menu-content:is(.plus-menu, .plus-submenu) .ui-menu-item {
+    min-height: 32px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: var(--t1);
+  }
+  .ui-menu-content:is(.plus-menu, .plus-submenu) .ui-menu-item:is(:hover, [data-highlighted]) {
+    background: var(--s2);
+    color: var(--t1);
+  }
+  .plus-menu-caption {
+    padding: 6px 8px 4px;
+    font: 600 10.5px var(--sans);
+    letter-spacing: 0.06em;
+    color: var(--t3);
+  }
+  :is(.plus-menu, .plus-submenu) :is(.plus-menu-icon, .ui-menu-item-icon) { color: var(--t3); }
+  :is(.plus-menu, .plus-submenu) .ui-menu-item:is(:hover, [data-highlighted]) :is(.plus-menu-icon, .ui-menu-item-icon) {
+    color: var(--t1);
+  }
+  :is(.plus-menu, .plus-submenu) .ui-menu-separator { margin: 4px 2px; background: var(--l1); }
+  .plus-menu-empty,
+  .plus-menu-static { padding: 0 8px; min-height: 32px; font-size: 12.5px; color: var(--t2); }
+  .plus-menu-meta { font: 11px var(--mono); color: var(--t4); }
+  .plus-menu-meta.is-error,
+  .plus-menu-error { color: var(--crimson); }
+  .plus-menu-count {
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--zhu-wash);
+    color: var(--zhu);
+    font: 11px/17px var(--mono);
+  }
+  .ui-menu-switch { width: 30px; height: 18px; background: var(--l2); }
+  .ui-menu-switch::after { width: 14px; height: 14px; background: var(--s4); box-shadow: var(--sh1); }
+  .ui-menu-switch[data-checked='true'] { background: var(--zhu); }
+  /* An s4 thumb on an l2 track vanishes on the ink face; lift it while off. */
+  .ui-menu-switch[data-checked='false']::after { background: var(--t4); box-shadow: none; }
+}

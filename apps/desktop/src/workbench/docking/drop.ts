@@ -109,11 +109,7 @@ function proposeExistingView(
     if (!rightId) return fail('missing-target', DOCKING_COPY.illegal);
     const moved = moveViewToGroup(state, viewId, rightId, zone.kind === 'right-tab' ? zone.index : undefined);
     if (!moved.ok) return fail(moved.code, moved.message);
-    const next =
-      zone.kind === 'right-dock-band'
-        ? { ...moved.state, rightPanel: { ...moved.state.rightPanel, collapsed: false } }
-        : moved.state;
-    return { ok: true, state: next, label: DOCKING_COPY.dockRight };
+    return { ok: true, state: moved.state, label: DOCKING_COPY.dockRight };
   }
 
   if (zone.kind === 'empty-stage') {

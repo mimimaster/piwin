@@ -274,6 +274,8 @@ export type CreateSessionInput = {
    * race where the first turn ran before the follow-up mount landed.
    */
   knowledgeBaseIds?: string[];
+  /** MCP servers switched off for this session before its first prompt. */
+  disabledMcpServerIds?: string[];
 };
 
 export type SessionPresentation = {
@@ -336,6 +338,8 @@ export type SessionSummary = {
   thinkingLevel?: ThinkingLevel;
   /** Knowledge bases mounted on this session (`session/set-knowledge-bases`). Absent = none. */
   knowledgeBaseIds?: string[];
+  /** MCP servers switched off for this session (`session/set-mcp-servers`). Absent = none. */
+  disabledMcpServerIds?: string[];
   updatedAt: string;
   messageCount: number;
   /** Short last user/assistant preview for session list UI. */

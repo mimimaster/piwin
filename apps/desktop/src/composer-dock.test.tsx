@@ -621,6 +621,66 @@ describe('ComposerDock host status', () => {
     expect(handleFollowUp).not.toHaveBeenCalled();
   });
 
+  it('sends Enter immediately after IME Space confirmation', () => {
+    const handleSend = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock {...baseProps} composer="你好" onSend={handleSend} />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      '[data-testid="composer-input"]',
+    );
+    expect(textarea).not.toBeNull();
+
+    act(() => {
+      textarea?.dispatchEvent(new Event('compositionstart', { bubbles: true }));
+      textarea?.dispatchEvent(new Event('compositionend', { bubbles: true }));
+      textarea?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(handleSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not send or insert a newline for the leftover Enter after IME Enter confirm', () => {
+    const handleSend = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock {...baseProps} composer="你好" onSend={handleSend} />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      '[data-testid="composer-input"]',
+    );
+    expect(textarea).not.toBeNull();
+
+    act(() => {
+      textarea?.dispatchEvent(new Event('compositionstart', { bubbles: true }));
+      textarea?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      textarea?.dispatchEvent(new Event('compositionend', { bubbles: true }));
+    });
+    const leftoverEnter = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      textarea?.dispatchEvent(leftoverEnter);
+    });
+    expect(handleSend).not.toHaveBeenCalled();
+    expect(leftoverEnter.defaultPrevented).toBe(true);
+
+    act(() => {
+      textarea?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(handleSend).toHaveBeenCalledTimes(1);
+  });
+
   it('attaches stacked queued messages directly above the composer', () => {
     const rendered = renderDock(
       <ComposerDock
