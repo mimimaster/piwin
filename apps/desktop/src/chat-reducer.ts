@@ -264,7 +264,14 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         }),
       };
     case 'permission/show':
-      if (action.prompt.runId !== undefined && isStaleRunEvent(state, action.prompt.runId)) {
+      // activeRunId is the active session's run. A prompt from another session
+      // (a subagent child waiting under this parent) carries its own run id and
+      // is never stale relative to it; dropping it hid the only approval path.
+      if (
+        action.prompt.runId !== undefined &&
+        action.prompt.sessionId === state.activeSessionId &&
+        isStaleRunEvent(state, action.prompt.runId)
+      ) {
         return state;
       }
       {

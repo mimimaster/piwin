@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import type { SessionSummary, SubagentInvocation } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
-import type { ToolCardUi } from './chat-reducer';
+import type { SubagentStreamState, ToolCardUi } from './chat-reducer';
 import {
   resolveSubagentSealChar,
   SubagentInvocationBlock,
@@ -146,6 +146,62 @@ describe('SubagentInvocationBlock component', () => {
     expect(container.querySelector('[data-testid="subagent-role-chip"]')?.textContent).toBe(
       'implementer',
     );
+  });
+
+  it('shows the approval wait over a running tool and keeps the elapsed time ticking', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-07T10:30:00.000Z'));
+    const invocation: SubagentInvocation = {
+      id: 'inv-wait',
+      runId: 'run-1',
+      taskId: 'task-1',
+      revision: 1,
+      parentSessionId: 'sess-parent',
+      parentToolCallId: 'tool-call-1',
+      childSessionId: 'child-1',
+      status: 'running',
+      profileId: 'coder',
+      title: 'an-r05-r10-freeze',
+      task: 'Fix freeze',
+      activity: { kind: 'permission', action: 'bash' },
+      createdAt: '2026-09-07T10:00:00.000Z',
+      updatedAt: '2026-09-07T10:06:08.000Z',
+    };
+    const stream: SubagentStreamState = {
+      childSessionId: 'child-1',
+      completedSegments: [],
+      completionRevision: 0,
+      text: '',
+      thinking: '',
+      tools: [{ toolCallId: 'bash-1', toolName: 'bash', status: 'running', output: '' }],
+      streaming: true,
+      currentMessageId: 'child-message-1',
+    };
+
+    try {
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <SubagentInvocationBlock
+              tool={sampleTool}
+              invocation={invocation}
+              stream={stream}
+              locale="zh-CN"
+            />
+          </PiwinUiProvider>,
+        );
+      });
+
+      const activity = container.querySelector('.subagent-invocation-activity');
+      expect(activity?.textContent).toContain('等待权限确认');
+      expect(activity?.textContent).not.toContain('正在执行');
+      const elapsed = () => container.querySelector('[data-testid="subagent-elapsed"]')?.textContent;
+      expect(elapsed()).toBe('30m 0s');
+      act(() => vi.advanceTimersByTime(5_000));
+      expect(elapsed()).toBe('30m 5s');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renders completed subagent with completed status pill and trigger inspector on click', () => {
@@ -292,6 +348,12 @@ describe('SubagentInvocationBlock component', () => {
       createdAt: '2026-09-13T00:00:00.000Z',
       updatedAt: '2026-09-13T00:00:12.000Z',
     };
+    // A running card measures to "now"; pin it so the elapsed text is exact.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-13T00:00:12.000Z'));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
 
     act(() => {
       root.render(

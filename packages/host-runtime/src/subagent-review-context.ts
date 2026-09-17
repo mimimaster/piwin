@@ -23,6 +23,8 @@ export type SubagentSessionRuntimeContext = {
   runtimeGenerationId: string;
   workingDirectory: string;
   parentRepoPath: string;
+  /** Set only for a `worktree` lease: the child's disposable copy. */
+  worktreePath?: string;
   invocationId?: string;
   reviewScope?: SubagentReviewCapabilityScope;
 };

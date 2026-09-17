@@ -4,7 +4,12 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { PermissionDecision, PermissionMode } from '@piwin/contracts';
+import {
+  formatError,
+  type PermissionDecision,
+  type PermissionMode,
+  type SubagentInvocationActivity,
+} from '@piwin/contracts';
 import { type ExtensionUiKind, type ExtensionUiResponse } from '@piwin/agent-host';
 import { permissionResolvedPushes } from './permission-resolved-push.js';
 import {
@@ -22,6 +27,40 @@ import { SessionAllowlist } from './session-allowlist.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { extractBashCommandFromDetail } from './permission-bash-detail.js';
 import { createCancelledExtensionUiResponse } from './extension-ui-cancel.js';
+import { invocationActivityKey } from './subagent-orchestrator-batch.js';
+
+/**
+ * A child's approval is a Host push, not a worker event, so the invocation
+ * card never learned it was blocked and kept saying "running bash". Mirror the
+ * wait onto the invocation and restore the prior activity once it settles,
+ * unless the child already moved on.
+ */
+function markSubagentPermissionWait(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+  action: string,
+): (() => void) | undefined {
+  const invocationId = deps.subagentSessionContexts.get(sessionId)?.invocationId;
+  const orchestrator = deps.subagentOrchestrator;
+  if (!invocationId || !orchestrator) return undefined;
+  const previous = orchestrator.getRunningInvocationActivity(invocationId);
+  const waiting: SubagentInvocationActivity = { kind: 'permission', action };
+  const record = (activity: SubagentInvocationActivity): void => {
+    void orchestrator.updateInvocationActivity(invocationId, activity).catch((error: unknown) => {
+      deps.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `subagent permission activity persistence failed: ${formatError(error)}`,
+      });
+    });
+  };
+  record(waiting);
+  return () => {
+    const current = orchestrator.getRunningInvocationActivity(invocationId);
+    if (!current || invocationActivityKey(current) !== invocationActivityKey(waiting)) return;
+    record(previous ?? { kind: 'thinking' });
+  };
+}
 
 export async function trustProject(deps: HostRuntimeKernel, projectPath: string): Promise<unknown> {
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
@@ -51,6 +90,7 @@ export function requestPermission(
     const permissionRunId = executionRunId ?? activeRun?.runId;
     let settled = false;
     let published = false;
+    let restoreSubagentActivity: (() => void) | undefined;
     const cleanup = (): void => {
       input.signal?.removeEventListener('abort', abortHandler);
     };
@@ -61,6 +101,7 @@ export function requestPermission(
       settled = true;
       cleanup();
       deps.pendingPermissions.delete(requestId);
+      restoreSubagentActivity?.();
       if (published) {
         for (const message of permissionResolvedPushes({
           sessionId: input.sessionId,
@@ -93,6 +134,7 @@ export function requestPermission(
     }
     input.signal?.addEventListener('abort', abortHandler, { once: true });
     published = true;
+    restoreSubagentActivity = markSubagentPermissionWait(deps, input.sessionId, input.action);
     deps.push({
       type: 'permission/request',
       sessionId: input.sessionId,

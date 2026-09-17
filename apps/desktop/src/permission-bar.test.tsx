@@ -25,6 +25,7 @@ function Harness(props: {
   prompt: PermissionPromptUi;
   projectPath: string | null;
   onPermission: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
+  origin?: { kind: 'subagent' | 'session'; name: string; workingDirectory?: string };
 }): ReactElement {
   return (
     <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>
@@ -33,6 +34,7 @@ function Harness(props: {
           prompt={props.prompt}
           projectPath={props.projectPath}
           onPermission={props.onPermission}
+          {...(props.origin ? { origin: props.origin } : {})}
         />
       </PiwinUiProvider>
     </DesktopLocaleProvider>
@@ -119,6 +121,67 @@ describe('PermissionBar', () => {
     expect(onPermission).not.toHaveBeenCalled();
     input.remove();
     vi.useRealTimers();
+  });
+
+  it('does not grant when Enter lands on a focused button or Escape closes an open dialog', () => {
+    vi.useFakeTimers();
+    const onPermission = vi.fn();
+    act(() =>
+      root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />),
+    );
+    const deny = container.querySelector<HTMLButtonElement>('[data-testid="permission-bar-deny"]');
+    expect(deny).not.toBeNull();
+    act(() => {
+      deny?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    act(() => vi.advanceTimersByTime(200));
+    expect(onPermission).not.toHaveBeenCalledWith('allow', 'session');
+
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    document.body.appendChild(dialog);
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(onPermission).not.toHaveBeenCalled();
+    dialog.remove();
+    vi.useRealTimers();
+  });
+
+  it('resolves a prompt rendered twice only once per keypress', () => {
+    vi.useFakeTimers();
+    const onPermission = vi.fn();
+    act(() =>
+      root.render(
+        <>
+          <Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />
+          <Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />
+        </>,
+      ),
+    );
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(onPermission).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it('names the subagent and shows its workspace for a child prompt', () => {
+    act(() =>
+      root.render(
+        <Harness
+          prompt={basePrompt}
+          projectPath="/repo"
+          onPermission={vi.fn()}
+          origin={{ kind: 'subagent', name: 'an-r05-r10-freeze', workingDirectory: '/wt/child' }}
+        />,
+      ),
+    );
+    const origin = container.querySelector('[data-testid="permission-bar-origin"]');
+    expect(origin?.textContent).toContain('an-r05-r10-freeze');
+    expect(container.textContent).toContain('/wt/child');
+    expect(container.textContent).not.toContain('/repo');
   });
 
   it('fires allow-once with rememberScope "once"', () => {
