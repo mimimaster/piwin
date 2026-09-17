@@ -146,6 +146,10 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     onResumeRun: session.handleResumeRun,
     ensureSession: session.ensureSession,
     ...(knowledgeMountsRef ? { knowledgeMountsRef } : {}),
+    draftMcpSwitches: {
+      disabledServerIds: plusMenu.mcpSwitches.draftDisabledServerIds,
+      clearDraft: plusMenu.mcpSwitches.clearDraft,
+    },
     onNeedWorkspace: session.handleOpenWorkspaceClick,
     selectedModelKey,
     promptModel: currentPromptModelRef,

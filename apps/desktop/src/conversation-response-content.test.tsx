@@ -147,7 +147,7 @@ describe('ConversationResponseContent', () => {
     expect(container.textContent).toContain('什么是光合作用？');
   });
 
-  it('renders the first-token activity for an empty streaming assistant message', () => {
+  it('leaves first-token activity to the run status footer', () => {
     const message: ChatMessageUi = {
       id: 'm-streaming-empty',
       role: 'assistant',
@@ -173,7 +173,7 @@ describe('ConversationResponseContent', () => {
       />,
     );
 
-    expect(container.querySelector('[data-testid="conversation-activity"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="conversation-activity"]')).toBeNull();
   });
 
   it('streams live reasoning text while the Conversation bubble is still open', () => {

@@ -51,20 +51,8 @@ html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .turn-summar
 html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .turn-summary-active-animation,
 html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .turn-summary-active-animation,
 html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .turn-summary-brain-icon,
-html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .turn-summary-brain-icon,
-html[data-theme-id='piwin-inkstone-paper'] .conversation-awaiting-first-token-row .turn-summary-active-animation,
-html[data-theme-id='piwin-inkstone-ink'] .conversation-awaiting-first-token-row .turn-summary-active-animation {
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .turn-summary-brain-icon {
   display: none !important;
-}
-
-/* Awaiting first token: same type as a fold header, no pill or pointer. */
-html[data-theme-id='piwin-inkstone-paper'] .conversation-awaiting-first-token-row,
-html[data-theme-id='piwin-inkstone-ink'] .conversation-awaiting-first-token-row {
-  height: 30px;
-  min-height: 0;
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--t3);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .work-h .lamp,

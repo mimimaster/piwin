@@ -1,12 +1,14 @@
 /**
- * Composer + menu catalogs (skills / MCP). Isolated from App so the dock can
- * refresh those lists without dragging Host request plumbing through the shell.
+ * Composer + menu catalogs (skills / MCP connectors). Isolated from App so the
+ * dock can refresh those lists without dragging Host request plumbing through
+ * the shell.
  */
 import { useCallback, useEffect, useState } from 'react';
-import type { SkillSource } from '@piwin/contracts';
+import type { McpServerHealth, McpServerRuntimeStatus, SkillSource } from '@piwin/contracts';
 import type { ComposerPlusSubmenu } from '../composer-plus-menu';
 import type { HostClient } from '../host-client';
 import { SKILLS_CHANGED_EVENT } from '../skills-changed.js';
+import { useSessionMcpSwitches } from './use-session-mcp-switches.js';
 
 export type ComposerMenuSkill = {
   id: string;
@@ -14,7 +16,16 @@ export type ComposerMenuSkill = {
   enabled: boolean;
   source?: SkillSource;
 };
-export type ComposerMenuMcp = { id: string; name: string; running: boolean };
+export type ComposerMenuMcp = {
+  id: string;
+  name: string;
+  /** Global runtime status; `unknown` until `mcp/status` answers. */
+  status: McpServerRuntimeStatus | 'unknown';
+  /** Tools the server exposes, when the Host has listed them. */
+  toolCount?: number;
+  /** Switched off in the global MCP config — no session can turn it on. */
+  globallyDisabled: boolean;
+};
 
 export function mapComposerMenuSkills(
   skills: ReadonlyArray<{
@@ -33,13 +44,21 @@ export function mapComposerMenuSkills(
 }
 
 export function mapComposerMenuMcp(
-  mcpServers: Readonly<Record<string, unknown>>,
+  mcpServers: Readonly<Record<string, { disabled?: boolean }>>,
+  health: readonly McpServerHealth[] = [],
 ): ComposerMenuMcp[] {
-  return Object.keys(mcpServers).map((serverId) => ({
-    id: serverId,
-    name: serverId,
-    running: false,
-  }));
+  const healthById = new Map(health.map((entry) => [entry.serverId, entry]));
+  return Object.keys(mcpServers).map((serverId) => {
+    const entry = healthById.get(serverId);
+    const globallyDisabled = mcpServers[serverId]?.disabled === true || entry?.disabled === true;
+    return {
+      id: serverId,
+      name: serverId,
+      status: entry?.status ?? (globallyDisabled ? 'disabled' : 'unknown'),
+      ...(entry && entry.toolCount > 0 ? { toolCount: entry.toolCount } : {}),
+      globallyDisabled,
+    };
+  });
 }
 
 export type UseComposerPlusMenuArgs = {
@@ -47,10 +66,18 @@ export type UseComposerPlusMenuArgs = {
   projectPath: string | null;
   /** Skip the first fetch until Host can answer `skills/list`. */
   hostReady?: boolean;
+  /** Session whose MCP switches the Connectors flyout edits; null in a draft. */
+  activeSessionId: string | null;
+  sessionDisabledMcpServerIds: readonly string[] | undefined;
 };
 
 export function useComposerPlusMenu(args: UseComposerPlusMenuArgs) {
   const { hostClient, projectPath, hostReady } = args;
+  const mcpSwitches = useSessionMcpSwitches({
+    hostClient,
+    activeSessionId: args.activeSessionId,
+    sessionDisabledServerIds: args.sessionDisabledMcpServerIds,
+  });
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [plusSubmenu, setPlusSubmenu] = useState<ComposerPlusSubmenu>('none');
   const [menuSkills, setMenuSkills] = useState<ComposerMenuSkill[]>([]);
@@ -77,9 +104,16 @@ export function useComposerPlusMenu(args: UseComposerPlusMenuArgs) {
       : null;
     if (mcpResponse?.success && mcpResponse.data) {
       const data = mcpResponse.data as {
-        document?: { mcpServers?: Record<string, { command?: string }> };
+        document?: { mcpServers?: Record<string, { command?: string; disabled?: boolean }> };
       };
-      setMenuMcp(mapComposerMenuMcp(data.document?.mcpServers ?? {}));
+      const statusResponse = hostClient.supportsCommand('mcp/status')
+        ? await hostClient.request({ type: 'mcp/status' } as never)
+        : null;
+      const health =
+        statusResponse?.success && statusResponse.data
+          ? ((statusResponse.data as { servers?: McpServerHealth[] }).servers ?? [])
+          : [];
+      setMenuMcp(mapComposerMenuMcp(data.document?.mcpServers ?? {}, health));
     }
   }, [hostClient, projectPath]);
 
@@ -109,6 +143,7 @@ export function useComposerPlusMenu(args: UseComposerPlusMenuArgs) {
     setPlusSubmenu,
     menuSkills,
     menuMcp,
+    mcpSwitches,
     refreshComposerMenus,
   };
 }

@@ -7,6 +7,7 @@ import { UserMessageContent } from './conversation-user-message.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
 import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
+import { RunStatusFooter } from './run-status-footer.js';
 
 export type ConversationPaneTranscriptProps = {
   sessionId: string;
@@ -69,6 +70,19 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
       ? [...visible, createPendingAssistant(tail, props.livePromptModel)]
       : visible;
   }, [props.livePromptModel, props.state.messages, props.state.streaming]);
+
+  // Messages from the newest user row on: the turn the status footer measures.
+  const currentTurnMessages = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]?.role === 'user') return messages.slice(i);
+    }
+    return messages;
+  }, [messages]);
+  const showRunStatusFooter =
+    props.state.streaming &&
+    !props.state.awaitingTranscript &&
+    !props.state.permissionPrompt &&
+    !props.state.compactionActivity;
 
   const latestAssistantId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -212,6 +226,16 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
           activity={props.state.compactionActivity}
           locale={props.locale}
           {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
+        />
+      ) : null}
+      {showRunStatusFooter ? (
+        <RunStatusFooter
+          messages={currentTurnMessages}
+          activeRunId={props.state.activeRunId}
+          runRecordsById={props.state.runRecordsById}
+          modelWaitTail={null}
+          locale={props.locale}
+          {...(props.state.activeSkill ? { skill: props.state.activeSkill } : {})}
         />
       ) : null}
     </div>

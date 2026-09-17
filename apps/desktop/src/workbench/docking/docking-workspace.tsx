@@ -24,7 +24,6 @@ import type { DockDragResolution } from './use-docking-drag.js';
 import { useDockingDrag } from './use-docking-drag.js';
 import { DockingDragOverlay } from './docking-drag-overlay.js';
 import { DockingGroupView } from './docking-group-view.js';
-import { DockingRightPanel } from './docking-right-panel.js';
 import { DockingSeparator } from './docking-separator.js';
 import { resolveDockDrag } from './docking-drop-resolver.js';
 import { useSessionDrag, type SessionDragRequest } from './docking-session-drag.js';
@@ -33,7 +32,7 @@ import { DockViewContent, type DockViewRenderContext } from './docking-surface-c
 import { placeSurfaceHosts, useDockingSurfaceHosts } from './surface-pool.js';
 import type { DockingWorkspaceController } from './use-docking-workspace.js';
 import type { WorkspaceGroup, WorkspaceTemplate } from './types.js';
-import { SurfaceTitlebarProvider, type SurfaceTitlebar } from '../../surface-titlebar.js';
+import { SurfaceTitlebarProvider } from '../../surface-titlebar.js';
 
 export type DockingWorkspaceProps = Omit<DockViewRenderContext, 'onCloseView'> & {
   controller: DockingWorkspaceController;
@@ -61,7 +60,6 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
   const { controller, locale } = props;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const poolRef = useRef<HTMLDivElement | null>(null);
-  const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const slotRefs = useRef(new Map<string, HTMLDivElement>());
   const [stagePx, setStagePx] = useState({ width: 1200, height: 800 });
   const phoneSinglePane = props.phoneSinglePane === true;
@@ -218,20 +216,16 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
 
+  // The right tool group renders inside the workbench right panel, which
+  // lends its body slot, drop target, and (for a docked browser) titlebar.
+  const rightHost = controller.rightHost;
   const rightGroupId = state.rightPanel.groupIds[0];
   const rightGroup: WorkspaceGroup | undefined = rightGroupId ? state.groups[rightGroupId] : undefined;
-  const rightPanelVisible = Boolean(
-    rightGroup && rightGroup.viewIds.length > 0 && !state.rightPanel.collapsed,
-  );
-  const hasDockedTools = Boolean(rightGroup && rightGroup.viewIds.length > 0);
-  // The active docked browser puts its page tabs in the right panel header.
-  const [rightTabsSlot, setRightTabsSlot] = useState<HTMLElement | null>(null);
-  const [rightActionsSlot, setRightActionsSlot] = useState<HTMLElement | null>(null);
+  const rightTitlebar = rightHost.titlebar;
   const rightTitlebarViewId =
-    rightGroup?.activeViewId && state.views[rightGroup.activeViewId]?.kind === 'browser'
+    rightTitlebar && rightGroup?.activeViewId && state.views[rightGroup.activeViewId]?.kind === 'browser'
       ? rightGroup.activeViewId
       : null;
-  const rightTitlebar: SurfaceTitlebar = { tabsSlot: rightTabsSlot, actionsSlot: rightActionsSlot };
 
   const pxRects = useMemo(() => {
     if (usesFullStage) {
@@ -253,9 +247,10 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
     }
     const activeRightId = current.rightPanel.groupIds[0];
     const right = activeRightId ? current.groups[activeRightId] : undefined;
-    const rightSlot = activeRightId ? slotRefs.current.get(activeRightId) : null;
-    if (rightSlot && right?.activeViewId && !current.rightPanel.collapsed && right.viewIds.length > 0) {
-      placement.set(right.activeViewId, rightSlot);
+    // The slot stays mounted (hidden) behind the panel's other tabs, so
+    // switching tabs never reparents the surface and reloads its frames.
+    if (rightHost.slot && right?.activeViewId) {
+      placement.set(right.activeViewId, rightHost.slot);
     }
     placeSurfaceHosts({ hosts, pool: poolRef.current, placement: { viewToSlot: placement } });
   });
@@ -271,16 +266,19 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         root,
         stageSize: { width: stagePx.width, height: stagePx.height },
         groupRects: pxRects,
-        panelElement: rightPanelRef.current,
-        rightPanelVisible,
+        panelElement: rightHost.panel,
+        rightPanelVisible: rightHost.open && rightHost.panel !== null,
         createId: controller.createId,
         ...(props.activeProjectScopeKey !== undefined
           ? { activeProjectScopeKey: props.activeProjectScopeKey }
           : {}),
-        apply: (next) => controller.setState(() => next),
+        apply: (next) => {
+          controller.setState(() => next);
+          controller.requestRightReveal();
+        },
       });
     },
-    [controller, props.activeProjectScopeKey, pxRects, rightPanelVisible, stagePx.height, stagePx.width],
+    [controller, props.activeProjectScopeKey, pxRects, rightHost, stagePx.height, stagePx.width],
   );
 
   const { drag, startDrag } = useDockingDrag({
@@ -313,7 +311,7 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
 
   return (
     <div
-      className={`conversation-pane-workspace docking-workspace${multiple ? '' : ' is-single-pane'}${primaryLayout ? ' is-primary-layout' : ''}${hasDockedTools ? ' has-docked-tools' : ''}${drag ? ' is-dragging' : ''}`}
+      className={`conversation-pane-workspace docking-workspace${multiple ? '' : ' is-single-pane'}${primaryLayout ? ' is-primary-layout' : ''}${drag ? ' is-dragging' : ''}`}
       data-testid="docking-workspace"
       data-group-count={stageGroupIds.length}
     >
@@ -417,26 +415,6 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         {drag?.preview ? <DockingDragOverlay preview={drag.preview} /> : null}
         <div ref={poolRef} hidden className="docking-surface-pool" />
       </div>
-      <DockingRightPanel
-        state={state}
-        ctx={ctx}
-        slotRef={(node) => {
-          if (!rightGroupId) return;
-          if (node) slotRefs.current.set(rightGroupId, node);
-          else slotRefs.current.delete(rightGroupId);
-        }}
-        panelRef={(node) => {
-          rightPanelRef.current = node;
-        }}
-        onFocusView={(viewId) => controller.setState((current) => focusView(current, viewId))}
-        onCloseView={(viewId) => controller.setState((current) => closeView(current, viewId))}
-        onResizeWidth={(width) =>
-          controller.setState((current) => ({ ...current, rightPanel: { ...current.rightPanel, width } }))
-        }
-        titlebarViewId={rightTitlebarViewId}
-        titlebarTabsSlotRef={setRightTabsSlot}
-        titlebarActionsSlotRef={setRightActionsSlot}
-      />
       </div>
       {multiple ? (
         <div className="conversation-pane-presets">
@@ -471,7 +449,6 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
               viewId={viewId}
               view={view}
               ctx={ctxRef.current}
-              inRightPanel={rightGroup?.viewIds.includes(viewId) === true}
             />
           </SurfaceTitlebarProvider>,
           host,

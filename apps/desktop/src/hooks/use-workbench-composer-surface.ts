@@ -51,8 +51,6 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     plusMenu,
     selectedModelKey,
     thinkingLevel,
-    handleOpenKnowledge,
-    handleOpenCardsPanel,
     delegationDisabled,
     setDelegationDisabled,
     orchestrationSchemeId,
@@ -67,6 +65,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     setPlusSubmenu,
     menuSkills,
     menuMcp,
+    mcpSwitches,
     refreshComposerMenus,
   } = plusMenu;
 
@@ -103,10 +102,9 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     onSelectModel: composer.handleSelectModel,
     menuSkills,
     menuMcp,
+    menuMcpSwitches: mcpSwitches,
     refreshComposerMenus,
     openSettingsSection,
-    onOpenKnowledge: handleOpenKnowledge,
-    onOpenCardsPanel: handleOpenCardsPanel,
     onPickFiles: composer.handlePickFiles,
     onPickImageFiles: composer.handlePickImageFiles,
     onComposerPaste: composer.handleComposerPaste,

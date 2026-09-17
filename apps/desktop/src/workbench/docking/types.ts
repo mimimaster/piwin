@@ -49,10 +49,9 @@ export type ReopenRecord = {
   title?: string;
 };
 
+/** Width and open state belong to the workbench right panel that hosts these groups. */
 export type RightPanelState = {
   groupIds: string[];
-  collapsed: boolean;
-  width: number;
 };
 
 export type WorkspaceState = {

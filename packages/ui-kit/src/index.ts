@@ -40,6 +40,7 @@ export {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
+  DropdownMenuSwitchItem,
 } from './menu.js';
 export type {
   ContextMenuItemProps,
@@ -54,6 +55,7 @@ export type {
   DropdownMenuSubContentProps,
   DropdownMenuSubProps,
   DropdownMenuSubTriggerProps,
+  DropdownMenuSwitchItemProps,
 } from './menu.js';
 
 export {

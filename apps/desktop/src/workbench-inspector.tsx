@@ -2,7 +2,14 @@
  * Right-inspector column of the desktop workbench (extracted from App.tsx).
  * Host commands and document/open callbacks stay with App; this file is the view.
  */
-import { DOCKING_OWNED_INSPECTOR_TABS } from './workbench/docking/docking-tool-bridge.js';
+import {
+  DOCKING_OWNED_INSPECTOR_TABS,
+  inspectorTabToToolKind,
+  toolKindToInspectorTab,
+} from './workbench/docking/docking-tool-bridge.js';
+import { closeView } from './workbench/docking/commands.js';
+import { isMovableToolKind } from './workbench/docking/types.js';
+import type { DockingWorkspaceController } from './workbench/docking/use-docking-workspace.js';
 import type { Dispatch, ReactElement, ReactNode, SetStateAction } from 'react';
 import type {
   HostResponse,
@@ -13,7 +20,7 @@ import type {
   WebElementPickResult,
 } from '@piwin/contracts';
 import type { HostClient } from './host-client';
-import { RightPanel, type RightPanelTab } from './right-panel';
+import { RightPanel, type RightPanelDockedTools, type RightPanelTab } from './right-panel';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
 import { RemoteUnavailableSurface } from './remote-unavailable-surface';
 import { WorkbenchReviewSurface } from './workbench-review-surface';
@@ -37,7 +44,6 @@ import type { DesktopLocale } from './desktop-locale';
 import type { NotificationAction } from './notification-queue';
 import type { HostRequestAdapters } from './host-request-adapters';
 import { useBrowserInspectorReveal } from './hooks/use-browser-inspector-reveal';
-import { DockingOwnedToolNotice } from './workbench/docking/dock-tool-hosts.js';
 import type { NotesPanelProps } from './NotesPanel';
 import type { FlashcardsPanelProps } from './FlashcardsPanel';
 import type { FileTreeRequest } from './file-tree-panel';
@@ -132,8 +138,11 @@ export type WorkbenchInspectorProps = {
   tasksContent?: ReactNode;
   tasksActiveCount?: number;
   terminalJobMonitor?: Omit<TerminalJobMonitorProps, 'children' | 'locale'> | undefined;
-  /** Docking workspace owns browser/canvas hosts so inspector must not double-lease. */
-  workspaceOwnsMovableTools?: boolean;
+  /**
+   * Docking workspace owns browser/changes/canvas/doc hosts so the inspector
+   * must not double-lease; they show up here as docked tabs instead.
+   */
+  docking?: DockingWorkspaceController | null;
 };
 
 export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement {
@@ -194,7 +203,9 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     tasksActiveCount,
     terminalJobMonitor,
   } = props;
-  const workspaceOwnsMovableTools = props.workspaceOwnsMovableTools === true;
+  const docking = props.docking?.enabled ? props.docking : null;
+  const workspaceOwnsMovableTools = docking !== null;
+  const dockedTools = resolveDockedTools(docking, artifactTarget?.title ?? null);
   useBrowserInspectorReveal(hostClient, (tab) => {
     // Docking reveals the browser in the workspace itself.
     if (workspaceOwnsMovableTools) return;
@@ -239,7 +250,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
             shell.closeOverlay();
           }}
           activeTab={rightPanelTab}
-          {...(workspaceOwnsMovableTools ? { handedOffTabs: DOCKING_OWNED_INSPECTOR_TABS } : {})}
+          {...(dockedTools ? { handedOffTabs: DOCKING_OWNED_INSPECTOR_TABS, dockedTools } : {})}
           onTabChange={(tab) => {
             shell.setInspectorTab(tab);
             if (!rightPanelOpen) {
@@ -347,9 +358,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
             )
           }
           canvasContent={
-            workspaceOwnsMovableTools ? (
-              <DockingOwnedToolNotice kind="canvas" locale={locale} />
-            ) : (
+            workspaceOwnsMovableTools ? null : (
             <ArtifactCanvasPanel
               activeTarget={artifactTarget}
               artifactTheme={mapThemeToArtifactVariables(activeTheme)}
@@ -368,9 +377,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
             )
           }
           browserContent={
-            workspaceOwnsMovableTools ? (
-              <DockingOwnedToolNotice kind="browser" locale={locale} />
-            ) : hostClient.supportsCommand('browser/start') ? (
+            workspaceOwnsMovableTools ? null : hostClient.supportsCommand('browser/start') ? (
               <DeferredBrowserSessionPanel
                 hostClient={hostClient}
                 onAddWebElement={addWebElement}
@@ -514,4 +521,34 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
         />
       </>
   );
+}
+
+/** Right-group tool views of the docking workspace, as right panel tabs. */
+function resolveDockedTools(
+  docking: DockingWorkspaceController | null,
+  canvasTitle: string | null,
+): RightPanelDockedTools | undefined {
+  if (!docking) return undefined;
+  const { state } = docking;
+  const groupId = state.rightPanel.groupIds[0] ?? null;
+  const group = groupId ? state.groups[groupId] : undefined;
+  const tabs: RightPanelTab[] = [];
+  for (const viewId of group?.viewIds ?? []) {
+    const kind = state.views[viewId]?.kind;
+    if (kind && isMovableToolKind(kind)) tabs.push(toolKindToInspectorTab(kind));
+  }
+  const title = canvasTitle?.trim();
+  return {
+    tabs,
+    groupId,
+    ...(title ? { labels: { canvas: title } } : {}),
+    onClose: (tab) => {
+      const kind = inspectorTabToToolKind(tab);
+      const viewId = group?.viewIds.find((id) => state.views[id]?.kind === kind);
+      if (viewId) docking.setState((current) => closeView(current, viewId));
+    },
+    slotRef: docking.setRightSlot,
+    panelRef: docking.setRightPanelElement,
+    onTitlebarChange: docking.setRightTitlebar,
+  };
 }

@@ -281,22 +281,27 @@ export function useComposerSend(params: UseComposerSendArgs) {
       // the draft-exit effect and clears the composer. handleSend sets
       // skipDraftSaveRef first, so the send path still clears.
       const pendingMountedIds = args.knowledgeMountsRef?.current?.mountedIds;
-      const knowledgeBaseIds =
-        pendingMountedIds && pendingMountedIds.length > 0
+      const draftMcpDisabled = args.draftMcpSwitches?.disabledServerIds;
+      const draftCreateOptions = {
+        ...(pendingMountedIds && pendingMountedIds.length > 0
           ? { knowledgeBaseIds: pendingMountedIds }
-          : {};
+          : {}),
+        ...(draftMcpDisabled && draftMcpDisabled.length > 0
+          ? { disabledMcpServerIds: draftMcpDisabled }
+          : {}),
+      };
       const sessionId = isGeneral
         ? await args.ensureSession({
             scope: { kind: 'general' },
             ...(sessionName !== undefined ? { sessionName } : {}),
-            ...knowledgeBaseIds,
+            ...draftCreateOptions,
           })
         : await args.ensureSession({
             scope: draftScope,
             projectPath: draftScope.projectPath,
             alreadyTrusted: true,
             ...(sessionName !== undefined ? { sessionName } : {}),
-            ...knowledgeBaseIds,
+            ...draftCreateOptions,
           });
       if (sessionId) {
         preserveComposerOnSessionActivationRef.current = true;
@@ -304,6 +309,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
         // create call failed to apply it, in which case retrying a stale
         // draft value on the next new draft would be wrong either way).
         args.knowledgeMountsRef?.current?.clearDraft();
+        args.draftMcpSwitches?.clearDraft();
       }
       return sessionId;
     },

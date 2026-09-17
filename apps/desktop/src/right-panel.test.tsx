@@ -512,6 +512,77 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="browser-body"]')).toBeNull();
   });
 
+  it('lists docked tools beside its own tabs and hosts them in one shared slot', () => {
+    writeStoredRightPanelState({ openTabs: ['files'], activeTab: 'files' });
+    const slots: Array<HTMLElement | null> = [];
+    const onClose = vi.fn();
+    let activeTab: RightPanelTab | null = 'canvas';
+    const rendered = renderPanel({
+      activeTab: 'canvas',
+      onTabChange: (tab) => {
+        activeTab = tab;
+      },
+      handedOffTabs: ['browser', 'review', 'canvas', 'docPreview'],
+      dockedTools: {
+        tabs: ['canvas'],
+        groupId: 'right-group',
+        labels: { canvas: 'Pricing page' },
+        onClose,
+        slotRef: (node) => slots.push(node),
+        panelRef: () => {},
+        onTitlebarChange: () => {},
+      },
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).not.toBeNull();
+    const canvasTab = container.querySelector('[data-testid="right-panel-open-tab-canvas"]');
+    expect(canvasTab?.textContent).toContain('Pricing page');
+    const tabWrapper = canvasTab?.closest('[data-docking-right-tab]');
+    expect(tabWrapper?.getAttribute('data-docking-right-tab-group')).toBe('right-group');
+    expect(tabWrapper?.getAttribute('data-docking-right-tab-index')).toBe('0');
+
+    const body = container.querySelector<HTMLElement>('[data-testid="right-panel-docked-body"]');
+    expect(body?.hidden).toBe(false);
+    expect(slots.at(-1)).toBe(body);
+    expect(container.querySelector('[data-testid="files-body"]')).toBeNull();
+
+    act(() => {
+      container
+        ?.querySelector<HTMLButtonElement>('[data-testid="right-panel-close-tab-canvas"]')
+        ?.click();
+    });
+    expect(onClose).toHaveBeenCalledWith('canvas');
+    expect(activeTab).toBe('files');
+  });
+
+  it('lends the titlebar slots to a docked browser only while it is active', () => {
+    writeStoredRightPanelState({ openTabs: [], activeTab: null });
+    const titlebars: unknown[] = [];
+    const rendered = renderPanel({
+      activeTab: 'browser',
+      handedOffTabs: ['browser', 'review', 'canvas', 'docPreview'],
+      dockedTools: {
+        tabs: ['browser'],
+        groupId: 'right-group',
+        onClose: () => {},
+        slotRef: () => {},
+        panelRef: () => {},
+        onTitlebarChange: (titlebar) => titlebars.push(titlebar),
+      },
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
+    expect(tabstrip?.classList.contains('has-browser-tabs')).toBe(true);
+    expect(titlebars.at(-1)).toEqual({
+      tabsSlot: container.querySelector('[data-testid="right-panel-side-chat-tabs-slot"]'),
+      actionsSlot: container.querySelector('[data-testid="right-panel-surface-actions-slot"]'),
+    });
+  });
+
   it('keeps the titlebar drag region after the side-chat slot so +/sync can pack to the tabs', () => {
     writeStoredRightPanelState({ openTabs: ['sideChat'], activeTab: 'sideChat' });
     const rendered = renderPanel({

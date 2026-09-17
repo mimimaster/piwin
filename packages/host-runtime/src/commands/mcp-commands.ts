@@ -11,7 +11,11 @@ import {
 } from '@piwin/mcp';
 import { listMcpRegistryCards, draftToServerConfig } from '@piwin/marketplace';
 import { fail, ok } from '../response-helpers.js';
-import { getPiwinRoot } from '../paths.js';
+import { getSessionRecord, upsertSessionRecord } from '@piwin/session';
+import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
+import { normalizeSessionMcpServerIds } from '../session-mcp-overrides.js';
+import { sessionIndexUpdatedPush } from '../session-index-push.js';
+import { indexRecordToSummary } from '../session-summary-map.js';
 import type { HostCommandContext } from './host-command-context.js';
 
 
@@ -25,6 +29,7 @@ const TYPES = new Set<HostCommand['type']>([
   'mcp/stop',
   'mcp/registry-list',
   'mcp/registry-install-draft',
+  'session/set-mcp-servers',
 ]);
 
 export function isMcpCommand(
@@ -79,6 +84,31 @@ export async function handleMcpCommand(
         case 'mcp/list_tools': {
           const tools = await context.getMcpManager().listTools(command.serverId);
           return ok(requestId, 'mcp/list_tools', { serverId: command.serverId, tools });
+        }
+        case 'session/set-mcp-servers': {
+          const indexPath = getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot));
+          const record = await getSessionRecord(indexPath, command.sessionId);
+          if (!record) {
+            return fail(requestId, command.type, `Unknown session: ${command.sessionId}`);
+          }
+          const disabledServerIds = normalizeSessionMcpServerIds(command.disabledServerIds);
+          if (disabledServerIds.length > 0) {
+            record.disabledMcpServerIds = disabledServerIds;
+          } else {
+            delete record.disabledMcpServerIds;
+          }
+          record.updatedAt = new Date().toISOString();
+          await upsertSessionRecord(indexPath, record);
+          // The live generation keeps its frozen MCP surface; the next prompt
+          // sees the changed override key and rebuilds before it runs.
+          context.push(
+            sessionIndexUpdatedPush({
+              op: 'updated',
+              sessionId: command.sessionId,
+              session: indexRecordToSummary(record),
+            }),
+          );
+          return ok(requestId, command.type, { sessionId: command.sessionId, disabledServerIds });
         }
         case 'mcp/status': {
           const servers = await context.getMcpManager().listHealth();

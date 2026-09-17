@@ -99,10 +99,9 @@ export type UseComposerDockPropsArgs = {
   onSelectModel: (key: string) => void;
   menuSkills: ComposerDockProps['menuSkills'];
   menuMcp: ComposerDockProps['menuMcp'];
+  menuMcpSwitches: ComposerDockProps['menuMcpSwitches'];
   refreshComposerMenus: () => void | Promise<void>;
   openSettingsSection: (section: ShellSettingsSection) => void;
-  onOpenKnowledge: (subTab?: 'doccards' | 'cards' | 'knowledge') => void;
-  onOpenCardsPanel: () => void;
   onPickFiles: () => void | Promise<void>;
   onPickImageFiles: () => void | Promise<void>;
   onComposerPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void | Promise<void>;
@@ -194,10 +193,9 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     onSelectModel,
     menuSkills,
     menuMcp,
+    menuMcpSwitches,
     refreshComposerMenus,
     openSettingsSection,
-    onOpenKnowledge,
-    onOpenCardsPanel,
     onPickFiles,
     onPickImageFiles,
     onComposerPaste,
@@ -480,11 +478,10 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       visionDelegationEnabled: config?.visionDelegation?.enabled === true,
       menuSkills,
       menuMcp,
+      ...(menuMcpSwitches ? { menuMcpSwitches } : {}),
       onRefreshComposerMenus: handleRefreshComposerMenus,
       onOpenSkillsPanel: handleOpenSkillsPanel,
       onOpenMcpPanel: handleOpenMcpPanel,
-      onOpenKnowledge,
-      onOpenCardsPanel,
       onAttachFile: handleComposerAttachFile,
       onAttachImage: handleComposerAttachImage,
       onPaste: handleComposerPasteEvent,
@@ -630,10 +627,9 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       hostClient,
       hostStatus,
       menuMcp,
+      menuMcpSwitches,
       menuSkills,
       modelOptions,
-      onOpenCardsPanel,
-      onOpenKnowledge,
       onOpenProject,
       onOpenWorktreeProject,
       onRemoveDocComments,

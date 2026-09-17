@@ -17,6 +17,12 @@ export function inspectorTabToToolKind(tab: RightPanelTab | null): MovableToolKi
   return null;
 }
 
+export function toolKindToInspectorTab(kind: MovableToolKind): RightPanelTab {
+  if (kind === 'changes') return 'review';
+  if (kind === 'doc') return 'docPreview';
+  return kind;
+}
+
 export function tryOpenDockingTool(args: {
   enabled: boolean;
   tab: RightPanelTab | null;

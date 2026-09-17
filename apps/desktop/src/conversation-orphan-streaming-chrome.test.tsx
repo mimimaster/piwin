@@ -231,7 +231,7 @@ describe('orphan streaming chrome', () => {
       />,
     );
     expect(container.textContent).toContain('follow up while tools run');
-    expect(container.querySelector('[data-testid="conversation-activity"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="run-status-footer"]')).toHaveLength(1);
   });
 
   it('keeps pending queued turns off the pane transcript', () => {
@@ -268,6 +268,6 @@ describe('orphan streaming chrome', () => {
       />,
     );
     expect(container.textContent).not.toContain('queued follow-up');
-    expect(container.querySelector('[data-testid="conversation-activity"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="run-status-footer"]')).toHaveLength(1);
   });
 });

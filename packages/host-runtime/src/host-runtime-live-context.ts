@@ -11,6 +11,7 @@ import { loadPiwinConfig } from './config-store.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { resolveTurnChangeWorkspaceRoot } from './turn-changes/runtime-wiring.js';
 import { isConversationIndexRecord } from './session-scope.js';
+import { sessionMcpOverrideKey } from './session-mcp-overrides.js';
 import { type SessionLiveContext } from './commands/session-live-commands.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
@@ -295,6 +296,12 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     },
     replaceRuntimeForModel: (sessionId, excludeSeedMessageId) =>
       deps.replaceRuntimeForModel(sessionId, excludeSeedMessageId),
+    sessionMcpOverrideChanged: (sessionId, disabledServerIds) => {
+      const generationId = deps.runtimeController.getStatus(sessionId).generationId;
+      if (generationId === undefined) return false;
+      const applied = deps.generationSessionMcpOverrideKeys.get(`${sessionId}\u0000${generationId}`);
+      return applied !== undefined && applied !== sessionMcpOverrideKey(disabledServerIds);
+    },
     beginTurnChangeRun: (input) => {
       const runtime = deps.turnChangeRuntime;
       if (!runtime) {

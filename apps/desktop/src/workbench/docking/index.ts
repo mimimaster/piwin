@@ -1,6 +1,5 @@
 export {
   CANVAS_VIEW_HARD_LIMIT,
-  DEFAULT_RIGHT_PANEL_WIDTH_PX,
   DOCKING_WORKSPACE_FLAG_KEY,
   DROP_EDGE_BAND_MAX_PX,
   DROP_EDGE_BAND_RATIO,
@@ -95,7 +94,6 @@ export { resolveDropHighlight } from './drag-preview.js';
 export type { DropHighlight } from './drag-preview.js';
 export { DockingDragOverlay } from './docking-drag-overlay.js';
 export { DockingGroupView } from './docking-group-view.js';
-export { DockingRightPanel } from './docking-right-panel.js';
 export { DockingSeparator } from './docking-separator.js';
 export { DockViewContent, resolveViewTitle } from './docking-surface-content.js';
 export type { DockViewRenderContext } from './docking-surface-content.js';
@@ -107,11 +105,10 @@ export {
   placeSurfaceHosts,
   useDockingSurfaceHosts,
 } from './surface-pool.js';
-export { inspectorTabToToolKind, tryOpenDockingTool } from './docking-tool-bridge.js';
+export { inspectorTabToToolKind, toolKindToInspectorTab, tryOpenDockingTool } from './docking-tool-bridge.js';
 export {
   DockToolHostsProvider,
   DockToolSurface,
-  DockingOwnedToolNotice,
   useDockToolHosts,
 } from './dock-tool-hosts.js';
 export type { DockToolHosts } from './dock-tool-hosts.js';

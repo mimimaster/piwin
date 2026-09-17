@@ -18,10 +18,22 @@ describe('mapComposerMenuSkills', () => {
 });
 
 describe('mapComposerMenuMcp', () => {
-  it('lists server ids without claiming they are running', () => {
-    expect(mapComposerMenuMcp({ github: {}, slack: {} })).toEqual([
-      { id: 'github', name: 'github', running: false },
-      { id: 'slack', name: 'slack', running: false },
+  it('lists server ids without claiming a status before mcp/status answers', () => {
+    expect(mapComposerMenuMcp({ github: {}, slack: { disabled: true } })).toEqual([
+      { id: 'github', name: 'github', status: 'unknown', globallyDisabled: false },
+      { id: 'slack', name: 'slack', status: 'disabled', globallyDisabled: true },
+    ]);
+  });
+
+  it('joins runtime health for status and tool counts', () => {
+    expect(
+      mapComposerMenuMcp({ github: {}, linear: {} }, [
+        { serverId: 'github', status: 'running', command: 'gh', disabled: false, toolCount: 24 },
+        { serverId: 'linear', status: 'error', command: 'ln', disabled: false, toolCount: 0 },
+      ]),
+    ).toEqual([
+      { id: 'github', name: 'github', status: 'running', toolCount: 24, globallyDisabled: false },
+      { id: 'linear', name: 'linear', status: 'error', globallyDisabled: false },
     ]);
   });
 });

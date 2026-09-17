@@ -35,6 +35,17 @@ describe('docking persist', () => {
     expect(parsed?.sessionTargetId).toBe('live');
   });
 
+  it('ignores the right panel width and collapsed state older layouts saved', () => {
+    const createId = createSequentialIdFactory();
+    const opened = openToolView(createWorkspaceState(createId), 'canvas', createId);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    const serialized = serializeWorkspaceState(opened.state) as { rightPanel: Record<string, unknown> };
+    expect(serialized.rightPanel).toEqual({ groupIds: opened.state.rightPanel.groupIds });
+    const legacy = { ...serialized, rightPanel: { ...serialized.rightPanel, collapsed: true, width: 512 } };
+    expect(parseWorkspaceState(legacy)?.rightPanel).toEqual({ groupIds: opened.state.rightPanel.groupIds });
+  });
+
   it('drops cloned tool views saved by older layouts', () => {
     const createId = createSequentialIdFactory();
     const opened = openToolView(createWorkspaceState(createId), 'canvas', createId);

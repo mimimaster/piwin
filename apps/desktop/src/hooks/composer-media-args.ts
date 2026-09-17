@@ -32,6 +32,7 @@ export type UseComposerMediaArgs = {
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
     sessionName?: string;
     knowledgeBaseIds?: readonly string[];
+    disabledMcpServerIds?: readonly string[];
   }) => Promise<string | null>;
   /**
    * The draft's pending knowledge-base mount choice, read at send time (a
@@ -44,6 +45,11 @@ export type UseComposerMediaArgs = {
     mountedIds: readonly string[];
     clearDraft: () => void;
   } | null>;
+  /** Draft MCP opt-outs carried into `session/create` on first send. */
+  draftMcpSwitches?: {
+    disabledServerIds: readonly string[];
+    clearDraft: () => void;
+  };
   /** When Send has no workspace, open the workspace picker (keep draft text). */
   onNeedWorkspace?: () => void | Promise<void>;
   /** Per-next-turn model key `providerId::modelId`. */

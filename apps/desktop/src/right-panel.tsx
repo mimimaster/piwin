@@ -22,13 +22,30 @@ import {
   RIGHT_PANEL_SIDE_CHAT_TABS_SLOT_ID,
   RightPanelChromeProvider,
 } from './right-panel-chrome.js';
-import { SurfaceTitlebarProvider } from './surface-titlebar.js';
+import { SurfaceTitlebarProvider, type SurfaceTitlebar } from './surface-titlebar.js';
 import { RIGHT_PANEL_MAX_WIDTH_PX, RIGHT_PANEL_MIN_WIDTH_PX } from './right-panel-width';
 import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
 import { DeferredSurfaceBoundary } from './deferred-desktop-surfaces';
 
 /** @deprecated use presence of open tabs; kept for App attention gating. */
 export type RightPanelView = 'home' | 'detail';
+
+/**
+ * Tools a docking group owns. They are listed and closed like the panel's own
+ * tabs, but their surfaces live in the docking workspace and are placed into
+ * one shared body slot, so they can also move onto the stage.
+ */
+export type RightPanelDockedTools = {
+  /** In docking group order. */
+  tabs: readonly RightPanelTab[];
+  groupId: string | null;
+  labels?: Partial<Record<RightPanelTab, string>>;
+  onClose: (tab: RightPanelTab) => void;
+  slotRef: (node: HTMLElement | null) => void;
+  panelRef: (node: HTMLElement | null) => void;
+  /** Titlebar slots a docked browser takes over while it is the active tab. */
+  onTitlebarChange: (titlebar: SurfaceTitlebar | null) => void;
+};
 
 export type RightPanelProps = {
   open: boolean;
@@ -71,6 +88,7 @@ export type RightPanelProps = {
   onToggleSessions?: () => void;
   /** Tabs another surface owns (docking): never listed, restored, or remembered here. */
   handedOffTabs?: readonly RightPanelTab[];
+  dockedTools?: RightPanelDockedTools;
 };
 
 const NO_HANDED_OFF_TABS: readonly RightPanelTab[] = [];
@@ -130,6 +148,8 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const handedOffTabs = props.handedOffTabs ?? NO_HANDED_OFF_TABS;
   const handedOffKey = handedOffTabs.join('|');
   const keepsTab = (tab: RightPanelTab): boolean => !handedOffTabs.includes(tab);
+  const dockedTools = props.dockedTools;
+  const dockedTabs = dockedTools?.tabs ?? NO_HANDED_OFF_TABS;
   const initial = useMemo(() => readStoredRightPanelState(), []);
   const [openTabs, setOpenTabs] = useState<RightPanelTab[]>(() => initial.openTabs.filter(keepsTab));
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -137,6 +157,10 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const [titlebarActionsSlot, setTitlebarActionsSlot] = useState<HTMLElement | null>(null);
   const previousActiveTabRef = useRef(props.activeTab);
   const previousOpenRef = useRef(props.open);
+  const allTabs = useMemo(
+    () => [...openTabs, ...dockedTabs.filter((tab) => !openTabs.includes(tab))],
+    [dockedTabs, openTabs],
+  );
 
   // Sync stored multi-tab state.
   useEffect(() => {
@@ -146,8 +170,8 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       activeTab:
         requested != null && openTabs.includes(requested) ? requested : (openTabs[0] ?? null),
     });
-    props.onViewChange?.(openTabs.length > 0 ? 'detail' : 'home');
-  }, [openTabs, props.activeTab, props.onViewChange]);
+    props.onViewChange?.(allTabs.length > 0 ? 'detail' : 'home');
+  }, [allTabs.length, openTabs, props.activeTab, props.onViewChange]);
 
   // Panel just opened: an explicit shell request wins over stored navigation.
   // This matters for agent-triggered Canvas/Browser reveals while the panel is
@@ -216,7 +240,9 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   }, [props.open, openTabs, props.activeTab, terminalAttention, props.onTerminalAttentionClear]);
 
   function openTab(tab: RightPanelTab): void {
-    setOpenTabs((current) => (current.includes(tab) ? current : [...current, tab]));
+    if (keepsTab(tab)) {
+      setOpenTabs((current) => (current.includes(tab) ? current : [...current, tab]));
+    }
     props.onTabChange(tab);
     setPickerOpen(false);
     if (tab === 'terminal') {
@@ -225,28 +251,41 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   }
 
   function closeTab(tab: RightPanelTab): void {
-    setOpenTabs((current) => {
-      const next = current.filter((item) => item !== tab);
-      if (props.activeTab === tab) {
-        const fallback = next[next.length - 1] ?? null;
-        props.onTabChange(fallback);
-      }
-      if (next.length === 0) {
-        setPickerOpen(false);
-      }
-      return next;
-    });
+    const remaining = allTabs.filter((item) => item !== tab);
+    if (props.activeTab === tab) {
+      props.onTabChange(remaining[remaining.length - 1] ?? null);
+    }
+    if (remaining.length === 0) {
+      setPickerOpen(false);
+    }
+    if (dockedTabs.includes(tab)) {
+      dockedTools?.onClose(tab);
+      return;
+    }
+    setOpenTabs((current) => current.filter((item) => item !== tab));
   }
 
   const requested = props.activeTab;
   const active =
-    requested != null && openTabs.includes(requested) ? requested : (openTabs[0] ?? null);
+    requested != null && allTabs.includes(requested) ? requested : (allTabs[0] ?? null);
+  const activeIsDocked = active !== null && !openTabs.includes(active) && dockedTabs.includes(active);
   const mountedTabs = selectMountedRightPanelTabs(openTabs, active, props.open);
   const sideChatTitlebar = active === 'sideChat';
   // Browser page tabs replace the lone 「浏览器」 tool tab in the titlebar.
-  const browserTitlebar = active === 'browser' && props.browserContent !== undefined;
+  const browserTitlebar =
+    active === 'browser' && (activeIsDocked || props.browserContent !== undefined);
   const surfaceTitlebar = sideChatTitlebar || browserTitlebar;
-  const toolTabs = surfaceTitlebar ? [] : openTabs;
+  const toolTabs = surfaceTitlebar ? [] : allTabs;
+
+  const onDockedTitlebarChange = dockedTools?.onTitlebarChange;
+  const dockedBrowserTitlebar = browserTitlebar && activeIsDocked;
+  useEffect(() => {
+    if (!onDockedTitlebarChange) return;
+    onDockedTitlebarChange(
+      dockedBrowserTitlebar ? { tabsSlot: titlebarTabsSlot, actionsSlot: titlebarActionsSlot } : null,
+    );
+    return () => onDockedTitlebarChange(null);
+  }, [dockedBrowserTitlebar, onDockedTitlebarChange, titlebarActionsSlot, titlebarTabsSlot]);
 
   const panelClass = [
     'right-panel',
@@ -260,11 +299,12 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   return (
     <RightPanelChromeProvider closeTab={closeTab}>
     <aside
+      ref={dockedTools?.panelRef}
       className={panelClass}
       data-testid="right-panel"
       data-content-expanded={props.open ? 'true' : 'false'}
       data-open={props.open ? 'true' : 'false'}
-      data-view={openTabs.length > 0 ? 'detail' : 'home'}
+      data-view={allTabs.length > 0 ? 'detail' : 'home'}
       data-terminal-attention={terminalAttention ? 'true' : 'false'}
       aria-label={locale === 'zh-CN' ? '工作区面板' : 'Workspace panel'}
       aria-hidden={props.open ? undefined : true}
@@ -295,12 +335,12 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         data-tauri-drag-region
         onMouseDown={handleNativeWindowDragMouseDown}
       >
-        {openTabs.length > 0 ? (
+        {allTabs.length > 0 ? (
           <RightPanelPlusMenu
             open={pickerOpen}
             onOpenChange={setPickerOpen}
             locale={locale}
-            openTabs={openTabs}
+            openTabs={allTabs}
             onSelect={openTab}
             active={pickerOpen}
           />
@@ -316,6 +356,10 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             cardsDueCount={cardsDueCount}
             tasksActiveCount={tasksActiveCount}
             terminalAttention={terminalAttention}
+            {...(dockedTools?.labels ? { labels: dockedTools.labels } : {})}
+            {...(dockedTools?.groupId
+              ? { dockedGroup: { groupId: dockedTools.groupId, tabs: dockedTabs } }
+              : {})}
             onSelect={openTab}
             onClose={closeTab}
           />
@@ -368,7 +412,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             }
             aria-pressed={props.isExpanded ?? false}
             onClick={() => {
-              if (openTabs.length === 0) {
+              if (allTabs.length === 0) {
                 return;
               }
               if (props.onToggleExpand) {
@@ -421,7 +465,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         <span className="tool-scope">{locale === 'zh-CN' ? '本次会话' : 'This session'}</span>
       </div>
 
-      {openTabs.length === 0 ? (
+      {allTabs.length === 0 ? (
         <RightPanelHome
           locale={locale}
           onSelect={openTab}
@@ -482,6 +526,17 @@ export function RightPanel(props: RightPanelProps): ReactElement {
               </div>
             );
           })}
+          {dockedTools && dockedTabs.length > 0 ? (
+            <div
+              ref={dockedTools.slotRef}
+              className="right-panel-body"
+              role="tabpanel"
+              hidden={!activeIsDocked}
+              {...(activeIsDocked ? { id: `inspector-panel-${active}` } : {})}
+              data-right-panel-docked="true"
+              data-testid="right-panel-docked-body"
+            />
+          ) : null}
         </div>
       )}
     </aside>

@@ -46,6 +46,11 @@ export type SessionIndexRecord = {
   thinkingLevel?: ThinkingLevel;
   /** Knowledge bases mounted on this session. Projected to `SessionSummary.knowledgeBaseIds`. */
   knowledgeBaseIds?: string[];
+  /**
+   * Globally enabled MCP servers this session opted out of. Applied when the
+   * session's runtime is composed. Projected to `SessionSummary.disabledMcpServerIds`.
+   */
+  disabledMcpServerIds?: string[];
   /** Optional path to Pi session file when known */
   piSessionFile?: string;
   /** Parent session when this is a product-layer sub-agent. */

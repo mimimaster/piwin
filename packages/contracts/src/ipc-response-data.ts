@@ -322,6 +322,11 @@ export type McpStopData = {
   health: McpServerHealth;
 };
 
+export type SessionSetMcpServersData = {
+  sessionId: string;
+  disabledServerIds: string[];
+};
+
 export type GitStatusData = {
   snapshot: GitStatusSnapshot;
 };

@@ -132,6 +132,7 @@ import { handleRunControlCommand } from './run-control-commands.js';
 import { handleRunInterventionCommand } from './run-intervention-commands.js';
 import { handleSessionBranchCommand, pushBranchUpdated } from './session-branch-commands.js';
 import { handleSessionPromptCommand } from './session-prompt-command.js';
+import { normalizeSessionMcpServerIds } from '../session-mcp-overrides.js';
 
 export type { SessionLiveContext } from './session-live-context.js';
 
@@ -234,6 +235,9 @@ export async function handleSessionLiveCommand(
       const rootDir = getPiwinRoot(context.piwinRoot);
       const indexPath = getPiwinSessionIndexPath(rootDir);
       const requestedBaseIds = uniqueKnowledgeBaseIds(command.input.knowledgeBaseIds);
+      const requestedDisabledMcpServerIds = normalizeSessionMcpServerIds(
+        command.input.disabledMcpServerIds,
+      );
       if (requestedBaseIds.length > 0) {
         if (!context.getFolderRag) {
           return fail(requestId, 'session/create', 'knowledge services are not available');
@@ -269,6 +273,9 @@ export async function handleSessionLiveCommand(
             ? { thinkingLevel: command.input.thinkingLevel }
             : {}),
           ...(requestedBaseIds.length > 0 ? { knowledgeBaseIds: requestedBaseIds } : {}),
+          ...(requestedDisabledMcpServerIds.length > 0
+            ? { disabledMcpServerIds: requestedDisabledMcpServerIds }
+            : {}),
         });
       } catch (error) {
         return fail(requestId, 'session/create', formatError(error));

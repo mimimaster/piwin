@@ -101,10 +101,54 @@
   display: none;
 }
 
-.plus-menu-check {
+/* Enabled-connector count on the Connectors sub-trigger. */
+.plus-menu-count {
   flex: 0 0 auto;
-  color: var(--iris-lift);
-  font-size: var(--fs-chrome);
+  min-width: 16px;
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  text-align: center;
+}
+
+.ui-menu-content.plus-submenu.plus-connectors {
+  min-width: 280px;
+  max-width: 320px;
+}
+
+.plus-menu-connector-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Tool count / status after the connector name, before the switch. */
+.plus-menu-meta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: var(--s-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.plus-menu-meta.is-error,
+.plus-menu-error {
+  color: var(--coral);
+}
+
+/* The switch item's label span flexes; keep name + meta on one row. */
+.plus-connectors .ui-menu-switch-item .ui-menu-item-label {
+  display: flex;
+  align-items: center;
+}
+
+.plus-connectors .ui-menu-switch-item .ui-menu-switch {
+  margin-left: var(--s-4);
 }
 
 .plus-menu-empty,
@@ -136,22 +180,6 @@
 .plus-menu-state-dot.is-on {
   background: var(--mint);
   opacity: 1;
-}
-
-/* MCP server on/off indicator inside the plus submenu. */
-.plus-menu-static .status-dot {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--text-4);
-  border: 0;
-  border-radius: var(--r-pill);
-  padding: 2px var(--s-4);
-  background: var(--hover);
-}
-
-.plus-menu-static .status-dot.ok {
-  color: var(--mint);
-  background: color-mix(in srgb, var(--mint) 14%, transparent);
 }
 
 /* ── Slash menu ───────────────────────────────────────────────────────

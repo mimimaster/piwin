@@ -25,10 +25,7 @@ export const IconGit = createIcon(
 
 export const IconFork = createIcon(
   <>
-    <circle cx="8" cy="3" r="1.5" />
-    <circle cx="4" cy="13" r="1.5" />
-    <circle cx="12" cy="13" r="1.5" />
-    <path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5" />
+    <path d="M8 2v5.5M8 7.5c0 2.5-4 3-4 6.5M8 7.5c0 2.5 4 3 4 6.5" />
   </>,
   16,
 );
@@ -43,10 +40,9 @@ export const IconArrowFork = createIcon(
 
 export const IconSessionTree = createIcon(
   <>
-    <circle cx="8" cy="3" r="1.5" />
-    <circle cx="4" cy="13" r="1.5" />
-    <circle cx="12" cy="13" r="1.5" />
-    <path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5" />
+    <circle cx="11" cy="6" r="1.5" />
+    <circle cx="11" cy="12.5" r="1.5" />
+    <path d="M4 2v8.5a2 2 0 0 0 2 2h3.5M4 6h5.5" />
   </>,
   16,
 );

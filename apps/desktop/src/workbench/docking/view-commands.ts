@@ -1,5 +1,4 @@
 import {
-  DEFAULT_RIGHT_PANEL_WIDTH_PX,
   REOPEN_STACK_LIMIT,
   WORKSPACE_LAYOUT_SCHEMA_VERSION,
   WORKSPACE_VIEW_HARD_LIMIT,
@@ -12,7 +11,6 @@ import {
   findSessionViewId,
   findViewGroupId,
   firstRightGroupId,
-  isRightGroupId,
   isStageGroupId,
   listStageGroupIds,
   putGroup,
@@ -51,8 +49,6 @@ export function createWorkspaceState(createId: WorkspaceIdFactory): WorkspaceSta
     views: {},
     rightPanel: {
       groupIds: [rightGroupId],
-      collapsed: false,
-      width: DEFAULT_RIGHT_PANEL_WIDTH_PX,
     },
     activeGroupId: stageGroupId,
     focusedViewId: null,
@@ -137,12 +133,6 @@ export function openSessionView(
   return okOp(focusView(insertView(state, groupId, view), viewId));
 }
 
-function revealRightIfNeeded(state: WorkspaceState, viewId: string): WorkspaceState {
-  const groupId = findViewGroupId(state, viewId);
-  if (!groupId || !isRightGroupId(state, groupId) || !state.rightPanel.collapsed) return state;
-  return { ...state, rightPanel: { ...state.rightPanel, collapsed: false } };
-}
-
 export function openToolView(
   state: WorkspaceState,
   kind: MovableToolKind,
@@ -153,7 +143,7 @@ export function openToolView(
   // canvas target, so opening again (auto-reveal, launcher, inspector tab)
   // must focus the existing tab instead of cloning it.
   for (const view of Object.values(state.views)) {
-    if (view.kind === kind) return okOp(revealRightIfNeeded(focusView(state, view.viewId), view.viewId));
+    if (view.kind === kind) return okOp(focusView(state, view.viewId));
   }
   if (Object.keys(state.views).length >= WORKSPACE_VIEW_HARD_LIMIT) {
     return rejectOp(state, 'view-limit', DOCKING_COPY.viewLimit);
@@ -164,7 +154,7 @@ export function openToolView(
   if (!groupId) return rejectOp(state, 'missing-target', DOCKING_COPY.illegal);
   const viewId = createId('view');
   const view: WorkspaceView = { viewId, kind };
-  return okOp(revealRightIfNeeded(focusView(insertView(state, groupId, view), viewId), viewId));
+  return okOp(focusView(insertView(state, groupId, view), viewId));
 }
 
 function toReopenRecord(state: WorkspaceState, viewId: string, sourceGroupId: string): ReopenRecord | null {

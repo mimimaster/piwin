@@ -47,22 +47,6 @@ export function useDockToolHosts(): DockToolHosts | null {
   return useContext(DockToolHostsContext);
 }
 
-export function DockingOwnedToolNotice(props: {
-  kind: 'browser' | 'canvas';
-  locale: 'zh-CN' | 'en';
-}): ReactElement {
-  const zh = props.locale === 'zh-CN';
-  const label = props.kind === 'browser' ? (zh ? '浏览器' : 'Browser') : zh ? '画布' : 'Canvas';
-  return (
-    <div className="docking-tool-placeholder" role="status" data-testid={`docking-owned-${props.kind}`}>
-      <b>{label}</b>
-      <span>
-        {zh ? '已在工作台打开，避免重复挂载租约。' : 'Opened on the workbench to keep a single live host.'}
-      </span>
-    </div>
-  );
-}
-
 function DockToolFallback(props: { locale: 'zh-CN' | 'en'; label: string }): ReactElement {
   return (
     <div className="docking-tool-placeholder" role="note">
@@ -116,7 +100,7 @@ function DockDocSurface(props: { hosts: DockToolHosts }): ReactElement {
   );
 }
 
-export function DockToolSurface(props: { view: WorkspaceView; inRightPanel?: boolean }): ReactElement {
+export function DockToolSurface(props: { view: WorkspaceView }): ReactElement {
   const hosts = useDockToolHosts();
   const locale = hosts?.locale ?? 'en';
   if (!hosts) {
@@ -150,7 +134,6 @@ export function DockToolSurface(props: { view: WorkspaceView; inRightPanel?: boo
         artifactTheme={mapThemeToArtifactVariables(hosts.activeTheme)}
         artifactThemeKey={hosts.artifactThemeKey}
         onInsertProposal={(proposal) => hosts.onInsertCanvasProposal(proposal.text)}
-        hideFloatingDownload={props.inRightPanel === true}
       />
     );
   }

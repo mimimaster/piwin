@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 /**
- * Composer plus-menu: Skills + MCP only.
+ * Composer plus-menu: attachments, Skills, and session-level MCP Connectors.
  * Same happy-dom + createRoot harness as context-bar.test.tsx; the menu is
  * portaled by Radix, so assertions read from document, not the container.
  */
@@ -24,7 +24,11 @@ function createBaseProps(overrides: Partial<ComposerPlusMenuProps> = {}): Compos
     onSubmenu: vi.fn(),
     skills: [{ id: 'skill-a', name: 'Review', enabled: true }],
     onOpenSkillsPanel: vi.fn(),
-    mcpServers: [{ id: 'mcp-a', name: 'Filesystem', running: true }],
+    mcpServers: [
+      { id: 'filesystem', name: 'Filesystem', status: 'running', toolCount: 12, globallyDisabled: false },
+      { id: 'linear', name: 'linear', status: 'error', globallyDisabled: false },
+      { id: 'postgres', name: 'postgres', status: 'disabled', globallyDisabled: true },
+    ],
     onOpenMcpPanel: vi.fn(),
     ...overrides,
   };
@@ -87,19 +91,27 @@ describe('ComposerPlusMenu', () => {
     expect(queryMenu()).toBeNull();
   });
 
-  it('renders skills and MCP only — no modes, image, or orchestration', () => {
+  it('renders skills and connectors — no modes, image, orchestration, or knowledge', () => {
     render(createBaseProps(), root);
 
     const menu = queryMenu();
     expect(menu).not.toBeNull();
     expect(document.querySelector('[data-testid="plus-menu-skills"]')).not.toBeNull();
-    expect(document.querySelector('[data-testid="plus-menu-mcp"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="plus-menu-connectors"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="plus-menu-mode-agent"]')).toBeNull();
-    expect(document.querySelector('[data-testid="plus-menu-mode-plan"]')).toBeNull();
-    expect(document.querySelector('[data-testid="plus-menu-mode-ask"]')).toBeNull();
     expect(document.querySelector('[data-testid="plus-menu-image"]')).toBeNull();
     expect(document.querySelector('[data-testid="plus-menu-orchestration"]')).toBeNull();
-    expect(menu?.textContent).toContain('技能与 MCP');
+    expect(document.querySelector('[data-testid="plus-menu-knowledge"]')).toBeNull();
+    expect(document.querySelector('[data-testid="plus-menu-open-flashcards"]')).toBeNull();
+    expect(menu?.textContent).toContain('连接器');
+  });
+
+  it('keeps only attachments in Conversation chat', () => {
+    render(createBaseProps({ hideAgentExtras: true, onAttachFile: vi.fn() }), root);
+
+    expect(document.querySelector('[data-testid="plus-menu-file"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="plus-menu-skills"]')).toBeNull();
+    expect(document.querySelector('[data-testid="plus-menu-connectors"]')).toBeNull();
   });
 
   it('exposes separate file and image attachment actions when wired', () => {
@@ -125,16 +137,55 @@ describe('ComposerPlusMenu', () => {
     expect(onOpenSkillsPanel).toHaveBeenCalledTimes(1);
   });
 
-  it('renders MCP servers and the settings action when the MCP flyout is open', () => {
+  it('lists connectors read-only when the Host cannot scope MCP to a session', () => {
     const onOpenMcpPanel = vi.fn();
-    render(createBaseProps({ submenu: 'mcp', onOpenMcpPanel }), root);
+    render(createBaseProps({ submenu: 'connectors', onOpenMcpPanel }), root);
 
-    const flyout = document.querySelector('[aria-label="MCP Servers"]');
-    expect(flyout).not.toBeNull();
+    const flyout = document.querySelector('[aria-label="Connectors"]');
     expect(flyout?.textContent).toContain('Filesystem');
+    expect(flyout?.textContent).toContain('12 个工具');
+    expect(flyout?.textContent).toContain('出错');
+    expect(document.querySelector('[data-testid="plus-menu-connector-filesystem"]')).toBeNull();
 
     clickItem('plus-menu-open-mcp');
     expect(onOpenMcpPanel).toHaveBeenCalledTimes(1);
+  });
+
+  it('switches a connector off for this session and keeps the flyout open', () => {
+    const setServerEnabled = vi.fn();
+    render(
+      createBaseProps({
+        submenu: 'connectors',
+        mcpSwitches: {
+          supported: true,
+          disabledServerIds: ['linear'],
+          error: null,
+          setServerEnabled,
+        },
+      }),
+      root,
+    );
+
+    const filesystem = document.querySelector('[data-testid="plus-menu-connector-filesystem"]');
+    const linear = document.querySelector('[data-testid="plus-menu-connector-linear"]');
+    const postgres = document.querySelector('[data-testid="plus-menu-connector-postgres"]');
+    expect(filesystem?.getAttribute('role')).toBe('menuitemcheckbox');
+    expect(filesystem?.getAttribute('aria-checked')).toBe('true');
+    expect(linear?.getAttribute('aria-checked')).toBe('false');
+    expect(postgres?.getAttribute('aria-checked')).toBe('false');
+    expect(postgres?.hasAttribute('data-disabled')).toBe(true);
+    expect(postgres?.textContent).toContain('全局已停用');
+    // Only servers still on for the session count on the trigger.
+    expect(
+      document.querySelector('[data-testid="plus-menu-connectors"] .plus-menu-count')?.textContent,
+    ).toBe('1');
+
+    clickItem('plus-menu-connector-filesystem');
+    expect(setServerEnabled).toHaveBeenCalledWith('filesystem', false);
+    expect(document.querySelector('[aria-label="Connectors"]')).not.toBeNull();
+
+    clickItem('plus-menu-connector-linear');
+    expect(setServerEnabled).toHaveBeenCalledWith('linear', true);
   });
 
   it('shows empty copy when no skills or servers exist', () => {
@@ -143,20 +194,9 @@ describe('ComposerPlusMenu', () => {
       '未加载任何技能',
     );
 
-    render(createBaseProps({ submenu: 'mcp', mcpServers: [] }), root);
-    expect(document.querySelector('[aria-label="MCP Servers"]')?.textContent).toContain(
+    render(createBaseProps({ submenu: 'connectors', mcpServers: [] }), root);
+    expect(document.querySelector('[aria-label="Connectors"]')?.textContent).toContain(
       '未配置任何服务器',
     );
-  });
-
-  it('opens flashcards from a single plus-menu item', () => {
-    const onOpenKnowledge = vi.fn();
-    const onOpenCardsPanel = vi.fn();
-    render(createBaseProps({ onOpenKnowledge, onOpenCardsPanel }), root);
-    expect(document.body.textContent).toContain('闪卡');
-    expect(document.body.textContent).not.toContain('Knowledge Center');
-    clickItem('plus-menu-open-flashcards');
-    expect(onOpenCardsPanel).toHaveBeenCalledTimes(1);
-    expect(onOpenKnowledge).not.toHaveBeenCalled();
   });
 });

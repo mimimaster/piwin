@@ -21,6 +21,7 @@ import type { ModelOption } from './model-options.js';
 import { PANE_COMPOSER_FILE_ACCEPT } from './pane-composer-attachments.js';
 import { IconPaperclip, IconSend, IconStop } from './shell-icons.js';
 import { ThinkingEffortControl, toThinkingEffortModels } from './ThinkingEffortControl.js';
+import { decideComposerEnterKey } from './composer-enter-ime.js';
 
 export type CompactPromptComposerProps = {
   value: string;
@@ -56,6 +57,7 @@ export function CompactPromptComposer(props: CompactPromptComposerProps): ReactE
   const fileRef = useRef<HTMLInputElement | null>(null);
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
+  const endedCompositionWithEnterRef = useRef(false);
   const hasAttachments = (props.attachmentNames?.length ?? 0) > 0;
   const canSend =
     (props.value.trim().length > 0 || hasAttachments) && props.disabled !== true;
@@ -92,17 +94,28 @@ export function CompactPromptComposer(props: CompactPromptComposerProps): ReactE
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
-    const recentlyComposing =
-      composingRef.current || Date.now() - lastCompositionEndRef.current < 100;
-    if (
-      event.key === 'Enter' &&
-      !event.shiftKey &&
-      !recentlyComposing &&
-      !event.nativeEvent.isComposing
-    ) {
-      event.preventDefault();
-      if (canSend) props.onSend();
+    if (composingRef.current && event.key !== 'Enter') {
+      endedCompositionWithEnterRef.current = false;
     }
+    if (event.key !== 'Enter' || event.shiftKey) {
+      return;
+    }
+    const enterDecision = decideComposerEnterKey({
+      isComposing: event.nativeEvent.isComposing || composingRef.current,
+      keyCode: event.nativeEvent.keyCode,
+      endedCompositionWithEnter: endedCompositionWithEnterRef.current,
+      msSinceCompositionEnd: Date.now() - lastCompositionEndRef.current,
+    });
+    if (enterDecision === 'let-ime') {
+      endedCompositionWithEnterRef.current = true;
+      return;
+    }
+    event.preventDefault();
+    endedCompositionWithEnterRef.current = false;
+    if (enterDecision === 'swallow') {
+      return;
+    }
+    if (canSend) props.onSend();
   }
 
   function handlePaste(event: ClipboardEvent<HTMLFormElement>): void {
@@ -152,6 +165,7 @@ export function CompactPromptComposer(props: CompactPromptComposerProps): ReactE
           onChange={(event) => props.onChange(event.target.value)}
           onCompositionStart={() => {
             composingRef.current = true;
+            endedCompositionWithEnterRef.current = false;
           }}
           onCompositionEnd={() => {
             composingRef.current = false;

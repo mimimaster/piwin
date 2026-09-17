@@ -12,7 +12,6 @@ export const DROP_EDGE_BAND_RATIO = 0.2;
 export const DROP_EDGE_BAND_MAX_PX = 72;
 export const DRAG_ACTIVATION_THRESHOLD_PX = 4;
 export const PERSIST_DEBOUNCE_MS = 500;
-export const DEFAULT_RIGHT_PANEL_WIDTH_PX = 360;
 
 export const STAGE_SESSION_MIN = { width: 420, height: 320 } as const;
 export const STAGE_TOOL_MIN = { width: 320, height: 220 } as const;

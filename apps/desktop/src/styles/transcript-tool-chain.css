@@ -615,22 +615,6 @@
   box-sizing: border-box;
 }
 
-/* Waiting for the first token: plain status copy on the text column. */
-.conversation-awaiting-first-token-row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: var(--h-sm);
-  margin: 1px 0;
-  color: var(--text-4);
-  font-size: var(--fs-chrome);
-  cursor: default;
-}
-
-.conversation-awaiting-first-token-row .turn-work-details-label {
-  min-width: 0;
-}
-
 .conversation-thinking-summary .turn-work-details-label {
   flex: 1;
   min-width: 0;

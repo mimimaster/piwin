@@ -291,6 +291,8 @@ export class HostRuntimeFields {
   /** MCP config snapshot paired with each frozen tool surface. */
   generationMcpConfigs = new Map<string, McpConfigDocument>();
   generationMcpSnapshots = new Map<string, McpGenerationSnapshot>();
+  /** Session MCP opt-out set folded into each generation's snapshot. */
+  generationSessionMcpOverrideKeys = new Map<string, string>();
   /** Permission-rule revision paired with each frozen tool surface. */
   generationPermissionRuleRevisions = new Map<string, string>();
   /** Candidate backend resources prepared before runtime commit. */

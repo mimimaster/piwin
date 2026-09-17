@@ -233,10 +233,15 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     },
     [confirmBusyRun],
   );
+  const activeSessionListItem =
+    state.sessions.find((session) => session.id === state.activeSessionId) ??
+    state.generalSessions.find((session) => session.id === state.activeSessionId);
   const plusMenu = useComposerPlusMenu({
     hostClient,
     projectPath: state.projectPath,
     hostReady: state.hostReady,
+    activeSessionId: state.activeSessionId,
+    sessionDisabledMcpServerIds: activeSessionListItem?.disabledMcpServerIds,
   });
   const [selectedModelKey, setSelectedModelKey] = useState('');
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>('off');
