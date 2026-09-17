@@ -10,7 +10,7 @@ import {
   type HostResponse,
   type ProjectRecord,
 } from '@piwin/contracts';
-import { handleProjectCommand } from './project-commands.js';
+import { enrichProjectsWithGitWorkspace, handleProjectCommand } from './project-commands.js';
 import { getPiwinGeneralWorkspacePath } from '../paths.js';
 
 const execFileAsync = promisify(execFile);
@@ -563,5 +563,36 @@ describe('project commands', () => {
     expect(linkedOpen && 'data' in linkedOpen ? linkedOpen.data : null).toMatchObject({
       path: linkedPath,
     });
+  });
+
+  it('lists a project whose git probe misses the budget without enrichment', async () => {
+    const fast: ProjectRecord = { path: '/repo/fast', trust: 'trusted' } as ProjectRecord;
+    const blocked: ProjectRecord = { path: '/Volumes/Disk/blocked', trust: 'trusted' } as ProjectRecord;
+    const listed = await enrichProjectsWithGitWorkspace([blocked, fast], {
+      budgetMs: 20,
+      readListing: (projectPath) =>
+        projectPath === fast.path
+          ? Promise.resolve({
+              gitRepositoryId: 'abcdef0123456789',
+              isPrimaryWorktree: true,
+              currentBranch: 'main',
+              gitRootPath: fast.path,
+            })
+          : new Promise(() => {}),
+    });
+    expect(listed.gitWorkspacePending).toBe(true);
+    expect(listed.projects).toEqual([
+      blocked,
+      { ...fast, gitRepositoryId: 'abcdef0123456789', isPrimaryWorktree: true, currentBranch: 'main', gitRootPath: fast.path },
+    ]);
+  });
+
+  it('omits gitWorkspacePending when every probe settles, including failures', async () => {
+    const project: ProjectRecord = { path: '/repo/broken', trust: 'trusted' } as ProjectRecord;
+    const listed = await enrichProjectsWithGitWorkspace([project], {
+      budgetMs: 1_000,
+      readListing: () => Promise.reject(new Error('spawn git ENOENT')),
+    });
+    expect(listed).toEqual({ projects: [project] });
   });
 });

@@ -31,7 +31,10 @@ import {
   setPiAutoCompactionEnabled,
   type PiCompactionSettingsManager,
 } from '../pi-compaction-settings.js';
-import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
+import {
+  activatePiBuiltinTools,
+  buildPiSessionExcludedToolNames,
+} from '../pi-session-tool-selection.js';
 import {
   createPiContextSampler,
   type PiCompactionTimingState,
@@ -107,13 +110,6 @@ export async function createBackendSdkSession(
       getRunId: () => activeRunId,
     },
   );
-  // Pi's `tools` option is a global allowlist for built-ins AND customTools.
-  // Host tools are customTools only; omitting them here drops bash/MCP/web/…
-  // before the model ever sees them (see buildPiSessionToolAllowlist).
-  const toolAllowlist = buildPiSessionToolAllowlist({
-    piBuiltinToolNames: capabilitySnapshot.tools.piBuiltinToolNames,
-    hostTools: capabilitySnapshot.tools.hostTools,
-  });
   let settingsManager = createPiwinSettingsManager(
     piModule,
     capabilitySnapshot.workingDirectory,
@@ -127,8 +123,9 @@ export async function createBackendSdkSession(
     agentDir,
     resourceLoader,
     modelRuntime,
-    // Empty allowlist is intentional when both sides are empty: no Pi defaults.
-    tools: toolAllowlist,
+    // Pi's `tools` allowlist would also drop Pi Extension tools, so exclude
+    // only the Pi-native tools the policy does not grant.
+    excludeTools: buildPiSessionExcludedToolNames(capabilitySnapshot.tools),
     customTools,
     settingsManager,
   };
@@ -175,6 +172,7 @@ export async function createBackendSdkSession(
   if (!result.session) {
     throw new Error('createAgentSession returned no session');
   }
+  activatePiBuiltinTools(result.session, capabilitySnapshot.tools.piBuiltinToolNames);
 
   if (input.extensionUi) {
     const extensionUiPort = input.extensionUi;

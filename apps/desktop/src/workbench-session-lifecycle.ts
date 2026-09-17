@@ -48,6 +48,32 @@ export function planRemoteSessionCatchUp(input: {
   return { kind: 'hydrate', scope: { kind: 'general' } };
 }
 
+const PROJECT_LIST_FAILURE_RETRY_DELAYS_MS = [1_000, 3_000, 10_000, 30_000, 30_000, 30_000];
+const PROJECT_LIST_GIT_PENDING_RETRY_DELAY_MS = 5_000;
+const PROJECT_LIST_GIT_PENDING_MAX_RETRIES = 24;
+
+/**
+ * When to ask for `project/list` again after the sidebar load. A failed list
+ * must not leave the sidebar empty for the whole app lifetime (a cold Host or
+ * a git probe parked behind a macOS permission prompt both outlast the request
+ * timeout); a list with git still pending re-lists until enrichment lands.
+ * Returns null to stop.
+ */
+export function planProjectListRetryDelay(input: {
+  outcome: 'failed' | 'git-pending' | 'complete';
+  retriesSoFar: number;
+}): number | null {
+  if (input.outcome === 'failed') {
+    return PROJECT_LIST_FAILURE_RETRY_DELAYS_MS[input.retriesSoFar] ?? null;
+  }
+  if (input.outcome === 'git-pending') {
+    return input.retriesSoFar < PROJECT_LIST_GIT_PENDING_MAX_RETRIES
+      ? PROJECT_LIST_GIT_PENDING_RETRY_DELAY_MS
+      : null;
+  }
+  return null;
+}
+
 export type RecentProjectHydrationPlan =
   | { kind: 'skip' }
   | { kind: 'retain-only'; projectPaths: string[] }

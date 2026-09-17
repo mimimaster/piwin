@@ -588,7 +588,7 @@ describe('createWorkerPiSessionFactory', () => {
     ).rejects.toThrow(/Configured model is unavailable/);
   });
 
-  it('passes piBuiltinToolNames as the tools allowlist when present', async () => {
+  it('excludes Pi-native tools that piBuiltinToolNames does not grant', async () => {
     const session = {
       sessionId: 'pi-tools-1',
       prompt: vi.fn(async () => undefined),
@@ -618,10 +618,11 @@ describe('createWorkerPiSessionFactory', () => {
       mock: { calls: unknown[][] };
     };
     const opts = createAgentSession.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(opts.tools).toEqual(['read', 'grep', 'ls']);
+    expect(opts.tools).toBeUndefined();
+    expect(opts.excludeTools).toEqual(['bash', 'edit', 'write', 'find']);
   });
 
-  it('unions hostTools into the Pi tools allowlist so proxy customTools are not filtered out', async () => {
+  it('does not exclude native names reused by hostTools so proxy customTools survive', async () => {
     const session = {
       sessionId: 'pi-tools-host-1',
       prompt: vi.fn(async () => undefined),
@@ -665,7 +666,8 @@ describe('createWorkerPiSessionFactory', () => {
       mock: { calls: unknown[][] };
     };
     const opts = createAgentSession.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(opts.tools).toEqual(['read', 'grep', 'ls', 'bash', 'web_search', 'mcp_gateway']);
+    expect(opts.tools).toBeUndefined();
+    expect(opts.excludeTools).toEqual(['edit', 'write', 'find']);
     expect(opts.customTools).toHaveLength(1);
   });
 

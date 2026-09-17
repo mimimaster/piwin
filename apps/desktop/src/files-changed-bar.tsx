@@ -1,6 +1,7 @@
 /**
- * Turn-level "N files changed" bar under an assistant reply.
- * Lists files mutated by tools on that message; Review opens the Changes panel.
+ * Turn-level "N files changed" card under a finished assistant turn.
+ * Header carries the count, line totals and Review; the files themselves are
+ * listed directly below (first few, the rest behind a "show more" row).
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { GitDiffSummary, HostResponse } from '@piwin/contracts';
@@ -12,7 +13,7 @@ import {
   type MessageChangedFile,
   type MessageChangedFileStat,
 } from './collect-message-changed-files';
-import { IconChevronDown, IconGit } from './shell-icons';
+import { IconGit } from './shell-icons';
 import {
   formatDisplayPathParts,
   getRelativeFilePath,
@@ -48,9 +49,8 @@ function pruneGitDiffSummaryCache(now: number): void {
   }
 }
 
-const DEFAULT_MAX_VISIBLE_ROWS = 5;
-/** Chips that do not fit wrap onto a clipped second line instead of squeezing. */
-const MAX_HEAD_CHIPS = 3;
+/** Rows shown before the "show N more" row; most turns touch at most this many. */
+export const FILES_CHANGED_VISIBLE_ROWS = 3;
 
 function requestGitDiffSummaryCached(
   request: FilesChangedBarRequest,
@@ -93,7 +93,7 @@ export function gitDiffSummaryCacheSizeForTests(): number {
 
 export type FilesChangedBarProps = {
   tools: readonly ToolCardUi[];
-  /** When false, hide the bar even if tools have paths (e.g. still streaming with no writes). */
+  /** When false, hide the bar (e.g. the turn is still running). */
   visible?: boolean;
   projectPath?: string | null;
   request?: FilesChangedBarRequest;
@@ -104,15 +104,14 @@ export type FilesChangedBarProps = {
 
 function formatCountLabel(count: number, isZh: boolean): string {
   if (isZh) {
-    return count === 1 ? '1 个文件已更改' : `${count} 个文件已更改`;
+    return `${count} 个文件已更改`;
   }
-  return count === 1 ? '1 File Changed' : `${count} files changed`;
+  return count === 1 ? '1 file changed' : `${count} files changed`;
 }
 
 export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | null {
   const isZh = props.locale === 'zh-CN';
   const files = useMemo(() => collectMessageChangedFiles(props.tools), [props.tools]);
-  const [expanded, setExpanded] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [stats, setStats] = useState<{
     additions: number;
@@ -121,9 +120,10 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
   } | null>(null);
 
   const pathsKey = files.map((f) => f.path).join('\0');
+  const active = props.visible !== false && files.length > 0;
 
   useEffect(() => {
-    if (files.length === 0) {
+    if (!active) {
       setStats(null);
       return;
     }
@@ -158,60 +158,35 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
     };
     // files identity is derived from tools; pathsKey captures content.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pathsKey is the stable content key
-  }, [props.projectPath, props.request, pathsKey]);
+  }, [active, props.projectPath, props.request, pathsKey]);
 
-  if (props.visible === false || files.length === 0) {
+  if (!active) {
     return null;
   }
 
-  const countLabel = formatCountLabel(files.length, isZh);
-  const reviewLabel = isZh ? '审查' : 'Review';
-
+  const overflow = files.length - FILES_CHANGED_VISIBLE_ROWS;
+  // A single hidden row costs as much space as the "show more" row itself.
+  const collapsible = overflow > 1;
   const visibleFiles =
-    expanded && !showAll && files.length > DEFAULT_MAX_VISIBLE_ROWS
-      ? files.slice(0, DEFAULT_MAX_VISIBLE_ROWS)
-      : files;
-  const hiddenCount = files.length - visibleFiles.length;
-  const chipFiles = files.slice(0, MAX_HEAD_CHIPS);
+    collapsible && !showAll ? files.slice(0, FILES_CHANGED_VISIBLE_ROWS) : files;
 
   return (
-    <div
+    <section
       className="fcb files-changed-bar"
-      data-expanded={expanded ? 'true' : 'false'}
+      aria-label={formatCountLabel(files.length, isZh)}
       data-testid="files-changed-bar"
     >
-      <div className="files-changed-bar-head">
-        <button
-          type="button"
-          className="files-changed-bar-toggle"
-          onClick={() => setExpanded((prev) => !prev)}
-          aria-expanded={expanded}
-          data-testid="files-changed-bar-toggle"
-        >
-          <IconGit className="i files-changed-bar-glyph" />
-          <span className="files-changed-bar-count">{countLabel}</span>
-          {stats ? (
-            <>
-              <span className="files-changed-bar-stat pm" data-testid="files-changed-bar-stat">
-                <span className="add plus">+{stats.additions}</span>{' '}
-                <span className="del minus">−{stats.deletions}</span>
-              </span>
-              <DiffBlocks additions={stats.additions} deletions={stats.deletions} />
-            </>
-          ) : null}
-          {expanded ? null : (
-            <span className="files-changed-bar-chips">
-              {chipFiles.map((file) => (
-                <span key={file.path} className="pc files-changed-bar-chip" title={file.path}>
-                  {formatDisplayPathParts(file.path, props.projectPath).fileName}
-                </span>
-              ))}
-            </span>
-          )}
-          <IconChevronDown
-            className={expanded ? 'files-changed-bar-chevron open' : 'files-changed-bar-chevron'}
+      <header className="files-changed-bar-head">
+        <IconGit className="i files-changed-bar-glyph" />
+        <span className="files-changed-bar-count">{formatCountLabel(files.length, isZh)}</span>
+        {stats ? (
+          <LineStat
+            className="files-changed-bar-stat"
+            additions={stats.additions}
+            deletions={stats.deletions}
+            testId="files-changed-bar-stat"
           />
-        </button>
+        ) : null}
         {props.onReview ? (
           <button
             type="button"
@@ -219,61 +194,59 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
             onClick={props.onReview}
             data-testid="files-changed-bar-review"
           >
-            {reviewLabel} <span aria-hidden="true">↗</span>
+            {isZh ? '审查' : 'Review'}
+            <span className="files-changed-bar-review-arrow" aria-hidden="true">
+              →
+            </span>
           </button>
         ) : null}
-      </div>
-      {expanded ? (
-        <ul className="files-changed-bar-list" data-testid="files-changed-bar-list">
-          {visibleFiles.map((file) => (
-            <FilesChangedRow
-              key={file.path}
-              file={file}
-              projectPath={props.projectPath}
-              stat={stats?.byPath?.[file.path]}
-              onReview={props.onReview}
-            />
-          ))}
-          {hiddenCount > 0 ? (
-            <li
-              className="files-changed-bar-more"
-              onClick={() => setShowAll(true)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setShowAll(true);
-                }
-              }}
-              data-testid="files-changed-bar-more"
-            >
-              {isZh ? `展开剩余 ${hiddenCount} 个文件` : `Show ${hiddenCount} more`}
-            </li>
-          ) : null}
-        </ul>
+      </header>
+      <ul className="files-changed-bar-list" data-testid="files-changed-bar-list">
+        {visibleFiles.map((file) => (
+          <FilesChangedRow
+            key={file.path}
+            file={file}
+            projectPath={props.projectPath}
+            stat={stats?.byPath?.[file.path]}
+            onReview={props.onReview}
+          />
+        ))}
+      </ul>
+      {collapsible ? (
+        <button
+          type="button"
+          className="files-changed-bar-more"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((prev) => !prev)}
+          data-testid="files-changed-bar-more"
+        >
+          {showAll
+            ? isZh
+              ? '收起'
+              : 'Show less'
+            : isZh
+              ? `还有 ${overflow} 个文件`
+              : `${overflow} more files`}
+        </button>
       ) : null}
-    </div>
+    </section>
   );
 }
 
-const DIFF_BLOCK_COUNT = 5;
-
-/** GitHub-style diffstat: five squares split by the add/delete ratio. */
-function DiffBlocks(props: { additions: number; deletions: number }): ReactElement {
-  const total = props.additions + props.deletions;
-  let added = total === 0 ? 0 : Math.round((props.additions / total) * DIFF_BLOCK_COUNT);
-  if (props.additions > 0 && added === 0) added = 1;
-  if (props.deletions > 0 && added === DIFF_BLOCK_COUNT) added = DIFF_BLOCK_COUNT - 1;
-  const deleted = total === 0 ? 0 : DIFF_BLOCK_COUNT - added;
+/** "+a −d"; a zero side is dropped so an add-only turn does not show a red −0. */
+function LineStat(props: {
+  className: string;
+  additions: number;
+  deletions: number;
+  testId?: string;
+}): ReactElement | null {
+  if (props.additions === 0 && props.deletions === 0) {
+    return null;
+  }
   return (
-    <span className="files-changed-bar-blocks" aria-hidden="true">
-      {Array.from({ length: DIFF_BLOCK_COUNT }, (_, index) => (
-        <i
-          key={index}
-          className={index < added ? 'add' : index < added + deleted ? 'del' : undefined}
-        />
-      ))}
+    <span className={`${props.className} pm`} data-testid={props.testId}>
+      {props.additions > 0 ? <span className="add">+{props.additions}</span> : null}
+      {props.deletions > 0 ? <span className="del">−{props.deletions}</span> : null}
     </span>
   );
 }
@@ -283,7 +256,7 @@ const STATUS_TAGS: Record<string, { letter: string; tone: string }> = {
   added: { letter: 'A', tone: 'add' },
   untracked: { letter: 'A', tone: 'add' },
   modified: MODIFIED_TAG,
-  typechange: { letter: 'M', tone: 'mod' },
+  typechange: MODIFIED_TAG,
   deleted: { letter: 'D', tone: 'del' },
   renamed: { letter: 'R', tone: 'ren' },
   copied: { letter: 'C', tone: 'ren' },
@@ -297,36 +270,42 @@ function FilesChangedRow(props: {
   onReview?: (() => void) | undefined;
 }): ReactElement {
   const parts = formatDisplayPathParts(props.file.path, props.projectPath);
-
   const tag = STATUS_TAGS[props.stat?.status ?? 'modified'] ?? MODIFIED_TAG;
+  const content = (
+    <>
+      <span className={`files-changed-bar-row-tag ${tag.tone}`}>{tag.letter}</span>
+      <span className="files-changed-bar-row-path">
+        <span className="files-changed-bar-row-name">{parts.fileName}</span>
+        {parts.dirPath ? (
+          <span className="files-changed-bar-row-dir">{parts.dirPath}</span>
+        ) : null}
+      </span>
+      {props.stat ? (
+        <LineStat
+          className="files-changed-bar-row-stat"
+          additions={props.stat.additions}
+          deletions={props.stat.deletions}
+        />
+      ) : null}
+    </>
+  );
 
   return (
-    <li
-      className="files-changed-bar-row"
-      title={props.file.path}
-      onClick={props.onReview}
-      role={props.onReview ? 'button' : undefined}
-      tabIndex={props.onReview ? 0 : undefined}
-      onKeyDown={(e) => {
-        if (props.onReview && (e.key === 'Enter' || e.key === ' ')) {
-          e.preventDefault();
-          props.onReview();
-        }
-      }}
-      data-testid="files-changed-bar-row"
-    >
-      <span className={`files-changed-bar-row-tag ${tag.tone}`}>{tag.letter}</span>
-      <span className="files-changed-bar-row-name">{parts.fileName}</span>
-      {parts.dirPath ? <span className="files-changed-bar-row-dir">{parts.dirPath}</span> : null}
-      {props.stat ? (
-        <span className="files-changed-bar-row-stat pm">
-          <span className="add">+{props.stat.additions}</span>{' '}
-          <span className="del">−{props.stat.deletions}</span>
-        </span>
-      ) : null}
-      {props.stat ? (
-        <DiffBlocks additions={props.stat.additions} deletions={props.stat.deletions} />
-      ) : null}
+    <li className="files-changed-bar-item" title={props.file.path}>
+      {props.onReview ? (
+        <button
+          type="button"
+          className="files-changed-bar-row"
+          onClick={props.onReview}
+          data-testid="files-changed-bar-row"
+        >
+          {content}
+        </button>
+      ) : (
+        <div className="files-changed-bar-row" data-testid="files-changed-bar-row">
+          {content}
+        </div>
+      )}
     </li>
   );
 }

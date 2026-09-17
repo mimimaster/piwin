@@ -27,6 +27,8 @@ import {
   PIWIN_APPEARANCE_LIGHT,
 } from '../appearance-tokens';
 import { FlashcardStackView } from '../FlashcardView';
+import { FilesChangedBar } from '../files-changed-bar';
+import { galleryChangedFileTools, galleryChangedFilesRequest } from './gallery-changed-files';
 import { GoalGalleryStates } from './primitive-gallery-goal';
 
 export type PrimitiveGalleryProps = {
@@ -257,7 +259,7 @@ function TranscriptCardStates(): ReactElement {
 }
 
 /**
- * Static markup mirroring files-changed-bar.tsx, WalkthroughCard.tsx, the
+ * FilesChangedBar plus static markup mirroring WalkthroughCard.tsx, the
  * turn-level error card, and the shared Markdown renderer (table, callout,
  * fenced code). Same rationale as TranscriptCardStates: these need live
  * agent/tool traffic or a generated document to reach through the mock host.
@@ -266,38 +268,14 @@ function TranscriptLeafStates(): ReactElement {
   return (
     <>
       <GalleryStack title="Files-changed bar">
-        <div className="files-changed-bar" data-testid="gallery-files-changed-bar">
-          <div className="files-changed-bar-head">
-            <button type="button" className="files-changed-bar-toggle" aria-expanded>
-              <span className="files-changed-bar-chevron open">›</span>
-              <span className="files-changed-bar-count">3 files changed</span>
-              <span className="files-changed-bar-stat">
-                <span className="add">+42</span>
-                <span className="del">−11</span>
-              </span>
-            </button>
-            <button type="button" className="files-changed-bar-review">
-              Review
-            </button>
-          </div>
-          <ul className="files-changed-bar-list">
-            <li className="files-changed-bar-row">
-              <span className="files-changed-bar-row-name">tokens.css</span>
-              <span className="files-changed-bar-row-dir">apps/desktop/src/styles</span>
-              <span className="files-changed-bar-row-stat">
-                <span className="add">+18</span>
-                <span className="del">−4</span>
-              </span>
-            </li>
-            <li className="files-changed-bar-row">
-              <span className="files-changed-bar-row-name">deck-derive.ts</span>
-              <span className="files-changed-bar-row-dir">apps/desktop/src/theme</span>
-              <span className="files-changed-bar-row-stat">
-                <span className="add">+24</span>
-                <span className="del">−7</span>
-              </span>
-            </li>
-          </ul>
+        <div data-testid="gallery-files-changed-bar">
+          <FilesChangedBar
+            tools={galleryChangedFileTools}
+            projectPath="/workspace/piwin"
+            request={galleryChangedFilesRequest}
+            locale="en"
+            onReview={() => undefined}
+          />
         </div>
       </GalleryStack>
 

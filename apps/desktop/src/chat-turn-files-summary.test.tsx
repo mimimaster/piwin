@@ -74,6 +74,23 @@ describe('ChatTurnFilesSummary mount', () => {
     cleanup(root, container);
   });
 
+  it('does not render FilesChangedBar while the turn is still running', () => {
+    const { container, root } = renderSummary(
+      (
+        <ChatTurnFilesSummary
+          role="assistant"
+          turnInProgress
+          tools={changedFileTools}
+          projectPath="/workspace"
+          locale="zh-CN"
+        />
+      ) as ReactElement,
+    );
+
+    expect(container.querySelector('[data-testid="files-changed-bar"]')).toBeNull();
+    cleanup(root, container);
+  });
+
   it('renders FilesChangedBar for assistant messages with tools', () => {
     const { container, root } = renderSummary(
       (

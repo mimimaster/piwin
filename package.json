@@ -29,7 +29,7 @@
     "ensure:packaging-placeholders": "node scripts/ensure-packaging-placeholders.mjs",
     "test:bundle": "node scripts/smoke-bundled-host.mjs",
     "sign:host-macho": "node scripts/sign-host-macho.mjs",
-    "package:desktop": "pnpm bundle:host && pnpm fetch:node-runtime && pnpm sign:host-macho && pnpm --dir apps/desktop package",
+    "package:desktop": "node scripts/package-desktop.mjs",
     "package:desktop-shell": "pnpm --dir apps/desktop package:shell",
     "package:host": "pnpm bundle:host && pnpm fetch:node-runtime && node scripts/package-host.mjs",
     "e2e:smoke": "tsx scripts/e2e-host-smoke.mjs",

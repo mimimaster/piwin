@@ -4,9 +4,9 @@
    region-transcript.css. */
 
 /* ─── Turn-level files changed bar (files-changed-bar.tsx) ─────────── */
-/* Compact summary under assistant replies: "N files changed · +x -y [Review]".
-   Lists tool-mutated paths for the message; Review opens the Changes panel.
-   A quiet object floating in the document flow: surface + elevation, no line. */
+/* Card under a finished turn: a header (glyph · "N files changed" · +x −y ·
+   Review →) over a flat list of the touched files. Rows open Review; lists
+   longer than three rows end in a "N more files" toggle. */
 
 .files-changed-bar {
   margin: var(--s-4) 0 var(--s-2);
@@ -15,132 +15,15 @@
   background: var(--surface-2);
   box-shadow: var(--elev-1);
   overflow: hidden;
+  font-size: var(--fs-chrome);
 }
 
 .files-changed-bar-head {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
-  padding: var(--s-3) var(--s-5);
+  gap: var(--s-3);
   min-height: 36px;
-}
-
-.files-changed-bar-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-1);
-  font: inherit;
-  font-size: var(--fs-chrome);
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-  padding: var(--s-1) 0;
-  border-radius: var(--r-control);
-}
-
-.files-changed-bar-toggle:hover {
-  color: var(--text-1);
-}
-
-.files-changed-bar-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-3);
-  flex-shrink: 0;
-}
-
-.files-changed-bar-count {
-  flex-shrink: 0;
-  color: var(--text-1);
-  font-weight: 500;
-}
-
-.files-changed-bar-file-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-width: 0;
-  max-width: 55%;
-  padding: 0 var(--s-2);
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  font-weight: 500;
-}
-
-.files-changed-bar-file-name {
-  flex-shrink: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-1);
-  font-weight: 500;
-}
-
-.files-changed-bar-file-dir {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-4);
-  font-size: var(--fs-micro);
-}
-
-.files-changed-bar-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  font-weight: 600;
-}
-
-.files-changed-bar-stat .add {
-  color: var(--mint);
-}
-
-.files-changed-bar-stat .del {
-  color: var(--coral);
-}
-
-.files-changed-bar-chevron {
-  flex-shrink: 0;
-  width: 14px;
-  height: 14px;
-  margin-left: auto;
-  color: var(--text-4);
-  transition: transform var(--t-2) var(--ease-out);
-}
-
-.files-changed-bar-chevron.open {
-  transform: rotate(180deg);
-}
-
-.files-changed-bar-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  flex: 1 1 0;
-  gap: var(--s-2);
-  min-width: 0;
-  height: 18px;
-  overflow: hidden;
-}
-
-.files-changed-bar-chip {
-  flex: none;
-  max-width: min(30ch, 100%);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--text-3);
+  padding: 0 var(--s-3) 0 var(--s-5);
 }
 
 .files-changed-bar-glyph {
@@ -150,25 +33,99 @@
   color: var(--text-3);
 }
 
-.files-changed-bar-blocks {
-  display: inline-flex;
+.files-changed-bar-count {
   flex: none;
-  gap: 2px;
+  color: var(--text-1);
+  font-weight: 500;
 }
 
-.files-changed-bar-blocks i {
-  width: 7px;
-  height: 7px;
-  border-radius: 1.5px;
-  background: var(--line-2);
+.files-changed-bar-stat,
+.files-changed-bar-row-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.files-changed-bar-blocks i.add {
-  background: var(--mint);
+.files-changed-bar-stat .add,
+.files-changed-bar-row-stat .add {
+  color: var(--mint);
 }
 
-.files-changed-bar-blocks i.del {
-  background: var(--coral);
+.files-changed-bar-stat .del,
+.files-changed-bar-row-stat .del {
+  color: var(--coral);
+}
+
+.files-changed-bar-review {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+  height: 24px;
+  margin-left: auto;
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background var(--t-1) var(--ease-out);
+}
+
+.files-changed-bar-review:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.files-changed-bar-review-arrow {
+  color: var(--text-4);
+  transition: transform var(--t-1) var(--ease-out);
+}
+
+.files-changed-bar-review:hover .files-changed-bar-review-arrow {
+  color: inherit;
+  transform: translateX(1px);
+}
+
+.files-changed-bar-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--s-2);
+  border-top: 1px solid var(--line-1);
+}
+
+.files-changed-bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 28px;
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  text-align: left;
+}
+
+button.files-changed-bar-row {
+  cursor: pointer;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+button.files-changed-bar-row:hover {
+  background: var(--hover);
 }
 
 .files-changed-bar-row-tag {
@@ -193,137 +150,51 @@
   color: var(--coral);
 }
 
-.files-changed-bar-review {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  flex-shrink: 0;
-  height: auto;
-  padding: 3px var(--s-4);
-  border-radius: var(--r-control);
-  border: 0;
-  background: var(--surface-3);
-  color: var(--text-1);
-  font-size: var(--fs-micro);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--t-1) var(--ease-out);
-}
-
-.files-changed-bar-review:hover {
-  background: var(--iris-wash);
-  color: var(--iris-lift);
-}
-
-.files-changed-bar-review-icon {
-  width: 13px;
-  height: 13px;
-  color: var(--text-3);
-  transition: color var(--t-1) var(--ease-out);
-}
-
-.files-changed-bar-review:hover .files-changed-bar-review-icon {
-  color: var(--iris-lift);
-}
-
-.files-changed-bar-list {
-  list-style: none;
-  margin: 0;
-  padding: var(--s-2) var(--s-3) var(--s-3);
-  border-top: 1px solid var(--line-1);
+.files-changed-bar-row-path {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 280px;
-  overflow-y: auto;
-}
-
-.files-changed-bar-row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  min-height: 28px;
-  padding: var(--s-2) var(--s-4);
-  border-radius: var(--r-control);
-  font-size: var(--fs-chrome);
-  cursor: pointer;
-  user-select: none;
-  transition: background var(--t-1) var(--ease-out);
-}
-
-.files-changed-bar-row:hover {
-  background: var(--hover);
+  align-items: baseline;
+  gap: var(--s-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .files-changed-bar-row-name {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-family: var(--font-mono);
-  font-weight: 500;
   color: var(--text-1);
 }
 
+/* The directory yields first; the file name only truncates once it is gone. */
 .files-changed-bar-row-dir {
+  flex: 0 100 auto;
   min-width: 0;
-  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
   color: var(--text-4);
 }
 
-.files-changed-bar-row-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  flex-shrink: 0;
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  font-weight: 600;
-}
-
-.files-changed-bar-row-stat .add {
-  color: var(--mint);
-}
-
-.files-changed-bar-row-stat .del {
-  color: var(--coral);
-}
-
 .files-changed-bar-more {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  padding: var(--s-2) var(--s-4);
-  font-size: var(--fs-micro);
-  font-weight: 500;
+  display: block;
+  width: 100%;
+  padding: 0 var(--s-5) var(--s-3) calc(var(--s-5) + 16px + var(--s-3));
+  border: 0;
+  background: transparent;
   color: var(--text-3);
+  font: inherit;
+  font-size: var(--fs-micro);
+  text-align: left;
   cursor: pointer;
-  border-radius: var(--r-control);
-  user-select: none;
-  transition:
-    color var(--t-1) var(--ease-out),
-    background var(--t-1) var(--ease-out);
 }
 
 .files-changed-bar-more:hover {
   color: var(--text-1);
-  background: var(--hover);
-}
-
-.files-changed-bar-more-icon {
-  width: 14px;
-  height: 14px;
-  color: var(--text-3);
-}
-
-/* File-type icon from the shared Tabler-based icon set. */
-.files-changed-bar-row-icon {
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
 }
 
 /* ─── Walkthrough action hover/focus reveal (spec §15.6 case 5) ─────── */

@@ -4,7 +4,13 @@
 import { open, readFile, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { HostCommand, HostResponse, ProjectReadFileData, ProjectRecord } from '@piwin/contracts';
+import type {
+  HostCommand,
+  HostResponse,
+  ProjectListData,
+  ProjectReadFileData,
+  ProjectRecord,
+} from '@piwin/contracts';
 import {
   formatError,
   inferAttachmentMimeType,
@@ -26,7 +32,12 @@ import {
   revokeRememberedPermission,
   setProjectTrust,
 } from '@piwin/project';
-import { findTrustedSameRepositoryRoot, readGitWorkspaceListing, resolveOpenGitWorkspacePath } from '@piwin/git';
+import {
+  findTrustedSameRepositoryRoot,
+  readGitWorkspaceListing,
+  resolveOpenGitWorkspacePath,
+  type GitWorkspaceListing,
+} from '@piwin/git';
 import { fail, ok } from '../response-helpers.js';
 import { getPiwinGeneralWorkspacePath, getPiwinProjectsPath, getPiwinRoot } from '../paths.js';
 import { ensureGeneralWorkspace } from '../general-workspace.js';
@@ -63,8 +74,8 @@ export async function handleProjectCommand(
   switch (command.type) {
     case 'project/list': {
       const projects = await listProjects(projectsPath);
-      const enriched = await enrichProjectsWithGitWorkspace(projects);
-      return ok(requestId, 'project/list', { projects: enriched });
+      const listed = await enrichProjectsWithGitWorkspace(projects);
+      return ok(requestId, 'project/list', listed);
     }
     case 'project/open': {
       const openPath = await resolveOpenProjectPath(projectsPath, command.path, requestId);
@@ -171,14 +182,54 @@ export async function handleProjectCommand(
   }
 }
 
-async function enrichProjectsWithGitWorkspace(
+/**
+ * Git identity is a sidebar nicety, never a gate on the list itself. A `git`
+ * child can block indefinitely — e.g. macOS parks it behind a Desktop /
+ * removable-volume TCC prompt when a new app signature first touches the
+ * path — so a project that misses the budget is listed without enrichment
+ * and the response says so, letting the client re-list once git settles.
+ */
+export const PROJECT_LIST_GIT_BUDGET_MS = 2_500;
+
+export async function enrichProjectsWithGitWorkspace(
   projects: readonly ProjectRecord[],
-): Promise<ProjectRecord[]> {
-  return Promise.all(projects.map((project) => enrichProjectWithGitWorkspace(project)));
+  options: {
+    budgetMs?: number;
+    readListing?: typeof readGitWorkspaceListing;
+  } = {},
+): Promise<ProjectListData> {
+  const budgetMs = options.budgetMs ?? PROJECT_LIST_GIT_BUDGET_MS;
+  const readListing = options.readListing ?? readGitWorkspaceListing;
+  const timedOut = Symbol('git-budget');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const budget = new Promise<typeof timedOut>((resolve) => {
+    timer = setTimeout(() => resolve(timedOut), budgetMs);
+  });
+  let pending = false;
+  try {
+    const enriched = await Promise.all(
+      projects.map(async (project) => {
+        const listing = await Promise.race([
+          readListing(project.path).catch(() => null),
+          budget,
+        ]);
+        if (listing === timedOut) {
+          pending = true;
+          return project;
+        }
+        return applyGitWorkspaceListing(project, listing);
+      }),
+    );
+    return pending ? { projects: enriched, gitWorkspacePending: true } : { projects: enriched };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-async function enrichProjectWithGitWorkspace(project: ProjectRecord): Promise<ProjectRecord> {
-  const listing = await readGitWorkspaceListing(project.path);
+function applyGitWorkspaceListing(
+  project: ProjectRecord,
+  listing: GitWorkspaceListing | null,
+): ProjectRecord {
   if (!listing) {
     return project;
   }

@@ -63,7 +63,7 @@ describe('FilesChangedBar DOM rendering', () => {
     },
   ];
 
-  it('renders count and relative path directory when expanded', () => {
+  it('renders count, stats and the file ledger without a fold step', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     let root: Root | undefined = createRoot(container);
@@ -83,30 +83,110 @@ describe('FilesChangedBar DOM rendering', () => {
     });
 
     expect(container.textContent).toContain('2 个文件已更改');
-    expect(container.querySelectorAll('.files-changed-bar-chip').length).toBe(2);
-
-    const toggle = container.querySelector('[data-testid="files-changed-bar-toggle"]');
-    expect(toggle).not.toBeNull();
-    act(() => {
-      toggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
     expect(container.textContent).toContain('2026-08-11-desktop-package-size-reduction.md');
     expect(container.textContent).toContain('docs/plans/');
     expect(container.textContent).toContain('prune-host-node-modules.mjs');
     expect(container.textContent).toContain('scripts/lib/');
+    // Fallback stats have no deletions: no red "−0" next to the additions.
+    expect(container.querySelector('[data-testid="files-changed-bar-stat"]')?.textContent).toBe('+2');
+    expect(container.querySelector('[data-testid="files-changed-bar-more"]')).toBeNull();
 
     const row = container.querySelector('[data-testid="files-changed-bar-row"]');
-    expect(row).not.toBeNull();
+    expect(row?.tagName).toBe('BUTTON');
     act(() => {
       row?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    expect(onReview).toHaveBeenCalledTimes(1);
+    const review = container.querySelector('[data-testid="files-changed-bar-review"]');
+    act(() => {
+      review?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onReview).toHaveBeenCalledTimes(2);
 
     act(() => {
       root?.unmount();
     });
     root = undefined;
+    container.remove();
+  });
+
+  it('folds rows past the first three behind a toggle', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const manyTools: ToolCardUi[] = [
+      {
+        toolCallId: 'm1',
+        toolName: 'write_file',
+        status: 'done',
+        output: '',
+        presentation: {
+          kind: 'filesystem',
+          title: 'write_file',
+          targetPaths: ['/w/a.ts', '/w/b.ts', '/w/c.ts', '/w/d.ts', '/w/e.ts'],
+        },
+      },
+    ];
+    act(() => {
+      root.render(<FilesChangedBar tools={manyTools} projectPath="/w" locale="zh-CN" />);
+    });
+
+    const rows = () => container.querySelectorAll('[data-testid="files-changed-bar-row"]');
+    expect(rows().length).toBe(3);
+    const more = container.querySelector('[data-testid="files-changed-bar-more"]');
+    expect(more?.textContent).toBe('还有 2 个文件');
+    act(() => {
+      more?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(rows().length).toBe(5);
+    expect(more?.textContent).toBe('收起');
+
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('shows a fourth file directly instead of a one-row toggle', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const fourTools: ToolCardUi[] = [
+      {
+        toolCallId: 'f1',
+        toolName: 'write_file',
+        status: 'done',
+        output: '',
+        presentation: {
+          kind: 'filesystem',
+          title: 'write_file',
+          targetPaths: ['/w/a.ts', '/w/b.ts', '/w/c.ts', '/w/d.ts'],
+        },
+      },
+    ];
+    act(() => {
+      root.render(<FilesChangedBar tools={fourTools} projectPath="/w" />);
+    });
+
+    expect(container.querySelectorAll('[data-testid="files-changed-bar-row"]').length).toBe(4);
+    expect(container.querySelector('[data-testid="files-changed-bar-more"]')).toBeNull();
+
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('renders nothing and skips the git request when not visible', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const request = vi.fn();
+    act(() => {
+      root.render(
+        <FilesChangedBar tools={tools} visible={false} projectPath="/w" request={request} />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="files-changed-bar"]')).toBeNull();
+    expect(request).not.toHaveBeenCalled();
+
+    act(() => root.unmount());
     container.remove();
   });
 

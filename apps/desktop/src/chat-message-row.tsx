@@ -465,6 +465,11 @@ export const ChatMessageRow = memo(
         {props.isLastAssistantInTurn === true ? (
           <ChatTurnFilesSummary
             role={message.role}
+            turnInProgress={
+              props.streaming === true &&
+              (message.status === 'streaming' ||
+                (props.turnUserMessageId ?? null) === props.lastUserMessageId)
+            }
             tools={props.turnTools ?? message.tools}
             {...(props.isConversationSession !== undefined
               ? { isConversationSession: props.isConversationSession }
