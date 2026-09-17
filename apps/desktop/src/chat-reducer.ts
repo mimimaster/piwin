@@ -129,6 +129,7 @@ export function createInitialChatUiState(): ChatUiState {
     failedAttentionSessionIds: {},
     attentionPresence: 'active',
     attentionVisibleSessionIds: {},
+    attentionConversationCovered: false,
     pendingTurnModel: null,
   };
 }

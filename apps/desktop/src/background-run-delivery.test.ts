@@ -5,7 +5,7 @@ import { chatUiReducer, createInitialChatUiState } from './chat-reducer.js';
 import { sessionRowIsWorking } from './session-row-working.js';
 import { createStreamEventBuffer } from './stream-event-buffer.js';
 
-describe('background session Run delivery', () => {
+describe('background session Run delivery (AN-T32)', () => {
   it.each(['run/updated', 'run/terminal'] as const)(
     'replaces the spinner with completion attention on %s without reopening the session',
     (type) => {

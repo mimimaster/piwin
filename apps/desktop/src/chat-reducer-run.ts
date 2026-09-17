@@ -8,6 +8,7 @@ import {
   withoutEmptyAssistantPlaceholders,
   withoutFailureEvidence,
 } from './chat-reducer-envelope';
+import { shouldMarkTurnAttention } from './chat-reducer-attention';
 import { removeSessionIdMarker, removeWorkingSessionId } from './chat-reducer-session-helpers';
 import {
   enforceBoundedTranscriptWindow,
@@ -243,17 +244,18 @@ export function applyRunRecord(
     workingSessionIds: removeWorkingSessionId(state.workingSessionIds, run.sessionId),
     // Host implementations may publish a terminal-shaped `run/updated`
     // immediately before `run/terminal`; derive the sidebar cue here so both
-    // delivery forms have identical completion behavior. The active session
-    // is already visible, so only a background session needs the cue.
-    // Completed and failed route to separate markers (Inkstone six-state
-    // vocabulary distinguishes success from failed); each clears the other so
-    // a session never shows both a mint checkmark and a coral node at once.
+    // delivery forms have identical completion behavior. Unread follows
+    // AN-R05 seen-ness (presence + visible sessions), not activeSessionId
+    // alone, so a focused-but-unseen window and a Docking-visible pane
+    // behave correctly. Completed and failed route to separate markers
+    // (Inkstone six-state vocabulary); each clears the other so a session
+    // never shows both a mint checkmark and a coral node at once.
     completedAttentionSessionIds:
-      outcome === 'completed' && state.activeSessionId !== run.sessionId
+      outcome === 'completed' && shouldMarkTurnAttention(state, run.sessionId)
         ? { ...state.completedAttentionSessionIds, [run.sessionId]: true }
         : removeSessionIdMarker(state.completedAttentionSessionIds, run.sessionId),
     failedAttentionSessionIds:
-      outcome === 'failed' && state.activeSessionId !== run.sessionId
+      outcome === 'failed' && shouldMarkTurnAttention(state, run.sessionId)
         ? { ...state.failedAttentionSessionIds, [run.sessionId]: true }
         : removeSessionIdMarker(state.failedAttentionSessionIds, run.sessionId),
   };
@@ -520,11 +522,13 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
           ...state,
           workingSessionIds: nextWorking,
           completedAttentionSessionIds:
-            action.run.status === 'completed'
+            action.run.status === 'completed' &&
+            shouldMarkTurnAttention(state, action.run.sessionId)
               ? { ...state.completedAttentionSessionIds, [action.run.sessionId]: true }
               : removeSessionIdMarker(state.completedAttentionSessionIds, action.run.sessionId),
           failedAttentionSessionIds:
-            action.run.status === 'failed'
+            action.run.status === 'failed' &&
+            shouldMarkTurnAttention(state, action.run.sessionId)
               ? { ...state.failedAttentionSessionIds, [action.run.sessionId]: true }
               : removeSessionIdMarker(state.failedAttentionSessionIds, action.run.sessionId),
         };

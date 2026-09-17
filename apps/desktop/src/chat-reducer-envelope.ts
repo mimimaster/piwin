@@ -7,6 +7,7 @@ import type {
 import { isRunTerminal } from '@piwin/contracts';
 import { isAssistantContentEmpty } from './assistant-message-content';
 import type { ChatMessageUi, ChatUiState } from './chat-ui-types';
+import { shouldMarkTurnAttention } from './chat-reducer-attention';
 import { removeSessionIdMarker, removeWorkingSessionId } from './chat-reducer-session-helpers';
 
 /** C1: maximum event ids retained for replay detection per session. */
@@ -114,11 +115,11 @@ export function applyBackgroundSessionTurnWorkingMarker(
   if (stopWorking) {
     const nextWorking = removeWorkingSessionId(state.workingSessionIds, run.sessionId);
     const nextCompletedAttention: Record<string, true> =
-      run.status === 'completed'
+      run.status === 'completed' && shouldMarkTurnAttention(state, run.sessionId)
         ? { ...state.completedAttentionSessionIds, [run.sessionId]: true }
         : removeSessionIdMarker(state.completedAttentionSessionIds, run.sessionId);
     const nextFailedAttention: Record<string, true> =
-      run.status === 'failed'
+      run.status === 'failed' && shouldMarkTurnAttention(state, run.sessionId)
         ? { ...state.failedAttentionSessionIds, [run.sessionId]: true }
         : removeSessionIdMarker(state.failedAttentionSessionIds, run.sessionId);
     if (
