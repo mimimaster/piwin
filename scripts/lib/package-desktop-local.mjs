@@ -18,7 +18,7 @@ export function leftoverPiwinDmgImagePaths(hdiutilInfo) {
     const match = /^\s*image-path\s*:\s*(.+)\s*$/.exec(line);
     if (!match) continue;
     const imagePath = match[1].trim();
-    if (/piwinwin/i.test(imagePath) || /\/rw\.\d+\./.test(imagePath)) {
+    if (/\/rw\.\d+\.[^/]+\.dmg$/i.test(imagePath)) {
       paths.push(imagePath);
     }
   }
