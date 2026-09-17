@@ -23,6 +23,7 @@ import {
 import { useWorkbenchShellChrome } from './hooks/use-workbench-shell-chrome';
 import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
 import { useShellSessionOpen } from './hooks/use-shell-session-open';
+import { DesktopAttentionLayer } from './hooks/use-desktop-attention';
 import { installRendererSelfHeal } from './renderer-self-heal';
 import { WorkspaceShell } from './workspace-shell';
 import { WorkbenchInspector } from './workbench-inspector';
@@ -153,8 +154,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     terminalRecentDirs,
     handleTerminalCwdChange,
   } = terminal;
-  const conversationPanesEnabled =
-    state.activeScope.kind === 'general' || state.activeScope.kind === 'project';
+  const conversationPanesEnabled = state.activeScope.kind === 'general' || state.activeScope.kind === 'project';
   const dockingEnabled = isDockingWorkspaceEnabled();
   const conversationPaneController = useConversationPaneLayout({
     enabled: conversationPanesEnabled && !dockingEnabled,
@@ -466,8 +466,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     />
   );
 
-  // Project · branch chips: Inkstone parks them in StageHeader trailing so
-  // the transcript is not capped by a second chrome row. Deck keeps the row.
   const sessionContextRow =
     hostClient.supportsCommand('git/status') &&
     state.activeScope.kind === 'project' &&
@@ -480,9 +478,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
         disabled={state.streaming}
       />
     ) : null;
-  const inkstoneStage =
-    isInkstoneThemeId(activeTheme.id) ||
-    activeTheme.visualStyle === 'paper';
+  const inkstoneStage = isInkstoneThemeId(activeTheme.id) || activeTheme.visualStyle === 'paper';
 
   useConversationPaneSubscriptions({
     hostClient,
@@ -645,10 +641,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       }}
                       onOpenSessionSearch={openSessionSearch}
                       trailing={sessionContextRow}
-                      isInkstone={
-                        isInkstoneThemeId(activeTheme.id) ||
-                        activeTheme.visualStyle === 'paper'
-                      }
+                      isInkstone={inkstoneStage}
                     />
                   }
                   chatColumnClassName={
@@ -660,6 +653,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       .join(' ') || undefined
                   }
                   renderStage={(primaryPane) => (
+                    <DesktopAttentionLayer hostClient={hostClient} state={state} dispatch={dispatch} locale={desktopLocale} hostStatus={hostStatus} extensionUiRequest={extensionUiRequest} isOverlayPresentation={isOverlayPresentation} activeSubPage={activeSubPage} dockingEnabled={dockingEnabled} dockingWorkspace={dockingWorkspace} conversationPanesEnabled={conversationPanesEnabled} conversationPaneController={conversationPaneController} openSessionFromShell={openSessionFromShell} recentProjects={recentProjects}>
                     <WorkbenchConversationStage
                       primaryPane={primaryPane}
                       dockingEnabled={dockingEnabled}
@@ -691,6 +685,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenArtifactCanvas={handleOpenArtifactCanvas}
                       fileBrowseRoot={fileBrowseRoot}
                     />
+                    </DesktopAttentionLayer>
                   )}
                   transcript={
                     <WorkbenchTranscript
