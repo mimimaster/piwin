@@ -51,6 +51,7 @@ import { createDoccardsGenerationRegistry } from './commands/doccards-generation
 import { RunEventCorrelator } from './run-event-correlator.js';
 import { type SessionHostToolExecutionPort } from './tools/session-host-tool-port.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
+import type { SubagentWorktreeGcController } from './subagent-worktree-gc.js';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
 import { type SubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
 import type { TurnChangeRuntime } from './turn-changes/runtime-wiring.js';
@@ -309,6 +310,8 @@ export class HostRuntimeFields {
   subagentOrchestrator: SubagentOrchestrator | null = null;
   /** Durable subagent run manifest store (production non-mock mode). */
   subagentRunStore: ReturnType<typeof createSubagentRunStore> | null = null;
+  /** Leftover worktree inventory + GC. Attached with the production orchestrator. */
+  subagentWorktreeGc: SubagentWorktreeGcController | null = null;
   /**
    * Ownership-fenced startup reconciliation. New subagent admission waits on
    * this promise so recovered state is visible before any batch starts.

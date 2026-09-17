@@ -115,6 +115,8 @@ export type SessionHostCommand =
       expectedRevision?: number;
       cleanupToken?: string;
     }
+  | { id?: string; type: 'subagent/worktree-gc-preview' }
+  | { id?: string; type: 'subagent/worktree-gc' }
   | { id?: string; type: 'session/resume'; sessionId: string }
   | {
       id?: string;

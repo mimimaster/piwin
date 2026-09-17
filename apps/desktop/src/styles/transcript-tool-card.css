@@ -939,3 +939,55 @@
     width: 1.2em;
   }
 }
+
+/* ── web_search per-source outcome ──────────────────────────────────── */
+
+.tool-call-web-search-tag {
+  flex: none;
+  white-space: nowrap;
+  color: var(--amber);
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+}
+
+.tool-call-web-search-sources {
+  margin-bottom: var(--s-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
+.tool-call-web-search-sources-head {
+  color: var(--text-4);
+  margin-bottom: var(--s-2);
+}
+
+.tool-call-web-search-sources ul {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  column-gap: var(--s-4);
+  row-gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool-call-web-search-sources li {
+  display: contents;
+}
+
+.tool-call-web-search-outcome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-call-web-search-duration {
+  color: var(--text-4);
+  text-align: right;
+}
+
+.tool-call-web-search-sources li.is-failed .tool-call-web-search-mark,
+.tool-call-web-search-sources li.is-failed .tool-call-web-search-outcome {
+  color: var(--amber);
+}

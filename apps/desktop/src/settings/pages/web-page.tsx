@@ -31,6 +31,7 @@ import {
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { SearchRouteStatus } from '../search-route-status';
+import { WebSearchLogPanel } from '../web-search-log-panel';
 import { useSettings } from '../settings-context';
 import { WebSecretEditor } from '../web-secret-editor';
 import { WebCliSourceFields } from '../web-cli-source-fields';
@@ -66,7 +67,7 @@ export function WebPage(): ReactElement {
     remoteSettingsReadOnly,
     hostClient,
   } = useSettings();
-  const [webToolsTab, setWebToolsTab] = useState<'search' | 'fetch'>('search');
+  const [webToolsTab, setWebToolsTab] = useState<'search' | 'fetch' | 'log'>('search');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(() => new Set());
   const [filePickerOpen, setFilePickerOpen] = useState(false);
@@ -363,16 +364,24 @@ export function WebPage(): ReactElement {
       <div className="settings-segmented-wrap" style={{ marginBottom: 16 }}>
         <SegmentedControl
           value={webToolsTab}
-          onChange={(value) => setWebToolsTab(value as 'search' | 'fetch')}
+          onChange={(value) => setWebToolsTab(value as 'search' | 'fetch' | 'log')}
           data={[
             { value: 'search', label: zh ? '搜索' : 'Search' },
             { value: 'fetch', label: 'Fetch' },
+            { value: 'log', label: zh ? '调用日志' : 'Call log' },
           ]}
           testId="web-tools-tab"
         />
       </div>
 
-      <div className="settings-section settings-section-card">
+      {webToolsTab === 'log' ? (
+        <WebSearchLogPanel
+          locale={zh ? 'zh-CN' : 'en'}
+          request={request}
+          readOnly={remoteSettingsReadOnly === true}
+        />
+      ) : null}
+      <div className="settings-section settings-section-card" hidden={webToolsTab === 'log'}>
         {webToolsTab === 'search' ? (
           <div className="web-tools-panel" data-testid="web-tools-search-panel">
             <Field

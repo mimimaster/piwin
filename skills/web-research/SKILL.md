@@ -1,7 +1,7 @@
 ---
 name: web-research
-description: Answer with current, cited facts via web_search and web_fetch. Prefer web_search first; the host may merge multiple configured sources.
-version: 2
+description: "Answer with current, cited facts using web_search then web_fetch. Use when the answer depends on recent or external information (news, releases, versions, prices, third-party docs, 查一下 / 最新) or when the user asks for sources."
+version: 3
 ---
 
 # Web Research

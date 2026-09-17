@@ -593,3 +593,26 @@ describe('lifecycle state transitions', () => {
     expect(next.integrationStatus).toBe('applied');
   });
 });
+
+describe('worktree seed prompt dependency guidance', () => {
+  it('reports the Host dependency install to worktree children only', () => {
+    const lease = {
+      mode: 'worktree' as const,
+      cwd: '/wt',
+      parentRepoPath: '/repo',
+      worktreePath: '/wt',
+      worktreeBranch: 'piwin/subagent/x',
+      baseCommit: 'abc',
+      dependencySetup: { status: 'installed' as const, manager: 'pnpm' as const },
+    };
+    const worktreePrompt = resolveSubagentChildPrompt(
+      { task: 'implement it', isolationOverride: 'worktree' },
+      lease,
+    );
+    expect(worktreePrompt).toContain('installed in this worktree by the Host (pnpm)');
+    expect(worktreePrompt).toContain('Never symlink node_modules');
+
+    const readonlyPrompt = resolveSubagentChildPrompt({ task: 'look', isolationOverride: 'readonly' });
+    expect(readonlyPrompt).not.toContain('node_modules');
+  });
+});

@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { setProjectTrust } from '@piwin/project';
 import { HostRuntime } from './host-runtime.js';
 import { listModelToolSchemaDefects } from './model-tool-descriptor.js';
 import { SUBAGENT_RESULT_APPLY_TOOL_NAME } from './subagent-result-apply-tool.js';
@@ -88,6 +89,41 @@ describe('HostRuntime tool surfaces', () => {
         await runtime.dispose();
         await rm(piwinRoot, { recursive: true, force: true });
       }
+    }
+  });
+
+  it('gives a worktree child the YOLO mode of its trusted source repository and parent', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-tool-surface-child-mode-'));
+    const projectPath = join(piwinRoot, 'project');
+    const worktreePath = join(piwinRoot, 'worktrees', 'subagent-1');
+    await mkdir(projectPath, { recursive: true });
+    await mkdir(worktreePath, { recursive: true });
+    await writeFile(
+      join(piwinRoot, 'config.json'),
+      JSON.stringify({ permissions: { mode: 'bypass' } }),
+      'utf8',
+    );
+    await setProjectTrust(join(piwinRoot, 'projects.json'), projectPath, 'trusted');
+    const runtime = new HostRuntime({ mode: 'sdk', mock: false, piwinRoot });
+    try {
+      runtime.subagentSessionContexts.set('worktree-child', {
+        parentSessionId: 'parent-session',
+        runtimeGenerationId: 'generation-child',
+        workingDirectory: worktreePath,
+        parentRepoPath: projectPath,
+        worktreePath,
+      });
+      const composed = await runtime.composeSessionHostToolsForSession(
+        'worktree-child',
+        'generation-child',
+      );
+      expect(composed.permissionGate.getPermissionMode()).toBe('bypass');
+
+      runtime.sessionPermissionOverrides.set('parent-session', 'ask-all');
+      expect(composed.permissionGate.getPermissionMode()).toBe('ask-all');
+    } finally {
+      await runtime.dispose();
+      await rm(piwinRoot, { recursive: true, force: true });
     }
   });
 

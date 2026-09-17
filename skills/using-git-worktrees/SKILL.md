@@ -1,7 +1,7 @@
 ---
 name: using-git-worktrees
-description: Use git worktrees for isolated parallel or sub-agent work without dirtying the main tree.
-version: 2
+description: "Isolate parallel or sub-agent work in git worktrees and integrate or discard it explicitly, keeping the main checkout clean. Use when starting work that must not disturb the current tree, running parallel branches or file-writing subagents, or when the user mentions worktrees."
+version: 3
 ---
 
 # Using Git Worktrees

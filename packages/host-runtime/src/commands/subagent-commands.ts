@@ -46,6 +46,8 @@ export type SubagentCommandContext = {
     status?: 'succeeded' | 'rejected' | 'needs-repair';
   }>;
   loadReview?: (ref: SubagentReviewRef) => Promise<SubagentReviewRecord | undefined>;
+  previewWorktreeGc?: () => Promise<import('@piwin/contracts').SubagentWorktreeGcPreview>;
+  reclaimWorktreeGc?: () => Promise<import('@piwin/contracts').SubagentWorktreeGcResult>;
 };
 
 const TYPES = new Set<HostCommand['type']>([
@@ -60,6 +62,8 @@ const TYPES = new Set<HostCommand['type']>([
   'subagent/result-diff',
   'subagent/cleanup-plan',
   'subagent/request-resolution',
+  'subagent/worktree-gc-preview',
+  'subagent/worktree-gc',
 ]);
 
 const RESULT_COMMAND_TYPES = new Set<HostCommand['type']>([
@@ -154,6 +158,18 @@ export async function handleSubagentCommand(
         childSessionId: command.childSessionId,
         acceptedAt: new Date().toISOString(),
       });
+    }
+    case 'subagent/worktree-gc-preview': {
+      if (!context.previewWorktreeGc) {
+        return unsupportedCapability(requestId, command.type);
+      }
+      return ok(requestId, command.type, await context.previewWorktreeGc());
+    }
+    case 'subagent/worktree-gc': {
+      if (!context.reclaimWorktreeGc) {
+        return unsupportedCapability(requestId, command.type);
+      }
+      return ok(requestId, command.type, await context.reclaimWorktreeGc());
     }
     case 'subagent/worktree-action': {
       if (command.action === 'apply' || command.action === 'discard') {

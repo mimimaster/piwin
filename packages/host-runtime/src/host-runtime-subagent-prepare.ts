@@ -188,7 +188,7 @@ export async function prepareSubagentTask(
   // Build the prepared prompt from the task text (isolation prefix + optional
   // scheme report contract). Continuations skip the contract wrap.
   const preparedPrompt: BackendPreparedPrompt = {
-    text: resolveSubagentChildPrompt(input.task),
+    text: resolveSubagentChildPrompt(input.task, input.workspaceLease),
     runId: input.taskRunId,
     ...(effectiveModel ? { model: effectiveModel } : {}),
     ...(input.task.thinkingLevel ? { thinkingLevel: input.task.thinkingLevel } : {}),

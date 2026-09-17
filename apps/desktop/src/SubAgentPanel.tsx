@@ -34,6 +34,7 @@ import { SubagentReviewSummary } from './subagent-review-summary';
 import { shouldPresentReviewLoop } from './subagent-review-summary-model';
 import type { SubagentReviewLoopVerificationFact } from './subagent-review-loop-view';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
+import { SubagentWorktreeGcBar } from './subagent-worktree-gc-bar';
 
 type SubAgentRequest = {
   type: 'session/list-children';
@@ -41,6 +42,10 @@ type SubAgentRequest = {
 } | {
   type: 'subagent/batch-cancel';
   runId: string;
+} | {
+  type: 'subagent/worktree-gc-preview';
+} | {
+  type: 'subagent/worktree-gc';
 };
 
 export type SubAgentPanelProps = {
@@ -315,13 +320,18 @@ export function SubAgentPanel(props: SubAgentPanelProps): ReactElement | null {
     [confirmDialog, isChinese, props],
   );
 
+  const worktreeGcBar = (
+    <SubagentWorktreeGcBar request={props.request} isChinese={isChinese} />
+  );
+
   if (!error && !hasTasks && props.variant === 'embedded') {
-    return null;
+    return worktreeGcBar;
   }
 
   if (!error && !hasTasks) {
     return (
       <div className="subagent-tasks-overview" data-testid="subagent-panel">
+        {worktreeGcBar}
         <EmptyState
           testId="subagent-tasks-empty"
           size="compact"
@@ -355,6 +365,7 @@ export function SubAgentPanel(props: SubAgentPanelProps): ReactElement | null {
       ) : null}
 
       {error ? <Notice tone="error">{error}</Notice> : null}
+      {worktreeGcBar}
 
       {reviewLoops.length > 0 ? (
         <div className="settings-section" data-testid="subagent-review-loops">

@@ -99,7 +99,8 @@ export async function dispatchTask(
       });
     }
 
-    lease = await deps.workspaceService.acquire(task);
+    const batchSignal = deps.runRegistry.getSignal(runId);
+    lease = await deps.workspaceService.acquire(task, batchSignal ? { signal: batchSignal } : {});
     batchState.leases.set(task.id, lease);
     await deps.runStore?.recordLease?.(runId, task.id, lease);
 
@@ -148,6 +149,7 @@ export async function dispatchTask(
     await deps.recordTaskPrompt?.({
       childSessionId,
       task,
+      workspaceLease: lease,
     });
 
     const taskInput: SubagentTaskRunInput = {

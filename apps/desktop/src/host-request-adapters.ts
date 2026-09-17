@@ -41,6 +41,8 @@ export type HostRequestAdapters = {
       | 'secrets/get'
       | 'web/test-search-source'
       | 'web/search-route-preview'
+      | 'web/search-log-list'
+      | 'web/search-log-clear'
       | 'project/permissions-list'
       | 'project/permissions-revoke'
       | 'usage/get-rollup'
@@ -101,6 +103,8 @@ export type HostRequestAdapters = {
       | import('@piwin/contracts').VisionDelegateInput
       | import('@piwin/contracts').SearchRoutePreviewInput;
     webTest?: import('@piwin/contracts').WebSearchTestInput;
+    /** web/search-log-list: all calls or only (partially) failed ones. */
+    logStatus?: import('@piwin/contracts').WebSearchLogStatusFilter;
   }) => Promise<HostResponse>;
   requestSkills: (command: {
     type:
@@ -557,6 +561,17 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         if (command.window) payload.window = command.window;
         if (command.topSessions !== undefined) payload.topSessions = command.topSessions;
         return hostClient.request(payload);
+      }
+      if (command.type === 'web/search-log-list') {
+        return hostClient.request({
+          type: 'web/search-log-list',
+          ...(command.limit !== undefined ? { limit: command.limit } : {}),
+          ...(command.offset !== undefined ? { offset: command.offset } : {}),
+          ...(command.logStatus !== undefined ? { status: command.logStatus } : {}),
+        });
+      }
+      if (command.type === 'web/search-log-clear') {
+        return hostClient.request({ type: 'web/search-log-clear' });
       }
       if (command.type === 'usage/list-recent') {
         const payload: {

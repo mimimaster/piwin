@@ -83,6 +83,7 @@ import { buildWebFetchExtractDelegate } from '../model-web-fetch-extract-delegat
 import { buildWebPageRenderer } from '../model-web-page-renderer.js';
 import { buildWebDocumentExtractor } from '../model-web-document-extractor.js';
 import { createSessionFetchSpillStore } from '../fetch-spill-store.js';
+import { getWebSearchLogStore } from '../web-search-log-store.js';
 
 /**
  * Lazy provider for notes services. The Host owns the lifecycle; this
@@ -217,6 +218,7 @@ export async function buildSessionHostTools(
         : {}),
       documentExtractor: buildWebDocumentExtractor(),
       spillStore: createSessionFetchSpillStore(getPiwinSessionDir(rootDir, options.sessionId)),
+      searchLog: getWebSearchLogStore(rootDir),
       ...(options.fetchCache ? { fetchCache: options.fetchCache } : {}),
     });
     const configuredModel = findConfiguredModel(options.config, options.model);

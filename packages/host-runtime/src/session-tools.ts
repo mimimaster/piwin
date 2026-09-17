@@ -5,6 +5,7 @@ import type {
   WebFetchExtractDelegate,
   WebFetchSpillStore,
   WebPageRenderer,
+  WebSearchLogSink,
 } from '@piwin/contracts';
 import { createWebToolDefinitions } from '@piwin/tools-web';
 import type {
@@ -36,6 +37,8 @@ export type BuildSessionToolsOptions = {
   documentExtractor?: WebDocumentExtractor;
   /** Host-injected full-text spill for grep / read_file. */
   spillStore?: WebFetchSpillStore;
+  /** Host-injected cross-session `web_search` call log. */
+  searchLog?: WebSearchLogSink;
 };
 
 function isBuildOptions(value: unknown): value is BuildSessionToolsOptions {
@@ -51,7 +54,8 @@ function isBuildOptions(value: unknown): value is BuildSessionToolsOptions {
     'pageRenderer' in value ||
     'resolveHostAddresses' in value ||
     'documentExtractor' in value ||
-    'spillStore' in value
+    'spillStore' in value ||
+    'searchLog' in value
   );
 }
 
@@ -75,6 +79,7 @@ export function buildSessionTools(
         options.resolveHostAddresses,
         options.documentExtractor,
         options.spillStore,
+        options.searchLog,
       ),
     };
   }

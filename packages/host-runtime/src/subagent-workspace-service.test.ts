@@ -74,6 +74,40 @@ describe('SubagentWorkspaceService', () => {
     expect(createWorktree).not.toHaveBeenCalled();
   });
 
+  it('installs worktree dependencies with the batch signal and records the outcome on the lease', async () => {
+    vi.mocked(isWorktreeBaseClean).mockResolvedValue(true);
+    vi.mocked(runGitCommand).mockResolvedValue({ stdout: 'abc123\n', stderr: '', exitCode: 0 });
+    vi.mocked(createWorktree).mockResolvedValue({
+      worktreePath: '/tmp/worktrees/task-1',
+      branch: 'piwin/subagent/task-1',
+    });
+    const prepareWorktreeDependencies = vi.fn(async () => ({
+      status: 'installed' as const,
+      manager: 'pnpm' as const,
+    }));
+    const controller = new AbortController();
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      dirtyBasePolicy: 'ask',
+      parallelWritePolicy: 'worktree-only',
+      prepareWorktreeDependencies,
+    });
+
+    const lease = await service.acquire(makeTask({ isolationOverride: 'worktree' }), {
+      signal: controller.signal,
+    });
+
+    expect(prepareWorktreeDependencies).toHaveBeenCalledWith({
+      worktreePath: '/tmp/worktrees/task-1',
+      parentRepoPath: '/tmp/project',
+      signal: controller.signal,
+    });
+    expect(lease).toMatchObject({
+      mode: 'worktree',
+      dependencySetup: { status: 'installed', manager: 'pnpm' },
+    });
+  });
+
   it('captures the exact parent HEAD and passes it as the worktree base', async () => {
     vi.mocked(isWorktreeBaseClean).mockResolvedValue(true);
     vi.mocked(runGitCommand).mockResolvedValue({

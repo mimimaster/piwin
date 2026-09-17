@@ -1,0 +1,7 @@
+{
+  "keyId": "",
+  "teamId": "",
+  "bundleId": "app.piwin.mobile",
+  "keyPath": "apns/AuthKey_XXXXXXXXXX.p8",
+  "environment": "sandbox"
+}

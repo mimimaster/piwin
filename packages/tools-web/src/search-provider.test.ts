@@ -1,5 +1,12 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { createSearchProvider, resolveWebConfig, webSearch } from './search-provider.js';
+import { WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND, type WebSearchLogRecord } from '@piwin/contracts';
+import { createWebToolDefinitions } from './tool-definitions.js';
+import {
+  createSearchProvider,
+  resolveWebConfig,
+  webSearch,
+  webSearchWithDiagnostics,
+} from './search-provider.js';
 import { mergeSearchHitBatches, normalizeSearchHitUrl } from './search-merge.js';
 
 afterEach(() => {
@@ -216,6 +223,120 @@ describe('search providers', () => {
       ).toBe(1);
     } finally {
       delete process.env.BRAVE_API_KEY;
+      delete process.env.TAVILY_API_KEY;
+    }
+  });
+
+  it('reports per-source attempts when one aggregate source times out', async () => {
+    vi.stubGlobal('fetch', ((input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('api.search.brave.com')) {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('aborted', 'AbortError')),
+            { once: true },
+          );
+        });
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            results: [{ title: 'T', url: 'https://tavily.example/c', content: 'tavily' }],
+          }),
+          { status: 200 },
+        ),
+      );
+    }) as typeof fetch);
+    process.env.BRAVE_API_KEY = 'brave-test';
+    process.env.TAVILY_API_KEY = 'tavily-test';
+    try {
+      const { result, diagnostics } = await webSearchWithDiagnostics('multi', {
+        searchSources: [
+          { id: 'brave', kind: 'brave', enabled: true, apiKeyEnv: 'BRAVE_API_KEY' },
+          { id: 'tavily', kind: 'tavily', enabled: true, apiKeyEnv: 'TAVILY_API_KEY' },
+        ],
+        searchStrategy: { mode: 'parallel', perSourceTimeoutMs: 40 },
+        searchTimeoutMs: 5000,
+      });
+      expect(result.hits).toHaveLength(1);
+      expect(result).not.toHaveProperty('attempts');
+      expect(diagnostics.kind).toBe(WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND);
+      expect(diagnostics.providerId).toBe('aggregate:brave+tavily');
+      expect(diagnostics.hitCount).toBe(1);
+      const brave = diagnostics.attempts.find((attempt) => attempt.sourceId === 'brave');
+      const tavily = diagnostics.attempts.find((attempt) => attempt.sourceId === 'tavily');
+      expect(brave).toMatchObject({ ok: false, hitCount: 0, timedOut: true });
+      expect(brave?.error).toMatch(/timed out after 40ms/);
+      expect(tavily).toMatchObject({ ok: true, hitCount: 1 });
+      expect(tavily?.timedOut).toBeUndefined();
+    } finally {
+      delete process.env.BRAVE_API_KEY;
+      delete process.env.TAVILY_API_KEY;
+    }
+  });
+
+  it('web_search tool records successes and failures to the Host search log', async () => {
+    const records: WebSearchLogRecord[] = [];
+    const sink = { record: (entry: WebSearchLogRecord) => records.push(entry) };
+    const context = { sessionId: 's1', runtimeGenerationId: 'g1', runId: 'r1', toolName: 'web_search' };
+    const signal = new AbortController().signal;
+    vi.stubGlobal('fetch', (async () =>
+      new Response(
+        JSON.stringify({ results: [{ title: 'T', url: 'https://t.example/', content: 'x' }] }),
+        { status: 200 },
+      )) as typeof fetch);
+    process.env.TAVILY_API_KEY = 'tavily-test';
+    try {
+      const tools = createWebToolDefinitions(
+        { searchSources: [{ id: 'tavily', kind: 'tavily', enabled: true, apiKeyEnv: 'TAVILY_API_KEY' }] },
+        {},
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        sink,
+      );
+      const search = tools.find((tool) => tool.descriptor.name === 'web_search');
+      const result = await search?.execute({ query: 'hello' }, signal, context);
+      expect(result?.ok).toBe(true);
+
+      delete process.env.TAVILY_API_KEY;
+      await expect(search?.execute({ query: 'again' }, signal, context)).rejects.toThrow(
+        /Missing API key/,
+      );
+      expect(records).toHaveLength(2);
+      expect(records[0]).toMatchObject({ sessionId: 's1', query: 'hello', ok: true, hitCount: 1 });
+      expect(records[1]).toMatchObject({ query: 'again', ok: false, providerId: 'tavily' });
+      expect(records[1]?.error).toMatch(/Missing API key/);
+      expect(records[1]?.attempts[0]).toMatchObject({ sourceId: 'tavily', ok: false });
+    } finally {
+      delete process.env.TAVILY_API_KEY;
+    }
+  });
+
+  it('records a single attempt for a single-source search', async () => {
+    vi.stubGlobal('fetch', (async () =>
+      new Response(
+        JSON.stringify({
+          results: [{ title: 'T', url: 'https://tavily.example/c', content: 'tavily' }],
+        }),
+        { status: 200 },
+      )) as typeof fetch);
+    process.env.TAVILY_API_KEY = 'tavily-test';
+    try {
+      const { diagnostics } = await webSearchWithDiagnostics('one', {
+        searchSources: [
+          { id: 'tavily', kind: 'tavily', enabled: true, apiKeyEnv: 'TAVILY_API_KEY' },
+        ],
+      });
+      expect(diagnostics.attempts).toEqual([
+        { sourceId: 'tavily', ok: true, hitCount: 1, durationMs: diagnostics.durationMs },
+      ]);
+    } finally {
       delete process.env.TAVILY_API_KEY;
     }
   });

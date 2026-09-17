@@ -1,7 +1,7 @@
 ---
 name: hatch-pet
-description: Hatch Pet — package generator guidance for piwin
-version: 2
+description: "Build a data-only, Codex-compatible desktop pet package (pet.json + spritesheet) that installs into piwin. Use when the user wants to create, design, import, or fix a piwin or Codex pet (桌宠 / 宠物)."
+version: 3
 ---
 
 # hatch-pet

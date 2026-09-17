@@ -167,7 +167,8 @@ describe('SubAgentPanel', () => {
       });
     });
 
-    expect(request).not.toHaveBeenCalled();
+    const previewCalls = request.mock.calls as unknown as Array<[{ type: string }]>;
+    expect(previewCalls.every((call) => call[0].type === 'subagent/worktree-gc-preview')).toBe(true);
     expect(container!.textContent).toContain('reviewer · Review auth');
     expect(container!.textContent).toContain('排队中');
     expect(container!.textContent).not.toContain('打开');
@@ -263,12 +264,54 @@ describe('SubAgentPanel', () => {
       );
     });
 
-    expect(request).not.toHaveBeenCalled();
+    const previewCalls = request.mock.calls as unknown as Array<[{ type: string }]>;
+    expect(previewCalls.length).toBeGreaterThan(0);
+    expect(previewCalls.every((call) => call[0].type === 'subagent/worktree-gc-preview')).toBe(true);
     expect(container!.querySelector('[data-testid="settings-automation-subagents"]')?.textContent).toContain(
       'Shared task',
     );
     expect(container!.querySelector('[data-testid="subagent-panel"]')?.textContent).toContain(
       'Shared task',
     );
+  });
+
+  it('shows leftover worktree occupancy and a cleanup action', async () => {
+    const request = vi.fn(async (command: { type: string }): Promise<HostResponse> => {
+      if (command.type === 'subagent/worktree-gc-preview') {
+        return {
+          type: 'response',
+          command: 'subagent/worktree-gc-preview',
+          success: true,
+          data: {
+            entries: [
+              {
+                worktreePath: '/tmp/wt',
+                bytes: 1024,
+                mtimeMs: 1,
+                orphan: true,
+                reclaimable: true,
+                keepReasons: [],
+              },
+            ],
+            totalBytes: 1024,
+            reclaimableBytes: 1024,
+            reclaimableCount: 1,
+          },
+        };
+      }
+      return emptyListResponse();
+    });
+
+    await act(async () => {
+      renderPanel(root!, {
+        request,
+        children: [childSummary('child-1')],
+      });
+    });
+
+    expect(container!.querySelector('[data-testid="subagent-worktree-gc"]')?.textContent).toContain(
+      '可清理',
+    );
+    expect(container!.querySelector('[data-testid="subagent-worktree-gc-run"]')).not.toBeNull();
   });
 });

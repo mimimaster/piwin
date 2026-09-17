@@ -1,7 +1,7 @@
 ---
 name: improve
-description: Survey a codebase as a senior advisor and produce prioritized, self-contained implementation plans for OTHER models/agents to execute. Strictly read-only on source — never implements itself. Use for audit, bugs, security, performance, tests, tech debt, migrations, DX, roadmap, or handoff plans. Trigger via /improve. Adapted from shadcn/improve for piwin (SessionPlan tools optional; markdown plans under plans/ are the default product).
-version: 2
+description: "Audit a codebase as a read-only senior advisor and write prioritized, self-contained implementation plans under plans/ for other agents to execute; never edits source. Use when the user asks for a codebase audit, tech-debt or security/performance/test review, improvement roadmap, or handoff plans (审查项目 / 有什么可以改进的), or runs /improve."
+version: 3
 license: MIT
 metadata:
   author: piwin (adapted from shadcn/improve)

@@ -5,6 +5,7 @@ import type {
   WebFetchExtractDelegate,
   WebFetchSpillStore,
   WebPageRenderer,
+  WebSearchLogSink,
 } from '@piwin/contracts';
 import {
   formatWebFetchOutput,
@@ -13,7 +14,7 @@ import {
   type WebFetchViewInput,
 } from './web-fetch.js';
 import type { FetchHostResolver } from './fetch-transport.js';
-import { webSearch } from './search-provider.js';
+import { WebSearchError, webSearchWithDiagnostics } from './search-provider.js';
 import type { WebRuntimeCredentials } from './runtime-credentials.js';
 import type { WebSearchModelDelegate } from './model-search-delegate.js';
 
@@ -27,6 +28,7 @@ export function createWebToolDefinitions(
   resolveHostAddresses?: FetchHostResolver,
   documentExtractor?: WebDocumentExtractor,
   spillStore?: WebFetchSpillStore,
+  searchLog?: WebSearchLogSink,
 ): HostToolRegistration[] {
   return [
     {
@@ -64,10 +66,30 @@ export function createWebToolDefinitions(
         }
         return { ok: true, arguments: { ...rawArguments, query: rawArguments.query.trim() } };
       },
-      async execute(args, signal) {
+      async execute(args, signal, context) {
         const query = String(args.query ?? '');
-        const result = await webSearch(query, config, signal, credentials, delegate);
-        return { ok: true, output: JSON.stringify(result, null, 2) };
+        try {
+          const { result, diagnostics } = await webSearchWithDiagnostics(
+            query,
+            config,
+            signal,
+            credentials,
+            delegate,
+          );
+          searchLog?.record({ sessionId: context.sessionId, query, ok: true, ...diagnostics });
+          return { ok: true, output: JSON.stringify(result, null, 2), details: diagnostics };
+        } catch (error) {
+          if (error instanceof WebSearchError) {
+            searchLog?.record({
+              sessionId: context.sessionId,
+              query,
+              ok: false,
+              ...error.diagnostics,
+              error: error.message,
+            });
+          }
+          throw error;
+        }
       },
     },
     {

@@ -1,4 +1,10 @@
-export { createSearchProvider, resolveWebConfig, webSearch } from './search-provider.js';
+export {
+  createSearchProvider,
+  resolveWebConfig,
+  webSearch,
+  WebSearchError,
+  webSearchWithDiagnostics,
+} from './search-provider.js';
 export type { SearchProvider } from './search-provider.js';
 export { mergeSearchHitBatches, normalizeSearchHitUrl } from './search-merge.js';
 export type { SourceHitBatch } from './search-merge.js';

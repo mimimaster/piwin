@@ -83,6 +83,20 @@ export type SubagentReadonlyWorkspaceLease = {
   readonly worktreePath?: never;
 };
 
+/**
+ * Host-run dependency install for a fresh worktree. A bare `git worktree add`
+ * has no installed packages; children that improvise (for example by
+ * symlinking node_modules to the main checkout) end up verifying the main
+ * checkout's code instead of their own.
+ */
+export type SubagentWorktreeDependencySetup = {
+  readonly status: 'installed' | 'skipped' | 'failed';
+  readonly manager?: 'pnpm' | 'npm' | 'yarn' | 'bun';
+  /** Skip reason or bounded failure detail. */
+  readonly reason?: string;
+  readonly durationMs?: number;
+};
+
 /** A worktree workspace lease allocated by the workspace service. */
 export type SubagentWorktreeWorkspaceLease = {
   readonly mode: 'worktree';
@@ -95,6 +109,8 @@ export type SubagentWorktreeWorkspaceLease = {
   readonly worktreeBranch: string;
   /** Exact parent HEAD used as the worktree base. */
   readonly baseCommit: string;
+  /** Dependency install the Host ran after creating the worktree. */
+  readonly dependencySetup?: SubagentWorktreeDependencySetup;
 };
 
 /** A workspace lease allocated by the workspace service. */

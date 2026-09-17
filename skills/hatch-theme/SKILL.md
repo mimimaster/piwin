@@ -1,7 +1,7 @@
 ---
 name: hatch-theme
-description: Hatch Theme — package generator guidance for piwin
-version: 2
+description: "Build a token-only piwin theme package (theme.json colors, radius, font). Use when the user wants to create, customize, or fix a piwin theme, skin, or color scheme (主题 / 配色)."
+version: 3
 ---
 
 # hatch-theme

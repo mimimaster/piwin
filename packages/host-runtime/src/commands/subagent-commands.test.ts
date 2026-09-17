@@ -320,6 +320,56 @@ describe('subagent command handlers', () => {
       problem: { code: 'upgrade-required' },
     });
   });
+
+  it('returns leftover worktree inventory and reclaim results', async () => {
+    const preview = await handleSubagentCommand(
+      { type: 'subagent/worktree-gc-preview' },
+      'gc-preview',
+      {
+        ...context,
+        previewWorktreeGc: async () => ({
+          entries: [],
+          totalBytes: 4096,
+          reclaimableBytes: 2048,
+          reclaimableCount: 1,
+        }),
+        reclaimWorktreeGc: async () => ({
+          removedCount: 1,
+          removedBytes: 2048,
+          failed: [],
+        }),
+      },
+    );
+    expect(preview).toMatchObject({
+      success: true,
+      command: 'subagent/worktree-gc-preview',
+      data: { totalBytes: 4096, reclaimableCount: 1 },
+    });
+    const gc = await handleSubagentCommand(
+      { type: 'subagent/worktree-gc' },
+      'gc-run',
+      {
+        ...context,
+        previewWorktreeGc: async () => ({
+          entries: [],
+          totalBytes: 0,
+          reclaimableBytes: 0,
+          reclaimableCount: 0,
+        }),
+        reclaimWorktreeGc: async () => ({
+          removedCount: 1,
+          removedBytes: 2048,
+          failed: [],
+        }),
+      },
+    );
+    expect(gc).toMatchObject({
+      success: true,
+      command: 'subagent/worktree-gc',
+      data: { removedCount: 1, removedBytes: 2048 },
+    });
+  });
+
 });
 
 function makeResultReview(summary: SubagentResultSummary): SubagentReviewRecord {

@@ -607,6 +607,54 @@ describe('ToolCallCard openable file paths', () => {
     expect(card?.querySelector('.citation-card')).not.toBeNull();
   });
 
+  it('shows web_search per-source outcome and flags partial source failure', () => {
+    const searchTool: ToolCardUi = {
+      toolCallId: 'web-search-1',
+      toolName: 'web_search',
+      status: 'done',
+      output: JSON.stringify({ query: 'q', providerId: 'aggregate:brave+tavily', hits: [] }),
+      presentation: {
+        title: 'web_search',
+        kind: 'web',
+        actionVerb: 'Searched',
+        summary: 'q',
+        webSearch: {
+          kind: 'web-search-diagnostics',
+          providerId: 'aggregate:brave+tavily',
+          hitCount: 5,
+          durationMs: 1210,
+          attempts: [
+            {
+              sourceId: 'brave',
+              ok: false,
+              hitCount: 0,
+              durationMs: 5000,
+              timedOut: true,
+              error: 'source "brave" timed out after 5000ms',
+            },
+            { sourceId: 'tavily', ok: true, hitCount: 5, durationMs: 1200 },
+          ],
+        },
+      },
+    };
+
+    act(() => {
+      root.render(
+        <ToolCallCard tool={searchTool} density="detailed" locale="zh-CN" defaultExpanded />,
+      );
+    });
+
+    const tag = container.querySelector('[data-testid="tool-call-web-search-failed"]');
+    expect(tag?.textContent).toBe('1/2 个源失败');
+    expect(tag?.getAttribute('title')).toContain('brave');
+    const attempts = container.querySelectorAll('[data-testid="tool-call-web-search-attempt"]');
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]?.classList.contains('is-failed')).toBe(true);
+    expect(attempts[0]?.textContent).toContain('超时');
+    expect(attempts[0]?.textContent).toContain('5.0s');
+    expect(attempts[1]?.textContent).toContain('5 条');
+  });
+
   it('shows an inline diff when an edit row is expanded', async () => {
     const editTool: ToolCardUi = {
       toolCallId: 'edit-diff-1',

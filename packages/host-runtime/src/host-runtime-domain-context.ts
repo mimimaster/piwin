@@ -231,6 +231,20 @@ export async function buildDomainContext(
               deps.continueSubagentChild(subagentOrchestrator, childSessionId, text),
             actOnWorktree: (childSessionId: string, action: 'apply' | 'retain' | 'discard') =>
               deps.actOnSubagentWorktree(childSessionId, action),
+            previewWorktreeGc: () => {
+              const gc = deps.subagentWorktreeGc;
+              if (!gc) {
+                return Promise.reject(new Error('subagent worktree gc is not ready'));
+              }
+              return gc.preview();
+            },
+            reclaimWorktreeGc: () => {
+              const gc = deps.subagentWorktreeGc;
+              if (!gc) {
+                return Promise.reject(new Error('subagent worktree gc is not ready'));
+              }
+              return gc.reclaim({ mode: 'manual' });
+            },
             ...(deps.subagentResultService
               ? {
                   resultService: deps.subagentResultService,

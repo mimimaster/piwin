@@ -153,11 +153,15 @@ export async function composeSessionHostToolsForSession(
   let rules = createBundledRuleSet();
   let mcpCapabilityBrief: McpCapabilityBrief | undefined;
   let projectTrusted = false;
+  // A subagent runs in a Host-owned worktree under ~/.piwin that is never in
+  // the trusted project list. Its trust is the repository it was cut from;
+  // judging the worktree path downgraded a YOLO parent's children to `auto`.
+  const trustPath = childContext?.parentRepoPath ?? projectPath;
   try {
-    if (projectPath) {
+    if (trustPath) {
       const projects = await listProjects(getPiwinProjectsPath(rootDir));
       projectTrusted = projects.some(
-        (project) => project.path === projectPath && project.trust === 'trusted',
+        (project) => project.path === trustPath && project.trust === 'trusted',
       );
     }
     rules = await loadMergedPermissionRules({
@@ -294,7 +298,10 @@ export async function composeSessionHostToolsForSession(
   // generation snapshot (rules + MCP allowlist) and reads the dynamic
   // PermissionMode on every call. Executors never re-derive a decision.
   const getPermissionMode = (): PermissionMode => {
-    const sessionOverride = deps.sessionPermissionOverrides.get(sessionId);
+    // A child has no mode picker of its own; it follows the parent's session mode.
+    const sessionOverride =
+      deps.sessionPermissionOverrides.get(sessionId) ??
+      (childContext ? deps.sessionPermissionOverrides.get(childContext.parentSessionId) : undefined);
     return effectivePermissionMode({
       ...(sessionOverride !== undefined ? { sessionOverride } : {}),
       ...(deps.options.permissionModeOverride !== undefined

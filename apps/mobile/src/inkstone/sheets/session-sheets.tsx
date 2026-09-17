@@ -9,7 +9,7 @@ import type {
   WorkspaceWrites,
 } from '@piwin/contracts';
 import { useInkstone } from '../inkstone-context.js';
-import { Dot, FullButton, ListRow, SwitchRow } from '../inkstone-ui.js';
+import { Dot, FullButton, ListRow } from '../inkstone-ui.js';
 import { Icon } from '../icons.js';
 import {
   SessionRows,
@@ -1114,29 +1114,6 @@ export function ManualConnectSheet(): ReactElement {
       >
         连接示例 Host
       </FullButton>
-    </>
-  );
-}
-
-export function NotificationsSheet(): ReactElement {
-  const { state, dispatch } = useInkstone();
-  return (
-    <>
-      <p>移动端建议：完成、失败和需要批准时提醒。安静的工作不必打断你。</p>
-      <SwitchRow
-        title="重要事件通知"
-        subtitle="完成 · 失败 · 等待批准"
-        checked={state.notifications}
-        onToggle={() => dispatch({ type: 'toggle-notifications' })}
-      />
-      <SwitchRow
-        title="跨设备接续入口"
-        subtitle="回到桌面上那段正在进行的工作"
-        checked={state.handoff}
-        onToggle={() => dispatch({ type: 'toggle-handoff' })}
-      />
-      <p style={{ fontSize: 11, marginTop: 18 }}>仅改变原型偏好，不申请系统通知权限。</p>
-      <FullButton onClick={() => dispatch({ type: 'close-sheet' })}>完成</FullButton>
     </>
   );
 }

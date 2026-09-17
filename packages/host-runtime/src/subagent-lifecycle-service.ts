@@ -24,10 +24,13 @@ import {
   type SubagentRuntimeSnapshot,
   type SubagentSpawnOptions,
   type SubagentTaskSpec,
+  type SubagentWorkspaceLease,
+  type SubagentWorktreeDependencySetup,
   type ThinkingLevel,
   type ModelRef,
 } from '@piwin/contracts';
 import { formatSubagentReviewProvenanceBlock } from './subagent-review-context.js';
+import { formatWorktreeDependencyGuidance } from './subagent-worktree-dependencies.js';
 import {
   buildSubagentRuntimeSnapshot,
   resolveSubagentProfile,
@@ -160,12 +163,16 @@ export function planSubagentSpawn(input: {
 export function buildSubagentSeedPrompt(
   task: string,
   snapshot: Pick<SubagentRuntimeSnapshot, 'isolation'>,
-  options?: { reportContract?: string; reviewProvenance?: string },
+  options?: {
+    reportContract?: string;
+    reviewProvenance?: string;
+    dependencySetup?: SubagentWorktreeDependencySetup;
+  },
 ): string {
   const prefix =
     snapshot.isolation === 'readonly'
       ? '[READONLY sub-agent] Do not modify files or run destructive commands.'
-      : '[WORKTREE sub-agent] Work only under the allocated worktree.';
+      : `[WORKTREE sub-agent] Work only under the allocated worktree. ${formatWorktreeDependencyGuidance(options?.dependencySetup)}`;
   const hostBlocks = [
     options?.reviewProvenance,
     formatSubagentReportContractBlock(options?.reportContract),
@@ -178,12 +185,18 @@ export function buildSubagentSeedPrompt(
  * Model-facing first prompt for a child task. Continuations send the follow-up
  * text as-is (contract was already on the original seed).
  */
-export function resolveSubagentChildPrompt(task: Pick<SubagentTaskSpec, 'task' | 'isolationOverride' | 'reportContract' | 'continuationSessionId' | 'reviewTarget'>): string {
+export function resolveSubagentChildPrompt(
+  task: Pick<SubagentTaskSpec, 'task' | 'isolationOverride' | 'reportContract' | 'continuationSessionId' | 'reviewTarget'>,
+  workspaceLease?: SubagentWorkspaceLease,
+): string {
   if (task.continuationSessionId) return task.task;
   return buildSubagentSeedPrompt(
     task.task,
     { isolation: task.isolationOverride ?? 'readonly' },
     {
+      ...(workspaceLease?.mode === 'worktree' && workspaceLease.dependencySetup
+        ? { dependencySetup: workspaceLease.dependencySetup }
+        : {}),
       ...(task.reportContract ? { reportContract: task.reportContract } : {}),
       ...(task.reviewTarget
         ? { reviewProvenance: formatSubagentReviewProvenanceBlock(task.reviewTarget) }

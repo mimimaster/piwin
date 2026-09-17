@@ -4,11 +4,15 @@
  * Allocates workspace leases (readonly or worktree) for the orchestrator.
  * Readonly tasks use the parent working directory directly. Worktree tasks
  * apply the explicit dirty-base consent policy, create one worktree per child,
- * and retain failed/conflicted worktrees
+ * install the worktree's dependencies, and retain failed/conflicted worktrees
  * for inspection.
  */
 
-import type { SubagentTaskSpec, SubagentWorkspaceLease } from '@piwin/contracts';
+import type {
+  SubagentTaskSpec,
+  SubagentWorkspaceLease,
+  SubagentWorktreeDependencySetup,
+} from '@piwin/contracts';
 import { createWorktree, isWorktreeBaseClean, runGitCommand } from '@piwin/git';
 
 export type SubagentWorkspaceServiceOptions = {
@@ -27,15 +31,27 @@ export type SubagentWorkspaceServiceOptions = {
   parallelWritePolicy: 'worktree-only' | 'disabled';
   /** Product-owned root for isolated worktree checkouts. */
   worktreeStorageRoot?: string;
+  /** Install dependencies into a new worktree before the child starts. */
+  prepareWorktreeDependencies?: (input: {
+    worktreePath: string;
+    parentRepoPath: string;
+    signal?: AbortSignal;
+  }) => Promise<SubagentWorktreeDependencySetup>;
 };
 
 export function createSubagentWorkspaceService(options: SubagentWorkspaceServiceOptions): {
-  acquire(task: SubagentTaskSpec): Promise<SubagentWorkspaceLease>;
+  acquire(
+    task: SubagentTaskSpec,
+    acquireOptions?: { signal?: AbortSignal },
+  ): Promise<SubagentWorkspaceLease>;
   release(lease: SubagentWorkspaceLease): Promise<void>;
 } {
   const { projectPath, parallelWritePolicy } = options;
 
-  async function acquire(task: SubagentTaskSpec): Promise<SubagentWorkspaceLease> {
+  async function acquire(
+    task: SubagentTaskSpec,
+    acquireOptions: { signal?: AbortSignal } = {},
+  ): Promise<SubagentWorkspaceLease> {
     if (task.continuationWorkspaceLease) {
       return task.continuationWorkspaceLease;
     }
@@ -87,6 +103,12 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
       ...(options.worktreeStorageRoot ? { storageRoot: options.worktreeStorageRoot } : {}),
     });
 
+    const dependencySetup = await options.prepareWorktreeDependencies?.({
+      worktreePath: worktree.worktreePath,
+      parentRepoPath: taskProjectPath,
+      ...(acquireOptions.signal ? { signal: acquireOptions.signal } : {}),
+    });
+
     return {
       mode: 'worktree',
       cwd: worktree.worktreePath,
@@ -94,6 +116,7 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
       worktreePath: worktree.worktreePath,
       worktreeBranch: worktree.branch,
       baseCommit,
+      ...(dependencySetup ? { dependencySetup } : {}),
     };
   }
 
