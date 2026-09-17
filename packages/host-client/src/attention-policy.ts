@@ -28,6 +28,7 @@ export type AttentionContext = {
   presence: AttentionPresence;
   visibleSessionIds: ReadonlySet<string>;
   activeSessionId: string | null;
+  conversationCovered: boolean;
   catchingUp: boolean;
   preferences: AttentionPreferences;
   alreadyNotified: boolean;
@@ -46,9 +47,15 @@ export const ATTENTION_STALE_TERMINAL_MS = 900_000;
 
 export function isAttentionSessionSeen(
   sessionId: string,
-  context: Pick<AttentionContext, 'presence' | 'visibleSessionIds' | 'activeSessionId'>,
+  context: Pick<
+    AttentionContext,
+    'presence' | 'visibleSessionIds' | 'activeSessionId' | 'conversationCovered'
+  >,
 ): boolean {
   if (context.presence !== 'active') {
+    return false;
+  }
+  if (context.conversationCovered) {
     return false;
   }
   if (context.visibleSessionIds.has(sessionId)) {

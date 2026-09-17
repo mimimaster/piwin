@@ -32,6 +32,7 @@ function context(overrides: Partial<AttentionContext> = {}): AttentionContext {
     presence: 'inactive',
     visibleSessionIds: new Set(),
     activeSessionId: null,
+    conversationCovered: false,
     catchingUp: false,
     preferences: DEFAULT_ATTENTION_PREFERENCES,
     alreadyNotified: false,
@@ -78,6 +79,37 @@ describe('T13 在场 + visible 为空 + activeSessionId 匹配 → seen', () => 
       activeSessionId: SESSION_ID,
     });
     expect(isAttentionSessionSeen('other', ctx)).toBe(false);
+  });
+});
+
+describe('T13b 在场 + conversationCovered → unseen', () => {
+  const coveredActive = context({
+    presence: 'active',
+    visibleSessionIds: new Set(),
+    activeSessionId: SESSION_ID,
+    conversationCovered: true,
+  });
+
+  it('does not treat the active session as seen when the stage is covered', () => {
+    expect(isAttentionSessionSeen(SESSION_ID, coveredActive)).toBe(false);
+    expect(decideAttention(raise(), coveredActive)).toEqual({
+      seen: false,
+      delivery: 'in-app',
+      bounce: false,
+    });
+  });
+
+  it('returns none with seen=false when enabled is false', () => {
+    expect(
+      decideAttention(
+        raise(),
+        context({ ...coveredActive, preferences: prefs({ enabled: false }) }),
+      ),
+    ).toEqual({
+      seen: false,
+      delivery: 'none',
+      bounce: false,
+    });
   });
 });
 

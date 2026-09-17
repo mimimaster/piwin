@@ -82,9 +82,11 @@ later APNs epic, not a keepalive trick.
    - Else `[activeSessionId]` when non-null.
    - `conversationCovered === true` (settings sub-page or overlay over the
      session stage) → empty set.
-   A session is **seen** (AN-R05) only when presence is active **and**
-   (it is in the visible set, or the visible set is empty and it is
-   `activeSessionId`).
+   A session is **seen** (AN-R05) only when presence is active, the
+   conversation stage is **not** covered, **and** (it is in the visible
+   set, or the visible set is empty and it is `activeSessionId`). A
+   covered stage (settings / overlay) must not fall back to
+   `activeSessionId` as seen.
 
 7. **Complete / fail notify only when not present (AN-D06).** Defaults:
    complete and fail reminders on. System banner only when `presence` is
