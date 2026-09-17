@@ -149,7 +149,7 @@
 | D-ENG-01 | ~~monorepo CI~~ | Done | done |
 | D-ENG-02 | ~~Dependency policy + report-only audit~~ | **Done** — `docs/dependency-policy.md` + CI audit report-only | done (light) |
 | D-ENG-03 | ~~Unsigned desktop package path~~ | **Done** — `pnpm package:desktop` + `docs/release-desktop.md` | done (unsigned) |
-| D-ENG-03b | Code signing / notarization when certs available | private v1 unsigned OK | later delivery |
+| D-ENG-03b | Code signing / notarization when certs available | macOS package workflow can Developer-ID-sign via `APPLE_CERTIFICATE`; notarization still residual | later delivery |
 | D-ENG-04 | cleanup corrupt `*.ts ***` filenames if any | eng hygiene | eng |
 
 ### 2.6 Theme / Pet residual
