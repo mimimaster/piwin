@@ -20,6 +20,7 @@
  * `relaunch_webview_renderer` is the mechanism.
  */
 import { getLastMemoryPressureBytes } from './memory-pressure';
+import { getWindowPresence, subscribeWindowPresence } from './window-focus-signal';
 
 const MIB = 1024 * 1024;
 
@@ -168,44 +169,26 @@ export function installRendererSelfHeal(isBusy: () => boolean): () => void {
   if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
     return () => undefined;
   }
-  let windowFocused = true;
   const selfHeal = createRendererSelfHeal({
     getBytes: getLastMemoryPressureBytes,
     isBusy,
-    isDocumentHidden: () => document.visibilityState === 'hidden',
-    isWindowFocused: () => windowFocused,
+    isDocumentHidden: () => !getWindowPresence().documentVisible,
+    isWindowFocused: () => getWindowPresence().focused,
     requestRelaunch: invokeRelaunchRenderer,
     now: Date.now,
   });
-  const onVisibility = (): void => {
+  const unsubscribePresence = subscribeWindowPresence(() => {
     selfHeal.tick();
-  };
-  document.addEventListener('visibilitychange', onVisibility);
+  });
   installedTick = () => selfHeal.tick();
   const timer = setInterval(() => {
     selfHeal.tick();
   }, SELF_HEAL_TICK_MS);
 
-  let unlistenFocus: (() => void) | undefined;
-  void import('@tauri-apps/api/window')
-    .then(({ getCurrentWindow }) =>
-      getCurrentWindow().onFocusChanged((event) => {
-        windowFocused = event.payload;
-        selfHeal.tick();
-      }),
-    )
-    .then((unlisten) => {
-      unlistenFocus = unlisten;
-    })
-    .catch((error: unknown) => {
-      console.warn('[renderer-self-heal] window focus listener unavailable:', error);
-    });
-
   return () => {
     installedTick = null;
     clearInterval(timer);
-    document.removeEventListener('visibilitychange', onVisibility);
-    unlistenFocus?.();
+    unsubscribePresence();
     selfHeal.dispose();
   };
 }
