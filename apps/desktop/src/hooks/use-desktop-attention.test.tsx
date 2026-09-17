@@ -286,4 +286,29 @@ describe('useDesktopAttention', () => {
       conversationCovered: true,
     });
   });
+
+  it('simulates clicking the in-app notice jump action', async () => {
+    const openSessionFromShell = vi.fn(async () => undefined);
+    await renderLayer(defaultArgs({ openSessionFromShell }));
+    const firstArg = createControllerMock.mock.calls.at(0)?.at(0);
+    expect(firstArg).toBeDefined();
+    const deps = firstArg as unknown as {
+      showInAppNotice: (notice: {
+        title: string;
+        body: string;
+        action?: { label: string; sessionId: string };
+      }) => void;
+    };
+    deps.showInAppNotice({
+      title: '已完成',
+      body: 'piwin · Alpha',
+      action: { label: '跳转到 Alpha', sessionId: 'session-1' },
+    });
+    const notice = showUiNotification.mock.calls.at(-1)?.[0] as {
+      action?: { onClick: () => void };
+    };
+    expect(notice.action).toBeDefined();
+    notice.action?.onClick();
+    expect(openSessionFromShell).toHaveBeenCalledWith('session-1');
+  });
 });

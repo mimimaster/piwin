@@ -158,7 +158,7 @@
 
 #### AN-R05 已看见
 
-`seen(sessionId)` ⇔ presence active **且**（sessionId ∈ visible **或** visible 为空且 sessionId === activeSessionId）。
+`seen(sessionId)` ⇔ presence active **且** `conversationCovered === false` **且**（sessionId ∈ visible **或** visible 为空且 sessionId === activeSessionId）。
 
 #### AN-R06 判定表（`decideAttention`）
 
@@ -199,7 +199,7 @@ key → 时间戳；LRU 上限 256；TTL 24h；存 localStorage（AN-I10）。�
 
 - 进入：收到 `hydration` 或 `snapshot` 帧；或 HostClient 状态从非 ready 恢复为 ready。
 - 期间：`delivery === 'catch-up-summary'` 的 raise 放入待汇总集合（按 key 去重）。
-- 退出：收到 `host/replay-done`，或 1500ms 内无任何消息。
+- 退出：收到 `host/replay-done`；否则 1500ms 空闲。空闲计时**只**被注意力相关消息重置：`hydration`、`snapshot`、`host/replay-done`、`permission/request`、`permission/resolved`、`extension/ui_request`、`run/terminal`、`run/updated`。`host/log`、`browser/frame`、`pet/state` 等非注意力消息不得重置计时、不得把 catchingUp 挂住。hydration/snapshot 进入与 HostClient 非 ready→ready 进入共用此规则。
 - 退出时：过滤账本已有 key；剩余 ≥1 → presence inactive 投递一条 `system` 汇总（identifier `piwin.attention.summary`），active 投递一条 `in-app` 汇总；记录所有 key。
 
 #### AN-R11 新鲜度兜底
@@ -321,6 +321,7 @@ export type AttentionContext = {
   presence: AttentionPresence;
   visibleSessionIds: ReadonlySet<string>;
   activeSessionId: string | null;
+  conversationCovered: boolean;
   catchingUp: boolean;
   preferences: AttentionPreferences;
   alreadyNotified: boolean;
@@ -332,7 +333,7 @@ export type AttentionDecision = { seen: boolean; delivery: AttentionDelivery; bo
 export const ATTENTION_STALE_TERMINAL_MS = 900_000; // AN-R11
 export function isAttentionSessionSeen(
   sessionId: string,
-  context: Pick<AttentionContext, 'presence' | 'visibleSessionIds' | 'activeSessionId'>,
+  context: Pick<AttentionContext, 'presence' | 'visibleSessionIds' | 'activeSessionId' | 'conversationCovered'>,
 ): boolean; // AN-R05
 export function decideAttention(signal: AttentionRaise, context: AttentionContext): AttentionDecision; // AN-R06 + AN-R11
 ```
@@ -844,7 +845,7 @@ W6+ APNs：AN-P1 ─► AN-P2 ‖ AN-P3 ─► AN-P4
   - 信号流水线：`readAttentionSignals` → 对 raise 计算 `alreadyNotified`（账本）→ `decideAttention` → 按 delivery 分派；`system` 先过 `admitAttentionBanner`。
   - `settle` / `settle-questions` 不直接操作 OS；清理由 `syncAttentionSessions` 根据集合差集执行（AN-R12）。
   - 文案：`formatAttentionNotification` + `snapshot.describeSession`；locale 映射 `DesktopLocale` → `AttentionCopyLocale`。
-  - catch-up：状态机 `idle → catchingUp → idle`，计时用注入的 `setTimer`。
+  - catch-up：状态机 `idle → catchingUp → idle`；`host/replay-done` 立即退出；否则 1500ms 空闲，计时用注入的 `setTimer`，且只被注意力相关消息重置（AN-R10），不被 `host/log` / `browser/frame` / `pet/state` 重置。
   - 账本读写 `ATTENTION_LEDGER_KEY`，写入节流（同一 tick 合并）。
   - `onPresenceChanged` 负责 AN-R21 回窗跳转提示（仅 `clickActivation=false`）；capabilities 在创建时读取一次并缓存。
   - `syncAttentionSessions` 按 `preferences.badge` 调 `formatDockBadge` → `os.setBadge`；相同 badge 不重复调用。
@@ -918,7 +919,8 @@ W6+ APNs：AN-P1 ─► AN-P2 ‖ AN-P3 ─► AN-P4
 | T10 | S1 | 信号 JSON 序列化后不含 permission `detail` 与 `context` 任何值 |
 | T11 | S1 | `permission/resolved` → settle 同 key；`extension/ui_request` → question raise |
 | T12 | S2 | 在场 + 可见 + complete → seen, none |
-| T13 | S2 | 在场 + visible 为空 + activeSessionId 匹配 → seen |
+| T13 | S2 | 在场 + visible 为空 + activeSessionId 匹配 + covered=false → seen |
+| T13b | S2 | 在场 + conversationCovered + visible 空 + active 匹配 → unseen, in-app；enabled=false → none, seen=false |
 | T14 | S2 | 在场 + 不可见 + foregroundToast → in-app；foregroundToast=false → none |
 | T15 | S2 | 不在场 + complete + onComplete=false → none, seen=false |
 | T16 | S2 | 不在场 + needs-input → system + bounce；bounceOnNeedsInput=false → bounce false |
