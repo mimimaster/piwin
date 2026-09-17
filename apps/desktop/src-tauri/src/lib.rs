@@ -1,4 +1,5 @@
 mod artifact_bridge;
+mod artifact_protocol;
 mod host_bridge;
 mod memory_pressure;
 mod pet_overlay;
@@ -152,12 +153,58 @@ fn read_shutdown_disposition(
     }
 }
 
+/// Bounce the main frame off `piwin-artifact:` / `*.piwin-artifact.localhost`.
+/// wry `on_navigation` also sees iframe loads, so it cannot deny this scheme.
+/// `on_page_load` is main-frame only on WKWebView.
+fn artifact_scheme_guard<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("artifact-scheme-guard")
+        .on_page_load(|webview, payload| {
+            if webview.label() != "main" {
+                return;
+            }
+            if payload.event() != tauri::webview::PageLoadEvent::Started {
+                return;
+            }
+            if !artifact_protocol::is_artifact_document_url(payload.url()) {
+                return;
+            }
+            let dev_url = if tauri::is_dev() {
+                webview.config().build.dev_url.clone()
+            } else {
+                None
+            };
+            let home = artifact_protocol::app_home_url(payload.url(), dev_url.as_ref());
+            let _ = webview.navigate(home);
+        })
+        .build()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_websocket::init())
+        .plugin(artifact_scheme_guard())
+        .register_asynchronous_uri_scheme_protocol(
+            artifact_protocol::ARTIFACT_SCHEME,
+            |context, request, responder| {
+                let application = context.app_handle().clone();
+                let webview_label = context.webview_label().to_owned();
+                // The document put can race the iframe request; waiting must
+                // never block the WebKit main thread.
+                tauri::async_runtime::spawn_blocking(move || {
+                    let store = application.state::<artifact_protocol::ArtifactDocumentStore>();
+                    responder.respond(artifact_protocol::handle_artifact_request(
+                        &store,
+                        &webview_label,
+                        &request,
+                        artifact_protocol::ARTIFACT_DOCUMENT_WAIT,
+                    ));
+                });
+            },
+        )
+        .manage(artifact_protocol::ArtifactDocumentStore::default())
         .manage(HostBridgeState::default())
         .manage(PtyHostState::default())
         .manage(ShutdownState::default())
@@ -174,6 +221,7 @@ pub fn run() {
             pet_overlay_show,
             pet_overlay_hide,
             pet_overlay_toggle,
+            artifact_protocol::artifact_document_put,
             show_main_window,
             reveal_in_file_manager::reveal_in_file_manager,
             reveal_in_file_manager::path_exists_locally,

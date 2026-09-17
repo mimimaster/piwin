@@ -42,7 +42,7 @@ export type ProviderRowProps = {
   isChinese: boolean;
   disabled?: boolean;
   /** Expanded-provider-row model test status, keyed by modelId. */
-  modelTestStatus?: Record<string, { tone: 'ok' | 'error' | 'busy'; message: string }>;
+  modelTestStatus?: Record<string, { tone: 'ok' | 'error' | 'busy'; message: string; errorMessage?: string }>;
   testingModelId?: string | null;
   searchCatalog?: (query: string) => Promise<ModelCatalogEntry[]>;
   onOpen: () => void;
@@ -407,7 +407,7 @@ export function ProviderRow({
                       {mTest && (
                         <span
                           className={`provider-model-test-status provider-model-test-status--${mTest.tone}`}
-                          title={mTest.message}
+                          title={mTest.errorMessage ?? mTest.message}
                         >
                           {mTest.message}
                         </span>

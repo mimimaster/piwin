@@ -465,10 +465,13 @@ function ConversationAwaitingFirstToken(props: { locale: 'zh-CN' | 'en' }): Reac
     kind: 'waiting-first-token',
     locale: props.locale,
   });
+  // A status line, not a fold header: nothing to open, so no button chrome,
+  // hover pad, or "expanded" highlight (Inkstone paints open headers grey).
   return (
-    <div className="conversation-thinking-wrapper is-open" data-testid="conversation-activity">
+    <div className="conversation-awaiting-first-token" data-testid="conversation-activity">
       <div
-        className="turn-work-details-summary conversation-thinking-summary"
+        className="conversation-awaiting-first-token-row"
+        role="status"
         data-activity-id="thinking"
         data-tool-status="running"
       >

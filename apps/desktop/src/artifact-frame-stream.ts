@@ -8,6 +8,7 @@ import {
   type ArtifactFrameMode,
   type ArtifactRenderMode,
 } from '@piwin/artifact';
+import { isTauriRuntime } from './tauri-pty.js';
 
 export type ArtifactSandboxView = {
   mode: ArtifactRenderMode;
@@ -26,6 +27,10 @@ export type ArtifactDocumentPhase = 'empty-stream' | 'seeded-stream' | 'final';
 
 export type ArtifactDocument = {
   documentKey: string;
+  /** Store key for the Tauri piwin-artifact scheme. */
+  documentId: string;
+  /** Exactly what `documentUrl` loads (published over IPC under Tauri). */
+  documentSource: string;
   documentUrl: string;
   streamLifecycle: boolean;
   streamSeeded: boolean;
@@ -69,7 +74,10 @@ export function artifactDocumentKey(
   return `final:${id}:${srcdoc}`;
 }
 
-/** Encode the CSP-protected Artifact document as an isolated iframe URL. */
+/**
+ * Encode the CSP-protected Artifact document as an isolated iframe URL.
+ * Browser/e2e keep this data: URL; packaged Tauri uses `buildArtifactDocumentUrl`.
+ */
 export function buildArtifactDocumentDataUrl(srcdoc: string): string {
   const bytes = new TextEncoder().encode(srcdoc);
   const chunks: string[] = [];
@@ -78,6 +86,94 @@ export function buildArtifactDocumentDataUrl(srcdoc: string): string {
     chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + chunkSize)));
   }
   return `data:text/html;charset=utf-8;base64,${btoa(chunks.join(''))}`;
+}
+
+export const ARTIFACT_DOCUMENT_SCHEME = 'piwin-artifact';
+const ARTIFACT_DOCUMENT_PUT_COMMAND = 'artifact_document_put';
+
+/** Unguessable store key; the Rust store accepts 16–64 `[A-Za-z0-9_-]` chars. */
+export function createArtifactDocumentId(): string {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function convertArtifactDocumentSrc(documentId: string): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const internals = (
+    window as unknown as {
+      __TAURI_INTERNALS__?: {
+        convertFileSrc?: (filePath: string, protocol?: string) => string;
+      };
+    }
+  ).__TAURI_INTERNALS__;
+  return typeof internals?.convertFileSrc === 'function'
+    ? internals.convertFileSrc(documentId, ARTIFACT_DOCUMENT_SCHEME)
+    : null;
+}
+
+/**
+ * Tauri: load through the piwin-artifact scheme so the frame does not inherit
+ * the app page CSP (Tauri appends script hashes, which disables 'unsafe-inline'
+ * in inherited data: documents). The document itself is published over IPC —
+ * wry rejects scheme URLs over 65 534 bytes, so it cannot ride in the URL.
+ * Browser/e2e: data: URL.
+ */
+export function buildArtifactDocumentUrl(documentId: string, srcdoc: string): string {
+  if (!isTauriRuntime()) {
+    return buildArtifactDocumentDataUrl(srcdoc);
+  }
+  const converted = convertArtifactDocumentSrc(documentId);
+  if (converted) {
+    return converted;
+  }
+  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows')) {
+    return `http://${ARTIFACT_DOCUMENT_SCHEME}.localhost/${documentId}`;
+  }
+  return `${ARTIFACT_DOCUMENT_SCHEME}://localhost/${documentId}`;
+}
+
+export async function publishArtifactDocument(documentId: string, srcdoc: string): Promise<void> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke(ARTIFACT_DOCUMENT_PUT_COMMAND, { id: documentId, html: srcdoc });
+}
+
+/**
+ * Publishes the current document whenever a live iframe will request it:
+ * each document swap and each re-host after recycling (the store is an LRU).
+ * Runs in the commit that mounts the iframe; the scheme handler waits for it.
+ */
+export function usePublishedArtifactDocument(document: ArtifactDocument, hosted: boolean): void {
+  const { documentId, documentSource } = document;
+  useLayoutEffect(() => {
+    if (!hosted || !isTauriRuntime()) {
+      return;
+    }
+    publishArtifactDocument(documentId, documentSource).catch((error: unknown) => {
+      console.warn('Unable to publish Artifact document.', error);
+    });
+  }, [documentId, documentSource, hosted]);
+}
+
+type ArtifactDocumentRecord = {
+  key: string;
+  documentId: string;
+  documentSource: string;
+  documentUrl: string;
+};
+
+function createArtifactDocumentRecord(key: string, srcdoc: string): ArtifactDocumentRecord {
+  const documentId = createArtifactDocumentId();
+  return {
+    key,
+    documentId,
+    documentSource: srcdoc,
+    documentUrl: buildArtifactDocumentUrl(documentId, srcdoc),
+  };
 }
 
 /**
@@ -104,18 +200,14 @@ export function useArtifactDocument(decision: ArtifactSandboxView): ArtifactDocu
     decision.descriptor.id,
     decision.srcdoc,
   );
-  const documentRef = useRef({
-    key: documentKey,
-    documentUrl: buildArtifactDocumentDataUrl(decision.srcdoc),
-  });
-  if (documentRef.current.key !== documentKey) {
-    documentRef.current = {
-      key: documentKey,
-      documentUrl: buildArtifactDocumentDataUrl(decision.srcdoc),
-    };
+  const documentRef = useRef<ArtifactDocumentRecord | null>(null);
+  if (documentRef.current?.key !== documentKey) {
+    documentRef.current = createArtifactDocumentRecord(documentKey, decision.srcdoc);
   }
   return {
     documentKey,
+    documentId: documentRef.current.documentId,
+    documentSource: documentRef.current.documentSource,
     documentUrl: documentRef.current.documentUrl,
     streamLifecycle,
     streamSeeded,

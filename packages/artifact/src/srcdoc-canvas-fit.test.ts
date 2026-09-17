@@ -12,4 +12,10 @@ describe('buildCanvasStageFitRuntime', () => {
     expect(runtime).toContain('scheduleCanvasStageFit');
     expect(() => new Function(runtime)).not.toThrow();
   });
+
+  it('never scales overlay controls or children of a full-width stage', () => {
+    const runtime = buildCanvasStageFitRuntime();
+    expect(runtime).toContain('isOverlayFitNode');
+    expect(runtime).toContain('!stageFillsWidth');
+  });
 });

@@ -57,5 +57,6 @@ export {
   attachLibraryThumbs,
   ensureMediaThumb,
   readMediaThumb,
+  renderImagePreviewWebp,
   writeMediaThumbFromFile,
 } from './media-thumb.js';

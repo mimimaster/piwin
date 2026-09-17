@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   advanceArtifactDocumentPhase,
   artifactDocumentKey,
   buildArtifactDocumentDataUrl,
+  buildArtifactDocumentUrl,
+  createArtifactDocumentId,
   initialArtifactDocumentPhase,
+  publishArtifactDocument,
 } from './artifact-frame-stream.js';
 
 function decodeDataUrl(url: string): string {
@@ -23,6 +27,59 @@ describe('Artifact document transport', () => {
 
     expect(url).toMatch(/^data:text\/html;charset=utf-8;base64,/);
     expect(decodeDataUrl(url)).toBe(srcdoc);
+  });
+
+  it('mints unguessable ids the Rust store accepts', () => {
+    const first = createArtifactDocumentId();
+    const second = createArtifactDocumentId();
+
+    expect(first).toMatch(/^[A-Za-z0-9_-]{16,64}$/);
+    expect(second).not.toBe(first);
+  });
+
+  it('keeps browser and e2e documents on data: URLs', () => {
+    const srcdoc = '<!doctype html><title>鹈鹕</title>';
+    const url = buildArtifactDocumentUrl(createArtifactDocumentId(), srcdoc);
+
+    expect(url).toMatch(/^data:text\/html;charset=utf-8;base64,/);
+    expect(decodeDataUrl(url)).toBe(srcdoc);
+  });
+});
+
+describe('Artifact document transport in Tauri', () => {
+  afterEach(() => {
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
+  });
+
+  it('loads packaged frames by id and publishes the document over IPC', async () => {
+    const documentId = createArtifactDocumentId();
+    // Larger than wry's 65 534-byte scheme URI limit: must not ride in the URL.
+    const srcdoc = `<!doctype html><title>鹈鹕</title>${'<p>自然撑开</p>'.repeat(8_000)}`;
+    const convertFileSrcCalls: Array<{ filePath: string; protocol: string | undefined }> = [];
+    const invokeCalls: Array<{ command: string; args: unknown }> = [];
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {
+        convertFileSrc: (filePath: string, protocol?: string) => {
+          convertFileSrcCalls.push({ filePath, protocol });
+          return `${protocol}://localhost/${filePath}`;
+        },
+        invoke: async (command: string, args: unknown) => {
+          invokeCalls.push({ command, args });
+          return null;
+        },
+        transformCallback: () => 0,
+      },
+    });
+
+    const url = buildArtifactDocumentUrl(documentId, srcdoc);
+    expect(url).toBe(`piwin-artifact://localhost/${documentId}`);
+    expect(convertFileSrcCalls).toEqual([{ filePath: documentId, protocol: 'piwin-artifact' }]);
+
+    await publishArtifactDocument(documentId, srcdoc);
+    expect(invokeCalls).toHaveLength(1);
+    expect(invokeCalls[0]?.command).toBe('artifact_document_put');
+    expect(invokeCalls[0]?.args).toEqual({ id: documentId, html: srcdoc });
   });
 });
 

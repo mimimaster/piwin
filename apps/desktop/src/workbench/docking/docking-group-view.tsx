@@ -20,6 +20,7 @@ import {
 import { DOCKING_COPY } from './copy.js';
 import type { DockViewRenderContext } from './docking-surface-content.js';
 import { resolveViewTitle } from './docking-surface-content.js';
+import { useDockToolHosts } from './dock-tool-hosts.js';
 import type { DropEdge, DropSource, WorkspaceGroup, WorkspaceState } from './types.js';
 
 const ICON_PX = 14;
@@ -50,6 +51,7 @@ export type DockingGroupViewProps = {
 export function DockingGroupView(props: DockingGroupViewProps): ReactElement {
   const { group, state, ctx } = props;
   const isChinese = ctx.locale === 'zh-CN';
+  const canvasTitle = useDockToolHosts()?.artifactTarget?.title ?? null;
   const maximizeLabel = props.maximized
     ? isChinese
       ? '恢复窗格'
@@ -84,7 +86,12 @@ export function DockingGroupView(props: DockingGroupViewProps): ReactElement {
                 const view = state.views[viewId];
                 if (!view) return null;
                 const isActive = viewId === group.activeViewId;
-                const title = resolveViewTitle({ view, sessions: ctx.sessions, locale: ctx.locale });
+                const title = resolveViewTitle({
+                  view,
+                  sessions: ctx.sessions,
+                  locale: ctx.locale,
+                  canvasTitle,
+                });
                 return (
                   <ContextMenu
                     key={viewId}

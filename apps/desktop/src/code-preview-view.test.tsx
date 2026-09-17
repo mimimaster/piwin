@@ -76,10 +76,41 @@ it('highlights files over 400 lines / 40KB off-thread, keeping colored DOM bound
   expect(first.querySelectorAll('[style]')).toHaveLength(0);
   expect(last.querySelectorAll('.code-preview-text [style]')).toHaveLength(80);
   expect(container.querySelector('[data-line="2000"]')?.textContent).toContain('value1999');
-  expect(dispose).toHaveBeenCalled();
 });
 
-it('drops stale file results and terminates cancelled work on a file switch', async () => {
+it('paints the head of a long file before the full result arrives', async () => {
+  let resolveFull: ((tokens: TokenLine[]) => void) | undefined;
+  const code = Array.from({ length: 600 }, (_, index) => `let head${index} = 0;`).join('\n');
+  highlight.mockImplementation(({ code: requested }: { code: string }) => {
+    const tokens = requested
+      .split('\n')
+      .map((line) => [{ content: line, color: '#abcdef', offset: 0 }]);
+    if (requested === code) {
+      return new Promise<TokenLine[]>((resolve) => {
+        resolveFull = () => resolve(tokens);
+      });
+    }
+    return Promise.resolve(tokens);
+  });
+  await render(code, 'head.ts');
+  expect(highlight.mock.calls.map(([request]) => request.code.split('\n').length)).toEqual([
+    200, 600,
+  ]);
+  expect(container.querySelectorAll('.code-preview-text [style]')).toHaveLength(80);
+  await act(async () => resolveFull?.([]));
+  expect(container.querySelectorAll('.code-preview-text [style]')).toHaveLength(80);
+});
+
+it('reuses tokens when a recent file is reopened', async () => {
+  await render('const reopened = 1;', 'reopen.ts');
+  await render('other', 'other.ts');
+  highlight.mockClear();
+  await render('const reopened = 1;', 'reopen.ts');
+  expect(highlight).not.toHaveBeenCalled();
+  expect(container.querySelector('.code-preview-text [style]')).not.toBeNull();
+});
+
+it('drops stale file results on a file switch without killing the shared worker', async () => {
   let resolveFirst: ((tokens: TokenLine[]) => void) | undefined;
   highlight.mockImplementationOnce(
     () =>
@@ -92,7 +123,8 @@ it('drops stale file results and terminates cancelled work on a file switch', as
   await act(async () => resolveFirst?.([[{ content: 'old source', color: '#ff0000', offset: 0 }]]));
   expect(container.textContent).toContain('new source');
   expect(container.textContent).not.toContain('old source');
-  expect(dispose).toHaveBeenCalled();
+  expect(highlight.mock.calls[0]?.[0].signal.aborted).toBe(true);
+  expect(dispose).not.toHaveBeenCalled();
 });
 
 it('defers token removal while a native selection crosses the preview', async () => {

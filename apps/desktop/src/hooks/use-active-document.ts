@@ -29,6 +29,7 @@ import {
   type DocumentContentMessage,
 } from '../resolve-document-content';
 import { readMediaObjectUrlViaHost } from '../media-host-read';
+import { completeProjectImagePreview, predecodeImage } from '../project-image-preview-read.js';
 
 export type UseActiveDocumentInput = {
   hostClient: HostClient;
@@ -391,14 +392,23 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
             return;
           }
           if (projectPath) {
-            const response = await hostClient.request({
-              type: 'project/read-file',
+            const readData = await readProjectPreviewData(
+              hostClient,
               projectPath,
               relativePath,
-            });
-            if (response.success && response.data) {
+              (placeholder) => {
+                const next = activeDocumentFromProjectRead({
+                  data: placeholder,
+                  requestId,
+                  title: cleanTitle,
+                  displayRef: displayRef || relativePath,
+                });
+                if (next) applyDocument(next);
+              },
+            );
+            if (readData) {
               const next = activeDocumentFromProjectRead({
-                data: response.data as ProjectReadPreviewInput,
+                data: readData,
                 requestId,
                 title: cleanTitle,
                 displayRef: displayRef || relativePath,
@@ -559,14 +569,23 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
             });
             return;
           }
-          const response = await hostClient.request({
-            type: 'project/read-file',
-            projectPath: openPlan.projectPath,
-            relativePath: openPlan.relativePath,
-          });
-          if (response.success && response.data) {
+          const readData = await readProjectPreviewData(
+            hostClient,
+            openPlan.projectPath,
+            openPlan.relativePath,
+            (placeholder) => {
+              const next = activeDocumentFromProjectRead({
+                data: placeholder,
+                requestId,
+                title: cleanTitle,
+                displayRef: cleanPath,
+              });
+              if (next) applyDocument(next);
+            },
+          );
+          if (readData) {
             const next = activeDocumentFromProjectRead({
-              data: response.data as ProjectReadPreviewInput,
+              data: readData,
               requestId,
               title: cleanTitle,
               displayRef: cleanPath,
@@ -844,6 +863,47 @@ async function loadTrustedConfigDocument(input: {
     reason: 'not-found',
     suggestion: '该受信配置文件无法读取，或已不存在。',
   });
+}
+
+/**
+ * `project/read-file`, with oversized image previews assembled from ranged
+ * slices. Null on failure so callers fall through to their other sources.
+ */
+async function readProjectPreviewData(
+  hostClient: HostClient,
+  projectPath: string,
+  relativePath: string,
+  onPlaceholder?: (data: ProjectReadPreviewInput) => void,
+): Promise<ProjectReadPreviewInput | null> {
+  const response = await hostClient.request({
+    type: 'project/read-file',
+    projectPath,
+    relativePath,
+  });
+  if (!response.success || !response.data) return null;
+  const head = response.data as ProjectReadPreviewInput & {
+    previewChunkBytes?: number;
+    previewThumbDataUrl?: string;
+  };
+  const placeholder: ProjectReadPreviewInput | null =
+    !head.previewDataUrl && head.previewChunkBytes && head.previewThumbDataUrl
+      ? { ...head, previewDataUrl: head.previewThumbDataUrl }
+      : null;
+  if (placeholder) onPlaceholder?.(placeholder);
+  try {
+    const full = await completeProjectImagePreview({
+      data: head,
+      projectPath,
+      relativePath,
+      request: (command) => hostClient.request(command),
+    });
+    if (placeholder && full.previewDataUrl) await predecodeImage(full.previewDataUrl);
+    return full;
+  } catch (error) {
+    console.warn('[active-document] Unable to assemble image preview.', error);
+    // A painted placeholder beats falling through to "not found".
+    return placeholder;
+  }
 }
 
 async function loadLocalFilePreviewDocument(input: {

@@ -127,10 +127,20 @@ export function parseWorkspaceState(value: unknown): WorkspaceState | null {
 
   const views: Record<string, WorkspaceView> = {};
   const viewIds = new Set<string>();
+  const toolKinds = new Set<WorkspaceViewKind>();
   for (const raw of Object.values(value.views)) {
     if (viewIds.size >= WORKSPACE_VIEW_HARD_LIMIT) break;
     const view = parseView(raw, viewIds);
-    if (view) views[view.viewId] = view;
+    if (!view) continue;
+    // Tool views are one per kind; older layouts could hold cloned canvases.
+    if (view.kind !== 'session' && view.kind !== 'invalid') {
+      if (toolKinds.has(view.kind)) {
+        viewIds.delete(view.viewId);
+        continue;
+      }
+      toolKinds.add(view.kind);
+    }
+    views[view.viewId] = view;
   }
 
   const groups: Record<string, WorkspaceGroup> = {};

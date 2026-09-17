@@ -1,5 +1,4 @@
 import {
-  CANVAS_VIEW_HARD_LIMIT,
   DEFAULT_RIGHT_PANEL_WIDTH_PX,
   REOPEN_STACK_LIMIT,
   WORKSPACE_LAYOUT_SCHEMA_VERSION,
@@ -150,20 +149,11 @@ export function openToolView(
   createId: WorkspaceIdFactory,
   targetGroupId?: string,
 ): WorkspaceOpResult {
-  if (kind === 'browser') {
-    for (const view of Object.values(state.views)) {
-      if (view.kind === 'browser') return okOp(revealRightIfNeeded(focusView(state, view.viewId), view.viewId));
-    }
-  }
-  if (kind === 'canvas') {
-    const canvasCount = Object.values(state.views).filter((view) => view.kind === 'canvas').length;
-    if (canvasCount >= CANVAS_VIEW_HARD_LIMIT) {
-      return rejectOp(state, 'canvas-limit', DOCKING_COPY.viewLimit);
-    }
-  } else {
-    for (const view of Object.values(state.views)) {
-      if (view.kind === kind) return okOp(revealRightIfNeeded(focusView(state, view.viewId), view.viewId));
-    }
+  // One view per tool kind. Every canvas view renders the single workbench
+  // canvas target, so opening again (auto-reveal, launcher, inspector tab)
+  // must focus the existing tab instead of cloning it.
+  for (const view of Object.values(state.views)) {
+    if (view.kind === kind) return okOp(revealRightIfNeeded(focusView(state, view.viewId), view.viewId));
   }
   if (Object.keys(state.views).length >= WORKSPACE_VIEW_HARD_LIMIT) {
     return rejectOp(state, 'view-limit', DOCKING_COPY.viewLimit);

@@ -11,12 +11,23 @@
 
 /* ── Code preview (non-Markdown files) ─────────────────────────── */
 
+/* Whole-file reading wants the platform's hinted mono: at 12px JetBrains Mono
+   renders thin and wide in WebKit, while SF Mono (ui-monospace) stays crisp.
+   Ligatures are off for the same reason as markdown code: `!==` must not
+   collapse into ≢ or `=>` into an arrow. */
 .code-preview-view {
   margin: 0;
   padding: 0 0 var(--s-8) 0;
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono);
-  line-height: var(--lh-normal);
+  font-family:
+    ui-monospace, 'SF Mono', 'Cascadia Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  font-variant-ligatures: none;
+  font-feature-settings:
+    'liga' 0,
+    'calt' 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   white-space: pre;
   overflow-x: auto;
   flex: 1;
@@ -38,7 +49,7 @@
   padding: 0 var(--s-4);
   min-height: 1lh;
   content-visibility: auto;
-  contain-intrinsic-size: auto 19px;
+  contain-intrinsic-size: auto 19.2px;
 }
 
 .code-preview-lineno {

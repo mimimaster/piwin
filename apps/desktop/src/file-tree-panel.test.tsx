@@ -331,6 +331,182 @@ describe('FileTreePanel', () => {
     expect(queryByTestId('file-tree-preview')?.textContent).not.toContain('binary');
   });
 
+  it('assembles oversized PNG previews from ranged reads', async () => {
+    const raw = Buffer.from(Array.from({ length: 7 }, (_, index) => index + 1));
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'icon_white.png', relativePath: 'icon_white.png', kind: 'file' }]);
+      }
+      if (cmd.type === 'project/read-file') {
+        const range = cmd.previewRange;
+        return {
+          id: '2',
+          type: 'response',
+          command: 'project/read-file',
+          success: true,
+          data: {
+            projectPath: '/proj',
+            relativePath: 'icon_white.png',
+            absolutePath: '/proj/icon_white.png',
+            content: '',
+            byteSize: raw.byteLength,
+            truncated: false,
+            isBinary: true,
+            mimeHint: 'image/png',
+            ...(range
+              ? {
+                  previewChunk: {
+                    offset: range.offset,
+                    base64Data: raw
+                      .subarray(range.offset, range.offset + range.length)
+                      .toString('base64'),
+                  },
+                }
+              : { previewChunkBytes: 3 }),
+          },
+        };
+      }
+      return { id: '1', type: 'response', command: cmd.type, success: false, error: 'unexpected' };
+    });
+
+    renderPanel({ request });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const row = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row')).find((item) =>
+      item.textContent?.includes('icon_white.png'),
+    );
+    await act(async () => {
+      row?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(
+      queryByTestId('file-tree-preview-image')?.querySelector('img')?.getAttribute('src'),
+    ).toBe(`data:image/png;base64,${raw.toString('base64')}`);
+  });
+
+  it('paints the Host placeholder first, then swaps in full resolution', async () => {
+    const raw = Buffer.from([1, 2, 3, 4, 5, 6]);
+    const thumb = 'data:image/webp;base64,UklGRg==';
+    let releaseSlices: (() => void) | undefined;
+    let failSlices = false;
+    const slicesGate = new Promise<void>((resolve) => {
+      releaseSlices = resolve;
+    });
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'lion.png', relativePath: 'lion.png', kind: 'file' }]);
+      }
+      if (cmd.type !== 'project/read-file') {
+        return { id: '1', type: 'response', command: cmd.type, success: false, error: 'x' };
+      }
+      const base = {
+        projectPath: '/proj',
+        relativePath: 'lion.png',
+        absolutePath: '/proj/lion.png',
+        content: '',
+        byteSize: raw.byteLength,
+        truncated: false,
+        isBinary: true,
+        mimeHint: 'image/png',
+      };
+      if (!cmd.previewRange) {
+        return {
+          id: '2',
+          type: 'response',
+          command: cmd.type,
+          success: true,
+          data: { ...base, previewChunkBytes: 3, previewThumbDataUrl: thumb },
+        };
+      }
+      await slicesGate;
+      if (failSlices) {
+        return { id: '3', type: 'response', command: cmd.type, success: false, error: 'dropped' };
+      }
+      const { offset, length } = cmd.previewRange;
+      return {
+        id: '3',
+        type: 'response',
+        command: cmd.type,
+        success: true,
+        data: {
+          ...base,
+          previewChunk: { offset, base64Data: raw.subarray(offset, offset + length).toString('base64') },
+        },
+      };
+    });
+
+    const openLion = async (): Promise<void> => {
+      renderPanel({ request });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      const row = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row')).find(
+        (item) => item.textContent?.includes('lion.png'),
+      );
+      await act(async () => {
+        row?.click();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    };
+    const imageSrc = (): string | null | undefined =>
+      queryByTestId('file-tree-preview-image')?.querySelector('img')?.getAttribute('src');
+
+    await openLion();
+    expect(imageSrc()).toBe(thumb);
+    expect(queryByTestId('file-tree-preview-image-badge')?.textContent).toContain('正在加载原图');
+
+    await act(async () => {
+      releaseSlices?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(imageSrc()).toBe(`data:image/png;base64,${raw.toString('base64')}`);
+    expect(queryByTestId('file-tree-preview-image-badge')).toBeNull();
+
+    failSlices = true;
+    act(() => root.unmount());
+    root = createRoot(container);
+    await openLion();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(imageSrc()).toBe(thumb);
+    expect(queryByTestId('file-tree-preview-image-badge')?.textContent).toContain('原图加载失败');
+    expect(queryByTestId('file-tree-preview-unavailable')).toBeNull();
+  });
+
+  it('does not call a transport failure "file not found"', async () => {
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'big.png', relativePath: 'big.png', kind: 'file' }]);
+      }
+      return {
+        id: '2',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'Host wire frame exceeds 1048576 bytes',
+      };
+    });
+
+    renderPanel({ request });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const row = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row')).find((item) =>
+      item.textContent?.includes('big.png'),
+    );
+    await act(async () => {
+      row?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const state = queryByTestId('file-tree-preview-unavailable');
+    expect(state?.getAttribute('data-reason')).toBe('unavailable');
+    expect(state?.textContent).not.toContain('找不到此文件');
+  });
+
   it('shows a centered unsupported-format state for installers', async () => {
     const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
       if (cmd.type === 'project/list-dir') {

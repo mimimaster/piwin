@@ -161,4 +161,16 @@ describe('docking workspace commands', () => {
     if (!second.ok) return;
     expect(Object.values(second.state.views).filter((view) => view.kind === 'browser')).toHaveLength(1);
   });
+
+  it('focuses the existing canvas when auto-reveal and the launcher both open it', () => {
+    const { createId, state } = setup();
+    const first = openToolView(state, 'canvas', createId);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const second = openToolView(first.state, 'canvas', createId);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(Object.values(second.state.views).filter((view) => view.kind === 'canvas')).toHaveLength(1);
+    expect(second.state.focusedViewId).toBe(first.state.focusedViewId);
+  });
 });

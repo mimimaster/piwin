@@ -430,6 +430,9 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         }}
         onFocusView={(viewId) => controller.setState((current) => focusView(current, viewId))}
         onCloseView={(viewId) => controller.setState((current) => closeView(current, viewId))}
+        onResizeWidth={(width) =>
+          controller.setState((current) => ({ ...current, rightPanel: { ...current.rightPanel, width } }))
+        }
         titlebarViewId={rightTitlebarViewId}
         titlebarTabsSlotRef={setRightTabsSlot}
         titlebarActionsSlotRef={setRightActionsSlot}
@@ -464,7 +467,12 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         // Always wrap so entering/leaving the titlebar never remounts the view.
         return createPortal(
           <SurfaceTitlebarProvider value={viewId === rightTitlebarViewId ? rightTitlebar : null}>
-            <DockViewContent viewId={viewId} view={view} ctx={ctxRef.current} />
+            <DockViewContent
+              viewId={viewId}
+              view={view}
+              ctx={ctxRef.current}
+              inRightPanel={rightGroup?.viewIds.includes(viewId) === true}
+            />
           </SurfaceTitlebarProvider>,
           host,
           viewId,

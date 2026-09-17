@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08)
+Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08; amended 2026-09-16)
 
 ## Context
 
@@ -274,3 +274,43 @@ attribute, never the pixels.
 does not mean inlining PNG bytes as `data:image`. Base64 galleries still hit
 `blocked-too-large`. Text prompts still must not receive media bytes (the
 2026-08-01 native ImageContent rule for composer attachments is unchanged).
+
+## Amendment (2026-09-16): Isolated `piwin-artifact` document scheme
+
+Packaged Desktop loads the app from `tauri://localhost`. Tauri then appends
+script hashes to the page `script-src`, which disables `'unsafe-inline'` for
+WebKit `data:` iframes that inherit that CSP. Height-bridge bootstrap and
+model-authored scripts never ran, so Inline previews stuck at the 360px
+recovery viewport.
+
+Decision: Desktop Tauri publishes each sandbox document over IPC
+(`artifact_document_put`) into a bounded in-memory LRU (256 documents / 32 MiB)
+under a random id, and the iframe loads `piwin-artifact://localhost/<id>`
+(Windows: `http://piwin-artifact.localhost/<id>`). The document cannot ride in
+the URL: wry parses scheme requests into `http::Uri`, which rejects URIs over
+65 534 bytes and answers 404 without calling the handler; a base64 srcdoc
+(theme CSS + bridge + source) routinely exceeds that. The put races the iframe
+mount, so the handler waits up to 3s for it. Browser/e2e keep the `data:` URL.
+The handler serves only the `main` webview, is GET-only, returns HTML, and
+never reads the filesystem; it can only serve documents the app published,
+never arbitrary URL-supplied HTML. iframe `sandbox` stays `allow-scripts` without `allow-same-origin`.
+Tauri 2.11 treats custom protocols as `Origin::Local` (IPC-equivalent) based
+on the frame URL scheme, not the document origin. A response-header
+`sandbox allow-scripts` does not deny that IPC and can block the height-bridge
+bootstrap, so it is not used. wry's macOS `on_navigation` also fires for
+iframe loads, so Desktop does not deny the scheme there. Instead, a
+main-frame `on_page_load` Started hook bounces the main webview back to the
+app home (`tauri://localhost` / `http(s)://tauri.localhost`, or `devUrl` in
+`tauri dev`). App `script-src` is not relaxed and
+`dangerousDisableAssetCspModification` is not used.
+
+The dual-channel height protocol is unchanged; this amendment only stops the
+packaged WebKit frame from inheriting the app CSP.
+
+Verified in an isolated `tauri build --debug` (`tauri://`) build on
+2026-09-17: a 51 KB document loads, the bootstrap runs, both height channels
+report within 10ms (status `ready`, no recovery banner); inside the frame
+`__TAURI_INTERNALS__` is undefined and `top.location` assignment throws
+`SecurityError`; a main-frame navigation to the scheme bounces back to
+`tauri://localhost/`. Chromium e2e cannot catch CSP inheritance regressions;
+this path needs a WebKit (Tauri build) check.

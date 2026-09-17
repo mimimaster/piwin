@@ -5,6 +5,7 @@ import { IconChevronDown, IconChevronRight } from './shell-icons';
 import { gitStatusForPath, type FileTreeNodeState } from './file-tree-model';
 import type { DesktopLocale } from './desktop-locale';
 import { ContextMenuFromCatalog, type ContextMenuDispatchers } from './context-menu';
+import { prewarmFileHighlight } from './syntax/file-highlight.js';
 
 /** Single-letter glyph for a git file status code (VS Code SCM style). */
 const GIT_STATUS_LETTER: Record<GitFileStatusCode, string> = {
@@ -63,6 +64,10 @@ export function FileTreeNodeView(props: FileTreeNodeViewProps): ReactElement {
       className={`file-tree-row ${isDir ? 'is-dir' : 'is-file'}`}
       style={{ paddingLeft: 8 + depth * 14 }}
       draggable={!isDir}
+      onPointerEnter={() => {
+        // Compile the grammar while the pointer travels toward a click.
+        if (!isDir) prewarmFileHighlight(node.entry.relativePath);
+      }}
       onDragStart={(event) => {
         if (!isDir) props.onDragStart(event, node.entry.relativePath);
       }}

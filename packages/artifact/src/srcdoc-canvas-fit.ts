@@ -61,16 +61,26 @@ export function buildCanvasStageFitRuntime(): string {
     while (child && isSkippableFitNode(child)) child = child.nextElementSibling;
     return child;
   };
-  var collectFitCandidates = function () {
+  // Overlay chrome (a play button pinned in a corner) is not a design box.
+  var isOverlayFitNode = function (node) {
+    if (!window.getComputedStyle) return false;
+    var position = window.getComputedStyle(node).position;
+    return position === 'absolute' || position === 'fixed' || position === 'sticky';
+  };
+  var collectFitCandidates = function (viewportWidth) {
     var candidates = [];
     var root = document.querySelector('.piwin-artifact-root') || document.body;
     if (!root) return candidates;
     var stage = firstFitChild(root);
     if (stage) candidates.push(stage);
-    if (stage && stage.children && stage.children.length > 0 && stage.children.length <= 8) {
+    // A stage that already spans the column is the design box itself; its
+    // children (svg, controls) must not be scaled on their own.
+    var stageWidth = stage && stage.getBoundingClientRect ? readFitBox(stage.getBoundingClientRect().width) : 0;
+    var stageFillsWidth = viewportWidth > 0 && stageWidth / viewportWidth >= ${CANVAS_FIT_FILLS_RATIO};
+    if (stage && !stageFillsWidth && stage.children && stage.children.length > 0 && stage.children.length <= 8) {
       var child = stage.firstElementChild;
       while (child) {
-        if (!isSkippableFitNode(child)) candidates.push(child);
+        if (!isSkippableFitNode(child) && !isOverlayFitNode(child)) candidates.push(child);
         child = child.nextElementSibling;
       }
     }
@@ -118,7 +128,7 @@ export function buildCanvasStageFitRuntime(): string {
     var viewportWidth = readFitBox(window.innerWidth);
     var viewportHeight = readFitBox(window.innerHeight);
     if (canvasFitTarget) resetCanvasFit(canvasFitTarget);
-    var candidates = collectFitCandidates();
+    var candidates = collectFitCandidates(viewportWidth);
     var best = null;
     var bestDecision = { action: 'none', scale: 1 };
     var bestRank = 0;

@@ -383,11 +383,21 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
           message: isChinese ? `可用 · ${seconds}s` : `OK · ${seconds}s`,
         },
       }));
-    } catch {
+    } catch (error) {
+      const message = formatError(error);
       setListModelTestStatus((prev) => ({
         ...prev,
-        [key]: { tone: 'error', message: isChinese ? '失败' : 'Fail' },
+        [key]: {
+          tone: 'error',
+          message: isChinese ? '失败' : 'Fail',
+          errorMessage: message,
+        },
       }));
+      onError(
+        isChinese
+          ? `模型「${modelId}」测试失败：${message}`
+          : `Model "${modelId}" test failed: ${message}`,
+      );
     } finally {
       setListTestingModelKey(null);
     }

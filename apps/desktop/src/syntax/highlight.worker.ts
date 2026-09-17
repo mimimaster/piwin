@@ -4,7 +4,12 @@
  * Runs Shiki tokenization off the main UI thread and transfers token results
  * packed as compact Uint32Array binary buffers to minimize main-thread GC and layout locks.
  */
-import { createHighlighter, createJavaScriptRegexEngine, type Highlighter } from 'shiki';
+import {
+  createHighlighter,
+  createJavaScriptRegexEngine,
+  createOnigurumaEngine,
+  type Highlighter,
+} from 'shiki';
 import {
   encodeTokensToCompact,
   type HighlightWorkerRequest,
@@ -27,16 +32,33 @@ const PRELOAD_LANGS = [
   'diff',
 ] as const;
 
+const MAX_TOKENIZED_LINE_LENGTH = 2_000;
+
 let highlighterPromise: Promise<Highlighter> | null = null;
 const loadedLanguages = new Set<string>(PRELOAD_LANGS);
 
+// Oniguruma tokenizes ~4x faster than the JS regex engine once warm and
+// compiles grammars in half the time (tsx, 375 lines: 28ms vs 120ms warm,
+// 325ms vs 644ms cold). The WASM ships base64-inlined, so nothing is fetched;
+// the CSP already allows 'wasm-unsafe-eval'. Keep the JS engine as a fallback.
+async function createEngine() {
+  try {
+    return await createOnigurumaEngine(import('shiki/wasm'));
+  } catch (error: unknown) {
+    console.warn('[highlight-worker] Oniguruma unavailable, using JS regex engine.', error);
+    return createJavaScriptRegexEngine();
+  }
+}
+
 async function getWorkerHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
-    highlighterPromise = createHighlighter({
-      themes: [DARK_THEME, LIGHT_THEME],
-      langs: [...PRELOAD_LANGS],
-      engine: createJavaScriptRegexEngine(),
-    });
+    highlighterPromise = createEngine().then((engine) =>
+      createHighlighter({
+        themes: [DARK_THEME, LIGHT_THEME],
+        langs: [...PRELOAD_LANGS],
+        engine,
+      }),
+    );
   }
   return highlighterPromise;
 }
@@ -64,6 +86,9 @@ if (typeof self !== 'undefined') {
       const result = hl.codeToTokens(req.code, {
         lang: lang as never,
         theme: req.theme,
+        // A minified bundle or inline sourcemap line can stall the grammar for
+        // ~1s; past this length the line stays plain instead.
+        tokenizeMaxLineLength: MAX_TOKENIZED_LINE_LENGTH,
       });
 
       const lineStart = req.lineStart ?? 0;

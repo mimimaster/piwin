@@ -117,6 +117,26 @@ describe('HighlightClient', () => {
     expect(posted).toEqual(['one', 'two', 'three']);
   });
 
+  it('drops an aborted queued request without posting it', async () => {
+    const posted: string[] = [];
+    const port = createFakeWorker({ delayMs: 20, onPost: (request) => posted.push(request.code) });
+    const client = createClient(port);
+    const controller = new AbortController();
+    const running = ['one', 'two'].map((code) =>
+      client.highlight({ code, language: 'typescript', theme: 'github-dark' }),
+    );
+    const stale = client.highlight({
+      code: 'stale',
+      language: 'typescript',
+      theme: 'github-dark',
+      signal: controller.signal,
+    });
+    controller.abort();
+    await expect(stale).rejects.toThrow(/aborted/);
+    await Promise.all(running);
+    expect(posted).toEqual(['one', 'two']);
+  });
+
   it('cancelAll rejects queued and in-flight requests', async () => {
     const port = createFakeWorker({ delayMs: 30 });
     const client = createClient(port);

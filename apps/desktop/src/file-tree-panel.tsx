@@ -40,6 +40,8 @@ import {
 } from '@piwin/ui-kit';
 import { IconClose, IconRefresh, IconSearch } from './shell-icons';
 import { CodePreviewView } from './code-preview-view';
+import { prewarmFileHighlight } from './syntax/file-highlight.js';
+import { completeProjectImagePreview, predecodeImage } from './project-image-preview-read.js';
 import { PreviewUnavailable } from './PreviewUnavailable';
 import { FilePanelEmptyFallback } from './file-panel-empty-fallback.js';
 import {
@@ -88,6 +90,7 @@ export type FileTreeRequest =
       projectPath: string;
       relativePath: string;
       maxBytes?: number;
+      previewRange?: { offset: number; length: number };
     }
   | {
       type: 'git/status';
@@ -132,10 +135,42 @@ type FilePreviewState = {
   byteSize?: number;
   mimeHint?: string;
   previewDataUrl?: string;
+  /**
+   * `placeholder`: a downscaled WebP is showing while full-resolution slices
+   * load; `placeholder-only`: those slices failed, so it stays.
+   */
+  previewQuality?: 'placeholder' | 'placeholder-only';
 };
+
+function previewStateFromRead(
+  data: ProjectReadFileData,
+  relativePath: string,
+  absolutePath: string,
+): FilePreviewState {
+  return {
+    relativePath: data.relativePath || relativePath,
+    absolutePath: data.absolutePath || absolutePath,
+    content: data.content ?? '',
+    truncated: data.truncated === true,
+    isBinary: data.isBinary === true,
+    ...(typeof data.byteSize === 'number' ? { byteSize: data.byteSize } : {}),
+    ...(data.mimeHint ? { mimeHint: data.mimeHint } : {}),
+    ...(data.previewDataUrl ? { previewDataUrl: data.previewDataUrl } : {}),
+  };
+}
 
 /** Markdown / plaintext files render through EnhancedMarkdownView (same path as DocPreview). */
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown', 'mdx', 'txt', 'text']);
+
+/**
+ * Only a missing file reads as "not found"; a transport or permission failure
+ * used to wear the same copy and sent users looking for files that exist.
+ */
+function previewErrorReason(message: string): string {
+  if (/ENOENT|no such file/i.test(message)) return 'not-found';
+  if (/not a file/i.test(message)) return 'not-a-file';
+  return 'unavailable';
+}
 
 function isMarkdownPreviewPath(path: string): boolean {
   const extensionMatch = /\.([a-zA-Z0-9]+)$/.exec(path);
@@ -241,6 +276,8 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   const [railWidthPx, setRailWidthPx] = useState(() => loadFileTreeRailWidth());
   const [isRailResizing, setIsRailResizing] = useState(false);
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
+  // Chunked image reads take several round trips; only the latest click paints.
+  const latestPreviewPathRef = useRef<string | null>(null);
   const railWidthRef = useRef(railWidthPx);
   const railDragRef = useRef<{
     pointerId: number;
@@ -526,10 +563,14 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       return;
     }
     setSelectedPath(relativePath);
+    latestPreviewPathRef.current = relativePath;
+    // Keyboard navigation skips hover; warm the grammar while the file loads.
+    prewarmFileHighlight(relativePath);
     setPreviewLoading(true);
     setPreviewError(null);
     // Keep previous content visible until the new read lands (smoother switch).
     props.onOpenFile?.(absolutePath, relativePath);
+    let placeholderShown = false;
     try {
       const response = await props.request({
         type: 'project/read-file',
@@ -539,26 +580,46 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       if (!response.success) {
         throw new Error(response.error);
       }
-      const data = response.data as ProjectReadFileData;
-      setPreview({
-        relativePath: data.relativePath || relativePath,
-        absolutePath: data.absolutePath || absolutePath,
-        content: data.content ?? '',
-        truncated: data.truncated === true,
-        isBinary: data.isBinary === true,
-        ...(typeof data.byteSize === 'number' ? { byteSize: data.byteSize } : {}),
-        ...(data.mimeHint ? { mimeHint: data.mimeHint } : {}),
-        ...(data.previewDataUrl ? { previewDataUrl: data.previewDataUrl } : {}),
+      const head = response.data as ProjectReadFileData;
+      const placeholder =
+        !head.previewDataUrl && head.previewChunkBytes ? head.previewThumbDataUrl : undefined;
+      if (placeholder) {
+        // Paint the Host's downscaled WebP now; full-resolution slices follow.
+        placeholderShown = true;
+        setPreview({
+          ...previewStateFromRead(head, relativePath, absolutePath),
+          previewDataUrl: placeholder,
+          previewQuality: 'placeholder',
+        });
+        setPreviewLoading(false);
+      }
+      const data = await completeProjectImagePreview({
+        data: head,
+        projectPath: props.projectPath,
+        relativePath,
+        request: props.request,
       });
+      if (placeholder && data.previewDataUrl) await predecodeImage(data.previewDataUrl);
+      if (latestPreviewPathRef.current !== relativePath) return;
+      setPreview(previewStateFromRead(data, relativePath, absolutePath));
     } catch (loadError) {
+      if (latestPreviewPathRef.current !== relativePath) return;
+      if (placeholderShown) {
+        console.warn('[file-tree] Full-resolution preview failed; keeping placeholder.', loadError);
+        setPreview((current) =>
+          current?.previewQuality ? { ...current, previewQuality: 'placeholder-only' } : current,
+        );
+        return;
+      }
       setPreview(null);
       setPreviewError(formatError(loadError));
     } finally {
-      setPreviewLoading(false);
+      if (latestPreviewPathRef.current === relativePath) setPreviewLoading(false);
     }
   }
 
   function closeFilePreview(): void {
+    latestPreviewPathRef.current = null;
     setPreview(null);
     setPreviewError(null);
     setPreviewLoading(false);
@@ -573,6 +634,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
 
   // Clear preview when the workspace changes so stale content cannot linger.
   useEffect(() => {
+    latestPreviewPathRef.current = null;
     setPreview(null);
     setPreviewError(null);
     setPreviewLoading(false);
@@ -743,7 +805,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
             ) : null}
             {previewError ? (
               <PreviewUnavailable
-                reason="not-found"
+                reason={previewErrorReason(previewError)}
                 locale={locale}
                 fileName={previewFileName}
                 testId="file-tree-preview-unavailable"
@@ -757,6 +819,21 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                   alt={previewFileName || preview.relativePath}
                   draggable={false}
                 />
+                {preview.previewQuality ? (
+                  <span
+                    className="file-tree-preview-image-badge"
+                    data-testid="file-tree-preview-image-badge"
+                    role="status"
+                  >
+                    {preview.previewQuality === 'placeholder'
+                      ? locale === 'zh-CN'
+                        ? '正在加载原图…'
+                        : 'Loading full resolution…'
+                      : locale === 'zh-CN'
+                        ? '原图加载失败，当前为预览图'
+                        : 'Full resolution unavailable; showing a preview'}
+                  </span>
+                ) : null}
               </div>
             ) : null}
             {preview && binaryUnavailableReason ? (

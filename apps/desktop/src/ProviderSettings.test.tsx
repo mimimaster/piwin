@@ -677,4 +677,76 @@ describe('ProviderSettings', () => {
     expect(customSection?.querySelector('[data-testid="provider-row-openai"]')).not.toBeNull();
     expect(customSection?.querySelector('[data-testid="provider-row-custom-local"]')).not.toBeNull();
   });
+
+  it('surfaces model test error through onError and displays failure status when model test fails', async () => {
+    const onError = vi.fn();
+    const props = {
+      ...makeProps(),
+      onError,
+      onTestModel: vi.fn(async () => {
+        throw new Error('401 Unauthorized');
+      }),
+    };
+    const { container, root } = renderProviderSettings(props);
+    instances.push({ container, root });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
+        ?.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const testButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-model-test-gpt-4.1"]',
+    );
+    expect(testButton).not.toBeNull();
+
+    act(() => {
+      testButton?.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onError).toHaveBeenCalledWith('Model "gpt-4.1" test failed: 401 Unauthorized');
+    const statusPill = container.querySelector('.provider-model-test-status--error');
+    expect(statusPill).not.toBeNull();
+    expect(statusPill?.textContent).toBe('Fail');
+    expect(statusPill?.getAttribute('title')).toBe('401 Unauthorized');
+  });
+
+  it('updates model status pill to OK when model test succeeds', async () => {
+    const props = {
+      ...makeProps(),
+      onTestModel: vi.fn(async () => ({ durationMs: 800 })),
+    };
+    const { container, root } = renderProviderSettings(props);
+    instances.push({ container, root });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
+        ?.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-model-test-gpt-4.1"]')
+        ?.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const statusPill = container.querySelector('.provider-model-test-status--ok');
+    expect(statusPill).not.toBeNull();
+    expect(statusPill?.textContent).toBe('OK · 0.8s');
+  });
 });
+
