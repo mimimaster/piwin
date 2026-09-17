@@ -389,6 +389,7 @@ export type DesktopTranslator = {
     todoConflict: string;
     nav: {
       general: string;
+      notifications: string;
       models: string;
       oauth: string;
       hooks: string;
@@ -1343,6 +1344,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       todoConflict: isChinese ? '待办已被另一端改过' : 'Another client changed these todos.',
       nav: {
         general: isChinese ? '通用与外观' : 'General & Appearance',
+        notifications: isChinese ? '通知' : 'Notifications',
         models: isChinese ? '模型' : 'Models & Providers',
         oauth: isChinese ? 'OAuth 登录' : 'OAuth Login',
         hooks: 'Hooks',
