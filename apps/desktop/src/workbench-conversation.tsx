@@ -340,6 +340,25 @@ export type WorkbenchPermissionBarProps = {
   onExtensionUiResolve: (payload: ExtensionUiResolvePayload) => void | Promise<void>;
 };
 
+function permissionOriginProps(
+  state: ChatUiState,
+  sessionId: string,
+): { origin?: NonNullable<import('./permission-bar').PermissionBarProps['origin']> } {
+  if (!sessionId || sessionId === state.activeSessionId) return {};
+  const child = state.subagentChildren[sessionId];
+  if (child) {
+    return {
+      origin: {
+        kind: 'subagent',
+        name: child.name?.trim() || sessionId,
+        ...(child.workingDirectory ? { workingDirectory: child.workingDirectory } : {}),
+      },
+    };
+  }
+  const session = state.sessions.find((item) => item.id === sessionId);
+  return { origin: { kind: 'session', name: session?.name?.trim() || sessionId } };
+}
+
 export function WorkbenchPermissionBar(
   props: WorkbenchPermissionBarProps,
 ): ReactElement | null {
@@ -371,6 +390,7 @@ export function WorkbenchPermissionBar(
         prompt={state.permissionPrompt}
         projectPath={state.projectPath}
         queuedRemaining={Math.max(0, state.permissionQueue.length - 1)}
+        {...permissionOriginProps(state, state.permissionPrompt.sessionId)}
         onPermission={(decision, scope) => {
           void onPermission(decision, scope);
         }}

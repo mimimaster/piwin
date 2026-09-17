@@ -132,4 +132,47 @@ describe('composer slash menu skills', () => {
     expect(skillItem).not.toBeNull();
     expect(skillItem.disabled).toBe(false);
   });
+
+  it('Enter applies the highlighted item, not a different ranked one', () => {
+    const onAgentModeChange = vi.fn();
+    const onComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="/w"
+        onAgentModeChange={onAgentModeChange}
+        onComposerChange={onComposerChange}
+        menuSkills={[
+          { id: 'writing-plans', name: 'writing-plans', enabled: true },
+          { id: 'review', name: 'review', enabled: true },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const textarea = container.querySelector(
+      '[data-testid="composer-input"]',
+    ) as HTMLTextAreaElement;
+    const options = [
+      ...container.querySelectorAll<HTMLButtonElement>('[data-testid^="slash-item-"]'),
+    ];
+    const targetIndex = options.findIndex((option) => option.dataset.slashId === 'skill:review');
+    expect(targetIndex).toBeGreaterThan(0);
+    const target = options[targetIndex]!;
+
+    act(() => {
+      for (let step = 0; step < targetIndex; step += 1) {
+        textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      }
+    });
+    const highlighted = container.querySelector('[data-testid^="slash-item-"][aria-selected="true"]');
+    expect(highlighted?.getAttribute('data-slash-id')).toBe(target.dataset.slashId);
+
+    act(() => {
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(onAgentModeChange).not.toHaveBeenCalled();
+    expect(onComposerChange).toHaveBeenCalledWith('/review ');
+  });
 });

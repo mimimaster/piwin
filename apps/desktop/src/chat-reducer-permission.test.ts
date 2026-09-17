@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
-import type { PermissionPromptUi } from './chat-ui-types';
+import type { ChatUiState, PermissionPromptUi } from './chat-ui-types';
 
 function prompt(
   requestId: string,
@@ -18,6 +18,24 @@ function prompt(
 }
 
 describe('chatUiReducer permission queue', () => {
+  it('drops a stale prompt for the active session but keeps a subagent child prompt', () => {
+    let state: ChatUiState = {
+      ...createInitialChatUiState(),
+      activeSessionId: 'session-1',
+      activeRunId: 'parent-run',
+    };
+    state = chatUiReducer(state, {
+      type: 'permission/show',
+      prompt: prompt('stale', { runId: 'old-run' }),
+    });
+    expect(state.permissionQueue).toHaveLength(0);
+    state = chatUiReducer(state, {
+      type: 'permission/show',
+      prompt: prompt('child', { sessionId: 'child-session', runId: 'child-task-run' }),
+    });
+    expect(state.permissionPrompt?.requestId).toBe('child');
+  });
+
   it('queues two permission/show events with the same runId', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'permission/show', prompt: prompt('a') });

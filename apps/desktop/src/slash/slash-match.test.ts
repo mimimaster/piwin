@@ -72,6 +72,17 @@ describe('groupSlashItems', () => {
     expect(labels.indexOf('Command')).toBeLessThan(labels.indexOf('Mode'));
     expect(labels.indexOf('Mode')).toBeLessThan(labels.indexOf('Skill'));
   });
+
+  it('returns filtered items in the same order the menu renders them', () => {
+    // `/w` ranks writing-plans (prefix) above weaker command/mode matches;
+    // keyboard selection indexes the flat list, so it must equal display order.
+    for (const query of ['', 'w', 'r', 'o', 'p', 'c']) {
+      const filtered = filterSlashItems(catalog(), query);
+      const rendered = groupSlashItems(filtered).flatMap((group) => group.items);
+      expect(filtered.map((item) => item.id)).toEqual(rendered.map((item) => item.id));
+    }
+    expect(filterSlashItems(catalog(), 'w')[0]?.name).toBe('writing-plans');
+  });
 });
 
 describe('buildSlashCatalog availability', () => {

@@ -27,7 +27,48 @@ export type PermissionBarProps = {
   onPermission: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
   /** Remaining prompts after the one currently shown. */
   queuedRemaining?: number;
+  /**
+   * Set when the prompt belongs to another session (a subagent child or a
+   * background session). The workspace fact then shows where that session runs.
+   */
+  origin?: { kind: 'subagent' | 'session'; name: string; workingDirectory?: string };
 };
+
+/**
+ * The shortcuts are document-wide so they work while reading the transcript,
+ * but a focused control or an open dialog owns its own keys: Enter on a
+ * focused Deny button must not grant, and Esc closing a dialog must not deny.
+ */
+function isKeyOwnedByTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'INPUT' ||
+    target.tagName === 'SELECT' ||
+    target.tagName === 'BUTTON' ||
+    target.tagName === 'A' ||
+    target.isContentEditable
+  ) {
+    return true;
+  }
+  return target.closest('[role="dialog"], [role="alertdialog"], [role="menu"]') !== null;
+}
+
+/**
+ * The same child prompt can render twice (the docked panel and an open
+ * subagent inspector). Only the first mounted bar owns the keyboard for a
+ * request, so one Enter never resolves it twice.
+ */
+const keyboardOwners = new Map<string, symbol>();
+
+function hasOpenModal(): boolean {
+  // Radix dialogs mark themselves with role + data-state rather than aria-modal.
+  return (
+    document.querySelector(
+      '[aria-modal="true"], dialog[open], [role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]',
+    ) !== null
+  );
+}
 
 /** Compact one-line subject shown before the details disclosure. */
 function permissionSubject(
@@ -53,7 +94,8 @@ function shouldDefaultExpand(prompt: PermissionPromptUi): boolean {
 }
 
 export function PermissionBar(props: PermissionBarProps): ReactElement {
-  const { prompt, projectPath } = props;
+  const { prompt, projectPath, origin } = props;
+  const workspacePath = origin?.workingDirectory ?? projectPath;
   const { translator, locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const copy = translator.interruption;
@@ -76,16 +118,12 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
   onPermissionRef.current = props.onPermission;
   useEffect(() => {
     setStamping(false);
-    function isEditableTarget(target: EventTarget | null): boolean {
-      if (!(target instanceof HTMLElement)) return false;
-      return (
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'INPUT' ||
-        target.isContentEditable
-      );
-    }
+    const requestId = prompt.requestId;
+    if (keyboardOwners.has(requestId)) return;
+    const owner = Symbol(requestId);
+    keyboardOwners.set(requestId, owner);
     function onKeyDown(event: KeyboardEvent): void {
-      if (isEditableTarget(event.target)) return;
+      if (event.defaultPrevented || isKeyOwnedByTarget(event.target) || hasOpenModal()) return;
       if (event.key === 'Enter') {
         event.preventDefault();
         setStamping(true);
@@ -98,7 +136,10 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
       }
     }
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (keyboardOwners.get(requestId) === owner) keyboardOwners.delete(requestId);
+    };
   }, [prompt.requestId]);
 
   const queueBadge =
@@ -120,9 +161,21 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
       activityStatus="running"
     >
       <div className="permission-bar-quick-facts">
-        {projectPath ? (
+        {origin ? (
+          <span className="permission-fact-item" data-testid="permission-bar-origin">
+            {origin.kind === 'subagent'
+              ? isZh
+                ? '子代理'
+                : 'Subagent'
+              : isZh
+                ? '其他会话'
+                : 'Other session'}{' '}
+            · <strong>{origin.name}</strong>
+          </span>
+        ) : null}
+        {workspacePath ? (
           <span className="permission-fact-item">
-            {isZh ? '工作目录' : 'Workspace'} · <code>{projectPath}</code>
+            {isZh ? '工作目录' : 'Workspace'} · <code>{workspacePath}</code>
           </span>
         ) : null}
         <span className="permission-fact-item">

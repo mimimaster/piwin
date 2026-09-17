@@ -13,6 +13,8 @@ import { randomUUID } from 'node:crypto';
 import { formatError, normalizeExecutionConfig } from '@piwin/contracts';
 import { healthProviderDisclosure } from './health-turn-display.js';
 import { effectivePermissionMode } from './effective-permission-mode.js';
+import { evaluateBashPermission } from './permission-policy.js';
+import { isWorktreeConfinedRecursiveRemove } from './subagent-worktree-rm-approval.js';
 import { loadMcpConfig, createMcpGenerationSnapshot } from '@piwin/mcp';
 import { listProjects } from '@piwin/project';
 import { getSessionRecord } from '@piwin/session';
@@ -291,20 +293,36 @@ export async function composeSessionHostToolsForSession(
   // Repair spec WP3: the permission admission gate is bound to the frozen
   // generation snapshot (rules + MCP allowlist) and reads the dynamic
   // PermissionMode on every call. Executors never re-derive a decision.
+  const getPermissionMode = (): PermissionMode => {
+    const sessionOverride = deps.sessionPermissionOverrides.get(sessionId);
+    return effectivePermissionMode({
+      ...(sessionOverride !== undefined ? { sessionOverride } : {}),
+      ...(deps.options.permissionModeOverride !== undefined
+        ? { cliOverride: deps.options.permissionModeOverride }
+        : {}),
+      configMode: deps.permissionModeFromConfig,
+      ...(projectPath !== undefined ? { projectPath } : {}),
+      projectTrusted,
+    });
+  };
+  const childWorktreePath = childContext?.worktreePath;
   const permissionGate = createHostToolAdmission({
     rules,
-    getPermissionMode: () => {
-      const sessionOverride = deps.sessionPermissionOverrides.get(sessionId);
-      return effectivePermissionMode({
-        ...(sessionOverride !== undefined ? { sessionOverride } : {}),
-        ...(deps.options.permissionModeOverride !== undefined
-          ? { cliOverride: deps.options.permissionModeOverride }
-          : {}),
-        configMode: deps.permissionModeFromConfig,
-        ...(projectPath !== undefined ? { projectPath } : {}),
-        projectTrusted,
-      });
-    },
+    getPermissionMode,
+    ...(childWorktreePath !== undefined
+      ? {
+          autoApproveRecursiveRemove: async (command: string) => {
+            // `ask-all` asked for every prompt; honor it for children too.
+            const mode = getPermissionMode();
+            if (mode !== 'auto') return false;
+            return isWorktreeConfinedRecursiveRemove({
+              command,
+              worktreePath: childWorktreePath,
+              evaluateStep: (step) => evaluateBashPermission(step, mode, rules).decision,
+            });
+          },
+        }
+      : {}),
     getSessionAllowlist: (currentSessionId) => deps.sessionAllowlists.get(currentSessionId),
     requestPermission: (input) =>
       deps.requestPermission({

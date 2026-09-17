@@ -382,6 +382,15 @@ export class SubagentOrchestrator {
   }
 
   /** Persist a low-frequency, display-safe activity transition from child events. */
+  /** Current activity of a running invocation, for callers that restore it later. */
+  getRunningInvocationActivity(invocationId: string): SubagentInvocationActivity | undefined {
+    for (const batchState of this.activeBatches.values()) {
+      const current = batchState.invocations.get(invocationId);
+      if (current?.status === 'running') return current.activity;
+    }
+    return undefined;
+  }
+
   async updateInvocationActivity(
     invocationId: string,
     activity: SubagentInvocationActivity,

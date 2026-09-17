@@ -48,6 +48,10 @@ function scoreSlashItem(item: SlashItem, queryLower: string): number | null {
 /**
  * Filter catalog by query and return up to SLASH_MENU_MAX_ITEMS ranked items.
  * Empty query returns default top list (all commands, all modes, then skills).
+ *
+ * The result is in menu display order: sections ordered by their best match,
+ * items ranked within each section. The composer indexes this array for
+ * keyboard selection, so it must match what `groupSlashItems` renders.
  */
 export function filterSlashItems(catalog: SlashItem[], query: string): SlashItem[] {
   const queryLower = query.trim().toLowerCase();
@@ -65,31 +69,26 @@ export function filterSlashItems(catalog: SlashItem[], query: string): SlashItem
     }
     return left.item.name.localeCompare(right.item.name);
   });
-  return scored.slice(0, SLASH_MENU_MAX_ITEMS).map((entry) => entry.item);
+  const ranked = scored.slice(0, SLASH_MENU_MAX_ITEMS).map((entry) => entry.item);
+  return groupSlashItems(ranked).flatMap((section) => section.items);
 }
 
 /**
- * Group filtered items for section headers in UI order.
+ * Group filtered items for section headers. Sections appear in the order of
+ * their first item, so ranked input keeps its best match on top.
  */
 export function groupSlashItems(items: SlashItem[]): Array<{
   groupLabel: SlashItem['groupLabel'];
   items: SlashItem[];
 }> {
-  const order: SlashItem['groupLabel'][] = ['Command', 'Mode', 'Skill'];
   const buckets = new Map<SlashItem['groupLabel'], SlashItem[]>();
-  for (const groupLabel of order) {
-    buckets.set(groupLabel, []);
-  }
   for (const item of items) {
     const bucket = buckets.get(item.groupLabel);
     if (bucket) {
       bucket.push(item);
+    } else {
+      buckets.set(item.groupLabel, [item]);
     }
   }
-  return order
-    .map((groupLabel) => ({
-      groupLabel,
-      items: buckets.get(groupLabel) ?? [],
-    }))
-    .filter((section) => section.items.length > 0);
+  return [...buckets].map(([groupLabel, sectionItems]) => ({ groupLabel, items: sectionItems }));
 }

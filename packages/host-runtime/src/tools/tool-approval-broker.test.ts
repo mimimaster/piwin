@@ -75,6 +75,43 @@ describe('createToolApprovalBroker', () => {
     expect(requestPermission).not.toHaveBeenCalled();
   });
 
+  it('settles a confined worktree rm-recursive-force ask without prompting', async () => {
+    const requestPermission = vi.fn(async () => 'deny' as const);
+    const autoApproveRecursiveRemove = vi.fn(async () => true);
+    const broker = createToolApprovalBroker({ requestPermission, autoApproveRecursiveRemove });
+    await expect(
+      broker.resolve({
+        invocationId: 'inv-rm',
+        registration,
+        arguments: { command: 'rm -rf node_modules' },
+        context,
+        policy: policy({ reason: 'chain-ask:rm-recursive-force' }),
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toEqual({ allowed: true, source: 'subagent-worktree' });
+    expect(autoApproveRecursiveRemove).toHaveBeenCalledWith('rm -rf node_modules');
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('still prompts for other ask reasons or an unconfined rm', async () => {
+    const requestPermission = vi.fn(async () => 'allow' as const);
+    const autoApproveRecursiveRemove = vi.fn(async () => false);
+    const broker = createToolApprovalBroker({ requestPermission, autoApproveRecursiveRemove });
+    const resolve = (reason: string) =>
+      broker.resolve({
+        invocationId: 'inv-ask',
+        registration,
+        arguments: { command: 'rm -rf ../main' },
+        context,
+        policy: policy({ reason }),
+        signal: new AbortController().signal,
+      });
+    await expect(resolve('rm-recursive-force')).resolves.toEqual({ allowed: true, source: 'user' });
+    await expect(resolve('sudo')).resolves.toEqual({ allowed: true, source: 'user' });
+    expect(autoApproveRecursiveRemove).toHaveBeenCalledTimes(1);
+    expect(requestPermission).toHaveBeenCalledTimes(2);
+  });
+
   it('denies ask when there is no interactive handler', async () => {
     const broker = createToolApprovalBroker({});
     await expect(

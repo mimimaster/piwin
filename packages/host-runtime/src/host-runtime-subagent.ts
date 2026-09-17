@@ -206,6 +206,9 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
         runtimeGenerationId: input.runtimeGenerationId,
         workingDirectory: input.workingDirectory,
         parentRepoPath: input.workspaceLease.parentRepoPath,
+        ...(input.workspaceLease.mode === 'worktree'
+          ? { worktreePath: input.workspaceLease.worktreePath }
+          : {}),
         ...(input.task.invocationId ? { invocationId: input.task.invocationId } : {}),
         ...(input.task.reviewTarget
           ? {

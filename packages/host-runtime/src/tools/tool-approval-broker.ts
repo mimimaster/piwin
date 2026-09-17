@@ -15,7 +15,10 @@ import type { WebPermissionAction } from '../permission-policy.js';
 import type { ToolPolicyDecision } from './tool-policy-evaluator.js';
 
 export type ToolApprovalOutcome =
-  | { allowed: true; source: 'session-memory' | 'project-memory' | 'user' }
+  | {
+      allowed: true;
+      source: 'session-memory' | 'project-memory' | 'user' | 'subagent-worktree';
+    }
   | { allowed: false; reason: string };
 
 export type ToolApprovalBroker = {
@@ -42,6 +45,11 @@ export type ToolApprovalBrokerOptions = {
     defaultDecision: PermissionDecision;
     signal?: AbortSignal;
   }) => Promise<PermissionDecision>;
+  /**
+   * Worktree-isolated subagents only: settle an `rm-recursive-force` ask without
+   * a prompt when every target provably stays inside the child's own copy.
+   */
+  autoApproveRecursiveRemove?: (command: string) => Promise<boolean>;
   projectPath?: string;
   projectsFilePath?: string;
   onDiagnostic?: (message: string) => void;
@@ -85,6 +93,15 @@ export function createToolApprovalBroker(options: ToolApprovalBrokerOptions): To
         ) {
           return { allowed: true, source: 'project-memory' };
         }
+      }
+
+      if (
+        options.autoApproveRecursiveRemove &&
+        input.policy.action === 'bash' &&
+        /(^|:)rm-recursive-force$/.test(input.policy.reason) &&
+        (await options.autoApproveRecursiveRemove(String(input.arguments.command ?? '')))
+      ) {
+        return { allowed: true, source: 'subagent-worktree' };
       }
 
       if (options.requestPermission && !input.signal.aborted) {

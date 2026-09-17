@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { StatusBadge, type StatusTone } from '@piwin/ui-kit';
 import type {
   SessionSummary,
@@ -171,6 +171,11 @@ function latestActivity(
   if (props.stream?.permissionPrompt) {
     return props.locale === 'zh-CN' ? '等待权限确认' : 'Waiting for permission';
   }
+  // The approval gate sits inside the running tool call, so the stream still
+  // shows that tool as running; the Host-side wait must win over it.
+  if (props.invocation?.activity.kind === 'permission') {
+    return persistedActivityLabel(props.invocation.activity, props.locale);
+  }
   const runningTool = [...(props.stream?.tools ?? [])]
     .reverse()
     .find((tool) => tool.status === 'running');
@@ -278,14 +283,25 @@ function behaviorIdForStatus(status: InvocationStatus): BehaviorActivityId {
   }
 }
 
-function formatElapsed(startedAt: string, endedAt: string): string {
+function formatElapsed(startedAt: string, endedAt: string | number): string {
   const start = Date.parse(startedAt);
-  const end = Date.parse(endedAt);
+  const end = typeof endedAt === 'number' ? endedAt : Date.parse(endedAt);
   if (Number.isNaN(start) || Number.isNaN(end) || end < start) return '';
   const seconds = Math.floor((end - start) / 1000);
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   return `${minutes}m ${seconds % 60}s`;
+}
+
+function useTickingNow(enabled: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!enabled) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [enabled]);
+  return now;
 }
 
 function executionBadge(
@@ -395,8 +411,12 @@ export function SubagentInvocationBlock(
   const sealChar = resolveSubagentSealChar(role ?? profileId, title, props.locale);
   const startedAt = props.orchestrationItem?.startedAt ?? props.invocation?.createdAt;
   const endedAt = props.orchestrationItem?.updatedAt ?? props.invocation?.updatedAt;
+  // updatedAt only moves when the child reports something, so a running child
+  // that is blocked measures up to "now" instead of freezing at its last event.
+  const now = useTickingNow(isActive && startedAt !== undefined);
+  const elapsedEnd = isActive ? now : endedAt;
   const elapsed =
-    startedAt !== undefined && endedAt !== undefined ? formatElapsed(startedAt, endedAt) : '';
+    startedAt !== undefined && elapsedEnd !== undefined ? formatElapsed(startedAt, elapsedEnd) : '';
   const activeBadge = executionBadge(status, props.locale);
   const extras = secondaryBadges(axes, props.locale);
   const showCompleted = isFullySettled(axes);
