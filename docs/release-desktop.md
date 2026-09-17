@@ -58,11 +58,11 @@ Avoid ad-hoc builds for daily use: an ad-hoc signature is a new code identity
 every build, so macOS drops Desktop / external-volume grants and the first
 `git` probe of such a project waits on a permission prompt.
 
-`bundle:host` also copies the build machine's `~/.piwin/config.json` to
-`host/bundled-assets/default-config.json`. A packaged Host reads this seed only
-when the target machine has no `~/.piwin/config.json`; an existing user config
-always wins. Provider credentials remain references (env/keychain), not raw
-secrets. Set `PIWIN_DEFAULT_CONFIG_SOURCE` to choose a different seed file.
+A packaged Host may read `host/bundled-assets/default-config.json` as a
+first-run seed when the target machine has no `~/.piwin/config.json`. Current
+`bundle:host` does **not** copy the build machine's `~/.piwin/config.json`
+(CI must not bake developer credentials into the DMG). An existing user config
+always wins. Provider credentials remain env/keychain references.
 
 ### Thin shell (no local Host)
 
@@ -123,8 +123,12 @@ All-in-one remains `piwinwin`.
 
 ## Signing / notarization
 
-Not required for private v1. When certs exist, document platform-specific env
-vars in a follow-up and promote **D-ENG-03** from residual to active.
+Private v1 can ship unsigned. Prefer a stable Developer ID so TCC grants
+survive rebuilds. GitHub Actions imports `APPLE_CERTIFICATE` (base64 `.p12`)
+before `pnpm package:desktop` so Host Mach-O natives and the `.app` share one
+identity. Notarization is still residual **D-ENG-03b**.
+
+See [`guides/package-macos-ci.md`](./guides/package-macos-ci.md).
 
 ## Session cold storage gate (R1)
 
@@ -143,5 +147,8 @@ and Desktop restore-first settings. Operator recovery lives in
 
 ## CI note
 
-Default CI runs `pnpm typecheck` + `pnpm test` + host smoke only. Full desktop
-package is a **manual gate** unless the agent image has Rust + platform deps.
+Default CI (`.github/workflows/ci.yml`) stays on Ubuntu: typecheck, tests, host
+smoke. macOS all-in-one packaging is a **separate** workflow,
+[`.github/workflows/package-macos.yml`](../.github/workflows/package-macos.yml),
+triggered by `workflow_dispatch` or `v*` tags — not by every pull request.
+Details: [`guides/package-macos-ci.md`](./guides/package-macos-ci.md).

@@ -1,0 +1,171 @@
+name: package-macos
+
+# macOS all-in-one Desktop (shell + Host sidecar + bundled Node).
+# Do not use tauri-action as the builder: it would skip bundle:host,
+# fetch:node-runtime, and sign:host-macho. Command authority is
+# `pnpm package:desktop`. See docs/guides/package-macos-ci.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Build machine. macos-14 is free on this public repo but disk is tight; self-hosted uses the Mac keychain.
+        type: choice
+        options:
+          - macos-14
+          - self-hosted
+        default: macos-14
+      desktop_version:
+        description: Optional tauri.conf.json version (e.g. 0.1.0). Tags use the tag. Leave empty to keep 0.0.0.
+        required: false
+        type: string
+        default: ''
+      require_developer_id:
+        description: Fail if the .app is not Developer ID signed. Tag builds always require this.
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: package-macos-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: All-in-one Desktop (macOS arm64)
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'self-hosted') && fromJSON('["self-hosted","macOS","ARM64"]') || 'macos-14' }}
+    timeout-minutes: 90
+    env:
+      CI: 'true'
+      CARGO_INCREMENTAL: '0'
+      CARGO_TERM_COLOR: always
+      npm_config_fetch_timeout: '600000'
+      npm_config_fetch_retries: '5'
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      PIWIN_REQUIRE_DEVELOPER_ID: ${{ github.ref_type == 'tag' && '1' || (inputs.require_developer_id && '1' || '0') }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show disk
+        run: df -h /
+
+      - name: Free disk (GitHub-hosted)
+        if: runner.environment == 'github-hosted'
+        run: bash scripts/ci-macos-free-disk.sh
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache cargo registry
+        if: runner.environment == 'github-hosted'
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+          cache-targets: false
+          cache-on-failure: true
+
+      - name: Cache bundled Node runtime
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/piwin-build
+          key: piwin-node-runtime-${{ runner.os }}-${{ runner.arch }}-v22.19.0
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prune pnpm store
+        if: runner.environment == 'github-hosted'
+        run: pnpm store prune
+
+      - name: Import Developer ID certificate
+        if: runner.environment == 'github-hosted' && env.APPLE_CERTIFICATE != ''
+        run: bash scripts/import-apple-certificate.sh
+
+      - name: Apply desktop version
+        env:
+          DESKTOP_VERSION_INPUT: ${{ github.ref_type == 'tag' && github.ref_name || inputs.desktop_version }}
+        run: |
+          if [ -n "${DESKTOP_VERSION_INPUT}" ]; then
+            node scripts/apply-desktop-version.mjs "${DESKTOP_VERSION_INPUT}"
+          else
+            echo "keeping tauri.conf.json version"
+          fi
+
+      - name: Package all-in-one Desktop
+        run: pnpm package:desktop
+
+      - name: Smoke bundled host
+        run: pnpm test:bundle
+
+      - name: Verify packaged app
+        run: pnpm verify:desktop-package
+
+      - name: Collect DMG
+        run: |
+          mkdir -p dist-ci
+          shopt -s nullglob
+          dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          if [ "${#dmgs[@]}" -eq 0 ]; then
+            echo "no DMG produced" >&2
+            exit 1
+          fi
+          cp -v "${dmgs[@]}" dist-ci/
+          cd dist-ci
+          for artifact in *.dmg; do
+            shasum -a 256 "${artifact}" | tee "${artifact}.sha256"
+          done
+          ls -lh
+
+      - name: Drop intermediate build trees
+        if: runner.environment == 'github-hosted'
+        run: |
+          rm -rf dist-host apps/desktop/src-tauri/target
+          df -h /
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: piwinwin-macos-aarch64-${{ github.sha }}
+          path: |
+            dist-ci/*.dmg
+            dist-ci/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Draft GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          fail_on_unmatched_files: true
+          files: |
+            dist-ci/*.dmg
+            dist-ci/*.sha256
+          body: |
+            macOS all-in-one Desktop (`aarch64`). Built by `pnpm package:desktop`.
+
+            Not notarized yet (D-ENG-03b). Clean-machine smoke (ADR 0017 S5) is still required before treating this as public-ready.
+
+      - name: Remove temporary signing keychain
+        if: always() && runner.environment == 'github-hosted' && env.APPLE_CERTIFICATE != ''
+        run: bash scripts/import-apple-certificate.sh --cleanup

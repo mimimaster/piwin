@@ -18,6 +18,8 @@ jobs:
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
+      - name: Script unit tests
+        run: pnpm test:scripts
       - name: Typecheck
         run: pnpm typecheck
       - name: Test
