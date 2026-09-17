@@ -41,7 +41,7 @@ pnpm package:desktop
 
 打出来的 DMG 在 `apps/desktop/src-tauri/target/release/bundle/dmg/`。拖到「应用程序」再打开。
 
-目前没有现成的 GitHub Release 安装包。打出来的包一般也没有 Apple 公证。第一次打开如果系统提示「无法验证开发者」，到「系统设置 → 隐私与安全性」选「仍要打开」。
+GitHub Actions 工作流 `package-macos` 可以远程打同一份一体包（手动触发或 `v*` tag → draft Release）。详见 [`docs/guides/package-macos-ci.md`](./docs/guides/package-macos-ci.md)。打出来的包目前没有 Apple 公证。第一次打开如果系统提示「无法验证开发者」，到「系统设置 → 隐私与安全性」选「仍要打开」。
 
 ## 运行环境
 

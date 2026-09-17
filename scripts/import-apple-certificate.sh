@@ -69,7 +69,7 @@ security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
 security set-keychain-settings -lut 21600 "${KEYCHAIN_PATH}"
 security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
 
-base64 --decode > "${P12_PATH}" <<<"${APPLE_CERTIFICATE}"
+printf '%s' "${APPLE_CERTIFICATE}" | base64 --decode > "${P12_PATH}"
 security import "${P12_PATH}" \
   -P "${APPLE_CERTIFICATE_PASSWORD}" \
   -A \
