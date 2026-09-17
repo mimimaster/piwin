@@ -54,6 +54,11 @@ pnpm package:desktop
 3. `pnpm sign:host-macho` — Developer-ID-sign Host natives with that identity
 4. `tauri build` with `tauri.conf.sidecar.json` — embeds Host files, signs app + sidecar
 
+On macOS the same command also: detaches leftover `rw.*.dmg` mounts; uses
+`PIWIN_PACKAGE_TMPDIR` or `/Volumes/BigDisk/tmp` when the system disk is under
+8 GiB free; and if codesign / `bundle_dmg.sh` fails after the `.app` exists,
+re-signs and writes the DMG with `hdiutil`. The last line prints the DMG path.
+
 Avoid ad-hoc builds for daily use: an ad-hoc signature is a new code identity
 every build, so macOS drops Desktop / external-volume grants and the first
 `git` probe of such a project waits on a permission prompt.
