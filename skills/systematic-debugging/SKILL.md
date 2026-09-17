@@ -1,7 +1,7 @@
 ---
 name: systematic-debugging
-description: Resolve failures with an evidence-first loop and a verified fix.
-version: 2
+description: "Root-cause a failure with an evidence-first loop (reproduce, one hypothesis, minimal probe, smallest fix, re-run). Use before proposing a fix for any bug, failing test, crash, error message, build or typecheck failure, or unexpected behavior (报错 / 不工作 / 挂了)."
+version: 3
 ---
 
 # Systematic Debugging

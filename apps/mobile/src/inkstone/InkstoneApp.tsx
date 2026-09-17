@@ -30,6 +30,7 @@ import {
   InkstoneHostProvider,
   type InkstoneHostContextValue,
 } from './host/inkstone-host-context.js';
+import { useMobileAttention } from '../hooks/use-mobile-attention.js';
 
 const PAGES: Record<InkstoneRoute, () => ReactElement> = {
   sessions: SessionsPage,
@@ -135,6 +136,11 @@ export function InkstoneApp({
 
   const Page = PAGES[state.route];
   const sheet = state.sheet !== null ? SHEETS[state.sheet] : undefined;
+  const attention = useMobileAttention({
+    host: hostContext?.host ?? null,
+    route: state.route,
+    dispatch,
+  });
 
   return (
     <InkstoneContext.Provider value={{ state, dispatch }}>
@@ -142,6 +148,17 @@ export function InkstoneApp({
         <div className="inkstone-root">
           <InkstoneIconSprite />
           <div className="phone" data-route={state.route}>
+            {attention.banner !== null ? (
+              <button
+                type="button"
+                className="list-row"
+                onClick={attention.openBannerSession}
+                aria-label="打开提醒会话"
+              >
+                <strong>{attention.banner.title}</strong>
+                <small>{attention.banner.body}</small>
+              </button>
+            ) : null}
             <Page />
           </div>
           <div

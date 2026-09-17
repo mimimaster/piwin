@@ -51,6 +51,22 @@ export async function handleMockOpsCommands(
                   : 'retained',
           },
         };
+      case 'subagent/worktree-gc-preview':
+        return {
+          id,
+          type: 'response',
+          command: 'subagent/worktree-gc-preview',
+          success: true,
+          data: { entries: [], totalBytes: 0, reclaimableBytes: 0, reclaimableCount: 0 },
+        };
+      case 'subagent/worktree-gc':
+        return {
+          id,
+          type: 'response',
+          command: 'subagent/worktree-gc',
+          success: true,
+          data: { removedCount: 0, removedBytes: 0, failed: [] },
+        };
       case 'plan/get': {
         const plan = host.plans.get(command.sessionId) ?? null;
         return {

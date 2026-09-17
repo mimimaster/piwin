@@ -1,7 +1,7 @@
 ---
 name: create-skill
-description: Create a new Agent Skill (SKILL.md) with correct frontmatter and outcome-oriented body.
-version: 2
+description: "Create or revise an Agent Skill (SKILL.md) with valid frontmatter and a short outcome-oriented body. Use when the user asks to make, write, package, or improve a skill (做个 skill / 写个 skill), or wants a repeatable workflow saved for future sessions."
+version: 3
 ---
 
 # Create Skill

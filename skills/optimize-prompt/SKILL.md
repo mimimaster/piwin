@@ -1,7 +1,7 @@
 ---
 name: optimize-prompt
-description: Refactor system prompts, tool descriptors, and agent instructions into high-density, contract-driven, XML-structured production specifications. Trigger via /optimize-prompt.
-version: 1
+description: "Rewrite system prompts, tool descriptions, and agent instructions into dense, contract-style, XML-bounded specs with a before/after comparison. Use when the user asks to optimize, tighten, or review a prompt, system prompt, tool descriptor, or skill text (优化提示词), or runs /optimize-prompt."
+version: 2
 ---
 
 # Optimize Prompt

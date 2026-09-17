@@ -131,7 +131,8 @@ All-in-one remains `piwinwin`.
 Private v1 can ship unsigned. Prefer a stable Developer ID so TCC grants
 survive rebuilds. GitHub Actions imports `APPLE_CERTIFICATE` (base64 `.p12`)
 before `pnpm package:desktop` so Host Mach-O natives and the `.app` share one
-identity. Notarization is still residual **D-ENG-03b**.
+identity. Notarization is `pnpm notarize:desktop` (`notarytool` + stapler)
+when App Store Connect API credentials are present.
 
 See [`guides/package-macos-ci.md`](./guides/package-macos-ci.md).
 

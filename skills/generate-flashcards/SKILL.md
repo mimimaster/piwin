@@ -1,7 +1,7 @@
 ---
 name: generate-flashcards
-description: Generate flashcards from notes or open knowledge via flashcard_batch_create. Folder/docs go through Doc Cards generate, not this tool path.
-version: 3
+description: "Create study flashcards from notes or open knowledge via flashcard_batch_create; folders and documents go through Doc Cards generate instead. Use when the user asks to make flashcards, 记忆卡片 / 抽认卡, Anki-style or cloze cards, or wants material turned into something to memorize."
+version: 4
 ---
 
 # Generate Flashcards

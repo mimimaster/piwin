@@ -49,6 +49,17 @@ verification. Generic manual candidate adopt and result-review commands stay
 intact. See
 [`2026-09-13-model-facing-subagent-review-loop.md`](../plans/2026-09-13-model-facing-subagent-review-loop.md).
 
+**Worktree GC (2026-09-17):** Leftover worktrees are a Host concern, not a
+skill. `executing-plans` never sees failed/cancelled/paused/crashed copies.
+Host inventories leases plus `~/.piwin/worktrees`, and only deletes through
+`git worktree remove` when the child has ended, is not pending/conflicted,
+was not user-retained, has no unfrozen snapshot, is not referenced by an
+active pause checkpoint, and is inside product storage. Startup auto-GC also
+requires 7 days of age; the Tasks panel cleanup button keeps the other
+guards and only skips the 7-day wait (plus a 2-minute in-flight grace).
+Orphans (disk copy, no lease) may be deleted under those path/age/lock
+guards. Commands: `subagent/worktree-gc-preview`, `subagent/worktree-gc`.
+
 **Reviewed delivery shipped (2026-09-13):** The builtin scheme `reviewed-delivery`
 is the first-party loop. Parent tools are `piwin_subagent_start` (worker
 `deliveryIntent='candidate'`, `applyPolicy='explicit'`, worktree, retain
@@ -223,7 +234,7 @@ defines or copies provider/model catalogs.
 - Parallel subagent execution is safe by default: readonly tasks share the
   parent cwd; write tasks get isolated worktrees with serialized integration.
 - The piwin-owned SDK worker is the only product isolation path.
-- Failed/conflicted worktrees are retained, requiring manual cleanup.
+- Failed/conflicted worktrees are retained for inspection; Host GC later reclaims copies that are ended, unreferenced, and (for auto) older than 7 days.
 - The orchestrator is the single scheduling authority; plan code and the model
   tool never call `Promise.all` directly for subagent dispatch.
 - Ordinary new write delegations integrate automatically into the parent

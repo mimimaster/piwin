@@ -1,7 +1,7 @@
 ---
 name: executing-plans
-description: Execute an approved plan slice-by-slice with evidence at each checkpoint.
-version: 3
+description: "Execute an approved SessionPlan in the current session slice by slice, recording step evidence with piwin_plan_set_step. Use when the user wants an approved plan implemented inline (执行一下 / 当前会话执行 / 按计划做) or asks to continue the next plan step. If they chose 子代理执行, use subagent-driven-development instead."
+version: 4
 ---
 
 # Executing Plans

@@ -28,7 +28,10 @@ The job:
 5. Uploads the DMG as a workflow artifact (14 days).
 6. On `v*` tags, attaches the DMG to a **draft** GitHub Release.
 
-It does **not** notarize (residual D-ENG-03b) and does **not** replace ADR 0017 S5 clean-machine smoke.
+If `APPLE_API_KEY` / `APPLE_API_ISSUER` / `APPLE_API_KEY_P8` are set, the job
+submits the DMG to Apple notary and staples the ticket. SHA-256 is hashed
+**after** stapling. Missing API secrets skip notarization (same as a local
+`pnpm package:desktop`). Clean-machine smoke (ADR 0017 S5) is still required.
 
 ## Triggers
 
@@ -71,7 +74,27 @@ security find-identity -v -p codesigning | grep "Developer ID Application"
 
 Tag builds set `PIWIN_REQUIRE_DEVELOPER_ID=1` and fail if the `.app` is still ad-hoc. Manual dispatch defaults to allowing ad-hoc so the pipeline can be proven before secrets exist; tick **require_developer_id** once the cert is in place.
 
-Notarization (`APPLE_API_KEY` / `notarytool` / stapler) is a follow-up, not part of this workflow.
+### Notarization
+
+| Secret | Value |
+|--------|--------|
+| `APPLE_API_KEY` | App Store Connect Key ID (filename `AuthKey_<id>.p8`) |
+| `APPLE_API_ISSUER` | Issuer UUID from Users and Access → Integrations |
+| `APPLE_API_KEY_P8` | PEM contents of the `.p8`. Download is one-shot; keep a local copy. |
+
+Local, after a signed `pnpm package:desktop`:
+
+```bash
+export APPLE_API_KEY=...
+export APPLE_API_ISSUER=...
+export APPLE_API_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${APPLE_API_KEY}.p8"
+pnpm notarize:desktop
+```
+
+Apple will not notarize an ad-hoc build. GitHub-hosted signed+notarized
+packages also need the Developer ID `.p12` secrets above.
+
+Do **not** put empty `APPLE_CERTIFICATE` / `APPLE_CERTIFICATE_PASSWORD` on the job `env:`. GitHub still sets those variables to `""`, and Tauri treats `Some("")` as “import this p12”, then `security import` dies with `SecKeychainItemImport: One or more parameters passed to a function were not valid.` The p12 is a step-only env for `import-apple-certificate.sh`; later steps only see `APPLE_SIGNING_IDENTITY`.
 
 ## Local check of a just-built app
 
@@ -90,4 +113,5 @@ If `apps/desktop/src-tauri/target` is a symlink or `CARGO_TARGET_DIR` is set, th
 3. If the job dies on disk space, re-run after confirming the Xcode cleanup logs, or use a self-hosted Mac.
 4. Export the Developer ID p12 and set the three secrets.
 5. Re-run with **require_developer_id**.
-6. When a numbered build is needed: `git tag v0.1.0 && git push origin v0.1.0`, then publish the draft Release after a local install smoke.
+6. Set the three App Store Connect API secrets and confirm the Notarize step staples.
+7. When a numbered build is needed: `git tag v0.1.0 && git push origin v0.1.0`, then publish the draft Release after a local install smoke.

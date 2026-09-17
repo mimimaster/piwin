@@ -1,8 +1,8 @@
 ---
 name: videogen
-description: Generate short videos from text or an image reference with a configured video model.
+description: "Generate short videos from a text prompt or an image reference with the configured video model via video_gen. Use when the user asks to make, animate, or generate a video or clip (生成视频), including image-to-video."
 hidden: true
-version: 2
+version: 3
 ---
 
 # Video Generation

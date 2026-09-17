@@ -79,7 +79,7 @@ describe('scanSkills', () => {
     expect(content).toContain('parallelGroup');
     expect(content).toContain('Walkthrough');
     expect(content).toContain('当前会话执行，还是子代理执行？');
-    expect(content).toMatch(/^version:\s*7\b/m);
+    expect(content).toMatch(/^version:\s*8\b/m);
     expect(content).toContain('piwin_plan_present');
   });
 

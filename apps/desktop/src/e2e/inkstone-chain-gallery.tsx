@@ -45,6 +45,48 @@ const failTool = tool({
   },
 });
 
+const webSearchTool = tool({
+  toolCallId: 'web-search-1',
+  toolName: 'web_search',
+  status: 'done',
+  output: JSON.stringify({
+    query: 'tauri webkit iframe sandbox',
+    providerId: 'aggregate:brave+tavily',
+    hits: [
+      {
+        title: 'Tauri WebView security',
+        url: 'https://v2.tauri.app/security/',
+        snippet: 'Isolation pattern and CSP for embedded content.',
+        source: 'tavily',
+      },
+    ],
+  }),
+  presentation: {
+    kind: 'web',
+    title: 'web_search',
+    actionVerb: 'web_search',
+    summary: 'tauri webkit iframe sandbox',
+    durationMs: 5010,
+    webSearch: {
+      kind: 'web-search-diagnostics',
+      providerId: 'aggregate:brave+tavily',
+      hitCount: 1,
+      durationMs: 5010,
+      attempts: [
+        {
+          sourceId: 'brave',
+          ok: false,
+          hitCount: 0,
+          durationMs: 5002,
+          timedOut: true,
+          error: 'source "brave" timed out after 5000ms',
+        },
+        { sourceId: 'tavily', ok: true, hitCount: 1, durationMs: 1240 },
+      ],
+    },
+  },
+});
+
 const writeTool = tool({
   toolCallId: 'write-1',
   toolName: 'write_file',
@@ -205,6 +247,7 @@ export function InkstoneChainGallery(): ReactElement {
           <ToolCallCard tool={readTool} density="compact" />
           <ExploreFlowCapsule group={exploreGroup} locale="zh-CN" />
           <ToolCallCard tool={failTool} density="compact" defaultExpanded />
+          <ToolCallCard tool={webSearchTool} density="compact" locale="zh-CN" defaultExpanded />
           <ToolCallCard tool={writeTool} density="compact" />
           <ToolCallCard tool={bashTool} density="compact" />
         </div>

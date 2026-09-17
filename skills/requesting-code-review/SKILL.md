@@ -1,7 +1,7 @@
 ---
 name: requesting-code-review
-description: Produce a short, high-signal review request for a change set.
-version: 2
+description: "Write a short, high-signal review request covering intent, risks, files touched, tests run, and specific asks. Use when a change set is ready for review, when drafting a PR description, or when handing a diff to a human or reviewer agent (提 PR / 找人 review)."
+version: 3
 ---
 
 # Requesting Code Review

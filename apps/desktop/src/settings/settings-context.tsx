@@ -48,6 +48,8 @@ export type SettingsConfigRequest = (command: {
     | 'secrets/get'
     | 'web/test-search-source'
     | 'web/search-route-preview'
+    | 'web/search-log-list'
+    | 'web/search-log-clear'
     | 'project/permissions-list'
     | 'project/permissions-revoke'
     | 'usage/get-rollup'
@@ -108,6 +110,8 @@ export type SettingsConfigRequest = (command: {
     | import('@piwin/contracts').VisionDelegateInput
     | SearchRoutePreviewInput;
   webTest?: import('@piwin/contracts').WebSearchTestInput;
+  /** web/search-log-list: all calls or only (partially) failed ones. */
+  logStatus?: import('@piwin/contracts').WebSearchLogStatusFilter;
 }) => Promise<HostResponse>;
 
 export type SettingsContextValue = {

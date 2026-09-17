@@ -1,7 +1,7 @@
 ---
 name: writing-plans
-description: Explore codebase context and formulate a modular SessionPlan via piwin_plan_create for user review. Trigger via /writing-plans or /write-plan.
-version: 7
+description: "Explore the codebase and save a reviewable, modular SessionPlan via piwin_plan_create, then ask how to execute it. Use when the user asks for a plan or proposal before implementation (写个计划 / 出方案 / plan this), or when a large change spans several packages and the scope should be approved first; also /writing-plans or /write-plan."
+version: 8
 ---
 
 # Writing Plans

@@ -10,6 +10,9 @@ apps/desktop/src-tauri/binaries/
 .env
 .env.*
 !.env.example
+*.p8
+AuthKey_*.p8
+private_keys/
 apps/desktop/src-tauri/target/
 coverage/
 .vite/

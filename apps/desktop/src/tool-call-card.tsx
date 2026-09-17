@@ -52,6 +52,10 @@ import { toolOutputDuplicatesError } from './tool-output-duplicates-error.js';
 import { useToolEditDiffStats } from './use-tool-edit-diff-stats';
 import { inkLineNodeClass, toolStatusToNodeStatus } from './session-node-status.js';
 import { DesktopHealthToolCard } from './health-tool-card.js';
+import {
+  formatWebSearchFailureTag,
+  WebSearchSourceAttempts,
+} from './web-search-diagnostics-display';
 import { shouldShowApprovedSeal } from './tool-approved-seal.js';
 import { useThemeId } from './theme/theme-id.js';
 
@@ -260,6 +264,8 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         ...(outputTruncation !== undefined ? { truncation: outputTruncation } : {}),
       })
     : undefined;
+  const webSearchDiagnostics = tool.presentation?.webSearch;
+  const webSearchFailureTag = formatWebSearchFailureTag(webSearchDiagnostics, locale);
   const actionVerb = localizeBehaviorAction(behaviorId, locale, rawActionVerb);
   // Proto-01 labels the chain with tool ids (`read` / `grep` / `bash` / `write_file`),
   // not Deck's Title-Case behavior verbs (`Read` / `Search` / `Bash`).
@@ -598,6 +604,15 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               {truncationCopy.summary}
             </span>
           ) : null}
+          {webSearchFailureTag ? (
+            <span
+              className="tool-call-web-search-tag"
+              data-testid="tool-call-web-search-failed"
+              title={webSearchFailureTag.title}
+            >
+              {webSearchFailureTag.summary}
+            </span>
+          ) : null}
           {showApprovedSeal ? (
             <span className="seal mini" title="已批准 · 允许一次" data-testid="tool-approved-seal">
               允
@@ -731,6 +746,9 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
                 </span>
               </div>
             </div>
+          ) : null}
+          {webSearchDiagnostics ? (
+            <WebSearchSourceAttempts diagnostics={webSearchDiagnostics} locale={locale} />
           ) : null}
           <CitationCards parsed={citations} />
           {!isFetchStyle &&

@@ -1,7 +1,7 @@
 ---
 name: verification-before-completion
-description: Require fresh evidence before claiming work is done, fixed, or passing.
-version: 2
+description: "Require fresh evidence (tests, typecheck, build, or a real run in this environment) before claiming work is done, fixed, or passing. Use right before reporting any code change, bug fix, or task as complete."
+version: 3
 ---
 
 # Verification Before Completion

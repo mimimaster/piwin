@@ -74,6 +74,7 @@ import {
 } from './capabilities/search-route-resolver.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { formatMountedKnowledgeBasePrompt } from './knowledge-system-prompt.js';
+import { formatSkillDiscoveryPrompt } from './skills-system-prompt.js';
 import { formatBrowserSystemPrompt } from './browser-system-prompt.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
@@ -385,12 +386,17 @@ async function compileAgentCapabilityPlan(
     options.mountedKnowledgeBaseNames ?? [],
   );
   const browserAppendPrompt = formatBrowserSystemPrompt(snapshot.tools.hostTools);
+  const skillAppendPrompt = formatSkillDiscoveryPrompt({
+    skillCount: resourceManifest.skills.length,
+    piBuiltinToolNames: snapshot.tools.piBuiltinToolNames,
+  });
   const appendSystemPromptParts = [
     DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
     artifactAppendPrompt,
     mcpAppendPrompt,
     knowledgeAppendPrompt,
     browserAppendPrompt,
+    skillAppendPrompt,
   ].filter((prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0);
   const appendSystemPrompt =
     appendSystemPromptParts.length > 0 ? appendSystemPromptParts.join('\n\n') : undefined;

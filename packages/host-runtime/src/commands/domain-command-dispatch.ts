@@ -25,6 +25,7 @@ import type { SessionPackCommandContext } from './session-pack-commands.js';
 import { handleSessionColdStorageCommand } from './session-cold-storage-commands.js';
 import type { SessionColdStorageCommandContext } from './session-cold-storage-commands.js';
 import { handleUsageCommand } from './usage-commands.js';
+import { handleWebSearchLogCommand } from './web-search-log-commands.js';
 import type { SessionProductCommandContext } from './session-product-commands.js';
 import { handleSideChatCommand } from './side-chat-commands.js';
 import { handleWalkthroughList, handleWalkthroughGenerate } from './walkthrough-commands.js';
@@ -120,6 +121,9 @@ export async function dispatchDomainCommands(
 
   const usage = await handleUsageCommand(command, requestId, context);
   if (usage) return usage;
+
+  const webSearchLog = await handleWebSearchLogCommand(command, requestId, context);
+  if (webSearchLog) return webSearchLog;
 
   const marketplaceSearch = await handleMarketplaceSearchCommand(command, requestId, {
     ...(context.piwinRoot === undefined ? {} : { piwinRoot: context.piwinRoot }),

@@ -290,6 +290,24 @@ describe('compileBlueprintForWorker', () => {
     expect(result.blueprint.activePromptPaths).toEqual(['/tmp/prompts/p1']);
   });
 
+  it('asks Agent sessions to load matching skills only when skills are active', async () => {
+    const compile = (skillPaths: string[]) =>
+      compileBlueprintForWorker(
+        { scope: agentProjectScope },
+        {
+          config: createConfig(),
+          discoverResources: async () => ({ skillPaths, extensionPaths: [], promptPaths: [] }),
+        },
+      );
+
+    const withSkills = await compile(['/tmp/skills/s1']);
+    expect(withSkills.blueprint.tools.piBuiltinToolNames).toContain('read');
+    expect(withSkills.blueprint.appendSystemPrompt).toContain('## Skills');
+
+    const withoutSkills = await compile([]);
+    expect(withoutSkills.blueprint.appendSystemPrompt).not.toContain('## Skills');
+  });
+
   it('changes the capability identity when an extension keeps its path but changes content', async () => {
     const compile = (contentRevision: string) =>
       compileBlueprintForWorker(

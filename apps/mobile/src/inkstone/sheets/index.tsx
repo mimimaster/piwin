@@ -17,7 +17,6 @@ import {
   HistorySheet,
   HostSheet,
   ManualConnectSheet,
-  NotificationsSheet,
   PairingSheet,
   ProjectsSheet,
   RenameSheet,
@@ -26,6 +25,8 @@ import {
   TrustSheet,
   WorkspacePickerSheet,
 } from './session-sheets.js';
+import { NotificationsSheet } from './notifications-sheet.js';
+import { AttentionCatchUpSheet } from './attention-catch-up-sheet.js';
 import {
   CommentSheet,
   ExecutePlanSheet,
@@ -92,6 +93,7 @@ export const SHEETS: Record<string, SheetDefinition> = {
   pairing: sheet('扫描桌面配对码', PairingSheet),
   'manual-connect': sheet('手动连接', ManualConnectSheet),
   notifications: sheet('只在需要时，来敲门', NotificationsSheet),
+  'attention-catch-up': sheet('离开这段时间', AttentionCatchUpSheet),
   permission: sheet('读清楚，再批准', PermissionSheet),
   'execute-plan': sheet('让计划开始工作', ExecutePlanSheet),
   subagent: sheet('test-runner', SubagentSheet),

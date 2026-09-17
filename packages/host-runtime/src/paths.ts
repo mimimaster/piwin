@@ -107,6 +107,11 @@ export function getPiwinLogsDir(rootDir: string): string {
   return join(rootDir, 'logs');
 }
 
+/** Cross-session `web_search` call log (JSONL, bounded). */
+export function getPiwinWebSearchLogPath(rootDir: string): string {
+  return join(getPiwinLogsDir(rootDir), 'web-search.jsonl');
+}
+
 export function getPiwinSessionsIndexDir(rootDir: string): string {
   return join(rootDir, 'sessions-index');
 }

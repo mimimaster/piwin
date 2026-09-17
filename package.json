@@ -32,6 +32,7 @@
     "package:desktop": "node scripts/package-desktop.mjs",
     "verify:desktop-package": "node scripts/verify-desktop-package.mjs",
     "test:scripts": "node --test scripts/lib/*.test.mjs",
+    "notarize:desktop": "bash scripts/notarize-macos-dmg.sh",
     "package:desktop-shell": "pnpm --dir apps/desktop package:shell",
     "package:host": "pnpm bundle:host && pnpm fetch:node-runtime && node scripts/package-host.mjs",
     "e2e:smoke": "tsx scripts/e2e-host-smoke.mjs",

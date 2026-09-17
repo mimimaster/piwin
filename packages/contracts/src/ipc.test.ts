@@ -807,6 +807,10 @@ describe('ipc types', () => {
     expect(resolve.type).toBe('subagent/request-resolution');
     expect(apply.type).toBe('subagent/worktree-action');
     expect(legacyDiscard.type).toBe('subagent/worktree-action');
+    const gcPreview: HostCommand = { type: 'subagent/worktree-gc-preview' };
+    const gc: HostCommand = { type: 'subagent/worktree-gc' };
+    expect(gcPreview.type).toBe('subagent/worktree-gc-preview');
+    expect(gc.type).toBe('subagent/worktree-gc');
     expect(push.type).toBe('subagent/result-updated');
     if (push.type === 'subagent/result-updated') {
       expect(push.result.childChanges?.changeSetId).toBe('cs-child');

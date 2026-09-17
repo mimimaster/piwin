@@ -1,7 +1,7 @@
 ---
 name: subagent-driven-development
-description: Execute an approved plan by delegating independent steps to isolated child sessions, then merge and verify in the parent. Trigger via /subagent-driven-development or the plan execution gate.
-version: 2
+description: "Execute an approved plan by delegating independent steps to isolated child sessions, then merge and verify in the parent. Use when the user chooses subagent execution for a plan (子代理执行) or an approved plan has independent steps worth running in parallel; also /subagent-driven-development."
+version: 3
 ---
 
 # Subagent-Driven Development

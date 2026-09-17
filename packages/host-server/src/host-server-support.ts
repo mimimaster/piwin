@@ -644,6 +644,14 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
         (command.offset === undefined ||
           (Number.isSafeInteger(command.offset) && command.offset >= 0 && command.offset <= 100_000))
       );
+    case 'web/search-log-list':
+      return (
+        (command.limit === undefined ||
+          (Number.isSafeInteger(command.limit) && command.limit > 0 && command.limit <= 200)) &&
+        (command.offset === undefined ||
+          (Number.isSafeInteger(command.offset) && command.offset >= 0 && command.offset <= 100_000)) &&
+        (command.status === undefined || command.status === 'all' || command.status === 'failed')
+      );
     case 'skills/list':
     case 'prompts/list':
       return command.projectPath === undefined;

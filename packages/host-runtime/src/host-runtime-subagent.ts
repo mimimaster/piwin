@@ -40,6 +40,8 @@ import {
 import type { SubagentTaskPreflightContext } from './subagent-orchestrator.js';
 import { resolveSubagentChildPrompt } from './subagent-lifecycle-service.js';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
+import { createSubagentWorktreeGcController } from './subagent-worktree-gc.js';
+import { prepareWorktreeDependencies } from './subagent-worktree-dependencies.js';
 import { resolveSubagentParentLocation } from './subagent-parent-scope.js';
 import {
   buildPersistedSubagentRepair,
@@ -109,6 +111,7 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
       return config.subagents?.dirtyBasePolicy ?? 'ask';
     },
     parallelWritePolicy: 'worktree-only',
+    prepareWorktreeDependencies: (input) => prepareWorktreeDependencies(input),
     requestDirtyBasePermission: async (task, projectPath) => {
       const activeRunId = deps.runRegistry.getForegroundRun(task.parentSessionId)?.runId;
       const signal = activeRunId ? deps.runRegistry.getSignal(activeRunId) : undefined;
@@ -235,11 +238,11 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
         input.runtimeGenerationId,
       );
     },
-    recordTaskPrompt: async ({ childSessionId, task }) => {
+    recordTaskPrompt: async ({ childSessionId, task, workspaceLease }) => {
       const recorder = deps.transcriptRecorders.get(childSessionId);
       if (!recorder) return;
       await recorder.recordUserPrompt({
-        text: resolveSubagentChildPrompt(task),
+        text: resolveSubagentChildPrompt(task, workspaceLease),
         ...(task.model ? { model: task.model } : {}),
         ...(task.thinkingLevel ? { thinkingLevel: task.thinkingLevel } : {}),
       });
@@ -279,6 +282,63 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
         message: `subagent startup reconciliation failed: ${formatError(error)}`,
       });
     });
+
+  deps.subagentWorktreeGc = createSubagentWorktreeGcController({
+    storageRoot: join(rootDir, 'worktrees'),
+    listManifests: () => runStore.listManifests(),
+    isRunActive: (runId) => deps.runRegistry.isActive(runId),
+    listPausedBatchRunIds: async () => {
+      const paused = new Set<string>();
+      const manifests = await runStore.listManifests();
+      const parentIds = [...new Set(manifests.map((manifest) => manifest.parentSessionId))];
+      for (const parentSessionId of parentIds) {
+        try {
+          const checkpoint = await deps.withTranscriptStore(parentSessionId, (store) =>
+            store.getActivePauseCheckpoint(),
+          );
+          for (const runId of checkpoint?.interruptedSubagentRunIds ?? []) {
+            paused.add(runId);
+          }
+        } catch (error) {
+          // Deleted parents have no checkpoint. Anything else must fail closed
+          // so GC cannot drop a pause-referenced copy.
+          if (error instanceof Error && error.message.startsWith('Unknown session')) {
+            continue;
+          }
+          throw error;
+        }
+      }
+      return paused;
+    },
+    whenReady: () => deps.subagentStartupRecovery ?? Promise.resolve(),
+    removeWorktree: async (input) => {
+      await removeWorktree({
+        projectPath: input.parentRepoPath,
+        worktreePath: input.worktreePath,
+        force: true,
+        ...(input.worktreeBranch ? { worktreeBranch: input.worktreeBranch } : {}),
+      });
+    },
+  });
+  void (deps.subagentStartupRecovery ?? Promise.resolve()).finally(() => {
+    void deps.subagentWorktreeGc
+      ?.reclaim({ mode: 'auto' })
+      .then((result) => {
+        if (result.removedCount === 0) return;
+        deps.push({
+          type: 'host/log',
+          level: 'info',
+          message: `reclaimed ${String(result.removedCount)} leftover subagent worktree(s)`,
+        });
+      })
+      .catch((error: unknown) => {
+        deps.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `subagent worktree gc failed: ${formatError(error)}`,
+        });
+      });
+  });
 }
 
 export function whenSubagentStartupRecoveryReady(deps: HostRuntimeKernel): Promise<void> {

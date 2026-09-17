@@ -106,6 +106,17 @@ export type HostRuntimeCommand =
       type: 'web/search-route-preview';
       input: SearchRoutePreviewInput;
     }
+  /** Cross-session `web_search` call log, newest first. */
+  | {
+      id?: string;
+      type: 'web/search-log-list';
+      /** Page size. Default 50, max 200. */
+      limit?: number;
+      /** Zero-based row offset for paging. Default 0. */
+      offset?: number;
+      status?: import('./web.js').WebSearchLogStatusFilter;
+    }
+  | { id?: string; type: 'web/search-log-clear' }
   | {
       id?: string;
       type: 'permission/resolve';

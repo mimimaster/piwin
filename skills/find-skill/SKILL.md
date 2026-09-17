@@ -1,7 +1,7 @@
 ---
 name: find-skill
-description: List agent skills available on this machine for the current session.
-version: 2
+description: "List the agent skills installed on this machine with names, descriptions, and paths. Use when the user asks which skills exist, what a skill does, or whether a skill covers some task (有哪些 skill)."
+version: 3
 ---
 
 # Find Skill

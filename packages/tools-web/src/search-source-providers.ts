@@ -1,9 +1,16 @@
 import { spawn } from 'node:child_process';
-import type { SearchHit, WebSearchSource } from '@piwin/contracts';
+import type { SearchHit, WebSearchSource, WebSearchSourceAttempt } from '@piwin/contracts';
+
+export type SearchProviderOptions = {
+  limit: number;
+  signal?: AbortSignal;
+  /** Aggregate providers report each source's outcome; single sources ignore it. */
+  onSourceAttempt?: (attempt: WebSearchSourceAttempt) => void;
+};
 
 export type SearchProvider = {
   id: string;
-  search(query: string, options: { limit: number; signal?: AbortSignal }): Promise<SearchHit[]>;
+  search(query: string, options: SearchProviderOptions): Promise<SearchHit[]>;
 };
 
 /**

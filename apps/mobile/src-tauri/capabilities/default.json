@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Minimal piwin shell capabilities.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "barcode-scanner:default",
@@ -10,6 +12,7 @@
     "allow-mobile-credential-read",
     "allow-mobile-credential-write",
     "allow-mobile-credential-clear",
-    "piwin-healthkit:default"
+    "piwin-healthkit:default",
+    "notification:default"
   ]
 }

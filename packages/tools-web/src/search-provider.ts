@@ -1,13 +1,17 @@
 import type {
   SearchHit,
   WebConfig,
+  WebSearchDiagnostics,
   WebSearchProvider,
   WebSearchResult,
   WebSearchSource,
+  WebSearchSourceAttempt,
   WebSearchStrategy,
 } from '@piwin/contracts';
 import {
   DEFAULT_FETCH_FALLBACK,
+  WEB_SEARCH_ATTEMPT_ERROR_MAX_CHARS,
+  WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
   createDefaultWebConfig,
   inferSearchRoutePolicy,
 } from '@piwin/contracts';
@@ -111,22 +115,68 @@ export async function webSearch(
   credentials: WebRuntimeCredentials = {},
   delegate?: WebSearchModelDelegate,
 ): Promise<WebSearchResult> {
+  const { result } = await webSearchWithDiagnostics(query, config, signal, credentials, delegate);
+  return result;
+}
+
+/** A failed search that still carries whatever per-source outcome was observed. */
+export class WebSearchError extends Error {
+  readonly diagnostics: WebSearchDiagnostics;
+
+  constructor(message: string, diagnostics: WebSearchDiagnostics, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'WebSearchError';
+    this.diagnostics = diagnostics;
+  }
+}
+
+/**
+ * Same as {@link webSearch}, plus per-source outcome and timing for the product
+ * UI. Failures throw {@link WebSearchError} with the attempts seen so far.
+ */
+export async function webSearchWithDiagnostics(
+  query: string,
+  config?: Partial<WebConfig>,
+  signal?: AbortSignal,
+  credentials: WebRuntimeCredentials = {},
+  delegate?: WebSearchModelDelegate,
+): Promise<{ result: WebSearchResult; diagnostics: WebSearchDiagnostics }> {
   const resolved = resolveWebConfig(config);
   const trimmed = query.trim();
   if (!trimmed) {
     throw new Error('empty search query');
   }
-  const provider = createSearchProvider(resolved, credentials, delegate);
+  let provider: SearchProvider;
+  try {
+    provider = createSearchProvider(resolved, credentials, delegate);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new WebSearchError(
+      message,
+      {
+        kind: WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
+        providerId: 'unconfigured',
+        hitCount: 0,
+        durationMs: 0,
+        attempts: [],
+      },
+      { cause: error },
+    );
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), resolved.searchTimeoutMs);
   const searchSignal = signal ? anySignal([signal, controller.signal]) : controller.signal;
+  const attempts: WebSearchSourceAttempt[] = [];
+  const startedAt = Date.now();
 
   try {
     const hits = await provider.search(trimmed, {
       limit: resolved.searchMaxResults,
       signal: searchSignal,
+      onSourceAttempt: (attempt) => attempts.push(attempt),
     });
+    const durationMs = Date.now() - startedAt;
     const result: WebSearchResult = {
       query: trimmed,
       providerId: provider.id,
@@ -135,14 +185,49 @@ export async function webSearch(
     if (hits.length === 0) {
       result.warning = `No results returned by ${provider.id} for "${trimmed}". The query may be too specific, or sources may be rate-limited.`;
     }
-    return result;
-  } catch (error) {
-    if (searchSignal.aborted) {
-      throw new Error(
-        `web search timed out after ${resolved.searchTimeoutMs}ms (provider ${provider.id})`,
-      );
+    if (attempts.length === 0) {
+      // Single source or model delegate: the whole call is the one attempt.
+      attempts.push({ sourceId: provider.id, ok: true, hitCount: hits.length, durationMs });
     }
-    throw error;
+    return {
+      result,
+      diagnostics: {
+        kind: WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
+        providerId: provider.id,
+        hitCount: hits.length,
+        durationMs,
+        attempts,
+      },
+    };
+  } catch (error) {
+    const timedOut = searchSignal.aborted && !signal?.aborted;
+    const message = searchSignal.aborted
+      ? `web search timed out after ${resolved.searchTimeoutMs}ms (provider ${provider.id})`
+      : error instanceof Error
+        ? error.message
+        : String(error);
+    const durationMs = Date.now() - startedAt;
+    if (attempts.length === 0) {
+      attempts.push({
+        sourceId: provider.id,
+        ok: false,
+        hitCount: 0,
+        durationMs,
+        ...(timedOut ? { timedOut: true } : {}),
+        error: message.slice(0, WEB_SEARCH_ATTEMPT_ERROR_MAX_CHARS),
+      });
+    }
+    throw new WebSearchError(
+      message,
+      {
+        kind: WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
+        providerId: provider.id,
+        hitCount: 0,
+        durationMs,
+        attempts,
+      },
+      { cause: error },
+    );
   } finally {
     clearTimeout(timeout);
   }
@@ -166,6 +251,7 @@ function createAggregateProvider(
         strategy.perSourceTimeoutMs,
         options.signal,
         credentials,
+        options.onSourceAttempt,
       );
     },
   };
@@ -178,9 +264,11 @@ async function runParallelMerge(
   perSourceTimeoutMs: number,
   parentSignal?: AbortSignal,
   credentials: WebRuntimeCredentials = {},
+  onSourceAttempt?: (attempt: WebSearchSourceAttempt) => void,
 ): Promise<SearchHit[]> {
   const settled = await Promise.all(
     sources.map(async (source) => {
+      const startedAt = Date.now();
       try {
         const hits = await runSourceWithTimeout(
           source,
@@ -190,13 +278,39 @@ async function runParallelMerge(
           parentSignal,
           credentials.searchApiKeysBySourceId?.[source.id],
         );
-        return { sourceId: source.id, hits, error: undefined as string | undefined };
+        return {
+          sourceId: source.id,
+          hits,
+          error: undefined as string | undefined,
+          timedOut: false,
+          durationMs: Date.now() - startedAt,
+        };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        return { sourceId: source.id, hits: [] as SearchHit[], error: message };
+        return {
+          sourceId: source.id,
+          hits: [] as SearchHit[],
+          error: message,
+          timedOut: error instanceof SourceTimeoutError,
+          durationMs: Date.now() - startedAt,
+        };
       }
     }),
   );
+  if (onSourceAttempt) {
+    for (const item of settled) {
+      onSourceAttempt({
+        sourceId: item.sourceId,
+        ok: item.error === undefined,
+        hitCount: item.hits.length,
+        durationMs: item.durationMs,
+        ...(item.timedOut ? { timedOut: true } : {}),
+        ...(item.error !== undefined
+          ? { error: item.error.slice(0, WEB_SEARCH_ATTEMPT_ERROR_MAX_CHARS) }
+          : {}),
+      });
+    }
+  }
 
   const batches: SourceHitBatch[] = settled
     .filter((item) => item.hits.length > 0)
@@ -227,13 +341,15 @@ async function runSourceWithTimeout(
     return await provider.search(query, { limit, signal });
   } catch (error) {
     if (signal.aborted && !parentSignal?.aborted) {
-      throw new Error(`source "${source.id}" timed out after ${perSourceTimeoutMs}ms`);
+      throw new SourceTimeoutError(`source "${source.id}" timed out after ${perSourceTimeoutMs}ms`);
     }
     throw error;
   } finally {
     clearTimeout(timeout);
   }
 }
+
+class SourceTimeoutError extends Error {}
 
 function resolveSearchSources(partial: Partial<WebConfig>, defaults: WebConfig): WebSearchSource[] {
   if (Array.isArray(partial.searchSources)) {

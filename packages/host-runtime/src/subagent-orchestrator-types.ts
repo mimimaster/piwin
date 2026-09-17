@@ -21,7 +21,10 @@ import type { SubagentIntegrationCoordinator } from './subagent-integration-coor
 
 /** Backend seam: allocates workspace leases (readonly or worktree). */
 export type SubagentWorkspaceService = {
-  acquire(task: SubagentTaskSpec): Promise<SubagentWorkspaceLease>;
+  acquire(
+    task: SubagentTaskSpec,
+    options?: { signal?: AbortSignal },
+  ): Promise<SubagentWorkspaceLease>;
   release(lease: SubagentWorkspaceLease): Promise<void>;
 };
 
@@ -158,6 +161,7 @@ export type SubagentOrchestratorOptions = {
   recordTaskPrompt?: (input: {
     childSessionId: string;
     task: SubagentTaskSpec;
+    workspaceLease: SubagentWorkspaceLease;
   }) => void | Promise<void>;
   /** Remove the transient child context after the task runner has joined. */
   unregisterTaskSession?: (childSessionId: string) => void | Promise<void>;

@@ -376,6 +376,117 @@ export type WebSearchResult = {
   warning?: string;
 };
 
+/** `ToolResult.details.kind` for `web_search` diagnostics. */
+export const WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND = 'web-search-diagnostics';
+
+/** Bound on persisted per-source error text; full errors stay in Host logs. */
+export const WEB_SEARCH_ATTEMPT_ERROR_MAX_CHARS = 300;
+
+/** One source's outcome inside a single `web_search` call. */
+export type WebSearchSourceAttempt = {
+  sourceId: string;
+  ok: boolean;
+  /** Raw hits this source returned, before cross-source URL dedupe. */
+  hitCount: number;
+  durationMs: number;
+  timedOut?: boolean;
+  error?: string;
+};
+
+/**
+ * Structured diagnostics for one `web_search` call. Carried in
+ * `ToolResult.details` (never the model-visible output) so the product UI can
+ * show which sources failed or were slow even when the merged result succeeded.
+ */
+export type WebSearchDiagnostics = {
+  kind: typeof WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND;
+  providerId: string;
+  /** Hits returned to the model after merge/dedupe. */
+  hitCount: number;
+  durationMs: number;
+  attempts: WebSearchSourceAttempt[];
+};
+
+export function readWebSearchDiagnostics(details: unknown): WebSearchDiagnostics | null {
+  if (typeof details !== 'object' || details === null) {
+    return null;
+  }
+  const candidate = details as Partial<WebSearchDiagnostics>;
+  if (
+    candidate.kind !== WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND ||
+    typeof candidate.providerId !== 'string' ||
+    !Array.isArray(candidate.attempts)
+  ) {
+    return null;
+  }
+  const attempts: WebSearchSourceAttempt[] = [];
+  for (const raw of candidate.attempts) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const item = raw as Partial<WebSearchSourceAttempt>;
+    if (typeof item.sourceId !== 'string' || typeof item.ok !== 'boolean') continue;
+    const attempt: WebSearchSourceAttempt = {
+      sourceId: item.sourceId,
+      ok: item.ok,
+      hitCount: finiteNonNegative(item.hitCount),
+      durationMs: finiteNonNegative(item.durationMs),
+    };
+    if (item.timedOut === true) attempt.timedOut = true;
+    if (typeof item.error === 'string' && item.error.length > 0) {
+      attempt.error = item.error.slice(0, WEB_SEARCH_ATTEMPT_ERROR_MAX_CHARS);
+    }
+    attempts.push(attempt);
+  }
+  return {
+    kind: WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
+    providerId: candidate.providerId,
+    hitCount: finiteNonNegative(candidate.hitCount),
+    durationMs: finiteNonNegative(candidate.durationMs),
+    attempts,
+  };
+}
+
+/** Bound on the persisted query text of one search log row. */
+export const WEB_SEARCH_LOG_QUERY_MAX_CHARS = 500;
+
+/** One `web_search` call as the Host observed it, success or failure. */
+export type WebSearchLogRecord = {
+  sessionId: string;
+  query: string;
+  ok: boolean;
+  providerId: string;
+  hitCount: number;
+  durationMs: number;
+  attempts: WebSearchSourceAttempt[];
+  /** Top-level failure message when `ok` is false. */
+  error?: string;
+};
+
+/** Host-injected sink for the cross-session search call log. Must not throw. */
+export type WebSearchLogSink = {
+  record: (record: WebSearchLogRecord) => void;
+};
+
+/** One row of the search call log (`web/search-log-list`), newest first. */
+export type WebSearchLogEntry = WebSearchLogRecord & {
+  id: string;
+  recordedAt: string;
+};
+
+export type WebSearchLogStatusFilter = 'all' | 'failed';
+
+/** One page of `web/search-log-list`. */
+export type WebSearchLogPage = {
+  entries: WebSearchLogEntry[];
+  /** Rows matching the filter, across all pages. */
+  total: number;
+  offset: number;
+  limit: number;
+};
+
+function finiteNonNegative(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
 export type WebFetchTruncationReason = 'response-limit' | 'parse-limit' | 'text-limit';
 
 export type WebFetchResult = {
