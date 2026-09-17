@@ -154,17 +154,17 @@ jobs:
 
       - name: Draft GitHub Release
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          fail_on_unmatched_files: true
-          files: |
-            dist-ci/*.dmg
-            dist-ci/*.sha256
-          body: |
-            macOS all-in-one Desktop (`aarch64`). Built by `pnpm package:desktop`.
-
-            Not notarized yet (D-ENG-03b). Clean-machine smoke (ADR 0017 S5) is still required before treating this as public-ready.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" dist-ci/*.dmg dist-ci/*.sha256 --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" dist-ci/*.dmg dist-ci/*.sha256 \
+              --draft \
+              --title "${GITHUB_REF_NAME}" \
+              --notes "macOS all-in-one Desktop (aarch64). Built by pnpm package:desktop. Not notarized yet (D-ENG-03b). Clean-machine smoke (ADR 0017 S5) is still required before treating this as public-ready."
+          fi
 
       - name: Remove temporary signing keychain
         if: always() && runner.environment == 'github-hosted' && env.APPLE_CERTIFICATE != ''
