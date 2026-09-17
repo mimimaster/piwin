@@ -1,3 +1,7 @@
+import { createNoopDesktopAttentionOs } from './desktop-attention-os-noop.js';
+import { createTauriDesktopAttentionOs } from './desktop-attention-os-tauri.js';
+import { isTauriRuntime } from './tauri-pty.js';
+
 export type AttentionAuthorization = 'granted' | 'denied' | 'not-determined' | 'unsupported';
 
 export type AttentionOsCapabilities = {
@@ -39,5 +43,5 @@ export type DesktopAttentionOs = {
 };
 
 export function createDesktopAttentionOs(): DesktopAttentionOs {
-  throw new Error('AN-O1 not implemented');
+  return isTauriRuntime() ? createTauriDesktopAttentionOs() : createNoopDesktopAttentionOs();
 }
