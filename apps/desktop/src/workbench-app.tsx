@@ -22,6 +22,7 @@ import {
 } from './subagent-review-loop-context';
 import { useWorkbenchShellChrome } from './hooks/use-workbench-shell-chrome';
 import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
+import { useShellSessionOpen } from './hooks/use-shell-session-open';
 import { installRendererSelfHeal } from './renderer-self-heal';
 import { WorkspaceShell } from './workspace-shell';
 import { WorkbenchInspector } from './workbench-inspector';
@@ -38,11 +39,7 @@ import { LiveBar } from './live/LiveBar.js';
 import { WorkbenchOverlays, WorkbenchSettingsOverlay } from './workbench-overlays';
 import { WorkbenchSidebar } from './workbench-sidebar';
 import { WorkbenchConversationStage } from './workbench-conversation-stage';
-import {
-  PRIMARY_CONVERSATION_PANE_ID,
-  listConversationPaneLeaves,
-  resolveFocusedConversationSessionId,
-} from './conversation-pane-layout';
+import { resolveFocusedConversationSessionId } from './conversation-pane-layout';
 import {
   useConversationPaneLayout,
   useConversationPaneSubscriptions,
@@ -54,8 +51,6 @@ import { useDockingWorkspace } from './workbench/docking/use-docking-workspace.j
 import { inspectorTabToToolKind, toolKindToInspectorTab } from './workbench/docking/docking-tool-bridge.js';
 import { findViewGroupId, isStageGroupId } from './workbench/docking/topology.js';
 import { sessionScopeKey } from './session-scope-key';
-import { resolveEntityScope } from './session-entities';
-import { shouldBindSessionToSecondaryPane } from './conversation-pane-bind';
 import { WorkbenchSubpageStage } from './workbench-subpage-stage';
 import { useWorkbenchKnowledge } from './hooks/use-workbench-knowledge';
 import { KnowledgeCitationActionsProvider } from './knowledge/knowledge-citation-actions';
@@ -358,6 +353,18 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     dispatchNotification,
     artifactCanvas,
   } = model;
+  const openSessionFromShell = useShellSessionOpen({
+    setActiveSubPage,
+    isOverlayPresentation,
+    shell,
+    state,
+    conversationPanesEnabled,
+    dockingEnabled,
+    layoutMode,
+    dockingWorkspace,
+    conversationPaneController,
+    handleResumeSession,
+  });
   const parentSessionId = state.activeSessionId;
   const tasksActiveCount = useMemo(() => {
     if (!parentSessionId) {
@@ -579,52 +586,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                         }
                         return handleStartNewSession(options);
                       }}
-                      onResumeSession={(sessionId) => {
-                        setActiveSubPage(null);
-                        if (isOverlayPresentation) {
-                          shell.closeOverlay();
-                        }
-                        // Sidebar click switches the conversation. Docking
-                        // rebinds the focused pane (never appends a session tab).
-                        const clickedScope = resolveEntityScope(state, sessionId);
-                        if (
-                          conversationPanesEnabled &&
-                          dockingEnabled &&
-                          layoutMode !== 'phone' &&
-                          clickedScope !== null &&
-                          sessionScopeKey(clickedScope) === sessionScopeKey(state.activeScope)
-                        ) {
-                          dockingWorkspace.openOrFocusSession(sessionId);
-                        }
-                        if (conversationPanesEnabled) {
-                          const leaves = listConversationPaneLeaves(
-                            conversationPaneController.layout.root,
-                          );
-                          if (leaves.length > 1) {
-                            const activePaneId = conversationPaneController.layout.activePaneId;
-                            const existingLeaf = leaves.find(
-                              (leaf) => leaf.sessionId === sessionId,
-                            );
-                            if (existingLeaf) {
-                              conversationPaneController.focus(existingLeaf.paneId);
-                              return Promise.resolve();
-                            }
-                            if (activePaneId !== PRIMARY_CONVERSATION_PANE_ID) {
-                              if (
-                                shouldBindSessionToSecondaryPane({
-                                  sessionScope: resolveEntityScope(state, sessionId),
-                                  activeScope: state.activeScope,
-                                })
-                              ) {
-                                conversationPaneController.bindSession(activePaneId, sessionId);
-                                return Promise.resolve();
-                              }
-                              conversationPaneController.focus(PRIMARY_CONVERSATION_PANE_ID);
-                            }
-                          }
-                        }
-                        return handleResumeSession(sessionId);
-                      }}
+                      onResumeSession={openSessionFromShell}
                       onResumeDraft={(draftId) => {
                         setActiveSubPage(null);
                         if (isOverlayPresentation) {
