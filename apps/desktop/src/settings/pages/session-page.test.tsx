@@ -447,7 +447,7 @@ describe('SessionPage settings', () => {
     const panels = hub?.querySelector('.session-hub-panels');
     expect(tabs).not.toBeNull();
     expect(panels).not.toBeNull();
-    expect(tabs?.compareDocumentPosition(panels!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(tabs!.compareDocumentPosition(panels!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container!.querySelector('[data-testid="session-compact-export-section"]')).not.toBeNull();
     expect(container!.querySelector('[data-testid="session-runtime-section"]')).toBeNull();
   });

@@ -7,7 +7,7 @@
  * Live Send admits a Host queued turn. Cmd/Ctrl+Enter still steers.
  */
 import type { ReactElement } from 'react';
-import { IconPause, IconRefresh, IconSend, IconStop } from './shell-icons';
+import { IconRefresh, IconSend, IconStop } from './shell-icons';
 
 export type ComposerActionSlotCopy = {
   send: string;
@@ -137,7 +137,7 @@ function ComposerPauseButton(props: ComposerActionSlotProps): ReactElement {
       aria-label={label}
       title={label}
     >
-      <IconPause />
+      <IconStop />
     </button>
   );
 }
