@@ -188,4 +188,69 @@ describe('QueuedTurnController', () => {
     });
     store.close();
   });
+
+  it('retries admission when the parent run is already terminal', async () => {
+    const store = await createStore('session-1');
+    const pushes: HostPush[] = [];
+    let attempts = 0;
+    const controller = new QueuedTurnController({
+      getTranscriptStore: async () => store,
+      hasSession: async () => true,
+      getForegroundRun: () => undefined,
+      getRun: () => undefined,
+      requestCancelRun: () => undefined,
+      updateRunPhase: () => undefined,
+      settlePendingPermissions: () => undefined,
+      settlePendingExtensionUi: () => undefined,
+      validatePromptAttachments: () => undefined,
+      admitPrompt: async (command): Promise<HostResponse> => {
+        attempts += 1;
+        if (attempts === 1) {
+          return {
+            type: 'response',
+            command: 'session/prompt',
+            success: false,
+            error: 'parent run is already terminal: run-old',
+          };
+        }
+        return {
+          type: 'response',
+          command: 'session/prompt',
+          success: true,
+          data: {
+            sessionId: command.sessionId,
+            runId: 'run-new',
+            acceptedAt: new Date().toISOString(),
+          },
+        };
+      },
+      push: (message) => pushes.push(message),
+    });
+
+    const accepted = await controller.handleCommand(
+      {
+        type: 'session/queued-turn-submit',
+        sessionId: 'session-1',
+        queuedTurnId: 'queued-retry',
+        userMessageId: 'user-retry',
+        input: { text: 'next after terminal parent' },
+      },
+      'request-retry',
+    );
+    expect(accepted).toMatchObject({ success: true });
+    await flush();
+    await flush();
+    expect(attempts).toBe(2);
+    expect(await store.listQueuedTurns()).toMatchObject({
+      queuedTurns: [expect.objectContaining({ status: 'started', startedRunId: 'run-new' })],
+    });
+    expect(
+      pushes.some(
+        (push) =>
+          push.type === 'host/log' &&
+          push.message.includes('parent run is already terminal'),
+      ),
+    ).toBe(true);
+    store.close();
+  });
 });

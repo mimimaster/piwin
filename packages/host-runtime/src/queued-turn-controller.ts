@@ -453,7 +453,12 @@ export class QueuedTurnController {
         },
       });
       if (!response.success) {
-        if (response.error.includes('run-active:')) {
+        this.options.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `queued-turn admission rejected for ${sessionId}/${starting.queuedTurnId}: ${response.error}`,
+        });
+        if (isRetryableQueuedAdmissionError(response.error)) {
           const pending = await store.transitionQueuedTurn({
             queuedTurnId: starting.queuedTurnId,
             expectedRevision: starting.revision,
@@ -462,7 +467,8 @@ export class QueuedTurnController {
             updatedAt: new Date().toISOString(),
           });
           if (pending) this.options.push({ type: 'session/queued-turn-updated', queuedTurn: pending });
-          return;
+          if (response.error.includes('run-active:')) return;
+          continue;
         }
         await this.failStarting(store, starting, 'prompt-rejected');
         continue;
@@ -605,4 +611,13 @@ function canonicalize(value: unknown): unknown {
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isRetryableQueuedAdmissionError(error: string): boolean {
+  return (
+    error.includes('run-active:') ||
+    error.includes('parent run is already terminal:') ||
+    error.includes('parent run has closed admission:') ||
+    error.includes('parent run not found:')
+  );
 }
