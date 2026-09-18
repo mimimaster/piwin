@@ -40,6 +40,7 @@ export type ComposerActionSlotProps = {
   onAbort?: () => void;
   /** Narrow columns: streaming is Stop, not Pause / queued Send. */
   embedded?: boolean;
+  stopOnly?: boolean;
 };
 
 function mutationsOff(props: ComposerActionSlotProps): boolean {
@@ -144,6 +145,9 @@ function ComposerPauseButton(props: ComposerActionSlotProps): ReactElement {
 function renderPrimaryCircle(props: ComposerActionSlotProps): ReactElement {
   if (props.embedded === true && props.isStreamingRun) {
     return <ComposerStopButton {...props} />;
+  }
+  if (props.stopOnly === true && props.isStreamingRun) {
+    return props.hasContent ? <ComposerSendButton {...props} /> : <ComposerStopButton {...props} />;
   }
   if (props.isStreamingRun) {
     // Pause in flight, or Extension UI owning the textarea, keep Pause.

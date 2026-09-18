@@ -14,7 +14,10 @@ export function ProviderStatusPill({
   if (!status) return null;
 
   return (
-    <span className={`provider-status-pill provider-status-pill--${status.tone}`}>
+    <span
+      className={`provider-status-pill provider-status-pill--${status.tone}`}
+      title={status.message}
+    >
       <span className="provider-status-pill-dot" />
       <span className="provider-status-pill-text">{status.message}</span>
     </span>

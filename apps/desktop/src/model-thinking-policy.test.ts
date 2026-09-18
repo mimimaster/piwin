@@ -51,7 +51,7 @@ describe('model thinking policy', () => {
     expect(getSupportedThinkingLevels(undefined, false)).toEqual([]);
   });
 
-  it('uses protocol-based defaults when no explicit thinkingLevels are configured', () => {
+  it('uses protocol-based defaults when reasoning is enabled without explicit thinkingLevels', () => {
     expect(
       getSupportedThinkingLevels({ reasoning: true, protocol: 'openai-compatible' }, false),
     ).toEqual(['low', 'medium', 'high', 'xhigh']);
@@ -64,6 +64,12 @@ describe('model thinking policy', () => {
     expect(
       getSupportedThinkingLevels({ reasoning: true, protocol: 'google-gemini' }, false),
     ).toEqual(['low', 'medium', 'high']);
+  });
+
+  it('returns explicit thinkingLevels even when reasoning flag is omitted', () => {
+    expect(
+      getSupportedThinkingLevels({ thinkingLevels: ['low', 'high'] }, false),
+    ).toEqual(['low', 'high']);
   });
 
   it('infers default thinking levels for subscription providers without protocol', () => {

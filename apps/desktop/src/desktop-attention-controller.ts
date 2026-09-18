@@ -15,6 +15,7 @@ import {
   type AttentionPresence,
   type AttentionRaise,
 } from '@piwin/host-client';
+import type { UiNotificationTone } from '@piwin/ui-kit';
 import { formatDockBadge } from './attention-badge-model';
 import { ATTENTION_LEDGER_KEY } from './attention-preferences';
 import type {
@@ -42,6 +43,7 @@ export type DesktopAttentionSnapshot = {
 };
 
 export type InAppAttentionNotice = {
+  tone?: UiNotificationTone;
   title: string;
   body: string;
   action?: { label: string; sessionId: string };
@@ -194,7 +196,9 @@ export function createDesktopAttentionController(
     bounce: boolean,
   ): void {
     const copy = formatRaiseCopy(raise, snapshot);
-    deps.showInAppNotice(inAppNotice(copy, snapshot, raise.sessionId));
+    deps.showInAppNotice(
+      inAppNotice(copy, snapshot, raise.sessionId, attentionKindToTone(raise.kind)),
+    );
     recordDelivered(raise.key, now);
     if (bounce) {
       void deps.os.requestAttention();
@@ -243,7 +247,9 @@ export function createDesktopAttentionController(
         return;
       }
       if (deps.getSnapshot().presence === 'active') {
-        deps.showInAppNotice(inAppNotice(copy, snapshot, raise.sessionId));
+        deps.showInAppNotice(
+          inAppNotice(copy, snapshot, raise.sessionId, attentionKindToTone(raise.kind)),
+        );
         recordDelivered(raise.key, now);
       }
     } finally {
@@ -315,9 +321,9 @@ export function createDesktopAttentionController(
       const jumpSessionId =
         remaining.find((item) => item.kind === 'needs-input')?.sessionId ?? remaining[0]?.sessionId;
       if (jumpSessionId !== undefined) {
-        deps.showInAppNotice(inAppNotice(copy, snapshot, jumpSessionId));
+        deps.showInAppNotice(inAppNotice(copy, snapshot, jumpSessionId, 'info'));
       } else {
-        deps.showInAppNotice({ title: copy.title, body: copy.body });
+        deps.showInAppNotice({ tone: 'info', title: copy.title, body: copy.body });
       }
       return;
     }
@@ -357,7 +363,7 @@ export function createDesktopAttentionController(
       (result === 'not-authorized' || result === 'unsupported') &&
       deps.getSnapshot().presence === 'active'
     ) {
-      deps.showInAppNotice(inAppNotice(copy, snapshot, first.sessionId));
+      deps.showInAppNotice(inAppNotice(copy, snapshot, first.sessionId, 'info'));
     }
   }
 
@@ -400,6 +406,7 @@ export function createDesktopAttentionController(
     const snapshot = deps.getSnapshot();
     const described = snapshot.describeSession(last.sessionId);
     deps.showInAppNotice({
+      tone: 'info',
       title: last.title,
       body: last.body,
       action: {
@@ -447,14 +454,29 @@ export function createDesktopAttentionController(
   };
 }
 
+function attentionKindToTone(kind: AttentionRaise['kind'] | 'summary'): UiNotificationTone {
+  switch (kind) {
+    case 'turn-complete':
+      return 'success';
+    case 'turn-failed':
+      return 'error';
+    case 'needs-input':
+      return 'warning';
+    case 'summary':
+    default:
+      return 'info';
+  }
+}
 
 function inAppNotice(
   copy: { title: string; body: string },
   snapshot: DesktopAttentionSnapshot,
   sessionId: string,
+  tone?: UiNotificationTone,
 ): InAppAttentionNotice {
   const described = snapshot.describeSession(sessionId);
   return {
+    ...(tone !== undefined ? { tone } : {}),
     title: copy.title,
     body: copy.body,
     action: {
@@ -495,6 +517,8 @@ function formatRaiseCopy(
   });
 }
 
+const MAX_JUMP_ACTION_NAME_LENGTH = 16;
+
 function jumpActionLabel(locale: DesktopLocale, sessionTitle: string | undefined): string {
   const name =
     sessionTitle != null && sessionTitle.trim() !== ''
@@ -502,7 +526,11 @@ function jumpActionLabel(locale: DesktopLocale, sessionTitle: string | undefined
       : locale === 'en'
         ? 'Untitled session'
         : '未命名会话';
-  return locale === 'en' ? `Jump to ${name}` : `跳转到 ${name}`;
+  const truncated =
+    name.length <= MAX_JUMP_ACTION_NAME_LENGTH
+      ? name
+      : `${name.slice(0, MAX_JUMP_ACTION_NAME_LENGTH - 1)}…`;
+  return locale === 'en' ? `Jump to ${truncated}` : `跳转到 ${truncated}`;
 }
 
 function dockBadgesEqual(left: DockBadge, right: DockBadge): boolean {

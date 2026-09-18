@@ -24,7 +24,9 @@ import {
   isChatCompactPendingOccupancy,
   selectContextRingView,
 } from './context-telemetry-selector.js';
-import { CompactPromptComposer } from './compact-prompt-composer.js';
+import { ComposerCard } from './composer-card.js';
+import type { ComposerPlusSubmenu } from './composer-plus-menu.js';
+import { buildPaneComposerProps } from './pane-composer-props.js';
 import type { HostClient } from './host-client.js';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import { hostFailureNotice } from './host-problem-copy.js';
@@ -43,7 +45,7 @@ import type { MediaPreviewReader } from './transcript-media-preview.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
 import { useSessionComposerProfile } from './hooks/use-session-composer-profile.js';
-import { attachmentsFromFiles } from './pane-composer-attachments.js';
+import { attachmentsFromFiles, PANE_COMPOSER_FILE_ACCEPT } from './pane-composer-attachments.js';
 
 type PaneResumeData = Omit<SessionResumeData, 'scope'> & {
   scope?: SessionScope | 'general' | 'project' | 'unknown';
@@ -121,6 +123,10 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     ...(resumeThinkingLevel !== undefined ? { resumeThinkingLevel } : {}),
   });
   const [busy, setBusy] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+  const [plusSubmenu, setPlusSubmenu] = useState<ComposerPlusSubmenu>('none');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const onNameChangeRef = useRef(props.onNameChange);
   const onSessionDeletedRef = useRef(props.onSessionDeleted);
 
@@ -559,41 +565,47 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           </div>
         ) : null}
         <div className="conversation-pane-composer">
-          <CompactPromptComposer
-            value={composer}
-            onChange={setComposer}
-            onAttachFiles={(files, source) => void handleAttach(files, source)}
-            attachLabel={props.locale === 'zh-CN' ? '添加附件' : 'Attach files'}
-            attachmentNames={attachments.map((item) => ('name' in item && item.name ? item.name : item.id))}
-            onRemoveAttachment={(index) =>
-              setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))
-            }
-            placeholder={props.locale === 'zh-CN' ? '输入消息…' : 'Message…'}
-            ariaLabel={props.locale === 'zh-CN' ? 'Chat 输入框' : 'Chat composer'}
-            testId="conversation-pane-composer"
-            disabled={!state.hostReady || busy}
-            streaming={state.streaming}
-            showStop={state.streaming && composer.trim().length === 0}
-            sendLabel={
-              state.streaming
-                ? props.locale === 'zh-CN'
-                  ? '调整当前任务'
-                  : 'Steer current run'
-                : props.locale === 'zh-CN'
-                  ? '发送消息'
-                  : 'Send message'
-            }
-            stopLabel={props.locale === 'zh-CN' ? '停止生成' : 'Stop response'}
-            onSend={() => void handleSend()}
-            onStop={() => void handleStop()}
-            modelOptions={sessionComposer.modelOptions}
-            selectedModelKey={sessionComposer.selectedModelKey}
-            selectedModelLabel={sessionComposer.selectedModelLabel}
-            thinkingLevel={sessionComposer.thinkingLevel}
-            onSelectModel={(key: string) => void sessionComposer.selectModel(key)}
-            onThinkingLevelChange={(level) => void sessionComposer.setThinkingLevel(level)}
-            modelPickerDisabled={!state.hostReady || busy}
-            contextRingView={contextRingView}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={PANE_COMPOSER_FILE_ACCEPT}
+            hidden
+            onChange={(event) => {
+              const files = event.target.files;
+              if (files && files.length > 0) void handleAttach([...files], 'file-picker');
+              event.target.value = '';
+            }}
+          />
+          <ComposerCard
+            {...buildPaneComposerProps({
+              sessionId: props.sessionId,
+              composer,
+              onComposerChange: setComposer,
+              streaming: state.streaming,
+              runPhase: state.runPhase,
+              mutationsEnabled: state.hostReady && !busy,
+              attachments,
+              onRemoveAttachment: (id) =>
+                setAttachments((current) => current.filter((item) => item.id !== id)),
+              onAttachFiles: (files, source) => void handleAttach(files, source),
+              onPickFiles: () => fileInputRef.current?.click(),
+              dropActive,
+              onDropActiveChange: setDropActive,
+              plusMenuOpen,
+              onPlusMenuOpenChange: setPlusMenuOpen,
+              plusSubmenu,
+              onPlusSubmenuChange: setPlusSubmenu,
+              modelOptions: sessionComposer.modelOptions,
+              selectedModelKey: sessionComposer.selectedModelKey,
+              selectedModelLabel: sessionComposer.selectedModelLabel,
+              thinkingLevel: sessionComposer.thinkingLevel,
+              onSelectModel: (key) => void sessionComposer.selectModel(key),
+              onThinkingLevelChange: (level) => void sessionComposer.setThinkingLevel(level),
+              contextRingView,
+              onSend: () => void handleSend(),
+              onStop: () => void handleStop(),
+            })}
           />
         </div>
         {!state.hostReady ? (

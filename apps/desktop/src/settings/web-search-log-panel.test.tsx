@@ -88,12 +88,13 @@ describe('WebSearchLogPanel', () => {
 
     expect(request).toHaveBeenCalledWith({
       type: 'web/search-log-list',
-      limit: 50,
+      limit: 20,
       offset: 0,
       logStatus: 'all',
     });
+    expect(container.querySelector('[data-testid="web-search-log-status"]')).toBeNull();
     expect(container.querySelector('[data-testid="web-search-log-count"]')?.textContent).toBe(
-      '共 2 条',
+      '共 2 条记录（最近 300 条）',
     );
     const rows = container.querySelectorAll<HTMLButtonElement>('[data-testid="web-search-log-row"]');
     expect(rows).toHaveLength(2);
@@ -101,11 +102,59 @@ describe('WebSearchLogPanel', () => {
     expect(rows[0]?.textContent).toContain('1 源失败');
     expect(rows[1]?.closest('li')?.classList.contains('is-failed')).toBe(true);
 
+    const sourceTags = container.querySelectorAll('[data-testid="web-search-log-source-tag"]');
+    expect(sourceTags[0]?.textContent).toBe('聚合 (2源)');
+    expect(sourceTags[1]?.textContent).toBe('Brave');
+
+    const sessionTags = container.querySelectorAll('[data-testid="web-search-log-session"]');
+    expect(sessionTags[0]?.textContent).toBe('session-…');
+    expect(sessionTags[1]?.textContent).toBe('session-…');
+
     act(() => rows[1]?.click());
     const detail = container.querySelector('[data-testid="web-search-log-detail"]');
     expect(detail?.textContent).toContain('Brave search failed: HTTP 429');
     expect(detail?.textContent).toContain('session-b');
+    expect(detail?.textContent).toContain('312ms');
     expect(detail?.querySelectorAll('[data-testid="tool-call-web-search-attempt"]')).toHaveLength(1);
+  });
+
+  it('navigates pages and switches page size', async () => {
+    const request = vi.fn(
+      async (command: { offset?: number; limit?: number }): Promise<HostResponse> => ({
+        type: 'response',
+        command: 'web/search-log-list',
+        success: true,
+        data: {
+          page: {
+            entries,
+            total: 45,
+            offset: command.offset ?? 0,
+            limit: command.limit ?? 20,
+          },
+        },
+      }),
+    );
+    render(request);
+    await flush();
+
+    expect(container.querySelector('[data-testid="web-search-log-range"]')?.textContent).toBe(
+      '第 1–20 条 / 共 45 条',
+    );
+    expect(container.querySelector('[data-testid="web-search-log-page-indicator"]')?.textContent).toBe(
+      '第 1 / 3 页',
+    );
+
+    const nextBtn = container.querySelector<HTMLButtonElement>('[data-testid="web-search-log-next"]');
+    expect(nextBtn?.disabled).toBe(false);
+    act(() => nextBtn?.click());
+    await flush();
+
+    expect(request).toHaveBeenLastCalledWith({
+      type: 'web/search-log-list',
+      limit: 20,
+      offset: 20,
+      logStatus: 'all',
+    });
   });
 
   it('asks for confirmation before clearing, then reloads', async () => {
@@ -120,7 +169,7 @@ describe('WebSearchLogPanel', () => {
         type: 'response',
         command: 'web/search-log-list',
         success: true,
-        data: { page: { entries: rows, total: rows.length, offset: 0, limit: 50 } },
+        data: { page: { entries: rows, total: rows.length, offset: 0, limit: 20 } },
       };
     });
     render(request);

@@ -60,6 +60,8 @@ Phase A 已经是「piwin 自己的包」的完整路径。本次只给 catalog 
 
 禁止回写。同 `(kind, id)` 只激活一份：`bundled → user → project → mapped → pi-native`。手动安装（user）赢 Pi 包。
 
+产品已经 vendor 进 `~/.piwin/extensions` 的 npm 包（`piwin.bundledFrom`，例如 `@gotgenes/pi-anthropic-auth`）不再单列 Pi 那份。OAuth「走套餐」用的就是这份内置拷贝；`pi install` 同名包只是磁盘上的第二份，不是另一个能力。
+
 关掉 Pi 包：写 piwin `disabledIds`，不改 `packages[]`。`pi remove` 后下次 list 自然消失。
 
 ## 5. 代码怎么接（一条路径）

@@ -251,6 +251,9 @@ function toCallLogEntry(record: UsageRecord): UsageCallLogEntry {
     totalTokens: record.totalTokens,
     source: record.source,
   };
+  if (record.thinkingLevel !== undefined) {
+    entry.thinkingLevel = record.thinkingLevel;
+  }
   if (typeof record.durationMs === 'number' && Number.isFinite(record.durationMs)) {
     entry.durationMs = record.durationMs;
   }

@@ -1,5 +1,8 @@
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { HostPush, PiwinConfig } from '@piwin/contracts';
+import { CLAUDE_CODE_OAUTH_PROVIDER_ID, type HostPush, type PiwinConfig } from '@piwin/contracts';
 import type { SubscriptionAuthPort } from '@piwin/agent-host';
 import { createDefaultPiwinConfig } from './config-store.js';
 import { SubscriptionAuthService } from './subscription-auth-service.js';
@@ -337,6 +340,8 @@ describe('SubscriptionAuthService', () => {
       credentials = [];
       return { kind: 'ok' };
     };
+    const agentDir = await mkdtemp(join(tmpdir(), 'piwin-auth-logout-'));
+    await writeFile(join(agentDir, 'auth.json'), '{}\n', 'utf8');
     let config: PiwinConfig = {
       ...createDefaultPiwinConfig(),
       defaultProviderId: 'xai',
@@ -353,7 +358,7 @@ describe('SubscriptionAuthService', () => {
       ],
     };
     const service = new SubscriptionAuthService(
-      { port },
+      { port, piAgentDir: agentDir },
       {
         loadConfig: async () => config,
         saveConfig: async (next) => {
@@ -365,5 +370,55 @@ describe('SubscriptionAuthService', () => {
     expect(config.providers.map((provider) => provider.id)).toEqual(['custom-openai']);
     expect(config.defaultProviderId).toBeUndefined();
     expect(config.defaultModelId).toBeUndefined();
+  });
+
+  it('seeds Claude Code models when the isolated credential is api_key', async () => {
+    const agentDir = await mkdtemp(join(tmpdir(), 'piwin-claude-code-auth-'));
+    await writeFile(
+      join(agentDir, 'auth.json'),
+      `${JSON.stringify({
+        [CLAUDE_CODE_OAUTH_PROVIDER_ID]: {
+          type: 'api_key',
+          key: 'sk-ant-oat-plan',
+        },
+      })}\n`,
+      'utf8',
+    );
+    const port = fakePort();
+    port.listCredentials = async () => [
+      { providerId: CLAUDE_CODE_OAUTH_PROVIDER_ID, type: 'api_key' },
+    ];
+    port.getChatCatalog = (providerId) =>
+      providerId === 'anthropic'
+        ? [{ id: 'claude-sonnet-4', name: 'Claude Sonnet 4' }]
+        : [];
+    let saved: PiwinConfig = createDefaultPiwinConfig();
+    const service = new SubscriptionAuthService(
+      { port, piAgentDir: agentDir },
+      {
+        loadConfig: async () => saved,
+        saveConfig: async (next) => {
+          saved = next;
+        },
+      },
+    );
+    const status = await service.status();
+    expect(
+      status.accounts.find((account) => account.providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID)?.state,
+    ).toBe('logged-in');
+    await service.ensureLoggedInProviders();
+    expect(saved.providers.some((provider) => provider.id === CLAUDE_CODE_OAUTH_PROVIDER_ID)).toBe(
+      true,
+    );
+    const merged = await service.mergeConfiguredModels({ models: [] });
+    expect(merged.models).toEqual([
+      {
+        providerId: CLAUDE_CODE_OAUTH_PROVIDER_ID,
+        modelId: 'claude-sonnet-4',
+        label: 'Claude Sonnet 4',
+        source: 'subscription',
+        group: 'subscription',
+      },
+    ]);
   });
 });

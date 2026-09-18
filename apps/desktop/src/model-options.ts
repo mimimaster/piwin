@@ -66,28 +66,35 @@ export function isComposerChatModel(model: ModelConfigEntry): boolean {
 export function modelOptionsFromConfiguredModels(
   models: readonly ConfiguredChatModel[],
 ): ModelOption[] {
-  return models.map((model) => ({
-    providerId: model.providerId,
-    ...(model.protocol !== undefined ? { protocol: model.protocol } : {}),
-    modelId: model.modelId,
-    ...(model.source !== undefined ? { source: model.source } : {}),
-    ...(model.group !== undefined ? { group: model.group } : {}),
-    label:
-      typeof model.label === 'string' && model.label.trim().length > 0
-        ? `${model.group === 'subscription' ? '套餐' : model.providerId} / ${model.label}`
-        : `${model.group === 'subscription' ? '套餐' : model.providerId} / ${model.modelId}`,
-    ...(model.thinkingLevel ? { thinkingLevel: model.thinkingLevel } : {}),
-    ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
-    ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-    ...(model.input?.includes('image') ? { supportsImage: true } : {}),
-    ...(model.capabilities?.includes('image-generation')
-      ? { supportsImageGeneration: true }
-      : {}),
-    ...(typeof model.contextWindow === 'number' ? { contextWindow: model.contextWindow } : {}),
-    ...(typeof model.maxOutputTokens === 'number'
-      ? { maxOutputTokens: model.maxOutputTokens }
-      : {}),
-  }));
+  return models.map((model) => {
+    const defaultThinking =
+      model.thinkingLevel ??
+      (model.thinkingLevels && model.thinkingLevels.length > 0
+        ? (model.thinkingLevels.includes('medium') ? 'medium' : model.thinkingLevels[0])
+        : undefined);
+    return {
+      providerId: model.providerId,
+      ...(model.protocol !== undefined ? { protocol: model.protocol } : {}),
+      modelId: model.modelId,
+      ...(model.source !== undefined ? { source: model.source } : {}),
+      ...(model.group !== undefined ? { group: model.group } : {}),
+      label:
+        typeof model.label === 'string' && model.label.trim().length > 0
+          ? `${model.group === 'subscription' ? '套餐' : model.providerId} / ${model.label}`
+          : `${model.group === 'subscription' ? '套餐' : model.providerId} / ${model.modelId}`,
+      ...(defaultThinking !== undefined ? { thinkingLevel: defaultThinking } : {}),
+      ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
+      ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+      ...(model.input?.includes('image') ? { supportsImage: true } : {}),
+      ...(model.capabilities?.includes('image-generation')
+        ? { supportsImageGeneration: true }
+        : {}),
+      ...(typeof model.contextWindow === 'number' ? { contextWindow: model.contextWindow } : {}),
+      ...(typeof model.maxOutputTokens === 'number'
+        ? { maxOutputTokens: model.maxOutputTokens }
+        : {}),
+    };
+  });
 }
 
 export function buildEnabledModelOptions(
@@ -105,6 +112,11 @@ export function buildEnabledModelOptions(
       if (!isComposerChatModel(model)) {
         continue;
       }
+      const defaultThinking =
+        model.thinkingLevel ??
+        (model.thinkingLevels && model.thinkingLevels.length > 0
+          ? (model.thinkingLevels.includes('medium') ? 'medium' : model.thinkingLevels[0])
+          : undefined);
       options.push({
         providerId: provider.id,
         protocol: provider.protocol,
@@ -116,7 +128,7 @@ export function buildEnabledModelOptions(
         ...(typeof model.maxOutputTokens === 'number'
           ? { maxOutputTokens: model.maxOutputTokens }
           : {}),
-        ...(model.thinkingLevel ? { thinkingLevel: model.thinkingLevel } : {}),
+        ...(defaultThinking !== undefined ? { thinkingLevel: defaultThinking } : {}),
         ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
         ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
         ...(model.input?.includes('image') ? { supportsImage: true } : {}),

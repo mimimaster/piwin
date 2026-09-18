@@ -560,6 +560,9 @@ export async function preparePromptInput(
   if (promptInput.model !== undefined) {
     context.sessionModels.set(command.sessionId, promptInput.model);
   }
+  if (promptInput.thinkingLevel !== undefined) {
+    context.sessionThinkingLevels.set(command.sessionId, promptInput.thinkingLevel);
+  }
   // Index is desired composer state. Rewrite it only for explicit picker/typed
   // sends — voice-delegation and other omitted-model turns must not persist.
   if (command.input.model !== undefined || command.input.thinkingLevel !== undefined) {

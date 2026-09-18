@@ -250,6 +250,43 @@ describe('createDesktopAttentionController', () => {
     late.controller.onPresenceChanged('active');
     expect(late.notices).toHaveLength(0);
   });
+
+  it('maps completed turn to success tone and truncates long action labels', async () => {
+    const harness = await createHarness({ presence: 'active' });
+    harness.snapshot.conversationCovered = true;
+    harness.snapshot.describeSession = () => ({
+      sessionTitle: '如果你有一个二次元形象，你认为你应该长什么样子',
+      projectName: 'piwin',
+      projectId: 'proj-1',
+    });
+    harness.emit(runTerminal('session-1', 'run-long-title'));
+    await harness.flush();
+    expect(harness.notices).toHaveLength(1);
+    expect(harness.notices[0]?.tone).toBe('success');
+    expect(harness.notices[0]?.action).toEqual({
+      label: '跳转到 如果你有一个二次元形象，你认为…',
+      sessionId: 'session-1',
+    });
+  });
+
+  it('maps failed turn to error tone', async () => {
+    const harness = await createHarness({ presence: 'active' });
+    harness.snapshot.conversationCovered = true;
+    harness.emit({
+      type: 'run/terminal',
+      run: {
+        runId: 'run-fail',
+        kind: 'session-turn',
+        status: 'failed',
+        rootRunId: 'run-fail',
+        sessionId: 'session-1',
+        endedAt: ENDED_AT,
+      },
+    });
+    await harness.flush();
+    expect(harness.notices).toHaveLength(1);
+    expect(harness.notices[0]?.tone).toBe('error');
+  });
 });
 
 async function createHarness(

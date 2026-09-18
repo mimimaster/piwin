@@ -259,6 +259,16 @@ describe('SQLite transcript derived operations', () => {
       expect(forked.success).toBe(true);
       if (!forked.success) throw new Error(forked.error);
       forkSessionId = (forked.data as { sessionId: string }).sessionId;
+
+      // The warm runtime created before the copy has an empty model context;
+      // derived sessions must be cold so the next turn replays copied history.
+      const residency = (
+        runtime as unknown as {
+          residencyController: { getResidency(sessionId: string): string };
+        }
+      ).residencyController;
+      expect(residency.getResidency(duplicateSessionId)).toBe('cold');
+      expect(residency.getResidency(forkSessionId)).toBe('cold');
     } finally {
       await runtime.dispose();
     }

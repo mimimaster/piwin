@@ -468,31 +468,6 @@ html:is(
     margin: 12px 0 6px;
   }
 
-  /* ── OAuth Settings inkstone polish ───────────────────────────── */
-  .oauth-hero-banner {
-    background: var(--s3);
-    box-shadow: var(--sh1);
-    border: 0;
-    border-radius: 8px;
-    padding: 14px 16px;
-  }
-
-  .oauth-hero-description {
-    color: var(--t2);
-    font: 12.5px/1.65 var(--sans);
-  }
-
-  .oauth-hero-tip-item {
-    background: var(--s2);
-    box-shadow: var(--sh1);
-    border: 0;
-    color: var(--t3);
-    font: 11px/1.4 var(--sans);
-  }
-
-  .oauth-hero-tip-dot {
-    background: var(--pine);
-  }
 
   .oauth-accounts-header-title {
     font: 600 11.5px var(--sans);

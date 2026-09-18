@@ -8,57 +8,6 @@
   gap: var(--s-5);
 }
 
-/* ── Hero Overview Banner ─────────────────────────────────────────────── */
-
-.oauth-hero-banner {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  padding: 14px 18px;
-  border-radius: var(--r-card);
-  background: color-mix(in srgb, var(--surface-2) 65%, transparent);
-  border: 1px solid var(--line-1);
-}
-
-.oauth-hero-content {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.oauth-hero-description {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-2);
-  letter-spacing: -0.01em;
-}
-
-.oauth-hero-tips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.oauth-hero-tip-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2.5px 10px;
-  border-radius: var(--r-pill);
-  background: var(--surface-1);
-  border: 1px solid var(--line-1);
-  font-size: 11px;
-  color: var(--text-3);
-  font-weight: 500;
-}
-
-.oauth-hero-tip-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--mint);
-}
 
 .oauth-pi-environment {
   display: flex;

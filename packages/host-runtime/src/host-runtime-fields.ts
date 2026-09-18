@@ -12,6 +12,7 @@ import type {
   CreateSessionOptions,
   PushSink,
   RemoteSinkId,
+  ThinkingLevel,
 } from '@piwin/contracts';
 import { type ExtensionUiKind, type ExtensionUiResponse, AgentWorkerSupervisor } from '@piwin/agent-host';
 import { createEventEnvelopeGenerator } from './host-event-envelope.js';
@@ -141,6 +142,7 @@ export class HostRuntimeFields {
   modelRequestOrdinalTails = new Map<string, Promise<void>>();
   /** CE-NAME: ModelRef used for the most recent prompt, for auto-naming. */
   sessionModels = new Map<string, ModelRef>();
+  sessionThinkingLevels = new Map<string, ThinkingLevel>();
   healthTurnBySession = new Map<string, { explicit: boolean }>();
   /** Latest assistant reply text keyed by Run, for Live takeaway delivery. */
   runAssistantReply = new Map<string, string>();

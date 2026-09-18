@@ -543,4 +543,47 @@ describe('WebPage search route settings', () => {
     expect(argsValue).toContain('anysearch_cli.py');
     expect(argsValue).toContain('{{query}}');
   });
+
+  it('switches between search, fetch, and call log tabs cleanly without leaking other panels', async () => {
+    const request = vi.fn(async (command: SettingsCommand): Promise<HostResponse> => {
+      if (command.type === 'web/search-route-preview') {
+        return successResponse(nativePreview('native-first'));
+      }
+      if (command.type === 'web/search-log-list') {
+        return {
+          type: 'response',
+          command: 'web/search-log-list',
+          success: true,
+          data: { page: { entries: [], total: 0, offset: 0, limit: 20 } },
+        };
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+
+    const container = renderPage(request);
+    await flushPreviewDebounce();
+
+    // Default: search tab is active
+    expect(container.querySelector('[data-testid="web-tools-search-panel"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="web-tools-fetch-panel"]')).toBeNull();
+    expect(container.querySelector('[data-testid="web-search-log"]')).toBeNull();
+
+    // Switch to fetch tab
+    const fetchInput = container.querySelector<HTMLInputElement>('input[value="fetch"]');
+    act(() => fetchInput?.click());
+    expect(container.querySelector('[data-testid="web-tools-search-panel"]')).toBeNull();
+    expect(container.querySelector('[data-testid="web-tools-fetch-panel"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="web-search-log"]')).toBeNull();
+
+    // Switch to call log tab
+    const logInput = container.querySelector<HTMLInputElement>('input[value="log"]');
+    act(() => logInput?.click());
+    await flushPreviewDebounce();
+
+    // Log panel must be present, and NO search/fetch panels or save footer should be rendered
+    expect(container.querySelector('[data-testid="web-search-log"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="web-tools-search-panel"]')).toBeNull();
+    expect(container.querySelector('[data-testid="web-tools-fetch-panel"]')).toBeNull();
+    expect(container.querySelector('.web-tools-actions')).toBeNull();
+  });
 });

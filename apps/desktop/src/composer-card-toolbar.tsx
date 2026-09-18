@@ -116,7 +116,7 @@ export function ComposerCardToolbar({
           onSelectModel={props.onSelectModel}
         />
 
-        {props.embedded === true ? null : (
+        {props.embedded === true || props.liveSupported === false ? null : (
           <LiveComposerButton
             enabled={true}
             canStart={props.live?.canStart === true}
@@ -230,6 +230,7 @@ export function ComposerCardToolbar({
           onSend={triggerSend}
           onPause={props.onPause}
           {...(props.embedded === true ? { embedded: true, onAbort: props.onAbort } : {})}
+          {...(props.stopOnly === true ? { stopOnly: true, onAbort: props.onAbort } : {})}
           {...(resumeHandler ? { onResume: resumeHandler } : {})}
           {...(props.mutationsEnabled === undefined && !reservedCommand
             ? {}

@@ -1,4 +1,5 @@
 import type {
+  ThinkingLevel,
   UsageBucket,
   UsageCallLog,
   UsageCallLogEntry,
@@ -251,4 +252,42 @@ export function formatUsageSessionTag(sessionId: string): string {
     return '—';
   }
   return trimmed.length <= 8 ? trimmed : `${trimmed.slice(0, 8)}…`;
+}
+
+export function formatThinkingLabel(
+  level: ThinkingLevel | null | undefined,
+  isZh: boolean,
+): string {
+  if (!level) {
+    return '—';
+  }
+  if (isZh) {
+    switch (level) {
+      case 'off':
+        return '关';
+      case 'minimal':
+        return '极低';
+      case 'low':
+        return '低';
+      case 'medium':
+        return '中';
+      case 'high':
+        return '高';
+      case 'xhigh':
+        return '极高';
+      case 'max':
+        return '最大';
+      case 'ultra':
+        return '极致';
+      default:
+        return level;
+    }
+  }
+  if (level === 'off') {
+    return 'Off';
+  }
+  if (level === 'xhigh') {
+    return 'xHigh';
+  }
+  return level.charAt(0).toUpperCase() + level.slice(1);
 }

@@ -105,6 +105,7 @@ export function createControlContext(
     sessionFilesTouched: new Map(),
     sessionLastPromptText: new Map(),
     sessionModels: new Map(),
+    sessionThinkingLevels: new Map(),
     sessionAutoCompactionOverrides: new Map(),
     unsubscribers: new Map(),
     transcriptRecorders: new Map(),

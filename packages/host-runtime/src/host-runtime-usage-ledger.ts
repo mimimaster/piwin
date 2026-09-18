@@ -24,6 +24,7 @@ export async function recordFinalizedUsageToLedger(
   const ledgerPath = getPiwinUsageLedgerPath(rootDir);
   const projectPath = deps.sessionProjects.get(sessionId) ?? '';
   const modelRef = deps.sessionModels.get(sessionId);
+  const thinkingLevel = measurement.thinkingLevel ?? deps.sessionThinkingLevels?.get(sessionId);
   const modelId = measurement.modelId ?? modelRef?.modelId;
   const record: UsageRecord = {
     sessionId,
@@ -36,6 +37,7 @@ export async function recordFinalizedUsageToLedger(
   };
   if (modelRef?.providerId) record.providerId = modelRef.providerId;
   if (modelId) record.modelId = modelId;
+  if (thinkingLevel) record.thinkingLevel = thinkingLevel;
   if (measurement.runId !== undefined) record.runId = measurement.runId;
   if (measurement.promptTokens !== undefined) record.promptTokens = measurement.promptTokens;
   if (measurement.completionTokens !== undefined) {
@@ -72,6 +74,7 @@ export function projectFinalizedUsage(measurement: AssistantUsageMeasurement): C
     source: 'assistant-usage',
   };
   if (measurement.modelId !== undefined) usage.modelId = measurement.modelId;
+  if (measurement.thinkingLevel !== undefined) usage.thinkingLevel = measurement.thinkingLevel;
   if (measurement.promptTokens !== undefined) usage.promptTokens = measurement.promptTokens;
   if (measurement.completionTokens !== undefined) usage.completionTokens = measurement.completionTokens;
   if (measurement.cacheReadTokens !== undefined) usage.cacheReadTokens = measurement.cacheReadTokens;
@@ -93,12 +96,14 @@ export async function recordUsageToLedger(
   const ledgerPath = getPiwinUsageLedgerPath(rootDir);
   const projectPath = deps.sessionProjects.get(sessionId) ?? '';
   const modelRef = deps.sessionModels.get(sessionId);
+  const thinkingLevel = usage.thinkingLevel ?? deps.sessionThinkingLevels?.get(sessionId);
   const modelId = usage.modelId ?? modelRef?.modelId;
   const record: UsageRecord = {
     sessionId,
     projectPath: projectPath.trim().length > 0 ? projectPath : null,
     ...(modelRef?.providerId ? { providerId: modelRef.providerId } : {}),
     ...(modelId ? { modelId } : {}),
+    ...(thinkingLevel ? { thinkingLevel } : {}),
     ...(usage.promptTokens !== undefined ? { promptTokens: usage.promptTokens } : {}),
     ...(usage.completionTokens !== undefined ? { completionTokens: usage.completionTokens } : {}),
     ...(usage.cacheReadTokens !== undefined ? { cacheReadTokens: usage.cacheReadTokens } : {}),

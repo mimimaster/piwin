@@ -5,7 +5,6 @@ import {
   V1_SUBSCRIPTION_PROVIDER_IDS,
   isChannelProvider,
   isSubscriptionOauthProviderId,
-  isV1SubscriptionProviderId,
 } from '@piwin/contracts';
 import type { SubscriptionCredentialInfo } from '@piwin/agent-host';
 
@@ -29,14 +28,14 @@ export function buildSubscriptionAccounts(
   config: Pick<PiwinConfig, 'providers'>,
   hints: AccountRuntimeHint = {},
 ): SubscriptionAccount[] {
-  const oauthIds = new Set(
-    credentials.filter((entry) => entry.type === 'oauth').map((entry) => entry.providerId),
+  const loggedInIds = new Set(
+    credentials.filter(isLiveSubscriptionCredential).map((entry) => entry.providerId),
   );
   const accounts: SubscriptionAccount[] = [];
 
   for (const providerId of V1_SUBSCRIPTION_PROVIDER_IDS) {
     accounts.push(
-      buildAccount(providerId, 'v1', oauthIds.has(providerId), config, hints),
+      buildAccount(providerId, 'v1', loggedInIds.has(providerId), config, hints),
     );
   }
   // Extension-path Claude — independent of v1 anthropic extra-usage card.
@@ -44,18 +43,32 @@ export function buildSubscriptionAccounts(
     buildAccount(
       CLAUDE_CODE_OAUTH_PROVIDER_ID,
       'v1',
-      oauthIds.has(CLAUDE_CODE_OAUTH_PROVIDER_ID),
+      loggedInIds.has(CLAUDE_CODE_OAUTH_PROVIDER_ID),
       config,
       hints,
     ),
   );
   for (const providerId of IGNORED_SUBSCRIPTION_PROVIDER_IDS) {
-    if (!oauthIds.has(providerId)) {
+    if (!loggedInIds.has(providerId)) {
       continue;
     }
     accounts.push(buildAccount(providerId, 'ignored', true, config, hints));
   }
   return accounts;
+}
+
+/**
+ * Claude Code stores an isolated `api_key` so Pi checkAuth passes. That is still
+ * the plan-quota OAuth login — do not treat it like a BYOK key.
+ */
+export function isLiveSubscriptionCredential(entry: {
+  providerId: string;
+  type: string;
+}): boolean {
+  if (entry.type === 'oauth') {
+    return true;
+  }
+  return entry.providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID && entry.type === 'api_key';
 }
 
 export function collidingV1ChannelIds(

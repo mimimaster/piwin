@@ -1,3 +1,5 @@
+import { isThinkingLevel, type ThinkingLevel } from './host.js';
+
 export type AssistantUsageMeasurement = {
   measurementId: string; // stable; suggested key sessionId + runtimeGenerationId + messageId
   sessionId: string;
@@ -5,6 +7,7 @@ export type AssistantUsageMeasurement = {
   runtimeGenerationId?: string;
   messageId: string;
   modelId?: string;
+  thinkingLevel?: ThinkingLevel;
   promptTokens?: number;
   completionTokens?: number;
   cacheReadTokens?: number;
@@ -44,6 +47,10 @@ export function parseAssistantUsageMeasurement(value: unknown): AssistantUsageMe
   const modelId = optionalNonEmptyString(value.modelId);
   if (modelId === false) return null;
   if (modelId !== undefined) measurement.modelId = modelId;
+  if (value.thinkingLevel !== undefined) {
+    if (!isThinkingLevel(value.thinkingLevel)) return null;
+    measurement.thinkingLevel = value.thinkingLevel;
+  }
   const stopReason = optionalNonEmptyString(value.stopReason);
   if (stopReason === false) return null;
   if (stopReason !== undefined) measurement.stopReason = stopReason;

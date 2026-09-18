@@ -79,6 +79,10 @@
 
 .docking-separator {
   z-index: 7;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  appearance: none;
 }
 
 /* --- drag layer ------------------------------------------------------- */
@@ -197,41 +201,4 @@
 
 .conversation-pane-tab:active {
   cursor: grabbing;
-}
-
-.compact-prompt-attachments {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 8px 0;
-}
-
-.compact-prompt-attachment {
-  max-width: 160px;
-  padding: 2px 8px;
-  overflow: hidden;
-  border: 0;
-  border-radius: 4px;
-  background: var(--surface-2);
-  color: var(--text-2);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.composer-v2-attach-btn {
-  display: inline-grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-3);
-  cursor: pointer;
-}
-
-.composer-v2-attach-btn:hover {
-  color: var(--text-1);
 }

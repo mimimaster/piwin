@@ -108,6 +108,9 @@ async function formatDiscoveryHttpFailure(response: Response): Promise<string> {
   } catch {
     // Keep a short raw snippet for gateways that return plain text.
   }
+  if (raw.startsWith('<') || /<html[\s>]/i.test(raw) || /<!doctype html/i.test(raw)) {
+    return status;
+  }
   return `${status}: ${raw.slice(0, 180)}`;
 }
 

@@ -230,6 +230,13 @@ export type ComposerDockProps = {
    * Live / queue-follow-up. Streaming shows Stop (`onAbort`) instead of Pause.
    */
   embedded?: boolean;
+  /**
+   * The session offers no pause checkpoint: while a run streams the circle is
+   * Stop (`onAbort`), or Send when a draft is ready to steer.
+   */
+  stopOnly?: boolean;
+  /** False where the session cannot host a Live call (split panes). Default true. */
+  liveSupported?: boolean;
   /** Override the Send control label (edit card: Retry vs Send new version). */
   sendAriaLabel?: string;
 };

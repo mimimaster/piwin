@@ -10,7 +10,7 @@ import type {
   SkillSummary,
   SkillsConfig,
 } from '@piwin/contracts';
-import { isExtensionBlueprintEligible } from '@piwin/contracts';
+import { isExtensionBlueprintEligible, normalizeResourceId } from '@piwin/contracts';
 import { resolveBundledSkillsRoot, scanSkills } from '@piwin/skills';
 import { scanExtensions } from './extension-scanner.js';
 import { loadPiNativeInventory } from './pi-package-inventory.js';
@@ -83,17 +83,19 @@ export async function loadDiscoveredResources(
   const skillDisabled = new Set((skillsConfig?.disabledIds ?? []).map((id) => id.toLowerCase()));
   const promptDisabled = new Set((promptsConfig?.disabledIds ?? []).map((id) => id.toLowerCase()));
 
+  const nativeExtensions = native.extensions.map((item) => {
+    const userEnabled = !extensionDisabled.has(item.id.toLowerCase());
+    return {
+      ...item,
+      enabled: userEnabled && isExtensionBlueprintEligible(item.compatibility),
+      configuredEnabled: userEnabled,
+    };
+  });
+
   return {
     extensions: [
       ...piwinExtensions,
-      ...native.extensions.map((item) => {
-        const userEnabled = !extensionDisabled.has(item.id.toLowerCase());
-        return {
-          ...item,
-          enabled: userEnabled && isExtensionBlueprintEligible(item.compatibility),
-          configuredEnabled: userEnabled,
-        };
-      }),
+      ...nativeExtensions.filter((item) => !isVendoredByBundledExtension(item, piwinExtensions)),
     ],
     skills: [
       ...piwinSkills,
@@ -110,4 +112,53 @@ export async function loadDiscoveredResources(
       })),
     ],
   };
+}
+
+/**
+ * Product-vendored packages (`piwin.bundledFrom`, e.g. @gotgenes/pi-anthropic-auth)
+ * keep one catalog row. The Pi-native npm copy is the same capability with a
+ * different id (`gotgenes-pi-anthropic-auth` vs `pi-anthropic-auth`), so same-id
+ * shadowing never fires — hide it here instead of listing two toggles.
+ */
+function isVendoredByBundledExtension(
+  candidate: ExtensionSummary,
+  catalog: readonly ExtensionSummary[],
+): boolean {
+  if (candidate.source === 'bundled') {
+    return false;
+  }
+  const candidateKeys = extensionIdentityKeys(candidate);
+  for (const item of catalog) {
+    if (item.source !== 'bundled') {
+      continue;
+    }
+    for (const key of extensionIdentityKeys(item)) {
+      if (candidateKeys.has(key)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function extensionIdentityKeys(item: ExtensionSummary): Set<string> {
+  const keys = new Set<string>();
+  addIdentityKey(keys, item.id);
+  addIdentityKey(keys, item.name);
+  if (item.bundledFrom) {
+    addIdentityKey(keys, item.bundledFrom.replace(/^(npm|git|local):/i, ''));
+  }
+  return keys;
+}
+
+function addIdentityKey(keys: Set<string>, value: string): void {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return;
+  }
+  try {
+    keys.add(normalizeResourceId(trimmed));
+  } catch {
+    // ignore unusable identity fragments
+  }
 }

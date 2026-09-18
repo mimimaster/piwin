@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadDiscoveredResources } from './discovered-resources.js';
 import { createPiResourceLoader } from './pi-resource-loader.js';
@@ -176,5 +176,82 @@ describe('loadDiscoveredResources', () => {
     });
     expect(listed.extensions.some((item) => item.source === 'pi-native')).toBe(false);
     expect(listed.extensions.some((item) => item.id === 'tui-only')).toBe(false);
+  });
+
+  it('hides the Pi-native npm copy of a bundledFrom vendor package', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-vendor-'));
+    const agentDir = await mkdtemp(join(tmpdir(), 'pi-agent-vendor-'));
+    const bundledDir = join(piwinRoot, 'extensions', 'pi-anthropic-auth');
+    await mkdir(bundledDir, { recursive: true });
+    await writeFile(
+      join(bundledDir, 'index.ts'),
+      '/**\n * Anthropic OAuth shaping.\n * @piwin-bundled-extension\n */\nexport default async function () {}\n',
+      'utf8',
+    );
+    await writeFile(
+      join(bundledDir, 'package.json'),
+      `${JSON.stringify({
+        name: '@gotgenes/pi-anthropic-auth',
+        version: '2.0.8',
+        piwin: { bundledFrom: 'npm:@gotgenes/pi-anthropic-auth', npmVersion: '2.0.8' },
+      })}\n`,
+      'utf8',
+    );
+
+    const npmEntry = join(
+      agentDir,
+      'npm',
+      'node_modules',
+      '@gotgenes',
+      'pi-anthropic-auth',
+      'src',
+      'index.ts',
+    );
+    await mkdir(dirname(npmEntry), { recursive: true });
+    await writeFile(
+      join(dirname(dirname(npmEntry)), 'package.json'),
+      `${JSON.stringify({
+        name: '@gotgenes/pi-anthropic-auth',
+        pi: { extensions: ['./src/index.ts'] },
+      })}\n`,
+      'utf8',
+    );
+    await writeFile(npmEntry, 'export default function () {}\n', 'utf8');
+    await writeFile(
+      join(agentDir, 'settings.json'),
+      `${JSON.stringify({ packages: ['npm:@gotgenes/pi-anthropic-auth'] })}\n`,
+      'utf8',
+    );
+
+    const listed = await loadDiscoveredResources({
+      piwinRoot,
+      agentDir,
+      followPiNativeInventory: true,
+    });
+    const authRows = listed.extensions.filter(
+      (item) =>
+        item.id === 'pi-anthropic-auth' ||
+        item.id === 'gotgenes-pi-anthropic-auth' ||
+        item.name === '@gotgenes/pi-anthropic-auth',
+    );
+    expect(authRows).toHaveLength(1);
+    expect(authRows[0]?.id).toBe('pi-anthropic-auth');
+    expect(authRows[0]?.name).toBe('@gotgenes/pi-anthropic-auth');
+    expect(authRows[0]?.source).toBe('bundled');
+    expect(authRows[0]?.bundledFrom).toBe('npm:@gotgenes/pi-anthropic-auth');
+
+    const loaded = await createPiResourceLoader({
+      cwd: piwinRoot,
+      agentDir,
+      piwinRoot,
+      scope: { kind: 'general' },
+      followPiNativeInventory: true,
+    });
+    expect(loaded.extensionPaths.some((resourcePath) => resourcePath.includes(bundledDir))).toBe(
+      true,
+    );
+    expect(loaded.extensionPaths.some((resourcePath) => resourcePath.includes(join(agentDir, 'npm')))).toBe(
+      false,
+    );
   });
 });

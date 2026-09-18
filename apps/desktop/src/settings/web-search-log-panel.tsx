@@ -1,16 +1,25 @@
 /**
  * Settings → Web → Call log. Cross-session `web_search` calls recorded by the
- * Host, newest first, with per-source outcome on expand.
+ * Host, newest first, with per-source outcome, pagination, and enriched fields.
  */
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import type { HostResponse, WebSearchLogEntry, WebSearchLogPage, WebSearchLogStatusFilter } from '@piwin/contracts';
-import { Button, SegmentedControl } from '@piwin/ui-kit';
+import { Button, Select } from '@piwin/ui-kit';
 import { IconRefresh } from '../shell-icons.js';
 import { isRemoteCommandGapError } from '../remote-command-gap.js';
 import { formatToolDuration } from '../tool-call-head';
 import { WebSearchSourceAttempts } from '../web-search-diagnostics-display';
 
-const PAGE_SIZE = 50;
+export const WEB_SEARCH_LOG_PAGE_SIZES = [20, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 20;
+
+export type WebSearchSourceKindTag = 'model' | 'provider' | 'custom' | 'aggregate' | 'unknown';
+
+export type WebSearchSourceInfo = {
+  label: string;
+  kind: WebSearchSourceKindTag;
+  title: string;
+};
 
 export type WebSearchLogPanelProps = {
   locale: 'zh-CN' | 'en';
@@ -27,9 +36,10 @@ export type WebSearchLogPanelProps = {
 export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
   const { locale, readOnly } = props;
   const isZh = locale === 'zh-CN';
-  const [status, setStatus] = useState<WebSearchLogStatusFilter>('all');
   const [entries, setEntries] = useState<WebSearchLogEntry[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unsupported, setUnsupported] = useState(false);
@@ -39,15 +49,16 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
   requestRef.current = props.request;
 
   const load = useCallback(
-    async (offset: number) => {
+    async (targetPage: number, targetPageSize: number) => {
       setLoading(true);
       setError(null);
       try {
+        const offset = Math.max(0, (targetPage - 1) * targetPageSize);
         const response = await requestRef.current({
           type: 'web/search-log-list',
-          limit: PAGE_SIZE,
+          limit: targetPageSize,
           offset,
-          logStatus: status,
+          logStatus: 'all',
         });
         if (!response.success) {
           if (isRemoteCommandGapError(response.error)) {
@@ -57,22 +68,29 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
           }
           return;
         }
-        const page = (response.data as { page?: WebSearchLogPage }).page;
-        const rows = Array.isArray(page?.entries) ? page.entries : [];
-        setEntries((previous) => (offset === 0 ? rows : [...previous, ...rows]));
-        setTotal(typeof page?.total === 'number' ? page.total : rows.length);
+        const pageData = (response.data as { page?: WebSearchLogPage }).page;
+        const rows = Array.isArray(pageData?.entries) ? pageData.entries : [];
+        const nextTotal = typeof pageData?.total === 'number' ? pageData.total : rows.length;
+        setEntries(rows);
+        setTotal(nextTotal);
+
+        // Clamping page if total shrank
+        const maxPage = Math.max(1, Math.ceil(nextTotal / targetPageSize));
+        if (targetPage > maxPage && nextTotal > 0) {
+          setPage(maxPage);
+        }
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : String(loadError));
       } finally {
         setLoading(false);
       }
     },
-    [status],
+    [],
   );
 
   useEffect(() => {
-    void load(0);
-  }, [load]);
+    void load(page, pageSize);
+  }, [load, page, pageSize]);
 
   async function clearLog(): Promise<void> {
     if (!confirmClear) {
@@ -86,8 +104,13 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
       return;
     }
     setExpandedId(null);
-    await load(0);
+    setPage(1);
+    await load(1, pageSize);
   }
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const firstRow = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastRow = total === 0 ? 0 : Math.min(page * pageSize, total);
 
   if (unsupported) {
     return (
@@ -108,43 +131,35 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
       aria-busy={loading}
     >
       <div className="web-search-log-toolbar">
-        <SegmentedControl
-          value={status}
-          onChange={(value) => {
-            setExpandedId(null);
-            setStatus(value as WebSearchLogStatusFilter);
-          }}
-          data={[
-            { value: 'all', label: isZh ? '全部' : 'All' },
-            { value: 'failed', label: isZh ? '有失败' : 'With failures' },
-          ]}
-          testId="web-search-log-status"
-        />
-        <span className="web-search-log-count" data-testid="web-search-log-count">
-          {isZh ? `共 ${total} 条` : `${total} calls`}
-        </span>
-        <Button
-          variant="ghost"
-          size="compact"
-          onClick={() => void load(0)}
-          disabled={loading}
-          data-testid="web-search-log-refresh"
-        >
-          <IconRefresh width={13} height={13} />
-          <span>{isZh ? '刷新' : 'Refresh'}</span>
-        </Button>
-        {readOnly ? null : (
+        <div className="web-search-log-heading">
+          <span className="web-search-log-count" data-testid="web-search-log-count">
+            {isZh ? `共 ${total} 条记录（最近 300 条）` : `Total ${total} calls (latest 300)`}
+          </span>
+        </div>
+        <div className="web-search-log-actions">
           <Button
-            variant={confirmClear ? 'danger' : 'ghost'}
+            variant="ghost"
             size="compact"
-            onClick={() => void clearLog()}
-            onBlur={() => setConfirmClear(false)}
-            disabled={loading || total === 0}
-            data-testid="web-search-log-clear"
+            onClick={() => void load(page, pageSize)}
+            disabled={loading}
+            data-testid="web-search-log-refresh"
           >
-            {confirmClear ? (isZh ? '确认清空' : 'Confirm clear') : isZh ? '清空' : 'Clear'}
+            <IconRefresh width={13} height={13} />
+            <span>{isZh ? '刷新' : 'Refresh'}</span>
           </Button>
-        )}
+          {readOnly ? null : (
+            <Button
+              variant={confirmClear ? 'danger' : 'ghost'}
+              size="compact"
+              onClick={() => void clearLog()}
+              onBlur={() => setConfirmClear(false)}
+              disabled={loading || total === 0}
+              data-testid="web-search-log-clear"
+            >
+              {confirmClear ? (isZh ? '确认清空' : 'Confirm clear') : isZh ? '清空' : 'Clear'}
+            </Button>
+          )}
+        </div>
       </div>
 
       {error ? (
@@ -155,13 +170,9 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
 
       {entries.length === 0 && !loading ? (
         <div className="web-search-log-empty" data-testid="web-search-log-empty">
-          {status === 'failed'
-            ? isZh
-              ? '没有失败的搜索调用。'
-              : 'No failed search calls.'
-            : isZh
-              ? '还没有搜索调用记录。Agent 调用 web_search 后会出现在这里。'
-              : 'No search calls yet. They appear here after the agent calls web_search.'}
+          {isZh
+            ? '还没有搜索调用记录。Agent 调用 web_search 后会出现在这里（仅保留最近 300 条）。'
+            : 'No search calls yet. They appear here after the agent calls web_search (latest 300 kept).'}
         </div>
       ) : (
         <ul className="web-search-log-list">
@@ -169,6 +180,7 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
             const expanded = expandedId === entry.id;
             const failedSources = entry.attempts.filter((attempt) => !attempt.ok).length;
             const tone = !entry.ok ? 'is-failed' : failedSources > 0 ? 'is-partial' : 'is-ok';
+            const sourceInfo = parseWebSearchSourceInfo(entry.providerId, isZh);
             return (
               <li key={entry.id} className={`web-search-log-row ${tone}`}>
                 <button
@@ -183,6 +195,20 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
                   </span>
                   <span className="web-search-log-mark" aria-hidden="true">
                     {entry.ok ? (failedSources > 0 ? '!' : '✓') : '✗'}
+                  </span>
+                  <span
+                    className={`web-search-log-source-tag tone-${sourceInfo.kind}`}
+                    title={sourceInfo.title}
+                    data-testid="web-search-log-source-tag"
+                  >
+                    {sourceInfo.label}
+                  </span>
+                  <span
+                    className="web-search-log-session"
+                    title={entry.sessionId}
+                    data-testid="web-search-log-session"
+                  >
+                    {formatSessionTag(entry.sessionId)}
                   </span>
                   <span className="web-search-log-query" title={entry.query}>
                     {entry.query}
@@ -208,16 +234,48 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
                 {expanded ? (
                   <div className="web-search-log-detail" data-testid="web-search-log-detail">
                     <dl className="web-search-log-meta">
-                      <dt>{isZh ? '查询' : 'Query'}</dt>
+                      <dt>{isZh ? '查询关键词' : 'Query'}</dt>
                       <dd>{entry.query}</dd>
-                      <dt>{isZh ? '搜索后端' : 'Backend'}</dt>
-                      <dd>{entry.providerId}</dd>
-                      <dt>{isZh ? '会话' : 'Session'}</dt>
-                      <dd>{entry.sessionId}</dd>
-                      <dt>{isZh ? '时间' : 'Time'}</dt>
+                      <dt>{isZh ? '调用来源' : 'Source'}</dt>
+                      <dd className="web-search-log-source-row">
+                        <span className={`web-search-log-source-tag tone-${sourceInfo.kind}`}>
+                          {sourceInfo.label}
+                        </span>
+                        {sourceInfo.title !== sourceInfo.label ? (
+                          <span className="web-search-log-source-title">{sourceInfo.title}</span>
+                        ) : null}
+                        <code className="web-search-log-code">{entry.providerId}</code>
+                      </dd>
+                      <dt>{isZh ? '执行状态' : 'Status'}</dt>
+                      <dd>
+                        {entry.ok
+                          ? isZh
+                            ? `成功 · 返回 ${entry.hitCount} 条结果`
+                            : `Success · ${entry.hitCount} hits returned`
+                          : isZh
+                            ? '执行失败'
+                            : 'Execution failed'}
+                        {failedSources > 0 && entry.ok
+                          ? isZh
+                            ? `（其中 ${failedSources} 个搜索源失败）`
+                            : ` (${failedSources} sources failed)`
+                          : null}
+                      </dd>
+                      <dt>{isZh ? '执行耗时' : 'Duration'}</dt>
+                      <dd>{`${entry.durationMs}ms (${formatToolDuration(entry.durationMs)})`}</dd>
+                      <dt>{isZh ? '会话标识' : 'Session ID'}</dt>
+                      <dd>
+                        <code className="web-search-log-code">{entry.sessionId}</code>
+                      </dd>
+                      <dt>{isZh ? '记录时间' : 'Recorded At'}</dt>
                       <dd>{formatFull(entry.recordedAt, locale)}</dd>
                     </dl>
-                    {entry.error ? <div className="web-search-log-error">{entry.error}</div> : null}
+                    {entry.error ? (
+                      <div className="web-search-log-error" role="alert">
+                        <strong>{isZh ? '错误详情：' : 'Error: '}</strong>
+                        {entry.error}
+                      </div>
+                    ) : null}
                     <WebSearchSourceAttempts
                       diagnostics={{
                         kind: 'web-search-diagnostics',
@@ -236,21 +294,145 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
         </ul>
       )}
 
-      {entries.length < total ? (
-        <div className="web-search-log-more">
-          <Button
-            variant="ghost"
-            size="compact"
-            disabled={loading}
-            onClick={() => void load(entries.length)}
-            data-testid="web-search-log-more"
-          >
-            {isZh ? `加载更多（还有 ${total - entries.length} 条）` : `Load more (${total - entries.length} left)`}
-          </Button>
+      {total > 0 ? (
+        <div className="web-search-log-pager" data-testid="web-search-log-pager">
+          <span className="web-search-log-range" data-testid="web-search-log-range">
+            {isZh
+              ? `第 ${firstRow}–${lastRow} 条 / 共 ${total} 条`
+              : `${firstRow}–${lastRow} of ${total}`}
+          </span>
+          <div className="web-search-log-pager-controls">
+            <label className="web-search-log-page-size">
+              <span>{isZh ? '每页' : 'Rows'}</span>
+              <Select
+                data={WEB_SEARCH_LOG_PAGE_SIZES.map((size) => ({
+                  value: String(size),
+                  label: String(size),
+                }))}
+                value={String(pageSize)}
+                onChange={(event) => {
+                  const next = Number(event.currentTarget.value);
+                  setPageSize(next);
+                  setPage(1);
+                }}
+                testId="web-search-log-page-size"
+                aria-label={isZh ? '每页条数' : 'Rows per page'}
+              />
+            </label>
+            <Button
+              variant="ghost"
+              size="compact"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage(1)}
+              data-testid="web-search-log-first"
+              title={isZh ? '首页' : 'First page'}
+            >
+              {isZh ? '首页' : 'First'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="compact"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              data-testid="web-search-log-prev"
+            >
+              {isZh ? '上一页' : 'Previous'}
+            </Button>
+            <span className="web-search-log-page-indicator" data-testid="web-search-log-page-indicator">
+              {isZh ? `第 ${page} / ${totalPages} 页` : `Page ${page} of ${totalPages}`}
+            </span>
+            <Button
+              variant="ghost"
+              size="compact"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              data-testid="web-search-log-next"
+            >
+              {isZh ? '下一页' : 'Next'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="compact"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage(totalPages)}
+              data-testid="web-search-log-last"
+              title={isZh ? '末页' : 'Last page'}
+            >
+              {isZh ? '末页' : 'Last'}
+            </Button>
+          </div>
         </div>
       ) : null}
     </div>
   );
+}
+
+/** Parses providerId into a structured descriptor with readable labels and tone kinds. */
+export function parseWebSearchSourceInfo(providerId: string, isZh: boolean): WebSearchSourceInfo {
+  if (!providerId || providerId === 'unconfigured' || providerId === 'none') {
+    return {
+      label: isZh ? '未配置' : 'Unconfigured',
+      kind: 'unknown',
+      title: providerId || 'unconfigured',
+    };
+  }
+  if (providerId.startsWith('model-delegate:')) {
+    const model = providerId.slice('model-delegate:'.length);
+    return {
+      label: isZh ? '模型自带' : 'Model native',
+      kind: 'model',
+      title: isZh ? `模型自带搜索 (${model})` : `Model native search (${model})`,
+    };
+  }
+  if (providerId.startsWith('aggregate:')) {
+    const rawSources = providerId.slice('aggregate:'.length).split('+');
+    const sourceNames = rawSources.map(formatSingleSourceName).join(' + ');
+    return {
+      label: isZh ? `聚合 (${rawSources.length}源)` : `Aggregate (${rawSources.length})`,
+      kind: 'aggregate',
+      title: isZh ? `聚合搜索 (${sourceNames})` : `Aggregate search (${sourceNames})`,
+    };
+  }
+  if (providerId === 'tavily') {
+    return { label: 'Tavily', kind: 'provider', title: 'Tavily Search API' };
+  }
+  if (providerId === 'brave') {
+    return { label: 'Brave', kind: 'provider', title: 'Brave Search API' };
+  }
+  if (providerId === 'duckduckgo') {
+    return { label: 'DuckDuckGo', kind: 'provider', title: 'DuckDuckGo Search' };
+  }
+  if (providerId === 'searxng') {
+    return { label: 'SearXNG', kind: 'provider', title: 'SearXNG Search' };
+  }
+  if (providerId === 'cli') {
+    return { label: isZh ? '自定义 CLI' : 'Custom CLI', kind: 'custom', title: 'CLI command search' };
+  }
+  if (providerId === 'http') {
+    return { label: isZh ? '自定义 HTTP' : 'Custom HTTP', kind: 'custom', title: 'Custom HTTP search' };
+  }
+  return {
+    label: providerId,
+    kind: 'custom',
+    title: providerId,
+  };
+}
+
+function formatSingleSourceName(id: string): string {
+  if (id === 'tavily') return 'Tavily';
+  if (id === 'brave') return 'Brave';
+  if (id === 'duckduckgo') return 'DuckDuckGo';
+  if (id === 'searxng') return 'SearXNG';
+  if (id === 'cli') return 'CLI';
+  if (id === 'http') return 'HTTP';
+  return id;
+}
+
+/** Short, stable tag for a session UUID in a dense list row. */
+export function formatSessionTag(sessionId: string): string {
+  const trimmed = sessionId.trim();
+  if (trimmed.length === 0) return '—';
+  return trimmed.length <= 8 ? trimmed : `${trimmed.slice(0, 8)}…`;
 }
 
 /** Today → clock time; otherwise month/day plus clock. */
@@ -268,3 +450,4 @@ function formatFull(value: string, locale: string): string {
     ? date.toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'medium' })
     : value;
 }
+

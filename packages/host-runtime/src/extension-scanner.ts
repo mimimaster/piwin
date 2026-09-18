@@ -214,42 +214,85 @@ async function buildExtensionSummary(
     return null;
   }
   const id = normalizeResourceId(name);
+  const packageIdentity = await readExtensionPackageIdentity(entryPath, directoryPath);
   const description = await readExtensionDescription(entryPath);
   const pathForLoader = directoryPath ?? entryPath;
   const resolvedSource: ExtensionSource =
-    source === 'user' && (await isBundledMarker(entryPath)) ? 'bundled' : source;
+    source === 'user' && (await isBundledExtension(entryPath, packageIdentity)) ? 'bundled' : source;
   const hookEvents = await readExtensionHookEvents(entryPath);
   const compatibility = await readExtensionCompatibility(entryPath);
   return {
     id,
-    name,
+    name: packageIdentity.packageName ?? name,
     description,
     source: resolvedSource,
     path: pathForLoader,
     enabled: isExtensionBlueprintEligible(compatibility),
     configuredEnabled: true,
+    ...(packageIdentity.version ? { version: packageIdentity.version } : {}),
+    ...(packageIdentity.bundledFrom ? { bundledFrom: packageIdentity.bundledFrom } : {}),
     ...(hookEvents ? { hookEvents: [...hookEvents] } : {}),
     compatibility,
   };
 }
 
-async function isBundledMarker(entryPath: string): Promise<boolean> {
+type ExtensionPackageIdentity = {
+  packageName?: string;
+  bundledFrom?: string;
+  version?: string;
+};
+
+async function isBundledExtension(
+  entryPath: string,
+  packageIdentity: ExtensionPackageIdentity,
+): Promise<boolean> {
+  if (packageIdentity.bundledFrom) {
+    return true;
+  }
   try {
     const raw = await readFile(entryPath, 'utf8');
     if (raw.includes('@piwin-bundled-extension')) {
       return true;
     }
   } catch {
-    // fall through to package.json
-  }
-  // Package-dir extensions: index.ts may omit the marker; honor package.json.
-  try {
-    const pkgPath = join(dirname(entryPath), 'package.json');
-    const raw = await readFile(pkgPath, 'utf8');
-    const parsed = JSON.parse(raw) as { piwin?: { bundledFrom?: unknown } };
-    return typeof parsed.piwin?.bundledFrom === 'string' && parsed.piwin.bundledFrom.length > 0;
-  } catch {
     return false;
+  }
+  return false;
+}
+
+async function readExtensionPackageIdentity(
+  entryPath: string,
+  directoryPath?: string,
+): Promise<ExtensionPackageIdentity> {
+  const pkgPath = directoryPath
+    ? join(directoryPath, 'package.json')
+    : join(dirname(entryPath), 'package.json');
+  try {
+    const raw = await readFile(pkgPath, 'utf8');
+    const parsed = JSON.parse(raw) as {
+      name?: unknown;
+      version?: unknown;
+      piwin?: { bundledFrom?: unknown };
+    };
+    const packageName =
+      typeof parsed.name === 'string' && parsed.name.trim().length > 0
+        ? parsed.name.trim()
+        : undefined;
+    const version =
+      typeof parsed.version === 'string' && parsed.version.trim().length > 0
+        ? parsed.version.trim()
+        : undefined;
+    const bundledFrom =
+      typeof parsed.piwin?.bundledFrom === 'string' && parsed.piwin.bundledFrom.trim().length > 0
+        ? parsed.piwin.bundledFrom.trim()
+        : undefined;
+    return {
+      ...(packageName ? { packageName } : {}),
+      ...(version ? { version } : {}),
+      ...(bundledFrom ? { bundledFrom } : {}),
+    };
+  } catch {
+    return {};
   }
 }
 

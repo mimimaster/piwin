@@ -104,6 +104,12 @@ export type ExtensionSummary = {
   hookEvents?: string[];
   /** Detailed 4-tier static Agent-vs-TUI compatibility report. */
   compatibility?: ExtensionCompatibility;
+  /**
+   * npm/git spec this bundled copy vendors (`piwin.bundledFrom` in package.json).
+   * Catalog merge hides the Pi-native package with the same identity so OAuth /
+   * Settings do not list the product copy and `~/.pi` copy as two extensions.
+   */
+  bundledFrom?: string;
 };
 
 export type ExtensionsConfig = {

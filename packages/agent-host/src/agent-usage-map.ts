@@ -86,6 +86,7 @@ export function mapFinalizedAssistantUsage(input: {
   if (input.runId !== undefined) measurement.runId = input.runId;
   measurement.runtimeGenerationId = input.runtimeGenerationId;
   if (snapshot.modelId !== undefined) measurement.modelId = snapshot.modelId;
+  if (snapshot.thinkingLevel !== undefined) measurement.thinkingLevel = snapshot.thinkingLevel;
   if (snapshot.promptTokens !== undefined) measurement.promptTokens = snapshot.promptTokens;
   if (snapshot.completionTokens !== undefined) {
     measurement.completionTokens = snapshot.completionTokens;

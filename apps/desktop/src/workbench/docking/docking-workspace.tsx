@@ -325,14 +325,23 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         {primaryLayout ? null : stageGroupIds.map((groupId) => {
           const group = state.groups[groupId];
           if (!group) return null;
-          const rect = usesFullStage
-            ? { left: 0, top: 0, width: 1, height: 1 }
-            : (groupRectOf(state, groupId, { width: 1, height: 1 }) ?? {
-                left: 0,
-                top: 0,
-                width: 1,
-                height: 1,
-              });
+          // Allocate in real pixels so the minimum pane sizes clamp the panes
+          // exactly as they clamp the separators; a unit-sized allocation
+          // skips the minimums and lets the seam drift away from its handle.
+          const measured = stagePx.width > 0 && stagePx.height > 0;
+          const pxRect = usesFullStage
+            ? null
+            : groupRectOf(state, groupId, measured ? stagePx : { width: 1, height: 1 });
+          const rect = pxRect
+            ? measured
+              ? {
+                  left: pxRect.left / stagePx.width,
+                  top: pxRect.top / stagePx.height,
+                  width: pxRect.width / stagePx.width,
+                  height: pxRect.height / stagePx.height,
+                }
+              : pxRect
+            : { left: 0, top: 0, width: 1, height: 1 };
           return (
             <DockingGroupView
               key={groupId}

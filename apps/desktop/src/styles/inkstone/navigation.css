@@ -294,7 +294,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-pane.is-active .conversation-pane-frame {
-  box-shadow: var(--sh2), 0 0 0 1.5px var(--zhu);
+  /* Active pane lifts on a deeper shadow; no coloured ring. */
+  box-shadow: var(--sh2);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-pane-header {

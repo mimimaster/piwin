@@ -748,5 +748,63 @@ describe('ProviderSettings', () => {
     expect(statusPill).not.toBeNull();
     expect(statusPill?.textContent).toBe('OK · 0.8s');
   });
+
+  it('keeps edit and delete accessible when provider connection test fails with long error', async () => {
+    const onDiscoverModels = vi.fn(async () => {
+      throw new Error('Model discovery failed (404 Not Found: <!DOCTYPE html><html><body>error page</body></html>)');
+    });
+    const { container, root } = renderProviderSettings({
+      ...makeProps(),
+      onDiscoverModels,
+    });
+    instances.push({ container, root });
+
+    // Open drawer to trigger test connection
+    const openBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-row-open-openai"]',
+    );
+    expect(openBtn).not.toBeNull();
+    act(() => {
+      openBtn?.click();
+    });
+
+    const testBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-test-connection"]',
+    );
+    expect(testBtn).not.toBeNull();
+    await act(async () => {
+      testBtn?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // Close drawer
+    const closeBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-drawer-close"]',
+    );
+    act(() => {
+      closeBtn?.click();
+    });
+
+    // Verify row now shows status pill with full error in title and text in sub-element
+    const row = container.querySelector('[data-testid="provider-row-openai"]');
+    const pill = row?.querySelector('.provider-status-pill--err');
+    expect(pill).not.toBeNull();
+    expect(pill?.getAttribute('title')).toContain('Model discovery failed');
+    expect(pill?.querySelector('.provider-status-pill-text')).not.toBeNull();
+
+    // Verify edit button is still present in the row and opens drawer with delete button
+    const editBtnAfterError = row?.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-row-open-openai"]',
+    );
+    expect(editBtnAfterError).not.toBeNull();
+    act(() => {
+      editBtnAfterError?.click();
+    });
+
+    const deleteBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-delete-btn"]',
+    );
+    expect(deleteBtn).not.toBeNull();
+  });
 });
 

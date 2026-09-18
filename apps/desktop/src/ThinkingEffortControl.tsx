@@ -10,6 +10,7 @@ import { formatComposerModelKey } from './composer-model-selection-policy';
 import { IconClose, IconSearch, IconSpark } from './shell-icons';
 import { getSupportedThinkingLevels } from './model-thinking-policy';
 import { useDesktopLocale } from './desktop-locale-context';
+import { formatThinkingLabel } from './usage-panel-statistics.js';
 
 export type ThinkingEffortModelOption = {
   key: string;
@@ -340,32 +341,6 @@ export function ThinkingEffortControl({
       </Popover>
     </div>
   );
-}
-
-function formatThinkingLabel(level: ThinkingLevel, isZh: boolean): string {
-  if (isZh) {
-    switch (level) {
-      case 'off':
-        return '关';
-      case 'low':
-        return '低';
-      case 'medium':
-        return '中';
-      case 'high':
-        return '高';
-      case 'xhigh':
-        return '极高';
-      default:
-        return level;
-    }
-  }
-  if (level === 'off') {
-    return 'Off';
-  }
-  if (level === 'xhigh') {
-    return 'xHigh';
-  }
-  return level.charAt(0).toUpperCase() + level.slice(1);
 }
 
 /** Compact pill label; full name stays in the model list. */

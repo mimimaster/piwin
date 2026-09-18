@@ -294,19 +294,23 @@ describe('useDesktopAttention', () => {
     expect(firstArg).toBeDefined();
     const deps = firstArg as unknown as {
       showInAppNotice: (notice: {
+        tone?: string;
         title: string;
         body: string;
         action?: { label: string; sessionId: string };
       }) => void;
     };
     deps.showInAppNotice({
+      tone: 'success',
       title: '已完成',
       body: 'piwin · Alpha',
       action: { label: '跳转到 Alpha', sessionId: 'session-1' },
     });
     const notice = showUiNotification.mock.calls.at(-1)?.[0] as {
+      tone?: string;
       action?: { onClick: () => void };
     };
+    expect(notice.tone).toBe('success');
     expect(notice.action).toBeDefined();
     notice.action?.onClick();
     expect(openSessionFromShell).toHaveBeenCalledWith('session-1');

@@ -380,10 +380,10 @@ export function WebPage(): ReactElement {
           request={request}
           readOnly={remoteSettingsReadOnly === true}
         />
-      ) : null}
-      <div className="settings-section settings-section-card" hidden={webToolsTab === 'log'}>
-        {webToolsTab === 'search' ? (
-          <div className="web-tools-panel" data-testid="web-tools-search-panel">
+      ) : (
+        <div className="settings-section settings-section-card">
+          {webToolsTab === 'search' ? (
+            <div className="web-tools-panel" data-testid="web-tools-search-panel">
             <Field
               label={zh ? 'web_search 委托模型' : 'web_search delegate model'}
               description={
@@ -863,6 +863,7 @@ export function WebPage(): ReactElement {
           </Button>
         </div>
       </div>
+      )}
     </div>
     <Dialog
       label={zh ? '选择脚本' : 'Choose script'}

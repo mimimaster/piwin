@@ -38,7 +38,7 @@ function renderActionMessage(
   return createElement(
     'span',
     { className: 'ui-notification-with-action' },
-    message,
+    createElement('span', { className: 'ui-notification-action-message' }, message),
     createElement(
       'button',
       {

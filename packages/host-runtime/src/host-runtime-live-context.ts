@@ -35,6 +35,7 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     pendingBranchCalibrationBySession: deps.pendingBranchCalibrationBySession,
     compactExportOperations: deps.compactExportOperations,
     sessionModels: deps.sessionModels,
+    sessionThinkingLevels: deps.sessionThinkingLevels,
     noteSubscriptionAuthFailure: (providerId) => {
       deps.subscriptionAuth?.markNeedsReauth(providerId);
     },
