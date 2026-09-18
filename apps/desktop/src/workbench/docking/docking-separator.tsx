@@ -46,11 +46,18 @@ export function DockingSeparator(props: DockingSeparatorProps): ReactElement {
         const up = (): void => {
           window.removeEventListener('pointermove', move);
           window.removeEventListener('pointerup', up);
+          window.removeEventListener('pointercancel', up);
         };
         event.preventDefault();
+        // Capture keeps the drag alive when the pointer crosses a pane's
+        // iframe (artifacts, browser), which would otherwise swallow moves.
+        event.currentTarget.setPointerCapture(event.pointerId);
         window.addEventListener('pointermove', move);
         window.addEventListener('pointerup', up);
+        window.addEventListener('pointercancel', up);
       }}
-    />
+    >
+      <span aria-hidden="true" />
+    </button>
   );
 }

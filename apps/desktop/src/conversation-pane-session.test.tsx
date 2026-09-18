@@ -294,7 +294,7 @@ describe('ConversationPaneSession', () => {
     };
     ({ container, root } = renderSession(host));
     await vi.waitFor(() =>
-      expect(container?.querySelector('[aria-label="Stop response"]')).not.toBeNull(),
+      expect(container?.querySelector('[data-testid="stop-btn"]')).not.toBeNull(),
     );
     const textarea = container?.querySelector<HTMLTextAreaElement>('textarea');
     if (!textarea) throw new Error('pane composer missing');
@@ -305,7 +305,7 @@ describe('ConversationPaneSession', () => {
       textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
     });
     await vi.waitFor(() =>
-      expect(container?.querySelector('[aria-label="Steer current run"]')).not.toBeNull(),
+      expect(container?.querySelector('[data-testid="send-btn"]')).not.toBeNull(),
     );
     act(() => {
       textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -343,10 +343,10 @@ describe('ConversationPaneSession', () => {
       expect(host.requests.some((command) => command.type === 'session/foreground-run')).toBe(true),
     );
     await vi.waitFor(() =>
-      expect(container?.querySelector('[aria-label="Stop response"]')).not.toBeNull(),
+      expect(container?.querySelector('[data-testid="stop-btn"]')).not.toBeNull(),
     );
     act(() => {
-      container?.querySelector<HTMLButtonElement>('[aria-label="Stop response"]')?.click();
+      container?.querySelector<HTMLButtonElement>('[data-testid="stop-btn"]')?.click();
     });
     await act(async () => {
       await vi.waitFor(() =>
@@ -373,7 +373,7 @@ describe('ConversationPaneSession', () => {
     };
     ({ container, root } = renderSession(host));
     await vi.waitFor(() =>
-      expect(container?.querySelector('[aria-label="Stop response"]')).not.toBeNull(),
+      expect(container?.querySelector('[data-testid="stop-btn"]')).not.toBeNull(),
     );
 
     host.run = null;
@@ -392,7 +392,7 @@ describe('ConversationPaneSession', () => {
           .streaming,
       ).toBe('false'),
     );
-    expect(container?.querySelector('[aria-label="Stop response"]')).toBeNull();
+    expect(container?.querySelector('[data-testid="stop-btn"]')).toBeNull();
     expect(container?.textContent).toContain('Pane answer');
   });
 
@@ -574,7 +574,7 @@ describe('ConversationPaneSession', () => {
     );
   });
 
-  it('reuses the compact composer model picker', async () => {
+  it('reuses the workbench composer card and model picker', async () => {
     const host = new FakeHostClient();
     ({ container, root } = renderSession(host));
     await vi.waitFor(() =>
@@ -583,8 +583,9 @@ describe('ConversationPaneSession', () => {
       ).toContain('GPT-4o'),
     );
     const paneInput = container?.querySelector<HTMLTextAreaElement>(
-      '[data-testid="conversation-pane-composer"]',
+      '[data-testid="composer-input"]',
     );
     expect(paneInput?.disabled).toBe(false);
+    expect(container?.querySelector('[data-testid="composer-card"]')?.classList).toContain('slab');
   });
 });

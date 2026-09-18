@@ -305,4 +305,31 @@ describe('subscription auth port', () => {
     expect(refreshes).toEqual([{ providers: ['openai-codex'], allowNetwork: true }]);
     expect(port.getChatCatalog('openai-codex')).toEqual([{ id: 'overlay-model', name: 'Overlay' }]);
   });
+
+  it('falls back to builtin anthropic models for the Claude Code catalog', async () => {
+    const port = await createSubscriptionAuthPort({
+      authPath: '/tmp/auth.json',
+      createRuntime: async () =>
+        ({
+          listCredentials: async () => [
+            { providerId: 'anthropic-claude-code', type: 'api_key' },
+          ],
+          isUsingSubscription: () => false,
+          getModels: (providerId?: string) =>
+            providerId === 'anthropic'
+              ? [{ id: 'claude-sonnet-4', name: 'Claude Sonnet 4' }]
+              : [],
+          getAvailableModels: () => [],
+          login: async () => undefined,
+          logout: async () => undefined,
+          refresh: async () => undefined,
+        }) as never,
+    });
+    expect(port.getChatCatalog('anthropic-claude-code')).toEqual([
+      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4' },
+    ]);
+    expect(port.getChatCatalog('anthropic')).toEqual([
+      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4' },
+    ]);
+  });
 });

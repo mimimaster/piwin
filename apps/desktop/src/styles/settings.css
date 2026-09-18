@@ -10,6 +10,7 @@
 @import './settings-resources.css';
 @import './settings-mcp.css';
 @import './settings-web-tools.css';
+@import './settings-web-search-log.css';
 @import './settings-provider-dialogs.css';
 @import './settings-byok.css';
 @import './region-settings-oauth.css';
@@ -27,4 +28,8 @@
   color: var(--text-3);
   font-size: var(--fs-chrome);
   line-height: 1.5;
+}
+
+.settings-section-card[hidden] {
+  display: none !important;
 }

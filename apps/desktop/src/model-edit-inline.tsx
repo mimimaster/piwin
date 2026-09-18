@@ -23,6 +23,7 @@ import {
   validateModelConfigurationDraft,
   type ModelConfigurationDraft,
 } from './model-configuration.js';
+import { getDefaultThinkingLevelsForProtocol } from './model-thinking-policy.js';
 
 export type ModelEditInlineProps = {
   model: ModelConfigEntry;
@@ -97,7 +98,9 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
       const nextLevel =
         current.thinkingLevel && nextLevels.includes(current.thinkingLevel)
           ? current.thinkingLevel
-          : (nextLevels[0] ?? '');
+          : nextLevels.includes('medium')
+            ? 'medium'
+            : (nextLevels[0] ?? '');
       return { ...current, thinkingLevels: nextLevels, thinkingLevel: nextLevel };
     });
   }
@@ -254,11 +257,27 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
             type="checkbox"
             checked={localDraft.reasoning}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
-              updateDraft((current) =>
-                event.target.checked
-                  ? { ...current, reasoning: true }
-                  : { ...current, reasoning: false, thinkingLevel: '', thinkingLevels: [] },
-              )
+              updateDraft((current) => {
+                if (event.target.checked) {
+                  const defaultLevels =
+                    current.thinkingLevels.length > 0
+                      ? current.thinkingLevels
+                      : [...getDefaultThinkingLevelsForProtocol(props.providerProtocol)];
+                  const defaultLevel =
+                    current.thinkingLevel && defaultLevels.includes(current.thinkingLevel)
+                      ? current.thinkingLevel
+                      : defaultLevels.includes('medium')
+                        ? 'medium'
+                        : (defaultLevels[0] ?? '');
+                  return {
+                    ...current,
+                    reasoning: true,
+                    thinkingLevels: defaultLevels,
+                    thinkingLevel: defaultLevel,
+                  };
+                }
+                return { ...current, reasoning: false, thinkingLevel: '', thinkingLevels: [] };
+              })
             }
             data-testid="model-edit-reasoning"
             disabled={disabled}
@@ -360,7 +379,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
                 }
                 data-testid="model-edit-thinking-default"
               >
-                <option value="">—</option>
+                {localDraft.thinkingLevels.length === 0 ? <option value="">—</option> : null}
                 {localDraft.thinkingLevels.map((level) => (
                   <option key={level} value={level}>
                     {level}

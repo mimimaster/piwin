@@ -20,6 +20,7 @@ import { buildSessionTools } from '../session-tools.js';
 import { buildProcessTools } from '../process-tools.js';
 import { createBrowserToolDefinitions } from '../browser-tools.js';
 import { persistAndInspectBrowserScreenshot } from '../browser-screenshot-inspect.js';
+import { createFastDecider } from '../browser-fast-decider.js';
 import { primaryModelSupportsImage } from '../vision-delegation.js';
 import { buildNotesTools } from '../notes-tools.js';
 import { buildKnowledgeTools } from '../knowledge-tools.js';
@@ -269,8 +270,10 @@ export async function buildSessionHostTools(
     const primarySupportsImage = options.config
       ? primaryModelSupportsImage(findConfiguredModel(options.config, options.model)?.model.input)
       : false;
+    const fastDeciderConfig = options.config?.browser?.fastDecider;
     const browserTools = createBrowserToolDefinitions(browserSession, {
       projectRoot: options.projectPath ?? rootDir ?? process.cwd(),
+      ...(fastDeciderConfig ? { fastDecider: createFastDecider(fastDeciderConfig) } : {}),
       inspectScreenshot: async ({ jpegBytes, width, height, signal }) =>
         persistAndInspectBrowserScreenshot({
           jpegBytes,

@@ -127,6 +127,7 @@ const SAMPLE_CALL_LOG: UsageCallLog = {
       projectPath: '/tmp/proj',
       providerId: 'work-key',
       modelId: 'gpt-4o',
+      thinkingLevel: 'high',
       promptTokens: 400,
       completionTokens: 250,
       cacheReadTokens: 1_200,
@@ -343,6 +344,9 @@ describe('UsagePanel', () => {
 
     const rows = container?.querySelectorAll('[data-testid="usage-call-row"]');
     expect(rows).toHaveLength(2);
+    const thinkingCells = container?.querySelectorAll('.usage-call-thinking');
+    expect(thinkingCells?.[0]?.textContent?.trim()).toBe('高');
+    expect(thinkingCells?.[1]?.textContent?.trim()).toBe('—');
     const cacheCells = container?.querySelectorAll('.usage-call-cache');
     expect(cacheCells?.[0]?.getAttribute('data-hit')).toBe('true');
     expect(cacheCells?.[1]?.getAttribute('data-hit')).toBe('false');

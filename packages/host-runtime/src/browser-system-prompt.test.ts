@@ -15,5 +15,15 @@ describe('formatBrowserSystemPrompt', () => {
     expect(prompt).not.toContain('browser_lock');
     expect(prompt).toContain('The user shares this browser');
     expect(prompt).toContain('Do not claim visual verification');
+    expect(prompt).not.toContain('browser_act');
+  });
+
+  it('steers toward browser_act only when the fast decider registered it', () => {
+    const prompt = formatBrowserSystemPrompt([
+      { name: 'browser_status' },
+      { name: 'browser_snapshot' },
+      { name: 'browser_act' },
+    ]);
+    expect(prompt).toContain('call browser_act with that intent');
   });
 });

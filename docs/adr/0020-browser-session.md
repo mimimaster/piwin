@@ -376,3 +376,26 @@ Slices B–E of the same spec landed 2026-09-15 on Desktop + Host:
 `HOST_WIRE_HARD_FRAME_BYTES` stays 1 MiB. `dataUrl` remains in
 `REMOTE_SECRET_KEYS`.
 
+
+### 2026-09-18 local fast-decider amendment (`browser_act`)
+
+Optional, off by default. When `~/.piwin/config.json` sets
+`browser.fastDecider.url` to a loopback RLCD-style engine
+(`POST /api/run-parallel`, one enum field with calibrated probabilities), the
+Host registers `browser_act { intent, action?: click|type|fill, text? }`.
+
+- The tool snapshots, keeps named ref-bearing interactive nodes (text inputs
+  only for `type`/`fill`), and asks the local engine to pick one. At or above
+  `minConfidence` (default 0.7) it acts on that ref and returns `status: acted`
+  with the ref, confidence and decision time.
+- Below the bar, with a single candidate, or when the engine is unreachable it
+  acts on nothing and returns `status: needs-decision` plus ranked candidate
+  refs, so the main model finishes with `browser_click`/`browser_type`. A
+  low-confidence guess never becomes a click.
+- Purpose: replace the `browser_snapshot` → `browser_click` pair (two
+  main-model turns) with one turn. Implementation:
+  `packages/host-runtime/src/browser-tool-act.ts`,
+  `browser-fast-decider.ts`; the workflow prompt mentions `browser_act` only
+  when it is registered.
+- Page text goes to the engine, so non-loopback URLs are dropped at config
+  load. Permission reuses `browser:click` (same policy as click/type).

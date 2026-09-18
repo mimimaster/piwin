@@ -364,6 +364,7 @@ describe('model configuration', () => {
       'openai-compatible',
     );
     expect(openaiDraft.thinkingLevels).toEqual(['low', 'medium', 'high', 'xhigh']);
+    expect(openaiDraft.thinkingLevel).toBe('medium');
 
     const anthropicDraft = createModelConfigurationDraft(
       { id: 'claude', reasoning: true },
@@ -371,6 +372,7 @@ describe('model configuration', () => {
       'anthropic-compatible',
     );
     expect(anthropicDraft.thinkingLevels).toEqual(['low', 'medium', 'high', 'max']);
+    expect(anthropicDraft.thinkingLevel).toBe('medium');
   });
 
   it('stamps grok imagine video wire format even on an Anthropic-protocol channel', () => {
@@ -481,5 +483,29 @@ describe('model configuration', () => {
     expect(next?.[0]?.routes).toEqual({
       'video-generation': { apiStyle: 'custom', path: '/video/generations' },
     });
+  });
+
+  it('saves entry with a sensible default thinkingLevel when thinkingLevels is configured', () => {
+    const entry = createModelConfigurationEntry({
+      id: 'custom-reasoner',
+      label: 'Reasoner',
+      contextWindow: '128000',
+      maxOutputTokens: '8192',
+      tooltipMarkdown: '',
+      thinkingLevel: '',
+      thinkingLevels: ['low', 'medium', 'high', 'max'],
+      supportsImage: false,
+      supportsImageGeneration: false,
+      supportsVideoGeneration: false,
+      supportsSpeechToText: false,
+      supportsTextToSpeech: false,
+      supportsRealtimeAudio: false,
+      supportsNativeWebSearch: false,
+      reasoning: true,
+      ...EMPTY_GENERATION_ROUTE_FIELDS,
+    });
+
+    expect(entry?.thinkingLevel).toBe('medium');
+    expect(entry?.thinkingLevels).toEqual(['low', 'medium', 'high', 'max']);
   });
 });

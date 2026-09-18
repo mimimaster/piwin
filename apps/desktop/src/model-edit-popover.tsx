@@ -18,6 +18,7 @@ import {
   validateModelConfigurationDraft,
   type ModelConfigurationDraft,
 } from './model-configuration.js';
+import { getDefaultThinkingLevelsForProtocol } from './model-thinking-policy.js';
 
 export type ModelEditPopoverProps = {
   model: ModelConfigEntry;
@@ -87,7 +88,9 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
       const nextLevel =
         current.thinkingLevel && nextLevels.includes(current.thinkingLevel)
           ? current.thinkingLevel
-          : (nextLevels[0] ?? '');
+          : nextLevels.includes('medium')
+            ? 'medium'
+            : (nextLevels[0] ?? '');
       return { ...current, thinkingLevels: nextLevels, thinkingLevel: nextLevel };
     });
   }
@@ -240,7 +243,7 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
                 }
                 data-testid="model-edit-thinking-default"
               >
-                <option value="">—</option>
+                {localDraft.thinkingLevels.length === 0 ? <option value="">—</option> : null}
                 {localDraft.thinkingLevels.map((level) => (
                   <option key={level} value={level}>
                     {level}
@@ -277,11 +280,27 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
             label={isChinese ? '推理' : 'Reasoning'}
             checked={localDraft.reasoning}
             onCheckedChange={(checked) =>
-              updateDraft((current) =>
-                checked
-                  ? { ...current, reasoning: true }
-                  : { ...current, reasoning: false, thinkingLevel: '', thinkingLevels: [] },
-              )
+              updateDraft((current) => {
+                if (checked) {
+                  const defaultLevels =
+                    current.thinkingLevels.length > 0
+                      ? current.thinkingLevels
+                      : [...getDefaultThinkingLevelsForProtocol(props.providerProtocol)];
+                  const defaultLevel =
+                    current.thinkingLevel && defaultLevels.includes(current.thinkingLevel)
+                      ? current.thinkingLevel
+                      : defaultLevels.includes('medium')
+                        ? 'medium'
+                        : (defaultLevels[0] ?? '');
+                  return {
+                    ...current,
+                    reasoning: true,
+                    thinkingLevels: defaultLevels,
+                    thinkingLevel: defaultLevel,
+                  };
+                }
+                return { ...current, reasoning: false, thinkingLevel: '', thinkingLevels: [] };
+              })
             }
             testId="model-edit-reasoning"
           />

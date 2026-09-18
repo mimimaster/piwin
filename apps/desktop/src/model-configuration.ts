@@ -104,16 +104,20 @@ export function createModelConfigurationDraft(
       THINKING_LEVEL_OPTIONS.includes(level) && values.indexOf(level) === index,
   );
 
+  const defaultThinkingLevel: ThinkingLevel | '' =
+    effective.thinkingLevel && thinkingLevels.includes(effective.thinkingLevel)
+      ? effective.thinkingLevel
+      : thinkingLevels.includes('medium')
+        ? 'medium'
+        : (thinkingLevels[0] ?? '');
+
   return {
     id: effective.id,
     label: effective.label ?? '',
     contextWindow: String(effective.contextWindow ?? DEFAULT_MODEL_CONTEXT_WINDOW),
     maxOutputTokens: String(effective.maxOutputTokens ?? DEFAULT_MODEL_MAX_OUTPUT_TOKENS),
     tooltipMarkdown: effective.tooltipMarkdown ?? '',
-    thinkingLevel:
-      effective.thinkingLevel && thinkingLevels.includes(effective.thinkingLevel)
-        ? effective.thinkingLevel
-        : '',
+    thinkingLevel: defaultThinkingLevel,
     thinkingLevels,
     supportsImage: effective.input?.includes('image') ?? false,
     supportsImageGeneration: likelyImage,
@@ -163,8 +167,14 @@ export function createModelConfigurationEntry(
   }
   if (draft.thinkingLevels.length > 0) {
     model.thinkingLevels = draft.thinkingLevels;
-    if (draft.thinkingLevel && draft.thinkingLevels.includes(draft.thinkingLevel)) {
-      model.thinkingLevel = draft.thinkingLevel;
+    const defaultThinking =
+      draft.thinkingLevel && draft.thinkingLevels.includes(draft.thinkingLevel)
+        ? draft.thinkingLevel
+        : draft.thinkingLevels.includes('medium')
+          ? 'medium'
+          : draft.thinkingLevels[0];
+    if (defaultThinking) {
+      model.thinkingLevel = defaultThinking;
     }
   }
   model.input = draft.supportsImage

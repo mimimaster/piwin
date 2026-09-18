@@ -36,6 +36,8 @@ import {
   userControlResult,
 } from './browser-tool-errors.js';
 import { createBrowserStageBcToolDefinitions } from './browser-tool-stage-bc.js';
+import { createBrowserActDefinition } from './browser-tool-act.js';
+import type { FastDecider } from './browser-fast-decider.js';
 import { nextBrowserAction, readBrowserPageState } from './browser-tool-page-state.js';
 
 import {
@@ -70,6 +72,8 @@ export type BrowserToolDefinitionOptions = {
     height: number;
     signal: AbortSignal;
   }) => Promise<PersistBrowserScreenshotResult>;
+  /** Local decision engine; when present `browser_act` is registered. */
+  fastDecider?: FastDecider;
 };
 
 export function createBrowserToolDefinitions(
@@ -705,6 +709,7 @@ export function createBrowserToolDefinitions(
       invalidPreparation,
       normalizePath: normalizeScreenshotPath,
     }),
+    ...(options.fastDecider ? [createBrowserActDefinition(session, options.fastDecider)] : []),
   ];
 }
 

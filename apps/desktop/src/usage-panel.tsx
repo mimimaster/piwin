@@ -26,6 +26,7 @@ import {
   RECENT_CALLS_WINDOW_MINUTES,
   deriveLegacyModelKeyRows,
   formatTokensPerSecond,
+  formatThinkingLabel,
   formatUsageClock,
   formatUsageCompact,
   formatUsageDate,
@@ -618,6 +619,7 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                     <tr>
                       <th>{isZh ? '时间' : 'Time'}</th>
                       <th>{isZh ? '模型' : 'Model'}</th>
+                      <th>{isZh ? '思考度' : 'Thinking'}</th>
                       <th>{isZh ? 'Key（提供商配置）' : 'Key (provider config)'}</th>
                       <th>{isZh ? '会话' : 'Session'}</th>
                       <th>{isZh ? '用时' : 'Duration'}</th>
@@ -632,8 +634,8 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                     {callLog.entries.map((entry) => {
                       const entryHitRate = computePromptCacheHitRate(entry);
                       const tokensPerSecond = computeTokensPerSecond({
-                        completionTokens: entry.completionTokens,
-                        ...(entry.durationMs !== undefined ? { durationMs: entry.durationMs } : {}),
+                         completionTokens: entry.completionTokens,
+                         ...(entry.durationMs !== undefined ? { durationMs: entry.durationMs } : {}),
                       });
                       return (
                         <tr
@@ -659,6 +661,9 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                             {entry.source === 'host-estimate' ? (
                               <span className="usage-call-chip">{isZh ? '估算' : 'Estimated'}</span>
                             ) : null}
+                          </td>
+                          <td className="usage-call-thinking">
+                            {formatThinkingLabel(entry.thinkingLevel, isZh)}
                           </td>
                           <td>
                             <span className="usage-key-label">

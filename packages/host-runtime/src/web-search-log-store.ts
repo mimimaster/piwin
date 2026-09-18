@@ -24,7 +24,7 @@ import {
 import { getPiwinWebSearchLogPath } from './paths.js';
 
 /** Rows kept after compaction. */
-export const WEB_SEARCH_LOG_MAX_ENTRIES = 1000;
+export const WEB_SEARCH_LOG_MAX_ENTRIES = 300;
 /** Compact once the file holds this many rows, so appends stay cheap. */
 const COMPACT_THRESHOLD_ENTRIES = WEB_SEARCH_LOG_MAX_ENTRIES * 1.5;
 const DEFAULT_PAGE_SIZE = 50;
@@ -114,7 +114,8 @@ export function createWebSearchLogStore(filePath: string): WebSearchLogStore {
         const limit = clampInteger(options.limit, DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
         const all = await readEntries();
         rowCount = all.length;
-        const newestFirst = all.reverse();
+        const recent = all.slice(-WEB_SEARCH_LOG_MAX_ENTRIES);
+        const newestFirst = recent.reverse();
         const filtered =
           options.status === 'failed'
             ? newestFirst.filter((entry) => !entry.ok || entry.attempts.some((a) => !a.ok))

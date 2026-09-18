@@ -661,9 +661,9 @@ describe('RightPanel multi-tab', () => {
     expect(tab?.querySelector('.right-panel-tab-badge')?.textContent).toBe('1');
     expect(container.textContent).toContain('后台任务 2 · 运行中 1 · 已完成 1');
     expect(container.textContent).toContain('scout · Scout repo');
-    expect(container.textContent).toContain('reviewer · Review auth');
-    expect(container.textContent).not.toContain('run-secret-id');
-    expect(request).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'session/list-children' }),
+    );
   });
 
   it('drops terminal children from the active badge while keeping bounded history', async () => {

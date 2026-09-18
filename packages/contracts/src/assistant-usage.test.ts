@@ -29,6 +29,7 @@ describe('assistant usage measurement contracts', () => {
         cacheReadTokens: 4,
         cacheWriteTokens: 2,
         durationMs: 80,
+        thinkingLevel: 'high',
         stopReason: 'stop',
       }),
     );
@@ -38,6 +39,7 @@ describe('assistant usage measurement contracts', () => {
       messageId: 'msg-1',
       totalTokens: 42,
       promptTokens: 10,
+      thinkingLevel: 'high',
     });
     const roundTrip: AssistantUsageMeasurement | null = parseAssistantUsageMeasurement(parsed);
     expect(roundTrip).toEqual(parsed);

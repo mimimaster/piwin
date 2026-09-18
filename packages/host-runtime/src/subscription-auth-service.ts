@@ -614,10 +614,14 @@ export class SubscriptionAuthService {
     } else if (outcome.kind === 'ok') {
       this.syncErrorProviderIds.delete(providerId);
       this.needsReauthProviderIds.delete(providerId);
-      try {
-        await port.refreshProvider(piLoginId);
-      } catch {
-        this.syncErrorProviderIds.add(providerId);
+      // Plan-quota login deletes the temporary `anthropic` key. Refreshing it
+      // would fail and mark this card sync-error even though auth succeeded.
+      if (!(claudeCode && !hadPlainAnthropic)) {
+        try {
+          await port.refreshProvider(piLoginId);
+        } catch {
+          this.syncErrorProviderIds.add(providerId);
+        }
       }
       await this.ensureProviderForAccount(providerId);
       await this.evictSiblingClaudeAuth(providerId);
@@ -725,15 +729,13 @@ export class SubscriptionAuthService {
         { code: 'auth-store-unreadable' },
       );
     }
-    // Claude Code keeps an isolated auth.json key Pi's listCredentials never sees.
+    // Isolated `api_key` copy. Pi lists it, but account state only counted
+    // `oauth` — overwrite so the plan card stays logged-in after Host restart.
     if (await hasOauthCredential(this.authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID)) {
-      const already = credentials.some((entry) => entry.providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID);
-      if (!already) {
-        credentials = [
-          ...credentials,
-          { providerId: CLAUDE_CODE_OAUTH_PROVIDER_ID, type: 'oauth' },
-        ];
-      }
+      credentials = [
+        ...credentials.filter((entry) => entry.providerId !== CLAUDE_CODE_OAUTH_PROVIDER_ID),
+        { providerId: CLAUDE_CODE_OAUTH_PROVIDER_ID, type: 'oauth' },
+      ];
     }
     const config = await this.loadConfig();
     return buildSubscriptionAccounts(credentials, config, {

@@ -581,6 +581,7 @@ export async function handleSessionProductCommand(
         if (source.thinkingLevel) record.thinkingLevel = source.thinkingLevel;
         await upsertSessionRecord(indexPath, record);
         const messages = await targetStore.listTail(50);
+        await releaseEmptyDerivedRuntime(context, created.id);
         context.pushStatus();
         const duplicated = indexRecordToSummary(record);
         context.push?.(
@@ -752,6 +753,7 @@ export async function handleSessionProductCommand(
         if (source.thinkingLevel) record.thinkingLevel = source.thinkingLevel;
         await upsertSessionRecord(indexPath, record);
         const messages = await targetStore.listTail(50);
+        await releaseEmptyDerivedRuntime(context, created.id);
         context.pushStatus();
         const forked = indexRecordToSummary(record);
         context.push?.(
@@ -937,6 +939,19 @@ async function resolveForkAssistantMessage(
  * derived row so fork/duplicate targets can cold-activate with full-fidelity
  * replay instead of text-only seeds.
  */
+/**
+ * `createSession` activates a warm backend before the history is copied, so
+ * that runtime's model context is empty. Drop it once the durable copy is
+ * complete; the next turn then cold-activates and replays the copied
+ * transcript (cold-activation-seed) instead of starting from a blank context.
+ */
+async function releaseEmptyDerivedRuntime(
+  context: Pick<SessionProductCommandContext, 'disposeLiveSession'>,
+  sessionId: string,
+): Promise<void> {
+  await context.disposeLiveSession(sessionId);
+}
+
 async function copyNativeEntries(
   sourceStore: SessionTranscriptStore,
   targetStore: SessionTranscriptStore,

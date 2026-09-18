@@ -99,6 +99,20 @@ describe('discoverProviderModels', () => {
     ).rejects.toThrow('Model discovery failed (401 Unauthorized: Missing API key)');
   });
 
+  it('omits raw HTML markup when discovery returns an HTML error page', async () => {
+    await expect(
+      discoverProviderModels(createProvider({ baseUrl: 'https://openrouter.ai' }), {
+        resolveSecret: async () => null,
+        fetch: async () =>
+          new Response('<!DOCTYPE html><html lang="en"><head><title>404 Not Found</title></head><body>404 Not Found</body></html>', {
+            status: 404,
+            statusText: 'Not Found',
+            headers: { 'content-type': 'text/html' },
+          }),
+      }),
+    ).rejects.toThrow('Model discovery failed (404 Not Found)');
+  });
+
   it('allows an unauthenticated local OpenAI-compatible endpoint', async () => {
     let authorization: string | null = null;
     await discoverProviderModels(createProvider({ baseUrl: 'http://127.0.0.1:11434/v1' }), {

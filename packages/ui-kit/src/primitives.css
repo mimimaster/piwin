@@ -1612,6 +1612,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   line-height: 1.45;
   word-break: break-word;
   margin: 0;
+  min-width: 0;
 }
 
 /* Most bridged notifications carry no title, which makes the message the
@@ -1731,10 +1732,24 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ui-notification-action-message {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ui-notification-action {
   flex-shrink: 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   margin: 0;
   padding: 3px 8px;
   border-radius: var(--radius-sm, 6px);

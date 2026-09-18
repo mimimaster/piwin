@@ -3,7 +3,7 @@
  * Host maps Pi `contextUsage` / assistant usage → `AgentEvent` `usage/update`.
  */
 
-import type { SessionScope } from './host.js';
+import type { SessionScope, ThinkingLevel } from './host.js';
 
 export type UsageSource = 'pi-contextUsage' | 'assistant-usage' | 'host-estimate';
 
@@ -27,6 +27,8 @@ export type ContextUsageSnapshot = {
   sessionId: string;
   /** Model id reported by Pi for this usage sample when available. */
   modelId?: string;
+  /** Thinking effort configured for the turn when known. */
+  thinkingLevel?: ThinkingLevel;
   /** Tokens currently occupying the model context when known. */
   tokensUsed?: number;
   /** Model context window size when known. */
@@ -81,6 +83,8 @@ export type UsageRecord = {
   providerId?: string;
   /** Model used for the turn when known. */
   modelId?: string;
+  /** Thinking effort configured for the turn when known. */
+  thinkingLevel?: ThinkingLevel;
   promptTokens?: number;
   completionTokens?: number;
   /** Input tokens served from the provider prompt cache. */
@@ -193,6 +197,7 @@ export type UsageCallLogEntry = {
   projectPath: string | null;
   providerId: string | null;
   modelId: string | null;
+  thinkingLevel?: ThinkingLevel;
   promptTokens: number;
   completionTokens: number;
   cacheReadTokens: number;

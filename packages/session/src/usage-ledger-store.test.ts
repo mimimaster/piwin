@@ -257,13 +257,15 @@ describe('usage-ledger-store', () => {
     const now = new Date('2026-08-01T12:00:00.000Z');
     const records = [
       record({ sessionId: 'old', recordedAt: '2026-08-01T10:30:00.000Z', totalTokens: 10 }),
-      record({ sessionId: 'mid', recordedAt: '2026-08-01T11:20:00.000Z', totalTokens: 20 }),
-      record({ sessionId: 'new', recordedAt: '2026-08-01T11:59:00.000Z', totalTokens: 30 }),
+      record({ sessionId: 'mid', recordedAt: '2026-08-01T11:20:00.000Z', totalTokens: 20, thinkingLevel: 'low' }),
+      record({ sessionId: 'new', recordedAt: '2026-08-01T11:59:00.000Z', totalTokens: 30, thinkingLevel: 'high' }),
     ];
 
     const log = computeUsageCallLog(records, { now });
     expect(log.windowMinutes).toBe(60);
     expect(log.entries.map((entry) => entry.sessionId)).toEqual(['new', 'mid']);
+    expect(log.entries[0]?.thinkingLevel).toBe('high');
+    expect(log.entries[1]?.thinkingLevel).toBe('low');
     expect(log.totalInWindow).toBe(2);
     expect(log.truncated).toBe(false);
     // The full ledger is untouched: the all-time rollup still sees every row.

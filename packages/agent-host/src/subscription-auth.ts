@@ -4,6 +4,7 @@
  */
 import { join } from 'node:path';
 import {
+  isClaudeCodeOauthProviderId,
   isV1SubscriptionProviderId,
   type AuthPromptOption,
   type SubscriptionAccountQuota,
@@ -205,12 +206,15 @@ export async function createSubscriptionAuthPort(
       return runtime.isUsingSubscription(providerId);
     },
     getChatCatalog(providerId) {
-      const raw =
+      const catalogId = isClaudeCodeOauthProviderId(providerId) ? 'anthropic' : providerId;
+      const available =
         typeof runtime.getAvailableModels === 'function'
-          ? runtime.getAvailableModels(providerId)
-          : runtime.getModels(providerId);
+          ? runtime.getAvailableModels(catalogId)
+          : undefined;
+      const raw =
+        available && available.length > 0 ? available : runtime.getModels(catalogId);
       const models = raw.map(mapCatalogModel);
-      const allowed = entitlements.get(providerId);
+      const allowed = entitlements.get(providerId) ?? entitlements.get(catalogId);
       return allowed ? models.filter((model) => allowed.has(model.id)) : models;
     },
     async login(providerId, interaction) {

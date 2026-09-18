@@ -123,6 +123,13 @@ describe('ui-kit notifications', () => {
     expect(payload.color).toBe('blue');
     expect(payload.mod).toEqual({ tone: 'info' });
 
+    const msgSpan = (payload.message as ReactElement<{ children: ReactNode[] }>).props.children.find(
+      (child): child is ReactElement<{ className?: string; children?: ReactNode }> =>
+        isValidElement(child) && child.type === 'span',
+    );
+    expect(msgSpan?.props.className).toBe('ui-notification-action-message');
+    expect(msgSpan?.props.children).toBe('Turn finished');
+
     const button = getActionButton(payload.message);
     expect(button.props.type).toBe('button');
     expect(button.props.className).toBe('ui-notification-action');

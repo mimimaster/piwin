@@ -232,6 +232,9 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
       if (input.task.model) {
         deps.sessionModels.set(input.childSessionId, input.task.model);
       }
+      if (input.task.thinkingLevel) {
+        deps.sessionThinkingLevels.set(input.childSessionId, input.task.thinkingLevel);
+      }
       await deps.ensureTranscriptRecorder(
         input.childSessionId,
         input.workspaceLease.parentRepoPath,
@@ -264,6 +267,7 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
         }
       }
       deps.sessionModels.delete(childSessionId);
+      deps.sessionThinkingLevels.delete(childSessionId);
       deps.subagentSessionContexts.delete(childSessionId);
       deps.sessionHostToolPort?.clearSession(childSessionId);
       await deps.releaseGenerationToolSurfaces(childSessionId);

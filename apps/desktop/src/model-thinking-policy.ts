@@ -24,15 +24,23 @@ export function inferProtocolForThinking(
   model: ThinkingModelFields | undefined,
 ): ModelProviderConfig['protocol'] | undefined {
   if (model?.protocol) return model.protocol;
-  if (model?.providerId === 'anthropic' || model?.providerId === 'kimi-coding') {
+  if (
+    model?.providerId === 'anthropic' ||
+    model?.providerId === 'kimi-coding' ||
+    model?.providerId === 'anthropic-claude-code'
+  ) {
     return 'anthropic-compatible';
   }
   if (
     model?.providerId === 'openai-codex' ||
     model?.providerId === 'xai' ||
-    model?.providerId === 'github-copilot'
+    model?.providerId === 'github-copilot' ||
+    model?.providerId === 'openai'
   ) {
     return 'openai-compatible';
+  }
+  if (model?.providerId === 'google-gemini' || model?.providerId === 'gemini') {
+    return 'google-gemini';
   }
   return undefined;
 }
@@ -48,7 +56,10 @@ export function getSupportedThinkingLevels(
   model: ThinkingModelFields | undefined,
   _ultraEnabled: boolean,
 ): ThinkingLevel[] {
-  if (!model || model.reasoning !== true) return [];
+  if (!model || model.reasoning === false) return [];
+  if (model.reasoning !== true && (!model.thinkingLevels || model.thinkingLevels.length === 0)) {
+    return [];
+  }
   const protocol = inferProtocolForThinking(model);
   const baseLevels =
     model.thinkingLevels && model.thinkingLevels.length > 0
@@ -71,6 +82,7 @@ export function resolveThinkingLevelForModel(
   if (levels.length === 0) return undefined;
   if (levels.includes(requested)) return requested;
   if (model?.thinkingLevel && levels.includes(model.thinkingLevel)) return model.thinkingLevel;
+  if (levels.includes('medium')) return 'medium';
   return levels[0];
 }
 

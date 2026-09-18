@@ -86,7 +86,10 @@ export type ArtifactThemeContractIssueKind =
   | 'fixed-light-surface'
   | 'fixed-light-gradient'
   | 'fixed-light-variable'
-  | 'tailwind-light-surface';
+  | 'tailwind-light-surface'
+  | 'unknown-theme-variable'
+  | 'fixed-light-text'
+  | 'fixed-dark-surface';
 
 export type ArtifactThemeContractIssue = {
   kind: ArtifactThemeContractIssueKind;

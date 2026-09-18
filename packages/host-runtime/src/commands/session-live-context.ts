@@ -159,6 +159,7 @@ export type SessionLiveContext = {
   sessionFilesTouched: Map<string, string>;
   sessionLastPromptText: Map<string, string>;
   sessionModels: Map<string, ModelRef>;
+  sessionThinkingLevels: Map<string, ThinkingLevel>;
   /** Mark a subscription account needs-reauth after a real 401/403, never quota. */
   noteSubscriptionAuthFailure?: (providerId: string) => void;
   loadSessionUsage: (

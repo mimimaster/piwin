@@ -336,13 +336,15 @@
   display: flex;
   align-items: center;
   gap: var(--s-4);
-  flex: none;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .provider-row-controls {
   display: flex;
   align-items: center;
   gap: var(--s-5);
+  min-width: 0;
 }
 
 .provider-row-open {
@@ -357,6 +359,7 @@
   cursor: pointer;
   padding: 0;
   flex: none;
+  flex-shrink: 0;
   transition:
     background-color var(--t-1) var(--ease-out),
     color var(--t-1) var(--ease-out);
@@ -386,6 +389,15 @@
   background: var(--hover);
   border: none;
   color: var(--text-3);
+  white-space: nowrap;
+  max-width: 280px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.provider-status-pill-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

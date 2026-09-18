@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { UsageRollup } from '@piwin/contracts';
 import {
+  formatThinkingLabel,
   formatTokensPerSecond,
   normalizeUsageRollup,
   resolveUsageWindow,
@@ -68,5 +69,24 @@ describe('usage-panel-statistics', () => {
     expect(formatTokensPerSecond(75.4)).toBe('75.4 tok/s');
     expect(formatTokensPerSecond(123.456)).toBe('123 tok/s');
     expect(formatTokensPerSecond(null)).toBe('—');
+  });
+
+  it('formats thinking labels for Chinese, English, and unknown states', () => {
+    expect(formatThinkingLabel(undefined, true)).toBe('—');
+    expect(formatThinkingLabel(null, false)).toBe('—');
+    expect(formatThinkingLabel('off', true)).toBe('关');
+    expect(formatThinkingLabel('off', false)).toBe('Off');
+    expect(formatThinkingLabel('low', true)).toBe('低');
+    expect(formatThinkingLabel('low', false)).toBe('Low');
+    expect(formatThinkingLabel('medium', true)).toBe('中');
+    expect(formatThinkingLabel('medium', false)).toBe('Medium');
+    expect(formatThinkingLabel('high', true)).toBe('高');
+    expect(formatThinkingLabel('high', false)).toBe('High');
+    expect(formatThinkingLabel('xhigh', true)).toBe('极高');
+    expect(formatThinkingLabel('xhigh', false)).toBe('xHigh');
+    expect(formatThinkingLabel('max', true)).toBe('最大');
+    expect(formatThinkingLabel('max', false)).toBe('Max');
+    expect(formatThinkingLabel('ultra', true)).toBe('极致');
+    expect(formatThinkingLabel('ultra', false)).toBe('Ultra');
   });
 });

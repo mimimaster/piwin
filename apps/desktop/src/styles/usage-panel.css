@@ -574,7 +574,7 @@
 }
 
 .usage-calls-table {
-  min-width: 1040px;
+  min-width: 1100px;
 }
 
 .usage-calls-scroll thead th {
@@ -595,6 +595,12 @@
 .usage-call-time {
   color: var(--text-1);
   font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+}
+
+.usage-call-thinking {
+  color: var(--text-2);
   font-size: var(--fs-micro);
   white-space: nowrap;
 }

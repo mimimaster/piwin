@@ -61,6 +61,13 @@ export function projectConfiguredChatModels(
       }
       if (model.thinkingLevel !== undefined) {
         entry.thinkingLevel = model.thinkingLevel;
+      } else if (model.thinkingLevels !== undefined && model.thinkingLevels.length > 0) {
+        const defaultLevel = model.thinkingLevels.includes('medium')
+          ? 'medium'
+          : model.thinkingLevels[0];
+        if (defaultLevel !== undefined) {
+          entry.thinkingLevel = defaultLevel;
+        }
       }
       if (model.thinkingLevels !== undefined && model.thinkingLevels.length > 0) {
         entry.thinkingLevels = model.thinkingLevels;

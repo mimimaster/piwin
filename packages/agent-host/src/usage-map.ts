@@ -4,7 +4,12 @@
  * tokensUsed is window fill (input + output + cache once). Production mapping
  * does not invent a fixed-percentage category breakdown.
  */
-import type { ContextUsageBreakdown, ContextUsageSnapshot, UsageSource } from '@piwin/contracts';
+import {
+  isThinkingLevel,
+  type ContextUsageBreakdown,
+  type ContextUsageSnapshot,
+  type UsageSource,
+} from '@piwin/contracts';
 
 export function mapUsageSnapshot(
   sessionId: string,
@@ -22,6 +27,11 @@ export function mapUsageSnapshot(
     record;
 
   const modelId = readString(record.modelId) ?? readString(record.model);
+  const thinkingLevel = isThinkingLevel(record.thinkingLevel)
+    ? record.thinkingLevel
+    : isThinkingLevel(nested.thinkingLevel)
+      ? nested.thinkingLevel
+      : undefined;
   const tokensUsed =
     readNumber(nested.tokensUsed) ??
     readNumber(nested.used) ??
@@ -100,6 +110,7 @@ export function mapUsageSnapshot(
     source,
   };
   if (modelId !== undefined) snapshot.modelId = modelId;
+  if (thinkingLevel !== undefined) snapshot.thinkingLevel = thinkingLevel;
   if (resolvedTokensUsed !== undefined) snapshot.tokensUsed = resolvedTokensUsed;
   if (tokensLimit !== undefined) snapshot.tokensLimit = tokensLimit;
   if (promptTokens !== undefined) snapshot.promptTokens = promptTokens;

@@ -109,6 +109,8 @@ describe('extension-scanner', () => {
     const anthropicAuth = listed.find((item) => item.id === 'pi-anthropic-auth');
     expect(anthropicAuth).toBeDefined();
     expect(anthropicAuth?.source).toBe('bundled');
+    expect(anthropicAuth?.name).toBe('@gotgenes/pi-anthropic-auth');
+    expect(anthropicAuth?.bundledFrom).toBe('npm:@gotgenes/pi-anthropic-auth');
     expect(anthropicAuth?.compatibility?.tier).toBe('compatible');
     expect(anthropicAuth?.enabled).toBe(true);
 
@@ -150,4 +152,6 @@ describe('extensionIdFromPath', () => {
     });
     const hit = listed.find((item) => item.id === 'pi-deepseek-cache');
     expect(hit?.source).toBe('bundled');
+    expect(hit?.name).toBe('pi-deepseek-cache');
+    expect(hit?.bundledFrom).toBe('npm:@rohaquinlop/pi-deepseek-cache');
   });

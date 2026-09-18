@@ -89,6 +89,21 @@ describe('ComposerActionSlot', () => {
     expect(onAbort).toHaveBeenCalledTimes(1);
   });
 
+  it('stop-only live: Stop when empty, Send (steer) with a draft, never Pause', () => {
+    const onAbort = vi.fn();
+    const live = { ...idle, isStreamingRun: true, runPhase: 'streaming' as const, stopOnly: true, onAbort };
+    const empty = renderSlot(live);
+    expect(empty.querySelectorAll(CIRCULAR).length).toBe(1);
+    expect(empty.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    act(() => {
+      (empty.querySelector('[data-testid="stop-btn"]') as HTMLButtonElement).click();
+    });
+    expect(onAbort).toHaveBeenCalledTimes(1);
+    const drafted = renderSlot({ ...live, hasContent: true });
+    expect(drafted.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    expect(drafted.querySelector('[data-testid="send-btn"]')).not.toBeNull();
+  });
+
   it('live empty: one Pause, never a second Send or Stop circle', () => {
     const onPause = vi.fn();
     const node = renderSlot({

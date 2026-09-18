@@ -349,6 +349,32 @@ describe('ModelEditInline', () => {
     );
   });
 
+  it('automatically selects and saves a sensible default thinking level without touching the dropdown', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{
+          id: 'gpt-4o',
+          reasoning: true,
+        }}
+        providerProtocol="openai-compatible"
+        disabled={false}
+        isChinese={false}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    const selectEl = query<HTMLSelectElement>('[data-testid="model-edit-thinking-default"]');
+    expect(selectEl?.value).toBe('medium');
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        thinkingLevels: ['low', 'medium', 'high', 'xhigh'],
+        thinkingLevel: 'medium',
+      }),
+    );
+  });
+
   it('hides thinking effort section when reasoning is disabled', () => {
     render(
       <ModelEditInline
