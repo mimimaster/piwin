@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Button, Switch } from '@piwin/ui-kit';
+import { Button, StatusBadge, Switch } from '@piwin/ui-kit';
 import {
   readAttentionPreferences,
   subscribeAttentionPreferences,
@@ -98,32 +98,45 @@ function AuthorizationControl(props: {
 
   if (!capabilities.authorizationReliable) {
     return (
-      <>
-        <span data-testid="attention-authorization-status">{copy.statusManaged}</span>
-        <Button
-          data-testid="attention-open-system-settings"
-          onClick={() => {
-            void os.openSystemSettings();
-          }}
-        >
-          {copy.openSystemSettings}
-        </Button>
-      </>
+      <Button
+        data-testid="attention-open-system-settings"
+        onClick={() => {
+          void os.openSystemSettings();
+        }}
+      >
+        {copy.openSystemSettings}
+      </Button>
     );
   }
 
   if (authorization === 'unsupported') {
-    return <span data-testid="attention-authorization-status">{copy.statusUnsupported}</span>;
+    return (
+      <StatusBadge
+        tone="neutral"
+        label={copy.statusUnsupported}
+        testId="attention-authorization-status"
+      />
+    );
   }
 
   if (authorization === 'granted') {
-    return <span data-testid="attention-authorization-status">{copy.statusGranted}</span>;
+    return (
+      <StatusBadge
+        tone="success"
+        label={copy.statusGranted}
+        testId="attention-authorization-status"
+      />
+    );
   }
 
   if (authorization === 'denied') {
     return (
       <>
-        <span data-testid="attention-authorization-status">{copy.statusDenied}</span>
+        <StatusBadge
+          tone="neutral"
+          label={copy.statusDenied}
+          testId="attention-authorization-status"
+        />
         <Button
           data-testid="attention-open-system-settings"
           onClick={() => {
@@ -203,7 +216,11 @@ export function NotificationsPage(props: NotificationsPageProps = {}): ReactElem
         <PageTitle title={copy.title} description={copy.description} />
         <FieldRow
           label={copy.authorizationLabel}
-          description={copy.authorizationDescription}
+          description={
+            capabilities && !capabilities.authorizationReliable
+              ? copy.authorizationDescriptionManaged
+              : copy.authorizationDescription
+          }
           testId="attention-authorization-row"
         >
           <AuthorizationControl

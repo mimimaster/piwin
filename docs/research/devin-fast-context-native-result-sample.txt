@@ -1,0 +1,146 @@
+A search subagent explored the codebase, running these commands:
+- Grepped ADR.*0043 in .
+- Grepped 0043 in .
+- Grepped native.*model.*search in .
+- Grepped search.*routing in .
+- Grepped video.*capability in .
+- Grepped capability.*discovery in .
+- Grepped ADR in .
+- Grepped routing in ui
+- Read docs/adr/0043-native-model-search-routing.md
+- Read packages/host-runtime/src/capabilities/search-route-resolver.ts
+- Read packages/contracts/src/config.ts
+- Grepped test.*search.*route in packages
+- Read packages/host-runtime/src/provider-model-discovery.ts
+- Grepped search.*route|route.*search in packages
+- Read packages/host-runtime/src/tools/build-session-host-tools.ts
+- Grepped native.*web.*search in apps/desktop
+- Grepped search.*route.*resolver|resolver.*search.*route in packages/host-runtime/src/capabilities
+- Read packages/host-runtime/src/capabilities/search-route-resolver.test.ts
+- Grepped native.*web.*search|web.*search.*native in apps/desktop
+- Grepped capability.*native.*web.*search in packages
+- Read packages/contracts/src/web.ts
+- Grepped search.*route in packages/host-runtime
+- Grepped native.*search in apps
+- Grepped video.*generation.*capability in packages
+
+It believes the snippets below are relevant to your search. Be careful evaluating their relevance — the subagent can make mistakes — and follow up with your normal grep/glob/read tools to fill in anything it missed:
+
+<file path="docs/adr/0043-native-model-search-routing.md" total_lines=157>
+  1|# ADR 0043: Native model search routing and video capability discovery
+  2|
+  3|## Status
+  4|
+  5|Proposed (2026-08-10)
+  6|
+  7|## Context
+  8|
+  9|piwin currently exposes one Host-owned `web_search` tool. It can aggregate
+ 10|multiple configured external sources, but some chat models can also perform
+ 11|provider-native web search and return grounded content directly. Advertising
+ 12|both mechanisms to one agent creates duplicate searches, inconsistent
+ 13|citations, unclear permissions, and unnecessary cost.
+ 14|
+ 15|Video generation already has a `video-generation` model capability and a
+ 16|provider-neutral settings/runtime flow (ADR 0034). Its remaining usability gap
+ 17|is discovery: users should not have to re-enter a model that the provider has
+ 18|already returned, but name-only inference can confuse video understanding with
+ 19|video generation.
+ 20|
+ 21|## Decision
+ 22|
+ 23|### 1. Distinguish model-native search from the external tool family
+ 24|
+ 25|Add `native-web-search` to `ModelCapability`. The UI label is **内置搜索**,
+ 26|not the ambiguous **搜索**. The existing `web-search` session tool family and
+ 27|its public `web_search` tool continue to mean piwin's external search service.
+ 28|
+ 29|A capability tag is a declaration, not executable routing. Native search is
+ 30|ready only when all of the following are true:
+ 31|
+ 32|- the selected chat model is enabled and tagged `native-web-search`;
+ 33|- the active Pi SDK/RPC adapter can express native search for that provider;
+ 34|- the provider-native feature is controllable for the request.
+ 35|
+ 36|If an adapter cannot support the provider's native mechanism, the Host reports
+ 37|the capability as unavailable instead of pretending the label enabled it.
+ 38|
+ 39|### 2. Resolve exactly one search backend for each generation
+ 40|
+ 41|Add a search-route policy distinct from the existing external multi-source
+ 42|`searchStrategy`:
+ 43|
+ 44|```ts
+ 45|type SearchRoutePolicy =
+ 46|  | 'native-first'
+ 47|  | 'external-first'
+ 48|  | 'native-only'
+ 49|  | 'external-only';
+ 50|```
+ 51|
+ 52|`external-first` is the migration default because it preserves current
+ 53|behavior, permission handling, and citation rendering. Host Runtime resolves
+ 54|the route from the selected model, adapter support, configured external search
+ 55|sources, and policy:
+ 56|
+ 57|| Policy | First choice | Fallback |
+ 58||---|---|---|
+ 59|| `native-first` | model-native search | external `web_search` |
+ 60|| `external-first` | external...[2204 chars truncated]...licy,
+  5| * model native-search readiness, adapter support, and external source config.
+  6| * Does not silently retry a completed/failed prompt on the other backend.
+  7| */
+  8|
+  9|import type {
+ 10|  ModelConfigEntry,
+ 11|  ModelProviderConfig,
+ 12|  ModelRef,
+ 13|  PiwinConfig,
+ 14|  ResolvedSearchRoute,
+ 15|  SearchBackend,
+ 16|  SearchBackendReadiness,
+ 17|  SearchRoutePolicy,
+ 18|  SearchRouteReadiness,
+ 19|  WebConfig,
+ 20|} from '@piwin/contracts';
+ 21|import {
+ 22|  DEFAULT_SEARCH_ROUTE_POLICY,
+ 23|  isModelEnabled,
+ 24|  isProviderEnabled,
+ 25|  modelSupportsCapability,
+ 26|  resolveNativeWebSearchMode,
+ 27|} from '@piwin/contracts';
+ 28|
+ 29|/** Adapter-reported native-search support for the active host mode. */
+ 30|export type NativeSearchAdapterSupport = {
+ 31|  /**
+ 32|   * Whether the adapter can inject/disable provider-native search on the
+ 33|   * request (streamSimple / onPayload wrapper). Required for readiness.
+ 34|   */
+ 35|  requestSupported: boolean;
+ 36|  /**
+ 37|   * Whether native citation/grounding metadata can be normalized. Optional for
+ 38|   * enabling the request, but required for "full" readiness in Settings.
+ 39|   */
+ 40|  citationSupported: boolean;
+ 41|};
+ 42|
+ 43|export type ResolveSearchRouteInput = {
+ 44|  policy?: SearchRoutePolicy;
+ 45|  /** Selected chat model for this generation, when known. */
+ 46|  model?: Pick<
+ 47|    ModelConfigEntry,
+ 48|    'id' | 'enabled' | 'capabilities' | 'nativeWebSearchMode' | 'routes'
+ 49|  > | null;
+ 50|  /** External multi-source web config (Host `web_search`). */
+ 51|  web?: Pick<WebConfig, 'searchSources' | 'searchRoutePolicy'> | null;
+ 52|  adapter: NativeSearchAdapterSupport;
+ 53|};
+ 54|
+ 55|/**
+ 56| * Resolve the single search outlet for one generation.
+ 57| * Fallback is capability availability before the request starts only.
+ 58| */
+ 59|export function resolveSearchRoute(input: ResolveSearchRouteInput): ResolvedSearchRoute {
+ 60|  const policy =
+ 61|   

@@ -231,6 +231,11 @@ html:is(
     margin-bottom: 0;
   }
 
+  .settings-main .settings-hub-tabs,
+  .settings-main .session-hub-tabs {
+    background: var(--s1);
+  }
+
   .settings-main .settings-section-card {
     background: var(--s3);
     box-shadow: var(--sh1);
@@ -242,6 +247,27 @@ html:is(
     min-width: 0;
     max-width: 100%;
     box-sizing: border-box;
+  }
+
+  .settings-main .web-source-card {
+    background: var(--s2);
+    border: 1px solid var(--b1);
+    box-shadow: none;
+  }
+
+  .settings-main .web-source-card.is-selected {
+    background: color-mix(in srgb, var(--accent) 5%, var(--s2));
+    border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+
+  .settings-main .search-route-status {
+    background: var(--s2);
+    border: 1px solid var(--b1);
+    box-shadow: none;
+  }
+
+  .settings-main .web-tools-actions {
+    background: color-mix(in srgb, var(--s1) 92%, transparent);
   }
 
   /* The page is a document; only the sections inside it are raised cards. */

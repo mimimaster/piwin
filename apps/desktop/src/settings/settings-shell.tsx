@@ -357,6 +357,10 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
     const node = mainScrollRef.current;
     if (!node) return;
     node.scrollTop = 0;
+    const contentNode = node.querySelector('.settings-main-content');
+    if (contentNode instanceof HTMLElement) {
+      contentNode.scrollTop = 0;
+    }
   }, [activeSection]);
 
   return (

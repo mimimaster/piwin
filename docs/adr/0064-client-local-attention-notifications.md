@@ -134,8 +134,8 @@ later APNs epic, not a keepalive trick.
   sanitized action token + counts only.
 - No-go still ships P0 without waiting for Developer ID / notarization
   to make `UNUserNotificationCenter` authorize. Plugin authorization is
-  not trustworthy; the settings page must say “managed in System Settings”
-  when `authorizationReliable === false`.
+  not trustworthy; the settings page describes it as “managed in macOS System Settings”
+  with an “Open System Settings” action when `authorizationReliable === false`.
 - APNs work (AN-P1–P4) is out of this ADR’s implementation. Extending
   ADR 0037 for `device/push/register` happens in that epic.
 

@@ -148,11 +148,13 @@ describe('NotificationsPage', () => {
       expect(host?.querySelector('[data-testid="attention-enable-authorization"]')).toBeNull();
     });
 
-    it('renders managed-in-system-settings when authorization is unreliable', async () => {
+    it('renders open-system-settings and managed copy in description when authorization is unreliable', async () => {
       const os = createFakeOs('granted', { authorizationReliable: false });
       await renderPage(os);
-      expect(host?.querySelector('[data-testid="attention-authorization-status"]')?.textContent).toBe(
-        '由系统设置管理',
+      expect(host?.querySelector('[data-testid="attention-open-system-settings"]')).toBeTruthy();
+      expect(host?.querySelector('[data-testid="attention-authorization-status"]')).toBeNull();
+      expect(host?.querySelector('[data-testid="attention-authorization-row"]')?.textContent).toContain(
+        '由 macOS 系统设置管理',
       );
       await act(async () => {
         host?.querySelector<HTMLButtonElement>('[data-testid="attention-open-system-settings"]')?.click();

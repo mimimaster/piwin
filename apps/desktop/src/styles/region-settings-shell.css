@@ -597,8 +597,12 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
 
 .settings-hub-tabs,
 .session-hub-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   flex: 0 0 auto;
-  margin-bottom: 16px;
+  padding-bottom: 14px;
+  background: var(--surface-1);
 }
 
 .settings-hub-tabs .piwin-segmented-control .mantine-SegmentedControl-label,

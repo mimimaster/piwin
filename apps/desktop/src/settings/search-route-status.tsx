@@ -8,6 +8,24 @@ export type SearchRouteStatusProps = {
   locale: 'zh-CN' | 'en';
 };
 
+const ISSUE_TRANSLATIONS_ZH: Record<string, string> = {
+  'selected chat model is not tagged native-web-search': '当前选择的对话模型未标记“模型内置搜索”能力',
+  'no enabled external search source': '未启用任何外部搜索源',
+  'no search backend is ready for the configured policy': '当前配置的路由策略下无可用搜索渠道',
+  'no chat model selected for native web search': '未选择对话模型',
+  'selected chat model is disabled': '当前选择的对话模型已停用',
+  'active Pi adapter cannot express provider-native web search for this model':
+    '当前运行适配器不支持该模型的内置网络搜索',
+  'native web search request shaping is available, but citation normalization is not fully supported':
+    '支持内置搜索请求，但引用解析尚未完全支持',
+  'native search adapter is unavailable': '内置搜索适配器不可用',
+};
+
+function formatIssue(issue: string, zh: boolean): string {
+  if (!zh) return issue;
+  return ISSUE_TRANSLATIONS_ZH[issue] ?? issue;
+}
+
 export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement | null {
   const zh = props.locale === 'zh-CN';
   if (!props.preview) {
@@ -45,28 +63,31 @@ export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement |
 
   return (
     <div className="search-route-status" data-testid="search-route-status">
-      <StatusBadge
-        tone={warning ? 'warning' : route.selected ? 'success' : 'warning'}
-        label={selectedLabel}
-        testId="search-route-selected"
-      />
-      <div className="muted" data-testid="search-route-model">
-        {props.preview.modelLabel ??
-          props.preview.model?.modelId ??
-          (zh ? '未选择模型' : 'No model selected')}
+      <div className="search-route-status-header">
+        <StatusBadge
+          tone={warning ? 'warning' : route.selected ? 'success' : 'warning'}
+          label={selectedLabel}
+          testId="search-route-selected"
+        />
+        <div className="search-route-model muted" data-testid="search-route-model">
+          {props.preview.modelLabel ??
+            props.preview.model?.modelId ??
+            (zh ? '未选择模型' : 'No model selected')}
+        </div>
       </div>
       {fallbackLabel ? (
-        <div className="muted" data-testid="search-route-fallback">
+        <div className="muted search-route-fallback-label" data-testid="search-route-fallback">
           {zh ? `不可用时回退：${fallbackLabel}` : `Fallback when unavailable: ${fallbackLabel}`}
         </div>
       ) : null}
       {route.issues.length > 0 ? (
-        <ul className="muted" data-testid="search-route-issues">
+        <ul className="muted search-route-issue-list" data-testid="search-route-issues">
           {route.issues.slice(0, 3).map((issue) => (
-            <li key={issue}>{issue}</li>
+            <li key={issue}>{formatIssue(issue, zh)}</li>
           ))}
         </ul>
       ) : null}
     </div>
   );
 }
+

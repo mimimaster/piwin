@@ -304,26 +304,7 @@ export function PermissionsPage(): ReactElement {
             </Notice>
           )}
         </div>
-      ) : (
-        <div
-          className="settings-section settings-section-card"
-          data-testid="settings-permission-trust"
-        >
-          <PageTitle
-            title={isChinese ? '通用范围' : 'General scope'}
-            description={
-              isChinese
-                ? '没有打开特定项目时的全局权限规则。'
-                : 'Global permission rules when no project is open.'
-            }
-          />
-          <Notice tone="info" testId="settings-permission-general-scope">
-            {isChinese
-              ? '未打开项目。通用范围可使用 YOLO 模式（你的机器，你做主）。'
-              : 'No project open. General scope may use YOLO mode (your machine, your choice).'}
-          </Notice>
-        </div>
-      )}
+      ) : null}
 
       {yoloRefused ? (
         <div className="settings-section">
