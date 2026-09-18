@@ -46,6 +46,7 @@ export function createTranscriptQueuedTurnsOps(
     bumpQueueRevision,
     currentQueueRevision,
     insertMessageRow,
+    attachToActiveLeaf,
   } = core;
 
   const ops: Pick<
@@ -177,6 +178,7 @@ export function createTranscriptQueuedTurnsOps(
               ? {}
               : { contextRefs: record.input.contextRefs }),
             metadata: queuedTurnMetadata(record),
+            preserveActiveLeaf: true,
           });
           bumpQueueRevision(isIndexedUserMessage('user', record.input.text) ? 1 : 0);
           db.exec('COMMIT');
@@ -351,6 +353,11 @@ export function createTranscriptQueuedTurnsOps(
             updated.startedRunId ?? null,
             row.user_message_id,
           );
+          // Pending rows stay off the active path. Splice onto the current
+          // leaf only when admission actually starts (or jumps to started).
+          if (input.to === 'starting' || (input.to === 'started' && row.status !== 'starting')) {
+            attachToActiveLeaf(row.user_message_id);
+          }
           bumpQueueRevision();
           db.exec('COMMIT');
           return updated;

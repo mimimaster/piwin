@@ -4,7 +4,7 @@
  */
 
 import type { CreateSessionInput, ExecutionRunRecord } from '@piwin/contracts';
-import { formatCompactionBoundary, formatError } from '@piwin/contracts';
+import { formatCompactionBoundary, formatError, isRunTerminal } from '@piwin/contracts';
 
 import { getSessionRecord } from '@piwin/session';
 import { buildColdActivationSeedOptions } from './cold-activation-seed.js';
@@ -380,21 +380,28 @@ export function createAdmittedForegroundRun(
     runtimeStatus.desiredSettingsRevision !== undefined;
   const generationId =
     updatePending || options?.deferRuntimeGeneration ? undefined : runtimeStatus.generationId;
+  // Terminal callbacks (queued-turn drain) still carry the finished run's
+  // AsyncLocalStorage id. A queued next-turn is a sibling, not a child of
+  // that run — parenting onto a terminal run throws and used to destroy the
+  // user's queued message as `prompt-rejected`.
   const parentRunId = deps.runExecutionContext.getStore();
+  const parent = parentRunId === undefined ? undefined : deps.runRegistry.get(parentRunId);
+  const admittedParentRunId =
+    parent !== undefined && !isRunTerminal(parent.status) ? parentRunId : undefined;
   const run =
     replaceRunId === undefined
       ? deps.runRegistry.createForegroundRun(
           sessionId,
           generationId,
           resumeCheckpointId,
-          parentRunId,
+          admittedParentRunId,
         )
       : deps.runRegistry.replaceForegroundRun(
           sessionId,
           replaceRunId,
           generationId,
           resumeCheckpointId,
-          parentRunId,
+          admittedParentRunId,
         );
   if (generationId !== undefined) {
     deps.residencyController.markBusy(sessionId, generationId);

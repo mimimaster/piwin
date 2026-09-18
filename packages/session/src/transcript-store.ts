@@ -114,6 +114,12 @@ export type TranscriptStoreMessageInput = {
     voiceCallId?: string;
     skillId?: string;
   };
+  /**
+   * When true, the row is parented to the current leaf but does not become
+   * the leaf. Queued pending turns use this so an in-flight reply keeps
+   * chaining onto itself instead of under an un-started user row.
+   */
+  preserveActiveLeaf?: boolean;
 };
 
 export type RunInterventionStoreCreateInput = {
@@ -469,6 +475,7 @@ export type TranscriptStoreCore = {
   bumpQueueRevision(userMessageBy?: number): void;
   currentUserMessageRevision(): number;
   insertMessageRow(input: TranscriptStoreMessageInput): void;
+  attachToActiveLeaf(messageId: string): void;
 };
 
 export async function openSessionTranscriptStore(
@@ -760,9 +767,29 @@ export async function openSessionTranscriptStore(
       input.metadata === undefined ? null : JSON.stringify(input.metadata),
       leafRow?.active_leaf_message_id ?? null,
     );
+    if (input.preserveActiveLeaf === true) {
+      return;
+    }
     db.prepare(
       'UPDATE transcript_meta SET active_leaf_message_id = ? WHERE session_id = ?',
     ).run(input.id, options.sessionId);
+  }
+
+  function attachToActiveLeaf(messageId: string): void {
+    const leafRow = db
+      .prepare('SELECT active_leaf_message_id FROM transcript_meta WHERE session_id = ?')
+      .get(options.sessionId) as { active_leaf_message_id: string | null } | undefined;
+    const leaf = leafRow?.active_leaf_message_id ?? null;
+    if (leaf === messageId) {
+      return;
+    }
+    db.prepare('UPDATE transcript_message SET parent_message_id = ? WHERE id = ?').run(
+      leaf,
+      messageId,
+    );
+    db.prepare(
+      'UPDATE transcript_meta SET active_leaf_message_id = ? WHERE session_id = ?',
+    ).run(messageId, options.sessionId);
   }
   const core: TranscriptStoreCore = {
     db,
@@ -774,6 +801,7 @@ export async function openSessionTranscriptStore(
     bumpQueueRevision,
     currentUserMessageRevision,
     insertMessageRow,
+    attachToActiveLeaf,
   };
 
   return {

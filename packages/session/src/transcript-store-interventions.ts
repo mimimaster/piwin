@@ -34,7 +34,15 @@ export function createTranscriptInterventionsOps(
   | 'expirePendingRunInterventions'
   | 'finalizeOpenRunInterventions'
 > {
-  const { db, options, ensureOpen, bumpRevision, bumpQueueRevision, insertMessageRow } = core;
+  const {
+    db,
+    options,
+    ensureOpen,
+    bumpRevision,
+    bumpQueueRevision,
+    insertMessageRow,
+    attachToActiveLeaf,
+  } = core;
 
   const ops: Pick<
     SessionTranscriptStore,
@@ -379,6 +387,7 @@ export function createTranscriptInterventionsOps(
             JSON.stringify(instructionMetadata(intervention)),
             intervention.userMessageId,
           );
+          attachToActiveLeaf(intervention.userMessageId);
           bumpRevision(1, 1);
           bumpQueueRevision();
           db.exec('COMMIT');

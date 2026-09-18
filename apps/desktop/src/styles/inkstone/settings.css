@@ -223,6 +223,16 @@ html:is(
     overflow: auto;
   }
 
+  /* Hub pages own their heading rhythm: proto-05's `.st { margin: 26px auto
+     14px }` puts the tabs 14px under the title. Scoped on purpose -- a non-hub
+     `.settings-main-header` is a shrinkable flex item in the page scroller, and
+     dropping the Deck `margin-bottom: var(--s-8)` there lets the body ride up
+     over the squeezed heading. */
+  .settings-main:has(.settings-hub-page) > .settings-main-header {
+    padding-bottom: 14px;
+    margin-bottom: 0;
+  }
+
   .settings-main .settings-card.settings-hub-page {
     flex: 1 1 auto;
     display: flex;
@@ -231,9 +241,13 @@ html:is(
     margin-bottom: 0;
   }
 
+  /* Sticky mask for the hub tab strip: it must match the surface it covers
+     (.settings-main is s2 here) or it paints a full-bleed band one ramp step
+     darker than the page. s1 is the compact .subtab *track* color in
+     docs/design/inkstone/proto-05-settings-ink.html, not a page band. */
   .settings-main .settings-hub-tabs,
   .settings-main .session-hub-tabs {
-    background: var(--s1);
+    background: var(--s2);
   }
 
   .settings-main .settings-section-card {
