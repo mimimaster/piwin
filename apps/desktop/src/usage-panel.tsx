@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Select, Switch, TextInput } from '@piwin/ui-kit';
+import { Button, Select, Switch } from '@piwin/ui-kit';
 import { IconRefresh } from './shell-icons.js';
 import {
   computePromptCacheHitRate,
@@ -24,7 +24,6 @@ import {
   RECENT_CALLS_PAGE_SIZE,
   RECENT_CALLS_PAGE_SIZES,
   RECENT_CALLS_WINDOW_MINUTES,
-  deriveLegacyModelKeyRows,
   formatTokensPerSecond,
   formatThinkingLabel,
   formatUsageClock,
@@ -66,7 +65,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const [timeRange, setTimeRange] = useState<UsageTimeRange>('30d');
-  const [searchQuery, setSearchQuery] = useState('');
   const [rollup, setRollup] = useState<UsageRollup>(EMPTY_USAGE_ROLLUP);
   const [callLog, setCallLog] = useState<UsageCallLog>(EMPTY_USAGE_CALL_LOG);
   const [callLogSupported, setCallLogSupported] = useState(true);
@@ -189,25 +187,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
     () => Object.values(rollup.byDay).filter((bucket) => bucket.totalTokens > 0).length,
     [rollup.byDay],
   );
-
-  const modelKeyRows = useMemo(() => {
-    const source =
-      rollup.byModelKey.length > 0
-        ? [...rollup.byModelKey]
-        : deriveLegacyModelKeyRows(rollup.byModel);
-    const query = searchQuery.trim().toLowerCase();
-    return source
-      .filter((row) => {
-        if (!query) {
-          return true;
-        }
-        return (
-          row.modelId.toLowerCase().includes(query) ||
-          (row.providerId?.toLowerCase().includes(query) ?? false)
-        );
-      })
-      .sort((left, right) => right.totalTokens - left.totalTokens);
-  }, [rollup.byModel, rollup.byModelKey, searchQuery]);
 
   const cacheReadTokens = rollup.cacheReadTokens ?? 0;
   const cacheWriteTokens = rollup.cacheWriteTokens ?? 0;
@@ -450,117 +429,7 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
           )}
         </section>
 
-        <section className="usage-card usage-model-key-card" data-testid="usage-model-key-table">
-          <div className="usage-section-header usage-model-key-header">
-            <div>
-              <h3>{isZh ? '模型 × Key 缓存' : 'Model × Key cache'}</h3>
-              <p>
-                {isZh
-                  ? '缓存率 = 缓存读取 ÷（直接输入 + 缓存读取 + 缓存写入）。Key 仅显示提供商配置 ID，不显示密钥。'
-                  : 'Hit rate = cache read ÷ (direct input + cache read + cache write). Key shows only the provider config id.'}
-              </p>
-            </div>
-            <TextInput
-              toolbar
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.currentTarget.value)}
-              placeholder={isZh ? '筛选模型或 Key' : 'Filter model or Key'}
-              testId="usage-search-input"
-              aria-label={isZh ? '筛选模型或 Key' : 'Filter model or Key'}
-            />
-          </div>
 
-          {modelKeyRows.length > 0 ? (
-            <div className="usage-table-scroll">
-              <table className="usage-table">
-                <thead>
-                  <tr>
-                    <th>{isZh ? '模型' : 'Model'}</th>
-                    <th>{isZh ? 'Key（提供商配置）' : 'Key (provider config)'}</th>
-                    <th>{isZh ? '缓存率' : 'Hit rate'}</th>
-                    <th>{isZh ? '缓存读 / 写' : 'Cache read / write'}</th>
-                    <th>{isZh ? '直接输入 / 输出' : 'Direct input / output'}</th>
-                    <th>{isZh ? '输出速率' : 'Output speed'}</th>
-                    <th>{isZh ? '请求' : 'Turns'}</th>
-                    <th>{isZh ? '总计' : 'Total'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {modelKeyRows.map((row) => {
-                    const rowKey = `${row.providerId ?? 'legacy'}::${row.modelId}`;
-                    const rowHitRate = computePromptCacheHitRate(row);
-                    const rowHitPercent = rowHitRate === null ? 0 : Math.round(rowHitRate * 100);
-                    const tokensPerSecond = computeTokensPerSecond(row);
-                    const tpsDetail =
-                      row.durationMs !== undefined
-                        ? `${formatUsageExact(row.durationMs)}ms`
-                        : undefined;
-                    return (
-                      <tr key={rowKey} data-testid={`usage-model-key-row-${rowKey}`}>
-                        <td className="usage-table-model" title={row.modelId}>
-                          <strong>{row.modelId}</strong>
-                        </td>
-                        <td>
-                          <span className="usage-key-label">
-                            {row.providerId ?? (isZh ? '未知 Key' : 'Unknown Key')}
-                          </span>
-                          {row.providerId === null ? (
-                            <small>{isZh ? '历史记录未归因' : 'Legacy record'}</small>
-                          ) : null}
-                        </td>
-                        <td data-testid={`usage-model-key-cache-rate-${rowKey}`}>
-                          <div className="usage-cache-rate-cell">
-                            <strong>{formatUsagePercent(rowHitRate)}</strong>
-                            <span aria-hidden="true">
-                              <i style={{ width: `${rowHitPercent}%` }} />
-                            </span>
-                          </div>
-                        </td>
-                        <td className="usage-token-pair">
-                          <span>
-                            {isZh ? '读' : 'R'} {formatUsageCompact(row.cacheReadTokens)}
-                          </span>
-                          <span>
-                            {isZh ? '写' : 'W'} {formatUsageCompact(row.cacheWriteTokens)}
-                          </span>
-                        </td>
-                        <td className="usage-token-pair">
-                          <span>
-                            {isZh ? '入' : 'In'} {formatUsageCompact(row.promptTokens)}
-                          </span>
-                          <span>
-                            {isZh ? '出' : 'Out'} {formatUsageCompact(row.completionTokens)}
-                          </span>
-                        </td>
-                        <td
-                          className="usage-tps-cell"
-                          data-testid={`usage-model-key-tps-${rowKey}`}
-                          title={tpsDetail}
-                        >
-                          {formatTokensPerSecond(tokensPerSecond)}
-                        </td>
-                        <td>{formatUsageExact(row.entryCount)}</td>
-                        <td>
-                          <strong>{formatUsageCompact(row.totalTokens)}</strong>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="usage-compact-empty">
-              {searchQuery
-                ? isZh
-                  ? `没有匹配“${searchQuery}”的模型或 Key。`
-                  : `No model or Key matches “${searchQuery}”.`
-                : isZh
-                  ? '当前范围还没有可归因到模型和 Key 的用量。'
-                  : 'No model and Key usage in this range.'}
-            </div>
-          )}
-        </section>
 
         {callLogSupported ? (
           <section className="usage-card usage-calls-card" data-testid="usage-recent-calls">
@@ -620,10 +489,14 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                       <th>{isZh ? '时间' : 'Time'}</th>
                       <th>{isZh ? '模型' : 'Model'}</th>
                       <th>{isZh ? '思考度' : 'Thinking'}</th>
-                      <th>{isZh ? 'Key（提供商配置）' : 'Key (provider config)'}</th>
+                      <th>Key</th>
                       <th>{isZh ? '会话' : 'Session'}</th>
-                      <th>{isZh ? '用时' : 'Duration'}</th>
-                      <th>{isZh ? '输出速率' : 'Output speed'}</th>
+                      <th title={isZh ? '首字延迟（Time to First Token）' : 'Time to first token'}>
+                        {isZh ? '首字延迟' : 'First token'}
+                      </th>
+                      <th title={isZh ? '每秒 Token 数（Tokens Per Second）' : 'Tokens per second'}>
+                        TPS
+                      </th>
                       <th>{isZh ? '直接输入 / 输出' : 'Direct input / output'}</th>
                       <th>{isZh ? '缓存读 / 写' : 'Cache read / write'}</th>
                       <th>{isZh ? '缓存' : 'Cache'}</th>
@@ -673,10 +546,18 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                           <td className="usage-call-session" title={entry.sessionId}>
                             {formatUsageSessionTag(entry.sessionId)}
                           </td>
-                          <td className="usage-tps-cell">
-                            {formatUsageDuration(entry.durationMs)}
+                          <td
+                            className="usage-tps-cell"
+                            title={
+                              entry.durationMs !== undefined
+                                ? `${isZh ? '总用时: ' : 'Total: '}${formatUsageDuration(entry.durationMs)}`
+                                : undefined
+                            }
+                            data-testid="usage-call-first-token"
+                          >
+                            {formatUsageDuration(entry.firstTokenMs)}
                           </td>
-                          <td className="usage-tps-cell">
+                          <td className="usage-tps-cell" data-testid="usage-call-tps">
                             {formatTokensPerSecond(tokensPerSecond)}
                           </td>
                           <td className="usage-token-pair">

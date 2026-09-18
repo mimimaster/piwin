@@ -567,6 +567,10 @@ describe('WebPage search route settings', () => {
     expect(container.querySelector('[data-testid="web-tools-search-panel"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="web-tools-fetch-panel"]')).toBeNull();
     expect(container.querySelector('[data-testid="web-search-log"]')).toBeNull();
+    const hub = container.querySelector('[data-testid="settings-web-tools"]');
+    expect(hub?.classList.contains('settings-hub-page')).toBe(true);
+    expect(hub?.querySelector('.settings-hub-tabs')).not.toBeNull();
+    expect(hub?.querySelector('.settings-hub-panels')).not.toBeNull();
 
     // Switch to fetch tab
     const fetchInput = container.querySelector<HTMLInputElement>('input[value="fetch"]');

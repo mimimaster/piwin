@@ -177,6 +177,7 @@ describe('BrowserSessionPanel', () => {
     // Open-external and the console live in the ⋯ menu, not the URL bar.
     expect(queryByTestId('browser-session-open-external')).toBeNull();
     expect(queryByTestId('browser-session-more')).not.toBeNull();
+    expect(queryByTestId('browser-session-new-tab')).not.toBeNull();
     expect(queryByTestId('browser-session-pick-toggle')).not.toBeNull();
     expect(queryByTestId('browser-session-viewport-menu-btn')).not.toBeNull();
     // No frame yet → placeholder is shown, not the <img>.
@@ -861,8 +862,10 @@ describe('BrowserSessionPanel', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(queryByTestId('browser-session-mirror-error')).not.toBeNull();
-    expect(queryByTestId('browser-session-runtime-banner')).not.toBeNull();
+    const banner = queryByTestId('browser-session-runtime-banner');
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('nope');
+    expect(queryByTestId('browser-session-mirror-error')).toBeNull();
 
     await emitHostPush(client, {
       type: 'browser/state',

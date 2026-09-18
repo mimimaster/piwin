@@ -42,6 +42,8 @@ export type ContextUsageSnapshot = {
   totalTokens?: number;
   /** Generation duration in milliseconds when reported. */
   durationMs?: number;
+  /** First token latency in milliseconds when reported. */
+  firstTokenMs?: number;
   /** 0–1 fraction of context used when computable. */
   contextRatio?: number;
   updatedAt: string;

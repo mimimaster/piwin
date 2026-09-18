@@ -162,29 +162,17 @@ export function HooksPage(): ReactElement {
   if (!hooksAvailable) {
     return (
       <div className="settings-card" data-testid="settings-hooks">
-        <PageTitle
-          title="Hooks"
-          description={
-            isChinese
-              ? '当前 Host 没有开放 Hooks 命令。'
-              : 'This Host does not advertise Hooks commands.'
-          }
-        />
+        <p className="muted">
+          {isChinese
+            ? '当前 Host 没有开放 Hooks 命令。'
+            : 'This Host does not advertise Hooks commands.'}
+        </p>
       </div>
     );
   }
 
   return (
     <div className="settings-card" data-testid="settings-hooks">
-      <PageTitle
-        title="Hooks"
-        description={
-          isChinese
-            ? '管理 Agent 生命周期钩子：扩展可注册运行时钩子（支持拦截工具调用）；也可配置在对话轮次结束后执行 Shell 或 HTTP 动作。'
-            : 'Intercept the agent lifecycle. Extensions register runtime hooks with pi.on (they can block tools). You can also add post-event shell or HTTP hooks. Vision delegation is a built-in prompt intercept.'
-        }
-      />
-
       {error ? <Notice tone="error">{error}</Notice> : null}
       {info ? (
         <Notice tone="info" testId="settings-hooks-info">

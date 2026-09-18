@@ -18,6 +18,7 @@ import {
   buildAppearanceTheme,
   applyAppearanceToDocument,
   beginThemeSwitch,
+  loadAndRegisterAllCustomFonts,
   resolveDesktopAppearance,
   resolveSystemThemeMode,
 } from './appearance-tokens';
@@ -84,6 +85,11 @@ export function DesktopThemeRoot() {
   // document tokens already on <html> (no Noir → ink-wash jump).
   const [activeTheme, setActiveTheme] = useState<ThemeManifest>(() => resolveStartupAppearance());
 
+  useEffect(() => {
+    const preferences = loadDesktopPreferences();
+    void loadAndRegisterAllCustomFonts(preferences.customFonts);
+  }, []);
+
   const applyResolvedTheme = useCallback((candidateTheme: ThemeManifest) => {
     const resolvedTheme = resolveDesktopAppearance(candidateTheme);
     const sameSheet = isDocumentThemeId(resolvedTheme.id);
@@ -94,7 +100,8 @@ export function DesktopThemeRoot() {
     if (!sameSheet) {
       beginThemeSwitch();
     }
-    applyAppearanceToDocument(resolvedTheme);
+    const preferences = loadDesktopPreferences();
+    applyAppearanceToDocument(resolvedTheme, preferences.customFonts);
     rememberAppliedTheme(resolvedTheme);
     setActiveTheme((previous) => (themePaintEquals(previous, resolvedTheme) ? previous : resolvedTheme));
   }, []);
@@ -102,7 +109,8 @@ export function DesktopThemeRoot() {
   // Guard: a future caller that sets root state without the callback still
   // gets its manifest projected to document tokens synchronously post-render.
   useLayoutEffect(() => {
-    applyAppearanceToDocument(activeTheme);
+    const preferences = loadDesktopPreferences();
+    applyAppearanceToDocument(activeTheme, preferences.customFonts);
     rememberAppliedTheme(activeTheme);
   }, [activeTheme]);
 

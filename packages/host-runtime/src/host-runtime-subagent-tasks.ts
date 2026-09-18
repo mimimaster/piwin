@@ -37,6 +37,7 @@ import {
   buildShellContinuationTask,
   prepareRetainedSubagentContinuation,
 } from './subagent-continuation-prep.js';
+import { resolveFusionSidekickLane } from './fusion-sidekick-lane.js';
 import {
   applyStatusFromIntegration,
   subagentApplyIdempotencyKey,
@@ -131,6 +132,7 @@ export function getSubagentSeam(
       if (!deps.subagentRunStore) return undefined;
       return loadPersistedReviewObservation(deps.subagentRunStore, runId);
     },
+    resolveFusionLane: (parentSessionId) => resolveFusionSidekickLane(deps, parentSessionId),
   };
   const seam = createSubagentControlSeam(controlDeps, sessionId);
   return {

@@ -42,6 +42,7 @@ export * from './session-transcript-page.js';
 export * from './session-user-message-index.js';
 export * from './web.js';
 export * from './skills.js';
+export * from './skill-document-path.js';
 export * from './resource.js';
 export * from './resource-manifest.js';
 export * from './context-manifest.js';

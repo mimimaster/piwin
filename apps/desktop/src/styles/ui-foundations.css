@@ -875,6 +875,16 @@ textarea:focus {
   --mantine-radius-default: var(--r-control);
 }
 
+/* Mantine paints its own 2px primary-colored ring on Button/ActionIcon.
+   Primary in Inkstone is vermillion, so Tab looks like a validation error.
+   The `html` prefix beats Mantine's later-loaded `.mantine-focus-auto`
+   rule so the product :focus-visible ring owns the color. */
+html .mantine-focus-auto:focus-visible,
+html .mantine-focus-always:focus {
+  outline: 2px solid var(--focus-ring, var(--iris));
+  outline-offset: 1px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .piwin-list-row {
     transition: none;

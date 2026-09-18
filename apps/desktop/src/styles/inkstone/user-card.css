@@ -121,18 +121,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--t1);
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  flex: none;
-  border-radius: 3px;
-  font: 500 11px var(--serif);
-  background: var(--s2);
-  color: var(--t2);
-}
-
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-model {
   min-width: 0;
   overflow: hidden;
@@ -141,8 +129,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-size: 11.5px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-value,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-prefix {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-value {
   color: var(--t3);
   font-size: 11.5px;
 }

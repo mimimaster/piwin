@@ -3,8 +3,8 @@
 
 /* Keyboard focus — never remove outline without a replacement */
 :focus-visible {
-  outline: 2px solid var(--iris);
-  outline-offset: 2px;
+  outline: 2px solid var(--focus-ring, var(--iris));
+  outline-offset: 1px;
   border-radius: var(--r-control);
 }
 button:focus:not(:focus-visible),

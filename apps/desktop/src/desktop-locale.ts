@@ -318,6 +318,24 @@ export type DesktopCopy = {
     codeBlockSizeDescription: string;
     codeWrap: string;
     codeWrapDescription: string;
+    customFonts: string;
+    customFontsDescription: string;
+    sansFont: string;
+    sansFontDescription: string;
+    monoFont: string;
+    monoFontDescription: string;
+    serifFont: string;
+    serifFontDescription: string;
+    uploadFont: string;
+    uploadFontHint: string;
+    deleteFont: string;
+    setAsSans: string;
+    setAsMono: string;
+    setAsSerif: string;
+    uploadedFonts: string;
+    noUploadedFonts: string;
+    defaultFont: string;
+    resetFonts: string;
     interactionRendering: string;
     interactionRenderingDescription: string;
     toolCallDensity: string;
@@ -912,6 +930,24 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       codeBlockSizeDescription: '',
       codeWrap: '代码自动换行',
       codeWrapDescription: '',
+      customFonts: '自定义字体',
+      customFontsDescription: '支持上传本地 TTF/OTF/WOFF/WOFF2 字体文件并配置为系统字体。',
+      sansFont: '界面字体 (Sans)',
+      sansFontDescription: '应用主体界面与助手对话使用的字体。',
+      monoFont: '代码/等宽字体 (Mono)',
+      monoFontDescription: '代码块、命令行与检查器使用的等宽字体。',
+      serifFont: '衬线字体 (Serif)',
+      serifFontDescription: '卡片标题、知识库与排版展示使用的衬线字体。',
+      uploadFont: '上传字体',
+      uploadFontHint: '支持 .ttf, .otf, .woff, .woff2 文件',
+      deleteFont: '删除',
+      setAsSans: '设为界面字体',
+      setAsMono: '设为代码字体',
+      setAsSerif: '设为衬线字体',
+      uploadedFonts: '已上传的字体',
+      noUploadedFonts: '暂无上传的字体，点击上方按钮上传本地字体文件。',
+      defaultFont: '默认字体',
+      resetFonts: '恢复默认字体',
       interactionRendering: '交互与渲染',
       interactionRenderingDescription: '',
       toolCallDensity: '工具调用显示密度',
@@ -1260,6 +1296,24 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       codeBlockSizeDescription: '',
       codeWrap: 'Code wrap',
       codeWrapDescription: '',
+      customFonts: 'Custom Fonts',
+      customFontsDescription: 'Upload local TTF/OTF/WOFF/WOFF2 fonts and assign them to font families.',
+      sansFont: 'Interface Font (Sans)',
+      sansFontDescription: 'Font used for assistant chat and main application UI.',
+      monoFont: 'Code Font (Mono)',
+      monoFontDescription: 'Monospace font used for code blocks, terminal, and inspector.',
+      serifFont: 'Serif Font',
+      serifFontDescription: 'Serif font used for headings, wiki articles, and cards.',
+      uploadFont: 'Upload Font',
+      uploadFontHint: 'Supports .ttf, .otf, .woff, .woff2 files',
+      deleteFont: 'Delete',
+      setAsSans: 'Set as Sans',
+      setAsMono: 'Set as Mono',
+      setAsSerif: 'Set as Serif',
+      uploadedFonts: 'Uploaded Fonts',
+      noUploadedFonts: 'No uploaded fonts yet. Click above to upload local font files.',
+      defaultFont: 'Default Font',
+      resetFonts: 'Reset to default fonts',
       interactionRendering: 'Interaction & Rendering',
       interactionRenderingDescription: '',
       toolCallDensity: 'Tool call density',

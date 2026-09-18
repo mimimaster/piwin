@@ -105,3 +105,37 @@ describe('ORCH host scheme application', () => {
     ).toEqual({ kind: 'wait' });
   });
 });
+
+describe('ORCH fusion scheme', () => {
+  it('injects fusion preamble and sidekick roster', () => {
+    const resolved = resolveOrchestrationScheme(
+      { maxConcurrency: 4, maxTasksPerRun: 8 },
+      'fusion',
+      { knownProfileIds: ['implementer'] },
+    );
+    expect(resolved).toBeDefined();
+    const modelText = mergeOrchestrationSchemeIntoPrompt(resolved!, 'fix the flake');
+    expect(modelText).toContain('[piwin-scheme:fusion]');
+    expect(modelText).toContain('[piwin-scheme-roster]');
+    expect(modelText).toContain('sidekick:');
+    expect(modelText).toContain('fix the flake');
+    expect(modelText).not.toMatch(/^fix the flake/);
+    expect(modelText).not.toMatch(/providerId\/|gpt-/i);
+  });
+
+  it('forces sidekick implementer worktree', () => {
+    const resolved = resolveOrchestrationScheme(
+      { maxConcurrency: 4, maxTasksPerRun: 8 },
+      'fusion',
+      { knownProfileIds: ['implementer'] },
+    )!;
+    const applied = applySchemeToSubagentSpawnInput(resolved, {
+      profileId: 'explorer',
+      thinkingLevel: 'high',
+    });
+    expect(applied.role).toBe('sidekick');
+    expect(applied.profileId).toBe('implementer');
+    expect(applied.isolation).toBe('worktree');
+    expect(applied.clearedModel).toBe(true);
+  });
+});

@@ -9,6 +9,7 @@ import type {
   PermissionDecision,
   PermissionRememberScope,
   ProjectRecord,
+  SessionScope,
 } from '@piwin/contracts';
 import {
   hostPathStyleFromOsFamily,
@@ -19,8 +20,8 @@ import { Button, ConfirmDialog, Dialog } from '@piwin/ui-kit';
 import { Field } from '@piwin/ui-kit';
 import type { ChatUiState } from './chat-reducer';
 import { SessionRowMenu, type SessionRowMenuAction } from './session-row-menu';
-import { projectDisplayName } from './project-display-name';
 import type { DesktopLocale } from './desktop-locale';
+import { ContinueSessionInProjectDialog } from './continue-session-in-project-dialog';
 import type { SessionNamedDraft, SessionRenameDraft } from './hooks/use-session-list-chrome';
 import { HostWorkspacePicker } from './host-workspace-picker';
 
@@ -56,7 +57,7 @@ export type AppDialogsProps = {
   trustedProjects: readonly ProjectRecord[];
   locale: DesktopLocale;
   onContinueInProjectOpenChange: (open: boolean) => void;
-  onContinueInProject: (projectPath: string) => void;
+  onContinueInProject: (targetScope: SessionScope) => void;
   onCancelContinueInProject: () => void;
   /** Remote shells browse the Host filesystem instead of this computer. */
   hostWorkspacePicker?: boolean;
@@ -281,48 +282,15 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
         </Dialog>
       ) : null}
 
-      <Dialog
-        label={props.locale === 'zh-CN' ? '继续到项目' : 'Continue in project'}
-        open={props.continueInProject !== null}
+      <ContinueSessionInProjectDialog
+        sessionName={props.continueInProject?.sessionName ?? null}
+        busy={props.continueInProjectBusy}
+        trustedProjects={props.trustedProjects}
+        locale={props.locale}
         onOpenChange={props.onContinueInProjectOpenChange}
-        testId="continue-session-in-project-dialog"
-      >
-        <h3>{props.locale === 'zh-CN' ? '选择目标项目' : 'Choose a project'}</h3>
-        <p className="muted">
-          {props.locale === 'zh-CN'
-            ? `将“${props.continueInProject?.sessionName ?? ''}”的完整历史复制到项目会话；原会话会保留。`
-            : `Copy the full history of “${props.continueInProject?.sessionName ?? ''}” into a project session. The original remains unchanged.`}
-        </p>
-        <div className="continue-session-project-list">
-          {props.trustedProjects.length > 0 ? (
-            props.trustedProjects.map((project) => (
-              <Button
-                key={project.path}
-                disabled={props.continueInProjectBusy}
-                data-testid="continue-session-project-option"
-                onClick={() => props.onContinueInProject(project.path)}
-              >
-                {projectDisplayName(project.path)}
-              </Button>
-            ))
-          ) : (
-            <p className="muted">
-              {props.locale === 'zh-CN'
-                ? '请先打开并信任一个项目。'
-                : 'Open and trust a project first.'}
-            </p>
-          )}
-        </div>
-        <div className="modal-actions">
-          <Button
-            variant="ghost"
-            disabled={props.continueInProjectBusy}
-            onClick={props.onCancelContinueInProject}
-          >
-            {props.locale === 'zh-CN' ? '取消' : 'Cancel'}
-          </Button>
-        </div>
-      </Dialog>
+        onSelectTarget={props.onContinueInProject}
+        onCancel={props.onCancelContinueInProject}
+      />
 
       <ConfirmDialog
         open={Boolean(props.deleteConfirm)}

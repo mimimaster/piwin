@@ -1,13 +1,17 @@
 /**
- * Chromium install status for `piwin doctor`.
+ * Chromium install status for `piwin doctor` and first-use download.
  *
- * `playwright-core` does not download browsers; the binary comes from
- * `pnpm --dir apps/desktop e2e:install` (`playwright install chromium`). This
- * helper resolves the expected executable and reports whether it is on disk so
- * tooling can surface an actionable install hint instead of a raw launch error.
+ * `playwright-core` does not download browsers by itself. The Host cache is
+ * `~/.piwin/playwright` (`PLAYWRIGHT_BROWSERS_PATH`). This helper resolves the
+ * expected executable after that env is applied so doctor/UI can hint instead
+ * of showing a raw Playwright launch error.
  */
 import { existsSync } from 'node:fs';
-import { chromium } from 'playwright-core';
+import {
+  DEFAULT_PLAYWRIGHT_CHROMIUM_VARIANT,
+  resolvePlaywrightHeadlessShellExecutablePath,
+  type PlaywrightChromiumVariant,
+} from './playwright-chromium-variant.js';
 
 export type BrowserInstallFailureReason = 'binary-missing' | 'profile-in-use' | 'startup-failed';
 
@@ -18,18 +22,17 @@ export type BrowserInstallStatus = {
   reason?: BrowserInstallFailureReason;
 };
 
-const DEV_INSTALL_HINT = 'Run: pnpm --dir apps/desktop e2e:install';
-
-function installHint(): string {
-  if (typeof process.versions.electron === 'string' || process.env.PIWIN_PACKAGED === '1') {
-    return 'Chromium is not bundled with this Host. Install a Playwright Chromium matching this runtime, or run from a developer checkout.';
-  }
-  return DEV_INSTALL_HINT;
+export function browserChromiumInstallHint(): string {
+  const destination = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim() || '~/.piwin/playwright';
+  return `Chromium downloads to ${destination} the first time the browser is used.`;
 }
 
-export function getBrowserInstallStatus(): BrowserInstallStatus {
+export async function getBrowserInstallStatus(options?: {
+  variant?: PlaywrightChromiumVariant;
+}): Promise<BrowserInstallStatus> {
+  const variant = options?.variant ?? DEFAULT_PLAYWRIGHT_CHROMIUM_VARIANT;
   try {
-    const executablePath = chromium.executablePath();
+    const executablePath = await resolveBrowserExecutablePath(variant);
     if (existsSync(executablePath)) {
       return { available: true, path: executablePath };
     }
@@ -37,15 +40,27 @@ export function getBrowserInstallStatus(): BrowserInstallStatus {
       available: false,
       path: executablePath,
       reason: 'binary-missing',
-      hint: installHint(),
+      hint: browserChromiumInstallHint(),
     };
   } catch (error) {
     return {
       available: false,
       reason: 'binary-missing',
-      hint: `Could not resolve the chromium executable (${error instanceof Error ? error.message : String(error)}). ${installHint()}`,
+      hint: `Could not resolve the chromium executable (${error instanceof Error ? error.message : String(error)}). ${browserChromiumInstallHint()}`,
     };
   }
+}
+
+async function resolveBrowserExecutablePath(variant: PlaywrightChromiumVariant): Promise<string> {
+  if (variant === 'chromium') {
+    const { chromium } = await import('playwright-core');
+    return chromium.executablePath();
+  }
+  const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim();
+  if (browsersPath === undefined || browsersPath.length === 0) {
+    throw new Error('PLAYWRIGHT_BROWSERS_PATH is not set');
+  }
+  return resolvePlaywrightHeadlessShellExecutablePath(browsersPath);
 }
 
 /** Classify a Playwright launch failure without deleting profiles or lock files. */

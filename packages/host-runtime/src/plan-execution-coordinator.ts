@@ -54,9 +54,8 @@ export type SubagentTaskDirective = {
 };
 
 /**
- * Build the task prompt for a single independent step executed in a child
- * subagent session. The child is told to complete only this step and report
- * a concise result; the parent merges and verifies.
+ * Build the task brief for a single isolated step executed in a child
+ * subagent session. The child sees only this brief — not the parent transcript.
  */
 export function buildSubagentTaskDirective(plan: SessionPlan, stepId: string): SubagentTaskDirective | null {
   const step = plan.steps.find((entry) => entry.id === stepId);
@@ -64,13 +63,19 @@ export function buildSubagentTaskDirective(plan: SessionPlan, stepId: string): S
   return {
     stepId,
     promptText: [
-      `[piwin-plan-execute:subagent v2] Plan: ${plan.title} — step ${step.id}`,
+      `[piwin-plan-execute:subagent v3] Plan: ${plan.title} — step ${step.id}`,
       `Goal: ${plan.goal}`,
       '',
+      `Step: [${step.id}] ${step.title}`,
       `Success: complete only this step — ${step.title} — against its acceptance criteria.`,
-      step.detail ? `Detail: ${step.detail}` : '',
+      step.detail
+        ? `Acceptance and verification: ${step.detail}`
+        : 'Acceptance: complete this step as titled; verification must be an executable check.',
+      'Constraints: do not implement other plan steps; do not expand scope; do not edit unrelated files.',
+      'You cannot see the parent conversation. Treat this brief as the full task.',
+      'Done: acceptance criteria pass and the stated verification command (or observable check) has been run.',
+      'Report: status=done|blocked|needs_context; changed files; verification output; blockers.',
       'Stop: do not implement other plan steps or expand scope.',
-      'Verify: report what changed, verification output, and blockers.',
     ]
       .filter((line) => line.length > 0)
       .join('\n'),
@@ -90,10 +95,44 @@ export function buildPlanSubagentTask(
     parentSessionId: plan.sessionId,
     task: directive.promptText,
     profileId: step.profileId ?? 'implementer',
-    applyPolicy: 'auto',
+    applyPolicy: 'explicit',
+    deliveryIntent: 'candidate',
+    retainWorktree: true,
     ...(step.dependsOn ? { dependsOn: step.dependsOn } : {}),
     ...(step.parallelGroup ? { parallelGroup: step.parallelGroup } : {}),
   };
+}
+
+/**
+ * Serialize write slices that omitted dependsOn so Host never dispatches
+ * them as concurrent writers. Existing dependsOn edges are left intact.
+ */
+export function chainPlanWriteTaskDependencies(
+  tasks: readonly SubagentTaskSpec[],
+): SubagentTaskSpec[] {
+  const chained: SubagentTaskSpec[] = [];
+  let previousId: string | undefined;
+  for (const task of tasks) {
+    const hasDeps = (task.dependsOn?.length ?? 0) > 0;
+    if (!hasDeps && previousId) {
+      chained.push({ ...task, dependsOn: [previousId] });
+    } else {
+      chained.push(task);
+    }
+    previousId = task.id;
+  }
+  return chained;
+}
+
+/** Build every eligible plan child task, then force a serial write chain. */
+export function buildPlanSubagentTasks(
+  plan: SessionPlan,
+  stepIds: readonly string[],
+): SubagentTaskSpec[] {
+  const tasks = stepIds
+    .map((stepId) => buildPlanSubagentTask(plan, stepId))
+    .filter((task): task is SubagentTaskSpec => task !== null);
+  return chainPlanWriteTaskDependencies(tasks);
 }
 
 /**
@@ -136,8 +175,10 @@ export function buildSubagentVerificationDirective(
       `[piwin-plan-execute:verify v2] Plan: ${plan.title}`,
       `Goal: ${plan.goal}`,
       '',
-      'Success: independent steps are merged; whole-plan acceptance criteria pass with evidence.',
-      'First validate the merged child results and update their plan steps from evidence.',
+      'Success: child slices are candidates; whole-plan acceptance criteria pass with evidence.',
+      'Review each child from diffs, changed-file lists, and verification output only — not from the child transcript.',
+      'Do not rewrite child work in the parent; apply an approved candidate (piwin_subagent_result_apply) or send a repair brief.',
+      'First validate the child results and update their plan steps from evidence.',
       'Then implement every parent-owned pending/active step in the parent workspace; never mark an unexecuted step done.',
       'Finally run whole-plan verification and update all remaining steps via piwin_plan_set_step.',
       'Stop if verification fails — report blockers; do not claim green without evidence.',

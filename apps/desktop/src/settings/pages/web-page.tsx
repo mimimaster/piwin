@@ -39,6 +39,7 @@ import { createDraftSearchSource, draftToWeb, findCustomSearchSource, type Draft
 import { HostWorkspacePicker } from '../../host-workspace-picker';
 import { pickLocalFile } from '../../pick-project-directory';
 import { FETCH_PROVIDER_OPTIONS, SOURCE_KIND_OPTIONS } from './web-page-options';
+import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
 type SearchDelegateOption = {
   key: string;
@@ -68,6 +69,7 @@ export function WebPage(): ReactElement {
     hostClient,
   } = useSettings();
   const [webToolsTab, setWebToolsTab] = useState<'search' | 'fetch' | 'log'>('search');
+  useResetSettingsMainScroll(webToolsTab);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(() => new Set());
   const [filePickerOpen, setFilePickerOpen] = useState(false);
@@ -357,11 +359,11 @@ export function WebPage(): ReactElement {
   return (
     <>
     <div
-      className="settings-card web-hub-page"
+      className="settings-card settings-hub-page web-hub-page"
       data-testid="settings-web-tools"
       data-dirty={isDirty ? 'true' : 'false'}
     >
-      <div className="settings-segmented-wrap" style={{ marginBottom: 16 }}>
+      <div className="settings-segmented-wrap settings-hub-tabs">
         <SegmentedControl
           value={webToolsTab}
           onChange={(value) => setWebToolsTab(value as 'search' | 'fetch' | 'log')}
@@ -374,6 +376,7 @@ export function WebPage(): ReactElement {
         />
       </div>
 
+      <div className="settings-hub-panels">
       {webToolsTab === 'log' ? (
         <WebSearchLogPanel
           locale={zh ? 'zh-CN' : 'en'}
@@ -427,12 +430,6 @@ export function WebPage(): ReactElement {
                 {zh
                   ? '委托启用时，web_search 只调用所选模型；下方普通搜索源会保留配置，但不会同时请求。'
                   : 'While delegation is enabled, web_search calls only the selected model. Ordinary sources below remain configured but are not queried.'}
-              </Notice>
-            ) : searchDelegateOptions.length === 0 ? (
-              <Notice tone="warning" testId="web-search-delegate-empty">
-                {zh
-                  ? '暂无可委托模型。请先在模型配置中给支持内置搜索的模型勾选“模型内置搜索”。'
-                  : 'No delegate model is available. Tag a provider model with Native search first.'}
               </Notice>
             ) : null}
             <div className="web-source-list" data-testid="web-search-sources">
@@ -864,6 +861,7 @@ export function WebPage(): ReactElement {
         </div>
       </div>
       )}
+      </div>
     </div>
     <Dialog
       label={zh ? '选择脚本' : 'Choose script'}

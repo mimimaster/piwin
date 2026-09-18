@@ -7,6 +7,7 @@ import type { DesktopLocale } from './desktop-locale';
 
 export type BrowserRuntimeStatusCopy = {
   starting: string;
+  installing: string;
   recovering: string;
   degraded: string;
   failed: string;
@@ -30,6 +31,7 @@ export function browserRuntimeStatusCopy(locale: DesktopLocale): BrowserRuntimeS
   if (locale === 'zh-CN') {
     return {
       starting: '正在启动浏览器…',
+      installing: '正在下载浏览器运行时…',
       recovering: '正在恢复浏览器会话…',
       degraded: '浏览器镜像已降级。',
       failed: '浏览器会话失败。',
@@ -38,6 +40,7 @@ export function browserRuntimeStatusCopy(locale: DesktopLocale): BrowserRuntimeS
   }
   return {
     starting: 'Starting the browser…',
+    installing: 'Downloading the browser runtime…',
     recovering: 'Recovering the browser session…',
     degraded: 'Browser mirror is degraded.',
     failed: 'Browser session failed.',
@@ -57,6 +60,7 @@ export function isBrowserInteractEnabled(input: BrowserRuntimeStatusInput): bool
 export function shouldShowBrowserRuntimeBanner(input: BrowserRuntimeStatusInput): boolean {
   if (
     input.lifecycle === 'starting' ||
+    input.lifecycle === 'installing' ||
     input.lifecycle === 'recovering' ||
     input.lifecycle === 'failed' ||
     input.lifecycle === 'disposed'
@@ -71,8 +75,11 @@ export function browserRuntimeBannerMessage(
   copy: BrowserRuntimeStatusCopy,
   input: BrowserRuntimeStatusInput,
 ): string | null {
-  if (input.lifecycle === 'failed' || input.lifecycle === 'disposed') return copy.failed;
+  if (input.lifecycle === 'failed' || input.lifecycle === 'disposed') {
+    return input.mirrorError ?? copy.failed;
+  }
   if (input.lifecycle === 'recovering') return copy.recovering;
+  if (input.lifecycle === 'installing') return copy.installing;
   if (input.lifecycle === 'starting') return copy.starting;
   if (input.mirror === 'degraded') return copy.degraded;
   if (input.mirrorError) return input.mirrorError;

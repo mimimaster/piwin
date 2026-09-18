@@ -357,9 +357,23 @@ describe('startBrowserSessionLease', () => {
       onStopFailed,
     });
     await Promise.resolve();
-    expect(onStartFailed).toHaveBeenCalledTimes(1);
+    expect(onStartFailed).toHaveBeenCalledWith(undefined);
     release();
     await Promise.resolve();
-    expect(onStopFailed).toHaveBeenCalledTimes(1);
+    expect(onStopFailed).toHaveBeenCalledWith(undefined);
+  });
+
+  it('forwards Host error text on start failure', async () => {
+    const onStartFailed = vi.fn();
+    startBrowserSessionLease({
+      host: createFakeHost({
+        start: async () => ({ success: false, error: 'Chromium is still missing' }),
+      }),
+      onMessage: vi.fn(),
+      onStartFailed,
+      onStopFailed: vi.fn(),
+    });
+    await Promise.resolve();
+    expect(onStartFailed).toHaveBeenCalledWith('Chromium is still missing');
   });
 });

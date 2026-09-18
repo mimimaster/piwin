@@ -833,10 +833,12 @@ kill it) were recorded on `79318f5c` in
 - **CLI parity** — `browser_*` tools work in CLI sessions (host-owned service);
   the visual panel is desktop-only. The degradation is intentional and documented
   (AGENTS.md §5).
-- **Chromium** — `playwright-core` does not download browsers; it reuses the
-  chromium installed by `pnpm --dir apps/desktop e2e:install` (`playwright
-  install chromium`). `piwin doctor` reports chromium presence with an actionable
-  install hint.
+- **Chromium** — not shipped inside the Desktop package. Host owns
+  `~/.piwin/playwright` (`PLAYWRIGHT_BROWSERS_PATH`) and downloads Playwright
+  `chromium --only-shell` (~190MB) on first headless browser use. Headed mode
+  downloads full Chromium instead. `piwin doctor` reports whether that cache
+  has a matching binary. Desktop UI e2e still uses `pnpm --dir apps/desktop
+  e2e:install` for the Playwright test runner.
 
 ## 9. Tauri desktop shape
 

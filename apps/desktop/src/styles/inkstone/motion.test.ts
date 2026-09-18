@@ -21,7 +21,13 @@ describe('Inkstone motion.css', () => {
     expect(motion).toMatch(/@keyframes orbit/);
     expect(motion).toContain('160ms var(--spring)');
     expect(motion).toContain('240ms ease-out');
-    expect(motion).toContain('outline-color: var(--zhu)');
+    expect(motion).toContain('outline-color: var(--azure)');
+    expect(motion).not.toContain('outline-color: var(--zhu)');
     expect(motion).toContain('prefers-reduced-motion');
+  });
+
+  it('overrides Mantine primary focus rings to azure instead of vermillion', () => {
+    expect(motion).toContain('.mantine-focus-auto:focus-visible');
+    expect(motion).toContain('outline: 2px solid var(--azure)');
   });
 });

@@ -4,9 +4,11 @@ import {
   abortExecutionState,
   buildInlineDirective,
   buildPlanSubagentTask,
+  buildPlanSubagentTasks,
   buildPlanSummary,
   buildSubagentTaskDirective,
   buildSubagentVerificationDirective,
+  chainPlanWriteTaskDependencies,
   completeExecutionState,
   createExecutionState,
   failExecutionState,
@@ -56,6 +58,9 @@ describe('buildSubagentTaskDirective', () => {
     expect(directive?.promptText).toContain('Design');
     expect(directive?.promptText).toContain('types + tests');
     expect(directive?.promptText).toContain('complete only this step');
+    expect(directive?.promptText).toContain('You cannot see the parent conversation');
+    expect(directive?.promptText).toContain('status=done|blocked|needs_context');
+    expect(directive?.promptText).toContain('Acceptance and verification');
   });
 
   it('returns null for an unknown step id', () => {
@@ -70,9 +75,10 @@ describe('buildPlanSubagentTask', () => {
       id: '1',
       parentSessionId: 's1',
       profileId: 'implementer',
-      applyPolicy: 'auto',
+      applyPolicy: 'explicit',
+      deliveryIntent: 'candidate',
+      retainWorktree: true,
     });
-    expect(task?.deliveryIntent).toBeUndefined();
   });
 
   it('preserves an explicit step profile', () => {
@@ -81,8 +87,40 @@ describe('buildPlanSubagentTask', () => {
       '1',
     );
     expect(task?.profileId).toBe('reviewer');
-    expect(task?.applyPolicy).toBe('auto');
-    expect(task?.deliveryIntent).toBeUndefined();
+    expect(task?.applyPolicy).toBe('explicit');
+    expect(task?.deliveryIntent).toBe('candidate');
+  });
+});
+
+describe('chainPlanWriteTaskDependencies', () => {
+  it('chains write tasks that omitted dependsOn in plan order', () => {
+    const tasks = buildPlanSubagentTasks(plan(), ['1', '2']);
+    expect(tasks[0]?.dependsOn).toBeUndefined();
+    expect(tasks[1]?.dependsOn).toEqual(['1']);
+    expect(tasks.every((task) => task.applyPolicy === 'explicit')).toBe(true);
+  });
+
+  it('preserves an explicit dependsOn edge', () => {
+    const chained = chainPlanWriteTaskDependencies([
+      {
+        id: 'a',
+        parentSessionId: 's1',
+        task: 'a',
+      },
+      {
+        id: 'b',
+        parentSessionId: 's1',
+        task: 'b',
+        dependsOn: ['a'],
+      },
+      {
+        id: 'c',
+        parentSessionId: 's1',
+        task: 'c',
+      },
+    ]);
+    expect(chained[1]?.dependsOn).toEqual(['a']);
+    expect(chained[2]?.dependsOn).toEqual(['b']);
   });
 });
 
@@ -91,6 +129,8 @@ describe('buildSubagentVerificationDirective', () => {
     const directive = buildSubagentVerificationDirective(plan());
     expect(directive.promptText).toContain('verify');
     expect(directive.promptText).toContain('Host generates the separate Walkthrough Artifact');
+    expect(directive.promptText).toContain('diffs, changed-file lists, and verification output');
+    expect(directive.promptText).toContain('piwin_subagent_result_apply');
   });
 
   it('requires parent execution of non-independent sequential steps', () => {

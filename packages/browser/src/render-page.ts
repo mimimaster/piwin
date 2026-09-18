@@ -1,6 +1,6 @@
 /** One-shot headless HTML render for `web_fetch` fallback (ADR 0058). */
 
-import { chromium, type Browser } from 'playwright-core';
+import type { Browser } from 'playwright-core';
 
 export class FetchRenderUnavailableError extends Error {
   override name = 'FetchRenderUnavailableError';
@@ -32,14 +32,18 @@ export async function renderPageHtml(
   if (input.signal?.aborted) {
     throw new Error('web_fetch browser render aborted');
   }
-  const launch = dependencies.launch ?? ((options: { headless: boolean }) => chromium.launch(options));
+  const launch =
+    dependencies.launch ??
+    (async (options: { headless: boolean }) => {
+      const { chromium } = await import('playwright-core');
+      return chromium.launch(options);
+    });
   let browser: Browser | undefined;
   try {
     browser = await launch({ headless: true });
   } catch (error) {
     throw new FetchRenderUnavailableError(
-      'headless Chromium could not be launched. Install it with: ' +
-        'pnpm --dir apps/desktop e2e:install',
+      'headless Chromium could not be launched. Open the browser panel once to download it into ~/.piwin/playwright.',
       { cause: error },
     );
   }

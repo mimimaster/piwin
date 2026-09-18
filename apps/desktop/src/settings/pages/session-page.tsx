@@ -26,6 +26,7 @@ import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 import { chooseSessionExportPath } from '../../session-export-dialog';
 import { SessionRuntimePage } from './session-runtime-page.js';
+import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
 type SessionSubTab = 'lifecycle' | 'runtime';
 
@@ -613,10 +614,11 @@ export function SessionPage(): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const [activeTab, setActiveTab] = useState<SessionSubTab>('lifecycle');
+  useResetSettingsMainScroll(activeTab);
 
   return (
-    <div className="settings-card session-hub-page" data-testid="settings-session-hub">
-      <div style={{ marginBottom: 16 }}>
+    <div className="settings-card settings-hub-page session-hub-page" data-testid="settings-session-hub">
+      <div className="session-hub-tabs">
         <SegmentedControl
           value={activeTab}
           onChange={(val) => setActiveTab(val as SessionSubTab)}
@@ -628,9 +630,9 @@ export function SessionPage(): ReactElement {
         />
       </div>
 
-      {activeTab === 'lifecycle' && <SessionLifecycleSection />}
-      {activeTab === 'runtime' && <SessionRuntimePage />}
+      <div className="session-hub-panels">
+        {activeTab === 'lifecycle' ? <SessionLifecycleSection /> : <SessionRuntimePage />}
+      </div>
     </div>
   );
 }
-

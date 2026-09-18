@@ -4,11 +4,13 @@
  * Row 1: tabs and panel actions — inside the right panel it merges into that
  * panel's titlebar instead. Row 2: navigation, address bar, mode group.
  * Secondary tools (console, open external, restart) live in the ⋯ menu.
+ * The host titlebar already has a + (open another tool). Do not add a second
+ * + for new tab there — that action goes in ⋯ while chrome is merged.
  * Controls are icon-only — the address bar submits on Enter, Reload always
  * targets the Host-committed page and never reads the draft, and the mode group
  * keeps pick/viewport directly reachable.
  */
-import { type FormEvent, type ReactElement } from 'react';
+import { useEffect, type FormEvent, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import type {
   BrowserController,
@@ -184,6 +186,15 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
   const tabsSlot = titlebar?.tabsSlot ?? null;
   const actionsSlot = titlebar?.actionsSlot ?? null;
   const inTitlebar = tabsSlot !== null && actionsSlot !== null;
+  const pageTabCount = tabs.length;
+  const closeHost = titlebar?.closeHost;
+  const setPageTabCount = titlebar?.setPageTabCount;
+
+  useEffect(() => {
+    if (!setPageTabCount) return;
+    setPageTabCount(pageTabCount);
+    return () => setPageTabCount(0);
+  }, [pageTabCount, setPageTabCount]);
 
   const tabsNode = (
     <>
@@ -211,25 +222,29 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
             aria-label={copy.closeTab}
             disabled={!interactEnabled}
             onClick={() => {
+              const lastPageTab = pageTabCount <= 1;
               void requestBrowserCloseTab(hostClient, tab.pageId);
+              if (lastPageTab) closeHost?.();
             }}
           >
             <IconClose width={10} height={10} />
           </button>
         </span>
       ))}
-      <IconButton
-        className="browser-session-icon-btn"
-        data-testid="browser-session-new-tab"
-        label={copy.newTab}
-        size={24}
-        disabled={!interactEnabled}
-        onClick={() => {
-          void requestBrowserNewTab(hostClient);
-        }}
-      >
-        <IconPlus width={14} height={14} />
-      </IconButton>
+      {inTitlebar ? null : (
+        <IconButton
+          className="browser-session-icon-btn"
+          data-testid="browser-session-new-tab"
+          label={copy.newTab}
+          size={24}
+          disabled={!interactEnabled}
+          onClick={() => {
+            void requestBrowserNewTab(hostClient);
+          }}
+        >
+          <IconPlus width={14} height={14} />
+        </IconButton>
+      )}
     </>
   );
 
@@ -250,6 +265,21 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
         </IconButton>
       }
     >
+      {inTitlebar ? (
+        <>
+          <DropdownMenuItem
+            testId="browser-session-more-new-tab"
+            icon={<IconPlus width={13} height={13} />}
+            disabled={!interactEnabled}
+            onSelect={() => {
+              void requestBrowserNewTab(hostClient);
+            }}
+          >
+            {copy.newTab}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>
+      ) : null}
       <DropdownMenuItem
         testId="browser-session-dev-drawer"
         icon={<IconTerminal width={13} height={13} />}

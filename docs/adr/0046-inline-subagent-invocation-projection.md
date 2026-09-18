@@ -77,8 +77,9 @@ terminal batch or silently leave a retained worktree.
   retain a compatibility renderer, while new invocations use the parent tool
   anchor and the shared child transcript renderer.
 - A historical General session is never guessed into a project. The explicit
-  **Continue in project…** operation creates a project-scoped copy and retains
-  the original audit trail.
+  **Continue in project…** operation copies the session into the chosen
+  destination scope — a trusted project, or `No Repo` (General) to carry a
+  repo-bound session back out — and retains the original audit trail.
 
 ## Acceptance criteria
 

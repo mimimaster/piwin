@@ -691,6 +691,7 @@ describe('config-store', () => {
     expect(listed.map((scheme) => scheme.id)).toEqual([
       'ultra-code',
       'reviewed-delivery',
+      'fusion',
       'my-review',
     ]);
     expect(listed.find((scheme) => scheme.id === 'reviewed-delivery')?.source).toBe('builtin');

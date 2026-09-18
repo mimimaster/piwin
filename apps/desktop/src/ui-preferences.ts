@@ -11,6 +11,9 @@ import {
   PIWIN_APPEARANCE_INKSTONE_PAPER,
   PIWIN_APPEARANCE_OBSIDIAN,
 } from './theme/deck-palette.js';
+import type { CustomFontPreferences } from './theme/font-manager.js';
+
+export type { CustomFontPreferences } from './theme/font-manager.js';
 
 export type ToolCallDensity = 'compact' | 'comfortable' | 'detailed';
 
@@ -170,6 +173,8 @@ export type DesktopPreferences = {
   terminalRecentDirs?: string[];
   /** Animation selected for the compact live agent locator. */
   agentLocatorAnimation?: AgentLocatorAnimation;
+  /** Custom typography preferences (Sans, Mono, Serif). */
+  customFonts?: CustomFontPreferences | undefined;
 };
 
 const TOOL_DENSITY_KEY = 'piwin.desktop.toolCallDensity';
@@ -187,8 +192,27 @@ const TERMINAL_LAST_CWD_KEY = 'piwin.desktop.terminalLastCwd';
 const TERMINAL_RECENT_DIRS_KEY = 'piwin.desktop.terminalRecentDirs';
 const AGENT_LOCATOR_ANIMATION_KEY = 'piwin.desktop.agentLocatorAnimation';
 const BROWSER_VIEWPORT_KEY = 'piwin.desktop.browserViewport';
+const CUSTOM_FONTS_KEY = 'piwin.desktop.customFonts';
 /** Last successfully applied theme id — used for pre-paint bootstrap (no FOUC). */
 const LAST_THEME_ID_KEY = 'piwin.desktop.lastThemeId';
+
+function parseCustomFonts(raw: string | null): CustomFontPreferences | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === 'object' && parsed !== null) {
+      const p = parsed as Record<string, unknown>;
+      const result: CustomFontPreferences = {};
+      if (typeof p.sansFont === 'string' && p.sansFont.trim()) result.sansFont = p.sansFont.trim();
+      if (typeof p.monoFont === 'string' && p.monoFont.trim()) result.monoFont = p.monoFont.trim();
+      if (typeof p.serifFont === 'string' && p.serifFont.trim()) result.serifFont = p.serifFont.trim();
+      return Object.keys(result).length > 0 ? result : undefined;
+    }
+  } catch {
+    // ignore parse error
+  }
+  return undefined;
+}
 
 function readString(key: string): string | null {
   try {
@@ -338,6 +362,9 @@ export function loadDesktopPreferences(): DesktopPreferences {
       : {}),
     ...(lastCwd ? { terminalLastCwd: lastCwd } : {}),
     ...(recentDirsRaw ? { terminalRecentDirs: parseStringArray(recentDirsRaw) ?? [] } : {}),
+    ...(parseCustomFonts(readString(CUSTOM_FONTS_KEY)) !== undefined
+      ? { customFonts: parseCustomFonts(readString(CUSTOM_FONTS_KEY)) }
+      : {}),
   };
 }
 
@@ -361,6 +388,15 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   }
   if (prefs.terminalRecentDirs) {
     writeString(TERMINAL_RECENT_DIRS_KEY, JSON.stringify(prefs.terminalRecentDirs));
+  }
+  if (prefs.customFonts && Object.keys(prefs.customFonts).length > 0) {
+    writeString(CUSTOM_FONTS_KEY, JSON.stringify(prefs.customFonts));
+  } else {
+    try {
+      localStorage.removeItem(CUSTOM_FONTS_KEY);
+    } catch {
+      // ignore
+    }
   }
 }
 

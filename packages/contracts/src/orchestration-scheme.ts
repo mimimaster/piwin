@@ -12,6 +12,7 @@ import type { ModelRef, ThinkingLevel } from './host.js';
 import { isThinkingLevel } from './host.js';
 import type { SubagentIsolationMode } from './subagent.js';
 import { BUILTIN_REVIEWED_DELIVERY_SCHEME } from './orchestration-scheme-reviewed-delivery.js';
+import { BUILTIN_FUSION_SCHEME } from './orchestration-scheme-fusion.js';
 
 export {
   BUILTIN_REVIEWED_DELIVERY_SCHEME,
@@ -20,6 +21,14 @@ export {
   REVIEWED_DELIVERY_SCHEME_ID,
   REVIEWED_DELIVERY_WORKER_ROLE,
 } from './orchestration-scheme-reviewed-delivery.js';
+export {
+  BUILTIN_FUSION_SCHEME,
+  FUSION_SCHEME_ID,
+  FUSION_SIDEKICK_REPORT_CONTRACT,
+  FUSION_SIDEKICK_ROLE,
+  PIWIN_FUSION_BRIEF_MARKER,
+  formatFusionBriefEnvelope,
+} from './orchestration-scheme-fusion.js';
 
 /** Wait policy for orchestration schemes. */
 export type OrchestrationWaitPolicy = 'await-all' | 'fire-and-continue';
@@ -116,7 +125,7 @@ export const ULTRA_CODE_SCOUT_ROLE = 'scout' as const;
 /** Pre-rename Ultra Code role; aliased to scout only on scheme id ultra-code. */
 const LEGACY_ULTRA_CODE_SCOUT_ROLE = 'searcher';
 
-/** Scheme ids are lowercase kebab tokens (builtins: ultra-code, reviewed-delivery). */
+/** Scheme ids are lowercase kebab tokens (builtins: ultra-code, reviewed-delivery, fusion). */
 export const ORCHESTRATION_SCHEME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Role ids: start with a letter; lowercase alnum, hyphen, underscore. */
@@ -277,9 +286,9 @@ export function formatSubagentReportContractBlock(contract: string | undefined):
   return `${PIWIN_REPORT_CONTRACT_MARKER}\n${trimmed}\nYour last assistant message must follow this contract. The parent only reads that message.`;
 }
 
-/** True when an assistant message follows the scout report-contract first line. */
+/** True when an assistant message follows a scheme report-contract first line. */
 export function isSubagentReportContractMessage(text: string): boolean {
-  return /^(complete|partial|blocked)\b/i.test(text.trim());
+  return /^(complete|partial|blocked|done|escalate)\b/i.test(text.trim());
 }
 
 /**
@@ -316,6 +325,7 @@ export const BUILTIN_ULTRA_CODE_SCHEME: OrchestrationScheme = {
 const BUILTIN_SCHEMES: readonly OrchestrationScheme[] = [
   BUILTIN_ULTRA_CODE_SCHEME,
   BUILTIN_REVIEWED_DELIVERY_SCHEME,
+  BUILTIN_FUSION_SCHEME,
 ];
 
 /**
@@ -750,8 +760,10 @@ export function resolveOrchestrationScheme(
 export function formatOrchestrationSchemeRoster(resolved: ResolvedOrchestrationScheme): string {
   const lines = resolved.members.map((member) => {
     const bits: string[] = [];
-    if (member.model) {
+    if (resolved.exposeSpawnMetadata && member.model) {
       bits.push(`model: ${member.model.providerId}/${member.model.modelId}`);
+    } else if (member.model) {
+      bits.push('model: profile-resolved');
     } else {
       bits.push('model: inherit');
     }

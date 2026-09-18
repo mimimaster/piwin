@@ -6,7 +6,7 @@
  * The page is a single shared resource: every operation serializes through a
  * promise-chain mutex ("browser bus") so agent calls and picks never interleave
  * against a mid-navigation page. Chromium launches lazily on first use and fails
- * fast with an actionable error when the binary is missing.
+ * fast with an actionable error when the binary is missing after first-use install.
  */
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -64,6 +64,7 @@ import {
   BrowserSessionError,
   BrowserStaleTargetError,
 } from './browser-errors.js';
+import type { EnsureOwnedChromium } from './ensure-playwright-chromium.js';
 
 export type BrowserFramePush = Extract<HostPush, { type: 'browser/frame' }>;
 export type BrowserStatePush = Extract<HostPush, { type: 'browser/state' }>;
@@ -108,6 +109,8 @@ export type BrowserSessionOptions = {
   launchPersistentContext?: BrowserLaunchPersistentContext;
   /** Test seam for dialog auto-dismiss. */
   dialogTimeoutMs?: number;
+  /** Host-owned Chromium: download into PLAYWRIGHT_BROWSERS_PATH before launch. */
+  ensureChromium?: EnsureOwnedChromium;
   /**
    * How live frames reach the shell (spec §4.1.2). `inline` keeps base64 in the
    * local JSON path; `binary` publishes metadata only and hands the JPEG bytes
@@ -322,6 +325,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       ...(options.launchPersistentContext !== undefined
         ? { launchPersistentContext: options.launchPersistentContext }
         : {}),
+      ...(options.ensureChromium !== undefined ? { ensureChromium: options.ensureChromium } : {}),
       ...(options.dialogTimeoutMs !== undefined ? { dialogTimeoutMs: options.dialogTimeoutMs } : {}),
     },
     hooks,

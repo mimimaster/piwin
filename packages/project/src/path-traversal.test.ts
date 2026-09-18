@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   escapesRoot,
+  findRegisteredProjectRoot,
   isRegisteredProjectRoot,
   normalizeProjectRootPath,
   resolveInsideRoot,
@@ -130,6 +131,28 @@ describe('isRegisteredProjectRoot', () => {
 
   it('normalizes trailing separators consistently', () => {
     expect(normalizeProjectRootPath('/tmp/proj/')).toBe(path.resolve('/tmp/proj/'));
+  });
+});
+
+describe('findRegisteredProjectRoot', () => {
+  it('returns the stored path for a realpath alias of a registered symlink', async () => {
+    const realRoot = await mkdtemp(path.join(tmpdir(), 'piwin-reg-real-'));
+    const aliasParent = await mkdtemp(path.join(tmpdir(), 'piwin-reg-alias-'));
+    const aliasRoot = path.join(aliasParent, 'proj-link');
+    await symlink(realRoot, aliasRoot);
+
+    const matchedFromReal = await findRegisteredProjectRoot([aliasRoot], realRoot);
+    expect(matchedFromReal).toBe(aliasRoot);
+    expect(isRegisteredProjectRoot([aliasRoot], realRoot)).toBe(false);
+
+    const matchedFromAlias = await findRegisteredProjectRoot([aliasRoot], aliasRoot);
+    expect(matchedFromAlias).toBe(aliasRoot);
+  });
+
+  it('does not treat a different directory as an alias', async () => {
+    const registered = await mkdtemp(path.join(tmpdir(), 'piwin-reg-keep-'));
+    const other = await mkdtemp(path.join(tmpdir(), 'piwin-reg-other-'));
+    expect(await findRegisteredProjectRoot([registered], other)).toBeUndefined();
   });
 });
 

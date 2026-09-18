@@ -67,6 +67,7 @@ export const BROWSER_AGENT_HAS_CONTROL = 'browser-agent-has-control';
 export type BrowserLifecycle =
   | 'stopped'
   | 'starting'
+  | 'installing'
   | 'ready'
   | 'recovering'
   | 'failed'

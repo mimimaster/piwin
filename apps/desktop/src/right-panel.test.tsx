@@ -4,11 +4,12 @@
  */
 
 import { describe, expect, it, afterEach, vi } from 'vitest';
-import { act } from 'react';
+import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { HostResponse, SessionSummary, SubagentInvocation } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { RightPanel, selectMountedRightPanelTabs, type RightPanelTab } from './right-panel';
+import { useSurfaceTitlebar } from './surface-titlebar.js';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { RIGHT_PANEL_STATE_STORAGE_KEY, writeStoredRightPanelState } from './right-panel-memory';
 import { DesktopLocaleProvider } from './desktop-locale-context';
@@ -50,6 +51,14 @@ function renderPanel(props: Partial<Parameters<typeof RightPanel>[0]> = {}): {
     );
   });
   return { container, root };
+}
+
+function BrowserBodyWithPageTabs(props: { count: number }) {
+  const titlebar = useSurfaceTitlebar();
+  useEffect(() => {
+    titlebar?.setPageTabCount?.(props.count);
+  }, [props.count, titlebar]);
+  return <div data-testid="browser-body">browser</div>;
 }
 
 describe('RightPanel multi-tab', () => {
@@ -487,7 +496,7 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="side-chat-body"]')).not.toBeNull();
   });
 
-  it('lets browser page tabs replace the lone browser tool tab in the titlebar', () => {
+  it('keeps the browser tool tab closeable when there are no page tabs', () => {
     writeStoredRightPanelState({ openTabs: ['browser'], activeTab: 'browser' });
     const rendered = renderPanel({
       activeTab: 'browser',
@@ -496,20 +505,35 @@ describe('RightPanel multi-tab', () => {
     root = rendered.root;
     container = rendered.container;
 
-    expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).not.toBeNull();
     const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
     expect(tabstrip?.classList.contains('has-browser-tabs')).toBe(true);
     const tabsSlot = container.querySelector('[data-testid="right-panel-side-chat-tabs-slot"]');
     const actionsSlot = container.querySelector('[data-testid="right-panel-surface-actions-slot"]');
     expect(tabsSlot?.hasAttribute('hidden')).toBe(false);
     expect(actionsSlot?.hasAttribute('hidden')).toBe(false);
+    expect(tabstrip?.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();
 
     const closeBrowser = container.querySelector<HTMLButtonElement>(
-      '[data-testid="right-panel-close-browser-btn"]',
+      '[data-testid="right-panel-close-tab-browser"]',
     );
     expect(closeBrowser).not.toBeNull();
     act(() => closeBrowser?.click());
     expect(container.querySelector('[data-testid="browser-body"]')).toBeNull();
+  });
+
+  it('hides the browser tool tab once page tabs occupy the titlebar', () => {
+    writeStoredRightPanelState({ openTabs: ['browser'], activeTab: 'browser' });
+    const rendered = renderPanel({
+      activeTab: 'browser',
+      browserContent: <BrowserBodyWithPageTabs count={1} />,
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="browser-body"]')).not.toBeNull();
   });
 
   it('lists docked tools beside its own tabs and hosts them in one shared slot', () => {
@@ -577,10 +601,12 @@ describe('RightPanel multi-tab', () => {
 
     const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
     expect(tabstrip?.classList.contains('has-browser-tabs')).toBe(true);
-    expect(titlebars.at(-1)).toEqual({
-      tabsSlot: container.querySelector('[data-testid="right-panel-side-chat-tabs-slot"]'),
-      actionsSlot: container.querySelector('[data-testid="right-panel-surface-actions-slot"]'),
-    });
+    expect(titlebars.at(-1)).toEqual(
+      expect.objectContaining({
+        tabsSlot: container.querySelector('[data-testid="right-panel-side-chat-tabs-slot"]'),
+        actionsSlot: container.querySelector('[data-testid="right-panel-surface-actions-slot"]'),
+      }),
+    );
   });
 
   it('keeps the titlebar drag region after the side-chat slot so +/sync can pack to the tabs', () => {

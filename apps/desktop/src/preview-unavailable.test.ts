@@ -46,6 +46,15 @@ describe('previewUnavailableCopy', () => {
     expect(copy.detail).not.toContain('outside-project');
     expect(copy.detail).toContain('项目');
   });
+
+  it('explains a symlink alias without dumping the host code', () => {
+    const copy = previewUnavailableCopy({
+      reason: 'project-root-not-registered',
+      locale: 'zh-CN',
+    });
+    expect(copy.detail).not.toContain('project-root-not-registered');
+    expect(copy.detail).toContain('符号链接');
+  });
 });
 
 describe('classifyFileTreePreviewUnavailable', () => {

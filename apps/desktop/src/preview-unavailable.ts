@@ -75,6 +75,13 @@ export function previewUnavailableCopy(input: {
           ? '该文件不在当前项目或可信目录内。'
           : 'This file is outside the current project or trusted folders.',
       };
+    case 'project-root-not-registered':
+      return {
+        title: zh ? '无法加载预览' : 'Preview unavailable',
+        detail: zh
+          ? '当前路径和已打开的项目对不上（常见于符号链接）。请从侧栏重新打开该文件夹。'
+          : 'This path is not the registered project folder (a symlink alias can look like a different path). Re-open the project from the sidebar.',
+      };
     case 'media-unavailable':
       return {
         title: zh ? '无法加载预览' : 'Preview unavailable',

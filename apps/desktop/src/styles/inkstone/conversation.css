@@ -73,6 +73,29 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   overflow: hidden;
 }
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation
+  .user-message-bubble.user-message-collapsible.is-collapsed {
+  --user-message-mask: var(--s3);
+  align-items: start;
+  align-content: start;
+  justify-items: start;
+  overflow: clip;
+  overflow-anchor: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation
+  .user-message-bubble.user-message-collapsible.is-collapsed
+  .user-message-footer {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  z-index: 2;
+  grid-column: auto;
+  grid-row: auto;
+}
+
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-avatar,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-response > .conversation-message-header {
   display: none;
@@ -93,8 +116,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 /* Action controls remain keyboard reachable and no longer mask the final
-   words of a short prompt. One-line cards keep copy/edit on the same row
-   at the bottom-right instead of growing a second in-flow row. */
+   words of a short prompt. One-line cards keep copy/edit on the same row.
+   Multi-line cards overlay copy/edit at the bottom-right instead of leaving
+   a reserved column beside every line. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-footer {
   position: static;
   grid-column: 2;
@@ -148,12 +172,49 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .user-message-wrapper.is-conversation
+  .user-message-bubble.is-multiline
+  .user-message-footer {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  z-index: 2;
+  grid-column: auto;
+  grid-row: auto;
+  padding: 6px 0 0 44px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--s3) 70%, transparent) 32%,
+    var(--s3) 58%
+  );
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation
+  .user-message-bubble.is-multiline
+  > .user-message-text,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation
+  .user-message-bubble.is-multiline
+  > .message-attachments {
+  grid-column: 1 / -1;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation
+  .user-message-bubble
+  .user-message-footer:has([data-testid='intervention-delivery-status']),
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation
+  .user-message-bubble.is-multiline
   .user-message-footer:has([data-testid='intervention-delivery-status']) {
+  position: static;
   grid-column: 1 / -1;
   grid-row: auto;
   width: 100%;
   padding: 6px 0 0;
   justify-content: flex-end;
+  background: transparent;
 }
 
 /* proto-01 `.atts` / `.att` — history capsules on the paper user card */

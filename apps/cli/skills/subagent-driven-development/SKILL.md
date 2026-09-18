@@ -1,18 +1,18 @@
 ---
 name: subagent-driven-development
-description: Execute an approved plan by delegating independent steps to isolated child sessions, then merge and verify in the parent. Trigger via /subagent-driven-development or the plan execution gate.
+description: Execute an approved plan by delegating isolatable steps to isolated child sessions (Host serializes writers), then review diffs and verify in the parent. Trigger via /subagent-driven-development or the plan execution gate.
 version: 2
 ---
 
 # Subagent-Driven Development
 
 ## Goal
-Finish an approved plan by running independent steps in child sessions and producing a correct merged parent state with verification evidence.
+Finish an approved plan by running isolatable steps in child sessions one writer at a time, then producing a correct parent state with verification evidence.
 
 ## Done means
 - A plan exists (`/writing-plans` or `piwin_plan_create`) with honest `independentSteps` (or fall back to `executing-plans` / inline).
-- Each independent step runs in a child with a self-contained task: step title/detail, plan goal, acceptance criteria, and “implement only this step”.
-- Parent merges children, updates steps via `piwin_plan_set_step`, and records failures instead of hiding them.
+- Each isolatable step runs in a child with a self-contained brief: step title/detail, plan goal, acceptance criteria, verification, and “implement only this step”. The child does not see the parent transcript.
+- Parent reviews child diffs and verification output, applies approved candidates, updates steps via `piwin_plan_set_step`, and records failures instead of hiding them.
 - Final parent verification passes (or failures are explicit).
 - Bounded walkthrough summary exists: what changed, verification, child outcomes, unresolved items.
 
@@ -23,8 +23,8 @@ Finish an approved plan by running independent steps in child sessions and produ
 
 ## Constraints
 - Profiles from Settings bound capabilities; optional per-step `profileId` / model overrides cannot widen isolation.
-- `parallelGroup` only with no data/file/resource dependency; use `dependsOn` otherwise.
-- Readonly for explore/review; worktree for writes. Shared-cwd parallel writes are rejected by the host.
+- `parallelGroup` does not authorize concurrent worktree writes. Host runs at most one writer; use `dependsOn` for true sequencing.
+- Readonly for explore/review (may run in parallel); worktree for writes (serialized). Shared-cwd parallel writes are rejected by the host.
 - Host serializes worktree integration and retains failed/conflicted worktrees for inspection.
 - Depth: children do not spawn further subagents via this path.
 

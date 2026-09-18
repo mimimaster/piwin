@@ -428,4 +428,27 @@ describe('SessionPage settings', () => {
         ?.disabled,
     ).toBe(true);
   });
+
+  it('keeps subtabs above the policy panel and does not mount runtime until selected', () => {
+    act(() => {
+      root!.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+            <SettingsProvider value={createContextValue(baseConfig())}>
+              <SessionPage />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>,
+      );
+    });
+
+    const hub = container!.querySelector('[data-testid="settings-session-hub"]');
+    const tabs = hub?.querySelector('.session-hub-tabs');
+    const panels = hub?.querySelector('.session-hub-panels');
+    expect(tabs).not.toBeNull();
+    expect(panels).not.toBeNull();
+    expect(tabs?.compareDocumentPosition(panels!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container!.querySelector('[data-testid="session-compact-export-section"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="session-runtime-section"]')).toBeNull();
+  });
 });

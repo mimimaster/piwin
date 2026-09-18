@@ -3100,6 +3100,63 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('continues a project session in No Repo without reclassifying the source', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-continue-general-'));
+    const projectPath = join(rootDir, 'project');
+    await mkdir(projectPath, { recursive: true });
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    await runtime.handleCommand({ type: 'project/open', path: projectPath });
+    await runtime.handleCommand({ type: 'project/trust', path: projectPath });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { scope: { kind: 'project', projectPath }, sessionName: 'Repo-bound history' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sourceId = (created.data as { sessionId: string }).sessionId;
+
+    const continued = await runtime.handleCommand({
+      type: 'session/duplicate',
+      sessionId: sourceId,
+      targetScope: { kind: 'general' },
+      messageProjection: 'none',
+    });
+    expect(continued.success).toBe(true);
+    if (!continued.success) throw new Error(continued.error);
+    const data = continued.data as {
+      sessionId: string;
+      session: {
+        name?: string;
+        scope: { kind: string; projectPath?: string };
+        workingDirectory: string;
+      };
+    };
+    expect(data.session.name).toBe('Repo-bound history');
+    expect(data.session.scope).toEqual({ kind: 'general' });
+    expect(data.session.workingDirectory).toBe(getPiwinGeneralWorkspacePath(rootDir));
+
+    const generalList = await runtime.handleCommand({
+      type: 'session/list',
+      scope: { kind: 'general' },
+    });
+    const projectList = await runtime.handleCommand({
+      type: 'session/list',
+      scope: { kind: 'project', projectPath },
+    });
+    expect(generalList.success).toBe(true);
+    expect(projectList.success).toBe(true);
+    if (!generalList.success || !projectList.success) throw new Error('session list failed');
+    expect(
+      (generalList.data as { sessions: Array<{ id: string }> }).sessions.map((item) => item.id),
+    ).toContain(data.sessionId);
+    expect(
+      (projectList.data as { sessions: Array<{ id: string }> }).sessions.map((item) => item.id),
+    ).toContain(sourceId);
+
+    await runtime.dispose();
+  });
+
   it('lists and revokes project remembered permissions', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-perms-'));
     const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });

@@ -45,6 +45,7 @@
 .web-search-log-empty {
   display: grid;
   min-height: 112px;
+  flex: 1 0 auto;
   place-items: center;
   color: var(--text-3);
   font-size: var(--fs-micro);

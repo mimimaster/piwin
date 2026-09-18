@@ -26,3 +26,17 @@ action. General history remains in the independent Conversations section below
 Projects, with its original date grouping, full resident list, collapse control,
 and new-conversation action. Selecting No Repo or collapsing Projects must not
 hide Conversations. General sessions are not duplicated beneath No Repo.
+
+## Continue in project… offers No Repo as a destination
+
+The session menu's **Continue in project…** action opens a destination picker
+(`ContinueSessionInProjectDialog`). It always offers `No Repo` next to the
+trusted projects, so a repo-bound session can be carried back into the General
+workspace without a repository binding — the picker is never a dead end when no
+project is trusted.
+
+Both destinations use the same Host operation (`session/duplicate` with an
+explicit `targetScope`, `messageProjection: 'none'`): the source session keeps
+its scope and audit trail, and the copy lands in the chosen workspace. Choosing
+`No Repo` clears the active project in the shell before resuming the copy, so
+the session is shown under No Repo rather than under the project it left.

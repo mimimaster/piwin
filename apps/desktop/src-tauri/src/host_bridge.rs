@@ -430,13 +430,34 @@ fn host_start_blocking(
     let mut command = Command::new(&program);
 
     // Force packaged builds to own ~/.piwin; in dev mode allow PIWIN_ROOT override.
-    if tier != HostCommandTier::Packaged && std::env::var("PIWIN_ROOT").is_ok() {
-        if let Ok(env_root) = std::env::var("PIWIN_ROOT") {
-            command.env("PIWIN_ROOT", env_root);
+    let piwin_root = if tier != HostCommandTier::Packaged && std::env::var("PIWIN_ROOT").is_ok() {
+        std::env::var("PIWIN_ROOT").ok().map(PathBuf::from)
+    } else {
+        app.path().home_dir().ok().map(|home| home.join(".piwin"))
+    };
+    if let Some(root) = piwin_root.as_ref() {
+        command.env("PIWIN_ROOT", root.as_os_str());
+        // Playwright snapshots PLAYWRIGHT_BROWSERS_PATH on first import. Set it
+        // before JS loads so first-use Chromium lands in ~/.piwin/playwright.
+        let browsers_override = if tier == HostCommandTier::Packaged {
+            None
+        } else {
+            std::env::var("PIWIN_PLAYWRIGHT_BROWSERS_PATH")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        };
+        match browsers_override {
+            Some(path) => {
+                command.env("PLAYWRIGHT_BROWSERS_PATH", path);
+            }
+            None => {
+                command.env(
+                    "PLAYWRIGHT_BROWSERS_PATH",
+                    root.join("playwright").as_os_str(),
+                );
+            }
         }
-    } else if let Ok(home) = app.path().home_dir() {
-        let piwin_root = home.join(".piwin");
-        command.env("PIWIN_ROOT", piwin_root.as_os_str());
     }
     if tier == HostCommandTier::Packaged {
         // The bundled Host must ignore a launcher environment such as

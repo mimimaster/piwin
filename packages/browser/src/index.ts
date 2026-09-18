@@ -76,6 +76,21 @@ export {
 export type { BrowserViewportSize, ResolveBrowserViewportInput } from './viewport.js';
 export { getBrowserInstallStatus, classifyBrowserLaunchError } from './install-status.js';
 export type { BrowserInstallStatus, BrowserInstallFailureReason } from './install-status.js';
+export {
+  DEFAULT_PLAYWRIGHT_CHROMIUM_VARIANT,
+  playwrightChromiumInstallCliArgs,
+} from './playwright-chromium-variant.js';
+export type { PlaywrightChromiumVariant } from './playwright-chromium-variant.js';
+export {
+  ensurePlaywrightChromium,
+  installPlaywrightChromium,
+  resolvePlaywrightCoreCliPath,
+} from './ensure-playwright-chromium.js';
+export type {
+  EnsureOwnedChromium,
+  EnsureOwnedChromiumProgress,
+  PlaywrightChromiumInstaller,
+} from './ensure-playwright-chromium.js';
 export { renderPageHtml, FetchRenderUnavailableError } from './render-page.js';
 export type {
   RenderPageHtmlInput,

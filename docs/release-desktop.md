@@ -33,6 +33,9 @@ notarization is **optional** (residual **D-ENG-03b** when certs unavailable).
 
 - No pnpm / tsx / source checkout required for packaged builds.
 - Dev (`pnpm dev:tauri`) still uses workspace `pnpm`/`tsx` (tier 2).
+- First open of the browser panel downloads Playwright Chromium headless
+  shell (~190MB) into `~/.piwin/playwright` (not bundled in the `.app`).
+  Needs network once. Headed mode is a larger download.
 
 ## One-command package
 

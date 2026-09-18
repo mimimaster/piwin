@@ -1432,6 +1432,26 @@ describe('ComposerDock host status', () => {
     expect(document.activeElement).toBe(chip);
   });
 
+  it('keeps Tab inside the textarea instead of walking toolbar chrome', () => {
+    const rendered = renderDock(<ComposerDock {...baseProps} composer="hello" />);
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    expect(input).not.toBeNull();
+    const tabEvent = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      input?.focus();
+      input?.dispatchEvent(tabEvent);
+    });
+    expect(tabEvent.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(input);
+  });
+
   it('keeps send enabled while a media attachment is preparing (send will wait)', () => {
     const handleSend = vi.fn();
     const rendered = renderDock(

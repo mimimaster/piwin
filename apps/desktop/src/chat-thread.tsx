@@ -768,7 +768,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                         locale: props.locale,
                         forceRole: 'assistant',
                         model: turnModel,
-                        elapsedMs: workDisclosureProjection?.elapsedMs,
                         contextUsage: props.contextUsage,
                         status: assistantStatus,
                         statusTone: currentTurnStreaming

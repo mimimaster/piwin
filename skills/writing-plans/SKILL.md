@@ -7,18 +7,18 @@ version: 8
 # Writing Plans
 
 ## Goal
-Produce one reviewable `SessionPlan` the user can approve before any implementation. The plan is the deliverable — not a Markdown checklist and not code changes. Prefer modular, decoupled steps that maximize potential parallel subagent dispatch.
+Produce one reviewable `SessionPlan` the user can approve before any implementation. The plan is the deliverable — not a Markdown checklist and not code changes. Prefer modular, decoupled steps that can run in isolated child sessions. Host serializes worktree writers.
 
 ## Decoupling Principles
-- **Modular Slicing**: Partition tasks by distinct files, packages, or domains to prevent concurrent editing conflicts on shared resources.
+- **Modular Slicing**: Partition tasks by distinct files, packages, or domains so each slice can run in its own child session.
 - **Honest Dependency Modeling**: Add `dependsOn` ONLY when Step B strictly requires the output or type artifact of Step A. Leave naturally independent tasks (e.g. independent components, tests, distinct endpoints) unblocked.
 
 ## Done means
 - Relevant code/docs/ADRs are grounded enough that steps are decision-complete (or open decisions are explicit questions).
 - `piwin_plan_create` succeeds with: `title`, `goal`, ordered `steps` (stable ids, short titles), and each step `detail` covering affected area, **acceptance criteria**, and **verification** (prefer an executable verification command).
 - `source: 'skill'`, `skillId: 'writing-plans'`.
-- `dependsOn` / `parallelGroup` set only when needed for honest sequencing or concurrent groups.
-- `independentSteps` lists only steps safe to run in isolated child sessions (no shared-file conflicts). Omit when work is sequential.
+- `dependsOn` for true sequencing. Do not use `parallelGroup` to request concurrent writes — Host runs at most one worktree writer.
+- `independentSteps` lists steps safe to run in isolated child sessions (not concurrent writers). Omit when work must stay in the parent session.
 - Optional `profileId` per step only when a non-default subagent role is needed (`explorer` | `reviewer` | `implementer` | `tester`).
 - Chat summary states plan size: **short** (<4 steps and <2 independent) or **long** (otherwise). The Host uses this to recommend `inline` vs `subagent-driven`.
 - No shell commands, scripts, or hooks as step fields — plans are reviewable artifacts, not executables.

@@ -7,7 +7,11 @@
  */
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import {
+  BUILTIN_FUSION_SCHEME,
+  BUILTIN_REVIEWED_DELIVERY_SCHEME,
   BUILTIN_ULTRA_CODE_SCHEME,
+  FUSION_SCHEME_ID,
+  REVIEWED_DELIVERY_SCHEME_ID,
   ULTRA_CODE_SCHEME_ID,
   migrateSchemeMembers,
   type OrchestrationScheme,
@@ -26,12 +30,22 @@ import {
   type SchemeModelOption,
 } from './orchestration-scheme-draft';
 
+const BUILTIN_SCHEME_BY_ID: Readonly<Record<string, OrchestrationScheme>> = {
+  [ULTRA_CODE_SCHEME_ID]: BUILTIN_ULTRA_CODE_SCHEME,
+  [REVIEWED_DELIVERY_SCHEME_ID]: BUILTIN_REVIEWED_DELIVERY_SCHEME,
+  [FUSION_SCHEME_ID]: BUILTIN_FUSION_SCHEME,
+};
+
+function isBuiltinSchemeId(schemeId: string): boolean {
+  return Object.prototype.hasOwnProperty.call(BUILTIN_SCHEME_BY_ID, schemeId);
+}
+
 function sourceLabel(
   scheme: OrchestrationScheme,
   hasOverlay: boolean,
   copy: OrchestrationCopy,
 ): string {
-  const isBuiltinBase = scheme.id === ULTRA_CODE_SCHEME_ID;
+  const isBuiltinBase = isBuiltinSchemeId(scheme.id);
   if (isBuiltinBase && hasOverlay) return copy.schemeSourceOverridden;
   if (scheme.source === 'builtin' && !hasOverlay) return copy.schemeSourceBuiltin;
   return copy.schemeSourceSettings;
@@ -113,7 +127,8 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
   }
 
   async function resetBuiltin(schemeId: string): Promise<void> {
-    if (schemeId !== ULTRA_CODE_SCHEME_ID) return;
+    const builtin = BUILTIN_SCHEME_BY_ID[schemeId];
+    if (!builtin) return;
     const confirmed = await confirmDialog.confirm({
       title: copy.resetConfirmTitle,
       description: copy.resetConfirmBody,
@@ -126,13 +141,13 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
     const ok = await props.onPersistSchemes(next);
     if (!ok) return;
     if (editing?.id === schemeId) {
-      setEditing(schemeToEditableDraft(BUILTIN_ULTRA_CODE_SCHEME));
+      setEditing(schemeToEditableDraft(builtin));
     }
     onNotice(copy.schemeSaved);
   }
 
   async function deleteUserScheme(schemeId: string): Promise<void> {
-    if (schemeId === ULTRA_CODE_SCHEME_ID) return;
+    if (isBuiltinSchemeId(schemeId)) return;
     const confirmed = await confirmDialog.confirm({
       title: copy.deleteConfirmTitle,
       description: copy.deleteConfirmBody,
@@ -194,7 +209,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
       <ul className="orch-scheme-list">
         {schemes.map((scheme) => {
           const hasOverlay = overlayIds.has(scheme.id);
-          const isBuiltinBase = scheme.id === ULTRA_CODE_SCHEME_ID;
+          const isBuiltinBase = isBuiltinSchemeId(scheme.id);
           const members = migrateSchemeMembers(scheme);
 
           return (

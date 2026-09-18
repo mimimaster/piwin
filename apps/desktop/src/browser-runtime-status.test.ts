@@ -10,8 +10,10 @@ import {
 describe('browserRuntimeStatusCopy', () => {
   it('returns zh and en strings for starting/recovering/degraded/failed/restart', () => {
     expect(browserRuntimeStatusCopy('zh-CN').failed).toBe('浏览器会话失败。');
+    expect(browserRuntimeStatusCopy('zh-CN').installing).toBe('正在下载浏览器运行时…');
     expect(browserRuntimeStatusCopy('zh-CN').restart).toBe('重启');
     expect(browserRuntimeStatusCopy('en').failed).toBe('Browser session failed.');
+    expect(browserRuntimeStatusCopy('en').installing).toBe('Downloading the browser runtime…');
     expect(browserRuntimeStatusCopy('en').restart).toBe('Restart');
   });
 });
@@ -57,6 +59,13 @@ describe('shouldShowBrowserRuntimeBanner', () => {
     expect(
       shouldShowBrowserRuntimeBanner({
         lifecycle: 'starting',
+        mirror: 'off',
+        mirrorError: null,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowBrowserRuntimeBanner({
+        lifecycle: 'installing',
         mirror: 'off',
         mirrorError: null,
       }),
@@ -120,6 +129,26 @@ describe('browserRuntimeBannerMessage', () => {
         mirrorError: null,
       }),
     ).toBe(copy.recovering);
+  });
+
+  it('uses installing copy while Chromium downloads', () => {
+    expect(
+      browserRuntimeBannerMessage(copy, {
+        lifecycle: 'installing',
+        mirror: 'off',
+        mirrorError: null,
+      }),
+    ).toBe(copy.installing);
+  });
+
+  it('prefers the Host error over generic failed copy', () => {
+    expect(
+      browserRuntimeBannerMessage(copy, {
+        lifecycle: 'failed',
+        mirror: 'off',
+        mirrorError: 'Executable does not exist',
+      }),
+    ).toBe('Executable does not exist');
   });
 });
 

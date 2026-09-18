@@ -32,6 +32,14 @@ describe('extractSkillIdFromLegacyPath', () => {
       'writing-plans',
     );
   });
+
+  it('extracts id from packaged bundled-assets paths', () => {
+    expect(
+      extractSkillIdFromLegacyPath(
+        '/Applications/piwinwin.app/Contents/Resources/host/bundled-assets/skills/karpathy-guidelines/SKILL.md',
+      ),
+    ).toBe('karpathy-guidelines');
+  });
 });
 
 describe('pickEffectiveSkill', () => {

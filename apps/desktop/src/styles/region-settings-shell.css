@@ -557,12 +557,67 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   line-height: 1.1;
 }
 
+
 .settings-main-content {
   width: 100%;
   max-width: none;
   min-width: 0;
   margin: 0;
   box-sizing: border-box;
+}
+
+/* Pin the page title; the hub (tabs + panel) owns the leftover column and
+   scrolls internally so switching a short tab cannot move the control. */
+.settings-main:has(.settings-hub-page) {
+  height: 100%;
+  overflow: hidden;
+}
+
+.settings-main:has(.settings-hub-page) > .settings-main-header,
+.settings-main:has(.settings-hub-page) > .piwin-notice {
+  flex: 0 0 auto;
+}
+
+.settings-main:has(.settings-hub-page) > .settings-main-content {
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.settings-card.settings-hub-page {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-height: 100%;
+  margin-bottom: 0;
+}
+
+.settings-hub-tabs,
+.session-hub-tabs {
+  flex: 0 0 auto;
+  margin-bottom: 16px;
+}
+
+.settings-hub-tabs .piwin-segmented-control .mantine-SegmentedControl-label,
+.session-hub-tabs .piwin-segmented-control .mantine-SegmentedControl-label {
+  white-space: nowrap;
+}
+
+.settings-hub-panels,
+.session-hub-panels {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.settings-hub-panels > *,
+.session-hub-panels > * {
+  flex: 1 1 auto;
+  min-height: 100%;
 }
 
 /* Models page: directory list uses the full content width. */

@@ -134,6 +134,7 @@ const SAMPLE_CALL_LOG: UsageCallLog = {
       cacheWriteTokens: 0,
       totalTokens: 1_850,
       durationMs: 2_500,
+      firstTokenMs: 350,
       source: 'assistant-usage',
     },
     {
@@ -275,59 +276,34 @@ describe('UsagePanel', () => {
     expect(requestedWindow).toBeUndefined();
   });
 
-  it('separates cache rates for the same model by Key', async () => {
+  it('does not render the model x Key card', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
 
-    expect(container?.querySelectorAll('[data-testid^="usage-model-key-row-"]')).toHaveLength(2);
-    expect(
-      container?.querySelector('[data-testid="usage-model-key-cache-rate-work-key::gpt-4o"]')
-        ?.textContent,
-    ).toContain('22%');
-    expect(
-      container?.querySelector('[data-testid="usage-model-key-cache-rate-personal-key::gpt-4o"]')
-        ?.textContent,
-    ).toContain('12%');
+    expect(container?.querySelector('[data-testid="usage-model-key-table"]')).toBeNull();
   });
 
-  it('renders tokens per second for rows with a measured duration and a dash otherwise', async () => {
+  it('renders recent calls with Key, first token latency, and TPS', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
 
-    expect(
-      container?.querySelector('[data-testid="usage-model-key-tps-work-key::gpt-4o"]')?.textContent,
-    ).toBe('100 tok/s');
-    expect(
-      container?.querySelector('[data-testid="usage-model-key-tps-personal-key::gpt-4o"]')
-        ?.textContent,
-    ).toBe('—');
-  });
+    const headers = Array.from(container?.querySelectorAll('.usage-calls-table th') ?? []).map(
+      (th) => th.textContent?.trim(),
+    );
+    expect(headers).toContain('Key');
+    expect(headers).not.toContain('Key（提供商配置）');
+    expect(headers).toContain('首字延迟');
+    expect(headers).not.toContain('用时');
+    expect(headers).toContain('TPS');
+    expect(headers).not.toContain('输出速率');
 
-  it('filters the consolidated table by Key', async () => {
-    ({ root, container } = renderPanel());
-    await flushLoad();
+    const firstTokenCells = container?.querySelectorAll('[data-testid="usage-call-first-token"]');
+    expect(firstTokenCells?.[0]?.textContent).toBe('350ms');
+    expect(firstTokenCells?.[1]?.textContent).toBe('—');
 
-    const searchInput = container?.querySelector(
-      'input[data-testid="usage-search-input"]',
-    ) as HTMLInputElement | null;
-    expect(searchInput).toBeTruthy();
-    act(() => {
-      if (searchInput) {
-        const valueSetter = Object.getOwnPropertyDescriptor(
-          window.HTMLInputElement.prototype,
-          'value',
-        )?.set;
-        valueSetter?.call(searchInput, 'personal');
-        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
-
-    // The filter belongs to the model x Key card; the live call log below is
-    // a separate surface and keeps every row.
-    const modelKeyCard = container?.querySelector('[data-testid="usage-model-key-table"]');
-    expect(container?.querySelectorAll('[data-testid^="usage-model-key-row-"]')).toHaveLength(1);
-    expect(modelKeyCard?.textContent).toContain('personal-key');
-    expect(modelKeyCard?.textContent).not.toContain('work-key');
+    const tpsCells = container?.querySelectorAll('[data-testid="usage-call-tps"]');
+    expect(tpsCells?.[0]?.textContent).toBe('100 tok/s');
+    expect(tpsCells?.[1]?.textContent).toBe('—');
   });
 
   it('drops the intro copy from the toolbar', async () => {

@@ -43,3 +43,152 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     background: transparent;
   }
 }
+
+/* Custom Fonts section */
+.custom-fonts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.custom-fonts-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.03));
+  border: 1px solid var(--line-1, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius-surface, 10px);
+}
+
+.custom-fonts-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.custom-fonts-manager-title h4 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.custom-fonts-upload-hint {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.custom-fonts-manager-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-fonts-empty-hint {
+  font-size: 12px;
+  color: var(--text-3);
+  padding: 12px 0;
+  text-align: center;
+}
+
+.custom-fonts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-font-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--surface-3, var(--panel, #ffffff));
+  border: 1px solid var(--line-1, rgba(0, 0, 0, 0.06));
+  border-radius: 8px;
+}
+
+.custom-font-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.custom-font-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.custom-font-family-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.custom-font-file-meta {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.custom-font-badges {
+  display: flex;
+  gap: 4px;
+}
+
+.custom-font-active-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--iris-wash, rgba(176, 58, 36, 0.1));
+  color: var(--iris, #b03a24);
+  font-weight: 600;
+}
+
+.custom-font-preview-line {
+  font-size: 14px;
+  padding: 6px 8px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.02));
+  border-radius: 6px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-font-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.custom-font-assign-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.custom-font-pill-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2, rgba(0, 0, 0, 0.15));
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all var(--duration-fast, 90ms);
+}
+
+.custom-font-pill-btn:hover {
+  background: var(--hover, rgba(0, 0, 0, 0.05));
+  color: var(--text-1);
+}
+
+.custom-font-pill-btn.is-active {
+  background: var(--iris, #b03a24);
+  border-color: var(--iris, #b03a24);
+  color: var(--on-iris, #ffffff);
+}
+

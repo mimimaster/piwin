@@ -668,7 +668,7 @@ describe('PlanExecutionGate', () => {
     expect(heading?.textContent).toBe('选择计划执行方式');
 
     const desc = gate?.querySelector('.desc');
-    expect(desc?.textContent).toBe('作曲器排队语义 · 4 步 · 2 步可并行');
+    expect(desc?.textContent).toBe('作曲器排队语义 · 4 步 · 2 步可隔离');
 
     const choices = gate?.querySelector('.choices');
     expect(choices).not.toBeNull();
@@ -677,7 +677,7 @@ describe('PlanExecutionGate', () => {
     expect(subagentBtn?.classList.contains('choice')).toBe(true);
     expect(subagentBtn?.classList.contains('rec')).toBe(true);
     expect(subagentBtn?.querySelector('.bd')?.textContent).toBe('A');
-    expect(subagentBtn?.textContent).toContain('推荐 · 子代理执行');
+    expect(subagentBtn?.textContent).toContain('推荐 · 子代理逐步隔离执行');
 
     const inlineBtn = gate?.querySelector('[data-testid="plan-mode-inline"]');
     expect(inlineBtn?.classList.contains('choice')).toBe(true);

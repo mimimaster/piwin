@@ -1,7 +1,8 @@
 import { createRoot } from 'react-dom/client';
 import { DesktopThemeRoot } from './desktop-theme-root';
-import { applyAppearanceToDocument } from './appearance-tokens';
+import { applyAppearanceToDocument, loadAndRegisterAllCustomFonts } from './appearance-tokens';
 import { resolveStartupAppearance } from './theme-startup';
+import { loadDesktopPreferences } from './ui-preferences';
 import { applyWindowChromeToDocument } from './window-chrome';
 import { installDevelopmentPerformanceTimelineGuard } from './development-performance-timeline';
 import { installArtifactMemoryBridge } from './artifact-memory-bridge';
@@ -16,7 +17,9 @@ import './styles.css';
 // frame is not always Noir. Host may still refine custom themes after connect.
 // Once mounted, DesktopThemeRoot is authoritative.
 applyWindowChromeToDocument(document.documentElement);
-applyAppearanceToDocument(resolveStartupAppearance());
+const startupPreferences = loadDesktopPreferences();
+applyAppearanceToDocument(resolveStartupAppearance(), startupPreferences.customFonts);
+void loadAndRegisterAllCustomFonts(startupPreferences.customFonts);
 
 // Wire native memory samples into the Memory Governor before first render so
 // a bloated relaunch degrades immediately instead of after hydration.

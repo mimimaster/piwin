@@ -30,7 +30,7 @@ import type { PetRuntimeSnapshot } from '@piwin/contracts';
 
 import { finalizeRunTranscriptArtifacts } from './transcript-stream-settler.js';
 import { loadPiwinConfig } from './config-store.js';
-import { getPiwinPiAgentDir, getPiwinRoot } from './paths.js';
+import { applyPiwinPlaywrightBrowsersPath, getPiwinPiAgentDir, getPiwinRoot } from './paths.js';
 import { fail, ok } from './response-helpers.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
@@ -605,9 +605,12 @@ export async function ensureBrowserSession(
   if (deps.browserSession) return deps.browserSession;
   if (!deps.browserSessionInit) {
     deps.browserSessionInit = (async () => {
-      const { createBrowserSession } = await import('@piwin/browser');
+      const { createBrowserSession, ensurePlaywrightChromium, getBrowserInstallStatus } =
+        await import('@piwin/browser');
       const rootDir = getPiwinRoot(deps.options.piwinRoot);
+      const browsersPath = applyPiwinPlaywrightBrowsersPath(rootDir);
       const config = await loadPiwinConfig(rootDir);
+      const cdpEndpoint = config.browser?.cdpEndpoint;
       // Host-owned CSS viewport is fixed 1280×800; the panel only scales display.
       const session = createBrowserSession({
         viewport: {
@@ -630,9 +633,18 @@ export async function ensureBrowserSession(
             }
           }
         },
-        ...(config.browser?.cdpEndpoint !== undefined
-          ? { cdpEndpoint: config.browser.cdpEndpoint }
-          : {}),
+        ...(cdpEndpoint !== undefined
+          ? { cdpEndpoint }
+          : {
+              ensureChromium: async ({ downloading }) => {
+                const variant =
+                  config.browser?.headless === false ? 'chromium' : 'headless-shell';
+                const status = await getBrowserInstallStatus({ variant });
+                if (status.available) return;
+                downloading();
+                await ensurePlaywrightChromium({ browsersPath, variant });
+              },
+            }),
       });
       deps.browserSessionUnsubscribe = session.subscribe((event) => deps.push(event));
       deps.browserSession = session;

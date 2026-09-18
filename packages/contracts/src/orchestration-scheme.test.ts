@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
   BUILTIN_ULTRA_CODE_SCHEME,
+  FUSION_SCHEME_ID,
+  FUSION_SIDEKICK_REPORT_CONTRACT,
+  FUSION_SIDEKICK_ROLE,
   ORCHESTRATION_SCHEME_OFF_ID,
   REVIEWED_DELIVERY_REVIEWER_REPORT_CONTRACT,
   REVIEWED_DELIVERY_SCHEME_ID,
+  isSubagentReportContractMessage,
   isValidOrchestrationSchemeId,
   OrchestrationSchemeError,
+  PIWIN_FUSION_BRIEF_MARKER,
   PIWIN_REPORT_CONTRACT_MARKER,
   ULTRA_CODE_SCOUT_REPORT_CONTRACT,
   applySchemeToSubagentSpawnInput,
+  formatFusionBriefEnvelope,
+  formatOrchestrationSchemeRoster,
   formatSubagentReportContractBlock,
   clampThinkingLevelToMax,
   compareThinkingLevel,
@@ -148,6 +155,7 @@ describe('resolveOrchestrationScheme', () => {
     expect(list.map((item) => item.id)).toEqual([
       'ultra-code',
       'reviewed-delivery',
+      'fusion',
       'my-review',
     ]);
   });
@@ -631,11 +639,140 @@ describe('reviewed-delivery builtin', () => {
     expect(list.map((item) => item.id)).toEqual([
       'ultra-code',
       'reviewed-delivery',
+      'fusion',
       'my-review',
     ]);
     expect(list.find((item) => item.id === 'reviewed-delivery')?.source).toBe('builtin');
+    expect(list.find((item) => item.id === 'fusion')?.source).toBe('builtin');
     expect(list.find((item) => item.id === 'my-review')?.source).toBe('settings');
     expect(config.schemes?.map((scheme) => scheme.id)).toEqual(['my-review']);
     expect(schemes.map((scheme) => scheme.id)).toEqual(['my-review']);
+  });
+});
+
+describe('fusion builtin', () => {
+  const fusionProfiles = ['implementer'] as const;
+
+  it('resolves one sidekick member on implementer/worktree', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig(), FUSION_SCHEME_ID, {
+      knownProfileIds: fusionProfiles,
+    });
+    expect(resolved?.schemeId).toBe('fusion');
+    expect(resolved?.scheme.source).toBe('builtin');
+    expect(resolved?.defaultRole).toBe(FUSION_SIDEKICK_ROLE);
+    expect(resolved?.defaultProfileId).toBe('implementer');
+    expect(resolved?.exposeSpawnMetadata).toBe(false);
+    expect(resolved?.maxConcurrency).toBe(1);
+    expect(resolved?.maxTasksPerRun).toBe(8);
+    expect(resolved?.waitPolicy).toBe('await-all');
+    expect(resolved?.maxSubagentThinkingLevel).toBeUndefined();
+    expect(resolved?.members).toHaveLength(1);
+    expect(resolved?.members[0]).toMatchObject({
+      role: FUSION_SIDEKICK_ROLE,
+      profileId: 'implementer',
+      isolation: 'worktree',
+      fallback: 'main',
+      available: true,
+      reportContract: FUSION_SIDEKICK_REPORT_CONTRACT,
+    });
+    expect(resolved?.systemPreamble).toMatch(/piwin_subagent_start/);
+    expect(resolved?.systemPreamble).toMatch(/piwin_subagent_wait/);
+    expect(resolved?.systemPreamble).toMatch(/piwin_subagent_result_apply/);
+    expect(resolved?.systemPreamble).not.toMatch(/providerId|gpt-|claude-/i);
+  });
+
+  it('omitted role forces sidekick/implementer/worktree and clears free-form model', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig(), FUSION_SCHEME_ID, {
+      knownProfileIds: fusionProfiles,
+    })!;
+    const applied = applySchemeToSubagentSpawnInput(resolved, {
+      profileId: 'explorer',
+      model: { protocol: 'openai-compatible', providerId: 'p', modelId: 'm' },
+      thinkingLevel: 'high',
+    });
+    expect(applied.role).toBe(FUSION_SIDEKICK_ROLE);
+    expect(applied.profileId).toBe('implementer');
+    expect(applied.isolation).toBe('worktree');
+    expect(applied.clearedModel).toBe(true);
+    expect(applied.model).toBeUndefined();
+    expect(applied.reportContract).toMatch(/done \| blocked \| escalate/);
+  });
+
+  it('unknown role yields fallback-main', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig(), FUSION_SCHEME_ID, {
+      knownProfileIds: fusionProfiles,
+    })!;
+    const applied = applySchemeToSubagentSpawnInput(resolved, { role: 'scout' });
+    expect(applied.fallback?.kind).toBe('main');
+    expect(applied.fallback?.role).toBe('scout');
+  });
+
+  it('overlay can pin sidekick model without leaking ids into the hidden roster', () => {
+    const sidekickModel = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'cheap-provider',
+      modelId: 'cheap-model',
+    };
+    const config = baseConfig({
+      schemes: [
+        {
+          id: FUSION_SCHEME_ID,
+          name: 'Fusion overlay',
+          description: 'pin sidekick',
+          defaultRole: FUSION_SIDEKICK_ROLE,
+          defaultProfileId: 'implementer',
+          exposeSpawnMetadata: false,
+          waitPolicy: 'await-all',
+          systemPreamble: 'overlay fusion preamble still wins',
+          members: [
+            {
+              role: FUSION_SIDEKICK_ROLE,
+              description: 'execute',
+              profileId: 'implementer',
+              isolation: 'worktree',
+              fallback: 'main',
+              model: sidekickModel,
+            },
+          ],
+        },
+      ],
+    });
+    const resolved = resolveOrchestrationScheme(config, FUSION_SCHEME_ID, {
+      knownProfileIds: fusionProfiles,
+      knownModelKeys: ['cheap-provider::cheap-model'],
+    })!;
+    expect(resolved.scheme.source).toBe('settings');
+    expect(resolved.members[0]?.model).toEqual(sidekickModel);
+    expect(resolved.members[0]?.reportContract).toBe(FUSION_SIDEKICK_REPORT_CONTRACT);
+    const roster = formatOrchestrationSchemeRoster(resolved);
+    expect(roster).toContain('model: profile-resolved');
+    expect(roster).not.toContain('cheap-provider');
+    expect(roster).not.toContain('cheap-model');
+    const applied = applySchemeToSubagentSpawnInput(resolved, {
+      model: { protocol: 'openai-compatible', providerId: 'other', modelId: 'nope' },
+    });
+    expect(applied.model).toEqual(sidekickModel);
+    expect(applied.clearedModel).toBe(true);
+  });
+});
+
+describe('formatFusionBriefEnvelope', () => {
+  it('wraps the task with isolation and never takes a history argument', () => {
+    expect(formatFusionBriefEnvelope).toHaveLength(1);
+    const envelope = formatFusionBriefEnvelope('  fix the flaky test  ');
+    expect(envelope).toContain(PIWIN_FUSION_BRIEF_MARKER);
+    expect(envelope).toMatch(/cannot see the parent conversation/i);
+    expect(envelope).toContain('fix the flaky test');
+    expect(envelope).not.toMatch(/user:|assistant:/);
+  });
+});
+
+describe('isSubagentReportContractMessage', () => {
+  it('accepts scout and fusion first lines', () => {
+    expect(isSubagentReportContractMessage('complete\nfindings')).toBe(true);
+    expect(isSubagentReportContractMessage('done\nsummary')).toBe(true);
+    expect(isSubagentReportContractMessage('escalate\nreason')).toBe(true);
+    expect(isSubagentReportContractMessage('blocked')).toBe(true);
+    expect(isSubagentReportContractMessage('hello')).toBe(false);
   });
 });
