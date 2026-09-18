@@ -67,12 +67,40 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   flex-direction: column;
 }
 
+/* region-transcript.css resets this selector to a bare bar (0,4,0), which outranks the
+   .ucard rule above — restate the card here. The stage (.conversation-pane-frame) is
+   --s3, so the card steps to --s2 with a real hairline border to stay visible. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .bubble.role-user:not(.is-conversation-bubble)
   .user-message-collapsible {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  justify-content: flex-start;
+  background: var(--s2);
+  border: 1px solid var(--l2);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(60, 45, 20, 0.05);
+  padding: var(--card-y) var(--card-x);
+}
+
+/* Collapse the text, not the card: masking the card would fade its bottom border. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .bubble.role-user:not(.is-conversation-bubble)
+  .user-message-collapsible.is-collapsed {
+  max-height: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .bubble.role-user:not(.is-conversation-bubble)
+  .user-message-collapsible.is-collapsed
+  .user-message-text {
+  max-height: calc(2 * 1.72em);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 45%, rgba(0, 0, 0, 0.35) 75%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 45%, rgba(0, 0, 0, 0.35) 75%, transparent 100%);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
