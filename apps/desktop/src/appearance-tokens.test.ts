@@ -409,6 +409,20 @@ describe('Deck ramp projection', () => {
     expect(read('--font-mono')).toMatch(/^"JetBrains Mono"/);
   });
 
+  it('prepends custom fonts when provided to applyAppearanceToDocument', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_INKSTONE_PAPER, {
+      sansFont: 'Anthropic Sans',
+      monoFont: 'Anthropic Mono',
+      serifFont: 'Anthropic Serif',
+    });
+
+    const sans = read('--font');
+    expect(sans.startsWith('"Anthropic Sans"')).toBe(true);
+    expect(read('--font-mono').startsWith('"Anthropic Mono"')).toBe(true);
+    expect(read('--serif').startsWith('"Anthropic Serif"')).toBe(true);
+    expect(document.documentElement.style.fontFamily).toContain('"Anthropic Sans"');
+  });
+
   it('maps every legacy surface name onto a Deck role', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
 

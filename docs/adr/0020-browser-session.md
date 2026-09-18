@@ -4,7 +4,8 @@
 
 Accepted (2026-07-31) · lifecycle amendment accepted 2026-08-09 · local HTML
 file-open amendment accepted 2026-09-04 · supersedes the iframe-based
-`BrowserPanel` preview
+`BrowserPanel` preview · first-use Chromium download amendment accepted
+2026-09-18
 
 ## Context
 
@@ -237,12 +238,18 @@ The visual panel is desktop-only; CLI degradation is intentional and documented
 
 ## Consequences
 
-- **Browser binaries**: `playwright-core` does not auto-download browsers; reuse
-  the chromium installed by `pnpm --dir apps/desktop e2e:install`
-  (`playwright install chromium`), with a documented fallback. `pnpm doctor`
-  reports missing chromium. Bundling a chromium binary for production desktop
-  distribution is a **follow-up** (today the app assumes a dev machine or a
-  prior playwright install).
+- **Browser binaries**: Chromium is **not** bundled in the Desktop `.app` /
+  DMG. Host sets `PLAYWRIGHT_BROWSERS_PATH` to `~/.piwin/playwright` (the
+  product config root) before `playwright-core` resolves the executable.
+  Default workbench is headless, so first use runs
+  `playwright-core install chromium --only-shell` (~190MB headless shell, not
+  the ~340MB full Chrome for Testing, and not ffmpeg/Firefox/WebKit). Headed
+  `browser.headless=false` downloads full Chromium with `--no-shell` instead.
+  Packaged sidecars ignore a developer `PIWIN_PLAYWRIGHT_BROWSERS_PATH`.
+  Attached CDP (`browser.cdpEndpoint`) does not download. `piwin doctor`
+  reports the cache path. Desktop UI e2e still uses
+  `pnpm --dir apps/desktop e2e:install` for the test runner, which is not the
+  product Host cache.
 - **Frame stream cost**: live mirror is JPEG via `page.screencast` (~12 fps,
   quality 80). CSS viewport stays 1280×800; Host-owned Chromium launches at
   `deviceScaleFactor: 2` and screencast `size` is CSS×DSF (default 2560×1600,

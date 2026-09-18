@@ -5,7 +5,6 @@ import {
   ChatTurnHead,
   ChatTurnMarginalia,
   buildAssistantColophonMeta,
-  formatDurationSeconds,
   formatTokensK,
   formatTurnClock,
   formatTurnExactStamp,
@@ -36,11 +35,10 @@ describe('chat-turn-marginalia', () => {
     expect(shortModelLabel('grok-4-6')).toBe('Grok 4.6');
   });
 
-  it('formats tokens and duration', () => {
+  it('formats tokens', () => {
     expect(formatTokensK(500)).toBe('500');
     expect(formatTokensK(3100)).toBe('3.1k');
     expect(formatTokensK(12400)).toBe('12k');
-    expect(formatDurationSeconds(41000)).toBe('41s');
   });
 
   it('formats turn clock from ISO string', () => {
@@ -125,10 +123,10 @@ describe('chat-turn-marginalia', () => {
     expect(data.fullModelId).toBe('claude-sonnet-4-6');
     expect(data.avatar).toBe('C');
     // Tokens belong in the colophon foot, not the rail.
-    expect(data.usage).toBe('41s · 1 工具');
+    expect(data.usage).toBe('1 工具');
   });
 
-  it('resolves assistant turn marginalia with duration only — tokens stay off the rail', () => {
+  it('keeps tokens and thinking duration off the rail', () => {
     const asstMsg: ChatMessageUi = {
       id: 'msg-3',
       role: 'assistant',
@@ -141,7 +139,6 @@ describe('chat-turn-marginalia', () => {
       model: { providerId: 'anthropic', modelId: 'claude-sonnet-4-6' },
     };
     const data = resolveTurnMarginalia([asstMsg], {
-      elapsedMs: 41000,
       contextUsage: {
         sessionId: 'test-session',
         updatedAt: '2026-09-05T14:03:00.000Z',
@@ -152,7 +149,7 @@ describe('chat-turn-marginalia', () => {
     });
     expect(data.who).toBe('Sonnet 4.6');
     expect(data.avatar).toBe('C');
-    expect(data.usage).toBe('41s');
+    expect(data.usage).toBeNull();
     expect(data.status).toBe('运行中');
 
     const dataUnknown = resolveTurnMarginalia(

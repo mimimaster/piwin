@@ -405,7 +405,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
             {pickError}
           </span>
         ) : null}
-        {mirrorError ? (
+        {mirrorError && !runtimeStatus.showBanner ? (
           <span className="browser-session-pick-error" data-testid="browser-session-mirror-error">
             {mirrorError}
           </span>

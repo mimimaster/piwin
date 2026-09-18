@@ -25,7 +25,7 @@ import {
   loadProjectStore,
   openOrCreateProject,
   removeProject,
-  isRegisteredProjectRoot,
+  findRegisteredProjectRoot,
   normalizeProjectRootPath,
   resolveInsideRootWithRealpath,
   resolveProjectPathById,
@@ -595,18 +595,24 @@ async function requireBrowseRoot(
     };
   }
   const generalWorkspace = normalizeProjectRootPath(getPiwinGeneralWorkspacePath(piwinRoot));
-  if (normalizeProjectRootPath(bound.path) === generalWorkspace) {
-    await ensureGeneralWorkspace(piwinRoot);
-    return { ok: true, rootAbsolute: generalWorkspace };
-  }
   const registeredRoots = document.projects.map((project) => project.path);
-  if (!isRegisteredProjectRoot(registeredRoots, bound.path)) {
+  // General workspace plus remembered projects. Realpath aliases of the same
+  // folder (symlink vs git toplevel) must browse, not 404 as unregistered.
+  const matchedRoot = await findRegisteredProjectRoot(
+    [generalWorkspace, ...registeredRoots],
+    bound.path,
+  );
+  if (!matchedRoot) {
     return {
       ok: false,
       response: fail(requestId, commandType, 'project-root-not-registered'),
     };
   }
-  return { ok: true, rootAbsolute: normalizeProjectRootPath(bound.path) };
+  if (normalizeProjectRootPath(matchedRoot) === generalWorkspace) {
+    await ensureGeneralWorkspace(piwinRoot);
+    return { ok: true, rootAbsolute: generalWorkspace };
+  }
+  return { ok: true, rootAbsolute: normalizeProjectRootPath(matchedRoot) };
 }
 
 async function resolveOpenProjectPath(

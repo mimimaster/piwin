@@ -12,8 +12,10 @@ import { DEFAULT_DARK_THEME_SETTINGS, DEFAULT_LIGHT_THEME_SETTINGS, saveDesktopP
 import { FieldRow } from '../field-row.js';
 import { PageTitle } from '../page-title.js';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context.js';
+import { AppearanceCustomFonts } from './appearance-custom-fonts.js';
 import { AppearanceModeControl, getAppearanceThemeSettings } from './appearance-theme-controls.js';
 import { ThemeLibraryCard } from './appearance-theme-library.js';
+import { applyCustomFontsToDocument } from '../../theme/font-manager.js';
 
 function updatePreference<K extends keyof DesktopPreferences>(
   prefs: DesktopPreferences,
@@ -56,8 +58,10 @@ export function AppearancePage(): ReactElement {
       lightTheme: { ...DEFAULT_LIGHT_THEME_SETTINGS },
       darkTheme: { ...DEFAULT_DARK_THEME_SETTINGS },
     };
+    delete nextPreferences.customFonts;
     onPreferencesChange(nextPreferences);
     saveDesktopPreferences(nextPreferences);
+    applyCustomFontsToDocument(undefined);
     const activeMode = resolveSystemThemeMode();
     onThemeApplied(
       buildAppearanceTheme(activeMode, getAppearanceThemeSettings(nextPreferences, activeMode)),
@@ -167,6 +171,12 @@ export function AppearancePage(): ReactElement {
             aria-label={copy.codeWrap}
           />
         </FieldRow>
+        <AppearanceCustomFonts
+          preferences={preferences}
+          onChange={onPreferencesChange}
+          copy={copy}
+          locale={locale}
+        />
       </div>
 
       <div className="settings-section settings-section-card">

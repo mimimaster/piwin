@@ -163,6 +163,7 @@ const NON_SKILL_SLASH_NAMES: ReadonlySet<string> = new Set([
   'summarize',
   'compress',
   'ultra-code',
+  'fusion',
   'scheme',
   'knowledge',
   'doccards',

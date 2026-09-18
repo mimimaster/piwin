@@ -78,6 +78,8 @@ export {
   isDefaultPiwinRoot,
   getPiwinRoot,
   getPiwinConfigPath,
+  getPiwinPlaywrightDir,
+  applyPiwinPlaywrightBrowsersPath,
   getPiwinMediaDir,
   getPiwinSessionMediaDir,
   getPiwinGeneralWorkspacePath,

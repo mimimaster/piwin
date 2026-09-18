@@ -102,9 +102,18 @@
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
-  /* S11.9 — same 2px / 2px ring, vermillion instead of iris. */
+  /* Keyboard focus is azure, not vermillion. Zhu is the seal / primary
+     hand; a 2px zhu offset ring on every Tab stop reads as a validation
+     error. Azure is attention without "this control is broken". */
   :focus-visible {
-    outline-color: var(--zhu);
+    outline-color: var(--azure);
+    outline-offset: 1px;
+  }
+
+  .mantine-focus-auto:focus-visible,
+  .mantine-focus-always:focus {
+    outline: 2px solid var(--azure);
+    outline-offset: 1px;
   }
 
   /* S11.7 — Ghost default; primary = zhu + on-zhu; danger = crimson ink,

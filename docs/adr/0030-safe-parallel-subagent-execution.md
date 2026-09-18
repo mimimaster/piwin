@@ -74,6 +74,29 @@ record on the applied chain. `piwin_subagent_run` wait/merge is unchanged.
 One writer: apply still goes through the existing integration coordinator and
 workspace write gate (ADR 0069).
 
+**Fusion scheme (2026-09-18):** Builtin `fusion` is an orchestration scheme, not
+a second Orchestrator and not an in-process dual Pi loop. Parent/composer is
+Lead; the only child role is `sidekick` on a persistent CLI-subagent lane
+(independent child transcript + retained worktree). Host never copies the
+parent transcript into the child; seed/continuation is a brief envelope
+(`you cannot see the parent conversation`). Wait returns Result
+(`summaryPreview` / reportContract). Pairing is sticky; compact-time sidekick
+upgrade is out of scope. Host forces `deliveryIntent='candidate'`,
+`applyPolicy='explicit'`, `retainWorktree=true`, `maxConcurrency: 1`, and
+strips `delegate`. Lane reuse uses `continuationSessionId` without the
+reviewed-delivery continue/review binding. Metric is price-per-task; no cost
+dashboard in this change. Spec: [`orchestration-scheme.md`](../specs/orchestration-scheme.md) §9.2.
+
+**Write exclusivity (2026-09-18):** Concurrent worktree **writes** are forbidden.
+The scheduler admits at most one running `isolationOverride=worktree` task.
+`SubagentWorkspaceService` holds a per-parent-project worktree lease until
+`release`. Readonly explore/review may still run in parallel under
+`maxConcurrency`. Plan-driven write slices default to
+`deliveryIntent=candidate`, `applyPolicy=explicit`, and `retainWorktree=true`.
+`independentSteps` means isolatable child sessions, not parallel writers.
+Writes stay single-threaded; additional agents contribute intelligence
+rather than concurrent write actions.
+
 ## Context
 
 piwin supports subagent-driven plan execution where independent steps run in

@@ -450,7 +450,51 @@ Followed by:
 
 ---
 
+#### 3.2b Fusion Lead 纪律与 Sidekick 契约 (`FUSION_PREAMBLE` / `FUSION_SIDEKICK_REPORT_CONTRACT`)
+* **源码位置**：`packages/contracts/src/orchestration-scheme-fusion.ts`
+* **应用时机**：编排方案选 Fusion 时注入主控（Lead）。Sidekick 子会话只看到 brief 信封，**you cannot see the parent conversation**。配对在本对话粘住，不每 turn 换模。
+* **隔离**：persistent CLI-subagent lane（独立子会话 + retained worktree），不是 in-process 双 loop。
+
+##### 英文生产原版（Lead）
+```markdown
+<orchestration_discipline scheme="fusion">
+You are the Lead: the user-facing composer. Own the plan, interpretation of ambiguity, and final review.
+The sidekick cannot see the parent conversation. Never paste this conversation into a task.
+Judgment-as-deliverable stays with the Lead. Sequential sidekick via piwin_subagent_start / wait; apply exact candidates with piwin_subagent_result_apply.
+</orchestration_discipline>
+```
+
+##### 中文对照释义（Lead）
+```markdown
+<orchestration_discipline scheme="fusion">
+你是 Lead（当前会话主控）：握有计划、歧义解释和终审。
+Sidekick 看不到父对话。禁止把本会话全文粘进 task。
+判断即交付物留在 Lead。机械实现走 piwin_subagent_start / wait；接受候选后用精确 result 调用 piwin_subagent_result_apply。
+</orchestration_discipline>
+```
+
+##### 英文生产原版（Sidekick Result）
+```markdown
+<sidekick_contract>
+Line 1: exactly one of done | blocked | escalate
+Body: summary, changed paths, checks (command/exit), residual risks, escalate_reason if escalate.
+You cannot see the parent conversation. This brief is the entire assignment.
+</sidekick_contract>
+```
+
+##### 中文对照释义（Sidekick Result）
+```markdown
+<sidekick_contract>
+第 1 行只能是 done | blocked | escalate。
+正文：摘要、改动路径、检查（命令/退出码）、残留风险；escalate 时写原因。
+你看不到父对话。这份 brief 就是全部任务。
+</sidekick_contract>
+```
+
+---
+
 #### 3.3 侧边对话上下文快照 (`formatSideChatContextBlock`)
+
 * **源码位置**：`packages/session/src/side-chat-context.ts`
 * **应用时机**：主会话开启 Side Chat（侧边分流对话）时注入上下文快照。
 

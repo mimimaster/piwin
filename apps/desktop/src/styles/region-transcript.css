@@ -543,6 +543,8 @@
 .bubble.role-user:not(.is-conversation-bubble) .user-message-collapsible.is-collapsed {
   overflow: hidden;
   max-height: 48px;
+  justify-content: flex-start;
+  overflow-anchor: none;
   -webkit-mask-image: linear-gradient(
     to bottom,
     #000 0%,

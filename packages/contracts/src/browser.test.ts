@@ -99,6 +99,21 @@ describe('browser runtime contracts (completeness plan §4)', () => {
     expect(state.pageId).toBeUndefined();
   });
 
+  it('includes installing as a first-use Chromium download lifecycle', () => {
+    const state: BrowserRuntimeState = {
+      lifecycle: 'installing',
+      mirror: 'off',
+      generation: 0,
+      viewport: {
+        mode: 'fixed',
+        width: BROWSER_DEFAULT_VIEWPORT_WIDTH,
+        height: BROWSER_DEFAULT_VIEWPORT_HEIGHT,
+      },
+      recoveryCount: 0,
+    };
+    expect(state.lifecycle).toBe('installing');
+  });
+
   it('registers status restart and viewport permission actions', () => {
     expect(isHostToolPermissionAction('browser:status')).toBe(true);
     expect(isHostToolPermissionAction('browser:restart')).toBe(true);

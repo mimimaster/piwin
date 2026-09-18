@@ -7,7 +7,6 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
-import { chromium } from 'playwright-core';
 import type { BrowserLifecycle } from '@piwin/contracts';
 import { injectFinder } from './pick.js';
 import {
@@ -17,7 +16,8 @@ import {
   BrowserUnavailableError,
   isDeadBrowserError,
 } from './browser-errors.js';
-import { classifyBrowserLaunchError, getBrowserInstallStatus } from './install-status.js';
+import { browserChromiumInstallHint, classifyBrowserLaunchError } from './install-status.js';
+import type { EnsureOwnedChromium } from './ensure-playwright-chromium.js';
 import {
   assertLoopbackCdpEndpoint,
   defaultConnectOverCdp,
@@ -72,6 +72,8 @@ export type BrowserRuntimeOptions = {
   cdpEndpoint?: string;
   /** Test seam for attach. */
   connectOverCdp?: BrowserConnectOverCdp;
+  /** Owned Chromium only. Called before the 15s launch timeout. */
+  ensureChromium?: EnsureOwnedChromium;
   /** Test seam for dialog auto-dismiss. */
   dialogTimeoutMs?: number;
 };
@@ -150,6 +152,7 @@ export function createBrowserRuntime(
   const launchPersistentContext =
     options.launchPersistentContext ?? defaultLaunchPersistentContext;
   const connectOverCdp = options.connectOverCdp ?? defaultConnectOverCdp;
+  const ensureChromium = options.ensureChromium;
   const observer = createBrowserObserver(subscribers, {
     downloadDir: join(options.profileDir, 'downloads'),
   });
@@ -337,9 +340,21 @@ export function createBrowserRuntime(
   async function launchOrJoin(): Promise<Page> {
     if (closed) throw new BrowserSessionClosedError('browser session is closed');
     if (launchPromise !== undefined) return launchPromise;
-    lifecycle = generation === 0 ? 'starting' : 'recovering';
-    void hooks.emitState();
-    const pendingLaunch = launch();
+    const pendingLaunch = (async () => {
+      if (ensureChromium !== undefined) {
+        await ensureChromium({
+          downloading: () => {
+            if (closed) return;
+            lifecycle = 'installing';
+            void hooks.emitState();
+          },
+        });
+      }
+      if (closed) throw new BrowserSessionClosedError('browser session is closed');
+      lifecycle = generation === 0 ? 'starting' : 'recovering';
+      void hooks.emitState();
+      return launch();
+    })();
     launchPromise = pendingLaunch;
     try {
       return await pendingLaunch;
@@ -379,11 +394,9 @@ export function createBrowserRuntime(
         });
       } catch (error) {
         const reason = classifyBrowserLaunchError(error);
-        const status = getBrowserInstallStatus();
-        const hint = status.hint ?? 'Chromium could not be launched';
         throw new BrowserUnavailableError(
           reason === 'binary-missing'
-            ? `headless Chromium could not be launched. ${hint}`
+            ? `headless Chromium could not be launched. ${browserChromiumInstallHint()}`
             : reason === 'profile-in-use'
               ? 'browser profile is already in use by another Chromium'
               : `headless Chromium failed to start (${error instanceof Error ? error.message : String(error)})`,
@@ -999,7 +1012,9 @@ function defaultLaunchPersistentContext(
   userDataDir: string,
   launchOptions: BrowserPersistentLaunchOptions,
 ): Promise<BrowserContext> {
-  return chromium.launchPersistentContext(userDataDir, launchOptions);
+  return import('playwright-core').then(({ chromium }) =>
+    chromium.launchPersistentContext(userDataDir, launchOptions),
+  );
 }
 
 function launchTimeoutError(timeoutMs: number): BrowserUnavailableError {

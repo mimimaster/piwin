@@ -24,6 +24,11 @@ export {
   appearanceVariableNames,
   inkstoneDocumentThemeId,
 } from './theme/apply-appearance';
+export {
+  applyCustomFontsToDocument,
+  loadAndRegisterAllCustomFonts,
+  type CustomFontPreferences,
+} from './theme/font-manager.js';
 export { beginThemeSwitch } from './theme/theme-switch';
 export { deriveDeckTokens, resolveDeckTokens } from './theme/deck-derive';
 export {

@@ -29,6 +29,11 @@ export type SchedulerState = {
   cancelled: boolean;
 };
 
+/** Helper to determine if a task requests write isolation (worktree). */
+export function isWriteTask(task: SubagentTaskSpec | undefined): boolean {
+  return task?.isolationOverride === 'worktree';
+}
+
 /**
  * Initialize scheduler state from a batch request. Assumes the request has
  * already been validated by `validateSubagentBatchRequest`.
@@ -54,25 +59,39 @@ export function initSchedulerState(request: SubagentBatchRequest): SchedulerStat
 
 /**
  * Compute the next batch of task ids that are ready to run (all dependencies
- * completed, status is pending, and concurrency budget allows). Returns an
- * empty array when no tasks can start. The orchestrator marks each id as
- * 'running' before dispatching.
+ * completed, status is pending, concurrency budget allows, and single-writer
+ * exclusivity is preserved). Returns an empty array when no tasks can start.
+ * The orchestrator marks each id as 'running' before dispatching.
  */
 export function nextReadyBatch(state: SchedulerState): string[] {
   if (state.cancelled) return [];
 
   const ready: string[] = [];
   let runningCount = 0;
-  for (const status of state.status.values()) {
-    if (status === 'running') runningCount++;
+  let runningWrites = 0;
+  for (const [taskId, status] of state.status) {
+    if (status === 'running') {
+      runningCount++;
+      if (isWriteTask(state.tasks.get(taskId))) {
+        runningWrites++;
+      }
+    }
   }
 
   const budget = state.maxConcurrency - runningCount;
   if (budget <= 0) return [];
 
+  let readyWrites = 0;
   for (const [taskId, deps] of state.remainingDeps) {
     if (ready.length >= budget) break;
     if (state.status.get(taskId) !== 'pending') continue;
+
+    const task = state.tasks.get(taskId);
+    // Write exclusivity: only one write (worktree) task may run at any time.
+    if (isWriteTask(task) && (runningWrites > 0 || readyWrites > 0)) {
+      continue;
+    }
+
     // All deps must be completed (not failed/cancelled — those are handled
     // by markTaskSettled which cancels dependents).
     let satisfied = true;
@@ -82,7 +101,12 @@ export function nextReadyBatch(state: SchedulerState): string[] {
         break;
       }
     }
-    if (satisfied) ready.push(taskId);
+    if (satisfied) {
+      if (isWriteTask(task)) {
+        readyWrites++;
+      }
+      ready.push(taskId);
+    }
   }
 
   return ready;

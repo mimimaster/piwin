@@ -23,7 +23,12 @@ import { getSessionRecord } from '@piwin/session';
 import { createSessionTranscriptStoreRegistry } from './session-transcript-store-registry.js';
 import { ProductAgentHost } from './product-agent-host.js';
 import { loadPiwinConfig } from './config-store.js';
-import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import {
+  applyPiwinPlaywrightBrowsersPath,
+  getPiwinProjectsPath,
+  getPiwinRoot,
+  getPiwinSessionIndexPath,
+} from './paths.js';
 import { ensureHostPiAgentDir } from './import-legacy-pi-auth.js';
 import { fail } from './response-helpers.js';
 import { RunRegistry } from './run-registry.js';
@@ -82,6 +87,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
 
   try {
     deps.options = options;
+    applyPiwinPlaywrightBrowsersPath(getPiwinRoot(options.piwinRoot));
     deps.doccardsIngestion = createDoccardsIngestionRegistry({
       onTerminal: () => {
         void publishKnowledgeBasesChanged({

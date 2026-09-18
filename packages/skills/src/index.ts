@@ -11,3 +11,5 @@ export {
   extractSkillIdFromLegacyPath,
 } from './skill-preview-reader.js';
 export type { SkillPreviewReadInput } from './skill-preview-reader.js';
+export { resolveSkillDocumentReadPath } from './skill-document-read-path.js';
+export type { SkillDocumentReadTarget } from './skill-document-read-path.js';

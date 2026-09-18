@@ -378,6 +378,23 @@ describe('artifactCodeFirst', () => {
     expect(localStorage.getItem(`piwin.desktop.${'artifactPreviewEnabled'}`)).toBeNull();
   });
 
+  it('roundtrips customFonts through save and load', () => {
+    const basePrefs = loadDesktopPreferences();
+    saveDesktopPreferences({
+      ...basePrefs,
+      customFonts: {
+        sansFont: 'Anthropic Sans',
+        monoFont: 'Anthropic Mono',
+        serifFont: 'Anthropic Serif',
+      },
+    });
+
+    const loaded = loadDesktopPreferences();
+    expect(loaded.customFonts?.sansFont).toBe('Anthropic Sans');
+    expect(loaded.customFonts?.monoFont).toBe('Anthropic Mono');
+    expect(loaded.customFonts?.serifFont).toBe('Anthropic Serif');
+  });
+
   it('ignores a leftover artifactPreviewEnabled localStorage key', () => {
     setLocalStorage('artifactPreviewEnabled', 'false');
     const prefs = loadDesktopPreferences();

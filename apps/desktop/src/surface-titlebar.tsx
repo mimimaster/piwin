@@ -9,6 +9,10 @@ export type SurfaceTitlebar = {
   /** Null until the host's slot element has mounted. */
   tabsSlot: HTMLElement | null;
   actionsSlot: HTMLElement | null;
+  /** Page-tab count so the host can keep 「浏览器」 closeable when empty. */
+  setPageTabCount?: (count: number) => void;
+  /** Close the host browser tool (last page tab, or explicit dismiss). */
+  closeHost?: () => void;
 };
 
 const SurfaceTitlebarContext = createContext<SurfaceTitlebar | null>(null);

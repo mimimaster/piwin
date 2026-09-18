@@ -4,7 +4,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ChatMessageUi } from './chat-reducer';
 import { formatTurnExactStamp, formatTurnRelativeAge } from './chat-turn-marginalia.js';
-import { UserMessageContent } from './conversation-user-message.js';
+import { USER_MESSAGE_COLLAPSE_THRESHOLD, UserMessageContent } from './conversation-user-message.js';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -251,5 +251,185 @@ describe('UserMessageContent context chips', () => {
 
     expect(header?.textContent).toBe('/compact');
     expect(content).toBeNull();
+  });
+});
+
+describe('UserMessageContent collapse', () => {
+  let root: Root | null = null;
+  let container: HTMLElement | null = null;
+  let scrollHeightSpy: ReturnType<typeof vi.spyOn> | undefined;
+
+  afterEach(() => {
+    if (root) {
+      act(() => {
+        root?.unmount();
+      });
+    }
+    container?.remove();
+    root = null;
+    container = null;
+    scrollHeightSpy?.mockRestore();
+    scrollHeightSpy = undefined;
+  });
+
+  function render(node: ReactElement): void {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const next = createRoot(host);
+    act(() => {
+      next.render(node);
+    });
+    root = next;
+    container = host;
+  }
+
+  it('collapses overflowing Conversation prompts by default and expands on click', () => {
+    scrollHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+      .mockReturnValue(USER_MESSAGE_COLLAPSE_THRESHOLD + 40);
+    render(
+      <UserMessageContent
+        message={{ ...message, text: '宣纸以青檀树皮与沙田稻草为主要原料。'.repeat(12) }}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+      />,
+    );
+    const bubble = container?.querySelector('[data-testid="user-message-collapsible-body"]');
+    expect(bubble?.classList.contains('is-collapsed')).toBe(true);
+    expect(bubble?.classList.contains('is-clickable')).toBe(true);
+    expect(bubble?.getAttribute('aria-expanded')).toBe('false');
+
+    act(() => {
+      (bubble as HTMLElement | null)?.click();
+    });
+
+    expect(bubble?.classList.contains('is-expanded')).toBe(true);
+    expect(bubble?.classList.contains('is-collapsed')).toBe(false);
+    expect(bubble?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('leaves short Conversation prompts expanded and not clickable', () => {
+    scrollHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+      .mockReturnValue(USER_MESSAGE_COLLAPSE_THRESHOLD - 20);
+    render(
+      <UserMessageContent
+        message={{ ...message, text: '短提问' }}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+      />,
+    );
+    const bubble = container?.querySelector('[data-testid="user-message-collapsible-body"]');
+    expect(bubble?.classList.contains('is-expanded')).toBe(true);
+    expect(bubble?.classList.contains('is-clickable')).toBe(false);
+    expect(bubble?.getAttribute('role')).toBeNull();
+  });
+
+  it('collapses Conversation image attachments with the prompt body by default', () => {
+    render(
+      <UserMessageContent
+        message={{
+          ...message,
+          text: '看这张图',
+          attachments: [
+            {
+              id: 'attachment-image',
+              kind: 'media',
+              path: '/tmp/history-image.png',
+              mimeType: 'image/png',
+              byteSize: 1024,
+              source: 'paste',
+            },
+          ],
+        }}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+      />,
+    );
+    const bubble = container?.querySelector('[data-testid="user-message-collapsible-body"]');
+    expect(bubble?.classList.contains('is-collapsed')).toBe(true);
+    expect(bubble?.classList.contains('has-attachments')).toBe(true);
+  });
+
+  it('pins collapsed overflow to the start of a long Conversation prompt', () => {
+    scrollHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+      .mockReturnValue(USER_MESSAGE_COLLAPSE_THRESHOLD + 40);
+    render(
+      <UserMessageContent
+        message={{ ...message, text: '宣纸以青檀树皮与沙田稻草为主要原料。'.repeat(12) }}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+      />,
+    );
+    const bubble = container?.querySelector<HTMLElement>('[data-testid="user-message-collapsible-body"]');
+    const text = container?.querySelector<HTMLElement>('.user-message-text');
+    expect(bubble).not.toBeNull();
+
+    act(() => {
+      bubble?.click();
+    });
+    expect(bubble?.classList.contains('is-expanded')).toBe(true);
+
+    if (bubble) bubble.scrollTop = 160;
+    if (text) text.scrollTop = 160;
+
+    act(() => {
+      bubble?.click();
+    });
+
+    expect(bubble?.classList.contains('is-collapsed')).toBe(true);
+    expect(bubble?.scrollTop).toBe(0);
+    expect(text?.scrollTop).toBe(0);
+  });
+
+  it('keeps copy/edit on the same row for a short single-line Conversation prompt', () => {
+    scrollHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+      .mockReturnValue(24);
+    render(
+      <UserMessageContent
+        message={{ ...message, text: '短提问', contextRefs: [], attachments: [] }}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+      />,
+    );
+    const bubble = container?.querySelector('[data-testid="user-message-collapsible-body"]');
+    expect(bubble?.classList.contains('is-single-line')).toBe(true);
+    expect(bubble?.classList.contains('is-multiline')).toBe(false);
+  });
+
+  it('pins copy/edit to the bottom-right on multiline Conversation prompts, including after expand', () => {
+    scrollHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+      .mockReturnValue(USER_MESSAGE_COLLAPSE_THRESHOLD + 40);
+    render(
+      <UserMessageContent
+        message={{
+          ...message,
+          text: '第一行\n第二行\n第三行',
+          contextRefs: [],
+          attachments: [],
+        }}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+      />,
+    );
+    const bubble = container?.querySelector('[data-testid="user-message-collapsible-body"]');
+    expect(bubble?.classList.contains('is-multiline')).toBe(true);
+    expect(bubble?.classList.contains('is-collapsed')).toBe(true);
+
+    act(() => {
+      (bubble as HTMLElement | null)?.click();
+    });
+
+    expect(bubble?.classList.contains('is-expanded')).toBe(true);
+    expect(bubble?.classList.contains('is-multiline')).toBe(true);
   });
 });

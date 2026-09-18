@@ -31,7 +31,7 @@ import type { HostCommandContext } from './host-command-context.js';
 import {
   abortExecutionState,
   buildInlineDirective,
-  buildPlanSubagentTask,
+  buildPlanSubagentTasks,
   buildPlanSummary,
   buildSubagentVerificationDirective,
   completeExecutionState,
@@ -636,9 +636,7 @@ async function runPlanExecution(
     // (ADR 0030 Phase D).
     const childIds: string[] = [];
     await markRunning();
-    const tasks = stepIds
-      .map((stepId) => buildPlanSubagentTask(plan, stepId))
-      .filter((task): task is NonNullable<typeof task> => task !== null);
+    const tasks = buildPlanSubagentTasks(plan, stepIds);
 
     const batchResult = await seam.runBatch({
       parentSessionId: sessionId,

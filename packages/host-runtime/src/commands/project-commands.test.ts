@@ -264,6 +264,43 @@ describe('project commands', () => {
     });
   });
 
+  it('lists and reads through a realpath alias of a registered symlink root', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-alias-'));
+    const realProject = join(rootDir, 'workspace');
+    await mkdir(join(realProject, 'docs'), { recursive: true });
+    await writeFile(join(realProject, 'docs', 'scheme.md'), '# scheme\n', 'utf8');
+    const aliasParent = await mkdtemp(join(tmpdir(), 'piwin-project-alias-link-'));
+    const aliasProject = join(aliasParent, 'proj-link');
+    await symlink(realProject, aliasProject);
+
+    await handleProjectCommand({ type: 'project/open', path: aliasProject }, 'open-alias', rootDir);
+
+    const listed = await handleProjectCommand(
+      { type: 'project/list-dir', projectPath: realProject },
+      'list-real',
+      rootDir,
+    );
+    expect(listed?.success).toBe(true);
+    expect(listed && 'data' in listed ? listed.data : null).toMatchObject({
+      entries: [{ name: 'docs', relativePath: 'docs', kind: 'directory' }],
+    });
+
+    const read = await handleProjectCommand(
+      {
+        type: 'project/read-file',
+        projectPath: realProject,
+        relativePath: 'docs/scheme.md',
+      },
+      'read-real',
+      rootDir,
+    );
+    expect(read?.success).toBe(true);
+    expect(read && 'data' in read ? read.data : null).toMatchObject({
+      relativePath: 'docs/scheme.md',
+      content: '# scheme\n',
+    });
+  });
+
   it('rejects a project-local symlink that realpaths outside the root', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-read-link-'));
     const projectPath = join(rootDir, 'workspace');

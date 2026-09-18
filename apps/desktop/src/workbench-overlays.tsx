@@ -76,10 +76,10 @@ export type WorkbenchOverlaysProps = {
   continueInProjectBusy: boolean;
   closeContinueInProject: () => void;
   runContinueInProject: (
-    projectPath: string,
-    continueSession: (sessionId: string, projectPath: string) => Promise<boolean>,
+    targetScope: SessionScope,
+    continueSession: (sessionId: string, targetScope: SessionScope) => Promise<boolean>,
   ) => void;
-  onContinueSessionInProject: (sessionId: string, projectPath: string) => Promise<boolean>;
+  onContinueSessionInProject: (sessionId: string, targetScope: SessionScope) => Promise<boolean>;
   recentProjects: readonly ProjectRecord[];
   sessionSearchOpen: boolean;
   onSessionSearchOpenChange: (open: boolean) => void;
@@ -237,8 +237,8 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
             props.closeContinueInProject();
           }
         }}
-        onContinueInProject={(projectPath) => {
-          props.runContinueInProject(projectPath, props.onContinueSessionInProject);
+        onContinueInProject={(targetScope) => {
+          props.runContinueInProject(targetScope, props.onContinueSessionInProject);
         }}
         onCancelContinueInProject={props.closeContinueInProject}
       />

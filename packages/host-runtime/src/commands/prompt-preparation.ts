@@ -113,7 +113,7 @@ import {
   getPiwinSessionModelContextDatabasePath,
   getPiwinSessionPlanPath,
 } from '../paths.js';
-import { isRegisteredProjectRoot, loadProjectStore } from '@piwin/project';
+import { findRegisteredProjectRoot, loadProjectStore } from '@piwin/project';
 import type { TranscriptRecorder } from '../transcript-recorder.js';
 import { SessionRuntimeController } from '../sessions/session-runtime-controller.js';
 import { createSessionMessageResponse } from '../session-message-response.js';
@@ -159,10 +159,11 @@ export function createResolveRefsDeps(context: SessionLiveContext): {
       try {
         const projectsPath = getPiwinProjectsPath(getPiwinRoot(context.piwinRoot));
         const document = await loadProjectStore(projectsPath);
-        return isRegisteredProjectRoot(
+        const matched = await findRegisteredProjectRoot(
           document.projects.map((project) => project.path),
           projectPath,
         );
+        return matched !== undefined;
       } catch {
         return false;
       }

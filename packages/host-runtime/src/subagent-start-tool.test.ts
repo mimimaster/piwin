@@ -2,12 +2,20 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type {
   HostToolRegistration,
+  ResolvedOrchestrationScheme,
+  SessionIndexRecord,
   SubagentBatchRequest,
   SubagentResultSummary,
   SubagentTaskResult,
   ToolResult,
 } from '@piwin/contracts';
-import { emptySubagentResultReviewFields } from '@piwin/contracts';
+import {
+  FUSION_SCHEME_ID,
+  PIWIN_FUSION_BRIEF_MARKER,
+  emptySubagentResultReviewFields,
+  resolveOrchestrationScheme,
+} from '@piwin/contracts';
+import type { PreparedSubagentContinuation } from './subagent-continuation-prep.js';
 import { RunRegistry } from './run-registry.js';
 import { TurnScopedSchemeAdmissionGate } from './orchestration-scheme-admission.js';
 import { createSubagentControlSeam } from './host-runtime-subagent-start.js';
@@ -61,7 +69,63 @@ async function executeTool(
   });
 }
 
-function createHarness(options?: { summary?: SubagentResultSummary | undefined }) {
+function fusionScheme(): ResolvedOrchestrationScheme {
+  const resolved = resolveOrchestrationScheme(
+    { maxConcurrency: 4, maxTasksPerRun: 8 },
+    FUSION_SCHEME_ID,
+    { knownProfileIds: ['implementer'] },
+  );
+  if (!resolved) throw new Error('expected builtin fusion scheme');
+  return resolved;
+}
+
+const FUSION_WORKTREE_LEASE = {
+  mode: 'worktree' as const,
+  cwd: '/tmp/fusion-wt',
+  parentRepoPath: '/tmp/project',
+  worktreePath: '/tmp/fusion-wt',
+  worktreeBranch: 'piwin/fusion-lane',
+  baseCommit: 'abc123',
+};
+
+function sessionRecord(overrides: Partial<SessionIndexRecord>): SessionIndexRecord {
+  return {
+    id: 'record',
+    projectPath: '/tmp/project',
+    createdAt: '2026-09-18T00:00:00.000Z',
+    updatedAt: '2026-09-18T00:00:00.000Z',
+    messageCount: 1,
+    ...overrides,
+  };
+}
+
+function fusionLaneContinuation(childId: string): PreparedSubagentContinuation {
+  return {
+    child: sessionRecord({
+      id: childId,
+      kind: 'subagent',
+      parentSessionId: SESSION_ID,
+      subagentRole: 'sidekick',
+      subagentStatus: 'done',
+      subagentMode: 'worktree',
+      subagentRetainWorktree: true,
+      worktreePath: FUSION_WORKTREE_LEASE.worktreePath,
+      subagentRuntime: { isolation: 'worktree', workingDirectory: FUSION_WORKTREE_LEASE.cwd },
+    }),
+    parent: sessionRecord({ id: SESSION_ID, kind: 'main' }),
+    runtime: { isolation: 'worktree', workingDirectory: FUSION_WORKTREE_LEASE.cwd },
+    mode: 'worktree',
+    continuationWorkspaceLease: FUSION_WORKTREE_LEASE,
+  };
+}
+
+function createHarness(options?: {
+  summary?: SubagentResultSummary | undefined;
+  getActiveScheme?: () => ResolvedOrchestrationScheme | undefined;
+  resolveFusionLane?: (
+    parentSessionId: string,
+  ) => Promise<PreparedSubagentContinuation | undefined>;
+}) {
   const batches: SubagentBatchRequest[] = [];
   const summary = options && 'summary' in options ? options.summary : makeSummary();
   const runRegistry = new RunRegistry({
@@ -95,7 +159,9 @@ function createHarness(options?: { summary?: SubagentResultSummary | undefined }
       },
     },
     workspaceService: {
-      async acquire() {
+      async acquire(task) {
+        if (task.continuationWorkspaceLease) return task.continuationWorkspaceLease;
+        if (task.isolationOverride === 'worktree') return FUSION_WORKTREE_LEASE;
         return { mode: 'readonly', cwd: '/tmp/reviewer', parentRepoPath: '/tmp/project' };
       },
       async release() {},
@@ -165,7 +231,7 @@ function createHarness(options?: { summary?: SubagentResultSummary | undefined }
       runRegistry,
       getParentRunId: () => parentRun.runId,
       getDelegationMode: () => 'auto',
-      getActiveScheme: () => undefined,
+      getActiveScheme: options?.getActiveScheme ?? (() => undefined),
       prepareBatch: async (request) => request,
       whenReady: async () => {},
       taskResults: new Map(),
@@ -175,6 +241,7 @@ function createHarness(options?: { summary?: SubagentResultSummary | undefined }
           getResult: () => summary,
         }),
       merge: async () => ({}),
+      ...(options?.resolveFusionLane ? { resolveFusionLane: options.resolveFusionLane } : {}),
     },
     SESSION_ID,
   );
@@ -222,5 +289,57 @@ describe('piwin_subagent_start reviewOf', () => {
         reviewOf: { resultId: 'result-1', revision: 1 },
       }),
     ).toMatchObject({ ok: false, code: 'review-data-expired' });
+  });
+});
+
+describe('piwin_subagent_start fusion seam', () => {
+  it('wraps the first sidekick spawn as a retained candidate brief', async () => {
+    const harness = createHarness({ getActiveScheme: fusionScheme });
+    const result = await executeTool(harness.startTool, {
+      task: 'fix the flake',
+    });
+    expect(result.ok).toBe(true);
+    const task = harness.batches[0]?.tasks[0];
+    expect(task?.role).toBe('sidekick');
+    expect(task?.isolationOverride).toBe('worktree');
+    expect(task?.deliveryIntent).toBe('candidate');
+    expect(task?.applyPolicy).toBe('explicit');
+    expect(task?.retainWorktree).toBe(true);
+    expect(task?.capabilities).not.toContain('delegate');
+    expect(task?.capabilities).toContain('write');
+    expect(task?.continuationSessionId).toBeUndefined();
+    expect(task?.task).toContain(PIWIN_FUSION_BRIEF_MARKER);
+    expect(task?.task).toMatch(/cannot see the parent conversation/i);
+    expect(task?.task).toContain('fix the flake');
+  });
+
+  it('reuses the retained sidekick lane without copying parent history', async () => {
+    const harness = createHarness({
+      getActiveScheme: fusionScheme,
+      resolveFusionLane: async () => fusionLaneContinuation('lane-child'),
+    });
+    const result = await executeTool(harness.startTool, {
+      task: 'second brief',
+      role: 'sidekick',
+    });
+    expect(result.ok).toBe(true);
+    const task = harness.batches[0]?.tasks[0];
+    expect(task?.continuationSessionId).toBe('lane-child');
+    expect(task?.continuationWorkspaceLease).toEqual(FUSION_WORKTREE_LEASE);
+    expect(task?.task).toContain('second brief');
+    expect(task?.task).toContain(PIWIN_FUSION_BRIEF_MARKER);
+    expect(task?.task).not.toMatch(/parent history|user said/i);
+  });
+
+  it('leaves Off spawns unwrapped', async () => {
+    const harness = createHarness();
+    const result = await executeTool(harness.startTool, {
+      task: 'fix the flake',
+    });
+    expect(result.ok).toBe(true);
+    const task = harness.batches[0]?.tasks[0];
+    expect(task?.task).toBe('fix the flake');
+    expect(task?.task).not.toContain(PIWIN_FUSION_BRIEF_MARKER);
+    expect(task?.retainWorktree).toBeUndefined();
   });
 });

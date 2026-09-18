@@ -85,6 +85,25 @@ export function getPiwinConfigPath(rootDir: string): string {
   return join(rootDir, 'config.json');
 }
 
+/** Host-owned Playwright browser cache (`~/.piwin/playwright`). Never the app bundle. */
+export function getPiwinPlaywrightDir(rootDir: string): string {
+  return join(rootDir, 'playwright');
+}
+
+/**
+ * Point Playwright at the Host cache before `playwright-core` is first imported.
+ * Packaged sidecars ignore a developer `PIWIN_PLAYWRIGHT_BROWSERS_PATH`.
+ */
+export function applyPiwinPlaywrightBrowsersPath(rootDir?: string): string {
+  const root = getPiwinRoot(rootDir);
+  const bundled = process.env.PIWIN_DESKTOP_BUNDLED === '1';
+  const override = bundled ? undefined : process.env.PIWIN_PLAYWRIGHT_BROWSERS_PATH?.trim();
+  const resolved =
+    override !== undefined && override.length > 0 ? override : getPiwinPlaywrightDir(root);
+  process.env.PLAYWRIGHT_BROWSERS_PATH = resolved;
+  return resolved;
+}
+
 export function getPiwinMediaDir(rootDir: string): string {
   return join(rootDir, 'media');
 }

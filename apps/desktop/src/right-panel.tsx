@@ -8,7 +8,7 @@
  *   PTY-authority exception
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { IconCompress, IconExpand } from './shell-icons';
 import { getDesktopCopy } from './desktop-locale';
 import type { DesktopLocale } from './desktop-locale';
@@ -155,6 +155,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [titlebarTabsSlot, setTitlebarTabsSlot] = useState<HTMLElement | null>(null);
   const [titlebarActionsSlot, setTitlebarActionsSlot] = useState<HTMLElement | null>(null);
+  const [browserPageTabCount, setBrowserPageTabCount] = useState(0);
   const previousActiveTabRef = useRef(props.activeTab);
   const previousOpenRef = useRef(props.open);
   const allTabs = useMemo(
@@ -271,21 +272,37 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const activeIsDocked = active !== null && !openTabs.includes(active) && dockedTabs.includes(active);
   const mountedTabs = selectMountedRightPanelTabs(openTabs, active, props.open);
   const sideChatTitlebar = active === 'sideChat';
-  // Browser page tabs replace the lone 「浏览器」 tool tab in the titlebar.
+  // Page tabs occupy the titlebar only while at least one exists. An empty
+  // workbench keeps the 「浏览器」 tool tab so closing it actually dismisses
+  // the surface instead of leaving a tabless browser body.
   const browserTitlebar =
     active === 'browser' && (activeIsDocked || props.browserContent !== undefined);
+  const hideBrowserToolTab = browserTitlebar && browserPageTabCount > 0;
   const surfaceTitlebar = sideChatTitlebar || browserTitlebar;
-  const toolTabs = surfaceTitlebar ? [] : allTabs;
+  const toolTabs = sideChatTitlebar || hideBrowserToolTab ? [] : allTabs;
+
+  const closeTabRef = useRef<(tab: RightPanelTab) => void>(closeTab);
+  closeTabRef.current = closeTab;
+  const closeBrowserHost = useCallback(() => {
+    closeTabRef.current('browser');
+  }, []);
+  const surfaceTitlebarValue = useMemo<SurfaceTitlebar>(
+    () => ({
+      tabsSlot: titlebarTabsSlot,
+      actionsSlot: titlebarActionsSlot,
+      setPageTabCount: setBrowserPageTabCount,
+      closeHost: closeBrowserHost,
+    }),
+    [closeBrowserHost, titlebarActionsSlot, titlebarTabsSlot],
+  );
 
   const onDockedTitlebarChange = dockedTools?.onTitlebarChange;
   const dockedBrowserTitlebar = browserTitlebar && activeIsDocked;
   useEffect(() => {
     if (!onDockedTitlebarChange) return;
-    onDockedTitlebarChange(
-      dockedBrowserTitlebar ? { tabsSlot: titlebarTabsSlot, actionsSlot: titlebarActionsSlot } : null,
-    );
+    onDockedTitlebarChange(dockedBrowserTitlebar ? surfaceTitlebarValue : null);
     return () => onDockedTitlebarChange(null);
-  }, [dockedBrowserTitlebar, onDockedTitlebarChange, titlebarActionsSlot, titlebarTabsSlot]);
+  }, [dockedBrowserTitlebar, onDockedTitlebarChange, surfaceTitlebarValue]);
 
   const panelClass = [
     'right-panel',
@@ -335,7 +352,9 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         data-tauri-drag-region
         onMouseDown={handleNativeWindowDragMouseDown}
       >
-        {allTabs.length > 0 ? (
+        {/* Empty browser workbench: no + (it read as a second new-tab). Tool
+            tabs are visible, so Files/Terminal are still reachable. */}
+        {allTabs.length > 0 && !(browserTitlebar && browserPageTabCount === 0) ? (
           <RightPanelPlusMenu
             open={pickerOpen}
             onOpenChange={setPickerOpen}
@@ -506,14 +525,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
                 ) : (
                   <div className="right-panel-section">
                     <SurfaceTitlebarProvider
-                      value={
-                        tab === 'browser' && browserTitlebar
-                          ? {
-                              tabsSlot: titlebarTabsSlot,
-                              actionsSlot: titlebarActionsSlot,
-                            }
-                          : null
-                      }
+                      value={tab === 'browser' && browserTitlebar ? surfaceTitlebarValue : null}
                     >
                       <DeferredSurfaceBoundary
                         label={locale === 'zh-CN' ? `正在加载${label}` : `Loading ${label}`}

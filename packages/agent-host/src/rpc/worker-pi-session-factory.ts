@@ -48,6 +48,7 @@ import {
 } from '../seeded-pi-session.js';
 import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { resolvePiRuntimeAgentDir } from '../pi-runtime-agent-dir.js';
+import { mergeSkillAwareReadTool } from '../skill-aware-read-tool.js';
 import { registerClaudeCodeOauthProvider } from '../anthropic-oauth/register-claude-code-provider.js';
 import {
   readPiAutoCompactionEnabled,
@@ -400,8 +401,15 @@ export function createWorkerPiSessionFactory(
 
     // Inject proxy tools as Pi customTools (WP4). The worker does NOT
     // import tool executors — proxy tools call back to the parent.
-    if (input.proxyTools && input.proxyTools.length > 0) {
-      sessionOptions.customTools = input.proxyTools;
+    // Skill-aware `read` also runs here: it only remaps SKILL.md paths, then
+    // uses the same local filesystem the native Pi read already used.
+    const customTools = await mergeSkillAwareReadTool(input.proxyTools, {
+      cwd: blueprint.workingDirectory,
+      skills: blueprint.resourceManifest.skills,
+      piModule: piModule as Record<string, unknown>,
+    });
+    if (customTools && customTools.length > 0) {
+      sessionOptions.customTools = customTools;
     }
 
     // Apply model override from the blueprint (parent-compiled).

@@ -38,6 +38,8 @@ import {
   cacheBatchResults,
   observeAcceptedBatch,
 } from './subagent-accepted-batch.js';
+import { resolveFusionStartTaskPatch } from './fusion-sidekick-lane.js';
+import type { PreparedSubagentContinuation } from './subagent-continuation-prep.js';
 
 export { SubagentControlError };
 
@@ -68,6 +70,9 @@ export type SubagentControlDeps = {
       }
     | undefined
   >;
+  resolveFusionLane?: (
+    parentSessionId: string,
+  ) => Promise<PreparedSubagentContinuation | undefined>;
 };
 
 type PreparedStart = {
@@ -166,6 +171,13 @@ async function prepareAndStartSubagent(
       (!activeScheme || activeScheme.exposeSpawnMetadata) &&
       !schemeSpawn.clearedModel &&
       !resolvedModel;
+    const fusionPatch = await resolveFusionStartTaskPatch({
+      scheme: activeScheme,
+      role: schemeSpawn.role,
+      task: input.task,
+      parentSessionId: sessionId,
+      ...(deps.resolveFusionLane ? { resolveLane: deps.resolveFusionLane } : {}),
+    });
     const preparedRequest = await deps.prepareBatch(
       {
         parentSessionId: sessionId,
@@ -176,10 +188,25 @@ async function prepareAndStartSubagent(
             invocationId: input.invocationId,
             parentRunId: input.parentRunId,
             ...(input.parentToolCallId ? { parentToolCallId: input.parentToolCallId } : {}),
-            task: input.task,
+            task: fusionPatch?.task ?? input.task,
             ...(mode ? { isolationOverride: mode } : {}),
-            ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
-            ...(input.deliveryIntent ? { deliveryIntent: input.deliveryIntent } : {}),
+            ...(fusionPatch
+              ? {
+                  applyPolicy: fusionPatch.applyPolicy,
+                  deliveryIntent: fusionPatch.deliveryIntent,
+                  retainWorktree: fusionPatch.retainWorktree,
+                  capabilities: fusionPatch.capabilities,
+                }
+              : {
+                  ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
+                  ...(input.deliveryIntent ? { deliveryIntent: input.deliveryIntent } : {}),
+                }),
+            ...(fusionPatch?.continuationSessionId
+              ? { continuationSessionId: fusionPatch.continuationSessionId }
+              : {}),
+            ...(fusionPatch?.continuationWorkspaceLease
+              ? { continuationWorkspaceLease: fusionPatch.continuationWorkspaceLease }
+              : {}),
             ...(input.sessionName ? { sessionName: input.sessionName } : {}),
             ...(schemeSpawn.role ? { role: schemeSpawn.role } : {}),
             ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
@@ -196,9 +223,24 @@ async function prepareAndStartSubagent(
       },
       'model-tool',
     );
+    const fusionForcedRequest =
+      fusionPatch && preparedRequest.tasks[0]
+        ? {
+            ...preparedRequest,
+            tasks: [
+              {
+                ...preparedRequest.tasks[0],
+                capabilities: fusionPatch.capabilities,
+                retainWorktree: fusionPatch.retainWorktree,
+                deliveryIntent: fusionPatch.deliveryIntent,
+                applyPolicy: fusionPatch.applyPolicy,
+              },
+            ],
+          }
+        : preparedRequest;
     const admittedRequest = input.reviewOf
-      ? attachReviewTarget(deps, sessionId, input.reviewOf, preparedRequest)
-      : preparedRequest;
+      ? attachReviewTarget(deps, sessionId, input.reviewOf, fusionForcedRequest)
+      : fusionForcedRequest;
     const handle = deps.orchestrator.startBatch(admittedRequest, parentRunId);
     return { handle, releaseAdmission };
   } catch (error) {

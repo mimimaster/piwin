@@ -18,6 +18,7 @@ import { AgentLocator } from '../../agent-locator.js';
 import type { AgentLocatorAnimation } from '../../ui-preferences.js';
 import { HostTargetSettings } from '../../host-target-settings';
 import { MobileAccessSettings } from '../../mobile-access-settings';
+import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
 type GeneralSubTab = 'appearance' | 'general' | 'shortcuts' | 'pets';
 
@@ -230,13 +231,15 @@ export function GeneralPage(): ReactElement {
   const { requestPet, onPetActiveChanged } = settings;
   const petsAvailable = settingsHostSupportsCommand(settings, 'pet/list');
   const [activeTab, setActiveTab] = useState<GeneralSubTab>('appearance');
+  useResetSettingsMainScroll(activeTab);
 
   return (
-    <div className="settings-card general-hub-page" data-testid="settings-general">
-      <div style={{ marginBottom: 16 }}>
+    <div className="settings-card settings-hub-page general-hub-page" data-testid="settings-general">
+      <div className="settings-hub-tabs">
         <SegmentedControl
           value={activeTab}
           onChange={(val) => setActiveTab(val as GeneralSubTab)}
+          fullWidth
           data={[
             { value: 'appearance', label: isChinese ? '外观与主题' : 'Appearance' },
             { value: 'general', label: isChinese ? '基础设置' : 'General' },
@@ -251,6 +254,7 @@ export function GeneralPage(): ReactElement {
         />
       </div>
 
+      <div className="settings-hub-panels">
       {activeTab === 'appearance' && (
         <div data-testid="general-tab-appearance">
           <AppearancePage />
@@ -289,6 +293,7 @@ export function GeneralPage(): ReactElement {
           </Suspense>
         </div>
       )}
+      </div>
     </div>
   );
 }

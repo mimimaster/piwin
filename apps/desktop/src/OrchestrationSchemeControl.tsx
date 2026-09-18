@@ -105,9 +105,6 @@ export function OrchestrationSchemeControl({
             data-testid="orchestration-scheme-trigger"
             data-scheme={value || 'off'}
           >
-            <span className="orchestration-scheme-prefix">
-              {isZh ? '编排' : 'Scheme'}
-            </span>
             <span className="orchestration-scheme-value">{selectedLabel}</span>
             <span className="orchestration-scheme-chevron" aria-hidden />
           </button>

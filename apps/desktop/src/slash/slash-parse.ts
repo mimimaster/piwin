@@ -143,14 +143,14 @@ export function parseComposerSlashSubmit(
     };
   }
 
-  // ORCH: /scheme [id] or /ultra-code — set per-send scheme only (no chat bubble).
+  // ORCH: /scheme [id] or builtin aliases — set per-send scheme only (no chat bubble).
   if (name === 'scheme') {
     const schemeId = (args.split(/\s+/)[0] ?? 'off').trim().toLowerCase() || 'off';
     const remainingArgs = schemeId === 'off' ? '' : args.slice(schemeId.length).trim();
     return { kind: 'scheme', schemeId, name, args: remainingArgs };
   }
-  if (name === 'ultra-code') {
-    return { kind: 'scheme', schemeId: 'ultra-code', name, args };
+  if (name === 'ultra-code' || name === 'fusion') {
+    return { kind: 'scheme', schemeId: name, name, args };
   }
 
   const skillByName = skills.find(

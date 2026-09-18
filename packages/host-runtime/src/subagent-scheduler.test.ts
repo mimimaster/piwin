@@ -7,6 +7,7 @@ import {
   cancelAll,
   isBatchSettled,
   deriveBatchStatus,
+  isWriteTask,
 } from './subagent-scheduler.js';
 import { DEFAULT_SUBAGENT_MAX_CONCURRENCY } from '@piwin/contracts';
 import type { SubagentBatchRequest, SubagentTaskSpec } from '@piwin/contracts';
@@ -52,6 +53,15 @@ describe('initSchedulerState', () => {
   });
 });
 
+describe('isWriteTask', () => {
+  it('identifies worktree isolation tasks as write tasks', () => {
+    expect(isWriteTask(makeTask({ isolationOverride: 'worktree' }))).toBe(true);
+    expect(isWriteTask(makeTask({ isolationOverride: 'readonly' }))).toBe(false);
+    expect(isWriteTask(makeTask())).toBe(false);
+    expect(isWriteTask(undefined)).toBe(false);
+  });
+});
+
 describe('nextReadyBatch', () => {
   it('returns tasks with no dependencies when budget allows', () => {
     const state = initSchedulerState(makeBatch([makeTask({ id: 'a' }), makeTask({ id: 'b' })]));
@@ -82,6 +92,61 @@ describe('nextReadyBatch', () => {
     markTaskRunning(state, ready[1]!);
     // Budget exhausted.
     expect(nextReadyBatch(state)).toEqual([]);
+  });
+
+  it('allows only one write task ready at a time even with high concurrency budget', () => {
+    const state = initSchedulerState(
+      makeBatch(
+        [
+          makeTask({ id: 'w1', isolationOverride: 'worktree' }),
+          makeTask({ id: 'w2', isolationOverride: 'worktree' }),
+          makeTask({ id: 'r1', isolationOverride: 'readonly' }),
+        ],
+        { maxConcurrency: 4 },
+      ),
+    );
+    const ready = nextReadyBatch(state);
+    // Exactly one write task and the readonly task can be ready concurrently.
+    expect(ready).toEqual(['w1', 'r1']);
+  });
+
+  it('blocks new write tasks while a write task is currently running, but allows readonly', () => {
+    const state = initSchedulerState(
+      makeBatch(
+        [
+          makeTask({ id: 'w1', isolationOverride: 'worktree' }),
+          makeTask({ id: 'w2', isolationOverride: 'worktree' }),
+          makeTask({ id: 'r1', isolationOverride: 'readonly' }),
+        ],
+        { maxConcurrency: 4 },
+      ),
+    );
+    // Mark w1 as running
+    markTaskRunning(state, 'w1');
+
+    // Next ready batch should include readonly r1, but w2 must wait
+    const ready = nextReadyBatch(state);
+    expect(ready).toEqual(['r1']);
+  });
+
+  it('unblocks pending write task after running write task settles', () => {
+    const state = initSchedulerState(
+      makeBatch(
+        [
+          makeTask({ id: 'w1', isolationOverride: 'worktree' }),
+          makeTask({ id: 'w2', isolationOverride: 'worktree' }),
+        ],
+        { maxConcurrency: 4 },
+      ),
+    );
+    expect(nextReadyBatch(state)).toEqual(['w1']);
+    markTaskRunning(state, 'w1');
+    expect(nextReadyBatch(state)).toEqual([]);
+
+    // Settle w1
+    markTaskSettled(state, 'w1', 'completed');
+    // Now w2 is ready
+    expect(nextReadyBatch(state)).toEqual(['w2']);
   });
 
   it('returns empty when cancelled', () => {

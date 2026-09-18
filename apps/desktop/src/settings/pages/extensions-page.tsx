@@ -16,6 +16,7 @@ import { McpPanel } from '../../McpPanel';
 import { PromptsPanel } from '../../PromptsPanel';
 import { PluginsPanel } from '../../PluginsPanel';
 import { ExtensionsPanel } from '../../ExtensionsPanel';
+import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
 type ExtensionsSubTab = 'extensions' | 'skills' | 'tools' | 'prompts' | 'plugins';
 
@@ -41,10 +42,11 @@ export function ExtensionsPage(): ReactElement {
   const promptsReadOnly = !settingsHostSupportsCommand(settings, 'prompts/set_enabled');
 
   const [activeTab, setActiveTab] = useState<ExtensionsSubTab>('extensions');
+  useResetSettingsMainScroll(activeTab);
 
   return (
-    <div className="settings-card extensions-hub-page" data-testid="settings-extensions-hub">
-      <div style={{ marginBottom: 16 }}>
+    <div className="settings-card settings-hub-page extensions-hub-page" data-testid="settings-extensions-hub">
+      <div className="settings-hub-tabs">
         <SegmentedControl
           value={activeTab}
           onChange={(val) => setActiveTab(val as ExtensionsSubTab)}
@@ -75,6 +77,7 @@ export function ExtensionsPage(): ReactElement {
         />
       </div>
 
+      <div className="settings-hub-panels">
       {activeTab === 'extensions' && (
         <div className="settings-card" data-testid="settings-extensions">
           <ExtensionsPanel
@@ -120,7 +123,7 @@ export function ExtensionsPage(): ReactElement {
           <PluginsPanel request={requestPlugins} variant="inline" />
         </div>
       )}
+      </div>
     </div>
   );
 }
-

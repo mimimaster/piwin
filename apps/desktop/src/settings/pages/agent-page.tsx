@@ -11,6 +11,7 @@ import { SubAgentPanel } from '../../SubAgentPanel';
 import { ArtifactPage } from './artifact-page';
 import { ArtifactPlaygroundPage } from './artifact-playground-page';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
+import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
 type AgentSubTab = 'automation' | 'artifact' | 'playground';
 
@@ -33,6 +34,7 @@ export function AgentPage(): ReactElement {
   const [activeTab, setActiveTab] = useState<AgentSubTab>(
     automationAvailable ? 'automation' : 'artifact',
   );
+  useResetSettingsMainScroll(activeTab);
 
   const liveChildren =
     activeSessionId && subagentChildren
@@ -40,8 +42,8 @@ export function AgentPage(): ReactElement {
       : undefined;
 
   return (
-    <div className="settings-card agent-hub-page" data-testid="settings-agent-hub">
-      <div style={{ marginBottom: 16 }}>
+    <div className="settings-card settings-hub-page agent-hub-page" data-testid="settings-agent-hub">
+      <div className="settings-hub-tabs">
         <SegmentedControl
           value={activeTab}
           onChange={(val) => setActiveTab(val as AgentSubTab)}
@@ -58,6 +60,7 @@ export function AgentPage(): ReactElement {
         />
       </div>
 
+      <div className="settings-hub-panels">
       {activeTab === 'automation' && (
         <div className="settings-card" data-testid="agent-tab-automation">
           <AutomationPanel projectPath={projectPath} request={requestAutomation} variant="inline" />
@@ -96,6 +99,7 @@ export function AgentPage(): ReactElement {
           <ArtifactPlaygroundPage />
         </div>
       )}
+      </div>
     </div>
   );
 }

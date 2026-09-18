@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import {
   getPiwinRoot,
+  applyPiwinPlaywrightBrowsersPath,
   HostRuntime,
   type HostRuntimeTestFixture,
   initPiwinConfig,
@@ -435,6 +436,7 @@ function printCliWaitingResource(push: HostPush, seen: { printed: boolean }): vo
 
 async function commandDoctor(args: string[] = []): Promise<void> {
   const root = getPiwinRoot();
+  applyPiwinPlaywrightBrowsersPath(root);
   const config = await loadPiwinConfig(root);
   const nodeVersion = process.versions.node;
   const resolver = createSecretResolver();
@@ -496,7 +498,7 @@ async function commandDoctor(args: string[] = []): Promise<void> {
   console.log('- packages: media tools-web skills mcp marketplace git theme pet artifact browser');
   try {
     const { getBrowserInstallStatus } = await import('@piwin/browser');
-    const browserStatus = getBrowserInstallStatus();
+    const browserStatus = await getBrowserInstallStatus();
     if (browserStatus.available) {
       console.log(`- browser chromium: available (${browserStatus.path ?? 'unknown path'})`);
     } else {
@@ -2615,6 +2617,7 @@ async function commandHostServe(argv: string[]): Promise<void> {
   const permissionModeOverride = resolvePermissionModeOverride(argv);
   const transport = createJsonlStdioTransport();
   const hostDataRoot = resolveHostDataRoot();
+  applyPiwinPlaywrightBrowsersPath(hostDataRoot);
   const runtimeOptions: ConstructorParameters<typeof HostRuntime>[0] = {
     mode,
     mock,

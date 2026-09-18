@@ -69,5 +69,6 @@ describe('nextBrowserAction', () => {
     expect(act('recovering', 'idle')).toBe('wait-for-recovery');
     expect(act('failed', 'idle')).toBe('restart');
     expect(act('stopped', 'idle')).toBe('navigate-or-observe-will-start');
+    expect(act('installing', 'idle')).toBe('navigate-or-observe-will-start');
   });
 });

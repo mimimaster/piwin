@@ -3,7 +3,7 @@
  * Handles collapsible overflow, image attachments, copy/revert/intervention actions,
  * and conversation-mode right-aligned layout with light avatar.
  */
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
 import { formatTurnExactStamp, formatTurnRelativeAge } from './chat-turn-marginalia.js';
 import { MessageAttachments } from './message-attachments';
@@ -11,8 +11,19 @@ import { IconCheck, IconClose, IconCopy, IconEdit } from './shell-icons';
 import { VoiceHandoverCard } from './voice-handover-card.js';
 import { InkstoneMessageIdentity } from './inkstone-message-identity.js';
 import { parseSlashMessageDisplay } from './slash/slash-parse.js';
+import {
+  isUserMessageFooterOverlay,
+  measureUnwrappedTextWidth,
+  readBubbleInnerWidth,
+} from './user-message-footer-layout.js';
 
 export const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
+
+function pinScrollToStart(node: HTMLElement | null): void {
+  if (node && node.scrollTop !== 0) {
+    node.scrollTop = 0;
+  }
+}
 
 function UserMessageAge(props: {
   createdAt?: string;
@@ -98,8 +109,17 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
   const [copied, setCopied] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [isTextOverflow, setIsTextOverflow] = useState(false);
+  const [isMultilineFooter, setIsMultilineFooter] = useState(
+    () =>
+      message.attachments.length > 0 ||
+      (message.contextRefs?.length ?? 0) > 0 ||
+      message.text.includes('\n') ||
+      message.text.length > 48,
+  );
   const textRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   const hasMediaAttachments = message.attachments.length > 0;
+  const hasShelfContent = hasMediaAttachments || (message.contextRefs?.length ?? 0) > 0;
   const interventionStatus = message.instructionDelivery?.status;
   const isChinese = props.locale !== 'en';
 
@@ -147,21 +167,37 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
 
   // Measure natural height of the text node to determine if it needs collapsing.
   useEffect(() => {
-    const node = textRef.current;
-    if (!node) return;
+    const textNode = textRef.current;
+    const bubble = bodyRef.current;
+    if (!textNode && !bubble) return;
 
     function measure(): void {
-      if (!node) return;
-      const naturalHeight = node.scrollHeight;
-      setIsTextOverflow(naturalHeight > USER_MESSAGE_COLLAPSE_THRESHOLD);
+      const overflowing = textNode
+        ? textNode.scrollHeight > USER_MESSAGE_COLLAPSE_THRESHOLD
+        : false;
+      setIsTextOverflow(overflowing);
+      if (!bubble) {
+        setIsMultilineFooter(hasShelfContent || message.text.includes('\n') || overflowing);
+        return;
+      }
+      setIsMultilineFooter(
+        isUserMessageFooterOverlay({
+          text: message.text,
+          hasShelfContent,
+          isTextOverflow: overflowing,
+          unwrappedTextWidth: textNode ? measureUnwrappedTextWidth(textNode) : 0,
+          bubbleInnerWidth: readBubbleInnerWidth(bubble),
+        }),
+      );
     }
 
     measure();
 
     const observer = new ResizeObserver(measure);
-    observer.observe(node);
+    if (textNode) observer.observe(textNode);
+    if (bubble) observer.observe(bubble);
     return () => observer.disconnect();
-  }, [message.text]);
+  }, [hasShelfContent, message.text]);
 
   async function handleCopy(): Promise<void> {
     const payload = message.text.trim();
@@ -176,10 +212,19 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
     }
   }
 
-  // Attachments in Agent mode start compact to avoid crowding.
-  // In Conversation Chat mode, messages always display naturally without collapsing.
-  const isCollapsible = !isConversationSession && (hasMediaAttachments || isTextOverflow);
+  // Long prompts and media start compact so a history card cannot occupy the
+  // transcript viewport. Click (or Enter/Space) expands; selecting text does not.
+  const isCollapsible = hasMediaAttachments || isTextOverflow;
   const collapsed = isCollapsible && isCollapsed;
+
+  // overflow:hidden still creates a scrollport. A click in the middle of a
+  // long prompt (or scroll anchoring) would otherwise keep that slice visible
+  // after collapse. Pin to the first line before paint.
+  useLayoutEffect(() => {
+    if (!collapsed) return;
+    pinScrollToStart(bodyRef.current);
+    pinScrollToStart(textRef.current);
+  }, [collapsed]);
 
   const handleToggle = isCollapsible
     ? () => {
@@ -200,7 +245,8 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
         <div className="user-message-main">
           <InkstoneMessageIdentity message={message} locale={props.locale ?? 'zh-CN'} />
           <div
-            className={`user-message-bubble user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasMediaAttachments ? 'has-attachments' : ''}`}
+            ref={bodyRef}
+            className={`user-message-bubble user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasMediaAttachments ? 'has-attachments' : ''} ${isMultilineFooter ? 'is-multiline' : 'is-single-line'}`}
             data-testid="user-message-collapsible-body"
             onClick={handleToggle}
             role={isCollapsible ? 'button' : undefined}
@@ -323,6 +369,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
       data-testid="user-message-wrapper"
     >
       <div
+        ref={bodyRef}
         className={`ucard user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasMediaAttachments ? 'has-attachments' : ''}`}
         data-testid="user-message-collapsible-body"
         onClick={handleToggle}

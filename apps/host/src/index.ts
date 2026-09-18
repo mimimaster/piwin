@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { HostRuntime } from '@piwin/host-runtime';
+import { applyPiwinPlaywrightBrowsersPath, HostRuntime } from '@piwin/host-runtime';
 import {
   HostDevicePairing,
   HostDevicePairingFileStore,
@@ -28,6 +28,7 @@ const hostBuildId = process.env.PIWIN_HOST_BUILD_ID?.trim() || '0.0.0-dev';
 const minClientVersion = process.env.PIWIN_HOST_MIN_CLIENT_VERSION?.trim() || undefined;
 const allowCleartext = process.env.PIWIN_HOST_ALLOW_CLEARTEXT === '1';
 const piwinRoot = resolvePiwinRoot();
+applyPiwinPlaywrightBrowsersPath(piwinRoot);
 
 const agentWorkerScript = resolveAgentWorkerScript();
 const clientToolBroker = await createDeviceToolBrokerForHost(piwinRoot);

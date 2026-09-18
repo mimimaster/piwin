@@ -424,8 +424,7 @@
 }
 
 .thinking-effort-sep,
-.thinking-effort-value,
-.orchestration-scheme-prefix {
+.thinking-effort-value {
   flex-shrink: 0;
   color: var(--slab-placeholder);
   font-weight: 400;

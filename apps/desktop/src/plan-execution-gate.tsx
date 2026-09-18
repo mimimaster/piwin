@@ -223,7 +223,7 @@ const COPY_ZH: GateCopy = {
   title: '选择计划执行方式',
   recommended: '推荐',
   inline: '在当前会话直接执行',
-  subagent: '子代理执行',
+  subagent: '子代理逐步隔离执行',
   executed: '已执行',
   stale: '已过期',
   kb: '按 A / B 键快速执行 · 也可以直接在输入框继续提问',
@@ -234,7 +234,7 @@ const COPY_EN: GateCopy = {
   title: 'How should this plan run?',
   recommended: 'Recommended',
   inline: 'Inline in this session',
-  subagent: 'Subagent-driven',
+  subagent: 'Isolated subagent slices',
   executed: 'Executed',
   stale: 'Expired',
   kb: 'Press A / B to run · Or continue typing in the prompt bar',
@@ -249,11 +249,11 @@ export function formatPlanDescription(
   const parallelSteps = countIndependentSteps(plan);
   if (locale === 'en') {
     const stepPart = `${totalSteps} ${totalSteps === 1 ? 'step' : 'steps'}`;
-    const parallelPart = parallelSteps > 0 ? ` · ${parallelSteps} parallelizable` : '';
+    const parallelPart = parallelSteps > 0 ? ` · ${parallelSteps} isolatable` : '';
     return title ? `${title} · ${stepPart}${parallelPart}` : `${stepPart}${parallelPart}`;
   }
   const stepPart = `${totalSteps} 步`;
-  const parallelPart = parallelSteps > 0 ? ` · ${parallelSteps} 步可并行` : '';
+  const parallelPart = parallelSteps > 0 ? ` · ${parallelSteps} 步可隔离` : '';
   return title ? `${title} · ${stepPart}${parallelPart}` : `${stepPart}${parallelPart}`;
 }
 

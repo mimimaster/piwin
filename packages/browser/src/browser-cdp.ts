@@ -3,7 +3,6 @@
  * to a user-configured loopback endpoint — not a second MCP browser.
  */
 import type { Browser } from 'playwright-core';
-import { chromium } from 'playwright-core';
 import { BrowserUnavailableError } from './browser-errors.js';
 
 export type BrowserOwnership = 'owned' | 'attached';
@@ -13,7 +12,7 @@ export type BrowserConnectOverCdp = (endpoint: string) => Promise<Browser>;
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '0:0:0:0:0:0:0:1']);
 
 export function defaultConnectOverCdp(endpoint: string): Promise<Browser> {
-  return chromium.connectOverCDP(endpoint);
+  return import('playwright-core').then(({ chromium }) => chromium.connectOverCDP(endpoint));
 }
 
 /**

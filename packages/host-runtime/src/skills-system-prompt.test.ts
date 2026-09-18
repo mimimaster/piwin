@@ -14,6 +14,7 @@ describe('formatSkillDiscoveryPrompt', () => {
     const prompt = formatSkillDiscoveryPrompt({ skillCount: 3, piBuiltinToolNames: ['read'] });
     expect(prompt).toContain('## Skills');
     expect(prompt).toContain('<available_skills>');
-    expect(prompt).toContain('read that SKILL.md with the read tool first');
+    expect(prompt).toContain('read the exact `<location>` path with the read tool first');
+    expect(prompt).toContain('Do not invent bundled-assets');
   });
 });

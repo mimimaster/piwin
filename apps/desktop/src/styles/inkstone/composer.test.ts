@@ -61,4 +61,19 @@ describe('Inkstone composer.css context capsules', () => {
       /\.composer-v2-icon-btn \{[\s\S]*?width: 28px;[\s\S]*?height: 26px;[\s\S]*?--ai-size: 26px;/,
     );
   });
+
+  it('aligns send button, stop button, and action slot with 26px toolbar items', () => {
+    expect(composer).toMatch(
+      /\.composer-v2-send-btn \{[\s\S]*?width: 26px;[\s\S]*?height: 26px;/,
+    );
+    expect(composer).toMatch(
+      /\.composer-v2-action-slot \{[\s\S]*?height: 26px;[\s\S]*?min-width: 26px;/,
+    );
+    expect(composer).toMatch(
+      /\.composer-v2-stop-btn \{[\s\S]*?width: 26px;[\s\S]*?height: 26px;/,
+    );
+    expect(composer).not.toMatch(
+      /\.composer-v2-send-btn \{[\s\S]*?width: 32px;[\s\S]*?height: 32px;/,
+    );
+  });
 });

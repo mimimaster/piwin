@@ -1,10 +1,10 @@
 /**
  * Shared pure-string path-traversal helpers (ADR 0019 §4).
  *
- * No `realpath` / FS access here — symlink-aware canonicalization is the
- * caller's responsibility so these functions stay unit-testable without a
- * filesystem. Mirrors the `..` / `relativeToRoot` logic previously inlined in
- * `agent-host/commands/project-commands.ts`.
+ * Lexical helpers (`escapesRoot`, `resolveInsideRoot`, `isRegisteredProjectRoot`)
+ * stay filesystem-free so missing disks still match store entries. Realpath
+ * helpers (`resolveInsideRootWithRealpath`, `findRegisteredProjectRoot`) are
+ * the symlink-aware layer on top.
  */
 import path from 'node:path';
 import { realpath, stat } from 'node:fs/promises';
@@ -108,6 +108,41 @@ export function isRegisteredProjectRoot(
     return false;
   }
   return registeredRoots.some((root) => normalizeProjectRootPath(root) === normalized);
+}
+
+/**
+ * Return the remembered store path that is the same folder as `projectPath`.
+ *
+ * Lexical resolve wins so a missing volume still matches the path recorded at
+ * open time. If that misses, realpath aliases of the same directory match too
+ * (`/Volumes/Disk/proj` symlink vs `/Users/me/proj`). Callers should keep the
+ * returned store path as the browse root rather than the alias they were given.
+ */
+export async function findRegisteredProjectRoot(
+  registeredRoots: readonly string[],
+  projectPath: string,
+): Promise<string | undefined> {
+  const normalized = normalizeProjectRootPath(projectPath);
+  if (!normalized) {
+    return undefined;
+  }
+  for (const root of registeredRoots) {
+    if (normalizeProjectRootPath(root) === normalized) {
+      return root;
+    }
+  }
+  const candidateReal = await realpathIfExists(normalized);
+  if (candidateReal === null) {
+    return undefined;
+  }
+  const candidateKey = normalizeProjectRootPath(candidateReal);
+  for (const root of registeredRoots) {
+    const rootReal = await realpathIfExists(root);
+    if (rootReal !== null && normalizeProjectRootPath(rootReal) === candidateKey) {
+      return root;
+    }
+  }
+  return undefined;
 }
 
 async function realpathIfExists(targetPath: string): Promise<string | null> {

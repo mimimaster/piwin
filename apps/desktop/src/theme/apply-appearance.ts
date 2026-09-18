@@ -19,6 +19,11 @@ import { getThemeAsset, type InkWashAssetKind } from '../ink-wash-assets.js';
 import { alpha, mix } from './color.js';
 import { resolveDeckTokens } from './deck-derive.js';
 import { FONT_MONO } from './deck-palette.js';
+import {
+  buildFontStack,
+  DEFAULT_FONT_SERIF,
+  type CustomFontPreferences,
+} from './font-manager.js';
 
 const INKSTONE_THEME_IDS = new Set(['piwin-inkstone-paper', 'piwin-inkstone-ink']);
 const INKSTONE_DOCUMENT_THEME_IDS = new Set([
@@ -391,7 +396,10 @@ export function appearanceVariableNames(theme: ThemeManifest): string[] {
 }
 
 /** Apply a theme manifest to the document root. */
-export function applyAppearanceToDocument(theme: ThemeManifest): void {
+export function applyAppearanceToDocument(
+  theme: ThemeManifest,
+  customFonts?: CustomFontPreferences,
+): void {
   const root = document.documentElement;
   const deck = resolveDeckTokens(theme);
   const isLight = theme.mode === 'light';
@@ -418,12 +426,60 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
     for (const name of INKSTONE_STYLESHEET_SLAB_VARS) {
       root.style.removeProperty(name);
     }
-    root.style.setProperty('--font', INKSTONE_FONT_SANS);
-    root.style.setProperty('--font-sans', INKSTONE_FONT_SANS);
-    root.style.setProperty('--font-mono', INKSTONE_FONT_MONO);
-    root.style.setProperty('--mono', INKSTONE_FONT_MONO);
-    root.style.fontFamily = INKSTONE_FONT_SANS;
+    const sans = buildFontStack(customFonts?.sansFont, INKSTONE_FONT_SANS);
+    const mono = buildFontStack(customFonts?.monoFont, INKSTONE_FONT_MONO);
+    const serif = buildFontStack(customFonts?.serifFont, DEFAULT_FONT_SERIF);
+    root.style.setProperty('--font', sans);
+    root.style.setProperty('--font-sans', sans);
+    root.style.setProperty('--font-mono', mono);
+    root.style.setProperty('--mono', mono);
+    if (customFonts?.sansFont && customFonts.sansFont !== 'default') {
+      root.style.setProperty('--sans', sans);
+      root.style.setProperty('--mantine-font-family', sans);
+    } else {
+      root.style.removeProperty('--sans');
+      root.style.removeProperty('--mantine-font-family');
+    }
+    if (customFonts?.monoFont && customFonts.monoFont !== 'default') {
+      root.style.setProperty('--mantine-font-family-monospace', mono);
+    } else {
+      root.style.removeProperty('--mantine-font-family-monospace');
+    }
+    if (customFonts?.serifFont && customFonts.serifFont !== 'default') {
+      root.style.setProperty('--serif', serif);
+      root.style.setProperty('--font-serif', serif);
+    } else {
+      root.style.removeProperty('--serif');
+      root.style.removeProperty('--font-serif');
+    }
+    root.style.fontFamily = sans;
   } else {
-    root.style.fontFamily = theme.tokens.font;
+    const sans = buildFontStack(customFonts?.sansFont, theme.tokens.font);
+    root.style.fontFamily = sans;
+    if (customFonts?.sansFont && customFonts.sansFont !== 'default') {
+      root.style.setProperty('--sans', sans);
+      root.style.setProperty('--font', sans);
+      root.style.setProperty('--font-sans', sans);
+      root.style.setProperty('--mantine-font-family', sans);
+    } else {
+      root.style.removeProperty('--sans');
+      root.style.removeProperty('--mantine-font-family');
+    }
+    if (customFonts?.monoFont && customFonts.monoFont !== 'default') {
+      const mono = buildFontStack(customFonts.monoFont, FONT_MONO);
+      root.style.setProperty('--font-mono', mono);
+      root.style.setProperty('--mono', mono);
+      root.style.setProperty('--mantine-font-family-monospace', mono);
+    } else {
+      root.style.removeProperty('--mantine-font-family-monospace');
+    }
+    if (customFonts?.serifFont && customFonts.serifFont !== 'default') {
+      const serif = buildFontStack(customFonts.serifFont, DEFAULT_FONT_SERIF);
+      root.style.setProperty('--serif', serif);
+      root.style.setProperty('--font-serif', serif);
+    } else {
+      root.style.removeProperty('--serif');
+      root.style.removeProperty('--font-serif');
+    }
   }
 }

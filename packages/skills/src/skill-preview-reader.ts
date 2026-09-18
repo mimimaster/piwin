@@ -10,9 +10,10 @@
  * - returns bounded UTF-8 content with current-resource provenance
  */
 import { readFile, realpath, stat } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   normalizeResourceId,
+  extractSkillIdFromDocumentPath,
   type SkillPreviewFailureReason,
   type SkillResourceOrigin,
   type SkillSource,
@@ -233,19 +234,7 @@ export function matchSkillByLegacyPath(
  * - .../skills/<id>/
  */
 export function extractSkillIdFromLegacyPath(legacyPath: string): string | null {
-  const normalized = legacyPath.replace(/\\/g, '/').replace(/^file:\/\//, '');
-  const skillMd = normalized.match(/\/skills\/([^/]+)\/SKILL\.md$/i);
-  if (skillMd?.[1]) return safeNormalizeId(skillMd[1]);
-  const skillDir = normalized.match(/\/skills\/([^/]+)\/?$/i);
-  if (skillDir?.[1] && !skillDir[1].includes('.')) return safeNormalizeId(skillDir[1]);
-  const skillFile = normalized.match(/\/skills\/([^/]+)\.md$/i);
-  if (skillFile?.[1]) return safeNormalizeId(skillFile[1]);
-  // Bare SKILL.md with parent folder name
-  if (/\/SKILL\.md$/i.test(normalized)) {
-    const parent = basename(dirname(normalized));
-    if (parent && parent !== 'skills') return safeNormalizeId(parent);
-  }
-  return null;
+  return extractSkillIdFromDocumentPath(legacyPath);
 }
 
 async function resolveSkillMarkdownPath(skillPath: string): Promise<string | null> {

@@ -20,6 +20,7 @@ export {
   normalizeProjectRootPath,
   resolveInsideRoot,
   resolveInsideRootWithRealpath,
+  findRegisteredProjectRoot,
 } from './path-traversal.js';
 export type {
   ProjectPathAuthorityReason,

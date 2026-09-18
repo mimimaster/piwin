@@ -200,6 +200,14 @@ it('parses /scheme and /ultra-code as scheme selection', () => {
     kind: 'scheme',
     schemeId: 'ultra-code',
   });
+  expect(parseComposerSlashSubmit('/scheme fusion', skills)).toMatchObject({
+    kind: 'scheme',
+    schemeId: 'fusion',
+  });
+  expect(parseComposerSlashSubmit('/fusion', skills)).toMatchObject({
+    kind: 'scheme',
+    schemeId: 'fusion',
+  });
 });
 
 it('parses /knowledge, /flashcards, and /notes as knowledge submits', () => {

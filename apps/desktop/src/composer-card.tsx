@@ -725,21 +725,27 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     // failure-row buttons that sit between the chips and the input.
     if (
       event.key === 'Tab' &&
-      event.shiftKey &&
       !slashMenuOpen &&
       !atMenuOpen &&
       !historyMenuOpen
     ) {
-      const shelf = event.currentTarget
-        .closest('.composer-card-v2')
-        ?.querySelector('[data-testid="composer-attachment-shelf-chips"]');
-      const chips = shelf?.querySelectorAll<HTMLElement>('[data-shelf-chip]');
-      const last = chips && chips.length > 0 ? chips[chips.length - 1] : null;
-      if (last) {
-        event.preventDefault();
-        last.focus();
-        return;
+      if (event.shiftKey) {
+        const shelf = event.currentTarget
+          .closest('.composer-card-v2')
+          ?.querySelector('[data-testid="composer-attachment-shelf-chips"]');
+        const chips = shelf?.querySelectorAll<HTMLElement>('[data-shelf-chip]');
+        const last = chips && chips.length > 0 ? chips[chips.length - 1] : null;
+        if (last) {
+          event.preventDefault();
+          last.focus();
+          return;
+        }
       }
+      // Forward Tab (and Shift+Tab with no chips) stays in the prompt.
+      // The browser's next stop is a toolbar/message button, which then
+      // paints a focus ring on chrome and feels like the input lost Tab.
+      event.preventDefault();
+      return;
     }
 
     // 4. Escape leaves a queued-turn edit; the parked draft comes back.

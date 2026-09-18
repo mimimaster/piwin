@@ -808,11 +808,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   );
 
   const handleContinueSessionInProject = useCallback(
-    async (sessionId: string, projectPath: string): Promise<boolean> => {
+    async (sessionId: string, targetScope: SessionScope): Promise<boolean> => {
       const response = await hostClient.request({
         type: 'session/duplicate',
         sessionId,
-        targetScope: { kind: 'project', projectPath },
+        targetScope,
         messageProjection: 'none',
       });
       if (!response.success) {
@@ -823,17 +823,37 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         sessionId: string;
         session?: SessionSummary;
       };
+      const targetProjectPath = targetScope.kind === 'project' ? targetScope.projectPath : null;
+      // A project session continued into No Repo leaves the project workspace,
+      // so clear it before the copy is resumed — otherwise the shell stays on
+      // the project pane while the session belongs to the general workspace.
+      if (targetScope.kind === 'general' && state.activeScope.kind !== 'general') {
+        dispatch({ type: 'project/clear' });
+        await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+      }
       const listItem = data.session
         ? summaryToListItem(data.session, data.sessionId)
         : { id: data.sessionId, name: 'Continued session' };
       dispatch({ type: 'session/update', session: listItem });
-      dispatchNotification(pushSuccess(`Continued “${listItem.name}” in project`));
-      await handleResumeSession(data.sessionId, {
-        scope: { kind: 'project', projectPath },
-      });
+      dispatchNotification(
+        pushSuccess(
+          targetProjectPath === null
+            ? `Continued “${listItem.name}” in No Repo`
+            : `Continued “${listItem.name}” in project`,
+        ),
+      );
+      await handleResumeSession(data.sessionId, { scope: targetScope });
       return true;
     },
-    [dispatch, dispatchNotification, handleResumeSession, hostClient],
+    [
+      dispatch,
+      dispatchNotification,
+      handleResumeSession,
+      hostClient,
+      hydrateSessions,
+      showArchivedSessions,
+      state.activeScope,
+    ],
   );
 
   const handleForkSession = useCallback(

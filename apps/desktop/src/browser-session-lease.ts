@@ -68,8 +68,8 @@ export type BrowserSessionLeaseState = {
 export type BrowserSessionLeaseClient = {
   subscribe: (listener: (message: HostServerMessage) => void) => () => void;
   subscribeBinary?: (listener: (bytes: Uint8Array) => void) => () => void;
-  browserStart: (leaseId: string) => Promise<{ success: boolean }>;
-  browserStop: (leaseId: string) => Promise<{ success: boolean }>;
+  browserStart: (leaseId: string) => Promise<{ success: boolean; error?: string }>;
+  browserStop: (leaseId: string) => Promise<{ success: boolean; error?: string }>;
 };
 
 export type BrowserSessionLease = {
@@ -232,8 +232,8 @@ export function reduceBrowserHostPush(
 export function startBrowserSessionLease(input: {
   host: BrowserSessionLeaseClient;
   onMessage: (message: HostServerMessage) => void;
-  onStartFailed: () => void;
-  onStopFailed: () => void;
+  onStartFailed: (error?: string) => void;
+  onStopFailed: (error?: string) => void;
   /** Caller-owned lease id. Follow-mode resize uses the same id (spec §4.1). */
   mirrorLeaseId?: string;
 }): () => void {
@@ -247,10 +247,12 @@ export function startBrowserSessionLease(input: {
   void input.host
     .browserStart(mirrorLeaseId)
     .then((response) => {
-      if (!cancelled && !response.success) input.onStartFailed();
+      if (!cancelled && !response.success) input.onStartFailed(response.error);
     })
-    .catch(() => {
-      if (!cancelled) input.onStartFailed();
+    .catch((error: unknown) => {
+      if (!cancelled) {
+        input.onStartFailed(error instanceof Error ? error.message : undefined);
+      }
     });
 
   return () => {
@@ -260,10 +262,10 @@ export function startBrowserSessionLease(input: {
     void input.host
       .browserStop(mirrorLeaseId)
       .then((response) => {
-        if (!response.success) input.onStopFailed();
+        if (!response.success) input.onStopFailed(response.error);
       })
-      .catch(() => {
-        input.onStopFailed();
+      .catch((error: unknown) => {
+        input.onStopFailed(error instanceof Error ? error.message : undefined);
       });
   };
 }
@@ -384,8 +386,10 @@ export function useBrowserSessionLease(input: {
       // Locale strings are captured when the lease (re)starts. The previous
       // panel effect omitted `copy` from its deps; restarting Chromium on
       // language change would not be behavior-preserving.
-      onStartFailed: () => setMirrorError(mirrorStartFailed),
-      onStopFailed: () => setMirrorError(mirrorStopFailed),
+      onStartFailed: (error) =>
+        setMirrorError(error !== undefined && error.trim() !== '' ? error : mirrorStartFailed),
+      onStopFailed: (error) =>
+        setMirrorError(error !== undefined && error.trim() !== '' ? error : mirrorStopFailed),
     });
     return () => {
       unsubscribeBinary?.();

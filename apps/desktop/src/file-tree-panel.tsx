@@ -169,6 +169,7 @@ const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown', 'mdx', 'txt', 'text']);
 function previewErrorReason(message: string): string {
   if (/ENOENT|no such file/i.test(message)) return 'not-found';
   if (/not a file/i.test(message)) return 'not-a-file';
+  if (/project-root-not-registered/i.test(message)) return 'project-root-not-registered';
   return 'unavailable';
 }
 

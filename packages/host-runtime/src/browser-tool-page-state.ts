@@ -33,7 +33,7 @@ export function nextBrowserAction(input: {
 }): BrowserToolNextAction {
   if (input.lifecycle === 'recovering') return 'wait-for-recovery';
   if (input.lifecycle === 'failed' || input.lifecycle === 'disposed') return 'restart';
-  if (input.lifecycle === 'stopped' || input.lifecycle === 'starting') {
+  if (input.lifecycle === 'stopped' || input.lifecycle === 'starting' || input.lifecycle === 'installing') {
     return 'navigate-or-observe-will-start';
   }
   return 'continue';

@@ -137,7 +137,7 @@ describe('lazy launch', () => {
       BrowserUnavailableError,
     );
     await expect(session.navigate('https://example.com')).rejects.toThrow(
-      'pnpm --dir apps/desktop e2e:install',
+      'first time the browser is used',
     );
   });
 

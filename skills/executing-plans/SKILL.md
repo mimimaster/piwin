@@ -28,6 +28,7 @@ Implement only the current approved plan slice so its acceptance criteria pass, 
 ## Constraints
 - Default profiles when unset: worktree + explicit apply. Built-ins: `explorer`, `reviewer` (readonly); `implementer`, `tester` (worktree).
 - Host owns isolation and permission; skill text is guidance only.
+- Worktree writes are single-threaded. Never assume two implementer children run at once.
 
 ## Verify
 - Re-run the failing or required path for the slice; summarize actual results before claiming the step done.

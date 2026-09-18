@@ -18,6 +18,7 @@ import {
   type BrowserRuntime,
   type BrowserRuntimeHooks,
 } from './browser-runtime.js';
+import type { EnsureOwnedChromium } from './ensure-playwright-chromium.js';
 
 type Handler = () => void;
 
@@ -123,7 +124,11 @@ function noopHooks(): BrowserRuntimeHooks {
 
 function createRuntime(
   launch: BrowserLaunchPersistentContext,
-  extra?: { launchTimeoutMs?: number; profileDir?: string },
+  extra?: {
+    launchTimeoutMs?: number;
+    profileDir?: string;
+    ensureChromium?: EnsureOwnedChromium;
+  },
 ): BrowserRuntime {
   return createBrowserRuntime(
     {
@@ -136,6 +141,7 @@ function createRuntime(
       ...(extra?.launchTimeoutMs !== undefined
         ? { launchTimeoutMs: extra.launchTimeoutMs }
         : {}),
+      ...(extra?.ensureChromium !== undefined ? { ensureChromium: extra.ensureChromium } : {}),
     },
     noopHooks(),
     new Set(),
@@ -179,6 +185,46 @@ describe('createBrowserRuntime recovery', () => {
     gate.resolve(bundle.context as unknown as BrowserContext);
     expect(await first).toBe(await second);
     expect(launch).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs ensureChromium before launching and can report installing', async () => {
+    const order: string[] = [];
+    const gate = deferred<void>();
+    const bundle = createBundle();
+    const launch = vi.fn(async () => {
+      order.push('launch');
+      return bundle.context as unknown as BrowserContext;
+    });
+    const runtime = createRuntime(launch, {
+      ensureChromium: async ({ downloading }) => {
+        order.push('ensure');
+        downloading();
+        expect(runtime.lifecycle()).toBe('installing');
+        await gate.promise;
+      },
+    });
+    const pending = runtime.getPage();
+    await Promise.resolve();
+    expect(order).toEqual(['ensure']);
+    expect(runtime.lifecycle()).toBe('installing');
+    expect(launch).not.toHaveBeenCalled();
+    gate.resolve();
+    await pending;
+    expect(order).toEqual(['ensure', 'launch']);
+  });
+
+  it('marks failed when ensureChromium throws', async () => {
+    const launch = vi.fn(async () => {
+      throw new Error('should not launch');
+    });
+    const runtime = createRuntime(launch, {
+      ensureChromium: async () => {
+        throw new BrowserUnavailableError('download failed', { reason: 'binary-missing' });
+      },
+    });
+    await expect(runtime.getPage()).rejects.toBeInstanceOf(BrowserUnavailableError);
+    expect(runtime.lifecycle()).toBe('failed');
+    expect(launch).not.toHaveBeenCalled();
   });
 
   it('launches once and reuses a healthy page', async () => {

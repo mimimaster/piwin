@@ -14,6 +14,7 @@ export type AssistantUsageMeasurement = {
   cacheWriteTokens?: number;
   totalTokens: number;
   durationMs?: number;
+  firstTokenMs?: number;
   stopReason?: string;
   recordedAt: string;
 };
@@ -59,13 +60,20 @@ export function parseAssistantUsageMeasurement(value: unknown): AssistantUsageMe
   if (!copyOptionalFiniteNonNegative(value, measurement, 'cacheReadTokens')) return null;
   if (!copyOptionalFiniteNonNegative(value, measurement, 'cacheWriteTokens')) return null;
   if (!copyOptionalFiniteNonNegative(value, measurement, 'durationMs')) return null;
+  if (!copyOptionalFiniteNonNegative(value, measurement, 'firstTokenMs')) return null;
   return measurement;
 }
 
 function copyOptionalFiniteNonNegative(
   source: Record<string, unknown>,
   target: AssistantUsageMeasurement,
-  key: 'promptTokens' | 'completionTokens' | 'cacheReadTokens' | 'cacheWriteTokens' | 'durationMs',
+  key:
+    | 'promptTokens'
+    | 'completionTokens'
+    | 'cacheReadTokens'
+    | 'cacheWriteTokens'
+    | 'durationMs'
+    | 'firstTokenMs',
 ): boolean {
   const value = source[key];
   if (value === undefined) {

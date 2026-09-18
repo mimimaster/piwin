@@ -509,6 +509,46 @@ Parent preamble 按工具名规定：`piwin_subagent_start`（worker：`delivery
 
 Reviewer `reportContract`：必须经 `piwin_subagent_review_submit` 提交；prose 只是旁证，不是 apply 权威。决定：`approved` / `changes-requested` / `blocked`。
 
+### 9.2 内置方案：Fusion
+
+第三个内置方案，id `fusion`。contracts 常量 `BUILTIN_FUSION_SCHEME` merge 进 `listOrchestrationSchemes`；**不**写入磁盘默认 config。Composer 经已有列表列出。中文设计说明：[`orchestration-scheme-fusion.zh.md`](./orchestration-scheme-fusion.zh.md)。
+
+Fusion 不是第二套 Orchestrator，也不是 in-process 双 Pi loop。它是 **persistent CLI-subagent lane**：父会话 / composer = Lead；唯一 child role = `sidekick`（独立子会话 + retained worktree）。Lead 与 Sidekick 只交换 brief / result，Host never copies the parent transcript into the child.
+
+| Role | Purpose | Isolation | Default model |
+|------|---------|-----------|---------------|
+| （parent）Lead | Plan, interpret ambiguity, final review | parent session | current composer model |
+| `sidekick` | Execute bounded mechanical work and report | `worktree` | inherit parent unless Settings pins `members[].model` |
+
+`defaultRole` = `sidekick`；`defaultProfileId` = `implementer`；`exposeSpawnMetadata` = `false`；`waitPolicy` = `await-all`；`maxConcurrency: 1`；`maxTasksPerRun` = `8`；`fallback` = `main`。不硬编码 provider/model id。不钳 thinking（不要套 Ultra Code 的 low）。
+
+Host **强制**（模型设不了 `retainWorktree`）：`deliveryIntent='candidate'`、`applyPolicy='explicit'`、`retainWorktree=true`。默认 worktree `integrate`+`auto` 会拆掉 lane 租约，禁止用于 Fusion。续跑走 `continuationSessionId` + `prepareRetainedSubagentContinuation`，**不**走审查绑定的 `piwin_subagent_continue`。
+
+#### 原则 → 实现检查
+
+| # | Invariant | Host / contract check |
+|---|-----------|------------------------|
+| 1 | Brief/result only | Seed/continuation = `formatFusionBriefEnvelope(task)` only. Wait = `summaryPreview` / reportContract. Parent transcript never in `preparedPrompt` / `seedMessages`. |
+| 2 | Lead owns plan, ambiguity, final review | Parent is not a child role. Sidekick first line `done \| blocked \| escalate`. `escalate` / `fallback=main` = take-back. |
+| 3 | Judgment-as-deliverable stays on Lead | Preamble cites the search-bar 54→27 case. Host does **not** classify task type. |
+| 4 | Sticky pairing; no per-turn model swap | Member.model overlay or inherit. Compact-time sidekick upgrade is a later `SessionCompactionRecord` hook — out of this change. |
+| 5 | Metric is price-per-task | No telemetry UI. Unpinned sidekick inherits composer (usually worse price-per-task); existing Composer warning stays. |
+| 6 | Single writer | `maxConcurrency: 1`. Scouts / reviewers belong to other schemes. |
+| 7 | Profile, not named models | `exposeSpawnMetadata: false`; roster omits `providerId/modelId`. Strip capability `delegate` on the sidekick. |
+| 8 | No map-reduce coordinator | Preamble forbids using `start` as fan-out. Stage graphs stay SessionPlan / executing-plans. |
+| 9 | Honest isolation | Envelope: cli-subagent lane; **you cannot see the parent conversation**; this brief is the entire assignment. Not a dual Pi loop, not a VM. |
+| 10 | Recoverability | Retained worktree + child transcript + `continuationSessionId`. No prompt-hash workflow cache. |
+
+Parent loop by tool name: `piwin_subagent_start` (`role="sidekick"`) → `piwin_subagent_wait` (Result only) → Lead reviews checks or takes back → exact `piwin_subagent_result_apply` when the candidate is accepted. Sequential briefs reuse the same sidekick child when the worktree is still retained.
+
+Sidekick `reportContract` last assistant message: line 1 exactly `done | blocked | escalate`; body: summary, changed paths, checks (command/exit), residual risks, `escalate_reason` if escalate. `isSubagentReportContractMessage` must recognize that first line so merge summary prefers the Result.
+
+Settings overlay with id `fusion` replaces the builtin object (`source` = `settings`). Overlay member omitting `reportContract` still receives the builtin sidekick contract.
+
+#### Non-goals
+
+Same-session dual Pi loops; compact-time classifier / model swap; Lead write-tool deny (blocks take-back); Dynamic Workflows DSL; prompt-hash cache; price-per-task dashboard; adding `scout` / `reviewer` to the Fusion roster.
+
 ---
 
 ## 10. Desktop

@@ -368,6 +368,11 @@ export async function dispatchTask(
         result: cancelled,
       });
     }
+    // Drop the project worktree lock as soon as this task ends so the next
+    // write child can acquire. Batch finalize still calls release (idempotent).
+    if (lease) {
+      await deps.workspaceService.release(lease);
+    }
     // Release resource lease.
     if (resourceLease && deps.resourceCoordinator) {
       deps.resourceCoordinator.release(resourceLease);

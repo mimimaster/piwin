@@ -169,11 +169,6 @@ export function formatTokensK(tokens: number): string {
   return String(tokens);
 }
 
-export function formatDurationSeconds(ms: number): string {
-  const sec = Math.round(ms / 1000);
-  return `${sec}s`;
-}
-
 export type TurnMarginaliaData = {
   who: string;
   fullModelId?: string | null | undefined;
@@ -193,7 +188,6 @@ export type TurnStatusTone = 'running' | 'waiting';
 export type ResolveTurnMarginaliaOptions = {
   editingMessageId?: string | null | undefined;
   locale?: 'zh-CN' | 'en' | undefined;
-  elapsedMs?: number | undefined;
   contextUsage?: ContextUsageSnapshot | null | undefined;
   status?: string | null | undefined;
   statusTone?: TurnStatusTone | null | undefined;
@@ -269,26 +263,13 @@ export function resolveTurnMarginalia(
     };
   }
 
-  const durationMs =
-    options?.elapsedMs !== undefined
-      ? options.elapsedMs
-      : assistantMsg?.thinkingStartedAt && assistantMsg?.thinkingEndedAt
-        ? assistantMsg.thinkingEndedAt - assistantMsg.thinkingStartedAt
-        : undefined;
-
   const totalTools = messages.reduce((acc, m) => acc + (m.tools?.length ?? 0), 0);
 
   // Tokens live in the turn colophon (`.colo-meta`), not the rail — model is
   // already `.who`, and repeating "13k" next to "Opus 5" at the foot reads as
-  // duplicate chrome.
-  let usage: string | null = null;
-  if (durationMs !== undefined && durationMs > 0 && totalTools > 0) {
-    usage = `${formatDurationSeconds(durationMs)} · ${totalTools} 工具`;
-  } else if (durationMs !== undefined && durationMs > 0) {
-    usage = formatDurationSeconds(durationMs);
-  } else if (totalTools > 0) {
-    usage = `${totalTools} 工具`;
-  }
+  // duplicate chrome. Duration already lives on the work fold; thinking-span
+  // next to a tool count on this rail is both duplicate and usually wrong.
+  const usage = totalTools > 0 ? `${totalTools} 工具` : null;
 
   return {
     who: label,

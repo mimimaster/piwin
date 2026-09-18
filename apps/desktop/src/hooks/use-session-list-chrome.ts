@@ -6,7 +6,7 @@
  * this hook only holds the UI surface those actions open.
  */
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
-import type { SessionListOrder } from '@piwin/contracts';
+import type { SessionListOrder, SessionScope } from '@piwin/contracts';
 import type { SessionRowMenuAction } from '../session-row-menu';
 
 export type SessionMenuState = {
@@ -91,8 +91,8 @@ export type UseSessionListChromeResult = {
   closeContinueInProject: () => void;
   runDeleteConfirm: (deleteSession: (sessionId: string) => Promise<unknown>) => void;
   runContinueInProject: (
-    projectPath: string,
-    continueSession: (sessionId: string, projectPath: string) => Promise<boolean>,
+    targetScope: SessionScope,
+    continueSession: (sessionId: string, targetScope: SessionScope) => Promise<boolean>,
   ) => void;
 };
 
@@ -167,15 +167,15 @@ export function useSessionListChrome(): UseSessionListChromeResult {
 
   const runContinueInProject = useCallback(
     (
-      projectPath: string,
-      continueSession: (sessionId: string, projectPath: string) => Promise<boolean>,
+      targetScope: SessionScope,
+      continueSession: (sessionId: string, targetScope: SessionScope) => Promise<boolean>,
     ): void => {
       if (!continueInProject) {
         return;
       }
       const sessionId = continueInProject.sessionId;
       setContinueInProjectBusy(true);
-      void continueSession(sessionId, projectPath)
+      void continueSession(sessionId, targetScope)
         .then((continued) => {
           if (continued) {
             setContinueInProject(null);

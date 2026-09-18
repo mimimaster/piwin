@@ -48,6 +48,7 @@ export async function recordFinalizedUsageToLedger(
     record.cacheWriteTokens = measurement.cacheWriteTokens;
   }
   if (measurement.durationMs !== undefined) record.durationMs = measurement.durationMs;
+  if (measurement.firstTokenMs !== undefined) record.firstTokenMs = measurement.firstTokenMs;
   try {
     const result = await appendUsageRecord(ledgerPath, record);
     if (result === 'inserted') {
@@ -80,6 +81,7 @@ export function projectFinalizedUsage(measurement: AssistantUsageMeasurement): C
   if (measurement.cacheReadTokens !== undefined) usage.cacheReadTokens = measurement.cacheReadTokens;
   if (measurement.cacheWriteTokens !== undefined) usage.cacheWriteTokens = measurement.cacheWriteTokens;
   if (measurement.durationMs !== undefined) usage.durationMs = measurement.durationMs;
+  if (measurement.firstTokenMs !== undefined) usage.firstTokenMs = measurement.firstTokenMs;
   return usage;
 }
 
@@ -109,6 +111,7 @@ export async function recordUsageToLedger(
     ...(usage.cacheReadTokens !== undefined ? { cacheReadTokens: usage.cacheReadTokens } : {}),
     ...(usage.cacheWriteTokens !== undefined ? { cacheWriteTokens: usage.cacheWriteTokens } : {}),
     ...(usage.durationMs !== undefined ? { durationMs: usage.durationMs } : {}),
+    ...(usage.firstTokenMs !== undefined ? { firstTokenMs: usage.firstTokenMs } : {}),
     totalTokens,
     source: usage.source === 'host-estimate' ? 'host-estimate' : 'assistant-usage',
     recordedAt: new Date().toISOString(),

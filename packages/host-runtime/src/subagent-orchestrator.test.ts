@@ -592,6 +592,31 @@ describe('SubagentOrchestrator', () => {
     expect(backend.maxActive()).toBeLessThanOrEqual(2);
   });
 
+  it('never runs two worktree write tasks concurrently', async () => {
+    const backend = makeFakeBackend({ delayMs: 40 });
+    const { push } = makePushCollector();
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+    const result = await orchestrator.runBatch(
+      makeBatch(
+        [
+          makeTask({ id: 'a', isolationOverride: 'worktree' }),
+          makeTask({ id: 'b', isolationOverride: 'worktree' }),
+        ],
+        { maxConcurrency: 4 },
+      ),
+    );
+    expect(result.status).toBe('completed');
+    expect(backend.maxActive()).toBe(1);
+  });
+
   it('schedules dependent tasks after dependencies complete', async () => {
     const backend = makeFakeBackend({});
     const { push } = makePushCollector();

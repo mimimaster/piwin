@@ -19,6 +19,7 @@ import { createPiSessionEventMapper } from '../event-map.js';
 import { bindExtensionUiToPiSession, createExtensionUiContext } from '../extension-ui-bridge.js';
 import { mapThinkingLevelToPi } from '../map-thinking-level.js';
 import { toPiBackendCustomTools } from './pi-backend-tool-adapter.js';
+import { mergeSkillAwareReadTool } from '../skill-aware-read-tool.js';
 import type { PiModelRuntime } from '../pi-model-runtime.js';
 import {
   createSeededPiSessionManager,
@@ -110,6 +111,11 @@ export async function createBackendSdkSession(
       getRunId: () => activeRunId,
     },
   );
+  const customToolsWithSkillRead = await mergeSkillAwareReadTool(customTools, {
+    cwd: capabilitySnapshot.workingDirectory,
+    skills: capabilitySnapshot.resourceManifest.skills,
+    piModule: piModule as Record<string, unknown>,
+  });
   let settingsManager = createPiwinSettingsManager(
     piModule,
     capabilitySnapshot.workingDirectory,
@@ -126,7 +132,7 @@ export async function createBackendSdkSession(
     // Pi's `tools` allowlist would also drop Pi Extension tools, so exclude
     // only the Pi-native tools the policy does not grant.
     excludeTools: buildPiSessionExcludedToolNames(capabilitySnapshot.tools),
-    customTools,
+    customTools: customToolsWithSkillRead ?? customTools,
     settingsManager,
   };
   const hasSeededHistory =
