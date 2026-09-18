@@ -13,24 +13,12 @@
 .web-source-list {
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
-  margin-bottom: var(--s-9);
+  gap: var(--s-4);
+  margin-top: var(--s-4);
 }
 
 .web-search-route-field {
-  margin: var(--s-7) 0 0;
-}
-
-.web-search-route-field select {
-  width: 100%;
-  min-height: var(--h-lg);
-  padding: var(--s-3) var(--s-5);
-  border: 0;
-  box-shadow: inset 0 0 0 1px var(--line-1);
-  border-radius: var(--r-control);
-  background: var(--void);
-  color: var(--text-1);
-  font: inherit;
+  margin: 0;
 }
 
 .search-route-status {
@@ -38,12 +26,28 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--s-3);
-  margin-top: var(--s-6);
-  padding: var(--s-5) var(--s-6);
-  border: 0;
+  margin-top: var(--s-4);
+  padding: var(--s-4) var(--s-5);
   border-radius: var(--r-card);
-  background: var(--void);
-  box-shadow: inset 0 0 0 1px var(--line-1);
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+  border: 1px solid var(--line-1);
+}
+
+.search-route-status-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.search-route-model {
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+}
+
+.search-route-fallback-label {
+  font-size: var(--fs-micro);
 }
 
 .search-route-status .ui-notice {
@@ -51,57 +55,59 @@
   margin-top: var(--s-1);
 }
 
-.search-route-status ul {
+.search-route-status ul,
+.search-route-issue-list {
   margin: 0;
-  padding-left: var(--s-7);
+  padding-left: var(--s-6);
   font-size: var(--fs-micro);
-  line-height: var(--lh-normal);
+  line-height: var(--lh-relaxed);
+  color: var(--text-2);
 }
 
 .web-source-card {
-  border: 0;
+  border: 1px solid var(--line-1);
   border-radius: var(--r-card);
-  background: var(--surface-2);
+  background: var(--surface-1);
   box-shadow: var(--elev-1);
   overflow: hidden;
   transition:
     background-color var(--t-2) var(--ease-out),
+    border-color var(--t-2) var(--ease-out),
     box-shadow var(--t-2) var(--ease-out);
 }
 
 .web-source-card:hover {
+  border-color: var(--line-2);
   box-shadow: var(--elev-2);
 }
 
 .web-source-card.is-selected {
-  background: color-mix(in srgb, var(--iris) 6%, var(--surface-2));
-  box-shadow:
-    var(--elev-1),
-    inset 0 0 0 1px color-mix(in srgb, var(--iris) 28%, transparent);
+  background: color-mix(in srgb, var(--iris) 4%, var(--surface-1));
+  border-color: color-mix(in srgb, var(--iris) 35%, transparent);
+  box-shadow: var(--elev-1);
 }
 
 .web-source-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-6);
+  gap: var(--s-4);
   flex: 1;
   width: 100%;
   min-width: 0;
   margin: 0;
-  padding: var(--s-6) var(--s-7);
+  padding: var(--s-5) var(--s-6);
   border: 0;
   background: transparent;
   color: inherit;
   text-align: left;
-  cursor: pointer;
 }
 
 .web-source-card-header-row {
   display: flex;
   align-items: center;
-  gap: var(--s-6);
-  min-height: 68px;
+  gap: var(--s-4);
+  min-height: 64px;
   padding-right: var(--s-6);
 }
 
@@ -151,9 +157,10 @@
 .web-source-card-chevron {
   flex: 0 0 auto;
   color: var(--text-4);
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 350;
   line-height: 1;
+  margin-right: var(--s-2);
   transform: rotate(0deg);
   transition:
     color var(--t-1) var(--ease-out),
@@ -479,9 +486,15 @@ button.web-cli-example:hover:not(:disabled) {
 }
 
 .web-tools-actions {
-  margin-top: var(--s-9);
-  padding-top: var(--s-8);
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  margin-top: var(--s-6);
+  padding: var(--s-4) var(--s-6);
   border-top: 1px solid var(--line-1);
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   gap: var(--s-6);

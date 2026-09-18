@@ -665,6 +665,8 @@
   flex-shrink: 0;
   min-width: 140px;
   display: flex;
+  align-items: center;
+  gap: var(--s-3);
   justify-content: flex-end;
 }
 

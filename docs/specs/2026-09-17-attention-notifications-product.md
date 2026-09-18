@@ -824,7 +824,7 @@ W6+ APNs：AN-P1 ─► AN-P2 ‖ AN-P3 ─► AN-P4
 #### AN-U1 偏好与设置页
 - **拥有文件**：`attention-preferences.ts`（实现）+ 测试、`settings/notifications-copy.ts`、`settings/pages/notifications-page.tsx` + 测试、`settings/section-registry.ts`、`settings/pages/index.ts`、`settings/settings-search-index.ts`（及其测试）
 - **规则**：AN-R07、AN-R17（设置页部分）、AN-R18、AN-D05
-- **页面**：授权状态行（granted「已开启」/ denied「已关闭 · 打开系统设置」/ not-determined「开启」/ unsupported「当前运行方式不支持系统通知」；`authorizationReliable=false` 时显示「由系统设置管理」+ 打开系统设置）；8 个开关（AN-I02 字段）；关闭 `onNeedsInput` 弹 ui-kit 确认。
+- **页面**：授权状态行（granted「已开启」/ denied「已关闭 · 打开系统设置」/ not-determined「开启」/ unsupported「当前运行方式不支持系统通知」；`authorizationReliable=false` 时描述提示「由 macOS 系统设置管理」，控制区只显示「打开系统设置」按钮）；8 个开关（AN-I02 字段）；关闭 `onNeedsInput` 弹 ui-kit 确认。
 - **依赖接口**：页面通过 props 或 `createDesktopAttentionOs()` 获取状态（只读调用 AN-I07），不 import 控制器。
 - **用例**：AN-T45–T47
 - **验证命令**：desktop typecheck + 对应测试

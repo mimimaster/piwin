@@ -5,6 +5,7 @@ export type NotificationsCopy = {
   description: string;
   authorizationLabel: string;
   authorizationDescription: string;
+  authorizationDescriptionManaged: string;
   statusGranted: string;
   statusDenied: string;
   statusUnsupported: string;
@@ -38,6 +39,7 @@ const ZH: NotificationsCopy = {
   description: '控制任务完成、失败或需要批准时，如何提醒你。',
   authorizationLabel: '系统通知',
   authorizationDescription: '由 macOS 通知权限控制。未授权时不会出现系统横幅。',
+  authorizationDescriptionManaged: '由 macOS 系统设置管理。未授权时不会出现系统横幅。',
   statusGranted: '已开启',
   statusDenied: '已关闭',
   statusUnsupported: '当前运行方式不支持系统通知',
@@ -71,6 +73,7 @@ const EN: NotificationsCopy = {
   description: 'Choose how you are notified when tasks finish, fail, or need approval.',
   authorizationLabel: 'System notifications',
   authorizationDescription: 'Controlled by macOS notification permission. Banners require authorization.',
+  authorizationDescriptionManaged: 'Managed in macOS System Settings. Banners require authorization.',
   statusGranted: 'On',
   statusDenied: 'Off',
   statusUnsupported: 'System notifications are not supported in this runtime',
