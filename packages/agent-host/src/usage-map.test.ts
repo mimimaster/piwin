@@ -78,6 +78,19 @@ describe('usage-map', () => {
     expect(snapshot?.completionTokens).toBe(200);
   });
 
+  it('does not treat usage.duration as milliseconds', () => {
+    const snapshot = mapUsageSnapshot(
+      's1',
+      {
+        model: 'gpt-4o',
+        usage: { input: 700, output: 200, duration: 22 },
+      },
+      'assistant-usage',
+    );
+    expect(snapshot?.durationMs).toBeUndefined();
+    expect(snapshot?.completionTokens).toBe(200);
+  });
+
   it('maps firstTokenMs from the raw event for TTFT stats', () => {
     const snapshot = mapUsageSnapshot(
       's1',

@@ -38,8 +38,10 @@ describe('computePromptCacheHitRate', () => {
 });
 
 describe('computeTokensPerSecond', () => {
-  it('divides output tokens by the reported generation duration', () => {
-    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000 })).toBeCloseTo(100);
+  it('divides output tokens by time after the first token', () => {
+    expect(
+      computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000, firstTokenMs: 500 }),
+    ).toBeCloseTo(200 / 1.5);
   });
 
   it('prefers duration-scoped completion tokens over the full bucket', () => {
@@ -47,16 +49,27 @@ describe('computeTokensPerSecond', () => {
       computeTokensPerSecond({
         completionTokens: 400,
         durationMs: 2_000,
+        firstTokenMs: 500,
         durationMsCompletionTokens: 150,
       }),
-    ).toBeCloseTo(75);
+    ).toBeCloseTo(150 / 1.5);
   });
 
-  it('returns null when duration or output tokens are missing', () => {
-    expect(computeTokensPerSecond({ completionTokens: 0, durationMs: 2_000 })).toBeNull();
+  it('returns null without first-token latency or a usable decode window', () => {
+    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000 })).toBeNull();
+    expect(
+      computeTokensPerSecond({ completionTokens: 0, durationMs: 2_000, firstTokenMs: 500 }),
+    ).toBeNull();
     expect(computeTokensPerSecond({ completionTokens: 200 })).toBeNull();
-    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: 0 })).toBeNull();
-    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: Number.NaN })).toBeNull();
+    expect(
+      computeTokensPerSecond({ completionTokens: 200, durationMs: 0, firstTokenMs: 0 }),
+    ).toBeNull();
+    expect(
+      computeTokensPerSecond({ completionTokens: 200, durationMs: Number.NaN, firstTokenMs: 10 }),
+    ).toBeNull();
+    expect(
+      computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000, firstTokenMs: 2_000 }),
+    ).toBeNull();
   });
 });
 

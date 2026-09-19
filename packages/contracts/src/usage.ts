@@ -165,24 +165,34 @@ export function computePromptCacheHitRate(
 }
 
 /**
- * Output generation speed in tokens per second.
- * Only counts completion tokens from records that reported `durationMs`, so
- * partial duration coverage never inflates the rate. Returns null when the
- * provider reported no usable duration or output, so clients can render an
- * honest unknown state instead of fabricating a number.
+ * Decode-phase output speed in tokens per second.
+ * Denominator is time after the first token (`durationMs - firstTokenMs`).
+ * Returns null without a usable first-token mark, so E2E wait is not
+ * reported as generation speed.
  */
 export function computeTokensPerSecond(
-  usage: Pick<UsageBucket, 'completionTokens' | 'durationMs' | 'durationMsCompletionTokens'>,
+  usage: Pick<
+    UsageBucket,
+    'completionTokens' | 'durationMs' | 'durationMsCompletionTokens' | 'firstTokenMs'
+  >,
 ): number | null {
   const durationMs = usage.durationMs;
+  const firstTokenMs = usage.firstTokenMs;
   if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return null;
+  }
+  if (typeof firstTokenMs !== 'number' || !Number.isFinite(firstTokenMs) || firstTokenMs < 0) {
+    return null;
+  }
+  const generationMs = durationMs - firstTokenMs;
+  if (generationMs <= 0) {
     return null;
   }
   const completionTokens = Math.max(0, usage.durationMsCompletionTokens ?? usage.completionTokens);
   if (completionTokens === 0) {
     return null;
   }
-  return completionTokens / (durationMs / 1000);
+  return completionTokens / (generationMs / 1000);
 }
 
 /**

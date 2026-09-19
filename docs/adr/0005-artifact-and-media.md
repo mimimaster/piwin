@@ -320,3 +320,17 @@ this path needs a WebKit (Tauri build) check.
 Models routinely emit a self-consistent dark page (`background: #0f1117; color: #e5e7eb`) for Canvas. Preview repair used to leave that pair alone so code listings stayed readable. On a paper / light host the right-side Canvas then paints as a black sheet.
 
 Decision: `applyArtifactThemeContract` still keeps a dark contrast pair on `pre` / `code` / `kbd` / hljs islands. Every other hard-coded dark surface — page shells, wrappers, slate cards, inline `style` fills — is rewritten to `--piwin-artifact-*` for **preview only**. Copy/export keep the original source. Runtime contract is v11.
+
+## Amendment (2026-09-19): Table wrap is overflow-wrap, not word-break
+
+The v11 runtime contract and per-turn `[piwin-inline-artifact-layout]` said
+"Let table data wrap; avoid nowrap on data cells". Models implemented that as
+`word-break: break-word` / `overflow-wrap: anywhere`, which collapses table
+column min-content to 1ch on WebKit (Canvas comparison tables with an empty
+first header).
+
+Decision: runtime contract v12. Data cells wrap with `overflow-wrap: break-word`
+only. `word-break: break-word|break-all` and `overflow-wrap: anywhere` are
+forbidden. Label cells may nowrap / max-content. Canvas tables keep label
+min-content; table `overflow-x: auto` is allowed. Inline still has no
+page-level horizontal scroll.

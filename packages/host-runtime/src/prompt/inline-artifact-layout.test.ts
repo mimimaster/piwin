@@ -23,6 +23,10 @@ describe('Inline artifact layout context', () => {
     expect(prepared.text).toContain('approximately 680 CSS px');
     expect(prepared.text).toContain('Never hardcode');
     expect(prepared.text).toContain('360 CSS px');
+    expect(prepared.text).toContain('overflow-wrap:break-word only');
+    expect(prepared.text).toContain('keep label min-content');
+    expect(prepared.text).not.toContain('avoid nowrap on data cells');
+    expect(prepared.text).not.toContain('allow table data to wrap');
     expect(prepared.text).toContain('Existing artifact trigger and surface policies still apply');
     expect(prepared.text.endsWith('\n\nCompare phones')).toBe(true);
     expect(assembly.toSummary({ sessionId: 's', runId: 'r', requestClass: 'prompt', requestOrdinal: 1 })

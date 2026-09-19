@@ -25,7 +25,7 @@ import {
   normalizeGenerationMessageId,
   type GenerationIdentityContext,
 } from './generation-identity.js';
-import { asRecord, readRole, readString } from './pi-event-read.js';
+import { asRecord, readNumber, readRole, readString } from './pi-event-read.js';
 import { extractToolResultText } from './tool-result-extract.js';
 import { readToolCallArgs } from './tool-event-map.js';
 import { readAssistantToolArgProgress } from './assistant-tool-arg-progress.js';
@@ -78,14 +78,17 @@ export type AssistantRequestTimingState = {
   firstTokenAtMs?: number;
 };
 
+/** Drop buffered/mapping-time clocks: too short for the output, or longer than one hour. */
+const MIN_DURATION_MS_WHEN_OUTPUT_LARGE = 50;
+const LARGE_OUTPUT_TOKEN_THRESHOLD = 10;
+const MAX_ASSISTANT_DURATION_MS = 60 * 60 * 1000;
+
 function isAssistantFirstTokenEvent(event: AgentEvent): boolean {
   switch (event.type) {
     case 'message/text_delta':
       return event.delta.length > 0;
     case 'message/thinking_delta':
       return event.delta.length > 0;
-    case 'message/text_snapshot':
-      return event.text.length > 0;
     case 'tool/start':
       return true;
     default:
@@ -93,9 +96,40 @@ function isAssistantFirstTokenEvent(event: AgentEvent): boolean {
   }
 }
 
+function isPlausibleAssistantDuration(
+  durationMs: number,
+  completionTokens: number | undefined,
+): boolean {
+  if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > MAX_ASSISTANT_DURATION_MS) {
+    return false;
+  }
+  if (
+    durationMs < MIN_DURATION_MS_WHEN_OUTPUT_LARGE &&
+    (completionTokens ?? 0) > LARGE_OUTPUT_TOKEN_THRESHOLD
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function readAssistantMessageTimestamp(rawMessage: unknown): number | undefined {
+  const timestamp = readNumber(asRecord(rawMessage)?.timestamp);
+  return timestamp !== undefined && timestamp > 0 ? timestamp : undefined;
+}
+
+function withoutTiming(measurement: AssistantUsageMeasurement): AssistantUsageMeasurement {
+  if (measurement.durationMs === undefined && measurement.firstTokenMs === undefined) {
+    return measurement;
+  }
+  const next: AssistantUsageMeasurement = { ...measurement };
+  delete next.durationMs;
+  delete next.firstTokenMs;
+  return next;
+}
+
 /**
- * Track request start and first visible model output. Used when the provider
- * omits `firstTokenMs` / `durationMs` from assistant usage.
+ * Track assistant request start and first streamed model output.
+ * Snapshots are ignored: they often arrive as a completed blob, not a first token.
  */
 export function noteAssistantRequestTiming(
   event: AgentEvent,
@@ -115,31 +149,69 @@ export function noteAssistantRequestTiming(
   }
 }
 
+function resolveRequestStartedAtMs(
+  state: AssistantRequestTimingState,
+  nowMs: number,
+  completionTokens: number | undefined,
+  messageTimestamp: number | undefined,
+): number | undefined {
+  if (
+    messageTimestamp !== undefined &&
+    isPlausibleAssistantDuration(nowMs - messageTimestamp, completionTokens)
+  ) {
+    return messageTimestamp;
+  }
+  if (state.startedAtMs !== undefined && nowMs - state.startedAtMs > 0) {
+    return state.startedAtMs;
+  }
+  return undefined;
+}
+
 /**
- * Stamp wall-clock timing onto a finalized measurement when the provider
- * did not report it. Zero-elapsed reconstructions stay untimed.
+ * Stamp E2E duration from Pi `message.timestamp` (stream() start) when present.
+ * First-token latency is only recorded when a streamed increment arrives
+ * strictly before finalize. Provider `usage.duration` is not a Pi field and
+ * is ignored. Implausible clocks are omitted rather than written as 0.
  */
 export function applyAssistantRequestTiming(
   measurement: AssistantUsageMeasurement,
   state: AssistantRequestTimingState,
   nowMs: number,
+  messageTimestamp?: number,
 ): AssistantUsageMeasurement {
-  const startedAtMs = state.startedAtMs;
+  const startedAtMs = resolveRequestStartedAtMs(
+    state,
+    nowMs,
+    measurement.completionTokens,
+    messageTimestamp,
+  );
   if (startedAtMs === undefined) {
-    return measurement;
+    return stripImplausibleTiming(measurement);
   }
-  const elapsed = Math.max(0, nowMs - startedAtMs);
-  if (elapsed <= 0) {
-    return measurement;
+  const elapsed = nowMs - startedAtMs;
+  if (!isPlausibleAssistantDuration(elapsed, measurement.completionTokens)) {
+    return withoutTiming(measurement);
   }
-  const next: AssistantUsageMeasurement = { ...measurement };
-  if (next.durationMs === undefined) {
-    next.durationMs = elapsed;
-  }
-  if (next.firstTokenMs === undefined && state.firstTokenAtMs !== undefined) {
-    next.firstTokenMs = Math.max(0, state.firstTokenAtMs - startedAtMs);
+  const next = withoutTiming(measurement);
+  next.durationMs = elapsed;
+  if (state.firstTokenAtMs !== undefined && state.firstTokenAtMs < nowMs) {
+    const firstTokenMs = state.firstTokenAtMs - startedAtMs;
+    if (firstTokenMs > 0 && elapsed - firstTokenMs > 0) {
+      next.firstTokenMs = firstTokenMs;
+    }
   }
   return next;
+}
+
+function stripImplausibleTiming(measurement: AssistantUsageMeasurement): AssistantUsageMeasurement {
+  const durationMs = measurement.durationMs;
+  if (durationMs === undefined) {
+    return measurement;
+  }
+  if (isPlausibleAssistantDuration(durationMs, measurement.completionTokens)) {
+    return measurement;
+  }
+  return withoutTiming(measurement);
 }
 
 /** Model identity used to decide occupancy baseline invalidation (§4.2.8). */
@@ -522,7 +594,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
         recordedAt,
         ...(runId !== undefined ? { runId } : {}),
       });
-      pushFinalized(events, finalized);
+      pushFinalized(events, finalized, rawMessage);
     }
     if (raw?.type === 'agent_end' && Array.isArray(raw.messages)) {
       for (const message of raw.messages) {
@@ -545,7 +617,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
           recordedAt,
           ...(runId !== undefined ? { runId } : {}),
         });
-        pushFinalized(events, finalized);
+        pushFinalized(events, finalized, record);
       }
     }
     return events;
@@ -554,12 +626,18 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
   function pushFinalized(
     events: AgentEvent[],
     measurement: AssistantUsageMeasurement | null,
+    rawMessage: unknown,
   ): void {
     if (!measurement || finalizedIds.has(measurement.measurementId)) {
       return;
     }
     finalizedIds.add(measurement.measurementId);
-    const timed = applyAssistantRequestTiming(measurement, requestTiming, nowMs());
+    const timed = applyAssistantRequestTiming(
+      measurement,
+      requestTiming,
+      nowMs(),
+      readAssistantMessageTimestamp(rawMessage),
+    );
     events.push({ type: 'usage/finalized', measurement: timed });
   }
 

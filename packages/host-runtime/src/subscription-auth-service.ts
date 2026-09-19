@@ -39,7 +39,7 @@ import { applySubscriptionSettings } from './apply-subscription-settings.js';
 import { loadPiwinConfig } from './config-store.js';
 import { getPiwinRoot, resolveHostPiAgentDir } from './paths.js';
 import { rewriteChannelModelRefs } from './rewrite-channel-model-refs.js';
-import { buildSubscriptionAccounts } from './subscription-account-status.js';
+import { buildSubscriptionAccounts, findCollidingChannelId } from './subscription-account-status.js';
 import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
 import {
   ensureSubscriptionProviders,
@@ -272,16 +272,16 @@ export class SubscriptionAuthService {
       }
     }
     const config = await this.loadConfig();
-    const colliding = config.providers.find((provider) => provider.id === input.providerId);
+    const collidingChannelId = findCollidingChannelId(config, input.providerId);
     let newChannelId: string | undefined;
-    if (colliding) {
-      if (input.relocateChannelId !== colliding.id) {
+    if (collidingChannelId !== undefined) {
+      if (input.relocateChannelId !== collidingChannelId) {
         return {
           error: `Channel id "${input.providerId}" collides with a subscription account.`,
           code: 'collision',
         };
       }
-      newChannelId = await this.relocateChannel(config, colliding.id);
+      newChannelId = await this.relocateChannel(config, collidingChannelId);
     }
 
     const loginId = randomUUID();

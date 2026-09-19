@@ -127,14 +127,14 @@ describe('useSidebarResize drag scheduling', () => {
     const setProperty = vi.spyOn(harness.shell.style, 'setProperty');
     const addEventListener = vi.spyOn(window, 'addEventListener');
     act(() => {
-      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 17, 240));
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 17, 300));
     });
     const move = addEventListener.mock.calls.find(([type]) => type === 'pointermove')?.[1];
     if (typeof move !== 'function') {
       throw new Error('expected a pointermove listener');
     }
     setProperty.mockClear();
-    act(() => move(createPointerEvent('pointermove', 17, 290)));
+    act(() => move(createPointerEvent('pointermove', 17, 350)));
     harness.rerender();
     harness.rerender();
     expect(setProperty).not.toHaveBeenCalled();
@@ -155,7 +155,7 @@ describe('useSidebarResize drag scheduling', () => {
     const addEventListener = vi.spyOn(window, 'addEventListener');
 
     act(() => {
-      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 7, 240));
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 7, 300));
     });
     expect(harness.latest().isResizing).toBe(true);
     setProperty.mockClear();
@@ -167,8 +167,8 @@ describe('useSidebarResize drag scheduling', () => {
       throw new Error('expected a pointermove listener');
     }
     act(() => {
-      pointerMoveListener(createPointerEvent('pointermove', 7, 270));
-      pointerMoveListener(createPointerEvent('pointermove', 7, 290));
+      pointerMoveListener(createPointerEvent('pointermove', 7, 330));
+      pointerMoveListener(createPointerEvent('pointermove', 7, 350));
     });
 
     expect(nextFrameId).toBe(1);
@@ -180,7 +180,7 @@ describe('useSidebarResize drag scheduling', () => {
     }
     callback(16);
     expect(setProperty).toHaveBeenCalledTimes(1);
-    expect(shell.style.getPropertyValue('--sidebar-width')).toBe('290px');
+    expect(shell.style.getPropertyValue('--sidebar-width')).toBe('350px');
 
     const pointerUpListener = addEventListener.mock.calls.find(
       ([type]) => type === 'pointerup',
@@ -189,7 +189,7 @@ describe('useSidebarResize drag scheduling', () => {
       throw new Error('expected a pointerup listener');
     }
     act(() => {
-      pointerUpListener(createPointerEvent('pointerup', 7, 290));
+      pointerUpListener(createPointerEvent('pointerup', 7, 350));
       vi.runOnlyPendingTimers();
     });
     disposeHarness(harness);
@@ -201,7 +201,7 @@ describe('useSidebarResize drag scheduling', () => {
     const addEventListener = vi.spyOn(window, 'addEventListener');
 
     act(() => {
-      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 8, 240));
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 8, 300));
     });
     const pointerMoveListener = addEventListener.mock.calls.find(
       ([type]) => type === 'pointermove',
@@ -214,13 +214,13 @@ describe('useSidebarResize drag scheduling', () => {
     }
 
     act(() => {
-      pointerMoveListener(createPointerEvent('pointermove', 8, 280));
-      pointerUpListener(createPointerEvent('pointerup', 8, 280));
+      pointerMoveListener(createPointerEvent('pointermove', 8, 340));
+      pointerUpListener(createPointerEvent('pointerup', 8, 340));
       vi.runOnlyPendingTimers();
     });
 
-    expect(shell.style.getPropertyValue('--sidebar-width')).toBe('280px');
-    expect(localStorage.getItem('piwin.desktop.sidebarWidth')).toBe('280');
+    expect(shell.style.getPropertyValue('--sidebar-width')).toBe('340px');
+    expect(localStorage.getItem('piwin.desktop.sidebarWidth')).toBe('340');
     disposeHarness(harness);
   });
 
@@ -230,7 +230,7 @@ describe('useSidebarResize drag scheduling', () => {
     const addEventListener = vi.spyOn(window, 'addEventListener');
 
     act(() => {
-      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 9, 240));
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 9, 300));
     });
     const pointerMoveListener = addEventListener.mock.calls.find(
       ([type]) => type === 'pointermove',
@@ -243,14 +243,14 @@ describe('useSidebarResize drag scheduling', () => {
     }
 
     act(() => {
-      // default width 240; clientX 160 → candidate 160, past min 200 by >24px
-      pointerMoveListener(createPointerEvent('pointermove', 9, 160));
-      pointerUpListener(createPointerEvent('pointerup', 9, 160));
+      // default width 300; clientX 200 → candidate 200, past min 300 by >24px
+      pointerMoveListener(createPointerEvent('pointermove', 9, 200));
+      pointerUpListener(createPointerEvent('pointerup', 9, 200));
       vi.runOnlyPendingTimers();
     });
 
     expect(onCollapseRequest).toHaveBeenCalledTimes(1);
-    expect(localStorage.getItem('piwin.desktop.sidebarWidth')).toBe('240');
+    expect(localStorage.getItem('piwin.desktop.sidebarWidth')).toBe('300');
     disposeHarness(harness);
   });
 
@@ -261,7 +261,7 @@ describe('useSidebarResize drag scheduling', () => {
     const addEventListener = vi.spyOn(window, 'addEventListener');
 
     act(() => {
-      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 11, 240));
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 11, 300));
     });
     const pointerMoveListener = addEventListener.mock.calls.find(
       ([type]) => type === 'pointermove',
@@ -271,21 +271,21 @@ describe('useSidebarResize drag scheduling', () => {
     }
 
     act(() => {
-      // candidate 160: past min 200 by >24px → collapse
-      pointerMoveListener(createPointerEvent('pointermove', 11, 160));
+      // candidate 200: past min 300 by >24px → collapse
+      pointerMoveListener(createPointerEvent('pointermove', 11, 200));
     });
     expect(onCollapseRequest).toHaveBeenCalledTimes(1);
     expect(onExpandRequest).not.toHaveBeenCalled();
 
     act(() => {
-      // candidate 185: still in the 176–199 dead zone
-      pointerMoveListener(createPointerEvent('pointermove', 11, 185));
+      // candidate 285: still in the 276–299 dead zone
+      pointerMoveListener(createPointerEvent('pointermove', 11, 285));
     });
     expect(onExpandRequest).not.toHaveBeenCalled();
 
     act(() => {
-      // candidate 210: back to min width → expand, still holding
-      pointerMoveListener(createPointerEvent('pointermove', 11, 210));
+      // candidate 310: back to min width → expand, still holding
+      pointerMoveListener(createPointerEvent('pointermove', 11, 310));
     });
     expect(onExpandRequest).toHaveBeenCalledTimes(1);
     expect(onCollapseRequest).toHaveBeenCalledTimes(1);

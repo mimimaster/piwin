@@ -69,8 +69,9 @@ export function mapUsageSnapshot(
     readNumber(nested.cache_write_tokens) ??
     readNumber(nested.cache_creation_input_tokens) ??
     readNumber(promptTokenDetails?.cache_write_tokens);
-  const durationMs =
-    readNumber(nested.durationMs) ?? readNumber(nested.duration) ?? readNumber(record.durationMs);
+  // Pi Usage has no duration field. `usage.duration` is an unknown unit and
+  // must not be stored as milliseconds. Only explicit *Ms names are mapped.
+  const durationMs = readNumber(nested.durationMs) ?? readNumber(record.durationMs);
   const firstTokenMs =
     readNumber(nested.firstTokenMs) ??
     readNumber(nested.ttftMs) ??

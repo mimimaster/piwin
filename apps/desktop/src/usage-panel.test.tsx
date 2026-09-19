@@ -304,7 +304,7 @@ describe('UsagePanel', () => {
     expect(firstTokenCells?.[1]?.textContent).toBe('—');
 
     const tpsCells = container?.querySelectorAll('[data-testid="usage-call-tps"]');
-    expect(tpsCells?.[0]?.textContent).toBe('100 tok/s');
+    expect(tpsCells?.[0]?.textContent).toBe('116 tok/s');
     expect(tpsCells?.[1]?.textContent).toBe('—');
   });
 

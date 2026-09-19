@@ -44,13 +44,13 @@ afterEach(() => {
 
 describe('clampSidebarWidth', () => {
   it('keeps values inside the absolute band', () => {
-    expect(clampSidebarWidth(260)).toBe(260);
+    expect(clampSidebarWidth(350)).toBe(350);
     expect(clampSidebarWidth(SIDEBAR_MIN_WIDTH_PX - 40)).toBe(SIDEBAR_MIN_WIDTH_PX);
     expect(clampSidebarWidth(SIDEBAR_MAX_WIDTH_PX + 80)).toBe(SIDEBAR_MAX_WIDTH_PX);
   });
 
   it('rounds and rejects non-finite input', () => {
-    expect(clampSidebarWidth(255.4)).toBe(255);
+    expect(clampSidebarWidth(355.4)).toBe(355);
     expect(clampSidebarWidth(Number.NaN)).toBe(SIDEBAR_DEFAULT_WIDTH_PX);
   });
 });
@@ -93,7 +93,7 @@ describe('sidebar reverse-drag expand', () => {
 describe('load/saveSidebarWidth', () => {
   it('defaults when empty and roundtrips saved values', () => {
     expect(loadSidebarWidth()).toBe(SIDEBAR_DEFAULT_WIDTH_PX);
-    saveSidebarWidth(300);
-    expect(loadSidebarWidth()).toBe(300);
+    saveSidebarWidth(350);
+    expect(loadSidebarWidth()).toBe(350);
   });
 });
