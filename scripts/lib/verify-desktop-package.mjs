@@ -42,6 +42,32 @@ export function selectPackagedDmgNames(names) {
 }
 
 /**
+ * Tauri deletes macos/*.app after writing the DMG. CI then only has the
+ * installer; local trees may still have both.
+ *
+ * @param {string[]} appNames
+ * @param {string[]} dmgNames
+ * @returns {{ kind: 'app', appName: string, dmgName: string } | { kind: 'dmg', dmgName: string } | { kind: 'missing-dmg' } | { kind: 'ambiguous-app', appNames: string[] }}
+ */
+export function resolvePackagedVerifyTarget(appNames, dmgNames) {
+  if (dmgNames.length < 1) {
+    return { kind: 'missing-dmg' };
+  }
+  if (appNames.length > 1) {
+    return { kind: 'ambiguous-app', appNames };
+  }
+  if (appNames.length === 1) {
+    const appName = appNames[0];
+    const dmgName = dmgNames[0];
+    if (!appName || !dmgName) return { kind: 'missing-dmg' };
+    return { kind: 'app', appName, dmgName };
+  }
+  const dmgName = dmgNames[0];
+  if (!dmgName) return { kind: 'missing-dmg' };
+  return { kind: 'dmg', dmgName };
+}
+
+/**
  * @param {number} byteLength
  */
 export function isPlaceholderHostServe(byteLength) {
