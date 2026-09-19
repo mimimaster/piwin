@@ -1,11 +1,21 @@
 import type { ReactElement } from 'react';
 import {
   getSubscriptionBillingNotice,
+  type QuotaWindow,
   type SubscriptionAccountQuota,
 } from '@piwin/contracts';
 import { AlertCircle, CheckCircle2, Clock, Mail, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { Button } from '@piwin/ui-kit';
 import { SubscriptionBillingNoticeBanner } from './subscription-billing-notice.js';
+
+/** Remaining-capacity fill so unused (额度满) windows still show a colored bar. */
+export function quotaBarFillPercent(window: Pick<QuotaWindow, 'type' | 'percentage'>): number {
+  if (window.percentage === undefined || Number.isNaN(window.percentage)) {
+    return 0;
+  }
+  const remaining = window.type === 'used' ? 100 - window.percentage : window.percentage;
+  return Math.min(100, Math.max(0, remaining));
+}
 
 export type SubscriptionQuotaDrawerProps = {
   providerId: string;
@@ -188,17 +198,7 @@ export function SubscriptionQuotaDrawer({
                           <div className="oauth-quota-progress-track">
                             <div
                               className={`oauth-quota-progress-bar is-${colorTone}`}
-                              style={{
-                                // Always fill by *used* so remaining-style windows (e.g. 剩余 0%)
-                                // still show a full bar instead of looking empty/unread.
-                                width: `${Math.min(
-                                  100,
-                                  Math.max(
-                                    0,
-                                    win.type === 'remaining' ? 100 - win.percentage : win.percentage,
-                                  ),
-                                )}%`,
-                              }}
+                              style={{ width: `${quotaBarFillPercent(win)}%` }}
                             />
                           </div>
                         )}

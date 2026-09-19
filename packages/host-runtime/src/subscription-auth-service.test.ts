@@ -421,4 +421,81 @@ describe('SubscriptionAuthService', () => {
       },
     ]);
   });
+
+  it('does not treat an existing subscription provider as a channel collision', async () => {
+    const config: PiwinConfig = {
+      ...createDefaultPiwinConfig(),
+      providers: [grokSubscriptionProvider({ id: 'openai-codex', name: 'ChatGPT Codex' })],
+    };
+    const service = new SubscriptionAuthService(
+      { port: fakePort() },
+      { loadConfig: async () => config, saveConfig: async () => undefined },
+    );
+    const result = await service.login({
+      providerId: 'openai-codex',
+      ownerDeviceId: 'desktop-1',
+    });
+    expect(result).toEqual(expect.objectContaining({ loginId: expect.any(String) }));
+    expect(result).not.toEqual(expect.objectContaining({ code: 'collision' }));
+  });
+
+  it('refuses login when a BYOK channel occupies the subscription id', async () => {
+    const config: PiwinConfig = {
+      ...createDefaultPiwinConfig(),
+      providers: [
+        {
+          id: 'openai-codex',
+          name: 'Codex Key',
+          protocol: 'openai-compatible',
+          baseUrl: 'https://api.openai.com/v1',
+          models: [{ id: 'gpt-5', label: 'GPT-5', capabilities: ['chat'] }],
+        },
+      ],
+    };
+    const service = new SubscriptionAuthService(
+      { port: fakePort() },
+      { loadConfig: async () => config, saveConfig: async () => undefined },
+    );
+    await expect(
+      service.login({
+        providerId: 'openai-codex',
+        ownerDeviceId: 'desktop-1',
+      }),
+    ).resolves.toEqual({
+      error: 'Channel id "openai-codex" collides with a subscription account.',
+      code: 'collision',
+    });
+  });
+
+  it('relocates a colliding BYOK channel when relocateChannelId matches', async () => {
+    let config: PiwinConfig = {
+      ...createDefaultPiwinConfig(),
+      providers: [
+        {
+          id: 'openai-codex',
+          name: 'Codex Key',
+          protocol: 'openai-compatible',
+          baseUrl: 'https://api.openai.com/v1',
+          models: [{ id: 'gpt-5', label: 'GPT-5', capabilities: ['chat'] }],
+        },
+      ],
+    };
+    const service = new SubscriptionAuthService(
+      { port: fakePort() },
+      {
+        loadConfig: async () => config,
+        saveConfig: async (next) => {
+          config = next;
+        },
+      },
+    );
+    const result = await service.login({
+      providerId: 'openai-codex',
+      ownerDeviceId: 'desktop-1',
+      relocateChannelId: 'openai-codex',
+    });
+    expect(result).toEqual(expect.objectContaining({ loginId: expect.any(String) }));
+    expect(config.providers.map((provider) => provider.id)).toEqual(['openai-codex-api']);
+    expect(config.providers[0]?.name).toBe('Codex Key（API Key）');
+  });
 });

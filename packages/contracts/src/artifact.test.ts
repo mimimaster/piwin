@@ -110,7 +110,7 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('```artifact-html title="Short descriptive title" surface="canvas"');
     expect(protocol).toContain('surface="canvas"');
     expect(protocol).toContain('--piwin-artifact-');
-    expect(protocol).toContain('kind="artifact:runtime" version="11"');
+    expect(protocol).toContain('kind="artifact:runtime" version="12"');
     expect(protocol).toContain('On a light host never produce a dark-mode design');
     expect(protocol).toContain('data-piwin-media');
     expect(protocol).toContain('Never `data:image`');
@@ -125,6 +125,11 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('not a full-page landing');
     expect(protocol).toContain('nested vertical scroll');
     expect(protocol).toContain('never add horizontal scrolling to Inline');
+    expect(protocol).not.toContain('Let table data wrap');
+    expect(protocol).not.toContain('avoid nowrap on data cells');
+    expect(protocol).toContain('overflow-wrap: break-word');
+    expect(protocol).toContain('Never `word-break: break-word`');
+    expect(protocol).toContain('keep label min-content');
     expect(protocol).toContain('Outermost wrapper background');
     for (const alias of PARSER_ONLY_ALIASES) {
       expect(protocol).not.toContain(alias);

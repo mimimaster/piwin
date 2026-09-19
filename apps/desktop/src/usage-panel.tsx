@@ -507,6 +507,9 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                       const tokensPerSecond = computeTokensPerSecond({
                          completionTokens: entry.completionTokens,
                          ...(entry.durationMs !== undefined ? { durationMs: entry.durationMs } : {}),
+                         ...(entry.firstTokenMs !== undefined
+                           ? { firstTokenMs: entry.firstTokenMs }
+                           : {}),
                       });
                       return (
                         <tr

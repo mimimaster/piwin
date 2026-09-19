@@ -3,8 +3,8 @@
  * CSS consumes the value via --sidebar-width on .app-shell.
  */
 
-export const SIDEBAR_DEFAULT_WIDTH_PX = 240;
-export const SIDEBAR_MIN_WIDTH_PX = 200;
+export const SIDEBAR_DEFAULT_WIDTH_PX = 300;
+export const SIDEBAR_MIN_WIDTH_PX = 300;
 export const SIDEBAR_MAX_WIDTH_PX = 420;
 /** Extra px past min width before drag-to-collapse fires. */
 export const SIDEBAR_COLLAPSE_OVERSHOOT_PX = 24;

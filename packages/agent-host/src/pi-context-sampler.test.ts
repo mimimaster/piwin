@@ -500,6 +500,21 @@ describe('pi-context-sampler', () => {
     expect(state.firstTokenAtMs).toBe(1200);
   });
 
+  it('does not treat a text snapshot as the first token', () => {
+    const state: AssistantRequestTimingState = {};
+    noteAssistantRequestTiming(
+      { type: 'message/start', messageId: 'm-1', role: 'assistant' },
+      state,
+      1000,
+    );
+    noteAssistantRequestTiming(
+      { type: 'message/text_snapshot', messageId: 'm-1', text: 'hello' },
+      state,
+      1100,
+    );
+    expect(state.firstTokenAtMs).toBeUndefined();
+  });
+
   it('does not stamp zero-elapsed reconstructions', () => {
     const measurement: AssistantUsageMeasurement = {
       measurementId: 'm',
@@ -526,7 +541,7 @@ describe('pi-context-sampler', () => {
     ).toMatchObject({ firstTokenMs: 350, durationMs: 2000 });
   });
 
-  it('does not overwrite provider-reported timing', () => {
+  it('prefers the stream clock over provider-reported timing', () => {
     const measurement: AssistantUsageMeasurement = {
       measurementId: 'm',
       sessionId: 's',
@@ -538,7 +553,49 @@ describe('pi-context-sampler', () => {
     };
     expect(
       applyAssistantRequestTiming(measurement, { startedAtMs: 1000, firstTokenAtMs: 1350 }, 3000),
-    ).toMatchObject({ firstTokenMs: 12, durationMs: 9000 });
+    ).toMatchObject({ firstTokenMs: 350, durationMs: 2000 });
+  });
+
+  it('omits firstTokenMs when the first increment arrives at finalize', () => {
+    const measurement: AssistantUsageMeasurement = {
+      measurementId: 'm',
+      sessionId: 's',
+      messageId: 'm-1',
+      totalTokens: 10,
+      recordedAt: sampledAt,
+    };
+    expect(
+      applyAssistantRequestTiming(measurement, { startedAtMs: 1000, firstTokenAtMs: 3000 }, 3000),
+    ).toEqual({
+      measurementId: 'm',
+      sessionId: 's',
+      messageId: 'm-1',
+      totalTokens: 10,
+      recordedAt: sampledAt,
+      durationMs: 2000,
+    });
+  });
+
+  it('drops a short duration that cannot explain a large completion', () => {
+    const measurement: AssistantUsageMeasurement = {
+      measurementId: 'm',
+      sessionId: 's',
+      messageId: 'm-1',
+      totalTokens: 418,
+      completionTokens: 418,
+      recordedAt: sampledAt,
+      durationMs: 1,
+    };
+    expect(
+      applyAssistantRequestTiming(measurement, { startedAtMs: 1000 }, 1001),
+    ).toEqual({
+      measurementId: 'm',
+      sessionId: 's',
+      messageId: 'm-1',
+      totalTokens: 418,
+      completionTokens: 418,
+      recordedAt: sampledAt,
+    });
   });
 
   it('stamps firstTokenMs and durationMs from the stream clock when the provider omits them', () => {
@@ -577,7 +634,7 @@ describe('pi-context-sampler', () => {
     expect(finalized(events)[0]).toMatchObject({ firstTokenMs: 350, durationMs: 2_000 });
   });
 
-  it('keeps provider-reported firstTokenMs and durationMs on usage/finalized', () => {
+  it('prefers the stream clock over usage.durationMs on usage/finalized', () => {
     let nowMs = 1_000;
     const sampler = createSampler({ nowMs: () => nowMs });
     const mapper = createPiSessionEventMapper();
@@ -610,6 +667,45 @@ describe('pi-context-sampler', () => {
       },
       3_000,
     );
-    expect(finalized(events)[0]).toMatchObject({ firstTokenMs: 12, durationMs: 9_000 });
+    expect(finalized(events)[0]).toMatchObject({ firstTokenMs: 350, durationMs: 2_000 });
+  });
+
+  it('uses message.timestamp for duration when start and end arrive together', () => {
+    let nowMs = 9_000;
+    const sampler = createSampler({ nowMs: () => nowMs });
+    const mapper = createPiSessionEventMapper();
+    const step = (raw: unknown, t: number): AgentEvent[] => {
+      nowMs = t;
+      const mapped = mapper
+        .map(raw)
+        .map((event) => normalizeAgentEventIds(event, identity));
+      return [...mapped, ...sampler.observe({ mappedEvents: mapped, raw })];
+    };
+    step({ type: 'message_start', messageId: 'm-1', role: 'assistant' }, 9_000);
+    step(
+      {
+        type: 'message_update',
+        messageId: 'm-1',
+        assistantMessageEvent: { type: 'text_delta', delta: 'hello' },
+      },
+      9_000,
+    );
+    const events = step(
+      {
+        type: 'message_end',
+        messageId: 'm-1',
+        message: {
+          role: 'assistant',
+          id: 'm-1',
+          timestamp: 1_000,
+          usage: validUsage,
+          stopReason: 'stop',
+        },
+      },
+      9_000,
+    );
+    const measurement = finalized(events)[0];
+    expect(measurement).toMatchObject({ durationMs: 8_000 });
+    expect(measurement?.firstTokenMs).toBeUndefined();
   });
 });

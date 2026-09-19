@@ -12,8 +12,9 @@ export function formatInlineArtifactLayout(width: unknown): string | undefined {
     'This is advisory layout context, not a fixed width or an instruction to create an artifact.',
     'For Inline, use width:100%, max-width:100%, min-width:0 and border-box sizing. Never hardcode the reference width.',
     'Remain readable at 360 CSS px and adapt to narrower containers. Sidebars, replay, and other clients can change the width.',
-    'Use container queries for stacking layouts; allow table data to wrap, avoid nowrap on data cells, and keep Inline free of horizontal scrolling.',
-    'Use Canvas for dense comparisons that require a wide table. Existing artifact trigger and surface policies still apply.',
+    'Use container queries for stacking layouts. Keep Inline free of horizontal scrolling.',
+    'Tables: wrap data with overflow-wrap:break-word only; never word-break:break-word, word-break:break-all, or overflow-wrap:anywhere. Labels may nowrap. Wide comparison tables use Canvas and must keep label min-content.',
+    'Existing artifact trigger and surface policies still apply.',
     '[/piwin-inline-artifact-layout]',
   ].join('\n');
 }
