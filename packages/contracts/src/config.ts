@@ -18,6 +18,7 @@ import type { AutomationConfig } from './automation.js';
 import type { MarketplaceConfig } from './marketplace-registry.js';
 import type { PermissionConfig } from './permission.js';
 import type { WalkthroughConfig } from './walkthrough.js';
+import type { CodeSearchConfig } from './code-search.js';
 import type { ArtifactConfig } from './artifact.js';
 import { THINKING_LEVEL_OPTIONS } from './host.js';
 import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
@@ -775,6 +776,11 @@ export type PiwinConfig = {
   speech?: SpeechConfig;
   /** Text-only vision delegation (composer images). */
   visionDelegation?: VisionDelegationConfig;
+  /**
+   * Built-in `code_search` tool (Devin Fast Context-aligned). Registered per
+   * session only when `enabled`; see `docs/plans/2026-09-19-builtin-code-search.md`.
+   */
+  codeSearch?: CodeSearchConfig;
   /** Post-turn rewrite of the visible assistant reply (spec: reply-writer). */
   replyWriter?: ReplyWriterConfig;
   /** Permission policy mode and rule sets (ADR 0019). */

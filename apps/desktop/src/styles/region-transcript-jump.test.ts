@@ -16,3 +16,22 @@ describe('jump-to-latest chrome', () => {
   });
 });
 
+describe('transcript scrollport', () => {
+  it('does not mask .chat-stream, which WKWebView cannot scroll once tall', () => {
+    const clean = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const ruleStart = clean.indexOf('\n.chat-stream {');
+    expect(ruleStart).toBeGreaterThan(-1);
+    const open = clean.indexOf('{', ruleStart);
+    const close = clean.indexOf('}', open);
+    const body = clean.slice(open + 1, close);
+    expect(body).not.toMatch(/-webkit-mask-image\s*:/);
+    expect(body).not.toMatch(/(?<!-)mask-image\s*:/);
+    expect(body).toMatch(/overflow-y\s*:\s*auto/);
+  });
+
+  it('keeps edge fades on the non-scrolling viewport overlay', () => {
+    expect(css).toContain('.transcript-viewport::before,');
+    expect(css).toContain('pointer-events: none');
+    expect(css).toContain('var(--s2, var(--surface-2))');
+  });
+});

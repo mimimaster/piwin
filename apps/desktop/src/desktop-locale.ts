@@ -429,6 +429,7 @@ export type DesktopTranslator = {
       skills: string;
       tools: string;
       web: string;
+      codeSearch: string;
       plugins: string;
       prompts: string;
       automation: string;
@@ -1406,6 +1407,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         agent: isChinese ? '智能体策略' : 'Agent & Workflows',
         knowledge: isChinese ? '知识库' : 'Knowledge & Embeddings',
         web: isChinese ? '搜索与抓取' : 'Web Search & Fetch',
+        codeSearch: isChinese ? '代码搜索' : 'Code Search',
         session: isChinese ? '会话' : 'Sessions & Runtime',
         permissions: isChinese ? '权限与安全' : 'Security & Permissions',
         appearance: isChinese ? '外观' : 'Appearance',

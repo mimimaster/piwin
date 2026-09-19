@@ -973,7 +973,9 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
         </PiwinUiProvider>
       </DesktopLocaleProvider>,
     );
-    expect(container.querySelector('[data-testid="plan-todo-tray"]')).not.toBeNull();
+    const tray = container.querySelector('[data-testid="plan-todo-tray"]');
+    expect(tray).not.toBeNull();
+    expect(tray?.parentElement?.classList.contains('composer-plan-stack')).toBe(true);
     expect(container.querySelector('[data-testid="plan-execution-gate"]')).toBeNull();
     act(() => root.unmount());
     container.remove();

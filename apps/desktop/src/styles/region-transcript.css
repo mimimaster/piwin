@@ -10,7 +10,7 @@
    transcript-message, transcript-files-changed, transcript-walkthrough,
    transcript-tool-card, transcript-tool-file-pill, transcript-tool-chain,
    transcript-markdown,
-   transcript-cards, transcript-ink-wash.
+   transcript-cards, transcript-ink-wash, transcript-empty-stage.
 
    --chat-font-size / --code-font-size are user preferences set inline by App. */
 
@@ -26,12 +26,48 @@
   min-height: 0;
   overflow: hidden;
   z-index: 1;
+  --transcript-edge-fade-top: 20px;
+  --transcript-edge-fade-bottom: 56px;
 }
 
+/* Edge fades live on this non-scrolling shell — never as a mask on
+   `.chat-stream`. Masking the scroller also fades the native scrollbar and
+   composites the overflow box; keep the fade on the shell. Overlay is
+   pointer-transparent so it cannot eat wheel / trackpad. */
 .transcript-viewport::before,
-.transcript-viewport::after,
+.transcript-viewport::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.transcript-viewport::before {
+  top: 0;
+  height: var(--transcript-edge-fade-top);
+  background: linear-gradient(
+    to bottom,
+    var(--s2, var(--surface-2)) 0%,
+    transparent 100%
+  );
+}
+
+.transcript-viewport::after {
+  bottom: 0;
+  height: var(--transcript-edge-fade-bottom);
+  background: linear-gradient(
+    to top,
+    var(--s2, var(--surface-2)) 0%,
+    transparent 100%
+  );
+}
+
 .chat-column-empty .transcript-viewport::before,
-.chat-column-empty .transcript-viewport::after {
+.chat-column-empty .transcript-viewport::after,
+html[data-theme-visual-style='ink-wash'] .transcript-viewport::before,
+html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
   display: none;
 }
 
@@ -70,167 +106,6 @@
   display: contents;
 }
 
-.chat-column-empty .empty-stage-welcome {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  width: min(var(--conversation-width), calc(100% - 2 * var(--chat-inline-pad)));
-  max-width: var(--conversation-width);
-  margin: 0 auto 28px;
-  order: 1;
-  box-sizing: border-box;
-}
-
-.chat-column-empty .empty-stage-welcome .seal {
-  margin-bottom: 18px;
-}
-
-.chat-column-empty .empty-stage-welcome h1 {
-  margin: 0;
-  text-align: left;
-}
-
-.chat-column-empty .composer-dock.layout-centered {
-  order: 2;
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 0 var(--chat-inline-pad);
-  box-sizing: border-box;
-}
-
-.chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
-  width: 100%;
-}
-
-.chat-column-empty .empty-stage-landing-history {
-  display: flex;
-  flex-direction: column;
-  order: 3;
-  width: min(var(--conversation-width), calc(100% - 2 * var(--chat-inline-pad)));
-  max-width: var(--conversation-width);
-  margin: 16px auto 0;
-  box-sizing: border-box;
-}
-
-.empty-stage-landing-header {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3, 10px);
-  margin-top: 0;
-  margin-bottom: var(--s-2, 8px);
-  padding: 0;
-}
-
-.empty-stage-landing-label {
-  margin: 0;
-  padding: 0;
-  color: var(--text-3);
-  font-size: var(--fs-micro, 12px);
-  font-weight: 600;
-  letter-spacing: var(--tracking-micro);
-  text-transform: none;
-  flex: 0 0 auto;
-}
-
-.empty-stage-landing-divider {
-  flex: 1 1 auto;
-  height: 1px;
-  background: var(--border-subtle, rgba(255, 255, 255, 0.08));
-}
-
-.empty-stage-landing-all-link {
-  font-size: var(--fs-micro, 12px);
-  font-weight: 500;
-  color: var(--iris, var(--accent, #1f6d84));
-  background: transparent;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  flex: 0 0 auto;
-  text-decoration: none;
-  transition: opacity var(--t-1) var(--ease-out);
-}
-
-.empty-stage-landing-all-link:hover {
-  opacity: 0.8;
-}
-
-.empty-stage-landing-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-1, 4px) var(--s-5, 24px);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-@media (max-width: 600px) {
-  .empty-stage-landing-list {
-    grid-template-columns: 1fr;
-  }
-}
-
-.empty-stage-landing-row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2, 8px);
-  width: 100%;
-  min-height: 32px;
-  padding: var(--s-1, 4px) var(--s-2, 8px);
-  border: 0;
-  border-radius: var(--r-control, 8px);
-  background: transparent;
-  color: var(--text-1);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  box-sizing: border-box;
-  transition:
-    background-color var(--t-1) var(--ease-out),
-    color var(--t-1) var(--ease-out);
-}
-
-.empty-stage-landing-row:hover,
-.empty-stage-landing-row:focus-visible {
-  background: var(--hover);
-  color: var(--text-1);
-  outline: none;
-}
-
-.empty-stage-landing-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--border-subtle, rgba(255, 255, 255, 0.2));
-  flex: 0 0 auto;
-}
-
-.empty-stage-landing-dot.is-running {
-  background: var(--state-running, #e8b23f);
-  box-shadow: 0 0 6px rgba(232, 178, 63, 0.4);
-}
-
-.empty-stage-landing-title {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  color: var(--text-1);
-}
-
-.empty-stage-landing-time {
-  flex: 0 0 auto;
-  color: var(--text-4);
-  font-family: var(--mono, var(--font-mono));
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ─── Scrollport ──────────────────────────────────────────────────────── */
 
 .chat-stream {
@@ -251,26 +126,6 @@
   padding: var(--transcript-top-pad, 24px) var(--chat-inline-pad)
     var(--transcript-output-floor-gap, clamp(72px, 8vh, 96px));
   background: transparent;
-  /* Content dissolves into the stage at both scroll edges instead of being
-     sheared off by the title band and the composer. Masked on the scrollport,
-     not the viewport, so the floating scrollbar and jump button stay crisp.
-     Theme-agnostic: ink-wash stages are transparent, a color overlay is not. */
-  --transcript-edge-fade-top: 20px;
-  --transcript-edge-fade-bottom: 56px;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--transcript-edge-fade-top),
-    #000 calc(100% - var(--transcript-edge-fade-bottom)),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--transcript-edge-fade-top),
-    #000 calc(100% - var(--transcript-edge-fade-bottom)),
-    transparent 100%
-  );
 }
 
 .chat-stream::-webkit-scrollbar {

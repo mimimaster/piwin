@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { Button, Field, PasswordInput, TextInput } from '@piwin/ui-kit';
+import { Button, Field, IconRefresh, IconSpark, PasswordInput, TextInput } from '@piwin/ui-kit';
 import { formatError } from '@piwin/contracts';
 
 const ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -9,7 +9,9 @@ export type WebSecretEditorProps = {
   apiKeyRef: string;
   apiKeyEnv: string;
   defaultApiKeyEnv: string;
-  testConnection?: () => Promise<{ durationMs: number; resultCount: number }>;
+  testConnection?: (input?: {
+    apiKey?: string;
+  }) => Promise<{ durationMs: number; resultCount: number }>;
   disabled: boolean;
   zh: boolean;
   loadSecret: (secretId: string) => Promise<string | null>;
@@ -76,7 +78,10 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
     setTestMessage(null);
     setError(null);
     try {
-      const result = await props.testConnection();
+      const trimmedSecret = secret.trim();
+      const result = await props.testConnection(
+        trimmedSecret ? { apiKey: trimmedSecret } : undefined,
+      );
       setTestSucceeded(true);
       setTestMessage(
         props.zh
@@ -156,6 +161,7 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
               size="compact"
               disabled={testing || props.disabled}
               onClick={() => void testConnection()}
+              data-testid={`${props.testId}-test`}
             >
               {testing
                 ? props.zh
@@ -187,20 +193,55 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
         label="API Key"
         description={
           props.zh
-            ? '密钥保存在 Host，不写入配置文件。新填会写回 Host。点击眼睛可临时显示。'
-            : 'Stored on the Host, never in config. Paste a new key to update it. Use the eye button to reveal it temporarily.'
+            ? '密钥保存在 Host，不写入配置文件。新填会写回 Host。点击眼睛可临时显示；闪电图标可测试连通。'
+            : 'Stored on the Host, never in config. Paste a new key to update it. Use the eye to reveal, the spark to test.'
         }
         className="web-source-field"
       >
-        <PasswordInput
-          value={secret}
-          onChange={(event) => setSecret(event.currentTarget.value)}
-          placeholder={props.zh ? '粘贴 API Key' : 'Paste API key'}
-          autoComplete="off"
-          spellCheck={false}
-          disabled={props.disabled || loading || saving}
-          testId={`${props.testId}-input`}
-        />
+        <div className="web-secret-input-row">
+          <div className="web-secret-input-field">
+            <PasswordInput
+              value={secret}
+              onChange={(event) => setSecret(event.currentTarget.value)}
+              placeholder={props.zh ? '粘贴 API Key' : 'Paste API key'}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={props.disabled || loading || saving}
+              testId={`${props.testId}-input`}
+            />
+          </div>
+          {props.testConnection ? (
+            <button
+              type="button"
+              className="web-secret-test-icon"
+              onClick={() => void testConnection()}
+              disabled={
+                props.disabled ||
+                loading ||
+                saving ||
+                testing ||
+                (!secret.trim() && !props.apiKeyRef)
+              }
+              title={
+                testing
+                  ? props.zh
+                    ? '检测中…'
+                    : 'Testing…'
+                  : props.zh
+                    ? '测试连接'
+                    : 'Test connection'
+              }
+              aria-label={props.zh ? '测试连接' : 'Test connection'}
+              data-testid={`${props.testId}-test`}
+            >
+              {testing ? (
+                <IconRefresh width={14} height={14} className="web-secret-test-spin" />
+              ) : (
+                <IconSpark width={14} height={14} />
+              )}
+            </button>
+          ) : null}
+        </div>
       </Field>
       <details className="web-secret-advanced">
         <summary>
@@ -244,8 +285,15 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
         {props.testConnection ? (
           <Button
             variant="ghost"
-            disabled={props.disabled || loading || saving || testing || !props.apiKeyRef}
+            disabled={
+              props.disabled ||
+              loading ||
+              saving ||
+              testing ||
+              (!secret.trim() && !props.apiKeyRef)
+            }
             onClick={() => void testConnection()}
+            data-testid={`${props.testId}-test-button`}
           >
             {testing
               ? props.zh

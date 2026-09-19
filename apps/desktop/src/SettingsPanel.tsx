@@ -30,6 +30,7 @@ import {
   applyHostProviderSnapshot,
   configFromSettingsWriteResponse,
   interpretSettingsLoadResponse,
+  codeSearchWriteRetained,
   knowledgeWriteRetained,
   providerListWriteRetained,
   shouldSyncSettingsProviders,
@@ -326,6 +327,14 @@ export const SettingsPanel = memo(function SettingsPanel({
           );
           return false;
         }
+        if (!codeSearchWriteRetained(next, stored)) {
+          setError(
+            locale === 'zh-CN'
+              ? '当前 Host 没有保存 Code search 设置。请更新并重启 Host 后再保存（需要支持 codeSearch 配置域的版本）。'
+              : 'This Host did not persist Code search settings. Update and restart the Host (needs a build with the codeSearch settings domain), then save again.',
+          );
+          return false;
+        }
         setConfig(stored);
         onSaved?.(stored);
         return true;
@@ -466,6 +475,36 @@ export const SettingsPanel = memo(function SettingsPanel({
     [request],
   );
 
+  const testCodeSearchWindsurf = useCallback(
+    async (input: {
+      apiKey?: string;
+      apiKeyRef?: string;
+      apiKeyEnv?: string;
+    }): Promise<{ durationMs: number; resultCount: number }> => {
+      // Prefer the live HostClient so this never falls through the settings
+      // adapter's config/set default (which used to surface as "config is required").
+      const payload = {
+        type: 'code-search/test-windsurf' as const,
+        ...(input.apiKey ? { apiKey: input.apiKey } : {}),
+        ...(input.apiKeyRef ? { apiKeyRef: input.apiKeyRef } : {}),
+        ...(input.apiKeyEnv ? { apiKeyEnv: input.apiKeyEnv } : {}),
+      };
+      const response =
+        hostClient && typeof hostClient.request === 'function'
+          ? await hostClient.request(payload)
+          : await request(payload);
+      if (!response.success) {
+        throw new Error(response.error || 'code-search/test-windsurf failed');
+      }
+      const data = response.data as { durationMs?: number; resultCount?: number };
+      return {
+        durationMs: typeof data.durationMs === 'number' ? data.durationMs : 0,
+        resultCount: typeof data.resultCount === 'number' ? data.resultCount : 1,
+      };
+    },
+    [hostClient, request],
+  );
+
   const saveWeb = useCallback(
     async (draftOverride?: DraftWeb): Promise<boolean> => {
       if (!config) return false;
@@ -533,6 +572,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       storeProviderSecret,
       loadProviderSecret,
       testWebSearchSource,
+      testCodeSearchWindsurf,
     }),
     [
       request,
@@ -575,6 +615,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       storeProviderSecret,
       loadProviderSecret,
       testWebSearchSource,
+      testCodeSearchWindsurf,
     ],
   );
 

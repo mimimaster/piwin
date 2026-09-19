@@ -20,6 +20,7 @@ import { scrollTranscriptToMessage } from './history-ticks-drawer';
 import { readTranscriptTurnHeight, rememberTranscriptTurnHeight } from './transcript-scroll-memory';
 import {
   normalizeTranscriptTurnHeight,
+  readMountedTranscriptTurnHeight,
   resolveTranscriptTurnEstimate,
   TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX,
 } from './transcript-turn-height';
@@ -291,11 +292,8 @@ function VirtualizedTranscriptTurns(
       entry: ResizeObserverEntry | undefined,
       instance: { itemSizeCache: ReadonlyMap<string | number | bigint, number> },
     ) => {
-      // ResizeObserver already measured every reflowed row. Reading layout
-      // again here interleaves forced reads with virtualizer DOM updates.
-      const rawHeight = entry?.borderBoxSize?.[0]?.blockSize
-        ?? entry?.contentRect.height
-        ?? Math.max(element.offsetHeight, element.getBoundingClientRect().height);
+      // Observer box can be the clipped slot; scrollHeight is the natural body.
+      const rawHeight = readMountedTranscriptTurnHeight({ element, entry });
       const normalized = normalizeTranscriptTurnHeight(rawHeight);
       const turnId = element.dataset.turnId;
       if (normalized !== null && props.scrollPort.sessionId && turnId) {

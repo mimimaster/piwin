@@ -47,6 +47,7 @@ export type SettingsConfigRequest = (command: {
     | 'secrets/set'
     | 'secrets/get'
     | 'web/test-search-source'
+    | 'code-search/test-windsurf'
     | 'web/search-route-preview'
     | 'web/search-log-list'
     | 'web/search-log-clear'
@@ -75,6 +76,8 @@ export type SettingsConfigRequest = (command: {
   config?: PiwinConfig;
   provider?: ModelProviderConfig;
   apiKey?: string;
+  apiKeyRef?: string;
+  apiKeyEnv?: string;
   modelId?: string;
   prompt?: string;
   providerId?: string;
@@ -187,6 +190,11 @@ export type SettingsContextValue = {
   searchImageModelCatalog: () => Promise<import('@piwin/contracts').ImageModelCatalogSearchResult>;
   storeProviderSecret: (providerId: string, secret: string) => Promise<string>;
   loadProviderSecret: (providerId: string) => Promise<string | null>;
+  testCodeSearchWindsurf?: (input: {
+    apiKey?: string;
+    apiKeyRef?: string;
+    apiKeyEnv?: string;
+  }) => Promise<{ durationMs: number; resultCount: number }>;
   testWebSearchSource?: (
     input: import('@piwin/contracts').WebSearchTestInput,
   ) => Promise<import('@piwin/contracts').WebSearchTestResult>;

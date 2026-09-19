@@ -15,7 +15,7 @@ import type {
   McpToolMetadata,
   SessionPlan,
 } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import { formatError, modelSupportsCapability } from '@piwin/contracts';
 import { buildSessionTools } from '../session-tools.js';
 import { buildProcessTools } from '../process-tools.js';
 import { createBrowserToolDefinitions } from '../browser-tools.js';
@@ -52,6 +52,7 @@ import {
   buildHostFilesystemTools,
   type BuildHostFilesystemToolsOptions,
 } from './host-filesystem-tools.js';
+import { buildCodeSearchTool, resolveCodeSearchBackend } from '../code-search/tool.js';
 import type { SecretResolver } from '../secret-resolver.js';
 import {
   createMcpGenerationSnapshot,
@@ -70,7 +71,7 @@ import type { BrowserSession } from '@piwin/browser';
 import type { NoteStore } from '@piwin/notes';
 import type { CardStore } from '@piwin/flashcards';
 import type { JobController } from '@piwin/contracts';
-import type { ModelRef, PiwinConfig } from '@piwin/contracts';
+import type { ModelProviderConfig, ModelRef, PiwinConfig } from '@piwin/contracts';
 import { getPiwinSessionDir, getPiwinSessionPlanPath, getPiwinRoot } from '../paths.js';
 import { getPiwinMediaDir } from '../paths.js';
 import { buildCachedMcpToolDefinitions } from '../mcp-cached-tool-definitions.js';
@@ -252,6 +253,40 @@ export async function buildSessionHostTools(
     ...(options.workspaceWrite ? { workspaceWrite: options.workspaceWrite } : {}),
   });
   tools.push(...fsTools);
+
+  // --- code_search (Devin Fast Context-aligned search subagent) ---
+  // A read-only peer of the filesystem tools: it searches the workspace through
+  // a bounded subagent loop and returns file ranges, never mutations.
+  if (options.config?.codeSearch?.enabled) {
+    const codeSearchConfig = options.config.codeSearch;
+    const resolveModel = (
+      ref?: ModelRef,
+    ): { provider: ModelProviderConfig; modelId: string } | undefined => {
+      const found = findConfiguredModel(options.config as PiwinConfig, ref);
+      if (!found || !modelSupportsCapability(found.model, 'chat')) {
+        return undefined;
+      }
+      return { provider: found.provider, modelId: found.model.id };
+    };
+    const readiness = resolveCodeSearchBackend({
+      cwd: fsCwd,
+      config: codeSearchConfig,
+      resolveModel,
+      ...(rootDir ? { piwinRoot: rootDir } : {}),
+    });
+    if (readiness.ready) {
+      const codeSearchTool = buildCodeSearchTool({
+        cwd: fsCwd,
+        config: codeSearchConfig,
+        completionPort: readiness.port,
+      });
+      if (codeSearchTool) {
+        tools.push(codeSearchTool);
+      }
+    } else {
+      reportCompositionDiagnostic(options, 'code_search', new Error(readiness.reason));
+    }
+  }
 
   // --- Process tools (process_start, process_list, process_logs, process_stop) ---
   if (options.jobController && options.config?.process?.enabled !== false) {

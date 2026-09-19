@@ -12,6 +12,7 @@ import {
   createDefaultExecutionConfig,
   createDefaultWalkthroughConfig,
   createDefaultWebConfig,
+  createDefaultCodeSearchConfig,
   DEFAULT_ATTACHMENT_ALLOWED_MIME_TYPES,
   type HostResponse,
   type PiwinConfig,
@@ -70,6 +71,7 @@ export function createSettingsViewConfig(): PiwinConfig {
     },
     artifact: createDefaultArtifactConfig(),
     web: createDefaultWebConfig(),
+    codeSearch: createDefaultCodeSearchConfig(),
     skills: createDefaultSkillsConfig(),
     extensions: createDefaultExtensionsConfig(),
     prompts: createDefaultPromptsConfig(),
@@ -209,6 +211,9 @@ export function mergeSettingsViewConfig(partial: unknown): PiwinConfig {
   if (record.remote && typeof record.remote === 'object') {
     result.remote = record.remote as NonNullable<PiwinConfig['remote']>;
   }
+  if (record.codeSearch && typeof record.codeSearch === 'object') {
+    result.codeSearch = record.codeSearch as NonNullable<PiwinConfig['codeSearch']>;
+  }
   return result;
 }
 
@@ -346,6 +351,41 @@ export function providerListWriteRetained(sent: PiwinConfig, stored: PiwinConfig
  * the raw Host projection — omitted keys are filled with local defaults and
  * must not look like the user changed process/providers/desktop.
  */
+
+/** True when the Host kept the code_search domain the form just submitted. */
+export function codeSearchWriteRetained(sent: PiwinConfig, stored: PiwinConfig): boolean {
+  const sentCs = sent.codeSearch;
+  if (!sentCs) {
+    return true;
+  }
+  const storedCs = stored.codeSearch;
+  if (!storedCs) {
+    return false;
+  }
+  if (sentCs.enabled !== storedCs.enabled) {
+    return false;
+  }
+  if ((sentCs.backend ?? 'model') !== (storedCs.backend ?? 'model')) {
+    return false;
+  }
+  if (sentCs.enabled !== true) {
+    return true;
+  }
+  if (sentCs.backend === 'windsurf') {
+    // Ref may be redacted on remote; presence of either side's key wiring is enough.
+    const sentHasKey = Boolean(sentCs.apiKeyRef || sentCs.apiKeyEnv);
+    const storedHasKey = Boolean(storedCs.apiKeyRef || storedCs.apiKeyEnv);
+    return !sentHasKey || storedHasKey;
+  }
+  if (sentCs.model) {
+    return (
+      storedCs.model?.providerId === sentCs.model.providerId &&
+      storedCs.model?.modelId === sentCs.model.modelId
+    );
+  }
+  return true;
+}
+
 export function settingsMutationsFromViewDraft(
   snapshotConfig: unknown,
   nextConfig: PiwinConfig,

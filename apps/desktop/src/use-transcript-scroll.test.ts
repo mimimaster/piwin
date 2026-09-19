@@ -5,6 +5,7 @@ import {
   isScrollOverflowing,
   shouldDetachFollowTailFromScrollDelta,
   shouldDetachFollowTailFromWheelDelta,
+  shouldRequestOlderHistoryFromFittedWheel,
 } from './use-transcript-scroll';
 
 describe('isNearBottom', () => {
@@ -207,5 +208,41 @@ describe('shouldDetachFollowTailFromWheelDelta', () => {
   it('ignores wheel gestures on a fitted transcript', () => {
     expect(shouldDetachFollowTailFromWheelDelta({ deltaY: -80, overflowing: false })).toBe(false);
     expect(shouldDetachFollowTailFromWheelDelta({ deltaY: 80, overflowing: false })).toBe(false);
+  });
+});
+
+describe('shouldRequestOlderHistoryFromFittedWheel', () => {
+  it('treats an upward wheel on a fitted page as a request for older history', () => {
+    expect(
+      shouldRequestOlderHistoryFromFittedWheel({
+        deltaY: -24,
+        overflowing: false,
+        canLoadOlder: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not prefetch while following a fitted tail without a user wheel-up', () => {
+    expect(
+      shouldRequestOlderHistoryFromFittedWheel({
+        deltaY: 24,
+        overflowing: false,
+        canLoadOlder: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRequestOlderHistoryFromFittedWheel({
+        deltaY: -24,
+        overflowing: false,
+        canLoadOlder: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRequestOlderHistoryFromFittedWheel({
+        deltaY: -24,
+        overflowing: true,
+        canLoadOlder: true,
+      }),
+    ).toBe(false);
   });
 });

@@ -599,12 +599,6 @@
   white-space: nowrap;
 }
 
-.usage-call-thinking {
-  color: var(--text-2);
-  font-size: var(--fs-micro);
-  white-space: nowrap;
-}
-
 .usage-call-session {
   max-width: 96px;
   overflow: hidden;

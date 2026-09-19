@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { useTranscriptScroll } from './use-transcript-scroll.js';
 
 it('keeps small upward wheel gestures detached until scrolling back toward the tail', async () => {
@@ -143,6 +143,44 @@ it('does not pin to the tail while a user-owned call-chain fold remasures', asyn
 
     expect(scroll.followTail).toBe(true);
     expect(element.scrollTop).toBe(800);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+it('requests older history on wheel-up when the fitted page cannot scroll', async () => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  let scroll: ReturnType<typeof useTranscriptScroll> | undefined;
+  const onUnscrollableHistoryIntent = vi.fn();
+  function Harness(): ReactElement {
+    scroll = useTranscriptScroll({
+      messageCount: 1,
+      activitySignal: 'idle',
+      canLoadOlder: true,
+      onUnscrollableHistoryIntent,
+    });
+    return <div ref={scroll.containerRef} onScroll={scroll.handleScroll} />;
+  }
+  try {
+    await act(async () => root.render(<Harness />));
+    const element = container.firstElementChild;
+    if (!(element instanceof HTMLDivElement) || !scroll) throw new Error('Missing scroll harness');
+    Object.defineProperties(element, {
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 300 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+    await act(async () => scroll?.jumpToLatest());
+    expect(scroll.followTail).toBe(true);
+    act(() => {
+      element.dispatchEvent(new WheelEvent('wheel', { deltaY: -24 }));
+    });
+    expect(onUnscrollableHistoryIntent).toHaveBeenCalledTimes(1);
+    expect(scroll.followTail).toBe(true);
   } finally {
     act(() => root.unmount());
     container.remove();

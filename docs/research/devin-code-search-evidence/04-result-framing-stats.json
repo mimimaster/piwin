@@ -1,0 +1,19 @@
+{
+  "command_labels": {
+    "Grepped": 36362,
+    "Analysed": 101,
+    "Read": 13825
+  },
+  "file_path_rel": 4856,
+  "file_path_abs": 0,
+  "tool_content_chars": {
+    "min": 13,
+    "p50": 10192,
+    "avg": 18906.947,
+    "max": 878621,
+    "n": 2114
+  },
+  "framing_prefix": "A search subagent explored the codebase, running these commands:",
+  "framing_bridge": "It believes the snippets below are relevant to your search. Be careful evaluating their relevance \u2014 the subagent can make mistakes \u2014 and follow up with your normal grep/glob/read tools to fill in anything it missed:",
+  "file_tag": "<file path=\"RELATIVE\" total_lines=N> then \"LINE|TEXT\" lines"
+}

@@ -7,13 +7,15 @@
  *   hidden) so its content width matches `.composer-dock` with no gutter.
  * - History ticks + floating scrollbar are absolute children of the shell,
  *   never of the scrollport, so they stay pinned while content scrolls.
- * - Bottom fade mask lives on `.chat-stream` only — never on chrome.
+ * - Edge fades are pointer-transparent overlays on `.transcript-viewport`.
+ *   Do not mask `.chat-stream` (it also fades the native scrollbar).
  *
  * Scroll metrics come from `useTranscriptScroll` (ResizeObserver + activity),
  * not mount/unmount of the floating track.
  *
- * Older history loads invisibly when the user has left the tail and is near
- * the top. Follow-tail opens do not auto-page.
+ * Older history prepends invisibly near the top, or on wheel-up when the
+ * latest page fits and therefore cannot emit a scroll-away. Follow-tail
+ * opens do not auto-page on mount.
  */
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
@@ -50,11 +52,16 @@ export type TranscriptViewportProps = {
 };
 
 export function TranscriptViewport(props: TranscriptViewportProps): ReactElement {
+  const handleLoadOlderRef = useRef<() => void>(() => {});
   const scroll = useTranscriptScroll({
     messageCount: props.messageCount,
     activitySignal: props.activitySignal,
     liveTurnId: props.liveTurnId ?? null,
     historyViewActive: props.historyViewActive === true,
+    canLoadOlder: props.canLoadOlder === true,
+    onUnscrollableHistoryIntent: () => {
+      handleLoadOlderRef.current();
+    },
   });
   const opening = useTranscriptReveal({
     ...(props.sessionId ? { sessionId: props.sessionId } : {}),
@@ -189,6 +196,9 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       loadInFlightRef.current = false;
     }
   }, [props.historyLoading, props.onLoadOlder, restorePendingHistoryAnchor, scroll.containerRef]);
+  handleLoadOlderRef.current = () => {
+    void handleLoadOlder();
+  };
 
   const maybeAutoLoadOlder = useCallback((): void => {
     if (

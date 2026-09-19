@@ -1,4 +1,5 @@
 import type { AutomationConfig } from './automation.js';
+import type { CodeSearchConfig } from './code-search.js';
 import type { CompactionConfig, ProcessConfig, ThinkingConfig } from './config.js';
 import type { DesktopRestoreConfig, ImageGenerationConfig, PiwinConfig } from './config.js';
 import type { ExtensionsConfig } from './extensions.js';
@@ -38,6 +39,7 @@ export type SettingsDomain =
   | 'media'
   | 'artifact'
   | 'web'
+  | 'codeSearch'
   | 'skills'
   | 'extensions'
   | 'prompts'
@@ -73,6 +75,7 @@ export type SettingsDomainValueMap = {
   media: PiwinConfig['media'];
   artifact: PiwinConfig['artifact'];
   web: WebConfig | undefined;
+  codeSearch: CodeSearchConfig | undefined;
   skills: SkillsConfig | undefined;
   extensions: ExtensionsConfig | undefined;
   prompts: PromptsConfig | undefined;
@@ -137,6 +140,7 @@ export const REMOTE_SETTINGS_APPLY_DOMAINS = [
   'media',
   'artifact',
   'web',
+  'codeSearch',
   'skills',
   'extensions',
   'prompts',
@@ -282,6 +286,7 @@ export const SETTINGS_DOMAINS = [
   'media',
   'artifact',
   'web',
+  'codeSearch',
   'skills',
   'extensions',
   'prompts',
@@ -317,6 +322,7 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   media: true,
   artifact: true,
   web: true,
+  codeSearch: true,
   skills: true,
   extensions: true,
   prompts: true,

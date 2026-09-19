@@ -40,6 +40,7 @@ export type HostRequestAdapters = {
       | 'secrets/set'
       | 'secrets/get'
       | 'web/test-search-source'
+      | 'code-search/test-windsurf'
       | 'web/search-route-preview'
       | 'web/search-log-list'
       | 'web/search-log-clear'
@@ -68,6 +69,8 @@ export type HostRequestAdapters = {
     config?: PiwinConfig;
     provider?: ModelProviderConfig;
     apiKey?: string;
+    apiKeyRef?: string;
+    apiKeyEnv?: string;
     modelId?: string;
     prompt?: string;
     providerId?: string;
@@ -527,6 +530,14 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           input: command.webTest,
         });
       }
+      if (command.type === 'code-search/test-windsurf') {
+        return hostClient.request({
+          type: 'code-search/test-windsurf',
+          ...(command.apiKey ? { apiKey: command.apiKey } : {}),
+          ...(command.apiKeyRef ? { apiKeyRef: command.apiKeyRef } : {}),
+          ...(command.apiKeyEnv ? { apiKeyEnv: command.apiKeyEnv } : {}),
+        });
+      }
       if (command.type === 'web/search-route-preview') {
         if (!command.input) {
           return {
@@ -721,15 +732,23 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           { idempotencyKey: createGestureIdempotencyKey() },
         );
       }
-      if (!command.config) {
-        return {
-          type: 'response',
-          command: 'settings/apply',
-          success: false,
-          error: 'config is required',
-        };
+      if (command.type === 'config/set') {
+        if (!command.config) {
+          return {
+            type: 'response',
+            command: 'settings/apply',
+            success: false,
+            error: 'config is required',
+          };
+        }
+        return applyConfigDraft(hostClient, command.config);
       }
-      return applyConfigDraft(hostClient, command.config);
+      return {
+        type: 'response',
+        command: command.type,
+        success: false,
+        error: `Unhandled settings request: ${command.type}`,
+      };
     },
     requestSkills: async (command) => {
       if (command.type === 'config/get') {

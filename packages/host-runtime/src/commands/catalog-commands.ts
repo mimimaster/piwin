@@ -80,6 +80,7 @@ import { createSecretResolver } from '../secret-resolver.js';
 import { findEnabledModel, findEnabledProvider } from '../provider-helpers.js';
 import { resolveWebRuntimeCredentials } from '../web-credentials.js';
 import { testSearchSource } from '@piwin/tools-web';
+import { probeWindsurfToken } from '../code-search/backends/windsurf-backend.js';
 import { buildSearchRoutePreview } from '../capabilities/search-route-preview.js';
 import type { HostCommandContext } from './host-command-context.js';
 
@@ -134,6 +135,7 @@ const TYPES = new Set<HostCommand['type']>([
   'secrets/set',
   'secrets/get',
   'web/test-search-source',
+  'code-search/test-windsurf',
 ]);
 
 export function isCatalogCommand(command: HostCommand): boolean {
@@ -906,6 +908,21 @@ export async function handleCatalogCommand(
       } catch (error) {
         const message = formatError(error);
         return fail(requestId, 'web/test-search-source', message);
+      }
+    }
+    case 'code-search/test-windsurf': {
+      try {
+        const secretResolver = createSecretResolver();
+        const result = await probeWindsurfToken({
+          ...(command.apiKey ? { apiKey: command.apiKey } : {}),
+          ...(command.apiKeyRef ? { apiKeyRef: command.apiKeyRef } : {}),
+          ...(command.apiKeyEnv ? { apiKeyEnv: command.apiKeyEnv } : {}),
+          readSecretByRef: (ref) => secretResolver.readSecretByRef(ref),
+        });
+        return ok(requestId, 'code-search/test-windsurf', result);
+      } catch (error) {
+        const message = formatError(error);
+        return fail(requestId, 'code-search/test-windsurf', message);
       }
     }
     default:

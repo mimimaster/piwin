@@ -386,6 +386,14 @@ export type PlatformHostCommand =
     }
   | {
       id?: string;
+      type: 'code-search/test-windsurf';
+      /** One-shot token from the settings editor (never persisted by host). */
+      apiKey?: string;
+      apiKeyRef?: string;
+      apiKeyEnv?: string;
+    }
+  | {
+      id?: string;
       type: 'web/search-route-preview';
       input: SearchRoutePreviewInput;
     }

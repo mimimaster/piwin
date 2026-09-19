@@ -1,8 +1,13 @@
 # Devin Fast Context → piwin `code_search` 逆向规格
 
-> Status: research complete (2026-09-19)  
+> **核验状态（2026-09-19）**：产品契约以 **仅 Devin 本机证据** 为准，见  
+> [`2026-09-19-devin-code-search-verified.md`](./2026-09-19-devin-code-search-verified.md)  
+> 与 [`devin-code-search-evidence/`](./devin-code-search-evidence/)。  
+> 下文中标注 fork / 可选增强的内容**不是** Devin 必抄项。
+
+> Status: research complete (2026-09-19), dual-backend settings (2026-09-19)  
 > Goal: 实现 piwin **内置** `code_search` 时，尽量照抄 Devin 的工具面、子代理 prompt、本地 executor、答案协议与结果 framing。  
-> **不要**照抄 Windsurf Connect-RPC / 账号协议；子代理推理改走 Host 已配置模型的 completion。
+> 子代理推理后端 **可配**：piwin 已配置模型，或用户自备 Windsurf/Devin token（与现有 fast-context MCP 同一条云端协议）。
 
 ## 0. 证据源
 
@@ -350,16 +355,27 @@ prompt 里还点名：`deps, third_party, logs, data`。
 | executor + loop + prompt + format | `packages/host-runtime`（或小模块 `code-search/`，由 host-runtime 组装） |
 | 工具注册 | `build-session-host-tools.ts` |
 | 主 agent guidance 注入 | session system / tool instructions 组装点 |
-| Settings UI | Desktop settings 页：enable + modelRef + turns/commands/snippets |
+| Settings UI | Desktop settings 页：enable + **backend（模型 / Windsurf 云端）** + modelRef 或 token + turns/commands/snippets |
 | 测试 | executor 单测、parseAnswer、format、path escape；loop 用 mock completion |
 
 ### 7.2 配置草案
 
 ```ts
+type CodeSearchBackend = 'model' | 'windsurf';
+
 type CodeSearchConfig = {
   enabled: boolean;
-  /** ModelRef from piwin providers; used only for the search subagent loop */
+  /** Default `model`. `windsurf` = Devin/Windsurf cloud SWE-grep, same protocol as fast-context MCP. */
+  backend: CodeSearchBackend;
+  /** When backend=model: any already-configured chat model. */
   modelRef?: ModelRef;
+  /**
+   * When backend=windsurf: keychain ref (preferred) or env name.
+   * Raw token never written to config.json. Same secret shapes as MCP:
+   * `devin-session-token$…` or historical Windsurf API keys.
+   */
+  apiKeyRef?: string;   // e.g. keychain:piwin-code-search-windsurf
+  apiKeyEnv?: string;   // e.g. WINDSURF_API_KEY
   maxTurns: number;      // default 3
   maxCommands: number;   // default 6
   maxResults: number;    // default 10
@@ -368,19 +384,35 @@ type CodeSearchConfig = {
   excludePaths: string[];
   resultMaxLines: number;   // default 50
   lineMaxChars: number;     // default 250
-  timeoutMs: number;        // per completion
+  timeoutMs: number;        // per completion / per Windsurf stream
 };
 ```
 
-### 7.3 推理后端（故意不抄 Devin）
+Settings 控件（建议一页，对齐 web search 的 provider 选择）：
 
-| Devin | piwin |
-|-------|-------|
-| Windsurf Connect-RPC + Protobuf + `swe-1-6-fast` | Host 侧 **二次 chat completion**（与 Walkthrough 类似：非主 session 流式 UI） |
-| 账号 `devin-session-token$` / api key | 用户已配置的 provider/model |
-| 文本 `[TOOL_CALLS]…` 或专用 framing | Provider 原生 tool_calls |
+1. **启用** `code_search`
+2. **推理后端** 二选一  
+   - **使用已配置模型** → 模型下拉（`modelRef`）  
+   - **使用 Windsurf / Devin 云端** → token/key 密码框（写入 keychain → `apiKeyRef`），可选 `WINDSURF_API_KEY` env
+3. 其余 turns / snippets / excludes 为高级项，不对主模型暴露
 
-子代理 **prompt / tools / XML answer / 本地命令语义** 仍整段照抄。
+本地 executor、`/codebase`、ANSWER XML、结果 framing **两条后端共用**。差别只在「谁规划下一轮 rg/read」。
+
+### 7.3 推理后端（两条，Settings 切换）
+
+本地命令循环相同；只换「规划模型」从哪来。
+
+| | `backend: 'model'` | `backend: 'windsurf'` |
+|--|---------------------|------------------------|
+| 谁规划 | Host 二次 chat completion（Walkthrough 同类：非主 session UI） | Windsurf Connect-RPC + Protobuf，`MODEL_SWE_1_6_FAST` |
+| 鉴权 | 所选 `modelRef` 的 provider 密钥 | 用户自备 token/key（keychain / `WINDSURF_API_KEY`） |
+| 协议 | Provider 原生 tool_calls | 与 `~/Developer/fast-context-mcp` 同源：`server.self-serve.windsurf.com` |
+| 何时用 | 默认；不绑 Devin 账号 | 用户有 Windsurf/Devin 额度、想用原版 SWE-grep |
+| 失败 | 模型不可用 → 工具报错，不静默切云端 | key 缺失/401 → 明确提示去 Settings 填 token，不静默切模型 |
+
+**不要静默 failover 跨后端**（配额/隐私边界不同）。用户选哪条就走哪条。
+
+子代理 **prompt / tools / XML answer / 本地命令语义** 两条都照抄。`windsurf` 路径可以直接移植 fork 的 `core.mjs` 请求层（JWT 换票、流式 frame、`[TOOL_CALLS]` 解析），不要再依赖 MCP 进程。
 
 ### 7.4 与现有能力边界
 
@@ -399,7 +431,9 @@ Desktop 已有测试痕迹：`resolveToolClusterKind('code_search') === 'search'
 
 - 只读、限定 project root → 默认应比 MCP 更顺（auto 或 session trust 下直接跑）
 - 不走 shell；不写盘
-- 子代理 completion 消耗用户配额：Settings 写清「使用所选模型」
+- 子代理 completion 消耗所选后端配额：Settings 写清「使用所选模型」或「使用 Windsurf/Devin 云端」
+- Windsurf token：**只进 keychain / env**，禁止写入 `config.json`、禁止日志打印
+- 不默认扫描 `state.vscdb`；用户可选手动粘贴（与 MCP `WINDSURF_API_KEY` 相同）。可选「从本机 Devin 导入」作为单独动作，不是静默行为
 
 ## 8. 验收标准（实现时）
 
@@ -409,9 +443,11 @@ Desktop 已有测试痕迹：`resolveToolClusterKind('code_search') === 'search'
 4. path 逃逸（`../`、绝对路径出 root）被拒绝  
 5. 空仓库/无匹配 → 空答案文案，不硬凑  
 6. 关掉 enabled → 工具不出现在 session manifest  
-7. 更换 `modelRef` 后 loop 走新模型（mock 可测）  
-8. 不依赖 Windsurf/Devin 网络协议即可工作  
-9. `pnpm typecheck` + 单测绿  
+7. `backend=model` 时更换 `modelRef` 后 loop 走新模型（mock 可测）  
+8. `backend=model` 时 **不需要** Windsurf 网络即可工作  
+9. `backend=windsurf` 时用用户配置的 token 打云端；缺 key / 401 有明确错误，不静默切到 model  
+10. token 不以明文出现在 config 或测试夹具日志  
+11. `pnpm typecheck` + 单测绿  
 
 ## 9. 建议实现切片
 
@@ -420,19 +456,23 @@ Desktop 已有测试痕迹：`resolveToolClusterKind('code_search') === 'search'
 3. **parseAnswer + formatNativeResult**（照抄 §4.1）+ 单测  
 4. **loop**（system prompt 附件原文 + tools schema + force answer + mock model）  
 5. **Host tool 注册 + system guidance 注入**  
-6. **Settings：enable + model 下拉**  
-7. 文档 / ADR（若配置进 `~/.piwin` 一等 config）  
-8. （可选）弃用路径：引导从 MCP fast-context 迁到内置  
+6. **Settings：enable + backend 选择 + model 下拉 / Windsurf token（keychain）**  
+7. **windsurf 适配器**：移植 fork 的 Connect-RPC 请求层，密钥从 `apiKeyRef`/`apiKeyEnv` 读  
+8. 文档 / ADR（配置进 `~/.piwin` 一等 config）  
+9. （可选）从 MCP fast-context 迁到内置：可提示「已配置的 WINDSURF_API_KEY 可导入 Settings」  
 
-## 10. 不要照抄的部分
+## 10. 不要照抄 / 不要默认做的部分
 
-- Windsurf `server.self-serve.windsurf.com` / Protobuf / JWT 换票  
-- 从 `state.vscdb` 抽 key  
-- 依赖 `MODEL_SWE_1_6_FAST` 唯一模型  
-- MCP 长名 `mcp__fast-context__…` 作为主路径  
-- 把 explore subagent 与 code_search 合成一个工具  
+- **不要**把 Windsurf 做成唯一后端；`backend: 'model'` 必须能独立工作  
+- **不要**静默从 `state.vscdb` 抽 key（可选手动「导入」除外）  
+- **不要**把 token 明文写进 `config.json` 或 MCP env 展示给模型  
+- **不要**跨后端静默 failover  
+- **不要**用 MCP 长名 `mcp__fast-context__…` 作为主路径  
+- **不要**把 explore subagent 与 `code_search` 合成一个工具  
+
+`backend: 'windsurf'` **应当**照抄 fork 的云端协议（Connect-RPC、JWT 换票、SWE-1.6-Fast、`[TOOL_CALLS]`），这是用户显式选择的能力，不是偷偷绑死。
 
 ## 11. 一句话
 
-**照抄 Devin 的：`code_search` 工具面、prefer-first 策略、子代理 system prompt、restricted_exec 命令集、ANSWER XML、原生结果 framing、/codebase 沙箱与截断参数。  
-自研 Devin 的：用 piwin 可配模型做子代理推理，Host 内闭环执行，不绑 Windsurf 协议。**
+**照抄 Devin 的：`code_search` 工具面、prefer-first 策略、子代理 prompt、restricted_exec、ANSWER XML、原生 framing、/codebase 沙箱。  
+后端做成设置：默认用 piwin 已配置模型；用户也可粘贴 Windsurf/Devin token，走和 fast-context MCP 同一条云端请求。**

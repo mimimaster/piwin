@@ -39,6 +39,33 @@ export function normalizeTranscriptTurnHeight(height: number): number | null {
   return Math.max(TRANSCRIPT_TURN_MIN_HEIGHT_PX, rounded);
 }
 
+/**
+ * Live row size for the virtualizer. The outer slot is `overflow: hidden` at
+ * the current estimated height, so ResizeObserver / border-box can report the
+ * clipped visible box. `scrollHeight` is the body's natural size and must win.
+ */
+export function readMountedTranscriptTurnHeight(options: {
+  element: HTMLElement;
+  entry: ResizeObserverEntry | undefined;
+}): number {
+  const observerBlockSize = options.entry?.borderBoxSize?.[0]?.blockSize;
+  const observerHeight =
+    typeof observerBlockSize === 'number' && Number.isFinite(observerBlockSize)
+      ? observerBlockSize
+      : options.entry?.contentRect.height ?? 0;
+  // When ResizeObserver already delivered a box, do not force layout via
+  // offsetHeight / getBoundingClientRect (streaming remasure). scrollHeight
+  // still wins if the parent slot clipped the observer box.
+  if (observerHeight > 0) {
+    return Math.max(observerHeight, options.element.scrollHeight);
+  }
+  return Math.max(
+    options.element.offsetHeight,
+    options.element.scrollHeight,
+    options.element.getBoundingClientRect().height,
+  );
+}
+
 /** Bound speculative sizes only; mounted rows use normalizeTranscriptTurnHeight. */
 export function normalizeTranscriptTurnEstimate(height: number): number | null {
   const normalized = normalizeTranscriptTurnHeight(height);

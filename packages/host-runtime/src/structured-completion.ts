@@ -162,7 +162,12 @@ function shouldRetryWithoutJsonSchema(status: number): boolean {
   return status === 400 || status === 404 || status === 415 || status === 422;
 }
 
-function createCompletionSecretResolver(
+/**
+ * Resolve a provider secret, mapping a configured-but-unresolvable key to a
+ * named error. Exported so other provider-calling modules (code_search's
+ * subagent backend) reuse the same policy instead of re-deriving it.
+ */
+export function createCompletionSecretResolver(
   injected: StructuredCompletionDependencies['resolveSecret'],
 ): (provider: ModelProviderConfig) => Promise<string | null> {
   if (injected) return injected;

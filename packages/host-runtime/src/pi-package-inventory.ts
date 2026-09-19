@@ -17,6 +17,7 @@ import {
   readExtensionCompatibility,
   readExtensionHookEvents,
 } from './detect-extension-hooks.js';
+import { globMatch, hasGlobMeta } from './glob-match.js';
 
 export type PiNativeInventoryDiagnostic = {
   code: 'invalid-settings' | 'unresolved' | 'empty-package';
@@ -830,25 +831,6 @@ function asStringArray(value: unknown): string[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function hasGlobMeta(pattern: string): boolean {
-  return /[*?]/.test(pattern);
-}
-
-function globMatch(relativePath: string, pattern: string): boolean {
-  const normalizedPattern = pattern.replace(/^\.\//, '').replace(/\\/g, '/');
-  const regex = globToRegExp(normalizedPattern);
-  return regex.test(relativePath.replace(/\\/g, '/'));
-}
-
-function globToRegExp(pattern: string): RegExp {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '::DOUBLESTAR::')
-    .replace(/\*/g, '[^/]*')
-    .replace(/::DOUBLESTAR::/g, '.*');
-  return new RegExp(`^${escaped}$`);
 }
 
 function stripGitSuffix(value: string): string {

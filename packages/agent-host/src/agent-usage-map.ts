@@ -98,6 +98,7 @@ export function mapFinalizedAssistantUsage(input: {
     measurement.cacheWriteTokens = snapshot.cacheWriteTokens;
   }
   if (snapshot.durationMs !== undefined) measurement.durationMs = snapshot.durationMs;
+  if (snapshot.firstTokenMs !== undefined) measurement.firstTokenMs = snapshot.firstTokenMs;
   if (stopReason !== undefined && stopReason.length > 0) measurement.stopReason = stopReason;
   return measurement;
 }

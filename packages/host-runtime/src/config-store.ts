@@ -31,6 +31,7 @@ import type {
   ReplyWriterConfig,
   VideoGenerationConfig,
   WebConfig,
+  CodeSearchConfig,
   PermissionPreset,
 } from '@piwin/contracts';
 import {
@@ -53,6 +54,7 @@ import {
   createDefaultWalkthroughConfig,
   DEFAULT_ATTACHMENT_ALLOWED_MIME_TYPES,
   createDefaultWebConfig,
+  createDefaultCodeSearchConfig,
   inferSearchRoutePolicy,
   isWebSearchSourceKind,
   modeToPreset,
@@ -222,6 +224,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
     normalized.desktop = desktop;
   }
   normalized.web = normalizeWebConfig(record.web, defaults.web ?? createDefaultWebConfig());
+  const codeSearch = normalizeCodeSearchConfig(record.codeSearch);
+  if (codeSearch) {
+    normalized.codeSearch = codeSearch;
+  }
   normalized.skills = normalizeSkillsConfig(
     record.skills,
     defaults.skills ?? createDefaultSkillsConfig(),
@@ -323,6 +329,79 @@ function normalizeMediaAllowedMimeTypes(
  * (`htmlUiModeDefault`) to the new `ArtifactConfig` (`enabled`, `triggerMode`,
  * `decisionPrompt`, `maxBytes`).
  */
+
+function normalizeCodeSearchConfig(value: unknown): CodeSearchConfig | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const defaults = createDefaultCodeSearchConfig();
+  const backend = record.backend === 'windsurf' ? 'windsurf' : record.backend === 'model' ? 'model' : undefined;
+  const modelRecord = asRecord(record.model);
+  const model =
+    modelRecord &&
+    typeof modelRecord.providerId === 'string' &&
+    modelRecord.providerId.trim() &&
+    typeof modelRecord.modelId === 'string' &&
+    modelRecord.modelId.trim()
+      ? { providerId: modelRecord.providerId.trim(), modelId: modelRecord.modelId.trim() }
+      : undefined;
+  const next: CodeSearchConfig = {
+    enabled: record.enabled === true,
+  };
+  if (backend) next.backend = backend;
+  if (model) next.model = model;
+  if (typeof record.apiKeyRef === 'string' && record.apiKeyRef.trim()) {
+    next.apiKeyRef = record.apiKeyRef.trim();
+  }
+  if (typeof record.apiKeyEnv === 'string' && record.apiKeyEnv.trim()) {
+    next.apiKeyEnv = record.apiKeyEnv.trim();
+  }
+  const maxTurns = asPositiveNumber(record.maxTurns);
+  if (maxTurns !== undefined) next.maxTurns = Math.floor(maxTurns);
+  const maxCommands = asPositiveNumber(record.maxCommands);
+  if (maxCommands !== undefined) next.maxCommands = Math.floor(maxCommands);
+  const maxResults = asPositiveNumber(record.maxResults);
+  if (maxResults !== undefined) next.maxResults = Math.floor(maxResults);
+  if (typeof record.treeDepth === 'number' && Number.isFinite(record.treeDepth) && record.treeDepth >= 0) {
+    next.treeDepth = Math.floor(record.treeDepth);
+  }
+  if (typeof record.includeSnippets === 'boolean') next.includeSnippets = record.includeSnippets;
+  if (Array.isArray(record.excludePaths)) {
+    next.excludePaths = record.excludePaths
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+  const resultMaxLines = asPositiveNumber(record.resultMaxLines);
+  if (resultMaxLines !== undefined) next.resultMaxLines = Math.floor(resultMaxLines);
+  const lineMaxChars = asPositiveNumber(record.lineMaxChars);
+  if (lineMaxChars !== undefined) next.lineMaxChars = Math.floor(lineMaxChars);
+  const timeoutMs = asPositiveNumber(record.timeoutMs);
+  if (timeoutMs !== undefined) next.timeoutMs = Math.floor(timeoutMs);
+  // Keep a minimal explicit disabled entry out of the file when it is pure default.
+  if (
+    next.enabled === false &&
+    next.backend === undefined &&
+    next.model === undefined &&
+    next.apiKeyRef === undefined &&
+    next.apiKeyEnv === undefined &&
+    next.maxTurns === undefined &&
+    next.maxCommands === undefined &&
+    next.maxResults === undefined &&
+    next.treeDepth === undefined &&
+    next.includeSnippets === undefined &&
+    next.excludePaths === undefined &&
+    next.resultMaxLines === undefined &&
+    next.lineMaxChars === undefined &&
+    next.timeoutMs === undefined
+  ) {
+    return { enabled: false };
+  }
+  void defaults;
+  return next;
+}
+
 function normalizeArtifactConfig(value: unknown, defaults: ArtifactConfig): ArtifactConfig {
   const record = asRecord(value);
   if (!record) {

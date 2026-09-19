@@ -16,7 +16,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { Notice, Spinner } from '@piwin/ui-kit';
+import { Button, Notice, Spinner } from '@piwin/ui-kit';
 import { getDesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { openExternalUrl } from '../open-external-url.js';
@@ -54,8 +54,8 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
       <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   ),
   notifications: (
@@ -188,6 +188,22 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       <path d="M20 21a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2" />
     </svg>
   ),
+  'code-search': (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+      <path d="M8 11h6" />
+    </svg>
+  ),
   web: (
     <svg
       width="14"
@@ -311,6 +327,7 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
   const copy = getDesktopCopy(locale);
   const mainScrollRef = useRef<HTMLDivElement | null>(null);
   const [, bumpLazyGeneration] = useReducer((generation: number) => generation + 1, 0);
+  const [lazyLoadError, setLazyLoadError] = useState<string | null>(null);
   const PageComponent = getSettingsSection(activeSection);
 
   // Chromium ensureLazyLoaded(): pull Advanced when the active section is not Basic.
@@ -319,21 +336,42 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
       return;
     }
     let cancelled = false;
-    void ensureSettingsLazyLoaded().then(() => {
-      if (!cancelled) {
+    void ensureSettingsLazyLoaded().then(
+      () => {
+        if (cancelled) return;
+        setLazyLoadError(null);
         bumpLazyGeneration();
-      }
-    });
+      },
+      (error: unknown) => {
+        if (cancelled) return;
+        // A silently stuck spinner is indistinguishable from a missing page.
+        console.error('[piwin] settings section load failed', activeSection, error);
+        setLazyLoadError(error instanceof Error ? error.message : String(error));
+      },
+    );
     return () => {
       cancelled = true;
     };
   }, [PageComponent, activeSection]);
+
+  function retryLazyLoad(): void {
+    setLazyLoadError(null);
+    void ensureSettingsLazyLoaded().then(
+      () => bumpLazyGeneration(),
+      (error: unknown) => {
+        console.error('[piwin] settings section load failed', activeSection, error);
+        setLazyLoadError(error instanceof Error ? error.message : String(error));
+      },
+    );
+  }
 
   // Chromium settings-idle-load: warm Advanced after Basic has painted.
   useEffect(() => {
     return scheduleIdleTask(() => {
       void ensureSettingsLazyLoaded().then(() => {
         bumpLazyGeneration();
+      }, () => {
+        // The active-section effect owns user-visible reporting.
       });
     });
   }, []);
@@ -556,6 +594,24 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
                   <PageComponent />
                 </SettingsPageErrorBoundary>
               </SettingsProvider>
+            ) : lazyLoadError ? (
+              <div className="deferred-surface-fallback" data-testid="settings-section-load-error">
+                <Notice
+                  tone="error"
+                  title={isChinese ? '此设置页加载失败' : 'This settings page failed to load'}
+                  testId="settings-section-load-error-notice"
+                  action={
+                    <Button variant="ghost" onClick={retryLazyLoad}>
+                      {isChinese ? '重试' : 'Retry'}
+                    </Button>
+                  }
+                  details={lazyLoadError}
+                >
+                  {isChinese
+                    ? `「${activeSectionLabel}」没有加载成功，所以这里没有任何内容。`
+                    : `“${activeSectionLabel}” did not load, so there is nothing to show here.`}
+                </Notice>
+              </div>
             ) : (
               <div className="deferred-surface-fallback" data-testid="settings-section-loading">
                 <Spinner
