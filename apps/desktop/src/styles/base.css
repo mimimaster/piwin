@@ -49,6 +49,47 @@ select {
   color: inherit;
 }
 
+/* App chrome is not document text: a drag or select-all must not paint a
+   selection across titles, status rows, and controls like a web page. The
+   whole shell (portals included, hence body) is unselectable by default and
+   only content surfaces opt back in. New content surfaces opt in with
+   `data-selectable` rather than another class here. WebKit needs the prefix. */
+body,
+button,
+[role='button'],
+[role='tab'],
+[role='menuitem'],
+[role='option'],
+[role='treeitem'] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable='true'],
+[contenteditable='plaintext-only'],
+[data-selectable],
+.prose,
+.markdown,
+.message-text,
+pre,
+.diff-view,
+.turn-thinking,
+.conversation-thinking-body,
+.turn-error-card,
+.main-error-message,
+.citation-excerpt,
+.code-preview-text,
+.doc-artifact-excerpt-text,
+.hit-snippet,
+.knowledge-result-view,
+.mcp-command-snippet,
+[role='alert'] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* Native check controls track the product accent instead of UA blue. */
 input[type='checkbox'],
 input[type='radio'],

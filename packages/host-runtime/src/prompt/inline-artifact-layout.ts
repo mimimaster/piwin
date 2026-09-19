@@ -18,14 +18,39 @@ export function formatInlineArtifactLayout(width: unknown): string | undefined {
   ].join('\n');
 }
 
+/**
+ * Client metadata is untrusted. Only the two literal modes enter the prompt.
+ * Without this the model cannot see the host background and tends to design
+ * for a dark page even on a light / paper theme.
+ */
+export function formatArtifactHostTheme(mode: unknown): string | undefined {
+  if (mode !== 'light' && mode !== 'dark') return undefined;
+  const opposite = mode === 'light' ? 'dark' : 'light';
+  return [
+    '[piwin-artifact-host-theme]',
+    `Sending client theme: ${mode} background at send time.`,
+    'The `--piwin-artifact-*` vars already resolve to this theme; prefer them over literal colors.',
+    `Any color you do choose (custom looks, SVG fills, chart series, code islands aside) must read well on a ${mode} background. Never design a ${opposite}-mode page, full-bleed ${opposite} stage, or ${opposite} cards for this host.`,
+    'Viewers can switch theme later, so theme vars remain the default. This is advisory context, not an instruction to create an artifact.',
+    '[/piwin-artifact-host-theme]',
+  ].join('\n');
+}
+
 export function applyInlineArtifactLayout(
   input: PromptInput,
   enabled: boolean,
   assembly: ModelPromptAssembly,
 ): void {
   const layout = enabled ? formatInlineArtifactLayout(input.inlineArtifactWidthPx) : undefined;
+  const theme = enabled ? formatArtifactHostTheme(input.artifactHostTheme) : undefined;
   delete input.inlineArtifactWidthPx;
-  if (!layout) return;
-  input.text = `${layout}\n\n${input.text}`;
-  assembly.add({ kind: 'other', label: 'Inline artifact layout', trustOrigin: 'piwin', text: layout });
+  delete input.artifactHostTheme;
+  if (layout) {
+    input.text = `${layout}\n\n${input.text}`;
+    assembly.add({ kind: 'other', label: 'Inline artifact layout', trustOrigin: 'piwin', text: layout });
+  }
+  if (theme) {
+    input.text = `${theme}\n\n${input.text}`;
+    assembly.add({ kind: 'other', label: 'Artifact host theme', trustOrigin: 'piwin', text: theme });
+  }
 }

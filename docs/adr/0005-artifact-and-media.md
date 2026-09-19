@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08; amended 2026-09-16)
+Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08; amended 2026-09-16; amended 2026-09-19)
 
 ## Context
 
@@ -314,3 +314,9 @@ report within 10ms (status `ready`, no recovery banner); inside the frame
 `SecurityError`; a main-frame navigation to the scheme bounces back to
 `tauri://localhost/`. Chromium e2e cannot catch CSP inheritance regressions;
 this path needs a WebKit (Tauri build) check.
+
+## Amendment (2026-09-19): Canvas follows the host theme
+
+Models routinely emit a self-consistent dark page (`background: #0f1117; color: #e5e7eb`) for Canvas. Preview repair used to leave that pair alone so code listings stayed readable. On a paper / light host the right-side Canvas then paints as a black sheet.
+
+Decision: `applyArtifactThemeContract` still keeps a dark contrast pair on `pre` / `code` / `kbd` / hljs islands. Every other hard-coded dark surface — page shells, wrappers, slate cards, inline `style` fills — is rewritten to `--piwin-artifact-*` for **preview only**. Copy/export keep the original source. Runtime contract is v11.

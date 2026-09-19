@@ -166,6 +166,7 @@ body,
 .owi-artifact-root {
   background: transparent !important;
   color: var(--piwin-artifact-text) !important;
+  color-scheme: var(--piwin-artifact-theme) !important;
 }
 .piwin-artifact-surface,
 .bg-white,

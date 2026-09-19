@@ -268,7 +268,7 @@ Historical. Current module map (2026-08-24):
 | `bridge-protocol.ts` | Parent parse/validate of size, action, and revisioned render snapshots |
 | `height-policy.ts` | Pure normalization + 16 384 px defensive clamp |
 | `streamable-preview.ts` | Script-stripped partial HTML preview |
-| `theme-contract.ts` | Soft-repair hard-coded light surfaces for **preview source only** |
+| `theme-contract.ts` | Soft-repair hard-coded light surfaces and non-code dark shells for **preview source only** |
 | `srcdoc.ts` / `srcdoc-css.ts` / `srcdoc-bridge.ts` | CSP + theme CSS + frame-mode CSS + bridge bootstrap |
 
 Desktop schedulers (`artifact-init-queue.ts`, `artifact-live-host-registry.ts`)

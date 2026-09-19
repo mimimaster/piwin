@@ -152,4 +152,33 @@ describe('resolveTranscriptTurnEstimate', () => {
       }),
     ).toBe(180);
   });
+
+  it('keeps a tall cache for a long delivery instead of treating it as an Artifact balloon', () => {
+    const turn = groupTranscriptTurns([
+      userMessage('u1', 'go implement this'),
+      assistantMessage('a1', 'x'.repeat(8_000)),
+    ])[0];
+    const content = estimateTranscriptTurnHeight(turn);
+    expect(content).toBeGreaterThan(800);
+    expect(
+      resolveTranscriptTurnEstimate({
+        turn,
+        cachedHeight: 8_400,
+      }),
+    ).toBe(8_400);
+  });
+
+  it('still drops an inflated cache on a short reply (collapsed Artifact balloon)', () => {
+    const turn = groupTranscriptTurns([
+      userMessage('u1', 'hi'),
+      assistantMessage('a1', 'short'),
+    ])[0];
+    const content = estimateTranscriptTurnHeight(turn);
+    expect(
+      resolveTranscriptTurnEstimate({
+        turn,
+        cachedHeight: 8_400,
+      }),
+    ).toBe(content);
+  });
 });

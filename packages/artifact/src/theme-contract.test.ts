@@ -71,10 +71,29 @@ describe('applyArtifactThemeContract', () => {
     expect(applyArtifactThemeContract(source).changed).toBe(false);
   });
 
-  it('leaves intentional dark colors alone', () => {
-    const source = '<div style="background: #111827; color: #fff">Dark</div>';
-    const result = applyArtifactThemeContract(source);
-    expect(result.changed).toBe(false);
-    expect(result.source).toBe(source);
+  it('rewrites a dark canvas page that pairs dark surfaces with light text', () => {
+    const result = applyArtifactThemeContract(`<style>
+html, body { margin: 0; background: #0f1117; color: #e5e7eb; height: 100%; }
+.wrap { min-height: 100%; background: #0f1117; }
+.card { background: #16181d; color: #fff; }
+pre { background: #090d16; color: #e2e8f0; }
+</style><div class="wrap"><div class="card">x</div><pre>code</pre></div>`);
+    expect(result.changed).toBe(true);
+    expect(result.source).toContain('html, body { margin: 0; background: var(--piwin-artifact-surface); color: var(--piwin-artifact-text); height: 100%; }');
+    expect(result.source).toContain('.wrap { min-height: 100%; background: var(--piwin-artifact-surface); }');
+    expect(result.source).toContain('.card { background: var(--piwin-artifact-surface); color: var(--piwin-artifact-text); }');
+    expect(result.source).toContain('pre { background: #090d16; color: #e2e8f0; }');
+    expect(result.issues.some((issue) => issue.kind === 'fixed-dark-surface')).toBe(true);
+  });
+
+  it('rewrites inline dark page fills and keeps dark code tags', () => {
+    const result = applyArtifactThemeContract(
+      '<div style="background: #111827; color: #fff; min-height: 100%">Dark</div><pre style="background: #090d16; color: #e2e8f0">code</pre>',
+    );
+    expect(result.changed).toBe(true);
+    expect(result.source).toContain(
+      '<div style="background: var(--piwin-artifact-surface); color: var(--piwin-artifact-text); min-height: 100%">Dark</div>',
+    );
+    expect(result.source).toContain('<pre style="background: #090d16; color: #e2e8f0">code</pre>');
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { join, resolve } from 'node:path';
-import { parseCodeSearchAnswer } from './answer-parse.js';
+import { extractAnswerXml, parseCodeSearchAnswer } from './answer-parse.js';
 
 const ROOT = resolve('/tmp/piwin-answer-root');
 
@@ -119,5 +119,38 @@ describe('parseCodeSearchAnswer', () => {
     const result = parse('<ANSWER><file path="  "><range>1-2</range></file></ANSWER>');
     expect(result.files).toEqual([]);
     expect(result.rejectedPaths).toEqual([]);
+  });
+
+  it('parses an unclosed ANSWER that custom models often emit', () => {
+    const result = parse(`<ANSWER>
+  <file path="/codebase/src/app.ts">
+    <range>1-5</range>
+  </file>
+`);
+    expect(result.malformed).toBe(false);
+    expect(result.files.map((file) => file.path)).toEqual(['src/app.ts']);
+  });
+
+  it('prefers the answer tool argument over response text', () => {
+    expect(
+      extractAnswerXml({
+        toolArguments: { answer: '<ANSWER><file path="src/a.ts"><range>1-1</range></file></ANSWER>' },
+        text: 'ignore me',
+      }),
+    ).toContain('src/a.ts');
+  });
+
+  it('falls back to response text when the answer tool is missing', () => {
+    expect(
+      extractAnswerXml({
+        text: '<ANSWER><file path="/codebase/src/app.ts"><range>1-2</range></file></ANSWER>',
+      }),
+    ).toContain('/codebase/src/app.ts');
+  });
+
+  it('parses bare file elements when the ANSWER wrapper is missing', () => {
+    const result = parse('<file path="/codebase/src/app.ts"><range>1-5</range></file>');
+    expect(result.malformed).toBe(false);
+    expect(result.files.map((file) => file.path)).toEqual(['src/app.ts']);
   });
 });

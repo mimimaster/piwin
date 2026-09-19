@@ -22,10 +22,24 @@ export const TRANSCRIPT_TURN_MIN_HEIGHT_PX = 40;
  * bad measures must not reserve multi-screen blank for every turn.
  */
 export const TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX = 4_000;
+/**
+ * Safety ceiling for *stored* measured heights (session restore). Live
+ * virtualizer rows stay uncapped via normalizeTranscriptTurnHeight.
+ * 32k px is ~25–40 viewports; enough for a long delivery, not a runaway iframe.
+ */
+export const TRANSCRIPT_TURN_MAX_MEASURED_HEIGHT_PX = 32_000;
 
 /** Soft distrust: cached height this many times above content estimate is ignored. */
 const CACHED_HEIGHT_DISTRUST_RATIO = 3.5;
 const CACHED_HEIGHT_DISTRUST_MIN_PX = 360;
+/**
+ * Pre-measure prose contribution. 280px was a short-reply cap; a delivery
+ * report is thousands of pixels and must not first-paint into a 500px slot.
+ */
+const TRANSCRIPT_TURN_PROSE_ESTIMATE_MAX_PX = 3_200;
+/** Artifact-balloon distrust only applies to compact replies, not long prose. */
+const COMPACT_TURN_TEXT_CHARS = 1_500;
+const COMPACT_TURN_TOOL_COUNT = 8;
 
 /**
  * Normalize an actual mounted-row measurement. Do not cap it: the virtualizer
@@ -121,16 +135,25 @@ export function estimateTranscriptTurnHeight(turn: TranscriptTurn | undefined): 
     }
     const textLength = item.message.text?.length ?? 0;
     const toolCount = item.message.tools?.length ?? 0;
-    raw += 72 + Math.min(280, Math.ceil(textLength / 90) * 22) + toolCount * 36;
+    raw += 72 + Math.min(TRANSCRIPT_TURN_PROSE_ESTIMATE_MAX_PX, Math.ceil(textLength / 90) * 22) + toolCount * 36;
   }
   raw += estimateAssistantMediaHeight(assistantVisualMediaCount(turn));
   return normalizeTranscriptTurnEstimate(raw) ?? TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX;
 }
 
-/**
- * Prefer a trusted cache entry; drop inflated history from tall Artifact frames
- * that later collapsed so the virtualizer remeasures tightly.
- */
+function transcriptTurnLooksCompact(turn: TranscriptTurn | undefined): boolean {
+  if (turn === undefined) {
+    return true;
+  }
+  let textLength = 0;
+  let toolCount = 0;
+  for (const item of turn.items) {
+    textLength += item.message.text?.length ?? 0;
+    toolCount += item.message.tools?.length ?? 0;
+  }
+  return textLength < COMPACT_TURN_TEXT_CHARS && toolCount < COMPACT_TURN_TOOL_COUNT;
+}
+
 export function resolveTranscriptTurnEstimate(options: {
   turn: TranscriptTurn | undefined;
   cachedHeight: number | null;
@@ -140,11 +163,14 @@ export function resolveTranscriptTurnEstimate(options: {
   if (cached === null) {
     return contentEstimate;
   }
-  const normalized = normalizeTranscriptTurnEstimate(cached);
+  const normalized = normalizeTranscriptTurnHeight(cached);
   if (normalized === null) {
     return contentEstimate;
   }
+  // Collapsed Artifact shells left multi-screen blanks on short replies.
+  // Long prose / tool-heavy turns are actually that tall — keep the cache.
   if (
+    transcriptTurnLooksCompact(options.turn) &&
     normalized >= CACHED_HEIGHT_DISTRUST_MIN_PX &&
     normalized > contentEstimate * CACHED_HEIGHT_DISTRUST_RATIO
   ) {

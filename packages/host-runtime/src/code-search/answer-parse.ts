@@ -44,7 +44,59 @@ export type CodeSearchAnswer = {
 
 const FILE_ELEMENT = /<file\s+path\s*=\s*(["'])([^"']+)\1\s*>([\s\S]*?)<\/file>/g;
 const RANGE_ELEMENT = /<range\s*>\s*(\d+)\s*-\s*(\d+)\s*<\/range\s*>/g;
-const ANSWER_ELEMENT = /<ANSWER\s*>([\s\S]*)<\/ANSWER\s*>/;
+const ANSWER_OPEN = /<ANSWER\b[^>]*>/i;
+const ANSWER_CLOSE = /<\/ANSWER\s*>/i;
+const HAS_FILE_ELEMENT = /<file\s+path\s*=/i;
+
+/** True when a string looks like the subagent's XML answer, not prose. */
+export function looksLikeAnswerXml(value: string): boolean {
+  return ANSWER_OPEN.test(value) || HAS_FILE_ELEMENT.test(value);
+}
+
+/**
+ * Pull XML out of an `answer` tool call, then fall back to the model's
+ * text. Custom/chat models often emit `<ANSWER>` as the final response
+ * instead of calling the `answer` tool (the prompt says "final response").
+ */
+export function extractAnswerXml(input: {
+  toolArguments?: Record<string, unknown>;
+  text?: string;
+}): string {
+  const fromTool = readAnswerArgument(input.toolArguments);
+  if (fromTool.trim()) {
+    return fromTool;
+  }
+  return typeof input.text === 'string' ? input.text : '';
+}
+
+function readAnswerArgument(value: Record<string, unknown> | undefined): string {
+  if (!value) {
+    return '';
+  }
+  if (typeof value.answer === 'string') {
+    return value.answer;
+  }
+  for (const candidate of Object.values(value)) {
+    if (typeof candidate === 'string' && looksLikeAnswerXml(candidate)) {
+      return candidate;
+    }
+  }
+  return '';
+}
+
+/** Body of `<ANSWER>…` even when the closing tag is missing. */
+function answerBody(raw: string): { body: string; malformed: boolean } {
+  const open = ANSWER_OPEN.exec(raw);
+  if (open) {
+    const after = raw.slice(open.index + open[0].length);
+    const close = ANSWER_CLOSE.exec(after);
+    return { body: close ? after.slice(0, close.index) : after, malformed: false };
+  }
+  if (HAS_FILE_ELEMENT.test(raw)) {
+    return { body: raw, malformed: false };
+  }
+  return { body: '', malformed: true };
+}
 
 function parseRanges(body: string): CodeSearchAnswerRange[] {
   const ranges: CodeSearchAnswerRange[] = [];
@@ -92,14 +144,14 @@ export function parseCodeSearchAnswer(input: {
 }): CodeSearchAnswer {
   const { root, answerXml, maxResults } = input;
   const raw = typeof answerXml === 'string' ? answerXml : '';
-  const answerMatch = ANSWER_ELEMENT.exec(raw);
   const rejectedPaths: string[] = [];
+  const extracted = answerBody(raw);
 
-  if (!answerMatch) {
+  if (extracted.malformed) {
     return { files: [], rejectedPaths, malformed: true };
   }
 
-  const body = answerMatch[1] ?? '';
+  const body = extracted.body;
   const byPath = new Map<string, CodeSearchAnswerFile>();
   FILE_ELEMENT.lastIndex = 0;
   let fileMatch: RegExpExecArray | null;

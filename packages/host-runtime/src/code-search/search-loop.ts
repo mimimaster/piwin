@@ -14,7 +14,7 @@ import {
   formatCommandSlotErrors,
   parseRestrictedExecArguments,
 } from './command-parse.js';
-import { parseCodeSearchAnswer } from './answer-parse.js';
+import { extractAnswerXml, parseCodeSearchAnswer } from './answer-parse.js';
 import {
   CODE_SEARCH_FORCE_ANSWER,
   buildCodeSearchSystemPrompt,
@@ -164,47 +164,45 @@ export async function runCodeSearchLoop(input: CodeSearchLoopInput): Promise<Cod
     lastText = response.text;
 
     const answerCall = response.toolCalls.find((call) => call.name === CODE_SEARCH_ANSWER_TOOL);
-    if (answerCall) {
-      const answerXml = typeof answerCall.arguments.answer === 'string' ? answerCall.arguments.answer : '';
+    // Custom models follow "output this as your final response" and put XML
+    // in text instead of calling `answer`. Parse that on the last round, or
+    // when the model stopped calling tools.
+    const parseAnswerNow =
+      answerCall !== undefined || isAnswerRound || response.toolCalls.length === 0;
+    if (parseAnswerNow) {
+      const answerXml = extractAnswerXml({
+        ...(answerCall ? { toolArguments: answerCall.arguments } : {}),
+        text: response.text,
+      });
       const parsed = parseCodeSearchAnswer({
         root: input.root,
         answerXml,
         maxResults: budget.maxResults,
       });
-      if (parsed.malformed) {
-        return finish({
-          status: 'no-ranges',
-          output: formatCodeSearchNoRanges(answerXml || response.text),
-          rawResponse: answerXml || response.text,
+      if (!parsed.malformed) {
+        if (!parsed.files.length) {
+          return finish({
+            status: 'no-results',
+            output: formatCodeSearchNoResults(parsed.rejectedPaths),
+          });
+        }
+        const output = await formatCodeSearchResult({
+          commandSummaries,
+          files: parsed.files,
+          includeSnippets: budget.includeSnippets,
+          lineMaxChars: budget.lineMaxChars,
+          readLines,
         });
+        return finish({ status: 'ok', output, fileCount: parsed.files.length });
       }
-      if (!parsed.files.length) {
-        return finish({
-          status: 'no-results',
-          output: formatCodeSearchNoResults(parsed.rejectedPaths),
-        });
-      }
-      const output = await formatCodeSearchResult({
-        commandSummaries,
-        files: parsed.files,
-        includeSnippets: budget.includeSnippets,
-        lineMaxChars: budget.lineMaxChars,
-        readLines,
+      return finish({
+        status: 'no-ranges',
+        output: formatCodeSearchNoRanges(answerXml || response.text),
+        rawResponse: answerXml || response.text,
       });
-      return finish({ status: 'ok', output, fileCount: parsed.files.length });
     }
 
     messages.push({ role: 'assistant', content: response.text, toolCalls: response.toolCalls });
-
-    // The answer round has no successor, so running commands there would only
-    // spend filesystem work on output nobody reads.
-    if (isAnswerRound) {
-      return finish({
-        status: 'no-ranges',
-        output: formatCodeSearchNoRanges(response.text),
-        rawResponse: response.text,
-      });
-    }
 
     const execCall = response.toolCalls.find(
       (call) => call.name === CODE_SEARCH_RESTRICTED_EXEC_TOOL,
@@ -242,14 +240,6 @@ export async function runCodeSearchLoop(input: CodeSearchLoopInput): Promise<Cod
       });
     }
 
-    if (!response.toolCalls.length) {
-      // The model answered in prose instead of calling `answer`.
-      return finish({
-        status: 'no-ranges',
-        output: formatCodeSearchNoRanges(response.text),
-        rawResponse: response.text,
-      });
-    }
   }
 
   return finish({

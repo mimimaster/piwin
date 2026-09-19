@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
-import { readInlineArtifactWidth } from './inline-artifact-width.js';
+import { readArtifactHostTheme, readInlineArtifactWidth } from './inline-artifact-width.js';
 
 afterEach(() => document.body.replaceChildren());
 
@@ -38,5 +38,18 @@ describe('send-time Inline width', () => {
     Object.defineProperty(root, 'clientWidth', { configurable: true, value: 640 });
     document.body.append(root);
     expect(readInlineArtifactWidth(null)).toBe(640);
+  });
+});
+
+describe('send-time host theme', () => {
+  afterEach(() => { delete document.documentElement.dataset.themeMode; });
+  it('reads only the resolved light/dark mode from the document root', () => {
+    expect(readArtifactHostTheme()).toBeUndefined();
+    document.documentElement.dataset.themeMode = 'light';
+    expect(readArtifactHostTheme()).toBe('light');
+    document.documentElement.dataset.themeMode = 'dark';
+    expect(readArtifactHostTheme()).toBe('dark');
+    document.documentElement.dataset.themeMode = 'auto';
+    expect(readArtifactHostTheme()).toBeUndefined();
   });
 });

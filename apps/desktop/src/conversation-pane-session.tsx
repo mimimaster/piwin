@@ -38,7 +38,7 @@ import {
 } from './prompt-foreground.js';
 import { ConversationPaneTranscript } from './conversation-pane-transcript.js';
 import { createStreamEventBuffer } from './stream-event-buffer.js';
-import { readInlineArtifactWidth } from './inline-artifact-width.js';
+import { readArtifactHostTheme, readInlineArtifactWidth } from './inline-artifact-width.js';
 
 import { MediaPreviewReadProvider } from './media-preview-read-context.js';
 import type { MediaPreviewReader } from './transcript-media-preview.js';
@@ -440,6 +440,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         : {}),
     });
     const inlineArtifactWidthPx = readInlineArtifactWidth(props.sessionId);
+    const artifactHostTheme = readArtifactHostTheme();
     try {
       const response = await requestPromptWithForeground({
         request: (command, options) => props.hostClient.request(command, options),
@@ -448,6 +449,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           text,
           clientMessageId,
           ...(inlineArtifactWidthPx === undefined ? {} : { inlineArtifactWidthPx }),
+          ...(artifactHostTheme === undefined ? {} : { artifactHostTheme }),
           ...(outgoingAttachments.length > 0 ? { attachments: outgoingAttachments } : {}),
           ...sessionComposer.promptFields,
         },

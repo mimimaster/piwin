@@ -240,13 +240,15 @@ export function encodeGzipFrame(payload: Buffer): Buffer {
 }
 
 /**
- * Pull `delta_text` (field 3) and `delta_thinking` (field 9) out of a data
- * frame. Field 2 is a binary Timestamp, so it is never read as text.
+ * Pull stream text and thinking from a data frame.
+ * `GetDevstralStream` puts the delta in field 2; field 3 is kept as fallback
+ * for the documented GetChatMessage layout. Field 9 is delta_thinking.
  */
 export function parseChatFramePayload(payload: Buffer): { deltaText: string; deltaThinking: string } {
   const fields = decodeProtobuf(payload);
+  const deltaText = readStringField(fields, 2) ?? readStringField(fields, 3) ?? '';
   return {
-    deltaText: readStringField(fields, 3) ?? '',
+    deltaText,
     deltaThinking: readStringField(fields, 9) ?? '',
   };
 }

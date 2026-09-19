@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { PromptInput } from '@piwin/contracts';
 import { createModelPromptAssembly } from '../model-context-assembly.js';
-import { applyInlineArtifactLayout, formatInlineArtifactLayout } from './inline-artifact-layout.js';
+import {
+  applyInlineArtifactLayout,
+  formatArtifactHostTheme,
+  formatInlineArtifactLayout,
+} from './inline-artifact-layout.js';
 
 describe('Inline artifact layout context', () => {
   it.each([undefined, null, '', '680', '<instruction>', NaN, Infinity, -1, 0, 16385, {}])(
@@ -33,5 +37,26 @@ describe('Inline artifact layout context', () => {
     const input = { text: 'CLI' };
     applyInlineArtifactLayout(input, true, createModelPromptAssembly());
     expect(input.text).toBe('CLI');
+  });
+  it.each([undefined, null, '', 'Light', 'sepia', '<instruction>', 1, {}])(
+    'ignores invalid host theme %s', (mode) => {
+      expect(formatArtifactHostTheme(mode)).toBeUndefined();
+    },
+  );
+  it('tells the model the host background so a light host never gets a dark canvas', () => {
+    const input: PromptInput = { text: 'Write a report', artifactHostTheme: 'light' };
+    const assembly = createModelPromptAssembly();
+    applyInlineArtifactLayout(input, true, assembly);
+    expect(input).not.toHaveProperty('artifactHostTheme');
+    expect(input.text).toContain('Sending client theme: light background');
+    expect(input.text).toContain('Never design a dark-mode page');
+    expect(input.text.endsWith('\n\nWrite a report')).toBe(true);
+    expect(assembly.toSummary({ sessionId: 's', runId: 'r', requestClass: 'prompt', requestOrdinal: 1 })
+      .contributions).toHaveLength(1);
+  });
+  it('drops the host theme when artifacts are disabled', () => {
+    const input: PromptInput = { text: 'hello', artifactHostTheme: 'dark' };
+    applyInlineArtifactLayout(input, false, createModelPromptAssembly());
+    expect(input).toEqual({ text: 'hello' });
   });
 });
