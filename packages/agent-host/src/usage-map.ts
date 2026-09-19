@@ -72,10 +72,9 @@ export function mapUsageSnapshot(
   // Pi Usage has no duration field. `usage.duration` is an unknown unit and
   // must not be stored as milliseconds. Only explicit *Ms names are mapped.
   const durationMs = readNumber(nested.durationMs) ?? readNumber(record.durationMs);
-  const firstTokenMs =
-    readNumber(nested.firstTokenMs) ??
-    readNumber(nested.ttftMs) ??
-    readNumber(record.firstTokenMs);
+  // TTFT is stamped on the assistant message by the LLM stream wrapper,
+  // not by Pi Usage. Ignore usage.firstTokenMs / ttftMs (unknown origin).
+  const firstTokenMs = readNumber(record.firstTokenMs);
   const totalTokens =
     readNumber(nested.totalTokens) ??
     readNumber(nested.total) ??

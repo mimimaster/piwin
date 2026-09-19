@@ -661,4 +661,73 @@ describe('useComposerMedia session transitions', () => {
     revokeObjectUrlSpy.mockRestore();
   });
 
+  it('resets conversation-scoped composer controls when switching live sessions', () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = { request: vi.fn() } as unknown as HostClient;
+    const onResetComposerTurnControls = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch: vi.fn(),
+        agentMode: 'goal',
+        onResetComposerTurnControls,
+      });
+      return null;
+    }
+    const sessionAState = {
+      ...createInitialTestChatUiState(),
+      activeSessionId: 'session-a',
+    };
+    const sessionBState = {
+      ...sessionAState,
+      activeSessionId: 'session-b',
+    };
+    act(() => root?.render(<Harness state={sessionAState} />));
+    expect(onResetComposerTurnControls).not.toHaveBeenCalled();
+    act(() => root?.render(<Harness state={sessionBState} />));
+    expect(onResetComposerTurnControls).toHaveBeenCalledTimes(1);
+    expect(onResetComposerTurnControls).toHaveBeenCalledWith({
+      previousSessionId: 'session-a',
+      nextSessionId: 'session-b',
+    });
+    void captured;
+  });
+
+  it('resets conversation-scoped composer controls when starting another New Agent draft', () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = { request: vi.fn() } as unknown as HostClient;
+    const onResetComposerTurnControls = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) {
+        throw new Error('composer media hook was not rendered');
+      }
+      return captured;
+    };
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch: vi.fn(),
+        agentMode: 'goal',
+        onResetComposerTurnControls,
+      });
+      return null;
+    }
+    act(() =>
+      root?.render(
+        <Harness state={{ ...createInitialTestChatUiState(), activeSessionId: null }} />,
+      ),
+    );
+    act(() => latest().startNewDraft());
+    expect(onResetComposerTurnControls).toHaveBeenCalledTimes(1);
+    expect(onResetComposerTurnControls).toHaveBeenCalledWith();
+  });
+
 });

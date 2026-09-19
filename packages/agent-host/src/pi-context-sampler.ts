@@ -84,13 +84,13 @@ const LARGE_OUTPUT_TOKEN_THRESHOLD = 10;
 const MAX_ASSISTANT_DURATION_MS = 60 * 60 * 1000;
 
 function isAssistantFirstTokenEvent(event: AgentEvent): boolean {
+  // Fallback when the LLM-stream wrapper did not stamp firstTokenMs.
+  // Same observable set as oh-my-tps; tool/start is metadata, not a token.
   switch (event.type) {
     case 'message/text_delta':
       return event.delta.length > 0;
     case 'message/thinking_delta':
       return event.delta.length > 0;
-    case 'tool/start':
-      return true;
     default:
       return false;
   }
@@ -135,9 +135,17 @@ export function noteAssistantRequestTiming(
   event: AgentEvent,
   state: AssistantRequestTimingState,
   nowMs: number,
+  messageTimestamp?: number,
 ): void {
   if (event.type === 'message/start' && event.role === 'assistant') {
-    state.startedAtMs = nowMs;
+    if (
+      messageTimestamp !== undefined &&
+      isPlausibleAssistantDuration(nowMs - messageTimestamp, undefined)
+    ) {
+      state.startedAtMs = messageTimestamp;
+    } else {
+      state.startedAtMs = nowMs;
+    }
     delete state.firstTokenAtMs;
     return;
   }
@@ -194,13 +202,27 @@ export function applyAssistantRequestTiming(
   }
   const next = withoutTiming(measurement);
   next.durationMs = elapsed;
-  if (state.firstTokenAtMs !== undefined && state.firstTokenAtMs < nowMs) {
+  if (isPlausibleFirstTokenMs(measurement.firstTokenMs, elapsed)) {
+    next.firstTokenMs = measurement.firstTokenMs;
+  } else if (state.firstTokenAtMs !== undefined && state.firstTokenAtMs < nowMs) {
     const firstTokenMs = state.firstTokenAtMs - startedAtMs;
-    if (firstTokenMs > 0 && elapsed - firstTokenMs > 0) {
+    if (isPlausibleFirstTokenMs(firstTokenMs, elapsed)) {
       next.firstTokenMs = firstTokenMs;
     }
   }
   return next;
+}
+
+function isPlausibleFirstTokenMs(
+  firstTokenMs: number | undefined,
+  durationMs: number,
+): firstTokenMs is number {
+  return (
+    typeof firstTokenMs === 'number' &&
+    Number.isFinite(firstTokenMs) &&
+    firstTokenMs > 0 &&
+    firstTokenMs < durationMs
+  );
 }
 
 function stripImplausibleTiming(measurement: AssistantUsageMeasurement): AssistantUsageMeasurement {
@@ -397,7 +419,12 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
       let compactionEnded = false;
 
       for (const event of mapped) {
-        noteAssistantRequestTiming(event, requestTiming, nowMs());
+        noteAssistantRequestTiming(
+          event,
+          requestTiming,
+          nowMs(),
+          readAssistantMessageTimestamp(rawMessagePayload(raw)),
+        );
         if (event.type === 'compaction/start') {
           compactionStarted = true;
           cancellationGeneration += 1;

@@ -599,15 +599,6 @@
   white-space: nowrap;
 }
 
-.usage-call-session {
-  max-width: 96px;
-  overflow: hidden;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .usage-call-chip {
   display: inline-block;

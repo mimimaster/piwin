@@ -10,7 +10,7 @@
   "scripts": {
     "build": "pnpm --workspace-concurrency=4 -r run build",
     "typecheck": "pnpm --workspace-concurrency=4 -r --filter '!@piwin/mobile' run typecheck",
-    "test": "VITEST_MAX_FORKS=4 VITEST_MAX_THREADS=4 pnpm --workspace-concurrency=1 -r run test",
+    "test": "VITEST_MAX_FORKS=2 VITEST_MAX_THREADS=2 pnpm --workspace-concurrency=1 -r run test",
     "lint": "pnpm --workspace-concurrency=4 -r run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

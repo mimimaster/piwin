@@ -55,8 +55,11 @@ describe('computeTokensPerSecond', () => {
     ).toBeCloseTo(150 / 1.5);
   });
 
-  it('returns null without first-token latency or a usable decode window', () => {
-    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000 })).toBeNull();
+  it('falls back to end-to-end duration when first-token latency is missing', () => {
+    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000 })).toBeCloseTo(100);
+  });
+
+  it('returns null without a usable decode window', () => {
     expect(
       computeTokensPerSecond({ completionTokens: 0, durationMs: 2_000, firstTokenMs: 500 }),
     ).toBeNull();

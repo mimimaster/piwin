@@ -135,15 +135,12 @@ describe('KnowledgeWorkspaceView', () => {
     expect(container.textContent).not.toContain('BGE-M3');
   });
 
-  it('keeps the knowledge title visible after switching to the ink face', async () => {
+  it('inherits the document theme instead of pinning a local paper face', async () => {
+    document.documentElement.dataset.themeId = 'piwin-inkstone-ink';
     await render({ initialTab: 'flashcards' });
-    const ink = container.querySelector<HTMLButtonElement>('#face-ink');
-    expect(ink).not.toBeNull();
-    act(() => {
-      ink?.click();
-    });
     const stage = container.querySelector('.vault-stage');
-    expect(stage?.getAttribute('data-face')).toBe('ink');
+    expect(stage?.hasAttribute('data-face')).toBe(false);
+    expect(container.querySelector('[data-testid="knowledge-face-switch"]')).toBeNull();
     expect(document.documentElement.dataset.themeId).toBe('piwin-inkstone-ink');
     expect(container.querySelector('.vault-bar-context')?.textContent).toContain('知识中心');
   });

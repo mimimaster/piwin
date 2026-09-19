@@ -91,12 +91,13 @@ describe('usage-map', () => {
     expect(snapshot?.completionTokens).toBe(200);
   });
 
-  it('maps firstTokenMs from the raw event for TTFT stats', () => {
+  it('maps firstTokenMs from the assistant message, not usage', () => {
     const snapshot = mapUsageSnapshot(
       's1',
       {
         model: 'gpt-4o',
-        usage: { input: 700, output: 200, durationMs: 2_500, firstTokenMs: 350 },
+        firstTokenMs: 350,
+        usage: { input: 700, output: 200, durationMs: 2_500, firstTokenMs: 12 },
       },
       'assistant-usage',
     );

@@ -16,6 +16,8 @@ export type SupervisedProcess = {
   processId: number;
   processGroupId: number;
   child: ChildProcess;
+  /** Resolves only after the owned process group/tree has been reaped. */
+  cleanup?: Promise<void>;
 };
 
 export type ProcessSupervisorOptions = {
@@ -46,6 +48,69 @@ export type ProcessSupervisor = {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_KILL_GRACE_MS = 3_000;
+const PROCESS_GROUP_POLL_MS = 25;
+
+/**
+ * This process is deliberately outside the supervised process group. Its
+ * only parent-owned input is fd 3; when Host dies, the pipe reaches EOF and
+ * the guardian terminates the exact group it was given.
+ */
+const PROCESS_GUARDIAN_SOURCE = String.raw`
+const fs = require('node:fs');
+const groupId = Number(process.argv[1]);
+const graceMs = Math.max(Number(process.argv[2]) || 3000, 100);
+let stopping = false;
+
+function signalGroup(signal) {
+  try {
+    process.kill(-groupId, signal);
+  } catch (error) {
+    if (error && error.code !== 'ESRCH') {
+      // The group may already have exited. There is no safe recovery action
+      // for a different signal error in this crash-only helper.
+    }
+  }
+}
+
+function groupIsAlive() {
+  try {
+    process.kill(-groupId, 0);
+    return true;
+  } catch (error) {
+    return error && error.code !== 'ESRCH';
+  }
+}
+
+function finish() {
+  if (stopping) return;
+  stopping = true;
+  clearInterval(poll);
+  process.exit(0);
+}
+
+function reapAfterControlClose() {
+  if (stopping) return;
+  stopping = true;
+  clearInterval(poll);
+  signalGroup('SIGTERM');
+  const escalation = setTimeout(() => {
+    signalGroup('SIGKILL');
+    const exitTimer = setTimeout(() => process.exit(0), 100);
+    exitTimer.unref();
+  }, graceMs);
+  escalation.unref();
+}
+
+const poll = setInterval(() => {
+  if (!groupIsAlive()) finish();
+}, 100);
+poll.unref();
+
+const control = fs.createReadStream(null, { fd: 3, autoClose: true });
+control.on('data', () => {});
+control.once('end', reapAfterControlClose);
+control.once('error', reapAfterControlClose);
+`;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -80,6 +145,21 @@ function signalProcessGroup(processGroupId: number, signal: NodeJS.Signals): boo
       if (code === 'ESRCH') {
         return true;
       }
+    }
+    return false;
+  }
+}
+
+/** Returns whether any process still belongs to the owned Unix process group. */
+function isProcessGroupAlive(processGroupId: number): boolean {
+  try {
+    process.kill(-processGroupId, 0);
+    return true;
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'ESRCH') return false;
+      if (code === 'EPERM') return true;
     }
     return false;
   }
@@ -148,6 +228,52 @@ function waitForExit(
   });
 }
 
+function waitForProcessGroupExit(
+  processGroupId: number,
+  timeoutMs: number,
+): Promise<boolean> {
+  if (!isProcessGroupAlive(processGroupId)) {
+    return Promise.resolve(true);
+  }
+
+  return new Promise((resolveExit) => {
+    const deadline = Date.now() + timeoutMs;
+
+    const poll = (): void => {
+      if (!isProcessGroupAlive(processGroupId)) {
+        resolveExit(true);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        resolveExit(false);
+        return;
+      }
+      setTimeout(poll, PROCESS_GROUP_POLL_MS);
+    };
+
+    poll();
+  });
+}
+
+type GuardianHandle = {
+  child: ChildProcess;
+  control: NodeJS.WritableStream | null;
+};
+
+type ProcessTracking = {
+  guardian: GuardianHandle | null;
+  cleanupPromise: Promise<void> | null;
+  resolveCleanup: () => void;
+  rejectCleanup: (error: unknown) => void;
+};
+
+function closeGuardianControl(guardian: GuardianHandle | null): void {
+  if (!guardian?.control) return;
+  const control = guardian.control as NodeJS.WritableStream & { end?: () => void };
+  control.end?.();
+  guardian.control = null;
+}
+
 // ---------------------------------------------------------------------------
 // Implementation
 // ---------------------------------------------------------------------------
@@ -161,7 +287,88 @@ export function createProcessSupervisor(
 
   /** All spawned processes still tracked for dispose cleanup. */
   const tracked = new Set<SupervisedProcess>();
+  const processTracking = new Map<SupervisedProcess, ProcessTracking>();
   let disposed = false;
+
+  function spawnGuardian(processGroupId: number): GuardianHandle | null {
+    if (isWindows()) return null;
+
+    const guardian = spawn(
+      process.execPath,
+      [
+        '-e',
+        PROCESS_GUARDIAN_SOURCE,
+        String(processGroupId),
+        String(killGraceMs),
+      ],
+      {
+        detached: true,
+        stdio: ['ignore', 'ignore', 'ignore', 'pipe'],
+        windowsHide: true,
+      },
+    );
+    const control = guardian.stdio[3] as NodeJS.WritableStream | null;
+    return { child: guardian, control };
+  }
+
+  async function cleanupGuardian(guardian: GuardianHandle | null): Promise<void> {
+    if (!guardian) return;
+    closeGuardianControl(guardian);
+    const exited = await waitForExit(guardian.child, finalWaitMs);
+    if (exited || !isAlive(guardian.child)) return;
+    guardian.child.kill('SIGKILL');
+    await waitForExit(guardian.child, finalWaitMs);
+  }
+
+  async function cleanupProcessGroup(target: SupervisedProcess): Promise<void> {
+    const tracking = processTracking.get(target);
+    if (!tracking) return;
+    if (tracking.cleanupPromise) {
+      await tracking.cleanupPromise;
+      return;
+    }
+
+    tracking.cleanupPromise = (async () => {
+      try {
+        if (isWindows()) {
+          await killTreeWindows(target.processId, false);
+          const exited = await waitForExit(target.child, killGraceMs);
+          if (!exited && isAlive(target.child)) {
+            await killTreeWindows(target.processId, true);
+          }
+        } else {
+          signalProcessGroup(target.processGroupId, 'SIGTERM');
+          const exited = await waitForProcessGroupExit(
+            target.processGroupId,
+            killGraceMs,
+          );
+          if (!exited) {
+            signalProcessGroup(target.processGroupId, 'SIGKILL');
+            const forceExited = await waitForProcessGroupExit(
+              target.processGroupId,
+              finalWaitMs,
+            );
+            if (!forceExited) {
+              throw new Error(
+                `failed to stop process group ${target.processGroupId}: exit not confirmed`,
+              );
+            }
+          }
+        }
+
+        await cleanupGuardian(tracking.guardian);
+        tracked.delete(target);
+        processTracking.delete(target);
+        tracking.resolveCleanup();
+      } catch (error: unknown) {
+        tracking.cleanupPromise = null;
+        tracking.rejectCleanup(error);
+        throw error;
+      }
+    })();
+
+    await tracking.cleanupPromise;
+  }
 
   // -- spawn ---------------------------------------------------------------
 
@@ -224,17 +431,55 @@ export function createProcessSupervisor(
     // taskkill /T tree termination.
     const processGroupId = pid;
 
+    let resolveCleanup!: () => void;
+    let rejectCleanup!: (error: unknown) => void;
+    const cleanup = new Promise<void>((resolveCleanupPromise, rejectCleanupPromise) => {
+      resolveCleanup = resolveCleanupPromise;
+      rejectCleanup = rejectCleanupPromise;
+    });
+
     const supervised: SupervisedProcess = {
       processId: pid,
       processGroupId,
       child,
+      cleanup,
     };
-
-    // Remove from tracked set when the child exits naturally.
-    child.once('close', () => {
-      tracked.delete(supervised);
+    processTracking.set(supervised, {
+      guardian: null,
+      cleanupPromise: null,
+      resolveCleanup,
+      rejectCleanup,
     });
     tracked.add(supervised);
+
+    const tracking = processTracking.get(supervised);
+    if (!tracking) {
+      throw new Error('process tracking initialization failed');
+    }
+    try {
+      tracking.guardian = spawnGuardian(processGroupId);
+    } catch (error: unknown) {
+      await cleanupProcessGroup(supervised).catch(() => undefined);
+      throw error;
+    }
+
+    // A leader can exit while descendants remain. Reap the whole owned group;
+    // do not remove the target merely because the direct child emitted close.
+    child.once('close', () => {
+      void cleanupProcessGroup(supervised).catch(() => undefined);
+    });
+
+    // A guardian that fails to start or exits unexpectedly must not leave the
+    // target group unmanaged while the Host is still alive.
+    tracking.guardian?.child.once('error', () => {
+      void cleanupProcessGroup(supervised).catch(() => undefined);
+    });
+    tracking.guardian?.child.once('exit', (code, signal) => {
+      if (code !== 0 || signal !== null) {
+        void cleanupProcessGroup(supervised).catch(() => undefined);
+      }
+    });
+
     return supervised;
   }
 
@@ -247,51 +492,18 @@ export function createProcessSupervisor(
    * 2. Wait `killGraceMs` for the process to exit.
    * 3. If still alive, send SIGKILL (forceful) to the process group.
    *
-   * Idempotent: if the process is already dead, resolves immediately.
+   * Idempotent: if the owned process group is already dead, resolves
+   * immediately.
    */
   async function stopProcess(
     target: SupervisedProcess,
     signal?: AbortSignal,
   ): Promise<void> {
-    const { child, processGroupId } = target;
-
-    // Already dead — idempotent success.
-    if (!isAlive(child)) {
-      tracked.delete(target);
-      return;
-    }
-
-    let exited = false;
-
-    if (isWindows()) {
-      // Windows: graceful tree kill first, then forceful.
-      await killTreeWindows(target.processId, false);
-
-      exited = await waitForExit(child, killGraceMs, signal);
-      if (!exited && isAlive(child)) {
-        await killTreeWindows(target.processId, true);
-      }
-    } else {
-      // Unix: signal the entire process group (negative pid).
-      signalProcessGroup(processGroupId, 'SIGTERM');
-
-      exited = await waitForExit(child, killGraceMs, signal);
-      if (!exited && isAlive(child)) {
-        signalProcessGroup(processGroupId, 'SIGKILL');
-      }
-    }
-
-    if (!exited && isAlive(child)) {
-      // A signal being delivered is not exit confirmation. Keep the target
-      // tracked until close/exit (or the bounded final wait) says otherwise.
-      exited = await waitForExit(child, finalWaitMs);
-    }
-
-    if (!exited && isAlive(child)) {
-      throw new Error(`failed to stop process ${target.processId}: exit not confirmed`);
-    }
-
-    tracked.delete(target);
+    // The direct child may already be dead while descendants still occupy
+    // the process group. Cleanup is intentionally not cancellable: once a
+    // stop begins, returning early would recreate the orphan leak.
+    void signal;
+    await cleanupProcessGroup(target);
   }
 
   // -- dispose -------------------------------------------------------------

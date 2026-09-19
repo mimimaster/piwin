@@ -7,6 +7,7 @@ import type {
 } from '@piwin/contracts';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { AgentModeId } from '../agent-mode';
+import type { ComposerAgentModeSessionChange } from '../composer-agent-mode-session';
 import type { BusyRunChoice } from '../prompt-foreground';
 import type { HostClient } from '../host-client';
 
@@ -73,10 +74,11 @@ export type UseComposerMediaArgs = {
   /** ORCH: slash /scheme sets the composer scheme without sending. */
   onOrchestrationSchemeChange?: (schemeId: string) => void;
   /**
-   * ORCH: leave the current conversation (switch session / New Agent).
-   * First-send session creation is not a leave — keep the chosen scheme.
+   * Leave the current conversation (switch session / New Agent).
+   * First-send session creation is not a leave — keep Goal and the scheme.
+   * Omit `change` for a hard reset (another New Agent from an existing draft).
    */
-  onResetComposerTurnControls?: () => void;
+  onResetComposerTurnControls?: (change?: ComposerAgentModeSessionChange) => void;
   /**
    * When true, text-only + media is allowed (host will describe or path-inject).
    * When false/undefined and selected model lacks vision, confirm before send.

@@ -18,7 +18,7 @@ import { readFile, writeFile, readdir, mkdir, unlink } from 'node:fs/promises';
 import { join, resolve, isAbsolute, relative } from 'node:path';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { HostToolRegistration, ToolResult } from '@piwin/contracts';
+import type { HostToolRegistration, JobController, ToolResult } from '@piwin/contracts';
 import {
   assertSafeRepoRelativePaths,
   deleteTurnChangeFile,
@@ -28,6 +28,7 @@ import {
 } from '@piwin/git';
 import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
 import { runWithWorkspaceWriteGate } from './run-with-workspace-write-gate.js';
+import { runManagedBash } from './run-managed-bash.js';
 
 const execAsync = promisify(exec);
 const utf8 = new TextEncoder();
@@ -35,6 +36,8 @@ const utf8 = new TextEncoder();
 export type BuildHostFilesystemToolsOptions = {
   /** Session working directory (project root or general workspace). */
   cwd: string;
+  /** Host-owned Job authority for shell process-tree lifecycle. */
+  jobController?: JobController;
   turnChange?: {
     workspaceRoot: string;
     store: TurnChangeObjectStore;
@@ -61,7 +64,7 @@ export type BuildHostFilesystemToolsOptions = {
 export function buildHostFilesystemTools(
   options: BuildHostFilesystemToolsOptions,
 ): HostToolRegistration[] {
-  const { cwd, turnChange, workspaceWrite } = options;
+  const { cwd, jobController, turnChange, workspaceWrite } = options;
 
   function resolvePath(path: string): string {
     return isAbsolute(path) ? resolve(path) : resolve(cwd, path);
@@ -288,6 +291,17 @@ export function buildHostFilesystemTools(
         run: async () => {
           const command = String(args.command ?? '');
           const timeout = typeof args.timeout === 'number' ? args.timeout : 30000;
+          if (jobController) {
+            return runManagedBash({
+              controller: jobController,
+              command,
+              cwd,
+              timeoutMs: timeout,
+              signal,
+              runId: context.runId,
+              sessionId: context.sessionId,
+            });
+          }
           const { stdout, stderr } = await execAsync(command, {
             cwd,
             timeout,
@@ -335,6 +349,17 @@ export function buildHostFilesystemTools(
         run: async () => {
           const command = String(args.command ?? '');
           const timeout = typeof args.timeout === 'number' ? args.timeout : 30000;
+          if (jobController) {
+            return runManagedBash({
+              controller: jobController,
+              command,
+              cwd,
+              timeoutMs: timeout,
+              signal,
+              runId: context.runId,
+              sessionId: context.sessionId,
+            });
+          }
           const { stdout, stderr } = await execAsync(command, {
             cwd,
             timeout,

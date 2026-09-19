@@ -6,7 +6,8 @@
  *
  * There is no mode picker. Agent is the resting mode and Goal is armed by
  * `/goal` (or `/goal <objective>`); while it is armed the composer shows
- * `GoalModeChip`, which is also the only way back to Agent.
+ * `GoalModeChip`, which is also the only way back to Agent. Goal is per
+ * conversation — switching sessions parks it and New Agent starts as Agent.
  *
  * Mode operating contracts are owned by `@piwin/contracts` and injected by
  * the host on the model-facing path only. Desktop must send clean user text

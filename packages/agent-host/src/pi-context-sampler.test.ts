@@ -500,6 +500,17 @@ describe('pi-context-sampler', () => {
     expect(state.firstTokenAtMs).toBe(1200);
   });
 
+  it('uses message.timestamp as t0 when message/start arrives late', () => {
+    const state: AssistantRequestTimingState = {};
+    noteAssistantRequestTiming(
+      { type: 'message/start', messageId: 'm-1', role: 'assistant' },
+      state,
+      9_000,
+      1_000,
+    );
+    expect(state.startedAtMs).toBe(1_000);
+  });
+
   it('does not treat a text snapshot as the first token', () => {
     const state: AssistantRequestTimingState = {};
     noteAssistantRequestTiming(
@@ -549,11 +560,29 @@ describe('pi-context-sampler', () => {
       totalTokens: 10,
       recordedAt: sampledAt,
       durationMs: 9000,
-      firstTokenMs: 12,
     };
     expect(
       applyAssistantRequestTiming(measurement, { startedAtMs: 1000, firstTokenAtMs: 1350 }, 3000),
     ).toMatchObject({ firstTokenMs: 350, durationMs: 2000 });
+  });
+
+  it('keeps stream-stamped firstTokenMs when session events are batched', () => {
+    const measurement: AssistantUsageMeasurement = {
+      measurementId: 'm',
+      sessionId: 's',
+      messageId: 'm-1',
+      totalTokens: 10,
+      recordedAt: sampledAt,
+      firstTokenMs: 400,
+    };
+    expect(
+      applyAssistantRequestTiming(
+        measurement,
+        { startedAtMs: 1000, firstTokenAtMs: 3000 },
+        3000,
+        1000,
+      ),
+    ).toMatchObject({ firstTokenMs: 400, durationMs: 2000 });
   });
 
   it('omits firstTokenMs when the first increment arrives at finalize', () => {

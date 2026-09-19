@@ -31,7 +31,6 @@ import {
   formatUsageDuration,
   formatUsageExact,
   formatUsagePercent,
-  formatUsageSessionTag,
   formatUsageTimestamp,
   normalizeUsageCallLog,
   normalizeUsageRollup,
@@ -488,7 +487,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                       <th>{isZh ? '时间' : 'Time'}</th>
                       <th>{isZh ? '模型' : 'Model'}</th>
                       <th>Key</th>
-                      <th>{isZh ? '会话' : 'Session'}</th>
                       <th title={isZh ? '首字延迟（Time to First Token）' : 'Time to first token'}>
                         {isZh ? '首字延迟' : 'First token'}
                       </th>
@@ -540,9 +538,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                             <span className="usage-key-label">
                               {entry.providerId ?? (isZh ? '未知 Key' : 'Unknown Key')}
                             </span>
-                          </td>
-                          <td className="usage-call-session" title={entry.sessionId}>
-                            {formatUsageSessionTag(entry.sessionId)}
                           </td>
                           <td
                             className="usage-tps-cell"

@@ -294,6 +294,8 @@ describe('UsagePanel', () => {
     expect(headers).not.toContain('Key（提供商配置）');
     expect(headers).not.toContain('思考度');
     expect(headers).not.toContain('Thinking');
+    expect(headers).not.toContain('会话');
+    expect(headers).not.toContain('Session');
     expect(headers).toContain('首字延迟');
     expect(headers).not.toContain('用时');
     expect(headers).toContain('TPS');
