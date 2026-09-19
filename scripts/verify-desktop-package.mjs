@@ -2,15 +2,22 @@
 /**
  * Inspect a packaged all-in-one macOS app: sidecar Node, Host JS, LanceDB
  * native, and code signature. Does not launch the GUI.
+ *
+ * Tauri removes macos/*.app after writing the DMG. When the .app is gone,
+ * attach the DMG read-only and inspect the nested bundle — that is the
+ * artifact CI uploads.
  */
+import { mkdirSync, rmSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   interpretCodesignDump,
   isPlaceholderHostServe,
   packagedAppLayout,
+  resolvePackagedVerifyTarget,
   selectPackagedAppNames,
   selectPackagedDmgNames,
 } from './lib/verify-desktop-package.mjs';
@@ -32,7 +39,8 @@ async function readDirNames(dir) {
     return await readdir(dir);
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? error.code : '';
-    throw new Error(`missing bundle directory ${dir}${code ? ` (${code})` : ''}`);
+    if (code === 'ENOENT') return [];
+    throw new Error(`cannot read bundle directory ${dir}${code ? ` (${code})` : ''}`);
   }
 }
 
@@ -82,21 +90,28 @@ function verifyDeveloperIdSignature(appPath) {
   }
 }
 
-async function main() {
-  const bundleRoot = bundleRootFromEnv();
-  const macosDir = join(bundleRoot, 'macos');
-  const dmgDir = join(bundleRoot, 'dmg');
-  const appNames = selectPackagedAppNames(await readDirNames(macosDir));
-  const dmgNames = selectPackagedDmgNames(await readDirNames(dmgDir));
-  if (appNames.length !== 1) {
-    throw new Error(`expected one .app in ${macosDir}, found: ${appNames.join(', ') || '(none)'}`);
+function attachDmg(dmgPath, mountPoint) {
+  rmSync(mountPoint, { recursive: true, force: true });
+  mkdirSync(mountPoint, { recursive: true });
+  const result = spawnSync(
+    'hdiutil',
+    ['attach', dmgPath, '-nobrowse', '-readonly', '-mountpoint', mountPoint],
+    { encoding: 'utf8' },
+  );
+  if (result.status !== 0) {
+    rmSync(mountPoint, { recursive: true, force: true });
+    throw new Error(
+      `hdiutil attach failed for ${dmgPath}: ${(result.stderr || result.stdout || result.status).toString().trim()}`,
+    );
   }
-  if (dmgNames.length < 1) {
-    throw new Error(`expected a .dmg in ${dmgDir}`);
-  }
+}
 
-  const appPath = join(macosDir, appNames[0]);
-  const dmgPath = join(dmgDir, dmgNames[0]);
+function detachMount(mountPoint) {
+  spawnSync('hdiutil', ['detach', mountPoint, '-force'], { encoding: 'utf8' });
+  rmSync(mountPoint, { recursive: true, force: true });
+}
+
+async function inspectApp(appPath, dmgPath) {
   const layout = packagedAppLayout(appPath);
 
   await assertDirectory(appPath, 'app bundle');
@@ -137,8 +152,49 @@ async function main() {
       '[verify-desktop-package] WARNING: ad-hoc or unsigned build. macOS will treat each build as a new app and re-prompt Desktop / external-volume access.',
     );
   }
+}
 
-  console.log('[verify-desktop-package] ok');
+async function main() {
+  const bundleRoot = bundleRootFromEnv();
+  const macosDir = join(bundleRoot, 'macos');
+  const dmgDir = join(bundleRoot, 'dmg');
+  const appNames = selectPackagedAppNames(await readDirNames(macosDir));
+  const dmgNames = selectPackagedDmgNames(await readDirNames(dmgDir));
+  const target = resolvePackagedVerifyTarget(appNames, dmgNames);
+
+  if (target.kind === 'missing-dmg') {
+    throw new Error(`expected a .dmg in ${dmgDir}`);
+  }
+  if (target.kind === 'ambiguous-app') {
+    throw new Error(`expected one .app in ${macosDir}, found: ${target.appNames.join(', ')}`);
+  }
+
+  const dmgPath = join(dmgDir, target.dmgName);
+  if (target.kind === 'app') {
+    await inspectApp(join(macosDir, target.appName), dmgPath);
+    console.log('[verify-desktop-package] ok');
+    return;
+  }
+
+  const mountPoint = join(tmpdir(), `piwin-verify-dmg-${process.pid}`);
+  console.log(`[verify-desktop-package] .app missing after DMG bundle; attaching ${dmgPath}`);
+  attachDmg(dmgPath, mountPoint);
+  try {
+    const mountedApps = selectPackagedAppNames(await readDirNames(mountPoint));
+    if (mountedApps.length !== 1) {
+      throw new Error(
+        `expected one .app in ${dmgPath}, found: ${mountedApps.join(', ') || '(none)'}`,
+      );
+    }
+    const mountedApp = mountedApps[0];
+    if (!mountedApp) {
+      throw new Error(`expected one .app in ${dmgPath}, found: (none)`);
+    }
+    await inspectApp(join(mountPoint, mountedApp), dmgPath);
+    console.log('[verify-desktop-package] ok');
+  } finally {
+    detachMount(mountPoint);
+  }
 }
 
 main().catch((error) => {

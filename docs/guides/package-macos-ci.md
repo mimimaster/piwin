@@ -24,7 +24,7 @@ The job:
 1. Optionally imports a Developer ID `.p12` (GitHub-hosted only).
 2. Runs `pnpm package:desktop`.
 3. Runs `pnpm test:bundle` (Host JSONL mock smoke, no GUI).
-4. Runs `pnpm verify:desktop-package` (sidecar, Host JS, LanceDB native, signature).
+4. Runs `pnpm verify:desktop-package` (sidecar, Host JS, LanceDB native, signature). Tauri deletes the `.app` after writing the DMG; verify then attaches the DMG read-only and inspects the nested bundle.
 5. Uploads the DMG as a workflow artifact (14 days).
 6. On `v*` tags, attaches the DMG to a **draft** GitHub Release.
 
@@ -104,7 +104,7 @@ pnpm verify:desktop-package
 PIWIN_REQUIRE_DEVELOPER_ID=1 pnpm verify:desktop-package
 ```
 
-If `apps/desktop/src-tauri/target` is a symlink or `CARGO_TARGET_DIR` is set, the script follows it.
+If `apps/desktop/src-tauri/target` is a symlink or `CARGO_TARGET_DIR` is set, the script follows it. After a successful `pnpm package:desktop`, Tauri may have deleted `macos/*.app`; verify attaches the DMG instead.
 
 ## First-run checklist
 
