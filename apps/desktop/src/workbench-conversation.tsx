@@ -407,7 +407,6 @@ export function WorkbenchPermissionBar(
 
   if (!tray && !interruption) return null;
   if (!tray) return interruption;
-  if (!interruption) return tray;
   return (
     <div className="composer-plan-stack">
       {tray}

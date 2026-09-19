@@ -21,6 +21,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'agent',
   'extensions',
   'web',
+  'code-search',
   'knowledge',
   'session',
   'cold-storage',

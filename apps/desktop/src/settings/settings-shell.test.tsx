@@ -4,16 +4,13 @@
  * Uses the same happy-dom + createRoot pattern as context-bar.test.tsx.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, useState, type ReactElement } from 'react';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { createDefaultWebConfig } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
-import { SETTINGS_SECTIONS, type SettingsSectionId } from './section-registry';
-import type { SettingsContextValue } from './settings-context';
+import { SETTINGS_SECTIONS } from './section-registry';
 import { ensureSettingsLazyLoaded } from './settings-lazy-load';
 import { SettingsShell } from './settings-shell';
-import { webToDraft } from './web-draft';
 import * as openExternalUrlModule from '../open-external-url.js';
 
 const SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS = 15_000;
@@ -22,94 +19,7 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-const noopRequest = vi.fn(async () => ({
-  type: 'response' as const,
-  command: 'test',
-  success: true as const,
-  // `config` satisfies panels (e.g. SkillsPanel) that read config/get on mount.
-  data: { config: {} },
-}));
-
-function createContextValue(
-  selectSection: (section: SettingsSectionId) => void,
-): SettingsContextValue {
-  return {
-    request: noopRequest,
-    config: null,
-    root: '~/.piwin',
-    saving: false,
-    setError: vi.fn(),
-    setInfo: vi.fn(),
-    saveConfig: vi.fn(async () => true),
-    webDraft: webToDraft(createDefaultWebConfig()),
-    setWebDraft: vi.fn(),
-    saveWeb: vi.fn(async () => true),
-    preferences: {
-      assistantTextSize: 'default',
-      codeTextSize: 'default',
-      codeWrap: false,
-      toolDensity: 'comfortable',
-      workDetailsExpanded: 'auto',
-      artifactCodeFirst: false,
-      verboseAgentChat: true,
-      conversationWidth: 'wide',
-      appearanceMode: 'dark',
-      lightTheme: {
-        preset: 'default',
-        background: '#EEEEEE',
-        foreground: '#101010',
-        accent: '#007ACC',
-      },
-      darkTheme: {
-        preset: 'default',
-        background: '#101010',
-        foreground: '#CCCCCC',
-        accent: '#007ACC',
-      },
-    },
-    onPreferencesChange: vi.fn(),
-    projectPath: null,
-    projectTrusted: false,
-    hostStatus: null,
-    activeSessionId: null,
-    onOpenSubagentSession: undefined,
-    selectSection,
-    requestSkills: noopRequest,
-    requestMcp: noopRequest,
-    requestExtensions: noopRequest,
-    requestPlugins: noopRequest,
-    requestPrompts: noopRequest,
-    requestPet: noopRequest,
-    requestAutomation: noopRequest,
-    requestSubAgent: undefined,
-    activeTheme: PIWIN_APPEARANCE_DARK,
-    onThemeApplied: vi.fn(),
-    onPetActiveChanged: vi.fn(),
-    discoverProviderModels: vi.fn(),
-    testProviderModel: vi.fn(),
-    searchModelCatalog: vi.fn(async () => ({ entries: [], catalogVersion: 'test' })),
-    searchImageModelCatalog: vi.fn(async () => ({ entries: [], catalogVersion: 'test' })),
-    storeProviderSecret: vi.fn(),
-    loadProviderSecret: vi.fn(),
-  };
-}
-
-function ShellHarness({
-  initialSection = 'general',
-}: {
-  initialSection?: SettingsSectionId;
-}): ReactElement {
-  const [section, setSection] = useState<SettingsSectionId>(initialSection);
-  return (
-    <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-      <SettingsShell
-        activeSection={section}
-        onSelectSection={setSection}
-        contextValue={createContextValue(setSection)}
-      />
-    </PiwinUiProvider>
-  );
-}
+import { ShellHarness, createContextValue } from './settings-shell-test-harness';
 
 describe('SettingsShell', () => {
   let container: HTMLElement;

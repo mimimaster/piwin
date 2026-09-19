@@ -71,6 +71,10 @@ export function mapUsageSnapshot(
     readNumber(promptTokenDetails?.cache_write_tokens);
   const durationMs =
     readNumber(nested.durationMs) ?? readNumber(nested.duration) ?? readNumber(record.durationMs);
+  const firstTokenMs =
+    readNumber(nested.firstTokenMs) ??
+    readNumber(nested.ttftMs) ??
+    readNumber(record.firstTokenMs);
   const totalTokens =
     readNumber(nested.totalTokens) ??
     readNumber(nested.total) ??
@@ -119,6 +123,7 @@ export function mapUsageSnapshot(
   if (cacheWriteTokens !== undefined) snapshot.cacheWriteTokens = cacheWriteTokens;
   if (totalTokens !== undefined) snapshot.totalTokens = totalTokens;
   if (durationMs !== undefined) snapshot.durationMs = durationMs;
+  if (firstTokenMs !== undefined) snapshot.firstTokenMs = firstTokenMs;
 
   const usedForRatio = resolvedTokensUsed ?? totalTokens;
   if (usedForRatio !== undefined && tokensLimit !== undefined && tokensLimit > 0) {

@@ -72,6 +72,76 @@ export function enrichPiCompactionDuration(
   return { ...event, durationMs: Math.max(0, nowMs - startedAtMs) };
 }
 
+/** Per-request wall-clock for first-token latency and generation duration. */
+export type AssistantRequestTimingState = {
+  startedAtMs?: number;
+  firstTokenAtMs?: number;
+};
+
+function isAssistantFirstTokenEvent(event: AgentEvent): boolean {
+  switch (event.type) {
+    case 'message/text_delta':
+      return event.delta.length > 0;
+    case 'message/thinking_delta':
+      return event.delta.length > 0;
+    case 'message/text_snapshot':
+      return event.text.length > 0;
+    case 'tool/start':
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Track request start and first visible model output. Used when the provider
+ * omits `firstTokenMs` / `durationMs` from assistant usage.
+ */
+export function noteAssistantRequestTiming(
+  event: AgentEvent,
+  state: AssistantRequestTimingState,
+  nowMs: number,
+): void {
+  if (event.type === 'message/start' && event.role === 'assistant') {
+    state.startedAtMs = nowMs;
+    delete state.firstTokenAtMs;
+    return;
+  }
+  if (state.startedAtMs === undefined || state.firstTokenAtMs !== undefined) {
+    return;
+  }
+  if (isAssistantFirstTokenEvent(event)) {
+    state.firstTokenAtMs = nowMs;
+  }
+}
+
+/**
+ * Stamp wall-clock timing onto a finalized measurement when the provider
+ * did not report it. Zero-elapsed reconstructions stay untimed.
+ */
+export function applyAssistantRequestTiming(
+  measurement: AssistantUsageMeasurement,
+  state: AssistantRequestTimingState,
+  nowMs: number,
+): AssistantUsageMeasurement {
+  const startedAtMs = state.startedAtMs;
+  if (startedAtMs === undefined) {
+    return measurement;
+  }
+  const elapsed = Math.max(0, nowMs - startedAtMs);
+  if (elapsed <= 0) {
+    return measurement;
+  }
+  const next: AssistantUsageMeasurement = { ...measurement };
+  if (next.durationMs === undefined) {
+    next.durationMs = elapsed;
+  }
+  if (next.firstTokenMs === undefined && state.firstTokenAtMs !== undefined) {
+    next.firstTokenMs = Math.max(0, state.firstTokenAtMs - startedAtMs);
+  }
+  return next;
+}
+
 /** Model identity used to decide occupancy baseline invalidation (§4.2.8). */
 export type OccupancyModelIdentity = {
   providerId: string;
@@ -115,6 +185,8 @@ export type CreatePiContextSamplerInput = {
   getRunId?: () => string | undefined;
   signal?: AbortSignal;
   now?: () => Date;
+  /** Wall clock for request timing; defaults to Date.now. */
+  nowMs?: () => number;
 };
 
 export type PiContextSamplerObserveInput = {
@@ -208,8 +280,10 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
   let compactionFailed = false;
   const finalizedIds = new Set<string>();
   const countedToolResults = new Set<string>();
+  const requestTiming: AssistantRequestTimingState = {};
 
   const nowIso = (): string => (input.now ? input.now() : new Date()).toISOString();
+  const nowMs = (): number => (input.nowMs ? input.nowMs() : Date.now());
 
   const dispose = (): void => {
     disposed = true;
@@ -251,6 +325,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
       let compactionEnded = false;
 
       for (const event of mapped) {
+        noteAssistantRequestTiming(event, requestTiming, nowMs());
         if (event.type === 'compaction/start') {
           compactionStarted = true;
           cancellationGeneration += 1;
@@ -484,7 +559,8 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
       return;
     }
     finalizedIds.add(measurement.measurementId);
-    events.push({ type: 'usage/finalized', measurement });
+    const timed = applyAssistantRequestTiming(measurement, requestTiming, nowMs());
+    events.push({ type: 'usage/finalized', measurement: timed });
   }
 
   function emitMeasurement(sampledAt: string): AgentEvent {

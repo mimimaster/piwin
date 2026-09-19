@@ -24,6 +24,7 @@ export * from './live-session-context.js';
 export * from './provider-auth.js';
 export * from './image-generation.js';
 export * from './vision-delegation.js';
+export * from './code-search.js';
 export * from './reply-writer.js';
 export * from './media.js';
 export * from './attachment.js';

@@ -103,6 +103,13 @@ export type HostRuntimeCommand =
     }
   | {
       id?: string;
+      type: 'code-search/test-windsurf';
+      apiKey?: string;
+      apiKeyRef?: string;
+      apiKeyEnv?: string;
+    }
+  | {
+      id?: string;
       type: 'web/search-route-preview';
       input: SearchRoutePreviewInput;
     }

@@ -874,3 +874,49 @@ describe('migrateSettingsDocument', () => {
     expect(raw.schemaVersion).toBe(PIWIN_SETTINGS_SCHEMA_VERSION);
   });
 });
+
+describe('codeSearch settings domain', () => {
+  it('persists codeSearch through settings/apply-style domain replace', async () => {
+    const service = new SettingsService({ piwinRoot });
+    const before = await service.getSnapshot();
+    const result = await service.apply({
+      expectedRevision: before.revision,
+      expectedDomainRevisions: {
+        ...(before.domainRevisions.codeSearch
+          ? { codeSearch: before.domainRevisions.codeSearch }
+          : {}),
+      },
+      mutations: [
+        {
+          kind: 'replace-domain',
+          domain: 'codeSearch',
+          value: {
+            enabled: true,
+            backend: 'windsurf',
+            apiKeyRef: 'keychain:piwin-code-search-windsurf',
+            maxTurns: 3,
+          },
+        },
+      ],
+    });
+    expect(result.changedDomains.map((entry) => entry.domain)).toContain('codeSearch');
+    expect(result.snapshot.config.codeSearch).toEqual({
+      enabled: true,
+      backend: 'windsurf',
+      apiKeyRef: 'keychain:piwin-code-search-windsurf',
+      maxTurns: 3,
+    });
+    const raw = JSON.parse(await readFile(getPiwinConfigPath(piwinRoot), 'utf8')) as {
+      config?: { codeSearch?: unknown };
+      codeSearch?: unknown;
+    };
+    // V2 settings document nests under config.
+    const stored = raw.config?.codeSearch ?? raw.codeSearch;
+    expect(stored).toEqual({
+      enabled: true,
+      backend: 'windsurf',
+      apiKeyRef: 'keychain:piwin-code-search-windsurf',
+      maxTurns: 3,
+    });
+  });
+});

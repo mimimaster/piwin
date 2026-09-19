@@ -1,0 +1,5 @@
+{
+  "assistant_msgs_code_search_alone": 144,
+  "assistant_msgs_code_search_with_other_tools": 56,
+  "note": "Description says YOU CANNOT CALL THIS TOOL IN PARALLEL; observed practice batches code_search with other tools. Likely means do not run multiple code_search calls together, not isolation from all tools."
+}

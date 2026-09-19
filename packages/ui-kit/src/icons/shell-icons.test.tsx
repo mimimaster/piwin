@@ -12,6 +12,7 @@ import {
   IconFolderOpen,
   IconMcp,
   IconServer,
+  IconSettings,
   IconStop,
   IconTable,
 } from './shell-icons.js';
@@ -106,5 +107,13 @@ describe('shared shell icons', () => {
     expect(stopMarkup).toContain('fill="currentColor"');
     expect(stopMarkup).toContain('stroke="none"');
     expect(mcpMarkup).toContain('circle cx="12" cy="12"');
+  });
+
+  it('renders IconSettings as the 6-tooth gear outline', () => {
+    const markup = renderToStaticMarkup(createElement(IconSettings));
+    expect(markup).toContain('viewBox="0 0 24 24"');
+    expect(markup).toContain('class="tabler-icon"');
+    expect(markup).toContain('M12.22 2h-.44');
+    expect(markup).toContain('<circle cx="12" cy="12" r="3"');
   });
 });

@@ -35,6 +35,10 @@ const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[
     '扩展', '技能', '工具', '插件', '提示词', '兼容',
   ],
   web: ['web', 'search', 'fetch', 'source', 'delegate', '网络', '搜索', '提取', '来源', '委托'],
+  'code-search': [
+    'code search', 'code_search', 'fast context', 'subagent', 'grep', 'windsurf', 'devin',
+    '代码搜索', '子代理', '搜索模型',
+  ],
   knowledge: ['knowledge', 'embedding', 'reranker', 'parser', 'vector', '知识', '嵌入', '重排', '解析', '向量'],
   session: [
     'session', 'runtime', 'lifecycle', 'archive', 'cold storage', 'compact', '会话', '运行时',

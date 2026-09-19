@@ -12,10 +12,24 @@ export function isSettingsBasicSection(id: SettingsSectionId): boolean {
 
 let lazyLoadPromise: Promise<void> | null = null;
 
-/** Load and register every non-basic settings section. Idempotent. */
+/**
+ * Load and register every non-basic settings section.
+ *
+ * In-flight loads are shared, but a *failed* one is not cached: caching the
+ * rejection left the shell on "loading this settings page" forever, because
+ * every later call replayed the same failed promise and the section never
+ * registered. Clearing the slot keeps a transient chunk failure retryable
+ * without restarting the app.
+ */
 export function ensureSettingsLazyLoaded(): Promise<void> {
   if (lazyLoadPromise === null) {
-    lazyLoadPromise = import('./pages/lazy-load.js').then(() => undefined);
+    lazyLoadPromise = import('./pages/lazy-load.js').then(
+      () => undefined,
+      (error: unknown) => {
+        lazyLoadPromise = null;
+        throw error;
+      },
+    );
   }
   return lazyLoadPromise;
 }

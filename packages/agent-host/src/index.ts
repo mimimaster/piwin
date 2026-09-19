@@ -236,3 +236,12 @@ export type {
   NativeModelWebSearchRequest,
 } from './native-model-web-search.js';
 export { completeModelText, ModelTextCompletionError } from './model-text-completion.js';
+export {
+  completeModelTools,
+  isHttpBaseUrl,
+  ModelToolsCompletionError,
+} from './model-tools-completion.js';
+export type {
+  ModelToolsCompletionInput,
+  ModelToolsCompletionResult,
+} from './model-tools-completion.js';

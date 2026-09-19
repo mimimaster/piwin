@@ -25,7 +25,6 @@ import {
   RECENT_CALLS_PAGE_SIZES,
   RECENT_CALLS_WINDOW_MINUTES,
   formatTokensPerSecond,
-  formatThinkingLabel,
   formatUsageClock,
   formatUsageCompact,
   formatUsageDate,
@@ -488,7 +487,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                     <tr>
                       <th>{isZh ? '时间' : 'Time'}</th>
                       <th>{isZh ? '模型' : 'Model'}</th>
-                      <th>{isZh ? '思考度' : 'Thinking'}</th>
                       <th>Key</th>
                       <th>{isZh ? '会话' : 'Session'}</th>
                       <th title={isZh ? '首字延迟（Time to First Token）' : 'Time to first token'}>
@@ -534,9 +532,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                             {entry.source === 'host-estimate' ? (
                               <span className="usage-call-chip">{isZh ? '估算' : 'Estimated'}</span>
                             ) : null}
-                          </td>
-                          <td className="usage-call-thinking">
-                            {formatThinkingLabel(entry.thinkingLevel, isZh)}
                           </td>
                           <td>
                             <span className="usage-key-label">

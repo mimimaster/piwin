@@ -215,8 +215,9 @@ html[data-theme-id='piwin-inkstone-ink'] .intr.plan-execution-gate {
 
 html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray,
 html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray {
-  width: 100%;
-  max-width: var(--conversation-width);
+  /* Width/measure live on `.composer-plan-stack`, matching `.composer-dock`.
+     Capping the tray itself left-aligns it when the stage is wider than
+     --conversation-width. */
   padding: 4px 0 8px;
 }
 

@@ -114,6 +114,19 @@ export function shouldDetachFollowTailFromWheelDelta(options: {
   return options.deltaY < 0;
 }
 
+/**
+ * Latest page fits the viewport, so there is no scroll range — but older
+ * transcript pages may still exist. An upward wheel is the user asking for
+ * that history; do not wait for a scroll event that a fitted page cannot emit.
+ */
+export function shouldRequestOlderHistoryFromFittedWheel(options: {
+  deltaY: number;
+  overflowing: boolean;
+  canLoadOlder: boolean;
+}): boolean {
+  return options.canLoadOlder && !options.overflowing && options.deltaY < 0;
+}
+
 function readScrollMetrics(element: HTMLElement): {
   progress: number;
   ratio: number;
@@ -134,10 +147,18 @@ export function useTranscriptScroll(options: {
   liveTurnId?: string | null;
   /** Explicit history opens are positioned by their anchor, not the live tail. */
   historyViewActive?: boolean;
+  /** Older transcript pages exist above the currently mounted window. */
+  canLoadOlder?: boolean;
+  /** Fitted page + wheel-up: prepend older history without a scroll range. */
+  onUnscrollableHistoryIntent?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const historyViewActiveRef = useRef(options.historyViewActive === true);
   historyViewActiveRef.current = options.historyViewActive === true;
+  const canLoadOlderRef = useRef(options.canLoadOlder === true);
+  canLoadOlderRef.current = options.canLoadOlder === true;
+  const onUnscrollableHistoryIntentRef = useRef(options.onUnscrollableHistoryIntent);
+  onUnscrollableHistoryIntentRef.current = options.onUnscrollableHistoryIntent;
   const followTailRef = useRef(options.historyViewActive !== true);
   /**
    * User explicitly navigated into history. Blocks all stick-to-bottom until
@@ -472,6 +493,16 @@ export function useTranscriptScroll(options: {
 
     const onWheel = (event: WheelEvent): void => {
       const overflowing = isScrollOverflowing(readScrollMetrics(element).ratio);
+      if (
+        shouldRequestOlderHistoryFromFittedWheel({
+          deltaY: event.deltaY,
+          overflowing,
+          canLoadOlder: canLoadOlderRef.current,
+        })
+      ) {
+        onUnscrollableHistoryIntentRef.current?.();
+        return;
+      }
       if (
         !shouldDetachFollowTailFromWheelDelta({
           deltaY: event.deltaY,

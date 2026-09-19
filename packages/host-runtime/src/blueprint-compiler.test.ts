@@ -1877,3 +1877,44 @@ describe('conversation fast path (pure chat)', () => {
     expect(toolSchemaTokens).toBeLessThanOrEqual(8_000);
   });
 });
+
+describe('code_search guidance injection', () => {
+  const codeSearchDescriptor: HostToolDescriptor = {
+    name: 'code_search',
+    description: 'Code search',
+    parameters: {},
+  };
+
+  async function compileWith(tools: readonly HostToolDescriptor[]) {
+    return compileBlueprintForWorker(
+      { scope: agentProjectScope },
+      {
+        config: createConfig(),
+        mcpConfig: { mcpServers: {} },
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [...tools],
+        hostToolFamilyIndex: createFamilyIndex(
+          [...tools],
+          familyAssignments([['filesystem-read', tools.map((tool) => tool.name)]]),
+        ),
+      },
+    );
+  }
+
+  it('injects the prefer-first rule when code_search is registered', async () => {
+    const result = await compileWith([codeSearchDescriptor]);
+    expect(result.blueprint.appendSystemPrompt).toContain(
+      'you should use the code_search tool first instead of running search commands',
+    );
+    expect(result.blueprint.appendSystemPrompt).toContain(
+      'IMPORTANT: YOU CANNOT CALL THIS TOOL IN PARALLEL.',
+    );
+  });
+
+  it('stays silent when code_search is not registered', async () => {
+    const result = await compileWith([
+      { name: 'bash', description: 'Run bash', parameters: {} },
+    ]);
+    expect(result.blueprint.appendSystemPrompt ?? '').not.toContain('code_search');
+  });
+});

@@ -76,10 +76,10 @@ export const IconMic = createIcon(
   16,
 );
 
-/* Stop sits inside a 28px circular button, so the filled square is drawn to
-   the inner optical area rather than the full grid. */
+/* Stop sits inside a circular button; 16-grid aligns optical width (10px) with composer controls. */
 export const IconStop = createIcon(
-  <rect x="7" y="7" width="10" height="10" rx="2.4" fill="currentColor" stroke="none" />,
+  <rect x="3" y="3" width="10" height="10" rx="2" fill="currentColor" stroke="none" />,
+  16,
 );
 
 export const IconPause = createIcon(

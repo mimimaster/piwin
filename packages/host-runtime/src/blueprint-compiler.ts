@@ -76,6 +76,7 @@ import { createBundledRuleSet } from './permission-defaults.js';
 import { formatMountedKnowledgeBasePrompt } from './knowledge-system-prompt.js';
 import { formatSkillDiscoveryPrompt } from './skills-system-prompt.js';
 import { formatBrowserSystemPrompt } from './browser-system-prompt.js';
+import { formatCodeSearchSystemPrompt } from './code-search/code-search-system-prompt.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
 import { discoverContextManifest } from './context-manifest-discovery.js';
@@ -386,6 +387,7 @@ async function compileAgentCapabilityPlan(
     options.mountedKnowledgeBaseNames ?? [],
   );
   const browserAppendPrompt = formatBrowserSystemPrompt(snapshot.tools.hostTools);
+  const codeSearchAppendPrompt = formatCodeSearchSystemPrompt(snapshot.tools.hostTools);
   const skillAppendPrompt = formatSkillDiscoveryPrompt({
     skillCount: resourceManifest.skills.length,
     piBuiltinToolNames: snapshot.tools.piBuiltinToolNames,
@@ -396,6 +398,7 @@ async function compileAgentCapabilityPlan(
     mcpAppendPrompt,
     knowledgeAppendPrompt,
     browserAppendPrompt,
+    codeSearchAppendPrompt,
     skillAppendPrompt,
   ].filter((prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0);
   const appendSystemPrompt =

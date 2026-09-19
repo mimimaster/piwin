@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { partitionRemoteSettingsMutations } from './settings.js';
+import type { PiwinConfig } from './config.js';
+import {
+  buildSettingsDomainMutations,
+  partitionRemoteSettingsMutations,
+} from './settings.js';
 
 describe('partitionRemoteSettingsMutations', () => {
   it('allows Run Mode and desktop restore on the same apply', () => {
@@ -41,5 +45,42 @@ describe('partitionRemoteSettingsMutations', () => {
       'desktop',
     ]);
     expect(blocked).toEqual([]);
+  });
+
+  it('allows codeSearch on remote apply', () => {
+    const { allowed, blocked } = partitionRemoteSettingsMutations([
+      {
+        kind: 'replace-domain',
+        domain: 'codeSearch',
+        value: { enabled: true, backend: 'windsurf' },
+      },
+    ]);
+    expect(allowed.map((mutation) => mutation.domain)).toEqual(['codeSearch']);
+    expect(blocked).toEqual([]);
+  });
+});
+
+describe('buildSettingsDomainMutations codeSearch', () => {
+  it('emits a replace-domain mutation when codeSearch changes', () => {
+    const previous = {
+      hostMode: 'sdk',
+      providers: [],
+      media: { maxPasteBytes: 1, allowedMimeTypes: [] },
+      artifact: {
+        enabled: false,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 1,
+      },
+    } as PiwinConfig;
+    const next = { ...previous, codeSearch: { enabled: true, backend: 'windsurf' as const } };
+    const mutations = buildSettingsDomainMutations(previous, next);
+    expect(mutations).toEqual([
+      expect.objectContaining({
+        kind: 'replace-domain',
+        domain: 'codeSearch',
+        value: { enabled: true, backend: 'windsurf' },
+      }),
+    ]);
   });
 });

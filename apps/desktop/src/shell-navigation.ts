@@ -18,6 +18,7 @@ export type ShellSettingsSection =
   | 'prompts'
   | 'tools'
   | 'web'
+  | 'code-search'
   | 'models'
   | 'oauth'
   | 'hooks'

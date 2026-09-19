@@ -1,0 +1,16 @@
+{
+  "role": "assistant",
+  "tool_calls": [
+    {
+      "id": "call_3710a62d73ec45c28d458fce",
+      "name": "code_search",
+      "arguments": {
+        "search_term": "Find all TSX files containing .mcp-toggle class usage under desktop/src",
+        "search_folder_absolute_uri": "/Volumes/BigDisk/Projects/Projects/piwin/apps/desktop/src"
+      },
+      "index": 0,
+      "kind": "function"
+    }
+  ],
+  "generation_model": "swe-1-6"
+}

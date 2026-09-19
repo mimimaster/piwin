@@ -4,6 +4,7 @@ import {
   estimateTranscriptTurnHeight,
   normalizeTranscriptTurnHeight,
   normalizeTranscriptTurnEstimate,
+  readMountedTranscriptTurnHeight,
   resolveTranscriptTurnEstimate,
   TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX,
   TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX,
@@ -51,6 +52,21 @@ describe('normalizeTranscriptTurnHeight', () => {
 
   it('ceils finite positive heights', () => {
     expect(normalizeTranscriptTurnHeight(120.2)).toBe(121);
+  });
+});
+
+describe('readMountedTranscriptTurnHeight', () => {
+  it('prefers the natural scrollHeight when the observer reports a clipped box', () => {
+    const element = {
+      offsetHeight: 400,
+      scrollHeight: 8_000,
+      getBoundingClientRect: () => ({ height: 400 }),
+    } as HTMLElement;
+    const entry = {
+      borderBoxSize: [{ blockSize: 400 }],
+      contentRect: { height: 400 },
+    } as unknown as ResizeObserverEntry;
+    expect(readMountedTranscriptTurnHeight({ element, entry })).toBe(8_000);
   });
 });
 

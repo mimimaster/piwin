@@ -369,6 +369,35 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(onLoadOlder).not.toHaveBeenCalled();
   });
 
+  it('loads older history when the user wheels up on a fitted page that still has older pages', async () => {
+    const onLoadOlder = vi.fn(async () => undefined);
+    await renderSession('fitted-older-session', {
+      scrollHeight: 180,
+      canLoadOlder: true,
+      onLoadOlder,
+    });
+    await finishOpening();
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) throw new Error('Expected transcript scroll element');
+    Object.defineProperty(scrollElement, 'clientHeight', {
+      configurable: true,
+      value: 640,
+    });
+    Object.defineProperty(scrollElement, 'scrollHeight', {
+      configurable: true,
+      value: 180,
+    });
+    expect(scrollElement.scrollHeight).toBeLessThanOrEqual(scrollElement.clientHeight);
+
+    await act(async () => {
+      scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40, bubbles: true }));
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onLoadOlder).toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
+  });
+
   it('never displays jump-to-latest button when messageCount is zero', async () => {
     await renderSession('empty-session', {
       messageCount: 0,

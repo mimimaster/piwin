@@ -78,6 +78,19 @@ describe('usage-map', () => {
     expect(snapshot?.completionTokens).toBe(200);
   });
 
+  it('maps firstTokenMs from the raw event for TTFT stats', () => {
+    const snapshot = mapUsageSnapshot(
+      's1',
+      {
+        model: 'gpt-4o',
+        usage: { input: 700, output: 200, durationMs: 2_500, firstTokenMs: 350 },
+      },
+      'assistant-usage',
+    );
+    expect(snapshot?.firstTokenMs).toBe(350);
+    expect(snapshot?.durationMs).toBe(2_500);
+  });
+
   it('estimates mock usage', () => {
     const snapshot = estimateMockUsage('s1', 'hello world', 'reply text');
     expect(snapshot.source).toBe('host-estimate');

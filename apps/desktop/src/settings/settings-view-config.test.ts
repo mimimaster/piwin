@@ -5,6 +5,7 @@ import {
   createSettingsViewConfig,
   interpretSettingsLoadResponse,
   knowledgeWriteRetained,
+  codeSearchWriteRetained,
   mergeSettingsViewConfig,
   providerListWriteRetained,
   settingsMutationsFromViewDraft,
@@ -325,5 +326,39 @@ describe('settings view config', () => {
     expect(shouldSyncSettingsProviders(['providers'])).toBe(true);
     expect(shouldSyncSettingsProviders(['defaultProviderId', 'web'])).toBe(true);
     expect(shouldSyncSettingsProviders(['knowledge', 'web'])).toBe(false);
+  });
+});
+
+describe('mergeSettingsViewConfig codeSearch', () => {
+  it('keeps a Host codeSearch block so saves are not dropped on reload', () => {
+    const merged = mergeSettingsViewConfig({
+      codeSearch: {
+        enabled: true,
+        backend: 'windsurf',
+        apiKeyRef: 'keychain:piwin-code-search-windsurf',
+      },
+    });
+    expect(merged.codeSearch).toEqual({
+      enabled: true,
+      backend: 'windsurf',
+      apiKeyRef: 'keychain:piwin-code-search-windsurf',
+    });
+  });
+});
+
+describe('codeSearchWriteRetained', () => {
+  it('fails closed when the Host drops an enabled codeSearch block', () => {
+    const base = createSettingsViewConfig();
+    const sent = {
+      ...base,
+      codeSearch: { enabled: true, backend: 'windsurf' as const, apiKeyRef: 'keychain:x' },
+    };
+    expect(codeSearchWriteRetained(sent, base)).toBe(false);
+    expect(
+      codeSearchWriteRetained(sent, {
+        ...base,
+        codeSearch: { enabled: true, backend: 'windsurf', apiKeyRef: 'keychain:x' },
+      }),
+    ).toBe(true);
   });
 });

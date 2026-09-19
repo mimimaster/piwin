@@ -1,10 +1,16 @@
 /* Claude Code-style plan list: quiet strip above the composer, not a transcript card. */
 
 .composer-plan-stack {
+  /* Same containing box as `.composer-dock`: full stage width + identical
+     inline pad, then center the measure child. The live tray is a stage
+     sibling of the dock — without this wrapper it cannot follow Wide /
+     stage resize. */
+  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: center;
   align-self: stretch;
+  min-width: 0;
   width: 100%;
   max-width: none;
   flex-shrink: 0;
@@ -14,12 +20,18 @@
 }
 
 .composer-plan-stack > * {
+  box-sizing: border-box;
   width: min(100%, var(--conversation-width));
   max-width: var(--conversation-width);
   margin-inline: auto;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-self: center;
 }
 
 .plan-todo-tray {
+  /* Fill the stack's measure child. Do not set --conversation-width here:
+     Inkstone used to cap the unwrapped tray and left-align it. */
   width: 100%;
   max-width: none;
   margin: 0;

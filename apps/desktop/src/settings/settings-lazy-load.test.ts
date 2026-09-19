@@ -38,6 +38,7 @@ describe('settings lazy load (Chrome two-bundle)', () => {
       expect(getSettingsSection('agent')).toBeTypeOf('function');
       expect(getSettingsSection('extensions')).toBeTypeOf('function');
       expect(getSettingsSection('web')).toBeTypeOf('function');
+      expect(getSettingsSection('code-search')).toBeTypeOf('function');
       expect(getSettingsSection('knowledge')).toBeTypeOf('function');
       expect(getSettingsSection('session')).toBeTypeOf('function');
       expect(getSettingsSection('cold-storage')).toBeTypeOf('function');

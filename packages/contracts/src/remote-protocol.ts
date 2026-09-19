@@ -122,6 +122,7 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'secrets/set',
   'secrets/get',
   'web/test-search-source',
+  'code-search/test-windsurf',
   'web/search-route-preview',
   'settings/get',
   'settings/apply',
