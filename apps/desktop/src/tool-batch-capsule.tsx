@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
@@ -256,26 +256,22 @@ function getRunningBatchTitle(
 export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
   const isChinese = (props.locale ?? 'zh-CN') === 'zh-CN';
   const summary = props.summary;
-  const autoExpand = summary.hasError;
-  const [internalExpanded, setInternalExpanded] = useState(autoExpand);
-  const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
-  const expanded = internalExpanded;
+  type BatchDisclosure = 'automatic' | 'live-open' | 'settled-open' | 'closed';
+  const [disclosure, setDisclosure] = useState<BatchDisclosure>('automatic');
+  const expanded =
+    disclosure === 'closed'
+      ? false
+      : summary.hasError ||
+        (summary.hasRunning ? disclosure === 'live-open' : disclosure === 'settled-open');
   const foldMeasure = useTranscriptLocalFoldMeasure(expanded);
-
-  useEffect(() => {
-    if (disclosureIntentRef.current !== 'automatic') {
-      return;
-    }
-    if (summary.hasError) {
-      setInternalExpanded(true);
-    }
-  }, [summary.hasError]);
 
   function toggleExpanded(): void {
     foldMeasure.onUserToggle();
-    const nextExpanded = !expanded;
-    disclosureIntentRef.current = nextExpanded ? 'user-open' : 'user-closed';
-    setInternalExpanded(nextExpanded);
+    if (expanded) {
+      setDisclosure('closed');
+      return;
+    }
+    setDisclosure(summary.hasRunning ? 'live-open' : 'settled-open');
   }
 
   const isExploreLike =

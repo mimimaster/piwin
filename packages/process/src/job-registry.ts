@@ -52,6 +52,7 @@ import {
   type ProcessSupervisorOptions,
   type SupervisedProcess,
 } from './process-supervisor.js';
+import { observeProcessClose } from './process-close-observer.js';
 import type { JobRecordStore } from './job-record-store.js';
 
 /** Default maximum concurrent jobs. */
@@ -519,7 +520,7 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
         }
       });
 
-      supervised.child.on('close', (code: number | null) => {
+      const finalizeClose = (code: number | null): void => {
         if (entry.stopInProgress && entry.terminalOverride) {
           entry.pendingExitCode = code;
           appendLog(entry, 'system', `stopped exitCode=${code ?? 'null'}\n`);
@@ -553,6 +554,21 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
           appendLog(entry, 'system', `exited exitCode=${code ?? 'null'}\n`);
           markTerminal(entry, completed ? 'exited' : 'failed', reason, code);
         }
+      };
+
+      supervised.child.on('close', (code: number | null) => {
+        observeProcessClose({
+          supervised,
+          exitCode: code,
+          finalize: finalizeClose,
+          reportCleanupFailure: (error: unknown) => {
+            appendLog(
+              entry,
+              'system',
+              `process-group cleanup failed: ${error instanceof Error ? error.message : String(error)}\n`,
+            );
+          },
+        });
       });
 
       // Start readiness probe if configured.
@@ -829,7 +845,6 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
     entry.record.terminalReason = reason;
     emit({ type: 'job/updated', job: publicRecord(entry) });
     persistRecord(entry);
-
     const supervised = entry.supervised;
     if (supervised) {
       try {
@@ -849,13 +864,11 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
         };
       }
     }
-
     // If the close handler hasn't fired yet, mark terminal now.
     if (!isJobTerminal(entry.record.status)) {
       appendLog(entry, 'system', 'stopped exitCode=null\n');
       markTerminal(entry, 'cancelled', reason, null);
     }
-
     return {
       job: publicRecord(entry),
       cleanup: {
@@ -866,7 +879,6 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
       },
     };
   }
-
   // -- stopByRun / stopBySession --------------------------------------------
 
   async function stopByOwner(
@@ -889,7 +901,6 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
 
     const stopped: string[] = [];
     const failed: string[] = [];
-
     await Promise.all(
       toStop.map(async (jobId) => {
         try {

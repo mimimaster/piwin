@@ -346,9 +346,16 @@ promoted automatically.
    `failed/stop-failed`; it never remains indefinitely `stopping`.
 6. Previously active persisted jobs become `interrupted/host-restarted` after
    Host restart. No PID reattachment is attempted.
-7. A readiness probe may target loopback by default. Non-loopback HTTP/TCP
+7. Process ownership follows the process group/tree, not only the direct
+   leader: a leader's `close` event does not release the Job until descendants
+   have drained. On Unix, an out-of-group guardian receives a Host-control-pipe
+   EOF after an unexpected Host death and reaps the owned group.
+8. Host-owned `bash`/`run_bash` executions use the same JobController path as
+   native Jobs, so shell descendants receive the same timeout, cancellation,
+   and Host-dispose cleanup.
+9. A readiness probe may target loopback by default. Non-loopback HTTP/TCP
    targets pass the existing network permission and SSRF classification.
-8. Job logs are operational data, not transcript messages. A transcript may
+10. Job logs are operational data, not transcript messages. A transcript may
    store a bounded summary only.
 
 ### 2.6 Package migration

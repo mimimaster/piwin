@@ -1,9 +1,14 @@
 /**
  * Composer model, context chips, and media/send stack.
  */
-import { useCallback, type Dispatch, type MutableRefObject } from 'react';
+import { useCallback, useRef, type Dispatch, type MutableRefObject } from 'react';
 import { ORCHESTRATION_SCHEME_OFF_ID } from '@piwin/contracts';
+import type { AgentModeId } from '../agent-mode';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
+import {
+  resolveComposerAgentModeForSessionChange,
+  type ComposerAgentModeSessionChange,
+} from '../composer-agent-mode-session';
 import type { HostClient } from '../host-client';
 import { isConversationSessionChrome } from '../is-conversation-session';
 import { useComposerContextRefs } from './use-composer-context-refs';
@@ -54,11 +59,29 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     confirmForegroundReplace,
   } = chrome;
   const { menuSkills } = plusMenu;
+  const agentModeRef = useRef(agentMode);
+  agentModeRef.current = agentMode;
+  const agentModeBySessionRef = useRef(new Map<string, AgentModeId>());
 
-  const resetComposerTurnControls = useCallback(() => {
-    setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
-    setDelegationDisabled(false);
-  }, [setDelegationDisabled, setOrchestrationSchemeId]);
+  const resetComposerTurnControls = useCallback(
+    (change?: ComposerAgentModeSessionChange) => {
+      setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
+      setDelegationDisabled(false);
+      if (!change) {
+        setAgentMode('agent');
+        return;
+      }
+      const resolved = resolveComposerAgentModeForSessionChange({
+        previousSessionId: change.previousSessionId,
+        nextSessionId: change.nextSessionId,
+        currentMode: agentModeRef.current,
+        parked: agentModeBySessionRef.current,
+      });
+      agentModeBySessionRef.current = resolved.parked;
+      setAgentMode(resolved.mode);
+    },
+    [setAgentMode, setDelegationDisabled, setOrchestrationSchemeId],
+  );
 
   const {
     handleSelectModel,

@@ -51,15 +51,6 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
     props.initialTab === 'documents' || Boolean(props.initialFolderPath),
   );
 
-  const [face, setFace] = useState<'paper' | 'ink'>('paper');
-
-  const handleSetFace = (nextFace: 'paper' | 'ink') => {
-    setFace(nextFace);
-    document.documentElement.dataset.themeId =
-      nextFace === 'paper' ? 'piwin-inkstone-paper' : 'piwin-inkstone-ink';
-    document.documentElement.dataset.face = nextFace;
-  };
-
   const knowledge = useKnowledgeBases({
     request: props.request,
     subscribePush: props.subscribeKnowledgePush ?? props.subscribePush,
@@ -379,7 +370,6 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
   return (
     <div
       className="vault-stage ink-window"
-      data-face={face}
       data-testid={
         props.testId ??
         (activeTab === 'flashcards' ? 'flashcards-workspace' : 'knowledge-wiki-workspace')
@@ -393,29 +383,7 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
         kind={activeTab === 'flashcards' ? 'flashcards' : 'knowledge'}
         layout="bar"
         customTitle={t('Knowledge Center', '知识中心')}
-        barActions={
-          <>
-            <span className="proto-seg" data-testid="knowledge-face-switch">
-              <button
-                type="button"
-                className={face === 'paper' ? 'active' : ''}
-                id="face-paper"
-                onClick={() => handleSetFace('paper')}
-              >
-                {t('Paper (宣纸)', '宣纸')}
-              </button>
-              <button
-                type="button"
-                className={face === 'ink' ? 'active' : ''}
-                id="face-ink"
-                onClick={() => handleSetFace('ink')}
-              >
-                {t('Ink (砚墨)', '砚墨')}
-              </button>
-            </span>
-            {knowledgeTabs}
-          </>
-        }
+        barActions={knowledgeTabs}
       />
       <main
         className={`vault-main${activeTab === 'flashcards' ? ' is-flashcards' : ' is-wiki'}`}

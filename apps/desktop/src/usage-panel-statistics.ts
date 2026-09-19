@@ -241,19 +241,6 @@ export function formatUsageDuration(durationMs: number | undefined): string {
   return `${minutes}m${Math.round(seconds - minutes * 60)}s`;
 }
 
-/**
- * Short, stable handle for a session id in a dense table cell.
- * Session ids are UUIDs, so the leading block is the part people recognise
- * (and the part other surfaces print); the full id stays in the cell title.
- */
-export function formatUsageSessionTag(sessionId: string): string {
-  const trimmed = sessionId.trim();
-  if (trimmed.length === 0) {
-    return '—';
-  }
-  return trimmed.length <= 8 ? trimmed : `${trimmed.slice(0, 8)}…`;
-}
-
 export function formatThinkingLabel(
   level: ThinkingLevel | null | undefined,
   isZh: boolean,

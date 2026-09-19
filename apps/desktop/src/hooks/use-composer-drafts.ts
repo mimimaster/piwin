@@ -362,20 +362,25 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
         currentDraftIdRef.current = existing?.id ?? null;
         setActiveDraft(existing?.id ?? null);
         currentDraftScopeRef.current = existing?.scope ?? targetScope;
-      } else if (
-        composerRef.current.trim().length > 0 ||
-        pendingAttachmentsRef.current.length > 0 ||
-        readVisibleContextRefs().length > 0
-      ) {
-        upsertCurrentDraft(composerRef.current, currentDraftScopeRef.current);
-        currentDraftIdRef.current = null;
-        setActiveDraft(null);
-        currentDraftScopeRef.current = targetScope;
-      } else if (currentDraftIdRef.current !== null || activeDraftIdRef.current !== null) {
-        removeCurrentDraft();
-        currentDraftScopeRef.current = targetScope;
       } else {
-        currentDraftScopeRef.current = targetScope;
+        // Already on New Agent. Another draft is a new conversation — Goal
+        // must not follow. Live-session leaves park/restore in the effect.
+        args.onResetComposerTurnControls?.();
+        if (
+          composerRef.current.trim().length > 0 ||
+          pendingAttachmentsRef.current.length > 0 ||
+          readVisibleContextRefs().length > 0
+        ) {
+          upsertCurrentDraft(composerRef.current, currentDraftScopeRef.current);
+          currentDraftIdRef.current = null;
+          setActiveDraft(null);
+          currentDraftScopeRef.current = targetScope;
+        } else if (currentDraftIdRef.current !== null || activeDraftIdRef.current !== null) {
+          removeCurrentDraft();
+          currentDraftScopeRef.current = targetScope;
+        } else {
+          currentDraftScopeRef.current = targetScope;
+        }
       }
       // Clear the live composer before session/clear-active so A→null cannot
       // overwrite the session snapshot with the draft we are about to restore.
@@ -388,6 +393,7 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
       args.restorePendingContextRefs?.([]);
     },
     [
+      args.onResetComposerTurnControls,
       args.state.activeScope,
       removeCurrentDraft,
       saveSessionComposerSnapshot,
@@ -527,7 +533,10 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
         preserveComposerOnSessionActivation: preserveComposerOnSessionActivationRef.current,
       })
     ) {
-      args.onResetComposerTurnControls?.();
+      args.onResetComposerTurnControls?.({
+        previousSessionId: prevId,
+        nextSessionId: currentId,
+      });
     }
 
     const hasComposerContent =

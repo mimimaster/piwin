@@ -10,6 +10,7 @@ import {
   type NativeSearchStreamSimple,
 } from './native-web-search.js';
 import { resolvePiNativeSearchStream } from './pi-native-search-stream.js';
+import { wrapStreamSimpleForRequestTiming } from './stream-request-timing.js';
 
 export function resolveProviderStreamSimple(input: {
   api: 'openai-completions' | 'anthropic-messages' | 'google-generative-ai';
@@ -22,7 +23,7 @@ export function resolveProviderStreamSimple(input: {
     input.api === 'openai-completions' &&
     input.models.some((model) => isGeminiOpenAiCompatModelId(model.id));
   if (!needsSearch && !needsGeminiIsolation) {
-    return input.streamSimple;
+    return wrapStreamSimpleForRequestTiming(input.streamSimple ?? resolvePiNativeSearchStream(input.api));
   }
   const fallback = resolvePiNativeSearchStream(input.api);
   let stream = input.streamSimple;
@@ -40,5 +41,5 @@ export function resolveProviderStreamSimple(input: {
         fallbackStreamSimple: fallback,
       }) ?? stream;
   }
-  return stream;
+  return wrapStreamSimpleForRequestTiming(stream ?? fallback);
 }

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { HostToolRegistration, PermissionMode, ToolResult } from '@piwin/contracts';
+import { createJobRegistry } from '@piwin/process';
 import { buildHostFilesystemTools } from './host-filesystem-tools.js';
 import { createWorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
 import { createBundledRuleSet } from '../permission-defaults.js';
@@ -158,6 +159,58 @@ describe('buildHostFilesystemTools', () => {
     );
     expect(result.trim()).toBe('hello');
     expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('routes production bash execution through the Host JobController', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'piwin-managed-bash-'));
+    const jobs = createJobRegistry({
+      getTrustedProjectRoots: () => [cwd],
+      killGraceMs: 50,
+    });
+    try {
+      const tools = buildHostFilesystemTools({ cwd, jobController: jobs });
+      const bashTool = requireTool(tools, 'bash');
+      const result = outputOf(await executeTool(bashTool, { command: 'printf managed-bash' }));
+
+      expect(result).toBe('managed-bash');
+      await expect(jobs.list({ kind: 'command' })).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            command: expect.any(String),
+            status: 'exited',
+            terminalReason: 'completed',
+          }),
+        ]),
+      );
+    } finally {
+      await jobs.dispose();
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it('stops the managed bash process group when the command times out', async () => {
+    if (process.platform === 'win32') return;
+
+    const cwd = await mkdtemp(join(tmpdir(), 'piwin-managed-bash-timeout-'));
+    const jobs = createJobRegistry({
+      getTrustedProjectRoots: () => [cwd],
+      killGraceMs: 50,
+    });
+    try {
+      const tools = buildHostFilesystemTools({ cwd, jobController: jobs });
+      const bashTool = requireTool(tools, 'bash');
+      const result = await executeTool(bashTool, { command: 'sleep 5', timeout: 50 });
+
+      expect(result).toMatchObject({ ok: false, code: 'execution-failed' });
+      await expect(jobs.list({ kind: 'command' })).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ status: 'cancelled', terminalReason: 'user-stop' }),
+        ]),
+      );
+    } finally {
+      await jobs.dispose();
+      await rm(cwd, { recursive: true, force: true });
+    }
   });
 
   it('rejects write_file with an empty path before prompting', async () => {

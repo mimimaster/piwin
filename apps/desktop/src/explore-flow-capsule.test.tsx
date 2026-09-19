@@ -199,6 +199,51 @@ describe('ExploreFlowCapsule', () => {
     ).toBe('true');
   });
 
+  it('auto-collapses when a live exploration settles, even if the user had it open', () => {
+    const liveGroup: ExploreFlowGroup = {
+      ...doneGroup(),
+      items: [
+        { kind: 'tool', messageId: 'm1', tool: readTool('t1', 'src/a.ts') },
+        { kind: 'tool', messageId: 'm2', tool: readTool('t2', 'src/b.ts', 'running') },
+      ],
+      thoughtCount: 0,
+      hasRunning: true,
+      isLive: true,
+    };
+    act(() => render(liveGroup));
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="explore-flow-header"]')
+        ?.click();
+    });
+    expect(
+      container
+        .querySelector('[data-testid="explore-flow-capsule"]')
+        ?.getAttribute('data-expanded'),
+    ).toBe('true');
+
+    act(() => render(doneGroup()));
+    expect(
+      container
+        .querySelector('[data-testid="explore-flow-capsule"]')
+        ?.getAttribute('data-expanded'),
+    ).toBe('false');
+    expect(container.querySelector('[data-testid="explore-flow-body"]')).toBeNull();
+    expect(container.textContent).toContain('探索了 2 个文件');
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="explore-flow-header"]')
+        ?.click();
+    });
+    expect(
+      container
+        .querySelector('[data-testid="explore-flow-capsule"]')
+        ?.getAttribute('data-expanded'),
+    ).toBe('true');
+    expect(container.querySelector('[data-testid="explore-flow-body"]')).not.toBeNull();
+  });
+
   it('keeps a cancelled explore chain collapsed without a red failure icon', () => {
     act(() =>
       render({

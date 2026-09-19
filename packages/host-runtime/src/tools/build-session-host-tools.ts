@@ -249,6 +249,7 @@ export async function buildSessionHostTools(
   const fsCwd = options.projectPath ?? rootDir ?? process.cwd();
   const fsTools = buildHostFilesystemTools({
     cwd: fsCwd,
+    ...(options.jobController ? { jobController: options.jobController } : {}),
     ...(options.turnChange ? { turnChange: options.turnChange } : {}),
     ...(options.workspaceWrite ? { workspaceWrite: options.workspaceWrite } : {}),
   });

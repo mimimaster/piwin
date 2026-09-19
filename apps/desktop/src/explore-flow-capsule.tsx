@@ -3,11 +3,13 @@
  *
  * Stays collapsed by default — including while live — so the call chain stays
  * a one-line summary (marquee shows the active tool). Only a grouped failure
- * auto-opens; the user can still pin it open. Thought segments render as
- * expandable thought rows (title left, duration on the far right) between
- * tool rows, matching the causal order of the underlying assistant messages.
+ * auto-opens. Opening it while live does not pin it: when that one exploration
+ * settles, it folds again. Expanding a settled capsule still sticks. Thought
+ * segments render as expandable thought rows (title left, duration on the far
+ * right) between tool rows, matching the causal order of the underlying
+ * assistant messages.
  */
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 import type { DiffCardRequest } from './diff-card';
 import type { ExploreFlowGroup, ExploreFlowItem } from './explore-flow';
@@ -28,6 +30,8 @@ import { ChainIconSearch } from './inkstone-chain-icons.js';
 import { WorkElapsed } from './work-fold-header.js';
 
 export { exploreFlowTitleParts } from './tool-batch-capsule';
+
+type ExploreDisclosure = 'automatic' | 'live-open' | 'settled-open' | 'closed';
 
 export type ExploreFlowCapsuleProps = {
   group: ExploreFlowGroup;
@@ -136,28 +140,23 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
   const group = props.group;
   const hasError = group.errorCount > 0;
   const cancelledOnly = !hasError && group.cancelledCount > 0;
-  const [internalExpanded, setInternalExpanded] = useState(hasError);
-  const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
-  const expanded = internalExpanded;
+  // Live-open does not survive settle: `expanded` is derived from `isLive`,
+  // so a finished exploration folds even if the user had the chain open, or
+  // if this instance never observed a true→false edge (remount / HMR).
+  const [disclosure, setDisclosure] = useState<ExploreDisclosure>('automatic');
+  const expanded =
+    disclosure === 'closed'
+      ? false
+      : hasError || (group.isLive ? disclosure === 'live-open' : disclosure === 'settled-open');
   const foldMeasure = useTranscriptLocalFoldMeasure(expanded);
-
-  // Explore stays folded unless a grouped tool failed (or the user pinned it).
-  // Collapsing unmounts the list — `isLive` must not flicker across empty
-  // `message/start` placeholders (see buildExploreFlowRoles).
-  useEffect(() => {
-    if (disclosureIntentRef.current !== 'automatic') {
-      return;
-    }
-    if (hasError) {
-      setInternalExpanded(true);
-    }
-  }, [hasError]);
 
   function toggleExpanded(): void {
     foldMeasure.onUserToggle();
-    const nextExpanded = !expanded;
-    disclosureIntentRef.current = nextExpanded ? 'user-open' : 'user-closed';
-    setInternalExpanded(nextExpanded);
+    if (expanded) {
+      setDisclosure('closed');
+      return;
+    }
+    setDisclosure(group.isLive ? 'live-open' : 'settled-open');
   }
 
   const runningToolItem = group.hasRunning

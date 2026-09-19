@@ -449,9 +449,11 @@
   border-color: color-mix(in srgb, var(--ochre, #94611a) 30%, transparent);
 }
 
-/* ── Inkstone Face Tokens (Paper & Ink) ────────────────────────── */
-.app,
-.vault-stage,
+/* ── Inkstone Face Tokens (Paper & Ink) ──────────────────────────
+   Document / explicit face only. Do not pin paper tokens on
+   `.vault-stage` or `.app`: those overlays must inherit
+   html[data-theme-id]. Pinning paper here made 资料库 / 知识中心 /
+   拓展市场 stay 纸 while the shell was 墨. */
 [data-face="paper"],
 html[data-theme-id='piwin-inkstone-paper'] {
   --void: #e6e1d7;

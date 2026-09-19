@@ -18,8 +18,19 @@ export default defineConfig({
      * 内核在 11:53 触发 out-of-application-memory。这是全仓最大的套件，
      * 也是 `pnpm --dir apps/desktop test` 绕过根脚本 --workspace-concurrency
      * 的那条路径，上限必须写在这里才拦得住。
+     *
+     * 保持 fork 隔离，并给每个 worker 设置堆上限。Vitest 会在文件
+     * 完成后回收 worker，但单个泄漏文件不能因此把整台机器吃光。
      */
-    maxWorkers: 4,
+    maxWorkers: 2,
+    minWorkers: 1,
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        isolate: true,
+        execArgv: ['--max-old-space-size=1536'],
+      },
+    },
   },
 
   plugins: [react()],

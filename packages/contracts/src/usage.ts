@@ -165,10 +165,11 @@ export function computePromptCacheHitRate(
 }
 
 /**
- * Decode-phase output speed in tokens per second.
- * Denominator is time after the first token (`durationMs - firstTokenMs`).
- * Returns null without a usable first-token mark, so E2E wait is not
- * reported as generation speed.
+ * Output speed in tokens per second.
+ * Matches oh-my-tps final Δ: usage.output / (end − first content delta).
+ * Prefers decode time after the first token when `firstTokenMs` is present;
+ * otherwise uses end-to-end `durationMs`. Returns null without a usable
+ * duration or output.
  */
 export function computeTokensPerSecond(
   usage: Pick<
@@ -177,14 +178,14 @@ export function computeTokensPerSecond(
   >,
 ): number | null {
   const durationMs = usage.durationMs;
-  const firstTokenMs = usage.firstTokenMs;
   if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs <= 0) {
     return null;
   }
-  if (typeof firstTokenMs !== 'number' || !Number.isFinite(firstTokenMs) || firstTokenMs < 0) {
-    return null;
-  }
-  const generationMs = durationMs - firstTokenMs;
+  const firstTokenMs = usage.firstTokenMs;
+  const generationMs =
+    typeof firstTokenMs === 'number' && Number.isFinite(firstTokenMs) && firstTokenMs >= 0
+      ? durationMs - firstTokenMs
+      : durationMs;
   if (generationMs <= 0) {
     return null;
   }
