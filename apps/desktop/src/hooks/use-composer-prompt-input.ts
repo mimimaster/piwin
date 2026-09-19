@@ -15,13 +15,14 @@ import type {
   ThinkingLevel,
 } from '@piwin/contracts';
 import { canUseThinkingLevel } from '../model-thinking-policy';
-import { readInlineArtifactWidth } from '../inline-artifact-width.js';
+import { readArtifactHostTheme, readInlineArtifactWidth } from '../inline-artifact-width.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 
 /** Host-shaped `session/prompt` / queued-turn `input`, built from raw composer state. */
 export type ComposerPromptRequestInput = {
   text: string;
   inlineArtifactWidthPx?: number;
+  artifactHostTheme?: 'light' | 'dark';
   attachments?: PromptAttachment[];
   contextRefs?: PromptContextRef[];
   model?: ModelRef;
@@ -78,6 +79,8 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
       };
       const inlineWidth = readInlineArtifactWidth(args.state.activeSessionId);
       if (inlineWidth !== undefined) input.inlineArtifactWidthPx = inlineWidth;
+      const hostTheme = readArtifactHostTheme();
+      if (hostTheme !== undefined) input.artifactHostTheme = hostTheme;
       if (args.conversationChat !== true) {
         input.agentMode = params.agentMode;
         if (args.permissionPreset) {

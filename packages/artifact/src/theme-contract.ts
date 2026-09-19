@@ -1,9 +1,11 @@
 /**
  * Soft-repair hard-coded colors so artifacts follow the host theme.
  * Light surfaces are always rewritten (dark hosts). Invented `--piwin-artifact-*`
- * names, stray light text, and dark surfaces without their own light text are
- * rewritten too (light hosts). A self-consistent dark block (dark bg + light
- * text, e.g. a code block) is left alone.
+ * names, stray light text, and dark surfaces are rewritten too (light / paper
+ * hosts). A self-consistent dark *code* island (`pre` / `code` / `kbd` / hljs)
+ * keeps its own contrast pair so listings stay readable. Dark full-page shells
+ * and slate cards are not code — they become a black Canvas on a paper host
+ * if left alone.
  * Ported from openwebui_m artifactThemeContract (subset) — soft repair only.
  */
 import type {
@@ -47,7 +49,7 @@ function createIssue(
 }
 
 /**
- * Soft-repair light surfaces in model HTML for preview.
+ * Soft-repair hard-coded surfaces in model HTML for preview.
  * Does not hard-block; always returns a source that can still render.
  */
 export function applyArtifactThemeContract(source: string): ArtifactThemeContractResult {
@@ -139,16 +141,19 @@ export function applyArtifactThemeContract(source: string): ArtifactThemeContrac
     },
   );
 
-  const repairBlock = (body: string): string => repairDeclarationBlock(body, issues, repairs);
   output = output.replace(
     STYLE_ELEMENT_PATTERN,
     (_fullMatch, open: string, css: string, close: string) =>
-      `${open}${css.replace(CSS_RULE_BODY_PATTERN, (_rule, body: string) => `{${repairBlock(body)}}`)}${close}`,
+      `${open}${css.replace(
+        CSS_RULE_PATTERN,
+        (_rule, selector: string, body: string) =>
+          `${selector}{${repairDeclarationBlock(body, issues, repairs, selector)}}`,
+      )}${close}`,
   );
   output = output.replace(
-    STYLE_ATTRIBUTE_PATTERN,
-    (_fullMatch, open: string, quote: string, body: string) =>
-      `${open}${quote}${repairBlock(body)}${quote}`,
+    STYLE_ATTRIBUTE_ON_TAG_PATTERN,
+    (_fullMatch, open: string, tagName: string, quote: string, body: string) =>
+      `${open}${quote}${repairDeclarationBlock(body, issues, repairs, tagName)}${quote}`,
   );
 
   return {
@@ -193,11 +198,14 @@ function nearestThemeVariable(name: string): string {
 }
 
 const STYLE_ELEMENT_PATTERN = /(<style\b[^>]*>)([\s\S]*?)(<\/style>|$)/gi;
-const CSS_RULE_BODY_PATTERN = /\{([^{}]*)\}/g;
-const STYLE_ATTRIBUTE_PATTERN = /(\sstyle\s*=\s*)(["'])([^"']*)\2/gi;
+const CSS_RULE_PATTERN = /([^{}]+)\{([^{}]*)\}/g;
+const STYLE_ATTRIBUTE_ON_TAG_PATTERN =
+  /(<([a-zA-Z][\w:-]*)\b[^>]*?\sstyle\s*=\s*)(["'])([^"']*)\3/gi;
 const BACKGROUND_DECLARATION_PATTERN = /((?:^|[;\s])background(?:-color)?\s*:\s*)([^;]+)/i;
 const COLOR_DECLARATION_PATTERN = /((?:^|[;\s])color\s*:\s*)([^;]+)/i;
 const COLOR_TOKEN_PATTERN = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|\b(?:white|black)\b/gi;
+const CODE_LIKE_SELECTOR_PATTERN =
+  /(?:^|[\s>+~])(?:pre|code|kbd|samp)(?:$|[\s.:#[>+~])|\.hljs\b|\.token\b|\.language-[\w-]+/i;
 
 type Rgba = { r: number; g: number; b: number; a: number };
 
@@ -270,24 +278,39 @@ function backsLightText(background: string): boolean {
   return hardcodedColors(background).some((color) => relativeLuminance(color) < 0.5);
 }
 
+/** `pre` / `code` islands keep a dark contrast pair; page shells do not. */
+function isCodeLikeSelector(selector: string): boolean {
+  const normalized = selector.trim();
+  if (!normalized) return false;
+  return normalized
+    .split(',')
+    .every((part) => part.trim().length > 0 && CODE_LIKE_SELECTOR_PATTERN.test(part.trim()));
+}
+
 function repairDeclarationBlock(
   body: string,
   issues: ArtifactThemeContractIssue[],
   repairs: ArtifactThemeContractRepair[],
+  selector: string,
 ): string {
   const background = BACKGROUND_DECLARATION_PATTERN.exec(body)?.[2]?.trim();
   const color = COLOR_DECLARATION_PATTERN.exec(body)?.[2]?.trim();
   const lightText = color !== undefined && isLightText(color);
+  const rewriteDarkSurface =
+    background !== undefined && isDarkSurface(background) && !isCodeLikeSelector(selector);
   let output = body;
 
-  if (lightText && (background === undefined || !backsLightText(background))) {
+  if (
+    lightText &&
+    (rewriteDarkSurface || background === undefined || !backsLightText(background))
+  ) {
     output = output.replace(COLOR_DECLARATION_PATTERN, (fullMatch, prefix: string) => {
       const replacement = `${prefix}${TEXT_REPLACEMENT}`;
       issues.push(
         createIssue(
           'fixed-light-text',
           fullMatch.trim(),
-          'Artifact used fixed light text without a dark background; replaced with theme text.',
+          'Artifact used fixed light text that would not follow the host theme; replaced with theme text.',
           true,
         ),
       );
@@ -296,14 +319,14 @@ function repairDeclarationBlock(
     });
   }
 
-  if (background !== undefined && isDarkSurface(background) && !lightText) {
+  if (rewriteDarkSurface) {
     output = output.replace(BACKGROUND_DECLARATION_PATTERN, (fullMatch, prefix: string) => {
       const replacement = `${prefix}${SURFACE_REPLACEMENT}`;
       issues.push(
         createIssue(
           'fixed-dark-surface',
           fullMatch.trim(),
-          'Artifact used a fixed dark surface without its own light text; replaced with theme surface.',
+          'Artifact used a fixed dark surface; replaced with theme surface.',
           true,
         ),
       );

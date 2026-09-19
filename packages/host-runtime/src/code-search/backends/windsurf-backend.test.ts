@@ -206,6 +206,12 @@ describe('windsurf-protocol', () => {
     expect(parseTrailerPayload(Buffer.from('not json'))).toEqual({});
   });
 
+  it('reads delta_text from field 2 (GetDevstralStream live wire)', () => {
+    const writer = new ProtobufWriter();
+    writer.string(2, 'live delta');
+    expect(parseChatFramePayload(writer.toBuffer()).deltaText).toBe('live delta');
+  });
+
   it('reads delta_thinking from field 9', () => {
     const writer = new ProtobufWriter();
     writer.string(3, 'answer');

@@ -110,7 +110,8 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('```artifact-html title="Short descriptive title" surface="canvas"');
     expect(protocol).toContain('surface="canvas"');
     expect(protocol).toContain('--piwin-artifact-');
-    expect(protocol).toContain('kind="artifact:runtime" version="10"');
+    expect(protocol).toContain('kind="artifact:runtime" version="11"');
+    expect(protocol).toContain('On a light host never produce a dark-mode design');
     expect(protocol).toContain('data-piwin-media');
     expect(protocol).toContain('Never `data:image`');
     expect(protocol).toContain('Canvas Viewport');

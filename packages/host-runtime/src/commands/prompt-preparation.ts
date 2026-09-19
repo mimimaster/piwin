@@ -410,7 +410,7 @@ export async function preparePromptInput(
     });
   }
   collectPreparedAttachmentContributions(assembly, promptSource, preparedFromHost);
-  if (promptInput.inlineArtifactWidthPx !== undefined) {
+  if (promptInput.inlineArtifactWidthPx !== undefined || promptInput.artifactHostTheme !== undefined) {
     const config = await context.loadConfig();
     applyInlineArtifactLayout(promptInput, config.artifact?.enabled === true, assembly);
   }

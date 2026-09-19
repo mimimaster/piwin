@@ -21,3 +21,10 @@ export function readInlineArtifactWidth(sessionId: string | null | undefined): n
   // The same session may be visible twice. The narrower presentation is the safe reference.
   return widths.length > 0 ? Math.min(...widths) : undefined;
 }
+
+/** Resolved host mode at send time; absent when the shell has not projected one yet. */
+export function readArtifactHostTheme(): 'light' | 'dark' | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const mode = document.documentElement.dataset.themeMode;
+  return mode === 'light' || mode === 'dark' ? mode : undefined;
+}

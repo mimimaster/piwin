@@ -36,6 +36,14 @@ html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary {
   transition: background var(--t-1) var(--ease-out);
 }
 
+/* The turn-level work summary sits flush with the answer column. The window
+   item clips horizontal bleed, so drop the left pad instead of a negative
+   margin; the bulb's own glyph inset keeps it off the hover edge. */
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure-trigger,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure-trigger {
+  padding-left: 0;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .work-h:hover,
 html[data-theme-id='piwin-inkstone-ink'] .work-h:hover,
 html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure-trigger:hover,

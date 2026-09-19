@@ -196,6 +196,38 @@ describe('runCodeSearchLoop', () => {
     expect(outcome.status).toBe('no-ranges');
   });
 
+  it('accepts a final-round XML answer in text (custom model, no answer tool)', async () => {
+    const { port } = scriptedPort([
+      execCall({ command1: { type: 'rg', pattern: 'createHandler', path: '/codebase/src' } }),
+      {
+        text: `<ANSWER>
+  <file path="/codebase/src/app.ts">
+    <range>1-3</range>
+  </file>
+</ANSWER>`,
+        toolCalls: [],
+      },
+    ]);
+    const outcome = await run(port, { maxTurns: 1 });
+    expect(outcome.status).toBe('ok');
+    if (outcome.status === 'ok') {
+      expect(outcome.fileCount).toBe(1);
+      expect(outcome.output).toContain('src/app.ts');
+      expect(outcome.output).not.toContain('did not return any file ranges');
+    }
+  });
+
+  it('accepts an unclosed ANSWER from the answer tool', async () => {
+    const { port } = scriptedPort([
+      answer('<ANSWER><file path="/codebase/src/app.ts"><range>1-3</range></file>'),
+    ]);
+    const outcome = await run(port);
+    expect(outcome.status).toBe('ok');
+    if (outcome.status === 'ok') {
+      expect(outcome.fileCount).toBe(1);
+    }
+  });
+
   it('answers every tool call so the provider can pair them', async () => {
     const { port, requests } = scriptedPort([
       {

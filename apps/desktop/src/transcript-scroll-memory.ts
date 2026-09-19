@@ -1,5 +1,5 @@
 import {
-  TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX,
+  TRANSCRIPT_TURN_MAX_MEASURED_HEIGHT_PX,
   TRANSCRIPT_TURN_MIN_HEIGHT_PX,
 } from './transcript-turn-height';
 
@@ -65,18 +65,20 @@ export function rememberTranscriptTurnHeight(
   turnId: string,
   height: number,
 ): void {
-  // Clamp so inflated Artifact shells cannot permanently reserve multi-screen
-  // blank between short replies.
-  if (!Number.isFinite(height) || height < TRANSCRIPT_TURN_MIN_HEIGHT_PX / 2) {
+  // Store the measured height. Artifact balloons on short replies are
+  // discarded by resolveTranscriptTurnEstimate, not by clipping the cache —
+  // a long delivery is actually several thousand pixels.
+  const normalized = Math.ceil(height);
+  if (!Number.isFinite(normalized) || normalized < TRANSCRIPT_TURN_MIN_HEIGHT_PX / 2) {
     return;
   }
-  const clamped = Math.min(TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX, Math.ceil(height));
-  if (clamped < TRANSCRIPT_TURN_MIN_HEIGHT_PX / 2) {
-    return;
-  }
+  const stored = Math.min(
+    TRANSCRIPT_TURN_MAX_MEASURED_HEIGHT_PX,
+    Math.max(TRANSCRIPT_TURN_MIN_HEIGHT_PX, normalized),
+  );
   const heightsByTurnId = ensureSessionMemory(sessionId).turnHeightsById;
   heightsByTurnId.delete(turnId);
-  heightsByTurnId.set(turnId, clamped);
+  heightsByTurnId.set(turnId, stored);
   const oldestTurnId = heightsByTurnId.keys().next().value;
   if (heightsByTurnId.size > MAX_REMEMBERED_TURNS_PER_SESSION && oldestTurnId !== undefined) {
     heightsByTurnId.delete(oldestTurnId);
@@ -96,7 +98,7 @@ export function readTranscriptTurnHeight(sessionId: string, turnId: string): num
   if (
     !Number.isFinite(height) ||
     height < TRANSCRIPT_TURN_MIN_HEIGHT_PX / 2 ||
-    height > TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX
+    height > TRANSCRIPT_TURN_MAX_MEASURED_HEIGHT_PX
   ) {
     heightsByTurnId.delete(turnId);
     return null;

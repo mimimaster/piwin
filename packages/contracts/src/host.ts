@@ -132,6 +132,8 @@ export type PromptInput = {
   text: string;
   /** Sending shell's measured chat column, in CSS pixels; advisory, never a fixed layout. */
   inlineArtifactWidthPx?: number;
+  /** Sending shell's resolved light/dark mode; advisory so artifacts match the host background. */
+  artifactHostTheme?: 'light' | 'dark';
   /**
    * Explicit installed Skill selected for this turn. This is structured Host
    * intent, not a value inferred from model-facing prompt text.

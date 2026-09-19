@@ -7,6 +7,7 @@ import {
   rememberTranscriptTurnHeight,
   rememberTranscriptScrollPosition,
 } from './transcript-scroll-memory';
+import { TRANSCRIPT_TURN_MAX_MEASURED_HEIGHT_PX } from './transcript-turn-height';
 
 describe('transcript scroll memory', () => {
   beforeEach(() => {
@@ -56,9 +57,16 @@ describe('transcript scroll memory', () => {
     expect(readTranscriptTurnHeight('session-a', 'turn-invalid')).toBeNull();
   });
 
-  it('clamps inflated turn heights so virtualizer blanks cannot stick forever', () => {
-    rememberTranscriptTurnHeight('session-a', 'turn-tall', 50_000);
-    expect(readTranscriptTurnHeight('session-a', 'turn-tall')).toBe(4_000);
+  it('keeps a measured tall turn so a long delivery can still scroll', () => {
+    rememberTranscriptTurnHeight('session-a', 'turn-tall', 8_400);
+    expect(readTranscriptTurnHeight('session-a', 'turn-tall')).toBe(8_400);
+  });
+
+  it('caps runaway measured heights without clamping a real long delivery', () => {
+    rememberTranscriptTurnHeight('session-a', 'turn-runaway', 80_000);
+    expect(readTranscriptTurnHeight('session-a', 'turn-runaway')).toBe(
+      TRANSCRIPT_TURN_MAX_MEASURED_HEIGHT_PX,
+    );
   });
 
   it('shares one 20-session LRU across offsets and measured heights', () => {
