@@ -1,4 +1,5 @@
 import type { DesktopLocale } from './desktop-locale';
+import { shouldShowSidebarHostStatus } from './sidebar-host-status';
 import { IconBook, IconImage, IconSettings } from './shell-icons';
 
 export interface SidebarShelfFooterProps {
@@ -80,13 +81,15 @@ export function SidebarShelfFooter(props: SidebarShelfFooterProps) {
           <IconSettings width={16} height={16} />
           <span>{props.settingsTitle}</span>
         </button>
-        <div className="host sidebar-host" data-testid="sidebar-host-status">
-          <span
-            className={`sidebar-host-dot${props.hostReady ? ' on' : ''}`}
-            aria-hidden
-          />
-          <span>{props.transportLabel}</span>
-        </div>
+        {shouldShowSidebarHostStatus(props.transportLabel) ? (
+          <div className="host sidebar-host" data-testid="sidebar-host-status">
+            <span
+              className={`sidebar-host-dot${props.hostReady ? ' on' : ''}`}
+              aria-hidden
+            />
+            <span>{props.transportLabel}</span>
+          </div>
+        ) : null}
       </footer>
 
       {/* Deck-era footer: CSS shows this instead of .sidebar-shelf for any

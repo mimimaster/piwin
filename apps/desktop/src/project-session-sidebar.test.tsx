@@ -1393,7 +1393,7 @@ describe('ProjectSessionSidebar repo grouping', () => {
 });
 
 describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
-  it('renders sb-top and shelf footer with library, knowledge, settings, and host status', () => {
+  it('renders sb-top and shelf footer with library, knowledge, and settings', () => {
     const onNewSession = vi.fn();
     const onOpenSessionSearch = vi.fn();
     const onOpenLibrary = vi.fn();
@@ -1408,7 +1408,7 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
       onOpenSettings,
       hostMock: false,
       hostReady: true,
-      transportLabel: '本机 Host · 8787',
+      transportLabel: 'live',
     });
 
     const sbTop = container.querySelector('[data-testid="sidebar-sb-top"]');
@@ -1441,9 +1441,33 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
     act(() => settingsBtn?.click());
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
 
-    const hostStatus = container.querySelector('[data-testid="sidebar-host-status"]');
-    expect(hostStatus).not.toBeNull();
-    expect(hostStatus?.textContent).toContain('本机 Host · 8787');
+    expect(container.querySelector('[data-testid="sidebar-host-status"]')).toBeNull();
+    expect(container.querySelector('[data-testid="agent-mode-pill"]')?.textContent).toBe('live');
+  });
+
+  it('hides the host chip for bundled sidecar live transport', () => {
+    const { container } = renderSidebar({
+      hostMock: false,
+      hostReady: true,
+      transportLabel: 'live',
+    });
+    expect(container.querySelector('[data-testid="sidebar-host-status"]')).toBeNull();
+  });
+
+  it('shows the host chip for mock and remote transports', () => {
+    const mockRender = renderSidebar({ hostMock: true, transportLabel: 'mock' });
+    expect(mockRender.container.querySelector('[data-testid="sidebar-host-status"]')?.textContent).toContain(
+      'mock',
+    );
+
+    const remoteRender = renderSidebar({
+      hostMock: false,
+      hostReady: true,
+      transportLabel: 'remote',
+    });
+    expect(remoteRender.container.querySelector('[data-testid="sidebar-host-status"]')?.textContent).toContain(
+      'remote',
+    );
   });
 
   it('renders time group headers when sessions span multiple days', () => {

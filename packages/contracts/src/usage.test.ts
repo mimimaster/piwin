@@ -72,23 +72,22 @@ describe('computeTokensPerSecond', () => {
     ).toBeNull();
     expect(
       computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000, firstTokenMs: 2_000 }),
-    ).toBeNull();
+    ).toBeCloseTo(100);
   });
 
-  it('returns null when the observation window is under two seconds', () => {
+  it('falls back to end-to-end duration when decode is a buffered flush', () => {
     expect(
       computeTokensPerSecond({ completionTokens: 108, durationMs: 7_511, firstTokenMs: 7_500 }),
-    ).toBeNull();
-    expect(
-      computeTokensPerSecond({ completionTokens: 200, durationMs: 2_499, firstTokenMs: 500 }),
-    ).toBeNull();
-    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: 1_999 })).toBeNull();
+    ).toBeCloseTo(108 / 7.511);
   });
 
-  it('accepts a decode window of exactly two seconds', () => {
+  it('keeps short but real decode windows (flash completions)', () => {
     expect(
-      computeTokensPerSecond({ completionTokens: 200, durationMs: 2_500, firstTokenMs: 500 }),
-    ).toBeCloseTo(100);
+      computeTokensPerSecond({ completionTokens: 57, durationMs: 1_200, firstTokenMs: 640 }),
+    ).toBeCloseTo(57 / 0.56);
+    expect(
+      computeTokensPerSecond({ completionTokens: 200, durationMs: 1_999, firstTokenMs: 500 }),
+    ).toBeCloseTo(200 / 1.499);
   });
 });
 

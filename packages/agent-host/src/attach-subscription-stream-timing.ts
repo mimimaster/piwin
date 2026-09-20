@@ -9,7 +9,10 @@
  * openai-codex-responses. Responses-only Grok variants still use the
  * session-event fallback.
  */
-import { CLAUDE_CODE_OAUTH_PROVIDER_ID } from '@piwin/contracts';
+import {
+  CLAUDE_CODE_OAUTH_PROVIDER_ID,
+  V1_SUBSCRIPTION_PROVIDER_IDS,
+} from '@piwin/contracts';
 import { openAICodexResponsesApi } from '@earendil-works/pi-ai/api/openai-codex-responses.lazy';
 import type { PiModelRuntime } from './pi-model-runtime.js';
 import {
@@ -58,7 +61,7 @@ export function resolveSubscriptionStreamTimingOverlay(
 /** Merge timing-only streamSimple onto Pi builtin OAuth providers. */
 export function attachSubscriptionStreamTiming(
   runtime: Pick<PiModelRuntime, 'registerProvider'>,
-  providerIds: readonly string[],
+  providerIds: readonly string[] = V1_SUBSCRIPTION_PROVIDER_IDS,
 ): void {
   for (const providerId of providerIds) {
     const overlay = resolveSubscriptionStreamTimingOverlay(providerId);

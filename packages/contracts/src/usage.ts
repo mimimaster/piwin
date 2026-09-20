@@ -165,17 +165,17 @@ export function computePromptCacheHitRate(
 }
 
 /**
- * oh-my-tps will not settle final Δ until (end − first content delta) is at
- * least this long. Shorter windows are usually a buffered flush, not decode.
+ * Same floor as assistant request-timing: a sub-50ms "decode" with real
+ * output is a buffered flush (the 9000 tok/s bug), not a rate.
  */
-export const MIN_TPS_DECODE_WINDOW_MS = 2_000;
+const MIN_PLAUSIBLE_DECODE_MS = 50;
+const LARGE_OUTPUT_TOKEN_THRESHOLD = 10;
 
 /**
  * Output speed in tokens per second.
- * Matches oh-my-tps final Δ: usage.output / (end − first content delta).
- * Prefers decode time after the first token when `firstTokenMs` is present;
- * otherwise uses end-to-end `durationMs`. Returns null without a usable
- * duration, when the observation window is under 2s, or without output.
+ * Decode Δ: completion / (duration − firstToken). Missing or empty decode
+ * window uses end-to-end duration. No minimum wall-clock — a 1s flash
+ * completion is a real rate; oh-my-tps' 2s rule is for live overlay only.
  */
 export function computeTokensPerSecond(
   usage: Pick<
@@ -187,16 +187,21 @@ export function computeTokensPerSecond(
   if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs <= 0) {
     return null;
   }
-  const firstTokenMs = usage.firstTokenMs;
-  const generationMs =
-    typeof firstTokenMs === 'number' && Number.isFinite(firstTokenMs) && firstTokenMs >= 0
-      ? durationMs - firstTokenMs
-      : durationMs;
-  if (generationMs < MIN_TPS_DECODE_WINDOW_MS) {
-    return null;
-  }
   const completionTokens = Math.max(0, usage.durationMsCompletionTokens ?? usage.completionTokens);
   if (completionTokens === 0) {
+    return null;
+  }
+  const firstTokenMs = usage.firstTokenMs;
+  const decodeMs =
+    typeof firstTokenMs === 'number' && Number.isFinite(firstTokenMs) && firstTokenMs >= 0
+      ? durationMs - firstTokenMs
+      : undefined;
+  const decodeIsUsable =
+    decodeMs !== undefined &&
+    decodeMs > 0 &&
+    !(decodeMs < MIN_PLAUSIBLE_DECODE_MS && completionTokens > LARGE_OUTPUT_TOKEN_THRESHOLD);
+  const generationMs = decodeIsUsable ? decodeMs : durationMs;
+  if (generationMs <= 0) {
     return null;
   }
   return completionTokens / (generationMs / 1000);

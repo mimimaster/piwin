@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sessionRowIsWorking } from './session-row-working';
+import { sessionRowHasLiveActivity, sessionRowIsWorking } from './session-row-working';
 
 const base = {
   sessionId: 's1',
@@ -56,3 +56,54 @@ describe('sessionRowIsWorking', () => {
     ).toBe(false);
   });
 });
+
+describe('sessionRowHasLiveActivity', () => {
+  it('matches the working spinner for streaming and background runs', () => {
+    expect(
+      sessionRowHasLiveActivity({
+        sessionId: 's1',
+        activeSessionId: 's1',
+        runPhase: 'streaming',
+      }),
+    ).toBe(true);
+    expect(
+      sessionRowHasLiveActivity({
+        sessionId: 's1',
+        activeSessionId: 's2',
+        runPhase: 'idle',
+        workingSessionIds: { s1: true },
+      }),
+    ).toBe(true);
+  });
+
+  it('treats backend service and permission waits as live activity', () => {
+    expect(
+      sessionRowHasLiveActivity({
+        sessionId: 's1',
+        activeSessionId: 's2',
+        runPhase: 'idle',
+        backendServiceSessionIds: { s1: true },
+      }),
+    ).toBe(true);
+    expect(
+      sessionRowHasLiveActivity({
+        sessionId: 's1',
+        activeSessionId: 's2',
+        runPhase: 'idle',
+        waitingPermissionSessionIds: { s1: true },
+      }),
+    ).toBe(true);
+  });
+
+  it('does not treat an idle open session as live from a leftover working map', () => {
+    expect(
+      sessionRowHasLiveActivity({
+        sessionId: 's1',
+        activeSessionId: 's1',
+        runPhase: 'idle',
+        workingSessionIds: { s1: true },
+      }),
+    ).toBe(false);
+  });
+});
+

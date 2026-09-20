@@ -122,3 +122,27 @@ describe('wrapStreamSimpleForRequestTiming', () => {
     expect(wrapped?.({ id: 'm' }, {}, {})).toEqual({ payload: true });
   });
 });
+
+describe('wrapLlmStreamWithRequestTiming push intercept', () => {
+  it('stamps firstTokenMs before the original push so result() sees it', () => {
+    let now = 1_000;
+    const message: Record<string, unknown> = { role: 'assistant' };
+    let extracted: unknown;
+    const inner = {
+      push(event: { type: string; message?: Record<string, unknown> }) {
+        if (event.type === 'done') {
+          extracted = event.message;
+        }
+      },
+      result: async () => extracted,
+    };
+    const wrapped = wrapLlmStreamWithRequestTiming(inner, () => now) as typeof inner;
+    wrapped.push({ type: 'start' });
+    now = 1_350;
+    wrapped.push({ type: 'text_delta', delta: 'Hi' } as never);
+    now = 3_000;
+    wrapped.push({ type: 'done', message });
+    expect(message.firstTokenMs).toBe(350);
+    expect(extracted).toMatchObject({ firstTokenMs: 350 });
+  });
+});

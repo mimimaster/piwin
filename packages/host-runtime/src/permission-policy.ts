@@ -5,6 +5,7 @@ import { findMatchingRule } from './permission-rule-engine.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { splitBashCommandChain } from './bash-command-chain.js';
 import { bashCommandEscapesProjectRoot } from './bash-workspace-escape.js';
+import { isBoundPermissionProjectRoot } from './permission-project-root.js';
 
 export type PermissionEvaluation = {
   decision: PermissionDecision;
@@ -48,10 +49,10 @@ export function applyModeToMatchedRule(
  * for `ask-all`. Under `bypass`, matched `ask` rules are promoted to allow
  * (`bypass-ask:<reason>`); matched `deny` rules still deny.
  *
- * When `projectRoot` is set, a command that lexically references a path
- * outside the project (`cd /tmp`, `cat ~/…`, `..`) is `ask` in every mode,
- * including YOLO. Bundled allow prefixes like `cd *` cannot silence that.
- * Deny still wins first (`rm -rf /`).
+ * When `projectRoot` is set, a stage that *writes* outside the project
+ * (`tee ~/x`, `rm -rf /tmp/foo`) is `ask` in every mode, including YOLO.
+ * `cd` / `ls` / `cat` / `echo` never trip this check. Deny still wins first
+ * (`rm -rf /`).
  *
  * Pure function — no IO.
  */
@@ -115,7 +116,8 @@ export function evaluateBashPermission(
  *    Under `bypass`, matched in-project `ask` is promoted to allow; out-of-project
  *    `ask` stays ask; matched `deny` still denies.
  * 3. On `'no-match'`:
- *    - `escapesRoot(projectRoot, absPath)` → ask in every mode, including YOLO.
+ *    - bound project + `escapesRoot` → ask in every mode, including YOLO.
+ *    - No Repo / empty projectRoot: no leave-workspace gate (YOLO allows).
  *    - `bypass` in-project → allow.
  *    - else in-project → allow in `auto`/`bypass`, ask in `ask-all`.
  *
@@ -136,11 +138,14 @@ export function evaluateFileWritePermission(input: {
 
   const ruleSet = rules ?? createBundledRuleSet();
   const matched = findMatchingRule({ kind: 'file-write', path: normalizedPath }, ruleSet);
+  const bound = isBoundPermissionProjectRoot(projectRoot);
   if (matched) {
-    // YOLO must not silence out-of-project asks (`~/.config/**`). Deny still wins.
+    // YOLO must not silence out-of-project asks (`~/.config/**`) in a repo.
+    // No Repo has no project boundary — yolo promotes as before.
     if (
       matched.decision === 'ask' &&
       mode === 'bypass' &&
+      bound &&
       escapesRoot(projectRoot, normalizedPath)
     ) {
       return { decision: 'ask', reason: matched.reason };
@@ -148,7 +153,7 @@ export function evaluateFileWritePermission(input: {
     return applyModeToMatchedRule(matched, mode);
   }
 
-  if (escapesRoot(projectRoot, normalizedPath)) {
+  if (bound && escapesRoot(projectRoot, normalizedPath)) {
     return { decision: 'ask', reason: 'path-escapes-project-root' };
   }
 

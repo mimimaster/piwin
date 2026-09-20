@@ -19,3 +19,48 @@ export function sessionRowIsWorking(input: {
   }
   return input.workingSessionIds != null && input.sessionId in input.workingSessionIds;
 }
+
+/**
+ * Same live states that replace the relative-time slot with an activity
+ * indicator. Used by the row view and by recency sort so in-progress
+ * sessions stay at the top of the project list while they run.
+ */
+export function sessionRowHasLiveActivity(input: {
+  sessionId: string;
+  isDraft?: boolean;
+  activeSessionId: string | null;
+  runPhase: SessionRowRunPhase;
+  workingSessionIds?: Record<string, true> | undefined;
+  backendServiceSessionIds?: Record<string, true> | undefined;
+  waitingPermissionSessionIds?: Record<string, true> | undefined;
+}): boolean {
+  if (input.isDraft === true) {
+    return false;
+  }
+  if (
+    sessionRowIsWorking({
+      sessionId: input.sessionId,
+      isDraft: false,
+      activeSessionId: input.activeSessionId,
+      runPhase: input.runPhase,
+      ...(input.workingSessionIds !== undefined
+        ? { workingSessionIds: input.workingSessionIds }
+        : {}),
+    })
+  ) {
+    return true;
+  }
+  if (
+    input.backendServiceSessionIds != null &&
+    input.sessionId in input.backendServiceSessionIds
+  ) {
+    return true;
+  }
+  if (
+    input.waitingPermissionSessionIds != null &&
+    input.sessionId in input.waitingPermissionSessionIds
+  ) {
+    return true;
+  }
+  return false;
+}

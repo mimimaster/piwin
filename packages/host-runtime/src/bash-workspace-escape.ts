@@ -1,14 +1,15 @@
 /**
- * Lexical "does this bash command leave the project root?" check.
+ * Lexical "does this bash command write outside the project root?" check.
  *
- * Not a shell parser and not an OS sandbox. It flags command tokens that
- * resolve outside `projectRoot` (`/tmp`, `~/…`, `$HOME`, `..`) so the
- * permission layer can ask even under YOLO. Quoted operators stay intact;
- * pipelines and `$(…)` are not expanded.
+ * Not a shell parser and not an OS sandbox. `cd` / `ls` / `cat` / `echo` never
+ * trip this check. Other stages that reference a path outside `projectRoot`
+ * (`tee /tmp/x`, `rm -rf /tmp/foo`) stay `ask`. Quoted operators stay intact;
+ * `$(…)` is not expanded.
  */
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { escapesRoot } from '@piwin/project';
+import { splitBashCommandChain } from './bash-command-chain.js';
 
 const BENIGN_DEVICE_PATHS = new Set([
   '/dev/null',
@@ -18,21 +19,19 @@ const BENIGN_DEVICE_PATHS = new Set([
   '/dev/tty',
 ]);
 
+/** Read / navigate / echo: never trip leave-workspace, even with absolute operands. */
+const NEVER_ASK_PROGRAMS = new Set(['cd', 'ls', 'cat', 'echo']);
+
 export function bashCommandEscapesProjectRoot(command: string, projectRoot: string): boolean {
   const root = projectRoot.trim();
   if (root.length === 0) {
     return false;
   }
-  for (const token of extractPathLikeTokens(command)) {
-    const resolved = resolveCommandPathToken(token, root);
-    if (resolved === undefined) {
-      continue;
-    }
-    if (BENIGN_DEVICE_PATHS.has(path.resolve(resolved))) {
-      continue;
-    }
-    if (escapesRoot(root, resolved)) {
-      return true;
+  for (const piece of splitBashCommandChain(command)) {
+    for (const stage of splitPipelineStages(piece)) {
+      if (stageEscapesProjectRoot(stage, root)) {
+        return true;
+      }
     }
   }
   return false;
@@ -57,6 +56,90 @@ export function extractPathLikeTokens(command: string): string[] {
     }
   }
   return tokens;
+}
+
+function stageEscapesProjectRoot(stage: string, projectRoot: string): boolean {
+  const program = stageProgram(stage);
+  if (NEVER_ASK_PROGRAMS.has(program)) {
+    return false;
+  }
+  const tokens = extractPathLikeTokens(stage);
+  for (const token of tokens) {
+    const resolved = resolveCommandPathToken(token, projectRoot);
+    if (resolved === undefined) {
+      continue;
+    }
+    if (BENIGN_DEVICE_PATHS.has(path.resolve(resolved))) {
+      continue;
+    }
+    if (escapesRoot(projectRoot, resolved)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function stageProgram(stage: string): string {
+  const first = splitUnquotedWords(stage)[0];
+  if (first === undefined) {
+    return '';
+  }
+  return path.basename(stripWrappingQuotes(first)).toLowerCase();
+}
+
+function splitPipelineStages(command: string): string[] {
+  const stages: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+  let previous = '';
+
+  const flush = (): void => {
+    const trimmed = current.trim();
+    if (trimmed.length > 0) {
+      stages.push(trimmed);
+    }
+    current = '';
+  };
+
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index]!;
+    if (escaped) {
+      current += character;
+      escaped = false;
+      previous = character;
+      continue;
+    }
+    if (character === '\\' && quote !== "'") {
+      current += character;
+      escaped = true;
+      previous = character;
+      continue;
+    }
+    if (quote !== null) {
+      current += character;
+      if (character === quote) {
+        quote = null;
+      }
+      previous = character;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      current += character;
+      previous = character;
+      continue;
+    }
+    if (character === '|' && command[index + 1] !== '|' && previous !== '>') {
+      flush();
+      previous = character;
+      continue;
+    }
+    current += character;
+    previous = character;
+  }
+  flush();
+  return stages.length > 0 ? stages : [command.trim()].filter((item) => item.length > 0);
 }
 
 function isPathLike(token: string): boolean {

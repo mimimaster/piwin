@@ -903,4 +903,57 @@ describe('buildSidebarTreeRows', () => {
       { kind: 'section-header', sectionId: 'conversations', key: 'section:conversations' },
     ]);
   });
+
+  it('floats a live-activity session above recency so it stays in the visible window', () => {
+    const projectSessions = [
+      session('recent-1', 'Recent one', { updatedAt: '2026-08-13T00:00:00.000Z' }),
+      session('recent-2', 'Recent two', { updatedAt: '2026-08-12T00:00:00.000Z' }),
+      session('recent-3', 'Recent three', { updatedAt: '2026-08-11T00:00:00.000Z' }),
+      session('recent-4', 'Recent four', { updatedAt: '2026-08-10T00:00:00.000Z' }),
+      session('recent-5', 'Recent five', { updatedAt: '2026-08-09T00:00:00.000Z' }),
+      session('running', 'Long pack', { updatedAt: '2026-08-01T00:00:00.000Z' }),
+    ];
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/a' }],
+      projectSessionsByPath: { '/a': projectSessions },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: false,
+      collapsedProjects: { '/a': false },
+      sessionListScopes: createSessionListScopeState(),
+      workingSessionIds: { running: true },
+      runPhase: 'idle',
+      revealSessionId: 'recent-1',
+    });
+    const ids = rows.flatMap((row) => (row.kind === 'session' ? [row.session.id] : []));
+    expect(ids[0]).toBe('running');
+    expect(ids).toHaveLength(5);
+    expect(ids).not.toContain('recent-5');
+  });
+
+  it('does not float live-activity sessions when sorting alphabetically', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/a' }],
+      projectSessionsByPath: {
+        '/a': [
+          session('b', 'Bravo', { updatedAt: '2026-08-13T00:00:00.000Z' }),
+          session('a', 'Alpha', { updatedAt: '2026-08-01T00:00:00.000Z' }),
+        ],
+      },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'alphabetical',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: false,
+      collapsedProjects: { '/a': false },
+      sessionListScopes: createSessionListScopeState(),
+      workingSessionIds: { b: true },
+      runPhase: 'idle',
+      revealSessionId: 'a',
+    });
+    const ids = rows.flatMap((row) => (row.kind === 'session' ? [row.session.id] : []));
+    expect(ids).toEqual(['a', 'b']);
+  });
 });

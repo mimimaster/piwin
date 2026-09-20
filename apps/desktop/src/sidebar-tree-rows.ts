@@ -7,6 +7,10 @@ import { groupSessionsByRecency } from './session-groups.js';
 import { hiddenSessionCount, type SessionListScopeState } from './session-list-scope';
 import { sessionScopeKey } from './session-scope-key';
 import {
+  sessionRowHasLiveActivity,
+  type SessionRowRunPhase,
+} from './session-row-working';
+import {
   clusterProjectsByRepository,
   type SidebarProjectRef,
 } from './sidebar-repo-groups';
@@ -85,6 +89,10 @@ export type SidebarTreeRowsInput = {
   revealSessionId?: string | null;
   revealDraftId?: string | null;
   groupBy?: 'time' | 'none';
+  workingSessionIds?: Record<string, true>;
+  backendServiceSessionIds?: Record<string, true>;
+  waitingPermissionSessionIds?: Record<string, true>;
+  runPhase?: SessionRowRunPhase;
 };
 
 export function sidebarTreeRowKey(row: SidebarTreeRow): string {
@@ -216,6 +224,8 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
     unpinnedGeneralSessions,
     input.sessionSearch,
     input.sessionListOrder,
+    false,
+    input,
   );
   // Section collapse is an explicit user gesture. Reveal (active session)
   // must not keep the list open after the user folds it — same policy as
@@ -433,6 +443,8 @@ function nestedTreeHasReveal(
       childSessions,
       input.sessionSearch,
       input.sessionListOrder,
+      false,
+      input,
     );
     if (
       revealIndexInRows(childRows, input.revealSessionId ?? null, input.revealDraftId ?? null) >= 0
@@ -472,6 +484,7 @@ function appendProjectFolderRows(
     input.sessionSearch,
     input.sessionListOrder,
     grouped,
+    input,
   );
   const selectedIndex = revealIndexInRows(
     merged,
@@ -544,6 +557,14 @@ function mergeScopeRows(
   sessionSearch: string,
   order: SessionListOrder,
   grouped = false,
+  activityInput?: Pick<
+    SidebarTreeRowsInput,
+    | 'revealSessionId'
+    | 'runPhase'
+    | 'workingSessionIds'
+    | 'backendServiceSessionIds'
+    | 'waitingPermissionSessionIds'
+  >,
 ): Extract<SidebarTreeRow, { kind: 'session' }>[] {
   const scopeDrafts = sortDraftSessions(
     drafts.filter(
@@ -558,7 +579,7 @@ function mergeScopeRows(
           const byName = left.name.localeCompare(right.name);
           return byName !== 0 ? byName : left.id.localeCompare(right.id);
         })
-      : sortPinnedThenUpdated(sessions);
+      : sortPinnedThenUpdated(sessions, activityInput);
   const scopeKey = sessionScopeKey(scope);
   return [...uniqueDrafts, ...sortedSessions].map((session) => ({
     kind: 'session' as const,
@@ -628,7 +649,17 @@ function sameScope(left: SessionScope, right: SessionScope): boolean {
   return left.projectPath === right.projectPath;
 }
 
-function sortPinnedThenUpdated(list: readonly SessionListItemUi[]): SessionListItemUi[] {
+function sortPinnedThenUpdated(
+  list: readonly SessionListItemUi[],
+  activityInput?: Pick<
+    SidebarTreeRowsInput,
+    | 'revealSessionId'
+    | 'runPhase'
+    | 'workingSessionIds'
+    | 'backendServiceSessionIds'
+    | 'waitingPermissionSessionIds'
+  >,
+): SessionListItemUi[] {
   return [...list].sort((left, right) => {
     const leftPinned = left.isPinned === true;
     const rightPinned = right.isPinned === true;
@@ -641,6 +672,13 @@ function sortPinnedThenUpdated(list: readonly SessionListItemUi[]): SessionListI
         return byPinnedAt;
       }
     }
+    if (activityInput) {
+      const leftLive = sessionIsLiveActivity(left.id, activityInput);
+      const rightLive = sessionIsLiveActivity(right.id, activityInput);
+      if (leftLive !== rightLive) {
+        return leftLive ? -1 : 1;
+      }
+    }
     const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.POSITIVE_INFINITY;
     const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : Number.POSITIVE_INFINITY;
     const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
@@ -649,5 +687,33 @@ function sortPinnedThenUpdated(list: readonly SessionListItemUi[]): SessionListI
       return rightSafe - leftSafe;
     }
     return left.id.localeCompare(right.id);
+  });
+}
+
+function sessionIsLiveActivity(
+  sessionId: string,
+  input: Pick<
+    SidebarTreeRowsInput,
+    | 'revealSessionId'
+    | 'runPhase'
+    | 'workingSessionIds'
+    | 'backendServiceSessionIds'
+    | 'waitingPermissionSessionIds'
+  >,
+): boolean {
+  return sessionRowHasLiveActivity({
+    sessionId,
+    isDraft: false,
+    activeSessionId: input.revealSessionId ?? null,
+    runPhase: input.runPhase ?? 'idle',
+    ...(input.workingSessionIds !== undefined
+      ? { workingSessionIds: input.workingSessionIds }
+      : {}),
+    ...(input.backendServiceSessionIds !== undefined
+      ? { backendServiceSessionIds: input.backendServiceSessionIds }
+      : {}),
+    ...(input.waitingPermissionSessionIds !== undefined
+      ? { waitingPermissionSessionIds: input.waitingPermissionSessionIds }
+      : {}),
   });
 }

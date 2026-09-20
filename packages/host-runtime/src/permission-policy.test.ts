@@ -205,26 +205,33 @@ describe('evaluateBashPermission', () => {
     expect(unmatched.decision).toBe('allow');
   });
 
-  it('asks when the command leaves the project even under bypass', () => {
+  it('does not ask for cd/ls/cat/echo under bypass', () => {
     const root = '/home/u/project';
     const rules = createBundledRuleSet();
-    expect(evaluateBashPermission('cd /tmp', 'bypass', rules, root)).toEqual({
-      decision: 'ask',
-      reason: 'path-escapes-project-root',
-    });
-    expect(evaluateBashPermission('cat ~/notes.txt', 'bypass', rules, root)).toEqual({
-      decision: 'ask',
-      reason: 'path-escapes-project-root',
-    });
-    expect(evaluateBashPermission('ls /etc', 'auto', rules, root)).toEqual({
-      decision: 'ask',
-      reason: 'path-escapes-project-root',
-    });
+    expect(evaluateBashPermission('cd /tmp', 'bypass', rules, root).decision).toBe('allow');
+    expect(evaluateBashPermission('ls /etc', 'bypass', rules, root).decision).toBe('allow');
+    expect(evaluateBashPermission('cat ~/notes.txt', 'bypass', rules, root).decision).toBe('allow');
+    expect(evaluateBashPermission('echo hi', 'bypass', rules, root).decision).toBe('allow');
+    expect(evaluateBashPermission('echo /tmp', 'bypass', rules, root).decision).toBe('allow');
+    expect(evaluateBashPermission('echo hi > /tmp/out', 'bypass', rules, root).decision).toBe(
+      'allow',
+    );
+    expect(evaluateBashPermission('echo hi > ~/notes.txt', 'bypass', rules, root).decision).toBe(
+      'allow',
+    );
+    expect(evaluateBashPermission('cd /tmp && pnpm test', 'bypass', rules, root).decision).toBe(
+      'allow',
+    );
+  });
+
+  it('asks when a writer leaves the project even under bypass', () => {
+    const root = '/home/u/project';
+    const rules = createBundledRuleSet();
     expect(evaluateBashPermission('rm -rf /tmp/foo', 'bypass', rules, root)).toEqual({
       decision: 'ask',
       reason: 'path-escapes-project-root',
     });
-    expect(evaluateBashPermission('cd /tmp && pnpm test', 'bypass', rules, root)).toEqual({
+    expect(evaluateBashPermission('echo hi | tee /tmp/x', 'bypass', rules, root)).toEqual({
       decision: 'ask',
       reason: 'path-escapes-project-root',
     });
@@ -293,6 +300,27 @@ describe('evaluateFileWritePermission', () => {
     });
     expect(result.decision).toBe('ask');
     expect(result.reason).toBe('path-escapes-project-root');
+  });
+
+  it('does not apply leave-workspace in No Repo (empty projectRoot), including yolo', () => {
+    expect(
+      evaluateFileWritePermission({
+        absPath: '/tmp/notes.txt',
+        projectRoot: '',
+        mode: 'bypass',
+      }),
+    ).toEqual({ decision: 'allow', reason: 'bypass-no-match' });
+    const home = homedir();
+    expect(
+      evaluateFileWritePermission({
+        absPath: `${home}/.config/piwin/config.json`,
+        projectRoot: '',
+        mode: 'bypass',
+      }),
+    ).toEqual({ decision: 'allow', reason: 'bypass-ask:config-write' });
+    expect(
+      evaluateBashPermission('echo hi > /tmp/out', 'bypass', createBundledRuleSet(), ''),
+    ).toEqual({ decision: 'allow', reason: 'default-allow' });
   });
 
   it('detects project-evil as escaping project root', () => {

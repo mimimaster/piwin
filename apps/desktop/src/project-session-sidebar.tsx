@@ -276,6 +276,14 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         revealSessionId: props.activeSessionId,
         revealDraftId: props.activeDraftId ?? null,
         groupBy,
+        ...(props.workingSessionIds ? { workingSessionIds: props.workingSessionIds } : {}),
+        ...(props.backendServiceSessionIds
+          ? { backendServiceSessionIds: props.backendServiceSessionIds }
+          : {}),
+        ...(props.waitingPermissionSessionIds
+          ? { waitingPermissionSessionIds: props.waitingPermissionSessionIds }
+          : {}),
+        ...(props.runPhase ? { runPhase: props.runPhase } : {}),
       }),
     [
       collapsedProjects,
@@ -292,8 +300,12 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       props.projectPath,
       props.projectSessionsByPath,
       props.recentProjects,
+      props.backendServiceSessionIds,
+      props.runPhase,
       props.sessionListScopes,
       props.sessionSearch,
+      props.waitingPermissionSessionIds,
+      props.workingSessionIds,
       sortBy,
     ],
   );

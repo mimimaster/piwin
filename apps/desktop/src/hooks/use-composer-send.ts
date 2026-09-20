@@ -830,28 +830,30 @@ export function useComposerSend(params: UseComposerSendArgs) {
             args.clearPendingContextRefs?.();
           }
 
-          // Optimistic text title on send (host also persists nameSource:text).
-          // This inserts the row into the sidebar immediately; LLM may upgrade later.
+          // Optimistic recency + text title on send. Bumping updatedAt here
+          // moves an already-named session to the top of the project list
+          // before the host index-updated push arrives. Placeholder names
+          // still get the interim title; LLM may upgrade later.
           const currentName =
             args.state.sessions.find((session) => session.id === sessionId)?.name ??
             args.state.generalSessions.find((session) => session.id === sessionId)?.name ??
             Object.values(args.state.projectSessionsByPath)
               .flat()
               .find((session) => session.id === sessionId)?.name;
-          if (isPlaceholderSessionName(currentName)) {
-            const interim = deriveDefaultNameFromMessage(displayText);
-            if (interim) {
-              args.dispatch({
-                type: 'session/update',
-                session: {
-                  id: sessionId,
-                  name: interim,
-                  updatedAt: new Date().toISOString(),
-                  scope: ownerScopeAtEntry,
-                },
-              });
-            }
-          }
+          const interim = isPlaceholderSessionName(currentName)
+            ? deriveDefaultNameFromMessage(displayText)
+            : undefined;
+          const preview = displayText.trim().slice(0, 160);
+          args.dispatch({
+            type: 'session/update',
+            session: {
+              id: sessionId,
+              name: interim ?? currentName ?? '',
+              updatedAt: new Date().toISOString(),
+              scope: ownerScopeAtEntry,
+              ...(preview ? { lastPreview: preview } : {}),
+            },
+          });
         } catch (error) {
           if (clientMessageId) {
             rollbackOptimisticUserSend(

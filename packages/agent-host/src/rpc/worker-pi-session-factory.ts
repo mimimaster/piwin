@@ -648,10 +648,12 @@ async function createWorkerModelRuntime(
   if (!runtimeConstructor?.create) {
     throw new Error('Pi ModelRuntime export missing from @earendil-works/pi-coding-agent');
   }
-  return runtimeConstructor.create({
+  const modelRuntime = await runtimeConstructor.create({
     authPath: join(agentDir, 'auth.json'),
     modelsPath: join(agentDir, 'models.json'),
   });
+  attachSubscriptionStreamTiming(modelRuntime);
+  return modelRuntime;
 }
 
 /** Infer the model protocol from the provider envelope for thinking-level mapping. */

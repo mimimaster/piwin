@@ -76,10 +76,16 @@ except deny rules — too hot for a tool people leave on.
 Mode, including `yolo`. Approval-layer only (OS sandbox is still Phase 2):
 
 - `write` / `edit` whose resolved path `escapesRoot` → `ask` (`path-escapes-project-root`).
-- `bash` whose command lexically references a path outside the project
-  (`cd /tmp`, `cat ~/…`, `..`, `--out=/tmp/x`) → `ask`. Bundled allow
-  prefixes (`cd *`, `cat *`, `ls *`) cannot silence that. In-project YOLO
+- `bash` that *writes* outside the project (`tee ~/x`, `rm -rf /tmp/foo`) →
+  `ask`. `cd` / `ls` / `cat` / `echo` never trip this check. In-project YOLO
   still promotes matched `ask` rules (`sudo`, `rm -rf ./build`) to allow.
+
+**Amendment (2026-09-21b):** YOLO must not prompt `cd`, `ls`, `cat`, or `echo`
+for leaving the workspace.
+
+**Amendment (2026-09-21c):** No Repo (General, no bound project) YOLO skips
+the leave-workspace gate entirely — same as pre-escape yolo. Deny circuit
+breakers still apply.
 
 ### 4. Approval scopes: once | session | project
 

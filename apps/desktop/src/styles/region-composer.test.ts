@@ -59,3 +59,23 @@ describe('composer measure column', () => {
     );
   });
 });
+
+describe('permission run mode font colors', () => {
+  it('declares distinctive font colors for yolo, ask, and auto', () => {
+    expect(composerCss).toMatch(
+      /\.run-mode-control\[data-mode='yolo'\] \.run-mode-value[\s\S]*?color:\s*var\(--zhu,\s*var\(--coral\)\);/,
+    );
+    expect(composerCss).toMatch(
+      /\.run-mode-control\[data-mode='ask'\] \.run-mode-value[\s\S]*?color:\s*var\(--lamp,\s*var\(--amber\)\);/,
+    );
+    expect(composerCss).toMatch(
+      /\.run-mode-control\[data-mode='auto'\] \.run-mode-value[\s\S]*?color:\s*var\(--pine,\s*var\(--mint\)\);/,
+    );
+  });
+
+  it('colors options in the run mode popover', () => {
+    expect(composerCss).toContain(".run-mode-option[data-mode='yolo'] .run-mode-option-label");
+    expect(composerCss).toContain(".run-mode-option[data-mode='ask'] .run-mode-option-label");
+    expect(composerCss).toContain(".run-mode-option[data-mode='auto'] .run-mode-option-label");
+  });
+});

@@ -65,6 +65,7 @@
       "nsis": {
         "installMode": "currentUser",
         "languages": ["SimpChinese", "English"],
+        "template": "windows/installer.nsi",
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico",
         "sidebarImage": "icons/nsis-sidebar.bmp",

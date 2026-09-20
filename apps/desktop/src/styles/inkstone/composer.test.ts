@@ -76,4 +76,9 @@ describe('Inkstone composer.css context capsules', () => {
       /\.composer-v2-send-btn \{[\s\S]*?width: 32px;[\s\S]*?height: 32px;/,
     );
   });
+  it("applies Inkstone colors to run mode trigger values", () => {
+    expect(composer).toContain(".slab .run-mode-trigger[data-mode='yolo'] .run-mode-value { color: var(--zhu); }");
+    expect(composer).toContain(".slab .run-mode-trigger[data-mode='ask'] .run-mode-value { color: var(--lamp); }");
+    expect(composer).toContain(".slab .run-mode-trigger[data-mode='auto'] .run-mode-value { color: var(--pine); }");
+  });
 });

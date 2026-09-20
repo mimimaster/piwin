@@ -22,9 +22,15 @@ import { getSessionRecord } from '@piwin/session';
 import { type ProductAgentHostToolRegistrationMode } from './product-agent-host.js';
 import { loadPiwinConfig } from './config-store.js';
 import { createSecretResolver } from './secret-resolver.js';
-import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import {
+  getPiwinGeneralWorkspacePath,
+  getPiwinProjectsPath,
+  getPiwinRoot,
+  getPiwinSessionIndexPath,
+} from './paths.js';
 import { applySessionMcpOverrides, sessionMcpOverrideKey } from './session-mcp-overrides.js';
 import { createBundledRuleSet } from './permission-defaults.js';
+import { resolvePermissionProjectRoot } from './permission-project-root.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { loadMergedPermissionRules } from './permission-rule-loader.js';
 import { fail } from './response-helpers.js';
@@ -343,7 +349,7 @@ export async function composeSessionHostToolsForSession(
         defaultDecision: input.defaultDecision,
         ...(input.signal ? { signal: input.signal } : {}),
       }),
-    projectRoot: projectPath ?? rootDir ?? process.cwd(),
+    projectRoot: resolvePermissionProjectRoot(projectPath, getPiwinGeneralWorkspacePath(rootDir)),
     ...(projectPath !== undefined ? { projectPath } : {}),
     projectsFilePath: getPiwinProjectsPath(rootDir),
     // Host resource admission (`execution.minAvailableMemoryMiB`). Counts what

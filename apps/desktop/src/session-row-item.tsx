@@ -14,7 +14,11 @@ import {
 } from './shell-icons';
 import { InkLineNode } from './ink-line-node';
 import { formatSessionRelativeTime } from './session-relative-time';
-import { sessionRowIsWorking, type SessionRowRunPhase } from './session-row-working';
+import {
+  sessionRowHasLiveActivity,
+  sessionRowIsWorking,
+  type SessionRowRunPhase,
+} from './session-row-working';
 import { sessionScopeKey } from './session-scope-key';
 import { useSessionDrag } from './workbench/docking/docking-session-drag.js';
 
@@ -186,7 +190,19 @@ export function SessionRowItem({
     !isDraft && backendServiceSessionIds != null && session.id in backendServiceSessionIds;
   const isWaitingOnPermission =
     !isDraft && waitingPermissionSessionIds != null && session.id in waitingPermissionSessionIds;
-  const hasActiveSessionWork = isWorking || hasActiveBackendService || isWaitingOnPermission;
+  const hasActiveSessionWork = sessionRowHasLiveActivity({
+    sessionId: session.id,
+    isDraft,
+    activeSessionId,
+    runPhase: runPhase ?? 'idle',
+    ...(workingSessionIds !== undefined ? { workingSessionIds } : {}),
+    ...(backendServiceSessionIds !== undefined
+      ? { backendServiceSessionIds }
+      : {}),
+    ...(waitingPermissionSessionIds !== undefined
+      ? { waitingPermissionSessionIds }
+      : {}),
+  });
   const hasCompletedAttention =
     !isDraft && completedAttentionSessionIds != null && session.id in completedAttentionSessionIds;
   const hasFailedAttention =

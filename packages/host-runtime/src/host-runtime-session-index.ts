@@ -25,6 +25,8 @@ import { ok } from './response-helpers.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { ensureBrowserSessionBestEffort } from './host-runtime-services.js';
+import { sessionIndexUpdatedPush } from './session-index-push.js';
+import { indexRecordToSummary } from './session-summary-map.js';
 
 export async function resolveAutoCompaction(
   deps: HostRuntimeKernel,
@@ -133,6 +135,7 @@ export async function touchSession(
     current.messageCount += 1;
     current.lastPreview = preview.slice(0, 160);
     await upsertSessionRecord(indexPath, current);
+    pushSessionIndexTouch(deps, 'updated', current);
     return;
   }
   const projectPath = deps.sessionProjects.get(sessionId) ?? 'unknown';
@@ -144,6 +147,21 @@ export async function touchSession(
   record.messageCount = 1;
   record.lastPreview = preview.slice(0, 160);
   await upsertSessionRecord(indexPath, record);
+  pushSessionIndexTouch(deps, 'created', record);
+}
+
+function pushSessionIndexTouch(
+  deps: HostRuntimeKernel,
+  op: 'updated' | 'created',
+  record: Parameters<typeof indexRecordToSummary>[0],
+): void {
+  deps.push(
+    sessionIndexUpdatedPush({
+      op,
+      sessionId: record.id,
+      session: indexRecordToSummary(record),
+    }),
+  );
 }
 
 /**

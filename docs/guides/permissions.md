@@ -39,7 +39,7 @@ Permissions, or via CLI flags.
 
 Even in `yolo`, these actions always prompt (or are denied non-interactively):
 
-- Paths outside the project root — bash tokens like `cd /tmp`, `cat ~/…`, `..`, and `write`/`edit` to an out-of-project path.
+- Writes outside a **bound project** root — `tee ~/x`, `rm -rf /tmp/foo`, and `write`/`edit` to an out-of-project path. `cd` / `ls` / `cat` / `echo` are not prompted. **No Repo / General YOLO does not apply this gate** (same as pre-escape yolo: deny rules still fire).
 - `rm -rf /` and equivalent root-deletion patterns.
 - Writes to secret paths (`~/.ssh/**`, `**/.env`, `**/*.pem`, `**/id_rsa`, …).
 - Force-push to `main` / `master`.

@@ -466,6 +466,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .slab .run-mode-trigger,
   .slab .orchestration-scheme-trigger { color: var(--slab-ph); padding-inline: 6px; }
   .slab :is(.run-mode-trigger, .orchestration-scheme-trigger) :is(span, svg) { color: inherit; }
+  .slab .run-mode-trigger[data-mode='yolo'] .run-mode-value { color: var(--zhu); }
+  .slab .run-mode-trigger[data-mode='yolo']:hover .run-mode-value { color: var(--zhu-lift); }
+  .slab .run-mode-trigger[data-mode='ask'] .run-mode-value { color: var(--lamp); }
+  .slab .run-mode-trigger[data-mode='ask']:hover .run-mode-value { color: var(--lamp-lift, var(--lamp)); }
+  .slab .run-mode-trigger[data-mode='auto'] .run-mode-value { color: var(--pine); }
+  .slab .run-mode-trigger[data-mode='auto']:hover .run-mode-value { color: var(--pine-lift, var(--pine)); }
 }
 
 /* "+" menu and its flyouts — proto-02 `.pop` (b10): s4 sheet, sh3 lift,

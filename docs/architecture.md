@@ -331,12 +331,11 @@ effect on the next session (no hot-reload).
 | `bypass` | allow¹ | allow | ask | allow | **still enforced** |
 
 ¹ Bash unmatched → allow **only after** bundled deny **and** bundled ask
-tiers, and only when the command does not lexically leave the project root
-(`cd /tmp`, `~/…`, `..`). Leave-workspace bash is `ask` in every mode,
-including YOLO; bundled `cd *` / `cat *` / `ls *` cannot silence it. A
-built-in safe-prefix allowlist (`ls *`, `git status`, `pnpm test`, …) is
-bundled as `allow` rules so they are visible/editable (useful mainly under
-`ask-all`).
+tiers. A writer that lexically targets a path outside the project (`tee ~/x`,
+`rm -rf /tmp/foo`) is `ask` in every mode, including YOLO. `cd` / `ls` /
+`cat` / `echo` never trip that check. A built-in safe-prefix allowlist
+(`ls *`, `git status`, `pnpm test`, …) is bundled as `allow` rules so they
+are visible/editable (useful mainly under `ask-all`).
 
 **Bypass guard:** `bypass` is refused for **untrusted** projects (downgraded to
 `auto` + `host/log` warning) so a freshly-cloned repo cannot disable prompts by

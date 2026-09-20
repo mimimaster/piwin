@@ -224,6 +224,7 @@ async function createBackendModelRuntime(
     authPath: join(agentDir, 'auth.json'),
     modelsPath: join(agentDir, 'models.json'),
   });
+  attachSubscriptionStreamTiming(modelRuntime);
   const oauthProviderIds: string[] = [];
   for (const provider of providers) {
     if (provider.auth.kind === 'oauth') {

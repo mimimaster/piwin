@@ -442,10 +442,33 @@
   background: var(--iris-wash);
 }
 
-/* A relaxed permission preset is a standing condition: amber text only, no
-   fill — ember and coral must stay the loudest things in this toolbar. */
-.run-mode-control.is-warning .run-mode-value {
-  color: var(--amber);
+/* Distinct font colors for permission run modes (YOLO / Ask / Auto) */
+.run-mode-control.is-warning .run-mode-value,
+.run-mode-control[data-mode='yolo'] .run-mode-value,
+.run-mode-trigger[data-mode='yolo'] .run-mode-value {
+  color: var(--zhu, var(--coral));
+}
+
+.run-mode-control[data-mode='ask'] .run-mode-value,
+.run-mode-trigger[data-mode='ask'] .run-mode-value {
+  color: var(--lamp, var(--amber));
+}
+
+.run-mode-control[data-mode='auto'] .run-mode-value,
+.run-mode-trigger[data-mode='auto'] .run-mode-value {
+  color: var(--pine, var(--mint));
+}
+
+.run-mode-trigger[data-mode='yolo']:hover .run-mode-value {
+  color: var(--zhu-lift, var(--coral));
+}
+
+.run-mode-trigger[data-mode='ask']:hover .run-mode-value {
+  color: var(--lamp-lift, var(--amber));
+}
+
+.run-mode-trigger[data-mode='auto']:hover .run-mode-value {
+  color: var(--pine-lift, var(--mint));
 }
 
 .thinking-effort-chevron,
@@ -689,9 +712,37 @@
   background: var(--iris-wash);
 }
 
+.run-mode-option[data-mode='yolo'].is-selected {
+  background: var(--zhu-wash, color-mix(in srgb, var(--coral) 12%, transparent));
+}
+
+.run-mode-option[data-mode='ask'].is-selected {
+  background: var(--lamp-wash, color-mix(in srgb, var(--amber) 14%, transparent));
+}
+
+.run-mode-option[data-mode='auto'].is-selected {
+  background: var(--pine-wash, color-mix(in srgb, var(--mint) 12%, transparent));
+}
+
 .run-mode-option-label {
   font-weight: 600;
   min-width: 48px;
+}
+
+.run-mode-option[data-mode='yolo'] .run-mode-option-label {
+  color: var(--zhu, var(--coral));
+}
+
+.run-mode-option[data-mode='ask'] .run-mode-option-label {
+  color: var(--lamp, var(--amber));
+}
+
+.run-mode-option[data-mode='auto'] .run-mode-option-label {
+  color: var(--pine, var(--mint));
+}
+
+.run-mode-option[data-mode='yolo'] .run-mode-option-warning {
+  color: var(--zhu, var(--coral));
 }
 
 .run-mode-option-desc {

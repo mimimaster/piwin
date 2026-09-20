@@ -52,4 +52,15 @@ describe('attachSubscriptionStreamTiming', () => {
     );
     expect(registerProvider.mock.calls[0]?.[1]).not.toHaveProperty('models');
   });
+
+  it('defaults to every v1 subscription id', () => {
+    const registerProvider = vi.fn();
+    const runtime = { registerProvider } as unknown as PiModelRuntime;
+    attachSubscriptionStreamTiming(runtime);
+    const ids = registerProvider.mock.calls.map((call) => call[0]);
+    expect(ids).toEqual(
+      expect.arrayContaining(['xai', 'openai-codex', 'anthropic', 'kimi-coding', 'github-copilot']),
+    );
+    expect(ids).not.toContain('anthropic-claude-code');
+  });
 });

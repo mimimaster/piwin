@@ -5,10 +5,10 @@
  * Session-level by default; "Set as default" writes config.permissions.preset.
  * Modeled on ThinkingEffortControl (upward popover, compact trigger).
  */
-import { useState, type ReactElement } from 'react';
-import { Popover } from '@piwin/ui-kit';
-import type { PermissionPreset } from '@piwin/contracts';
-import { useDesktopLocale } from './desktop-locale-context';
+import { useState, type ReactElement } from "react";
+import { Popover } from "@piwin/ui-kit";
+import type { PermissionPreset } from "@piwin/contracts";
+import { useDesktopLocale } from "./desktop-locale-context";
 
 export type RunModeControlProps = {
   disabled: boolean;
@@ -33,25 +33,25 @@ type PresetDef = {
 
 const PRESETS: readonly PresetDef[] = [
   {
-    id: 'auto',
-    label: 'Auto',
-    zhLabel: '自动',
-    description: 'Sandboxed; asks to leave workspace or open network.',
-    zhDescription: '沙箱内自动执行；离开项目或出网时询问',
+    id: "auto",
+    label: "Auto",
+    zhLabel: "自动",
+    description: "Sandboxed; asks to leave workspace or open network.",
+    zhDescription: "沙箱内自动执行；离开项目或出网时询问",
   },
   {
-    id: 'ask',
-    label: 'Ask',
-    zhLabel: '每次询问',
-    description: 'Asks before almost every tool call (still sandboxed).',
-    zhDescription: '几乎每个工具都确认（仍在沙箱内）',
+    id: "ask",
+    label: "Ask",
+    zhLabel: "每次询问",
+    description: "Asks before almost every tool call (still sandboxed).",
+    zhDescription: "几乎每个工具都确认（仍在沙箱内）",
   },
   {
-    id: 'yolo',
-    label: 'YOLO',
-    zhLabel: '放行',
-    description: 'No sandbox, no prompts. Circuit breakers still fire.',
-    zhDescription: '关闭沙箱，跳过常规确认。危险操作仍会拦截。',
+    id: "yolo",
+    label: "YOLO",
+    zhLabel: "放行",
+    description: "No sandbox, no prompts. Circuit breakers still fire.",
+    zhDescription: "关闭沙箱，跳过常规确认。危险操作仍会拦截。",
     warning: true,
   },
 ];
@@ -70,20 +70,21 @@ export function RunModeControl({
   yoloDisabled,
 }: RunModeControlProps): ReactElement {
   const { locale } = useDesktopLocale();
-  const isZh = locale === 'zh-CN';
+  const isZh = locale === "zh-CN";
   const [open, setOpen] = useState(false);
-  const isWarning = value === 'yolo';
+  const isWarning = value === "yolo";
 
   return (
     <div
-      className={isWarning ? 'run-mode-control is-warning' : 'run-mode-control'}
+      className={isWarning ? "run-mode-control is-warning" : "run-mode-control"}
+      data-mode={value}
     >
       <Popover
         open={open}
         onOpenChange={setOpen}
         side="top"
         align="end"
-        label={isZh ? '运行模式' : 'Run mode'}
+        label={isZh ? "运行模式" : "Run mode"}
         testId="run-mode-popover"
         contentClassName="run-mode-popover"
         trigger={
@@ -102,22 +103,23 @@ export function RunModeControl({
       >
         <div className="run-mode-section">
           <div className="run-mode-section-title">
-            {isZh ? '运行模式' : 'Run mode'}
+            {isZh ? "运行模式" : "Run mode"}
           </div>
           {PRESETS.map((def) => {
-            const isYoloDisabled = def.id === 'yolo' && yoloDisabled;
+            const isYoloDisabled = def.id === "yolo" && yoloDisabled;
             return (
               <button
                 key={def.id}
                 type="button"
                 className={
                   value === def.id
-                    ? 'run-mode-option is-selected'
-                    : 'run-mode-option'
+                    ? "run-mode-option is-selected"
+                    : "run-mode-option"
                 }
                 data-testid={`run-mode-option-${def.id}`}
+                data-mode={def.id}
                 disabled={isYoloDisabled}
-                title={isYoloDisabled ? (isZh ? '未信任项目不可用' : 'Unavailable for untrusted projects') : undefined}
+                title={isYoloDisabled ? (isZh ? "未信任项目不可用" : "Unavailable for untrusted projects") : undefined}
                 onClick={() => {
                   onChange(def.id);
                   setOpen(false);
@@ -153,7 +155,7 @@ export function RunModeControl({
                 onSetDefault(value);
               }}
             >
-              {isZh ? '设为默认' : 'Set as default'}
+              {isZh ? "设为默认" : "Set as default"}
             </button>
           ) : null}
           {onOpenSettings ? (
@@ -166,7 +168,7 @@ export function RunModeControl({
                 onOpenSettings();
               }}
             >
-              {isZh ? '管理规则…' : 'Manage rules…'}
+              {isZh ? "管理规则…" : "Manage rules…"}
             </button>
           ) : null}
         </div>
