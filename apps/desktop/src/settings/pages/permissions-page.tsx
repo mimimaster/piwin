@@ -63,11 +63,11 @@ function getModeMeta(preset: PermissionPreset, isChinese: boolean): ModeMeta {
         badgeTone: 'zhu',
         tagline: isChinese ? '全速推进 · 跳过常规确认' : 'Full Throttle · Zero Friction',
         description: isChinese
-          ? '跳过项目内常规确认，全速流式执行；出项目空间、全局 deny 与高危熔断始终询问或拒绝。'
-          : 'Skips routine in-project confirmations; leaving the workspace still asks. Global deny rules and circuit breakers always apply.',
+          ? '跳过常规确认，全速执行；仅 rm -rf 仍询问，deny 熔断仍拒绝。'
+          : 'Skips routine confirmations. Only rm -rf still asks. Deny circuit breakers still apply.',
         features: isChinese
-          ? ['项目内免确认', '出项目仍询问', '硬性熔断兜底']
-          : ['In-project, no prompts', 'Leave-workspace asks', 'Hard breakers active'],
+          ? ['常规免确认', '仅拦 rm -rf', '硬性熔断兜底']
+          : ['No routine prompts', 'rm -rf still asks', 'Hard breakers active'],
       };
   }
 }

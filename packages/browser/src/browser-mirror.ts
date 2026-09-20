@@ -38,6 +38,7 @@ export type BrowserMirrorDeps = {
   getPage: () => Promise<Page>;
   hasActiveMirrorLease: () => boolean;
   resolveDeviceScaleFactor: (page: Page) => Promise<number>;
+  screencastQuality?: number;
   /** Single delivery path for both producers. */
   onFrame: (frame: BrowserFrameResult) => void;
 };
@@ -153,9 +154,10 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
     frameLoop.stop();
     try {
       const maxFps = resolveBrowserScreencastFps(size.width * size.height, deps.maxFps);
+      const screencastQuality = deps.screencastQuality ?? BROWSER_SCREENCAST_QUALITY;
       screencastHandle = await startScreencast(activePage, {
         size,
-        quality: BROWSER_SCREENCAST_QUALITY,
+        quality: screencastQuality,
         maxFps,
         emit: (frame) => {
           if (!deps.hasActiveMirrorLease()) return;
@@ -166,7 +168,7 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
             encodedWidth: frame.encodedWidth,
             encodedHeight: frame.encodedHeight,
             sourceDpr: deviceScaleFactor,
-            quality: BROWSER_SCREENCAST_QUALITY,
+            quality: screencastQuality,
             producer: 'screencast',
           });
         },

@@ -18,8 +18,8 @@ export type WebPermissionAction = 'web_search' | 'web_fetch';
  * Apply Run Mode to a matched rule decision.
  *
  * Under `bypass` (user-facing YOLO), matched `ask` rules are treated as allow so
- * behavior stays close to Pi-native "no permission popups". Matched `deny` rules
- * always win — those are the hard circuit breakers that yolo cannot silence.
+ * behavior stays close to Pi-native "no permission popups", except
+ * `rm-recursive-force` which still asks. Matched `deny` rules always win.
  *
  * `auto` / `ask-all` keep the matched decision unchanged.
  */
@@ -28,6 +28,9 @@ export function applyModeToMatchedRule(
   mode: PermissionMode,
 ): PermissionEvaluation {
   if (matched.decision === 'ask' && mode === 'bypass') {
+    if (matched.reason === 'rm-recursive-force') {
+      return { decision: 'ask', reason: matched.reason };
+    }
     return {
       decision: 'allow',
       reason: `bypass-ask:${matched.reason}`,
@@ -47,12 +50,9 @@ export function applyModeToMatchedRule(
  * hardcoded decisions (pipe-to-shell deny, rm-recursive-force ask, etc.) with
  * stable reason strings. On `'no-match'`: `allow` for `auto`/`bypass`, `ask`
  * for `ask-all`. Under `bypass`, matched `ask` rules are promoted to allow
- * (`bypass-ask:<reason>`); matched `deny` rules still deny.
- *
- * When `projectRoot` is set, a stage that *writes* outside the project
- * (`tee ~/x`, `rm -rf /tmp/foo`) is `ask` in every mode, including YOLO.
- * `cd` / `ls` / `cat` / `echo` never trip this check. Deny still wins first
- * (`rm -rf /`).
+ * (`bypass-ask:<reason>`), except `rm-recursive-force` which still asks.
+ * Matched `deny` rules still deny. Leave-workspace asks apply in `auto` /
+ * `ask-all` only — YOLO does not use that gate.
  *
  * Pure function — no IO.
  */
@@ -74,7 +74,7 @@ export function evaluateBashPermission(
   if (matched?.decision === 'deny') {
     return applyModeToMatchedRule(matched, mode);
   }
-  if (bashCommandEscapesProjectRoot(normalized, projectRoot)) {
+  if (mode !== 'bypass' && bashCommandEscapesProjectRoot(normalized, projectRoot)) {
     return { decision: 'ask', reason: 'path-escapes-project-root' };
   }
   // Prefix globs like `cd *` / `ls *` match across `&&` / `;`. A whole-command
@@ -113,13 +113,12 @@ export function evaluateBashPermission(
  *
  * 1. `evaluateRules` for `{ kind: 'file-write', path: absPath }`.
  * 2. On match → that decision + reason.
- *    Under `bypass`, matched in-project `ask` is promoted to allow; out-of-project
- *    `ask` stays ask; matched `deny` still denies.
+ *    Under `bypass`, matched `ask` is promoted to allow; matched `deny` still
+ *    denies. YOLO does not apply the leave-workspace gate.
  * 3. On `'no-match'`:
- *    - bound project + `escapesRoot` → ask in every mode, including YOLO.
- *    - No Repo / empty projectRoot: no leave-workspace gate (YOLO allows).
- *    - `bypass` in-project → allow.
- *    - else in-project → allow in `auto`/`bypass`, ask in `ask-all`.
+ *    - bound project + `escapesRoot` → ask in `auto` / `ask-all` (not YOLO).
+ *    - `bypass` → allow.
+ *    - else in-project → allow in `auto`, ask in `ask-all`.
  *
  * Pure — no FS. The caller is expected to realpath-resolve `absPath` when
  * possible so symlink-aware checks happen before this function.
@@ -140,20 +139,10 @@ export function evaluateFileWritePermission(input: {
   const matched = findMatchingRule({ kind: 'file-write', path: normalizedPath }, ruleSet);
   const bound = isBoundPermissionProjectRoot(projectRoot);
   if (matched) {
-    // YOLO must not silence out-of-project asks (`~/.config/**`) in a repo.
-    // No Repo has no project boundary — yolo promotes as before.
-    if (
-      matched.decision === 'ask' &&
-      mode === 'bypass' &&
-      bound &&
-      escapesRoot(projectRoot, normalizedPath)
-    ) {
-      return { decision: 'ask', reason: matched.reason };
-    }
     return applyModeToMatchedRule(matched, mode);
   }
 
-  if (bound && escapesRoot(projectRoot, normalizedPath)) {
+  if (mode !== 'bypass' && bound && escapesRoot(projectRoot, normalizedPath)) {
     return { decision: 'ask', reason: 'path-escapes-project-root' };
   }
 

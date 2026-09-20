@@ -87,6 +87,11 @@ for leaving the workspace.
 the leave-workspace gate entirely — same as pre-escape yolo. Deny circuit
 breakers still apply.
 
+**Amendment (2026-09-21d):** YOLO no longer uses the leave-workspace gate at
+all. The only remaining YOLO **ask** is `rm-recursive-force` (`rm -rf …`).
+Deny circuit breakers (`rm -rf /`, secrets, pipe-to-shell) still deny.
+Leave-workspace asks remain in `auto` / `ask-all`.
+
 ### 4. Approval scopes: once | session | project
 
 Today: once / project. Add **session** (in-memory, per session). Default focus

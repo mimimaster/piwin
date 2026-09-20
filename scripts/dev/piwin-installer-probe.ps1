@@ -5,6 +5,7 @@
 # desktop session, which an SSH-launched process cannot reach.
 param(
     [string]$Installer = "C:\Users\zhangjiale\Desktop\piwin-Setup-x64.exe",
+    [string]$Arguments = "",
     [string]$LogPath   = "D:\src\card-check.log",
     [string]$ShotPath  = "D:\src\card-check.png",
     [int]$WaitSeconds  = 15,
@@ -99,7 +100,11 @@ try {
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
     W ("screen=" + $screen.Width + "x" + $screen.Height)
 
-    $proc = Start-Process -FilePath $Installer -PassThru
+    if ($Arguments -ne "") {
+        $proc = Start-Process -FilePath $Installer -ArgumentList $Arguments -PassThru
+    } else {
+        $proc = Start-Process -FilePath $Installer -PassThru
+    }
     W ("launched pid=" + $proc.Id)
 
     $hwnd = [IntPtr]::Zero
@@ -132,6 +137,12 @@ try {
                 [void][WinProbe]::GetWindowRect($hwnd, [ref]$wr)
                 $shotW = $wr.Right - $wr.Left
                 $shotH = $wr.Bottom - $wr.Top
+                $wDpi = [WinProbe]::GetDpiForWindow($hwnd)
+                if ($wDpi -gt 96) {
+                    $scale = [double]$wDpi / 96.0
+                    $shotW = [int]($shotW * $scale)
+                    $shotH = [int]($shotH * $scale)
+                }
                 if ($shotW -le 0 -or $shotH -le 0) { W ("shot skipped for " + $label); return }
                 $bmp = New-Object System.Drawing.Bitmap $shotW, $shotH
                 $gfx = [System.Drawing.Graphics]::FromImage($bmp)

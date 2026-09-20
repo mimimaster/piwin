@@ -1,33 +1,21 @@
 /**
  * Devin-style context compaction for Pi (@piwin-bundled-extension).
  *
- * Mechanism recovered from the local Devin Desktop/CLI build (Devin 3.0.21,
- * crates `agent-ext/src/compactor/*` + Windsurf Cascade client) and ported to
- * Pi's native compaction pipeline:
+ * Recovered from Devin 3.0.21 (`agent-ext/src/compactor/*`) and applied to
+ * every Pi compaction (manual /compact, the compact tool, threshold, overflow):
  *
- * 1. History file — the full doomed conversation is written to
- *    `~/.piwin/compact/<session>/<timestamp>-<n>.md` before every compaction
- *    (Devin: "the full conversation will be saved to a history file"), and the
- *    summary points at it via message-id citations.
- * 2. Carry-over — edited/written files survive compaction (Devin's
- *    `compact/edited_files` carrier: "apply_summary: preserving N edited file
- *    path(s)") and are re-injected into the next LLM context.
- * 3. Devin summarizer shape — the exact `<summary>` structure (Overview /
- *    Key Details & Breadcrumbs / Current State), full summary every time,
- *    never diffs, never re-reciting rules, is passed to Pi's native
- *    summarizer as custom instructions.
- * 4. Events + logging — `CompactionStarted`/`Compacted`/`CompactionFailed`
- *    map onto Pi's `session_before_compact` / `session_compact` hooks plus a
- *    JSONL log (Devin's `post_compaction` hook example logs to a file).
- * 5. Busy guard — Devin rejects a forced compact while the agent is working
- *    ("Cannot compact while the agent is working"); prompts typed during
- *    compaction are queued by Pi natively.
+ * 1. History file — doomed messages written to
+ *    `~/.piwin/compact/<session>/<timestamp>-<n>.md` with `[mN]` citations.
+ * 2. Devin `<summary>` — Overview / Key Details & Breadcrumbs / Current State.
+ *    Returned from `session_before_compact` so auto-compact uses it too
+ *    (Pi's native summarizer cannot take extension customInstructions).
+ * 3. Carry-over — edited/written files survive (Devin `compact/edited_files`)
+ *    and are re-injected once on the next `context` hook.
+ * 4. Busy guard — user `/compact` waits for idle or rejects mid-turn
+ *    ("Cannot compact while the agent is working"). The compact *tool* is
+ *    called during a turn on purpose; it fires compaction and returns
+ *    immediately because `ctx.compact()` aborts the current agent run.
  *
- * Threshold semantics: Devin's `agent.compaction_threshold_tokens` maps to
- * Pi's native `CompactionSettings` (`reserveTokens` / `keepRecentTokens` in
- * settings.jsonl); piwin surfaces enablement via pi-compaction-settings.
- *
- * Loaded by Pi jiti as a product extension under ~/.piwin/extensions.
  * Disable via config.extensions.disabledIds: ["compact"].
  */
 
@@ -67,15 +55,16 @@ export type RegisteredTool = {
 
 export type ExtensionApi = {
   registerTool?: (tool: RegisteredTool) => void;
-  registerCommand?: (command: {
-    name: string;
-    description: string;
-    callback: (args: string, ctx: unknown) => Promise<void> | void;
-  }) => void;
+  registerCommand?: (
+    name: string,
+    options: {
+      description?: string;
+      handler: (args: string, ctx: unknown) => Promise<void> | void;
+    },
+  ) => void;
   on?: (event: string, handler: (...args: unknown[]) => unknown) => void;
 };
 
-/** Loosely-typed view over Pi runtime objects (no Pi imports in bundled extensions). */
 type Loose = Record<string, unknown>;
 
 function asLoose(value: unknown): Loose | undefined {
@@ -101,14 +90,13 @@ function truncateMiddle(text: string, maxChars: number): string {
   return `${text.slice(0, head)}\n…[truncated ${text.length - maxChars} chars]…\n${text.slice(-tail)}`;
 }
 
-/* ------------------------------------------------------------------ *
- * Devin summarizer instructions (recovered from Devin 3.0.21 binary) *
- * ------------------------------------------------------------------ */
+function oneLine(text: string, maxChars: number): string {
+  const collapsed = text.replace(/\s+/g, ' ').trim();
+  if (collapsed.length <= maxChars) return collapsed;
+  return `${collapsed.slice(0, maxChars)}…`;
+}
 
-/**
- * Passed to Pi's native summarizer as `customInstructions`. Pi appends these
- * to its default summarization prompt; this is the Devin structure verbatim.
- */
+/** Devin summarizer shape — used both as the produced summary and as fallback instructions. */
 export const DEVIN_SUMMARY_INSTRUCTIONS = `Structure the summary exactly as follows:
 
 <summary>
@@ -133,13 +121,9 @@ Rules:
 - Do NOT reproduce or recite any rules, instructions, or guidelines that were included verbatim in the conversation (e.g., content inside <rules> or <rule> tags). Rules are re-discovered and re-injected as needed when the agent accesses relevant files.
 - Be concise, but ensure someone could resume work using only your summary.`;
 
-/** Devin rejects a forced compaction while the agent is mid-turn. */
+/** Devin rejects a user-forced compact while the agent is mid-turn. */
 export const COMPACT_BUSY_MESSAGE =
   'Cannot compact while the agent is working. Finish the current step first; prompts sent during compaction are queued automatically.';
-
-/* ------------------------------------------------------------------ *
- * Paths                                                               *
- * ------------------------------------------------------------------ */
 
 export function resolveCompactRoot(customRoot?: string): string {
   if (customRoot) return customRoot;
@@ -170,10 +154,6 @@ export function formatTimestamp(date: Date): string {
     `-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
   );
 }
-
-/* ------------------------------------------------------------------ *
- * Transcript rendering (the history file)                             *
- * ------------------------------------------------------------------ */
 
 export type TranscriptMessage = {
   role: string;
@@ -215,7 +195,6 @@ function contentToToolCalls(content: unknown): TranscriptMessage['toolCalls'] {
   return calls;
 }
 
-/** Normalize one loosely-typed Pi message into transcript form. */
 export function toTranscriptMessage(message: unknown): TranscriptMessage {
   const loose = asLoose(message);
   const role = asString(loose?.role) ?? 'unknown';
@@ -234,10 +213,6 @@ export type TranscriptMeta = {
   createdAt: Date;
 };
 
-/**
- * Render the doomed conversation as a markdown history file. Message ids
- * (`[m3]`, `[m3.t1]`) are the citations the Devin-style summary refers to.
- */
 export function renderTranscriptMarkdown(
   messages: readonly unknown[],
   meta: TranscriptMeta,
@@ -280,10 +255,6 @@ export function renderTranscriptMarkdown(
   return lines.join('\n');
 }
 
-/* ------------------------------------------------------------------ *
- * Carry-over state (Devin compact/edited_files + todo list carriers)  *
- * ------------------------------------------------------------------ */
-
 export type CompactState = {
   cwd: string;
   sessionDir: string;
@@ -292,6 +263,7 @@ export type CompactState = {
   lastHistoryFile?: string;
   lastTokensBefore?: number;
   lastCompactedAt?: string;
+  pendingFocus?: string;
 };
 
 export const EDITED_FILES_LIMIT = 50;
@@ -300,7 +272,6 @@ export function createCompactState(cwd: string, root?: string): CompactState {
   return { cwd, sessionDir: sessionDirFor(cwd, root), compactionCount: 0, editedFiles: [] };
 }
 
-/** Devin: "apply_summary: preserving N edited file path(s)". */
 export function recordEditedFiles(state: CompactState, paths: readonly string[]): number {
   for (const path of paths) {
     const trimmed = path.trim();
@@ -313,10 +284,6 @@ export function recordEditedFiles(state: CompactState, paths: readonly string[])
   return state.editedFiles.length;
 }
 
-/**
- * The block re-injected into the next LLM context after a compaction —
- * Devin's history-file pointer plus preserved edited-file list.
- */
 export function renderCarryoverBlock(state: CompactState, maxPaths = 12): string {
   const lines: string[] = ['<compaction_carryover source="compact-extension">'];
   lines.push(
@@ -342,15 +309,107 @@ export function renderCarryoverBlock(state: CompactState, maxPaths = 12): string
   return lines.join('\n');
 }
 
-/** One injection per compaction: only surface the block once. */
 export function shouldInjectCarryover(state: CompactState, lastInjected?: string): boolean {
   if (!state.lastHistoryFile) return false;
   return lastInjected !== state.lastHistoryFile;
 }
 
-/* ------------------------------------------------------------------ *
- * History file + log persistence                                      *
- * ------------------------------------------------------------------ */
+/**
+ * Devin `<summary>` built from the doomed transcript. Used as the compaction
+ * entry so threshold/overflow compact (which cannot take customInstructions)
+ * still get the Devin shape. Details live in the history file.
+ */
+export function renderDevinSummary(opts: {
+  messages: readonly unknown[];
+  historyFile?: string;
+  editedFiles?: readonly string[];
+  previousSummary?: string;
+  tokensBefore?: number;
+  focus?: string;
+  isSplitTurn?: boolean;
+}): string {
+  const normalized = opts.messages.map((message, index) => ({
+    id: `m${index + 1}`,
+    ...toTranscriptMessage(message),
+  }));
+  const users = normalized.filter(
+    (message) => message.role === 'user' && !message.text.includes('<compaction_carryover'),
+  );
+  const lastUser = users.at(-1);
+  const lastAssistant = [...normalized].reverse().find((message) => message.role === 'assistant');
+  const tools = normalized.flatMap((message) =>
+    message.toolCalls.map((call) => ({ mid: message.id, ...call })),
+  );
+  const errorLines: string[] = [];
+  for (const message of normalized) {
+    if (message.role !== 'toolResult' && message.role !== 'tool') continue;
+    const text = message.text.trim();
+    if (/error|failed|exception|traceback/i.test(text)) {
+      errorLines.push(`- [${message.id}] ${oneLine(text, 220)}`);
+    }
+  }
+
+  const overviewParts: string[] = [];
+  if (lastUser?.text) overviewParts.push(oneLine(lastUser.text, 280));
+  else if (opts.previousSummary) overviewParts.push(oneLine(opts.previousSummary, 280));
+  if (overviewParts.length === 0) overviewParts.push('Session context compacted.');
+
+  const breadcrumbs: string[] = [];
+  if (opts.historyFile) {
+    breadcrumbs.push(`- Full pre-compaction transcript (grep [mN] citations): ${opts.historyFile}`);
+  }
+  if (opts.tokensBefore !== undefined) {
+    breadcrumbs.push(`- Tokens before compaction: ${opts.tokensBefore}`);
+  }
+  const edited = opts.editedFiles ?? [];
+  if (edited.length > 0) {
+    breadcrumbs.push(
+      `- Edited/written files (re-read before editing): ${edited.slice(-12).join(', ')}`,
+    );
+  }
+  if (tools.length > 0) {
+    const shown = tools.slice(-8);
+    breadcrumbs.push(
+      `- Tools used: ${shown.map((call) => `${call.name} [${call.mid}]`).join(', ')}`,
+    );
+  }
+  if (errorLines.length > 0) {
+    breadcrumbs.push('- Errors / failures:');
+    breadcrumbs.push(...errorLines.slice(-6));
+  }
+  if (opts.focus?.trim()) {
+    breadcrumbs.push(`- Requested focus: ${oneLine(opts.focus, 400)}`);
+  }
+  if (opts.previousSummary?.trim()) {
+    breadcrumbs.push(`- Previous summary: ${oneLine(opts.previousSummary, 400)}`);
+  }
+  if (breadcrumbs.length === 0) breadcrumbs.push('- (none)');
+
+  const current: string[] = [];
+  if (lastUser)
+    current.push(`- Last user request [${lastUser.id}]: ${oneLine(lastUser.text, 280)}`);
+  if (lastAssistant) {
+    current.push(
+      `- Last assistant step [${lastAssistant.id}]: ${oneLine(lastAssistant.text || lastAssistant.toolCalls.map((c) => c.name).join(', ') || '(tool calls)', 280)}`,
+    );
+  }
+  if (opts.isSplitTurn)
+    current.push('- Compaction split a turn in progress; resume the interrupted step.');
+  current.push('- Next: continue from this summary; do not redo completed work.');
+
+  return [
+    '<summary>',
+    '## Overview',
+    overviewParts.join(' '),
+    '',
+    '## Key Details & Breadcrumbs',
+    ...breadcrumbs,
+    '',
+    '## Current State',
+    ...current,
+    '</summary>',
+  ].join('\n');
+}
 
 export async function writeHistoryFile(
   state: CompactState,
@@ -359,10 +418,8 @@ export async function writeHistoryFile(
   now: Date = new Date(),
 ): Promise<string> {
   const fullMeta: TranscriptMeta = { ...meta, cwd: state.cwd, createdAt: now };
-  const filePath = join(
-    state.sessionDir,
-    `${formatTimestamp(now)}-${state.compactionCount + 1}.md`,
-  );
+  const seq = Math.max(1, state.compactionCount);
+  const filePath = join(state.sessionDir, `${formatTimestamp(now)}-${seq}.md`);
   await mkdir(state.sessionDir, { recursive: true });
   await writeFile(filePath, renderTranscriptMarkdown(messages, fullMeta), 'utf8');
   return filePath;
@@ -391,11 +448,6 @@ export async function appendCompactionLog(
   );
 }
 
-/* ------------------------------------------------------------------ *
- * File-op extraction helpers                                          *
- * ------------------------------------------------------------------ */
-
-/** Pi edit/write tool inputs carry the path in `path`. */
 export function extractEditedPathFromToolEnd(event: unknown): string | undefined {
   const loose = asLoose(event);
   const toolName = asString(loose?.toolName);
@@ -414,20 +466,15 @@ function toPathList(value: unknown): string[] {
   return paths;
 }
 
-/** Merge a compaction preparation's fileOps (Devin: fileOps.read/written/edited are Sets). */
 export function mergePreparationFileOps(state: CompactState, preparation: unknown): void {
   const loose = asLoose(preparation);
   const fileOps = asLoose(loose?.fileOps);
   if (!fileOps) return;
-  const paths = [...toPathList(fileOps.edited), ...toPathList(fileOps.written)];
-  recordEditedFiles(state, paths);
+  recordEditedFiles(state, [...toPathList(fileOps.edited), ...toPathList(fileOps.written)]);
 }
 
-/* ------------------------------------------------------------------ *
- * Extension factory                                                   *
- * ------------------------------------------------------------------ */
-
 type CompactToolContext = {
+  cwd?: string;
   isIdle?: () => boolean;
   compact?: (options?: {
     customInstructions?: string;
@@ -437,6 +484,7 @@ type CompactToolContext = {
   getContextUsage?: () =>
     { tokens?: number | null; contextWindow?: number; percent?: number | null } | undefined;
   ui?: { notify?: (message: string, type?: 'info' | 'warning' | 'error') => void };
+  waitForIdle?: () => Promise<void>;
 };
 
 const COMPACT_TOOL_PARAMETERS: JsonSchema = {
@@ -446,7 +494,7 @@ const COMPACT_TOOL_PARAMETERS: JsonSchema = {
     focus: {
       type: 'string',
       description:
-        'Optional custom focus for the summary (e.g. "preserve the API contract decisions"). Appended to the Devin-style summarizer instructions.',
+        'Optional custom focus for the summary (e.g. "preserve the API contract decisions"). Folded into Key Details & Breadcrumbs.',
     },
   },
 };
@@ -454,13 +502,16 @@ const COMPACT_TOOL_PARAMETERS: JsonSchema = {
 function buildCustomInstructions(focus: string | undefined, state: CompactState): string {
   const parts = [DEVIN_SUMMARY_INSTRUCTIONS];
   const trimmed = focus?.trim();
-  if (trimmed)
+  if (trimmed) {
     parts.push(`\nAdditional focus requested by the agent: ${truncateMiddle(trimmed, 2000)}`);
+  }
   if (state.editedFiles.length > 0) {
-    const paths = state.editedFiles.slice(-12).join(', ');
     parts.push(
-      `\nFiles edited or written this session so far (list them under Key Details & Breadcrumbs): ${paths}`,
+      `\nFiles edited or written this session so far (list them under Key Details & Breadcrumbs): ${state.editedFiles.slice(-12).join(', ')}`,
     );
+  }
+  if (state.lastHistoryFile) {
+    parts.push(`\nCite the archived transcript at ${state.lastHistoryFile} with [mN] message ids.`);
   }
   return parts.join('\n');
 }
@@ -499,9 +550,11 @@ async function triggerCompaction(
   });
 }
 
+function cwdFrom(event: unknown, ctx: unknown, fallback?: string): string {
+  return asString(asLoose(ctx)?.cwd) ?? asString(asLoose(event)?.cwd) ?? fallback ?? process.cwd();
+}
+
 export default function compactExtension(pi: ExtensionApi): void {
-  // Per-session state. Pi creates one extension instance per session runtime;
-  // session_start rebinds it when a session is created, resumed, or reloaded.
   const counters = new Map<string, number>();
   let state: CompactState | undefined;
   let lastInjectedHistoryFile: string | undefined;
@@ -515,9 +568,8 @@ export default function compactExtension(pi: ExtensionApi): void {
     return next;
   };
 
-  /** Session-cwd aware accessor: event cwd > bound session cwd > process cwd. */
-  const currentState = (event?: unknown): CompactState =>
-    ensureState(asString(asLoose(event)?.cwd) ?? state?.cwd ?? process.cwd());
+  const currentState = (event?: unknown, ctx?: unknown): CompactState =>
+    ensureState(cwdFrom(event, ctx, state?.cwd));
 
   if (typeof pi.registerTool === 'function') {
     pi.registerTool({
@@ -526,24 +578,19 @@ export default function compactExtension(pi: ExtensionApi): void {
       promptSnippet:
         'Summarize and archive the conversation when context is nearly full or a phase ends.',
       promptGuidelines: [
-        'Call `compact` after finishing a large exploration or work phase, or when context usage is high.',
-        'The full pre-compaction transcript is archived to disk automatically; do not manually re-summarize the conversation.',
-        'Do not call `compact` while tools from the current step are still running.',
+        'Call `compact` as the last action of a large exploration or work phase, or when context usage is high.',
+        'Compaction aborts the current turn; the next turn continues from the Devin <summary> plus the archived transcript.',
+        'Do not call `compact` in the middle of a step — finish the current tool batch first.',
       ],
       description:
-        'Compact the conversation context: summarize the history in Devin’s <summary> structure (Overview / Key Details & Breadcrumbs / Current State), archive the full transcript to ~/.piwin/compact/, and preserve the edited-file list across the boundary. Use it proactively after big exploration phases or before starting a new task in the same session; never call it mid-step.',
+        'Compact conversation context the Devin way: write the full transcript to ~/.piwin/compact/, replace history with a <summary> (Overview / Key Details & Breadcrumbs / Current State), and preserve edited files. Call as the last action of a phase. Compaction aborts this turn; continue from the summary on the next turn. Never call mid-step.',
       parameters: COMPACT_TOOL_PARAMETERS,
-      execute: async (toolCallId, params, signal, _onUpdate, context) => {
-        const current = currentState();
+      execute: async (_toolCallId, params, _signal, _onUpdate, context) => {
         const ctx = (asLoose(context) ?? {}) as CompactToolContext;
+        const current = currentState(undefined, ctx);
         const focus = asString(asLoose(params)?.focus);
+        if (focus) current.pendingFocus = focus;
 
-        if (typeof ctx.isIdle === 'function' && !ctx.isIdle()) {
-          return {
-            content: [{ type: 'text', text: COMPACT_BUSY_MESSAGE }],
-            details: { compact: 'rejected-busy' },
-          };
-        }
         if (typeof ctx.compact !== 'function') {
           return {
             content: [
@@ -560,57 +607,42 @@ export default function compactExtension(pi: ExtensionApi): void {
         const percent = asNumber(usage?.percent);
         const usageNote =
           percent !== undefined
-            ? ` Context usage before compaction: ${percent}% of ${asNumber(usage?.contextWindow) ?? '?'} tokens.`
+            ? ` Context usage: ${percent}% of ${asNumber(usage?.contextWindow) ?? '?'} tokens.`
             : '';
 
-        const outcome = await triggerCompaction(
-          ctx,
-          buildCustomInstructions(focus, current),
-          signal ?? undefined,
-        );
-        if (outcome === 'aborted') {
-          return {
-            content: [{ type: 'text', text: 'Compaction aborted before completion.' }],
-            details: { compact: 'aborted' },
-          };
-        }
-        if (outcome === 'failed') {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'Compaction failed. The conversation was left untouched; retry after the current step settles.',
-              },
-            ],
-            details: { compact: 'failed' },
-          };
-        }
+        // Fire-and-forget: Pi's compact() aborts the current agent run (including this tool).
+        ctx.compact({ customInstructions: buildCustomInstructions(focus, current) });
         return {
           content: [
             {
               type: 'text',
-              text: `Compaction complete.${usageNote} Continue from the summarized state — the archived transcript and preserved edited-file list are re-injected into your context automatically.`,
+              text: `Compaction started.${usageNote} This turn will abort; the next turn continues from the Devin <summary>. The full transcript is archived under ${current.sessionDir}.`,
             },
           ],
-          details: { compact: 'completed' },
+          details: { compact: 'started' },
         };
       },
     });
   }
 
   if (typeof pi.registerCommand === 'function') {
-    pi.registerCommand({
-      name: 'compact',
-      description: 'Force conversation compaction (Devin-style summary + transcript archive)',
-      callback: async (args, rawCtx) => {
-        const ctx = (asLoose(rawCtx) ?? {}) as CompactToolContext & {
-          waitForIdle?: () => Promise<void>;
-        };
-        const current = currentState();
+    pi.registerCommand('compact', {
+      description: 'Force Devin-style conversation compaction (summary + transcript archive)',
+      handler: async (args, rawCtx) => {
+        const ctx = (asLoose(rawCtx) ?? {}) as CompactToolContext;
+        const current = currentState(undefined, ctx);
         if (typeof ctx.waitForIdle === 'function') {
           await ctx.waitForIdle();
+        } else if (typeof ctx.isIdle === 'function' && !ctx.isIdle()) {
+          ctx.ui?.notify?.(COMPACT_BUSY_MESSAGE, 'warning');
+          return;
         }
-        const outcome = await triggerCompaction(ctx, buildCustomInstructions(args, current));
+        const focus = args.trim();
+        if (focus) current.pendingFocus = focus;
+        const outcome = await triggerCompaction(
+          ctx,
+          buildCustomInstructions(focus || undefined, current),
+        );
         ctx.ui?.notify?.(
           outcome === 'completed'
             ? `Context compacted — transcript archived under ${current.sessionDir}`
@@ -623,42 +655,67 @@ export default function compactExtension(pi: ExtensionApi): void {
 
   if (typeof pi.on !== 'function') return;
 
-  pi.on('session_start', (event) => {
-    const cwd = asString(asLoose(event)?.cwd) ?? state?.cwd ?? process.cwd();
+  pi.on('session_start', (event, ctx) => {
     state = undefined;
     lastInjectedHistoryFile = undefined;
-    ensureState(cwd);
+    ensureState(cwdFrom(event, ctx));
   });
 
-  pi.on('session_before_compact', async (event) => {
+  pi.on('session_before_compact', async (event, ctx) => {
     const loose = asLoose(event);
     const preparation = asLoose(loose?.preparation);
     const messages = asArray(preparation?.messagesToSummarize);
     if (messages.length === 0) return;
 
-    const current = currentState(event);
+    const current = currentState(event, ctx);
     current.compactionCount += 1;
     counters.set(current.sessionDir, current.compactionCount);
     mergePreparationFileOps(current, preparation);
 
     const tokensBefore = asNumber(preparation?.tokensBefore);
     const previousSummary = asString(preparation?.previousSummary);
+    const isSplitTurn = preparation?.isSplitTurn === true;
     const historyFile = await writeHistoryFile(current, messages, {
-      isSplitTurn: preparation?.isSplitTurn === true,
+      isSplitTurn,
       ...(tokensBefore !== undefined ? { tokensBefore } : {}),
       ...(previousSummary !== undefined ? { previousSummary } : {}),
     });
     current.lastHistoryFile = historyFile;
     if (tokensBefore !== undefined) current.lastTokensBefore = tokensBefore;
     current.lastCompactedAt = new Date().toISOString();
-    // Native Pi summarization proceeds (LLM-backed); we only archive and carry over.
-    return undefined;
+
+    const firstKeptEntryId = asString(preparation?.firstKeptEntryId);
+    if (!firstKeptEntryId) return;
+
+    const focus = current.pendingFocus;
+    delete current.pendingFocus;
+    const summary = renderDevinSummary({
+      messages,
+      historyFile,
+      editedFiles: current.editedFiles,
+      ...(previousSummary !== undefined ? { previousSummary } : {}),
+      ...(tokensBefore !== undefined ? { tokensBefore } : {}),
+      ...(focus !== undefined ? { focus } : {}),
+      isSplitTurn,
+    });
+    return {
+      compaction: {
+        summary,
+        firstKeptEntryId,
+        tokensBefore: tokensBefore ?? 0,
+        details: {
+          historyFile,
+          editedFiles: [...current.editedFiles],
+          source: 'compact-extension',
+        },
+      },
+    };
   });
 
   pi.on('session_compact', async (event, rawCtx) => {
     const loose = asLoose(event);
     const entry = asLoose(loose?.compactionEntry);
-    const current = currentState(event);
+    const current = currentState(event, rawCtx);
     const reason = asString(loose?.reason);
     const tokensBefore = asNumber(entry?.tokensBefore);
     await appendCompactionLog(current, {
@@ -671,8 +728,7 @@ export default function compactExtension(pi: ExtensionApi): void {
       ...(tokensBefore !== undefined ? { tokensBefore } : {}),
       ...(current.lastHistoryFile !== undefined ? { historyFile: current.lastHistoryFile } : {}),
     });
-    const ui = asLoose(asLoose(rawCtx)?.ui);
-    const notify = ui?.notify;
+    const notify = asLoose(asLoose(rawCtx)?.ui)?.notify;
     if (typeof notify === 'function') {
       notify(
         current.lastHistoryFile
@@ -683,17 +739,16 @@ export default function compactExtension(pi: ExtensionApi): void {
     }
   });
 
-  pi.on('tool_execution_end', (event) => {
+  pi.on('tool_execution_end', (event, ctx) => {
     const path = extractEditedPathFromToolEnd(event);
     if (!path) return;
-    recordEditedFiles(currentState(event), [path]);
+    recordEditedFiles(currentState(event, ctx), [path]);
   });
 
-  pi.on('context', (event) => {
-    const current = currentState(event);
+  pi.on('context', (event, ctx) => {
+    const current = currentState(event, ctx);
     if (!shouldInjectCarryover(current, lastInjectedHistoryFile)) return;
-    const loose = asLoose(event);
-    const messages = asArray(loose?.messages);
+    const messages = asArray(asLoose(event)?.messages);
     lastInjectedHistoryFile = current.lastHistoryFile;
     return {
       messages: [

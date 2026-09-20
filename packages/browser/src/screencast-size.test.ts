@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BROWSER_DEFAULT_DEVICE_SCALE_FACTOR,
+  BROWSER_MAX_DEVICE_SCALE_FACTOR,
   BROWSER_SCREENCAST_MAX_ENCODED_AREA,
   BROWSER_SCREENCAST_MAX_ENCODED_HEIGHT,
   BROWSER_SCREENCAST_MAX_ENCODED_WIDTH,
@@ -10,12 +11,14 @@ import {
 } from './screencast-size.js';
 
 describe('clampBrowserDeviceScaleFactor', () => {
-  it('floors below 1 and caps at the workbench default', () => {
+  it('floors below 1 and caps at the workbench max', () => {
     expect(clampBrowserDeviceScaleFactor(Number.NaN)).toBe(1);
     expect(clampBrowserDeviceScaleFactor(0)).toBe(1);
     expect(clampBrowserDeviceScaleFactor(1)).toBe(1);
     expect(clampBrowserDeviceScaleFactor(1.5)).toBe(1.5);
-    expect(clampBrowserDeviceScaleFactor(3)).toBe(BROWSER_DEFAULT_DEVICE_SCALE_FACTOR);
+    expect(clampBrowserDeviceScaleFactor(2)).toBe(2);
+    expect(clampBrowserDeviceScaleFactor(3)).toBe(3);
+    expect(clampBrowserDeviceScaleFactor(4)).toBe(BROWSER_MAX_DEVICE_SCALE_FACTOR);
   });
 });
 
@@ -29,6 +32,19 @@ describe('resolveBrowserScreencastSize', () => {
 
   it('maps follow 1920×1200 CSS at DSF 2 onto 3840×2400', () => {
     expect(resolveBrowserScreencastSize({ width: 1920, height: 1200 })).toEqual({
+      width: BROWSER_SCREENCAST_MAX_ENCODED_WIDTH,
+      height: BROWSER_SCREENCAST_MAX_ENCODED_HEIGHT,
+    });
+  });
+
+  it('maps 1280×800 CSS at DSF 3 onto 3840×2400', () => {
+    expect(
+      resolveBrowserScreencastSize({
+        width: 1280,
+        height: 800,
+        deviceScaleFactor: 3,
+      }),
+    ).toEqual({
       width: BROWSER_SCREENCAST_MAX_ENCODED_WIDTH,
       height: BROWSER_SCREENCAST_MAX_ENCODED_HEIGHT,
     });

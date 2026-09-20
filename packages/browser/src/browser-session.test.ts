@@ -458,7 +458,7 @@ describe('session operations', () => {
     const session = createBrowserSession();
     const result = await session.screenshot('/tmp/piwin-browser-test/shot.jpg');
     expect(result.path).toBe('/tmp/piwin-browser-test/shot.jpg');
-    expect(page.screenshot).toHaveBeenCalledWith({ type: 'jpeg', quality: 80 });
+    expect(page.screenshot).toHaveBeenCalledWith({ type: 'jpeg', quality: 90 });
   });
 
   it('closes the persistent context that owns Chromium', async () => {

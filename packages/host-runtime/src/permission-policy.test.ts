@@ -121,8 +121,8 @@ describe('evaluateBashPermission', () => {
     expect(catEnv).toEqual({ decision: 'allow', reason: 'bypass-ask:write-env' });
 
     expect(evaluateBashPermission('rm -rf /tmp/foo', 'bypass')).toEqual({
-      decision: 'allow',
-      reason: 'bypass-ask:rm-recursive-force',
+      decision: 'ask',
+      reason: 'rm-recursive-force',
     });
     expect(evaluateBashPermission('sudo apt update', 'bypass')).toEqual({
       decision: 'allow',
@@ -224,31 +224,39 @@ describe('evaluateBashPermission', () => {
     );
   });
 
-  it('asks when a writer leaves the project even under bypass', () => {
+  it('yolo only still asks for rm -rf; leave-workspace writers are allowed', () => {
     const root = '/home/u/project';
     const rules = createBundledRuleSet();
     expect(evaluateBashPermission('rm -rf /tmp/foo', 'bypass', rules, root)).toEqual({
       decision: 'ask',
-      reason: 'path-escapes-project-root',
+      reason: 'rm-recursive-force',
     });
-    expect(evaluateBashPermission('echo hi | tee /tmp/x', 'bypass', rules, root)).toEqual({
+    expect(evaluateBashPermission('rm -rf ./build', 'bypass', rules, root)).toEqual({
+      decision: 'ask',
+      reason: 'rm-recursive-force',
+    });
+    expect(evaluateBashPermission('echo hi | tee /tmp/x', 'bypass', rules, root).decision).toBe(
+      'allow',
+    );
+    expect(evaluateBashPermission('sudo apt update', 'bypass', rules, root)).toEqual({
+      decision: 'allow',
+      reason: 'bypass-ask:sudo',
+    });
+  });
+
+  it('still asks leave-workspace writers under auto', () => {
+    const root = '/home/u/project';
+    const rules = createBundledRuleSet();
+    expect(evaluateBashPermission('echo hi | tee /tmp/x', 'auto', rules, root)).toEqual({
       decision: 'ask',
       reason: 'path-escapes-project-root',
     });
   });
 
-  it('still allows in-project bash under bypass, including in-project ask promotion', () => {
+  it('still allows in-project unmatched bash under bypass', () => {
     const root = '/home/u/project';
     const rules = createBundledRuleSet();
     expect(evaluateBashPermission('pnpm test', 'bypass', rules, root).decision).toBe('allow');
-    expect(evaluateBashPermission('rm -rf ./build', 'bypass', rules, root)).toEqual({
-      decision: 'allow',
-      reason: 'bypass-ask:rm-recursive-force',
-    });
-    expect(evaluateBashPermission('sudo apt update', 'bypass', rules, root)).toEqual({
-      decision: 'allow',
-      reason: 'bypass-ask:sudo',
-    });
   });
 });
 
@@ -292,14 +300,14 @@ describe('evaluateFileWritePermission', () => {
     expect(result.reason).toBe('ask-all-in-project');
   });
 
-  it('asks for out-of-project writes under bypass mode', () => {
+  it('allows out-of-project writes under bypass mode', () => {
     const result = evaluateFileWritePermission({
       absPath: '/home/u/other/notes.txt',
       projectRoot,
       mode: 'bypass',
     });
-    expect(result.decision).toBe('ask');
-    expect(result.reason).toBe('path-escapes-project-root');
+    expect(result.decision).toBe('allow');
+    expect(result.reason).toBe('bypass-no-match');
   });
 
   it('does not apply leave-workspace in No Repo (empty projectRoot), including yolo', () => {
@@ -344,7 +352,7 @@ describe('evaluateFileWritePermission', () => {
     expect(result.reason).toBe('config-write');
   });
 
-  it('asks for ~/.config writes under bypass mode (leave-workspace, deny still hard)', () => {
+  it('promotes ~/.config writes under bypass (yolo only still asks rm -rf)', () => {
     const home = homedir();
     const configWrite = evaluateFileWritePermission({
       absPath: `${home}/.config/piwin/config.json`,
@@ -352,8 +360,8 @@ describe('evaluateFileWritePermission', () => {
       mode: 'bypass',
     });
     expect(configWrite).toEqual({
-      decision: 'ask',
-      reason: 'config-write',
+      decision: 'allow',
+      reason: 'bypass-ask:config-write',
     });
 
     // Secret-path deny remains a circuit breaker even under yolo.

@@ -39,9 +39,8 @@ import {
 } from './browser-pages.js';
 import type { BrowserSessionEvent } from './browser-session.js';
 import { assertNavigableUrl } from './browser-operations.js';
+import { createBrowserLeaseTracker } from './browser-lease-tracker.js';
 
-const MAX_MIRROR_LEASE_ID_CHARS = 128;
-const MAX_RELEASED_MIRROR_LEASES = 256;
 const DEFAULT_LAUNCH_TIMEOUT_MS = 15_000;
 
 export type BrowserPersistentLaunchOptions = {
@@ -49,6 +48,7 @@ export type BrowserPersistentLaunchOptions = {
   viewport: { width: number; height: number };
   deviceScaleFactor?: number;
   userAgent?: string;
+  args?: string[];
 };
 
 export type BrowserLaunchPersistentContext = (
@@ -65,6 +65,7 @@ export type BrowserRuntimeOptions = {
   /** Host-owned launch only. Attached CDP keeps the remote page DPR. */
   deviceScaleFactor?: number;
   captureConsoleAndNetwork: boolean;
+  args?: string[];
   /** Test seam / bound; product default is 15s. */
   launchTimeoutMs?: number;
   launchPersistentContext?: BrowserLaunchPersistentContext;
@@ -133,9 +134,7 @@ export function createBrowserRuntime(
   let page: Page | undefined;
   let launchPromise: Promise<Page> | undefined;
   let recoveryPromise: Promise<Page> | undefined;
-  let legacyMirrorLeaseActive = false;
-  const activeMirrorLeaseIds = new Set<string>();
-  const releasedMirrorLeaseIds = new Set<string>();
+  const leaseTracker = createBrowserLeaseTracker();
   let closed = false;
   let releasing = false;
   let consoleCaptureEnabled = options.captureConsoleAndNetwork;
@@ -384,6 +383,11 @@ export function createBrowserRuntime(
 
     const work = (async (): Promise<Page> => {
       try {
+        const scale = options.deviceScaleFactor ?? 1;
+        const args: string[] = [...(options.args ?? [])];
+        if (scale > 1 && !args.some((arg) => arg.startsWith('--force-device-scale-factor'))) {
+          args.push(`--force-device-scale-factor=${scale}`);
+        }
         launched = await launchPersistentContext(options.profileDir, {
           headless: options.headless,
           viewport,
@@ -391,6 +395,7 @@ export function createBrowserRuntime(
             ? { deviceScaleFactor: options.deviceScaleFactor }
             : {}),
           ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
+          ...(args.length > 0 ? { args } : {}),
         });
       } catch (error) {
         const reason = classifyBrowserLaunchError(error);
@@ -671,7 +676,7 @@ export function createBrowserRuntime(
       void hooks.emitState();
       return;
     }
-    if (!contextAlive || !hasActiveMirrorLease()) return;
+    if (!contextAlive || !leaseTracker.hasActiveMirrorLease()) return;
     void recoverBlankPage().catch(() => {
       if (!closed && lifecycle === 'recovering') {
         lifecycle = 'failed';
@@ -685,7 +690,7 @@ export function createBrowserRuntime(
     const wasStartingOrRecovering = lifecycle === 'starting' || lifecycle === 'recovering';
     clearDeadRefs();
     pageStateLost = true;
-    const shouldRelaunch = hasActiveMirrorLease() && !wasStartingOrRecovering;
+    const shouldRelaunch = leaseTracker.hasActiveMirrorLease() && !wasStartingOrRecovering;
     lifecycle = shouldRelaunch ? 'recovering' : wasStartingOrRecovering ? 'failed' : 'stopped';
     void hooks.stopScreencast();
     void hooks.emitState();
@@ -741,63 +746,6 @@ export function createBrowserRuntime(
     observer.attachContext(activeContext);
     consolePage = activePage;
     networkContext = activeContext;
-  }
-
-  function hasActiveMirrorLease(): boolean {
-    return legacyMirrorLeaseActive || activeMirrorLeaseIds.size > 0;
-  }
-
-  function mirrorLeaseCount(): number {
-    return (legacyMirrorLeaseActive ? 1 : 0) + activeMirrorLeaseIds.size;
-  }
-
-  function hasMirrorLease(leaseId: string): boolean {
-    return activeMirrorLeaseIds.has(leaseId);
-  }
-
-  function validateMirrorLeaseId(leaseId: string | undefined): string | undefined {
-    if (leaseId === undefined) return undefined;
-    if (leaseId.length === 0 || leaseId.length > MAX_MIRROR_LEASE_ID_CHARS) {
-      throw new RangeError('browser mirror lease id is invalid');
-    }
-    return leaseId;
-  }
-
-  function rememberReleasedMirrorLease(leaseId: string): void {
-    releasedMirrorLeaseIds.delete(leaseId);
-    releasedMirrorLeaseIds.add(leaseId);
-    while (releasedMirrorLeaseIds.size > MAX_RELEASED_MIRROR_LEASES) {
-      const oldestLeaseId = releasedMirrorLeaseIds.values().next().value;
-      if (typeof oldestLeaseId !== 'string') break;
-      releasedMirrorLeaseIds.delete(oldestLeaseId);
-    }
-  }
-
-  function acquireMirrorLease(leaseId?: string): boolean {
-    const normalizedLeaseId = validateMirrorLeaseId(leaseId);
-    if (normalizedLeaseId !== undefined && releasedMirrorLeaseIds.has(normalizedLeaseId)) {
-      // A cleanup that overtook its setup owns the final intent. Lease ids
-      // are one-shot, so a delayed/retried start must not resurrect a panel
-      // that has already unmounted.
-      return false;
-    }
-    if (normalizedLeaseId === undefined) {
-      legacyMirrorLeaseActive = true;
-    } else {
-      activeMirrorLeaseIds.add(normalizedLeaseId);
-    }
-    return true;
-  }
-
-  function releaseMirrorLease(leaseId?: string): boolean {
-    const normalizedLeaseId = validateMirrorLeaseId(leaseId);
-    if (normalizedLeaseId === undefined) {
-      legacyMirrorLeaseActive = false;
-    } else {
-      activeMirrorLeaseIds.delete(normalizedLeaseId);
-      rememberReleasedMirrorLease(normalizedLeaseId);
-    }
-    return !hasActiveMirrorLease();
   }
 
   /**
@@ -901,16 +849,12 @@ export function createBrowserRuntime(
     getPage,
     peekPage: () => page,
     peekContext: () => context,
-    hasActiveMirrorLease,
-    mirrorLeaseCount,
-    hasMirrorLease,
-    acquireMirrorLease,
-    releaseMirrorLease,
-    clearLeases(): void {
-      legacyMirrorLeaseActive = false;
-      activeMirrorLeaseIds.clear();
-      releasedMirrorLeaseIds.clear();
-    },
+    hasActiveMirrorLease: () => leaseTracker.hasActiveMirrorLease(),
+    mirrorLeaseCount: () => leaseTracker.mirrorLeaseCount(),
+    hasMirrorLease: (leaseId) => leaseTracker.hasMirrorLease(leaseId),
+    acquireMirrorLease: (leaseId) => leaseTracker.acquireMirrorLease(leaseId),
+    releaseMirrorLease: (leaseId) => leaseTracker.releaseMirrorLease(leaseId),
+    clearLeases: () => leaseTracker.clearLeases(),
     markClosed(): void {
       closed = true;
       lifecycle = 'disposed';

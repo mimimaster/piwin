@@ -57,6 +57,7 @@ import type { BrowserDialogInfo, BrowserTabInfo } from './browser-pages.js';
 import {
   BROWSER_CAPTURE_QUALITY,
   BROWSER_DEFAULT_DEVICE_SCALE_FACTOR,
+  BROWSER_SCREENCAST_QUALITY,
   clampBrowserDeviceScaleFactor,
 } from './screencast-size.js';
 import {
@@ -94,6 +95,10 @@ export type BrowserSessionOptions = {
   maxDimension?: number;
   /** Host-owned Chromium raster scale. Ignored for connectOverCDP. Default 2. */
   deviceScaleFactor?: number;
+  /** Screencast JPEG quality (1-100). Default 90. */
+  screencastQuality?: number;
+  /** Additional arguments to pass to Chromium. */
+  args?: string[];
   /** Frame stream ceiling in fps (default 4). */
   maxFps?: number;
   userAgent?: string;
@@ -286,6 +291,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   const maxDimension = options.maxDimension ?? 1280;
   const requestedViewport = options.viewport ?? { width: 1280, height: 800 };
   const deviceScaleFactor = options.deviceScaleFactor ?? BROWSER_DEFAULT_DEVICE_SCALE_FACTOR;
+  const screencastQuality = options.screencastQuality ?? BROWSER_SCREENCAST_QUALITY;
   const headless = options.headless ?? true;
   const maxFps = options.maxFps ?? 12;
   const profileDir = options.profileDir ?? join(homedir(), '.piwin', 'browser-profile');
@@ -319,6 +325,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       maxDimension,
       deviceScaleFactor,
       captureConsoleAndNetwork,
+      ...(options.args !== undefined ? { args: options.args } : {}),
       ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
       ...(options.cdpEndpoint !== undefined ? { cdpEndpoint: options.cdpEndpoint } : {}),
       ...(options.connectOverCdp !== undefined ? { connectOverCdp: options.connectOverCdp } : {}),
@@ -344,6 +351,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   const mirror = createBrowserMirror({
     maxDimension,
     maxFps,
+    screencastQuality,
     getPage: () => runtime.getPage(),
     hasActiveMirrorLease: () => runtime.hasActiveMirrorLease(),
     resolveDeviceScaleFactor,

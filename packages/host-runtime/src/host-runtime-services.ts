@@ -619,6 +619,12 @@ export async function ensureBrowserSession(
         },
         headless: config.browser?.headless !== false,
         captureConsoleAndNetwork: true,
+        ...(typeof config.browser?.deviceScaleFactor === 'number'
+          ? { deviceScaleFactor: config.browser.deviceScaleFactor }
+          : {}),
+        ...(typeof config.browser?.quality === 'number'
+          ? { screencastQuality: config.browser.quality }
+          : {}),
         // Raw bytes stay available for the remote binary channel; the local
         // JSON path keeps the inline payload (spec §4.1.2).
         onFrameBytes: (header, bytes) => {

@@ -463,38 +463,6 @@ describe('registerWorkerProviders', () => {
     expect(registerProvider).toHaveBeenCalledWith('p1', expect.objectContaining({ name: 'p1' }));
     expect(registerProvider).toHaveBeenCalledWith('p2', expect.objectContaining({ name: 'p2' }));
   });
-
-  it('overlays stream timing on oauth builtins instead of skipping them entirely', () => {
-    const registerProvider = vi.fn();
-    const modelRuntime = { registerProvider } as unknown as PiModelRuntime;
-    const providers: SerializableWorkerProviderRuntime[] = [
-      {
-        providerId: 'xai',
-        models: [{ id: 'grok-4.6' }],
-        auth: { kind: 'oauth', providerId: 'xai' },
-      },
-      {
-        providerId: 'p-channel',
-        protocol: 'openai-compatible',
-        baseUrl: 'https://api.example.test/v1',
-        models: [{ id: 'gpt' }],
-        auth: { kind: 'none' },
-      },
-    ];
-    registerWorkerProviders(modelRuntime, providers);
-    expect(registerProvider).toHaveBeenCalledWith(
-      'xai',
-      expect.objectContaining({ api: 'openai-completions', streamSimple: expect.any(Function) }),
-    );
-    expect(registerProvider).toHaveBeenCalledWith(
-      'p-channel',
-      expect.objectContaining({ name: 'p-channel' }),
-    );
-    const xaiOverlay = registerProvider.mock.calls.find((call) => call[0] === 'xai')?.[1] as
-      | Record<string, unknown>
-      | undefined;
-    expect(xaiOverlay).not.toHaveProperty('models');
-  });
 });
 
 describe('createWorkerPiSessionFactory', () => {

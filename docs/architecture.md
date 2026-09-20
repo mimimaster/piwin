@@ -328,12 +328,12 @@ effect on the next session (no hot-reload).
 |------|----------------|----------------------|--------------------------|----------------|------------|
 | `ask-all` | ask | ask | ask | ask | always enforced |
 | `auto` | allow¹ | allow | ask | ask | always enforced |
-| `bypass` | allow¹ | allow | ask | allow | **still enforced** |
+| `bypass` | allow¹ | allow | allow | allow | **still enforced** |
 
 ¹ Bash unmatched → allow **only after** bundled deny **and** bundled ask
-tiers. A writer that lexically targets a path outside the project (`tee ~/x`,
-`rm -rf /tmp/foo`) is `ask` in every mode, including YOLO. `cd` / `ls` /
-`cat` / `echo` never trip that check. A built-in safe-prefix allowlist
+tiers. YOLO still **asks** for `rm -rf` (`rm-recursive-force`) and still
+**denies** circuit breakers. Leave-workspace writers (`tee /tmp`, out-of-project
+`write`) ask in `auto` / `ask-all` only. A built-in safe-prefix allowlist
 (`ls *`, `git status`, `pnpm test`, …) is bundled as `allow` rules so they
 are visible/editable (useful mainly under `ask-all`).
 

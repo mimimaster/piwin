@@ -6,16 +6,17 @@
  * viewport max as an encoded-pixel max.
  */
 export const BROWSER_DEFAULT_DEVICE_SCALE_FACTOR = 2;
+export const BROWSER_MAX_DEVICE_SCALE_FACTOR = 3;
 export const BROWSER_SCREENCAST_MAX_ENCODED_WIDTH = 3840;
 export const BROWSER_SCREENCAST_MAX_ENCODED_HEIGHT = 2400;
 export const BROWSER_SCREENCAST_MAX_ENCODED_AREA = 9_216_000;
 export const BROWSER_SCREENCAST_HIGH_FPS_MAX_AREA = 5_000_000;
 export const BROWSER_SCREENCAST_HIGH_FPS = 12;
 export const BROWSER_SCREENCAST_LOW_FPS = 8;
-export const BROWSER_SCREENCAST_QUALITY = 80;
-export const BROWSER_SCREENSHOT_QUALITY = 80;
+export const BROWSER_SCREENCAST_QUALITY = 90;
+export const BROWSER_SCREENSHOT_QUALITY = 90;
 /** Annotation capture is one-shot and read off screen, so it keeps more detail. */
-export const BROWSER_CAPTURE_QUALITY = 92;
+export const BROWSER_CAPTURE_QUALITY = 95;
 
 export type BrowserScreencastSize = { width: number; height: number };
 
@@ -28,10 +29,13 @@ export type ResolveBrowserScreencastSizeInput = {
   maxEncodedArea?: number;
 };
 
-/** Clamp a page DPR into the workbench capture range [1, 2]. */
-export function clampBrowserDeviceScaleFactor(value: number): number {
+/** Clamp a page DPR into the workbench capture range [1, max] (default max: 3). */
+export function clampBrowserDeviceScaleFactor(
+  value: number,
+  max: number = BROWSER_MAX_DEVICE_SCALE_FACTOR,
+): number {
   if (!Number.isFinite(value) || value < 1) return 1;
-  if (value > BROWSER_DEFAULT_DEVICE_SCALE_FACTOR) return BROWSER_DEFAULT_DEVICE_SCALE_FACTOR;
+  if (value > max) return max;
   return value;
 }
 

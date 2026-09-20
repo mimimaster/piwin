@@ -56,7 +56,7 @@ import {
 } from '../run-intervention-stager.js';
 import { resolvePiRuntimeAgentDir } from '../pi-runtime-agent-dir.js';
 import { registerClaudeCodeOauthProvider } from '../anthropic-oauth/register-claude-code-provider.js';
-import { attachSubscriptionStreamTiming } from '../attach-subscription-stream-timing.js';
+import { wrapModelRuntimeStreamTiming } from '../stream-request-timing.js';
 
 /** Options for backend-only SDK session creation. */
 export type PiSdkBackendOptions = {
@@ -224,11 +224,9 @@ async function createBackendModelRuntime(
     authPath: join(agentDir, 'auth.json'),
     modelsPath: join(agentDir, 'models.json'),
   });
-  attachSubscriptionStreamTiming(modelRuntime);
-  const oauthProviderIds: string[] = [];
+  wrapModelRuntimeStreamTiming(modelRuntime);
   for (const provider of providers) {
     if (provider.auth.kind === 'oauth') {
-      oauthProviderIds.push(provider.providerId);
       if (provider.providerId === 'anthropic-claude-code') {
         await registerClaudeCodeOauthProvider(modelRuntime, agentDir, provider);
       }
@@ -243,7 +241,6 @@ async function createBackendModelRuntime(
       ),
     );
   }
-  attachSubscriptionStreamTiming(modelRuntime, oauthProviderIds);
   await modelRuntime.refresh({ allowNetwork: false });
   return modelRuntime;
 }

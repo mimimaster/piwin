@@ -11,11 +11,12 @@ import compactExtension, {
   mergePreparationFileOps,
   recordEditedFiles,
   renderCarryoverBlock,
+  renderDevinSummary,
   renderTranscriptMarkdown,
   sessionDirFor,
   shouldInjectCarryover,
   type RegisteredTool,
-} from './compact.js';
+} from './compact/index.js';
 
 let tempDir: string;
 let originalEnv: string | undefined;
@@ -38,15 +39,15 @@ afterEach(async () => {
 type Handler = (...args: unknown[]) => unknown;
 type FakeCommand = {
   name: string;
-  description: string;
-  callback: (args: string, ctx: unknown) => unknown;
+  description?: string;
+  handler: (args: string, ctx: unknown) => unknown;
 };
 type FakePi = {
   tools: RegisteredTool[];
   commands: FakeCommand[];
   handlers: Map<string, Handler[]>;
   registerTool: (tool: RegisteredTool) => void;
-  registerCommand: (command: FakeCommand) => void;
+  registerCommand: (name: string, options: Omit<FakeCommand, 'name'>) => void;
   on: (event: string, handler: Handler) => void;
 };
 
@@ -59,7 +60,7 @@ function createFakePi(): FakePi {
     commands,
     handlers,
     registerTool: (tool) => tools.push(tool),
-    registerCommand: (command) => commands.push(command),
+    registerCommand: (name, options) => commands.push({ name, ...options }),
     on: (event, handler) => {
       const list = handlers.get(event) ?? [];
       list.push(handler);
@@ -69,6 +70,7 @@ function createFakePi(): FakePi {
 }
 
 const WORKSPACE = '/repo/piwin-demo';
+const sessionCtx = { cwd: WORKSPACE };
 
 type ToolOutcome = {
   content: Array<{ type: 'text'; text: string }>;
@@ -79,6 +81,7 @@ async function fireCompactTool(
   pi: FakePi,
   params: unknown,
   ctx: {
+    cwd?: string;
     isIdle?: () => boolean;
     compact?: (options?: unknown) => void;
     getContextUsage?: () => unknown;
@@ -87,15 +90,19 @@ async function fireCompactTool(
 ): Promise<ToolOutcome> {
   const tool = pi.tools.find((t) => t.name === 'compact');
   if (!tool) throw new Error('compact tool not registered');
-  return (await tool.execute('call-1', params, undefined, undefined, ctx)) as ToolOutcome;
+  return (await tool.execute('call-1', params, undefined, undefined, {
+    cwd: WORKSPACE,
+    ...ctx,
+  })) as ToolOutcome;
 }
 
 describe('bundled compact extension (Devin-style compaction)', () => {
-  it('registers the compact tool and the /compact command', () => {
+  it('registers the compact tool and the /compact command via Pi (name, options)', () => {
     const pi = createFakePi();
     compactExtension(pi);
     expect(pi.tools.map((t) => t.name)).toContain('compact');
     expect(pi.commands.map((c) => c.name)).toContain('compact');
+    expect(typeof pi.commands[0]?.handler).toBe('function');
     const tool = pi.tools.find((t) => t.name === 'compact');
     expect(tool?.promptSnippet).toBeTruthy();
     expect((tool?.promptGuidelines ?? []).length).toBeGreaterThan(0);
@@ -111,46 +118,46 @@ describe('bundled compact extension (Devin-style compaction)', () => {
     expect(DEVIN_SUMMARY_INSTRUCTIONS).toContain('Do NOT reproduce or recite any rules');
   });
 
-  it('rejects compaction while the agent is working (Devin busy guard)', async () => {
+  it('compact tool fires even mid-turn (model-called compact is the last action of a phase)', async () => {
     const pi = createFakePi();
     compactExtension(pi);
     let compactCalls = 0;
-    const result = await fireCompactTool(
-      pi,
-      {},
-      {
-        isIdle: () => false,
-        compact: () => {
-          compactCalls += 1;
-        },
-      },
-    );
-    expect(result.content[0]?.text).toBe(COMPACT_BUSY_MESSAGE);
-    expect(result.details?.compact).toBe('rejected-busy');
-    expect(compactCalls).toBe(0);
-  });
-
-  it('triggers Pi compaction with Devin custom instructions plus focus and usage', async () => {
-    const pi = createFakePi();
-    compactExtension(pi);
     const seen: Array<Record<string, unknown>> = [];
     const result = await fireCompactTool(
       pi,
       { focus: 'preserve the migration plan' },
       {
-        isIdle: () => true,
+        isIdle: () => false,
         compact: (options) => {
+          compactCalls += 1;
           seen.push(options as Record<string, unknown>);
-          (options as { onComplete?: () => void }).onComplete?.();
         },
         getContextUsage: () => ({ tokens: 150000, contextWindow: 200000, percent: 75 }),
       },
     );
-    expect(result.details?.compact).toBe('completed');
-    expect(result.content[0]?.text).toContain('Context usage before compaction: 75%');
-    const instructions = String(seen[0]?.customInstructions ?? '');
-    expect(instructions).toContain('## Overview');
-    expect(instructions).toContain('preserve the migration plan');
+    expect(result.details?.compact).toBe('started');
+    expect(result.content[0]?.text).toContain('Compaction started');
+    expect(result.content[0]?.text).toContain('75%');
+    expect(compactCalls).toBe(1);
+    expect(String(seen[0]?.customInstructions ?? '')).toContain('## Overview');
+    expect(String(seen[0]?.customInstructions ?? '')).toContain('preserve the migration plan');
+  });
+
+  it('/compact command rejects while the agent is working when waitForIdle is unavailable', async () => {
+    const pi = createFakePi();
+    compactExtension(pi);
+    let compactCalls = 0;
+    const notifications: string[] = [];
+    await pi.commands[0]?.handler('', {
+      cwd: WORKSPACE,
+      isIdle: () => false,
+      compact: () => {
+        compactCalls += 1;
+      },
+      ui: { notify: (m: string) => notifications.push(m) },
+    });
+    expect(compactCalls).toBe(0);
+    expect(notifications[0]).toBe(COMPACT_BUSY_MESSAGE);
   });
 
   it('reports when no compact action is bound', async () => {
@@ -160,10 +167,10 @@ describe('bundled compact extension (Devin-style compaction)', () => {
     expect(result.details?.compact).toBe('unavailable');
   });
 
-  it('archives the doomed conversation to a history file on session_before_compact', async () => {
+  it('session_before_compact archives the transcript and returns a Devin <summary>', async () => {
     const pi = createFakePi();
     compactExtension(pi);
-    pi.handlers.get('session_start')?.[0]?.({ type: 'session_start', cwd: WORKSPACE });
+    pi.handlers.get('session_start')?.[0]?.({ type: 'session_start' }, sessionCtx);
 
     const messages = [
       { role: 'user', content: [{ type: 'text', text: 'Fix the flaky test' }] },
@@ -182,25 +189,36 @@ describe('bundled compact extension (Devin-style compaction)', () => {
         isError: false,
       },
     ];
-    await pi.handlers.get('session_before_compact')?.[0]?.({
-      type: 'session_before_compact',
-      preparation: {
-        firstKeptEntryId: 'e9',
-        messagesToSummarize: messages,
-        turnPrefixMessages: [],
-        isSplitTurn: false,
-        tokensBefore: 182000,
-        previousSummary: 'Earlier: set up CI.',
-        fileOps: {
-          read: new Set(['a.ts']),
-          written: new Set<string>(),
-          edited: new Set(['src/app.ts']),
+    const result = (await pi.handlers.get('session_before_compact')?.[0]?.(
+      {
+        type: 'session_before_compact',
+        preparation: {
+          firstKeptEntryId: 'e9',
+          messagesToSummarize: messages,
+          turnPrefixMessages: [],
+          isSplitTurn: false,
+          tokensBefore: 182000,
+          previousSummary: 'Earlier: set up CI.',
+          fileOps: {
+            read: new Set(['a.ts']),
+            written: new Set<string>(),
+            edited: new Set(['src/app.ts']),
+          },
+          settings: { enabled: true, reserveTokens: 20000, keepRecentTokens: 20000 },
         },
-        settings: { enabled: true, reserveTokens: 20000, keepRecentTokens: 20000 },
+        reason: 'threshold',
+        willRetry: false,
       },
-      reason: 'threshold',
-      willRetry: false,
-    });
+      sessionCtx,
+    )) as { compaction: { summary: string; firstKeptEntryId: string; tokensBefore: number } };
+
+    expect(result.compaction.firstKeptEntryId).toBe('e9');
+    expect(result.compaction.tokensBefore).toBe(182000);
+    expect(result.compaction.summary).toContain('<summary>');
+    expect(result.compaction.summary).toContain('## Overview');
+    expect(result.compaction.summary).toContain('Fix the flaky test');
+    expect(result.compaction.summary).toContain('src/app.ts');
+    expect(result.compaction.summary).toContain('[m2]');
 
     const dir = sessionDirFor(WORKSPACE, join(tempDir, 'compact'));
     const files = await readdir(dir);
@@ -214,32 +232,36 @@ describe('bundled compact extension (Devin-style compaction)', () => {
     expect(history).toContain('### [m2] assistant');
     expect(history).toContain('#### [m2.bash] bash (toolu_1)');
     expect(history).toContain('"command"');
+    expect(result.compaction.summary).toContain(join(dir, historyName!));
   });
 
   it('logs compaction as JSONL and notifies on session_compact', async () => {
     const pi = createFakePi();
     compactExtension(pi);
-    pi.handlers.get('session_start')?.[0]?.({ type: 'session_start', cwd: WORKSPACE });
-    await pi.handlers.get('session_before_compact')?.[0]?.({
-      type: 'session_before_compact',
-      preparation: {
-        firstKeptEntryId: 'e1',
-        messagesToSummarize: [{ role: 'user', content: 'hello' }],
-        tokensBefore: 1000,
+    pi.handlers.get('session_start')?.[0]?.({ type: 'session_start' }, sessionCtx);
+    await pi.handlers.get('session_before_compact')?.[0]?.(
+      {
+        type: 'session_before_compact',
+        preparation: {
+          firstKeptEntryId: 'e1',
+          messagesToSummarize: [{ role: 'user', content: 'hello' }],
+          tokensBefore: 1000,
+        },
+        reason: 'manual',
+        willRetry: false,
       },
-      reason: 'manual',
-      willRetry: false,
-    });
+      sessionCtx,
+    );
     const notifications: string[] = [];
     await pi.handlers.get('session_compact')?.[0]?.(
       {
         type: 'session_compact',
         compactionEntry: { summary: '## Overview\nx', tokensBefore: 1000, firstKeptEntryId: 'e1' },
-        fromExtension: false,
+        fromExtension: true,
         reason: 'manual',
         willRetry: false,
       },
-      { ui: { notify: (m: string) => notifications.push(m) } },
+      { ...sessionCtx, ui: { notify: (m: string) => notifications.push(m) } },
     );
 
     const dir = sessionDirFor(WORKSPACE, join(tempDir, 'compact'));
@@ -258,68 +280,77 @@ describe('bundled compact extension (Devin-style compaction)', () => {
   it('injects the carry-over block exactly once per compaction', async () => {
     const pi = createFakePi();
     compactExtension(pi);
-    pi.handlers.get('session_start')?.[0]?.({ type: 'session_start', cwd: WORKSPACE });
-    await pi.handlers.get('session_before_compact')?.[0]?.({
-      type: 'session_before_compact',
-      preparation: {
-        firstKeptEntryId: 'e1',
-        messagesToSummarize: [{ role: 'user', content: 'hello' }],
-        tokensBefore: 1000,
-        fileOps: {
-          read: new Set<string>(),
-          written: new Set<string>(),
-          edited: new Set(['src/a.ts']),
+    pi.handlers.get('session_start')?.[0]?.({ type: 'session_start' }, sessionCtx);
+    await pi.handlers.get('session_before_compact')?.[0]?.(
+      {
+        type: 'session_before_compact',
+        preparation: {
+          firstKeptEntryId: 'e1',
+          messagesToSummarize: [{ role: 'user', content: 'hello' }],
+          tokensBefore: 1000,
+          fileOps: {
+            read: new Set<string>(),
+            written: new Set<string>(),
+            edited: new Set(['src/a.ts']),
+          },
         },
+        reason: 'manual',
+        willRetry: false,
       },
-      reason: 'manual',
-      willRetry: false,
-    });
+      sessionCtx,
+    );
 
-    const first = pi.handlers.get('context')?.[0]?.({
-      type: 'context',
-      messages: [{ role: 'user', content: [{ type: 'text', text: 'next' }] }],
-    }) as { messages: Array<{ role: string; content: Array<{ text: string }> }> };
+    const first = pi.handlers.get('context')?.[0]?.(
+      {
+        type: 'context',
+        messages: [{ role: 'user', content: [{ type: 'text', text: 'next' }] }],
+      },
+      sessionCtx,
+    ) as { messages: Array<{ role: string; content: Array<{ text: string }> }> };
     expect(first.messages[0]?.role).toBe('user');
     expect(first.messages[0]?.content[0]?.text).toContain('<compaction_carryover');
     expect(first.messages[0]?.content[0]?.text).toContain('src/a.ts');
     expect(first.messages[1]?.content[0]?.text).toBe('next');
 
-    const second = pi.handlers.get('context')?.[0]?.({ type: 'context', messages: [] });
+    const second = pi.handlers.get('context')?.[0]?.({ type: 'context', messages: [] }, sessionCtx);
     expect(second).toBeUndefined();
   });
 
   it('tracks edited files from tool_execution_end (edit/write only)', async () => {
     const pi = createFakePi();
     compactExtension(pi);
-    pi.handlers.get('session_start')?.[0]?.({ type: 'session_start', cwd: WORKSPACE });
+    pi.handlers.get('session_start')?.[0]?.({ type: 'session_start' }, sessionCtx);
     const handler = pi.handlers.get('tool_execution_end')?.[0];
-    handler?.({ toolName: 'edit', input: { path: 'src/a.ts' } });
-    handler?.({ toolName: 'write', input: { path: 'src/b.ts' } });
-    handler?.({ toolName: 'edit', input: { path: 'src/a.ts' } });
-    handler?.({ toolName: 'read', input: { path: 'src/c.ts' } });
-    handler?.({ toolName: 'bash', input: { command: 'ls' } });
+    handler?.({ toolName: 'edit', input: { path: 'src/a.ts' } }, sessionCtx);
+    handler?.({ toolName: 'write', input: { path: 'src/b.ts' } }, sessionCtx);
+    handler?.({ toolName: 'edit', input: { path: 'src/a.ts' } }, sessionCtx);
+    handler?.({ toolName: 'read', input: { path: 'src/c.ts' } }, sessionCtx);
+    handler?.({ toolName: 'bash', input: { command: 'ls' } }, sessionCtx);
 
-    await pi.handlers.get('session_before_compact')?.[0]?.({
-      type: 'session_before_compact',
-      preparation: {
-        firstKeptEntryId: 'e1',
-        messagesToSummarize: [{ role: 'user', content: 'x' }],
-        tokensBefore: 10,
+    await pi.handlers.get('session_before_compact')?.[0]?.(
+      {
+        type: 'session_before_compact',
+        preparation: {
+          firstKeptEntryId: 'e1',
+          messagesToSummarize: [{ role: 'user', content: 'x' }],
+          tokensBefore: 10,
+        },
+        reason: 'manual',
+        willRetry: false,
       },
-      reason: 'manual',
-      willRetry: false,
-    });
+      sessionCtx,
+    );
 
     const notifications: string[] = [];
     await pi.handlers.get('session_compact')?.[0]?.(
       {
         type: 'session_compact',
         compactionEntry: { summary: 'done', tokensBefore: 10, firstKeptEntryId: 'e1' },
-        fromExtension: false,
+        fromExtension: true,
         reason: 'manual',
         willRetry: false,
       },
-      { ui: { notify: (m: string) => notifications.push(m) } },
+      { ...sessionCtx, ui: { notify: (m: string) => notifications.push(m) } },
     );
 
     const dir = sessionDirFor(WORKSPACE, join(tempDir, 'compact'));
@@ -330,10 +361,13 @@ describe('bundled compact extension (Devin-style compaction)', () => {
     const log = await readFile(join(dir, 'compaction-log.jsonl'), 'utf8');
     const record = JSON.parse(log.trim()) as { editedFiles: number };
     expect(record.editedFiles).toBe(2);
-    const injected = pi.handlers.get('context')?.[0]?.({
-      type: 'context',
-      messages: [{ role: 'user', content: [{ type: 'text', text: 'next' }] }],
-    }) as { messages: Array<{ content: Array<{ text: string }> }> };
+    const injected = pi.handlers.get('context')?.[0]?.(
+      {
+        type: 'context',
+        messages: [{ role: 'user', content: [{ type: 'text', text: 'next' }] }],
+      },
+      sessionCtx,
+    ) as { messages: Array<{ content: Array<{ text: string }> }> };
     expect(injected.messages[0]?.content[0]?.text).toContain('src/a.ts');
     expect(injected.messages[0]?.content[0]?.text).toContain('src/b.ts');
   });
@@ -389,6 +423,35 @@ describe('bundled compact extension (Devin-style compaction)', () => {
     expect(block).toContain('/tmp/history-1.md');
     expect(block).toContain('- a.ts');
     expect(block).toContain('</compaction_carryover>');
+  });
+
+  it('renders a Devin <summary> with citations, edited files, and current state', () => {
+    const summary = renderDevinSummary({
+      messages: [
+        { role: 'user', content: 'Ship the compact extension' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'Writing the history file next.' },
+            { type: 'tool_use', id: 't1', name: 'edit', input: { path: 'compact.ts' } },
+          ],
+        },
+      ],
+      historyFile: '/tmp/history-1.md',
+      editedFiles: ['compact.ts'],
+      tokensBefore: 90000,
+      focus: 'keep the registerCommand signature',
+      isSplitTurn: true,
+    });
+    expect(summary).toContain('<summary>');
+    expect(summary).toContain('## Overview');
+    expect(summary).toContain('Ship the compact extension');
+    expect(summary).toContain('/tmp/history-1.md');
+    expect(summary).toContain('compact.ts');
+    expect(summary).toContain('[m2]');
+    expect(summary).toContain('keep the registerCommand signature');
+    expect(summary).toContain('split a turn');
+    expect(summary).toContain('</summary>');
   });
 
   it('renders transcript markdown with citations, tool calls, and truncation notes', () => {

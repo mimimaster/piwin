@@ -44,7 +44,7 @@ describe('startScreencast', () => {
 
     expect(screencast.start).toHaveBeenCalledWith(
       expect.objectContaining({
-        quality: 80,
+        quality: 90,
         size: { width: 2560, height: 1600 },
       }),
     );

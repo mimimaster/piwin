@@ -12,6 +12,12 @@ export function normalizeBrowserWorkbenchConfig(value: unknown): BrowserWorkbenc
   if (typeof record.cdpEndpoint === 'string' && record.cdpEndpoint.trim() !== '') {
     config.cdpEndpoint = record.cdpEndpoint.trim();
   }
+  if (typeof record.deviceScaleFactor === 'number' && Number.isFinite(record.deviceScaleFactor)) {
+    config.deviceScaleFactor = Math.max(1, Math.min(3, Math.round(record.deviceScaleFactor)));
+  }
+  if (typeof record.quality === 'number' && Number.isFinite(record.quality)) {
+    config.quality = Math.max(50, Math.min(100, Math.round(record.quality)));
+  }
   const fastDecider = normalizeBrowserFastDeciderConfig(record.fastDecider);
   if (fastDecider) {
     config.fastDecider = fastDecider;

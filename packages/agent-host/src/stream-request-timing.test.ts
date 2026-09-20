@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   wrapLlmStreamWithRequestTiming,
+  wrapModelRuntimeStreamTiming,
   wrapStreamSimpleForRequestTiming,
 } from './stream-request-timing.js';
 
@@ -144,5 +145,40 @@ describe('wrapLlmStreamWithRequestTiming push intercept', () => {
     wrapped.push({ type: 'done', message });
     expect(message.firstTokenMs).toBe(350);
     expect(extracted).toMatchObject({ firstTokenMs: 350 });
+  });
+});
+
+describe('wrapModelRuntimeStreamTiming', () => {
+  it('stamps firstTokenMs on the stream the agent loop reads via result()', async () => {
+    let now = 1_000;
+    const message: Record<string, unknown> = { role: 'assistant' };
+    const runtime = {
+      streamSimple() {
+        return {
+          async *[Symbol.asyncIterator]() {
+            yield { type: 'start', partial: message };
+            now = 1_480;
+            yield { type: 'text_delta', delta: 'Hi', partial: message };
+            now = 3_000;
+            yield { type: 'done', message };
+          },
+          result: async () => message,
+        };
+      },
+    };
+    wrapModelRuntimeStreamTiming(runtime, () => now);
+    const stream = runtime.streamSimple();
+    const events: unknown[] = [];
+    for await (const event of stream as AsyncIterable<unknown>) {
+      events.push(event);
+    }
+    expect(events).toHaveLength(3);
+    await expect(stream.result()).resolves.toMatchObject({ firstTokenMs: 480 });
+  });
+
+  it('leaves runtimes without streamSimple unchanged', () => {
+    const runtime = { registerProvider: () => undefined };
+    wrapModelRuntimeStreamTiming(runtime);
+    expect(runtime).toEqual({ registerProvider: expect.any(Function) });
   });
 });

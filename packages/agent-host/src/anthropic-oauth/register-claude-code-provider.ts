@@ -16,7 +16,6 @@ import {
   writeClaudeCodeApiKeyCredential,
 } from '../subscription-auth-credentials.js';
 import { createAnthropicOAuthStreamSimple } from './oauth-transport.js';
-import { wrapStreamSimpleForRequestTiming } from '../stream-request-timing.js';
 import type { SerializableProviderRuntime } from '../rpc/serializable-blueprint.js';
 import { buildThinkingLevelMap } from '../map-thinking-level.js';
 import { resolvePiModelLimits, type PiModelRuntime } from '../pi-model-runtime.js';
@@ -78,10 +77,9 @@ export async function registerClaudeCodeOauthProvider(
   }
   // Pi hands the same `Model<Api>` to both shapes at runtime; the registration
   // type only describes its model argument more loosely.
-  const shaped = createAnthropicOAuthStreamSimple(
+  const streamSimple = createAnthropicOAuthStreamSimple(
     transport,
   ) as unknown as NativeSearchStreamSimple;
-  const streamSimple = wrapStreamSimpleForRequestTiming(shaped) ?? shaped;
   const baseUrl = provider.baseUrl?.trim() || DEFAULT_BASE;
   const models = provider.models.map((model) => {
     const limits = resolvePiModelLimits(model);

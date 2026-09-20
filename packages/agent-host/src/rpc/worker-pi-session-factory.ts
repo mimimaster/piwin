@@ -34,7 +34,7 @@ import {
 } from '../pi-model-runtime.js';
 
 import { resolveProviderStreamSimple } from '../attach-provider-stream-simple.js';
-import { attachSubscriptionStreamTiming } from '../attach-subscription-stream-timing.js';
+import { wrapModelRuntimeStreamTiming } from '../stream-request-timing.js';
 import type { NativeSearchStreamSimple } from '../native-web-search.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import type {
@@ -202,10 +202,8 @@ export function registerWorkerProviders(
   bootstrapSecrets?: ReadonlyMap<string, string>,
 ): void {
   const referencedBootstrapIds = new Set<string>();
-  const oauthProviderIds: string[] = [];
   for (const provider of providers) {
     if (provider.auth.kind === 'oauth') {
-      oauthProviderIds.push(provider.providerId);
       continue;
     }
     if (provider.auth.kind === 'bootstrap') {
@@ -217,7 +215,6 @@ export function registerWorkerProviders(
       buildWorkerProviderRegistration(provider, apiKey, searchRoute),
     );
   }
-  attachSubscriptionStreamTiming(modelRuntime, oauthProviderIds);
   if (bootstrapSecrets) {
     for (const secretId of bootstrapSecrets.keys()) {
       if (!referencedBootstrapIds.has(secretId)) {
@@ -652,7 +649,7 @@ async function createWorkerModelRuntime(
     authPath: join(agentDir, 'auth.json'),
     modelsPath: join(agentDir, 'models.json'),
   });
-  attachSubscriptionStreamTiming(modelRuntime);
+  wrapModelRuntimeStreamTiming(modelRuntime);
   return modelRuntime;
 }
 

@@ -135,9 +135,9 @@ FunctionEnd
   StrCpy $R0 ${LOGICAL}
   Call PwScale
   IntOp $R0 0 - $R0                                    ; negative = character height
-  System::Call 'gdi32::CreateFontW(i r0, i 0, i 0, i 0, i ${WEIGHT}, i 0, i 0, i 0, i 134, i 0, i 0, i 5, i 0, w "${PW_FACE}") p .R1'
+  System::Call 'gdi32::CreateFontW(i $R0, i 0, i 0, i 0, i ${WEIGHT}, i 0, i 0, i 0, i 134, i 0, i 0, i 5, i 0, w "${PW_FACE}") p .R1'
   ${If} $R1 == 0
-    System::Call 'gdi32::CreateFontW(i r0, i 0, i 0, i 0, i ${WEIGHT}, i 0, i 0, i 0, i 134, i 0, i 0, i 5, i 0, w "${PW_FACE_FALLBACK}") p .R1'
+    System::Call 'gdi32::CreateFontW(i $R0, i 0, i 0, i 0, i ${WEIGHT}, i 0, i 0, i 0, i 134, i 0, i 0, i 5, i 0, w "${PW_FACE_FALLBACK}") p .R1'
   ${EndIf}
   StrCpy ${OUT} $R1
 !macroend
@@ -182,16 +182,16 @@ Function PwWizardChrome
 
   ; Primary action in vermillion, everything else flat on ink.
   GetDlgItem $0 $HWNDPARENT 1
-  System::Call 'uxtheme::SetWindowTheme(p r0, w "", w "")'
+  System::Call 'uxtheme::SetWindowTheme(p $0, w "", w "")'
   SetCtlColors $0 ${PW_ON_VERMILION} ${PW_VERMILION}
   GetDlgItem $0 $HWNDPARENT 2
-  System::Call 'uxtheme::SetWindowTheme(p r0, w "", w "")'
+  System::Call 'uxtheme::SetWindowTheme(p $0, w "", w "")'
   SetCtlColors $0 ${PW_MUTED} ${PW_INK_PLATE}
   GetDlgItem $0 $HWNDPARENT 3
-  System::Call 'uxtheme::SetWindowTheme(p r0, w "", w "")'
+  System::Call 'uxtheme::SetWindowTheme(p $0, w "", w "")'
   SetCtlColors $0 ${PW_MUTED} ${PW_INK_PLATE}
   GetDlgItem $0 $HWNDPARENT 1001
-  System::Call 'uxtheme::SetWindowTheme(p r0, w "", w "")'
+  System::Call 'uxtheme::SetWindowTheme(p $0, w "", w "")'
   SetCtlColors $0 ${PW_MUTED} ${PW_INK_PLATE}
 FunctionEnd
 
@@ -214,7 +214,7 @@ Function PwCard
   StrCpy $R2 $R0
   System::Alloc 16
   Pop $R3
-  System::Call 'user32::SystemParametersInfoW(i 48, i 0, p r3, i 0)'   ; SPI_GETWORKAREA
+  System::Call 'user32::SystemParametersInfoW(i 48, i 0, p $R3, i 0)'   ; SPI_GETWORKAREA
   System::Call '*$R3(i .R4, i .R5, i .R6, i .R7)'
   System::Free $R3
   IntOp $R6 $R6 - $R4
@@ -225,7 +225,7 @@ Function PwCard
   IntOp $R7 $R7 - $R2
   IntOp $R7 $R7 / 2
   IntOp $R7 $R7 + $R5
-  System::Call 'user32::SetWindowPos(p $HWNDPARENT, p 0, i r6, i r7, i r1, i r2, i 0x0004)'
+  System::Call 'user32::SetWindowPos(p $HWNDPARENT, p 0, i $R6, i $R7, i $R1, i $R2, i 0x0004)'
   System::Call 'user32::SetWindowTextW(p $HWNDPARENT, w "piwin 安装程序")'
 
   ; ---- strip every piece of stock wizard chrome ----
@@ -237,7 +237,11 @@ Function PwCard
   !insertmacro PwHide 3
   !insertmacro PwHide 1016
   !insertmacro PwHide 1018
+  !insertmacro PwHide 1027
   !insertmacro PwHide 1028
+  !insertmacro PwHide 1035
+  !insertmacro PwHide 1037
+  !insertmacro PwHide 1038
   !insertmacro PwHide 1034
   !insertmacro PwHide 1036
   !insertmacro PwHide 1044
@@ -249,12 +253,12 @@ Function PwCard
   ; ---- the inner dialog becomes the card (covers anything left behind) ----
   System::Alloc 16
   Pop $R3
-  System::Call 'user32::GetClientRect(p $HWNDPARENT, p r3)'
+  System::Call 'user32::GetClientRect(p $HWNDPARENT, p $R3)'
   System::Call '*$R3(i .R4, i .R5, i .R6, i .R7)'
   System::Free $R3
   StrCpy $PwInnerW $R6
   StrCpy $PwInnerH $R7
-  System::Call 'user32::SetWindowPos(p $PwHwnd, p 0, i r4, i r5, i r6, i r7, i 0x0004)'
+  System::Call 'user32::SetWindowPos(p $PwHwnd, p 0, i $R4, i $R5, i $R6, i $R7, i 0x0004)'
   SetCtlColors $HWNDPARENT ${PW_IVORY} ${PW_INK}
   SetCtlColors $PwHwnd ${PW_IVORY} ${PW_INK}
 
@@ -270,16 +274,14 @@ Function PwCard
   !insertmacro PwFont 12 400 $PwFontBody
   !insertmacro PwFont 11 400 $PwFontMeta
 
-  ; ---- brand mark, straight out of the installer's own icon resource ----
-  ; Resource 1 is the icon Tauri passed as MUI_ICON. LoadIcon sizes it for the
-  ; display DPI, so no bitmap asset has to be shipped or extracted at runtime.
+  ; ---- brand mark: extract main icon directly from the installer exe ----
   System::Call 'user32::GetSystemMetrics(i 11) i .R1'    ; SM_CXICON
-  System::Call 'kernel32::GetModuleHandleW(p 0) p .R2'
-  System::Call 'user32::LoadIconW(p r2, p 1) p .R3'
-  ${If} $R3 <> 0
-    System::Call 'user32::CreateWindowExW(i 0, w "STATIC", w "", i 0x50000003, i $PwPad, i $PwPad, i r1, i r1, p $PwHwnd, i 0, i 0, i 0) p .R4'
+  System::Call 'shell32::ExtractIconW(p 0, w "$EXEPATH", i 0) p .R3'
+  ${If} $R3 > 1
+    System::Call 'user32::CreateWindowExW(i 0, w "STATIC", w "", i 0x50000003, i $PwPad, i $PwPad, i $R1, i $R1, p $PwHwnd, i 0, i 0, i 0) p .R4'
     SendMessage $R4 ${STM_SETICON_PW} $R3 0
     StrCpy $PwIconCtl $R4
+    SetCtlColors $PwIconCtl "" ${PW_INK}
   ${EndIf}
 
   ; ---- text block, right of the mark ----
@@ -295,7 +297,7 @@ Function PwCard
   !insertmacro PwPx 34
   StrCpy $R1 $R0
   !insertmacro PwPx 28
-  System::Call 'user32::CreateWindowExW(i 0, w "STATIC", w "piwin", i 0x50000000, i $PwTextX, i r1, i $PwTextW, i r0, p $PwHwnd, i 0, i 0, i 0) p .R2'
+  System::Call 'user32::CreateWindowExW(i 0, w "STATIC", w "piwin", i 0x50000000, i $PwTextX, i $R1, i $PwTextW, i $R0, p $PwHwnd, i 0, i 0, i 0) p .R2'
   StrCpy $PwTitleCtl $R2
   SendMessage $PwTitleCtl ${WM_SETFONT_PW} $PwFontTitle 1
   SetCtlColors $PwTitleCtl ${PW_IVORY} ${PW_INK}
@@ -303,42 +305,42 @@ Function PwCard
   !insertmacro PwPx 66
   StrCpy $R1 $R0
   !insertmacro PwPx 22
-  System::Call 'user32::CreateWindowExW(i 0, w "STATIC", w "私有 AI 智能体工作台", i 0x50000000, i $PwTextX, i r1, i $PwTextW, i r0, p $PwHwnd, i 0, i 0, i 0) p .R2'
+  System::Call 'user32::CreateWindowExW(i 0, w "STATIC", w "私有 AI 智能体工作台", i 0x50000000, i $PwTextX, i $R1, i $PwTextW, i $R0, p $PwHwnd, i 0, i 0, i 0) p .R2'
   StrCpy $PwSubCtl $R2
   SendMessage $PwSubCtl ${WM_SETFONT_PW} $PwFontBody 1
   SetCtlColors $PwSubCtl ${PW_MUTED} ${PW_INK}
 
-  !insertmacro PwPx 116
+  !insertmacro PwPx 106
   StrCpy $R1 $R0
-  !insertmacro PwPx 20
-  System::Call 'user32::CreateWindowExW(i 0, w "STATIC", w "桌面外壳 · 宿主运行时 · 内置 Node", i 0x50000000, i $PwPad, i r1, i $PwContentW, i r0, p $PwHwnd, i 0, i 0, i 0) p .R2'
+  !insertmacro PwPx 18
+  System::Call 'user32::CreateWindowExW(i 0, w "STATIC", w "桌面外壳 · 宿主运行时 · 内置 Node", i 0x50000000, i $PwPad, i $R1, i $PwContentW, i $R0, p $PwHwnd, i 0, i 0, i 0) p .R2'
   StrCpy $PwMetaCtl $R2
   SendMessage $PwMetaCtl ${WM_SETFONT_PW} $PwFontMeta 1
   SetCtlColors $PwMetaCtl ${PW_MUTED_FAINT} ${PW_INK}
 
-  ; ---- status line + progress bar, pinned to the bottom ----
+  ; ---- status line + progress bar (top-down, no overlap) ----
   !insertmacro PwCtl 1006 $PwStatusCtl
   ${If} $PwStatusCtl <> 0
-    !insertmacro PwPx 68
-    IntOp $R1 $PwInnerH - $R0
-    !insertmacro PwPx 22
+    !insertmacro PwPx 156
+    StrCpy $R1 $R0
+    !insertmacro PwPx 20
     StrCpy $R2 $R0
     SendMessage $PwStatusCtl ${WM_SETFONT_PW} $PwFontMeta 1
     SendMessage $PwStatusCtl 0x000C 0 "STR:正在安装运行时组件，完成后将自动启动"
-    SetCtlColors $PwStatusCtl ${PW_MUTED_DIM} ${PW_INK}
-    System::Call 'user32::SetWindowPos(p $PwStatusCtl, p 0, i $PwPad, i r1, i $PwContentW, i r2, i 0x0004)'
+    SetCtlColors $PwStatusCtl ${PW_MUTED} ${PW_INK}
+    System::Call 'user32::SetWindowPos(p $PwStatusCtl, p 0, i $PwPad, i $R1, i $PwContentW, i $R2, i 0x0004)'
   ${EndIf}
 
   !insertmacro PwCtl 1004 $PwBarCtl
   ${If} $PwBarCtl <> 0
-    !insertmacro PwPx 38
-    IntOp $R1 $PwInnerH - $R0
+    !insertmacro PwPx 188
+    StrCpy $R1 $R0
     !insertmacro PwPx 6
     StrCpy $R2 $R0
     System::Call 'uxtheme::SetWindowTheme(p $PwBarCtl, w "", w "")'
     SendMessage $PwBarCtl ${PBM_SETBKCOLOR_PW} 0 ${PW_INK_PLATE}
     SendMessage $PwBarCtl ${PBM_SETBARCOLOR_PW} 0 ${PW_VERMILION}
-    System::Call 'user32::SetWindowPos(p $PwBarCtl, p 0, i $PwPad, i r1, i $PwContentW, i r2, i 0x0004)'
+    System::Call 'user32::SetWindowPos(p $PwBarCtl, p 0, i $PwPad, i $R1, i $PwContentW, i $R2, i 0x0004)'
   ${EndIf}
 FunctionEnd
 
@@ -362,15 +364,13 @@ ONINIT_OLD = '''Function .onInit
 ONINIT_NEW = '''Function .onInit
   ; One-click install by default (Cursor / VS Code style): every wizard page is
   ; skipped and the app launches itself once the card finishes.
-  ;
-  ; ${GetOptions} writes "" into its output variable when the switch is absent,
-  ; so the default has to be established after parsing, never before.
-  StrCpy $R0 ""
+  ; ${GetOptions} clears the error flag when the switch is present, even when
+  ; value-less ($R0 is "").
+  StrCpy $PassiveMode 1
+  ClearErrors
   ${GetOptions} $CMDLINE "/INTERACTIVE" $R0
-  ${If} $R0 != ""
+  ${IfNot} ${Errors}
     StrCpy $PassiveMode 0
-  ${Else}
-    StrCpy $PassiveMode 1
   ${EndIf}
 
   ; /P pins passive mode for the silent uninstaller hand-off.

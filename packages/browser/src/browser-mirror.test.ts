@@ -69,7 +69,7 @@ describe('createBrowserMirror', () => {
     expect(raw.screencast.start).toHaveBeenCalledTimes(1);
     expect(raw.screencast.start).toHaveBeenCalledWith(
       expect.objectContaining({
-        quality: 80,
+        quality: 90,
         size: { width: 2560, height: 1600 },
         onFrame: expect.any(Function),
       }),
@@ -119,7 +119,7 @@ describe('createBrowserMirror', () => {
     );
 
     await mirror.frameLoop.requestFrame();
-    expect(raw.screenshot).toHaveBeenCalledWith({ type: 'jpeg', quality: 80 });
+    expect(raw.screenshot).toHaveBeenCalledWith({ type: 'jpeg', quality: 90 });
     expect(events.some((event) => event.producer === 'screenshot-fallback')).toBe(true);
 
     mirror.frameLoop.stop();
@@ -154,7 +154,7 @@ describe('createBrowserMirror', () => {
     expect(raw.screencast.start).toHaveBeenCalledTimes(2);
     expect(raw.screencast.start).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        quality: 80,
+        quality: 90,
         size: { width: 2048, height: 1536 },
       }),
     );

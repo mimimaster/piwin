@@ -158,3 +158,27 @@ export function wrapStreamSimpleForRequestTiming(
   return (model, context, options) =>
     wrapLlmStreamWithRequestTiming(base(model, context, options), nowMs);
 }
+
+type RuntimeStreamSimple = (
+  model: unknown,
+  context: unknown,
+  options?: unknown,
+) => unknown;
+
+/**
+ * Agent sessions call `ModelRuntime.streamSimple`, not the provider overlay.
+ * Patch that method so OAuth builtins (xai/Codex/Anthropic) get firstTokenMs
+ * on the stream result that agent-loop writes to `message_end`.
+ */
+export function wrapModelRuntimeStreamTiming(
+  runtime: object,
+  nowMs: StreamRequestClock = Date.now,
+): void {
+  const record = runtime as { streamSimple?: RuntimeStreamSimple };
+  const original = record.streamSimple;
+  if (typeof original !== 'function') {
+    return;
+  }
+  record.streamSimple = (model, context, options) =>
+    wrapLlmStreamWithRequestTiming(original.call(runtime, model, context, options), nowMs);
+}

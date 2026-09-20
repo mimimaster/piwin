@@ -33,17 +33,17 @@ Permissions, or via CLI flags.
 |------|---------|----------|
 | `auto` | On | Low-friction inside the sandbox. Safe commands and in-project writes run without prompts; leaving the workspace or opening network asks. |
 | `ask` | On | Prompts on almost every tool call (still sandboxed). Use when you want to watch every step. |
-| `yolo` (default) | Off | No sandbox, no routine **in-project** prompts. **Leaving the workspace still asks.** Circuit breakers still fire (see below). Refused for untrusted projects (downgraded to `auto`). |
+| `yolo` (default) | Off | No sandbox, no routine prompts. **Only `rm -rf` still asks.** Deny circuit breakers still fire. Refused for untrusted projects (downgraded to `auto`). |
 
 ### Circuit breakers (apply in all modes, including `yolo`)
 
 Even in `yolo`, these actions always prompt (or are denied non-interactively):
 
-- Writes outside a **bound project** root — `tee ~/x`, `rm -rf /tmp/foo`, and `write`/`edit` to an out-of-project path. `cd` / `ls` / `cat` / `echo` are not prompted. **No Repo / General YOLO does not apply this gate** (same as pre-escape yolo: deny rules still fire).
-- `rm -rf /` and equivalent root-deletion patterns.
-- Writes to secret paths (`~/.ssh/**`, `**/.env`, `**/*.pem`, `**/id_rsa`, …).
-- Force-push to `main` / `master`.
-- Any `deny` rule that matches.
+- Recursive force-delete (`rm -rf …`) still **asks**. `rm -rf /` and equivalent root-deletion patterns still **deny**.
+- Writes to secret paths (`~/.ssh/**`, `**/.env`, `**/*.pem`, `**/id_rsa`, …) still **deny**.
+- Any other `deny` rule that matches.
+
+Leave-workspace asks (`tee /tmp`, out-of-project `write`/`edit`) apply in `auto` / `ask`, not in `yolo`.
 
 Circuit breakers cannot be allowed away by project rules or `yolo` mode.
 
