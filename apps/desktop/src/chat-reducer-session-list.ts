@@ -17,6 +17,8 @@ import {
   upsertSessionEntity,
 } from './session-entities';
 import { mergeSessionListItem } from './session-list-item-merge';
+import { projectInstructionUserMessage } from './instruction-message-projection';
+import { enforceBoundedTranscriptWindow } from './chat-reducer-transcript';
 import {
   dedupeSessionsById,
   owningScopeFromLists,
@@ -469,12 +471,22 @@ export function reduceChatSessionList(
         ? current.map((item) => (item.queuedTurnId === queuedTurn.queuedTurnId ? queuedTurn : item))
         : [...current, queuedTurn];
       let messages = state.messages;
+      let projectedState = state;
       if (state.activeSessionId === queuedTurn.sessionId) {
         const messageIndex = state.messages.findIndex(
           (message) => message.id === queuedTurn.userMessageId,
         );
         const previous = messageIndex >= 0 ? state.messages[messageIndex] : undefined;
-        if (previous !== undefined) {
+        if (previous === undefined) {
+          projectedState = enforceBoundedTranscriptWindow({
+            ...state,
+            messages: [...state.messages, projectInstructionUserMessage(queuedTurn)],
+            historyView: null,
+            userMessageIndex: null,
+            userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
+          });
+          messages = projectedState.messages;
+        } else if (previous.instructionDelivery?.kind !== 'run-intervention') {
           const targetRunId = queuedTurn.startedRunId ?? queuedTurn.replaceRunId;
           const instructionDelivery: NonNullable<SessionTranscriptMessage['instructionDelivery']> =
             {
@@ -494,10 +506,10 @@ export function reduceChatSessionList(
         }
       }
       return {
-        ...state,
+        ...projectedState,
         messages,
         queuedTurnsBySession: {
-          ...state.queuedTurnsBySession,
+          ...projectedState.queuedTurnsBySession,
           [queuedTurn.sessionId]: next.sort((left, right) => left.sequence - right.sequence),
         },
       };

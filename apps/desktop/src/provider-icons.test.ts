@@ -133,4 +133,52 @@ describe('ProviderIcon', () => {
     expect(copilot).toContain('data-provider-brand="GithubCopilot"');
     expect(copilot).toContain('<svg');
   });
+
+  it('resolves official brand icons for new cloud providers: opencode-go, mimo, stepfun, volcengine', () => {
+    const opencode = renderToStaticMarkup(createElement(ProviderIcon, { id: 'opencode-go' }));
+    expect(opencode).toContain('data-provider-icon="opencode-go"');
+    expect(opencode).toContain('data-provider-brand="opencode"');
+    expect(opencode).toContain('<svg');
+
+    const mimo = renderToStaticMarkup(createElement(ProviderIcon, { id: 'mimo' }));
+    expect(mimo).toContain('data-provider-icon="mimo"');
+    expect(mimo).toContain('data-provider-brand="XiaomiMiMo"');
+    expect(mimo).toContain('<svg');
+
+    const stepfun = renderToStaticMarkup(createElement(ProviderIcon, { id: 'stepfun' }));
+    expect(stepfun).toContain('data-provider-icon="stepfun"');
+    expect(stepfun).toContain('data-provider-brand="Stepfun"');
+    expect(stepfun).toContain('<svg');
+
+    const volcengine = renderToStaticMarkup(createElement(ProviderIcon, { id: 'volcengine' }));
+    expect(volcengine).toContain('data-provider-icon="volcengine"');
+    expect(volcengine).toContain('data-provider-brand="Volcengine"');
+    expect(volcengine).toContain('<svg');
+
+    const doubao = renderToStaticMarkup(createElement(ProviderIcon, { id: 'doubao' }));
+    expect(doubao).toContain('data-provider-icon="doubao"');
+    expect(doubao).toContain('data-provider-brand="Doubao"');
+    expect(doubao).toContain('<svg');
+
+    // Model ID based resolution
+    const mimoModel = renderToStaticMarkup(
+      createElement(ProviderIcon, { id: 'custom-gateway', modelId: 'mimo-v2.5-pro' }),
+    );
+    expect(mimoModel).toContain('data-provider-brand="XiaomiMiMo"');
+
+    const stepModel = renderToStaticMarkup(
+      createElement(ProviderIcon, { id: 'custom-gateway', modelId: 'step-3.7-flash' }),
+    );
+    expect(stepModel).toContain('data-provider-brand="Stepfun"');
+
+    const doubaoModel = renderToStaticMarkup(
+      createElement(ProviderIcon, { id: 'custom-gateway', modelId: 'doubao-seed-2.1-pro' }),
+    );
+    expect(doubaoModel).toContain('data-provider-brand="Doubao"');
+
+    const arkModel = renderToStaticMarkup(
+      createElement(ProviderIcon, { id: 'custom-gateway', modelId: 'volcengine-ark-model' }),
+    );
+    expect(arkModel).toContain('data-provider-brand="Volcengine"');
+  });
 });

@@ -291,7 +291,7 @@ const KNOWN_IMAGE_FAMILIES = [
  * Deliberately broad for Chinese gateways (SiliconFlow, etc.).
  */
 const IMAGE_MODEL_HINT_PATTERN =
-  /(?:^|[^a-z0-9])(?:gpt-?image|dall-?e|dalle|flux|kolors|seedream|recraft|stable-?diffusion|sdxl|sd-?3|midjourney|imagen|ideogram|cogview|wanx|qwen-?image|hunyuan-?image|playground|cascade|kandinsky|aura-?flow|riverflow|grok-?imagine-image|mai-?image|janus|bagel|image-gen|text2image|txt2img|t2i)(?:[^a-z0-9]|$)|(?:^|[^a-z0-9])(?:image)(?:[^a-z0-9]|$)/i;
+  /(?:^|[^a-z0-9])(?:gpt-?image|dall-?e|dalle|flux|kolors|seedream|step-?image|recraft|stable-?diffusion|sdxl|sd-?3|midjourney|imagen|ideogram|cogview|wanx|qwen-?image|hunyuan-?image|playground|cascade|kandinsky|aura-?flow|riverflow|grok-?imagine-image|mai-?image|janus|bagel|image-gen|text2image|txt2img|t2i)(?:[^a-z0-9]|$)|(?:^|[^a-z0-9])(?:image)(?:[^a-z0-9]|$)/i;
 
 function toStringMap(
   value: ReadonlyMap<string, string> | Record<string, string> | undefined,
@@ -493,7 +493,7 @@ export const IMAGE_GENERATION_MODEL_REGISTRY: readonly ImageGenerationRegistryEn
 
 /** Tokens that strongly suggest video *generation* (not understanding/vision). */
 const VIDEO_GENERATION_HINT_PATTERN =
-  /(?:^|[^a-z0-9])(?:sora|veo[-_]?\d*|runway|gen[-_]?[34]|ray[-_]?\d*|hailuo|luma|dream-?machine|text2video|txt2vid|t2v|i2v|video-?gen(?:eration)?|kling|pika|lumaai|grok-?imagine-video)(?:[^a-z0-9]|$)/i;
+  /(?:^|[^a-z0-9])(?:sora|veo[-_]?\d*|runway|gen[-_]?[34]|ray[-_]?\d*|hailuo|seedance|luma|dream-?machine|text2video|txt2vid|t2v|i2v|video-?gen(?:eration)?|kling|pika|lumaai|grok-?imagine-video)(?:[^a-z0-9]|$)/i;
 
 /** Tokens that indicate video understanding / vision rather than generation. */
 const VIDEO_UNDERSTANDING_HINT_PATTERN =

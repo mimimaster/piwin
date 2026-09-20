@@ -63,11 +63,11 @@ function getModeMeta(preset: PermissionPreset, isChinese: boolean): ModeMeta {
         badgeTone: 'zhu',
         tagline: isChinese ? '全速推进 · 跳过常规确认' : 'Full Throttle · Zero Friction',
         description: isChinese
-          ? '跳过常规确认提示，全速流式执行；底层全局 deny 拒绝规则与高危破坏性操作熔断始终强制生效。'
-          : 'Skips routine confirmations for high-speed continuous flow; global deny rules and safety circuit breakers always apply.',
+          ? '跳过项目内常规确认，全速流式执行；出项目空间、全局 deny 与高危熔断始终询问或拒绝。'
+          : 'Skips routine in-project confirmations; leaving the workspace still asks. Global deny rules and circuit breakers always apply.',
         features: isChinese
-          ? ['免确认全速执行', '极致流式体验', '硬性熔断兜底']
-          : ['Zero prompts', 'Continuous stream', 'Hard breakers active'],
+          ? ['项目内免确认', '出项目仍询问', '硬性熔断兜底']
+          : ['In-project, no prompts', 'Leave-workspace asks', 'Hard breakers active'],
       };
   }
 }
@@ -155,7 +155,9 @@ export function PermissionsPage(): ReactElement {
                     <div className="mode-card-title-wrap">
                       <span className="mode-pill-dot mode-card-dot" aria-hidden />
                       <span className="mode-pill-label mode-card-title">{meta.title}</span>
-                      <span className={`mode-card-badge badge-${meta.badgeTone}`}>{meta.badge}</span>
+                      <span className={`mode-card-badge badge-${meta.badgeTone}`}>
+                        {meta.badge}
+                      </span>
                     </div>
                     <span className="mode-card-selector" aria-hidden>
                       {isActive ? (
@@ -197,7 +199,9 @@ export function PermissionsPage(): ReactElement {
                   {isYoloRestrictedHere ? (
                     <div className="mode-card-restricted-hint">
                       <span className="mode-card-restricted-dot" />
-                      {isChinese ? '未信任项目不可用（将降级为 Auto）' : 'Untrusted project (downgrades to Auto)'}
+                      {isChinese
+                        ? '未信任项目不可用（将降级为 Auto）'
+                        : 'Untrusted project (downgrades to Auto)'}
                     </div>
                   ) : null}
                 </button>

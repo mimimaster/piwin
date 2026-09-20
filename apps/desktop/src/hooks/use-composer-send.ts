@@ -143,8 +143,11 @@ export function useComposerSend(params: UseComposerSendArgs) {
        * truth — `args.agentMode` is still the pre-switch state here.
        */
       agentMode?: AgentModeId;
+      /** Queueing paints a user row without replacing the active Run projection. */
+      queued?: boolean;
+      clientMessageId?: string;
     }): string => {
-      const clientMessageId = crypto.randomUUID();
+      const clientMessageId = params.clientMessageId ?? crypto.randomUUID();
       const turnAgentMode = params.agentMode ?? args.agentMode;
       // Same model resolution as the Host prompt — Conversation needs it on
       // the optimistic turn so the avatar survives after streaming ends.
@@ -153,7 +156,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
         agentMode: turnAgentMode,
       }).model;
       args.dispatch({
-        type: 'user/send',
+        type: params.queued ? 'user/queue' : 'user/send',
         text: params.displayText ?? params.text,
         attachments: params.attachments ?? [],
         ...(params.contextRefs && params.contextRefs.length > 0
@@ -241,18 +244,6 @@ export function useComposerSend(params: UseComposerSendArgs) {
     },
     [args],
   );
-
-  /**
-   * A queued turn is represented by the Host queue until it starts. Keep the
-   * composer cleared while admission is in flight, but do not create a second
-   * optimistic transcript row: the Host's queued-turn projection is the
-   * single durable source for that pending message.
-   */
-  const clearComposerForQueuedAdmission = useCallback((): void => {
-    setComposer('');
-    pendingAttachmentsRef.current = [];
-    setPendingAttachments([]);
-  }, []);
 
   const resolveSessionIdForComposer = useCallback(
     async (sessionName?: string): Promise<string | null> => {
@@ -601,8 +592,17 @@ export function useComposerSend(params: UseComposerSendArgs) {
           const queuedTurnId = crypto.randomUUID();
           const paintSnapshotAttachments = [...pendingAttachmentsRef.current];
           const clientMessageId = crypto.randomUUID();
-          clearComposerForQueuedAdmission();
-          pendingContextRefsRef.current = contextRefs;
+          paintOptimisticUserSend({
+            text,
+            displayText,
+            attachments: promptAttachments,
+            contextRefs: promptContextRefs,
+            ...(skillActivity ? { skill: skillActivity } : {}),
+            agentMode: promptAgentMode,
+            queued: true,
+            clientMessageId,
+          });
+          pendingContextRefsRef.current = promptContextRefs;
           promptSubmissionInProgress.current = true;
           try {
             const response = await args.hostClient.request(
@@ -623,11 +623,13 @@ export function useComposerSend(params: UseComposerSendArgs) {
               { idempotencyKey: createGestureIdempotencyKey() },
             );
             if (!response.success) {
-              setComposer(text);
-              if (paintSnapshotAttachments.length > 0) {
-                pendingAttachmentsRef.current = [...paintSnapshotAttachments];
-                setPendingAttachments([...paintSnapshotAttachments]);
-              }
+              rollbackOptimisticUserSend(
+                clientMessageId,
+                text,
+                paintSnapshotAttachments,
+                sessionId,
+                ownerScopeAtEntry,
+              );
               notifyError(hostFailureNotice(response, locale));
               return;
             }
@@ -644,11 +646,13 @@ export function useComposerSend(params: UseComposerSendArgs) {
               args.clearPendingContextRefs?.();
             }
           } catch (error) {
-            setComposer(text);
-            if (paintSnapshotAttachments.length > 0) {
-              pendingAttachmentsRef.current = [...paintSnapshotAttachments];
-              setPendingAttachments([...paintSnapshotAttachments]);
-            }
+            rollbackOptimisticUserSend(
+              clientMessageId,
+              text,
+              paintSnapshotAttachments,
+              sessionId,
+              ownerScopeAtEntry,
+            );
             notifyError(formatError(error));
           } finally {
             promptSubmissionInProgress.current = false;
@@ -881,7 +885,6 @@ export function useComposerSend(params: UseComposerSendArgs) {
       attachmentCopy,
       buildPromptRequestInput,
       clearPendingAttachments,
-      clearComposerForQueuedAdmission,
       composer,
       forceDisposeComposerAttachments,
       markAttachmentUploadStatus,

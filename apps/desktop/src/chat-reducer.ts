@@ -166,6 +166,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
     case 'session/attention-dismiss':
       return reduceChatSessionList(state, action);
     case 'user/send':
+    case 'user/queue':
     case 'user/steer':
     case 'user/send-rollback':
     case 'run/pausing':

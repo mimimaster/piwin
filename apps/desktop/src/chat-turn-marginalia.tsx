@@ -155,6 +155,10 @@ export function resolveModelAvatarInitial(
   if (target.includes('qwen')) return 'Q';
   if (target.includes('openai') || target.includes('gpt') || target.includes('o1') || target.includes('o3')) return 'O';
   if (target.includes('grok') || target.includes('xai')) return 'G';
+  if (target.includes('mimo') || target.includes('xiaomi')) return 'M';
+  if (target.includes('step')) return 'S';
+  if (target.includes('volc') || target.includes('doubao') || target.includes('ark')) return '豆';
+  if (target.includes('opencode')) return 'O';
   if (themeId && !themeId.includes('inkstone')) {
     return '智';
   }

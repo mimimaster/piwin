@@ -364,6 +364,10 @@ describe('ProviderSettings', () => {
     expect(scope.querySelector('[data-testid="provider-preset-deepseek"]')).not.toBeNull();
     expect(scope.querySelector('[data-testid="provider-preset-qwen"]')).not.toBeNull();
     expect(scope.querySelector('[data-testid="provider-preset-azure"]')).not.toBeNull();
+    expect(scope.querySelector('[data-testid="provider-preset-opencode-go"]')).not.toBeNull();
+    expect(scope.querySelector('[data-testid="provider-preset-mimo"]')).not.toBeNull();
+    expect(scope.querySelector('[data-testid="provider-preset-stepfun"]')).not.toBeNull();
+    expect(scope.querySelector('[data-testid="provider-preset-volcengine"]')).not.toBeNull();
 
     const deepseek = scope.querySelector<HTMLButtonElement>(
       '[data-testid="provider-preset-deepseek"]',

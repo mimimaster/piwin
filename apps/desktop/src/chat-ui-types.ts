@@ -623,6 +623,17 @@ export type ChatUiAction =
       agentMode?: AgentModeId;
     }
   | {
+      /** Optimistic next-turn row. Unlike `user/send`, this preserves the active Run. */
+      type: 'user/queue';
+      text: string;
+      attachments?: PromptAttachment[];
+      contextRefs?: PromptContextRef[];
+      clientMessageId: string;
+      skill?: SkillActivityView;
+      model?: ModelRef;
+      agentMode?: AgentModeId;
+    }
+  | {
       type: 'user/steer';
       text: string;
       attachments?: PromptAttachment[];

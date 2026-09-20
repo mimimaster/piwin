@@ -301,7 +301,9 @@ export async function composeSessionHostToolsForSession(
     // A child has no mode picker of its own; it follows the parent's session mode.
     const sessionOverride =
       deps.sessionPermissionOverrides.get(sessionId) ??
-      (childContext ? deps.sessionPermissionOverrides.get(childContext.parentSessionId) : undefined);
+      (childContext
+        ? deps.sessionPermissionOverrides.get(childContext.parentSessionId)
+        : undefined);
     return effectivePermissionMode({
       ...(sessionOverride !== undefined ? { sessionOverride } : {}),
       ...(deps.options.permissionModeOverride !== undefined
@@ -325,7 +327,8 @@ export async function composeSessionHostToolsForSession(
             return isWorktreeConfinedRecursiveRemove({
               command,
               worktreePath: childWorktreePath,
-              evaluateStep: (step) => evaluateBashPermission(step, mode, rules).decision,
+              evaluateStep: (step) =>
+                evaluateBashPermission(step, mode, rules, childWorktreePath).decision,
             });
           },
         }

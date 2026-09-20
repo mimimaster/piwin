@@ -2,7 +2,18 @@
  * Modal stack + settings overlay of the desktop workbench (extracted from App).
  * Host commands stay with App; this file owns dialog/settings chrome.
  */
-import { useEffect, type Dispatch, type ReactElement, type SetStateAction } from 'react';
+import {
+  Component,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type ErrorInfo,
+  type ReactElement,
+  type ReactNode,
+  type SetStateAction,
+} from 'react';
+import { Button, Notice } from '@piwin/ui-kit';
 import type { PetPanelProps } from './PetPanel';
 import type {
   HostListDirData,
@@ -24,7 +35,7 @@ import type { ChatUiState, SessionListItemUi } from './chat-reducer';
 import type { DesktopCommandId } from './desktop-commands';
 import type { DesktopLocale } from './desktop-locale';
 import {
-  DeferredSettingsPanel,
+  createDeferredSettingsPanel,
   DeferredSurfaceBoundary,
   prefetchSettingsPanel,
 } from './deferred-desktop-surfaces';
@@ -322,41 +333,119 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
 export function WorkbenchSettingsOverlay(
   props: WorkbenchSettingsOverlayProps,
 ): ReactElement | null {
+  const [loadGeneration, setLoadGeneration] = useState(0);
+  const LazyPanel = useMemo(() => createDeferredSettingsPanel(), [loadGeneration]);
+
+  useEffect(() => {
+    if (props.settingsOpen) {
+      return;
+    }
+    setLoadGeneration((generation) => generation + 1);
+  }, [props.settingsOpen]);
+
   if (!props.settingsOpen) {
     return null;
   }
+
+  const isChinese = props.locale === 'zh-CN';
   return (
-    <DeferredSurfaceBoundary label={props.locale === 'zh-CN' ? '正在加载设置' : 'Loading settings'}>
-      <DeferredSettingsPanel
-        hostStatus={props.hostStatus}
-        hostClient={props.hostClient}
-        request={props.requestConfig}
-        preferences={props.preferences}
-        activeTheme={props.activeTheme}
-        onPreferencesChange={props.onPreferencesChange}
-        initialSection={props.settingsSection}
-        onSectionChange={props.onSettingsSectionChange}
-        projectPath={props.state.projectPath}
-        projectTrusted={props.state.projectTrusted}
-        requestSkills={props.requestSkills}
-        requestMcp={props.requestMcp}
-        requestExtensions={props.requestExtensions}
-        requestPlugins={props.requestPlugins}
-        requestPrompts={props.requestPrompts}
-        requestPet={props.requestPet}
-        requestAutomation={props.requestAutomation}
-        requestSubAgent={props.requestSubAgent as never}
-        subagentChildren={props.state.subagentChildren}
-        subagentBatches={props.state.subagentBatches}
-        subagentInvocations={props.state.subagentInvocations}
-        activeSessionId={props.state.activeSessionId}
-        onOpenSubagentSession={props.onOpenSubagentSession}
-        onThemeApplied={props.onThemeApplied}
-        onPetActiveChanged={props.onPetActiveChanged}
+    <div className="settings-overlay-host" data-testid="settings-overlay-host">
+      <SettingsOverlayErrorBoundary
+        key={loadGeneration}
+        locale={props.locale}
+        onRetry={() => setLoadGeneration((generation) => generation + 1)}
         onClose={props.onCloseSettings}
-        onSaved={props.onSettingsSaved}
-        {...(props.config ? { seedConfig: props.config } : {})}
-      />
-    </DeferredSurfaceBoundary>
+      >
+        <DeferredSurfaceBoundary label={isChinese ? '正在加载设置' : 'Loading settings'}>
+          <LazyPanel
+            hostStatus={props.hostStatus}
+            hostClient={props.hostClient}
+            request={props.requestConfig}
+            preferences={props.preferences}
+            activeTheme={props.activeTheme}
+            onPreferencesChange={props.onPreferencesChange}
+            initialSection={props.settingsSection}
+            onSectionChange={props.onSettingsSectionChange}
+            projectPath={props.state.projectPath}
+            projectTrusted={props.state.projectTrusted}
+            requestSkills={props.requestSkills}
+            requestMcp={props.requestMcp}
+            requestExtensions={props.requestExtensions}
+            requestPlugins={props.requestPlugins}
+            requestPrompts={props.requestPrompts}
+            requestPet={props.requestPet}
+            requestAutomation={props.requestAutomation}
+            requestSubAgent={props.requestSubAgent as never}
+            subagentChildren={props.state.subagentChildren}
+            subagentBatches={props.state.subagentBatches}
+            subagentInvocations={props.state.subagentInvocations}
+            activeSessionId={props.state.activeSessionId}
+            onOpenSubagentSession={props.onOpenSubagentSession}
+            onThemeApplied={props.onThemeApplied}
+            onPetActiveChanged={props.onPetActiveChanged}
+            onClose={props.onCloseSettings}
+            onSaved={props.onSettingsSaved}
+            {...(props.config ? { seedConfig: props.config } : {})}
+          />
+        </DeferredSurfaceBoundary>
+      </SettingsOverlayErrorBoundary>
+    </div>
   );
+}
+
+type SettingsOverlayErrorBoundaryProps = {
+  children: ReactNode;
+  locale: DesktopLocale;
+  onRetry: () => void;
+  onClose: () => void;
+};
+
+type SettingsOverlayErrorBoundaryState = {
+  error: Error | null;
+};
+
+class SettingsOverlayErrorBoundary extends Component<
+  SettingsOverlayErrorBoundaryProps,
+  SettingsOverlayErrorBoundaryState
+> {
+  state: SettingsOverlayErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): SettingsOverlayErrorBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('[piwin] settings overlay failed', error, info.componentStack);
+  }
+
+  render(): ReactNode {
+    if (!this.state.error) {
+      return this.props.children;
+    }
+    const isChinese = this.props.locale === 'zh-CN';
+    return (
+      <div className="settings-overlay-error" data-testid="settings-overlay-error">
+        <Notice
+          tone="error"
+          title={isChinese ? '设置页没有打开' : 'Settings failed to open'}
+          testId="settings-overlay-error-notice"
+          action={
+            <>
+              <Button variant="ghost" onClick={this.props.onRetry}>
+                {isChinese ? '重试' : 'Retry'}
+              </Button>
+              <Button variant="ghost" onClick={this.props.onClose}>
+                {isChinese ? '返回' : 'Back'}
+              </Button>
+            </>
+          }
+          details={this.state.error.message}
+        >
+          {isChinese
+            ? '设置界面没有加载成功。会话还在，可以重试或先返回工作台。'
+            : 'Settings did not load. Your session is still here — retry or go back to the workspace.'}
+        </Notice>
+      </div>
+    );
+  }
 }

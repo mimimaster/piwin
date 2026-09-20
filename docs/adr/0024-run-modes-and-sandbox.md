@@ -72,6 +72,15 @@ Even under `yolo`, these still prompt (or deny non-interactive):
 This matches Claude Code's circuit breaker. Today's `bypass` allows everything
 except deny rules — too hot for a tool people leave on.
 
+**Amendment (2026-09-21):** Leaving the project workspace asks in every Run
+Mode, including `yolo`. Approval-layer only (OS sandbox is still Phase 2):
+
+- `write` / `edit` whose resolved path `escapesRoot` → `ask` (`path-escapes-project-root`).
+- `bash` whose command lexically references a path outside the project
+  (`cd /tmp`, `cat ~/…`, `..`, `--out=/tmp/x`) → `ask`. Bundled allow
+  prefixes (`cd *`, `cat *`, `ls *`) cannot silence that. In-project YOLO
+  still promotes matched `ask` rules (`sudo`, `rm -rf ./build`) to allow.
+
 ### 4. Approval scopes: once | session | project
 
 Today: once / project. Add **session** (in-memory, per session). Default focus

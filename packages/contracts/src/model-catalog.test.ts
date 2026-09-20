@@ -141,6 +141,8 @@ describe('isLikelyImageGenerationModel', () => {
     expect(isLikelyImageGenerationModel('Kwai-Kolors/Kolors')).toBe(true);
     expect(isLikelyImageGenerationModel('Qwen/Qwen-Image')).toBe(true);
     expect(isLikelyImageGenerationModel('grok-imagine-image-lite')).toBe(true);
+    expect(isLikelyImageGenerationModel('step-image-edit-2')).toBe(true);
+    expect(isLikelyImageGenerationModel('doubao-seedream-5.0-pro')).toBe(true);
     expect(isLikelyImageGenerationModel('deepseek-chat')).toBe(false);
     expect(isLikelyImageGenerationModel('gpt-4o')).toBe(false);
     expect(isLikelyImageGenerationModel('grok-imagine-video')).toBe(false);
@@ -260,6 +262,7 @@ describe('video generation name heuristics', () => {
     expect(isLikelyVideoGenerationModel('kling-v1')).toBe(true);
     expect(isLikelyVideoGenerationModel('pika-1.0')).toBe(true);
     expect(isLikelyVideoGenerationModel('grok-imagine-video')).toBe(true);
+    expect(isLikelyVideoGenerationModel('doubao-seedance-2.0')).toBe(true);
     expect(isLikelyVideoGenerationModel('grok-imagine-image-lite')).toBe(false);
   });
 

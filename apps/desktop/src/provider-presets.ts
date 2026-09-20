@@ -145,6 +145,77 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     group: 'cloud',
   },
   {
+    presetId: 'stepfun',
+    id: 'stepfun',
+    name: 'StepFun (阶跃星辰)',
+    protocol: 'openai-compatible',
+    baseUrl: 'https://api.stepfun.com/v1',
+    apiKeyEnv: 'STEPFUN_API_KEY',
+    models: [
+      { id: 'step-3.7-flash', label: 'Step 3.7 Flash' },
+      { id: 'step-3.5-flash', label: 'Step 3.5 Flash' },
+      { id: 'step-2-16k', label: 'Step 2' },
+    ],
+    badge: 'ST',
+    desc: 'Step series',
+    group: 'cloud',
+    docsHint: 'StepFun API endpoint (https://api.stepfun.com/v1)',
+  },
+  {
+    presetId: 'mimo',
+    id: 'mimo',
+    name: 'Xiaomi MiMo',
+    protocol: 'openai-compatible',
+    baseUrl: 'https://api.xiaomimimo.com/v1',
+    apiKeyEnv: 'MIMO_API_KEY',
+    models: [
+      { id: 'mimo-v2.5-pro', label: 'MiMo V2.5 Pro' },
+      { id: 'mimo-v2.5', label: 'MiMo V2.5' },
+    ],
+    badge: 'MM',
+    desc: 'Xiaomi MiMo series',
+    group: 'cloud',
+    docsHint: 'Xiaomi MiMo API endpoint (Pay-as-you-go or Token Plan)',
+  },
+  {
+    presetId: 'volcengine',
+    id: 'volcengine',
+    name: 'Volcengine Ark (火山方舟)',
+    protocol: 'openai-compatible',
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    apiKeyEnv: 'ARK_API_KEY',
+    models: [
+      { id: 'doubao-seed-2.1-pro', label: 'Doubao Seed 2.1 Pro' },
+      { id: 'doubao-seed-2.1-turbo', label: 'Doubao Seed 2.1 Turbo' },
+      { id: 'doubao-1.5-pro-32k', label: 'Doubao 1.5 Pro' },
+      { id: 'doubao-1.5-lite-32k', label: 'Doubao 1.5 Lite' },
+    ],
+    badge: 'VA',
+    desc: 'Doubao · Seed series',
+    group: 'cloud',
+    docsHint: '火山方舟推理接入点 (ep-xxx) 或模型名称',
+  },
+  {
+    presetId: 'opencode-go',
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    protocol: 'openai-compatible',
+    baseUrl: 'https://opencode.ai/zen/go/v1',
+    apiKeyEnv: 'OPENCODE_API_KEY',
+    models: [
+      { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
+      { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
+      { id: 'kimi-k3', label: 'Kimi K3' },
+      { id: 'mimo-v2.5-pro', label: 'MiMo V2.5 Pro' },
+      { id: 'glm-5.3-flash', label: 'GLM 5.3 Flash' },
+      { id: 'qwen3.7-max', label: 'Qwen 3.7 Max' },
+    ],
+    badge: 'OG',
+    desc: 'OpenCode subscription models',
+    group: 'cloud',
+    docsHint: 'OpenCode Go API endpoint (https://opencode.ai/zen/go/v1)',
+  },
+  {
     presetId: 'groq',
     id: 'groq',
     name: 'Groq',
@@ -252,7 +323,27 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
 ] as const;
 
 export function getProviderPreset(presetId: string): ProviderPreset | undefined {
-  return PROVIDER_PRESETS.find((preset) => preset.presetId === presetId);
+  const direct = PROVIDER_PRESETS.find((preset) => preset.presetId === presetId);
+  if (direct) return direct;
+  const lower = presetId.toLowerCase();
+  if (lower === 'opencode' || lower === 'opencode_go' || lower === 'opencode-go') {
+    return PROVIDER_PRESETS.find((preset) => preset.presetId === 'opencode-go');
+  }
+  if (lower === 'xiaomi' || lower === 'xiaomimimo') {
+    return PROVIDER_PRESETS.find((preset) => preset.presetId === 'mimo');
+  }
+  if (lower === 'step') {
+    return PROVIDER_PRESETS.find((preset) => preset.presetId === 'stepfun');
+  }
+  if (
+    lower === 'ark' ||
+    lower === 'doubao' ||
+    lower === 'volcengine-ark' ||
+    lower === 'volcengine_ark'
+  ) {
+    return PROVIDER_PRESETS.find((preset) => preset.presetId === 'volcengine');
+  }
+  return undefined;
 }
 
 export function presetsByGroup(): Record<ProviderPreset['group'], ProviderPreset[]> {
@@ -287,6 +378,10 @@ export function presetDesc(preset: ProviderPreset, isChinese: boolean): string {
     moonshot: 'Kimi 系列',
     zhipu: 'GLM 系列',
     qwen: '通义千问系列',
+    stepfun: '阶跃星辰 Step 系列',
+    mimo: '小米 MiMo 系列',
+    volcengine: '火山方舟豆包系列',
+    'opencode-go': 'OpenCode 编程模型订阅',
     groq: '高速推理',
     openrouter: '聚合多家模型',
     siliconflow: '开源模型聚合',

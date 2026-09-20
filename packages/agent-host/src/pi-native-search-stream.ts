@@ -25,15 +25,18 @@ export type PiNativeSearchApi =
 export function resolvePiNativeSearchStream(api: PiNativeSearchApi): NativeSearchStreamSimple {
   switch (api) {
     case 'openai-completions':
-      return adaptPiStream(openAICompletionsApi().streamSimple);
+      return adaptPiApiStreamSimple(openAICompletionsApi().streamSimple);
     case 'anthropic-messages':
-      return adaptPiStream(anthropicMessagesApi().streamSimple);
+      return adaptPiApiStreamSimple(anthropicMessagesApi().streamSimple);
     case 'google-generative-ai':
-      return adaptPiStream(googleGenerativeAIApi().streamSimple);
+      return adaptPiApiStreamSimple(googleGenerativeAIApi().streamSimple);
   }
 }
 
-function adaptPiStream(streamSimple: ProviderStreams['streamSimple']): NativeSearchStreamSimple {
+/** Adapt a Pi provider streamSimple to the product wrapper type. */
+export function adaptPiApiStreamSimple(
+  streamSimple: ProviderStreams['streamSimple'],
+): NativeSearchStreamSimple {
   return (model, context, options) =>
     streamSimple(
       model as unknown as Model<Api>,

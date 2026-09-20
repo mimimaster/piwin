@@ -314,6 +314,7 @@ export function createStoreTranscriptRecorder(options: {
   }
 
   return {
+    runtimeGenerationId: options.runtimeGenerationId,
     async recordUserPrompt(input) {
       const clientMessageId = input.clientMessageId?.trim();
       const userId =

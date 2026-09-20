@@ -161,6 +161,27 @@
   display: none;
 }
 
+/* Settings is a sibling of .app-shell (not a grid child). The panel chunk is
+   lazy, so this host must paint immediately — otherwise settings-open hides
+   the stage and the user is left with an empty 素笺 titleband. */
+.settings-overlay-host {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-settings);
+  display: flex;
+  background: var(--surface-1);
+}
+
+.settings-overlay-host .deferred-surface-fallback,
+.settings-overlay-host .settings-overlay-error {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--s-7);
+}
+
 /* Library / Flashcards are a full-window jump, same idea as settings. */
 .app-shell.studio-open > .settings-workspace-suspended,
 .app-shell.studio-open > .sidebar,

@@ -33,12 +33,13 @@ Permissions, or via CLI flags.
 |------|---------|----------|
 | `auto` | On | Low-friction inside the sandbox. Safe commands and in-project writes run without prompts; leaving the workspace or opening network asks. |
 | `ask` | On | Prompts on almost every tool call (still sandboxed). Use when you want to watch every step. |
-| `yolo` (default) | Off | No sandbox, no routine prompts. **Circuit breakers still fire** (see below). Refused for untrusted projects (downgraded to `auto`). |
+| `yolo` (default) | Off | No sandbox, no routine **in-project** prompts. **Leaving the workspace still asks.** Circuit breakers still fire (see below). Refused for untrusted projects (downgraded to `auto`). |
 
 ### Circuit breakers (apply in all modes, including `yolo`)
 
 Even in `yolo`, these actions always prompt (or are denied non-interactively):
 
+- Paths outside the project root — bash tokens like `cd /tmp`, `cat ~/…`, `..`, and `write`/`edit` to an out-of-project path.
 - `rm -rf /` and equivalent root-deletion patterns.
 - Writes to secret paths (`~/.ssh/**`, `**/.env`, `**/*.pem`, `**/id_rsa`, …).
 - Force-push to `main` / `master`.
@@ -191,9 +192,9 @@ Every `write` and `edit` tool call is gated:
 
 - **Denied** (no prompt): secret paths — `~/.ssh/**`, `~/.piwin/**`, `**/.env`,
   `**/*.pem`, `**/id_rsa`, `**/credentials.json`, `**/secrets.*`, etc.
-- **Ask**: paths outside the project root (in `auto` and `ask`), and
+- **Ask**: paths outside the project root (all modes, including `yolo`), and
   `~/.config/**` (sensitive but sometimes legitimate).
-- **Allow**: paths inside the project root in `auto`; in `ask` project
+- **Allow**: paths inside the project root in `auto` and `yolo`; in `ask` project
   writes still ask unless an `allow` rule matches.
 
 The gate resolves symlinks (`realpath`) before checking, so a symlink that

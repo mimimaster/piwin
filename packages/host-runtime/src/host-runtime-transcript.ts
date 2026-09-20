@@ -42,8 +42,17 @@ export async function ensureTranscriptRecorder(
   projectPath: string,
   runtimeGenerationId: string,
 ): Promise<void> {
-  if (deps.transcriptRecorders.has(sessionId)) {
+  const existing = deps.transcriptRecorders.get(sessionId);
+  if (existing?.runtimeGenerationId === runtimeGenerationId) {
     return;
+  }
+  if (existing !== undefined) {
+    // A recorder is generation-scoped. Flush the retired generation before
+    // disposing it so the first events from a replacement cannot overwrite
+    // or quarantine rows that were still only held in memory.
+    await existing.flush();
+    existing.dispose();
+    deps.transcriptRecorders.delete(sessionId);
   }
   const store = await deps.transcriptStores.get(sessionId, projectPath);
   deps.transcriptRecorders.set(

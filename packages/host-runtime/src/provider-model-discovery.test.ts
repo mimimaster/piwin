@@ -38,6 +38,23 @@ describe('discoverProviderModels', () => {
     expect(result.models).toEqual([{ id: 'deepseek-chat' }, { id: 'deepseek-reasoner' }]);
   });
 
+  it('discovers OpenAI-compatible models from a versioned base URL like Ark /api/v3', async () => {
+    let requestedUrl = '';
+    const result = await discoverProviderModels(
+      createProvider({ baseUrl: 'https://ark.cn-beijing.volces.com/api/v3' }),
+      {
+        resolveSecret: async () => 'test-secret',
+        fetch: async (input) => {
+          requestedUrl = String(input);
+          return createJsonResponse({ data: [{ id: 'doubao-seed-2.1-pro' }] });
+        },
+      },
+    );
+
+    expect(requestedUrl).toBe('https://ark.cn-beijing.volces.com/api/v3/models');
+    expect(result.models).toEqual([{ id: 'doubao-seed-2.1-pro' }]);
+  });
+
   it('uses Anthropic headers and normalizes the models list', async () => {
     let apiVersion = '';
     const result = await discoverProviderModels(

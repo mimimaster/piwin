@@ -20,6 +20,12 @@ import {
 } from '@piwin/session';
 
 export type TranscriptRecorder = {
+  /**
+   * Runtime generation whose events this recorder persists. The store-backed
+   * recorder always provides this; the optional shape keeps the deprecated
+   * JSON recorder and existing test doubles source-compatible.
+   */
+  runtimeGenerationId?: string;
   recordUserPrompt: (input: PromptInput) => Promise<void>;
   recordEvent: (event: AgentEvent) => Promise<void>;
   flush: () => Promise<void>;
@@ -178,6 +184,9 @@ export function createTranscriptRecorder(options: {
   }
 
   return {
+    ...(options.runtimeGenerationId !== undefined
+      ? { runtimeGenerationId: options.runtimeGenerationId }
+      : {}),
     async recordUserPrompt(input) {
       const clientMessageId = input.clientMessageId?.trim();
       const userId =

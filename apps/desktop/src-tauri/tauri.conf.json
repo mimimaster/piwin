@@ -63,7 +63,14 @@
     "targets": ["dmg", "nsis"],
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "languages": ["SimpChinese", "English"],
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "sidebarImage": "icons/nsis-sidebar.bmp",
+        "headerImage": "icons/nsis-header.bmp",
+        "uninstallerHeaderImage": "icons/nsis-header.bmp",
+        "installerHooks": "windows/hooks.nsh"
       }
     },
     "macOS": {
@@ -76,6 +83,9 @@
       "icons/icon.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "copyright": "Copyright © 2026 piwin",
+    "shortDescription": "私有 AI 智能体工作台",
+    "longDescription": "piwin 是您的私有 AI 智能体工作台"
   }
 }

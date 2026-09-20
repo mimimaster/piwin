@@ -159,7 +159,7 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'bash': {
       const command =
         input.subject?.kind === 'bash' ? input.subject.command : String(input.args.command ?? '');
-      return evaluateBashPermission(command, input.mode, input.rules);
+      return evaluateBashPermission(command, input.mode, input.rules, input.projectRoot);
     }
     case 'file-write': {
       const path =

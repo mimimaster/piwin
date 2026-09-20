@@ -9,10 +9,12 @@ import {
   Anthropic,
   Azure,
   AzureAI,
+  ByteDance,
   Claude,
   Codex,
   Copilot,
   DeepSeek,
+  Doubao,
   Gemini,
   Github,
   GithubCopilot,
@@ -23,10 +25,14 @@ import {
   Moonshot,
   Ollama,
   OpenAI,
+  OpenCode,
   OpenRouter,
   Qwen,
   SiliconCloud,
+  Stepfun,
+  Volcengine,
   XAI,
+  XiaomiMiMo,
   Zhipu,
 } from 'modelicons';
 
@@ -127,6 +133,18 @@ const BRANDS: Record<string, BrandEntry> = {
   siliconflow: { Icon: SiliconCloud as BrandIcon, softBg: '#eef2ff', softFg: '#6366f1' },
   siliconcloud: { Icon: SiliconCloud as BrandIcon, softBg: '#eef2ff', softFg: '#6366f1' },
   silicon: { Icon: SiliconCloud as BrandIcon, softBg: '#eef2ff', softFg: '#6366f1' },
+  'opencode-go': { Icon: OpenCode as BrandIcon, softBg: '#e8edf2', softFg: '#09090b' },
+  opencode: { Icon: OpenCode as BrandIcon, softBg: '#e8edf2', softFg: '#09090b' },
+  mimo: { Icon: XiaomiMiMo as BrandIcon, softBg: '#fff0e6', softFg: '#ff6700' },
+  xiaomi: { Icon: XiaomiMiMo as BrandIcon, softBg: '#fff0e6', softFg: '#ff6700' },
+  xiaomimimo: { Icon: XiaomiMiMo as BrandIcon, softBg: '#fff0e6', softFg: '#ff6700' },
+  stepfun: { Icon: Stepfun as BrandIcon, softBg: '#e8f0fe', softFg: '#005aff' },
+  step: { Icon: Stepfun as BrandIcon, softBg: '#e8f0fe', softFg: '#005aff' },
+  volcengine: { Icon: Volcengine as BrandIcon, softBg: '#e8f1ff', softFg: '#1664ff' },
+  'volcengine-ark': { Icon: Volcengine as BrandIcon, softBg: '#e8f1ff', softFg: '#1664ff' },
+  ark: { Icon: Volcengine as BrandIcon, softBg: '#e8f1ff', softFg: '#1664ff' },
+  doubao: { Icon: Doubao as BrandIcon, softBg: '#e8f7f0', softFg: '#00b42a' },
+  bytedance: { Icon: ByteDance as BrandIcon, softBg: '#e8f1ff', softFg: '#1664ff' },
   groq: { Icon: Groq as BrandIcon, softBg: '#f3e8ff', softFg: '#f55036' },
   openrouter: { Icon: OpenRouter as BrandIcon, softBg: '#ebe4ff', softFg: '#6566f1' },
   ollama: { Icon: Ollama as BrandIcon, softBg: '#edf1f6', softFg: '#1a1a1a' },
@@ -166,6 +184,19 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
     if (lowerModel.includes('silicon') || lowerModel.includes('siliconflow')) {
       return BRANDS.siliconflow!;
     }
+    if (lowerModel.includes('mimo')) return BRANDS.mimo!;
+    if (lowerModel.includes('step')) return BRANDS.stepfun!;
+    if (
+      lowerModel.includes('doubao') ||
+      lowerModel.includes('seedance') ||
+      lowerModel.includes('seedream')
+    ) {
+      return BRANDS.doubao!;
+    }
+    if (lowerModel.includes('volc') || lowerModel.includes('ark')) {
+      return BRANDS.volcengine!;
+    }
+    if (lowerModel.includes('opencode')) return BRANDS['opencode-go'] ?? BRANDS.opencode!;
     if (lowerModel.includes('groq')) return BRANDS.groq!;
     if (lowerModel.includes('ollama')) return BRANDS.ollama!;
     if (lowerModel.includes('lmstudio') || lowerModel.includes('lm-studio')) {
@@ -229,6 +260,18 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
     lower.includes('alibaba')
   ) {
     return BRANDS.qwen!;
+  }
+  if (lower.includes('opencode')) return BRANDS['opencode-go'] ?? BRANDS.opencode!;
+  if (lower.includes('mimo') || lower.includes('xiaomi')) return BRANDS.mimo!;
+  if (lower.includes('stepfun') || lower.includes('step-') || lower === 'step') return BRANDS.stepfun!;
+  if (lower.includes('doubao')) return BRANDS.doubao!;
+  if (
+    lower.includes('volcengine') ||
+    lower.includes('volces') ||
+    lower.includes('ark') ||
+    lower.includes('bytedance')
+  ) {
+    return BRANDS.volcengine!;
   }
   if (lower.includes('groq')) return BRANDS.groq!;
   if (lower.includes('ollama')) return BRANDS.ollama!;

@@ -29,6 +29,11 @@ html[data-theme-id='piwin-inkstone-ink'] {
   --card-header-height: 30px;
 }
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .settings-overlay-host {
+  background: var(--void);
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .app-shell,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell {
   --sidebar-width: 240px;

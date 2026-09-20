@@ -154,7 +154,7 @@ function buildDiscoveryEndpoint(provider: ModelProviderConfig): string {
   if (provider.protocol === 'google-gemini') {
     return `${baseUrl}/models`;
   }
-  return baseUrl.endsWith('/v1') ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
+  return /\/v\d+$/i.test(baseUrl) ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
 }
 
 export async function buildProviderRequestHeaders(

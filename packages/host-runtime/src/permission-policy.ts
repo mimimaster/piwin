@@ -4,6 +4,7 @@ import { isPrivateOrLocalHostname } from '@piwin/tools-web';
 import { findMatchingRule } from './permission-rule-engine.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { splitBashCommandChain } from './bash-command-chain.js';
+import { bashCommandEscapesProjectRoot } from './bash-workspace-escape.js';
 
 export type PermissionEvaluation = {
   decision: PermissionDecision;
@@ -47,12 +48,18 @@ export function applyModeToMatchedRule(
  * for `ask-all`. Under `bypass`, matched `ask` rules are promoted to allow
  * (`bypass-ask:<reason>`); matched `deny` rules still deny.
  *
+ * When `projectRoot` is set, a command that lexically references a path
+ * outside the project (`cd /tmp`, `cat ~/…`, `..`) is `ask` in every mode,
+ * including YOLO. Bundled allow prefixes like `cd *` cannot silence that.
+ * Deny still wins first (`rm -rf /`).
+ *
  * Pure function — no IO.
  */
 export function evaluateBashPermission(
   command: string,
   mode: PermissionMode = 'auto',
   rules?: PermissionRuleSet,
+  projectRoot = '',
 ): PermissionEvaluation {
   const normalized = command.trim();
   if (!normalized) {
@@ -62,8 +69,15 @@ export function evaluateBashPermission(
   const ruleSet = rules ?? createBundledRuleSet();
   const matched = findMatchingRule({ kind: 'bash', command: normalized }, ruleSet);
   const segments = splitBashCommandChain(normalized);
+  // Deny circuit breakers beat workspace-escape asks (`rm -rf /`).
+  if (matched?.decision === 'deny') {
+    return applyModeToMatchedRule(matched, mode);
+  }
+  if (bashCommandEscapesProjectRoot(normalized, projectRoot)) {
+    return { decision: 'ask', reason: 'path-escapes-project-root' };
+  }
   // Prefix globs like `cd *` / `ls *` match across `&&` / `;`. A whole-command
-  // allow would auto-approve `cd /tmp && python malware.py` under ask-all.
+  // allow would auto-approve `cd src && python malware.py` under ask-all.
   // Deny/ask still apply to the full string so circuit breakers keep firing.
   if (matched && !(matched.decision === 'allow' && segments.length > 1)) {
     return applyModeToMatchedRule(matched, mode);
@@ -72,7 +86,7 @@ export function evaluateBashPermission(
   if (segments.length > 1) {
     let firstAsk: PermissionEvaluation | undefined;
     for (const segment of segments) {
-      const segmentResult = evaluateBashPermission(segment, mode, rules);
+      const segmentResult = evaluateBashPermission(segment, mode, rules, projectRoot);
       if (segmentResult.decision === 'deny') {
         return { decision: 'deny', reason: `chain-deny:${segmentResult.reason}` };
       }
@@ -98,10 +112,11 @@ export function evaluateBashPermission(
  *
  * 1. `evaluateRules` for `{ kind: 'file-write', path: absPath }`.
  * 2. On match → that decision + reason.
- *    Under `bypass`, matched `ask` is promoted to allow; matched `deny` still denies.
+ *    Under `bypass`, matched in-project `ask` is promoted to allow; out-of-project
+ *    `ask` stays ask; matched `deny` still denies.
  * 3. On `'no-match'`:
- *    - `bypass` → allow (deny already handled above).
- *    - `escapesRoot(projectRoot, absPath)` → ask (`auto` / `ask-all`).
+ *    - `escapesRoot(projectRoot, absPath)` → ask in every mode, including YOLO.
+ *    - `bypass` in-project → allow.
  *    - else in-project → allow in `auto`/`bypass`, ask in `ask-all`.
  *
  * Pure — no FS. The caller is expected to realpath-resolve `absPath` when
@@ -122,15 +137,23 @@ export function evaluateFileWritePermission(input: {
   const ruleSet = rules ?? createBundledRuleSet();
   const matched = findMatchingRule({ kind: 'file-write', path: normalizedPath }, ruleSet);
   if (matched) {
+    // YOLO must not silence out-of-project asks (`~/.config/**`). Deny still wins.
+    if (
+      matched.decision === 'ask' &&
+      mode === 'bypass' &&
+      escapesRoot(projectRoot, normalizedPath)
+    ) {
+      return { decision: 'ask', reason: matched.reason };
+    }
     return applyModeToMatchedRule(matched, mode);
-  }
-
-  if (mode === 'bypass') {
-    return { decision: 'allow', reason: 'bypass-no-match' };
   }
 
   if (escapesRoot(projectRoot, normalizedPath)) {
     return { decision: 'ask', reason: 'path-escapes-project-root' };
+  }
+
+  if (mode === 'bypass') {
+    return { decision: 'allow', reason: 'bypass-no-match' };
   }
 
   if (mode === 'ask-all') {

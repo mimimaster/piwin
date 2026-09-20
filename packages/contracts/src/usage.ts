@@ -165,11 +165,17 @@ export function computePromptCacheHitRate(
 }
 
 /**
+ * oh-my-tps will not settle final Δ until (end − first content delta) is at
+ * least this long. Shorter windows are usually a buffered flush, not decode.
+ */
+export const MIN_TPS_DECODE_WINDOW_MS = 2_000;
+
+/**
  * Output speed in tokens per second.
  * Matches oh-my-tps final Δ: usage.output / (end − first content delta).
  * Prefers decode time after the first token when `firstTokenMs` is present;
  * otherwise uses end-to-end `durationMs`. Returns null without a usable
- * duration or output.
+ * duration, when the observation window is under 2s, or without output.
  */
 export function computeTokensPerSecond(
   usage: Pick<
@@ -186,7 +192,7 @@ export function computeTokensPerSecond(
     typeof firstTokenMs === 'number' && Number.isFinite(firstTokenMs) && firstTokenMs >= 0
       ? durationMs - firstTokenMs
       : durationMs;
-  if (generationMs <= 0) {
+  if (generationMs < MIN_TPS_DECODE_WINDOW_MS) {
     return null;
   }
   const completionTokens = Math.max(0, usage.durationMsCompletionTokens ?? usage.completionTokens);

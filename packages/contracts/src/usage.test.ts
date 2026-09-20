@@ -40,19 +40,19 @@ describe('computePromptCacheHitRate', () => {
 describe('computeTokensPerSecond', () => {
   it('divides output tokens by time after the first token', () => {
     expect(
-      computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000, firstTokenMs: 500 }),
-    ).toBeCloseTo(200 / 1.5);
+      computeTokensPerSecond({ completionTokens: 200, durationMs: 3_500, firstTokenMs: 500 }),
+    ).toBeCloseTo(200 / 3);
   });
 
   it('prefers duration-scoped completion tokens over the full bucket', () => {
     expect(
       computeTokensPerSecond({
         completionTokens: 400,
-        durationMs: 2_000,
+        durationMs: 3_500,
         firstTokenMs: 500,
         durationMsCompletionTokens: 150,
       }),
-    ).toBeCloseTo(150 / 1.5);
+    ).toBeCloseTo(150 / 3);
   });
 
   it('falls back to end-to-end duration when first-token latency is missing', () => {
@@ -61,7 +61,7 @@ describe('computeTokensPerSecond', () => {
 
   it('returns null without a usable decode window', () => {
     expect(
-      computeTokensPerSecond({ completionTokens: 0, durationMs: 2_000, firstTokenMs: 500 }),
+      computeTokensPerSecond({ completionTokens: 0, durationMs: 3_500, firstTokenMs: 500 }),
     ).toBeNull();
     expect(computeTokensPerSecond({ completionTokens: 200 })).toBeNull();
     expect(
@@ -73,6 +73,22 @@ describe('computeTokensPerSecond', () => {
     expect(
       computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000, firstTokenMs: 2_000 }),
     ).toBeNull();
+  });
+
+  it('returns null when the observation window is under two seconds', () => {
+    expect(
+      computeTokensPerSecond({ completionTokens: 108, durationMs: 7_511, firstTokenMs: 7_500 }),
+    ).toBeNull();
+    expect(
+      computeTokensPerSecond({ completionTokens: 200, durationMs: 2_499, firstTokenMs: 500 }),
+    ).toBeNull();
+    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: 1_999 })).toBeNull();
+  });
+
+  it('accepts a decode window of exactly two seconds', () => {
+    expect(
+      computeTokensPerSecond({ completionTokens: 200, durationMs: 2_500, firstTokenMs: 500 }),
+    ).toBeCloseTo(100);
   });
 });
 

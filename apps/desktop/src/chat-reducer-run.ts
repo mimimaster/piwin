@@ -20,12 +20,14 @@ import {
   dropPermissionPromptsForRun,
   permissionQueueFields,
 } from './permission-queue';
+import { projectInstructionUserMessage } from './instruction-message-projection';
 
 export type ChatUiRunAction = Extract<
   ChatUiAction,
   {
     type:
       | 'user/send'
+      | 'user/queue'
       | 'user/steer'
       | 'user/send-rollback'
       | 'run/pausing'
@@ -336,6 +338,32 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
           : state.failedAttentionSessionIds,
       });
     }
+    case 'user/queue': {
+      const userMessage: ChatMessageUi = {
+        id: action.clientMessageId,
+        role: 'user',
+        text: action.text,
+        thinking: '',
+        tools: [],
+        attachments: action.attachments ?? [],
+        ...(action.contextRefs && action.contextRefs.length > 0
+          ? { contextRefs: action.contextRefs }
+          : {}),
+        status: 'done',
+        createdAt: new Date().toISOString(),
+        ...(action.agentMode !== undefined ? { agentMode: action.agentMode } : {}),
+      };
+      // Queue admission belongs to the next turn. Preserve every field that
+      // describes the currently running turn while keeping the draft visible.
+      return enforceBoundedTranscriptWindow({
+        ...state,
+        messages: [...state.messages, userMessage],
+        historyView: null,
+        userMessageIndex: null,
+        userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
+        error: null,
+      });
+    }
     case 'user/steer': {
       const userMessage: ChatMessageUi = {
         id: action.clientMessageId,
@@ -582,7 +610,15 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
       const messageIndex = state.messages.findIndex(
         (message) => message.id === action.intervention.userMessageId,
       );
-      if (messageIndex < 0) return state;
+      if (messageIndex < 0) {
+        return enforceBoundedTranscriptWindow({
+          ...state,
+          messages: [...state.messages, projectInstructionUserMessage(action.intervention)],
+          historyView: null,
+          userMessageIndex: null,
+          userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
+        });
+      }
       const messages = [...state.messages];
       const previous = messages[messageIndex];
       if (!previous) return state;

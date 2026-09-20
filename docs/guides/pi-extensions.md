@@ -24,7 +24,10 @@ are **incompatible**: they stay in the list as 仅 Pi 终端 and are not loaded.
 - `ctx.ui.confirm` / `select` / `input` / `notify` (Desktop prompt or CLI TTY)
 - Install from a local path or Git; enable, then apply at the current-run boundary
 
-Bundled examples: `path-guard`, `questionnaire`, `goal`.
+Bundled examples: `path-guard`, `questionnaire`, `goal`, `compact`
+(Devin-style context compaction: doomed-transcript history file under
+`~/.piwin/compact/`, edited-file carry-over re-injected on the `context`
+hook, Devin `<summary>` instructions passed to Pi's native summarizer).
 
 ## What does not work
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { homedir } from 'node:os';
 import type { PermissionRuleSet } from '@piwin/contracts';
 import { createEmptyRuleSet } from '@piwin/contracts';
+import { createBundledRuleSet } from './permission-defaults.js';
 import {
   evaluateBashPermission,
   evaluateFileWritePermission,
@@ -158,8 +159,8 @@ describe('evaluateBashPermission', () => {
     expect(result.reason).toBe('safe-pnpm-test');
   });
 
-  it('allows compound cd && ls under ask-all by evaluating each segment', () => {
-    const result = evaluateBashPermission('cd /tmp && ls foo/', 'ask-all');
+  it('allows compound in-project cd && ls under ask-all by evaluating each segment', () => {
+    const result = evaluateBashPermission('cd src && ls foo/', 'ask-all');
     expect(result).toEqual({ decision: 'allow', reason: 'chain-all-allow' });
   });
 
@@ -203,6 +204,45 @@ describe('evaluateBashPermission', () => {
     const unmatched = evaluateBashPermission('ls -la', 'auto', custom);
     expect(unmatched.decision).toBe('allow');
   });
+
+  it('asks when the command leaves the project even under bypass', () => {
+    const root = '/home/u/project';
+    const rules = createBundledRuleSet();
+    expect(evaluateBashPermission('cd /tmp', 'bypass', rules, root)).toEqual({
+      decision: 'ask',
+      reason: 'path-escapes-project-root',
+    });
+    expect(evaluateBashPermission('cat ~/notes.txt', 'bypass', rules, root)).toEqual({
+      decision: 'ask',
+      reason: 'path-escapes-project-root',
+    });
+    expect(evaluateBashPermission('ls /etc', 'auto', rules, root)).toEqual({
+      decision: 'ask',
+      reason: 'path-escapes-project-root',
+    });
+    expect(evaluateBashPermission('rm -rf /tmp/foo', 'bypass', rules, root)).toEqual({
+      decision: 'ask',
+      reason: 'path-escapes-project-root',
+    });
+    expect(evaluateBashPermission('cd /tmp && pnpm test', 'bypass', rules, root)).toEqual({
+      decision: 'ask',
+      reason: 'path-escapes-project-root',
+    });
+  });
+
+  it('still allows in-project bash under bypass, including in-project ask promotion', () => {
+    const root = '/home/u/project';
+    const rules = createBundledRuleSet();
+    expect(evaluateBashPermission('pnpm test', 'bypass', rules, root).decision).toBe('allow');
+    expect(evaluateBashPermission('rm -rf ./build', 'bypass', rules, root)).toEqual({
+      decision: 'allow',
+      reason: 'bypass-ask:rm-recursive-force',
+    });
+    expect(evaluateBashPermission('sudo apt update', 'bypass', rules, root)).toEqual({
+      decision: 'allow',
+      reason: 'bypass-ask:sudo',
+    });
+  });
 });
 
 describe('evaluateFileWritePermission', () => {
@@ -245,14 +285,14 @@ describe('evaluateFileWritePermission', () => {
     expect(result.reason).toBe('ask-all-in-project');
   });
 
-  it('allows out-of-project writes under bypass mode', () => {
+  it('asks for out-of-project writes under bypass mode', () => {
     const result = evaluateFileWritePermission({
       absPath: '/home/u/other/notes.txt',
       projectRoot,
       mode: 'bypass',
     });
-    expect(result.decision).toBe('allow');
-    expect(result.reason).toBe('bypass-no-match');
+    expect(result.decision).toBe('ask');
+    expect(result.reason).toBe('path-escapes-project-root');
   });
 
   it('detects project-evil as escaping project root', () => {
@@ -276,7 +316,7 @@ describe('evaluateFileWritePermission', () => {
     expect(result.reason).toBe('config-write');
   });
 
-  it('allows ~/.config writes under bypass mode (ask promoted, deny still hard)', () => {
+  it('asks for ~/.config writes under bypass mode (leave-workspace, deny still hard)', () => {
     const home = homedir();
     const configWrite = evaluateFileWritePermission({
       absPath: `${home}/.config/piwin/config.json`,
@@ -284,8 +324,8 @@ describe('evaluateFileWritePermission', () => {
       mode: 'bypass',
     });
     expect(configWrite).toEqual({
-      decision: 'allow',
-      reason: 'bypass-ask:config-write',
+      decision: 'ask',
+      reason: 'config-write',
     });
 
     // Secret-path deny remains a circuit breaker even under yolo.

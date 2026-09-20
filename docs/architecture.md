@@ -328,19 +328,22 @@ effect on the next session (no hot-reload).
 |------|----------------|----------------------|--------------------------|----------------|------------|
 | `ask-all` | ask | ask | ask | ask | always enforced |
 | `auto` | allow¹ | allow | ask | ask | always enforced |
-| `bypass` | allow | allow | allow | allow | **still enforced** |
+| `bypass` | allow¹ | allow | ask | allow | **still enforced** |
 
-¹ `auto` bash unmatched → allow **only after** bundled deny **and** bundled ask
-tiers. A built-in safe-prefix allowlist (`ls *`, `git status`, `pnpm test`, …)
-is bundled as `allow` rules so they are visible/editable (useful mainly under
+¹ Bash unmatched → allow **only after** bundled deny **and** bundled ask
+tiers, and only when the command does not lexically leave the project root
+(`cd /tmp`, `~/…`, `..`). Leave-workspace bash is `ask` in every mode,
+including YOLO; bundled `cd *` / `cat *` / `ls *` cannot silence it. A
+built-in safe-prefix allowlist (`ls *`, `git status`, `pnpm test`, …) is
+bundled as `allow` rules so they are visible/editable (useful mainly under
 `ask-all`).
 
 **Bypass guard:** `bypass` is refused for **untrusted** projects (downgraded to
 `auto` + `host/log` warning) so a freshly-cloned repo cannot disable prompts by
 editing its own `permissions.json`. **General scope** (no project) may use
-bypass — the user is the trust authority there. Deny rules are the only guard in
-bypass (matches Claude Code's `bypassPermissions` semantics). Non-interactive
-CLI: `ask` resolves to `deny` (`resolveNonInteractiveDecision`).
+bypass — the user is the trust authority there. Deny rules and leave-workspace
+asks still apply in bypass. Non-interactive CLI: `ask` resolves to `deny`
+(`resolveNonInteractiveDecision`).
 
 #### File-write gate
 
@@ -426,8 +429,9 @@ import Pi, and `@piwin/agent-host` never owns product permission policy.
 
 Settings → Permissions page: mode switcher bound to the user-facing
 `config.permissions?.preset ?? 'yolo'` with trust-aware notices. New sessions
-default to Pi-compatible YOLO: ordinary actions run without approval prompts;
-deny rules, circuit breakers, and the untrusted-project guard remain active.
+default to Pi-compatible YOLO: ordinary in-project actions run without approval
+prompts; leaving the workspace, deny rules, circuit breakers, and the
+untrusted-project guard remain active.
 Context bar shows a **mode badge** (click → open Permissions; `bypass` rendered
 with a warning tone). Permission prompt dialog offers **"Allow for project"**
 for bash/file-write subjects (persisted via the remember keys above). A full

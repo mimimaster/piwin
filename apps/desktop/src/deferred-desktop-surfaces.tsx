@@ -8,6 +8,11 @@ function loadSettingsPanel(): Promise<{ default: typeof import('./SettingsPanel'
 
 export const DeferredSettingsPanel = lazy(loadSettingsPanel);
 
+/** Fresh lazy() so a failed chunk load is retryable. React.lazy caches rejection. */
+export function createDeferredSettingsPanel(): typeof DeferredSettingsPanel {
+  return lazy(loadSettingsPanel);
+}
+
 /** Chromium-style warm of the Basic settings document before the click. */
 export function prefetchSettingsPanel(): Promise<unknown> {
   return loadSettingsPanel();
