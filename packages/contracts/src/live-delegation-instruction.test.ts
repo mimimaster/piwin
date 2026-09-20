@@ -41,6 +41,9 @@ describe('sanitizeLiveDelegationInstruction', () => {
 describe('spoken contracts', () => {
   it('keeps the spoken surface free of tool names', () => {
     expect(PIWIN_LIVE_SPOKEN_CONTRACT).toContain('speaking face of this work session');
+    expect(PIWIN_LIVE_SPOKEN_CONTRACT).toContain(
+      'Send questions about delegated task status or results through the same handover path',
+    );
     expect(PIWIN_LIVE_SPOKEN_CONTRACT).not.toContain('<');
     expect(PIWIN_LIVE_SPOKEN_CONTRACT).not.toContain('delegate_to_work_session');
     expect(PIWIN_LIVE_INSTRUCTIONS).toContain('live delegation channel');

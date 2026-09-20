@@ -12,11 +12,35 @@ describe('shared portable live wire', () => {
     expect(sent).toEqual(['one', 'two']);
     expect(() => sendLiveFrames({ readyState: 'open', send: () => { throw new Error('transport payload'); } }, ['result'])).toThrow('live-protocol-failed');
   });
-  it('uses known Codex context feedback, never invents delegation.ack', () => {
-    const frame = JSON.parse(buildDelegationAckPayload({ providerDelegationId: 'task', ok: false, runId: 'private' }));
-    expect(frame).toMatchObject({ type: 'delegation.context.append', delegation_item_id: 'task', channel: 'commentary' });
-    expect(frame.content[0].text).toContain('No new work');
-    expect(JSON.stringify(frame)).not.toContain('private');
+  it('uses precise Codex context feedback, never invents delegation.ack', () => {
+    const immediate = JSON.parse(buildDelegationAckPayload({
+      providerDelegationId: 'now',
+      ok: true,
+      runId: 'private',
+    }));
+    expect(immediate).toMatchObject({
+      type: 'delegation.context.append',
+      delegation_item_id: 'now',
+      channel: 'commentary',
+    });
+    expect(immediate.content[0].text).toContain('accepted and started');
+    expect(JSON.stringify(immediate)).not.toContain('private');
+
+    const queued = JSON.parse(buildDelegationAckPayload({
+      providerDelegationId: 'later',
+      ok: true,
+      queueId: 'private-queue',
+    }));
+    expect(queued.content[0].text).toContain('accepted and queued');
+    expect(queued.content[0].text).toContain('waiting to run');
+    expect(JSON.stringify(queued)).not.toContain('private-queue');
+
+    const rejected = JSON.parse(buildDelegationAckPayload({
+      providerDelegationId: 'rejected',
+      ok: false,
+    }));
+    expect(rejected.content[0].text).toContain('This request did not create a new task');
+    expect(rejected.content[0].text).not.toContain('No new work was started');
   });
 
   it('maps transcripts only to activity, not executable intent, and reports protocol errors', () => {

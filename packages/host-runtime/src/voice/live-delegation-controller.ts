@@ -8,8 +8,14 @@ import type { LiveCallSlot, LiveDelegationAdmissionPort } from './live-call-type
 import { LiveDelegationLedger, type LiveDelegationRecord } from './live-delegation-ledger.js';
 import { liveHoldSpeakableReason, resolveLiveWorkReuse } from './live-delegation-reuse.js';
 import { reviewLiveDelegation, LIVE_DELEGATION_REVIEW_TIMEOUT_MS } from './review-live-delegation.js';
+import {
+  renderLiveNoWorkFeedback,
+  renderLiveTaskReuseFeedback,
+  renderLiveTaskStatusRefresh,
+  type LiveNoWorkReason,
+} from './live-task-feedback.js';
 
-/** Call-scoped admission and result delivery; never reads a shell's visible transcript. */
+/** Call-scoped admission, result correlation, and recoverable feedback. */
 export class LiveDelegationController {
   private readonly ledger = new LiveDelegationLedger();
   private readonly queuedRuns = new Map<string, string>();
@@ -49,6 +55,21 @@ export class LiveDelegationController {
     this.ledger.bindRunId(input);
     const result = this.earlyResults.get(input.runId);
     if (result) this.notifyBoundSessionTurnEnded(result);
+  }
+
+  refreshLatestTaskContext(): void {
+    const slot = this.slot;
+    if (!slot) return;
+    const task = this.ledger.contextForSession(slot.sessionId).at(-1);
+    if (!task) return;
+    this.deps.pushOwnerAction?.({
+      type: 'voice/live-owner-action',
+      callId: slot.callId,
+      action: 'append-context',
+      target: 'session',
+      channel: 'commentary',
+      content: renderLiveTaskStatusRefresh(task),
+    });
   }
 
   private readonly inFlightDelegations = new Set<string>();
@@ -167,27 +188,9 @@ export class LiveDelegationController {
   private finishWithoutWork(
     slot: LiveCallSlot,
     delegation: VoiceDelegationEvent,
-    reason: 'conversation' | 'clarify' | 'unavailable' | 'hold-empty' | 'hold-mismatch',
+    reason: LiveNoWorkReason,
     content?: string,
   ): void {
-    let speakable: string;
-    switch (reason) {
-      case 'conversation':
-        speakable = 'No work started. This is conversation or a speaking preference. Keep it in voice; respect requests for silence/no confirmation. Do not delegate it again.';
-        break;
-      case 'clarify':
-        speakable = 'No work started. The request is incomplete. Ask one short question in the user language about what action they want; do not invent or re-delegate the fragment.';
-        break;
-      case 'hold-empty':
-        speakable = 'No work started. The user is not in a work session. Ask them to open or focus a session. Do not claim you started the task.';
-        break;
-      case 'hold-mismatch':
-        speakable = 'No work started. The session the user is looking at is not the bound Live work session. Do not run the task in the previous session. Do not claim you started it.';
-        break;
-      case 'unavailable':
-        speakable = 'No work started: intent verification was unavailable. Briefly say you could not start it and the user can retry or type in chat. Do not claim acceptance.';
-        break;
-    }
     this.deps.pushOwnerAction?.({
       type: 'voice/live-owner-action', callId: slot.callId, action: 'ack-delegation',
       providerDelegationId: delegation.providerDelegationId, ok: false,
@@ -196,15 +199,17 @@ export class LiveDelegationController {
       type: 'voice/live-owner-action', callId: slot.callId, action: 'append-context',
       target: 'delegation', providerDelegationId: delegation.providerDelegationId,
       channel: reason === 'conversation' && !content ? 'commentary' : 'speakable',
-      content: content ?? speakable,
+      content: content ?? renderLiveNoWorkFeedback(reason),
     });
   }
 
   private reuseResult(slot: LiveCallSlot, delegation: VoiceDelegationEvent, originalId: string): void {
     const original = this.ledger.find(slot.callId, originalId);
     if (!original) throw new Error('live-delegation-reuse-invalid');
-    this.finishWithoutWork(slot, delegation, 'conversation', original.result ??
-      'The existing task is still in progress. No new task was started. Use its existing status; do not repeat the delegation.');
+    this.finishWithoutWork(slot, delegation, 'conversation', renderLiveTaskReuseFeedback({
+      queued: Boolean(original.queueId && !original.runId),
+      ...(original.result ? { result: original.result } : {}),
+    }));
   }
 
   private async admitAndRecord(
@@ -253,7 +258,7 @@ export class LiveDelegationController {
         sessionId,
         messageId: result.messageId,
         admission: 'accepted',
-        resultDelivered: false,
+        resultRecorded: false,
         ...(!isLiveStopInstruction(delegation.instruction) ? { brief: delegation.instruction } : {}),
         ...(result.queued ? { queueId: result.queuedTurnId } : {}),
         ...(runId ? { runId } : {}),
@@ -314,7 +319,7 @@ export class LiveDelegationController {
       record = nextRecord;
       record.result = content;
       record.status = input.status === 'completed' ? 'completed' : 'incomplete';
-      this.ledger.markDelivered(record);
+      this.ledger.markResultRecorded(record);
       nextRecord = this.ledger.findForTurn(input);
     }
     this.speakBoundRunResult(slot, input, 'delegation', record.providerDelegationId, content);

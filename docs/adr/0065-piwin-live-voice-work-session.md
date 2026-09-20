@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | **Accepted — multi-provider; supersedes Codex-only same-week wording** |
-| Date | 2026-08-28; revised 2026-08-29; language layers + intent admission 2026-08-31; retarget / failure visibility / Mobile follow 2026-09-01; session context 2026-09-03 |
+| Date | 2026-08-28; revised 2026-08-29; language layers + intent admission 2026-08-31; retarget / failure visibility / Mobile follow 2026-09-01; session context 2026-09-03; recoverable task feedback 2026-09-20 |
 | Scope | `@piwin/contracts`, `@piwin/voice`, `@piwin/host-runtime`, `@piwin/host-server`, `@piwin/host-transport`, `apps/desktop`, `apps/mobile` |
 | Product | [2026-08-28 product](../specs/2026-08-28-codex-live-product.md) · [2026-08-29 provider adapter](../specs/2026-08-29-live-provider-adapter.md) · [2026-08-31 language layers](../specs/2026-08-31-live-language-layers.md) |
 | Architecture | [2026-08-28 voice lane](../specs/2026-08-28-codex-live-voice-lane.md) |
@@ -17,6 +17,8 @@
 2026-09-01 retarget / failure visibility / Mobile follow：通话中 Desktop 焦点与 paired Mobile owner 当前工作会话均 auto-rebind；空焦点保持旧绑且 owner UI 必须标出绑定目标；改绑失败可见；成功改 session 后 Host 发短 `append-context` retarget，不 abort 已接纳 Run。
 
 2026-09-03 session context：①说话面在 call-create 时拿到绑定会话的续接摘要（Codex `initial_items` / Gemini systemInstruction 第二段 / OpenAI owner bootstrap），通话中同步绑定会话打字与任意 Run 短结果。摘要仅内存，不上 `LiveCallView`。
+
+2026-09-20 recoverable task feedback：一次 `context.append` 发送不再被视为已经送达语音模型。Host 只记录匹配 Run 已终结；同一通话后续每个新的用户发言开始时，静默重发最近已接纳任务的权威状态。询问已委派任务的进度或结果也必须走交接通道，由 Host 复用原任务状态，不新开 Run。拒绝当前候选的反馈写成「这句话没有创建新任务」，不得笼统声称已有任务「没有开始」。状态只保留在 call-scoped 内存，挂断清空。
 
 ## Context
 
@@ -123,6 +125,15 @@ Platform/Gemini tool receipts correlate by provider tool ID, never the last
 pending ID. Commentary does not explicitly request another spoken response.
 Known upstream errors and local closed-channel sends become visible failures.
 Sending a frame still does not prove upstream receipt or audible playback.
+
+Because Codex has no semantic receipt for a context append, task feedback is
+recoverable rather than one-shot. At the start of each later user turn, Host
+silently refreshes the most recent admitted task's authoritative running or
+terminal state. A spoken status/result question uses the same delegation path;
+intent review returns reuse and Host answers from the existing ledger without
+creating a duplicate Run. Internal terminal bookkeeping records a matched Run,
+not provider delivery. Candidate rejection copy is scoped to that utterance so
+it cannot overwrite the known state of an earlier admitted task.
 
 ### 5. Retention
 

@@ -53,15 +53,18 @@ export function buildDelegationAckPayload(input: {
   messageId?: string;
   queueId?: string;
 }): string {
+  const feedback = !input.ok
+    ? 'This request did not create a new task. Follow the Host context feedback; do not retry this delegation automatically.'
+    : input.queueId
+      ? 'Host accepted and queued the task. It is waiting to run. Wait for its result; do not claim completion or repeat the delegation.'
+      : 'Host accepted and started the task. Wait for its result; do not claim completion or repeat the delegation.';
   return JSON.stringify({
     // Codex Live uses context.append. Product admission receipts are not a
     // documented upstream delegation.ack event; keep them on the Host side.
     type: 'delegation.context.append',
     delegation_item_id: input.providerDelegationId,
     channel: 'commentary',
-    content: [{ type: 'input_text', text: input.ok
-      ? 'Host admitted the task. Wait for its result; do not claim it is complete or repeat the delegation.'
-      : 'No new work was started. Follow the Host context feedback; do not retry this delegation automatically.' }],
+    content: [{ type: 'input_text', text: feedback }],
   });
 }
 

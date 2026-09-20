@@ -9,7 +9,7 @@ export type LiveDelegationDecision =
 export type LiveDelegationContext = {
   delegationId: string;
   brief: string;
-  status: 'working' | 'completed' | 'incomplete';
+  status: 'queued' | 'working' | 'completed' | 'incomplete';
   result?: string;
 };
 

@@ -274,6 +274,12 @@ export class LiveCallCoordinator {
         return { ok: false, errorCode: 'live-start-throttled' };
       }
     }
+    const beginsUserTurn =
+      plan.kind === 'transition' &&
+      plan.transition.type === 'set-activity' &&
+      plan.transition.activity === 'user-speaking' &&
+      gate.slot.state.activity !== 'user-speaking';
+    if (beginsUserTurn) this.delegations.refreshLatestTaskContext();
     const next = transitionLiveCall(gate.slot.state, plan.transition);
     if (next) gate.slot.state = next;
     if (plan.kind === 'terminate') {

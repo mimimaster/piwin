@@ -57,7 +57,11 @@ describe('Host intent admission regressions', () => {
     }
     expect(fixture.admit).toHaveBeenCalledTimes(3);
     expect(review.mock.calls[1]?.[0].tasks).toMatchObject([{ delegationId: 'first', status: 'completed', result: expect.stringContaining('已生成骑车动画代码') }]);
-    expect(fixture.actions.find((action) => action.action === 'append-context' && action.providerDelegationId === 'second')?.content).toContain('已生成骑车动画代码');
+    const reusedResult = fixture.actions.find(
+      (action) => action.action === 'append-context' && action.providerDelegationId === 'second',
+    )?.content;
+    expect(reusedResult).toContain('did run');
+    expect(reusedResult).toContain('已生成骑车动画代码');
     expect(fixture.admit.mock.calls.at(-1)?.[0]).toMatchObject({ instruction: '背景改成白天，不要日落' });
     await fixture.coordinator.dispose();
   });
@@ -74,6 +78,9 @@ describe('Host intent admission regressions', () => {
     release?.({ kind: 'work', brief: '制作动画' }); await fixture.settled('second');
     expect(fixture.admit).toHaveBeenCalledTimes(1);
     expect(review.mock.calls[1]?.[0].tasks).toMatchObject([{ delegationId: 'first', status: 'working' }]);
+    expect(fixture.actions.find(
+      (action) => action.action === 'append-context' && action.providerDelegationId === 'second',
+    )?.content).toContain('did start');
     await fixture.coordinator.dispose();
   });
 

@@ -142,4 +142,55 @@ describe('Host-only Live results', () => {
     expect(actions.filter((action) => action.action === 'append-context')).toHaveLength(0);
     await coordinator.dispose();
   });
+
+  it('resynchronizes authoritative task state when a new user turn starts', async () => {
+    const { coordinator, actions, delegate, callId } = await setup();
+    await delegate('d1');
+
+    coordinator.reportOwnerEvent({
+      callId,
+      ownerDeviceId: 'd1',
+      event: { type: 'activity', activity: 'user-speaking' },
+    });
+    const runningRefreshes = actions.filter(
+      (action) =>
+        action.action === 'append-context' &&
+        action.target === 'session' &&
+        action.channel === 'commentary',
+    );
+    expect(runningRefreshes).toHaveLength(1);
+    expect(runningRefreshes[0]?.content).toContain('did start');
+    expect(runningRefreshes[0]?.content).toContain('currently running');
+    expect(runningRefreshes[0]?.content).not.toContain('No work started');
+
+    // Providers can report several transcript/audio events for one user turn.
+    coordinator.reportOwnerEvent({
+      callId,
+      ownerDeviceId: 'd1',
+      event: { type: 'activity', activity: 'user-speaking' },
+    });
+    expect(actions.filter(
+      (action) =>
+        action.action === 'append-context' &&
+        action.target === 'session' &&
+        action.channel === 'commentary',
+    )).toHaveLength(1);
+
+    coordinator.notifyBoundSessionTurnEnded(result);
+    coordinator.reportOwnerEvent({
+      callId,
+      ownerDeviceId: 'd1',
+      event: { type: 'activity', activity: 'user-speaking' },
+    });
+    const completedRefreshes = actions.filter(
+      (action) =>
+        action.action === 'append-context' &&
+        action.target === 'session' &&
+        action.channel === 'commentary',
+    );
+    expect(completedRefreshes).toHaveLength(2);
+    expect(completedRefreshes[1]?.content).toContain('did run');
+    expect(completedRefreshes[1]?.content).toContain('已完成修改');
+    await coordinator.dispose();
+  });
 });

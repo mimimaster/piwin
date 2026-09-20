@@ -10,7 +10,8 @@ export type LiveDelegationRecord = {
   queueId?: string;
   runId?: string;
   admission: 'accepted' | 'rejected';
-  resultDelivered: boolean;
+  /** The matching terminal Run has been recorded; provider delivery is not implied. */
+  resultRecorded: boolean;
   brief?: string;
   result?: string;
   status?: LiveDelegationContext['status'];
@@ -32,7 +33,7 @@ export class LiveDelegationLedger {
         ? [{
             delegationId: record.providerDelegationId,
             brief: record.brief,
-            status: record.status ?? 'working',
+            status: record.status ?? (record.queueId && !record.runId ? 'queued' : 'working'),
             ...(record.result ? { result: record.result } : {}),
           }]
         : [];
@@ -72,12 +73,12 @@ export class LiveDelegationLedger {
         record.sessionId === input.sessionId &&
         record.runId === input.runId &&
         record.admission === 'accepted' &&
-        !record.resultDelivered,
+        !record.resultRecorded,
     );
   }
 
-  markDelivered(record: LiveDelegationRecord): void {
-    record.resultDelivered = true;
+  markResultRecorded(record: LiveDelegationRecord): void {
+    record.resultRecorded = true;
   }
 
   clear(): void {
