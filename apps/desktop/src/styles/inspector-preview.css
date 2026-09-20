@@ -251,7 +251,6 @@
   color: var(--text-1);
   font-size: var(--fs-chrome);
   line-height: var(--lh-normal);
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
@@ -259,6 +258,18 @@
    authored or selected. */
 .side-chat-message.user .side-chat-bubble {
   background: var(--iris-wash);
+  white-space: pre-wrap;
+}
+
+/* Assistant bubbles host MarkdownView; pre-wrap would leak source markers. */
+.side-chat-message:not(.user) .side-chat-bubble {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.side-chat-message:not(.user) .side-chat-bubble .markdown {
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .side-chat-activity {

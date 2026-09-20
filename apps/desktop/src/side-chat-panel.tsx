@@ -47,6 +47,8 @@ import {
   SIDE_CHAT_DRAFT_TAB_ID,
   SideChatTabStripPortal,
 } from './side-chat-tabs.js';
+import { MarkdownView } from './MarkdownView.js';
+import type { DesktopLocale } from './desktop-locale.js';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -68,6 +70,22 @@ function appendBoundedSideChatMessage(
   message: SideChatMessage,
 ): SideChatMessage[] {
   return [...current, message].slice(-MAX_SIDE_CHAT_MESSAGES);
+}
+
+function SideChatAssistantBody(props: {
+  text: string;
+  streaming: boolean;
+  locale: DesktopLocale;
+}): ReactElement {
+  return (
+    <MarkdownView
+      text={props.text}
+      renderingPhase={props.streaming ? 'streaming' : 'completed'}
+      showStreamingCaret={props.streaming}
+      locale={props.locale}
+      artifactPreviewEnabled={false}
+    />
+  );
 }
 
 export type SideChatPanelProps = {
@@ -486,12 +504,20 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
                 className={message.role === 'user' ? 'side-chat-message user' : 'side-chat-message'}
                 data-testid={`side-chat-message-${message.role}`}
               >
-                <div className="side-chat-bubble">{message.text}</div>
+                <div className="side-chat-bubble">
+                  {message.role === 'assistant' ? (
+                    <SideChatAssistantBody text={message.text} streaming={false} locale={locale} />
+                  ) : (
+                    message.text
+                  )}
+                </div>
               </div>
             ))}
             {assistantBuffer ? (
               <div className="side-chat-message assistant" data-testid="side-chat-message-streaming">
-                <div className="side-chat-bubble">{assistantBuffer}</div>
+                <div className="side-chat-bubble">
+                  <SideChatAssistantBody text={assistantBuffer} streaming locale={locale} />
+                </div>
               </div>
             ) : null}
             {streaming && !assistantBuffer ? (

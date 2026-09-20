@@ -59,6 +59,10 @@ class FakeHostClient {
   readonly requests: HostCommand[] = [];
   private readonly listeners = new Set<(message: HostServerMessage) => void>();
   listed: SessionSummary[] = [];
+  messagesBySession: Record<
+    string,
+    { id: string; role: string; text: string; createdAt: string }[]
+  > = {};
 
   getTransport(): 'mock' {
     return 'mock';
@@ -172,12 +176,23 @@ class FakeHostClient {
     if (command.type === 'session/set-composer-profile') {
       return Promise.resolve({ type: 'response', command: command.type, success: true, data: {} });
     }
-    if (command.type === 'session/resume' || command.type === 'session/messages') {
+    if (command.type === 'session/resume') {
       return Promise.resolve({
         type: 'response',
         command: command.type,
         success: true,
         data: { sessionId: command.sessionId, messages: [] },
+      });
+    }
+    if (command.type === 'session/messages') {
+      return Promise.resolve({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          sessionId: command.sessionId,
+          messages: this.messagesBySession[command.sessionId] ?? [],
+        },
       });
     }
     if (command.type === 'session/archive') {
@@ -363,5 +378,60 @@ describe('SideChatPanel', () => {
     expect(container.querySelector('[data-testid="composer-context-chip"]')?.textContent).toContain(
       '想要基于选中文本调整壁纸',
     );
+  });
+
+  it('renders hydrated assistant markdown instead of source markers', async () => {
+    const host = new FakeHostClient();
+    host.listed = [sideChatSummary('side-existing')];
+    host.messagesBySession['side-existing'] = [
+      {
+        id: 'u1',
+        role: 'user',
+        text: 'keep **literal** stars',
+        createdAt: '2026-09-04T00:00:00.000Z',
+      },
+      {
+        id: 'a1',
+        role: 'assistant',
+        text: '**bold** and `code`\n\n### Heading',
+        createdAt: '2026-09-04T00:00:01.000Z',
+      },
+    ];
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SideChatPanel sessionId="main-1" hostClient={host as unknown as HostClient} />
+        </PiwinUiProvider>,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(
+      () => {
+        const assistant = container?.querySelector('[data-testid="side-chat-message-assistant"]');
+        if (assistant) return;
+        const types = host.requests.map((command) => command.type).join(',');
+        throw new Error(
+          `assistant missing; requests=${types || '(none)'}; html=${container?.innerHTML.slice(0, 500) ?? ''}`,
+        );
+      },
+      { timeout: 4000 },
+    );
+
+    const userBubble = container.querySelector('[data-testid="side-chat-message-user"] .side-chat-bubble');
+    expect(userBubble?.textContent).toContain('keep **literal** stars');
+
+    const assistant = container.querySelector('[data-testid="side-chat-message-assistant"]');
+    expect(assistant).not.toBeNull();
+    expect(assistant?.textContent).toContain('bold');
+    expect(assistant?.textContent).not.toContain('**');
+    expect(assistant?.querySelector('strong, .md-strong')).not.toBeNull();
+    expect(assistant?.querySelector('code')).not.toBeNull();
+    expect(assistant?.querySelector('h3, .md-h, [class*="md-h"]')).not.toBeNull();
   });
 });

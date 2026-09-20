@@ -82,8 +82,17 @@ pub fn ensure_pet_overlay_window(
     prepare_pet_overlay_window(&window)
 }
 
+// Pet-overlay commands are `async` on purpose. Tauri executes sync commands
+// inline on the IPC thread, and on Windows that thread is the WebView2 main
+// thread: creating or destroying a second webview from inside a protocol
+// callback deadlocks wry's custom-protocol responder (wry's own note on
+// `create_webview`: it "must be called from a separate thread, otherwise the
+// channel will introduce a deadlock"). The deadlock is silent but total —
+// every later asset and IPC request stops being answered, so lazy chunks never
+// load and the app degrades. Async commands run on the async runtime, which
+// dispatches the window work to the event loop from another thread.
 #[tauri::command]
-pub fn pet_overlay_show(
+pub async fn pet_overlay_show(
     app: tauri::AppHandle,
     x: Option<f64>,
     y: Option<f64>,
@@ -92,7 +101,7 @@ pub fn pet_overlay_show(
 }
 
 #[tauri::command]
-pub fn pet_overlay_hide(app: tauri::AppHandle) -> Result<(), String> {
+pub async fn pet_overlay_hide(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(PET_OVERLAY_LABEL) {
         // destroy() skips CloseRequested and actually tears down the
         // WebContent. close() can leave a transparent always-on-top window
@@ -104,7 +113,7 @@ pub fn pet_overlay_hide(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn pet_overlay_toggle(app: tauri::AppHandle) -> Result<bool, String> {
+pub async fn pet_overlay_toggle(app: tauri::AppHandle) -> Result<bool, String> {
     if let Some(window) = app.get_webview_window(PET_OVERLAY_LABEL) {
         if window.is_visible().map_err(|e| e.to_string())? {
             window.destroy().map_err(|e| e.to_string())?;

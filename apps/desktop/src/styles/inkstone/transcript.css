@@ -758,28 +758,30 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 .tool-call-doc-target-link {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font: 12px var(--mono, monospace);
   color: var(--t1, var(--text-1, #1d1b17));
-  background: var(--s3, var(--surface-3, #fffdf8));
-  box-shadow: var(--sh1, 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2, rgba(29, 27, 23, 0.11)));
-  padding: 1px 6px;
-  border-radius: 3px;
+  background: color-mix(in srgb, var(--s3, #201d19) 82%, var(--lamp-wash, rgba(231, 179, 82, 0.14)));
+  border: 1px solid color-mix(in srgb, var(--l2, rgba(29, 27, 23, 0.11)) 65%, var(--lamp, #b8801f) 35%);
+  box-shadow: var(--sh1, 0 1px 2px rgba(60, 45, 20, 0.06));
+  padding: 2px 7px;
+  border-radius: 5px;
   vertical-align: -1px;
   cursor: pointer;
   white-space: nowrap;
   max-width: 100%;
   min-width: 0;
   text-decoration: none;
-  border: 0;
   box-sizing: border-box;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .pc:hover,
 .md-doc-chip:hover,
 .tool-call-path-link:hover,
 .tool-call-doc-target-link:hover {
-  background: var(--s4, #fff);
+  background: color-mix(in srgb, var(--s4, #fff) 80%, var(--lamp-wash, rgba(231, 179, 82, 0.14)));
+  border-color: var(--lamp, #b8801f);
   color: var(--t1, var(--text-1, #1d1b17));
   text-decoration: none;
 }
@@ -804,9 +806,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 .tool-call-doc-target-link svg {
   width: 12px;
   height: 12px;
-  color: var(--t3, var(--text-3, #726b61));
+  color: var(--lamp, var(--t3, #726b61));
   flex: none;
-  stroke-width: 1.6;
+  stroke-width: 1.8;
 }
 
 .pc span,
@@ -831,10 +833,13 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--t3, var(--text-3, #726b61)) !important;
+  opacity: 0.8;
 }
 
 .pc .chip-file,
 .md-doc-chip .chip-file {
   flex: none;
+  font-weight: 600;
+  color: var(--t1, var(--text-1, #1d1b17));
 }
 

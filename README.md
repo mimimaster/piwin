@@ -28,72 +28,59 @@
 
 ---
 
-## 🏛️ 整体架构
+## 整体架构
 
-`piwin` 严格贯彻 **单向依赖、组合根收敛、能力独立可测** 的设计原则，避免大型 Agent 系统常见的逻辑泥潭。
+`piwin` 采用 **客户端接入、单一 Host 权威、数据留在本地** 的产品架构。
 
 ```mermaid
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
 flowchart TB
-    classDef client fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
-    classDef host fill:#0f172a,stroke:#34d399,stroke-width:2px,color:#f8fafc;
-    classDef runtime fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc;
-    classDef agent fill:#311042,stroke:#c084fc,stroke-width:2px,color:#f8fafc;
-    classDef caps fill:#1c1917,stroke:#fb923c,stroke-width:2px,color:#f8fafc;
+    Client["客户端"]
 
-    subgraph CLIENTS["① 表现层 (Presentation / Client Shells)"]
-        DESKTOP["Desktop 桌面端<br/>(Tauri 2 · React · Mantine · 多窗格)"]:::client
-        CLI["CLI 命令行终端<br/>(轻量交互 · 共享配置与会话)"]:::client
-        MOBILE["Mobile 移动端<br/>(Tauri Mobile · 学习与状态同步)"]:::client
+    subgraph Host["Piwin Host"]
+        Gateway["统一协议网关<br/>连接 · 鉴权 · 同步"]
+
+        Session["会话<br/>历史树 · Run"]
+        Security["权限<br/>统一门禁"]
+        Subagent["子代理<br/>隔离并行"]
+
+        Engine["Agent 引擎<br/>Pi Kernel"]
+        Work["工程执行<br/>代码 · 终端 · Git"]
+        Ext["能力扩展<br/>浏览器 · 制品 · 知识"]
+
+        Gateway --> Session & Security & Subagent
+        Session --> Engine
+        Security --> Work
+        Subagent --> Ext
     end
 
-    subgraph BOUNDARY["② 传输与协议边界 (Host Transport & Server)"]
-        GATEWAY["Host Server · WebSocket 通信<br/>(局域网 / 本地 Sidecar / 鉴权 / Replay 游标重放 / 状态分发)"]:::host
-    end
+    Code["本地代码"]
+    State["本地状态<br/>~/.piwin"]
+    Model["模型服务"]
 
-    subgraph RUNTIME["③ 产品组合根与控制面 (Host Runtime · 全局唯一组合根)"]
-        direction TB
-        SESSION_CTRL["Session & Run 管理<br/>(会话树 · 运行租约 · 运行时状态常驻)"]:::runtime
-        BLUEPRINT["Session Blueprint 编译器<br/>(工具面按 Generation 静态冻结)"]:::runtime
-        PERM["统一权限决策引擎 (ADR-0019)<br/>(Deny → Ask → Allow 三层门禁过滤)"]:::runtime
-        SUBAGENT["Subagent 并发编排器 (ADR-0030)<br/>(Git Worktree 隔离开发 · 自动审查集成 · 原子回滚)"]:::runtime
-        JOB_SUPERVISOR["JobController 进程树监督<br/>(非交互式子进程生命周期 · 进程组自动收割)"]:::runtime
-    end
-
-    subgraph AGENT_HOST["④ Pi 适配边界 (@piwin/agent-host · 唯一依赖 Pi 的包)"]
-        direction LR
-        SDK_MODE["SDK In-Process 模式<br/>(同进程极低延迟)"]:::agent
-        RPC_MODE["RPC Subprocess 模式<br/>(进程级隔离 · 崩溃防护)"]:::agent
-        PI_CORE["Pi Agent Loop<br/>(模型适配 · 上下文动态压缩 · 内置工具封装)"]:::agent
-    end
-
-    subgraph CAPABILITIES["⑤ 能力与扩展服务生态 (Capabilities & Domain Services)"]
-        direction TB
-        BROWSER["Browser Workbench<br/>(@piwin/browser · Playwright 驱动 · CDP 实时镜像 · AI 视觉定位)"]:::caps
-        DOC_RAG["Doc-RAG 本地向量知识库<br/>(@piwin/doc-rag · LanceDB · 混合检索 · 文档抽认卡)"]:::caps
-        ARTIFACT["Artifact 实时制品渲染<br/>(@piwin/artifact · HTML/SVG 安全沙箱 · Inline/Canvas 视图)"]:::caps
-        MCP_ENG["MCP 扩展体系<br/>(@piwin/mcp · McpSupervisor · 懒加载动态工具箱)"]:::caps
-        STORAGE["会话与存储分级<br/>(@piwin/session · SQLite 会话树 · 离线冷归档)"]:::caps
-        MEDIA_VOICE["多模态与实时交互<br/>(@piwin/media · 本地资产库 / @piwin/voice · 实时语音)"]:::caps
-        PET_THEME["个性化与桌面外设<br/>(@piwin/pet · Codex 兼容桌宠 / @piwin/theme · 主题令牌)"]:::caps
-    end
-
-    CLIENTS ==>|"HostCommand / HostPush (状态完全解耦)"| GATEWAY
-    GATEWAY ==> RUNTIME
-    RUNTIME ==>|"下发冻结 Blueprint"| AGENT_HOST
-    AGENT_HOST <==>|"受控代理工具帧 / 结果回调"| RUNTIME
-    RUNTIME <==>|"会话隔离执行 & 门禁检查"| CAPABILITIES
+    Client --> Gateway
+    Engine --> Code
+    Work --> State
+    Ext --> Model
 ```
 
-### 六层架构职责划分
+### 架构解读
 
-| 分层 | 对应模块 | 核心职责与设计约束 |
+| 产品层 | 关键代码位置 | 对外职责 |
 | :--- | :--- | :--- |
-| **① 表现层** | `apps/desktop`<br/>`apps/cli`<br/>`apps/mobile` | **严禁直接依赖 Pi 内核**。仅通过标准 HostClient 契约与 Host 通信；Desktop 采用 Tauri 2 + Mantine；CLI 共享同一配置根与执行会话。 |
-| **② 通信传输层** | `packages/host-server`<br/>`packages/host-transport` | 提供私有 WebSocket / IPC 传输、客户端连接准入、心跳保活、双向流式状态推送及网络游标重放（Replay）。支持本地 Sidecar 与远程服务器部署。 |
-| **③ 组合根控制面** | `packages/host-runtime` | **全产品唯一的组合根**。负责会话生命周期管理、Session Blueprint 静态编译、三层权限引擎校验、基于 Git Worktree 的子代理调度与 Job 进程收割。 |
-| **④ Pi 适配边界** | `packages/agent-host` | **仓库中唯一允许导入 Pi 核心库的边界模块**。实现 SDK（同进程内高吞吐）与 RPC（子进程隔离保护）双模式适配，完成事件流归一化。 |
-| **⑤ 能力扩展生态** | `packages/*` | 独立的领域服务与工具包：Playwright 浏览器、LanceDB 向量知识库、HTML Artifact 预览沙箱、MCP 进程监管、Git 操作、多模态媒体库等。 |
-| **⑥ 操作系统与内核** | 系统运行时 | Node.js 22 LTS、Chromium、LanceDB 原生二进制、Git 仓库、文件系统及产品配置根 `~/.piwin`。 |
+| **多端体验** | `apps/desktop` · `apps/cli` · `apps/mobile` | 提供不同终端下的一致 Agent 体验；客户端只负责交互与呈现。 |
+| **连接与同步** | `packages/contracts` · `packages/host-client` · `packages/host-transport` · `packages/host-server` | 以统一协议连接本机或远程 Host，完成鉴权、命令、实时推送与断线重放。 |
+| **Host 控制面** | `apps/host` · `packages/host-runtime` | 全产品唯一组合根和状态权威，统一管理会话、运行、权限、调度、工具与子代理。 |
+| **Agent 执行引擎** | `packages/agent-host` · Pi Kernel | 通过进程内 SDK 或隔离 Worker 驱动模型与 Agent Loop；这是仓库中唯一接触 Pi 的边界。 |
+| **能力生态** | `packages/browser` · `packages/mcp` · `packages/git` · `packages/doc-rag` · `packages/artifact` 等 | 将工程执行、浏览器、知识、媒体和扩展能力按需组合进 Host，不污染客户端与 Agent 内核。 |
+| **数据与基础设施** | 本地项目 · `~/.piwin` · 模型提供方 | 代码、会话和配置默认由用户掌控；模型支持订阅、BYOK 与本地兼容服务。 |
+
+**四个核心设计原则：**
+
+1. **一个 Host，多端共享**：Desktop、CLI、Mobile / Future Web 连接同一份会话、状态与执行环境。
+2. **客户端与内核解耦**：所有客户端只依赖公开契约，不直接调用 Pi 或操作 Host 文件系统。
+3. **控制面统一收口**：权限、Run、工具、子代理和持久化全部由 Host Runtime 编排，没有第二条旁路。
+4. **能力可插拔、数据私有化**：功能以独立包接入；项目、配置、会话与媒体默认保留在用户自己的机器上。
 
 ---
 
