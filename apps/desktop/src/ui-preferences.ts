@@ -265,7 +265,7 @@ function parseAppearanceMode(raw: string | null): AppearanceMode {
   if (raw === 'system' || raw === 'light' || raw === 'dark') {
     return raw;
   }
-  return 'system';
+  return 'dark';
 }
 
 function parseAgentLocatorAnimation(raw: string | null): AgentLocatorAnimation {
@@ -422,6 +422,10 @@ export function loadLastThemeId(): string | null {
   }
   const trimmed = raw.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+export function hasStoredAppearanceMode(): boolean {
+  return readString(APPEARANCE_MODE_KEY) !== null;
 }
 
 export function saveLastThemeId(themeId: string): void {

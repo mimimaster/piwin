@@ -24,6 +24,7 @@ import {
   resolveSystemThemeMode,
 } from './appearance-tokens';
 import {
+  hasStoredAppearanceMode,
   loadDesktopPreferences,
   loadLastThemeId,
   saveLastThemeId,
@@ -40,8 +41,16 @@ export function resolveStartupAppearance(): ThemeManifest {
   const preferences = loadDesktopPreferences();
   const activeMode = resolvePreferredThemeMode(preferences.appearanceMode);
   if (lastThemeId !== null && isInkstoneThemeId(lastThemeId)) {
-    const themeSettings = activeMode === 'light' ? preferences.lightTheme : preferences.darkTheme;
-    return buildAppearanceTheme(activeMode, themeSettings);
+    const migratedId = migrateThemeId(lastThemeId);
+    const mode = hasStoredAppearanceMode()
+      ? activeMode
+      : migratedId === 'piwin-inkstone-paper'
+        ? 'light'
+        : migratedId === 'piwin-inkstone-ink'
+          ? 'dark'
+          : activeMode;
+    const themeSettings = mode === 'light' ? preferences.lightTheme : preferences.darkTheme;
+    return buildAppearanceTheme(mode, themeSettings);
   }
   if (lastThemeId !== null && isBuiltinAppearanceId(lastThemeId)) {
     return resolveBuiltinAppearance(lastThemeId);

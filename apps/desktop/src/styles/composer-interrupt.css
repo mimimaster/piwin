@@ -13,6 +13,7 @@
   /* Measure-centered on the stage — same as turn body in the padded stream. */
   width: min(100%, var(--conversation-width));
   max-width: var(--conversation-width);
+  min-width: 0;
   margin: 0 auto;
   box-sizing: border-box;
   border-radius: var(--r-panel) var(--r-panel) 0 0;
@@ -65,6 +66,8 @@
 
 .agent-interruption-header {
   padding: var(--s-5) var(--s-6) var(--s-4);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .agent-interruption-header-badge-row {
@@ -72,6 +75,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
+  min-width: 0;
 }
 
 .permission-queue-pill {
@@ -85,6 +89,7 @@
   font-size: var(--fs-micro);
   font-weight: 600;
   font-family: var(--font-mono);
+  flex-shrink: 0;
 }
 
 .agent-interruption-title {
@@ -93,6 +98,9 @@
   font-weight: 600;
   color: var(--text-1);
   line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .agent-interruption-description {
@@ -100,6 +108,8 @@
   font-size: var(--fs-chrome);
   color: var(--text-3);
   line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .permission-bar-quick-facts {
@@ -110,17 +120,29 @@
   font-size: var(--fs-micro);
   font-family: var(--font-mono);
   color: var(--text-3);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.permission-fact-item {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .permission-bar-quick-facts code {
   color: var(--text-2);
   font-family: inherit;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 /* ── Content area ── */
 
 .agent-interruption-content {
   padding: 0 var(--s-6) var(--s-5);
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* ── Question choices & Option Badges ── */
@@ -210,6 +232,8 @@
   flex-wrap: wrap;
   gap: var(--s-4);
   margin-top: var(--s-5);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .permission-bar-actions button,
@@ -373,16 +397,23 @@
   padding: var(--s-4) 0 var(--s-3);
   border-top: 1px solid var(--line-1);
   margin-top: var(--s-3);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .permission-bar-detail-inner .permission-facts {
   margin: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .permission-bar-detail-inner .permission-detail {
   font-size: var(--fs-chrome);
   max-height: 180px;
   overflow-y: auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* ── Permission action buttons (compact row) ── */
@@ -393,6 +424,8 @@
   flex-wrap: wrap;
   gap: var(--s-3);
   margin-top: var(--s-4);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .permission-bar-actions button {

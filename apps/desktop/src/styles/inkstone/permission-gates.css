@@ -397,6 +397,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   position: relative;
   overflow: hidden;
   margin: 0 auto;
+  width: min(100%, var(--conversation-width));
+  max-width: var(--conversation-width);
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .agent-interruption::before {
@@ -416,6 +420,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .agent-interruption-header {
   padding: 10px 14px 4px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .agent-interruption-title {
@@ -423,6 +429,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--t1);
   margin-top: 5px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-queue-pill {
@@ -435,10 +444,13 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--zhu);
   font: 600 11px var(--mono);
   letter-spacing: 0.02em;
+  flex-shrink: 0;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .agent-interruption-content {
   padding: 0 14px 10px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-quick-facts {
@@ -448,11 +460,21 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font: 11px var(--mono);
   color: var(--t3);
   margin-top: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-fact-item {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-quick-facts code {
   color: var(--t2);
   font-family: inherit;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-quick-facts .permission-risk-danger {
@@ -475,6 +497,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-detail-inner {
   border-top: 1px solid var(--l1);
   padding-top: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-actions {
@@ -482,6 +507,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   gap: 6px;
   flex-wrap: wrap;
   margin-top: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .permission-bar-btn-allow-session {

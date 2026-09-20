@@ -23,6 +23,12 @@ describe('resolveStartupAppearance', () => {
     localStorage.clear();
   });
 
+  it('defaults to Inkstone 墨 (ink face) when no prefs or themes are stored', () => {
+    const theme = resolveStartupAppearance();
+    expect(theme.id).toBe('piwin-inkstone-ink');
+    expect(theme.mode).toBe('dark');
+  });
+
   it('rebuilds from Appearance prefs when no last theme is stored', () => {
     localStorage.setItem('piwin.desktop.appearanceMode', 'dark');
     const theme = resolveStartupAppearance();

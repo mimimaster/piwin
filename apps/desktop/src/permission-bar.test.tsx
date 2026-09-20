@@ -6,8 +6,9 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { PermissionBar } from './permission-bar';
 import { DesktopLocaleProvider } from './desktop-locale-context';
-import type { PermissionPromptUi } from './chat-reducer';
+import { createInitialChatUiState, type PermissionPromptUi } from './chat-reducer';
 import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
+import { WorkbenchPermissionBar } from './workbench-conversation';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -334,5 +335,33 @@ describe('PermissionBar', () => {
     const badge = container.querySelector('[data-testid="permission-queue-badge"]');
     expect(badge).not.toBeNull();
     expect(badge?.textContent).toContain('还有 3 条待审批');
+  });
+
+  it('wraps the permission bar in composer-plan-stack even without an active plan tray', () => {
+    const state = {
+      ...createInitialChatUiState(),
+      permissionPrompt: basePrompt,
+      projectPath: '/repo',
+    };
+    act(() =>
+      root.render(
+        <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <WorkbenchPermissionBar
+              state={state}
+              sidebarMode="code"
+              extensionUiRequest={null}
+              sessionPlan={null}
+              onPermission={vi.fn()}
+              onExtensionUiResolve={vi.fn()}
+            />
+          </PiwinUiProvider>
+        </DesktopLocaleProvider>,
+      ),
+    );
+    const stack = container.querySelector('.composer-plan-stack');
+    expect(stack).not.toBeNull();
+    const bar = stack?.querySelector('[data-testid="permission-bar"]');
+    expect(bar).not.toBeNull();
   });
 });

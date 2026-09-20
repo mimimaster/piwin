@@ -143,13 +143,13 @@ export function resolveBuiltinAppearance(
     case 'piwin-ink-wash':
       return PIWIN_APPEARANCE_INK_WASH;
     case PIWIN_INKSTONE_THEME_ID:
-      return mode === 'dark' ? PIWIN_APPEARANCE_INKSTONE_INK : PIWIN_APPEARANCE_INKSTONE_PAPER;
+      return mode === 'light' ? PIWIN_APPEARANCE_INKSTONE_PAPER : PIWIN_APPEARANCE_INKSTONE_INK;
     case 'piwin-inkstone-paper':
       return PIWIN_APPEARANCE_INKSTONE_PAPER;
     case 'piwin-inkstone-ink':
       return PIWIN_APPEARANCE_INKSTONE_INK;
     default:
-      return PIWIN_APPEARANCE_INKSTONE_PAPER;
+      return PIWIN_APPEARANCE_INKSTONE_INK;
   }
 }
 
@@ -167,7 +167,7 @@ export function resolveSystemThemeMode(): 'light' | 'dark' {
   if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
-  return 'light';
+  return 'dark';
 }
 
 /**

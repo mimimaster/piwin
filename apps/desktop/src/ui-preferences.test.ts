@@ -73,7 +73,7 @@ describe('DesktopPreferences loading', () => {
       artifactCodeFirst: false,
       verboseAgentChat: true,
       conversationWidth: 'default',
-      appearanceMode: 'system',
+      appearanceMode: 'dark',
       lightTheme: DEFAULT_LIGHT_THEME_SETTINGS,
       darkTheme: DEFAULT_DARK_THEME_SETTINGS,
     });
@@ -97,7 +97,7 @@ describe('DesktopPreferences loading', () => {
       artifactCodeFirst: true,
       verboseAgentChat: true,
       conversationWidth: 'default',
-      appearanceMode: 'system',
+      appearanceMode: 'dark',
       lightTheme: DEFAULT_LIGHT_THEME_SETTINGS,
       darkTheme: DEFAULT_DARK_THEME_SETTINGS,
     });
