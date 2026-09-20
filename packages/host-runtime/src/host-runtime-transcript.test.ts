@@ -2,9 +2,9 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { openSessionTranscriptStore } from '@piwin/session';
+import { openSessionTranscriptStore, type SessionTranscriptStore } from '@piwin/session';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
-import { ensureTranscriptRecorder } from './host-runtime-transcript.js';
+import { ensureTranscriptRecorder, recordUserPrompt } from './host-runtime-transcript.js';
 import type { TranscriptRecorder } from './transcript-recorder.js';
 
 describe('ensureTranscriptRecorder', () => {
@@ -89,6 +89,63 @@ describe('ensureTranscriptRecorder', () => {
         text: 'new output',
         status: 'done',
         runtimeGenerationId: 'generation-new',
+      });
+    } finally {
+      for (const recorder of transcriptRecorders.values()) recorder.dispose();
+      store.close();
+    }
+  });
+
+  it('does not downgrade a candidate recorder while the old generation is still published', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-runtime-prompt-replacement-'));
+    const sessionId = 'session-prompt-during-replacement';
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId,
+      projectPath: '/project',
+    });
+    const transcriptRecorders = new Map<string, TranscriptRecorder>();
+    const deps = {
+      transcriptRecorders,
+      transcriptStores: { get: vi.fn(async () => store) },
+      sessionModels: new Map(),
+      sessionProjects: new Map([[sessionId, '/project']]),
+      runtimeController: {
+        // Candidate binding installs the new recorder before publishCandidate
+        // advances this active-generation projection.
+        getStatus: () => ({ generationId: 'generation-old' }),
+      },
+      withTranscriptStore: async <Result>(
+        _candidateSessionId: string,
+        operation: (transcriptStore: SessionTranscriptStore) => Promise<Result>,
+      ): Promise<Result> => operation(store),
+      healthTurnBySession: new Map(),
+      push: vi.fn(),
+      maybeAssignTextNameFromPrompt: vi.fn(async () => undefined),
+    } as unknown as HostRuntimeKernel;
+    deps.ensureTranscriptRecorder = (candidateSessionId, projectPath, runtimeGenerationId) =>
+      ensureTranscriptRecorder(deps, candidateSessionId, projectPath, runtimeGenerationId);
+
+    try {
+      await ensureTranscriptRecorder(deps, sessionId, '/project', 'generation-old');
+      await ensureTranscriptRecorder(deps, sessionId, '/project', 'generation-new');
+      const candidateRecorder = transcriptRecorders.get(sessionId);
+      if (candidateRecorder === undefined) throw new Error('candidate recorder was not created');
+
+      await recordUserPrompt(deps, sessionId, {
+        text: 'prompt during replacement',
+        clientMessageId: 'user-during-replacement',
+        skillId: 'writing-plans',
+        contextRefs: [{ kind: 'selection', snapshotText: 'quoted', label: 'quoted' }],
+      });
+
+      expect(transcriptRecorders.get(sessionId)).toBe(candidateRecorder);
+      expect(candidateRecorder.runtimeGenerationId).toBe('generation-new');
+      expect(await store.getMessage('user-during-replacement')).toMatchObject({
+        role: 'user',
+        text: 'prompt during replacement',
+        skillId: 'writing-plans',
+        contextRefs: [{ kind: 'selection', snapshotText: 'quoted', label: 'quoted' }],
       });
     } finally {
       for (const recorder of transcriptRecorders.values()) recorder.dispose();

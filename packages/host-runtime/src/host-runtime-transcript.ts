@@ -27,6 +27,7 @@ import {
 import type { SessionTranscriptMessage } from '@piwin/contracts';
 import { createStoreTranscriptRecorder } from './store-transcript-recorder.js';
 import { transcriptAppendPush } from './transcript-append-push.js';
+import { appendUserPromptToTranscriptStore } from './transcript-user-prompt.js';
 import {
   getPiwinRoot,
   getPiwinSessionIndexPath,
@@ -171,7 +172,6 @@ export async function recordUserPrompt(
   input: PromptInput,
 ): Promise<void> {
   const projectPath = deps.sessionProjects.get(sessionId) ?? 'unknown';
-  const runtimeGenerationId = deps.runtimeController.getStatus(sessionId).generationId;
   const clientMessageId = input.clientMessageId?.trim();
   const userId =
     clientMessageId && clientMessageId.length > 0
@@ -181,41 +181,22 @@ export async function recordUserPrompt(
   const attachments = input.attachments?.filter(
     (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
   );
-  if (runtimeGenerationId === undefined) {
-    // A cold prompt is durably accepted before runtime admission. User rows
-    // own Host provenance and therefore do not require a Pi generation.
-    const result = await deps.withTranscriptStore(
-      sessionId,
-      (store) =>
-        store.appendMessage({
-          id: userId,
-          runtimeGenerationId: USER_AUTHORED_GENERATION,
-          backendMessageId: userId,
-          role: 'user',
-          text: input.text,
-          status: 'done',
-          createdAt,
-          ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
-          ...(input.source === 'voice-delegation'
-            ? {
-                metadata: {
-                  promptSource: 'voice-delegation' as const,
-                  ...(input.voiceCallId ? { voiceCallId: input.voiceCallId } : {}),
-                },
-              }
-            : {}),
-        }),
-      projectPath,
-    );
-    if (!result.ok) {
-      throw new Error(`Cold prompt transcript identity collision: ${userId}`);
-    }
-  } else {
-    await deps.ensureTranscriptRecorder(sessionId, projectPath, runtimeGenerationId);
-    const recorder = deps.transcriptRecorders.get(sessionId);
-    if (recorder) {
-      await recorder.recordUserPrompt({ ...input, clientMessageId: userId });
-    }
+  // User rows are Host-authored and generation-independent. Writing them
+  // directly avoids letting a prompt admitted during runtime replacement
+  // downgrade the candidate generation's recorder before it is published.
+  const result = await deps.withTranscriptStore(
+    sessionId,
+    (store) =>
+      appendUserPromptToTranscriptStore({
+        store,
+        input,
+        messageId: userId,
+        createdAt,
+      }),
+    projectPath,
+  );
+  if (!result.ok) {
+    throw new Error(`User prompt transcript identity collision: ${userId}`);
   }
   const message: SessionTranscriptMessage = {
     id: userId,

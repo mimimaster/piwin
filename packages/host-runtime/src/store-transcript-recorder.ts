@@ -4,7 +4,6 @@ import type {
   AgentFailure,
   MediaAttachmentRef,
   ModelRef,
-  PromptInput,
   SessionToolCardView,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
@@ -13,11 +12,11 @@ import {
   mergeSearchEvidence,
   mergeWorkspaceWrites,
   normalizeAgentFailure,
-  USER_AUTHORED_GENERATION,
 } from '@piwin/contracts';
 import type { SessionTranscriptStore, TranscriptStoreMessagePatch } from '@piwin/session';
 import { appendToolCard } from '@piwin/session';
 import type { TranscriptRecorder } from './transcript-recorder.js';
+import { appendUserPromptToTranscriptStore } from './transcript-user-prompt.js';
 
 const DEFAULT_FLUSH_INTERVAL_MS = 250;
 const DEFAULT_MAX_TOOL_OUTPUT_BYTES = 256 * 1024;
@@ -321,36 +320,11 @@ export function createStoreTranscriptRecorder(options: {
         clientMessageId && clientMessageId.length > 0
           ? clientMessageId
           : `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const attachments = input.attachments?.filter(
-        (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
-      );
-      const contextRefs =
-        input.contextRefs && input.contextRefs.length > 0
-          ? input.contextRefs.map((ref) => ({ ...ref }))
-          : undefined;
-      const result = await options.store.appendMessage({
-        id: userId,
-        runtimeGenerationId: USER_AUTHORED_GENERATION,
-        backendMessageId: userId,
-        role: 'user',
-        text: input.text,
-        status: 'done',
+      const result = await appendUserPromptToTranscriptStore({
+        store: options.store,
+        input,
+        messageId: userId,
         createdAt: new Date().toISOString(),
-        ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
-        ...(contextRefs !== undefined ? { contextRefs } : {}),
-        ...(input.source === 'voice-delegation' || input.skillId
-          ? {
-              metadata: {
-                ...(input.source === 'voice-delegation'
-                  ? {
-                      promptSource: 'voice-delegation' as const,
-                      ...(input.voiceCallId ? { voiceCallId: input.voiceCallId } : {}),
-                    }
-                  : {}),
-                ...(input.skillId ? { skillId: input.skillId } : {}),
-              },
-            }
-          : {}),
       });
       if (!result.ok) {
         options.onDiagnostic?.(`user transcript identity collision: messageId=${userId}`);
