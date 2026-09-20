@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type {
   ApplySettingsInput,
   ImmediateCapabilityRestriction,
@@ -538,7 +538,7 @@ async function writeValidatedConfigAtomically(
   await mkdir(dirname(configPath), { recursive: true });
   const temporaryPath = join(
     dirname(configPath),
-    `.${configPath.split('/').pop() ?? 'config.json'}.${process.pid}.tmp`,
+    `.${basename(configPath)}.${process.pid}.tmp`,
   );
   const serialized = `${JSON.stringify(
     { schemaVersion: PIWIN_SETTINGS_SCHEMA_VERSION, ...config, providers },
