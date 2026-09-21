@@ -134,7 +134,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
 
@@ -169,7 +169,7 @@ describe('ConversationResponseContent', () => {
         activeRunId={null}
         locale="en"
         isStreaming
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
 
@@ -198,7 +198,7 @@ describe('ConversationResponseContent', () => {
         activeRunId="run-live-think"
         locale="zh-CN"
         isStreaming
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
 
@@ -235,7 +235,7 @@ describe('ConversationResponseContent', () => {
         activeRunId="run-think-caption"
         locale="zh-CN"
         isStreaming
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
 
@@ -273,7 +273,7 @@ describe('ConversationResponseContent', () => {
         activeRunId="run-compose"
         locale="zh-CN"
         isStreaming
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
 
@@ -323,7 +323,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
 
@@ -391,7 +391,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
         exploreRole={exploreRole}
       />,
     );
@@ -430,7 +430,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
 
@@ -479,7 +479,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
         onArtifactAction={(action) => {
           capturedAction = action;
         }}
@@ -552,7 +552,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
 
@@ -605,7 +605,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
 
@@ -681,7 +681,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
     expect(
@@ -722,7 +722,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
         onResolveFlashcards={async () => cards}
       />,
     );
@@ -937,7 +937,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
     expect(
@@ -977,7 +977,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
       />,
     );
     expect(container.querySelector('[data-testid="conversation-extracted-flashcard"]')).toBeNull();
@@ -1009,7 +1009,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
         showHeader={false}
       />,
     );
@@ -1042,7 +1042,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
         isStreaming={false}
         isLatestAssistantResponse
         livePromptModel={{
@@ -1081,7 +1081,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
         isStreaming={false}
         isLatestAssistantResponse
         livePromptModel={{
@@ -1119,7 +1119,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId="run-1"
         locale="zh-CN"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
         isStreaming
         livePromptModel={{
           protocol: 'openai-compatible',
@@ -1163,7 +1163,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId="run-1"
         locale="zh-CN"
-        artifactPreviewEnabled
+        artifactInlineEnabled
       />,
     );
     await act(async () => {
@@ -1202,7 +1202,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId="run-1"
         locale="zh-CN"
-        artifactPreviewEnabled
+        artifactInlineEnabled
         onOpenArtifactCanvas={() => {}}
       />,
     );
@@ -1237,7 +1237,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled
+        artifactInlineEnabled
         onOpenArtifactCanvas={() => {}}
       />,
     );
@@ -1269,7 +1269,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled
+        artifactInlineEnabled
         artifactCodeFirst
       />,
     );
@@ -1317,7 +1317,7 @@ describe('ConversationResponseContent', () => {
         activeRunId="run-image"
         locale="zh-CN"
         isStreaming
-        artifactPreviewEnabled
+        artifactInlineEnabled
         renderMediaChrome
       />,
     );
@@ -1356,7 +1356,7 @@ describe('ConversationResponseContent', () => {
         activeRunId="run-image"
         locale="zh-CN"
         isStreaming
-        artifactPreviewEnabled
+        artifactInlineEnabled
         renderMediaChrome
         onCancelGeneration={onCancelGeneration}
       />,

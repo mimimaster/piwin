@@ -148,13 +148,30 @@ describe('NotificationsPage', () => {
       expect(host?.querySelector('[data-testid="attention-enable-authorization"]')).toBeNull();
     });
 
+    it('does not expose macOS settings controls when the native center is unavailable', async () => {
+      await renderPage(
+        createFakeOs('unsupported', {
+          nativeCenter: false,
+          clickActivation: false,
+          authorizationReliable: false,
+        }),
+      );
+      expect(host?.querySelector('[data-testid="attention-authorization-status"]')?.textContent).toBe(
+        '当前运行方式不支持系统通知',
+      );
+      expect(host?.querySelector('[data-testid="attention-open-system-settings"]')).toBeNull();
+      expect(host?.querySelector('[data-testid="attention-authorization-row"]')?.textContent).not.toContain(
+        'macOS',
+      );
+    });
+
     it('renders open-system-settings and managed copy in description when authorization is unreliable', async () => {
       const os = createFakeOs('granted', { authorizationReliable: false });
       await renderPage(os);
       expect(host?.querySelector('[data-testid="attention-open-system-settings"]')).toBeTruthy();
       expect(host?.querySelector('[data-testid="attention-authorization-status"]')).toBeNull();
       expect(host?.querySelector('[data-testid="attention-authorization-row"]')?.textContent).toContain(
-        '由 macOS 系统设置管理',
+        '由系统通知设置管理',
       );
       await act(async () => {
         host?.querySelector<HTMLButtonElement>('[data-testid="attention-open-system-settings"]')?.click();

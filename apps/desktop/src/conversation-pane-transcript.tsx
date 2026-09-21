@@ -14,7 +14,9 @@ export type ConversationPaneTranscriptProps = {
   state: ChatUiState;
   activeTheme: ThemeManifest;
   artifactThemeKey: string | number;
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   locale: 'zh-CN' | 'en';
   livePromptModel?: ModelRef | null;
   onOpenDocument?: (doc: DocumentOpenInput) => void;
@@ -179,7 +181,8 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
                 showStreamingCaret={isLiveMessage && message.text.length > 0}
                 activeTheme={props.activeTheme}
                 artifactThemeKey={props.artifactThemeKey}
-                artifactPreviewEnabled={props.artifactPreviewEnabled}
+                artifactInlineEnabled={props.artifactInlineEnabled}
+                artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
                 runRecordsById={props.state.runRecordsById}
                 activeRunId={props.state.activeRunId}
                 locale={props.locale}

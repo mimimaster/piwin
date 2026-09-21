@@ -3,13 +3,14 @@
  * Apps send scope intent; only the host resolves filesystem paths.
  */
 import type {
+  ArtifactScopeKey,
   CreateSessionInput,
   ResolvedSessionLocation,
   SessionListScopeRef,
   SessionScope,
 } from '@piwin/contracts';
 import { listProjects, resolveProjectPathById } from '@piwin/project';
-import { ensureGeneralWorkspace } from './general-workspace.js';
+import { ensureGeneralWorkspace, isGeneralWorkspacePath } from './general-workspace.js';
 import { getPiwinGeneralWorkspacePath, getPiwinProjectsPath, getPiwinRoot } from './paths.js';
 import { createRemoteProjectId } from './remote-project-id.js';
 
@@ -52,6 +53,10 @@ export async function resolveSessionLocation(
   if (scope.kind === 'general') {
     const workingDirectory = await ensureGeneralWorkspace(piwinRoot);
     return { scope, workingDirectory };
+  }
+  if (isGeneralWorkspacePath(scope.projectPath, piwinRoot)) {
+    const workingDirectory = await ensureGeneralWorkspace(piwinRoot);
+    return { scope: { kind: 'project', projectPath: workingDirectory }, workingDirectory };
   }
   return {
     scope,
@@ -132,6 +137,26 @@ export function isConversationIndexRecord(record: {
     return false;
   }
   return isConversationChatSession({ sessionKind: 'main' }, scopeFromIndexRecord(record));
+}
+
+/**
+ * Artifact scope key for a durable session index record. Compile time, prompt
+ * time, and tool composition must agree, so all three call this predicate
+ * rather than re-deriving the class. Undefined when the record is unavailable.
+ */
+export function artifactScopeKeyForIndexRecord(
+  record:
+    | {
+        scope?: SessionScope;
+        projectPath: string;
+        kind?: 'main' | 'subagent' | 'side-chat';
+      }
+    | undefined,
+): ArtifactScopeKey | undefined {
+  if (record === undefined) {
+    return undefined;
+  }
+  return isConversationIndexRecord(record) ? 'general' : 'project';
 }
 
 /**

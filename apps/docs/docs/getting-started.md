@@ -1,34 +1,75 @@
-# 快速起步概览
+# 快速起步与核心概念 (Getting Started)
 
-欢迎阅读 **Docs**！这里主要会介绍一些常用的agent的配置指南推荐。本文档旨在帮助大伙儿或者小白找到一些好用的agent工具，比如好用的web_search渠道，文中所述配置以piwinwin为示例；这些文档会尽量使用人类文笔撰写，但本人文笔极差，(*∩_∩*)~ 嘻嘻
+欢迎查阅 **Piwin** 快速起步指南！
 
----
-## BYOK
-BYOK（Bring Your Own Key) 懂得都懂，这里在废话多说几句，现在市场上的agent数不胜数，许多都带有自己的套餐，使用自家的渠道去使用特定厂商的模型资源，很多时候，自带的这些资源并无法满足用户的需求，用户就会自己去收集、购买不同厂商的TOKEN PLAN，然后可以集合到一个agent上使用，谁都不想电脑上开很多个coding agent，明明干的还是同个项目。所以可以使用一些Agent自带的模型配置功能，就是说，用你自家的key；
-## 中转路由 
-有时候用户可能是拥有多个套餐，他们有的原生支持你使用api调用，有的不可以，只能以oauth的情况使用，这时候我们如果既要又要，只能被迫反代，常见的场景就是将codex套餐授权至cliproxyapi(以下简称CPA)，再由CPA进行管理分发，之后你就可以用不同的agent去进行使用api调用了，甚至做了协议兼容；CPA是一个很方便的个人中转路由工具，你可以将你不同的套餐聚合在一起，统一管理，一个key，就可以使用你所有套餐下的模型，建议个人本地部署，类似工具还有sub2api、newapi、oneapi；
-小巧思:
-如果有CPA、su2api、newapi之类的工具不支持2API的套餐，可以自行使用agent工具检索github库，必然有你想要的答案
-
-## Provider
-通道（Channel）是 BYOK / 网关：Anthropic API Key、OpenRouter key、Ollama、本机 CPA（常见 `http://127.0.0.1:8317/v1`）等。已有 `anthropic` 通道时，登录 Claude 套餐会把它改名为 `anthropic-api`。
-
-套餐账号（Account）是另一层：设置 → **OAuth 登录** 登录 Kimi Code、ChatGPT Codex、Claude Pro/Max、Grok、GitHub Copilot，凭证写在 Host 的 `~/.piwin/pi-agent/auth.json`，不会塞进通道 `apiKeyRef`。OpenRouter 仍是通道 Key。CLI：`piwin auth status | login <kimi-coding|openai-codex|anthropic|xai|github-copilot> | logout <id>`。
-
-Claude Pro/Max 的例外：从 2026-04-04 起，Anthropic 把第三方客户端（含 Pi / piwin）记到 **extra usage**，不扣套餐里的 5 小时 / 周限额。登录页、额度抽屉和选用 Claude 套餐模型时会提示；没开 extra 或额度用完会失败。套餐内额度只给 Claude.ai / Claude Code / Cowork。管理 extra：https://claude.ai/settings/usage 。
-
-
-
-## 核心配置导航
-
-点击左侧侧边栏或下方卡片直接阅读对应章节：
-
-- [⚡ 视觉模型与委托配置](./vision-models.md)：了解视觉委托机制，免费获取 Gemini / SiliconFlow / Groq / Ollama 视觉模型配置。
-- [🌐 Web 搜索与社群资源](./web-community.md)：获取 Tavily 免费 1000 次搜索 Key 与 MCP 生态资源。
-- [📝 如何添加我自己的 Markdown 文档](./how-to-write-docs.md)：教你如何 3 步在本项目中添加你自己的文档与笔记。
+Piwin 是一个面向严肃工程开发的私有化智能编程工作台。无论你是初次接触 Coding Agent 的新手，还是拥有多个模型订阅的高级玩家，本文档都能帮助你快速理清核心概念，并完成基础配置。
 
 ---
 
-## 客户端一键直达
+## 1. 核心概念速览
 
-在 Piwin 客户端各配置项旁边，点击 **「📖 配置指南」** 即可精准跳转至对应文档锚点。
+### 1.1 BYOK (Bring Your Own Key)
+现在的 AI 模型生态百花齐放，开发者往往在不同的平台购买了 Token 额度或订阅套餐。谁也不希望在电脑上为了不同的项目开启五六个不同的 Agent 窗口。
+
+**BYOK** 允许你完全自带 API Key，将所有的模型资源统一收口在 Piwin 中：
+- 自定义各服务商的 `Base URL` 与 `API Key`；
+- 支持 OpenAI 兼容格式、Anthropic 原生接口、Google Gemini、Ollama 本地接口等；
+- 所有密钥仅加密存储在本地机器（`~/.piwin`），绝不经过任何第三方云端。
+
+---
+
+### 1.2 通道 (Channel / Provider) 与 套餐账号 (OAuth Account) 的双层设计
+
+在 Piwin 中，模型来源被清晰地解耦为两层：
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    Piwin 模型体系 (Models)                   │
+├──────────────────────────────┬──────────────────────────────┤
+│  通道层 (Channel / Provider) │  套餐账号层 (OAuth Account)   │
+├──────────────────────────────┼──────────────────────────────┤
+│ • BYOK / 自定义 API Key      │ • 官方 OAuth 一键授权        │
+│ • Anthropic API / OpenRouter │ • Kimi Code / Codex / Grok   │
+│ • 本地 Ollama / 兼容端点     │ • Claude Pro / Max 订阅      │
+│ • 存储在通道配置中            │ • 凭证写入 ~/.piwin/auth.json │
+└──────────────────────────────┴──────────────────────────────┘
+```
+
+1. **通道 (Channel / Provider)**：面向标准 API 接口。例如输入 OpenAI / Anthropic 原生 API Key、OpenRouter Key 或本地 Ollama 地址。
+2. **套餐账号 (Account / OAuth)**：面向官方订阅。通过 **「设置 ➔ OAuth 登录」** 授权，支持 Kimi Code、ChatGPT Codex、Claude Pro/Max、xAI Grok、GitHub Copilot。
+   - 凭证保存在本地 Host 的 `~/.piwin/pi-agent/auth.json` 中，安全可靠；
+   - 也可以通过 CLI 命令行进行管理：
+     ```bash
+     piwin auth status
+     piwin auth login <kimi-coding|openai-codex|anthropic|xai|github-copilot>
+     piwin auth logout <id>
+     ```
+
+::: warning 关于 Claude Pro / Max 的特别说明
+从 2026-04-04 起，Anthropic 官方规定：所有第三方客户端（包括各类 Agent 工具及 Pi / Piwin）的 API 调用均记入 **Extra Usage（额外付费用量）**，不再扣减网页端或官方 App 的套餐额度。  
+如果你要使用 Claude 官方 OAuth，请确保在 [Claude 账户设置 (claude.ai/settings/usage)](https://claude.ai/settings/usage) 中已开启 Extra Usage 额度，否则请求可能报错。
+:::
+
+---
+
+## 2. 核心功能配置导航
+
+按照你的使用需求，直接点击下方卡片阅读对应配置模块：
+
+| 模块 | 核心内容 | 直达链接 |
+| :--- | :--- | :--- |
+| **OAuth 登录与账号** | 了解如何一键登录 Kimi、Codex、Claude、Grok 等官方套餐 | [OAuth 登录指南](./oauth-login.md) |
+| **模型与多模态委托** | 推理模型、视觉委托、输出重写、生图与视频模型统一配置 | [模型配置说明](./model-config.md) |
+| **视觉模型配置** | 免费获取 Gemini Flash、硅基流动 Qwen2.5-VL、Groq、Ollama 视觉模型 | [视觉模型指南](./vision-models.md) |
+| **Code Search 语义检索** | 零上下文污染的智能体代码拓扑搜索与 Devin Key 配置 | [Code Search 指南](./code-search.md) |
+| **子代理协同编排** | 掌握 Ultra Code（侦察兵模式）与 Fusion（双模规划执行） | [子代理编排说明](./subagent-orchestration.md) |
+| **Web 搜索配置** | 接入 Tavily 免费 1000 次 Key、Brave 搜索与 windsurf-search-mcp | [Web 搜索说明](./web-search.md) |
+| **实时语音协作** | 开启 Composer 小麦克风，体验全双工实时结对编程 | [实时语音说明](./realtime-voice.md) |
+| **多端部署与私有化** | macOS 一体包、Windows 包、Web 远程直连与 iOS 移动端使用 | [多端部署说明](./deployment.md) |
+| **Pi 扩展生态** | 在会话中一键热安装社区 Agent 工具与 Hook | [扩展说明](./extensions.md) |
+
+---
+
+## 3. 客户端一键直达
+
+在 Piwin 桌面客户端各配置面板旁边，均提供了 **「配置指南」** 按钮，点击即可在默认浏览器中精准跳转至当前配置项的对应文档锚点。

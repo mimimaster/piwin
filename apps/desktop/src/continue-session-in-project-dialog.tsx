@@ -3,7 +3,8 @@
  *
  * A session belongs to exactly one workspace, so continuing means copying the
  * transcript into a new session in the chosen destination: No Repo (the
- * general workspace, no repository binding) or one of the trusted projects.
+ * built-in project workspace, no repository binding) or one of the trusted
+ * projects.
  * The source session is never moved or deleted.
  */
 import type { ReactElement } from 'react';
@@ -21,6 +22,8 @@ export type ContinueSessionInProjectDialogProps = {
   onOpenChange: (open: boolean) => void;
   onSelectTarget: (targetScope: SessionScope) => void;
   onCancel: () => void;
+  /** Built-in No Repo project root. Required to copy into that workspace. */
+  noRepoProjectPath?: string | null;
 };
 
 export function ContinueSessionInProjectDialog(
@@ -41,13 +44,19 @@ export function ContinueSessionInProjectDialog(
       <p className="muted">
         {isChinese
           ? `将“${sessionName}”的完整历史复制到目标会话；原会话会保留。继续到 ${noRepoLabel} 会在不绑定仓库的通用工作区继续。`
-          : `Copy the full history of “${sessionName}” into a destination session. The original remains unchanged. ${noRepoLabel} continues in the general workspace without a repository binding.`}
+          : `Copy the full history of “${sessionName}” into a destination session. The original remains unchanged. ${noRepoLabel} continues in the built-in workspace without a repository binding.`}
       </p>
       <div className="continue-session-project-list">
         <Button
-          disabled={props.busy}
+          disabled={props.busy || !(props.noRepoProjectPath?.trim())}
           data-testid="continue-session-no-repo-option"
-          onClick={() => props.onSelectTarget({ kind: 'general' })}
+          onClick={() => {
+            const path = props.noRepoProjectPath?.trim() ?? '';
+            if (!path) {
+              return;
+            }
+            props.onSelectTarget({ kind: 'project', projectPath: path });
+          }}
         >
           {isChinese ? `${noRepoLabel}（不绑定仓库）` : `${noRepoLabel} (no repository)`}
         </Button>

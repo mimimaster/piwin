@@ -7,6 +7,16 @@
 > 生产路径：`config.artifact.enabled` 打开时，system prompt 保留简短路由提示；
 > 模型通过 `artifact_instructions` 按需获取决策策略和本契约。
 > 不要把 `evaluateCodeFence` 或 `splitMarkdownBlocks` 写进 prompt。
+>
+> 作用域限制：`config.artifact.scopes` 关掉某个 surface 时，`formatArtifactInstructions`
+> 只在最前面加一行约束（`ARTIFACT_INLINE_ONLY_HINT` / `ARTIFACT_CANVAS_ONLY_HINT`），
+> 决策提示词和下面的运行时契约文本保持逐字不变——与 `explicit-only` 的前缀机制相同。
+> 两个 surface 都关掉时不注入任何指令，`artifact_instructions` 也不注册。
+>
+> 出厂默认：通用会话两个 surface 都开；**项目会话（Agent chat）两个 surface 都关**。
+> 因此 Agent 会话默认既没有 resident 契约，也没有 `artifact_instructions` 工具，
+> 每轮的 `inlineArtifactWidthPx` / host theme advisory 块也会被丢掉——
+> 想让它生成 Artifact，需要在设置里把对应 surface 打开。
 
 ## 最小可用的 system prompt 片段
 

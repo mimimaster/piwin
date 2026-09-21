@@ -8,8 +8,10 @@ import type {
   PermissionRememberScope,
   PiwinConfig,
 } from '@piwin/contracts';
+import { resolveArtifactCapability } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import { artifactFenceSecurityProps } from '../artifact-fence-security';
+import { artifactSurfaceProps } from '../artifact-surfaces';
 import type { ArtifactCanvasTarget } from '../artifact-canvas-model';
 import type { ChatUiAction, ChatUiState, PermissionPromptUi } from '../chat-reducer';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
@@ -185,7 +187,7 @@ export function useWorkbenchSubagentInspector(args: UseWorkbenchSubagentInspecto
       onOpenDiff: handleOpenDiff,
       onArtifactAction: handleArtifactAction,
       onOpenArtifactCanvas: handleOpenArtifactCanvas,
-      artifactPreviewEnabled: config?.artifact?.enabled ?? true,
+      ...artifactSurfaceProps(resolveArtifactCapability(config?.artifact, 'project')),
       ...artifactFenceSecurityProps(config?.artifact),
       onPermission: (prompt, decision, rememberScope) => {
         void handleSubagentPermission(prompt, decision, rememberScope);
@@ -215,6 +217,7 @@ export function useWorkbenchSubagentInspector(args: UseWorkbenchSubagentInspecto
       handleArtifactAction,
       handleOpenArtifactCanvas,
       config?.artifact?.enabled,
+      config?.artifact?.scopes,
       config?.artifact?.maxBytes,
       config?.artifact?.blockExternalScripts,
       config?.artifact?.blockExternalResources,

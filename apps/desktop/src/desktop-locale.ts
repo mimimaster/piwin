@@ -140,7 +140,6 @@ export type DesktopCopy = {
     expandProjects: string;
     collapseProject: string;
     expandProject: string;
-    olderSessionsHidden: (count: number) => string;
     pinned: string;
     collapsePinned: string;
     expandPinned: string;
@@ -744,7 +743,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       expandProjects: '展开项目列表',
       collapseProject: '收起项目',
       expandProject: '展开项目',
-      olderSessionsHidden: (count) => `还有 ${count} 个更早的会话，用搜索查找`,
       pinned: '置顶',
       collapsePinned: '收起置顶列表',
       expandPinned: '展开置顶列表',
@@ -1103,8 +1101,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       expandProjects: 'Expand project list',
       collapseProject: 'Collapse project',
       expandProject: 'Expand project',
-      olderSessionsHidden: (count) =>
-        `${count} older session${count === 1 ? '' : 's'} hidden; use search to find them`,
       pinned: 'Pinned',
       collapsePinned: 'Collapse pinned list',
       expandPinned: 'Expand pinned list',

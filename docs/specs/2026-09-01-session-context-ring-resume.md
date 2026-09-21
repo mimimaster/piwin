@@ -4,7 +4,7 @@
 上游：[ADR 0067](../adr/0067-session-context-telemetry.md)、[2026-08-30 占用遥测修复](./2026-08-30-context-usage-repair.md) §2.2。  
 问题来源：用户重开历史会话或重启 Desktop 后 composer 上下文环消失。
 
-ADR 0067 的「首响应前隐藏」仍然成立。本文记录已验证的占用权威规则：Host 严格同边界 current occupancy 提升，与 Desktop presentation-only stale fallback 分离。
+ADR 0067：空会话首轮仍在首响应前隐藏；已有历史占用的后续 Run 等待时 Desktop 保持环可见。本文记录已验证的占用权威规则：Host 严格同边界 current occupancy 提升，与 Desktop presentation-only 展示（waiting hold / mismatch stale）分离。
 
 ## 1. 目标、范围与非目标
 
@@ -31,7 +31,7 @@ compact 展示规则：`compaction/start` 创建一个带稳定 operation id、�
 
 ## 3. 根因
 
-`applyRunStarted` 把当前 occupancy 清成 `unknown(waiting-for-response)`，把上一轮 known 挪到 `lastConfirmed`。这是对的：新 Run 首响应前必须藏环。
+`applyRunStarted` 把当前 occupancy 清成 `unknown(waiting-for-response)`，把上一轮 known 挪到 `lastConfirmed`。这是对的：Host 本轮占用在首响应前不是 current。Desktop 在已有历史证据时用 `lastConfirmed` 把环留在屏幕上，不写回 Host。
 
 后续两条路径没有把 known 写回来：
 
@@ -74,22 +74,23 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 - live `waiting-response` 且尚无当前 Run 首响应
 - model / compaction / capability / seed / stamped leaf 不兼容
 
-禁止：用 usage ledger 拼占用；用 transcript 字符数估算填环；把 `lastConfirmed` 在 waiting-response 无证据时画成当前环。
+禁止：用 usage ledger 拼占用；用 transcript 字符数估算填环；把 `lastConfirmed` 在 waiting-response 无证据时提升为 Host 当前 occupancy。Desktop 可以在有历史响应证据时把 `lastConfirmed` 画在环上，快照保持 unknown。
 
 ### 4.2 Desktop：presentation-only stale fallback
 
 优先级：
 
 1. 当前 snapshot 经严格 `promoteLastConfirmed` 后 occupancy known 且 phase 不是 `invalidated`：显示为 **current**（「已确认」/「估算」）。
-2. 否则，仅在下列条件全部成立时显示 `lastConfirmed`，`occupancySource: 'last-confirmed'`：
+2. 否则，live `waiting-response` 且尚无当前 Run 首响应、但 `historyHasDisplayableResponse` 且 `lastConfirmed` known（或当前 occupancy 已是 known）：Desktop 把该数字显示为 **current** 保持环可见。不改 Host 快照，不用 mismatch 待测量文案。
+3. 否则，仅在下列条件全部成立时显示 `lastConfirmed`，`occupancySource: 'last-confirmed'`：
    - `phase === 'invalidated'`；兼容旧 Host 尚未冷修复的 `phase === 'idle'` 形状
    - unknown reason **严格等于** `runtime-generation-mismatch`，或兼容旧 Host 的 `waiting-for-response`（仅限已结束的 `idle` 脏行）
    - `historyHasDisplayableResponse`
    - 没有 live waiting-response 首响应门槛
    - model、compaction boundary、capability fingerprint、seed fingerprint 兼容；只允许 active leaf 不同
-3. 其它 unknown / invalidated / unavailable 全部不使用 `lastConfirmed`。
+4. 其它 unknown / invalidated / unavailable 全部不使用 `lastConfirmed`。
 
-第 2 类时：
+第 3 类时：
 
 - snapshot 本身仍是 unknown/invalidated，不生成伪 known snapshot，不改 phase
 - 文案必须是「上次确认，当前上下文待测量」 / 「Last confirmed; current context pending measurement」，不能显示普通「已确认 / Confirmed」
@@ -98,7 +99,7 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 ### 4.3 必须继续隐藏
 
 - 空草稿、`never-sampled` 且无合格展示占用
-- 当前 Run 已开始、尚无文本/思考/模型 tool
+- 当前 Run 已开始、尚无文本/思考/模型 tool，且没有可展示的历史占用
 - abort / error、compact-unmeasured、store-unavailable、branch/schema invalidated（即使带 `lastConfirmed`）
 - model / compaction / capability / seed 不兼容
 - Host 无 `contextTelemetryVersion: 1`

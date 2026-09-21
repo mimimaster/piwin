@@ -4,6 +4,8 @@ import { dirname, join } from 'node:path';
 import type {
   AutomationConfig,
   ArtifactConfig,
+  ArtifactScopesConfig,
+  ArtifactSurfaceSwitches,
   ArtifactTriggerMode,
   ArtifactPromptMode,
   CompactionConfig,
@@ -37,6 +39,7 @@ import type {
 import {
   createDefaultAutomationConfig,
   createDefaultArtifactConfig,
+  createDefaultArtifactScopes,
   createDefaultCompactionConfig,
   createDefaultExtensionsConfig,
   createDefaultMarketplaceConfig,
@@ -402,6 +405,33 @@ function normalizeCodeSearchConfig(value: unknown): CodeSearchConfig | undefined
   return next;
 }
 
+/**
+ * Normalize the per-scope surface switches. A missing scope/surface keeps the
+ * shipped default (on), so an older `config.json` never silently disables a
+ * surface it never knew about.
+ */
+function normalizeArtifactScopes(value: unknown): ArtifactScopesConfig {
+  const record = asRecord(value);
+  const fallback = createDefaultArtifactScopes();
+  const switches = (
+    raw: unknown,
+    scopeDefault: ArtifactSurfaceSwitches,
+  ): ArtifactSurfaceSwitches => {
+    const entry = asRecord(raw);
+    if (!entry) {
+      return { ...scopeDefault };
+    }
+    return {
+      inline: entry.inline !== false,
+      canvas: entry.canvas !== false,
+    };
+  };
+  return {
+    general: switches(record?.general, fallback.general),
+    project: switches(record?.project, fallback.project),
+  };
+}
+
 function normalizeArtifactConfig(value: unknown, defaults: ArtifactConfig): ArtifactConfig {
   const record = asRecord(value);
   if (!record) {
@@ -425,6 +455,7 @@ function normalizeArtifactConfig(value: unknown, defaults: ArtifactConfig): Arti
   const maxBytes = asPositiveNumber(record.maxBytes) ?? defaults.maxBytes;
   return {
     enabled,
+    scopes: normalizeArtifactScopes(record.scopes),
     triggerMode,
     decisionPrompt: { mode: promptMode, customPrompt },
     maxBytes,
@@ -1293,7 +1324,7 @@ function normalizeOrchestrationSchemeMember(
   if (typeof record.profileId === 'string' && record.profileId.trim()) {
     member.profileId = record.profileId.trim();
   }
-  const model = normalizeModelRef(record.model);
+  const model = normalizeSubagentModelRef(record.model);
   if (model) member.model = model;
   if (isThinkingLevel(record.thinkingLevel)) {
     member.thinkingLevel = record.thinkingLevel;
@@ -1404,7 +1435,21 @@ function normalizeSubagentIsolation(value: unknown): SubagentIsolationMode | und
 }
 
 function normalizeSubagentModelRef(value: unknown): SubagentProfileSettings['model'] | undefined {
-  return normalizeModelRef(value);
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const providerId = typeof record.providerId === 'string' ? record.providerId.trim() : '';
+  const modelId = typeof record.modelId === 'string' ? record.modelId.trim() : '';
+  if (!providerId || !modelId) return undefined;
+  // Subscription pins omit protocol on purpose (models/configured). Require
+  // only providerId+modelId so Fusion sidekick overlays survive save.
+  const model: NonNullable<SubagentProfileSettings['model']> = { providerId, modelId };
+  if (isModelProtocol(record.protocol)) {
+    model.protocol = record.protocol;
+  }
+  if (record.source === 'subscription' || record.source === 'channel') {
+    model.source = record.source;
+  }
+  return model;
 }
 
 function normalizeModelRef(value: unknown): SubagentProfileSettings['model'] | undefined {

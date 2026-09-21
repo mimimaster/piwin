@@ -2,41 +2,34 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented in Desktop |
+| Status | Implemented in Desktop + Host |
 | Date | 2026-09-09 |
+| Amended | 2026-09-21 |
 
 ## Decision
 
-Desktop presents the product-owned General session scope as a permanent `No Repo`
-folder at the top of the Projects section. It is the default scope on startup;
-its sessions use the existing Host-owned `~/.piwin/workspace` directory.
+**Conversations** is general chat. `{ kind: 'general' }`. Original rules:
+limited tools, no project write surface. Do not reclassify those sessions.
 
-`No Repo` is a navigation item, not a registered or trusted `ProjectRecord`.
-It must not be removable, must not inherit project instructions or permissions,
-and must continue to use the existing `{ kind: 'general' }` session contract.
+**No Repo** is a built-in project folder for users who want agent file ops
+without opening a real repository. Same session kind as any other project
+folder: `{ kind: 'project', projectPath: ~/.piwin/workspace }`.
 
-Opening a real project still switches to its project scope. Selecting `No Repo`
-returns to General and hydrates the existing General session list. New sessions
-created from its plus action also use the General scope.
+The directory is Host-owned (`ensureGeneralWorkspace`). It is always trusted.
+`project/open` on that path does **not** register it in `projects.json`, so it
+never appears as a removable recent project.
 
-The separate top-level repository picker bar is not part of this design.
+## Sidebar
 
-No Repo is a compact default-space entry with a folder icon and a new-session
-action. General history remains in the independent Conversations section below
-Projects, with its original date grouping, full resident list, collapse control,
-and new-conversation action. Selecting No Repo or collapsing Projects must not
-hide Conversations. General sessions are not duplicated beneath No Repo.
+- Code pane: No Repo folder at the top of Projects. Nested rows come from
+  `projectSessionsByPath[generalWorkspacePath]`, five-at-a-time like other
+  folders. `+` creates a project-scoped session against that path.
+- Chat pane: Conversations lists `{ kind: 'general' }` only. Untouched.
 
-## Continue in project… offers No Repo as a destination
+Selecting No Repo opens the built-in project (cwd, file tree, agent tools).
+Selecting Conversations `+` still `project/clear`s and creates a general chat.
 
-The session menu's **Continue in project…** action opens a destination picker
-(`ContinueSessionInProjectDialog`). It always offers `No Repo` next to the
-trusted projects, so a repo-bound session can be carried back into the General
-workspace without a repository binding — the picker is never a dead end when no
-project is trusted.
+## Continue in project…
 
-Both destinations use the same Host operation (`session/duplicate` with an
-explicit `targetScope`, `messageProjection: 'none'`): the source session keeps
-its scope and audit trail, and the copy lands in the chosen workspace. Choosing
-`No Repo` clears the active project in the shell before resuming the copy, so
-the session is shown under No Repo rather than under the project it left.
+No Repo in the destination picker targets the built-in project path, not
+`{ kind: 'general' }`.

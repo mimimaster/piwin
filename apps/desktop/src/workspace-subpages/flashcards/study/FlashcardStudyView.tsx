@@ -50,7 +50,7 @@ function markdown(text: string, locale: 'zh-CN' | 'en'): ReactNode {
       text={text}
       renderingPhase="completed"
       showStreamingCaret={false}
-      artifactPreviewEnabled={false}
+      artifactInlineEnabled={false}
       locale={locale}
     />
   );

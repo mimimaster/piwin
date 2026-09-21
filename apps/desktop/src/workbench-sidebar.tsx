@@ -168,6 +168,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       sessions={state.sessions}
       filteredSessions={filteredSessions}
       generalSessions={filteredGeneralSessions}
+      noRepoProjectPath={hostStatus?.generalWorkspacePath ?? null}
       projectSessionsByPath={state.projectSessionsByPath}
       sessionListScopes={state.sessionListScopes}
       sessionListOrder={sessionListOrder}
@@ -217,10 +218,8 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       onNewSession={(options) => void onNewSession(options)}
       onNewGeneralSession={() => {
         void (async () => {
-          // Stay on the current pane. Conversations + lives on chat; No Repo
-          // + lives on code. Flipping to code here sent the chat plus into
-          // Projects. Scope switch is project/clear, not sidebarMode.
-          // Hydrate before create so session/hydrate cannot clobber session/add.
+          // Conversations + stays on the chat pane and creates a general chat.
+          // No Repo + is onNewSession(project) against the built-in workspace.
           dispatch({ type: 'project/clear' });
           await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
           await onNewSession({ scope: { kind: 'general' } });

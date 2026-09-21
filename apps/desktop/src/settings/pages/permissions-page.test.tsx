@@ -167,7 +167,9 @@ describe('PermissionsPage', () => {
     const ctx = createContextValue({ config: createConfig('yolo'), saveConfig });
     await renderPage(ctx);
 
-    const autoCard = host?.querySelector<HTMLButtonElement>('[data-testid="settings-permission-mode-auto"]');
+    const autoCard = host?.querySelector<HTMLButtonElement>(
+      '[data-testid="settings-permission-mode-auto"]',
+    );
     expect(autoCard).toBeTruthy();
 
     await act(async () => {
@@ -201,6 +203,39 @@ describe('PermissionsPage', () => {
 
     expect(host?.querySelector('[data-testid="settings-permission-mode-group"]')).toBeTruthy();
     expect(host?.querySelector('[data-testid="settings-permission-notes"]')).toBeTruthy();
+  });
+
+  it('keeps remembered permissions collapsed until the header is clicked', async () => {
+    const ctx = createContextValue();
+    await renderPage(ctx);
+
+    const toggle = host?.querySelector<HTMLButtonElement>(
+      '[data-testid="remembered-permissions-toggle"]',
+    );
+    const collapse = host?.querySelector<HTMLElement>(
+      '[data-testid="remembered-permissions-collapse"]',
+    );
+
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(collapse?.getAttribute('aria-hidden')).toBe('true');
+    expect(collapse?.style.display).toBe('none');
+
+    await act(async () => {
+      toggle?.click();
+    });
+
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(collapse?.getAttribute('aria-hidden')).toBe('false');
+    expect(collapse?.style.display).toBe('block');
+    expect(host?.querySelector('[data-testid="remembered-permissions-no-project"]')).toBeTruthy();
+
+    await act(async () => {
+      toggle?.click();
+    });
+
+    // The exit transition is browser-driven, so only the ARIA state is asserted here.
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(collapse?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('supports English locale labels and descriptions', async () => {

@@ -34,6 +34,11 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   /** Live growing fence: stream-preview analysis + Canvas source dump. */
   const liveFence = streamMode && fenceOpen;
   const artifactCodeFirst = props.artifactCodeFirst ?? false;
+  // Two surfaces, two switches. Canvas inherited the Inline value before the
+  // split, and optional callers still do, so a single resolved switch keeps
+  // working for isolated renders (Flashcards, Doc Cards, tests).
+  const inlineEnabled = props.artifactInlineEnabled;
+  const canvasEnabled = props.artifactCanvasEnabled ?? props.artifactInlineEnabled;
   const boundFenceIndex = props.fenceIndex;
   // Freeze fence identity on first mount. Source growth must not remount an iframe.
   const stickyFenceIdRef = useRef<string | null>(null);
@@ -90,7 +95,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   // Keep a live stream-preview mounted when later tokens upgrade flow → viewport.
   const willMountInlineFrame =
     analysis?.kind === 'intent' &&
-    props.artifactPreviewEnabled &&
+    inlineEnabled &&
     artifactPreviewOpen &&
     mountsInline &&
     !(liveFence && artifactCodeFirst);
@@ -158,7 +163,8 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     analysis.kind === 'intent' && analysis.intent.descriptor.type === 'svg'
       ? 'Preview SVG'
       : 'Preview';
-  const previewToggle = (
+  // No Inline surface for this session → no dead Preview affordance.
+  const previewToggle = inlineEnabled ? (
     <Button
       size="compact"
       data-testid="artifact-preview-toggle"
@@ -167,14 +173,14 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     >
       {previewLabel}
     </Button>
-  );
+  ) : null;
   const boundSource = (
     <div className="artifact-with-source" data-artifact-id={stickyFenceId}>
       <SourceCodeBlock
         language={props.language}
         source={props.source}
         isShell={isShell}
-        previewAction={previewToggle}
+        {...(previewToggle ? { previewAction: previewToggle } : {})}
         defaultCollapsed={!artifactSourceExpanded}
         {...(liveFence ? { streaming: true } : {})}
       />
@@ -187,7 +193,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   if (
     analysis.kind === 'intent' &&
     layout === 'canvas' &&
-    props.artifactPreviewEnabled &&
+    canvasEnabled &&
     origin &&
     onOpenCanvas
   ) {
@@ -231,7 +237,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
       );
     }
 
-    if (analysis.kind === 'intent' && mountsInline && props.artifactPreviewEnabled) {
+    if (analysis.kind === 'intent' && mountsInline && inlineEnabled) {
       return boundSource;
     }
 
@@ -246,7 +252,13 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     );
   }
 
-  if (analysis.kind === 'code' || !props.artifactPreviewEnabled) {
+  // Canvas stays available when Inline is off: a canvas fence still folds to
+  // its transcript launcher, and a canvas fence without one degrades to source.
+  if (canvasLauncher) {
+    return canvasLauncher;
+  }
+
+  if (analysis.kind === 'code' || !inlineEnabled) {
     return <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
   }
 
@@ -261,10 +273,6 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
         />
       </div>
     );
-  }
-
-  if (canvasLauncher) {
-    return canvasLauncher;
   }
 
   if (layout === 'canvas') {

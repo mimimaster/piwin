@@ -41,6 +41,12 @@ function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
     media: { maxPasteBytes: 10_000_000, allowedMimeTypes: ['image/png'] },
     artifact: {
       enabled: true,
+      // Artifact plumbing tests opt both surfaces in explicitly; the shipped
+      // default keeps Agent chat off.
+      scopes: {
+        general: { inline: true, canvas: true },
+        project: { inline: true, canvas: true },
+      },
       triggerMode: 'automatic',
       decisionPrompt: { mode: 'default', customPrompt: '' },
       maxBytes: 100_000,
@@ -134,6 +140,10 @@ describe('compileBlueprintForWorker', () => {
         config: createConfig({
           artifact: {
             enabled: true,
+            scopes: {
+              general: { inline: true, canvas: true },
+              project: { inline: true, canvas: true },
+            },
             triggerMode: 'automatic',
             decisionPrompt: { mode: 'custom', customPrompt: 'artifact append sentinel' },
             maxBytes: 100_000,
@@ -165,6 +175,33 @@ describe('compileBlueprintForWorker', () => {
     expect(appendSystemPrompt).toContain('piwin_toolbox');
     expect(appendSystemPrompt).not.toContain('mcp_gateway');
     expect(result.backendBlueprint.appendSystemPrompt).toBe(appendSystemPrompt);
+  });
+
+  it('does not append Artifact prompt for Agent chat under the shipped default', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: agentProjectScope },
+      {
+        config: createConfig({
+          // Master switch on, no `scopes`: Agent chat ships with both surfaces
+          // off, so the session gets no Artifact contract and no tool family.
+          artifact: {
+            enabled: true,
+            triggerMode: 'automatic',
+            decisionPrompt: { mode: 'default', customPrompt: '' },
+            maxBytes: 100_000,
+          },
+        }),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [],
+        hostToolFamilyIndex: new Map(),
+      },
+    );
+
+    expect(result.blueprint.appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
+    expect(result.blueprint.tools.enabledFamilies).not.toContain('artifact');
+    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).not.toContain(
+      'artifact_instructions',
+    );
   });
 
   it('does not append Artifact prompt when artifact is disabled in config', async () => {

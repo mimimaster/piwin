@@ -96,6 +96,16 @@ function AuthorizationControl(props: {
     return <span data-testid="attention-authorization-status" />;
   }
 
+  if (!capabilities.nativeCenter || authorization === 'unsupported') {
+    return (
+      <StatusBadge
+        tone="neutral"
+        label={copy.statusUnsupported}
+        testId="attention-authorization-status"
+      />
+    );
+  }
+
   if (!capabilities.authorizationReliable) {
     return (
       <Button
@@ -106,16 +116,6 @@ function AuthorizationControl(props: {
       >
         {copy.openSystemSettings}
       </Button>
-    );
-  }
-
-  if (authorization === 'unsupported') {
-    return (
-      <StatusBadge
-        tone="neutral"
-        label={copy.statusUnsupported}
-        testId="attention-authorization-status"
-      />
     );
   }
 
@@ -217,7 +217,7 @@ export function NotificationsPage(props: NotificationsPageProps = {}): ReactElem
         <FieldRow
           label={copy.authorizationLabel}
           description={
-            capabilities && !capabilities.authorizationReliable
+            capabilities && capabilities.nativeCenter && !capabilities.authorizationReliable
               ? copy.authorizationDescriptionManaged
               : copy.authorizationDescription
           }

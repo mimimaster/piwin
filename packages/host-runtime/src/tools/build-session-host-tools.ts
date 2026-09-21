@@ -13,6 +13,7 @@ import type {
   HostToolRegistration,
   McpConfigDocument,
   McpToolMetadata,
+  ResolvedArtifactCapability,
   SessionPlan,
 } from '@piwin/contracts';
 import { formatError, modelSupportsCapability } from '@piwin/contracts';
@@ -133,6 +134,11 @@ export type BuildSessionHostToolsOptions = {
 
   /** Config for tool availability checks (web, notes, flashcards, image-gen). */
   config?: PiwinConfig;
+  /**
+   * Scope-resolved Artifact capability for this generation. Omitted callers
+   * fall back to the master switch alone.
+   */
+  artifactCapability?: ResolvedArtifactCapability;
 
   /** Selected chat model for this generation (ADR 0043 search routing). */
   model?: ModelRef;
@@ -447,8 +453,13 @@ export async function buildSessionHostTools(
   }
 
   // --- Artifact instructions (same contract as the resident system prompt) ---
-  if (options.config?.artifact.enabled) {
-    tools.push(buildArtifactInstructionsTool(options.config.artifact));
+  // The compiled capability decides; without one the master switch does.
+  const artifactCapability = options.artifactCapability;
+  if (
+    options.config &&
+    (artifactCapability ? artifactCapability.enabled : options.config.artifact.enabled)
+  ) {
+    tools.push(buildArtifactInstructionsTool(options.config.artifact, artifactCapability));
   }
 
   // --- Subagent run / start / wait / cancel ---

@@ -10,6 +10,7 @@ import {
   createInitialChatUiState,
   type ChatUiState,
 } from './chat-reducer';
+import type { HostStatusData } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 import { useComposerMedia } from './hooks/use-composer-media';
 import { createInitialTestChatUiState } from './hooks/composer-media-test-harness';
@@ -220,6 +221,35 @@ describe('session chain phase 1', () => {
     });
   });
 
+  it('No Repo + names the built-in workspace from host status', () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const onNewSession = vi.fn();
+    const workspace = '/Users/me/.piwin/workspace';
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <WorkbenchSidebar
+            {...sidebarHarnessProps({
+              onNewSession,
+              sidebarMode: 'code',
+              hostStatus: {
+                generalWorkspacePath: workspace,
+              } as HostStatusData,
+            })}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    act(() => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="no-repo-add-btn"]')?.click();
+    });
+    expect(onNewSession).toHaveBeenCalledWith({
+      scope: { kind: 'project', projectPath: workspace },
+    });
+  });
+
   it('opens the project before starting a draft when New is scoped to another project', async () => {
     container = document.createElement('div');
     document.body.append(container);
@@ -342,6 +372,61 @@ describe('session chain phase 1', () => {
     expect(handleOpenProject).not.toHaveBeenCalled();
     expect(startNewDraft).toHaveBeenCalledWith({ kind: 'project', projectPath });
     expect(handleNewSession).toHaveBeenCalled();
+  });
+
+  it('fills an empty No Repo projectPath from the Host workspace', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const handleOpenProject = vi.fn(async () => undefined);
+    const startNewDraft = vi.fn();
+    const handleNewSession = vi.fn(async () => undefined);
+    const workspace = '/Users/me/.piwin/workspace';
+
+    let captured: ReturnType<typeof useWorkbenchSessionGestures> | undefined;
+    function Harness(): null {
+      captured = useWorkbenchSessionGestures({
+        hostClient: stubHostClient(),
+        state: createInitialChatUiState(),
+        dispatch: vi.fn(),
+        inspectorFileDiff: { clear: vi.fn(), open: vi.fn() },
+        openDocumentBase: vi.fn(),
+        revealDocPreview: vi.fn(),
+        artifactCanvas: { openTarget: vi.fn() },
+        layoutMode: 'desktop',
+        rightPanelWidthPx: 360,
+        setRightPanelWidthPx: vi.fn(),
+        openInspector: vi.fn(),
+        startNewDraft,
+        handleNewSession,
+        draftSessions: [],
+        handleOpenProject,
+        hydrateSessions: async () => [],
+        resumeDraft: vi.fn(),
+        showArchivedSessions: false,
+        setEditingMessageId: vi.fn(),
+        extensionUiRequest: null,
+        clearExtensionUiRequest: vi.fn(),
+        handleAbort: async () => undefined,
+        generalWorkspacePath: workspace,
+      });
+      return null;
+    }
+
+    act(() => {
+      root?.render(<Harness />);
+    });
+    await act(async () => {
+      await captured?.handleStartNewSession({
+        scope: { kind: 'project', projectPath: '' },
+      });
+    });
+
+    expect(handleOpenProject).toHaveBeenCalledWith(workspace);
+    expect(startNewDraft).toHaveBeenCalledWith({
+      kind: 'project',
+      projectPath: workspace,
+    });
   });
 
   it('keeps an explicit project draft scope while navigation is still General', () => {

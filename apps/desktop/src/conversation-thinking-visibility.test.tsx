@@ -110,7 +110,7 @@ describe('Conversation thinking visibility', () => {
         activeRunId={null}
         locale="zh-CN"
         showThinking={false}
-        artifactPreviewEnabled
+        artifactInlineEnabled
       />,
     );
 
@@ -140,7 +140,7 @@ describe('Conversation thinking visibility', () => {
         activeRunId="run-ended"
         locale="zh-CN"
         isStreaming
-        artifactPreviewEnabled
+        artifactInlineEnabled
       />,
     );
 
@@ -162,7 +162,7 @@ describe('Conversation thinking visibility', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
-        artifactPreviewEnabled
+        artifactInlineEnabled
       />,
     );
 
@@ -198,7 +198,7 @@ describe('Conversation thinking visibility', () => {
         onInspectSubagent={undefined}
         composerCard={composerCard}
         locale="zh-CN"
-        artifactPreviewEnabled
+        artifactInlineEnabled
         isConversationSession
         showThinking
       />,

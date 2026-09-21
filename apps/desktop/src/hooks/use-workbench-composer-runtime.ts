@@ -174,6 +174,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
       clearDraft: plusMenu.mcpSwitches.clearDraft,
     },
     onNeedWorkspace: session.handleOpenWorkspaceClick,
+    generalWorkspacePath: host.hostStatus?.generalWorkspacePath ?? null,
     selectedModelKey,
     promptModel: currentPromptModelRef,
     modelOptions: host.modelOptions,

@@ -47,6 +47,26 @@ describe('previewUnavailableCopy', () => {
     expect(copy.detail).toContain('项目');
   });
 
+  it('asks the user to choose when the file name is not unique', () => {
+    const zh = previewUnavailableCopy({ reason: 'ambiguous-file', locale: 'zh-CN' });
+    expect(zh.title).toBe('找到多个同名文件');
+    expect(zh.detail).toContain('文件树');
+    expect(zh.detail).not.toContain('ambiguous-file');
+
+    const en = previewUnavailableCopy({ reason: 'ambiguous-file', locale: 'en' });
+    expect(en.detail).toContain('file tree');
+  });
+
+  it('explains a vanished workspace without dumping the host code', () => {
+    const convo = previewUnavailableCopy({ reason: 'project-root-missing', locale: 'zh-CN' });
+    expect(convo.title).toBe('工作区目录已不存在');
+    expect(convo.detail).toContain('临时目录');
+    expect(convo.detail).not.toContain('project-root-missing');
+
+    const en = previewUnavailableCopy({ reason: 'project-root-missing', locale: 'en' });
+    expect(en.title).toBe('Workspace folder is gone');
+  });
+
   it('explains a symlink alias without dumping the host code', () => {
     const copy = previewUnavailableCopy({
       reason: 'project-root-not-registered',

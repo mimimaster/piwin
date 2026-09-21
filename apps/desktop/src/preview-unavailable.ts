@@ -75,12 +75,26 @@ export function previewUnavailableCopy(input: {
           ? '该文件不在当前项目或可信目录内。'
           : 'This file is outside the current project or trusted folders.',
       };
+    case 'project-root-missing':
+      return {
+        title: zh ? '工作区目录已不存在' : 'Workspace folder is gone',
+        detail: zh
+          ? '这个会话的项目目录已不在磁盘上（临时目录常被系统清理），因此其中的文件无法预览。'
+          : 'This session’s project folder no longer exists on disk (temp folders get cleaned up), so its files cannot be previewed.',
+      };
     case 'project-root-not-registered':
       return {
         title: zh ? '无法加载预览' : 'Preview unavailable',
         detail: zh
           ? '当前路径和已打开的项目对不上（常见于符号链接）。请从侧栏重新打开该文件夹。'
           : 'This path is not the registered project folder (a symlink alias can look like a different path). Re-open the project from the sidebar.',
+      };
+    case 'ambiguous-file':
+      return {
+        title: zh ? '找到多个同名文件' : 'Several files match',
+        detail: zh
+          ? '这名字在项目里不唯一，请从文件树中打开想要的那个。'
+          : 'That name is not unique in this project — open the one you want from the file tree.',
       };
     case 'media-unavailable':
       return {

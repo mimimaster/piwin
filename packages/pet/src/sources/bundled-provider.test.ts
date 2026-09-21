@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtemp, mkdir, writeFile, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { bundledProvider } from './bundled-provider.js';
 
 async function makeTempPiwinRoot(): Promise<string> {
@@ -51,5 +52,26 @@ describe('bundledProvider.discover', () => {
     };
     const entries = await bundledProvider.discover(ctx);
     expect(entries).toEqual([]);
+  });
+
+  it('ships no pet packages in the package bundled directory', async () => {
+    const bundledRoot = join(dirname(fileURLToPath(import.meta.url)), '../../bundled');
+    const names = await readdir(bundledRoot);
+    const petIds: string[] = [];
+    for (const name of names) {
+      const dir = join(bundledRoot, name);
+      try {
+        if (!(await stat(dir)).isDirectory()) continue;
+      } catch {
+        continue;
+      }
+      try {
+        await stat(join(dir, 'pet.json'));
+        petIds.push(name);
+      } catch {
+        // README / empty placeholders are allowed.
+      }
+    }
+    expect(petIds).toEqual([]);
   });
 });

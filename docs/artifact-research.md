@@ -15,8 +15,12 @@
 Authoritative plan: `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`.
 ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surface-routing.md).
 
-- **Master switch:** `PiwinConfig.artifact.enabled`. Desktop workbench forwards
-  it as `artifactPreviewEnabled`. There is no `localStorage` opt-in key.
+- **Master switch:** `PiwinConfig.artifact.enabled`, narrowed per session class
+  by `PiwinConfig.artifact.scopes` (`general` / `project` × `inline` / `canvas`)
+  through `resolveArtifactCapability`. Shipped default: `general` on, `project`
+  (Agent chat) off; a missing scope/surface follows that default. Desktop workbench forwards the resolved
+  pair as `artifactInlineEnabled` + `artifactCanvasEnabled`. There is no
+  `localStorage` opt-in key.
 - **One fence index:** `indexArtifactFences` + `projectArtifactMarkdownForRender`.
   Streamdown adapters bind by projected start offset → ordinal. Do not parse
   fences a second time in Canvas or MarkdownView.

@@ -49,7 +49,7 @@ function renderMessage(message: ChatMessageUi): HTMLElement {
       runRecordsById={{}}
       activeRunId={null}
       locale="zh-CN"
-      artifactPreviewEnabled
+      artifactInlineEnabled
     />,
   );
 }

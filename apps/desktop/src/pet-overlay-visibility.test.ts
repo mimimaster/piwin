@@ -35,14 +35,17 @@ describe('pet overlay visibility preference', () => {
     });
   }
 
-  it('defaults to visible and only treats the exact false value as hidden', () => {
+  it('defaults to hidden and only treats the exact true value as visible', () => {
+    expect(loadPetOverlayVisibility()).toBe(false);
+
+    localStorage.setItem(PET_OVERLAY_VISIBILITY_STORAGE_KEY, 'true');
     expect(loadPetOverlayVisibility()).toBe(true);
 
     localStorage.setItem(PET_OVERLAY_VISIBILITY_STORAGE_KEY, 'false');
     expect(loadPetOverlayVisibility()).toBe(false);
 
     localStorage.setItem(PET_OVERLAY_VISIBILITY_STORAGE_KEY, 'invalid');
-    expect(loadPetOverlayVisibility()).toBe(true);
+    expect(loadPetOverlayVisibility()).toBe(false);
   });
 
   it('notifies same-window subscribers when the preference changes', () => {
@@ -79,10 +82,9 @@ describe('pet overlay visibility preference', () => {
     expect(invokeMock).toHaveBeenCalledWith('pet_overlay_show', { x: 12, y: 34 });
   });
 
-  it('does not spawn a hidden overlay on restore', async () => {
+  it('does not spawn an overlay on restore when the preference is unset', async () => {
     enableTauriRuntime();
     invokeMock.mockResolvedValue(undefined);
-    savePetOverlayVisibility(false);
     installPetOverlayRestore();
     await vi.waitFor(() => {
       expect(invokeMock).toHaveBeenCalledWith('pet_overlay_hide');
@@ -92,6 +94,7 @@ describe('pet overlay visibility preference', () => {
 
   it('clears the visible preference when restore fails', async () => {
     enableTauriRuntime();
+    savePetOverlayVisibility(true);
     invokeMock.mockRejectedValue(new Error('create failed'));
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     installPetOverlayRestore();

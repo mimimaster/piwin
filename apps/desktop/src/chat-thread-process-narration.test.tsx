@@ -117,7 +117,7 @@ describe('ChatThread process narration', () => {
           onInspectSubagent={undefined}
           composerCard={composerCard}
           locale="zh-CN"
-          artifactPreviewEnabled
+          artifactInlineEnabled
           {...extras}
         />
       </PiwinUiProvider>

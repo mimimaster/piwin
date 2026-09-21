@@ -1,16 +1,85 @@
-## 这是啥？
-其实就是devin(原windsurf)的fast-context，它是**智能体驱动的语义检索（Agentic Semantic Search）**，可以简单理解为代码语义检索工具，这个跟传统的基于向量的代码检索工具有所不同，这个要简单的多，基本上就是派个子代理出去理解代码之间的逻辑理解关系，同时又不会污染上下文（子代理的功劳），这个其实跟codex ultra code的scout是一个意思，可以看下L站佬友的文章：https://linux.do/t/topic/2578075
-## 有什么好处？
-上面说了，防止上下文污染，这是我的简单理解，下面这是由AI总结的，估计是从Devin官方捞的：
-![image.png](https://img.yorickjue.com/file/1789905187452_image.png)
-## 数据佐证：
-![image.png](https://img.yorickjue.com/file/1789905406171_image.png)
-## 实现：
-我基本上失去动脑和动手的能力了，这边是通过深入研究Devin的二进制源码，其实L站上也有大佬有提供fast-context的mcp，我个人觉得使用频率不如devin中的fast-context，强行实现了一个；
-## 使用：
-【设置】->【代码搜索】
- 可以自行选择是使用模型还是用devin的官方token【推荐】二选一， 模型的话建议使用首字延迟低，tps快的模型；如果用devin官方的话，是需要你去挖个自己devin账号的devin-key的，这个是免费的，后续会说到，这个devin-key不仅可以免费用它的fast-context，还可以免费使用它的web-search，使用这个速度相对要快很多；
-ps:在piwin里，code-search是跟grep、read等同一级别的工具；
+# Code Search 智能代码语义搜索
 
-## 与Ultra Code的关系
-讲道理，我不知道，本质上原理差不多，ultra code简单点，code_search更结构化，ultra code就特娘的派个scout出去查下代码关系，然后返回给主代理，很大程度上也是避免了上下文污染，外援支持![image.png](https://img.yorickjue.com/file/1789909107239_image.png)
+> **智能体驱动的代码语义检索 (Agentic Semantic Search)**  
+> 告别简单的文本匹配与臃肿的上下文污染，让智能体像资深架构师一样理解工程全貌。
+
+---
+
+## 1. 什么是 Code Search？
+
+**Code Search** 是 Piwin 内置的高性能代码语义搜索体系，灵感源自对 **Devin (原 Windsurf) Fast-Context** 机制的深度实测与底层逆向分析。
+
+与传统的关键词匹配（如纯 Grep）或容易断章取义的简单向量检索（Vector RAG）不同，Code Search 采用 **Agentic 智能体驱动搜索范式**：
+
+```mermaid
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
+flowchart LR
+    UserMsg["用户任务需求"] --> MainAgent["主编码 Agent<br/>(保持上下文纯净)"]
+
+    MainAgent -->|"派发搜索任务"| ScoutSub["Code Search 子代理<br/>(只读沙盒)"]
+    ScoutSub -->|"并行 Grep / AST / Read"| Codebase["本地代码仓库"]
+    Codebase -->|"返回局部代码"| ScoutSub
+    ScoutSub -->|"提炼代码拓扑与精确路径"| MainAgent
+
+    MainAgent -->|"精准编码"| ModifiedCode["修改代码"]
+```
+
+---
+
+## 2. 核心优势：为什么它至关重要？
+
+### 2.1 零上下文污染 (0-Token Context Pollution)
+在大型代码仓库中，如果直接把搜索到的几十个文件全部灌入主模型的上下文（Context Window），会导致：
+- 主模型注意力被大量无关代码严重稀释（Attention Dilution）；
+- 上下文极速膨胀，单次交互 Token 费用暴涨，甚至迅速触发模型上下文上限；
+- 极易产生幻觉与代码遗忘。
+
+Code Search 派发独立的**轻量级只读子智能体**去深入代码库探查，梳理出精确的文件路径、接口定义与调用链后，**仅将高信噪比的提炼结果回传给主代理**，确保主工作区上下文始终清爽。
+
+### 2.2 工具级别地位
+在 Piwin 架构中，`code_search` 与 `read_file`、`grep`、`write_file` 处于**完全同一级别的一等公民核心工具地位**。当主模型需要了解项目全局模块划分、寻找某个函数的真实实现时，会主动调用 `code_search` 完成勘探。
+
+---
+
+## 3. 与 Ultra Code Scout 的关系
+
+- **原理共通**：两者均基于“派发 Scout 侦察兵出去探查代码关系，回传精简报告给主代理”的理念，彻底防范上下文污染；
+- **能力侧重**：
+  - `Code Search` 更侧重于**原子级工具调用（Tool Invocation）**，随用随查，支持在单轮对话内快速返回精准符号与文件关系；
+  - `Ultra Code` 是**整会话级的子代理编排模式**，用于在编写复杂功能前先输出一份全仓库维度的调研蓝图。
+
+---
+
+## 4. 配置与使用方式
+
+打开客户端 **「设置」➔「代码搜索 (Code Search)」**：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    代码搜索配置 (Code Search)                │
+├─────────────────────────────────────────────────────────────┤
+│ 搜索提供模式:  (•) Devin 官方 Token (推荐)   ( ) 自定义模型   │
+│                                                             │
+│ Devin Key:    tok_********************************          │
+│                                                             │
+│ [ 测试连通性 ]                 [ Devin Key 提取指引 ]        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 选项 A：使用 Devin 官方 Token 【推荐 · 免费极速】
+- **优势**：不仅速度极快、检索质量出色，而且完全免费；提取的同一个 Key 还可以直接供 [Web 搜索服务](./web-search.md) 使用；
+- **获取方法**：请参考专属教程：[Devin Token 与专属 Key 获取指引](./token-acquisition.md)；
+- **配套工具**：你也可以访问开源 MCP 连接器 [windsurf-search-mcp](https://github.com/mimimaster/windsurf-search-mcp)。
+
+### 选项 B：使用自定义推理模型
+- **模型要求**：建议配置首字延迟（TTFT）极低、每秒输出 Token 数（TPS）极快的高速模型（如 DeepSeek Flash、Gemini Flash、Claude 3.5 Haiku 等）；
+- **工作机制**：由你指定的模型充当只读子智能体在后台执行代码逻辑分析。
+
+---
+
+## 5. 关联文档
+
+- [Devin Token 与专属 Key 获取指引](./token-acquisition.md)
+- [子代理编排协同：Ultra Code 与 Fusion](./subagent-orchestration.md)
+- [Web 搜索配置与工具](./web-search.md)
+- [快速起步概览](./getting-started.md)

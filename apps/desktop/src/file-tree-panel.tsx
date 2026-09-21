@@ -170,6 +170,7 @@ function previewErrorReason(message: string): string {
   if (/ENOENT|no such file/i.test(message)) return 'not-found';
   if (/not a file/i.test(message)) return 'not-a-file';
   if (/project-root-not-registered/i.test(message)) return 'project-root-not-registered';
+  if (/project-root-missing/i.test(message)) return 'project-root-missing';
   return 'unavailable';
 }
 
@@ -867,6 +868,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                     text={preview.content}
                     docTitle={previewFileName || preview.relativePath}
                     filePath={preview.relativePath}
+                    {...(props.projectPath ? { projectPath: props.projectPath } : {})}
                   />
                 ) : (
                   <CodePreviewView

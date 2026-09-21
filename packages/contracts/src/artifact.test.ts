@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ARTIFACT_CANVAS_ONLY_HINT,
   ARTIFACT_EXPLICIT_ONLY_HINT,
+  ARTIFACT_INLINE_ONLY_HINT,
   ARTIFACT_LANGUAGE_ALIASES,
   ARTIFACT_RUNTIME_CONTRACT,
   CANONICAL_ARTIFACT_LANGUAGE,
   DEFAULT_ARTIFACT_DECISION_PROMPT,
+  DISABLED_ARTIFACT_CAPABILITY,
   NATIVE_SVG_ARTIFACT_LANGUAGES,
   createDefaultArtifactConfig,
+  createDefaultArtifactScopes,
   formatArtifactInstructions,
   formatArtifactProtocol,
+  resolveArtifactCapability,
   resolveArtifactDecisionPrompt,
+  resolveArtifactSurfaceHint,
   type ArtifactSurface,
 } from './artifact.js';
 
@@ -192,5 +198,123 @@ describe('artifact protocol formatter', () => {
     expect(customInstructions).toBe(
       `${ARTIFACT_EXPLICIT_ONLY_HINT}\n\nprivate custom sentinel\n\n${formatArtifactProtocol()}`,
     );
+  });
+});
+
+describe('per-scope Artifact capability', () => {
+  it('ships Conversation chat on and Agent chat off', () => {
+    expect(createDefaultArtifactConfig().scopes).toEqual(createDefaultArtifactScopes());
+    expect(createDefaultArtifactScopes()).toEqual({
+      general: { inline: true, canvas: true },
+      project: { inline: false, canvas: false },
+    });
+  });
+
+  it('follows the shipped default for a missing scope or surface', () => {
+    const config = createDefaultArtifactConfig();
+    delete config.scopes;
+    expect(resolveArtifactCapability(config, 'general')).toEqual({
+      enabled: true,
+      inline: true,
+      canvas: true,
+    });
+    // A config written before `scopes` existed adopts the shipped default
+    // rather than keeping a surface the user never chose.
+    expect(resolveArtifactCapability(config, 'project')).toEqual({
+      enabled: false,
+      inline: false,
+      canvas: false,
+    });
+
+    config.scopes = {
+      general: { inline: true, canvas: true },
+      project: { inline: true, canvas: true },
+    };
+    expect(resolveArtifactCapability(config, 'project').canvas).toBe(true);
+  });
+
+  it('treats a partial scope entry per surface', () => {
+    const config = createDefaultArtifactConfig();
+    config.scopes = {
+      general: { inline: true, canvas: true },
+      project: { inline: true } as { inline: boolean; canvas: boolean },
+    };
+    // The missing surface follows the default (off for Agent chat), not "on".
+    expect(resolveArtifactCapability(config, 'project')).toEqual({
+      enabled: true,
+      inline: true,
+      canvas: false,
+    });
+  });
+
+  it('gates each scope independently and collapses to disabled when empty', () => {
+    const config = createDefaultArtifactConfig();
+    config.scopes = {
+      general: { inline: true, canvas: false },
+      project: { inline: false, canvas: false },
+    };
+    expect(resolveArtifactCapability(config, 'general')).toEqual({
+      enabled: true,
+      inline: true,
+      canvas: false,
+    });
+    expect(resolveArtifactCapability(config, 'project')).toEqual(
+      DISABLED_ARTIFACT_CAPABILITY,
+    );
+  });
+
+  it('master switch beats every scope switch and undefined config stays default', () => {
+    const config = createDefaultArtifactConfig();
+    config.enabled = false;
+    config.scopes = {
+      general: { inline: true, canvas: true },
+      project: { inline: true, canvas: true },
+    };
+    expect(resolveArtifactCapability(config, 'general')).toEqual(DISABLED_ARTIFACT_CAPABILITY);
+    // Undefined config keeps the shipped default per scope.
+    expect(resolveArtifactCapability(undefined, 'general')).toEqual({
+      enabled: true,
+      inline: true,
+      canvas: true,
+    });
+    expect(resolveArtifactCapability(undefined, 'project')).toEqual(
+      DISABLED_ARTIFACT_CAPABILITY,
+    );
+  });
+
+  it('hints only the restricted surface and never weakens the shared protocol', () => {
+    expect(resolveArtifactSurfaceHint({ enabled: true, inline: true, canvas: true })).toBeUndefined();
+    expect(
+      resolveArtifactSurfaceHint({ enabled: true, inline: true, canvas: false }),
+    ).toBe(ARTIFACT_INLINE_ONLY_HINT);
+    expect(
+      resolveArtifactSurfaceHint({ enabled: true, inline: false, canvas: true }),
+    ).toBe(ARTIFACT_CANVAS_ONLY_HINT);
+    expect(resolveArtifactSurfaceHint(DISABLED_ARTIFACT_CAPABILITY)).toBeUndefined();
+  });
+
+  it('prefixes the surface constraint and drops the instructions when disabled', () => {
+    const config = createDefaultArtifactConfig();
+    expect(
+      formatArtifactInstructions(config, { enabled: true, inline: true, canvas: false }),
+    ).toBe(`${ARTIFACT_INLINE_ONLY_HINT}\n\n${formatArtifactInstructions(config)}`);
+    expect(
+      formatArtifactInstructions(config, { enabled: true, inline: false, canvas: true }),
+    ).toBe(`${ARTIFACT_CANVAS_ONLY_HINT}\n\n${formatArtifactInstructions(config)}`);
+    expect(formatArtifactInstructions(config, DISABLED_ARTIFACT_CAPABILITY)).toBe('');
+    // No capability argument keeps the pre-scope behavior for existing callers.
+    expect(formatArtifactInstructions(config)).toBe(
+      `${DEFAULT_ARTIFACT_DECISION_PROMPT}\n\n${formatArtifactProtocol()}`,
+    );
+  });
+
+  it('keeps explicit-only and surface constraints in a stable order', () => {
+    const config = createDefaultArtifactConfig();
+    config.triggerMode = 'explicit-only';
+    expect(
+      formatArtifactInstructions(config, { enabled: true, inline: false, canvas: true }).startsWith(
+        `${ARTIFACT_EXPLICIT_ONLY_HINT}\n\n${ARTIFACT_CANVAS_ONLY_HINT}`,
+      ),
+    ).toBe(true);
   });
 });

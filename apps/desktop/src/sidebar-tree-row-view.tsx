@@ -14,7 +14,7 @@ import type {
 import type { SessionListItemUi } from './chat-reducer';
 import type { DesktopCopy, DesktopLocale } from './desktop-locale';
 import type { SessionRowRunPhase } from './session-row-working';
-import { type SidebarTreeRow } from './sidebar-tree-rows';
+import { NO_REPO_SIDEBAR_KEY, type SidebarTreeRow } from './sidebar-tree-rows';
 import { projectDisplayName } from './project-display-name';
 import { SessionRowItem } from './session-row-item';
 import {
@@ -61,6 +61,8 @@ export type SidebarTreeRowViewProps = {
   onToggleProjectCollapsed: (projectPath: string, nextCollapsed: boolean) => void;
   onRemoveProject?: ((path: string) => void) | undefined;
   onOpenGeneral: () => void;
+  onOpenProject: (path: string) => void;
+  noRepoProjectPath?: string | null;
   onNewSession: (options?: {
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
   }) => void;
@@ -390,20 +392,52 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
   }
 
   if (row.kind === 'no-repo-folder') {
+    const noRepoPath = props.noRepoProjectPath?.trim() ?? '';
+    const collapseKey = noRepoPath || NO_REPO_SIDEBAR_KEY;
+    const isActive = noRepoPath.length > 0 && props.projectPath === noRepoPath;
+    const folderIcon = row.collapsed ? (
+      <IconFolder className="tree-folder-icon" data-testid="tree-folder-icon-closed" />
+    ) : (
+      <IconFolderOpen className="tree-folder-icon" data-testid="tree-folder-icon-open" />
+    );
     return (
-      <div className={`tree-folder-summary${props.projectPath === null ? ' active' : ''}`}>
-        <button type="button" className="tree-folder-toggle"
-          aria-label={sidebarCopy.noRepo} onClick={props.onOpenGeneral}>
-          <IconFolder className="tree-folder-icon" />
+      <div className={`tree-folder-summary${isActive ? ' active' : ''}`}>
+        <button
+          type="button"
+          className="tree-folder-toggle"
+          data-testid="no-repo-fold-toggle"
+          aria-expanded={!row.collapsed}
+          aria-label={row.collapsed ? sidebarCopy.expandProject : sidebarCopy.collapseProject}
+          title={row.collapsed ? sidebarCopy.expandProject : sidebarCopy.collapseProject}
+          onClick={() => props.onToggleProjectCollapsed(collapseKey, row.collapsed)}
+        >
+          {folderIcon}
         </button>
-        <button type="button" className="tree-folder-main"
-          data-testid="no-repo-folder" onClick={props.onOpenGeneral}>
+        <button
+          type="button"
+          className="tree-folder-main"
+          data-testid="no-repo-folder"
+          onClick={() => {
+            if (noRepoPath) {
+              props.onOpenProject(noRepoPath);
+            }
+          }}
+        >
           <span className="tree-folder-title">{sidebarCopy.noRepo}</span>
         </button>
-        <IconButton className="sidebar-icon-btn tree-folder-add-btn" size="xs"
-          data-testid="no-repo-add-btn" label={props.newConversationLabel}
-          onClick={props.onNewGeneralSession}>
-          <IconPlus />
+        <IconButton
+          className="sidebar-icon-btn tree-folder-add-btn"
+          size="xs"
+          data-testid="no-repo-add-btn"
+          label={props.newConversationLabel}
+          onClick={(event) => {
+            event.stopPropagation();
+            props.onNewSession({
+              scope: { kind: 'project', projectPath: noRepoPath },
+            });
+          }}
+        >
+          <IconPlus width={12} height={12} />
         </IconButton>
       </div>
     );
@@ -522,7 +556,7 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
   if (row.kind === 'session') {
     const rowClass = row.isPinnedSection
       ? 'sidebar-tree-row sidebar-tree-row--pinned-session'
-      : row.scope.kind === 'project'
+      : row.scope.kind === 'project' || row.folderChild === true
         ? 'sidebar-tree-row sidebar-tree-row--project-session'
         : 'sidebar-tree-row sidebar-tree-row--general-session';
     return (
@@ -601,11 +635,7 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
   }
 
   if (row.kind === 'truncation-hint') {
-    return (
-      <div className="sidebar-truncation-hint muted" data-testid="sidebar-truncation-hint">
-        {sidebarCopy.olderSessionsHidden(row.hiddenCount)}
-      </div>
-    );
+    return null;
   }
 
   return null;

@@ -130,6 +130,45 @@ render it, render it.** `outside-project` is not a preview reason.
 - A `.png` name with text bytes previews as text. Location is not a deny
   list — capability (can we render) is the only local gate.
 
+## Slice 5 — Resolving a path the message wrote incompletely (implemented)
+
+Agent messages name files the way people do, so a chip can carry `shot.png`
+while the file lives in `docs/design/inkstone/shots/`. `not-found` is then
+false: the file exists, the message was not a path. Slices 1–4 never
+addressed that, because every one of them trusted the click text.
+
+- New Host command `project/find-file` `{ projectPath, query, maxMatches? }`
+  → `{ projectPath, query, matches[], truncated }`.
+  - Authority: `requireBrowseRoot` (registered project or General workspace);
+    `..` in the query is rejected. Remote-safe like `project/read-file`.
+  - Walk: BFS from the browse root, shared `IGNORED_DIR_NAMES` with the file
+    tree, no symlink descent, `PROJECT_FIND_FILE_MAX_VISITED` entry budget,
+    `PROJECT_FIND_FILE_MAX_MATCHES` result cap, and a fixed nesting cap.
+    Matches by basename, or path suffix for a query with `/`.
+  - Shallowest first, then path order — deterministic for the same tree.
+- Desktop (`resolve-project-file.ts`): the miss handler runs only after
+  `project/read-file` failed.
+  - one match + complete walk → read that relative path and open it
+  - ≥2 matches → `unavailable` with reason `ambiguous-file` (never picks one)
+  - one match but `truncated` → resolves nothing; existing fallbacks run
+- Reveal uses the same resolver: `revealLocalFileInFolder` now returns
+  `missing` for an absent path (instead of letting the native command open the
+  parent folder), and the chip retries the resolved path or reports that the
+  path holds no file.
+- Absolute chips are resolved too: when the ingest channel is unavailable
+  (remote client) or misses, and the chip path contains the workspace folder
+  name as a segment, the remainder is treated as the project-relative path
+  (`/tmp/proj/a.md` → `a.md` for root `/private/tmp/proj`). No match → the
+  original answer stands; an unrelated absolute path is never remapped.
+- Host failure code `project-root-missing`: a registered browse root whose
+  directory no longer exists. Returned by `project/read-file`,
+  `project/list-dir` and `project/find-file` before any file-level error, so
+  Desktop (and the file tree) can say the workspace is gone rather than
+  "file not found".
+- Diagnostics: the docked Document surface forwards `unavailableReason`,
+  `suggestion`, `byteSize`, `maxBytes`, `provenance`, `warning` — the previous
+  omitting of those made every failure read "无法加载预览 / 文件当前无法读取。".
+
 ## Security invariants
 
 1. Read authority = store identity. Media vault reads stay inside
@@ -143,3 +182,9 @@ render it, render it.** `outside-project` is not a preview reason.
    channels (project/skill/media vault). Anything wider requires a user
    gesture and a local Host.
 4. `project/read-file` semantics are frozen; new domains = new commands.
+5. `project/find-file` grants no read authority: it only lists candidate
+   relative paths inside an already-registered browse root, and Desktop opens
+   nothing unless the answer is unique and complete.
+6. Absolute-path remapping is bounded by the workspace folder name: only a
+   chip whose trailing segments name a file inside the root is retried, and
+   the retry still goes through `project/read-file`'s root check.

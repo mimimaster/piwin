@@ -7,12 +7,12 @@ import {
 const GENERAL = '/home/u/.piwin/workspace';
 
 describe('resolvePermissionProjectRoot', () => {
-  it('treats missing, empty, and General workspace as unbound', () => {
+  it('treats missing and empty as unbound; No Repo workspace is a bound project root', () => {
     expect(resolvePermissionProjectRoot(undefined, GENERAL)).toBe('');
     expect(resolvePermissionProjectRoot('', GENERAL)).toBe('');
     expect(resolvePermissionProjectRoot('  ', GENERAL)).toBe('');
-    expect(resolvePermissionProjectRoot(GENERAL, GENERAL)).toBe('');
-    expect(resolvePermissionProjectRoot(`${GENERAL}/`, GENERAL)).toBe('');
+    expect(resolvePermissionProjectRoot(GENERAL, GENERAL)).toBe(GENERAL);
+    expect(resolvePermissionProjectRoot(`${GENERAL}/`, GENERAL)).toBe(`${GENERAL}/`);
   });
 
   it('keeps a real project path', () => {

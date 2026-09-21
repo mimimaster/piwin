@@ -69,6 +69,7 @@ function estimateSidebarTreeRowSize(row: SidebarTreeRow | undefined): number {
       return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
     case 'session':
       if (
+        row.folderChild !== true &&
         row.scope.kind === 'general' &&
         'lastPreview' in row.session &&
         typeof row.session.lastPreview === 'string' &&
@@ -100,6 +101,8 @@ export type ProjectSessionSidebarProps = {
   filteredSessions: SessionListItemUi[];
   /** General-scope sessions for the Conversations section (always visible). */
   generalSessions: SessionListItemUi[];
+  /** Built-in No Repo project root. Agent sessions live here, not in Conversations. */
+  noRepoProjectPath?: string | null;
   /** Local-only unsent composer drafts, grouped by their captured scope. */
   draftSessions?: DraftSessionItemUi[];
   activeDraftId?: string | null | undefined;
@@ -235,6 +238,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     [
       props.filteredSessions,
       props.generalSessions,
+      props.hostStatus?.generalWorkspacePath,
+      props.noRepoProjectPath,
       props.projectPath,
       props.projectSessionsByPath,
       props.recentProjects,
@@ -260,6 +265,11 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     () =>
       buildSidebarTreeRows({
         recentProjects: props.recentProjects,
+        ...(props.noRepoProjectPath?.trim()
+          ? { noRepoProjectPath: props.noRepoProjectPath.trim() }
+          : props.hostStatus?.generalWorkspacePath
+            ? { noRepoProjectPath: props.hostStatus.generalWorkspacePath }
+            : {}),
         projectSessionsByPath: props.projectSessionsByPath ?? {},
         generalSessions: props.generalSessions,
         ...(props.draftSessions ? { draftSessions: props.draftSessions } : {}),
@@ -486,6 +496,10 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         }}
         onRemoveProject={props.onRemoveProject}
         onOpenGeneral={props.onOpenGeneral}
+        onOpenProject={props.onOpenProject}
+        noRepoProjectPath={
+          props.noRepoProjectPath?.trim() || props.hostStatus?.generalWorkspacePath || null
+        }
         onNewSession={props.onNewSession}
         onOpenWorkspace={props.onOpenWorkspace}
         sortBy={sortBy}

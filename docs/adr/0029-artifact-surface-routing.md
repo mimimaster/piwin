@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-03; amended 2026-08-24; amended 2026-08-26; amended 2026-08-27; amended 2026-08-31; amended 2026-09-08)
+Accepted (2026-08-03; amended 2026-08-24; amended 2026-08-26; amended 2026-08-27; amended 2026-08-31; amended 2026-09-08; amended 2026-09-21)
 
 ## Context
 
@@ -276,8 +276,10 @@ listener readiness. Completed and streaming frames share the same timeout. A
 timeout temporarily uses a 360px internally scrollable recovery viewport; it is
 not marked complete, and any later valid revision restores exact flow height.
 
-`config.artifact.enabled` is the only product capability switch. Surface
-routing is `indexArtifactFences` → `analyzeArtifactFence` → `RenderIntent`
+`config.artifact.enabled` is the master switch; the per-scope Inline/Canvas
+switches below it are resolved by `resolveArtifactCapability` (see the
+2026-09-21 amendment). Surface routing is `indexArtifactFences` →
+`analyzeArtifactFence` → `RenderIntent`
 (`layout: flow | viewport | canvas`). Desktop MarkdownView, Canvas auto-reveal,
 and Mobile collectors share that path. There is no second parser
 (`evaluateCodeFence` / `splitMarkdownBlocks` are deleted).
@@ -341,3 +343,109 @@ Inline and Canvas share one bind: `data-piwin-media` → session-scoped `blob:`
 at `materializeArtifact`. The sandbox CSP stays `img-src data: blob:`. The
 iframe does not fetch `file:` or Host HTTP. Unknown ids render as placeholders
 without a network src.
+
+## Amendment (2026-09-21): per-scope Inline/Canvas capability
+
+The master switch alone was too coarse: a Conversation answer and a project
+Agent run want different surfaces, and the product already classifies sessions
+by `SessionScope.kind`. Capability now resolves as **master → session class →
+surface**.
+
+### Config
+
+```ts
+artifact: {
+  enabled: boolean,                                  // master, unchanged
+  scopes?: {
+    general: { inline: boolean; canvas: boolean },   // 通用会话 (Conversation chat)
+    project: { inline: boolean; canvas: boolean },   // 项目会话 (Agent chat, incl. No Repo)
+  },
+  …
+}
+```
+
+Shipped default (`createDefaultArtifactScopes()`): Conversation chat has both
+surfaces **on**; Agent chat has both surfaces **off** — the coding agent answers
+in Markdown/source unless the user opts a surface back in.
+
+`scopes` is optional, and a missing scope *or surface* follows that shipped
+default rather than "on". A `config.json` written before `scopes` existed (or an
+older Desktop that never sent the key) therefore adopts the shipped default, and
+an explicit `true` is what opts a surface back in. `normalizeArtifactConfig`
+fills the key on every load/save, so the stored document and the resolved
+capability always agree.
+
+### One resolver, three call sites
+
+`resolveArtifactCapability(config, scopeKey)` lives in `@piwin/contracts` and
+returns `{ enabled, inline, canvas }` (all false when the master switch is off
+or the scope has no surface left). Missing scope/surface entries fall back per
+surface to `createDefaultArtifactScopes()`. The scope key mirrors
+`SessionScope.kind`,
+and every caller derives it from an existing authority:
+
+| Caller | Scope source |
+|--------|--------------|
+| Host `compileConversationPlan` / `compileAgentCapabilityPlan` | the compile-time `isConversationChatSession` split |
+| Host tool composition | `artifactScopeKeyForIndexRecord` on the durable session record (children are Agent class) |
+| Host per-turn advisory hint (`inlineArtifactWidthPx`, host theme) | the same durable record; a disabled or unresolvable class drops the block instead of describing a surface the session lacks |
+| Desktop workbench, pane stages, Canvas auto-reveal | `state.activeScope` |
+| Subagent inspector | Agent class, matching how the Host compiles children |
+
+Compile time, prompt time, and tool composition therefore cannot disagree about
+which surfaces a generation has.
+
+### Model-facing contract
+
+`formatArtifactInstructions(config, capability)` keeps the shared decision
+policy and runtime protocol **byte-identical** and prefixes a surface
+constraint — `ARTIFACT_INLINE_ONLY_HINT` or `ARTIFACT_CANVAS_ONLY_HINT` — the
+same mechanism `triggerMode: 'explicit-only'` already used. The prefix is a
+product constraint, not part of the editable decision prompt, and the protocol
+is not rewritten per surface. With `enabled: false` the instructions are `''`,
+the resident prompt is not injected, and `artifact_instructions` is not
+registered.
+
+### Desktop rendering
+
+- `artifactPreviewEnabled` is renamed to `artifactInlineEnabled`; the second
+  switch is `artifactCanvasEnabled`. At every hop the omitted Canvas value
+  follows Inline, so isolated single-switch embedders (Doc Cards, Flashcards,
+  Walkthrough, side chat) keep rendering source-only.
+- **Inline off**: no iframe, no Preview affordance, no native `html`/`svg`
+  promotion; fences stay source. Canvas fences still fold to their launcher.
+- **Canvas off**: no transcript launcher, no auto-open, and the Canvas fence
+  degrades to source. Inline preview is unaffected.
+- **Both off** is the previous capability-off behavior.
+- The send-time `inlineArtifactWidthPx` hint is Inline-only: Host drops the
+  layout line when the session has no Inline surface (Canvas-only sessions still
+  get the theme line), and drops the whole block when the class has no surface at
+  all or cannot be resolved. The pane composer also stops sending the width.
+
+### Settings apply timing
+
+Removing a surface is classified `new-runtime` for the `artifact` domain: the
+resident prompt and the `artifact_instructions` result are baked into a runtime
+generation, so the narrowing only becomes real for the replacement generation
+(`when: 'after-current-run'`). Adding a surface back stays `immediate`, because
+the generation being drained was never narrower than the config. Desktop
+rendering changes immediately in both directions.
+
+### Known limitation
+
+Multi-pane mirrors inherit the primary pane's resolved pair. Resolving per pane
+needs that pane's resumed scope; it is deferred rather than guessed.
+
+### Consequences
+
+- The Artifact settings page shows the hierarchy: master switch → General chat /
+  Project chat → Inline / Canvas. Turning the master switch off hides the tree
+  but preserves the saved choices, so one toggle is reversible.
+- Agent chat ships without the Artifact contract: no resident decision policy,
+  no `artifact_instructions` tool, no `artifact` tool family, and no advisory
+  rendering hint. `triggerMode: 'explicit-only'` remains available for users who
+  want opt-in generation rather than per-surface switches.
+- Trigger mode, decision policy, security blocks, and the byte cap stay
+  global; they are not duplicated per scope.
+- `docs/guides/artifact-prompt.md` keeps describing the unchanged protocol; the
+  surface prefix is the only addition to the model-facing text.

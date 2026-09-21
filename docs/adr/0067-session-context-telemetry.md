@@ -24,9 +24,12 @@ missing or billed; compact/branch/resume revived stale numbers.
 4. Host hello/status advertises `capabilities.contextTelemetryVersion: 1`.
    Clients without that flag hide the ring and do not invent occupancy from
    the ledger.
-5. The ring hides until the current foreground Run has real response evidence
+5. The ring hides until the session has real response evidence
    (non-empty text, thinking, or a model-initiated tool call), or a successful
-   non-no-op compaction has produced a durable summary. Compaction is evidence
+   non-no-op compaction has produced a durable summary. An empty session's
+   first Run stays hidden until that evidence. A later Run that is still
+   waiting keeps the last confirmed occupancy on screen; Host occupancy stays
+   unknown until evidence and is not promoted. Compaction is evidence
    that Pi accepted a non-empty context even when that turn has no displayable
    assistant text (for example, a media/tool-only transcript).
 6. **Host current occupancy promote** is a same-boundary idle restore, not a

@@ -4,6 +4,7 @@ import {
   cleanSchemeDraft,
   createEmptyUserScheme,
   healSchemeDefaultRole,
+  modelSelectValue,
   schemeToEditableDraft,
   validateSchemeDraft,
 } from './orchestration-scheme-draft';
@@ -63,5 +64,21 @@ describe('orchestration scheme editor helpers', () => {
     expect(cleaned.members?.[0]?.description).toBe('Look around');
     expect(cleaned.defaultRole).toBe('scout');
     expect(validateSchemeDraft(cleaned)).toBeUndefined();
+  });
+
+  it('matches stored model refs by provider and model id, not JSON shape', () => {
+    const stored = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'xai',
+      modelId: 'grok-4.6',
+    };
+    const picker = {
+      providerId: 'xai',
+      modelId: 'grok-4.6',
+      source: 'subscription' as const,
+    };
+    expect(modelSelectValue(stored)).toBe('xai::grok-4.6');
+    expect(modelSelectValue(picker)).toBe('xai::grok-4.6');
+    expect(modelSelectValue(undefined)).toBe('');
   });
 });

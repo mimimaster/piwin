@@ -152,7 +152,7 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
             <div style={{ display: 'none' }}>
               <MarkdownView
                 text={artifact.markdown}
-                artifactPreviewEnabled={false}
+                artifactInlineEnabled={false}
                 renderingPhase="completed"
               />
             </div>

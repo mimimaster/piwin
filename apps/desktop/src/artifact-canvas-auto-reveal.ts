@@ -27,7 +27,7 @@ export type ArtifactCanvasAutoRevealState = {
 export type ArtifactCanvasAutoRevealInput = {
   sessionId: string | null;
   messages: readonly Pick<ChatMessageUi, 'id' | 'role' | 'status' | 'text'>[];
-  /** Master switch: `config.artifact.enabled`. */
+  /** Canvas switch of the session's resolved Artifact capability. */
   enabled: boolean;
   maxBytes?: number;
   /**

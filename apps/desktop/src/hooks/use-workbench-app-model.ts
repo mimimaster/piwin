@@ -6,6 +6,7 @@ import { useRef, type Dispatch, type MutableRefObject, type SetStateAction } fro
 import type { ThemeManifest } from '@piwin/contracts';
 import type { HostLogEntry } from '../HostLogPanel';
 import { useArtifactCanvasAutoReveal } from './use-artifact-canvas-auto-reveal';
+import { resolveArtifactSurfacesForScope } from '../artifact-surfaces';
 import { useDocComments } from './use-doc-comments';
 import { useDesktopContextMenuValue } from './use-desktop-context-menu-value';
 import { useWorkbenchCommands } from './use-workbench-commands';
@@ -111,14 +112,14 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     extensionUiRequest: host.extensionUiRequest,
     clearExtensionUiRequest: host.clearExtensionUiRequest,
     handleAbort: session.handleAbort,
+    generalWorkspacePath: host.hostStatus?.generalWorkspacePath ?? null,
   });
-  // Capability is the only master switch. artifactCodeFirst is Inline-only and
-  // must not be folded into `enabled`. Conversation and Project both auto-open
-  // the right Canvas as soon as `surface="canvas"` is parseable.
+  // Auto-reveal follows the Canvas switch of the active session's scope class;
+  // artifactCodeFirst is Inline-only and is never folded into it.
   useArtifactCanvasAutoReveal({
     activeSessionId: state.activeSessionId,
     messages: state.messages,
-    enabled: host.config?.artifact?.enabled ?? true,
+    enabled: resolveArtifactSurfacesForScope(host.config?.artifact, state.activeScope).canvas,
     runTerminalKind: state.runTerminal.kind,
     onReveal: handleOpenArtifactCanvas,
     onUpdate: host.artifactCanvas.openTarget,

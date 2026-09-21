@@ -79,7 +79,7 @@
 | ID | Item | Why deferred / unfinished | Suggested |
 |----|------|---------------------------|-----------|
 | D-SK-01 | ~~Desktop Skill install~~ | Done | done |
-| D-SK-02 | Richer bundled skill templates | find/create/web-research/hatch-* present; content expansion later | content |
+| D-SK-02 | Richer bundled skill templates | find/create/web-research present; content expansion later | content |
 | D-MCP-01 | ~~MCP form editor~~ | Done | done |
 | D-MCP-02 | ~~MCP server health/start/stop lifecycle~~ | **Done 2026-07-20** — `createMcpLifecycleManager` + `mcp/status|start|stop` + Desktop Start/Stop | done |
 | D-MCP-02b | ~~Host-owned manager shared with session bridge~~ | **Done 2026-07-20** — HostRuntime + bare createAgentHost own manager | done |

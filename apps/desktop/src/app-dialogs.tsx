@@ -59,6 +59,7 @@ export type AppDialogsProps = {
   onContinueInProjectOpenChange: (open: boolean) => void;
   onContinueInProject: (targetScope: SessionScope) => void;
   onCancelContinueInProject: () => void;
+  noRepoProjectPath?: string | null;
   /** Remote shells browse the Host filesystem instead of this computer. */
   hostWorkspacePicker?: boolean;
   /** Host OS from hello capabilities. Drives path placeholder and validation. */
@@ -290,6 +291,9 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
         onOpenChange={props.onContinueInProjectOpenChange}
         onSelectTarget={props.onContinueInProject}
         onCancel={props.onCancelContinueInProject}
+        {...(props.noRepoProjectPath
+          ? { noRepoProjectPath: props.noRepoProjectPath }
+          : {})}
       />
 
       <ConfirmDialog

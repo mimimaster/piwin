@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { access, mkdir, mkdtemp, realpath, symlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -631,5 +631,123 @@ describe('project commands', () => {
       readListing: () => Promise.reject(new Error('spawn git ENOENT')),
     });
     expect(listed).toEqual({ projects: [project] });
+  });
+});
+
+describe('project/find-file', () => {
+  it('resolves a file name the message wrote without its directory', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-find-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(join(projectPath, 'docs/design/inkstone/shots'), { recursive: true });
+    await writeFile(join(projectPath, 'docs/design/inkstone/shots/01-endpoint-loop.png'), 'png');
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open', rootDir);
+
+    const found = await handleProjectCommand(
+      { type: 'project/find-file', projectPath, query: '01-endpoint-loop.png' },
+      'find',
+      rootDir,
+    );
+    expect(found).toMatchObject({
+      success: true,
+      command: 'project/find-file',
+      data: {
+        projectPath,
+        query: '01-endpoint-loop.png',
+        truncated: false,
+        matches: [
+          {
+            relativePath: 'docs/design/inkstone/shots/01-endpoint-loop.png',
+            sizeBytes: 3,
+          },
+        ],
+      },
+    });
+  });
+
+  it('rejects a traversal query instead of searching above the root', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-find-traversal-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(projectPath);
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open', rootDir);
+
+    const found = await handleProjectCommand(
+      { type: 'project/find-file', projectPath, query: '../../etc/passwd' },
+      'find-traversal',
+      rootDir,
+    );
+    expect(found).toMatchObject({
+      success: false,
+      error: 'query must not contain ..',
+    });
+  });
+
+  it('rejects an unregistered root such as /etc', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-find-etc-'));
+    const found = await handleProjectCommand(
+      { type: 'project/find-file', projectPath: '/etc', query: 'passwd' },
+      'find-etc',
+      rootDir,
+    );
+    expect(found).toMatchObject({
+      success: false,
+      error: 'project-root-not-registered',
+    });
+  });
+
+  it('clamps a hostile maxMatches to the contract cap', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-find-clamp-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(projectPath);
+    await writeFile(join(projectPath, 'a.png'), 'a');
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open', rootDir);
+
+    const found = await handleProjectCommand(
+      {
+        type: 'project/find-file',
+        projectPath,
+        query: 'a.png',
+        maxMatches: 100_000,
+      },
+      'find-clamp',
+      rootDir,
+    );
+    expect(found).toMatchObject({
+      success: true,
+      data: { matches: [{ relativePath: 'a.png' }] },
+    });
+  });
+});
+
+describe('project commands with a vanished workspace', () => {
+  it('reports a deleted root as project-root-missing, not as a missing file', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-vanished-'));
+    // Not `<root>/workspace`: that path is the product General workspace and is
+    // recreated on demand, so it can never be "vanished".
+    const projectPath = join(rootDir, 'tmp-project');
+    await mkdir(projectPath);
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open', rootDir);
+    await rm(projectPath, { recursive: true, force: true });
+
+    const read = await handleProjectCommand(
+      { type: 'project/read-file', projectPath, relativePath: 'PATH-RETEST.md' },
+      'read-vanished',
+      rootDir,
+    );
+    expect(read).toMatchObject({
+      success: false,
+      command: 'project/read-file',
+      error: 'project-root-missing',
+    });
+
+    const found = await handleProjectCommand(
+      { type: 'project/find-file', projectPath, query: 'PATH-RETEST.md' },
+      'find-vanished',
+      rootDir,
+    );
+    expect(found).toMatchObject({
+      success: false,
+      command: 'project/find-file',
+      error: 'project-root-missing',
+    });
   });
 });

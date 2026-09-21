@@ -49,7 +49,9 @@ export type StreamdownRendererOptions = {
   onArtifactAction: ((action: ArtifactActionMessage) => void) | undefined;
   artifactOrigin: { sessionId: string; messageId: string } | undefined;
   onOpenArtifactCanvas: ((target: ArtifactCanvasTarget) => void) | undefined;
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   artifactCodeFirst: boolean;
   artifactMaxBytes: number | undefined;
   artifactBlockExternalScripts: boolean | undefined;
@@ -196,7 +198,8 @@ export function createStreamdownComponents(optionsRef: {
       initPriority:
         record === null ? options.initPriorityBase : options.initPriorityBase + record.ordinal,
       artifactThemeKey: options.artifactThemeKey,
-      artifactPreviewEnabled: options.artifactPreviewEnabled,
+      artifactInlineEnabled: options.artifactInlineEnabled,
+      artifactCanvasEnabled: options.artifactCanvasEnabled ?? options.artifactInlineEnabled,
       artifactCodeFirst: options.artifactCodeFirst,
       locale: options.locale,
     };

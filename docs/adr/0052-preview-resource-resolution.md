@@ -78,6 +78,45 @@ Tool presentations prefer `DocumentTargetRef` logical targets (including a
 `media` variant: session + asset id) over raw absolute path pills, so click
 entry points stop carrying host paths and remote projection stays consistent.
 
+### 5. A missed path is resolved, never guessed
+
+Messages name files the way people do (`shot.png`), and unlike structured
+targets those chips carry no directory. Failing such an open with `not-found`
+contradicts what the user sees in the file tree, so the miss is resolved
+through a dedicated Host command instead of trusting — or rejecting — the raw
+text.
+
+- New command `project/find-file` `{ projectPath, query }`: a **bounded** walk
+  of one registered browse root (`requireBrowseRoot`, so remote clients still
+  cannot name a root; `..` is rejected). It reuses the file tree's ignored
+  directories, never follows symlinks, caps visited entries, matches by
+  basename — or by path suffix when the query contains `/` — and reports
+  `truncated` when a budget stopped it early.
+- The command returns **candidates, not a verdict**. `unique` requires a
+  complete walk with exactly one match; several matches surface as
+  `ambiguous-file` in Doc Preview ("pick one from the file tree"), and an
+  incomplete walk resolves nothing at all. The Host never picks a file.
+- Desktop uses the same resolver for Reveal: an absent chip path is no longer
+  passed to the native command, whose fallback opened the *parent* folder
+  (silently landing the user in the project root). It now retries the resolved
+  path and otherwise says the path holds no file.
+- Markdown chips in Doc Preview / file tree carry the project root, so
+  relative chips resolve to absolute paths for Reveal / Save As exactly like
+  the conversation surface.
+- A chip can also carry the *absolute* path of a workspace file through another
+  form of the same folder (`/tmp/proj/a.md` while the registered root is
+  `/private/tmp/proj`, or a symlinked checkout). Those opens used to go to the
+  local-Host ingest channel (`preview/read-local-file`), which a remote client
+  can never send — so a file that exists failed as `not-found`. Desktop now
+  retries such a chip inside the project when the path's trailing segments
+  after the root's folder name name a workspace file. An unrelated absolute
+  path is never force-mapped onto the project.
+- A registered root whose directory is gone (acceptance workspaces under
+  `/tmp`, cleaned by the OS) answers `project-root-missing` instead of letting
+  every file inside report `not-found`. Desktop renders that as its own
+  reason ("工作区目录已不存在"), because blaming the file sends the user
+  looking for the wrong problem.
+
 ## Consequences
 
 - Slice 1 fixes the reported local-Desktop pain with zero host changes:
@@ -110,6 +149,13 @@ entry points stop carrying host paths and remote projection stays consistent.
   text opens read-only in Doc Preview. Remote clients cannot send this
   command. Files that cannot be rendered fail with `binary` / `not-found` /
   `too-large`, never `outside-project`.
+- Slice 5 (implemented) resolves a path a message wrote incompletely:
+  `project/find-file` plus the `ambiguous-file` Doc Preview reason. It adds no
+  read authority — the walk is confined to an already-registered browse root —
+  and never opens a file it cannot prove is the one the message meant.
+- The docked Document tool surface forwards the whole document state
+  (reason / suggestion / size / provenance). Before that it could only say
+  "Preview unavailable", which made a resolvable path look like a broken app.
 - Rejected alternatives: forging a project root via `dirname()` (historical bug,
   banned); a generic "read any path read-only" command (prompt-injection /
   remote info-exposure surface); loosening `project/read-file` guards (the

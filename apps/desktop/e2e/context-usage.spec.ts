@@ -43,6 +43,11 @@ test.describe('context usage ring', () => {
     await expect(popover).not.toContainText(/System prompt|Tool definitions/i);
 
     await page.keyboard.press('Escape');
+
+    await page.getByTestId('composer-input').fill('follow-up context usage e2e');
+    await page.getByTestId('send-btn').click();
+    await expect(page.getByTestId('context-usage-ring')).toBeVisible();
+
     await page.getByTestId('new-session-btn').click();
     await expect(page.getByTestId('context-usage-ring')).toHaveCount(0);
   });

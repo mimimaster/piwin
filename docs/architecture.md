@@ -649,7 +649,11 @@ Assistant message
   → Image attachments → media preview components
 ```
 
-`config.artifact.enabled` is the master switch. Code-first is Inline-only.
+`config.artifact.enabled` is the master switch; `config.artifact.scopes`
+(`general` / `project` × `inline` / `canvas`) narrows it per session class, and
+`resolveArtifactCapability` is the one resolver Host compilation, Desktop
+rendering, and Canvas auto-reveal use. Shipped default: Conversation chat on,
+Agent chat off. Code-first is Inline-only.
 Flashcard tool results are structured transcript projections, not HTML fences.
 Copy/export use original model source, never srcdoc. See
 [artifact-research.md](./artifact-research.md) and ADR 0005 / 0029.
@@ -671,7 +675,10 @@ Paste image
 The durable transcript remains Host/session state; mounted React/WebKit nodes
 are only a bounded projection of that state. Desktop groups messages into
 stable turn units. Non-empty transcripts use one dynamic-height virtualizer
-that mounts the visible range plus two-turn overscan and the newest three turns.
+that mounts the visible range plus eight-turn overscan and the newest three turns.
+Scroll-driven range changes commit synchronously for both idle and streaming
+sessions, so a fast history scroll cannot expose an unmounted viewport while
+React defers the range update. ResizeObserver measurements do not wait for rAF.
 TranscriptViewport, follow-tail, History Ticks, and the
 virtualizer share one scroll-element port. Scroll offsets and measured turn
 heights are bounded presentation caches per session and are cleared when that

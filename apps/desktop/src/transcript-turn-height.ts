@@ -53,31 +53,101 @@ export function normalizeTranscriptTurnHeight(height: number): number | null {
   return Math.max(TRANSCRIPT_TURN_MIN_HEIGHT_PX, rounded);
 }
 
+function readObserverBlockSize(entry: ResizeObserverEntry | undefined): number {
+  const observerBlockSize = entry?.borderBoxSize?.[0]?.blockSize;
+  if (typeof observerBlockSize === 'number' && Number.isFinite(observerBlockSize)) {
+    return observerBlockSize;
+  }
+  const contentHeight = entry?.contentRect.height ?? 0;
+  return Number.isFinite(contentHeight) ? contentHeight : 0;
+}
+
+function readElementNaturalHeight(element: HTMLElement, observerHeight: number): number {
+  // When ResizeObserver already delivered a box, do not force layout via
+  // offsetHeight / getBoundingClientRect (streaming remasure). scrollHeight
+  // still wins if the parent slot clipped the observer box.
+  if (observerHeight > 0) {
+    return Math.max(observerHeight, element.scrollHeight);
+  }
+  return Math.max(
+    element.offsetHeight,
+    element.scrollHeight,
+    element.getBoundingClientRect().height,
+  );
+}
+
+function slotHeightPx(slot: HTMLElement): number {
+  if (slot.clientHeight > 0) {
+    return slot.clientHeight;
+  }
+  const styled = Number.parseFloat(slot.style.height || '');
+  return Number.isFinite(styled) ? styled : 0;
+}
+
+function slotClipsOverflow(slot: HTMLElement): boolean {
+  const inline = slot.style.overflowY || slot.style.overflow;
+  if (inline === 'visible') {
+    return false;
+  }
+  if (inline === 'hidden' || inline === 'clip') {
+    return true;
+  }
+  if (typeof window.getComputedStyle !== 'function') {
+    return false;
+  }
+  const overflowY = window.getComputedStyle(slot).overflowY;
+  return overflowY === 'hidden' || overflowY === 'clip';
+}
+
+/**
+ * Estimate-locked `overflow: hidden` slots can report their clip box as the
+ * body size (WKWebView). Measure then never grows, the turn looks truncated,
+ * and the scroll range is too short to move into history.
+ */
+export function isTranscriptTurnClipDeadlock(slot: HTMLElement, measuredHeight: number): boolean {
+  if (!slot.classList.contains('transcript-turn-window-item')) {
+    return false;
+  }
+  const slotHeight = slotHeightPx(slot);
+  if (slotHeight <= 0) {
+    return false;
+  }
+  return slotClipsOverflow(slot) && Math.abs(measuredHeight - slotHeight) <= 1;
+}
+
+function readHeightWithSlotUnclipped(slot: HTMLElement, body: HTMLElement): number {
+  const previousHeight = slot.style.height;
+  const previousOverflow = slot.style.overflow;
+  const previousOverflowY = slot.style.overflowY;
+  slot.style.height = 'auto';
+  slot.style.overflow = 'visible';
+  slot.style.overflowY = 'visible';
+  try {
+    return Math.max(body.offsetHeight, body.scrollHeight, body.getBoundingClientRect().height);
+  } finally {
+    slot.style.height = previousHeight;
+    slot.style.overflow = previousOverflow;
+    slot.style.overflowY = previousOverflowY;
+  }
+}
+
 /**
  * Live row size for the virtualizer. The outer slot is `overflow: hidden` at
  * the current estimated height, so ResizeObserver / border-box can report the
  * clipped visible box. `scrollHeight` is the body's natural size and must win.
+ * If both are the clip box, briefly unclip the slot and read again.
  */
 export function readMountedTranscriptTurnHeight(options: {
   element: HTMLElement;
   entry: ResizeObserverEntry | undefined;
 }): number {
-  const observerBlockSize = options.entry?.borderBoxSize?.[0]?.blockSize;
-  const observerHeight =
-    typeof observerBlockSize === 'number' && Number.isFinite(observerBlockSize)
-      ? observerBlockSize
-      : options.entry?.contentRect.height ?? 0;
-  // When ResizeObserver already delivered a box, do not force layout via
-  // offsetHeight / getBoundingClientRect (streaming remasure). scrollHeight
-  // still wins if the parent slot clipped the observer box.
-  if (observerHeight > 0) {
-    return Math.max(observerHeight, options.element.scrollHeight);
+  const observerHeight = readObserverBlockSize(options.entry);
+  const measured = readElementNaturalHeight(options.element, observerHeight);
+  const slot = options.element.parentElement;
+  if (!slot || !isTranscriptTurnClipDeadlock(slot, measured)) {
+    return measured;
   }
-  return Math.max(
-    options.element.offsetHeight,
-    options.element.scrollHeight,
-    options.element.getBoundingClientRect().height,
-  );
+  return Math.max(measured, readHeightWithSlotUnclipped(slot, options.element));
 }
 
 /** Bound speculative sizes only; mounted rows use normalizeTranscriptTurnHeight. */

@@ -920,3 +920,41 @@ describe('codeSearch settings domain', () => {
     });
   });
 });
+
+describe('artifact capability impact', () => {
+  it('recompiles the runtime when a surface is removed and stays immediate when it returns', async () => {
+    const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
+    const shipped = snapshot.config.artifact.scopes;
+    if (!shipped) throw new Error('default artifact scopes missing');
+    const narrow: PiwinConfig = {
+      ...snapshot.config,
+      artifact: {
+        ...snapshot.config.artifact,
+        scopes: {
+          general: { ...shipped.general, canvas: false },
+          project: { ...shipped.project },
+        },
+      },
+    };
+    const recover: PiwinConfig = {
+      ...snapshot.config,
+      artifact: {
+        ...snapshot.config.artifact,
+        scopes: {
+          general: { ...shipped.general, canvas: true },
+          project: { ...shipped.project },
+        },
+      },
+    };
+
+    const narrowed = classifySettingsImpact('artifact', snapshot.config, narrow);
+    // The resident prompt and the artifact_instructions result are baked into a
+    // generation, so losing Canvas is only real after a replacement compiles.
+    expect(narrowed.timing).toBe('new-runtime');
+    expect(narrowed.runtimeSchemaChanged).toBe(true);
+
+    const widened = classifySettingsImpact('artifact', narrow, recover);
+    expect(widened.timing).toBe('immediate');
+    expect(widened.runtimeSchemaChanged).toBe(false);
+  });
+});

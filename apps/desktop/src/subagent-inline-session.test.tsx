@@ -62,7 +62,7 @@ describe('SubagentInlineSession', () => {
       onRetry: vi.fn(),
       onClose: vi.fn(),
       onWorktreeAction: async () => undefined,
-      artifactPreviewEnabled: true,
+      artifactInlineEnabled: true,
       ...overrides,
     };
     act(() => {

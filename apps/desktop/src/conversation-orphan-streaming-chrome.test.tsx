@@ -66,7 +66,7 @@ describe('orphan streaming chrome', () => {
         activeRunId={null}
         locale="zh-CN"
         isStreaming={false}
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
       />,
     );
     expect(
@@ -155,7 +155,7 @@ describe('orphan streaming chrome', () => {
         state={state}
         activeTheme={PIWIN_APPEARANCE_DARK}
         artifactThemeKey={0}
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
         locale="zh-CN"
       />,
     );
@@ -176,7 +176,7 @@ describe('orphan streaming chrome', () => {
         activeRunId="run-live"
         locale="zh-CN"
         isStreaming
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
       />,
     );
     expect(container.querySelector('.work-fold-brain')).not.toBeNull();
@@ -226,7 +226,7 @@ describe('orphan streaming chrome', () => {
         state={state}
         activeTheme={PIWIN_APPEARANCE_DARK}
         artifactThemeKey={0}
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
         locale="zh-CN"
       />,
     );
@@ -263,7 +263,7 @@ describe('orphan streaming chrome', () => {
         state={state}
         activeTheme={PIWIN_APPEARANCE_DARK}
         artifactThemeKey={0}
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
         locale="zh-CN"
       />,
     );

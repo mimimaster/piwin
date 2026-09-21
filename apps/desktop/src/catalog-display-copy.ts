@@ -8,8 +8,6 @@ const CATALOG_DESCRIPTION_ZH: Readonly<Record<string, string>> = {
   'find-skill': '列出当前会话可用的 Agent Skill。',
   'generate-flashcards':
     '从笔记或知识库用 flashcard_batch_create 生成闪卡。文件夹/文档请走 Doc Cards 生成，不要走这条工具路径。',
-  'hatch-pet': 'Hatch Pet — piwin 的宠物包生成指引。',
-  'hatch-theme': 'Hatch Theme — piwin 的主题包生成指引。',
   imagegen:
     '需要 AI 生成位图（照片、插画、贴图、sprite、样机、透明抠图）时，生成或编辑栅格图。输出应是位图资源，而不是仓库里的代码或矢量。已有 SVG / 矢量 / 代码资源、图标体系，或 HTML/CSS/canvas 能直接做的，不要用这个。',
   videogen: '用已配置的视频模型，从文本或参考图生成短视频。',

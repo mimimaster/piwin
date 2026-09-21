@@ -37,13 +37,17 @@ function artifactConfig(overrides?: Partial<ArtifactConfig['decisionPrompt']>): 
   };
 }
 
+let saveSpy: ReturnType<typeof vi.fn> | null = null;
+
 function renderPage(config: PiwinConfig): HTMLDivElement {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
+  const saveConfig = vi.fn(async () => true);
+  saveSpy = saveConfig;
   const contextValue = {
     config,
-    saveConfig: vi.fn(async () => true),
+    saveConfig,
     setInfo: vi.fn(),
     preferences: {
       artifactCodeFirst: false,
@@ -94,6 +98,7 @@ describe('ArtifactPage decision prompt', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     mounted = null;
+    saveSpy = null;
   });
 
   afterEach(() => {
@@ -142,5 +147,91 @@ describe('ArtifactPage decision prompt', () => {
     expect((field as HTMLInputElement).getAttribute('type')).not.toBe('number');
     expect((field as HTMLInputElement).className).toContain('piwin-text-input-field');
     expect((field as HTMLInputElement).value).toBe('1024');
+  });
+});
+
+describe('ArtifactPage per-scope surface tree', () => {
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    mounted = null;
+    saveSpy = null;
+  });
+
+  afterEach(() => {
+    act(() => {
+      mounted?.root.unmount();
+    });
+    mounted?.container.remove();
+    mounted = null;
+  });
+
+  function switchAt(container: HTMLElement, testId: string): HTMLInputElement {
+    const input = container.querySelector<HTMLInputElement>(`[data-testid="${testId}"]`);
+    if (!input) throw new Error(`${testId} not found`);
+    return input;
+  }
+
+  it('renders both scope classes with the shipped default: Agent chat off', () => {
+    const container = renderPage(artifactConfig());
+    expect(switchAt(container, 'artifact-scope-general-inline-switch').checked).toBe(true);
+    expect(switchAt(container, 'artifact-scope-general-canvas-switch').checked).toBe(true);
+    expect(switchAt(container, 'artifact-scope-project-inline-switch').checked).toBe(false);
+    expect(switchAt(container, 'artifact-scope-project-canvas-switch').checked).toBe(false);
+  });
+
+  it('shows the saved per-scope state instead of the default', () => {
+    const config = artifactConfig();
+    config.artifact.scopes = {
+      general: { inline: true, canvas: false },
+      project: { inline: false, canvas: true },
+    };
+    const container = renderPage(config);
+    expect(switchAt(container, 'artifact-scope-general-canvas-switch').checked).toBe(false);
+    expect(switchAt(container, 'artifact-scope-general-inline-switch').checked).toBe(true);
+    expect(switchAt(container, 'artifact-scope-project-inline-switch').checked).toBe(false);
+    expect(switchAt(container, 'artifact-scope-project-canvas-switch').checked).toBe(true);
+  });
+
+  it('saves the toggled surface with the rest of the artifact draft', async () => {
+    const container = renderPage(artifactConfig());
+    // Agent chat ships off, so the first toggle opts its Inline surface in.
+    const canvasInput = switchAt(container, 'artifact-scope-project-inline-switch');
+    act(() => {
+      canvasInput.click();
+    });
+    const saveButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-save-button"]',
+    );
+    expect(saveButton).not.toBeNull();
+    await act(async () => {
+      saveButton!.click();
+    });
+
+    expect(saveSpy).not.toBeNull();
+    const saved = saveSpy!.mock.calls[0]?.[0] as PiwinConfig;
+    expect(saved.artifact.scopes).toEqual({
+      general: { inline: true, canvas: true },
+      project: { inline: true, canvas: false },
+    });
+  });
+
+  it('keeps the per-scope state while the master switch is off', () => {
+    const config = artifactConfig();
+    config.artifact.scopes = {
+      general: { inline: false, canvas: false },
+      project: { inline: true, canvas: true },
+    };
+    const container = renderPage(config);
+    const masterSwitch = switchAt(container, 'artifact-enabled-switch');
+    act(() => {
+      masterSwitch.click();
+    });
+    // Master off hides the tree but must not rewrite the saved choices.
+    expect(container.querySelector('[data-testid="artifact-scope-tree"]')).toBeNull();
+    act(() => {
+      masterSwitch.click();
+    });
+    expect(switchAt(container, 'artifact-scope-general-canvas-switch').checked).toBe(false);
+    expect(switchAt(container, 'artifact-scope-project-canvas-switch').checked).toBe(true);
   });
 });

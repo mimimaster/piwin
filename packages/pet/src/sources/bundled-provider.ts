@@ -1,6 +1,7 @@
 /**
- * Bundled provider: enumerates pets shipped with the @piwin/pet package
- * (under pet/bundled/*). Does not install — bundled pets are read in place.
+ * Bundled provider: enumerates pets under pet/bundled/* when present.
+ * Release packages ship this directory empty; pets are user-imported.
+ * Does not install — bundled pets are read in place.
  */
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';

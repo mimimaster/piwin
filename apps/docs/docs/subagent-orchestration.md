@@ -1,0 +1,103 @@
+# 子代理编排与协同：Ultra Code 与 Fusion
+
+在复杂的软件工程开发中，单模型、单长会话的交互往往面临两大痛点：
+1. **上下文爆炸与注意力崩溃**：随着修改的文件增多，主模型逐渐无法兼顾架构顶层设计与底层代码细节；
+2. **性价比失衡**：用最昂贵的 SOTA 规划模型去逐行写机械的重复样板代码，成本极高且缺乏并发效率。
+
+**Piwin** 内置了强大的**多子代理编排体系（Orchestration Schemes）**，允许你在输入框（Composer）中按需一键切换不同的编排规则，让各具特长的模型分工协作。
+
+---
+
+## 1. 核心编排模式解析
+
+### 1.1 Ultra Code 模式（侦察兵 + 精准执行）
+Ultra Code 模式专为中大型代码库的深度改造设计：
+
+```mermaid
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
+flowchart TB
+    UserPrompt["用户复杂需求"] --> MasterAgent["主编排模型 (Master)"]
+    
+    MasterAgent -->|"派发调研任务"| ScoutSub["Scout 侦察子代理<br/>(只读模式)"]
+    ScoutSub -->|"深入代码库分析依赖与定义"| Codebase["代码库"]
+    Codebase -->|"结构化调研结论"| ScoutSub
+    ScoutSub -->|"输出 STATUS: COMPLETE 报告"| MasterAgent
+
+    MasterAgent -->|"审阅报告，实施精准修改"| CodeChanges["代码落地与实测"]
+```
+
+- **Scout（侦察兵）子代理**：以只读模式（Readonly Sandbox）进入代码库，只负责梳理接口定义、调用关系与潜在风险，输出标准化的结构报告；
+- **主智能体**：审阅侦察兵报告后，在纯净的上下文中精准执行修改，避免了“边搜边改”导致的主会话上下文污染。
+
+---
+
+### 1.2 Fusion 模式（SOTA 规划 + 高性价比执行）
+Fusion 模式借鉴了顶级工程智能体的协作架构：**“主规划大脑 (Lead) + 高性价比执行节点 (Sidekick)”**。
+
+```mermaid
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
+flowchart TB
+    subgraph Lead["Lead (主会话主控)"]
+        A["理解需求与歧义澄清"] --> B["设计架构与拆解 SessionPlan"]
+        B --> C["审查 Sidekick 候选结果"]
+    end
+
+    subgraph Sidekick["Sidekick (独立子会话 + Git Worktree)"]
+        D["接收独立 Task Brief 信封"] --> E["在临时 Worktree 分支并发写代码"]
+        E --> F["运行本地单测与类型检查"]
+        F --> G["提交变更候选集 Candidate Result"]
+    end
+
+    B -->|"派发 piwin_subagent_start"| D
+    G -->|"piwin_subagent_result_apply"| C
+```
+
+- **Lead（当前会话主控）**：使用顶尖 SOTA 模型（如 Claude 3.7 Sonnet / DeepSeek V3 / o3-mini），握有全局上下文，负责拆解计划、理解歧义与终审；
+- **Sidekick（执行子代理）**：
+  - **信封隔离**：Sidekick 只能看到当前分配的任务简报（Task Brief），**看不到父会话的冗长历史**；
+  - **Git Worktree 物理隔离**：所有的文件写入都在独立的临时 Git Worktree 分支中运行，主分支不被半成品污染；
+  - **实测自愈**：在 Worktree 中运行测试与构建，通过后提交精确的候选结果；
+  - **原子合并**：Lead 审查批准后，通过系统原子级应用回主工程。
+
+---
+
+## 2. 实战食用指南（如何配置）
+
+在 Piwin 客户端主聊天窗口底部的 **Composer 输入框** 上方，点击编排下拉菜单：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 编排方案选择:  [ Fusion (规划+执行) ▼ ]                      │
+│                                                             │
+│  • Default (默认单智能体)                                    │
+│  • Ultra Code (Scout 侦察模式)                               │
+│  • Fusion (Lead 规划 + Sidekick 执行) [当前选中]             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+::: warning 关于子代理模型的选择
+1. 选中 **Fusion** 或 **Ultra Code** 方案后，点击旁边的 **「编辑 / 模型配置」** 按钮；
+2. **主模型 (Lead)**：保持在 Composer 界面选择你最信任的 SOTA 顶级思考模型（如 Claude 3.7 / DeepSeek V3）；
+3. **执行模型 (Sidekick / Worker)**：进入编辑弹窗，选择一个**性价比高、推理速度快、首字延迟低**的执行模型（如 DeepSeek Flash、Gemini 2.5 Flash、Claude 3.5 Haiku 等）；
+4. 若不单独配置执行模型，系统默认会继承主模型，这样就无法发挥出“SOTA 脑力 + 廉价快速算力”的最佳成本优势。
+:::
+
+---
+
+## 3. 编排收益对比
+
+| 维度 | 传统单会话单模型 | Piwin 子代理编排 (Fusion / Ultra Code) |
+| :--- | :--- | :--- |
+| **上下文纯净度** | 频繁文件读取使上下文迅速恶化，容易跑偏 | 任务信封隔离，主上下文始终保持 90% 以上信噪比 |
+| **执行安全性** | 直接在工作区反复修改，容易破坏正常代码 | 独立 Git Worktree 分支安全隔离，具备原子撤销能力 |
+| **多任务并发** | 只能单线程串行等待 | 独立子代理并行推进多个互不依赖的模块 |
+| **Token 成本** | 全程使用昂贵 SOTA 模型 | 规划用 SOTA，机械编码用高性价比执行节点，成本降 60%+ |
+
+---
+
+## 4. 关联文档
+
+- [Code Search 智能代码搜索](./code-search.md)
+- [提示词系统中的编排契约](./prompt-system.md#第-3-组子智能体与专项模式-subagents--orchestration-schemes)
+- [模型与多模态委托配置](./model-config.md)
+- [快速起步与 BYOK 体系](./getting-started.md)

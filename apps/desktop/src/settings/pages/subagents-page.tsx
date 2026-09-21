@@ -28,6 +28,7 @@ import { FieldRow } from '../field-row';
 import { useSettings } from '../settings-context';
 import { buildOrchestrationCopy } from '../orchestration-copy';
 import { OrchestrationSchemeEditor } from '../orchestration-scheme-editor';
+import { modelSelectValue } from '../orchestration-scheme-draft';
 
 export function SubagentProfilesPage(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -75,7 +76,7 @@ export function SubagentProfilesPage(): ReactElement {
         modelId: option.modelId,
         ...(option.protocol !== undefined ? { protocol: option.protocol } : {}),
       });
-      return { value: JSON.stringify(ref), label: option.label, ref };
+      return { value: modelSelectValue(ref), label: option.label, ref };
     });
   }, [config]);
 
@@ -94,7 +95,7 @@ export function SubagentProfilesPage(): ReactElement {
             ...(option.protocol !== undefined ? { protocol: option.protocol } : {}),
             ...(option.source !== undefined ? { source: option.source } : {}),
           });
-          return { value: JSON.stringify(ref), label: option.label, ref };
+          return { value: modelSelectValue(ref), label: option.label, ref };
         }),
       );
     })();

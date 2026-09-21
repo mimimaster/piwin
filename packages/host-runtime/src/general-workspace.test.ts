@@ -2,7 +2,7 @@ import { access, mkdtemp, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ensureGeneralWorkspace } from './general-workspace.js';
+import { ensureGeneralWorkspace, isGeneralWorkspacePath } from './general-workspace.js';
 import { getPiwinGeneralWorkspacePath } from './paths.js';
 import {
   indexProjectPathForScope,
@@ -22,6 +22,13 @@ describe('general workspace', () => {
     const stats = await stat(first);
     expect(stats.isDirectory()).toBe(true);
     await access(first);
+  });
+
+  it('recognizes the product workspace path', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-general-ws-id-'));
+    const workspace = await ensureGeneralWorkspace(rootDir);
+    expect(isGeneralWorkspacePath(workspace, rootDir)).toBe(true);
+    expect(isGeneralWorkspacePath(join(rootDir, 'other'), rootDir)).toBe(false);
   });
 });
 
@@ -59,6 +66,17 @@ describe('session-scope resolution', () => {
     const location = await resolveSessionLocation({ scope: { kind: 'general' } }, rootDir);
     expect(location.scope).toEqual({ kind: 'general' });
     expect(location.workingDirectory).toBe(getPiwinGeneralWorkspacePath(rootDir));
+  });
+
+  it('resolves No Repo project scope onto the same workspace directory', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-scope-norepo-'));
+    const workspace = getPiwinGeneralWorkspacePath(rootDir);
+    const location = await resolveSessionLocation(
+      { scope: { kind: 'project', projectPath: workspace } },
+      rootDir,
+    );
+    expect(location.scope).toEqual({ kind: 'project', projectPath: workspace });
+    expect(location.workingDirectory).toBe(workspace);
   });
 
   it('index project path is empty for general and path for project', () => {

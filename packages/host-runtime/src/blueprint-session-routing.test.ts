@@ -4,6 +4,8 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import {
+  ARTIFACT_CANVAS_ONLY_HINT,
+  ARTIFACT_INLINE_ONLY_HINT,
   createDefaultWebConfig,
   estimateHostTokens,
   type HostToolDescriptor,
@@ -645,6 +647,61 @@ describe('conversation fast path (pure chat)', () => {
 
     expect(result.blueprint.appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
     expect(result.blueprint.appendSystemPrompt).not.toContain('When to produce an Artifact');
+  });
+
+  it('CHT-206: a scope surface switch narrows the resident contract, not the master switch', async () => {
+    const scopes = {
+      general: { inline: true, canvas: false },
+      project: { inline: true, canvas: true },
+    };
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        ...conversationOptions,
+        config: createConfig({
+          artifact: {
+            enabled: true,
+            scopes,
+            triggerMode: 'automatic',
+            decisionPrompt: { mode: 'default', customPrompt: '' },
+            maxBytes: 100_000,
+          },
+        }),
+      },
+    );
+
+    const appendSystemPrompt = result.blueprint.appendSystemPrompt ?? '';
+    // The shared protocol survives byte-for-byte; only the constraint is added.
+    expect(appendSystemPrompt).toContain('## HTML Artifact Runtime Contract');
+    expect(appendSystemPrompt).toContain(ARTIFACT_INLINE_ONLY_HINT);
+    expect(appendSystemPrompt).not.toContain(ARTIFACT_CANVAS_ONLY_HINT);
+    expect(result.blueprint.tools.enabledFamilies).toContain('artifact');
+  });
+
+  it('CHT-206: a scope with no surface left injects no contract and no tool', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        ...conversationOptions,
+        config: createConfig({
+          artifact: {
+            enabled: true,
+            scopes: {
+              general: { inline: false, canvas: false },
+              project: { inline: true, canvas: true },
+            },
+            triggerMode: 'automatic',
+            decisionPrompt: { mode: 'default', customPrompt: '' },
+            maxBytes: 100_000,
+          },
+        }),
+      },
+    );
+
+    expect(result.blueprint.appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
+    const hostToolNames = result.blueprint.tools.hostTools.map((tool) => tool.name);
+    expect(hostToolNames).not.toContain('artifact_instructions');
+    expect(result.blueprint.tools.enabledFamilies).not.toContain('artifact');
   });
 
   it('keeps the web search route and its external outlet', async () => {

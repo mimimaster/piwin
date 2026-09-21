@@ -37,6 +37,13 @@ export function createBlueprintTestConfig(overrides?: Partial<PiwinConfig>): Piw
     media: { maxPasteBytes: 10_000_000, allowedMimeTypes: ['image/png'] },
     artifact: {
       enabled: true,
+      // Blueprint tests exercise capability plumbing, so the fixture opts both
+      // surfaces in for both scopes instead of depending on the shipped default
+      // (Agent chat ships with Artifacts off).
+      scopes: {
+        general: { inline: true, canvas: true },
+        project: { inline: true, canvas: true },
+      },
       triggerMode: 'automatic',
       decisionPrompt: { mode: 'default', customPrompt: '' },
       maxBytes: 100_000,

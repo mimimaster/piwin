@@ -58,6 +58,14 @@ function DockToolFallback(props: { locale: 'zh-CN' | 'en'; label: string }): Rea
   );
 }
 
+/**
+ * Docked Document tool surface.
+ *
+ * Forwards the whole document state, failure reason included: a docked panel
+ * that only knows "unavailable" reports every cause as the generic
+ * "Preview unavailable" and hides which file/why, while the same document in
+ * the inspector path explains itself.
+ */
 function DockDocSurface(props: { hosts: DockToolHosts }): ReactElement {
   const { hosts } = props;
   if (hosts.inspectorDiff && hosts.projectPath) {
@@ -94,6 +102,32 @@ function DockDocSurface(props: { hosts: DockToolHosts }): ReactElement {
         artifactTheme={mapThemeToArtifactVariables(hosts.activeTheme)}
         {...(hosts.activeDocument?.status ? { status: hosts.activeDocument.status } : {})}
         {...(hosts.activeDocument?.displayRef ? { displayRef: hosts.activeDocument.displayRef } : {})}
+        {...(hosts.projectPath ? { projectPath: hosts.projectPath } : {})}
+        {...(hosts.activeDocument?.status === 'ready'
+          ? {
+              provenance: hosts.activeDocument.provenance,
+              ...(hosts.activeDocument.warning ? { warning: hosts.activeDocument.warning } : {}),
+              ...(hosts.activeDocument.skillId ? { skillId: hosts.activeDocument.skillId } : {}),
+              ...(hosts.activeDocument.skillSource
+                ? { skillSource: hosts.activeDocument.skillSource }
+                : {}),
+              ...(hosts.activeDocument.readOnly ? { readOnly: hosts.activeDocument.readOnly } : {}),
+            }
+          : {})}
+        {...(hosts.activeDocument?.status === 'unavailable'
+          ? {
+              unavailableReason: hosts.activeDocument.reason,
+              ...(hosts.activeDocument.suggestion
+                ? { suggestion: hosts.activeDocument.suggestion }
+                : {}),
+              ...(hosts.activeDocument.byteSize !== undefined
+                ? { byteSize: hosts.activeDocument.byteSize }
+                : {}),
+              ...(hosts.activeDocument.maxBytes !== undefined
+                ? { maxBytes: hosts.activeDocument.maxBytes }
+                : {}),
+            }
+          : {})}
         locale={hosts.locale}
       />
     </DeferredSurfaceBoundary>

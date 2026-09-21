@@ -1,23 +1,22 @@
 import type { MediaLibraryFilter } from './use-media-library';
 
-export type ActiveKind = 'all' | 'image' | 'video' | 'file' | 'favorite';
+export type ActiveKind = 'all' | 'image' | 'video' | 'favorite';
 
+/** The vault browses images and videos only; files are not a tab. */
 export const KIND_TABS: Array<{
   id: ActiveKind;
+  testId: string;
   en: string;
   zh: string;
 }> = [
-  { id: 'image', en: 'Images', zh: '图片' },
-  { id: 'video', en: 'Videos', zh: '视频' },
-  { id: 'file', en: 'Files', zh: '文件' },
-  { id: 'favorite', en: 'Favorites', zh: '收藏' },
+  { id: 'image', testId: 'library-tab-images', en: 'Images', zh: '图片' },
+  { id: 'video', testId: 'library-tab-videos', en: 'Videos', zh: '视频' },
+  { id: 'favorite', testId: 'library-tab-favorites', en: 'Favorites', zh: '收藏' },
 ];
 
 export function kindFromInitial(kind: MediaLibraryFilter): ActiveKind {
-  if (kind === 'video' || kind === 'file') {
-    return kind;
-  }
-  return 'image';
+  // `file` is no longer a browsable kind, so an initial file request opens Images.
+  return kind === 'video' ? 'video' : 'image';
 }
 
 export const INSPIRATIONS = [

@@ -92,15 +92,7 @@ export function MediaLibraryWorkspaceHeader(
                   key={tab.id}
                   type="button"
                   className={`lib-segmented-tab${active ? ' is-active' : ''}`}
-                  data-testid={`library-tab-${
-                    tab.id === 'image'
-                      ? 'images'
-                      : tab.id === 'video'
-                        ? 'videos'
-                        : tab.id === 'file'
-                          ? 'files'
-                          : 'favorites'
-                  }`}
+                  data-testid={tab.testId}
                   aria-pressed={active}
                   onClick={() => props.onKindChange(tab.id)}
                 >

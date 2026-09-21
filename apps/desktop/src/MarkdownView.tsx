@@ -29,7 +29,7 @@ type MarkdownViewProps = {
   /**
    * Parser flag: when false, native `html`/`htm` fences are not promoted to
    * artifact descriptors by `analyzeArtifactFence`. When omitted, mirrors
-   * `artifactPreviewEnabled` so language/source normalization stays
+   * `artifactInlineEnabled` so language/source normalization stays
    * byte-stable across capability toggles.
    */
   htmlUiModeEnabled?: boolean;
@@ -54,10 +54,15 @@ type MarkdownViewProps = {
   /** Opens an explicitly declared Canvas artifact in the workspace panel. */
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   /**
-   * Artifact capability. Workbench forwards `config.artifact.enabled`.
+   * Inline Artifact capability from the session's resolved Artifact switches.
    * Isolated tests may omit it (defaults to true).
    */
-  artifactPreviewEnabled?: boolean;
+  artifactInlineEnabled?: boolean;
+  /**
+   * Canvas capability. Omitted follows `artifactInlineEnabled`, which keeps
+   * isolated single-switch callers (Doc Cards, tests) working.
+   */
+  artifactCanvasEnabled?: boolean;
   /**
    * Shows the inline caret only for the message that owns the live text tail.
    * Empty streaming lifecycle messages never render a caret.
@@ -159,7 +164,8 @@ export function MarkdownView({
   onArtifactAction,
   artifactOrigin,
   onOpenArtifactCanvas,
-  artifactPreviewEnabled = true,
+  artifactInlineEnabled = true,
+  artifactCanvasEnabled,
   showStreamingCaret = true,
   artifactCodeFirst = false,
   artifactMaxBytes,
@@ -173,7 +179,7 @@ export function MarkdownView({
   const phase: MarkdownRenderingPhase = renderingPhase ?? 'completed';
   const streamMode = phase === 'streaming';
 
-  const streamdownHtmlUiMode = htmlUiModeEnabled ?? artifactPreviewEnabled;
+  const streamdownHtmlUiMode = htmlUiModeEnabled ?? artifactInlineEnabled;
   const stableArtifactTheme = useStableArtifactTheme(artifactTheme);
   const stableArtifactOrigin = useMemo(
     () =>
@@ -219,7 +225,10 @@ export function MarkdownView({
     onArtifactAction,
     artifactOrigin: stableArtifactOrigin,
     onOpenArtifactCanvas,
-    artifactPreviewEnabled,
+    artifactInlineEnabled,
+    // The renderer options always carry a concrete pair; only the public prop
+    // is optional.
+    artifactCanvasEnabled: artifactCanvasEnabled ?? artifactInlineEnabled,
     artifactCodeFirst,
     artifactMaxBytes,
     artifactBlockExternalScripts,
@@ -240,7 +249,10 @@ export function MarkdownView({
     onArtifactAction,
     artifactOrigin: stableArtifactOrigin,
     onOpenArtifactCanvas,
-    artifactPreviewEnabled,
+    artifactInlineEnabled,
+    // The renderer options always carry a concrete pair; only the public prop
+    // is optional.
+    artifactCanvasEnabled: artifactCanvasEnabled ?? artifactInlineEnabled,
     artifactCodeFirst,
     artifactMaxBytes,
     artifactBlockExternalScripts,

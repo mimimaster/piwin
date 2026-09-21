@@ -151,12 +151,12 @@ describe('MarkdownView artifact preview policy', () => {
     );
   });
 
-  it('capability off: artifact-html fence stays ordinary source code when artifactPreviewEnabled is false', () => {
+  it('capability off: artifact-html fence stays ordinary source code when artifactInlineEnabled is false', () => {
     const { container } = renderMarkdown(
       <MarkdownView
         text={ARTIFACT_HTML_FENCE}
         renderingPhase="completed"
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
       />,
     );
     expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
@@ -168,7 +168,7 @@ describe('MarkdownView artifact preview policy', () => {
       <MarkdownView
         text={PLAIN_HTML_FENCE}
         renderingPhase="completed"
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
       />,
     );
     expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
@@ -284,7 +284,7 @@ describe('MarkdownView artifact preview policy', () => {
       <MarkdownView
         text={ARTIFACT_HTML_FENCE}
         renderingPhase="completed"
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
       />,
     );
     expect(spy).not.toHaveBeenCalled();
@@ -387,6 +387,53 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
+  });
+
+  it('canvas survives Inline being off: a Canvas fence still folds to its launcher', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={CANVAS_ARTIFACT_FENCE}
+        renderingPhase="completed"
+        artifactOrigin={{ sessionId: 'session-1', messageId: 'message-2' }}
+        onOpenArtifactCanvas={vi.fn()}
+        artifactInlineEnabled={false}
+        artifactCanvasEnabled={true}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+  });
+
+  it('canvas off: the same fence degrades to source and never mounts a frame', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={CANVAS_ARTIFACT_FENCE}
+        renderingPhase="completed"
+        artifactOrigin={{ sessionId: 'session-1', messageId: 'message-2' }}
+        onOpenArtifactCanvas={vi.fn()}
+        artifactInlineEnabled={true}
+        artifactCanvasEnabled={false}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+    expect(container.querySelector('.artifact-with-source')).toBeNull();
+  });
+
+  it('Inline off keeps an ordinary Inline fence as source without a dead Preview action', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={ARTIFACT_HTML_FENCE}
+        renderingPhase="completed"
+        artifactInlineEnabled={false}
+        artifactCanvasEnabled={true}
+      />,
+    );
+
+    expect(container.querySelector('iframe.artifact-iframe')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
   });
 
   it('routes a titled Canvas document fence to the launcher when completed', () => {
@@ -519,7 +566,7 @@ describe('MarkdownView artifact preview policy', () => {
       <MarkdownView
         text={FLASHCARD_FENCE}
         renderingPhase="completed"
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
       />,
     );
     expect(container.querySelector('[data-testid="flashcard-preview-card"]')).toBeNull();
@@ -545,16 +592,16 @@ describe('MarkdownView artifact preview policy', () => {
       <MarkdownView
         text={MERMAID_FENCE}
         renderingPhase="completed"
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
       />,
     );
     // MermaidBlock is mounted (not the streaming source fallback).
     expect(container.querySelector('[data-testid="mermaid-stream-source"]')).toBeNull();
   });
 
-  it('capability off: svg fence stays ordinary source code when artifactPreviewEnabled is false', () => {
+  it('capability off: svg fence stays ordinary source code when artifactInlineEnabled is false', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={SVG_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
+      <MarkdownView text={SVG_FENCE} renderingPhase="completed" artifactInlineEnabled={false} />,
     );
     expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
@@ -654,7 +701,7 @@ describe('MarkdownView artifact preview policy', () => {
       <MarkdownView
         text={ARTIFACT_HTML_FENCE}
         renderingPhase="completed"
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
       />,
     );
     const offLang = off.container.querySelector('[data-testid="code-fence-source"] .md-code-lang');

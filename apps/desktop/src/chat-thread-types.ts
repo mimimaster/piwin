@@ -101,10 +101,13 @@ export type ChatThreadProps = {
   /** Open a fence explicitly declared with surface="canvas". */
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   /**
-   * Artifact capability from `config.artifact.enabled`. Required boolean —
-   * never a truthy spread that drops `false`.
+   * Inline Artifact capability, resolved for this session's scope by
+   * `resolveArtifactSurfacesForScope`. Required boolean — never a truthy spread
+   * that drops `false`.
    */
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   /** When true, MarkdownView displays source code first for artifact blocks. */
   artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to analyzeArtifactFence. */

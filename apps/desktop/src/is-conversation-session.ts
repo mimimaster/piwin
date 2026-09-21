@@ -2,11 +2,10 @@ import type { SessionScope } from '@piwin/contracts';
 import type { SidebarMode } from './sidebar-mode';
 
 /**
- * Conversation chrome belongs to the chat pane.
+ * Conversation chrome belongs to the chat pane and `{ kind: 'general' }`.
  *
- * No Repo is the general-scope workspace in the code pane: it has no git
- * checkout, but it is still an agent session (orchestration, run mode, tools).
- * Project folders are always agent.
+ * No Repo is a built-in project folder (`generalWorkspacePath`). Those
+ * sessions are agent chats, same as any other project folder.
  */
 export function isConversationSessionChrome(
   scope: SessionScope,

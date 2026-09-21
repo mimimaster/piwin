@@ -105,7 +105,8 @@ export function SubagentInlineSession(): ReactElement | null {
         {...(panel.onOpenArtifactCanvas
           ? { onOpenArtifactCanvas: panel.onOpenArtifactCanvas }
           : {})}
-        artifactPreviewEnabled={panel.artifactPreviewEnabled}
+        artifactInlineEnabled={panel.artifactInlineEnabled}
+        artifactCanvasEnabled={panel.artifactCanvasEnabled ?? panel.artifactInlineEnabled}
         {...(panel.artifactMaxBytes !== undefined
           ? { artifactMaxBytes: panel.artifactMaxBytes }
           : {})}

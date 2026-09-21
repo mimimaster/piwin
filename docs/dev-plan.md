@@ -212,9 +212,9 @@ Spec: [`docs/specs/m1-host-cli.md`](./specs/m1-host-cli.md) · M2 design: [`docs
 | M6.1 | Git status/diff service | shown in UI + optional agent context |
 | M6.2 | Commit graph view | readable DAG |
 | M6.3 | Theme packages + switch | apply skin |
-| M6.4 | `hatch-theme` skill | generate+install |
+| M6.4 | ~~`hatch-theme` skill~~ | dropped 2026-09-21 — not bundled |
 | M6.5 | Codex pet load + state mapping | import `~/.codex/pets` |
-| M6.6 | `hatch-pet` skill (optional) | package writes |
+| M6.6 | ~~`hatch-pet` skill (optional)~~ | dropped 2026-09-21 — not bundled |
 
 **Deliverable**: differentiated product surfaces beyond plain chat.
 

@@ -90,7 +90,9 @@ export type ChatMessageRowProps = {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   /** Artifact capability. Always forwarded as a boolean. */
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   /** When true, MarkdownView displays source code first for artifact blocks. */
   artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to analyzeArtifactFence. */

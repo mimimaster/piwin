@@ -157,7 +157,7 @@ the in-flight run; leaving Goal is a separate mode change. See
 - `systematic-debugging`, `writing-plans`, `executing-plans`
 - `requesting-code-review`, `using-git-worktrees`
 - `verification-before-completion`
-- `hatch-theme`, `hatch-pet`
+- ~~`hatch-theme`, `hatch-pet`~~ — dropped 2026-09-21; not bundled
 - `web-research` (how to use web_search/fetch)
 
 ### 4.3 MCP panel (P0)
@@ -193,7 +193,7 @@ Note: **Pi session tree ≠ git commit tree** — separate UI panels.
 | TH-01 | Theme package format + library | P1 |
 | TH-02 | Switch + preview | P1 |
 | TH-03 | Marketplace install | P2 |
-| TH-04 | `hatch-theme` skill generates + installs | P1 |
+| TH-04 | ~~`hatch-theme` skill generates + installs~~ — dropped 2026-09-21; theme packages ship without a bundled skill | — |
 
 ### 4.6 Pets (P1, Codex-compatible)
 
@@ -202,7 +202,7 @@ Note: **Pi session tree ≠ git commit tree** — separate UI panels.
 | PET-01 | Load Codex-compatible pet packages | P1 |
 | PET-02 | Bind animations to agent state | P1 |
 | PET-03 | Install/remove/enable | P1 |
-| PET-04 | `hatch-pet` skill | P2 |
+| PET-04 | ~~`hatch-pet` skill~~ — dropped 2026-09-21; pet packages ship without a bundled skill | — |
 | PET-05 | Import/export `~/.codex/pets` | P1 |
 
 Package contract (community):
@@ -416,12 +416,11 @@ personal Gateway remains an optional relay/NAT pattern, not a required backend.
 
 - HTML artifact (port openwebui_m runtime)
 - git status/diff + commit graph
-- theme system + hatch-theme
+- theme system
 
 ### M4 — Fun + polish
 
 - pet runtime + Codex import
-- hatch-pet
 - UX/performance/doctor
 
 ---

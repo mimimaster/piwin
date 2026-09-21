@@ -637,20 +637,16 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
   const emptyTitle =
     kind === 'video'
       ? t('No videos yet', '还没有视频')
-      : kind === 'file'
-        ? t('No files yet', '还没有文件')
-        : kind === 'favorite'
-          ? t('No favorites yet', '暂无收藏素材')
-          : t('No images yet', '还没有图片');
+      : kind === 'favorite'
+        ? t('No favorites yet', '暂无收藏素材')
+        : t('No images yet', '还没有图片');
 
   const emptyDetail =
     kind === 'video'
       ? t('Videos generated in chat land here.', '会话里生成的视频会出现在这里。在对话中输入提示词让 AI 创作。')
-      : kind === 'file'
-        ? t('Documents and other files land here.', '文档和其他文件会出现在这里。')
-        : kind === 'favorite'
-          ? t('Star assets to save them in your favorites.', '点击素材卡片上的星标即可收藏。')
-          : t('Images generated in chat land here.', '会话里生成的图片会出现在这里。在对话中输入提示词让 AI 为你生成作品。');
+      : kind === 'favorite'
+        ? t('Star assets to save them in your favorites.', '点击素材卡片上的星标即可收藏。')
+        : t('Images generated in chat land here.', '会话里生成的图片会出现在这里。在对话中输入提示词让 AI 为你生成作品。');
 
   return (
     <div className="vault-stage lib-page" data-testid="library-workspace">

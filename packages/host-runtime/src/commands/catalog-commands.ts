@@ -75,6 +75,7 @@ import { tmpdir } from 'node:os';
 import { assertInsideMediaRoot } from '@piwin/media';
 import type { VisionDelegateResult } from '@piwin/contracts';
 import { fail, ok } from '../response-helpers.js';
+import { fallbackPetSnapshot } from '../pet-snapshot-fallback.js';
 import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
 import { createSecretResolver } from '../secret-resolver.js';
 import { findEnabledModel, findEnabledProvider } from '../provider-helpers.js';
@@ -551,6 +552,8 @@ export async function handleCatalogCommand(
       const result = await deletePet(rootDir, command.petId);
       if (result.fallbackPet) {
         context.petStateStore.setBase(result.fallbackPet);
+      } else if (context.petStateStore.snapshot().pet.petId === command.petId) {
+        context.petStateStore.setBase(fallbackPetSnapshot());
       }
       return ok(requestId, 'pet/delete', { deleted: true, fallbackPet: result.fallbackPet });
     }

@@ -145,7 +145,7 @@ describe('ChatThread model wait tail', () => {
           onInspectSubagent={undefined}
           composerCard={composerCard}
           locale="zh-CN"
-          artifactPreviewEnabled
+          artifactInlineEnabled
           {...extras}
         />
       </PiwinUiProvider>

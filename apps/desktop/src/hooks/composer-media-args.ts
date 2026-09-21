@@ -53,6 +53,8 @@ export type UseComposerMediaArgs = {
   };
   /** When Send has no workspace, open the workspace picker (keep draft text). */
   onNeedWorkspace?: () => void | Promise<void>;
+  /** Built-in No Repo root; first send must not require a trust dialog. */
+  generalWorkspacePath?: string | null;
   /** Per-next-turn model key `providerId::modelId`. */
   selectedModelKey?: string;
   /** Authoritative composer prompt model fallback. */

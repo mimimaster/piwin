@@ -143,6 +143,37 @@ describe('buildSidebarTreeRows', () => {
     expect(kinds(rows)).toEqual(['header:projects', 'header:conversations']);
   });
 
+  it('lists No Repo project sessions under the folder and keeps general in Conversations', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [],
+      noRepoProjectPath: '/Users/me/.piwin/workspace',
+      projectSessionsByPath: {
+        '/Users/me/.piwin/workspace': [session('nr1', 'Scratch')],
+      },
+      generalSessions: [session('g1', 'General chat')],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+      activeProjectPath: '/Users/me/.piwin/workspace',
+    });
+    const folder = rows.find((row) => row.kind === 'no-repo-folder');
+    expect(folder?.kind === 'no-repo-folder' ? folder.collapsed : true).toBe(false);
+    const agentRows = rows.filter(
+      (row): row is Extract<SidebarTreeRow, { kind: 'session' }> =>
+        row.kind === 'session' && row.folderChild === true,
+    );
+    expect(agentRows.map((row) => row.session.id)).toEqual(['nr1']);
+    expect(kinds(rows)).toEqual([
+      'header:projects',
+      'session:nr1',
+      'header:conversations',
+      'session:g1',
+    ]);
+  });
+
   it('lets an explicit section fold win even when the active session is inside it', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [{ path: '/p' }],
@@ -433,7 +464,7 @@ describe('buildSidebarTreeRows', () => {
       generalSessions: sessions,
       sessionSearch: '',
       sessionListOrder: 'updated',
-      projectsSectionExpanded: false,
+      projectsSectionExpanded: true,
       conversationsSectionExpanded: true,
       collapsedProjects: {},
       sessionListScopes: createSessionListScopeState(),
@@ -453,7 +484,7 @@ describe('buildSidebarTreeRows', () => {
       generalSessions: renamed,
       sessionSearch: '',
       sessionListOrder: 'alphabetical',
-      projectsSectionExpanded: false,
+      projectsSectionExpanded: true,
       conversationsSectionExpanded: true,
       collapsedProjects: {},
       sessionListScopes: createSessionListScopeState(),
@@ -463,7 +494,7 @@ describe('buildSidebarTreeRows', () => {
     ).toEqual(['Pinned', 'AAA Zulu', 'Alpha']);
   });
 
-  it('filters drafts locally during search and suppresses truncation hints', () => {
+  it('filters drafts locally during search', () => {
     const scopes = setSessionListScopeMeta(
       createSessionListScopeState(),
       { kind: 'general' },

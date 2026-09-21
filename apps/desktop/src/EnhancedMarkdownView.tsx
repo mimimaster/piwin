@@ -32,6 +32,11 @@ export type EnhancedMarkdownViewProps = {
   text: string;
   docTitle?: string | undefined;
   filePath?: string | undefined;
+  /**
+   * Project root for relative chips. Without it a chip keeps the raw relative
+   * text, so Reveal / Save As can never resolve an absolute path.
+   */
+  projectPath?: string | undefined;
   onOpenFile?: ((filePath: string) => void) | undefined;
   comments?: LineCommentItem[] | undefined;
   onAddComment?:
@@ -45,6 +50,7 @@ export function EnhancedMarkdownView({
   text,
   docTitle,
   filePath,
+  projectPath,
   onOpenFile,
   comments = [],
   onAddComment,
@@ -69,6 +75,7 @@ export function EnhancedMarkdownView({
             block={block}
             docTitle={docTitle}
             filePath={filePath}
+            projectPath={projectPath}
             onOpenFile={onOpenFile}
             comments={comments}
             onAddComment={onAddComment}
@@ -82,6 +89,7 @@ export function EnhancedMarkdownView({
           text={text}
           docTitle={docTitle}
           filePath={filePath}
+          projectPath={projectPath}
           onOpenFile={onOpenFile}
           comments={comments}
           onAddComment={onAddComment}
@@ -208,6 +216,7 @@ function EnhancedStreamdownContent({
   text,
   docTitle,
   filePath,
+  projectPath,
   onOpenFile,
   comments = [],
   onAddComment,
@@ -221,6 +230,7 @@ function EnhancedStreamdownContent({
       createEnhancedStreamdownComponents({
         docTitle,
         filePath,
+        projectPath,
         onOpenFile,
         comments,
         onAddComment,
@@ -231,6 +241,7 @@ function EnhancedStreamdownContent({
     [
       docTitle,
       filePath,
+      projectPath,
       onOpenFile,
       comments,
       onAddComment,
@@ -260,6 +271,7 @@ function EnhancedStreamdownContent({
 type EnhancedStreamdownRendererOptions = {
   docTitle: string | undefined;
   filePath: string | undefined;
+  projectPath: string | undefined;
   onOpenFile: ((filePath: string) => void) | undefined;
   comments: LineCommentItem[];
   onAddComment:
@@ -410,6 +422,7 @@ function createEnhancedStreamdownComponents(
           <PathChip
             fullPath={source.trim()}
             showIcon={true}
+            {...(options.projectPath ? { projectPath: options.projectPath } : {})}
             onOpen={() => options.onOpenFile?.(source.trim())}
           />
         );
@@ -471,6 +484,7 @@ function createEnhancedStreamdownComponents(
           fullPath={url}
           label={label}
           showIcon={true}
+          {...(options.projectPath ? { projectPath: options.projectPath } : {})}
           onOpen={() => options.onOpenFile?.(url)}
         />
       );
@@ -1204,6 +1218,7 @@ function EnhancedBlockView({
   block,
   docTitle,
   filePath,
+  projectPath,
   onOpenFile,
   comments,
   onAddComment,
@@ -1215,6 +1230,7 @@ function EnhancedBlockView({
   block: EnhancedBlock;
   docTitle?: string | undefined;
   filePath?: string | undefined;
+  projectPath?: string | undefined;
   onOpenFile?: ((filePath: string) => void) | undefined;
   comments?: LineCommentItem[] | undefined;
   onAddComment?:
@@ -1224,6 +1240,10 @@ function EnhancedBlockView({
   onCommentLine?: ((lineContent: string) => void) | undefined;
 }): ReactElement {
   const blockLineId = `block-${blockIndex}-${block.type}`;
+  // Chips inside legacy blocks share the same project context as the
+  // Streamdown path, so Reveal / Save As can resolve relative paths.
+  const renderText = (value: string): ReactNode =>
+    renderFormattedText(value, onOpenFile, projectPath);
 
   if (block.type === 'heading') {
     const headingText = block.path || block.text;
@@ -1246,6 +1266,7 @@ function EnhancedBlockView({
               fullPath={block.path}
               className="diff-path"
               showIcon={true}
+              {...(projectPath ? { projectPath } : {})}
               onOpen={() => onOpenFile?.(block.path!)}
             />
           </div>
@@ -1266,7 +1287,7 @@ function EnhancedBlockView({
           onCommentLine={onCommentLine}
         >
           <HeadingElement level={block.level} className={`enhanced-heading level-${block.level}`}>
-            <span>{renderFormattedText(scopeMatch[1], onOpenFile)}</span>
+            <span>{renderText(scopeMatch[1])}</span>
             <span className="heading-scope">({scopeMatch[2]})</span>
           </HeadingElement>
         </LineCommentWrapper>
@@ -1284,7 +1305,7 @@ function EnhancedBlockView({
         onCommentLine={onCommentLine}
       >
         <HeadingElement level={block.level} className={`enhanced-heading level-${block.level}`}>
-          {renderFormattedText(block.text, onOpenFile)}
+          {renderText(block.text)}
         </HeadingElement>
       </LineCommentWrapper>
     );
@@ -1308,6 +1329,7 @@ function EnhancedBlockView({
           fullPath={block.path}
           className="diff-path"
           showIcon={true}
+          {...(projectPath ? { projectPath } : {})}
           onOpen={() => onOpenFile?.(block.path)}
         />
       </LineCommentWrapper>
@@ -1323,6 +1345,7 @@ function EnhancedBlockView({
             text={block.content}
             docTitle={docTitle}
             filePath={filePath}
+            projectPath={projectPath}
             onOpenFile={onOpenFile}
             comments={comments}
             onAddComment={onAddComment}
@@ -1376,7 +1399,7 @@ function EnhancedBlockView({
         className={`enhanced-callout callout-${block.kind}`}
       >
         <div className="callout-title">{block.kind.toUpperCase()}</div>
-        <div className="callout-content">{renderFormattedText(block.text, onOpenFile)}</div>
+        <div className="callout-content">{renderText(block.text)}</div>
       </LineCommentWrapper>
     );
   }
@@ -1411,13 +1434,13 @@ function EnhancedBlockView({
                     className="enhanced-checkbox"
                   />
                 ) : null}
-                <span>{renderFormattedText(item.text, onOpenFile)}</span>
+                <span>{renderText(item.text)}</span>
               </div>
               {item.subItems && item.subItems.length > 0 ? (
                 <ul className="enhanced-sub-list">
                   {item.subItems.map((sub, subIndex) => (
                     <li key={subIndex} className="enhanced-sub-item">
-                      <span>{renderFormattedText(sub, onOpenFile)}</span>
+                      <span>{renderText(sub)}</span>
                     </li>
                   ))}
                 </ul>
@@ -1441,7 +1464,7 @@ function EnhancedBlockView({
         onCommentLine={onCommentLine}
         className="enhanced-blockquote"
       >
-        <blockquote>{renderFormattedText(block.text, onOpenFile)}</blockquote>
+        <blockquote>{renderText(block.text)}</blockquote>
       </LineCommentWrapper>
     );
   }
@@ -1465,7 +1488,7 @@ function EnhancedBlockView({
             <tr>
               {block.headers.map((header, hIdx) => (
                 <th key={hIdx} style={{ textAlign: getTextAlign(block.alignments[hIdx]) }}>
-                  {renderFormattedText(header, onOpenFile)}
+                  {renderText(header)}
                 </th>
               ))}
             </tr>
@@ -1475,7 +1498,7 @@ function EnhancedBlockView({
               <tr key={rIdx}>
                 {row.map((cell, cIdx) => (
                   <td key={cIdx} style={{ textAlign: getTextAlign(block.alignments[cIdx]) }}>
-                    {renderFormattedText(cell, onOpenFile)}
+                    {renderText(cell)}
                   </td>
                 ))}
               </tr>
@@ -1497,7 +1520,7 @@ function EnhancedBlockView({
       onCommentLine={onCommentLine}
       className="enhanced-paragraph-row"
     >
-      <p className="enhanced-paragraph">{renderFormattedText(block.text, onOpenFile)}</p>
+      <p className="enhanced-paragraph">{renderText(block.text)}</p>
     </LineCommentWrapper>
   );
 }
@@ -1544,6 +1567,7 @@ function CopyButton({ text }: { text: string }): ReactElement {
 function renderFormattedText(
   text: string,
   onOpenFile?: ((filePath: string) => void) | undefined,
+  projectPath?: string | undefined,
 ): Array<string | ReactElement> {
   const parts: Array<string | ReactElement> = [];
   let key = 0;
@@ -1573,6 +1597,7 @@ function renderFormattedText(
             key={key++}
             fullPath={codeContent}
             showIcon={true}
+            {...(projectPath ? { projectPath } : {})}
             onOpen={() => onOpenFile?.(codeContent)}
           />,
         );

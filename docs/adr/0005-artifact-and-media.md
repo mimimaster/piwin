@@ -15,8 +15,10 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
 3. Images: preview in chat; paste saves under `~/.piwin/media/...`; host passes native image content to Pi by default (see amendment 2026-08-01)
 4. **Render contract (2026-08-24).** The 2026-07-25 source-only streaming /
    Preview-only iframe policy is superseded.
-   - **Master switch:** `PiwinConfig.artifact.enabled`. Desktop forwards it as
-     `artifactPreviewEnabled`. Leftover `piwin.desktop.artifactPreviewEnabled`
+   - **Master switch:** `PiwinConfig.artifact.enabled`, narrowed per session
+     class by `PiwinConfig.artifact.scopes` (ADR 0029 amendment 2026-09-21).
+     Desktop forwards the resolved pair as `artifactInlineEnabled` +
+     `artifactCanvasEnabled`. Leftover `piwin.desktop.artifactPreviewEnabled`
      localStorage keys are ignored.
    - **Streaming Inline:** compatible explicit and native HTML/SVG fences auto
      stream-preview from the first recognizable fence (no source flash).

@@ -42,6 +42,8 @@ import { fail, ok } from '../response-helpers.js';
 import { getPiwinGeneralWorkspacePath, getPiwinProjectsPath, getPiwinRoot } from '../paths.js';
 import { ensureGeneralWorkspace } from '../general-workspace.js';
 import { bindProjectLocator } from '../project-locator.js';
+import { IGNORED_DIR_NAMES } from '../project-browse-ignore.js';
+import { normalizeProjectFileQuery, searchProjectFiles } from './project-file-search.js';
 import { createRemoteProjectId, isRemoteProjectId } from '../remote-project-id.js';
 
 const PROJECT_TYPES = new Set<HostCommand['type']>([
@@ -54,6 +56,7 @@ const PROJECT_TYPES = new Set<HostCommand['type']>([
   'project/permissions-revoke',
   'project/list-dir',
   'project/read-file',
+  'project/find-file',
 ]);
 
 export function isProjectCommand(command: HostCommand): boolean {
@@ -166,6 +169,16 @@ export async function handleProjectCommand(
         rootDir,
       );
     }
+    case 'project/find-file': {
+      return findProjectFile(
+        projectsPath,
+        command.projectPath,
+        command.query,
+        command.maxMatches,
+        requestId,
+        rootDir,
+      );
+    }
     case 'project/read-file': {
       return readProjectFile(
         projectsPath,
@@ -244,16 +257,6 @@ function applyGitWorkspaceListing(
   }
   return enriched;
 }
-
-const IGNORED_DIR_NAMES = new Set([
-  '.git',
-  'node_modules',
-  '.pnpm-store',
-  'dist',
-  'target',
-  '.next',
-  'coverage',
-]);
 
 /**
  * List one directory under project root. Rejects path traversal outside root.
@@ -562,6 +565,52 @@ async function readProjectPreviewSlice(input: {
 }
 
 /**
+ * Resolve a name the client could not open to its real place in the project.
+ *
+ * Desktop path chips carry the text an agent wrote in a message — often just a
+ * file name — so a plain miss at the project root is not proof the file is
+ * gone. The walk stays inside the browse root and is budget-bounded; callers
+ * decide what an empty or ambiguous result means.
+ */
+async function findProjectFile(
+  projectsPath: string,
+  projectPath: string,
+  query: string,
+  maxMatches: number | undefined,
+  requestId: string | undefined,
+  piwinRoot: string,
+): Promise<HostResponse> {
+  const rootCheck = await requireBrowseRoot(
+    projectsPath,
+    projectPath,
+    requestId,
+    'project/find-file',
+    piwinRoot,
+  );
+  if (!rootCheck.ok) {
+    return rootCheck.response;
+  }
+  const normalized = normalizeProjectFileQuery(query ?? '');
+  if (!normalized) {
+    return fail(requestId, 'project/find-file', 'query is required');
+  }
+  if (normalized.includes('..')) {
+    return fail(requestId, 'project/find-file', 'query must not contain ..');
+  }
+  const result = await searchProjectFiles({
+    rootAbsolute: rootCheck.rootAbsolute,
+    query: normalized,
+    ...(maxMatches !== undefined ? { maxMatches } : {}),
+  });
+  return ok(requestId, 'project/find-file', {
+    projectPath: rootCheck.rootAbsolute,
+    query: result.query,
+    matches: result.matches,
+    truncated: result.truncated,
+  });
+}
+
+/**
  * Browse root for list-dir / read-file.
  *
  * Remembered user projects stay registered. The product General workspace
@@ -573,7 +622,7 @@ async function requireBrowseRoot(
   projectsPath: string,
   projectPath: string,
   requestId: string | undefined,
-  commandType: 'project/read-file' | 'project/list-dir',
+  commandType: 'project/read-file' | 'project/list-dir' | 'project/find-file',
   piwinRoot: string,
 ): Promise<
   | { ok: true; rootAbsolute: string }
@@ -612,7 +661,25 @@ async function requireBrowseRoot(
     await ensureGeneralWorkspace(piwinRoot);
     return { ok: true, rootAbsolute: generalWorkspace };
   }
-  return { ok: true, rootAbsolute: normalizeProjectRootPath(matchedRoot) };
+  const rootAbsolute = normalizeProjectRootPath(matchedRoot);
+  // A registered root can vanish under us: acceptance workspaces live under
+  // /tmp and temp cleanup removes them. Say the *workspace* is gone — letting
+  // every file inside answer `not-found` blames the file and misleads the user.
+  if (!(await directoryExists(rootAbsolute))) {
+    return {
+      ok: false,
+      response: fail(requestId, commandType, 'project-root-missing'),
+    };
+  }
+  return { ok: true, rootAbsolute };
+}
+
+async function directoryExists(absolutePath: string): Promise<boolean> {
+  try {
+    return (await stat(absolutePath)).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 async function resolveOpenProjectPath(

@@ -20,6 +20,7 @@ import type {
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
+import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
 import { ChatThread } from './chat-thread';
 import type { ChatMessageUi, ChatUiState, SessionListItemUi } from './chat-reducer';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
@@ -250,7 +251,9 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             workDetailsExpanded={preferences.workDetailsExpanded}
             toolDensity={preferences.toolDensity}
             showThinking={preferences.verboseAgentChat}
-            artifactPreviewEnabled={config?.artifact?.enabled ?? true}
+            {...artifactSurfaceProps(
+              resolveArtifactSurfacesForScope(config?.artifact, state.activeScope),
+            )}
             artifactCodeFirst={preferences.artifactCodeFirst}
             {...artifactFenceSecurityProps(config?.artifact)}
             locale={locale}

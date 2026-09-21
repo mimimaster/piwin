@@ -11,7 +11,6 @@ import type {
 import type { SubagentStreamState, ToolCardUi } from './chat-reducer';
 import { ToolCallCard, type DocumentOpenInput } from './tool-call-card';
 import { SubagentInvocationBlock } from './subagent-invocation-block';
-import { SubagentControlRow } from './subagent-control-row';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { DiffCardRequest } from './diff-card';
 import type { ToolCallDensity } from './ui-preferences';
@@ -154,7 +153,13 @@ function loopTouchesInvocations(
  */
 export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
   const tools = useMemo(
-    () => props.tools.filter((tool) => !isPlanProgressTool(tool)),
+    () =>
+      props.tools.filter(
+        (tool) =>
+          !isPlanProgressTool(tool) &&
+          // Wait/cancel is Host plumbing; a paused wait never leaves phase=waiting.
+          !isSubagentControlSurface(readSubagentControl(tool)),
+      ),
     [props.tools],
   );
   const clusters = useMemo(() => clusterToolCalls(tools), [tools]);
@@ -267,23 +272,6 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
         }
 
         const tool = item.tool;
-        const control = readSubagentControl(tool);
-        if (isSubagentControlSurface(control)) {
-          return (
-            <SubagentControlRow
-              key={tool.toolCallId}
-              control={control}
-              locale={props.locale ?? 'zh-CN'}
-              toolCallId={tool.toolCallId}
-              {...(typeof tool.presentation?.durationMs === 'number'
-                ? { durationMs: tool.presentation.durationMs }
-                : {})}
-              {...(props.subagentInvocations
-                ? { invocations: props.subagentInvocations }
-                : {})}
-            />
-          );
-        }
         if (isSubagentInvocationSurface(tool)) {
           const invocation = resolveInvocationForTool(tool, props.subagentInvocations);
           const orchestrationItem = findOrchestrationItem(orchestrationItems, invocation);

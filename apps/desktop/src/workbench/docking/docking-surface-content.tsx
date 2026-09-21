@@ -15,7 +15,9 @@ export type DockViewRenderContext = {
   hostClient: HostClient;
   activeTheme: ThemeManifest;
   artifactThemeKey: string | number;
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   readMedia: MediaPreviewReader | null;
   locale: 'zh-CN' | 'en';
   onCreateConversation: () => Promise<string | null>;
@@ -45,7 +47,8 @@ export function DockViewContent(props: {
         hostClient={ctx.hostClient}
         activeTheme={ctx.activeTheme}
         artifactThemeKey={ctx.artifactThemeKey}
-        artifactPreviewEnabled={ctx.artifactPreviewEnabled}
+        artifactInlineEnabled={ctx.artifactInlineEnabled}
+        artifactCanvasEnabled={ctx.artifactCanvasEnabled ?? ctx.artifactInlineEnabled}
         readMedia={ctx.readMedia}
         locale={ctx.locale}
         onSessionDeleted={() => ctx.onCloseView(props.viewId)}

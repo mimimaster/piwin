@@ -151,18 +151,18 @@ Before changing behavior, record the current Pi custom-tool API in **ADR 0008**.
 
 ## 8. Phase P4 - Theme capability
 
-> Status: **Implemented (core)** 2026-07-20 — token theme packages under `~/.piwin/themes`, validate/install/list/set-active, Desktop ThemePanel. `hatch-theme` skill still open.
+> Status: **Implemented (core)** 2026-07-20 — token theme packages under `~/.piwin/themes`, validate/install/list/set-active, Desktop ThemePanel. `hatch-theme` skill dropped 2026-09-21 — theme packages ship without a bundled skill.
 
 - Define a portable theme manifest and token contract in `@piwin/theme`.
 - Validate/install themes under `~/.piwin/themes`; keep UI application in desktop only.
 - Add Settings theme preview and switcher; make artifact theme variables derive from the same tokens.
-- Ship `hatch-theme` only after the validator and install path exist.
+- ~~Ship `hatch-theme` only after the validator and install path exist.~~ Dropped 2026-09-21: not bundled.
 
 **Acceptance:** switching an installed theme updates desktop and artifact tokens without arbitrary CSS/JS execution.
 
 ## 9. Phase P5 - Pet capability
 
-> Status: **Implemented (core)** 2026-07-20 — `@piwin/pet` validate/store/import, IPC, Desktop companion + panel, hatch-pet skill.
+> Status: **Implemented (core)** 2026-07-20 — `@piwin/pet` validate/store/import, IPC, Desktop companion + panel.
 
 **Done:**
 - Codex-compatible `pet.json` + spritesheet validator
@@ -170,7 +170,7 @@ Before changing behavior, record the current Pi custom-tool API in **ADR 0008**.
 - AgentEvent → pet animation state (`idle|running|waiting|failed|…`)
 - Desktop `PetCompanion` spritesheet animator + `PetPanel`
 - Pet list cards preview each package's actual first atlas frame instead of a generic dog placeholder
-- Bundled `piwin-default` pet + `skills/hatch-pet`
+- No bundled pets (empty `packages/pet/bundled`); overlay off by default; no bundled `hatch-pet` skill (removed 2026-09-21)
 
 **Acceptance:** valid pet animates from agent state; invalid packages surface validation errors.
 

@@ -54,7 +54,7 @@ export function PetPanel(props: PetPanelProps) {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
   const [pets, setPets] = useState<PetSummary[]>([]);
-  const [activeId, setActiveId] = useState('piwin-default');
+  const [activeId, setActiveId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const { confirm, dialog: confirmModal, setBusy: setConfirmBusy } = useConfirmDialog();

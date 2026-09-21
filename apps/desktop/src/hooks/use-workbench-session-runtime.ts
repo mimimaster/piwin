@@ -101,6 +101,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     onSessionComposerProfileRestored: (profile) => {
       sessionComposerProfileRestoredRef.current(profile);
     },
+    generalWorkspacePath: host.hostStatus?.generalWorkspacePath ?? null,
   });
 
   const { saveSettingsInOrder } = useSettingsSaveQueue({
@@ -197,6 +198,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     showArchivedSessions,
     remoteCatchUpEpoch: host.remoteCatchUpEpoch,
     saveSettingsInOrder,
+    generalWorkspacePath: host.hostStatus?.generalWorkspacePath ?? null,
   });
   const handleSessionListOrderChange = useCallback(
     (order: SessionListOrder): void => {

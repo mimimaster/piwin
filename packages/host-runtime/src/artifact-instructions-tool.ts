@@ -2,36 +2,52 @@
 
 import {
   ARTIFACT_INSTRUCTIONS_TOOL_NAME,
+  FULL_ARTIFACT_CAPABILITY,
   formatArtifactInstructions,
   type ArtifactConfig,
   type HostToolDescriptor,
   type HostToolRegistration,
+  type ResolvedArtifactCapability,
 } from '@piwin/contracts';
 
 const MAX_TRACKED_INSTRUCTION_RUNS = 256;
 const ALREADY_LOADED_OUTPUT =
   'Artifact instructions are already loaded for this run. Reuse the previous result and produce the final response without calling this tool again.';
 
-/** Resident decision policy + runtime contract. Injected when artifacts are enabled. */
-export function formatArtifactCapabilityPrompt(config: ArtifactConfig): string | undefined {
-  if (!config.enabled) {
+/**
+ * Resident decision policy + runtime contract, restricted to the surfaces the
+ * session actually has. `undefined` means "no Artifact surface": nothing is
+ * injected and the model answers in Markdown.
+ */
+export function formatArtifactCapabilityPrompt(
+  config: ArtifactConfig,
+  capability: ResolvedArtifactCapability = FULL_ARTIFACT_CAPABILITY,
+): string | undefined {
+  if (!config.enabled || !capability.enabled) {
     return undefined;
   }
-  return formatArtifactInstructions(config);
+  const instructions = formatArtifactInstructions(config, capability);
+  return instructions.trim().length > 0 ? instructions : undefined;
 }
 
 /** Resident contract only when the generation surface has a concrete executor. */
 export function formatResidentArtifactPrompt(
   config: ArtifactConfig,
   hostTools: readonly HostToolDescriptor[],
+  capability: ResolvedArtifactCapability = FULL_ARTIFACT_CAPABILITY,
 ): string | undefined {
   const hasArtifactInstructions = hostTools.some(
     (tool) => tool.name === ARTIFACT_INSTRUCTIONS_TOOL_NAME,
   );
-  return hasArtifactInstructions ? formatArtifactCapabilityPrompt(config) : undefined;
+  return hasArtifactInstructions
+    ? formatArtifactCapabilityPrompt(config, capability)
+    : undefined;
 }
 
-export function buildArtifactInstructionsTool(config: ArtifactConfig): HostToolRegistration {
+export function buildArtifactInstructionsTool(
+  config: ArtifactConfig,
+  capability: ResolvedArtifactCapability = FULL_ARTIFACT_CAPABILITY,
+): HostToolRegistration {
   const loadedRuns = new Set<string>();
 
   return {
@@ -68,7 +84,7 @@ export function buildArtifactInstructionsTool(config: ArtifactConfig): HostToolR
 
       return {
         ok: true,
-        output: formatArtifactInstructions(config),
+        output: formatArtifactInstructions(config, capability),
       };
     },
   };

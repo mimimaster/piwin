@@ -31,7 +31,9 @@ export type MarkdownCodeFenceProps = {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   artifactOrigin?: { sessionId: string; messageId: string };
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   artifactCodeFirst?: boolean;
   artifactMaxBytes?: number;
   artifactBlockExternalScripts?: boolean;

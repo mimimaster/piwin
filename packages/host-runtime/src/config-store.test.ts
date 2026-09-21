@@ -739,6 +739,54 @@ describe('config-store', () => {
     expect(loaded.subagents?.schemes?.[0]?.members?.[0]?.reportContract).toBe('Return JSON only.');
   });
 
+  it('round-trips scheme member subscription model without protocol', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-orch-sub-model-'));
+    const config = createDefaultPiwinConfig();
+    config.subagents = {
+      profiles: [],
+      maxConcurrency: 4,
+      maxTasksPerRun: 8,
+      processIsolation: 'required',
+      parallelWritePolicy: 'worktree-only',
+      dirtyBasePolicy: 'ask',
+      schemes: [
+        {
+          id: 'fusion',
+          name: 'Fusion overlay',
+          description: 'pin sidekick',
+          defaultRole: 'sidekick',
+          defaultProfileId: 'implementer',
+          exposeSpawnMetadata: false,
+          waitPolicy: 'await-all',
+          systemPreamble: 'overlay fusion preamble',
+          members: [
+            {
+              role: 'sidekick',
+              description: 'execute',
+              profileId: 'implementer',
+              isolation: 'worktree',
+              fallback: 'main',
+              thinkingLevel: 'high',
+              model: {
+                providerId: 'xai',
+                modelId: 'grok-4.6',
+                source: 'subscription',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.subagents?.schemes?.[0]?.members?.[0]?.model).toEqual({
+      providerId: 'xai',
+      modelId: 'grok-4.6',
+      source: 'subscription',
+    });
+    expect(loaded.subagents?.schemes?.[0]?.members?.[0]?.thinkingLevel).toBe('high');
+  });
+
   it('drops invalid profile entries (missing id or description)', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-subagents-invalid-'));
     const config = createDefaultPiwinConfig();
@@ -819,4 +867,54 @@ describe('config-store', () => {
     expect(await readFile(savedPath, 'utf8')).toContain('"hostMode": "rpc"');
   });
 
+});
+
+describe('artifact per-scope switches', () => {
+  it('fills every scope and surface for a config that predates them', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-artifact-legacy-'));
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        artifact: {
+          enabled: true,
+          triggerMode: 'automatic',
+          decisionPrompt: { mode: 'default', customPrompt: '' },
+          maxBytes: 4096,
+        },
+      }),
+      'utf8',
+    );
+    const loaded = await loadPiwinConfig(rootDir);
+    // A config written before `scopes` existed adopts the shipped default:
+    // Conversation chat on, Agent chat off.
+    expect(loaded.artifact.scopes).toEqual({
+      general: { inline: true, canvas: true },
+      project: { inline: false, canvas: false },
+    });
+    expect(createDefaultPiwinConfig().artifact.scopes).toEqual(loaded.artifact.scopes);
+  });
+
+  it('keeps an explicit false and ignores a malformed scope entry', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-artifact-scopes-'));
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        artifact: {
+          enabled: true,
+          scopes: {
+            general: { inline: false, canvas: true },
+            project: 'not-an-object',
+          },
+        },
+      }),
+      'utf8',
+    );
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.artifact.scopes).toEqual({
+      general: { inline: false, canvas: true },
+      // A malformed or missing entry follows the shipped default rather than
+      // inventing a surface the user never opted into.
+      project: { inline: false, canvas: false },
+    });
+  });
 });

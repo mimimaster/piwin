@@ -46,6 +46,8 @@ export type UseWorkbenchSessionGesturesArgs = {
   extensionUiRequest: ExtensionUiRequestState | null;
   clearExtensionUiRequest: (requestId: string) => void;
   handleAbort: () => Promise<void>;
+  /** Built-in No Repo root; fills an empty projectPath from the folder +. */
+  generalWorkspacePath?: string | null;
 };
 
 export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArgs) {
@@ -72,6 +74,7 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
     extensionUiRequest,
     clearExtensionUiRequest,
     handleAbort,
+    generalWorkspacePath,
   } = args;
 
   const handleOpenDocument = useCallback(
@@ -130,17 +133,31 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
       // Project-row + only passes scope; opening belongs here so it cannot
       // race bumpToDraft and cancel project/set.
       if (scope?.kind === 'project') {
-        const alreadyThere =
-          state.activeScope.kind === 'project' &&
-          state.activeScope.projectPath === scope.projectPath;
-        if (!alreadyThere) {
-          await handleOpenProject(scope.projectPath);
+        const projectPath =
+          scope.projectPath.trim() || generalWorkspacePath?.trim() || '';
+        if (projectPath) {
+          const alreadyThere =
+            state.activeScope.kind === 'project' &&
+            state.activeScope.projectPath === projectPath;
+          if (!alreadyThere) {
+            await handleOpenProject(projectPath);
+          }
+          const resolved = { kind: 'project' as const, projectPath };
+          startNewDraft(resolved);
+          await handleNewSession({ scope: resolved });
+          return;
         }
       }
       startNewDraft(scope);
       await handleNewSession(options);
     },
-    [handleNewSession, handleOpenProject, startNewDraft, state.activeScope],
+    [
+      generalWorkspacePath,
+      handleNewSession,
+      handleOpenProject,
+      startNewDraft,
+      state.activeScope,
+    ],
   );
   const handleResumeDraft = useCallback(
     async (draftId: string): Promise<void> => {

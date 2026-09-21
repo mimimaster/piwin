@@ -196,7 +196,7 @@ function renderSession(
           hostClient={host as unknown as HostClient}
           activeTheme={PIWIN_APPEARANCE_DARK}
           artifactThemeKey="test"
-          artifactPreviewEnabled={true}
+          artifactInlineEnabled={true}
           readMedia={null}
           locale="en"
           {...(onSessionDeleted ? { onSessionDeleted } : {})}

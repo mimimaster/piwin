@@ -16,6 +16,7 @@ type HostRequestCall = {
   type: string;
   projectPath?: string;
   relativePath?: string;
+  query?: string;
   skillId?: string;
   legacyPath?: string;
   sessionId?: string;
@@ -36,9 +37,66 @@ function createHostClientFake(options?: {
         absolutePath?: string;
       }
     | { success: false };
+  /** `project/find-file` answer for a missed chip path. */
+  findFile?:
+    | { success: true; matches: Array<{ relativePath: string }>; truncated?: boolean }
+    | { success: false; error?: string };
+  /** Make the local-Host ingest (`preview/read-local-file`) miss. */
+  localPreviewUnavailable?: { reason: string } | boolean;
+  /** Per-relative-path read override; falls back to `projectRead`. */
+  projectReadByPath?: Record<string, { success: false } | { success: true; content: string }>;
 }): { client: HostClient; request: ReturnType<typeof vi.fn> } {
   const request = vi.fn(async (command: HostRequestCall) => {
+    if (command.type === 'project/find-file') {
+      const findFile = options?.findFile;
+      if (!findFile || findFile.success === false) {
+        return {
+          type: 'response' as const,
+          command,
+          success: false,
+          error:
+            findFile && findFile.success === false && findFile.error
+              ? findFile.error
+              : { message: 'find-file unavailable' },
+        };
+      }
+      return {
+        type: 'response' as const,
+        command,
+        success: true,
+        data: {
+          projectPath: command.projectPath ?? '/workspace',
+          query: command.query ?? '',
+          matches: findFile.matches,
+          truncated: findFile.truncated === true,
+        },
+      };
+    }
     if (command.type === 'project/read-file') {
+      const override = command.relativePath
+        ? options?.projectReadByPath?.[command.relativePath]
+        : undefined;
+      if (override?.success === false) {
+        return {
+          type: 'response' as const,
+          command,
+          success: false,
+          error: { message: 'cannot stat file' },
+        };
+      }
+      if (override?.success === true) {
+        return {
+          type: 'response' as const,
+          command,
+          success: true,
+          data: {
+            content: override.content,
+            isBinary: false,
+            byteSize: override.content.length,
+            absolutePath: `${command.projectPath ?? '/workspace'}/${command.relativePath ?? ''}`,
+          },
+        };
+      }
       if (options?.projectRead?.success === false) {
         return {
           type: 'response' as const,
@@ -87,6 +145,20 @@ function createHostClientFake(options?: {
     }
     if (command.type === 'preview/read-local-file') {
       const absolutePath = command.input?.absolutePath ?? '';
+      if (options?.localPreviewUnavailable) {
+        return {
+          type: 'response' as const,
+          command,
+          success: true,
+          data: {
+            status: 'unavailable',
+            reason:
+              typeof options.localPreviewUnavailable === 'object'
+                ? options.localPreviewUnavailable.reason
+                : 'not-found',
+          },
+        };
+      }
       if (absolutePath.includes('missing')) {
         return {
           type: 'response' as const,
@@ -499,6 +571,8 @@ describe('useActiveDocument', () => {
 
     expect(request.mock.calls.map((call) => call[0]?.type)).toEqual([
       'project/read-file',
+      // Missed project read: resolve the real place before local ingest.
+      'project/find-file',
       'preview/read-local-file',
     ]);
     expect(latest.activeDocument?.status).toBe('ready');
@@ -553,6 +627,205 @@ describe('useActiveDocument', () => {
     if (latest.activeDocument?.status === 'ready') {
       expect(latest.activeDocument.content).toBe('# current skill\n');
       expect(latest.activeDocument.provenance).toBe('current-resource');
+    }
+  });
+
+  it('resolves a bare file name through project/find-file when the root read misses', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      projectRead: { success: false },
+      findFile: {
+        success: true,
+        matches: [{ relativePath: 'docs/design/inkstone/shots/01-endpoint-loop.png' }],
+      },
+      projectReadByPath: {
+        'docs/design/inkstone/shots/01-endpoint-loop.png': {
+          success: true,
+          content: 'png-bytes-here',
+        },
+      },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: '01-endpoint-loop.png', path: '01-endpoint-loop.png' });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'project/read-file',
+      'project/find-file',
+      'project/read-file',
+    ]);
+    expect(request.mock.calls[1]?.[0]).toMatchObject({
+      type: 'project/find-file',
+      projectPath: '/workspace',
+      query: '01-endpoint-loop.png',
+    });
+    expect(request.mock.calls[2]?.[0]).toMatchObject({
+      type: 'project/read-file',
+      relativePath: 'docs/design/inkstone/shots/01-endpoint-loop.png',
+    });
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.displayRef).toBe(
+        'docs/design/inkstone/shots/01-endpoint-loop.png',
+      );
+      expect(latest.activeDocument.content).toBe('png-bytes-here');
+    }
+  });
+
+  it('reports an ambiguous file name instead of opening one of several matches', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      projectRead: { success: false },
+      findFile: {
+        success: true,
+        matches: [{ relativePath: 'a/README.md' }, { relativePath: 'b/README.md' }],
+      },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'README.md', path: 'README.md' });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'project/read-file',
+      'project/find-file',
+    ]);
+    expect(latest.activeDocument?.status).toBe('unavailable');
+    if (latest.activeDocument?.status === 'unavailable') {
+      expect(latest.activeDocument.reason).toBe('ambiguous-file');
+    }
+  });
+
+  it('does not treat a truncated single match as the only candidate', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      projectRead: { success: false },
+      findFile: {
+        success: true,
+        matches: [{ relativePath: 'a/README.md' }],
+        truncated: true,
+      },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'README.md', path: 'README.md' });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'project/read-file',
+      'project/find-file',
+      'preview/read-local-file',
+    ]);
+    expect(latest.activeDocument?.status).toBe('ready');
+  });
+
+  it('resolves an absolute chip inside the workspace after the local ingest misses', async () => {
+    // The chip names the workspace through /tmp while the session root is the
+    // /private/tmp form (same folder) — the shape that used to end in
+    // "file not found" for a file that plainly exists.
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      localPreviewUnavailable: true,
+      projectReadByPath: { 'PATH-RETEST.md': { success: true, content: 'path-ok' } },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({
+        title: 'PATH-RETEST.md',
+        path: '/tmp/workspace/PATH-RETEST.md',
+      });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'preview/read-local-file',
+      'project/read-file',
+    ]);
+    expect(request.mock.calls[1]?.[0]).toMatchObject({
+      type: 'project/read-file',
+      projectPath: '/workspace',
+      relativePath: 'PATH-RETEST.md',
+    });
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.content).toBe('path-ok');
+    }
+  });
+
+  it('finds an absolute chip in a subfolder through project/find-file', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      localPreviewUnavailable: true,
+      projectRead: { success: false },
+      findFile: { success: true, matches: [{ relativePath: 'docs/design/shot.png' }] },
+      projectReadByPath: { 'docs/design/shot.png': { success: true, content: 'png-here' } },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({
+        title: 'shot.png',
+        path: '/tmp/workspace/shot.png',
+      });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'preview/read-local-file',
+      'project/read-file',
+      'project/find-file',
+      'project/read-file',
+    ]);
+    expect(request.mock.calls[2]?.[0]).toMatchObject({
+      type: 'project/find-file',
+      query: 'shot.png',
+    });
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.displayRef).toBe('docs/design/shot.png');
+    }
+  });
+
+  it('says the workspace folder is gone instead of blaming the file', async () => {
+    reveal = vi.fn();
+    const { client } = createHostClientFake({
+      projectRead: { success: false },
+      localPreviewUnavailable: true,
+      findFile: { success: false, error: 'project-root-missing' },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({
+        title: 'PATH-RETEST.md',
+        path: '/tmp/workspace/PATH-RETEST.md',
+      });
+    });
+
+    expect(latest.activeDocument?.status).toBe('unavailable');
+    if (latest.activeDocument?.status === 'unavailable') {
+      expect(latest.activeDocument.reason).toBe('project-root-missing');
+    }
+  });
+
+  it('reports a vanished workspace for a relative project chip too', async () => {
+    reveal = vi.fn();
+    const { client } = createHostClientFake({
+      projectRead: { success: false },
+      findFile: { success: false, error: 'project-root-missing' },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'notes.md', path: 'notes.md' });
+    });
+
+    expect(latest.activeDocument?.status).toBe('unavailable');
+    if (latest.activeDocument?.status === 'unavailable') {
+      expect(latest.activeDocument.reason).toBe('project-root-missing');
     }
   });
 });

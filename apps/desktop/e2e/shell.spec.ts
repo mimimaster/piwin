@@ -85,7 +85,10 @@ test.describe('desktop shell (vite + host mock)', () => {
 
     await page.reload();
     await waitForHostReady(page);
-    await expect(page.getByTestId('settings-open-shelf-btn')).toHaveAttribute('aria-label', 'Settings');
+    await expect(page.getByTestId('settings-open-shelf-btn')).toHaveAttribute(
+      'aria-label',
+      'Settings',
+    );
 
     await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-language-select')).toHaveValue('en');
@@ -507,6 +510,9 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await expect(page.getByTestId('remembered-permissions')).toBeVisible();
+    // Collapsed by default: the list stays hidden until the header is clicked.
+    await expect(page.getByTestId('remembered-permissions-list')).toBeHidden();
+    await page.getByTestId('remembered-permissions-toggle').click();
     await expect(page.getByTestId('remembered-permission-row')).toBeVisible();
     await page.getByTestId('remembered-permission-revoke').click();
     await expect(page.getByTestId('remembered-permissions-empty')).toBeVisible();

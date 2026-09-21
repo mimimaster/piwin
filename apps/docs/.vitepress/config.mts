@@ -2,20 +2,20 @@ import { defineConfig } from 'vitepress';
 
 export default defineConfig({
   lang: 'zh-CN',
-  title: 'Piwin Docs',
+  title: 'Piwin · 砚',
   description: '私有化 AI 智能体工作台与生产力生态',
   cleanUrls: true,
   lastUpdated: true,
 
   head: [
-    ['link', { rel: 'icon', type: 'image/png', href: '/logo.png' }],
+    ['link', { rel: 'icon', type: 'image/png', href: '/favicon.png' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
     ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+SC:wght@500;600;700&display=swap' }],
     ['meta', { name: 'theme-color', content: '#c6412a' }],
     ['meta', { name: 'og:type', content: 'website' }],
-    ['meta', { name: 'og:title', content: 'Piwin Docs · 砚 - 私有化 AI 智能体工作台指引' }],
-    ['meta', { name: 'og:description', content: '遵循 Inkstone（砚）文人美学的私有化 AI 智能体工作台配置指南' }],
+    ['meta', { name: 'og:title', content: 'Piwin Docs · 砚 - 私有化 AI 智能体工作台' }],
+    ['meta', { name: 'og:description', content: '构筑于 Pi 内核之上，具备清晰分层、独立 Host 权威、多端解耦契约以及模块化扩展生态' }],
   ],
 
   themeConfig: {
@@ -24,77 +24,61 @@ export default defineConfig({
 
     nav: [
       { text: '首页', link: '/' },
-      { text: 'Docs', link: '/docs/vision-models' },
+      { text: '快速起步', link: '/docs/getting-started' },
+      { text: '架构与愿景', link: '/docs/about' },
+      { text: '模型配置', link: '/docs/model-config' },
+      { text: '智能体能力', link: '/docs/code-search' },
+      { text: '多端部署', link: '/docs/deployment' },
+      {
+        text: '生态与源码',
+        items: [
+          { text: 'GitHub 仓库', link: 'https://github.com/mimimaster/piwin' },
+          { text: '社区自荐帖子', link: '/docs/community-post' },
+          { text: '提示词设计体系', link: '/docs/prompt-system' },
+        ],
+      },
     ],
 
-    // 左侧多层级侧边栏配置
     sidebar: {
       '/docs/': [
         {
-          text: '🚀 起步入门',
+          text: '快速起步与入门',
           collapsed: false,
           items: [
-            { text: '快速起步概览', link: '/docs/getting-started' },
+            { text: '快速起步概览与 BYOK', link: '/docs/getting-started' },
+            { text: '架构起源与设计原则', link: '/docs/about' },
+            { text: '开源自荐与生态故事', link: '/docs/community-post' },
+            { text: '多端部署与私有化运行', link: '/docs/deployment' },
           ],
         },
         {
-          text: '🧠 模型与推理配置',
+          text: '模型与多模态配置',
           collapsed: false,
           items: [
-            // 一级父文档 / 目录
-            {
-              text: '视觉模型 (Vision Models)',
-              collapsed: false,
-              items: [
-                { text: '视觉模型与委托完整指引', link: '/docs/vision-models' },
-                { text: '视觉委托原理与配置', link: '/docs/vision-models#vision-delegation' },
-                { text: '免费模型渠道指路 (Google/硅基等)', link: '/docs/vision-models#free-models' },
-                { text: '客户端配置与测试', link: '/docs/vision-models#step-by-step' },
-              ],
-            },
-            {
-              text: '主力推理模型',
-              collapsed: true,
-              items: [
-                { text: 'Claude / DeepSeek / GPT 配置', link: '/docs/getting-started' },
-              ],
-            },
+            { text: '模型与委托体系总览', link: '/docs/model-config' },
+            { text: '视觉模型与免费渠道', link: '/docs/vision-models' },
+            { text: 'OAuth 登录与账号管理', link: '/docs/oauth-login' },
+            { text: '实时语音与 Live 协作', link: '/docs/realtime-voice' },
+            { text: 'Devin Key 专属获取指引', link: '/docs/token-acquisition' },
           ],
         },
         {
-          text: '🌐 网络与生态',
+          text: '智能体执行与工程能力',
           collapsed: false,
           items: [
-            {
-              text: 'Web 搜索指路',
-              collapsed: false,
-              items: [
-                { text: 'Web 搜索与社群资源汇总', link: '/docs/web-community' },
-                { text: 'Tavily 免费 1000 次 API Key', link: '/docs/web-community#web-search' },
-                { text: 'SearXNG 私有化自建', link: '/docs/web-community#web-search' },
-              ],
-            },
-            {
-              text: '社群与插件生态',
-              collapsed: true,
-              items: [
-                { text: 'MCP 插件与提示词资源', link: '/docs/web-community#community-resources' },
-              ],
-            },
-          ],
-        },
-        {
-          text: '🧩 智能体架构与提示词系统',
-          collapsed: false,
-          items: [
+            { text: 'Code Search 智能代码搜索', link: '/docs/code-search' },
+            { text: '子代理编排 (Ultra Code & Fusion)', link: '/docs/subagent-orchestration' },
+            { text: 'Web 搜索与网络检索', link: '/docs/web-search' },
+            { text: 'Pi 扩展生态与热加载', link: '/docs/extensions' },
             { text: '提示词工程与上下文设计体系', link: '/docs/prompt-system' },
           ],
         },
         {
-          text: '📝 文档创作与层级管理',
+          text: '社群与文档指南',
           collapsed: false,
           items: [
-            { text: '如何添加父子多层级 Markdown', link: '/docs/how-to-write-docs' },
+            { text: 'Web 社群与精选资源', link: '/docs/web-community' },
+            { text: '文档编写与层级管理', link: '/docs/how-to-write-docs' },
           ],
         },
       ],
@@ -141,7 +125,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2024-present Piwin. All rights reserved.',
+      copyright: 'Copyright © 2024-present Piwin (Planora). All rights reserved.',
     },
 
     darkModeSwitchLabel: '面（纸 / 墨）',

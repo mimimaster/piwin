@@ -51,11 +51,11 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
   .markdown .md-inline-code {
     display: inline;
-    border: 0;
-    background: var(--code);
-    padding: 1px 5px;
+    border: 1px solid var(--l1);
+    background: color-mix(in srgb, var(--t1) 8%, transparent);
+    padding: 1.5px 5px;
     font-size: 0.86em;
-    border-radius: 3px;
+    border-radius: 4px;
   }
   .markdown .md-code-block {
     background: var(--code);

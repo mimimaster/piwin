@@ -272,7 +272,8 @@ export const ChatMessageRow = memo(
               // only falls through for null/undefined, so a global streaming
               // clear used to drop livePromptModel and hide the provider avatar.
               isStreaming={props.streaming === true && message.status === 'streaming'}
-              artifactPreviewEnabled={props.artifactPreviewEnabled}
+              artifactInlineEnabled={props.artifactInlineEnabled}
+              artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
               {...pickArtifactFenceSecurity(props)}
               {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
               {...(props.onOpenArtifactCanvas
@@ -341,7 +342,8 @@ export const ChatMessageRow = memo(
                   artifactThemeKey={`${props.activeTheme?.id ?? 'none'}:${props.artifactThemeKey}`}
                   showStreamingCaret={props.showStreamingCaret}
                   locale={props.locale ?? 'zh-CN'}
-                  artifactPreviewEnabled={props.artifactPreviewEnabled}
+                  artifactInlineEnabled={props.artifactInlineEnabled}
+                  artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
                   artifactCodeFirst={props.artifactCodeFirst ?? false}
                   {...pickArtifactFenceSecurity(props)}
                   {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}

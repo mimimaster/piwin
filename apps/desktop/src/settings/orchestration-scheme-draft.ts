@@ -162,7 +162,8 @@ export function cleanSchemeDraft(draft: OrchestrationSchemeSettings): Orchestrat
 
 export function modelSelectValue(model: ModelRef | undefined): string {
   if (!model) return '';
-  return JSON.stringify(model);
+  // Host may drop protocol/source on roundtrip; identity is provider+model.
+  return `${model.providerId}::${model.modelId}`;
 }
 
 /** Label for a member's pinned model, or undefined when it inherits. */

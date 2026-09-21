@@ -448,6 +448,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               readOnly={
                 activeDocument?.status === 'ready' ? activeDocument.readOnly : undefined
               }
+              {...(projectPath ? { projectPath } : {})}
               unavailableReason={
                 activeDocument?.status === 'unavailable' ? activeDocument.reason : undefined
               }

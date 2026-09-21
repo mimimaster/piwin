@@ -31,9 +31,60 @@ export type ArtifactSurface = 'inline' | 'canvas';
 /**
  * Product-level artifact configuration stored under `~/.piwin/config.json`.
  */
+/**
+ * Session scope key for the per-scope Artifact switches. Mirrors
+ * `SessionScope.kind` so Host compilation and Desktop rendering classify a
+ * session exactly the same way:
+ *
+ * - `general` — Conversation chat (素笺 / No Repo), a general-scope session.
+ * - `project` — Agent chat, a session inside a project folder.
+ */
+export type ArtifactScopeKey = 'general' | 'project';
+
+/** Per-surface switches inside one scope. */
+export type ArtifactSurfaceSwitches = {
+  /** Inline Artifacts rendered in the chat column. */
+  inline: boolean;
+  /** Right-side Canvas Artifacts. */
+  canvas: boolean;
+};
+
+/** Per-scope surface switches. A missing entry keeps every surface on. */
+export type ArtifactScopesConfig = Record<ArtifactScopeKey, ArtifactSurfaceSwitches>;
+
+/**
+ * Effective Artifact capability for one session/generation: the master switch
+ * intersected with the session's scope switches. `enabled` is false when the
+ * master switch is off or when the scope has no surface left.
+ */
+export type ResolvedArtifactCapability = {
+  enabled: boolean;
+  inline: boolean;
+  canvas: boolean;
+};
+
+/** No Artifact surface at all. */
+export const DISABLED_ARTIFACT_CAPABILITY: ResolvedArtifactCapability = {
+  enabled: false,
+  inline: false,
+  canvas: false,
+};
+
+/** Every surface on — the shipped default and the isolated-caller fallback. */
+export const FULL_ARTIFACT_CAPABILITY: ResolvedArtifactCapability = {
+  enabled: true,
+  inline: true,
+  canvas: true,
+};
+
 export type ArtifactConfig = {
   /** Master switch. When false, no artifact prompt is injected and the heavy path is disabled. */
   enabled: boolean;
+  /**
+   * Per-scope surface switches below the master switch. Optional so older
+   * `config.json` files keep working: a missing scope or surface means "on".
+   */
+  scopes?: ArtifactScopesConfig;
   /** Proactive vs. explicit-only artifact generation. */
   triggerMode: ArtifactTriggerMode;
   /** Decision prompt configuration (trigger + surface routing). */
@@ -82,9 +133,85 @@ export const ARTIFACT_INSTRUCTIONS_TOOL_NAME = 'artifact_instructions' as const;
 export const ARTIFACT_EXPLICIT_ONLY_HINT =
   'Use an Artifact only when the user explicitly requests an artifact, visualization, interactive page, prototype, or UI.';
 
+/**
+ * Surface constraint prefixed onto instructions when the session's scope keeps
+ * only the Inline surface. Like {@link ARTIFACT_EXPLICIT_ONLY_HINT} this is a
+ * product constraint, not part of the editable decision prompt.
+ */
+export const ARTIFACT_INLINE_ONLY_HINT =
+  'Artifact surfaces are restricted right now: Inline only. Never declare `surface="canvas"` and ignore the Canvas rules in the decision policy above — the right-side Canvas panel is unavailable for this session. Use an Inline `artifact-html`/`svg` fence when a visualization helps, otherwise answer in Markdown.';
+
+/**
+ * Surface constraint prefixed onto instructions when the session's scope keeps
+ * only the Canvas surface.
+ */
+export const ARTIFACT_CANVAS_ONLY_HINT =
+  'Artifact surfaces are restricted right now: Canvas only. Never emit an Inline artifact fence — the chat-column Artifact preview is unavailable for this session. Standalone deliverables use `surface="canvas"`; anything that does not need the right-side workspace stays ordinary Markdown.';
+
+/**
+ * Shipped per-scope surface switches.
+ *
+ * Conversation chat renders Artifacts by default. Agent chat (a project folder
+ * session) ships with **both surfaces off**: the coding agent answers in
+ * Markdown/source unless the user opts a surface back in.
+ */
+export function createDefaultArtifactScopes(): ArtifactScopesConfig {
+  return {
+    general: { inline: true, canvas: true },
+    project: { inline: false, canvas: false },
+  };
+}
+
+/**
+ * Resolve the master switch and the per-scope switches into the capability a
+ * generation or a transcript render actually gets.
+ *
+ * `undefined` config means "Host config not loaded yet" and keeps the shipped
+ * default scopes, which is also what isolated callers rely on.
+ *
+ * A missing scope or surface follows {@link createDefaultArtifactScopes} rather
+ * than "on", so a config written before `scopes` existed adopts the shipped
+ * default and an explicit `true` is what opts a surface back in.
+ */
+export function resolveArtifactCapability(
+  config: ArtifactConfig | undefined,
+  scopeKey: ArtifactScopeKey,
+): ResolvedArtifactCapability {
+  const artifact = config ?? createDefaultArtifactConfig();
+  if (!artifact.enabled) {
+    return { ...DISABLED_ARTIFACT_CAPABILITY };
+  }
+  const scopeDefaults = createDefaultArtifactScopes()[scopeKey];
+  const scope = artifact.scopes?.[scopeKey];
+  const inline = scope?.inline ?? scopeDefaults.inline;
+  const canvas = scope?.canvas ?? scopeDefaults.canvas;
+  if (!inline && !canvas) {
+    return { ...DISABLED_ARTIFACT_CAPABILITY };
+  }
+  return { enabled: true, inline, canvas };
+}
+
+/**
+ * Constraint line describing a surface-restricted capability. Undefined when
+ * both surfaces are available (nothing to override) or when nothing is
+ * enabled (the instructions must not be injected at all).
+ */
+export function resolveArtifactSurfaceHint(
+  capability: ResolvedArtifactCapability,
+): string | undefined {
+  if (!capability.enabled) {
+    return undefined;
+  }
+  if (capability.inline && capability.canvas) {
+    return undefined;
+  }
+  return capability.inline ? ARTIFACT_INLINE_ONLY_HINT : ARTIFACT_CANVAS_ONLY_HINT;
+}
+
 export function createDefaultArtifactConfig(): ArtifactConfig {
   return {
     enabled: true,
+    scopes: createDefaultArtifactScopes(),
     triggerMode: 'automatic',
     decisionPrompt: {
       mode: 'default',
@@ -198,6 +325,7 @@ export function formatArtifactProtocol(): string {
     '',
     '### Constraints (break without these)',
     '- Colors: for proactive artifacts (including reports, reviews, and voice-delegated tasks), use only `--piwin-artifact-*` theme vars (`surface`, `text`, `muted`, `accent`, `border`, `bg`) to adapt to host theme. These six are the whole set: never invent other names (e.g. `surface-elevated`), never write `var(--piwin-artifact-x, <fallback>)` with your own palette, and never hard-code hex/rgb colors for text, backgrounds, or borders (no `color: #fff`, no dark slate cards). For states, tint with `color-mix(in srgb, var(--piwin-artifact-accent) 12%, transparent)`. Only when the user explicitly asks for a custom look (e.g. custom SVG, a styled HTML page, or an explicit UI design) may you style freely with custom colors.',
+    '- Inline code & tokens: inline `<code>` and technical identifiers must use a neutral translucent background `color-mix(in srgb, var(--piwin-artifact-text) 8%, transparent)` with text `var(--piwin-artifact-text)`. Never use reddish, maroon, or brownish backgrounds for code tokens (red is strictly reserved for errors/diff deletions). Badges use muted neutral for inactive/hidden, accent for ready/visible, amber for estimate/progress.',
     '- Host theme: a client may supply the send-time host theme (`light` or `dark`) as advisory context. Match it. On a light host never produce a dark-mode design (dark page, dark stage, dark slate cards, light-on-dark text); on a dark host never produce a glaring white page. This also applies when the user asks for a custom look: pick a palette that sits naturally on the host background unless the user explicitly asks for the opposite mode. Without a hint, stay on the theme vars so either mode works.',
     '- Proactive visual tone is flat and quiet: no gradients, glows, glassmorphism, or decorative emoji in headings or labels. Hierarchy comes from type size/weight, spacing, borders, and grouping.',
     '- Outermost wrapper background: transparent on Inline and Canvas; surface colors on inner cards only. Never paint html/body/the outer stage as a dark full-bleed page — that becomes a black Canvas on a paper host. Dark `pre`/`code` islands may keep their own contrast pair.',
@@ -227,11 +355,24 @@ export const ARTIFACT_RUNTIME_CONTRACT = formatArtifactProtocol();
  * the shared runtime protocol. `artifact_instructions` and any default
  * prompt path must call this instead of concatenating surface rules.
  * Explicit-only is a product constraint, not part of the editable decision
- * prompt, so it is prefixed whenever `triggerMode === 'explicit-only'`.
+ * prompt, so it is prefixed whenever `triggerMode === 'explicit-only'`. The
+ * same pattern carries a surface restriction (`capability`): the shared
+ * decision policy and runtime protocol stay byte-identical, and the prefix
+ * states which surfaces this session actually has.
+ *
+ * Returns an empty string when the capability is disabled — callers must not
+ * inject instructions for a session with no Artifact surface.
  */
-export function formatArtifactInstructions(config: ArtifactConfig): string {
+export function formatArtifactInstructions(
+  config: ArtifactConfig,
+  capability: ResolvedArtifactCapability = FULL_ARTIFACT_CAPABILITY,
+): string {
+  if (!capability.enabled) {
+    return '';
+  }
   const parts = [
     config.triggerMode === 'explicit-only' ? ARTIFACT_EXPLICIT_ONLY_HINT : undefined,
+    resolveArtifactSurfaceHint(capability),
     resolveArtifactDecisionPrompt(config),
     formatArtifactProtocol(),
   ].filter((part): part is string => part !== undefined && part.length > 0);

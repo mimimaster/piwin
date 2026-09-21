@@ -11,6 +11,7 @@ import { archivedSessionsFromListData } from './archive-session-list';
 import {
   IconArchive,
   IconChat,
+  IconClose,
   IconFolder,
   IconRefresh,
   IconSearch,
@@ -504,10 +505,23 @@ export function ArchivePage(): ReactElement {
             <TextInput
               testId="archive-search-input"
               className="archive-search-input"
+              toolbar
               placeholder={isZh ? '搜索会话名称、预览内容…' : 'Search name, preview…'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.currentTarget.value)}
               leftSection={<IconSearch width={14} height={14} />}
+              rightSection={
+                searchQuery ? (
+                  <button
+                    type="button"
+                    className="archive-search-clear"
+                    onClick={() => setSearchQuery('')}
+                    aria-label={isZh ? '清除搜索' : 'Clear search'}
+                  >
+                    <IconClose width={12} height={12} />
+                  </button>
+                ) : undefined
+              }
             />
 
             {scopeOptions.length > 2 ? (
@@ -550,6 +564,7 @@ export function ArchivePage(): ReactElement {
             {sessions.length > 0 ? (
               <Button
                 variant="ghost"
+                size="compact"
                 data-testid="archive-empty-all-button"
                 onClick={() => void handleEmptyAll()}
                 disabled={loading || refreshing || isBusy}
@@ -591,6 +606,7 @@ export function ArchivePage(): ReactElement {
                 <Button
                   data-testid="archive-batch-restore-button"
                   variant="primary"
+                  size="compact"
                   onClick={() => void handleBatchRestore()}
                   disabled={isBusy}
                 >
@@ -600,6 +616,7 @@ export function ArchivePage(): ReactElement {
                 <Button
                   data-testid="archive-batch-delete-button"
                   variant="ghost"
+                  size="compact"
                   onClick={() => void handleBatchDelete()}
                   disabled={isBusy}
                   style={{ color: 'var(--danger, #e05252)' }}
@@ -710,6 +727,7 @@ export function ArchivePage(): ReactElement {
                   <div className="archive-item-actions">
                     <Button
                       variant="ghost"
+                      size="compact"
                       data-testid={`archive-restore-btn-${session.id}`}
                       disabled={isCurrentBusy}
                       onClick={() => void handleRestore(session)}

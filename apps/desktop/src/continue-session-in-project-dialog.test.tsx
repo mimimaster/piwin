@@ -43,6 +43,7 @@ describe('ContinueSessionInProjectDialog', () => {
     sessionName?: string | null;
     busy?: boolean;
     trustedProjects?: readonly ProjectRecord[];
+    noRepoProjectPath?: string | null;
     onSelectTarget?: (scope: unknown) => void;
     onCancel?: () => void;
   }): void {
@@ -53,6 +54,11 @@ describe('ContinueSessionInProjectDialog', () => {
             sessionName={props.sessionName === undefined ? 'Notes' : props.sessionName}
             busy={props.busy ?? false}
             trustedProjects={props.trustedProjects ?? []}
+            noRepoProjectPath={
+              props.noRepoProjectPath === undefined
+                ? '/Users/me/.piwin/workspace'
+                : props.noRepoProjectPath
+            }
             locale="en"
             onOpenChange={vi.fn()}
             onSelectTarget={props.onSelectTarget ?? vi.fn()}
@@ -75,7 +81,7 @@ describe('ContinueSessionInProjectDialog', () => {
         .querySelector<HTMLButtonElement>('[data-testid="continue-session-no-repo-option"]')
         ?.click();
     });
-    expect(onSelectTarget).toHaveBeenCalledWith({ kind: 'general' });
+    expect(onSelectTarget).toHaveBeenCalledWith({ kind: 'project', projectPath: '/Users/me/.piwin/workspace' });
 
     act(() => {
       document
@@ -99,7 +105,7 @@ describe('ContinueSessionInProjectDialog', () => {
     expect(noRepo?.disabled).toBe(false);
 
     act(() => noRepo?.click());
-    expect(onSelectTarget).toHaveBeenCalledWith({ kind: 'general' });
+    expect(onSelectTarget).toHaveBeenCalledWith({ kind: 'project', projectPath: '/Users/me/.piwin/workspace' });
   });
 
   it('disables every destination while the copy is in flight', () => {

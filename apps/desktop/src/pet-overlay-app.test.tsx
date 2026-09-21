@@ -214,6 +214,7 @@ describe('PetOverlayApp', () => {
       configurable: true,
       value: { invoke: invokeMock },
     });
+    localStorage.setItem('piwin.desktop.petOverlayVisible', 'true');
     invokeMock.mockResolvedValue(undefined);
 
     act(() => {

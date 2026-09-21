@@ -14,6 +14,7 @@ import {
   getPiwinRoot,
   getPiwinSessionIndexPath,
 } from './paths.js';
+import { isGeneralWorkspacePath } from './general-workspace.js';
 import { descriptorsFromTools } from './tools/build-session-host-tools.js';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
 import type {
@@ -159,6 +160,9 @@ export async function prepareSubagentTask(
       ? {
           trustResolver: async (projectPath: string) => {
             try {
+              if (isGeneralWorkspacePath(projectPath, deps.options.piwinRoot)) {
+                return true;
+              }
               const rootDir = getPiwinRoot(deps.options.piwinRoot);
               const projects = await listProjects(getPiwinProjectsPath(rootDir));
               const record = projects.find((p) => p.path === projectPath);

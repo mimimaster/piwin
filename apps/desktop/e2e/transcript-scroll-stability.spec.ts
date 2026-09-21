@@ -57,10 +57,15 @@ async function expectStableFrames(page: Page, expected: { top: number; height: n
         top: number;
         height: number;
         gap: number;
+        visible: boolean;
       }>;
+      // First-open measurement is intentionally covered by the loading state.
+      // Every exposed frame must be stable; hidden preparation may reflow.
+      const shown = frames.filter((frame) => frame.visible);
       return (
         frames.length === 30 &&
-        frames.every(
+        shown.length > 0 &&
+        shown.every(
           (frame) =>
             frame.top === expected.top && frame.height === expected.height && frame.gap <= 1,
         )
@@ -69,6 +74,32 @@ async function expectStableFrames(page: Page, expected: { top: number; height: n
     .toBe(true);
 }
 
+test('keeps visible history mounted before a fast upward scroll can paint', async ({ page }) => {
+  await page.goto('/#/e2e/transcript-scroll');
+  await page.getByRole('button', { name: 'Open long history', exact: true }).click();
+  await page.getByRole('button', { name: 'Load transcript', exact: true }).click();
+  await expect(page.getByTestId('transcript-opening-state')).toBeHidden();
+  await expect.poll(async () => (await readGeometry(page)).gap).toBeLessThanOrEqual(1);
+
+  const coverage = await page.getByRole('log').evaluate(async (element) => {
+    // Detach follow-tail before crossing the overscan buffer in one gesture.
+    element.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
+    const samples: boolean[] = [];
+    for (const fraction of [0.7, 0.4, 0.1, 0]) {
+      element.scrollTop = (element.scrollHeight - element.clientHeight) * fraction;
+      element.dispatchEvent(new Event('scroll'));
+      const viewport = element.getBoundingClientRect();
+      samples.push(Array.from(element.querySelectorAll('.transcript-turn-window-item-body')).some((body) => {
+        const bounds = body.getBoundingClientRect();
+        return bounds.bottom > viewport.top && bounds.top < viewport.bottom;
+      }));
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    return samples;
+  });
+  expect(coverage).toEqual([true, true, true, true]);
+});
+
 for (const scenario of ['Open two heavy turns', 'Open long history']) {
   test(`${scenario}: opens at the tail and preserves geometry on status hydration`, async ({
     page,
@@ -76,6 +107,7 @@ for (const scenario of ['Open two heavy turns', 'Open long history']) {
     await page.goto('/#/e2e/transcript-scroll');
     await page.getByRole('button', { name: scenario, exact: true }).click();
     await page.getByRole('button', { name: 'Load transcript', exact: true }).click();
+    await expect(page.getByTestId('transcript-opening-state')).toBeHidden();
     await expect.poll(async () => (await readGeometry(page)).height).toBeGreaterThan(6_000);
     await expect.poll(async () => (await readGeometry(page)).gap).toBeLessThanOrEqual(1);
     const initial = await readGeometry(page);
@@ -91,6 +123,7 @@ for (const scenario of ['Open two heavy turns', 'Open long history']) {
 
     // Warm opens mount the scroll root and populated list in the same commit.
     await page.getByRole('button', { name: 'Reopen transcript', exact: true }).click();
+    await expect(page.getByTestId('transcript-opening-state')).toBeHidden();
     await expect.poll(async () => (await readGeometry(page)).height).toBeGreaterThan(6_000);
     const reopened = await readGeometry(page);
     await expectStableFrames(page, reopened);

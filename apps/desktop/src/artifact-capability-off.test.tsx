@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 /**
  * Capability-off lock through the real ChatThread / Subagent chain.
- * `artifactPreviewEnabled={false}` is forwarded as a boolean (never a truthy
+ * `artifactInlineEnabled={false}` is forwarded as a boolean (never a truthy
  * spread). Target: source-only, never iframe / static / canvas launcher.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -210,7 +210,7 @@ function workbenchChatThread(messages: ChatMessageUi[], conversation: boolean): 
       onInspectSubagent={undefined}
       composerCard={composerCard}
       locale="en"
-      artifactPreviewEnabled={false}
+      artifactInlineEnabled={false}
       onOpenArtifactCanvas={noop}
       {...(conversation ? { isConversationSession: true } : {})}
     />
@@ -251,7 +251,7 @@ describe('artifact capability off (workbench / subagent / history)', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
-  it('正文 agent: artifactPreviewEnabled={false} stays source-only', async () => {
+  it('正文 agent: artifactInlineEnabled={false} stays source-only', async () => {
     const container = renderTree(
       workbenchChatThread(
         [userMessage('u-agent', 'show ui'), assistantMessage('a-agent', SCRIPT_MARKDOWN)],
@@ -262,7 +262,7 @@ describe('artifact capability off (workbench / subagent / history)', () => {
     expectSourceOnly(container);
   });
 
-  it('正文 conversation: artifactPreviewEnabled={false} stays source-only', async () => {
+  it('正文 conversation: artifactInlineEnabled={false} stays source-only', async () => {
     const container = renderTree(
       workbenchChatThread(
         [userMessage('u-body', 'show ui'), assistantMessage('a-body', SCRIPT_MARKDOWN)],
@@ -327,7 +327,7 @@ describe('artifact capability off (workbench / subagent / history)', () => {
         onRetry={noop}
         locale="en"
         childSessionId="child-session-1"
-        artifactPreviewEnabled={false}
+        artifactInlineEnabled={false}
         onOpenArtifactCanvas={noop}
       />,
     );

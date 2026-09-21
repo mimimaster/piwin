@@ -93,6 +93,3 @@ export function bumpSessionListScopeMutationEpoch(
   });
 }
 
-export function hiddenSessionCount(totalCount: number, residentCount: number): number {
-  return Math.max(0, totalCount - residentCount);
-}

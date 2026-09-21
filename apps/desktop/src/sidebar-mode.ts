@@ -39,6 +39,8 @@ export function saveSidebarMode(mode: SidebarMode, storage?: Pick<Storage, 'setI
 
 /** The mode a session row belongs to, by its scope. */
 function rowMode(row: Extract<SidebarTreeRow, { kind: 'session' }>): SidebarMode {
+  // Pinned only. Section membership already splits the two lists:
+  // No Repo children sit in projects (code); Conversations stay in chat.
   return row.scope.kind === 'project' ? 'code' : 'chat';
 }
 

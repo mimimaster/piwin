@@ -11,7 +11,11 @@ import type {
   SettingsMutation,
   SettingsSnapshot,
 } from '@piwin/contracts';
-import { isRedactedStoredSecret, PIWIN_SETTINGS_SCHEMA_VERSION } from '@piwin/contracts';
+import {
+  isRedactedStoredSecret,
+  PIWIN_SETTINGS_SCHEMA_VERSION,
+  resolveArtifactCapability,
+} from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from '../paths.js';
 import {
   createDefaultPiwinConfig,
@@ -343,11 +347,18 @@ export function classifySettingsImpact(
     'execution',
   ]);
   const hostRestartDomains = new Set<SettingsDomain>(['hostMode', 'agentMock']);
+  // Artifact prompt text and the `artifact_instructions` tool result are baked
+  // into a runtime generation, so losing a surface is only real once the
+  // session is recompiled. Widening stays immediate (Desktop can render more
+  // right away; the generation it drains still had the same surfaces).
+  const artifactNarrowed = domain === 'artifact' && artifactCapabilityNarrowed(previous, next);
   const timing = hostRestartDomains.has(domain)
     ? 'host-restart'
-    : immediateDomains.has(domain)
-      ? 'immediate'
-      : 'new-runtime';
+    : artifactNarrowed
+      ? 'new-runtime'
+      : immediateDomains.has(domain)
+        ? 'immediate'
+        : 'new-runtime';
   const immediateRestrictions = findImmediateRestrictions(domain, previous, next);
   return {
     domain,
@@ -356,6 +367,19 @@ export function classifySettingsImpact(
     immediateRestrictions,
     securityTightenedImmediately: immediateRestrictions.length > 0,
   };
+}
+
+/** True when the next config offers fewer Artifact surfaces than the previous one. */
+function artifactCapabilityNarrowed(previous: PiwinConfig, next: PiwinConfig): boolean {
+  return (['general', 'project'] as const).some((scopeKey) => {
+    const before = resolveArtifactCapability(previous.artifact, scopeKey);
+    const after = resolveArtifactCapability(next.artifact, scopeKey);
+    return (
+      (before.enabled && !after.enabled) ||
+      (before.inline && !after.inline) ||
+      (before.canvas && !after.canvas)
+    );
+  });
 }
 
 function findImmediateRestrictions(

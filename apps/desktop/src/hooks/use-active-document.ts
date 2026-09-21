@@ -19,17 +19,15 @@ import {
   createDocumentRequestId,
   type ActiveDocument,
 } from '../active-document';
-import {
-  activeDocumentFromProjectRead,
-  type ProjectReadPreviewInput,
-} from '../preview-unavailable';
+import { activeDocumentFromProjectRead } from '../preview-unavailable';
 import {
   requestedMarkupKind,
   resolveDocumentContentFromMessages,
   type DocumentContentMessage,
 } from '../resolve-document-content';
 import { readMediaObjectUrlViaHost } from '../media-host-read';
-import { completeProjectImagePreview, predecodeImage } from '../project-image-preview-read.js';
+import { readProjectPreviewWithFallback } from './project-preview-open.js';
+import { projectRelativeAliasForPath } from '../resolve-project-file.js';
 
 export type UseActiveDocumentInput = {
   hostClient: HostClient;
@@ -392,11 +390,11 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
             return;
           }
           if (projectPath) {
-            const readData = await readProjectPreviewData(
+            const preview = await readProjectPreviewWithFallback({
               hostClient,
               projectPath,
               relativePath,
-              (placeholder) => {
+              onPlaceholder: (placeholder) => {
                 const next = activeDocumentFromProjectRead({
                   data: placeholder,
                   requestId,
@@ -405,18 +403,37 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
                 });
                 if (next) applyDocument(next);
               },
-            );
-            if (readData) {
+            });
+            if (preview.kind === 'read') {
               const next = activeDocumentFromProjectRead({
-                data: readData,
+                data: preview.data,
                 requestId,
                 title: cleanTitle,
-                displayRef: displayRef || relativePath,
+                displayRef: preview.resolvedRelativePath ?? (displayRef || relativePath),
               });
               if (next) {
                 applyDocument(next);
                 return;
               }
+            } else if (preview.kind === 'ambiguous') {
+              applyDocument({
+                status: 'unavailable',
+                requestId,
+                title: cleanTitle,
+                displayRef: displayRef || relativePath,
+                reason: 'ambiguous-file',
+              });
+              return;
+            }
+            else if (preview.kind === 'missing-root') {
+              applyDocument({
+                status: 'unavailable',
+                requestId,
+                title: cleanTitle,
+                displayRef: displayRef || relativePath,
+                reason: 'project-root-missing',
+              });
+              return;
             }
             const previewPath = localPreviewPathForPlan(
               planDocumentOpenPath({ path: relativePath, projectPath }),
@@ -517,15 +534,77 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
           title: cleanTitle,
           displayRef: cleanPath,
         });
-        void loadLocalFilePreviewDocument({
-          hostClient,
-          sessionId: activeSessionId,
-          absolutePath: openPlan.absolutePath,
-          title: cleanTitle,
-          displayRef: cleanPath,
-          requestId,
-          applyDocument,
-        });
+        void (async () => {
+          // The absolute path may still name a file *inside* the workspace:
+          // messages write `/tmp/proj/a.md` while the session root is the
+          // realpath form, and `preview/read-local-file` is local-Host-only
+          // (a remote client can never use it). Track the outcome so a failed
+          // ingest can still be answered by the project search.
+          const outcome: { status: ActiveDocument['status'] | null } = { status: null };
+          const recordOutcome = (next: ActiveDocument): void => {
+            outcome.status = next.status;
+            applyDocument(next);
+          };
+          await loadLocalFilePreviewDocument({
+            hostClient,
+            sessionId: activeSessionId,
+            absolutePath: openPlan.absolutePath,
+            title: cleanTitle,
+            displayRef: cleanPath,
+            requestId,
+            applyDocument: recordOutcome,
+          });
+          // Retry only when the chip names *this* workspace through another
+          // form (`/tmp/proj/a.md` for a root of `/private/tmp/proj`, or a
+          // symlinked checkout). An unrelated absolute path keeps its answer.
+          const aliasRelative = projectRelativeAliasForPath(openPlan.absolutePath, projectPath);
+          if (outcome.status === 'ready' || !projectPath || !aliasRelative) {
+            return;
+          }
+          const byName = await readProjectPreviewWithFallback({
+            hostClient,
+            projectPath,
+            relativePath: aliasRelative,
+            onPlaceholder: (placeholder) => {
+              const next = activeDocumentFromProjectRead({
+                data: placeholder,
+                requestId,
+                title: cleanTitle,
+                displayRef: cleanPath,
+              });
+              if (next) recordOutcome(next);
+            },
+          });
+          if (byName.kind === 'read') {
+            const next = activeDocumentFromProjectRead({
+              data: byName.data,
+              requestId,
+              title: cleanTitle,
+              displayRef: byName.resolvedRelativePath ?? aliasRelative,
+            });
+            if (next) applyDocument(next);
+            return;
+          }
+          if (byName.kind === 'ambiguous') {
+            applyDocument({
+              status: 'unavailable',
+              requestId,
+              title: cleanTitle,
+              displayRef: cleanPath,
+              reason: 'ambiguous-file',
+            });
+            return;
+          }
+          if (byName.kind === 'missing-root') {
+            applyDocument({
+              status: 'unavailable',
+              requestId,
+              title: cleanTitle,
+              displayRef: cleanPath,
+              reason: 'project-root-missing',
+            });
+          }
+        })();
         return;
       }
 
@@ -569,11 +648,11 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
             });
             return;
           }
-          const readData = await readProjectPreviewData(
+          const preview = await readProjectPreviewWithFallback({
             hostClient,
-            openPlan.projectPath,
-            openPlan.relativePath,
-            (placeholder) => {
+            projectPath: openPlan.projectPath,
+            relativePath: openPlan.relativePath,
+            onPlaceholder: (placeholder) => {
               const next = activeDocumentFromProjectRead({
                 data: placeholder,
                 requestId,
@@ -582,18 +661,36 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
               });
               if (next) applyDocument(next);
             },
-          );
-          if (readData) {
+          });
+          if (preview.kind === 'read') {
             const next = activeDocumentFromProjectRead({
-              data: readData,
+              data: preview.data,
               requestId,
               title: cleanTitle,
-              displayRef: cleanPath,
+              displayRef: preview.resolvedRelativePath ?? cleanPath,
             });
             if (next) {
               applyDocument(next);
               return;
             }
+          } else if (preview.kind === 'missing-root') {
+            applyDocument({
+              status: 'unavailable',
+              requestId,
+              title: cleanTitle,
+              displayRef: cleanPath,
+              reason: 'project-root-missing',
+            });
+            return;
+          } else if (preview.kind === 'ambiguous') {
+            applyDocument({
+              status: 'unavailable',
+              requestId,
+              title: cleanTitle,
+              displayRef: cleanPath,
+              reason: 'ambiguous-file',
+            });
+            return;
           }
           const previewPath = localPreviewPathForPlan(openPlan);
           if (previewPath && activeSessionId) {
@@ -863,47 +960,6 @@ async function loadTrustedConfigDocument(input: {
     reason: 'not-found',
     suggestion: '该受信配置文件无法读取，或已不存在。',
   });
-}
-
-/**
- * `project/read-file`, with oversized image previews assembled from ranged
- * slices. Null on failure so callers fall through to their other sources.
- */
-async function readProjectPreviewData(
-  hostClient: HostClient,
-  projectPath: string,
-  relativePath: string,
-  onPlaceholder?: (data: ProjectReadPreviewInput) => void,
-): Promise<ProjectReadPreviewInput | null> {
-  const response = await hostClient.request({
-    type: 'project/read-file',
-    projectPath,
-    relativePath,
-  });
-  if (!response.success || !response.data) return null;
-  const head = response.data as ProjectReadPreviewInput & {
-    previewChunkBytes?: number;
-    previewThumbDataUrl?: string;
-  };
-  const placeholder: ProjectReadPreviewInput | null =
-    !head.previewDataUrl && head.previewChunkBytes && head.previewThumbDataUrl
-      ? { ...head, previewDataUrl: head.previewThumbDataUrl }
-      : null;
-  if (placeholder) onPlaceholder?.(placeholder);
-  try {
-    const full = await completeProjectImagePreview({
-      data: head,
-      projectPath,
-      relativePath,
-      request: (command) => hostClient.request(command),
-    });
-    if (placeholder && full.previewDataUrl) await predecodeImage(full.previewDataUrl);
-    return full;
-  } catch (error) {
-    console.warn('[active-document] Unable to assemble image preview.', error);
-    // A painted placeholder beats falling through to "not found".
-    return placeholder;
-  }
 }
 
 async function loadLocalFilePreviewDocument(input: {

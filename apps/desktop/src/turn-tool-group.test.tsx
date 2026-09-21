@@ -294,7 +294,7 @@ describe('TurnToolGroup causal tool sequence', () => {
               onRetry: vi.fn(),
               onClose: vi.fn(),
               onWorktreeAction: async () => undefined,
-              artifactPreviewEnabled: true,
+              artifactInlineEnabled: true,
             }}
           >
             <TurnToolGroup
@@ -533,7 +533,7 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(container.querySelector('[data-tool-name="piwin_plan_set_step"]')).toBeNull();
   });
 
-  it('renders one wait row that links two invocation cards and creates no child card', () => {
+  it('omits wait/cancel control rows; invocation cards stay the transcript surface', () => {
     const startA: ToolCardUi = {
       toolCallId: 'tool-start-a',
       toolName: 'piwin_subagent_start',
@@ -635,22 +635,12 @@ describe('TurnToolGroup causal tool sequence', () => {
 
     expect(container.querySelectorAll('[data-testid="subagent-invocation-block"]')).toHaveLength(2);
     expect(container.querySelectorAll('[data-testid="subagent-embed"]')).toHaveLength(2);
-    expect(container.querySelectorAll('[data-testid="subagent-control-row"]')).toHaveLength(1);
-    expect(container.querySelector('[data-testid="subagent-control-row"]')?.textContent).toContain(
-      '正在等待 2 个子任务',
-    );
+    expect(container.querySelector('[data-testid="subagent-control-row"]')).toBeNull();
+    expect(container.textContent).not.toContain('正在等待 2 个子任务');
     expect(container.querySelector('#subagent-invocation-inv-a')).not.toBeNull();
     expect(container.querySelector('#subagent-invocation-inv-b')).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="subagent-control-row"] [data-testid="subagent-invocation-block"]'),
-    ).toBeNull();
-    expect(container.querySelector('[data-tool-call-id="tool-wait-1"][data-testid="tool-call-card"]')).toBeNull();
-
-    act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="subagent-control-expand"]')?.click();
-    });
-    expect(container.querySelector('a[href="#subagent-invocation-inv-a"]')).not.toBeNull();
-    expect(container.querySelector('a[href="#subagent-invocation-inv-b"]')).not.toBeNull();
+    expect(container.querySelector('[data-tool-call-id="tool-wait-1"]')).toBeNull();
+    expect(container.querySelector('[data-tool-name="piwin_subagent_wait"]')).toBeNull();
   });
 
   it('opens the correct child inline after delayed allocation', () => {
@@ -779,7 +769,7 @@ describe('TurnToolGroup causal tool sequence', () => {
               onRetry: vi.fn(),
               onClose: vi.fn(),
               onWorktreeAction: async () => undefined,
-              artifactPreviewEnabled: true,
+              artifactInlineEnabled: true,
             }}
           >
             <TurnToolGroup

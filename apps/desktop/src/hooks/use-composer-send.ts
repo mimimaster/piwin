@@ -46,6 +46,7 @@ import {
 } from '../composer-send-owner.js';
 import { logSessionChain, sessionChainErrorCode } from '../session-chain-log.js';
 import { sessionScopeKey } from '../session-scope-key.js';
+import { resolveNoRepoSendPath, sameHostPath } from '../file-browse-root.js';
 import { isImagePromptAttachment, useComposerPromptInput } from './use-composer-prompt-input.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
@@ -254,11 +255,17 @@ export function useComposerSend(params: UseComposerSendArgs) {
       // draft) wins over the latest navigation scope, so project first-send
       // never falls back to a General session.
       const draftScope = currentDraftScopeRef.current;
-      const isGeneral = draftScope.kind === 'general';
+      const noRepoPath = resolveNoRepoSendPath({
+        draftScope,
+        projectPath: args.state.projectPath,
+        generalWorkspacePath: args.generalWorkspacePath,
+      });
+      const isGeneral = noRepoPath === null && draftScope.kind === 'general';
       const draftProjectTrusted =
-        draftScope.kind === 'project' &&
-        args.state.projectPath === draftScope.projectPath &&
-        args.state.projectTrusted;
+        noRepoPath !== null ||
+        (draftScope.kind === 'project' &&
+          sameHostPath(args.state.projectPath, draftScope.projectPath) &&
+          args.state.projectTrusted);
       if (!isGeneral && !draftProjectTrusted) {
         args.dispatch({ type: 'project/trust-dialog', open: true });
         return null;
@@ -281,19 +288,28 @@ export function useComposerSend(params: UseComposerSendArgs) {
           ? { disabledMcpServerIds: draftMcpDisabled }
           : {}),
       };
-      const sessionId = isGeneral
-        ? await args.ensureSession({
-            scope: { kind: 'general' },
-            ...(sessionName !== undefined ? { sessionName } : {}),
-            ...draftCreateOptions,
-          })
-        : await args.ensureSession({
-            scope: draftScope,
-            projectPath: draftScope.projectPath,
-            alreadyTrusted: true,
-            ...(sessionName !== undefined ? { sessionName } : {}),
-            ...draftCreateOptions,
-          });
+      const sessionId =
+        noRepoPath !== null
+          ? await args.ensureSession({
+              scope: { kind: 'project', projectPath: noRepoPath },
+              projectPath: noRepoPath,
+              alreadyTrusted: true,
+              ...(sessionName !== undefined ? { sessionName } : {}),
+              ...draftCreateOptions,
+            })
+          : isGeneral
+            ? await args.ensureSession({
+                scope: { kind: 'general' },
+                ...(sessionName !== undefined ? { sessionName } : {}),
+                ...draftCreateOptions,
+              })
+            : await args.ensureSession({
+                scope: draftScope,
+                ...(draftScope.kind === 'project' ? { projectPath: draftScope.projectPath } : {}),
+                alreadyTrusted: true,
+                ...(sessionName !== undefined ? { sessionName } : {}),
+                ...draftCreateOptions,
+              });
       if (sessionId) {
         preserveComposerOnSessionActivationRef.current = true;
         // The draft's mount choice now lives on the created session (or the
@@ -395,6 +411,14 @@ export function useComposerSend(params: UseComposerSendArgs) {
         // The check itself stays synchronous so a plain trusted send still paints
         // in the same turn as Enter; only a missing workspace awaits the picker.
         const checkSendGates = (): { ok: true } | { ok: false; awaitWorkspacePicker?: true } => {
+          const noRepoPath = resolveNoRepoSendPath({
+            draftScope: currentDraftScopeRef.current,
+            projectPath: args.state.projectPath,
+            generalWorkspacePath: args.generalWorkspacePath,
+          });
+          if (noRepoPath) {
+            return { ok: true };
+          }
           if (!isGeneral) {
             if (!args.state.projectPath) {
               return { ok: false, awaitWorkspacePicker: true };

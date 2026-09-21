@@ -11,13 +11,13 @@ type TauriRuntimeWindow = Window & {
 };
 
 export function loadPetOverlayVisibility(): boolean {
-  if (typeof localStorage === 'undefined') return true;
+  if (typeof localStorage === 'undefined') return false;
   try {
-    return localStorage.getItem(PET_OVERLAY_VISIBILITY_STORAGE_KEY) !== 'false';
+    return localStorage.getItem(PET_OVERLAY_VISIBILITY_STORAGE_KEY) === 'true';
   } catch {
-    // localStorage can be unavailable in private/embedded contexts. Visible is
-    // the backward-compatible default and still leaves the native command usable.
-    return true;
+    // localStorage can be unavailable in private/embedded contexts. Hidden is
+    // the product default; users opt in from Settings.
+    return false;
   }
 }
 

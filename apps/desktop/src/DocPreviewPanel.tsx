@@ -66,6 +66,8 @@ export type DocPreviewPanelProps = {
   skillId?: string | undefined;
   skillSource?: string | undefined;
   unavailableReason?: string | undefined;
+  /** Project root for relative chips inside a Markdown preview. */
+  projectPath?: string | undefined;
   suggestion?: string | undefined;
   byteSize?: number | undefined;
   maxBytes?: number | undefined;
@@ -93,6 +95,7 @@ export function DocPreviewPanel({
   displayRef,
   provenance,
   warning,
+  projectPath,
   skillId,
   skillSource,
   unavailableReason,
@@ -329,6 +332,7 @@ export function DocPreviewPanel({
                   text={defaultContent}
                   docTitle={displayTitle}
                   filePath={targetPath}
+                  {...(projectPath ? { projectPath } : {})}
                   onOpenFile={onOpenFile}
                   comments={comments}
                   onAddComment={onAddComment}

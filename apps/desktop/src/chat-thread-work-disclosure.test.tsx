@@ -111,7 +111,7 @@ function renderThread(
         onEditResend={noop}
         onRetry={noop}
         onInspectSubagent={undefined}
-        artifactPreviewEnabled
+        artifactInlineEnabled
         composerCard={composerCard}
         locale="en"
         {...(extras.isConversationSession === true

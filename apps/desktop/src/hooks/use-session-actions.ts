@@ -41,6 +41,7 @@ import {
   resolveHydrateScope,
 } from '../session-list-hydrate.js';
 import { getSessionListScopeMeta } from '../session-list-scope.js';
+import { isNoRepoProjectPath } from '../file-browse-root.js';
 
 export type ModelOption = {
   providerId: string;
@@ -76,6 +77,8 @@ export type UseSessionActionsArgs = {
     model?: ModelRef;
     thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
   }) => void;
+  /** Built-in No Repo root; open without registering a ProjectRecord. */
+  generalWorkspacePath?: string | null;
 };
 
 export function useSessionActions(args: UseSessionActionsArgs) {
@@ -259,7 +262,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             dispatchNotification(pushError('Open a project first'));
             return null;
           }
-          const trusted = options?.alreadyTrusted === true || state.projectTrusted;
+          const workspacePath = args.generalWorkspacePath?.trim() ?? '';
+          const trusted =
+            options?.alreadyTrusted === true ||
+            state.projectTrusted ||
+            isNoRepoProjectPath(projectPath, workspacePath);
           if (!trusted) {
             dispatch({ type: 'project/trust-dialog', open: true });
             return null;
@@ -367,6 +374,25 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ): Promise<void> => {
       const resumeSessionId = options?.resumeSessionId;
       const navigationEpoch = beginNavigation(resumeSessionId ?? null);
+      const workspacePath = args.generalWorkspacePath?.trim() ?? '';
+      if (isNoRepoProjectPath(path, workspacePath)) {
+        if (!navigationEpochMatches(navigationEpoch)) {
+          return;
+        }
+        dispatch({ type: 'project/set', path: workspacePath, trusted: true });
+        setProjectPickerOpen(false);
+        // Draft UI must not wait on the workspace session list.
+        void hydrateSessions(workspacePath);
+        void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+        if (resumeSessionId) {
+          await handleResumeSession(resumeSessionId, {
+            scope: { kind: 'project', projectPath: workspacePath },
+            projectAlreadyActivated: true,
+            ...(options?.quiet === true ? { quiet: true } : {}),
+          });
+        }
+        return;
+      }
       const openOptions =
         options?.autoTrust !== undefined ? { autoTrust: options.autoTrust } : undefined;
       const activation = await activateProjectOnHost(
@@ -429,6 +455,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       showArchivedSessions,
       beginNavigation,
       navigationEpochMatches,
+      args.generalWorkspacePath,
     ],
   );
 
@@ -467,43 +494,43 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
       if (!trust) {
         dispatch({ type: 'project/trust-dialog', open: false });
-        setHostLogEntries((current) =>
-          appendHostLogEntry(current, {
-            level: 'info',
-            message: 'Project left untrusted — tools and shell stay blocked until you trust it.',
-            at: new Date().toISOString(),
-          }),
-        );
+        if (!state.projectTrusted) {
+          setHostLogEntries((current) =>
+            appendHostLogEntry(current, {
+              level: 'info',
+              message: 'Project left untrusted — tools and shell stay blocked until you trust it.',
+              at: new Date().toISOString(),
+            }),
+          );
+        }
         return;
       }
       const projectPath = state.projectPath;
-      const response = await hostClient.request({
-        type: 'project/trust',
-        path: projectPath,
-      });
-      if (!response.success) {
-        dispatchNotification(pushError(response.error));
-        return;
+      const builtinWorkspace = isNoRepoProjectPath(projectPath, args.generalWorkspacePath);
+      if (!builtinWorkspace) {
+        const response = await hostClient.request({
+          type: 'project/trust',
+          path: projectPath,
+        });
+        if (!response.success) {
+          dispatchNotification(pushError(response.error));
+          return;
+        }
       }
+      // Stay on the current draft/session. Resuming or creating here stole the
+      // composer after Send opened this dialog, so Trust looked like a no-op.
       dispatch({ type: 'project/trusted' });
-      // After trust: resume existing history, or create a blank session so the
-      // user can type without an extra "New session" click.
-      const sessions = await hydrateSessions(projectPath);
-      if (sessions[0]) {
-        await handleResumeSession(sessions[0].id);
-      } else {
-        await ensureSession({ projectPath, alreadyTrusted: true });
-      }
+      void hydrateSessions(projectPath);
     },
     [
       dispatch,
       dispatchNotification,
-      ensureSession,
-      handleResumeSession,
       hostClient,
       hydrateSessions,
       setHostLogEntries,
       state.projectPath,
+      state.projectTrusted,
+      args.generalWorkspacePath,
     ],
   );
 

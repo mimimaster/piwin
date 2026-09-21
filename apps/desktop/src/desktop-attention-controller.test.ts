@@ -169,7 +169,7 @@ describe('createDesktopAttentionController', () => {
     expect(fallback.os.deliver).toHaveBeenCalledTimes(1);
     expect(fallback.notices).toHaveLength(1);
     expect(fallback.notices[0]?.action).toEqual({
-      label: '跳转到 Alpha',
+      label: '跳转',
       sessionId: 'session-1',
     });
   });
@@ -182,7 +182,7 @@ describe('createDesktopAttentionController', () => {
     expect(harness.os.deliver).not.toHaveBeenCalled();
     expect(harness.notices).toHaveLength(1);
     expect(harness.notices[0]?.action).toEqual({
-      label: '跳转到 Alpha',
+      label: '跳转',
       sessionId: 'session-1',
     });
   });
@@ -235,7 +235,7 @@ describe('createDesktopAttentionController', () => {
     soon.controller.onPresenceChanged('active');
     expect(soon.notices).toHaveLength(1);
     expect(soon.notices[0]?.action).toEqual({
-      label: '跳转到 Alpha',
+      label: '跳转',
       sessionId: 'session-1',
     });
 
@@ -251,7 +251,7 @@ describe('createDesktopAttentionController', () => {
     expect(late.notices).toHaveLength(0);
   });
 
-  it('maps completed turn to success tone and truncates long action labels', async () => {
+  it('maps completed turn to success tone with a short jump action', async () => {
     const harness = await createHarness({ presence: 'active' });
     harness.snapshot.conversationCovered = true;
     harness.snapshot.describeSession = () => ({
@@ -264,7 +264,7 @@ describe('createDesktopAttentionController', () => {
     expect(harness.notices).toHaveLength(1);
     expect(harness.notices[0]?.tone).toBe('success');
     expect(harness.notices[0]?.action).toEqual({
-      label: '跳转到 如果你有一个二次元形象，你认为…',
+      label: '跳转',
       sessionId: 'session-1',
     });
   });

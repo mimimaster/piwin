@@ -24,7 +24,9 @@ export type WorkbenchConversationStageProps = {
   hostClient: HostClient;
   activeTheme: ThemeManifest;
   artifactThemeKey: string | number;
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   readMedia: MediaPreviewReader | null;
   locale: 'zh-CN' | 'en';
   keyboardEnabled: boolean;
@@ -52,7 +54,8 @@ export function WorkbenchConversationStage(props: WorkbenchConversationStageProp
         hostClient={props.hostClient}
         activeTheme={props.activeTheme}
         artifactThemeKey={props.artifactThemeKey}
-        artifactPreviewEnabled={props.artifactPreviewEnabled}
+        artifactInlineEnabled={props.artifactInlineEnabled}
+        artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
         readMedia={props.readMedia}
         locale={props.locale}
         onCreateConversation={() => props.onCreateConversation('docking')}
@@ -79,7 +82,8 @@ export function WorkbenchConversationStage(props: WorkbenchConversationStageProp
         hostClient={props.hostClient}
         activeTheme={props.activeTheme}
         artifactThemeKey={props.artifactThemeKey}
-        artifactPreviewEnabled={props.artifactPreviewEnabled}
+        artifactInlineEnabled={props.artifactInlineEnabled}
+        artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
         readMedia={props.readMedia}
         locale={props.locale}
         keyboardEnabled={props.keyboardEnabled}

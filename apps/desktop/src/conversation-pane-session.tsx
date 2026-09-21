@@ -57,7 +57,9 @@ export type ConversationPaneSessionProps = {
   hostClient: HostClient;
   activeTheme: ThemeManifest;
   artifactThemeKey: string | number;
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   readMedia: MediaPreviewReader | null;
   locale: 'zh-CN' | 'en';
   onNameChange?: (name: string) => void;
@@ -439,7 +441,11 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         ? { model: sessionComposer.promptFields.model }
         : {}),
     });
-    const inlineArtifactWidthPx = readInlineArtifactWidth(props.sessionId);
+    // The chat-column width hint is Inline-only; without an Inline surface
+    // there is nothing for the model to size against.
+    const inlineArtifactWidthPx = props.artifactInlineEnabled
+      ? readInlineArtifactWidth(props.sessionId)
+      : undefined;
     const artifactHostTheme = readArtifactHostTheme();
     try {
       const response = await requestPromptWithForeground({
@@ -547,7 +553,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           state={state}
           activeTheme={props.activeTheme}
           artifactThemeKey={props.artifactThemeKey}
-          artifactPreviewEnabled={props.artifactPreviewEnabled}
+          artifactInlineEnabled={props.artifactInlineEnabled}
           locale={props.locale}
           livePromptModel={state.pendingTurnModel}
           {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}

@@ -304,7 +304,7 @@ describe('useDesktopAttention', () => {
       tone: 'success',
       title: '已完成',
       body: 'piwin · Alpha',
-      action: { label: '跳转到 Alpha', sessionId: 'session-1' },
+      action: { label: '跳转', sessionId: 'session-1' },
     });
     const notice = showUiNotification.mock.calls.at(-1)?.[0] as {
       tone?: string;

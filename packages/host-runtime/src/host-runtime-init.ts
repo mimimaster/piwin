@@ -29,6 +29,7 @@ import {
   getPiwinRoot,
   getPiwinSessionIndexPath,
 } from './paths.js';
+import { isGeneralWorkspacePath } from './general-workspace.js';
 import { ensureHostPiAgentDir } from './import-legacy-pi-auth.js';
 import { fail } from './response-helpers.js';
 import { RunRegistry } from './run-registry.js';
@@ -598,6 +599,9 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         // cannot compile write/process/bash/delegate capabilities.
         trustResolver: async (projectPath: string) => {
           try {
+            if (isGeneralWorkspacePath(projectPath, deps.options.piwinRoot)) {
+              return true;
+            }
             const rootDir = getPiwinRoot(deps.options.piwinRoot);
             const projects = await listProjects(getPiwinProjectsPath(rootDir));
             const record = projects.find((p) => p.path === projectPath);

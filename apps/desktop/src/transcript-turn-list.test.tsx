@@ -9,11 +9,11 @@ import {
   shouldVirtualizeTranscript,
   TRANSCRIPT_VIRTUALIZATION_THRESHOLD,
   TRANSCRIPT_TURN_GAP_PX,
-  TranscriptTurnList,
   buildTranscriptTurnsStructureKey,
   buildTranscriptStreamingMeasureKey,
   transcriptVirtualizerMeasurePolicy,
-} from './transcript-turn-list';
+} from './transcript-turn-policy.js';
+import { TranscriptTurnList } from './transcript-turn-list.js';
 import { groupTranscriptTurns, type TranscriptTurn } from './transcript-turns';
 import type { ChatMessageUi } from './chat-reducer';
 import { rememberTranscriptTurnHeight } from './transcript-scroll-memory';
@@ -256,6 +256,45 @@ describe('transcript turn window', () => {
     expect(container.querySelector('#msg-user-250')).toBeNull();
   });
 
+  it.each([false, true])('fills the viewport synchronously when scrolling into history (streaming=%s)', async (streaming) => {
+    const turns = createTurns(500);
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, value: 640 },
+      offsetWidth: { configurable: true, value: 900 },
+      clientHeight: { configurable: true, value: 640 },
+      scrollHeight: { configurable: true, value: 80_000 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+    await act(async () => {
+      root.render(
+        <TranscriptScrollProvider sessionId={`session-scroll-paint-${streaming}`} scrollElementRef={scrollElementRef}>
+          <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={renderTurn} streaming={streaming} />
+        </TranscriptScrollProvider>,
+      );
+    });
+
+    // Establish a position deep in history, beyond the initial overscan.
+    act(() => {
+      container.scrollTop = 40_000;
+      container.dispatchEvent(new Event('scroll'));
+    });
+    act(() => {
+      container.scrollTop = 20_000;
+      container.dispatchEvent(new Event('scroll'));
+      // Inspect before act flushes deferred React work. The browser can paint
+      // the new scroll offset as soon as this event handler returns.
+      const viewportHasContent = Array.from(
+        container.querySelectorAll<HTMLElement>('.transcript-turn-window-item'),
+      ).some((slot) => {
+        const start = Number.parseFloat(slot.style.transform.slice('translateY('.length));
+        const end = start + Number.parseFloat(slot.style.height);
+        return end > container.scrollTop && start < container.scrollTop + container.clientHeight;
+      });
+      expect(viewportHasContent).toBe(true);
+    });
+  });
+
   it('uses delivered row sizes without forcing layout again during a streaming resize', async () => {
     const turns = createTurns(3);
     const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
@@ -362,6 +401,36 @@ describe('transcript turn window', () => {
       // Next slot must start at/after previous end (+ gap). Overlap = 字叠字.
       expect(current.start).toBeGreaterThanOrEqual(previous.end + TRANSCRIPT_TURN_GAP_PX - 0.5);
     }
+  });
+
+  it('marks the live tail so the newest turn is not clip-locked', async () => {
+    const turns = createTurns(8);
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, value: 640 },
+      offsetWidth: { configurable: true, value: 900 },
+      clientHeight: { configurable: true, value: 640 },
+      scrollHeight: { configurable: true, value: 4_000 },
+      scrollTop: { configurable: true, writable: true, value: 3_200 },
+    });
+    await act(async () => {
+      root.render(
+        <TranscriptScrollProvider sessionId="session-live-tail" scrollElementRef={scrollElementRef}>
+          <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={renderTurn} />
+        </TranscriptScrollProvider>,
+      );
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+    const slots = [
+      ...container.querySelectorAll<HTMLElement>('[data-testid="transcript-turn-window-item"]'),
+    ];
+    expect(slots.length).toBeGreaterThan(0);
+    const live = slots.filter((slot) => slot.classList.contains('is-live-tail'));
+    expect(live).toHaveLength(1);
+    expect(live[0]?.dataset.liveTail).toBe('true');
+    expect(live[0]?.dataset.turnId ?? live[0]?.querySelector('[data-turn-id]')?.getAttribute('data-turn-id')).toBe(
+      'turn-user-7',
+    );
   });
 
   it('keeps an edited historical turn mounted and focused while the tail changes', async () => {
@@ -691,11 +760,7 @@ describe('transcript streaming measure key', () => {
 
 describe('transcript virtualizer measure policy', () => {
   it('never defers ResizeObserver measure through rAF', () => {
-    expect(transcriptVirtualizerMeasurePolicy(false)).toEqual({
-      useAnimationFrameWithResizeObserver: false,
-      useFlushSync: false,
-    });
-    expect(transcriptVirtualizerMeasurePolicy(true)).toEqual({
+    expect(transcriptVirtualizerMeasurePolicy()).toEqual({
       useAnimationFrameWithResizeObserver: false,
       useFlushSync: true,
     });

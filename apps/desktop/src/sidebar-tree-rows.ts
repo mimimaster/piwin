@@ -4,7 +4,7 @@ import type { DraftSessionItemUi } from './draft-session';
 import { draftSessionMatchesQuery, sortDraftSessions } from './draft-session';
 import { projectDisplayName } from './project-display-name.js';
 import { groupSessionsByRecency } from './session-groups.js';
-import { hiddenSessionCount, type SessionListScopeState } from './session-list-scope';
+import type { SessionListScopeState } from './session-list-scope';
 import { sessionScopeKey } from './session-scope-key';
 import {
   sessionRowHasLiveActivity,
@@ -18,7 +18,7 @@ import {
 export type { SidebarProjectRef } from './sidebar-repo-groups';
 
 export type SidebarTreeRow =
-  | { kind: 'no-repo-folder'; key: string }
+  | { kind: 'no-repo-folder'; key: string; collapsed: boolean }
   | { kind: 'section-header'; sectionId: 'pinned' | 'projects' | 'conversations'; key: string }
   | {
       kind: 'repo-group';
@@ -47,6 +47,7 @@ export type SidebarTreeRow =
       session: SessionListItemUi | DraftSessionItemUi;
       projectSubtitle?: string;
       grouped?: true;
+      folderChild?: true;
       isPinnedSection?: true;
       key: string;
     }
@@ -70,9 +71,13 @@ export type SidebarTreeRow =
 
 export const DEFAULT_PROJECT_SESSION_VISIBLE_COUNT = 5;
 export const PROJECT_SESSION_VISIBLE_INCREMENT = 5;
+/** Collapse / show-more key for the No Repo agent-chat folder. */
+export const NO_REPO_SIDEBAR_KEY = 'no-repo';
 
 export type SidebarTreeRowsInput = {
   recentProjects: readonly SidebarProjectRef[];
+  /** Built-in No Repo project root (`hostStatus.generalWorkspacePath`). */
+  noRepoProjectPath?: string;
   projectSessionsByPath: Record<string, SessionListItemUi[]>;
   generalSessions: SessionListItemUi[];
   draftSessions?: readonly DraftSessionItemUi[];
@@ -233,9 +238,14 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   const showProjects = searching || input.projectsSectionExpanded;
   const showConversations = searching || input.conversationsSectionExpanded;
 
+  const noRepoPath = input.noRepoProjectPath?.trim() ?? '';
+  const listedProjects = noRepoPath
+    ? input.recentProjects.filter((project) => project.path !== noRepoPath)
+    : input.recentProjects;
+
   if (showProjects) {
-    rows.push({ kind: 'no-repo-folder', key: 'no-repo-folder' });
-    for (const cluster of clusterProjectsByRepository(input.recentProjects)) {
+    appendNoRepoFolderRows(rows, input, drafts, searching);
+    for (const cluster of clusterProjectsByRepository(listedProjects)) {
       if (cluster.kind === 'group') {
         rows.push({
           kind: 'repo-group',
@@ -260,6 +270,7 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   });
 
   if (showConversations) {
+    // Conversations: general chat only. No Repo is a separate project folder.
     if (input.groupBy === 'time' && !searching && generalMerged.length > 0) {
       const sessionList = generalMerged.map((row) => row.session);
       const groups = groupSessionsByRecency(sessionList);
@@ -292,6 +303,97 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   }
 
   return rows;
+}
+
+
+function appendNoRepoFolderRows(
+  rows: SidebarTreeRow[],
+  input: SidebarTreeRowsInput,
+  drafts: readonly DraftSessionItemUi[],
+  searching: boolean,
+): void {
+  const noRepoPath = input.noRepoProjectPath?.trim() ?? '';
+  const collapseKey = noRepoPath || NO_REPO_SIDEBAR_KEY;
+  const scope: SessionScope | null = noRepoPath
+    ? { kind: 'project', projectPath: noRepoPath }
+    : null;
+  const hostSessions = noRepoPath
+    ? resolveProjectFolderSessions({
+        projectPath: noRepoPath,
+        projectSessionsByPath: input.projectSessionsByPath,
+        ...(input.activeProjectPath !== undefined
+          ? { activeProjectPath: input.activeProjectPath }
+          : {}),
+        ...(input.activeProjectSessions !== undefined
+          ? { activeProjectSessions: input.activeProjectSessions }
+          : {}),
+        searching,
+      }).filter((session) => session.isPinned !== true)
+    : [];
+  const merged = scope
+    ? mergeScopeRows(
+        scope,
+        drafts,
+        hostSessions,
+        input.sessionSearch,
+        input.sessionListOrder,
+        false,
+        input,
+      ).map((row) => ({
+        ...row,
+        folderChild: true as const,
+        key: `session:${NO_REPO_SIDEBAR_KEY}:${row.session.id}`,
+      }))
+    : [];
+  const selectedIndex = revealIndexInRows(
+    merged,
+    input.revealSessionId ?? null,
+    input.revealDraftId ?? null,
+  );
+  const collapsed = resolveSidebarProjectCollapsed({
+    projectPath: collapseKey,
+    collapsedProjects: input.collapsedProjects,
+    ...(input.activeProjectPath !== undefined
+      ? { activeProjectPath: input.activeProjectPath }
+      : {}),
+    searching,
+    revealInside: selectedIndex >= 0,
+  });
+  rows.push({
+    kind: 'no-repo-folder',
+    collapsed,
+    key: 'no-repo-folder',
+  });
+  if (collapsed || scope === null) {
+    return;
+  }
+  const visibleCount = Math.max(
+    input.projectSessionVisibleCounts?.[collapseKey] ?? DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+    DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+    selectedIndex + 1,
+  );
+  const visible = searching ? merged : merged.slice(0, visibleCount);
+  rows.push(...visible);
+  if (!searching && visible.length < merged.length) {
+    const batchSize = Math.min(
+      PROJECT_SESSION_VISIBLE_INCREMENT,
+      merged.length - visible.length,
+    );
+    rows.push({
+      kind: 'project-show-more',
+      projectPath: collapseKey,
+      batchSize,
+      nextVisibleCount: visible.length + batchSize,
+      key: `project-show-more:${collapseKey}`,
+    });
+  }
+  appendScopeHints(rows, {
+    scope,
+    merged,
+    searching,
+    sessionListScopes: input.sessionListScopes,
+    allowEmptyHint: false,
+  });
 }
 
 export function collectPinnedSessionRows(
@@ -539,15 +641,6 @@ function appendProjectFolderRows(
       ...(grouped ? { grouped: true as const } : {}),
     });
   }
-  appendScopeHints(rows, {
-    scope,
-    merged,
-    searching,
-    sessionListScopes: input.sessionListScopes,
-    // An empty open folder stays quiet; the open/closed glyph is the only cue.
-    allowEmptyHint: false,
-    grouped,
-  });
 }
 
 function mergeScopeRows(
@@ -629,7 +722,7 @@ function appendScopeHints(
       .filter((row) => !('isDraft' in row.session && row.session.isDraft === true))
       .map((row) => row.session.id),
   );
-  const hiddenCount = hiddenSessionCount(meta.totalCount, residentIds.size);
+  const hiddenCount = Math.max(0, meta.totalCount - residentIds.size);
   if (hiddenCount <= 0) {
     return;
   }

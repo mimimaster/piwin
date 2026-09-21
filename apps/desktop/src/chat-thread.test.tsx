@@ -34,12 +34,12 @@ declare global {
 
 /** Isolated ChatThread tests default capability on. Production must pass the boolean. */
 function ChatThreadHarness({
-  artifactPreviewEnabled = true,
+  artifactInlineEnabled = true,
   ...props
-}: Omit<ChatThreadProps, 'artifactPreviewEnabled'> & {
-  artifactPreviewEnabled?: boolean;
+}: Omit<ChatThreadProps, 'artifactInlineEnabled'> & {
+  artifactInlineEnabled?: boolean;
 }): ReactElement {
-  return <ChatThread {...props} artifactPreviewEnabled={artifactPreviewEnabled} />;
+  return <ChatThread {...props} artifactInlineEnabled={artifactInlineEnabled} />;
 }
 
 const composerCard: ComposerDockProps = {

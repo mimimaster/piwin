@@ -68,6 +68,41 @@ describe('readMountedTranscriptTurnHeight', () => {
     } as unknown as ResizeObserverEntry;
     expect(readMountedTranscriptTurnHeight({ element, entry })).toBe(8_000);
   });
+
+  it('unclips a slot that reports its overflow-hidden box as the body size', () => {
+    const slotStyle: { height: string; overflow: string; overflowY: string } = {
+      height: '400px',
+      overflow: 'hidden',
+      overflowY: 'hidden',
+    };
+    const slot = {
+      classList: { contains: (name: string) => name === 'transcript-turn-window-item' },
+      clientHeight: 400,
+      style: slotStyle,
+    };
+    const clippedSize = (): number =>
+      slotStyle.overflow === 'hidden' && slotStyle.height !== 'auto' ? 400 : 8_000;
+    const body = {
+      parentElement: slot,
+      offsetHeight: 400,
+      scrollHeight: 400,
+      getBoundingClientRect: () => ({ height: clippedSize() }),
+    };
+    Object.defineProperties(body, {
+      offsetHeight: { get: clippedSize },
+      scrollHeight: { get: clippedSize },
+    });
+    const entry = {
+      borderBoxSize: [{ blockSize: 400 }],
+      contentRect: { height: 400 },
+    } as unknown as ResizeObserverEntry;
+    expect(
+      readMountedTranscriptTurnHeight({
+        element: body as unknown as HTMLElement,
+        entry,
+      }),
+    ).toBe(8_000);
+  });
 });
 
 describe('estimateTranscriptTurnHeight', () => {

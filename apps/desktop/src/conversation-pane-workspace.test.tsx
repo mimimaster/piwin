@@ -38,7 +38,7 @@ function Probe(props: {
         hostClient={hostClient}
         activeTheme={PIWIN_APPEARANCE_DARK}
         artifactThemeKey="test"
-        artifactPreviewEnabled={true}
+        artifactInlineEnabled={true}
         readMedia={null}
         locale="en"
         {...(props.keyboardEnabled === undefined ? {} : { keyboardEnabled: props.keyboardEnabled })}

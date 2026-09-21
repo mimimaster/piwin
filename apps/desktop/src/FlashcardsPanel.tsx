@@ -403,7 +403,7 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
                   renderingPhase="completed"
                   showStreamingCaret={false}
                   locale={locale}
-                  artifactPreviewEnabled={false}
+                  artifactInlineEnabled={false}
                 />
               </div>
             </div>
@@ -416,7 +416,7 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
                     renderingPhase="completed"
                     showStreamingCaret={false}
                     locale={locale}
-                    artifactPreviewEnabled={false}
+                    artifactInlineEnabled={false}
                   />
                 </div>
                 {currentItem.card.sourceExcerpt && (

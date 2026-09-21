@@ -367,7 +367,8 @@ describe('LibraryWorkspaceView', () => {
     await flushLibrary();
 
     expect(container.querySelector('[data-testid="library-tab-all"]')).toBeNull();
-    expect(container.querySelector('[data-testid="library-tab-files"]')).not.toBeNull();
+    // Files is not a vault tab; only Images / Videos / Favorites are offered.
+    expect(container.querySelector('[data-testid="library-tab-files"]')).toBeNull();
     expect(container.querySelector('[data-testid="library-tab-images"]')?.getAttribute('aria-pressed')).toBe(
       'true',
     );

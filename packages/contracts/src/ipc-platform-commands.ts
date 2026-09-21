@@ -149,6 +149,19 @@ export type PlatformHostCommand =
        */
       previewRange?: { offset: number; length: number };
     }
+  | {
+      id?: string;
+      type: 'project/find-file';
+      /** Absolute project root (must match opened workspace). */
+      projectPath: string;
+      /**
+       * File name or relative path fragment the client could not open.
+       * The Host matches by basename, or by path suffix when it contains `/`.
+       */
+      query: string;
+      /** Optional cap; the Host clamps it to PROJECT_FIND_FILE_MAX_MATCHES. */
+      maxMatches?: number;
+    }
   | { id?: string; type: 'media/save'; input: MediaSaveCommandInput }
   | { id?: string; type: 'media/save-begin'; input: MediaSaveBeginInput }
   | { id?: string; type: 'media/save-chunk'; input: MediaSaveChunkInput }

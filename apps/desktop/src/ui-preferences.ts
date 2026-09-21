@@ -154,7 +154,8 @@ export type DesktopPreferences = {
   workDetailsExpanded: WorkDetailsExpanded;
   /**
    * When true, Inline artifact blocks display source first with a Preview toggle.
-   * Explicit Canvas still auto-opens. Capability is `config.artifact.enabled`.
+   * Explicit Canvas still auto-opens when its scope switch allows it; capability
+   * comes from `resolveArtifactCapability`, never from this preference.
    */
   artifactCodeFirst: boolean;
   /** Keep intermediate Agent thinking in the transcript. */

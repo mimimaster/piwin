@@ -611,7 +611,8 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     {...(props.onOpenArtifactCanvas
                       ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
                       : {})}
-                    artifactPreviewEnabled={props.artifactPreviewEnabled}
+                    artifactInlineEnabled={props.artifactInlineEnabled}
+                    artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
                     {...(props.artifactCodeFirst !== undefined
                       ? { artifactCodeFirst: props.artifactCodeFirst }
                       : {})}

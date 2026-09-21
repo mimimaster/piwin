@@ -142,37 +142,47 @@ describe('ProjectSessionSidebar resident session lists', () => {
     expect(container.querySelector('[data-testid="project-session-show-more"]')).toBeNull();
   });
 
-  it('keeps Conversations visible independently of the No Repo entry and Projects', () => {
-    const onOpenGeneral = vi.fn();
+  it('lists No Repo project sessions under the folder and general chats in Conversations', () => {
+    const onOpenProject = vi.fn();
+    const onNewSession = vi.fn();
     const onNewGeneralSession = vi.fn();
+    const workspace = '/Users/me/.piwin/workspace';
     const { container } = renderSidebar({
-      generalSessions: createMockSessions(9),
-      filteredSessions: [],
-      onOpenGeneral,
+      projectPath: workspace,
+      noRepoProjectPath: workspace,
+      projectSessionsByPath: { [workspace]: createMockSessions(9) },
+      generalSessions: createMockSessions(4),
+      filteredSessions: createMockSessions(9),
+      onOpenProject,
+      onNewSession,
       onNewGeneralSession,
     });
-    // The project pane owns No Repo; touching it must not disturb the
-    // conversation pane, which is where the nine general sessions live.
-    act(() => container.querySelector<HTMLButtonElement>('[data-testid="no-repo-folder"]')?.click());
-    expect(onOpenGeneral).toHaveBeenCalledOnce();
-    act(() =>
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="projects-section-toggle"]')
-        ?.click(),
-    );
-    expect(container.querySelector('[data-testid="no-repo-folder"]')).toBeNull();
+    expect(container.querySelector('[data-testid="no-repo-folder"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(5);
+    expect(container.querySelector('[data-testid="project-session-show-more"]')).not.toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="no-repo-add-btn"]')?.click());
+    expect(onNewSession).toHaveBeenCalledWith({
+      scope: { kind: 'project', projectPath: workspace },
+    });
+    expect(onNewGeneralSession).not.toHaveBeenCalled();
 
     switchPane(container, 'chat');
-    const conversationToggle = container.querySelector<HTMLButtonElement>(
-      '[data-testid="conversations-section-toggle"]',
-    );
-    expect(conversationToggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(container.querySelectorAll('.sidebar-tree-row--general-session')).toHaveLength(9);
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(9);
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(4);
     act(() => container.querySelector<HTMLButtonElement>('[data-testid="general-workspace-btn"]')?.click());
     expect(onNewGeneralSession).toHaveBeenCalledOnce();
-    act(() => conversationToggle?.click());
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(0);
+  });
+
+  it('creates a No Repo session from hostStatus when noRepoProjectPath is omitted', () => {
+    const onNewSession = vi.fn();
+    const workspace = '/Users/me/.piwin/workspace';
+    const { container } = renderSidebar({
+      onNewSession,
+      hostStatus: { generalWorkspacePath: workspace } as import('@piwin/contracts').HostStatusData,
+    });
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="no-repo-add-btn"]')?.click());
+    expect(onNewSession).toHaveBeenCalledWith({
+      scope: { kind: 'project', projectPath: workspace },
+    });
   });
 
   it('displays a small project list without page controls', () => {
@@ -348,13 +358,13 @@ describe('ProjectSessionSidebar resident session lists', () => {
       '[data-testid="project-fold-toggle"]',
     );
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(container.querySelector('[data-testid="tree-folder-icon-open"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="tree-folder-icon-closed"]')).toBeNull();
+    expect(toggle?.querySelector('[data-testid="tree-folder-icon-open"]')).not.toBeNull();
+    expect(toggle?.querySelector('[data-testid="tree-folder-icon-closed"]')).toBeNull();
 
     act(() => toggle?.click());
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('[data-testid="tree-folder-icon-closed"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="tree-folder-icon-open"]')).toBeNull();
+    expect(toggle?.querySelector('[data-testid="tree-folder-icon-closed"]')).not.toBeNull();
+    expect(toggle?.querySelector('[data-testid="tree-folder-icon-open"]')).toBeNull();
   });
 
   it('renders the full Conversations list without See all', () => {

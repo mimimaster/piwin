@@ -147,6 +147,16 @@ export function createDesktopContextMenuValue(
           notify(revealDisabledHint(deps.locale), 'info');
           return;
         }
+        if (result.reason === 'missing') {
+          // Never open the parent folder here: the path came from model text.
+          notify(
+            deps.locale === 'zh-CN'
+              ? `该路径下没有文件：${absolutePath}`
+              : `No file at that path: ${absolutePath}`,
+            'info',
+          );
+          return;
+        }
         notify(
           deps.locale === 'zh-CN' ? '无法在文件管理器中打开' : 'Could not show in file manager',
           'error',

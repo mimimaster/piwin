@@ -83,7 +83,7 @@ function SideChatAssistantBody(props: {
       renderingPhase={props.streaming ? 'streaming' : 'completed'}
       showStreamingCaret={props.streaming}
       locale={props.locale}
-      artifactPreviewEnabled={false}
+      artifactInlineEnabled={false}
     />
   );
 }

@@ -47,6 +47,8 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
   isPauseContinueUtterance,
+  resolveArtifactCapability,
+  type ResolvedArtifactCapability,
   readExplicitSkillIntent,
   wrapLiveDelegationForAgent,
   DEFAULT_PERMISSION_PRESET,
@@ -118,6 +120,7 @@ import type { TranscriptRecorder } from '../transcript-recorder.js';
 import { SessionRuntimeController } from '../sessions/session-runtime-controller.js';
 import { createSessionMessageResponse } from '../session-message-response.js';
 import {
+  artifactScopeKeyForIndexRecord,
   indexProjectPathForScope,
   resolveSessionLocation,
   scopeFromIndexRecord,
@@ -412,7 +415,11 @@ export async function preparePromptInput(
   collectPreparedAttachmentContributions(assembly, promptSource, preparedFromHost);
   if (promptInput.inlineArtifactWidthPx !== undefined || promptInput.artifactHostTheme !== undefined) {
     const config = await context.loadConfig();
-    applyInlineArtifactLayout(promptInput, config.artifact?.enabled === true, assembly);
+    applyInlineArtifactLayout(
+      promptInput,
+      await resolvePromptArtifactCapability(context, command.sessionId, config.artifact),
+      assembly,
+    );
   }
   throwIfPromptPreparationAborted(context, run.runId);
 
@@ -627,6 +634,23 @@ export function applyPromptPermissionOverride(
  * orchestration preamble, active plan, and files-touched. Conversation
  * never enters this function (CHT-304).
  */
+/**
+ * Artifact capability for the prompt path. The scope class comes from the same
+ * durable record the compiler uses, so an Agent chat session with Artifacts off
+ * never receives the advisory Inline/theme block. An unreadable record leaves
+ * the capability unresolved and the hint is dropped rather than guessed.
+ */
+async function resolvePromptArtifactCapability(
+  context: Pick<SessionLiveContext, 'piwinRoot'>,
+  sessionId: string,
+  artifact: PiwinConfig['artifact'] | undefined,
+): Promise<ResolvedArtifactCapability | undefined> {
+  const rootDir = getPiwinRoot(context.piwinRoot);
+  const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
+  const scopeKey = artifactScopeKeyForIndexRecord(record ?? undefined);
+  return scopeKey === undefined ? undefined : resolveArtifactCapability(artifact, scopeKey);
+}
+
 async function applyAgentPromptContext(
   context: SessionLiveContext,
   command: PromptCommand,

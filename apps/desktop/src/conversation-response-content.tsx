@@ -74,7 +74,9 @@ export function ConversationResponseContent(props: {
   configProviders?: readonly ModelProviderConfig[];
   usageChip?: ConversationUsageChipData | null;
   isStreaming?: boolean;
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   artifactCodeFirst?: boolean;
   artifactMaxBytes?: number;
   artifactBlockExternalScripts?: boolean;
@@ -318,7 +320,8 @@ export function ConversationResponseContent(props: {
           artifactThemeKey={`${props.activeTheme?.id ?? 'none'}:${props.artifactThemeKey}`}
           showStreamingCaret={props.showStreamingCaret}
           locale={locale}
-          artifactPreviewEnabled={props.artifactPreviewEnabled}
+          artifactInlineEnabled={props.artifactInlineEnabled}
+          artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
           {...(props.artifactCodeFirst !== undefined
             ? { artifactCodeFirst: props.artifactCodeFirst }
             : {})}

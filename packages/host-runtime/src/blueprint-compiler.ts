@@ -33,7 +33,12 @@ import type {
   McpConfigDocument,
   EphemeralProviderSecret,
 } from '@piwin/contracts';
-import { modelSupportsCapability, normalizeResourceId } from '@piwin/contracts';
+import {
+  modelSupportsCapability,
+  normalizeResourceId,
+  resolveArtifactCapability,
+  type ResolvedArtifactCapability,
+} from '@piwin/contracts';
 import { DEFAULT_AGENT_MODE_SYSTEM_PROMPT, KNOWLEDGE_TOOL_NAMES } from '@piwin/contracts';
 import { listEnabledServers, loadMcpConfig } from '@piwin/mcp';
 import { resolveWebConfig } from '@piwin/tools-web';
@@ -220,6 +225,20 @@ export async function compileBlueprintForWorker(
 // the prompt path share one rule; re-exported here for existing callers.
 export { isConversationChatSession };
 
+/**
+ * Artifact capability for a Conversation (general-scope) session.
+ * The scope key mirrors `SessionScope.kind`, which is also what Desktop uses to
+ * resolve the same switches for rendering.
+ */
+function conversationArtifactCapability(config: PiwinConfig): ResolvedArtifactCapability {
+  return resolveArtifactCapability(config.artifact, 'general');
+}
+
+/** Artifact capability for an Agent (project-scope) session. */
+function agentArtifactCapability(config: PiwinConfig): ResolvedArtifactCapability {
+  return resolveArtifactCapability(config.artifact, 'project');
+}
+
 /** Capability decisions shared by both compile paths. */
 type CapabilityCompilePlan = {
   snapshot: SessionCapabilitySnapshot;
@@ -363,6 +382,7 @@ async function compileAgentCapabilityPlan(
   const artifactAppendPrompt = formatResidentArtifactPrompt(
     config.artifact,
     snapshot.tools.hostTools,
+    agentArtifactCapability(config),
   );
 
   // MCP guidance is part of the model-visible contract only when the compiled
@@ -617,6 +637,7 @@ function compileConversationPlan(
   const artifactAppendPrompt = formatResidentArtifactPrompt(
     config.artifact,
     snapshot.tools.hostTools,
+    conversationArtifactCapability(config),
   );
 
   const knowledgeAppendPrompt = formatMountedKnowledgeBasePrompt(
@@ -701,7 +722,7 @@ function compileConversationToolPolicy(
     subagents: 'off',
     notes: familyHasKnowledgeTools(options.hostToolFamilyIndex) ? 'agent-read' : 'off',
     flashcards: flashcardsAccess,
-    artifact: config.artifact.enabled,
+    artifact: conversationArtifactCapability(config).enabled,
     availability: {
       webSearchReady,
       webFetchReady,
@@ -921,7 +942,7 @@ function compileToolPolicy(
         : config.flashcards?.enabled === false
           ? 'off'
           : 'agent-create',
-    artifact: config.artifact.enabled,
+    artifact: agentArtifactCapability(config).enabled,
     availability: {
       webSearchReady,
       webFetchReady,

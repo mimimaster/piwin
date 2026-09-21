@@ -208,7 +208,7 @@ describe('context ring selector matrix', () => {
     expect(unknown.labels.limitNote).toMatch(/limit unknown/i);
   });
 
-  it('T32: waiting hides, tool-loop keeps, queued does not change current-run eligibility', () => {
+  it('T32: follow-up waiting keeps occupancy, tool-loop keeps, queued does not change current-run eligibility', () => {
     const waitingNextTurn = selected(
       'session-a',
       makeContextSnapshot({
@@ -221,7 +221,10 @@ describe('context ring selector matrix', () => {
         },
       }),
     );
-    expect(selectContextRingView({ telemetry: waitingNextTurn, locale: 'en' }).visible).toBe(false);
+    const waitingView = selectContextRingView({ telemetry: waitingNextTurn, locale: 'en' });
+    expect(waitingView.visible).toBe(true);
+    expect(waitingView.tokensUsed).toBe(40_000);
+    expect(waitingView.occupancySource).toBe('current');
 
     const toolLoop = selected(
       'session-a',
@@ -279,7 +282,7 @@ describe('context ring selector matrix', () => {
     expect(view.percentText).toBeUndefined();
   });
 
-  it('shows lastConfirmed on idle dirty occupancy and still hides a waiting run', () => {
+  it('shows lastConfirmed on idle dirty occupancy and holds it while the next run waits', () => {
     const lastConfirmed = {
       occupancy: makeKnownOccupancy({ tokensUsed: 23_065, tokensLimit: 128_000 }),
       contextBoundary: { activeLeafMessageId: 'leaf-1' },
@@ -321,7 +324,12 @@ describe('context ring selector matrix', () => {
         },
       }),
     );
-    expect(selectContextRingView({ telemetry: waitingDirty, locale: 'en' }).visible).toBe(false);
+    const waitingView = selectContextRingView({ telemetry: waitingDirty, locale: 'en' });
+    expect(waitingView.visible).toBe(true);
+    expect(waitingView.tokensUsed).toBe(23_065);
+    expect(waitingView.occupancySource).toBe('current');
+    expect(waitingView.labels.status).toBe('Confirmed');
+    expect(waitingView.labels.status).not.toBe(STALE_EN);
   });
 
   it('shows stale lastConfirmed for runtime-generation-mismatch with a moved leaf', () => {
@@ -521,7 +529,7 @@ describe('context ring selector matrix', () => {
     }
   });
 
-  it('hides runtime-generation-mismatch lastConfirmed while waiting without a current response', () => {
+  it('holds runtime-generation-mismatch lastConfirmed while waiting without a current response', () => {
     const view = selectContextRingView({
       telemetry: runtimeMismatchTelemetry({
         phase: 'waiting-response',
@@ -529,9 +537,11 @@ describe('context ring selector matrix', () => {
       }),
       locale: 'en',
     });
-    expect(view.visible).toBe(false);
-    expect(view.tokensUsed).toBeUndefined();
+    expect(view.visible).toBe(true);
+    expect(view.tokensUsed).toBe(7_797);
     expect(view.occupancySource).toBe('current');
+    expect(view.labels.status).toBe('Confirmed');
+    expect(view.labels.status).not.toBe(STALE_EN);
   });
 
   it('hides numeric ring after compact success with unknown occupancy', () => {

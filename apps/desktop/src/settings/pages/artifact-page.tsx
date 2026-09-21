@@ -11,18 +11,24 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
   createDefaultArtifactConfig,
+  createDefaultArtifactScopes,
   DEFAULT_ARTIFACT_DECISION_PROMPT,
   resolveArtifactDecisionPrompt,
   type ArtifactConfig,
   type ArtifactPromptMode,
+  type ArtifactScopeKey,
+  type ArtifactScopesConfig,
+  type ArtifactSurfaceSwitches,
   type ArtifactTriggerMode,
   type PiwinConfig,
 } from '@piwin/contracts';
-import { Button, NumberInput, SegmentedControl, Switch, TextArea } from '@piwin/ui-kit';
+import { Button, SegmentedControl, Switch, TextArea } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { settingsSavedWithEffect } from '../../settings-effect-copy.js';
 import { FieldRow } from '../field-row';
 import { useSettings } from '../settings-context';
+import { ArtifactAdvancedSettings } from './artifact-advanced-settings';
+import { ArtifactScopeTree } from './artifact-scope-tree';
 
 export function ArtifactPage(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -35,6 +41,11 @@ export function ArtifactPage(): ReactElement {
   const artifactConfig = config?.artifact ?? defaultArtifactConfig;
 
   const [enabled, setEnabled] = useState<boolean>(artifactConfig.enabled);
+  // Missing scopes (older config, Host not loaded) read as the shipped default,
+  // so the tree always shows the effective state.
+  const [scopes, setScopes] = useState<ArtifactScopesConfig>(() =>
+    artifactConfig.scopes ?? createDefaultArtifactScopes(),
+  );
   const [triggerMode, setTriggerMode] = useState<ArtifactTriggerMode>(artifactConfig.triggerMode);
   const [promptMode, setPromptMode] = useState<ArtifactPromptMode>(
     artifactConfig.decisionPrompt.mode,
@@ -53,6 +64,7 @@ export function ArtifactPage(): ReactElement {
 
   useEffect(() => {
     setEnabled(artifactConfig.enabled);
+    setScopes(artifactConfig.scopes ?? createDefaultArtifactScopes());
     setTriggerMode(artifactConfig.triggerMode);
     setPromptMode(artifactConfig.decisionPrompt.mode);
     setCustomPrompt(artifactConfig.decisionPrompt.customPrompt);
@@ -65,6 +77,7 @@ export function ArtifactPage(): ReactElement {
   const draft: ArtifactConfig = useMemo(
     () => ({
       enabled,
+      scopes,
       triggerMode,
       decisionPrompt: {
         mode: promptMode,
@@ -76,6 +89,7 @@ export function ArtifactPage(): ReactElement {
     }),
     [
       enabled,
+      scopes,
       triggerMode,
       promptMode,
       customPrompt,
@@ -113,8 +127,8 @@ export function ArtifactPage(): ReactElement {
               label={isZh ? '启用 Artifact' : 'Enable Artifact'}
               description={
                 isZh
-                  ? '允许 Agent 根据内容生成并展示 Inline Artifact 或 Canvas。关闭后 Agent 使用 Markdown 和普通代码块回答。'
-                  : 'Allow the agent to generate and display inline artifacts or canvas. When off, the agent uses Markdown and ordinary code blocks.'
+                  ? '总开关。关闭后所有会话都不再生成和渲染 Artifact，Agent 使用 Markdown 和普通代码块回答；分类与 Inline/Canvas 的选择会保留。'
+                  : 'Master switch. When off, no session generates or renders Artifacts and the agent uses Markdown and ordinary code blocks. Your per-class and per-surface choices are kept.'
               }
               testId="artifact-enabled-row"
             >
@@ -131,6 +145,22 @@ export function ArtifactPage(): ReactElement {
 
             {enabled ? (
               <>
+                <ArtifactScopeTree
+                  scopes={scopes}
+                  isZh={isZh}
+                  onChange={(
+                    scopeKey: ArtifactScopeKey,
+                    surface: keyof ArtifactSurfaceSwitches,
+                    value: boolean,
+                  ) => {
+                    setScopes((current) => ({
+                      ...current,
+                      [scopeKey]: { ...current[scopeKey], [surface]: value },
+                    }));
+                    setEditing(true);
+                  }}
+                />
+
                 <FieldRow
                   label={isZh ? '触发模式' : 'Trigger mode'}
                   description={
@@ -271,75 +301,24 @@ export function ArtifactPage(): ReactElement {
               />
             </FieldRow>
 
-            <details style={{ marginTop: 8 }} data-testid="artifact-advanced-section">
-              <summary style={{ cursor: 'pointer', fontSize: '0.85em', opacity: 0.7 }}>
-                {isZh ? '高级设置' : 'Advanced'}
-              </summary>
-              <div style={{ marginTop: 8 }}>
-                <FieldRow
-                  label={isZh ? '拦截外部脚本' : 'Block external scripts'}
-                  description={
-                    isZh
-                      ? '拦截带外部 src 的 script。关闭后仍受沙箱 CSP 约束。'
-                      : 'Block <script src> to other origins. Off still keeps the sandbox CSP.'
-                  }
-                  testId="artifact-block-scripts-row"
-                >
-                  <Switch
-                    checked={blockExternalScripts}
-                    onCheckedChange={(checked) => {
-                      setBlockExternalScripts(checked);
-                      setEditing(true);
-                    }}
-                    aria-label={isZh ? '拦截外部脚本' : 'Block external scripts'}
-                    testId="artifact-block-scripts-switch"
-                  />
-                </FieldRow>
-                <FieldRow
-                  label={isZh ? '拦截外部资源' : 'Block external resources'}
-                  description={
-                    isZh
-                      ? '拦截图片、样式、媒体等外链。默认开启。关闭后仅按「拦截外部脚本」处理脚本。'
-                      : 'Block images, styles, and other remote URLs. Default on. When off, scripts still follow the script switch.'
-                  }
-                  testId="artifact-block-resources-row"
-                >
-                  <Switch
-                    checked={blockExternalResources}
-                    onCheckedChange={(checked) => {
-                      setBlockExternalResources(checked);
-                      setEditing(true);
-                    }}
-                    aria-label={isZh ? '拦截外部资源' : 'Block external resources'}
-                    testId="artifact-block-resources-switch"
-                  />
-                </FieldRow>
-                <FieldRow
-                  label={isZh ? '最大 Artifact 大小' : 'Max artifact size'}
-                  description={
-                    isZh
-                      ? 'Artifact 评估的安全字节上限（字节）。'
-                      : 'Security byte cap for artifact evaluation (in bytes).'
-                  }
-                  testId="artifact-max-bytes-row"
-                >
-                  <NumberInput
-                    testId="artifact-max-bytes-input"
-                    aria-label={isZh ? '最大 Artifact 大小' : 'Max artifact size'}
-                    w={140}
-                    min={1024}
-                    step={1024}
-                    value={maxBytes}
-                    onChange={(value) => {
-                      if (typeof value === 'number' && value > 0) {
-                        setMaxBytes(value);
-                        setEditing(true);
-                      }
-                    }}
-                  />
-                </FieldRow>
-              </div>
-            </details>
+            <ArtifactAdvancedSettings
+              isZh={isZh}
+              blockExternalScripts={blockExternalScripts}
+              blockExternalResources={blockExternalResources}
+              maxBytes={maxBytes}
+              onBlockExternalScriptsChange={(checked) => {
+                setBlockExternalScripts(checked);
+                setEditing(true);
+              }}
+              onBlockExternalResourcesChange={(checked) => {
+                setBlockExternalResources(checked);
+                setEditing(true);
+              }}
+              onMaxBytesChange={(value) => {
+                setMaxBytes(value);
+                setEditing(true);
+              }}
+            />
 
             {editing ? (
               <div
@@ -351,6 +330,7 @@ export function ArtifactPage(): ReactElement {
                   data-testid="artifact-reset-button"
                   onClick={() => {
                     setEnabled(artifactConfig.enabled);
+                    setScopes(artifactConfig.scopes ?? createDefaultArtifactScopes());
                     setTriggerMode(artifactConfig.triggerMode);
                     setPromptMode(artifactConfig.decisionPrompt.mode);
                     setCustomPrompt(artifactConfig.decisionPrompt.customPrompt);

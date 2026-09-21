@@ -9,6 +9,7 @@ import { permissionRevokedEffectMessage } from './settings-effect-copy.js';
 
 export type RememberedPermissionsSectionProps = {
   projectPath: string | null;
+  /** Controlled override. Omitted -> the section owns its open state. */
   expanded?: boolean;
   onToggle?: () => void;
   request: (command: {
@@ -29,6 +30,16 @@ export function RememberedPermissionsSection(
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // Remembered permissions are an audit/cleanup affordance, not first-tier
+  // reading: collapse by default so the mode cards stay the page's focus.
+  const [selfExpanded, setSelfExpanded] = useState(false);
+  const expanded = props.expanded ?? selfExpanded;
+  const handleToggle = (): void => {
+    if (props.expanded === undefined) {
+      setSelfExpanded((value) => !value);
+    }
+    props.onToggle?.();
+  };
 
   const load = useCallback(async () => {
     if (!props.projectPath) {
@@ -79,8 +90,8 @@ export function RememberedPermissionsSection(
       <button
         type="button"
         className="settings-collapsible-trigger"
-        onClick={() => props.onToggle?.()}
-        aria-expanded={props.expanded !== false}
+        onClick={handleToggle}
+        aria-expanded={expanded}
         data-testid="remembered-permissions-toggle"
       >
         <div className="settings-card-heading" style={{ marginBottom: 0 }}>
@@ -94,7 +105,7 @@ export function RememberedPermissionsSection(
           </div>
         </div>
         <svg
-          className={`settings-collapsible-chevron ${props.expanded !== false ? 'open' : ''}`}
+          className={`settings-collapsible-chevron ${expanded ? 'open' : ''}`}
           width="18"
           height="18"
           viewBox="0 0 24 24"
@@ -108,7 +119,7 @@ export function RememberedPermissionsSection(
         </svg>
       </button>
 
-      <Collapse expanded={props.expanded !== false} testId="remembered-permissions-collapse">
+      <Collapse expanded={expanded} testId="remembered-permissions-collapse">
         {!props.projectPath ? (
           <EmptyState
             title={isChinese ? '未打开工作区' : 'No workspace open'}

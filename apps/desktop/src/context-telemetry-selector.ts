@@ -145,18 +145,15 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
     snapshotModel: snapshot.contextBoundary.model,
   });
 
-  const waitingWithoutResponse =
-    snapshot.phase === 'waiting-response' && !snapshot.responseEvidence.currentRunHasResponse;
   const emptyPhase = snapshot.phase === 'empty' && known === null;
   const hasEvidence =
     snapshot.responseEvidence.currentRunHasResponse ||
-    (snapshot.responseEvidence.historyHasDisplayableResponse &&
-      snapshot.phase !== 'waiting-response') ||
+    snapshot.responseEvidence.historyHasDisplayableResponse ||
     (known !== null && snapshot.phase === 'invalidated');
   const offline = telemetry.disconnected === true;
   const compacting = snapshot.phase === 'compacting' || input.compacting === true;
 
-  if (emptyPhase || waitingWithoutResponse) {
+  if (emptyPhase) {
     return hiddenView({ copy, locale: input.locale, phase: snapshot.phase, lastRequest, offline });
   }
   if (snapshot.phase === 'invalidated' && known === null && !compactPending) {
@@ -331,11 +328,40 @@ function resolveRingOccupancy(snapshot: SessionContextSnapshot): {
   if (current) {
     return { occupancy: current, occupancySource: 'current' };
   }
+  const held = presentationHoldOccupancyDuringWait(snapshot);
+  if (held) {
+    return { occupancy: held, occupancySource: 'current' };
+  }
   const stale = presentationLastConfirmedOccupancy(snapshot);
   if (stale) {
     return { occupancy: stale, occupancySource: 'last-confirmed' };
   }
   return { occupancy: null, occupancySource: 'current' };
+}
+
+function presentationHoldOccupancyDuringWait(
+  snapshot: SessionContextSnapshot,
+): KnownOccupancy | null {
+  // Follow-up Run: Host occupancy is unknown until first evidence, but the
+  // previous confirmed fill is still the live context. Hold those numbers on
+  // the ring without writing Host current occupancy or using mismatch copy.
+  if (snapshot.phase !== 'waiting-response') {
+    return null;
+  }
+  if (snapshot.responseEvidence.currentRunHasResponse) {
+    return null;
+  }
+  if (!snapshot.responseEvidence.historyHasDisplayableResponse) {
+    return null;
+  }
+  const lastConfirmed = snapshot.lastConfirmed;
+  if (lastConfirmed === undefined || lastConfirmed.occupancy.kind !== 'known') {
+    return null;
+  }
+  if (!nonLeafContextBoundaryCompatible(lastConfirmed.contextBoundary, snapshot.contextBoundary)) {
+    return null;
+  }
+  return lastConfirmed.occupancy;
 }
 
 function presentationLastConfirmedOccupancy(
@@ -345,7 +371,7 @@ function presentationLastConfirmedOccupancy(
   // `idle + waiting-for-response` after a response was interrupted while the
   // active leaf moved. Both are safe to present only through this stale,
   // read-only path; never promote them to current occupancy or feed them into
-  // prompt budgeting. A live `waiting-response` phase remains hidden above.
+  // prompt budgeting. Live waiting holds lastConfirmed above, not here.
   if (snapshot.phase !== 'invalidated' && snapshot.phase !== 'idle') {
     return null;
   }

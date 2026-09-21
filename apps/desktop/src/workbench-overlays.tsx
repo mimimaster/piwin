@@ -92,6 +92,7 @@ export type WorkbenchOverlaysProps = {
   ) => void;
   onContinueSessionInProject: (sessionId: string, targetScope: SessionScope) => Promise<boolean>;
   recentProjects: readonly ProjectRecord[];
+  noRepoProjectPath?: string | null;
   sessionSearchOpen: boolean;
   onSessionSearchOpenChange: (open: boolean) => void;
   sessionSearch: string;
@@ -252,6 +253,9 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
           props.runContinueInProject(targetScope, props.onContinueSessionInProject);
         }}
         onCancelContinueInProject={props.closeContinueInProject}
+        {...(props.noRepoProjectPath
+          ? { noRepoProjectPath: props.noRepoProjectPath }
+          : {})}
       />
 
       <SessionSearchDialog

@@ -262,6 +262,18 @@ html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
 
 .transcript-turn-window-item-body {
   width: 100%;
+  /* Natural content box, not the overflow-hidden slot. Needed so measure
+     can see a long delivery that the estimate-locked slot would clip. */
+  height: max-content;
+}
+
+/* The newest turn has no neighbor below. Clipping it is the long-session
+   truncation bug: estimate locks overflow:hidden, the body reports the clip
+   box, the virtualizer never grows, and the user cannot scroll into history.
+   Only the last slot — earlier pinned tail rows still clip so they cannot
+   paint over the answer. */
+.transcript-turn-window-item.is-live-tail {
+  overflow: visible;
 }
 
 @media (max-width: 820px) {

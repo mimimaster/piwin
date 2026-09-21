@@ -75,7 +75,7 @@ describe('filterSidebarRowsByMode', () => {
   });
 
   it('leaves rows before any section header alone in both panes', () => {
-    const rows: SidebarTreeRow[] = [{ kind: 'no-repo-folder', key: 'no-repo' }, ...ROWS];
+    const rows: SidebarTreeRow[] = [{ kind: 'no-repo-folder', key: 'no-repo', collapsed: true }, ...ROWS];
     expect(keys(filterSidebarRowsByMode(rows, 'chat'))[0]).toBe('no-repo');
     expect(keys(filterSidebarRowsByMode(rows, 'code'))[0]).toBe('no-repo');
   });

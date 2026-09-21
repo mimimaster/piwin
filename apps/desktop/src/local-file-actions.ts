@@ -343,7 +343,13 @@ async function readSourceBlob(
 
 export type RevealLocalFileResult =
   | { ok: true }
-  | { ok: false; reason: 'not-desktop' | 'failed' | 'not-local' };
+  /**
+   * `missing` — the path itself is absent while its parent folder exists.
+   * Callers must not silently open the parent: that lands the user in the
+   * project root instead of the folder the path named. They may still resolve
+   * the real file (`project/find-file`) before reporting a failure.
+   */
+  | { ok: false; reason: 'not-desktop' | 'failed' | 'not-local' | 'missing' };
 
 /**
  * Probe whether a Host filesystem root exists on this Desktop machine.
@@ -393,6 +399,9 @@ export async function revealLocalFileInFolder(
       if (!parentExists) {
         return { ok: false, reason: 'not-local' };
       }
+      // The folder is here but the file is not: say so instead of opening the
+      // wrong folder (the native command falls back to the parent directory).
+      return { ok: false, reason: 'missing' };
     }
     await invoke('reveal_in_file_manager', { path: absolutePath });
     return { ok: true };

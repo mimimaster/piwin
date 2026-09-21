@@ -113,6 +113,171 @@ describe('useComposerMedia session transitions', () => {
     });
   });
 
+  it('sends a No Repo draft without waiting for project/open trust', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = {
+      request: vi.fn().mockResolvedValue({
+        type: 'response',
+        command: 'session/prompt',
+        success: true,
+        data: { runId: 'run-1', acceptedAt: '2026-08-12T00:00:00.000Z' },
+      }),
+    } as unknown as HostClient;
+    const ensureSession = vi.fn().mockResolvedValue('no-repo-session-1');
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+    const workspace = '/Users/me/.piwin/workspace';
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+        ensureSession,
+        generalWorkspacePath: workspace,
+      });
+      return null;
+    }
+
+    const state = {
+      ...createInitialTestChatUiState(),
+      activeSessionId: null,
+      activeScope: { kind: 'general' as const },
+      projectPath: null,
+      projectTrusted: false,
+    };
+    act(() => root?.render(<Harness state={state} />));
+    act(() => {
+      captured?.startNewDraft({ kind: 'project', projectPath: workspace });
+      captured?.setComposer('hello from no repo');
+    });
+    await act(async () => {
+      await captured?.handleSend();
+    });
+
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'project/trust-dialog', open: true });
+    expect(ensureSession).toHaveBeenCalledWith({
+      scope: { kind: 'project', projectPath: workspace },
+      projectPath: workspace,
+      alreadyTrusted: true,
+      sessionName: 'hello from no repo',
+    });
+  });
+
+  it('sends a No Repo draft even when hostStatus has not arrived', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const request = vi.fn().mockResolvedValue({
+      type: 'response',
+      command: 'session/prompt',
+      success: true,
+      data: { runId: 'run-1', acceptedAt: '2026-08-12T00:00:00.000Z' },
+    });
+    const hostClient = { request } as unknown as HostClient;
+    const ensureSession = vi.fn().mockResolvedValue('no-repo-session-2');
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+    const workspace = '/Users/me/.piwin/workspace';
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+        ensureSession,
+      });
+      return null;
+    }
+
+    const state = {
+      ...createInitialTestChatUiState(),
+      activeSessionId: null,
+      activeScope: { kind: 'general' as const },
+      projectPath: null,
+      projectTrusted: false,
+    };
+    act(() => root?.render(<Harness state={state} />));
+    act(() => {
+      captured?.startNewDraft({ kind: 'project', projectPath: workspace });
+      captured?.setComposer('ping');
+    });
+    await act(async () => {
+      await captured?.handleSend();
+    });
+
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'project/trust-dialog', open: true });
+    expect(ensureSession).toHaveBeenCalledWith({
+      scope: { kind: 'project', projectPath: workspace },
+      projectPath: workspace,
+      alreadyTrusted: true,
+      sessionName: 'ping',
+    });
+    expect(request).toHaveBeenCalled();
+    expect(request.mock.calls[0]?.[0]).toMatchObject({
+      type: 'session/prompt',
+      sessionId: 'no-repo-session-2',
+    });
+  });
+
+  it('sends No Repo when the draft is still General but the active project is the workspace', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const request = vi.fn().mockResolvedValue({
+      type: 'response',
+      command: 'session/prompt',
+      success: true,
+      data: { runId: 'run-1', acceptedAt: '2026-08-12T00:00:00.000Z' },
+    });
+    const ensureSession = vi.fn().mockResolvedValue('no-repo-session-3');
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+    const workspace = '/Users/me/.piwin/workspace';
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient: { request } as unknown as HostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+        ensureSession,
+      });
+      return null;
+    }
+
+    const state = {
+      ...createInitialTestChatUiState(),
+      activeSessionId: null,
+      activeScope: { kind: 'project' as const, projectPath: workspace },
+      projectPath: workspace,
+      projectTrusted: false,
+    };
+    act(() => root?.render(<Harness state={state} />));
+    act(() => {
+      captured?.setComposer('still general draft');
+    });
+    await act(async () => {
+      await captured?.handleSend();
+    });
+
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'project/trust-dialog', open: true });
+    expect(ensureSession).toHaveBeenCalledWith({
+      scope: { kind: 'project', projectPath: workspace },
+      projectPath: workspace,
+      alreadyTrusted: true,
+      sessionName: 'still general draft',
+    });
+    expect(request.mock.calls[0]?.[0]).toMatchObject({
+      type: 'session/prompt',
+      sessionId: 'no-repo-session-3',
+    });
+  });
+
   it('send snapshot is not changed by late chip edits while session creation waits', async () => {
     container = document.createElement('div');
     document.body.append(container);

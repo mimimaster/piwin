@@ -49,7 +49,7 @@ describe('conversation pane transcript scrolling', () => {
             state={state}
             activeTheme={PIWIN_APPEARANCE_DARK}
             artifactThemeKey={0}
-            artifactPreviewEnabled={false}
+            artifactInlineEnabled={false}
             locale="zh-CN"
           />
         </PiwinUiProvider>,

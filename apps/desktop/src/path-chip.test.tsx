@@ -12,6 +12,24 @@ import {
   type ContextMenuDispatchers,
   type DesktopContextMenuValue,
 } from './context-menu';
+import { LocalFileActionsProvider } from './local-file-actions-context';
+
+/**
+ * Reveal is Tauri-only, so the missing-path branch is driven through an
+ * override that defaults to the real implementation (browser → not-desktop).
+ */
+const revealOverride = vi.hoisted(() => ({
+  impl: null as null | ((path: string) => Promise<unknown>),
+}));
+
+vi.mock('./local-file-actions.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./local-file-actions.js')>();
+  return {
+    ...actual,
+    revealLocalFileInFolder: (path: string) =>
+      revealOverride.impl ? revealOverride.impl(path) : actual.revealLocalFileInFolder(path),
+  };
+});
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -97,6 +115,7 @@ describe('PathChip context menu (CM-06)', () => {
     document.body.innerHTML = '';
     root = null;
     container = null;
+    revealOverride.impl = null;
     vi.restoreAllMocks();
   });
 
@@ -350,6 +369,97 @@ describe('PathChip context menu (CM-06)', () => {
     expect(onNotify).toHaveBeenCalledWith(
       'Show in Finder needs the desktop window, not the browser preview.',
       'error',
+    );
+  });
+
+  it('resolves the real file before revealing when the chip path has nothing', async () => {
+    const onNotify = vi.fn();
+    const request = vi.fn(async (command: { type: string; query?: string }) => ({
+      type: 'response',
+      command: command.type,
+      success: true,
+      data: {
+        projectPath: '/p',
+        query: command.query ?? '',
+        matches: [{ relativePath: 'docs/real/shot.png' }],
+        truncated: false,
+      },
+    }));
+    const calls: string[] = [];
+    revealOverride.impl = async (path) => {
+      calls.push(path);
+      if (path === '/p/shot.png') {
+        return { ok: false, reason: 'missing' };
+      }
+      return { ok: true };
+    };
+
+    const rendered = renderPathChip(
+      <LocalFileActionsProvider request={request as never}>
+        <PathChip
+          fullPath="shot.png"
+          projectPath="/p"
+          data-testid="path-chip-shot"
+          onOpen={() => undefined}
+          onNotify={onNotify}
+        />
+      </LocalFileActionsProvider>,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    openContextMenu(container.querySelector('[data-testid="path-chip-shot"]') as HTMLElement);
+    const revealItem = menuItem('context-menu-reveal') as HTMLElement | null;
+    expect(revealItem).not.toBeNull();
+    act(() => {
+      revealItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(request).toHaveBeenCalledWith({
+      type: 'project/find-file',
+      projectPath: '/p',
+      query: 'shot.png',
+    });
+    expect(calls).toEqual(['/p/shot.png', '/p/docs/real/shot.png']);
+    expect(onNotify).not.toHaveBeenCalled();
+  });
+
+  it('says the path has no file when the Host cannot resolve it either', async () => {
+    const onNotify = vi.fn();
+    revealOverride.impl = async () => ({ ok: false, reason: 'missing' });
+
+    const rendered = renderPathChip(
+      <LocalFileActionsProvider
+        request={async () => ({ type: 'response', success: false } as never)}
+      >
+        <PathChip
+          fullPath="shot.png"
+          projectPath="/p"
+          data-testid="path-chip-shot"
+          onOpen={() => undefined}
+          onNotify={onNotify}
+        />
+      </LocalFileActionsProvider>,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    openContextMenu(container.querySelector('[data-testid="path-chip-shot"]') as HTMLElement);
+    act(() => {
+      menuItem('context-menu-reveal')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onNotify).toHaveBeenCalledWith(
+      'No file at that path — it may live in another project folder: /p/shot.png',
+      'info',
     );
   });
 });

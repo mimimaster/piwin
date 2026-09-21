@@ -24,10 +24,7 @@ are **incompatible**: they stay in the list as 仅 Pi 终端 and are not loaded.
 - `ctx.ui.confirm` / `select` / `input` / `notify` (Desktop prompt or CLI TTY)
 - Install from a local path or Git; enable, then apply at the current-run boundary
 
-Bundled examples: `path-guard`, `questionnaire`, `goal`, `compact`
-(Devin-style context compaction: every compact — tool, `/compact`, threshold,
-overflow — writes `~/.piwin/compact/<session>/*.md`, returns a Devin `<summary>`
-from `session_before_compact`, and re-injects edited files on the next turn).
+Bundled examples: `path-guard`, `questionnaire`, `goal`.
 
 ## What does not work
 

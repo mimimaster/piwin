@@ -69,7 +69,7 @@ export async function loadPetPreference(piwinRoot: string): Promise<PetPreferenc
   try {
     const raw = await readFile(getPetPreferencePath(piwinRoot), 'utf8');
     const parsed = JSON.parse(raw) as { activePetId?: string };
-    if (typeof parsed.activePetId === 'string' && parsed.activePetId.trim()) {
+    if (typeof parsed.activePetId === 'string') {
       return { activePetId: parsed.activePetId.trim() };
     }
   } catch {
@@ -83,10 +83,10 @@ export async function loadPetPreference(piwinRoot: string): Promise<PetPreferenc
       await buildRuntimeSnapshot(piwinRoot, codexPetId, 'idle');
       return { activePetId: codexPetId };
     } catch {
-      // codex pet not installed in piwin — fall through to default
+      // codex pet not installed in piwin — leave unset
     }
   }
-  return { activePetId: 'piwin-default' };
+  return { activePetId: '' };
 }
 
 export async function savePetPreference(
@@ -144,13 +144,11 @@ export async function getActivePet(
   state: PetAnimationState = 'idle',
 ): Promise<PetRuntimeSnapshot> {
   const preference = await loadPetPreference(piwinRoot);
-  let petId = preference.activePetId;
-  try {
-    return await buildRuntimeSnapshot(piwinRoot, petId, state);
-  } catch {
-    petId = 'piwin-default';
-    return buildRuntimeSnapshot(piwinRoot, petId, state);
+  const petId = preference.activePetId.trim();
+  if (!petId) {
+    throw new Error('no active pet');
   }
+  return buildRuntimeSnapshot(piwinRoot, petId, state);
 }
 
 async function buildRuntimeSnapshot(
@@ -246,9 +244,9 @@ export async function queryRemotePetStore(
 
 /**
  * Delete a user-installed pet package from the local pets directory.
- * Bundled pets (`piwin-default` etc.) cannot be deleted.
- * If the deleted pet is currently active, automatically falls back to
- * `piwin-default` and returns the new active snapshot.
+ * Bundled pets cannot be deleted.
+ * If the deleted pet is currently active, the preference is cleared
+ * (releases ship no default companion).
  */
 export async function deletePet(
   piwinRoot: string,
@@ -275,11 +273,9 @@ export async function deletePet(
   }
   await rm(petDir, { recursive: true, force: true });
 
-  // If the deleted pet was active, fall back to the default.
   const preference = await loadPetPreference(piwinRoot);
   if (preference.activePetId === petId) {
-    const fallbackPet = await setActivePet(piwinRoot, 'piwin-default');
-    return { fallbackPet };
+    await savePetPreference(piwinRoot, { activePetId: '' });
   }
   return {};
 }

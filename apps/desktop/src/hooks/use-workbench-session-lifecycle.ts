@@ -62,6 +62,7 @@ export type UseWorkbenchSessionLifecycleArgs = {
   showArchivedSessions: boolean;
   remoteCatchUpEpoch: number;
   saveSettingsInOrder: import('./use-settings-save-queue').SaveSettingsInOrder;
+  generalWorkspacePath?: string | null;
 };
 
 export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleArgs): {
@@ -83,6 +84,7 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
     showArchivedSessions,
     remoteCatchUpEpoch,
     saveSettingsInOrder,
+    generalWorkspacePath,
   } = args;
 
   const [recentProjects, setRecentProjects] = useState<ProjectRecord[]>([]);
@@ -182,9 +184,14 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
   }, [remoteCatchUpEpoch, hostReady]);
 
   useEffect(() => {
+    const workspacePath = generalWorkspacePath?.trim() ?? '';
+    const recentProjectPaths = recentProjects.map((project) => project.path);
+    if (workspacePath && !recentProjectPaths.includes(workspacePath)) {
+      recentProjectPaths.push(workspacePath);
+    }
     const plan = planRecentProjectSessionHydration({
       hostReady,
-      recentProjectPaths: recentProjects.map((project) => project.path),
+      recentProjectPaths,
       lastHydratedKey: hydratedProjectKeyRef.current,
       catchUpEpoch: remoteCatchUpEpoch,
     });
@@ -216,7 +223,7 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
     };
     // hydrateSessions is intentionally omitted (its identity changes with UI state).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recentProjects, hostReady, remoteCatchUpEpoch]);
+  }, [recentProjects, hostReady, remoteCatchUpEpoch, generalWorkspacePath]);
 
   useEffect(() => {
     const plan = planLastSessionRestore({

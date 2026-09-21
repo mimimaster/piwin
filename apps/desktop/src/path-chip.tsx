@@ -19,6 +19,7 @@ import {
   canRevealInLocalFileManager,
   revealDisabledHint,
 } from './local-file-reveal-policy.js';
+import { absolutePathForProjectMatch } from './resolve-project-file.js';
 import { resolveProjectFilesystemRoot } from './remote-session-hydrate.js';
 
 export type PathChipProps = {
@@ -140,8 +141,32 @@ export function PathChip({
         onOpen();
       },
       revealPath: (path) => {
-        void revealLocalFileInFolder(path).then((result) => {
+        void revealLocalFileInFolder(path).then(async (result) => {
           if (result.ok) {
+            return;
+          }
+          if (result.reason === 'missing') {
+            // The chip text was not a full path (bare file name / stale folder).
+            // Ask the Host where the file really is before giving up.
+            const lookup =
+              localFileActions && projectPath
+                ? await localFileActions
+                    .resolveProjectFile({ projectPath, requestedPath: path })
+                    .catch(() => null)
+                : null;
+            const resolvedPath =
+              lookup?.kind === 'unique' && projectPath
+                ? absolutePathForProjectMatch(projectPath, lookup.relativePath)
+                : null;
+            if (resolvedPath !== null && (await revealLocalFileInFolder(resolvedPath)).ok) {
+              return;
+            }
+            notify?.(
+              locale === 'zh-CN'
+                ? `该路径下没有文件，它可能在项目其他目录：${path}`
+                : `No file at that path — it may live in another project folder: ${path}`,
+              'info',
+            );
             return;
           }
           if (result.reason === 'not-desktop') {

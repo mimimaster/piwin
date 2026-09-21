@@ -48,7 +48,9 @@ export type SubagentSessionTranscriptProps = {
   onOpenDocument?: (input: DocumentOpenInput) => void;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   artifactMaxBytes?: number;
   artifactBlockExternalScripts?: boolean;
   artifactBlockExternalResources?: boolean;
@@ -76,7 +78,8 @@ function SubagentInspectorAssistant({
   onOpenDocument,
   onArtifactAction,
   onOpenArtifactCanvas,
-  artifactPreviewEnabled,
+  artifactInlineEnabled,
+  artifactCanvasEnabled,
   artifactMaxBytes,
   artifactBlockExternalScripts,
   artifactBlockExternalResources,
@@ -95,7 +98,9 @@ function SubagentInspectorAssistant({
   onOpenDocument?: (input: DocumentOpenInput) => void;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  artifactPreviewEnabled: boolean;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
   artifactMaxBytes?: number;
   artifactBlockExternalScripts?: boolean;
   artifactBlockExternalResources?: boolean;
@@ -127,7 +132,8 @@ function SubagentInspectorAssistant({
             renderingPhase={streaming ? 'streaming' : 'completed'}
             showStreamingCaret={streaming && message.text.trim().length > 0}
             locale={locale}
-            artifactPreviewEnabled={artifactPreviewEnabled}
+            artifactInlineEnabled={artifactInlineEnabled}
+            artifactCanvasEnabled={artifactCanvasEnabled ?? artifactInlineEnabled}
             {...(artifactMaxBytes !== undefined ? { artifactMaxBytes } : {})}
             {...(artifactBlockExternalScripts !== undefined
               ? { artifactBlockExternalScripts }
@@ -361,7 +367,8 @@ function sharedAssistantProps(props: SubagentSessionTranscriptProps) {
     ...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {}),
     ...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {}),
     ...(props.onOpenArtifactCanvas ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas } : {}),
-    artifactPreviewEnabled: props.artifactPreviewEnabled,
+    artifactInlineEnabled: props.artifactInlineEnabled,
+    artifactCanvasEnabled: props.artifactCanvasEnabled ?? props.artifactInlineEnabled,
     ...(props.artifactMaxBytes !== undefined ? { artifactMaxBytes: props.artifactMaxBytes } : {}),
     ...(props.artifactBlockExternalScripts !== undefined
       ? { artifactBlockExternalScripts: props.artifactBlockExternalScripts }

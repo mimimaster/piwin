@@ -150,3 +150,45 @@ export const PROJECT_PREVIEW_INLINE_WIRE_BYTES = 900 * 1024;
 
 /** Longest edge of the placeholder preview for a ranged image. */
 export const PROJECT_PREVIEW_THUMB_EDGE_PX = 1024;
+
+/**
+ * One file the Host matched for a name/relative-path query.
+ * Paths stay project-root-relative so a remote client never learns a Host
+ * absolute path it did not already have.
+ */
+export type ProjectFileMatch = {
+  /** Relative path from project root (posix-style, no leading slash). */
+  relativePath: string;
+  /** Bytes when the Host could stat the match. */
+  sizeBytes?: number;
+};
+
+/**
+ * Response for `project/find-file`.
+ *
+ * Desktop path chips carry whatever text the agent wrote in the message, which
+ * is often only a file name (`shot.png`) while the file lives in a subfolder.
+ * This bounded search lets the client resolve that miss instead of reporting a
+ * file that plainly exists as "not found".
+ */
+export type ProjectFindFileData = {
+  projectPath: string;
+  /** Normalized query the Host searched for (posix-style). */
+  query: string;
+  /** Bounded matches, shallowest first. */
+  matches: ProjectFileMatch[];
+  /**
+   * True when the walk stopped at its budget, so the list may be incomplete.
+   * Callers must not treat "one match + truncated" as a unique candidate.
+   */
+  truncated: boolean;
+};
+
+/** Hard cap on matches returned by `project/find-file`. */
+export const PROJECT_FIND_FILE_MAX_MATCHES = 20;
+
+/**
+ * Entries the walk may visit before giving up. Keeps a click on a stray file
+ * name from turning into an unbounded scan of a monorepo.
+ */
+export const PROJECT_FIND_FILE_MAX_VISITED = 20_000;

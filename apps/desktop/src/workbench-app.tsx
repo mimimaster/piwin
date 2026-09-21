@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { HostLogProvider } from './host-log-context';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
+import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
 import type { MediaLibraryItem, ThemeManifest } from '@piwin/contracts';
 import { appendQuotedComposerText, focusComposerInput } from './context-menu/desktop-context-menu-value';
 import { mediaAttachmentFromLibraryItem } from './media-image-target';
@@ -676,7 +677,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       hostClient={hostClient}
                       activeTheme={activeTheme}
                       artifactThemeKey={artifactThemeKey}
-                      artifactPreviewEnabled={config?.artifact?.enabled ?? true}
+                      {...artifactSurfaceProps(
+                        resolveArtifactSurfacesForScope(config?.artifact, state.activeScope),
+                      )}
                       readMedia={readTranscriptMedia}
                       locale={desktopLocale}
                       keyboardEnabled={!settingsOpen && !activeSubPage}
@@ -891,6 +894,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   runContinueInProject={runContinueInProject}
                   onContinueSessionInProject={handleContinueSessionInProject}
                   recentProjects={recentProjects}
+                  noRepoProjectPath={hostStatus?.generalWorkspacePath ?? null}
                   sessionSearchOpen={sessionSearchOpen}
                   onSessionSearchOpenChange={setSessionSearchOpen}
                   sessionSearch={sessionSearch}

@@ -3,7 +3,6 @@ import {
   adjustSessionListScopeTotal,
   createSessionListScopeState,
   getSessionListScopeMeta,
-  hiddenSessionCount,
   setSessionListScopeMeta,
 } from './session-list-scope';
 
@@ -43,10 +42,4 @@ describe('session list scope metadata', () => {
     expect(getSessionListScopeMeta(state, { kind: 'project', projectPath: '/missing' })).toBeNull();
   });
 
-  it('derives a truthful hidden count after an out-of-bound upsert', () => {
-    expect(hiddenSessionCount(2005, 2000)).toBe(5);
-    expect(hiddenSessionCount(2005, 2001)).toBe(4);
-    expect(hiddenSessionCount(3, 3)).toBe(0);
-    expect(hiddenSessionCount(2, 3)).toBe(0);
-  });
 });

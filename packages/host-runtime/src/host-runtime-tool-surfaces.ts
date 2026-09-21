@@ -8,9 +8,10 @@ import type {
   McpConfigDocument,
   ModelRef,
   PermissionMode,
+  SessionIndexRecord,
 } from '@piwin/contracts';
 import { randomUUID } from 'node:crypto';
-import { formatError, normalizeExecutionConfig } from '@piwin/contracts';
+import { formatError, normalizeExecutionConfig, resolveArtifactCapability } from '@piwin/contracts';
 import { healthProviderDisclosure } from './health-turn-display.js';
 import { effectivePermissionMode } from './effective-permission-mode.js';
 import { evaluateBashPermission } from './permission-policy.js';
@@ -18,6 +19,8 @@ import { isWorktreeConfinedRecursiveRemove } from './subagent-worktree-rm-approv
 import { loadMcpConfig, createMcpGenerationSnapshot } from '@piwin/mcp';
 import { listProjects } from '@piwin/project';
 import { getSessionRecord } from '@piwin/session';
+import { isGeneralWorkspacePath } from './general-workspace.js';
+import { artifactScopeKeyForIndexRecord } from './session-scope.js';
 
 import { type ProductAgentHostToolRegistrationMode } from './product-agent-host.js';
 import { loadPiwinConfig } from './config-store.js';
@@ -136,8 +139,10 @@ export async function composeSessionHostToolsForSession(
     // Invalid/unreadable MCP config fails closed for this generation.
   }
   let sessionDisabledMcpServerIds: string[] | undefined;
+  let sessionRecord: SessionIndexRecord | undefined;
   try {
     const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
+    sessionRecord = record ?? undefined;
     sessionDisabledMcpServerIds = record?.disabledMcpServerIds;
   } catch (error) {
     deps.push({
@@ -165,10 +170,14 @@ export async function composeSessionHostToolsForSession(
   const trustPath = childContext?.parentRepoPath ?? projectPath;
   try {
     if (trustPath) {
-      const projects = await listProjects(getPiwinProjectsPath(rootDir));
-      projectTrusted = projects.some(
-        (project) => project.path === trustPath && project.trust === 'trusted',
-      );
+      if (isGeneralWorkspacePath(trustPath, rootDir)) {
+        projectTrusted = true;
+      } else {
+        const projects = await listProjects(getPiwinProjectsPath(rootDir));
+        projectTrusted = projects.some(
+          (project) => project.path === trustPath && project.trust === 'trusted',
+        );
+      }
     }
     rules = await loadMergedPermissionRules({
       piwinRoot: rootDir,
@@ -195,6 +204,15 @@ export async function composeSessionHostToolsForSession(
   // the only caller of ensureBrowserSession. Compose is the shared path, so
   // register the passive session here or `browser_*` never reach the model.
   await ensureBrowserSessionBestEffort(deps);
+  // Artifact capability must match the compiled manifest: both derive the scope
+  // class from the same durable record. A subagent generation belongs to the
+  // Agent class; an unreadable record leaves the capability unresolved so the
+  // master switch alone decides rather than guessing a class.
+  const artifactScopeKey = childContext ? 'project' : artifactScopeKeyForIndexRecord(sessionRecord);
+  const artifactCapability =
+    artifactScopeKey === undefined
+      ? undefined
+      : resolveArtifactCapability(config?.artifact, artifactScopeKey);
   const tools = await buildSessionHostTools({
     sessionId,
     piwinRoot: rootDir,
@@ -220,6 +238,7 @@ export async function composeSessionHostToolsForSession(
     mcpSnapshot,
     runtimeGenerationId,
     ...(config ? { config } : {}),
+    ...(artifactCapability ? { artifactCapability } : {}),
     ...(model ? { model } : {}),
     ...(config ? { secretResolver: createSecretResolver() } : {}),
     getBrowserSession: () => deps.browserSession ?? undefined,

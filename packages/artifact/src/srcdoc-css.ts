@@ -60,6 +60,24 @@ html[data-frame-mode="canvas"] video {
 }
 a { color: var(--piwin-artifact-accent); }
 button, input, select, textarea { font: inherit; }
+code {
+  font-family: var(--piwin-artifact-font-mono, ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace);
+  font-size: 0.875em;
+  padding: 1.5px 6px;
+  border-radius: var(--piwin-artifact-radius, 4px);
+  background: color-mix(in srgb, var(--piwin-artifact-text) 8%, transparent);
+  color: var(--piwin-artifact-text);
+  border: 1px solid color-mix(in srgb, var(--piwin-artifact-text) 9%, transparent);
+  font-weight: 450;
+}
+pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  color: inherit;
+}
 .piwin-artifact-root,
 .artifact-root,
 .owi-artifact-root {

@@ -50,7 +50,7 @@ export function FlashcardChatFaces(props: {
             renderingPhase="completed"
             showStreamingCaret={false}
             locale={props.locale}
-            artifactPreviewEnabled={false}
+            artifactInlineEnabled={false}
           />
         </div>
         {tags.length > 0 ? (
@@ -74,7 +74,7 @@ export function FlashcardChatFaces(props: {
               renderingPhase="completed"
               showStreamingCaret={false}
               locale={props.locale}
-              artifactPreviewEnabled={false}
+              artifactInlineEnabled={false}
             />
           ) : null}
           {props.hasSource ? (

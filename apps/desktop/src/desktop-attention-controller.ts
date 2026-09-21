@@ -404,13 +404,12 @@ export function createDesktopAttentionController(
     }
     last.chipShown = true;
     const snapshot = deps.getSnapshot();
-    const described = snapshot.describeSession(last.sessionId);
     deps.showInAppNotice({
       tone: 'info',
       title: last.title,
       body: last.body,
       action: {
-        label: jumpActionLabel(snapshot.locale, described.sessionTitle),
+        label: jumpActionLabel(snapshot.locale),
         sessionId: last.sessionId,
       },
     });
@@ -474,13 +473,12 @@ function inAppNotice(
   sessionId: string,
   tone?: UiNotificationTone,
 ): InAppAttentionNotice {
-  const described = snapshot.describeSession(sessionId);
   return {
     ...(tone !== undefined ? { tone } : {}),
     title: copy.title,
     body: copy.body,
     action: {
-      label: jumpActionLabel(snapshot.locale, described.sessionTitle),
+      label: jumpActionLabel(snapshot.locale),
       sessionId,
     },
   };
@@ -517,20 +515,8 @@ function formatRaiseCopy(
   });
 }
 
-const MAX_JUMP_ACTION_NAME_LENGTH = 16;
-
-function jumpActionLabel(locale: DesktopLocale, sessionTitle: string | undefined): string {
-  const name =
-    sessionTitle != null && sessionTitle.trim() !== ''
-      ? sessionTitle
-      : locale === 'en'
-        ? 'Untitled session'
-        : '未命名会话';
-  const truncated =
-    name.length <= MAX_JUMP_ACTION_NAME_LENGTH
-      ? name
-      : `${name.slice(0, MAX_JUMP_ACTION_NAME_LENGTH - 1)}…`;
-  return locale === 'en' ? `Jump to ${truncated}` : `跳转到 ${truncated}`;
+function jumpActionLabel(locale: DesktopLocale): string {
+  return locale === 'en' ? 'Jump' : '跳转';
 }
 
 function dockBadgesEqual(left: DockBadge, right: DockBadge): boolean {
