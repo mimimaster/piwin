@@ -210,6 +210,88 @@ describe('useTerminalSessions', () => {
     expect(lastApi?.sessions[0]?.error).toBe('boom');
   });
 
+  it('adopts a resolved cwd for the session created before one existed', () => {
+    const rendered = renderHarness({
+      projectPath: null,
+      projectTrusted: false,
+      enabled: true,
+      defaultCwd: '',
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(lastApi?.sessions.length).toBe(1);
+    expect(lastApi?.sessions[0]?.cwd).toBe('');
+
+    act(() => {
+      root?.render(
+        <TestHarness projectPath={null} projectTrusted={false} enabled defaultCwd="/home" />,
+      );
+    });
+
+    expect(lastApi?.sessions.length).toBe(1);
+    expect(lastApi?.sessions[0]?.cwd).toBe('/home');
+    expect(lastApi?.sessions[0]?.status).toBe('idle');
+  });
+
+  it('retries a session whose empty cwd already failed to open', () => {
+    const rendered = renderHarness({
+      projectPath: null,
+      projectTrusted: false,
+      enabled: true,
+      defaultCwd: '',
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const id = lastApi?.sessions[0]?.id;
+    if (!id) throw new Error('no session');
+    act(() => {
+      lastApi?.onSessionStatus(id, 'error', null, 'cwd required');
+    });
+    expect(lastApi?.sessions[0]?.status).toBe('error');
+
+    act(() => {
+      root?.render(
+        <TestHarness projectPath="/project" projectTrusted enabled defaultCwd="/project" />,
+      );
+    });
+
+    expect(lastApi?.sessions[0]?.cwd).toBe('/project');
+    expect(lastApi?.sessions[0]?.status).toBe('idle');
+    expect(lastApi?.sessions[0]?.error).toBeNull();
+  });
+
+  it('keeps an opened session cwd when the default changes', () => {
+    const rendered = renderHarness({
+      projectPath: '/project',
+      projectTrusted: true,
+      enabled: true,
+      defaultCwd: '/project',
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const id = lastApi?.sessions[0]?.id;
+    if (!id) throw new Error('no session');
+    act(() => {
+      lastApi?.onSessionStatus(id, 'open', 'pty-1');
+    });
+
+    act(() => {
+      root?.render(
+        <TestHarness
+          projectPath="/project"
+          projectTrusted
+          enabled
+          defaultCwd="/elsewhere"
+        />,
+      );
+    });
+
+    expect(lastApi?.sessions[0]?.cwd).toBe('/project');
+  });
+
   it('refuses a fifth session and allows another after one is closed', () => {
     const rendered = renderHarness({
       projectPath: '/project',

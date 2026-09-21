@@ -154,6 +154,9 @@ export function useTerminalSessions(
   );
 
   // Initialize with a default session when enabled.
+  // A session created before the cwd resolves keeps an empty directory, and
+  // pty_open rejects that as "cwd required" without retrying. Adopt the
+  // resolved directory while the session has not opened a PTY yet.
   useEffect(() => {
     if (!enabled) {
       if (sessions.length > 0) {
@@ -165,14 +168,32 @@ export function useTerminalSessions(
       return;
     }
 
-    // If sessions already exist, don't re-initialize.
-    if (sessions.length > 0) return;
+    if (sessions.length > 0) {
+      const cwd = defaultCwd.trim();
+      if (!cwd) return;
+      setSessions((current) => {
+        let changed = false;
+        const next = current.map((session) => {
+          // 'error' counts: an empty cwd fails pty_open, and that failure
+          // leaves the session past 'idle' before the real directory arrives.
+          if (session.cwd.trim() || session.ptyId) {
+            return session;
+          }
+          if (session.status !== 'idle' && session.status !== 'error') {
+            return session;
+          }
+          changed = true;
+          return { ...session, cwd, status: 'idle', error: null };
+        });
+        return changed ? next : current;
+      });
+      return;
+    }
 
     const first = createSession();
     setSessions([first]);
     setActiveSessionId(first.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [createSession, defaultCwd, enabled, reset, sessions.length]);
 
   // Cleanup on unmount.
   useEffect(() => {
