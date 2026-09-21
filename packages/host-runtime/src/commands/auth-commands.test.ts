@@ -318,4 +318,25 @@ describe('auth commands', () => {
     expect(logout?.success).toBe(false);
     expect(credentials).toEqual([{ providerId: 'openai-codex', type: 'oauth' }]);
   });
+
+  it('refreshes the live catalog and returns modelCount', async () => {
+    const { port, credentials } = fakePort();
+    credentials.push({ providerId: 'openai-codex', type: 'oauth' });
+    const config: PiwinConfig = createDefaultPiwinConfig();
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => config,
+        saveConfig: async (next) => {
+          Object.assign(config, next);
+        },
+      },
+    );
+    const response = await handleAuthCommand({ type: 'auth/refresh-catalog' }, '1', context(service, []));
+    expect(response).toMatchObject({
+      command: 'auth/refresh-catalog',
+      success: true,
+      data: { modelCount: 1 },
+    });
+  });
 });

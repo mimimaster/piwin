@@ -1,6 +1,7 @@
 /**
- * Project Pi's static built-in catalog into piwin contracts (no apps → pi-ai).
- * Uses the pi-ai providers/all entry (MODELS is not on the package root export).
+ * In-memory reference catalog. Default is Pi builtins (offline bootstrap).
+ * Host may replace it with a models.dev snapshot via installModelCatalogSnapshot.
+ * Apps never import Pi packages; they query via IPC.
  */
 import { builtinImagesProviders, getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all';
 import type {
@@ -9,6 +10,8 @@ import type {
   ModelCatalogEntry,
   ModelCatalogSearchRequest,
   ModelCatalogSearchResult,
+  ModelCatalogSource,
+  ModelCatalogStatus,
   ModelInputModality,
 } from '@piwin/contracts';
 import agentHostPackage from '../package.json' with { type: 'json' };
@@ -18,6 +21,14 @@ import agentHostPackage from '../package.json' with { type: 'json' };
 const configuredPiAiVersion = agentHostPackage.dependencies?.['@earendil-works/pi-ai'];
 const PI_AI_CATALOG_VERSION =
   typeof configuredPiAiVersion === 'string' ? configuredPiAiVersion : 'unknown';
+
+export type ModelCatalogSnapshot = {
+  entries: readonly ModelCatalogEntry[];
+  imageEntries: readonly ImageModelCatalogEntry[];
+  catalogVersion: string;
+  source: ModelCatalogSource;
+  fetchedAt?: string;
+};
 
 function flattenCatalog(): ModelCatalogEntry[] {
   const entries: ModelCatalogEntry[] = [];
@@ -51,13 +62,98 @@ function flattenCatalog(): ModelCatalogEntry[] {
   return entries;
 }
 
-let cachedEntries: ModelCatalogEntry[] | null = null;
+function flattenImagesCatalog(): ImageModelCatalogEntry[] {
+  const entries: ImageModelCatalogEntry[] = [];
+  for (const provider of builtinImagesProviders()) {
+    const providerId = provider.id;
+    const models = provider.getModels();
+    for (const model of models) {
+      const rawInput = Array.isArray(model.input) ? model.input : ['text'];
+      const input: ModelInputModality[] = rawInput.filter(
+        (item): item is ModelInputModality => item === 'text' || item === 'image',
+      );
+      const rawOutput = Array.isArray(model.output) ? model.output : ['image'];
+      const output: ModelInputModality[] = rawOutput.filter(
+        (item): item is ModelInputModality => item === 'text' || item === 'image',
+      );
+      entries.push({
+        catalogProviderId: providerId,
+        modelId: model.id,
+        name: typeof model.name === 'string' && model.name.trim() ? model.name.trim() : model.id,
+        input: input.length > 0 ? input : ['text'],
+        output: output.length > 0 ? output : ['image'],
+      });
+    }
+  }
+  return entries;
+}
+
+let installedSnapshot: ModelCatalogSnapshot | null = null;
+let cachedPiEntries: ModelCatalogEntry[] | null = null;
+let cachedPiImageEntries: ImageModelCatalogEntry[] | null = null;
+
+function getPiEntries(): ModelCatalogEntry[] {
+  if (!cachedPiEntries) {
+    cachedPiEntries = flattenCatalog();
+  }
+  return cachedPiEntries;
+}
+
+function getPiImageEntries(): ImageModelCatalogEntry[] {
+  if (!cachedPiImageEntries) {
+    cachedPiImageEntries = flattenImagesCatalog();
+  }
+  return cachedPiImageEntries;
+}
 
 function getAllEntries(): ModelCatalogEntry[] {
-  if (!cachedEntries) {
-    cachedEntries = flattenCatalog();
+  return installedSnapshot ? [...installedSnapshot.entries] : getPiEntries();
+}
+
+function getAllImagesEntries(): ImageModelCatalogEntry[] {
+  return installedSnapshot ? [...installedSnapshot.imageEntries] : getPiImageEntries();
+}
+
+function activeCatalogVersion(): string {
+  return installedSnapshot?.catalogVersion ?? PI_AI_CATALOG_VERSION;
+}
+
+/**
+ * Replace the in-memory reference catalog. Host calls this after loading or
+ * syncing a models.dev snapshot. Does not persist.
+ */
+export function installModelCatalogSnapshot(snapshot: ModelCatalogSnapshot): void {
+  installedSnapshot = {
+    entries: [...snapshot.entries],
+    imageEntries: [...snapshot.imageEntries],
+    catalogVersion: snapshot.catalogVersion,
+    source: snapshot.source,
+    ...(snapshot.fetchedAt ? { fetchedAt: snapshot.fetchedAt } : {}),
+  };
+}
+
+/** Drop an installed snapshot so lookups fall back to Pi builtins. */
+export function resetModelCatalogSnapshot(): void {
+  installedSnapshot = null;
+}
+
+export function getModelCatalogStatus(): ModelCatalogStatus {
+  const snapshot = installedSnapshot;
+  if (!snapshot) {
+    return {
+      source: 'pi-bootstrap',
+      catalogVersion: PI_AI_CATALOG_VERSION,
+      entryCount: getPiEntries().length,
+      imageEntryCount: getPiImageEntries().length,
+    };
   }
-  return cachedEntries;
+  return {
+    source: snapshot.source,
+    catalogVersion: snapshot.catalogVersion,
+    ...(snapshot.fetchedAt ? { fetchedAt: snapshot.fetchedAt } : {}),
+    entryCount: snapshot.entries.length,
+    imageEntryCount: snapshot.imageEntries.length,
+  };
 }
 
 function scoreMatch(entry: ModelCatalogEntry, query: string): number {
@@ -107,7 +203,7 @@ export function searchPiCatalog(request: ModelCatalogSearchRequest = {}): ModelC
 
   return {
     entries: entries.slice(0, limit),
-    catalogVersion: PI_AI_CATALOG_VERSION,
+    catalogVersion: activeCatalogVersion(),
   };
 }
 
@@ -169,11 +265,6 @@ export function enrichFromCatalog<T extends { id: string }>(
   return result;
 }
 
-
-/* ------------------------------------------------------------------ *
- * Image-generation catalog (separate from chat Model catalog)
- * ------------------------------------------------------------------ */
-
 /**
  * Extract the model name segment after the last `/`.
  * e.g. `openai/gpt-image-1` → `gpt-image-1`.
@@ -183,47 +274,12 @@ export function splitModelName(modelId: string): string {
   return idx >= 0 ? modelId.slice(idx + 1) : modelId;
 }
 
-function flattenImagesCatalog(): ImageModelCatalogEntry[] {
-  const entries: ImageModelCatalogEntry[] = [];
-  for (const provider of builtinImagesProviders()) {
-    const providerId = provider.id;
-    const models = provider.getModels();
-    for (const model of models) {
-      const rawInput = Array.isArray(model.input) ? model.input : ['text'];
-      const input: ModelInputModality[] = rawInput.filter(
-        (item): item is ModelInputModality => item === 'text' || item === 'image',
-      );
-      const rawOutput = Array.isArray(model.output) ? model.output : ['image'];
-      const output: ModelInputModality[] = rawOutput.filter(
-        (item): item is ModelInputModality => item === 'text' || item === 'image',
-      );
-      entries.push({
-        catalogProviderId: providerId,
-        modelId: model.id,
-        name: typeof model.name === 'string' && model.name.trim() ? model.name.trim() : model.id,
-        input: input.length > 0 ? input : ['text'],
-        output: output.length > 0 ? output : ['image'],
-      });
-    }
-  }
-  return entries;
-}
-
-let cachedImagesEntries: ImageModelCatalogEntry[] | null = null;
-
-function getAllImagesEntries(): ImageModelCatalogEntry[] {
-  if (!cachedImagesEntries) {
-    cachedImagesEntries = flattenImagesCatalog();
-  }
-  return cachedImagesEntries;
-}
-
 /**
- * Return all Pi built-in image-generation models (static catalog, no network).
+ * Return image-generation models from the active snapshot (Pi bootstrap if none).
  */
 export function searchPiImagesCatalog(): ImageModelCatalogSearchResult {
   return {
     entries: getAllImagesEntries(),
-    catalogVersion: PI_AI_CATALOG_VERSION,
+    catalogVersion: activeCatalogVersion(),
   };
 }

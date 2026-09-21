@@ -9,7 +9,11 @@ import {
   matchImageCatalog,
   splitModelName,
 } from './model-catalog.js';
-import type { ImageModelCatalogEntry } from './model-catalog.js';
+import type {
+  ImageModelCatalogEntry,
+  ModelCatalogStatus,
+  ModelCatalogSyncResult,
+} from './model-catalog.js';
 
 const catalog: ImageModelCatalogEntry[] = [
   {
@@ -270,5 +274,27 @@ describe('video generation name heuristics', () => {
     expect(isLikelyVideoGenerationModel('video-understanding-model')).toBe(false);
     expect(isLikelyVideoGenerationModel('vision-video-chat')).toBe(false);
     expect(isLikelyVideoGenerationModel('video-model')).toBe(false);
+  });
+});
+
+describe('model catalog status types', () => {
+  it('accepts a models.dev status and a successful sync payload', () => {
+    const status: ModelCatalogStatus = {
+      source: 'models.dev',
+      catalogVersion: 'models.dev@2026-09-21T00:00:00.000Z',
+      fetchedAt: '2026-09-21T00:00:00.000Z',
+      entryCount: 12,
+      imageEntryCount: 3,
+    };
+    const bootstrap: ModelCatalogStatus = {
+      source: 'pi-bootstrap',
+      catalogVersion: '0.84.2',
+      entryCount: 4,
+      imageEntryCount: 1,
+    };
+    const synced: ModelCatalogSyncResult = { ...status, ok: true };
+    expect(status.source).toBe('models.dev');
+    expect(bootstrap.fetchedAt).toBeUndefined();
+    expect(synced.ok).toBe(true);
   });
 });

@@ -160,6 +160,20 @@ function createContextValue(request: SettingsRequest): SettingsContextValue {
     testProviderModel: vi.fn(async () => ({ durationMs: 1 })),
     searchModelCatalog: vi.fn(async () => ({ items: [] })),
     searchImageModelCatalog: vi.fn(async () => ({ items: [] })),
+    getModelCatalogStatus: vi.fn(async () => ({
+      source: 'pi-bootstrap' as const,
+      catalogVersion: 'test',
+      entryCount: 0,
+      imageEntryCount: 0,
+    })),
+    syncModelCatalog: vi.fn(async () => ({
+      ok: true as const,
+      source: 'models.dev' as const,
+      catalogVersion: 'test',
+      fetchedAt: '2026-09-21T00:00:00.000Z',
+      entryCount: 1,
+      imageEntryCount: 0,
+    })),
     storeProviderSecret: vi.fn(async () => 'keychain:test'),
     loadProviderSecret: vi.fn(async () => null),
   } as unknown as SettingsContextValue;

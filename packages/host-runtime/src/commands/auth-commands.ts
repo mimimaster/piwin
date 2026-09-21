@@ -14,6 +14,7 @@ const TYPES = new Set<HostCommand['type']>([
   'auth/logout',
   'auth/quota',
   'auth/reset-quota',
+  'auth/refresh-catalog',
 ]);
 
 const services = new Map<string, SubscriptionAuthService>();
@@ -144,6 +145,10 @@ export async function handleAuthCommand(
             code: 'quota-reset-failed',
           });
         }
+        return ok(requestId, command.type, result);
+      }
+      case 'auth/refresh-catalog': {
+        const result = await service.pullLiveCatalog();
         return ok(requestId, command.type, result);
       }
       default:

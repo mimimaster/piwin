@@ -102,6 +102,15 @@ describe('remoteHostSupportsCommand', () => {
     expect(FALLBACK_REMOTE_ALLOWED_COMMANDS).toContain('pi-environment/apply');
   });
 
+  it('allows Host catalog status and sync on the historical fallback ceiling', () => {
+    expect(FALLBACK_REMOTE_ALLOWED_COMMANDS).toContain('models/catalog/status');
+    expect(FALLBACK_REMOTE_ALLOWED_COMMANDS).toContain('models/catalog/sync');
+  });
+
+  it('allows subscription catalog refresh on the historical fallback ceiling', () => {
+    expect(FALLBACK_REMOTE_ALLOWED_COMMANDS).toContain('auth/refresh-catalog');
+  });
+
   it('trusts the advertised ceiling when present', () => {
     expect(remoteHostSupportsCommand(['host/ping', 'settings/get'], 'settings/get')).toBe(true);
     expect(remoteHostSupportsCommand(['host/ping'], 'host/status')).toBe(false);

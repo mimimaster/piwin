@@ -27,10 +27,14 @@ export { attachPlanPresentation } from './plan-presentation.js';
 export { estimateMockUsage, mapUsageSnapshot } from './usage-map.js';
 export {
   enrichFromCatalog,
+  getModelCatalogStatus,
+  installModelCatalogSnapshot,
   lookupCatalogByModelId,
+  resetModelCatalogSnapshot,
   searchPiCatalog,
   searchPiImagesCatalog,
 } from './model-catalog-reader.js';
+export type { ModelCatalogSnapshot } from './model-catalog-reader.js';
 
 export { createExtensionUiContext, bindExtensionUiToPiSession } from './extension-ui-bridge.js';
 export type {

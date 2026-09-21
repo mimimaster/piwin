@@ -36,6 +36,7 @@ describe('subscription oauth contracts', () => {
 
   it('accepts auth command and push shapes', () => {
     const status: HostCommand = { type: 'auth/status' };
+    const refreshCatalog: HostCommand = { type: 'auth/refresh-catalog' };
     const login: HostCommand = {
       type: 'auth/login',
       input: { providerId: 'openai-codex', ownerDeviceId: 'desktop-1' },
@@ -67,6 +68,7 @@ describe('subscription oauth contracts', () => {
       },
     };
     expect(status.type).toBe('auth/status');
+    expect(refreshCatalog.type).toBe('auth/refresh-catalog');
     expect(login.type).toBe('auth/login');
     expect(detect.type).toBe('pi-environment/detect');
     expect(preview.type).toBe('pi-environment/preview');

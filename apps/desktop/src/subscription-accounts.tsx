@@ -120,6 +120,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
   const [expandedQuotaIds, setExpandedQuotaIds] = useState<Set<string>>(new Set());
   const [loadingQuotaIds, setLoadingQuotaIds] = useState<Set<string>>(new Set());
   const [resettingQuotaIds, setResettingQuotaIds] = useState<Set<string>>(new Set());
+  const [refreshingCatalog, setRefreshingCatalog] = useState(false);
   const confirmDialog = useConfirmDialog();
   const ownerDeviceId = readDesktopClientPrincipalId();
 
@@ -406,6 +407,32 @@ export function SubscriptionAccountsPanel(): ReactElement {
     }
   }
 
+  async function refreshCatalog(): Promise<void> {
+    if (!hostClient?.request || refreshingCatalog) return;
+    setRefreshingCatalog(true);
+    try {
+      const response = await hostClient.request({ type: 'auth/refresh-catalog' });
+      if (!response.success) {
+        setError?.(response.error ?? (isChinese ? '刷新模型列表失败' : 'Failed to refresh models'));
+        return;
+      }
+      const modelCount =
+        response.data && typeof response.data === 'object' && 'modelCount' in response.data
+          ? Number((response.data as { modelCount?: unknown }).modelCount)
+          : 0;
+      const count = Number.isFinite(modelCount) ? modelCount : 0;
+      setInfo?.(
+        isChinese
+          ? `已刷新套餐模型，共 ${count} 个。`
+          : `Subscription models refreshed (${count}).`,
+      );
+    } catch (error) {
+      setError?.(error instanceof Error ? error.message : (isChinese ? '刷新模型列表失败' : 'Failed to refresh models'));
+    } finally {
+      setRefreshingCatalog(false);
+    }
+  }
+
   const prompt = activeLogin?.currentPrompt;
 
   // Auto-open external auth URL only when an auth_url or device_code prompt first arrives.
@@ -434,6 +461,26 @@ export function SubscriptionAccountsPanel(): ReactElement {
           <span className="oauth-accounts-header-count">{displayCount}</span>
         </div>
         <div className="oauth-accounts-header-right">
+          <Button
+            variant="secondary"
+            size="compact"
+            disabled={refreshingCatalog || !hostClient?.request}
+            onClick={() => {
+              void refreshCatalog();
+            }}
+            data-testid="subscription-refresh-catalog"
+          >
+            <RefreshCw size={12} className={refreshingCatalog ? 'is-spinning' : ''} />
+            <span>
+              {refreshingCatalog
+                ? isChinese
+                  ? '正在刷新…'
+                  : 'Refreshing…'
+                : isChinese
+                  ? '刷新模型'
+                  : 'Refresh models'}
+            </span>
+          </Button>
           <span className="oauth-accounts-stat-badge">
             <span className={`oauth-status-dot ${connectedCount > 0 ? 'is-pulse' : ''}`} />
             <span>

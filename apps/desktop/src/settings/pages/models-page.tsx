@@ -3,6 +3,7 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from '@piwin/contracts';
 import type { ModelConfigEntry, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 import { StatusBadge, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
+import { ModelCatalogSyncControl } from '../model-catalog-sync-control';
 import { ProviderSettings } from '../../ProviderSettings';
 import { VisionDelegationSettings } from '../../VisionDelegationSettings';
 import { ReplyWriterSettings } from '../../ReplyWriterSettings';
@@ -203,19 +204,22 @@ export function ModelsPage(): ReactElement {
               ? '集中管理对话、视觉、生图、视频与语音模型。支持多提供商接入、协议自定义与默认模型分流。'
               : 'Centrally configure chat, vision, image, video, and speech models with custom wire protocols and defaults.'}
           </p>
-          <StatusBadge
-            tone={summary.issueCount === 0 ? 'success' : 'warning'}
-            label={
-              summary.issueCount === 0
-                ? isChinese
-                  ? '配置就绪'
-                  : 'Ready'
-                : isChinese
-                  ? `${summary.issueCount} 项待处理`
-                  : `${summary.issueCount} need attention`
-            }
-            testId="model-workspace-health"
-          />
+          <div className="model-workspace-intro-actions">
+            <ModelCatalogSyncControl />
+            <StatusBadge
+              tone={summary.issueCount === 0 ? 'success' : 'warning'}
+              label={
+                summary.issueCount === 0
+                  ? isChinese
+                    ? '配置就绪'
+                    : 'Ready'
+                  : isChinese
+                    ? `${summary.issueCount} 项待处理`
+                    : `${summary.issueCount} need attention`
+              }
+              testId="model-workspace-health"
+            />
+          </div>
         </div>
 
         <div className="model-workspace-overview" data-testid="model-workspace-overview">

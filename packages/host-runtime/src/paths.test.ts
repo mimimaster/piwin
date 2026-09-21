@@ -3,6 +3,7 @@ import {
   getPiAgentDir,
   getPiwinPiAgentDir,
   getPiwinConfigPath,
+  getPiwinModelCatalogPath,
   getPiwinRoot,
   getPiwinSessionDir,
   getPiwinSessionMediaDir,
@@ -30,6 +31,10 @@ describe('paths', () => {
 
   it('builds config path', () => {
     expect(getPiwinConfigPath('/tmp/piwin-test')).toBe('/tmp/piwin-test/config.json');
+  });
+
+  it('builds model catalog cache path', () => {
+    expect(getPiwinModelCatalogPath('/tmp/piwin-test')).toBe('/tmp/piwin-test/model-catalog.json');
   });
 
   it.each(['', '.', '..', '../escape', 'nested/session', 'nested\\session', 'nul\0id'])(

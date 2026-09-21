@@ -131,6 +131,12 @@ export type AuthLoginData = {
   loginId: string;
 };
 
+/** Successful `auth/refresh-catalog` payload. Overlay pull failed uses the Host error response. */
+export type AuthRefreshCatalogData = {
+  modelCount: number;
+};
+
+
 export type AuthRespondInput = {
   loginId: string;
   promptId: string;
@@ -173,7 +179,8 @@ export type SubscriptionAuthCommand =
   | { id?: string; type: 'auth/claim'; input: AuthClaimInput }
   | { id?: string; type: 'auth/logout'; input: AuthLogoutInput }
   | { id?: string; type: 'auth/quota'; input: AuthQuotaInput }
-  | { id?: string; type: 'auth/reset-quota'; input: AuthResetQuotaInput };
+  | { id?: string; type: 'auth/reset-quota'; input: AuthResetQuotaInput }
+  | { id?: string; type: 'auth/refresh-catalog' };
 
 export type SubscriptionAuthPush =
   | { type: 'auth/prompt'; prompt: AuthPromptPayload }

@@ -85,6 +85,11 @@ export function getPiwinConfigPath(rootDir: string): string {
   return join(rootDir, 'config.json');
 }
 
+/** Host-owned models.dev reference catalog cache (`~/.piwin/model-catalog.json`). */
+export function getPiwinModelCatalogPath(rootDir: string): string {
+  return join(rootDir, 'model-catalog.json');
+}
+
 /** Host-owned Playwright browser cache (`~/.piwin/playwright`). Never the app bundle. */
 export function getPiwinPlaywrightDir(rootDir: string): string {
   return join(rootDir, 'playwright');

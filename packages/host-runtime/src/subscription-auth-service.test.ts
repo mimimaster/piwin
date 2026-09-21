@@ -253,6 +253,26 @@ describe('SubscriptionAuthService', () => {
     expect(service.catalogModelIds('openai-codex')).toEqual(['builtin']);
   });
 
+  it('surfaces live refresh failure on pullLiveCatalog', async () => {
+    const port: SubscriptionAuthPort = {
+      ...fakePort(),
+      listCredentials: async () => [{ providerId: 'openai-codex', type: 'oauth' }],
+      isUsingSubscription: (id) => id === 'openai-codex',
+      getChatCatalog: () => [{ id: 'builtin', name: 'Builtin' }],
+      refreshLiveCatalog: async () => {
+        throw new Error('pi.dev unreachable');
+      },
+    };
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => createDefaultPiwinConfig(),
+        saveConfig: async () => undefined,
+      },
+    );
+    await expect(service.pullLiveCatalog()).rejects.toThrow(/pi.dev unreachable/);
+  });
+
   it('does not resurrect catalog models from a disabled subscription provider', async () => {
     const config: PiwinConfig = {
       ...createDefaultPiwinConfig(),

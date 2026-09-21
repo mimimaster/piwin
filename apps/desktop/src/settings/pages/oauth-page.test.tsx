@@ -159,6 +159,16 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
       ),
     ).toBeNull();
 
+    const refreshBtn = container!.querySelector('[data-testid="subscription-refresh-catalog"]') as HTMLButtonElement;
+    expect(refreshBtn).toBeTruthy();
+    expect(refreshBtn.textContent).toMatch(/刷新模型/);
+
+    await act(async () => {
+      refreshBtn.click();
+      await Promise.resolve();
+    });
+    expect(mockRequest).toHaveBeenCalledWith({ type: 'auth/refresh-catalog' });
+
     const codexState = container!.querySelector('[data-testid="subscription-account-state-openai-codex"]');
     expect(codexState?.textContent).toContain('已连接');
     expect(

@@ -38,6 +38,8 @@ export type SettingsConfigRequest = (command: {
     | 'config/set'
     | 'models/discover'
     | 'models/catalog/search'
+    | 'models/catalog/status'
+    | 'models/catalog/sync'
     | 'models/image-catalog/search'
     | 'models/test'
     | 'models/image-test'
@@ -188,6 +190,8 @@ export type SettingsContextValue = {
     input?: import('@piwin/contracts').ModelCatalogSearchRequest,
   ) => Promise<import('@piwin/contracts').ModelCatalogSearchResult>;
   searchImageModelCatalog: () => Promise<import('@piwin/contracts').ImageModelCatalogSearchResult>;
+  getModelCatalogStatus: () => Promise<import('@piwin/contracts').ModelCatalogStatus>;
+  syncModelCatalog: () => Promise<import('@piwin/contracts').ModelCatalogSyncResult>;
   storeProviderSecret: (providerId: string, secret: string) => Promise<string>;
   loadProviderSecret: (providerId: string) => Promise<string | null>;
   testCodeSearchWindsurf?: (input: {

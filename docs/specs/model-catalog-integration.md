@@ -2,12 +2,26 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Draft (rev 3)** |
-| Date | 2026-08-01 |
-| Packages | `contracts`, `agent-host`, `apps/desktop`, `apps/cli` |
-| Principle | Pi catalog 是 source-of-truth；piwin 只做投影 + UX 增强 |
-| Related | [vision-delegation.md](./vision-delegation.md) |
+| Status | **Draft (rev 4)** |
+| Date | 2026-08-01 (amended 2026-09-21) |
+| Packages | `contracts`, `agent-host`, `host-runtime`, `apps/desktop`, `apps/cli` |
+| Principle | writable = `providers[].models`；reference = Host models.dev snapshot（首次同步前 Pi bootstrap） |
+| Related | [vision-delegation.md](./vision-delegation.md), [ADR 0073](../adr/0073-models-dev-reference-catalog.md) |
 | Depends on code already landed | ADR 0005 amendment 2026-08-01：composer media 默认原生 `ImageContent` |
+
+
+---
+
+## 0. Amendment 2026-09-21 — models.dev 参考目录
+
+见 [ADR 0073](../adr/0073-models-dev-reference-catalog.md)。
+
+- IPC：`models/catalog/search` · `models/catalog/status` · `models/catalog/sync`
+- 缓存：`~/.piwin/model-catalog.json`
+- 同步失败保留上一份；从未同步则 Pi builtins
+- Discover 仍 live-fetch provider，不改为 models.dev
+- `VIDEO_GENERATION_MODEL_REGISTRY` 仍负责视频 apiStyle/path
+
 
 ---
 
@@ -20,13 +34,13 @@
    - Pi extension（`pi-vision-handoff` 等）正确识别多模态 vs text-only
 3. **聊天区模型选择器增强**：显示能力标签（vision / text-only / reasoning）。
 4. **发送图片时的前置检查**：text-only + 图片 + 未开 delegation → 提示风险；已开 delegation 或模型声明 vision → 放行。
-5. **零维护**：catalog 随 `@earendil-works/pi-ai` 升级自动更新。
+5. **参考目录可手动刷新**：Settings 「同步模型目录」拉取 `https://models.dev/api.json` 写入 `~/.piwin/model-catalog.json`；不自动拉网。`models/discover` 仍打 provider 网关。
 
 ## 2. Non-goals
 
 | 不做 | 原因 |
 |------|------|
-| 自己维护模型 catalog | Pi 已有 |
+| 自己手写全网模型库 | 参考表来自 models.dev 快照；writable 仍是用户的 `providers[].models` |
 | apps 直接 import `@earendil-works/pi-*` | AGENTS.md §1.1 |
 | 替换 `models/discover`（运行时 API 发现） | 互补：catalog=静态参考，discover=运行时探测 |
 | 实现 vision delegation 描述注入 | Spec 2 D1 |

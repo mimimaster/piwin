@@ -56,6 +56,8 @@ export type HostRuntimeCommand =
       type: 'models/catalog/search';
       input?: import('./model-catalog.js').ModelCatalogSearchRequest;
     }
+  | { id?: string; type: 'models/catalog/status' }
+  | { id?: string; type: 'models/catalog/sync' }
   | { id?: string; type: 'models/configured' }
   | {
       id?: string;

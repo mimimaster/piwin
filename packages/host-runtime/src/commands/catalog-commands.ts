@@ -59,7 +59,7 @@ import {
   mergeProviderSecretSource,
   resolveProviderCallSecret,
 } from '../provider-discovery-auth.js';
-import { searchPiCatalog, searchPiImagesCatalog } from '@piwin/agent-host';
+import { handleModelCatalogCommand } from './model-catalog-commands.js';
 import { testProviderModel } from '../provider-model-test.js';
 import { testImageGenerationModel } from '../image-generation-test.js';
 import { decodeBase64Audio, transcribeOpenAiCompatible } from '@piwin/speech';
@@ -126,6 +126,8 @@ const TYPES = new Set<HostCommand['type']>([
   'settings/apply',
   'models/discover',
   'models/catalog/search',
+  'models/catalog/status',
+  'models/catalog/sync',
   'models/configured',
   'models/image-catalog/search',
   'models/test',
@@ -150,6 +152,10 @@ export async function handleCatalogCommand(
 ): Promise<HostResponse | null> {
   if (!TYPES.has(command.type)) {
     return null;
+  }
+  const modelCatalog = await handleModelCatalogCommand(command, requestId, context);
+  if (modelCatalog) {
+    return modelCatalog;
   }
   switch (command.type) {
     case 'speech/transcribe': {
@@ -653,15 +659,6 @@ export async function handleCatalogCommand(
         return fail(requestId, 'models/discover', message);
       }
     }
-    case 'models/catalog/search': {
-      try {
-        const result = searchPiCatalog(command.input ?? {});
-        return ok(requestId, 'models/catalog/search', result);
-      } catch (error) {
-        const message = formatError(error);
-        return fail(requestId, 'models/catalog/search', message);
-      }
-    }
     case 'models/configured': {
       try {
         const { getSubscriptionAuthService } = await import('./auth-commands.js');
@@ -673,18 +670,6 @@ export async function handleCatalogCommand(
       } catch {
         const config = await loadPiwinConfig(getPiwinRoot(context.piwinRoot));
         return ok(requestId, 'models/configured', projectConfiguredChatModels(config));
-      }
-    }
-    case 'models/image-catalog/search': {
-      // Pi maintains a separate ImagesModel catalog from the chat Model catalog.
-      // Image Generation settings uses this to match discovered provider models
-      // against known image-generation model ids (split-name / full-id).
-      try {
-        const result = searchPiImagesCatalog();
-        return ok(requestId, 'models/image-catalog/search', result);
-      } catch (error) {
-        const message = formatError(error);
-        return fail(requestId, 'models/image-catalog/search', message);
       }
     }
     case 'models/test': {

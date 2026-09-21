@@ -60,7 +60,8 @@ export function handleMockAuthCommand(
     command.type !== 'auth/claim' &&
     command.type !== 'auth/logout' &&
     command.type !== 'auth/quota' &&
-    command.type !== 'auth/reset-quota'
+    command.type !== 'auth/reset-quota' &&
+    command.type !== 'auth/refresh-catalog'
   ) {
     return null;
   }
@@ -84,6 +85,9 @@ export function handleMockAuthCommand(
       success: true,
       data: { quota: mockQuota(command.input.providerId) },
     };
+  }
+  if (command.type === 'auth/refresh-catalog') {
+    return { id, type: 'response', command: command.type, success: true, data: { modelCount: 0 } };
   }
   if (command.type === 'auth/reset-quota') {
     const quota = mockQuota(command.input.providerId);

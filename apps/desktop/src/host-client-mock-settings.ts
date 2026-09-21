@@ -287,6 +287,36 @@ export async function handleMockSettingsCommands(
           },
         };
       }
+      case 'models/catalog/status': {
+        return {
+          id,
+          type: 'response',
+          command: 'models/catalog/status',
+          success: true,
+          data: {
+            source: 'pi-bootstrap',
+            catalogVersion: 'mock',
+            entryCount: 0,
+            imageEntryCount: 0,
+          },
+        };
+      }
+      case 'models/catalog/sync': {
+        return {
+          id,
+          type: 'response',
+          command: 'models/catalog/sync',
+          success: true,
+          data: {
+            ok: true,
+            source: 'models.dev',
+            catalogVersion: 'mock',
+            fetchedAt: '2026-09-21T00:00:00.000Z',
+            entryCount: 1,
+            imageEntryCount: 0,
+          },
+        };
+      }
     default:
       return null;
   }

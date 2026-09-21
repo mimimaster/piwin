@@ -30,6 +30,7 @@ import {
   getPiwinRoot,
   getPiwinSessionIndexPath,
 } from './paths.js';
+import { loadModelCatalogFromDisk } from './model-catalog-store.js';
 import { listTrustedProjectRoots, trustedWorktreeRoots } from './trusted-project-roots.js';
 import { isGeneralWorkspacePath } from './general-workspace.js';
 import { ensureHostPiAgentDir } from './import-legacy-pi-auth.js';
@@ -91,6 +92,9 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
   try {
     deps.options = options;
     applyPiwinPlaywrightBrowsersPath(getPiwinRoot(options.piwinRoot));
+    if (process.env.NODE_ENV !== 'test' || typeof options.piwinRoot === 'string') {
+      loadModelCatalogFromDisk(getPiwinRoot(options.piwinRoot));
+    }
     deps.doccardsIngestion = createDoccardsIngestionRegistry({
       onTerminal: () => {
         void publishKnowledgeBasesChanged({

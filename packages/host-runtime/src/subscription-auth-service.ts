@@ -814,8 +814,31 @@ export class SubscriptionAuthService {
   }
 
   async ensureLoggedInProviders(): Promise<PiwinConfig> {
-    const port = await this.ensurePort();
+    await this.ensurePort();
     await this.refreshLiveCatalog();
+    return this.projectLoggedInProviders();
+  }
+
+  /**
+   * User-triggered overlay pull. Throws on network/sync failure so the Settings
+   * button can surface it. Boot still uses {@link refreshLiveCatalog} (swallows).
+   */
+  async pullLiveCatalog(): Promise<{ modelCount: number }> {
+    const port = await this.ensurePort();
+    await port.refreshLiveCatalog({
+      signal: AbortSignal.timeout(LIVE_CATALOG_REFRESH_TIMEOUT_MS),
+    });
+    await this.projectLoggedInProviders();
+    const accounts = await this.readAccounts();
+    let modelCount = 0;
+    for (const account of accounts) {
+      if (account.state !== 'logged-in') continue;
+      modelCount += this.catalogModelIds(account.providerId).length;
+    }
+    return { modelCount };
+  }
+
+  private async projectLoggedInProviders(): Promise<PiwinConfig> {
     const accounts = await this.readAccounts();
     const config = await this.loadConfig();
     const next = ensureSubscriptionProviders(config, accounts, (providerId) =>

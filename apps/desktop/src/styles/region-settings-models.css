@@ -40,6 +40,25 @@
   flex: 0 0 auto;
 }
 
+.model-workspace-intro-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex: 0 0 auto;
+}
+
+.model-catalog-sync {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.model-catalog-sync-status {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  white-space: nowrap;
+}
+
 .model-workspace-knowledge-link {
   flex: 0 0 auto;
   border: 0;

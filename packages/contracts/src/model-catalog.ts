@@ -1,6 +1,8 @@
 /**
- * Pi model catalog projection types (static reference from @earendil-works/pi-ai).
- * Apps never import Pi packages; they query via IPC `models/catalog/search`.
+ * Reference model catalog types (Host-owned snapshot).
+ * Writable catalog remains `providers[].models`. Apps never import Pi packages;
+ * they query via IPC `models/catalog/search`, `models/catalog/status`, and
+ * `models/catalog/sync`.
  */
 import type {
   ImageGenerationApiStyle,
@@ -41,9 +43,24 @@ export type ModelCatalogSearchRequest = {
 
 export type ModelCatalogSearchResult = {
   entries: ModelCatalogEntry[];
-  /** e.g. pi-ai package version. */
+  /** e.g. pi-ai package version, or models.dev snapshot id. */
   catalogVersion: string;
 };
+
+/** Where the Host in-memory reference catalog currently comes from. */
+export type ModelCatalogSource = 'models.dev' | 'pi-bootstrap';
+
+export type ModelCatalogStatus = {
+  source: ModelCatalogSource;
+  catalogVersion: string;
+  /** ISO timestamp; omit for pi-bootstrap. */
+  fetchedAt?: string;
+  entryCount: number;
+  imageEntryCount: number;
+};
+
+/** Successful `models/catalog/sync` payload. Failures use the Host error response. */
+export type ModelCatalogSyncResult = ModelCatalogStatus & { ok: true };
 
 /**
  * Pi image-generation model catalog projection.

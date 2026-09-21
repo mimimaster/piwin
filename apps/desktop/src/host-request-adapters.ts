@@ -31,6 +31,8 @@ export type HostRequestAdapters = {
       | 'config/set'
       | 'models/discover'
       | 'models/catalog/search'
+      | 'models/catalog/status'
+      | 'models/catalog/sync'
       | 'models/image-catalog/search'
       | 'models/test'
       | 'models/image-test'
@@ -485,6 +487,12 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
             ? { input: command.input as import('@piwin/contracts').ModelCatalogSearchRequest }
             : {}),
         });
+      }
+      if (command.type === 'models/catalog/status') {
+        return hostClient.request({ type: 'models/catalog/status' });
+      }
+      if (command.type === 'models/catalog/sync') {
+        return hostClient.request({ type: 'models/catalog/sync' });
       }
       if (command.type === 'vision/cache/clear') {
         return hostClient.request({ type: 'vision/cache/clear' });

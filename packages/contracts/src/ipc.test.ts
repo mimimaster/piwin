@@ -47,6 +47,13 @@ describe('ipc types', () => {
     expect(push.type).toBe('host/status');
   });
 
+  it('allows models catalog status and sync commands', () => {
+    const status: HostCommand = { type: 'models/catalog/status' };
+    const sync: HostCommand = { type: 'models/catalog/sync' };
+    expect(status.type).toBe('models/catalog/status');
+    expect(sync.type).toBe('models/catalog/sync');
+  });
+
   it('allows async doccards job commands and pushes', () => {
     const index: HostCommand = { type: 'doccards/index-folder', folderPath: '/docs' };
     const status: HostCommand = { type: 'doccards/index-status', folderPath: '/docs' };

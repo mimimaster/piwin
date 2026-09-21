@@ -432,6 +432,26 @@ export const SettingsPanel = memo(function SettingsPanel({
     return response.data as import('@piwin/contracts').ImageModelCatalogSearchResult;
   }, [request]);
 
+  const getModelCatalogStatus = useCallback(async (): Promise<
+    import('@piwin/contracts').ModelCatalogStatus
+  > => {
+    const response = await request({ type: 'models/catalog/status' });
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    return response.data as import('@piwin/contracts').ModelCatalogStatus;
+  }, [request]);
+
+  const syncModelCatalog = useCallback(async (): Promise<
+    import('@piwin/contracts').ModelCatalogSyncResult
+  > => {
+    const response = await request({ type: 'models/catalog/sync' });
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    return response.data as import('@piwin/contracts').ModelCatalogSyncResult;
+  }, [request]);
+
   const storeProviderSecret = useCallback(
     async (providerId: string, secret: string): Promise<string> => {
       const response = await request({ type: 'secrets/set', providerId, secret });
@@ -569,6 +589,8 @@ export const SettingsPanel = memo(function SettingsPanel({
       testImageGenerationModel,
       searchModelCatalog,
       searchImageModelCatalog,
+      getModelCatalogStatus,
+      syncModelCatalog,
       storeProviderSecret,
       loadProviderSecret,
       testWebSearchSource,
@@ -612,6 +634,8 @@ export const SettingsPanel = memo(function SettingsPanel({
       testImageGenerationModel,
       searchModelCatalog,
       searchImageModelCatalog,
+      getModelCatalogStatus,
+      syncModelCatalog,
       storeProviderSecret,
       loadProviderSecret,
       testWebSearchSource,

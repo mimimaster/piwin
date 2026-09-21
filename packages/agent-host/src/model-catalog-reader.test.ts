@@ -1,9 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   enrichFromCatalog,
+  getModelCatalogStatus,
+  installModelCatalogSnapshot,
   lookupCatalogByModelId,
+  resetModelCatalogSnapshot,
   searchPiCatalog,
+  searchPiImagesCatalog,
 } from './model-catalog-reader.js';
+
+afterEach(() => {
+  resetModelCatalogSnapshot();
+});
 
 describe('model-catalog-reader', () => {
   it('searches by model id substring and clamps limit', () => {
@@ -58,5 +66,59 @@ describe('model-catalog-reader', () => {
     expect(enriched.input).toEqual(['text', 'image']);
     expect(enriched.reasoning).toBe(true);
     expect(enriched.maxOutputTokens).toBe(16_384);
+  });
+
+  it('installs a snapshot that replaces Pi bootstrap search and lookup', () => {
+    const bootstrap = getModelCatalogStatus();
+    expect(bootstrap.source).toBe('pi-bootstrap');
+
+    installModelCatalogSnapshot({
+      source: 'models.dev',
+      catalogVersion: 'models.dev@test',
+      fetchedAt: '2026-09-21T00:00:00.000Z',
+      entries: [
+        {
+          catalogProviderId: 'xai',
+          modelId: 'piwin-catalog-unique-id',
+          name: 'Unique Test Model',
+          input: ['text'],
+          reasoning: true,
+          contextWindow: 42_000,
+          maxTokens: 1_024,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        },
+      ],
+      imageEntries: [
+        {
+          catalogProviderId: 'xai',
+          modelId: 'piwin-image-unique-id',
+          name: 'Unique Image Model',
+          input: ['text'],
+          output: ['image'],
+        },
+      ],
+    });
+
+    const status = getModelCatalogStatus();
+    expect(status).toEqual({
+      source: 'models.dev',
+      catalogVersion: 'models.dev@test',
+      fetchedAt: '2026-09-21T00:00:00.000Z',
+      entryCount: 1,
+      imageEntryCount: 1,
+    });
+
+    const search = searchPiCatalog({ query: 'piwin-catalog-unique', limit: 5 });
+    expect(search.catalogVersion).toBe('models.dev@test');
+    expect(search.entries.map((entry) => entry.modelId)).toEqual(['piwin-catalog-unique-id']);
+    expect(lookupCatalogByModelId('gateway/piwin-catalog-unique-id')?.contextWindow).toBe(42_000);
+    expect(searchPiImagesCatalog().entries.map((entry) => entry.modelId)).toEqual([
+      'piwin-image-unique-id',
+    ]);
+
+    resetModelCatalogSnapshot();
+    expect(getModelCatalogStatus().source).toBe('pi-bootstrap');
+    expect(lookupCatalogByModelId('piwin-catalog-unique-id')).toBeUndefined();
+    expect(lookupCatalogByModelId('custom-openai/grok-4.6')?.modelId).toBe('grok-4.6');
   });
 });
