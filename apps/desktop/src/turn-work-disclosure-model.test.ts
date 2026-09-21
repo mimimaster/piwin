@@ -432,4 +432,145 @@ describe('projectTurnWorkDisclosure', () => {
       }),
     ).toBeNull();
   });
+
+  it('folds earlier process rows when the settled last assistant mixed tools with the answer', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        thinking: 'Inspecting.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '', runId: 'run-1' }],
+      }),
+      message('answer-with-tools', {
+        text: 'Implemented and verified.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'edit-1', toolName: 'edit', status: 'done', output: '', runId: 'run-1' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: { 'run-1': completedRun() },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
+    ).toEqual({
+      startIndex: 1,
+      endIndex: 1,
+      elapsedMs: 94_000,
+      failureCount: 0,
+      toolCount: 1,
+    });
+  });
+
+  it('keeps mixed last-message tools expanded while the run is still active', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        thinking: 'Inspecting.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '', runId: 'run-1' }],
+      }),
+      message('answer-with-tools', {
+        text: 'Still writing.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'edit-1', toolName: 'edit', status: 'done', output: '', runId: 'run-1' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: 'run-1',
+        currentTurnStreaming: false,
+      }),
+    ).toBeNull();
+  });
+
+  it('folds a settled process-only turn that never emitted a separate reply', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        thinking: 'Inspecting.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '', runId: 'run-1' }],
+      }),
+      message('work-2', {
+        thinking: 'Editing.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'edit-1', toolName: 'edit', status: 'done', output: '', runId: 'run-1' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: { 'run-1': completedRun() },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
+    ).toEqual({
+      startIndex: 1,
+      endIndex: 2,
+      elapsedMs: 94_000,
+      failureCount: 0,
+      toolCount: 2,
+    });
+  });
+
+  it('ignores a trailing empty streaming placeholder when folding a settled conclusion', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        thinking: 'Inspecting.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '', runId: 'run-1' }],
+      }),
+      message('answer-1', { text: 'Implemented and verified.', runId: 'run-1' }),
+      message('placeholder', { status: 'streaming', runId: 'run-1' }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: { 'run-1': completedRun() },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
+    ).toEqual({
+      startIndex: 1,
+      endIndex: 1,
+      elapsedMs: 94_000,
+      failureCount: 0,
+      toolCount: 1,
+    });
+  });
+
+  it('does not fold a settled process-only turn that already failed', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        thinking: 'Inspecting.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '', runId: 'run-1' }],
+      }),
+      message('work-2', {
+        runId: 'run-1',
+        status: 'error',
+        error: 'Run failed',
+        tools: [{ toolCallId: 'edit-1', toolName: 'edit', status: 'error', output: 'fail', runId: 'run-1' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: { 'run-1': completedRun({ outcome: 'failed' }) },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
+    ).toBeNull();
+  });
 });

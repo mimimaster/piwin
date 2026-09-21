@@ -1,3 +1,4 @@
+import { isAssistantContentEmpty } from './assistant-message-content.js';
 import {
   assistantHasUserFacingGeneration,
   assistantHasWorkTools,
@@ -8,7 +9,11 @@ import type { TranscriptTurn } from './transcript-turns.js';
 export type TurnWorkDisclosureProjection = {
   /** Inclusive index of the first intermediate row hidden by the disclosure. */
   startIndex: number;
-  /** Inclusive index immediately before the settled user-facing Assistant answer. */
+  /**
+   * Inclusive index of the last hidden row. For a tool-less conclusion this is
+   * the item before that answer; for a process-only settled turn it is the last
+   * process row (and any trailing empty placeholders).
+   */
   endIndex: number;
   elapsedMs?: number;
   failureCount: number;
@@ -54,11 +59,29 @@ function isUserFacingReply(message: ChatMessageUi): boolean {
   return !assistantHasWorkTools(message) && hasVisibleFinalContent(message);
 }
 
+function hasAssistantError(message: ChatMessageUi): boolean {
+  return message.status === 'error' || message.error !== undefined;
+}
+
+/**
+ * Empty `message/start` placeholders are lifecycle chrome, not work. A lost
+ * terminal used to leave one streaming forever, which blocked settlement.
+ */
+function isIgnorableAssistantRow(message: ChatMessageUi): boolean {
+  return (
+    message.role === 'assistant' &&
+    isAssistantContentEmpty(message) &&
+    message.subagentActivity === undefined &&
+    !hasAssistantError(message)
+  );
+}
+
 function isSubagentActive(activity: ChatMessageUi['subagentActivity']): boolean {
   return activity !== undefined && (activity.state === 'started' || activity.state === 'running');
 }
 
 function isMessageActive(message: ChatMessageUi): boolean {
+  if (isIgnorableAssistantRow(message)) return false;
   return (
     message.status === 'streaming' ||
     message.tools.some((tool) => tool.status === 'running') ||
@@ -68,16 +91,28 @@ function isMessageActive(message: ChatMessageUi): boolean {
 
 function findLastAssistantIndex(turn: TranscriptTurn): number {
   for (let index = turn.items.length - 1; index >= 0; index -= 1) {
-    if (turn.items[index]?.message.role === 'assistant') return index;
+    const message = turn.items[index]?.message;
+    if (message?.role === 'assistant' && !isIgnorableAssistantRow(message)) return index;
   }
   return -1;
 }
 
 function findFirstAssistantIndex(turn: TranscriptTurn, endIndex: number): number {
   for (let index = 0; index <= endIndex; index += 1) {
-    if (turn.items[index]?.message.role === 'assistant') return index;
+    const message = turn.items[index]?.message;
+    if (message?.role === 'assistant' && !isIgnorableAssistantRow(message)) return index;
   }
   return -1;
+}
+
+function extendThroughEmptyAssistants(turn: TranscriptTurn, endIndex: number): number {
+  let index = endIndex;
+  while (index + 1 < turn.items.length) {
+    const next = turn.items[index + 1]?.message;
+    if (!next || !isIgnorableAssistantRow(next)) break;
+    index += 1;
+  }
+  return index;
 }
 
 function prefixHasWork(turn: TranscriptTurn, startIndex: number, endIndex: number): boolean {
@@ -96,6 +131,18 @@ function prefixHasUserFacingReply(
   for (let index = startIndex; index <= endIndex; index += 1) {
     const message = turn.items[index]?.message;
     if (message && isUserFacingReply(message)) return true;
+  }
+  return false;
+}
+
+function prefixHasAssistantError(
+  turn: TranscriptTurn,
+  startIndex: number,
+  endIndex: number,
+): boolean {
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const message = turn.items[index]?.message;
+    if (message && hasAssistantError(message)) return true;
   }
   return false;
 }
@@ -172,7 +219,7 @@ function countFailures(
     failedToolCount += message.tools.filter(
       (tool) => tool.status === 'error' && tool.presentation?.error?.category !== 'cancelled',
     ).length;
-    if (message.status === 'error' || message.error !== undefined) {
+    if (hasAssistantError(message)) {
       hasNonToolFailure = true;
     }
   }
@@ -242,27 +289,24 @@ function countToolsAndFiles(
 }
 
 /**
- * Wrap intermediate Agent work only after the user query has settled.
- * Returning `null` keeps the original causal stream fully mounted.
+ * Last row of a settled turn can still carry work tools on the same message as
+ * the answer. Treat visible text/media as the conclusion so earlier process
+ * rows can fold; live turns stay open.
  */
-export function projectTurnWorkDisclosure(
+function isSettledConclusion(message: ChatMessageUi, settled: boolean): boolean {
+  if (isUserFacingReply(message)) return true;
+  if (!settled) return false;
+  if (message.role !== 'assistant') return false;
+  if (message.status === 'streaming' || hasAssistantError(message)) return false;
+  return hasVisibleFinalContent(message) || assistantHasUserFacingGeneration(message);
+}
+
+function projectRange(
   input: ProjectTurnWorkDisclosureInput,
-): TurnWorkDisclosureProjection | null {
-  const lastAssistantIndex = findLastAssistantIndex(input.turn);
-  if (lastAssistantIndex <= 0) return null;
-  const lastAssistant = input.turn.items[lastAssistantIndex]?.message;
-  if (!lastAssistant || !isUserFacingReply(lastAssistant)) return null;
-
-  const endIndex = lastAssistantIndex - 1;
-  const startIndex = findFirstAssistantIndex(input.turn, endIndex);
-  if (startIndex === -1 || endIndex < startIndex) return null;
-  if (!prefixHasWork(input.turn, startIndex, endIndex)) return null;
-  // A contiguous [start, end] would also hide any real reply in that span.
-  if (prefixHasUserFacingReply(input.turn, startIndex, endIndex)) return null;
-
-  const runIds = collectRunIds(input.turn);
-  if (!isTurnSettled(input, runIds)) return null;
-
+  startIndex: number,
+  endIndex: number,
+  runIds: ReadonlySet<string>,
+): TurnWorkDisclosureProjection {
   const elapsedMs = resolveElapsedMs(
     input.turn,
     startIndex,
@@ -274,9 +318,58 @@ export function projectTurnWorkDisclosure(
   return {
     startIndex,
     endIndex,
-    failureCount: countFailures(input.turn, startIndex, endIndex, runIds, input.runRecordsById),
+    failureCount: countFailures(
+      input.turn,
+      startIndex,
+      endIndex,
+      runIds,
+      input.runRecordsById,
+    ),
     ...(toolCount > 0 ? { toolCount } : {}),
     ...(fileCount > 0 ? { fileCount } : {}),
     ...(elapsedMs !== undefined ? { elapsedMs } : {}),
   };
+}
+
+/**
+ * Wrap intermediate Agent work only after the user query has settled.
+ * Returning `null` keeps the original causal stream fully mounted.
+ *
+ * Same-message text + work tools is still process while the run is live. Once
+ * the turn settles it is a conclusion so the fold is not stuck waiting for a
+ * later tool-less row some models never emit. A settled process-only turn
+ * (tools, no reply) folds the whole work span.
+ */
+export function projectTurnWorkDisclosure(
+  input: ProjectTurnWorkDisclosureInput,
+): TurnWorkDisclosureProjection | null {
+  const lastAssistantIndex = findLastAssistantIndex(input.turn);
+  if (lastAssistantIndex < 0) return null;
+  const lastAssistant = input.turn.items[lastAssistantIndex]?.message;
+  if (!lastAssistant) return null;
+
+  const runIds = collectRunIds(input.turn);
+  const settled = isTurnSettled(input, runIds);
+  const lastIsConclusion = isSettledConclusion(lastAssistant, settled);
+
+  let startIndex: number;
+  let endIndex: number;
+  if (lastIsConclusion) {
+    endIndex = lastAssistantIndex - 1;
+    startIndex = findFirstAssistantIndex(input.turn, endIndex);
+    if (startIndex === -1 || endIndex < startIndex) return null;
+    if (!prefixHasWork(input.turn, startIndex, endIndex)) return null;
+    if (prefixHasUserFacingReply(input.turn, startIndex, endIndex)) return null;
+  } else {
+    if (!settled) return null;
+    if (prefixHasUserFacingReply(input.turn, 0, lastAssistantIndex)) return null;
+    if (prefixHasAssistantError(input.turn, 0, lastAssistantIndex)) return null;
+    startIndex = findFirstAssistantIndex(input.turn, lastAssistantIndex);
+    if (startIndex === -1) return null;
+    if (!prefixHasWork(input.turn, startIndex, lastAssistantIndex)) return null;
+    endIndex = extendThroughEmptyAssistants(input.turn, lastAssistantIndex);
+  }
+
+  if (!settled) return null;
+  return projectRange(input, startIndex, endIndex, runIds);
 }

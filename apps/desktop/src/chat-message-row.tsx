@@ -119,8 +119,10 @@ export const ChatMessageRow = memo(
     }
     // Keep errored turns visible even when the provider failed before any
     // content: an empty bubble is still the only place TurnErrorCard renders.
+    // A leftover empty `message/start` can stay `streaming` after the run
+    // terminals (late-delta catch). Hide it once the thread is no longer live.
     if (
-      message.status !== 'streaming' &&
+      (message.status !== 'streaming' || props.streaming !== true) &&
       message.status !== 'error' &&
       !message.error &&
       props.runRecord?.outcome !== 'failed' &&

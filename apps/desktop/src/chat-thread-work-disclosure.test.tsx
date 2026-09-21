@@ -687,4 +687,86 @@ describe('ChatThread completed work disclosure', () => {
       container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
     ).toBe('grok-4.6');
   });
+
+  it('unmounts completed work when the last assistant mixed tools with the answer', () => {
+    const messages = [
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        thinking: 'Inspecting the implementation.',
+        runId: 'run-1',
+        tools: [
+          {
+            toolCallId: 'read-1',
+            toolName: 'read_file',
+            status: 'done',
+            output: 'source',
+            runId: 'run-1',
+          },
+        ],
+      }),
+      message('answer-1', {
+        text: 'Implemented and verified.',
+        runId: 'run-1',
+        tools: [
+          {
+            toolCallId: 'edit-1',
+            toolName: 'edit',
+            status: 'done',
+            output: 'ok',
+            runId: 'run-1',
+          },
+        ],
+      }),
+    ];
+
+    act(() => root.render(renderThread(messages)));
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    expect(trigger).not.toBeNull();
+    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-answer-1')?.textContent).toContain(
+      'Implemented and verified.',
+    );
+  });
+
+  it('unmounts a settled process-only turn that never emitted a separate reply', () => {
+    const messages = [
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        thinking: 'Inspecting the implementation.',
+        runId: 'run-1',
+        tools: [
+          {
+            toolCallId: 'read-1',
+            toolName: 'read',
+            status: 'done',
+            output: 'source',
+            runId: 'run-1',
+          },
+        ],
+      }),
+      message('work-2', {
+        thinking: 'Editing.',
+        runId: 'run-1',
+        tools: [
+          {
+            toolCallId: 'edit-1',
+            toolName: 'edit',
+            status: 'done',
+            output: 'ok',
+            runId: 'run-1',
+          },
+        ],
+      }),
+    ];
+
+    act(() => root.render(renderThread(messages)));
+
+    expect(container.querySelector('[data-testid="turn-work-disclosure-trigger"]')).not.toBeNull();
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-work-2')).toBeNull();
+  });
 });

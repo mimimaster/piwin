@@ -2400,6 +2400,14 @@ describe('ChatThread render isolation (E1)', () => {
     expect(summary?.querySelector('[data-testid="work-fold-elapsed"]')?.textContent).toBe('4s');
 
     act(() => renderThread(null, 1_707_000));
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    expect(trigger).not.toBeNull();
+    expect(container.querySelector('[data-testid="turn-work-details-summary"]')).toBeNull();
+    expect(trigger?.textContent).not.toContain('1707');
+
+    act(() => trigger?.click());
     summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');
     expect(summary?.textContent).toContain('思考过程');
     expect(summary?.querySelector('[data-testid="work-fold-elapsed"]')?.textContent).toBe('4s');
