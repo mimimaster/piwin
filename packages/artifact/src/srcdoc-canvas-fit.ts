@@ -3,6 +3,7 @@
  * `resolveCanvasStageFit` / `pickCanvasStageFit` via the shared constants.
  */
 import {
+  CANVAS_FIT_COVER_MIN_VISIBLE_RATIO,
   CANVAS_FIT_FILLS_RATIO,
   CANVAS_FIT_MAX_SCALE,
   CANVAS_FIT_MIN_CONTENT_PX,
@@ -49,6 +50,75 @@ export function buildCanvasStageFitRuntime(): string {
       }
     }
     return { action: 'none', scale: 1 };
+  };
+  // A cover-cropped viewBox hides part of the design box; the canvas shows the
+  // whole box instead (mirrors resolveCanvasDesignBoxCorrection).
+  var readViewBoxSize = function (svg) {
+    var value = svg.getAttribute ? svg.getAttribute('viewBox') : null;
+    if (!value) return null;
+    var parts = value.replace(/,/g, ' ').trim().split(/\\s+/);
+    if (parts.length !== 4) return null;
+    var designWidth = parseFloat(parts[2]);
+    var designHeight = parseFloat(parts[3]);
+    if (!(designWidth > 0) || !(designHeight > 0)) return null;
+    return { width: designWidth, height: designHeight };
+  };
+  var resolveDesignBoxMeet = function (boxWidth, boxHeight, designWidth, designHeight, preserve) {
+    if (!preserve || !/slice/i.test(preserve)) return null;
+    if (
+      boxWidth < ${CANVAS_FIT_MIN_CONTENT_PX} ||
+      boxHeight < ${CANVAS_FIT_MIN_CONTENT_PX}
+    ) {
+      return null;
+    }
+    var scale = Math.max(boxWidth / designWidth, boxHeight / designHeight);
+    var visible =
+      Math.min(1, boxWidth / (designWidth * scale)) * Math.min(1, boxHeight / (designHeight * scale));
+    if (visible >= ${CANVAS_FIT_COVER_MIN_VISIBLE_RATIO}) return null;
+    return preserve.replace(/slice/i, 'meet');
+  };
+  var canvasDesignTargets = [];
+  var resetCanvasDesignBoxes = function () {
+    for (var i = 0; i < canvasDesignTargets.length; i++) {
+      var entry = canvasDesignTargets[i];
+      if (!entry.node) continue;
+      if (entry.original === null) entry.node.removeAttribute('preserveAspectRatio');
+      else entry.node.setAttribute('preserveAspectRatio', entry.original);
+      if (entry.node.removeAttribute) entry.node.removeAttribute('data-piwin-canvas-aspect');
+    }
+    canvasDesignTargets = [];
+  };
+  var applyCanvasDesignBoxes = function () {
+    resetCanvasDesignBoxes();
+    if (!document.body || !document.querySelectorAll) return;
+    var viewportWidth = readFitBox(window.innerWidth);
+    var viewportHeight = readFitBox(window.innerHeight);
+    if (viewportWidth < ${CANVAS_FIT_MIN_VIEWPORT_PX} || viewportHeight < ${CANVAS_FIT_MIN_VIEWPORT_PX}) {
+      return;
+    }
+    var svgs = document.querySelectorAll('svg');
+    for (var index = 0; index < svgs.length; index += 1) {
+      var svg = svgs[index];
+      // Attribute reads only: an icon-heavy artifact must not pay layout reads.
+      var preserve = svg.getAttribute ? svg.getAttribute('preserveAspectRatio') : null;
+      if (!preserve || !/slice/i.test(preserve)) continue;
+      var design = readViewBoxSize(svg);
+      if (!design || !svg.getBoundingClientRect) continue;
+      var rect = svg.getBoundingClientRect();
+      var boxWidth = readFitBox(rect.width);
+      var boxHeight = readFitBox(rect.height);
+      if (
+        boxWidth / viewportWidth < ${CANVAS_FIT_FILLS_RATIO} ||
+        boxHeight / viewportHeight < ${CANVAS_FIT_FILLS_RATIO}
+      ) {
+        continue;
+      }
+      var meet = resolveDesignBoxMeet(boxWidth, boxHeight, design.width, design.height, preserve);
+      if (meet === null) continue;
+      canvasDesignTargets.push({ node: svg, original: preserve });
+      svg.setAttribute('preserveAspectRatio', meet);
+      if (svg.setAttribute) svg.setAttribute('data-piwin-canvas-aspect', 'letterbox');
+    }
   };
   var isSkippableFitNode = function (node) {
     if (!node || node.nodeType !== 1) return true;
@@ -124,7 +194,11 @@ export function buildCanvasStageFitRuntime(): string {
   };
   var applyCanvasStageFit = function () {
     canvasFitFrame = null;
-    if (currentFrameMode !== 'canvas' || !document.body) return;
+    if (currentFrameMode !== 'canvas' || !document.body) {
+      resetCanvasDesignBoxes();
+      return;
+    }
+    applyCanvasDesignBoxes();
     var viewportWidth = readFitBox(window.innerWidth);
     var viewportHeight = readFitBox(window.innerHeight);
     if (canvasFitTarget) resetCanvasFit(canvasFitTarget);

@@ -28,6 +28,11 @@ export const CANVAS_FIT_UNUSED_RATIO = 0.88;
 export const CANVAS_FIT_OVERFLOW_SLACK_PX = 8;
 export const CANVAS_FIT_SCALE_EPSILON = 1.02;
 export const CANVAS_FIT_MAX_SCALE = 4;
+/**
+ * A cover-cropped design box (`preserveAspectRatio="...slice"`) may hide this
+ * much of the declared viewBox before the canvas shows the whole box instead.
+ */
+export const CANVAS_FIT_COVER_MIN_VISIBLE_RATIO = 0.7;
 
 export function resolveCanvasStageFit(input: {
   viewportWidth: number;
@@ -100,4 +105,80 @@ export function pickCanvasStageFit<T>(
     }
   }
   return best === null ? null : { id: best.id, decision: best.decision };
+}
+
+export type CanvasDesignBoxCorrection =
+  | { action: 'none'; preserveAspectRatio: null }
+  | { action: 'letterbox'; preserveAspectRatio: string };
+
+export type CanvasDesignBoxCandidate<T> = {
+  id: T;
+  /** Rendered box of the SVG that paints the canvas surface. */
+  boxWidth: number;
+  boxHeight: number;
+  /** Declared design box from the SVG viewBox. */
+  designWidth: number;
+  designHeight: number;
+  preserveAspectRatio: string | null | undefined;
+};
+
+/**
+ * An SVG that fills the canvas and cover-crops its own viewBox hides part of
+ * the design (a 5:3 scene in a portrait panel shows ~37% of it). The canvas is
+ * the design viewport, so the whole declared box stays visible: swap `slice`
+ * for `meet` and keep the author's alignment.
+ */
+export function resolveCanvasDesignBoxCorrection(
+  candidate: CanvasDesignBoxCandidate<unknown>,
+): CanvasDesignBoxCorrection {
+  const preserve = candidate.preserveAspectRatio ?? '';
+  if (!/slice/i.test(preserve)) return { action: 'none', preserveAspectRatio: null };
+  const { boxWidth, boxHeight, designWidth, designHeight } = candidate;
+  if (![boxWidth, boxHeight, designWidth, designHeight].every((value) => Number.isFinite(value))) {
+    return { action: 'none', preserveAspectRatio: null };
+  }
+  if (
+    boxWidth < CANVAS_FIT_MIN_CONTENT_PX ||
+    boxHeight < CANVAS_FIT_MIN_CONTENT_PX ||
+    designWidth <= 0 ||
+    designHeight <= 0
+  ) {
+    return { action: 'none', preserveAspectRatio: null };
+  }
+  const scale = Math.max(boxWidth / designWidth, boxHeight / designHeight);
+  const visible =
+    Math.min(1, boxWidth / (designWidth * scale)) * Math.min(1, boxHeight / (designHeight * scale));
+  if (visible >= CANVAS_FIT_COVER_MIN_VISIBLE_RATIO) {
+    return { action: 'none', preserveAspectRatio: null };
+  }
+  return { action: 'letterbox', preserveAspectRatio: preserve.replace(/slice/i, 'meet') };
+}
+
+/**
+ * Picks the SVG to correct: it must paint the canvas surface (fills both axes)
+ * rather than sit inline inside a larger document.
+ */
+export function pickCanvasDesignBoxCorrection<T>(
+  input: {
+    viewportWidth: number;
+    viewportHeight: number;
+    candidates: readonly CanvasDesignBoxCandidate<T>[];
+  },
+): { id: T; preserveAspectRatio: string } | null {
+  if (
+    input.viewportWidth < CANVAS_FIT_MIN_VIEWPORT_PX ||
+    input.viewportHeight < CANVAS_FIT_MIN_VIEWPORT_PX
+  ) {
+    return null;
+  }
+  for (const candidate of input.candidates) {
+    const fillsWidth = candidate.boxWidth / input.viewportWidth >= CANVAS_FIT_FILLS_RATIO;
+    const fillsHeight = candidate.boxHeight / input.viewportHeight >= CANVAS_FIT_FILLS_RATIO;
+    if (!fillsWidth || !fillsHeight) continue;
+    const correction = resolveCanvasDesignBoxCorrection(candidate);
+    if (correction.action === 'letterbox') {
+      return { id: candidate.id, preserveAspectRatio: correction.preserveAspectRatio };
+    }
+  }
+  return null;
 }

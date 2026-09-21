@@ -199,7 +199,10 @@ Runtime guarantees:
   internal scrolling. Host CSS treats that iframe as the design viewport — no
   phone-card matting, 16px stage padding, or vertical centering. Undersized
   stages scale up to contain; letterboxed portrait posters expand to the panel
-  so fluid layouts reflow. It does not show Inline Expand/Collapse or the Inline
+  so fluid layouts reflow. An SVG that paints the whole canvas but cover-crops
+  its own `viewBox` (`preserveAspectRatio="…slice"` hiding more than 30% of the
+  declared design box) is letterboxed instead (`slice` → `meet`, authored
+  alignment kept), because silent cropping hides design the user asked to see. It does not show Inline Expand/Collapse or the Inline
   raw-source disclosure.
 - **Same security posture as Inline**: existing Artifact security
   classification, iframe sandbox, CSP, theme injection, external-resource
