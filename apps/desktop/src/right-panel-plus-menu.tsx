@@ -59,7 +59,7 @@ export function RightPanelPlusMenu(props: RightPanelPlusMenuProps): ReactElement
       </DropdownMenuLabel>
       {SECTION_META.filter(isPlusMenuSection).map((tab) => {
         const labelText = sectionLabel(tab.id, props.locale);
-        const alreadyOpen = props.openTabs.includes(tab.id);
+        const alreadyOpen = tab.id === 'terminal' ? false : props.openTabs.includes(tab.id);
         return (
           <DropdownMenuItem
             key={tab.id}

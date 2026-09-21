@@ -3,12 +3,12 @@
  * Now supports general-scope terminals (no project required).
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { tauriPtyClose, tauriPtyCloseAll } from './tauri-pty';
 import type { PtyStatus } from './xterm-surface';
 
 /** Concurrent PTY/xterm sessions, including the one created on enable. */
-export const MAX_TERMINAL_SESSIONS = 4;
+export const MAX_TERMINAL_SESSIONS = 10;
 
 export type TerminalSession = {
   id: string;
@@ -31,6 +31,8 @@ export type TerminalSessionsApi = {
   closeSession: (id: string) => void;
   restartSession: (id: string) => void;
   onSessionStatus: (id: string, status: PtyStatus, ptyId: string | null, message?: string) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
 };
 
 export function useTerminalSessions(
@@ -41,6 +43,7 @@ export function useTerminalSessions(
 ): TerminalSessionsApi {
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const sessionsRef = useRef<TerminalSession[]>([]);
   sessionsRef.current = sessions;
   const counterRef = useRef(1);
@@ -64,7 +67,7 @@ export function useTerminalSessions(
       const sessionCwd = cwd?.trim() || defaultCwd;
       return {
         id: `terminal-${index}`,
-        name: name ?? `zsh ${index}`,
+        name: name ?? `zsh${index}`,
         cwd: sessionCwd,
         projectPath: projectPath ?? '',
         status: 'idle',
@@ -188,5 +191,7 @@ export function useTerminalSessions(
     closeSession,
     restartSession,
     onSessionStatus,
+    sidebarOpen,
+    setSidebarOpen,
   };
 }

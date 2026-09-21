@@ -1,6 +1,11 @@
 import { IconButton, IconClose, Tabs, TabsList, TabsTrigger } from '@piwin/ui-kit';
 import type { DesktopLocale } from './desktop-locale.js';
-import { sectionLabel, sectionIcon, type RightPanelTab } from './right-panel-sections.js';
+import {
+  sectionLabel,
+  sectionIcon,
+  isTerminalTab,
+  type RightPanelTab,
+} from './right-panel-sections.js';
 
 /** Navigation owns its keyboard/focus behavior; surface lifetime stays in
  * RightPanel so switching tabs cannot accidentally close a live terminal. */
@@ -48,8 +53,8 @@ export function RightPanelTabs(props: {
           const count =
             tab === 'review'
               ? props.changesCount
-              : tab === 'terminal'
-                ? props.runningJobCount
+              : isTerminalTab(tab)
+                ? undefined
                 : tab === 'cards'
                   ? props.cardsDueCount
                   : tab === 'tasks'
@@ -76,7 +81,7 @@ export function RightPanelTabs(props: {
                 {count !== undefined && count > 0 ? (
                   <span className="right-panel-tab-badge">{count}</span>
                 ) : null}
-                {tab === 'terminal' && props.terminalAttention ? (
+                {isTerminalTab(tab) && props.terminalAttention ? (
                   <span className="right-panel-tab-attention att" aria-hidden="true" />
                 ) : null}
               </TabsTrigger>

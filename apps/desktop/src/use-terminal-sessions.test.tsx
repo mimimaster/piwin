@@ -80,7 +80,7 @@ describe('useTerminalSessions', () => {
 
     expect(lastApi?.sessions.length).toBe(1);
     expect(lastApi?.activeSessionId).toBe(lastApi?.sessions[0]?.id ?? null);
-    expect(lastApi?.sessions[0]?.name).toMatch(/^zsh \d/);
+    expect(lastApi?.sessions[0]?.name).toMatch(/^zsh\d+/);
     expect(lastApi?.sessions[0]?.cwd).toBe('/home');
   });
 
@@ -131,7 +131,7 @@ describe('useTerminalSessions', () => {
 
     expect(lastApi?.sessions.length).toBe(2);
     expect(lastApi?.activeSessionId).not.toBe(firstId);
-    expect(lastApi?.sessions[1]?.name).toMatch(/^zsh \d/);
+    expect(lastApi?.sessions[1]?.name).toMatch(/^zsh\d+/);
   });
 
   it('adds a session with a custom cwd', () => {

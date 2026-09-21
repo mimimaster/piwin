@@ -12,7 +12,8 @@ export type RightPanelTabKind =
   | 'canvas'
   | 'sideChat'
   | 'docPreview'
-  | 'tasks';
+  | 'tasks'
+  | `terminal-${string}`;
 
 export type StoredRightPanelState = {
   openTabs: RightPanelTabKind[];
@@ -38,7 +39,10 @@ const ALLOWED_KINDS: RightPanelTabKind[] = [
 ];
 
 function isAllowedKind(value: unknown): value is RightPanelTabKind {
-  return typeof value === 'string' && (ALLOWED_KINDS as string[]).includes(value);
+  return (
+    typeof value === 'string' &&
+    ((ALLOWED_KINDS as string[]).includes(value) || value.startsWith('terminal-'))
+  );
 }
 
 export function readStoredRightPanelState(

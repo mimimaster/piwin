@@ -152,6 +152,10 @@
   overflow: hidden;
 }
 
+.right-panel-tabstrip.has-terminal-actions {
+  padding-right: 116px;
+}
+
 .right-panel-titlebar-box {
   -webkit-app-region: drag;
   app-region: drag;

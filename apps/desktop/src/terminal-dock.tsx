@@ -15,15 +15,13 @@ import { XtermSurface } from './xterm-surface';
 import {
   IconClose,
   IconPlus,
-  IconRefresh,
-  IconFolder,
-  IconPanelRight,
   IconTerminal,
 } from './shell-icons';
 import {
   MAX_TERMINAL_SESSIONS,
   useTerminalSessions,
   type TerminalSession,
+  type TerminalSessionsApi,
 } from './use-terminal-sessions';
 import { useDesktopLocale } from './desktop-locale-context';
 
@@ -53,20 +51,9 @@ export type TerminalDockProps = {
     rows?: number;
     projectPath?: string;
   }) => Promise<HostResponse>;
+  /** Shared multi-session terminal controller. */
+  terminalSessions?: TerminalSessionsApi;
 };
-
-/** Truncate a path to fit in the header, keeping the tail visible. */
-function truncatePath(path: string, maxLen: number = 30): string {
-  if (path.length <= maxLen) return path;
-  const parts = path.replace(/\/$/, '').split('/');
-  if (parts.length <= 2) return `…${path.slice(-(maxLen - 1))}`;
-  // Keep the last 2 segments: ~/…/last/two
-  const tail = parts.slice(-2).join('/');
-  const head = parts[0] === '' ? '/' : (parts[0] ?? '');
-  const available = maxLen - tail.length - 3; // 3 for "…/"
-  if (available <= 0) return `…/${tail}`;
-  return `${head.slice(0, Math.max(1, available))}…/${tail}`;
-}
 
 export function TerminalDock(props: TerminalDockProps): ReactElement {
   const { locale } = useDesktopLocale();
@@ -77,13 +64,15 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
   const [ptyStatus, setPtyStatus] = useState<TerminalSession['status']>('idle');
   const [ptyError, setPtyError] = useState<string | null>(null);
   const ptyEndRef = useRef<HTMLDivElement | null>(null);
-
-  // Directory switcher state.
-  const [dirDropdownOpen, setDirDropdownOpen] = useState(false);
-  const [dirInput, setDirInput] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sessionCapNotice, setSessionCapNotice] = useState<string | null>(null);
-  const dirDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  const localSessionsApi = useTerminalSessions(
+    props.projectPath,
+    props.projectTrusted,
+    useInteractivePty,
+    props.currentCwd,
+  );
+  const terminalSessions = props.terminalSessions ?? localSessionsApi;
 
   const {
     sessions,
@@ -91,28 +80,9 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
     setActiveSessionId,
     addSession,
     closeSession,
-    restartSession,
     onSessionStatus,
-  } = useTerminalSessions(
-    props.projectPath,
-    props.projectTrusted,
-    useInteractivePty,
-    props.currentCwd,
-  );
-
-  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
-
-  // Close directory dropdown on outside click.
-  useEffect(() => {
-    if (!dirDropdownOpen) return;
-    function handleClick(event: MouseEvent) {
-      if (dirDropdownRef.current && !dirDropdownRef.current.contains(event.target as Node)) {
-        setDirDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [dirDropdownOpen]);
+    sidebarOpen,
+  } = terminalSessions;
 
   // Keep the single-host (browser preview) pty scroll pinned to the bottom.
   useEffect(() => {
@@ -155,35 +125,6 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
     await props.request({ type: 'pty/write', ptyId: id, data: `${text}\n` });
   }
 
-  function handleSelectDir(dir: string) {
-    setDirDropdownOpen(false);
-    setDirInput('');
-    props.onCwdChange(dir);
-  }
-
-  function handleDirInputSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const trimmed = dirInput.trim();
-    if (!trimmed) return;
-    handleSelectDir(trimmed);
-  }
-
-  // Collect quick directory options.
-  const dirOptions: Array<{ label: string; path: string }> = [];
-  if (props.projectPath) {
-    dirOptions.push({ label: isZh ? '项目根' : 'Project root', path: props.projectPath });
-  }
-  dirOptions.push({ label: isZh ? '主目录 (~)' : 'Home (~)', path: '' });
-  // Add recent dirs (excluding duplicates with current project/home).
-  const seen = new Set([props.projectPath, ''].filter(Boolean));
-  for (const dir of props.recentDirs) {
-    if (!seen.has(dir)) {
-      seen.add(dir);
-      const shortLabel = dir.length > 40 ? `…${dir.slice(-37)}` : dir;
-      dirOptions.push({ label: shortLabel, path: dir });
-    }
-  }
-
   return (
     <section
       className="terminal-dock terminal-dock-panel open"
@@ -192,94 +133,6 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
       data-pty-mode={useInteractivePty ? 'tauri' : 'shell-preview'}
       aria-label={isZh ? '终端' : 'Terminal'}
     >
-      <header className="terminal-dock-toolbar" data-testid="terminal-dock-toolbar">
-        <div className="terminal-dock-title muted">
-          {activeSession?.name || (useInteractivePty ? 'zsh' : isZh ? '终端' : 'Shell')}
-        </div>
-
-        <div className="terminal-dock-toolbar-right">
-          {/* Directory switcher */}
-          {useInteractivePty ? (
-            <div className="terminal-dir-switcher" ref={dirDropdownRef}>
-              <button
-                type="button"
-                className="terminal-dir-btn term-dirpill"
-                data-testid="terminal-dir-btn"
-                title={props.currentCwd}
-                aria-label={`Current directory: ${props.currentCwd}`}
-                aria-expanded={dirDropdownOpen}
-                onClick={() => setDirDropdownOpen((prev) => !prev)}
-              >
-                <IconFolder width={11} height={11} />
-                <span className="terminal-dir-path">{truncatePath(props.currentCwd, 24)}</span>
-              </button>
-              {dirDropdownOpen ? (
-                <div className="terminal-dir-dropdown" data-testid="terminal-dir-dropdown">
-                  <div className="terminal-dir-dropdown-header">{isZh ? '快捷目录' : 'Quick directories'}</div>
-                  {dirOptions.map((option) => (
-                    <button
-                      key={option.path}
-                      type="button"
-                      className="terminal-dir-option"
-                      data-testid={`terminal-dir-option-${option.path || 'home'}`}
-                      onClick={() => handleSelectDir(option.path || '')}
-                    >
-                      <span className="terminal-dir-option-label">{option.label}</span>
-                      <span className="terminal-dir-option-path">{option.path || '~'}</span>
-                    </button>
-                  ))}
-                  <form className="terminal-dir-input-row" onSubmit={handleDirInputSubmit}>
-                    <input
-                      className="terminal-dir-input"
-                      type="text"
-                      value={dirInput}
-                      onChange={(event) => setDirInput(event.target.value)}
-                      placeholder={isZh ? '输入路径…' : 'Type a path…'}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                    <Button type="submit" size="compact" disabled={!dirInput.trim()}>
-                      {isZh ? '前往' : 'Go'}
-                    </Button>
-                  </form>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {useInteractivePty ? (
-            <button
-              type="button"
-              className="terminal-icon-button"
-              data-testid="pty-restart-btn"
-              title={isZh ? '重启当前终端' : 'Restart active terminal'}
-              aria-label={isZh ? '重启当前终端' : 'Restart active terminal'}
-              onClick={() => {
-                if (activeSession) {
-                  restartSession(activeSession.id);
-                }
-              }}
-            >
-              <IconRefresh width={12} height={12} />
-            </button>
-          ) : null}
-
-          {useInteractivePty ? (
-            <button
-              type="button"
-              className={`terminal-icon-button${sidebarOpen ? ' active' : ''}`}
-              data-testid="terminal-sidebar-toggle"
-              title={sidebarOpen ? 'Hide terminal sessions' : 'Manage terminal sessions'}
-              aria-label={sidebarOpen ? 'Hide terminal sessions' : 'Manage terminal sessions'}
-              aria-pressed={sidebarOpen}
-              onClick={() => setSidebarOpen((prev) => !prev)}
-            >
-              <IconPanelRight width={12} height={12} />
-            </button>
-          ) : null}
-        </div>
-      </header>
-
       <div className="terminal-dock-body">
         <div
           className={`terminal-dock-content${sidebarOpen ? ' has-sidebar' : ''}`}

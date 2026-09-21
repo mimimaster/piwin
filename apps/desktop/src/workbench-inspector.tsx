@@ -62,6 +62,8 @@ import {
   resolveInteractiveTerminalProjectPath,
 } from './interactive-terminal-binding';
 import { TerminalJobMonitor, type TerminalJobMonitorProps } from './terminal-job-monitor';
+import { isTauriPtyAvailable } from './tauri-pty';
+import { useTerminalSessions } from './use-terminal-sessions';
 
 type InspectorShell = {
   closeOverlay: () => void;
@@ -217,6 +219,12 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     preferredCwd: terminalCwd,
     projectPath,
   });
+  const terminalSessions = useTerminalSessions(
+    terminalProjectPath,
+    projectTrusted,
+    isTauriPtyAvailable(),
+    terminalSpawnCwd || terminalCwd,
+  );
   const terminalDock = (
     <DeferredTerminalDock
       projectPath={terminalProjectPath}
@@ -227,6 +235,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
       onCwdChange={handleTerminalCwdChange}
       recentDirs={terminalRecentDirs}
       request={requestPty}
+      terminalSessions={terminalSessions}
     />
   );
 
@@ -244,6 +253,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
 
         <RightPanel
           open={rightPanelOpen}
+          terminalSessions={terminalSessions}
           onOpen={() => shell.openInspector(rightPanelTab)}
           onClose={() => {
             rightPanelResize.setFullWidth(false);
