@@ -178,7 +178,7 @@ function recoverDmg(env, identity) {
 
   const staging = join(env.TMPDIR || tmpdir(), 'piwin-dmg-staging');
   const stagingSrc = join(staging, 'src');
-  const stagedApp = join(stagingSrc, 'piwinwin.app');
+  const stagedApp = join(stagingSrc, 'piwin.app');
   rmSync(staging, { recursive: true, force: true });
   mkdirSync(stagingSrc, { recursive: true });
   cpSync(appPath, stagedApp, { recursive: true });
@@ -189,7 +189,7 @@ function recoverDmg(env, identity) {
   const dmgPath = join(primaryDmgDir, dmgName);
   const create = spawnSync(
     'hdiutil',
-    ['create', '-volname', 'piwinwin', '-srcfolder', stagingSrc, '-ov', '-format', 'UDZO', dmgPath],
+    ['create', '-volname', 'piwin', '-srcfolder', stagingSrc, '-ov', '-format', 'UDZO', dmgPath],
     { stdio: 'inherit' },
   );
   if (create.status !== 0) {

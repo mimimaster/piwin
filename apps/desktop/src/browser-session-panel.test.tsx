@@ -161,6 +161,15 @@ describe('BrowserSessionPanel', () => {
     return selectMenuItem(item);
   }
 
+  /** Settle the follow-resize promise chain (send → refusal → panel state). */
+  async function flushMicrotasks(): Promise<void> {
+    await act(async () => {
+      for (let tick = 0; tick < 5; tick += 1) {
+        await Promise.resolve();
+      }
+    });
+  }
+
   function queryByTestId(testId: string): HTMLElement | null {
     return document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
   }
@@ -210,6 +219,26 @@ describe('BrowserSessionPanel', () => {
     );
     // Follow mode fills the panel instead of letterboxing the frame.
     expect(queryByTestId('browser-session-frame-container')?.getAttribute('data-fill')).toBe('true');
+  });
+
+  it('stops filling and reports it when the Host refuses follow resizes', async () => {
+    const client = createMockHostClient();
+    vi.spyOn(client, 'browserResize').mockResolvedValue({
+      type: 'response',
+      command: 'browser/resize',
+      success: false,
+      error: 'follow resize is frozen while multiple clients mirror the browser',
+    });
+    stubFrameContainerBox({ width: 1024, height: 700 });
+    renderPanel({ hostClient: client });
+
+    await flushMicrotasks();
+    // Filling the panel with a frame the Host never resized to the panel box
+    // stretches the mirror; fall back to the aspect-true fit instead.
+    expect(queryByTestId('browser-session-frame-container')?.getAttribute('data-fill')).toBe(
+      'false',
+    );
+    expect(queryByTestId('browser-session-notice')?.textContent).toContain('跟随面板');
   });
 
   it('fixed mode never sends follow resizes', async () => {

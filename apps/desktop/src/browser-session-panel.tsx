@@ -127,13 +127,28 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         : { message, count: 1 },
     );
   }, []);
-  useBrowserViewport({
+  const { refused: followRefused } = useBrowserViewport({
     containerRef,
     enabled: viewportPreference.mode === 'follow',
     leaseId: mirrorLeaseId,
     resize: (width, height, resizeOptions) =>
       hostClient.browserResize(width, height, resizeOptions),
   });
+  // One notice per refusal episode: the panel stopped driving the Host
+  // viewport, so say so instead of silently showing a stale frame.
+  const followRefusedNotified = useRef(false);
+  useEffect(() => {
+    if (viewportPreference.mode !== 'follow' || !followRefused) {
+      followRefusedNotified.current = false;
+      return;
+    }
+    if (followRefusedNotified.current) {
+      return;
+    }
+    followRefusedNotified.current = true;
+    pushNotice(copy.viewportFollowRefused);
+  }, [copy.viewportFollowRefused, followRefused, pushNotice, viewportPreference.mode]);
+
   const [panelSize, setPanelSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     const element = containerRef.current;
@@ -279,8 +294,13 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
   // fills the panel. While a resize is still in flight the last frame stretches
   // for a moment instead of shrinking into a letterboxed island. A viewport the
   // agent or a preset pinned to another mode keeps the aspect-true fit.
+  // A refused follow resize leaves the Host viewport at its old size: filling
+  // the panel with that frame stretches it, so fall back to the aspect-true fit
+  // until the Host accepts the panel box again.
   const fillPanel =
-    viewportPreference.mode === 'follow' && (viewport === undefined || viewport.mode === 'follow');
+    viewportPreference.mode === 'follow' &&
+    !followRefused &&
+    (viewport === undefined || viewport.mode === 'follow');
   const displayBox =
     fillPanel && frame.viewportWidth > 0 && panelSize.width > 0
       ? {

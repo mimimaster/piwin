@@ -258,6 +258,32 @@ describe('useRightPanelResize drag scheduling', () => {
     disposeHarness(harness);
   });
 
+  it('clamps for the viewport without losing the stored width, then restores it', () => {
+    localStorage.setItem('piwin.desktop.rightPanelWidth', '520');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+    const harness = renderHarness();
+    expect(harness.latest().widthPx).toBe(520);
+    expect(harness.shell.style.getPropertyValue('--right-panel-width')).toBe('520px');
+
+    act(() => {
+      // 800 - 420 stage floor = 380: the panel must shrink to keep the chat usable.
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 });
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(harness.latest().widthPx).toBe(380);
+    expect(harness.shell.style.getPropertyValue('--right-panel-width')).toBe('380px');
+    // Viewport clamp is display-only; the user's width stays on disk.
+    expect(localStorage.getItem('piwin.desktop.rightPanelWidth')).toBe('520');
+
+    act(() => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(harness.latest().widthPx).toBe(520);
+    expect(harness.shell.style.getPropertyValue('--right-panel-width')).toBe('520px');
+    disposeHarness(harness);
+  });
+
   it('does not let a stored width steal the stage on open', () => {
     localStorage.setItem('piwin.desktop.rightPanelWidth', '1600');
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });

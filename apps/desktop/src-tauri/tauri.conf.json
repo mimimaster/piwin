@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "piwinwin",
+  "productName": "piwin",
   "version": "0.0.0",
   "identifier": "app.piwinwin.desktop",
   "build": {

@@ -1,52 +1,136 @@
+<div align="center">
+
 # piwin
 
-> **私有化、现代化的高性能智能编程 Agent 工作台与操作系统**  
-> 构筑于 Pi 内核之上，具备清晰分层、独立可部署的 Host 权威、多端解耦契约以及模块化扩展生态。
+<p align="center">
+  <img src="./apps/desktop/public/app-icon-512.png" alt="piwin logo" width="128" height="128" />
+</p>
 
-[在线文档站 (docs.planora.chat)](https://docs.planora.chat) · [English](./docs/en/README.md) · **简体中文** · [架构设计](./ARCHITECTURE.md) · [开发规则](./AGENTS.md) · [打包指南](./docs/release-desktop.md)
+**私有化、现代化的高性能智能编程 Agent 工作台与操作系统**  
+构筑于 Pi 内核之上，具备清晰分层、独立可部署的 Host 权威、多端解耦契约以及模块化扩展生态。
 
----
+[官方文档 (docs.planora.chat)](https://docs.planora.chat) · [GitHub Releases](https://github.com/mimimaster/piwin/releases) · [架构设计](./docs/architecture.md) · [开发规范](./AGENTS.md)
 
-## 桌面一体包正式版 (All-in-One Desktop)
+**简体中文** | [English](./docs/en/README.md)
 
-**当前发布版本提供 macOS（Apple Silicon）全功能一体化桌面正式版与 Windows 安装包**。
-
-- **开箱即用，零环境依赖**：普通用户无需在电脑上配置 Node.js、pnpm、Python 或 Rust 等开发环境。安装包内置独立沙盒化的 **Node 22 LTS 运行时、Host Sidecar 守护进程、LanceDB 原生向量引擎与 Tauri 2 桌面应用**。
-- **直接下载安装**：前往仓库右侧 **[Releases](https://github.com/mimimaster/piwin/releases)** 下载最新版本的 `piwinwin_<version>_aarch64.dmg`，双击拖入「应用程序（Applications）」文件夹即可使用。
-  > *初次打开提示*：由于未购买商业开发者证书，首次启动若系统提示「无法验证开发者」，前往 macOS「系统设置 → 隐私与安全性」点击「仍要打开」即可正常启动。
-- **多端支持与私有化运行**：
-  - **macOS / Windows 桌面端**：沉浸式多窗格工作台；
-  - **Web 自适应端**：前后端解耦，Host 单独部署在服务器或 NAS 上，配合 Tailscale 随时随地远程访问；
-  - **iOS 移动端外壳**：随时随地查看长程任务执行进度与下达编码需求；
-  - **CLI 命令行工具**：终端下的轻量化交互。
+</div>
 
 ---
 
-## 项目简介
+`piwin` 是专为严肃软件工程打造的**私有化 AI 编程工作台**，提供桌面端应用（macOS / Windows）、Web 浏览器工作台与终端 Agent。本仓库包含客户端、后端服务、共享 UI 以及 Agent CLI 与运行时源码。
 
-`piwin` 是一个专为严肃软件工程打造的**私有化智能编程 Agent 宿主环境（Coding-Agent Shell / Workbench）**。
-
-与传统的“套壳对话框”或“强侵入式 IDE插件”不同，`piwin` 采用**内核与表现层解耦**的架构：前端客户端只负责呈现和人机交互，所有的代码读写、Shell 执行、模型调用、权限审查、子代理编排均由自主可控的 **Host 运行时** 统一管理。
-
-无论是在日常编码、系统排错、复杂需求拆解、全栈架构重构，还是在基于浏览器的前端调优场景中，`piwin` 都能提供沉稳、可靠、零污染且可追溯的 Agent 协作体验。
+| 入口 | 用途 | 启动 / 开发命令 |
+| :--- | :--- | :--- |
+| **Desktop** | macOS / Windows 沉浸式桌面应用；支持开箱即用一体包或本地源码开发 | `pnpm dev:desktop` / `pnpm dev:tauri` |
+| **Web 浏览器端** | 终端与浏览器工作台；将 Web 前端与独立 Host 后端通过 WebSocket 解耦连接 | `pnpm dev:host` + `pnpm dev:desktop` |
+| **Agent CLI** | 在终端中使用交互式 `piwin`，提供轻量化命令行 Agent 运行时 | `pnpm dev:cli` |
+| **Host 独立服务端** | 供 Web、移动端或远程连接的后端核心宿主服务（状态与执行权威） | `pnpm dev:host` |
 
 ---
 
-## 整体架构
+## 快速使用指引
 
-`piwin` 采用 **客户端接入、单一 Host 权威、数据 100% 留在本地** 的产品架构。
+你可以根据使用场景选择**直接下载桌面一体安装包**（推荐，开箱即用）、**Web 浏览器模式**或**源码二次开发**：
+
+### 方式一：下载桌面一体安装包（推荐 · 零环境依赖）
+
+官方发布提供 **macOS（Apple Silicon）全功能一体化桌面正式版** 与 **Windows 一体化安装包**。
+
+- **零环境门槛，开箱即用**：普通用户无需在电脑上配置 Node.js、pnpm、Python 或 Rust 等任何开发环境。安装包内置独立沙盒化的 **Node 22 LTS 运行时、Host Sidecar 守护进程、LanceDB 原生向量引擎与 Tauri 2 桌面客户端**。
+- **下载与安装**：
+  1. 前往仓库右侧 **[GitHub Releases](https://github.com/mimimaster/piwin/releases)** 下载最新版安装包：
+     - **macOS**：下载 `piwinwin_<version>_aarch64.dmg`，双击后将 `piwin` 拖入「应用程序（Applications）」文件夹即可。
+       > *macOS 首次打开提示*：由于未购买商业开发者证书，首次启动若系统提示「无法验证开发者」，前往 macOS「系统设置 → 隐私与安全性」点击「仍要打开」即可正常运行。
+     - **Windows**：下载 `piwinwin_<version>_x64-setup.exe` 安装包，按引导安装完成后即可直接启动。
+- **本地启动模式**：桌面端支持 **内置 Sidecar 模式**（自动随应用拉起后端）与 **远程 Attach 模式**（连接远程服务器上的 Host）。
+
+---
+
+### 方式二：Web 浏览器模式（Web / 远程部署）
+
+`piwin` 采用前后端彻底解耦的架构，前端为纯 React 19 单页应用，支持在任何现代浏览器中直接访问，适合将 Host 部署在 NAS、开发机或远程 Linux 服务器上：
+
+#### 1. 启动 Host 后端服务
+Host 提供 Agent 核心调度、工具执行、会话持久化与 WebSocket 远程接口（默认监听 `8787` 端口）：
+```bash
+pnpm dev:host
+# 或
+pnpm --filter @piwin/host-app dev
+```
+
+#### 2. 启动 Web 前端服务
+启动前端 Vite 服务（默认端口 `1420`）：
+```bash
+pnpm dev:desktop
+# 或
+pnpm --dir apps/desktop dev
+```
+
+#### 3. 浏览器访问与连接
+1. 在浏览器中打开 `http://localhost:1420`。
+2. 页面会自动识别非 Tauri 环境并呈现 **Host 连接网关（Host Connect Wall）**。
+3. 输入 Host 地址：`ws://127.0.0.1:8787`（若配置了 Auth Token 则填入 Token），点击 **Connect** 即可进入完整工作台。
+
+---
+
+### 方式三：终端 Agent CLI 模式
+
+如果你偏好在纯命令行终端中进行结对编程：
+
+```bash
+pnpm dev:cli
+```
+支持在终端内直接进行代码检索、编辑、子代理调度、工具执行与交互式对话。
+
+---
+
+### 方式四：开发者源码编译与全栈开发
+
+如果你需要基于源码定制或自行编译打包：
+
+#### 1. 环境准备
+- **操作系统**：macOS (Apple Silicon 推荐)、Linux、Windows
+- **依赖工具**：Node.js `>= 22.0.0`、pnpm `>= 9.0.0`、Rust `>= 1.75.0`（编译桌面端需具备）
+
+#### 2. 本地初始化与常用命令
+
+```bash
+# 1. 克隆代码仓库
+git clone https://github.com/mimimaster/piwin.git
+cd piwin
+
+# 2. 安装全部 workspace 依赖
+pnpm install
+
+# 3. 运行静态类型与规范检查
+pnpm check
+
+# 4. 启动对应入口开发
+pnpm dev:desktop    # 启动桌面端 / Web 前端 (Vite)
+pnpm dev:tauri      # 启动 Tauri 桌面端调试
+pnpm dev:host       # 启动 Host 独立后端服务
+pnpm dev:cli        # 启动终端命令行 CLI
+
+# 5. 打包桌面一体安装包
+pnpm package:desktop # 打包 macOS / Windows 桌面安装包
+```
+
+---
+
+## 整体架构与工作原理
+
+`piwin` 采用 **多端接入、单一 Host 权威、数据 100% 留在本地** 的系统设计：
 
 ```mermaid
-%%{init: {'flowchart': {'curve': 'linear'}}}%%
-flowchart TB
-    Client["多端客户端<br/>Desktop · Web · Mobile · CLI"]
+%%{init: {'flowchart': {'curve': 'linear'}}}%%\nflowchart TB
+    Client["多端接入<br/>Desktop · Web · Mobile · CLI"]
 
     subgraph Host["Piwin Host (统一状态与执行权威)"]
         Gateway["统一协议网关<br/>连接 · 鉴权 · 实时同步 · 断线重放"]
 
         Session["会话控制<br/>SQLite 历史树 · Run 调度"]
-        Security["安全防护<br/>Deny/Ask/Allow 统一门禁"]
-        Subagent["子代理编排<br/>Git Worktree 隔离并行"]
+        Security["安全防护<br/>Deny / Ask / Allow 统一门禁"]
+        Subagent["子代理编排<br/>Git Worktree 隔离并发"]
 
         Engine["Agent 引擎<br/>Pi Kernel (进程内 / Worker)"]
         Work["工程执行<br/>代码读写 · 终端任务 · Git"]
@@ -68,50 +152,39 @@ flowchart TB
     Ext --> Model
 ```
 
-### 架构解读
+### 核心分层设计
 
-| 产品层 | 关键代码位置 | 对外职责 |
+| 层次 | 模块位置 | 核心职责 |
 | :--- | :--- | :--- |
-| **多端体验** | `apps/desktop` · `apps/cli` · `apps/mobile` | 提供不同终端下的一致 Agent 体验；客户端只负责交互与呈现。 |
-| **连接与同步** | `packages/contracts` · `packages/host-client` · `packages/host-transport` · `packages/host-server` | 以统一协议连接本机或远程 Host，完成鉴权、命令、实时推送与断线重放。 |
-| **Host 控制面** | `apps/host` · `packages/host-runtime` | 全产品唯一组合根和状态权威，统一管理会话、运行、权限、调度、工具与子代理。 |
-| **Agent 执行引擎** | `packages/agent-host` · Pi Kernel | 通过进程内 SDK 或隔离 Worker 驱动模型与 Agent Loop；这是仓库中唯一接触 Pi 的边界。 |
-| **能力生态** | `packages/browser` · `packages/mcp` · `packages/git` · `packages/doc-rag` · `packages/artifact` 等 | 将工程执行、浏览器、知识、媒体和扩展能力按需组合进 Host，不污染客户端与 Agent 内核。 |
-| **数据与基础设施** | 本地项目 · `~/.piwin` · 模型提供方 | 代码、会话和配置默认由用户掌控；模型支持订阅、BYOK 与本地兼容服务。 |
-
-**四个核心设计原则：**
-
-1. **一个 Host，多端共享**：Desktop、CLI、Mobile / Future Web 连接同一份会话、状态与执行环境。
-2. **客户端与内核解耦**：所有客户端只依赖公开契约，不直接调用 Pi 或操作 Host 文件系统。
-3. **控制面统一收口**：权限、Run、工具、子代理和持久化全部由 Host Runtime 编排，没有第二条旁路。
-4. **能力可插拔、数据私有化**：功能以独立包接入；项目、配置、会话与媒体默认保留在用户自己的机器上。
+| **多端体验** | `apps/desktop` · `apps/cli` · `apps/mobile` | 提供各终端一致的交互体验；客户端纯轻量，只负责 UI 呈现与用户交互。 |
+| **连接与同步** | `packages/contracts` · `packages/host-client` · `packages/host-transport` · `packages/host-server` | 统一的双向协议与传输通道，支持 stdio、WebSocket 远程连接、状态流式推送与断线重放。 |
+| **Host 控制面** | `apps/host` · `packages/host-runtime` | 全产品唯一组合根与状态权威，统一管理会话生命周期、权限控制、工具执行与子代理调度。 |
+| **Agent 执行引擎** | `packages/agent-host` · Pi Kernel | 通过进程内 SDK 或独立 Worker 驱动模型与 Agent Loop，作为仓库接触 Pi 的唯一边界。 |
+| **扩展能力生态** | `packages/browser` · `packages/mcp` · `packages/git` · `packages/doc-rag` · `packages/artifact` 等 | 将工程执行、浏览器、知识检索、媒体与制品渲染能力按需插拔装配进 Host。 |
+| **数据与隐私** | 本地工程 · `~/.piwin` · 密钥管理器 | 代码、会话记录、日志与配置完全存储于用户本地；模型支持 BYOK、OAuth 订阅及私有模型。 |
 
 ---
 
-## 核心特性
+## 核心特性亮点
 
 ### 1. 智能体语义代码搜索 (Code Search)
-- **0-Token 上下文污染**：基于 Devin Fast-Context 逆向与 Scout 架构，派发独立只读子代理深入代码库勘探接口定义与调用链，仅回传高信噪比提炼报告。
-- **一等公民工具**：在 Piwin 中与 `read_file`、`grep` 同级，随时随地由模型自主调用。
-- **双模支持**：支持配置高速低延迟模型，或直接使用免费的 Devin Token 获取极速检索。
-查阅文档：[Code Search 详细指引](https://docs.planora.chat/docs/code-search)
+- **0-Token 上下文污染**：基于 Scout 架构派发独立只读子代理深入代码库勘探接口定义与调用链，仅向主会话回传高信噪比提炼报告。
+- **一等公民工具**：在 Piwin 中与 `read_file`、`grep` 同级，随时随地由模型自主触发。
+- **双模驱动**：支持配置高速低延迟模型，或直接使用 Devin 快速检索能力。
 
 ### 2. 多子代理编排协同 (Subagent Orchestrator)
-- **Ultra Code 模式**：先派发 Scout 侦察兵摸清全局依赖，再由主代理实施精准修改。
+- **Ultra Code 模式**：先派发 Scout 侦察兵摸清全局依赖与调用关系，再由主代理实施精准修改。
 - **Fusion 模式**：“主规划模型 (Lead SOTA) + 高性价比执行节点 (Sidekick)”，规划与机械编码分工协作。
 - **Git Worktree 物理隔离**：写操作子任务自动派生至独立的临时 Git Worktree 分支并发执行，支持主分支一键原子审查与合并。
-查阅文档：[子代理编排详细指引](https://docs.planora.chat/docs/subagent-orchestration)
 
 ### 3. 全双工实时语音 Live (Realtime Voice)
-- **说话面与工作面解耦 (Spoken Contract)**：说话面负责闲聊、探讨与提炼 Brief，工作面负责具体写代码与跑测试，还原真实结对编程体验。
-- **广泛渠道兼容**：支持 OpenAI Codex 官方 Live 模型、OpenAI WebSocket Realtime 协议与 Grok2API 语音通道。
-查阅文档：[实时语音详细指引](https://docs.planora.chat/docs/realtime-voice)
+- **说话面与工作面解耦 (Spoken Contract)**：说话面负责闲聊、需求探讨与提炼 Brief，工作面负责具体写代码与跑测试，还原真实结对编程体验。
+- **广泛通道兼容**：支持 OpenAI Codex 官方 Live 模型、OpenAI WebSocket Realtime 协议与 Grok 语音通道。
 
 ### 4. 双层模型配置与多模态委托 (BYOK & Multi-Account)
 - **通道 (Provider) + 套餐账号 (OAuth Account)**：既支持填入任意 OpenAI / Anthropic / OpenRouter 兼容 API Key，也支持一键 OAuth 授权 Kimi Coding、Codex、Claude Pro/Max、xAI Grok、GitHub Copilot。
 - **极速视觉委托 (Vision Delegation)**：为纯文本模型配备 Google Gemini Flash、硅基流动 Qwen-VL、Groq 或本地 Ollama 视觉模型，大幅节约 Token 与耗时。
-- **生图与视频生成**：内置 `image_gen` 与 `video_gen` 工具契约，原生渲染多媒体资产。
-查阅文档：[模型与委托配置指引](https://docs.planora.chat/docs/model-config) · [免费视觉模型配置](https://docs.planora.chat/docs/vision-models)
+- **原生多媒体生成**：内置 `image_gen` 与 `video_gen` 工具契约，原生渲染多媒体资产。
 
 ### 5. 多窗格智能工作台（Agent Window & Multi-Pane）
 - **灵活分屏**：单窗口支持 1 / 2 / 4 / 8 独立会话窗格自由切分（Split Right/Down），保持各子任务独立流式输出与上下文隔离。
@@ -138,54 +211,6 @@ flowchart TB
 ### 10. 原生 Pi 扩展热加载生态 (Extensions)
 - **会话中平滑热加载**：在任务执行时安装扩展，优雅等待当前轮次结束后下一轮自动激活，无需重启，保留完整上下文。
 - **全方位支持**：支持 Agent 自定义工具、事件 Hook 与 Provider 扩展。
-查阅文档：[Pi 扩展生态指引](https://docs.planora.chat/docs/extensions)
-
----
-
-## 开发者二次开发与构建
-
-如果你需要基于源码定制或自行编译开发：
-
-### 环境要求
-- **操作系统**：macOS (Apple Silicon 推荐)、Linux、Windows
-- **依赖工具**：Node.js `>= 22.0.0`、pnpm `>= 9.0.0`、Rust `>= 1.75.0`
-
-### 本地编译步骤
-
-```bash
-# 1. 克隆代码库
-git clone https://github.com/mimimaster/piwin.git
-cd piwin
-
-# 2. 安装全部依赖
-pnpm install
-
-# 3. 启动开发模式（UI + 本地调试 Host）
-pnpm dev:desktop
-
-# 4. 本地打包完整 macOS 一体化安装包 (.dmg)
-pnpm package:desktop
-```
-
-生成的安装包将存放在：
-```text
-apps/desktop/src-tauri/target/release/bundle/dmg/piwinwin_<version>_aarch64.dmg
-```
-
----
-
-## 持续集成与发布 (CI / CD)
-
-本仓库已配置高度自动化的 GitHub Actions 流水线：
-
-- **自动化质量门禁 (`.github/workflows/ci.yml`)**：
-  每次代码推送到 `main` 时，自动运行全量单测、类型检查（TypeScript strict）与架构规则校验。
-- **macOS 云端打包与发布 (`.github/workflows/package-macos.yml`)**：
-  向仓库推送 `v*` 格式的 Git 标签时，自动在云端 macOS 运行机上编译生成 DMG，并在 GitHub Releases 自动创建发布草稿并挂载安装包附件：
-    ```bash
-    git tag v0.1.0
-    git push origin v0.1.0
-    ```
 
 ---
 
@@ -194,13 +219,17 @@ apps/desktop/src-tauri/target/release/bundle/dmg/piwinwin_<version>_aarch64.dmg
 ```text
 piwin/
 ├── apps/                        # 客户端与应用外壳
-│   ├── desktop/                 # Tauri 2 桌面端主应用 (React + Mantine)
+│   ├── desktop/                 # Tauri 2 桌面端主应用 & Web 前端 (React + Vite + Mantine)
 │   ├── cli/                     # Node.js 交互式命令行工具
-│   ├── mobile/                  # Tauri 移动端外壳
-│   └── docs/                    # VitePress 技术文档站 (https://docs.planora.chat)
+│   ├── host/                    # 独立 Host 服务端可执行包 (WebSocket Server)
+│   ├── mobile/                  # 移动端外壳 (iOS / Android)
+│   └── docs/                    # 技术文档站 (VitePress)
 ├── packages/                    # 领域包与能力库
-│   ├── contracts/               # 全局共享类型定义、IPC 协议与事件规范 (底层叶子包)
+│   ├── contracts/               # 全局共享类型定义、IPC 协议与事件规范 (叶子包)
 │   ├── host-runtime/            # 全局唯一产品组合根、权限引擎与调度器
+│   ├── host-server/             # 远程 WebSocket 协议服务与连接管理
+│   ├── host-client/             # 统一 Client 通信封装与状态恢复
+│   ├── host-transport/          # 底层 WebSocket / stdio 传输通道
 │   ├── agent-host/              # Pi 内核适配层 (SDK / RPC 双模式)
 │   ├── browser/                 # Playwright 浏览器会话与实时推流服务
 │   ├── doc-rag/                 # LanceDB 本地向量知识库与检索服务

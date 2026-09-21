@@ -41,6 +41,16 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
     host: serverHost,
+    /**
+     * 2026-09-21 事故（窗口全白）：Vite 给带 `?v=` 的预打包产物下发
+     * `Cache-Control: max-age=31536000,immutable`，Tauri 的 WebKit webview 会照存一年。
+     * 依赖重新预打包时 chunk 名会变（browserHash 只哈希 lockfile/config/依赖 id，
+     * 所以改 workspace 包内容时哈希不变），缓存里的旧模块图便会去要已删除的 chunk，
+     * 触发 ERR_FILE_NOT_FOUND_IN_OPTIMIZED_DEP_DIR，模块图断掉、窗口全白。
+     * dev 从本地取包，禁掉缓存即可。Vite 的 send() 先写自己的 Cache-Control、
+     * 之后才合并 server.headers，所以这里能覆盖掉 immutable。
+     */
+    headers: { 'Cache-Control': 'no-store' },
     hmr: remoteDevHost
       ? {
           protocol: 'ws',

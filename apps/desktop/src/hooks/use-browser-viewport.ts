@@ -5,7 +5,7 @@
  * asks for a follow resize, and it never touches the coordinate space
  * optimistically — a failed request keeps the previous actual viewport.
  */
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { BrowserViewportMode } from '@piwin/contracts';
 
 export type BrowserViewportSize = { width: number; height: number };
@@ -49,6 +49,14 @@ export function resolveFollowViewportBox(
   return { width, height };
 }
 
+/**
+ * A refused follow resize is retried on its own so the panel heals when the
+ * condition clears (another mirror closing, Host back) without a fresh drag.
+ */
+export const BROWSER_FOLLOW_RETRY_DELAY_MS = 2000;
+/** Retries per rejection episode; a new observation restarts the budget. */
+export const BROWSER_FOLLOW_MAX_RETRY_ATTEMPTS = 5;
+
 /** True when at least one axis moved by the minimum delta (or nothing sent yet). */
 export function shouldSendFollowResize(
   previous: BrowserViewportSize | undefined,
@@ -66,13 +74,34 @@ export type BrowserViewportFollowController = {
   observe(size: BrowserViewportSize | undefined): void;
   /** Last size the Host accepted (undefined until the first success). */
   lastAccepted(): BrowserViewportSize | undefined;
+  /** The Host is currently refusing follow resizes; the viewport is stale. */
+  isRejected(): boolean;
   dispose(): void;
 };
 
 export type BrowserViewportFollowControllerOptions = {
   send: (size: BrowserViewportSize) => Promise<unknown>;
   minDeltaPx?: number;
+  /** Edge-triggered: the Host started refusing follow resizes. */
+  onRejected?: () => void;
+  /** Edge-triggered: a follow resize was accepted again. */
+  onAccepted?: () => void;
+  retryDelayMs?: number;
+  maxRetryAttempts?: number;
 };
+
+/**
+ * A failed `browser/resize` resolves with `success: false` instead of
+ * throwing, so a plain `await` would count a refusal as an applied resize and
+ * leave the panel stretching a frame the Host never resized.
+ */
+export function isFollowResizeRefused(response: unknown): boolean {
+  return (
+    typeof response === 'object' &&
+    response !== null &&
+    (response as { success?: unknown }).success === false
+  );
+}
 
 /**
  * Follow-mode resizes without a debounce: the first change goes out at once,
@@ -86,11 +115,27 @@ export function createBrowserViewportFollowController(
   options: BrowserViewportFollowControllerOptions,
 ): BrowserViewportFollowController {
   const minDeltaPx = options.minDeltaPx ?? BROWSER_FOLLOW_RESIZE_MIN_DELTA_PX;
+  const retryDelayMs = options.retryDelayMs ?? BROWSER_FOLLOW_RETRY_DELAY_MS;
+  const maxRetryAttempts = options.maxRetryAttempts ?? BROWSER_FOLLOW_MAX_RETRY_ATTEMPTS;
 
   let accepted: BrowserViewportSize | undefined;
   let latest: BrowserViewportSize | undefined;
   let sending = false;
   let disposed = false;
+  let refused = false;
+  let retryAttempts = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function scheduleRetry(): void {
+    if (disposed || retryTimer !== null || retryAttempts >= maxRetryAttempts) {
+      return;
+    }
+    retryAttempts += 1;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      void flush();
+    }, retryDelayMs);
+  }
 
   async function flush(): Promise<void> {
     if (disposed || sending) return;
@@ -99,27 +144,52 @@ export function createBrowserViewportFollowController(
     if (next === undefined || !shouldSendFollowResize(accepted, next, minDeltaPx)) return;
     sending = true;
     try {
-      await options.send(next);
+      const response = await options.send(next);
+      if (isFollowResizeRefused(response)) {
+        throw new Error('the Host did not apply the follow resize');
+      }
       // Only a Host-accepted resize moves the coordinate space.
       accepted = next;
+      retryAttempts = 0;
+      if (refused) {
+        refused = false;
+        options.onAccepted?.();
+      }
     } catch {
-      // Keep the previous accepted size; the next observation retries.
+      // Keep the previous accepted size and the pending size; the panel must
+      // know the viewport is stale instead of stretching the stale frame.
+      if (!refused) {
+        refused = true;
+        options.onRejected?.();
+      }
+      latest = latest ?? next;
+      scheduleRetry();
     } finally {
       sending = false;
-      if (latest !== undefined) void flush();
+      // Chase a newer size only while the Host is answering. A refused size
+      // waits for its retry slot (or the next observation) — re-flushing it
+      // here would spin forever against a frozen mirror.
+      if (!refused && latest !== undefined) void flush();
     }
   }
 
   return {
     observe(size) {
       if (disposed || size === undefined) return;
+      // A drag is a fresh intent: retry from a clean budget.
+      retryAttempts = 0;
       latest = size;
       void flush();
     },
     lastAccepted: () => accepted,
+    isRejected: () => refused,
     dispose() {
       disposed = true;
       latest = undefined;
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
     },
   };
 }
@@ -149,16 +219,25 @@ export type UseBrowserViewportInput = {
 /**
  * Sends follow-mode `browser/resize` requests for the panel content box.
  * No-ops when follow is not the active mode.
+ *
+ * Returns whether the Host is currently refusing follow resizes: the panel
+ * uses that to stop stretching a frame whose viewport no longer matches.
  */
-export function useBrowserViewport(input: UseBrowserViewportInput): void {
+export function useBrowserViewport(input: UseBrowserViewportInput): {
+  refused: boolean;
+} {
   const latest = useRef(input);
   latest.current = input;
+  const [refused, setRefused] = useState(false);
 
   useEffect(() => {
     if (!input.enabled) return;
     const element = input.containerRef.current;
     if (!element) return;
+    setRefused(false);
     const follow = createBrowserViewportFollowController({
+      onRejected: () => setRefused(true),
+      onAccepted: () => setRefused(false),
       send: (size) => {
         const current = latest.current;
         return current.resize(size.width, size.height, {
@@ -181,6 +260,8 @@ export function useBrowserViewport(input: UseBrowserViewportInput): void {
       follow.dispose();
     };
   }, [input.enabled, input.containerRef]);
+
+  return { refused };
 }
 
 /**

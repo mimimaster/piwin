@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createBrowserViewportFollowController,
+  isFollowResizeRefused,
   resolveFollowViewportBox,
   resolveViewportPresetId,
   shouldSendFollowResize,
@@ -93,6 +94,89 @@ describe('createBrowserViewportFollowController', () => {
     follow.observe({ width: 900, height: 700 });
     await vi.waitFor(() => expect(follow.lastAccepted()).toBeDefined());
     follow.observe({ width: 900, height: 700 });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('createBrowserViewportFollowController refusals', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('treats a failed Host response as a refusal, not an applied resize', () => {
+    expect(isFollowResizeRefused({ success: false, error: 'frozen' })).toBe(true);
+    expect(isFollowResizeRefused({ success: true })).toBe(false);
+    expect(isFollowResizeRefused(undefined)).toBe(false);
+  });
+
+  it('reports the refusal, stops claiming the size, and retries until accepted', async () => {
+    vi.useFakeTimers();
+    const onRejected = vi.fn();
+    const onAccepted = vi.fn();
+    const send = vi
+      .fn<(size: { width: number; height: number }) => Promise<unknown>>()
+      .mockResolvedValueOnce({ success: false, error: 'follow resize is frozen' })
+      .mockResolvedValue({ success: true });
+    const follow = createBrowserViewportFollowController({
+      send,
+      onRejected,
+      onAccepted,
+      retryDelayMs: 1000,
+    });
+
+    follow.observe({ width: 900, height: 700 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onRejected).toHaveBeenCalledTimes(1);
+    expect(follow.isRejected()).toBe(true);
+    // The panel must not treat the refused size as the live coordinate space.
+    expect(follow.lastAccepted()).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenLastCalledWith({ width: 900, height: 700 });
+    expect(follow.lastAccepted()).toEqual({ width: 900, height: 700 });
+    expect(follow.isRejected()).toBe(false);
+    expect(onAccepted).toHaveBeenCalledTimes(1);
+    follow.dispose();
+  });
+
+  it('stops retrying after the budget and starts over on the next observation', async () => {
+    vi.useFakeTimers();
+    const onRejected = vi.fn();
+    const send = vi.fn(async () => ({ success: false, error: 'frozen' }));
+    const follow = createBrowserViewportFollowController({
+      send,
+      onRejected,
+      retryDelayMs: 1000,
+      maxRetryAttempts: 2,
+    });
+
+    follow.observe({ width: 900, height: 700 });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(send).toHaveBeenCalledTimes(3);
+
+    // Budget spent: no endless command spam while the freeze lasts.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(onRejected).toHaveBeenCalledTimes(1);
+
+    follow.observe({ width: 950, height: 700 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send).toHaveBeenCalledTimes(4);
+    expect(send).toHaveBeenLastCalledWith({ width: 950, height: 700 });
+    follow.dispose();
+  });
+
+  it('clears the pending retry on dispose', async () => {
+    vi.useFakeTimers();
+    const send = vi.fn(async () => ({ success: false, error: 'frozen' }));
+    const follow = createBrowserViewportFollowController({ send, retryDelayMs: 1000 });
+    follow.observe({ width: 900, height: 700 });
+    await vi.advanceTimersByTimeAsync(0);
+    follow.dispose();
+    await vi.advanceTimersByTimeAsync(10_000);
     expect(send).toHaveBeenCalledTimes(1);
   });
 });

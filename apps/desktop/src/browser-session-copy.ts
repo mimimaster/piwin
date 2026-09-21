@@ -25,6 +25,7 @@ export type BrowserSessionCopy = BrowserSessionChromeCopy & {
   frameUnavailable: string;
   commandFailed: string;
   viewportFailed: string;
+  viewportFollowRefused: string;
   panelActionFailed: string;
   diagCss: string;
   diagEncoded: string;
@@ -105,6 +106,8 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
       frameUnavailable: '远程浏览画面需要更新 Host 或 Desktop',
       commandFailed: '浏览器命令失败，请重试。',
       viewportFailed: '无法调整视口。',
+      viewportFollowRefused:
+        '跟随面板已暂停：镜像视口没能跟上面板宽度（多个窗口同时镜像浏览器时会暂停，恢复后自动继续）。',
       panelActionFailed: '面板操作失败，请重试。',
     };
   }
@@ -176,6 +179,8 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
     frameUnavailable: 'Remote browser view needs a Host or Desktop update',
     commandFailed: 'Browser command failed. Try again.',
     viewportFailed: 'Could not change the viewport.',
+    viewportFollowRefused:
+      'Follow-the-panel is paused: the mirror viewport could not match the panel width (it pauses while several windows mirror the browser) and resumes on its own.',
     panelActionFailed: 'Panel action failed. Try again.',
   };
 }

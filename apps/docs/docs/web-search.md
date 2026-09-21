@@ -30,8 +30,15 @@ Piwin 提供了极为开放和自由的网络检索配置，你可以根据自�
 ```
 
 ---
+### 选项 A：Devin 专属 Token (windsurf-search-mcp) <span class="tag-badge tag-free">完全免费</span> <span class="tag-badge tag-fast">极速高质量</span>
 
-### 选项 A：Tavily Search API <span class="tag-badge tag-free">每月 1000 次免费</span> <span class="tag-badge tag-fast">专为 AI 设计</span>
+基于对 Devin 官方能力的探索与逆向实现，你可以直接提取个人 Devin 账号生成的专用 Token：
+
+- **核心亮点**：同一个 Devin Key 不仅可以用于高质量 Web 搜索，还可以直接用于 [Code Search 语义代码检索](./code-search.md)，速度极快；
+- **获取方法**：请参考专属指引：[Devin Token 与专属 Key 获取指引](./token-acquisition.md)；
+- **开源 MCP 项目**：访问 [mimimaster/windsurf-search-mcp](https://github.com/mimimaster/windsurf-search-mcp)。
+---
+### 选项 B：Tavily Search API <span class="tag-badge tag-free">每月 1000 次免费</span> <span class="tag-badge tag-fast">专为 AI 设计</span>
 
 Tavily 是目前最受主流智能体欢迎的搜索引擎，返回的结果经过专业的数据清洗与精简。
 
@@ -41,15 +48,6 @@ Tavily 是目前最受主流智能体欢迎的搜索引擎，返回的结果经�
   2. 登录控制台后复制 `API Key`（格式形如 `tvly-*********`）；
   3. 在 Piwin 搜索设置中选择 **Tavily** 并填入 Key 保存。
 
----
-
-### 选项 B：Devin 专属 Token (windsurf-search-mcp) <span class="tag-badge tag-free">完全免费</span> <span class="tag-badge tag-fast">极速高质量</span>
-
-基于对 Devin 官方能力的探索与逆向实现，你可以直接提取个人 Devin 账号生成的专用 Token：
-
-- **核心亮点**：同一个 Devin Key 不仅可以用于高质量 Web 搜索，还可以直接用于 [Code Search 语义代码检索](./code-search.md)，速度极快；
-- **获取方法**：请参考专属指引：[Devin Token 与专属 Key 获取指引](./token-acquisition.md)；
-- **开源 MCP 项目**：访问 [mimimaster/windsurf-search-mcp](https://github.com/mimimaster/windsurf-search-mcp)。
 
 ---
 
@@ -67,7 +65,8 @@ Brave 提供了完全独立的全球网页索引库，注重隐私且搜索质�
 如果你希望彻底避免数据外流，可以在本地或 NAS 上自建开源元搜索引擎 **SearXNG**，并在 Piwin 中填入你自建服务的 Base URL。
 
 ---
-
+### 选项 E：smart-search <span class="tag-badge tag-local">智能路由</span>
+这属于究极方案了，详细看L站佬友的文章，支持使用Jev自动路由选择合适的web_search，这属于高端玩法了，对搜索质量要求很高的同志可以选择这个，多种渠道的web_search自动路由，这是佬友的文章：https://linux.do/t/topic/2920995
 ## 3. 关联文档
 
 - [Devin Token 与专属 Key 获取指引](./token-acquisition.md)

@@ -145,8 +145,12 @@ continue to use it.
 Desktop prepends fetched older pages into the active transcript window, with
 message-id deduplication and a fixed item/UTF-8 byte cache budget. The active
 tail and any live partial turn are never evicted by a history fetch. Once the
-older-page cache budget is exhausted, automatic prepend stops rather than
-growing renderer state without bound. Full transcript operations remain Host
+older-page cache budget is exhausted, Desktop continues in an independent
+bounded history view, fetching adjacent windows by boundary message id and
+evicting the opposite edge. Both scroll directions remain available; the
+cache budget must not become a navigation boundary. The live tail remains
+resident for incoming Host pushes. See
+[history boundary repair](../specs/2026-09-21-transcript-history-boundaries.md). Full transcript operations remain Host
 commands and never depend on which pages are resident.
 
 The same retention gate applies to initial/legacy hydration and live message

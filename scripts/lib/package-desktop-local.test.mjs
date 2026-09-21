@@ -80,8 +80,8 @@ test('parseDfAvailBytes reads the POSIX Available column', () => {
 });
 
 test('canonicalDesktopDmgFileName maps arm64 to aarch64', () => {
-  assert.equal(canonicalDesktopDmgFileName('0.0.0', 'arm64'), 'piwinwin_0.0.0_aarch64.dmg');
-  assert.equal(canonicalDesktopDmgFileName('0.1.0', 'x64'), 'piwinwin_0.1.0_x64.dmg');
+  assert.equal(canonicalDesktopDmgFileName('0.0.0', 'arm64'), 'piwin_0.0.0_aarch64.dmg');
+  assert.equal(canonicalDesktopDmgFileName('0.1.0', 'x64'), 'piwin_0.1.0_x64.dmg');
 });
 
 test('newestAppPath returns the latest mtime', () => {

@@ -416,28 +416,35 @@ export function useRightPanelResize(
     writeLiveWidth,
   ]);
 
-  // Re-clamp when viewport shrinks so the panel cannot cover the stage permanently.
+  /**
+   * Fit the panel to the viewport whenever the window changes, so it never
+   * covers the stage permanently and recovers the width the user chose once
+   * there is room again.
+   *
+   * The clamp is display-only: the stored width stays the user's own choice.
+   * Persisting a viewport-forced width left the panel stuck at the smallest
+   * window it had ever seen (and widened panels never came back).
+   */
   useEffect(() => {
-    function applySplitClamp(): void {
+    function applyViewportFit(): void {
       if (fullWidthRef.current) {
         return;
       }
       flushPendingWidth();
-      const clamped = resolveClamp(widthRef.current);
-      if (clamped !== widthRef.current) {
-        widthRef.current = clamped;
-        writeLiveWidth(clamped);
-        setWidthState(clamped);
-        saveRightPanelWidth(clamped);
-        liveWidthCommitRef.current?.(clamped);
+      // Mid-drag the pointer owns the width: only clamp, never restore.
+      const preferred = dragRef.current === null ? loadRightPanelWidth() : widthRef.current;
+      const fitted = resolveClamp(preferred);
+      if (fitted === widthRef.current) {
+        return;
       }
+      widthRef.current = fitted;
+      writeLiveWidth(fitted);
+      setWidthState(fitted);
+      liveWidthCommitRef.current?.(fitted);
     }
-    applySplitClamp();
-    function onWindowResize(): void {
-      applySplitClamp();
-    }
-    window.addEventListener('resize', onWindowResize);
-    return () => window.removeEventListener('resize', onWindowResize);
+    applyViewportFit();
+    window.addEventListener('resize', applyViewportFit);
+    return () => window.removeEventListener('resize', applyViewportFit);
   }, [flushPendingWidth, resolveClamp, writeLiveWidth]);
 
   return {

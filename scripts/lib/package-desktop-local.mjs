@@ -87,7 +87,7 @@ export function parseDfAvailBytes(dfOutput) {
  */
 export function canonicalDesktopDmgFileName(version, arch) {
   const tripleArch = arch === 'arm64' ? 'aarch64' : arch;
-  return `piwinwin_${version}_${tripleArch}.dmg`;
+  return `piwin_${version}_${tripleArch}.dmg`;
 }
 
 /**
