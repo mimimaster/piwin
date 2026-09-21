@@ -324,12 +324,16 @@ export async function composeSessionHostToolsForSession(
   // PermissionMode on every call. Executors never re-derive a decision.
   const getPermissionMode = (): PermissionMode => {
     // A child has no mode picker of its own; it follows the parent's session mode.
+    // A worktree child is the exception: spawning it already authorized writes
+    // inside that copy, so parent ask-all must not prompt for each one.
+    // Leave-workspace asks and deny rules still apply, because the mode stays
+    // auto rather than bypass.
     const sessionOverride =
       deps.sessionPermissionOverrides.get(sessionId) ??
       (childContext
         ? deps.sessionPermissionOverrides.get(childContext.parentSessionId)
         : undefined);
-    return effectivePermissionMode({
+    const mode = effectivePermissionMode({
       ...(sessionOverride !== undefined ? { sessionOverride } : {}),
       ...(deps.options.permissionModeOverride !== undefined
         ? { cliOverride: deps.options.permissionModeOverride }
@@ -338,6 +342,10 @@ export async function composeSessionHostToolsForSession(
       ...(projectPath !== undefined ? { projectPath } : {}),
       projectTrusted,
     });
+    if (childContext?.worktreePath && mode === 'ask-all') {
+      return 'auto';
+    }
+    return mode;
   };
   const childWorktreePath = childContext?.worktreePath;
   const permissionGate = createHostToolAdmission({

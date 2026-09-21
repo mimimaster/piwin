@@ -30,7 +30,7 @@ import {
   getPiwinRoot,
   getPiwinSessionIndexPath,
 } from './paths.js';
-import { listTrustedProjectRoots } from './trusted-project-roots.js';
+import { listTrustedProjectRoots, trustedWorktreeRoots } from './trusted-project-roots.js';
 import { isGeneralWorkspacePath } from './general-workspace.js';
 import { ensureHostPiAgentDir } from './import-legacy-pi-auth.js';
 import { fail } from './response-helpers.js';
@@ -402,7 +402,13 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       },
       getTrustedProjectRoots: async () => {
         try {
-          return await listTrustedProjectRoots(deps.options.piwinRoot);
+          const roots = await listTrustedProjectRoots(deps.options.piwinRoot);
+          // A dispatched worktree child is allowed to run in its own copy.
+          // The directory is not a trusted project, and the grant ends with the child.
+          return [
+            ...roots,
+            ...trustedWorktreeRoots([...deps.subagentSessionContexts.values()], roots),
+          ];
         } catch (error) {
           const detail = formatError(error);
           deps.push({

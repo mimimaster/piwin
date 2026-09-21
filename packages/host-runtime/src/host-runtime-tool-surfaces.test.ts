@@ -120,7 +120,84 @@ describe('HostRuntime tool surfaces', () => {
       expect(composed.permissionGate.getPermissionMode()).toBe('bypass');
 
       runtime.sessionPermissionOverrides.set('parent-session', 'ask-all');
-      expect(composed.permissionGate.getPermissionMode()).toBe('ask-all');
+      expect(composed.permissionGate.getPermissionMode()).toBe('auto');
+
+      runtime.subagentSessionContexts.set('readonly-child', {
+        parentSessionId: 'parent-session',
+        runtimeGenerationId: 'generation-readonly',
+        workingDirectory: projectPath,
+        parentRepoPath: projectPath,
+      });
+      const readonlyChild = await runtime.composeSessionHostToolsForSession(
+        'readonly-child',
+        'generation-readonly',
+      );
+      expect(readonlyChild.permissionGate.getPermissionMode()).toBe('ask-all');
+    } finally {
+      await runtime.dispose();
+      await rm(piwinRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('lets a worktree child run a shell in its copy without trusting that directory', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-tool-surface-worktree-cwd-'));
+    const projectPath = join(piwinRoot, 'project');
+    const worktreePath = join(piwinRoot, 'worktrees', 'subagent-1');
+    const siblingPath = join(piwinRoot, 'worktrees', 'not-a-lease');
+    const untrustedProject = join(piwinRoot, 'untrusted');
+    const untrustedWorktree = join(piwinRoot, 'worktrees', 'untrusted-child');
+    await mkdir(projectPath, { recursive: true });
+    await mkdir(worktreePath, { recursive: true });
+    await mkdir(siblingPath, { recursive: true });
+    await mkdir(untrustedProject, { recursive: true });
+    await mkdir(untrustedWorktree, { recursive: true });
+    await setProjectTrust(join(piwinRoot, 'projects.json'), projectPath, 'trusted');
+    const runtime = new HostRuntime({ mode: 'sdk', mock: false, piwinRoot });
+    const jobs = runtime.jobController;
+    if (!jobs) {
+      throw new Error('job controller missing');
+    }
+    const shell = {
+      kind: 'command' as const,
+      lifetime: 'host' as const,
+      command: process.execPath,
+      argv: ['-e', 'process.exit(0)'],
+    };
+    try {
+      await expect(jobs.start({ ...shell, cwd: worktreePath })).rejects.toThrow(/outside trusted/);
+
+      runtime.subagentSessionContexts.set('worktree-child', {
+        parentSessionId: 'parent-session',
+        runtimeGenerationId: 'generation-child',
+        workingDirectory: worktreePath,
+        parentRepoPath: projectPath,
+        worktreePath,
+      });
+      const job = await jobs.start({ ...shell, cwd: worktreePath });
+      const finished = await jobs.wait(
+        { jobId: job.jobId, timeoutMs: 15_000 },
+        new AbortController().signal,
+      );
+      expect(finished.status).toBe('exited');
+
+      await expect(jobs.start({ ...shell, cwd: siblingPath })).rejects.toThrow(/outside trusted/);
+
+      runtime.subagentSessionContexts.delete('worktree-child');
+      await expect(jobs.start({ ...shell, cwd: worktreePath })).rejects.toThrow(/outside trusted/);
+
+      runtime.subagentSessionContexts.set('untrusted-child', {
+        parentSessionId: 'parent-session',
+        runtimeGenerationId: 'generation-untrusted',
+        workingDirectory: untrustedWorktree,
+        parentRepoPath: untrustedProject,
+        worktreePath: untrustedWorktree,
+      });
+      const untrustedJob = await jobs.start({ ...shell, cwd: untrustedWorktree });
+      const untrustedFinished = await jobs.wait(
+        { jobId: untrustedJob.jobId, timeoutMs: 15_000 },
+        new AbortController().signal,
+      );
+      expect(untrustedFinished.status).toBe('exited');
     } finally {
       await runtime.dispose();
       await rm(piwinRoot, { recursive: true, force: true });
