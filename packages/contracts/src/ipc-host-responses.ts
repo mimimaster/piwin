@@ -57,6 +57,11 @@ export type HostStatusData = {
    * no project is open so generated files can still be previewed.
    */
   generalWorkspacePath: string;
+  /**
+   * Opaque locator for the built-in No Repo workspace. Remote projections drop
+   * `generalWorkspacePath`, so remote clients address that folder by id.
+   */
+  generalWorkspaceProjectId?: string;
   activeSessionIds: string[];
   /**
    * Capability flags so clients never assume RPC has custom tools.

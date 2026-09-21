@@ -4,10 +4,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ensureGeneralWorkspace, isGeneralWorkspacePath } from './general-workspace.js';
 import { getPiwinGeneralWorkspacePath } from './paths.js';
+import { createRemoteProjectId } from './remote-project-id.js';
 import {
   indexProjectPathForScope,
   isConversationIndexRecord,
   resolveListFilter,
+  resolveScopeRefToListIntent,
   resolveSessionLocation,
   resolveSessionScopeFromInput,
 } from './session-scope.js';
@@ -128,5 +130,36 @@ describe('isConversationIndexRecord', () => {
       }),
     ).toBe(false);
     expect(isConversationIndexRecord({ projectPath: '/tmp/project' })).toBe(false);
+  });
+});
+
+describe('No Repo opaque locator', () => {
+  it('binds the built-in workspace id to a project scope on create', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-scope-norepo-id-'));
+    const workspace = getPiwinGeneralWorkspacePath(rootDir);
+    const location = await resolveSessionLocation(
+      { projectId: createRemoteProjectId(workspace) },
+      rootDir,
+    );
+    expect(location.scope).toEqual({ kind: 'project', projectPath: workspace });
+    expect(location.workingDirectory).toBe(workspace);
+  });
+
+  it('resolves the built-in workspace id for remote session lists', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-scope-norepo-list-'));
+    const workspace = getPiwinGeneralWorkspacePath(rootDir);
+    await expect(
+      resolveScopeRefToListIntent(
+        { kind: 'project', projectId: createRemoteProjectId(workspace) },
+        rootDir,
+      ),
+    ).resolves.toEqual({ scope: { kind: 'project', projectPath: workspace } });
+  });
+
+  it('still rejects an unknown project id', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-scope-unknown-id-'));
+    await expect(
+      resolveSessionLocation({ projectId: 'project-ffffffffffffffffffffffff' }, rootDir),
+    ).rejects.toThrow('Unknown project');
   });
 });

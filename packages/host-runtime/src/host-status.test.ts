@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { HostStatusData } from '@piwin/contracts';
 import { HostRuntime } from './host-runtime.js';
+import { createRemoteProjectId } from './remote-project-id.js';
 
 describe('HostRuntime status capabilities', () => {
   it('reports transitional SDK capabilities fail-closed', async () => {
@@ -14,6 +15,9 @@ describe('HostRuntime status capabilities', () => {
     if (!status.success) throw new Error(status.error);
     const data = status.data as HostStatusData;
     expect(data.generalWorkspacePath).toBe(join(rootDir, 'workspace'));
+    expect(data.generalWorkspaceProjectId).toBe(
+      createRemoteProjectId(join(rootDir, 'workspace')),
+    );
     expect(data.capabilities.customTools).toBe(false);
     expect(data.capabilities.subagentWorktree).toBe(false);
     expect(data.capabilities.jobs).toBe(true);

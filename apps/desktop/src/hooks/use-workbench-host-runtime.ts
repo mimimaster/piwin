@@ -35,7 +35,7 @@ import { readMediaPreviewViaHost } from '../transcript-media-preview';
 import { useInspectorFileDiff } from '../use-inspector-file-diff';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
-import { resolveFileBrowseRoot } from '../file-browse-root';
+import { resolveFileBrowseRoot, resolveNoRepoWorkspaceKey } from '../file-browse-root';
 import { useActiveDocument } from './use-active-document';
 import { useArtifactCanvas } from './use-artifact-canvas';
 import { useHostBootstrap } from './use-host-bootstrap';
@@ -219,10 +219,16 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
     ...(args.onActiveSessionCleared ? { onActiveSessionCleared: args.onActiveSessionCleared } : {}),
   });
 
+  // No Repo identity for the whole workbench: Host path when hello exposes it,
+  // opaque locator when the transport strips paths (remote / mobile).
+  const generalWorkspacePath = resolveNoRepoWorkspaceKey({
+    generalWorkspacePath: hostStatus?.generalWorkspacePath,
+    generalWorkspaceProjectId: hostStatus?.generalWorkspaceProjectId,
+  });
   const inspectorFileDiff = useInspectorFileDiff();
   const fileBrowseRoot = resolveFileBrowseRoot({
     projectPath: state.projectPath,
-    generalWorkspacePath: hostStatus?.generalWorkspacePath,
+    generalWorkspacePath,
   });
   const { activeDocument, openDocument: openDocumentBase } = useActiveDocument({
     hostClient,
@@ -352,6 +358,7 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
   );
 
   return {
+    generalWorkspacePath,
     requestConfig,
     requestSubAgent,
     requestSkills,

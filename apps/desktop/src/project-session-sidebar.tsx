@@ -26,6 +26,7 @@ import {
   sidebarTreeRowKey,
   type SidebarTreeRow,
 } from './sidebar-tree-rows';
+import { resolveNoRepoWorkspaceKey } from './file-browse-root';
 import { getProjectSessionDisclosureCopy } from './project-session-disclosure-copy';
 import { SidebarTreeRowView } from './sidebar-tree-row-view';
 import {
@@ -221,6 +222,22 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     props.onSessionListOrderChange?.(order);
   };
 
+  // One No Repo identity for the tree, the folder row, and folder actions.
+  // Remote transports only publish the opaque id, never the workspace path.
+  const noRepoWorkspaceKey = useMemo(
+    () =>
+      props.noRepoProjectPath?.trim() ||
+      resolveNoRepoWorkspaceKey({
+        generalWorkspacePath: props.hostStatus?.generalWorkspacePath,
+        generalWorkspaceProjectId: props.hostStatus?.generalWorkspaceProjectId,
+      }),
+    [
+      props.hostStatus?.generalWorkspacePath,
+      props.hostStatus?.generalWorkspaceProjectId,
+      props.noRepoProjectPath,
+    ],
+  );
+
   const pinnedCount = useMemo(
     () =>
       collectPinnedSessionRows(
@@ -238,7 +255,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     [
       props.filteredSessions,
       props.generalSessions,
-      props.hostStatus?.generalWorkspacePath,
+      noRepoWorkspaceKey,
       props.noRepoProjectPath,
       props.projectPath,
       props.projectSessionsByPath,
@@ -265,11 +282,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     () =>
       buildSidebarTreeRows({
         recentProjects: props.recentProjects,
-        ...(props.noRepoProjectPath?.trim()
-          ? { noRepoProjectPath: props.noRepoProjectPath.trim() }
-          : props.hostStatus?.generalWorkspacePath
-            ? { noRepoProjectPath: props.hostStatus.generalWorkspacePath }
-            : {}),
+        ...(noRepoWorkspaceKey ? { noRepoProjectPath: noRepoWorkspaceKey } : {}),
         projectSessionsByPath: props.projectSessionsByPath ?? {},
         generalSessions: props.generalSessions,
         ...(props.draftSessions ? { draftSessions: props.draftSessions } : {}),
@@ -497,9 +510,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         onRemoveProject={props.onRemoveProject}
         onOpenGeneral={props.onOpenGeneral}
         onOpenProject={props.onOpenProject}
-        noRepoProjectPath={
-          props.noRepoProjectPath?.trim() || props.hostStatus?.generalWorkspacePath || null
-        }
+        noRepoProjectPath={noRepoWorkspaceKey}
         onNewSession={props.onNewSession}
         onOpenWorkspace={props.onOpenWorkspace}
         sortBy={sortBy}

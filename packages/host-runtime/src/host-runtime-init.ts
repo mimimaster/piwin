@@ -25,10 +25,12 @@ import { ProductAgentHost } from './product-agent-host.js';
 import { loadPiwinConfig } from './config-store.js';
 import {
   applyPiwinPlaywrightBrowsersPath,
+  getPiwinGeneralWorkspacePath,
   getPiwinProjectsPath,
   getPiwinRoot,
   getPiwinSessionIndexPath,
 } from './paths.js';
+import { listTrustedProjectRoots } from './trusted-project-roots.js';
 import { isGeneralWorkspacePath } from './general-workspace.js';
 import { ensureHostPiAgentDir } from './import-legacy-pi-auth.js';
 import { fail } from './response-helpers.js';
@@ -400,10 +402,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       },
       getTrustedProjectRoots: async () => {
         try {
-          const projects = await listProjects(getPiwinProjectsPath(rootDir));
-          return projects
-            .filter((project) => project.trust === 'trusted')
-            .map((project) => project.path);
+          return await listTrustedProjectRoots(deps.options.piwinRoot);
         } catch (error) {
           const detail = formatError(error);
           deps.push({
@@ -411,7 +410,9 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
             level: 'warn',
             message: `trusted project roots read failed (jobs): ${detail}`,
           });
-          return [];
+          // The built-in No Repo workspace stays trusted even when the project
+          // store is unreadable; nothing else is granted by this fallback.
+          return [getPiwinGeneralWorkspacePath(getPiwinRoot(deps.options.piwinRoot))];
         }
       },
       onEvent: (event: JobRegistryEvent) => deps.emitJobEvent(event),

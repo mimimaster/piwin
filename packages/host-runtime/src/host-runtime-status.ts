@@ -14,6 +14,7 @@ import {
 } from '@piwin/contracts';
 
 import { recoverJournaledColdStorageTransactions } from '@piwin/session';
+import { createRemoteProjectId } from './remote-project-id.js';
 import { loadPiwinConfig } from './config-store.js';
 import {
   getPiwinGeneralWorkspacePath,
@@ -118,6 +119,9 @@ export function getStatus(deps: HostRuntimeKernel): HostStatusData {
     mock: deps.options.mock === true || process.env.PIWIN_MOCK === '1',
     piwinRoot: getPiwinRoot(deps.options.piwinRoot),
     generalWorkspacePath: getPiwinGeneralWorkspacePath(getPiwinRoot(deps.options.piwinRoot)),
+    generalWorkspaceProjectId: createRemoteProjectId(
+      getPiwinGeneralWorkspacePath(getPiwinRoot(deps.options.piwinRoot)),
+    ),
     activeSessionIds: [...deps.sessions.keys()],
     capabilities: {
       // True only when the real parent-owned session tool port is composed

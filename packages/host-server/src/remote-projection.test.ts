@@ -1303,3 +1303,36 @@ describe('projectRemotePush session index', () => {
     expect(session.scope?.projectPath).toBe(session.projectId);
   });
 });
+
+describe('remote host status projection', () => {
+  it('keeps the No Repo locator while dropping the workspace path', () => {
+    const projected = projectRemoteResponse(
+      { type: 'host/status' },
+      {
+        type: 'response',
+        command: 'host/status',
+        success: true,
+        data: {
+          mode: 'sdk',
+          ready: true,
+          mock: false,
+          piwinRoot: '/Users/private/.piwin',
+          generalWorkspacePath: '/Users/private/.piwin/workspace',
+          generalWorkspaceProjectId: 'project-0123456789abcdef01234567',
+          activeSessionIds: ['session-1'],
+        },
+      },
+      {
+        hostInstanceId: 'host-1',
+        mode: 'sdk',
+        capabilities: createRemoteCapabilities(),
+      },
+    );
+
+    if (!projected.success) throw new Error(projected.error);
+    const data = projected.data as Record<string, unknown>;
+    expect(data['generalWorkspaceProjectId']).toBe('project-0123456789abcdef01234567');
+    expect('generalWorkspacePath' in data).toBe(false);
+    expect('piwinRoot' in data).toBe(false);
+  });
+});

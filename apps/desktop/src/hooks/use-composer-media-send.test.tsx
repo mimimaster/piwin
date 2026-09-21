@@ -167,6 +167,61 @@ describe('useComposerMedia session transitions', () => {
     });
   });
 
+  it('sends a No Repo draft keyed by the opaque remote locator', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = {
+      request: vi.fn().mockResolvedValue({
+        type: 'response',
+        command: 'session/prompt',
+        success: true,
+        data: { runId: 'run-1', acceptedAt: '2026-08-12T00:00:00.000Z' },
+      }),
+    } as unknown as HostClient;
+    const ensureSession = vi.fn().mockResolvedValue('no-repo-session-remote');
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+    // Remote projections drop generalWorkspacePath, so the workspace key is the id.
+    const workspaceKey = 'project-0123456789abcdef01234567';
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+        ensureSession,
+        generalWorkspacePath: workspaceKey,
+      });
+      return null;
+    }
+
+    const state = {
+      ...createInitialTestChatUiState(),
+      activeSessionId: null,
+      activeScope: { kind: 'general' as const },
+      projectPath: workspaceKey,
+      projectTrusted: false,
+    };
+    act(() => root?.render(<Harness state={state} />));
+    act(() => {
+      captured?.startNewDraft({ kind: 'project', projectPath: workspaceKey });
+      captured?.setComposer('hello from remote no repo');
+    });
+    await act(async () => {
+      await captured?.handleSend();
+    });
+
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'project/trust-dialog', open: true });
+    expect(ensureSession).toHaveBeenCalledWith({
+      scope: { kind: 'project', projectPath: workspaceKey },
+      projectPath: workspaceKey,
+      alreadyTrusted: true,
+      sessionName: 'hello from remote no repo',
+    });
+  });
+
   it('sends a No Repo draft even when hostStatus has not arrived', async () => {
     container = document.createElement('div');
     document.body.append(container);

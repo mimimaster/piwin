@@ -81,6 +81,14 @@ async function bindProjectIdToScope(
   if (!projectId) {
     return input;
   }
+  const generalWorkspacePath = getPiwinGeneralWorkspacePath(getPiwinRoot(piwinRoot));
+  if (projectId === createRemoteProjectId(generalWorkspacePath)) {
+    // Built-in No Repo workspace: addressable by id, never a projects.json row.
+    return {
+      ...stripBoundProjectId(input),
+      scope: { kind: 'project', projectPath: generalWorkspacePath },
+    };
+  }
   const projects = await listProjects(getPiwinProjectsPath(getPiwinRoot(piwinRoot)));
   const match = projects.find((project) => createRemoteProjectId(project.path) === projectId);
   if (match === undefined) {
@@ -202,6 +210,10 @@ export async function resolveScopeRefToListIntent(
   }
   if (scopeRef.kind === 'all-authorized') {
     return { allScopes: true };
+  }
+  const generalWorkspacePath = getPiwinGeneralWorkspacePath(getPiwinRoot(piwinRoot));
+  if (scopeRef.projectId === createRemoteProjectId(generalWorkspacePath)) {
+    return { scope: { kind: 'project', projectPath: generalWorkspacePath } };
   }
   const projects = await listProjects(getPiwinProjectsPath(getPiwinRoot(piwinRoot)));
   const projectPath = resolveProjectPathById(projects, scopeRef.projectId);

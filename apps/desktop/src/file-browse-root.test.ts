@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isNoRepoProjectPath,
   resolveFileBrowseRoot,
+  resolveNoRepoWorkspaceKey,
   resolveNoRepoSendPath,
   sameHostPath,
 } from './file-browse-root.js';
@@ -81,22 +82,52 @@ describe('resolveNoRepoSendPath', () => {
     ).toBe(workspace);
   });
 
-  it('falls back to Host hello', () => {
+  it('keeps a General draft general even when Host hello is known', () => {
     expect(
       resolveNoRepoSendPath({
         draftScope: { kind: 'general' },
         projectPath: null,
         generalWorkspacePath: workspace,
       }),
-    ).toBe(workspace);
+    ).toBeNull();
   });
 
-  it('is null for a real repository draft', () => {
+  it('is null for a real repository draft, even with Host hello known', () => {
     expect(
       resolveNoRepoSendPath({
         draftScope: { kind: 'project', projectPath: '/Users/me/app' },
         projectPath: '/Users/me/app',
+        generalWorkspacePath: workspace,
       }),
     ).toBeNull();
+  });
+});
+
+describe('resolveNoRepoWorkspaceKey', () => {
+  const remoteId = 'project-0123456789abcdef01234567';
+
+  it('prefers the Host workspace path when hello exposes it', () => {
+    expect(
+      resolveNoRepoWorkspaceKey({
+        generalWorkspacePath: '/Users/me/.piwin/workspace',
+        generalWorkspaceProjectId: remoteId,
+      }),
+    ).toBe('/Users/me/.piwin/workspace');
+  });
+
+  it('falls back to the opaque locator when the path is stripped', () => {
+    expect(resolveNoRepoWorkspaceKey({ generalWorkspaceProjectId: remoteId })).toBe(remoteId);
+    expect(resolveNoRepoWorkspaceKey({ generalWorkspacePath: '  ', generalWorkspaceProjectId: remoteId }))
+      .toBe(remoteId);
+  });
+
+  it('is null when neither identity is known', () => {
+    expect(resolveNoRepoWorkspaceKey({})).toBeNull();
+    expect(resolveNoRepoWorkspaceKey({ generalWorkspacePath: null })).toBeNull();
+  });
+
+  it('treats the opaque locator as the No Repo key for identity checks', () => {
+    expect(isNoRepoProjectPath(remoteId, remoteId)).toBe(true);
+    expect(isNoRepoProjectPath(remoteId, '/Users/me/.piwin/workspace')).toBe(false);
   });
 });

@@ -503,7 +503,8 @@
 
 .md-table th,
 .md-table td {
-  overflow-wrap: normal;
+  vertical-align: top;
+  overflow-wrap: break-word;
   word-break: normal;
 }
 

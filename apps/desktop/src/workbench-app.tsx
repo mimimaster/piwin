@@ -9,6 +9,7 @@ import type { MediaLibraryItem, ThemeManifest } from '@piwin/contracts';
 import { appendQuotedComposerText, focusComposerInput } from './context-menu/desktop-context-menu-value';
 import { mediaAttachmentFromLibraryItem } from './media-image-target';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
+import { resolveNoRepoWorkspaceKey } from './file-browse-root';
 import { useWorkbenchHostClient } from './use-workbench-host-client';
 import { MediaPreviewReadProvider } from './media-preview-read-context';
 import { LocalFileActionsProvider } from './local-file-actions-context';
@@ -894,7 +895,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   runContinueInProject={runContinueInProject}
                   onContinueSessionInProject={handleContinueSessionInProject}
                   recentProjects={recentProjects}
-                  noRepoProjectPath={hostStatus?.generalWorkspacePath ?? null}
+                  noRepoProjectPath={resolveNoRepoWorkspaceKey({
+                    generalWorkspacePath: hostStatus?.generalWorkspacePath,
+                    generalWorkspaceProjectId: hostStatus?.generalWorkspaceProjectId,
+                  })}
                   sessionSearchOpen={sessionSearchOpen}
                   onSessionSearchOpenChange={setSessionSearchOpen}
                   sessionSearch={sessionSearch}

@@ -354,6 +354,7 @@ export function projectRemoteStatusData(
   const record = asRecord(data);
   const activeSessionIds = record?.activeSessionIds;
   const mode = record?.mode === 'sdk' || record?.mode === 'rpc' ? record.mode : context.mode;
+  const generalWorkspaceProjectId = record?.generalWorkspaceProjectId;
   return {
     hostInstanceId: context.hostInstanceId,
     protocolVersion: 1,
@@ -362,6 +363,10 @@ export function projectRemoteStatusData(
     mock: record?.mock === true,
     activeSessionCount: Array.isArray(activeSessionIds) ? activeSessionIds.length : 0,
     capabilities: context.capabilities,
+    // Opaque locator only: the workspace path stays Host-private.
+    ...(typeof generalWorkspaceProjectId === 'string' && generalWorkspaceProjectId.length > 0
+      ? { generalWorkspaceProjectId }
+      : {}),
   };
 }
 

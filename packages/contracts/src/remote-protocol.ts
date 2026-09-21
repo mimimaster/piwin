@@ -283,6 +283,11 @@ export type RemoteHostStatusData = {
   mock: boolean;
   activeSessionCount: number;
   capabilities: RemoteCapabilitySummary;
+  /**
+   * Opaque locator for the built-in No Repo workspace. Path stays Host-private,
+   * so remote clients open and create in that folder by id.
+   */
+  generalWorkspaceProjectId?: string;
 };
 
 export type RemoteProjectSummary = {

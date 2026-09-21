@@ -20,6 +20,23 @@ export function resolveFileBrowseRoot(input: {
   return null;
 }
 
+/**
+ * Built-in No Repo key: the Host workspace path when hello exposes it, else the
+ * opaque locator. Remote projections never send the path, so remote shells only
+ * know the id — every No Repo decision compares identity against this key.
+ */
+export function resolveNoRepoWorkspaceKey(input: {
+  generalWorkspacePath?: string | null | undefined;
+  generalWorkspaceProjectId?: string | null | undefined;
+}): string | null {
+  const path = input.generalWorkspacePath?.trim();
+  if (path) {
+    return path;
+  }
+  const id = input.generalWorkspaceProjectId?.trim();
+  return id && id.length > 0 ? id : null;
+}
+
 /** Path identity for Host roots: trim and ignore a trailing slash. */
 export function sameHostPath(
   left: string | null | undefined,
@@ -31,8 +48,9 @@ export function sameHostPath(
 }
 
 /**
- * True for the built-in No Repo root. Matches Host `generalWorkspacePath` when
- * known, and the default `~/.piwin/workspace` even if hello has not landed.
+ * True for the built-in No Repo root. Matches the No Repo key (Host workspace
+ * path, or the opaque locator remote sends instead), and the default
+ * `~/.piwin/workspace` even if hello has not landed.
  */
 export function isNoRepoProjectPath(
   path: string | null | undefined,
@@ -46,8 +64,10 @@ export function isNoRepoProjectPath(
 }
 
 /**
- * First-send path for a No Repo draft. Looks at the New Agent scope, the
- * active project, then Host hello — Send must not depend on only one of them.
+ * First-send path for a No Repo draft: the New Agent scope, then the active
+ * project. Host hello is deliberately not a candidate — No Repo is an explicit
+ * binding, and a General draft must stay general (Conversations) instead of
+ * being reclassified into the built-in project on first send.
  */
 export function resolveNoRepoSendPath(input: {
   draftScope: { kind: string; projectPath?: string };
@@ -57,7 +77,6 @@ export function resolveNoRepoSendPath(input: {
   const candidates: Array<string | null | undefined> = [
     input.draftScope.kind === 'project' ? input.draftScope.projectPath : undefined,
     input.projectPath,
-    input.generalWorkspacePath,
   ];
   for (const candidate of candidates) {
     if (isNoRepoProjectPath(candidate, input.generalWorkspacePath)) {

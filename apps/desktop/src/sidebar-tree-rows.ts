@@ -76,7 +76,7 @@ export const NO_REPO_SIDEBAR_KEY = 'no-repo';
 
 export type SidebarTreeRowsInput = {
   recentProjects: readonly SidebarProjectRef[];
-  /** Built-in No Repo project root (`hostStatus.generalWorkspacePath`). */
+  /** Built-in No Repo key: Host workspace path, or the opaque remote locator. */
   noRepoProjectPath?: string;
   projectSessionsByPath: Record<string, SessionListItemUi[]>;
   generalSessions: SessionListItemUi[];

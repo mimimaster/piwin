@@ -10,6 +10,7 @@ import type { ChatUiAction, ChatUiState, SessionListItemUi } from './chat-reduce
 import { prefetchSettingsPanel } from './deferred-desktop-surfaces';
 import type { DesktopLocale } from './desktop-locale';
 import type { DraftSessionItemUi } from './draft-session';
+import { resolveNoRepoWorkspaceKey } from './file-browse-root';
 import type { HostClient } from './host-client';
 import type { UseSidebarResizeResult } from './hooks/use-sidebar-resize';
 import { resolveSessionDisplayName } from './hooks/use-session-list-chrome';
@@ -168,7 +169,10 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       sessions={state.sessions}
       filteredSessions={filteredSessions}
       generalSessions={filteredGeneralSessions}
-      noRepoProjectPath={hostStatus?.generalWorkspacePath ?? null}
+      noRepoProjectPath={resolveNoRepoWorkspaceKey({
+        generalWorkspacePath: hostStatus?.generalWorkspacePath,
+        generalWorkspaceProjectId: hostStatus?.generalWorkspaceProjectId,
+      })}
       projectSessionsByPath={state.projectSessionsByPath}
       sessionListScopes={state.sessionListScopes}
       sessionListOrder={sessionListOrder}
