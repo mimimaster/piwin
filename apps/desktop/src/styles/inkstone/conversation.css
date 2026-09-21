@@ -298,6 +298,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 /* proto-01 `.ufoot` — forked prompt sits under the paper card */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 6px;
@@ -305,10 +306,15 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--t4);
 }
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot-hint {
+  min-width: 0;
+}
+
 /* Chip is the same on user `.ufoot` and assistant rows (not gated on `.ufoot`). */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bsw,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .message-branch-switcher {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 2px;
   height: 20px;
@@ -319,6 +325,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   box-shadow: var(--sh1);
   font: 11px var(--mono);
   color: var(--t2);
+  white-space: nowrap;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .message-branch-switcher-btn {
@@ -350,6 +357,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--t2);
   font: inherit;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   cursor: pointer;
 }
 

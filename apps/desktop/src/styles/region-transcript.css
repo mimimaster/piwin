@@ -366,13 +366,22 @@ html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
 
 .bubble.role-user:not(.is-conversation-bubble) .user-message-wrapper {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-5);
+  gap: var(--s-2) var(--s-5);
   width: 100%;
   max-width: 100%;
   min-height: 22px;
   margin: 0;
+}
+
+/* The fork foot is a sibling of the prompt body and the hover actions. Without
+   a full-width row it is squeezed into the leftover of the card's flex line, and
+   the ‹ n / m › label wraps one glyph per line. */
+.bubble.role-user:not(.is-conversation-bubble) .user-message-wrapper > .ufoot {
+  flex: 1 0 100%;
+  min-width: 0;
 }
 
 .bubble.role-user:not(.is-conversation-bubble) .message-text {

@@ -18,4 +18,13 @@ describe('Inkstone conversation user-card footer', () => {
       /\.user-message-bubble\.is-multiline\s+\.user-message-footer \{[\s\S]*?position: absolute;[\s\S]*?bottom: 8px;/,
     );
   });
+
+  it('keeps the branch counter on one line when the fork foot wraps', () => {
+    expect(conversation).toMatch(
+      /\.message-branch-switcher \{[\s\S]*?flex: 0 0 auto;[\s\S]*?white-space: nowrap;/,
+    );
+    expect(conversation).toMatch(
+      /\.message-branch-switcher-label \{[\s\S]*?white-space: nowrap;/,
+    );
+  });
 });

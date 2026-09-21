@@ -508,6 +508,7 @@ html[data-theme-visual-style='ink-wash']
 
 .message-branch-switcher {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: var(--s-1);
   margin-left: var(--s-2);
@@ -515,6 +516,7 @@ html[data-theme-visual-style='ink-wash']
   font-size: var(--fs-micro);
   line-height: 1;
   user-select: none;
+  white-space: nowrap;
 }
 
 .message-branch-switcher-label {
@@ -526,6 +528,7 @@ html[data-theme-visual-style='ink-wash']
   font: inherit;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   cursor: pointer;
 }
 
