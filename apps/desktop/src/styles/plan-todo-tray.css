@@ -30,26 +30,41 @@
 }
 
 .plan-todo-tray {
-  /* Fill the stack's measure child. Do not set --conversation-width here:
-     Inkstone used to cap the unwrapped tray and left-align it. */
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: var(--s-3) 0 var(--s-4);
+  /* Width/measure come from `.composer-plan-stack > *` — the same rule the
+     composer dock uses. Declaring `width: 100%` + `max-width: none` here used
+     to beat that rule on source order (equal specificity) and stretched the
+     capsule to the full stage gutter box, ~340px wider than the composer. */
+  margin-block: 0 8px;
   box-sizing: border-box;
+  border-radius: 10px;
+  background: var(--surface-2, #ffffff);
+  border: 1px solid var(--line-1, rgba(0, 0, 0, 0.08));
+  box-shadow: var(--elev-1, 0 1px 3px rgba(0, 0, 0, 0.04));
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+}
+
+.plan-todo-tray.is-expanded {
+  box-shadow: var(--elev-2, 0 3px 10px rgba(0, 0, 0, 0.06));
 }
 
 .plan-todo-tray-bar {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
-  min-height: 22px;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 38px;
+  padding: 6px 10px 6px 12px;
+  box-sizing: border-box;
 }
 
 .plan-todo-tray-toggle {
   display: flex;
-  align-items: baseline;
-  gap: var(--s-3);
+  align-items: center;
+  /* Stretch to the bar's inner height so the whole left region is a hit
+     target — content height alone left a 20px strip inside a 38px bar. */
+  align-self: stretch;
+  gap: 8px;
   min-width: 0;
   flex: 1;
   margin: 0;
@@ -58,78 +73,178 @@
   background: transparent;
   cursor: pointer;
   text-align: left;
-  color: var(--text-4);
+  color: var(--text-2, inherit);
+}
+
+.plan-todo-tray-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.plan-todo-tray-status-icon .step-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.plan-todo-tray-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-1, #000) 6%, transparent);
+  flex-shrink: 0;
 }
 
 .plan-todo-tray-label {
-  font: 11px var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font: 600 11px var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   letter-spacing: 0.04em;
-  flex: none;
+  color: var(--text-2, #444);
 }
 
 .plan-todo-tray-count {
   font: 11px var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  color: var(--text-3);
-  flex: none;
+  color: var(--text-3, #777);
 }
 
-.plan-todo-tray-title {
+.plan-todo-tray-dot {
+  font-size: 12px;
+  color: var(--text-4, #999);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.plan-todo-tray-active-label {
   font-size: var(--fs-chrome, 12.5px);
-  color: var(--text-3);
+  color: var(--text-2, #333);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  flex: 1;
+}
+
+.plan-todo-tray-active-prefix {
+  color: var(--text-3, #888);
+  font-weight: 400;
+  margin-right: 2px;
+}
+
+.plan-todo-tray-title {
+  font-size: var(--fs-chrome, 12.5px);
+  color: var(--text-2, #333);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.plan-todo-tray-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-4, #999);
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+  margin-left: 2px;
+}
+
+.plan-todo-tray-chevron.is-expanded {
+  transform: rotate(180deg);
+  color: var(--text-2, #333);
+}
+
+.plan-todo-tray-toggle:hover .plan-todo-tray-chevron {
+  color: var(--text-1, #111);
+}
+
+.plan-todo-tray-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .plan-todo-tray-doc,
-.plan-todo-tray-abort,
-.plan-todo-tray-more {
+.plan-todo-tray-abort {
   appearance: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 5px;
   cursor: pointer;
   font: 11px var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  color: var(--text-4);
-  flex: none;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
-.plan-todo-tray-doc:hover,
-.plan-todo-tray-more:hover {
-  color: var(--text-2);
+.plan-todo-tray-doc {
+  background: color-mix(in srgb, var(--surface-1, #f5f5f5) 80%, transparent);
+  border: 1px solid var(--line-1, rgba(0, 0, 0, 0.08));
+  color: var(--text-3, #666);
 }
 
+.plan-todo-tray-doc:hover {
+  background: var(--surface-1, #eee);
+  color: var(--text-1, #111);
+  border-color: var(--line-2, rgba(0, 0, 0, 0.15));
+}
+
+/* Transparent fill + wash ring, matching the permission-bar deny button: a
+   hue-tinted fill under same-hue text eats contrast on both faces. */
 .plan-todo-tray-abort {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--coral, var(--danger, #c2410c)) 22%, transparent);
   color: var(--coral, var(--danger, #c2410c));
+  font-weight: 500;
 }
 
 .plan-todo-tray-abort:hover {
-  color: var(--text-1);
+  background: color-mix(in srgb, var(--coral, var(--danger, #c2410c)) 10%, transparent);
+  border-color: var(--coral, var(--danger, #c2410c));
+  color: var(--coral, var(--danger, #c2410c));
 }
 
 .plan-todo-tray-abort:disabled {
-  opacity: 0.5;
-  cursor: default;
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.plan-todo-tray-divider {
+  height: 1px;
+  background: var(--line-1, rgba(0, 0, 0, 0.06));
+  margin: 0 10px;
 }
 
 .plan-todo-tray-steps {
   list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
+  margin: 0;
+  padding: 6px 8px 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .plan-todo-step {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: var(--text-2);
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--text-2, #444);
   min-width: 0;
+  transition: background-color 0.12s ease;
 }
 
 .plan-todo-step .step-icon {
@@ -140,7 +255,7 @@
 
 .plan-todo-step.done,
 .plan-todo-step.skipped {
-  color: var(--text-4);
+  color: var(--text-4, #999);
 }
 
 .plan-todo-step.skipped .plan-todo-step-label {
@@ -148,7 +263,13 @@
 }
 
 .plan-todo-step.run {
-  color: var(--text-1);
+  color: var(--text-1, #111);
+}
+
+.plan-todo-step.is-active {
+  background: color-mix(in srgb, var(--accent, #6366f1) 8%, transparent);
+  font-weight: 500;
+  color: var(--text-1, #111);
 }
 
 .plan-todo-step-label {
@@ -156,10 +277,38 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  flex: 1;
+}
+
+/* Amber/iris text on its own tint only reached 2.7:1 on the light face, so the
+   running chip is text + hairline like the product's ochre badges. */
+.plan-todo-step-active-tag {
+  font: 600 11px var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #6366f1) 40%, transparent);
+  color: var(--accent, #6366f1);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .plan-todo-tray-more {
-  margin-top: 4px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 10px 8px;
+  font: 11px var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--text-4, #999);
+  text-align: left;
+  width: 100%;
+  display: block;
+}
+
+.plan-todo-tray-more:hover {
+  color: var(--text-2, #333);
 }
 
 .plan-todo-tray .step-icon-run .pulse-dot {

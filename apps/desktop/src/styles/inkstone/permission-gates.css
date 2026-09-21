@@ -212,56 +212,111 @@ html[data-theme-id='piwin-inkstone-ink'] .intr.plan-execution-gate {
   margin: 8px 0 0;
   box-sizing: border-box;
 }
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray {
+  /* Width/measure live on `.composer-plan-stack`, matching `.composer-dock`. */
+  background: color-mix(in srgb, var(--s2, #f6f3eb) 94%, transparent);
+  border: 1px solid var(--line-1, rgba(29, 27, 23, 0.08));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
 
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray,
 html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray {
-  /* Width/measure live on `.composer-plan-stack`, matching `.composer-dock`.
-     Capping the tray itself left-aligns it when the stage is wider than
-     --conversation-width. */
-  padding: 4px 0 8px;
+  background: color-mix(in srgb, var(--s3, #1e1b17) 94%, transparent);
+  border: 1px solid var(--line-1, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-label,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-label,
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-count,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-count,
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-doc,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-doc,
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-more,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-more {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-badge {
+  background: color-mix(in srgb, var(--t1) 6%, transparent);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-label {
+  font: 600 11px var(--mono);
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-count {
   font: 11px var(--mono);
-  color: var(--t4);
-}
-
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-count,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-count {
   color: var(--t3);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-title,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-title,
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-step,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-step {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-dot {
+  color: var(--t4);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-active-label,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-title,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-step {
   font-family: var(--sans);
   color: var(--t2);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-step.run,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-step.run {
-  color: var(--t1);
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-active-prefix {
+  color: var(--t3);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-step.done,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-step.done,
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-step.skipped,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-step.skipped {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-chevron {
   color: var(--t4);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-abort,
-html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-abort {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-divider {
+  background: var(--line-1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-doc {
+  font: 11px var(--mono);
+  background: color-mix(in srgb, var(--s1) 60%, transparent);
+  border-color: var(--line-1);
+  color: var(--t3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-doc:hover {
+  background: var(--s1);
+  color: var(--t1);
+  border-color: var(--line-2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-abort {
+  /* Matches `.permission-bar-btn-deny`: transparent fill, wash ring, full
+     `--zhu` text — the 8% wash was costing 0.4 of contrast on the ink face. */
   font: 11px var(--mono);
   color: var(--zhu);
+  background: transparent;
+  border-color: var(--zhu-wash);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-abort:hover {
+  background: color-mix(in srgb, var(--zhu) 10%, transparent);
+  border-color: var(--zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-step.is-active {
+  /* `--lamp` is the shell's activity amber (stage lamp, titlebar dot,
+     running tool rows); `--zhu` stays reserved for the seal/danger gates. */
+  background: color-mix(in srgb, var(--lamp) 8%, var(--s1));
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-step-active-tag {
+  /* `--ochre` is the layer's amber *text* token (`--lamp` paints fills, dots
+     and glows); lamp-on-lamp-wash measured 2.72:1 on the paper face. Text +
+     hairline mirrors `.pill.ochre-p` (delivery-cards.css) at 4.9 / 5.9:1. */
+  font: 600 11px var(--mono);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ochre) 40%, transparent);
+  color: var(--ochre);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-step.run {
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-step.done,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-step.skipped {
+  color: var(--t4);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-more {
+  font: 11px var(--mono);
+  color: var(--t4);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .intr h3,

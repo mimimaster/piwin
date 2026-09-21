@@ -110,14 +110,44 @@ describe('PlanTodoTray', () => {
       })) as SessionPlan['steps'],
     });
     const { container, root } = renderTray(<PlanTodoTray plan={plan} />);
+    // Collapsed by default: no step list rendered, shows active step in HUD
+    expect(container.querySelectorAll('.plan-todo-step')).toHaveLength(0);
+    expect(container.querySelector('.plan-todo-tray-active-label')?.textContent).toContain('Task 4');
+
+    // Click toggle to expand drawer
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="plan-todo-tray-toggle"]')?.click();
+    });
     expect(container.querySelectorAll('.plan-todo-step')).toHaveLength(5);
     expect(container.querySelector('[data-testid="plan-todo-tray-more"]')?.textContent).toContain(
       'and 3 more',
     );
+
+    // Expand all steps
     act(() => {
       container.querySelector<HTMLButtonElement>('[data-testid="plan-todo-tray-more"]')?.click();
     });
     expect(container.querySelectorAll('.plan-todo-step')).toHaveLength(8);
+
+    // Click toggle to collapse drawer back into single-line capsule HUD
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="plan-todo-tray-toggle"]')?.click();
+    });
+    expect(container.querySelectorAll('.plan-todo-step')).toHaveLength(0);
+
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('respects defaultExpanded prop when supplied', () => {
+    const plan = draftPlan({
+      steps: [
+        { id: '1', title: 'Task 1', status: 'done' },
+        { id: '2', title: 'Task 2', status: 'active' },
+      ],
+    });
+    const { container, root } = renderTray(<PlanTodoTray plan={plan} defaultExpanded={true} />);
+    expect(container.querySelectorAll('.plan-todo-step')).toHaveLength(2);
     act(() => root.unmount());
     container.remove();
   });
