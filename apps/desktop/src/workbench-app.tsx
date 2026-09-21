@@ -5,9 +5,9 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { HostLogProvider } from './host-log-context';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
 import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
-import type { MediaLibraryItem, ThemeManifest } from '@piwin/contracts';
-import { appendQuotedComposerText, focusComposerInput } from './context-menu/desktop-context-menu-value';
-import { mediaAttachmentFromLibraryItem } from './media-image-target';
+import type { ThemeManifest } from '@piwin/contracts';
+import { focusComposerInput } from './context-menu/desktop-context-menu-value';
+import { useWorkbenchMedia } from './hooks/use-workbench-media.js';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
 import { resolveNoRepoWorkspaceKey } from './file-browse-root';
 import { useWorkbenchHostClient } from './use-workbench-host-client';
@@ -264,6 +264,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     confirmColdRestore,
     clearColdRestorePrompt,
     handleLoadOlderTranscript,
+    handleLoadNewerTranscript,
     handleRenameSession,
     handleContinueSessionInProject,
     handleForkSession,
@@ -434,28 +435,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   knowledgeMountsRef.current = knowledgeSupported
     ? { mountedIds: knowledge.mounts.mountedIds, clearDraft: knowledge.mounts.clearDraft }
     : null;
-  const [mediaLibraryEpoch, setMediaLibraryEpoch] = useState(0);
-  const wasStreamingRef = useRef(false);
-  useEffect(() => {
-    if (wasStreamingRef.current && !state.streaming) {
-      setMediaLibraryEpoch((epoch) => epoch + 1);
-    }
-    wasStreamingRef.current = state.streaming;
-  }, [state.streaming]);
-  const handleRemixToComposer = useCallback(
-    (input: { text: string; item?: MediaLibraryItem }) => {
-      if (input.item) {
-        addExistingMediaAttachment(mediaAttachmentFromLibraryItem(input.item));
-      }
-      const draft = input.text.trim();
-      if (draft) {
-        setComposer((current) => appendQuotedComposerText(current, draft));
-      }
-      closeSubPage();
-      window.setTimeout(() => focusComposerInput(), 0);
-    },
-    [addExistingMediaAttachment, setComposer, closeSubPage],
-  );
+  const { mediaLibraryEpoch, handleRemixToComposer } = useWorkbenchMedia({
+    streaming: state.streaming, addExistingMediaAttachment, setComposer, closeSubPage,
+  });
   const composerColumn = (
     <WorkbenchComposerColumn
       state={state}
@@ -727,6 +709,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onJumpToHistoryAnchor={handleJumpToHistoryAnchor}
                       onReturnToLatest={handleReturnToLiveTranscript}
                       onLoadOlder={handleLoadOlderTranscript}
+                      onLoadNewer={handleLoadNewerTranscript}
                       onOpenReview={() => openRightTab('review')}
                       onPermission={handlePermission}
                       onInspectSubagent={handleInspectSubagent}

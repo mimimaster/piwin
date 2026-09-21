@@ -67,6 +67,32 @@ export function renderMarkdownText(
   return parts;
 }
 
+const REACT_PORTAL_TYPE = Symbol.for('react.portal');
+
+/**
+ * Only a leaked parser node (a bare MDAST `{ type, value }` object) can never
+ * render. Portals and React 19 thenables are objects too, so they are matched
+ * out before the prototype check.
+ */
+function isLeakedParserNode(value: object): boolean {
+  if ((value as { $$typeof?: unknown }).$$typeof === REACT_PORTAL_TYPE) return false;
+  const prototype = Object.getPrototypeOf(value) as object | null;
+  return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Drop one leaked node so a single bad child cannot take down the whole reply
+ * mid-stream. Everything React can render passes through untouched.
+ */
+export function sanitizeMarkdownChild(value: ReactNode): ReactNode {
+  if (value === null || value === undefined || typeof value === 'boolean') return value;
+  if (typeof value === 'string' || typeof value === 'number') return value;
+  if (Array.isArray(value)) return value.map(sanitizeMarkdownChild);
+  if (isValidElement(value)) return value;
+  if (typeof value === 'object' && isLeakedParserNode(value)) return null;
+  return value;
+}
+
 export function renderMarkdownChildren(
   children: ReactNode,
   onOpenDocument: ((doc: MarkdownDocumentReference) => void) | undefined,
@@ -74,12 +100,14 @@ export function renderMarkdownChildren(
 ): ReactNode {
   if (typeof children === 'string')
     return renderMarkdownText(children, onOpenDocument, 'text', projectPath);
-  if (!Array.isArray(children)) return children;
-  return children.map((child, index) =>
-    typeof child === 'string'
-      ? renderMarkdownText(child, onOpenDocument, `text-${index}`, projectPath)
-      : child,
-  );
+  if (Array.isArray(children)) {
+    return children.map((child, index) =>
+      typeof child === 'string'
+        ? renderMarkdownText(child, onOpenDocument, `text-${index}`, projectPath)
+        : sanitizeMarkdownChild(child),
+    );
+  }
+  return sanitizeMarkdownChild(children);
 }
 
 export function stripLeadingCalloutMarker(value: ReactNode): ReactNode {

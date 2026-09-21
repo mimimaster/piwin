@@ -7,7 +7,7 @@ import {
   type BoundedTextAccumulator,
   type BoundedTextAccumulatorOptions,
 } from './bounded-text-accumulator';
-import { retainBoundedTranscriptWindow } from './transcript-page-cache';
+import { createTranscriptCacheMetadata, retainBoundedTranscriptWindow } from './transcript-page-cache';
 import type { ChatMessageUi, ChatUiState, RunRecordUi, ToolCardUi } from './chat-ui-types';
 import { createBoundedToolOutput, projectBoundedToolPresentation } from './chat-reducer-tools';
 
@@ -401,19 +401,7 @@ export function enforceBoundedTranscriptWindow(state: ChatUiState): ChatUiState 
     state.messages,
     collectRetainedTranscriptMessageIds(state.messages, state.streaming),
   );
-  const cacheLimitReached =
-    (state.transcriptWindow?.cacheLimitReached ?? false) || bounded.cacheLimitReached;
-  const transcriptWindow = state.transcriptWindow
-    ? {
-        revision: state.transcriptWindow.revision,
-        totalCount: state.transcriptWindow.totalCount,
-        ...(!cacheLimitReached && state.transcriptWindow.olderCursor
-          ? { olderCursor: state.transcriptWindow.olderCursor }
-          : {}),
-        retainedBytes: bounded.retainedBytes,
-        cacheLimitReached,
-      }
-    : null;
+  const transcriptWindow = createTranscriptCacheMetadata(state.transcriptWindow, bounded, state.messages.length);
   if (bounded.droppedCount === 0) {
     return { ...state, transcriptWindow };
   }

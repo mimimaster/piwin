@@ -1,3 +1,4 @@
+import { TranscriptPagingGallery } from './transcript-paging-gallery.js';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
 import { TranscriptViewport } from '../transcript-viewport';
@@ -7,6 +8,7 @@ import type { ChatMessageUi } from '../chat-reducer';
 
 /** Synthetic geometry only: no real session contents or Host writes. */
 export function TranscriptScrollGallery(): ReactElement {
+  const [paging, setPaging] = useState(false);
   const [session, setSession] = useState(0);
   const [count, setCount] = useState(2);
   const [loaded, setLoaded] = useState(false);
@@ -76,8 +78,10 @@ export function TranscriptScrollGallery(): ReactElement {
     setLayoutPhase(0);
   };
 
+  if (paging) return <TranscriptPagingGallery />;
   return (
     <div ref={rootRef} data-layout-phase={layoutPhase} style={{ padding: 24 }}>
+      <Button onClick={() => setPaging(true)}>Open paged history</Button>
       <Button onClick={() => openSession(2)}>Open two heavy turns</Button>
       <Button onClick={() => openSession(60)}>Open long history</Button>
       <Button onClick={() => setLoaded(true)}>Load transcript</Button>

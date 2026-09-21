@@ -18,18 +18,16 @@
  * opens do not auto-page on mount.
  */
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
 import type { SessionUserMessageAnchor, SessionUserMessageIndexData } from '@piwin/contracts';
 import { useTranscriptScroll } from './use-transcript-scroll';
 import { HistoryTicksDrawer } from './history-ticks-drawer';
 import { TranscriptScrollProvider } from './transcript-scroll-port';
 import { useTranscriptReveal } from './use-transcript-reveal.js';
+import { useTranscriptHistoryPaging } from './use-transcript-history-paging.js';
 import { JumpToLatestButton } from './jump-to-latest-button';
 import './styles/transcript-opening.css';
-
-/** Load the next older page when within this many px of the transcript top. */
-const TRANSCRIPT_TOP_AUTO_LOAD_PX = 120;
 
 export type TranscriptViewportProps = {
   messageCount: number;
@@ -43,8 +41,10 @@ export type TranscriptViewportProps = {
   sessionId?: string;
   awaitingTranscript?: boolean;
   canLoadOlder?: boolean;
+  canLoadNewer?: boolean;
   historyLoading?: boolean;
   onLoadOlder?: () => Promise<void>;
+  onLoadNewer?: () => Promise<void>;
   locale?: 'zh-CN' | 'en';
   /** Newly submitted live turn that should restore follow-tail. */
   liveTurnId?: string | null;
@@ -74,10 +74,8 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
 
   const trackRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
-  const loadInFlightRef = useRef(false);
-  const pendingHistoryAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(
-    null,
-  );
+  const paging = useTranscriptHistoryPaging({ ...props, scroll });
+  handleLoadOlderRef.current = paging.loadOlder;
   const openedSessionPinRef = useRef<{ sessionId: string; pinned: boolean } | null>(null);
 
   useLayoutEffect(() => {
@@ -159,104 +157,21 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     [scrollToTrackY],
   );
 
-  const restorePendingHistoryAnchor = useCallback((): boolean => {
-    const pending = pendingHistoryAnchorRef.current;
-    const container = scroll.containerRef.current;
-    if (!pending || !container) {
-      return false;
-    }
-    const delta = container.scrollHeight - pending.scrollHeight;
-    if (delta <= 0) {
-      return false;
-    }
-    scroll.beginProgrammaticScroll();
-    container.scrollTop = pending.scrollTop + delta;
-    pendingHistoryAnchorRef.current = null;
-    return true;
-  }, [scroll.beginProgrammaticScroll, scroll.containerRef]);
-
-  const handleLoadOlder = useCallback(async (): Promise<void> => {
-    const container = scroll.containerRef.current;
-    if (!container || !props.onLoadOlder || props.historyLoading || loadInFlightRef.current) {
-      return;
-    }
-    loadInFlightRef.current = true;
-    pendingHistoryAnchorRef.current = {
-      scrollHeight: container.scrollHeight,
-      scrollTop: container.scrollTop,
-    };
-    try {
-      await props.onLoadOlder();
-      if (!restorePendingHistoryAnchor()) {
-        window.requestAnimationFrame(() => {
-          restorePendingHistoryAnchor();
-        });
-      }
-    } finally {
-      loadInFlightRef.current = false;
-    }
-  }, [props.historyLoading, props.onLoadOlder, restorePendingHistoryAnchor, scroll.containerRef]);
-  handleLoadOlderRef.current = () => {
-    void handleLoadOlder();
-  };
-
-  const maybeAutoLoadOlder = useCallback((): void => {
-    if (
-      !props.canLoadOlder ||
-      props.historyLoading ||
-      !props.onLoadOlder ||
-      scroll.isFollowingTail()
-    ) {
-      return;
-    }
-    const container = scroll.containerRef.current;
-    if (!container) {
-      return;
-    }
-    const maximumScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
-    const normalizedScrollTop = Math.min(container.scrollTop, maximumScrollTop);
-    // Short pages have no useful manual scroll gesture. Treat them as already
-    // at the top so older history remains reachable without visible controls.
-    if (normalizedScrollTop <= TRANSCRIPT_TOP_AUTO_LOAD_PX) {
-      void handleLoadOlder();
-    }
-  }, [
-    handleLoadOlder,
-    props.canLoadOlder,
-    props.historyLoading,
-    props.onLoadOlder,
-    scroll.containerRef,
-    scroll.isFollowingTail,
-  ]);
-
-  // After each successful older page (messageCount grows), continue if the
-  // viewport still has not moved away from the top.
-  useEffect(() => {
-    maybeAutoLoadOlder();
-  }, [
-    maybeAutoLoadOlder,
-    props.canLoadOlder,
-    props.historyLoading,
-    props.messageCount,
-    props.sessionId,
-  ]);
-
-  // Restore the visible row before paint. rAF left one frame of the prepended
-  // page sitting at scrollTop 0 — the “history refresh” flash.
-  useLayoutEffect(() => {
-    restorePendingHistoryAnchor();
-  }, [props.messageCount, restorePendingHistoryAnchor]);
-
   const handleStreamScroll = useCallback((): void => {
     scroll.handleScroll();
-    maybeAutoLoadOlder();
-  }, [maybeAutoLoadOlder, scroll]);
+    paging.onScroll();
+  }, [paging.onScroll, scroll]);
 
   const locale = props.locale ?? 'zh-CN';
+  const handleJumpToHistoryAnchor = useCallback(async (anchor: SessionUserMessageAnchor) => {
+    paging.resetIntent();
+    await props.onJumpToHistoryAnchor?.(anchor);
+  }, [paging.resetIntent, props.onJumpToHistoryAnchor]);
   const handleJumpToLatest = useCallback((): void => {
+    paging.resetIntent();
     props.onReturnToLatest?.();
     scroll.jumpToLatest();
-  }, [props.onReturnToLatest, scroll]);
+  }, [paging.resetIntent, props.onReturnToLatest, scroll]);
   const showJumpToLatest =
     props.messageCount > 0 &&
     (props.historyViewActive === true || scroll.showJumpToLatest);
@@ -322,7 +237,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
         <HistoryTicksDrawer
           messages={props.messages}
           historyIndex={props.historyIndex}
-          onJumpToAnchor={props.onJumpToHistoryAnchor}
+          onJumpToAnchor={handleJumpToHistoryAnchor}
         />
         <div
           className="chat-stream"

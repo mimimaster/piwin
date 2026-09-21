@@ -69,6 +69,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     confirmColdRestore,
     clearColdRestorePrompt,
     handleLoadOlderTranscript,
+    handleLoadNewerTranscript,
     handleRenameSession,
     handleDuplicateSession,
     handleContinueSessionInProject,
@@ -170,7 +171,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
 
   useEffect(() => {
     const sessionId = state.activeSessionId;
-    if (!sessionId || state.userMessageIndex !== null || state.streaming) {
+    if (!sessionId || (state.streaming && state.userMessageIndex !== null)) {
       return;
     }
     // The index is a small independent query. Keep transcript hydration and
@@ -180,7 +181,6 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     loadUserMessageIndex,
     state.activeSessionId,
     state.streaming,
-    state.userMessageIndex,
     state.userMessageIndexEpoch,
   ]);
 
@@ -237,6 +237,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     confirmColdRestore,
     clearColdRestorePrompt,
     handleLoadOlderTranscript,
+    handleLoadNewerTranscript,
     handleRenameSession,
     handleDuplicateSession,
     handleContinueSessionInProject,

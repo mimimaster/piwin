@@ -511,7 +511,7 @@ export function useTranscriptScroll(options: {
       ) {
         // Fitted transcript: any leftover detached state is unrecoverable by
         // scrolling (there is no scroll). Re-pin so jump-to-latest cannot stick.
-        if (!overflowing && (userDetachedRef.current || !followTailRef.current)) {
+        if (!overflowing && !historyViewActiveRef.current && (userDetachedRef.current || !followTailRef.current)) {
           setFollowTail(true);
         }
         return;

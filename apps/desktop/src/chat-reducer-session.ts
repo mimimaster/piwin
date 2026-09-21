@@ -1,7 +1,9 @@
+import { reduceTranscriptHistory } from './transcript-history-window.js';
 import { getSessionListScopeMeta, setSessionListScopeMeta } from './session-list-scope';
 import { retainRecordKeys } from './record-budget';
 import {
   measureTranscriptCacheBytes,
+  createTranscriptCacheMetadata,
   prependBoundedTranscriptPage,
   retainBoundedTranscriptWindow,
 } from './transcript-page-cache';
@@ -47,6 +49,7 @@ export type ChatUiSessionSelectionAction = Extract<
       | 'session/load-messages'
       | 'session/prepend-messages'
       | 'session/seek-messages'
+      | 'session/page-history'
       | 'session/user-message-index'
       | 'session/return-to-live'
       | 'session/hydrate'
@@ -430,17 +433,7 @@ export function reduceChatSession(
         activeSessionId: action.sessionId,
         messages,
         historyView: null,
-        transcriptWindow: action.transcriptPage
-          ? {
-              revision: action.transcriptPage.revision,
-              totalCount: action.transcriptPage.totalCount,
-              ...(!bounded.cacheLimitReached && action.transcriptPage.olderCursor
-                ? { olderCursor: action.transcriptPage.olderCursor }
-                : {}),
-              retainedBytes: bounded.retainedBytes,
-              cacheLimitReached: bounded.cacheLimitReached,
-            }
-          : null,
+        transcriptWindow: createTranscriptCacheMetadata(action.transcriptPage, bounded, candidateMessages.length),
         runPhase: preserveRunProjection ? state.runPhase : 'idle',
         activeRunId: preserveRunProjection ? state.activeRunId : null,
         activeRunPhase: preserveRunProjection ? state.activeRunPhase : null,
@@ -513,30 +506,9 @@ export function reduceChatSession(
         },
       };
     }
-    case 'session/seek-messages': {
-      if (
-        state.activeSessionId !== action.sessionId ||
-        state.userMessageIndexEpoch !== action.epoch
-      ) {
-        return state;
-      }
-      const messages = mapTranscriptMessagesToUi(action.messages);
-      const bounded = retainBoundedTranscriptWindow(
-        messages,
-        collectRetainedTranscriptMessageIds(messages, state.streaming),
-      );
-      const retainedMessageIds = new Set(bounded.messages.map((message) => message.id));
-      return {
-        ...state,
-        historyView: {
-          anchorMessageId: action.window.anchorMessageId,
-          messages: bounded.messages,
-          runRecordsById: buildRunRecordsFromTranscriptMessages(
-            action.messages.filter((message) => retainedMessageIds.has(message.id)),
-          ),
-        },
-      };
-    }
+    case 'session/page-history':
+    case 'session/seek-messages':
+      return reduceTranscriptHistory(state, action);
     case 'session/user-message-index':
       return state.activeSessionId === action.sessionId &&
         state.userMessageIndexEpoch === action.epoch

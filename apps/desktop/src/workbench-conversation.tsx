@@ -1,3 +1,4 @@
+import { canLoadOlderTranscript, canLoadNewerTranscript } from './transcript-history-window.js';
 /**
  * Conversation column of the desktop workbench (extracted from App.tsx).
  * Host commands stay with App; this file owns transcript, permission, and
@@ -74,6 +75,7 @@ export type WorkbenchTranscriptProps = {
   onJumpToHistoryAnchor: NonNullable<TranscriptViewportProps['onJumpToHistoryAnchor']>;
   onReturnToLatest: () => void;
   onLoadOlder: () => Promise<void>;
+  onLoadNewer: () => Promise<void>;
   onOpenReview: () => void;
   onPermission: (
     decision: PermissionDecision,
@@ -143,6 +145,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onJumpToHistoryAnchor,
     onReturnToLatest,
     onLoadOlder,
+    onLoadNewer,
     onOpenReview,
     onPermission,
     onInspectSubagent,
@@ -195,11 +198,9 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         onJumpToHistoryAnchor={onJumpToHistoryAnchor}
         historyViewActive={historyViewActive}
         onReturnToLatest={onReturnToLatest}
-        canLoadOlder={
-          !historyViewActive &&
-          state.transcriptWindow?.olderCursor !== undefined &&
-          state.transcriptWindow.cacheLimitReached !== true
-        }
+        canLoadOlder={canLoadOlderTranscript(state)}
+        canLoadNewer={canLoadNewerTranscript(state)}
+        onLoadNewer={onLoadNewer}
         historyLoading={transcriptHistoryLoading}
         onLoadOlder={onLoadOlder}
         locale={locale}

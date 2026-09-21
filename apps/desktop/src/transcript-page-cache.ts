@@ -1,5 +1,5 @@
 import type { SessionTranscriptMessage } from '@piwin/contracts';
-import type { ChatMessageUi } from './chat-reducer';
+import type { ChatMessageUi, ChatUiState } from './chat-reducer';
 
 export const MAX_TRANSCRIPT_CACHE_MESSAGES = 160;
 export const MAX_TRANSCRIPT_CACHE_BYTES = 2 * 1024 * 1024;
@@ -135,4 +135,21 @@ export function retainBoundedSessionTranscript(
 
 function measureTranscriptMessageBytes(message: ChatMessageUi): number {
   return new TextEncoder().encode(JSON.stringify(message)).byteLength;
+}
+
+/** Even a never-resumed live session must remember that it evicted history. */
+export function createTranscriptCacheMetadata(
+  source: { revision: string | null; totalCount: number; olderCursor?: string; cacheLimitReached?: boolean } | null | undefined,
+  bounded: { cacheLimitReached: boolean; retainedBytes: number },
+  messageCount: number,
+): ChatUiState['transcriptWindow'] {
+  const cacheLimitReached = source?.cacheLimitReached === true || bounded.cacheLimitReached;
+  if (!source && !cacheLimitReached) return null;
+  return {
+    revision: source?.revision ?? null,
+    totalCount: source?.totalCount ?? messageCount,
+    ...(!cacheLimitReached && source?.olderCursor ? { olderCursor: source.olderCursor } : {}),
+    retainedBytes: bounded.retainedBytes,
+    cacheLimitReached,
+  };
 }

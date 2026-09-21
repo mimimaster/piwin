@@ -117,6 +117,7 @@ export type ChatMessageUi = {
 export type TranscriptHistoryViewUi = {
   /** Indexed user message that owns this temporary bounded history view. */
   anchorMessageId: string;
+  window: SessionTranscriptWindowInfo;
   messages: ChatMessageUi[];
   runRecordsById: Record<string, RunRecordUi>;
 };
@@ -328,7 +329,8 @@ export type ChatUiState = {
   warmSessionCache: WarmSessionCache;
   /** Host revision/cursor and bounded resident-history accounting. */
   transcriptWindow: {
-    revision: string;
+    /** Null until a Host page supplies a durable revision. */
+    revision: string | null;
     totalCount: number;
     olderCursor?: string;
     retainedBytes: number;
@@ -566,7 +568,9 @@ export type ChatUiAction =
       transcriptPage: SessionTranscriptPageInfo;
     }
   | {
-      type: 'session/seek-messages';
+      type: 'session/seek-messages' | 'session/page-history';
+      /** Paging merges at this resident boundary; seeks replace the view. */
+      direction?: 'older' | 'newer';
       sessionId: string;
       epoch: number;
       messages: SessionTranscriptMessage[];

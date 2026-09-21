@@ -177,6 +177,8 @@ function VirtualizedTranscriptTurns(
     getScrollElement: () => props.scrollPort.scrollElement,
     estimateSize,
     getItemKey,
+    anchorTo: 'end',
+    followOnAppend: false,
     gap: TRANSCRIPT_TURN_GAP_PX,
     measureElement,
     overscan: TRANSCRIPT_TURN_OVERSCAN,

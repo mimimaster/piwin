@@ -25,6 +25,7 @@ import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { artifactDownloadLabel, downloadArtifactSource } from './artifact-source-export.js';
 import { useDesktopLocale } from './desktop-locale-context';
 import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
+import { RenderErrorBoundary } from './render-error-boundary.js';
 
 export type ArtifactCanvasProposal = ComposerProposeTextActionPayload;
 
@@ -47,7 +48,25 @@ export type ArtifactCanvasPanelProps = {
   hideFloatingDownload?: boolean;
 };
 
+function canvasPanelResetKey(target: ArtifactCanvasTarget | null): string {
+  if (!target) return 'empty';
+  return `${target.id}:${target.source.length}:${target.streaming === true ? 'stream' : 'final'}`;
+}
+
 export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactElement {
+  const { locale } = useDesktopLocale();
+  return (
+    <RenderErrorBoundary
+      locale={locale}
+      surface="canvas"
+      resetKey={canvasPanelResetKey(props.activeTarget)}
+    >
+      <ArtifactCanvasPanelInner {...props} />
+    </RenderErrorBoundary>
+  );
+}
+
+function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement {
   const { activeTarget } = props;
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';

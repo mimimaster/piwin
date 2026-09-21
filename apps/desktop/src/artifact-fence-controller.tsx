@@ -58,26 +58,31 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
 
   const analysis = useMemo(() => {
     if (boundFenceIndex === null || stickyFenceId === null) return null;
-    return analyzeArtifactFence(
-      createArtifactFenceRecord({
-        info: props.fenceInfo,
-        source: props.source,
-        ordinal: boundFenceIndex,
-        open: liveFence,
-      }),
-      {
-        id: stickyFenceId,
-        htmlUiModeEnabled: props.htmlUiModeEnabled,
-        mode: liveFence ? 'stream-preview' : 'interactive',
-        ...(props.artifactMaxBytes !== undefined ? { maxBytes: props.artifactMaxBytes } : {}),
-        ...(props.artifactBlockExternalScripts !== undefined
-          ? { blockExternalScripts: props.artifactBlockExternalScripts }
-          : {}),
-        ...(props.artifactBlockExternalResources !== undefined
-          ? { blockExternalResources: props.artifactBlockExternalResources }
-          : {}),
-      },
-    );
+    try {
+      return analyzeArtifactFence(
+        createArtifactFenceRecord({
+          info: props.fenceInfo,
+          source: props.source,
+          ordinal: boundFenceIndex,
+          open: liveFence,
+        }),
+        {
+          id: stickyFenceId,
+          htmlUiModeEnabled: props.htmlUiModeEnabled,
+          mode: liveFence ? 'stream-preview' : 'interactive',
+          ...(props.artifactMaxBytes !== undefined ? { maxBytes: props.artifactMaxBytes } : {}),
+          ...(props.artifactBlockExternalScripts !== undefined
+            ? { blockExternalScripts: props.artifactBlockExternalScripts }
+            : {}),
+          ...(props.artifactBlockExternalResources !== undefined
+            ? { blockExternalResources: props.artifactBlockExternalResources }
+            : {}),
+        },
+      );
+    } catch (error) {
+      console.warn('[piwin] artifact fence analysis failed', error);
+      return null;
+    }
   }, [
     boundFenceIndex,
     stickyFenceId,
@@ -118,13 +123,18 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
 
   const plan = useMemo((): Extract<ArtifactRenderPlan, { kind: 'render' }> | null => {
     if (!willMountInlineFrame || typography === null || analysis?.kind !== 'intent') return null;
-    return materializeArtifact(analysis.intent, {
-      mode: liveFence ? 'stream-preview' : 'interactive',
-      source: props.source,
-      presentation: 'inline',
-      mediaDataUrls,
-      theme: { ...(props.artifactTheme ?? createDefaultArtifactTheme('dark')), ...typography },
-    });
+    try {
+      return materializeArtifact(analysis.intent, {
+        mode: liveFence ? 'stream-preview' : 'interactive',
+        source: props.source,
+        presentation: 'inline',
+        mediaDataUrls,
+        theme: { ...(props.artifactTheme ?? createDefaultArtifactTheme('dark')), ...typography },
+      });
+    } catch (error) {
+      console.warn('[piwin] artifact fence materialize failed', error);
+      return null;
+    }
   }, [
     willMountInlineFrame,
     typography,

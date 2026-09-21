@@ -728,6 +728,26 @@
   color: var(--text-3);
 }
 
+.render-error-boundary {
+  margin: 0.5em 0 0.9em;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--coral) 6%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--coral) 28%, transparent);
+}
+
+.render-error-boundary-title {
+  font-weight: 600;
+  font-size: var(--fs-micro);
+  margin: 0 0 var(--s-2);
+  color: var(--coral);
+}
+
+.render-error-boundary .muted {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-micro);
+}
+
 .markdown .md-footnotes,
 .markdown section[data-footnotes] {
   margin-top: 1.2em;

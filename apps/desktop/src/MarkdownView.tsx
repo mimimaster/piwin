@@ -21,6 +21,7 @@ import {
   type KnowledgeCitationIndex,
 } from './knowledge/knowledge-citations.js';
 import { MarkdownRenderingPhaseProvider } from './markdown-rendering-phase.js';
+import { RenderErrorBoundary } from './render-error-boundary.js';
 
 export type { MarkdownRenderingPhase } from './markdown-code-fence.js';
 
@@ -150,6 +151,28 @@ function useStableArtifactTheme(
   return stableThemeRef.current;
 }
 
+function projectMarkdownForRender(
+  text: string,
+  streamMode: boolean,
+  knowledgeCitations: KnowledgeCitationIndex,
+) {
+  try {
+    return projectArtifactMarkdownForRender(
+      escapeRawHtmlInMarkdown(
+        linkKnowledgeCitationMarkers(rewriteLocalFileMarkdownLinks(text), knowledgeCitations),
+      ),
+      !streamMode,
+    );
+  } catch (error) {
+    console.warn('[piwin] artifact markdown projection failed', error);
+    return {
+      markdown: text,
+      fences: [],
+      ordinalByProjectedStartOffset: new Map<number, number>(),
+    };
+  }
+}
+
 /**
  * Streamdown adapter. Fence identity is the canonical index ordinal; Artifact
  * preview, highlight, math, and Mermaid live behind MarkdownCodeFence.
@@ -190,13 +213,7 @@ export function MarkdownView({
   );
 
   const artifactProjection = useMemo(
-    () =>
-      projectArtifactMarkdownForRender(
-        escapeRawHtmlInMarkdown(
-          linkKnowledgeCitationMarkers(rewriteLocalFileMarkdownLinks(text), knowledgeCitations),
-        ),
-        !streamMode,
-      ),
+    () => projectMarkdownForRender(text, streamMode, knowledgeCitations),
     [text, streamMode, knowledgeCitations],
   );
   const streamdownText = artifactProjection.markdown;
@@ -273,26 +290,32 @@ export function MarkdownView({
 
   return (
     <MarkdownRenderingPhaseProvider phase={phase}>
-      <Streamdown
-        className={shouldShowStreamingCaret ? 'prose markdown has-stream-caret' : 'prose markdown'}
-        // Live tokens stay on Streamdown's streaming tree. `static` skips remend
-        // and re-parses a finished document on every delta. The animate object
-        // only disables startTransition; isAnimating stays false so word spans
-        // are never injected.
-        mode={streamdownMode}
-        parseMarkdownIntoBlocksFn={parseStreamdownAsSingleDocument}
-        parseIncompleteMarkdown={streamMode}
-        isAnimating={false}
-        animated={STREAMDOWN_IMMEDIATE_STREAMING}
-        plugins={STREAMDOWN_PLUGINS}
-        components={streamdownComponents}
-        controls={false}
-        lineNumbers={false}
-        skipHtml
-        linkSafety={MARKDOWN_LINK_SAFETY}
+      <RenderErrorBoundary
+        locale={locale}
+        surface="markdown"
+        resetKey={`${phase}:${streamdownTextForRender.length}`}
       >
-        {streamdownTextForRender}
-      </Streamdown>
+        <Streamdown
+          className={shouldShowStreamingCaret ? 'prose markdown has-stream-caret' : 'prose markdown'}
+          // Live tokens stay on Streamdown's streaming tree. `static` skips remend
+          // and re-parses a finished document on every delta. The animate object
+          // only disables startTransition; isAnimating stays false so word spans
+          // are never injected.
+          mode={streamdownMode}
+          parseMarkdownIntoBlocksFn={parseStreamdownAsSingleDocument}
+          parseIncompleteMarkdown={streamMode}
+          isAnimating={false}
+          animated={STREAMDOWN_IMMEDIATE_STREAMING}
+          plugins={STREAMDOWN_PLUGINS}
+          components={streamdownComponents}
+          controls={false}
+          lineNumbers={false}
+          skipHtml
+          linkSafety={MARKDOWN_LINK_SAFETY}
+        >
+          {streamdownTextForRender}
+        </Streamdown>
+      </RenderErrorBoundary>
     </MarkdownRenderingPhaseProvider>
   );
 }

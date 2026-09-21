@@ -314,7 +314,6 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
         ...state,
         messages: [...state.messages, userMessage],
         historyView: null,
-        userMessageIndex: null,
         userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
         runPhase: 'streaming',
         activeRunId: null,
@@ -359,7 +358,6 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
         ...state,
         messages: [...state.messages, userMessage],
         historyView: null,
-        userMessageIndex: null,
         userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
         error: null,
       });
@@ -396,7 +394,6 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
         ...state,
         messages: [...state.messages, userMessage],
         historyView: null,
-        userMessageIndex: null,
         userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
         error: null,
       });
@@ -615,7 +612,6 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
           ...state,
           messages: [...state.messages, projectInstructionUserMessage(action.intervention)],
           historyView: null,
-          userMessageIndex: null,
           userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
         });
       }

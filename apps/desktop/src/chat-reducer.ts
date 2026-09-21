@@ -144,6 +144,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
     case 'session/set':
     case 'session/load-messages':
     case 'session/prepend-messages':
+    case 'session/page-history':
     case 'session/seek-messages':
     case 'session/user-message-index':
     case 'session/return-to-live':

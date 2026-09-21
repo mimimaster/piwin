@@ -136,6 +136,36 @@ describe('useArtifactCanvasAutoReveal', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it('contains a throwing onReveal instead of unmounting the shell', () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const onUpdate = vi.fn();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mounted.push({ container, root });
+
+    act(() => {
+      root.render(
+        <Harness
+          messages={[assistant(OPEN_CANVAS, 'streaming')]}
+          onReveal={() => {
+            throw new Error('inspector refused the canvas target');
+          }}
+          onUpdate={onUpdate}
+        />,
+      );
+    });
+
+    // The effect body contained the throw: the hook host is still mounted and
+    // the failure was reported rather than turning into a root unmount.
+    expect(container.innerHTML).toContain('<div></div>');
+    expect(consoleWarn).toHaveBeenCalledWith(
+      '[piwin] artifact canvas auto-reveal failed',
+      expect.any(Error),
+    );
+    consoleWarn.mockRestore();
+  });
+
   it('commits on successful completion with an update, not a second reveal', () => {
     const onReveal = vi.fn();
     const onUpdate = vi.fn();

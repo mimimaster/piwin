@@ -56,15 +56,20 @@ function lastCanvasTarget(input: {
   maxBytes?: number;
   streaming: boolean;
 }): ArtifactCanvasTarget | null {
-  const targets = collectArtifactCanvasTargets({
-    sessionId: input.sessionId,
-    messageId: input.messageId,
-    markdown: input.markdown,
-    mode: input.streaming ? 'stream-preview' : 'interactive',
-    ...(input.streaming ? { streaming: true } : {}),
-    ...(input.maxBytes !== undefined ? { maxBytes: input.maxBytes } : {}),
-  });
-  return targets.at(-1) ?? null;
+  try {
+    const targets = collectArtifactCanvasTargets({
+      sessionId: input.sessionId,
+      messageId: input.messageId,
+      markdown: input.markdown,
+      mode: input.streaming ? 'stream-preview' : 'interactive',
+      ...(input.streaming ? { streaming: true } : {}),
+      ...(input.maxBytes !== undefined ? { maxBytes: input.maxBytes } : {}),
+    });
+    return targets.at(-1) ?? null;
+  } catch (error) {
+    console.warn('[piwin] canvas auto-reveal parse failed', error);
+    return null;
+  }
 }
 
 function shouldCommitCompletedCanvas(input: {

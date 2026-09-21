@@ -21,6 +21,7 @@ import { collectMessageChangedFiles } from './collect-message-changed-files';
 import { findStreamingCaretMessageId } from './streaming-caret';
 import { DocCardSequenceView } from './DocCardSequenceView';
 import { ChatMessageRow } from './chat-message-row';
+import { RenderErrorBoundary } from './render-error-boundary.js';
 import { collectFlashcardToolsFromMessages } from './conversation-response-content.js';
 import {
   buildConversationTurnUsageChip,
@@ -682,7 +683,21 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       />
                     </div>
                   ) : null;
-                const rows = finalThinkingRow ? [finalThinkingRow, row] : [row];
+                // One bad message must not blank the conversation: contain the
+                // row locally so the app-level boundary stays idle.
+                const containedRow = (
+                  <RenderErrorBoundary
+                    key={message.id}
+                    locale={props.locale ?? 'zh-CN'}
+                    surface="message"
+                    resetKey={`${message.id}:${effectiveMessage.status}:${effectiveMessage.text.length}`}
+                  >
+                    {row}
+                  </RenderErrorBoundary>
+                );
+                const rows = finalThinkingRow
+                  ? [finalThinkingRow, containedRow]
+                  : [containedRow];
                 const leadingChrome = [
                   liftedIdentityHeader,
                   disclosureTrigger,

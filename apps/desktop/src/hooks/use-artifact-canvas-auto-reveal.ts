@@ -23,24 +23,31 @@ export function useArtifactCanvasAutoReveal(input: {
   const stateRef = useRef(createArtifactCanvasAutoRevealState());
 
   useEffect(() => {
-    const result = advanceArtifactCanvasAutoReveal(stateRef.current, {
-      sessionId: input.activeSessionId,
-      messages: input.messages,
-      enabled: input.enabled,
-      ...(input.maxBytes !== undefined ? { maxBytes: input.maxBytes } : {}),
-      ...(input.runTerminalKind !== undefined
-        ? { runTerminalKind: input.runTerminalKind }
-        : {}),
-    });
-    stateRef.current = result.state;
-    if (!result.target || result.action === null) {
-      return;
+    // This hook runs at workbench level, outside the transcript/Canvas render
+    // boundaries. A throw here (including inside onReveal/onUpdate) would
+    // unmount the root, so it is contained and logged instead.
+    try {
+      const result = advanceArtifactCanvasAutoReveal(stateRef.current, {
+        sessionId: input.activeSessionId,
+        messages: input.messages,
+        enabled: input.enabled,
+        ...(input.maxBytes !== undefined ? { maxBytes: input.maxBytes } : {}),
+        ...(input.runTerminalKind !== undefined
+          ? { runTerminalKind: input.runTerminalKind }
+          : {}),
+      });
+      stateRef.current = result.state;
+      if (!result.target || result.action === null) {
+        return;
+      }
+      if (result.action === 'reveal') {
+        input.onReveal(result.target);
+        return;
+      }
+      input.onUpdate(result.target);
+    } catch (error) {
+      console.warn('[piwin] artifact canvas auto-reveal failed', error);
     }
-    if (result.action === 'reveal') {
-      input.onReveal(result.target);
-      return;
-    }
-    input.onUpdate(result.target);
   }, [
     input.activeSessionId,
     input.enabled,

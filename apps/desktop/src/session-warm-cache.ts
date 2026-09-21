@@ -25,7 +25,7 @@ import type {
   SessionOutlineNode,
   WalkthroughArtifact,
 } from '@piwin/contracts';
-import type { ChatMessageUi, RunRecordUi } from './chat-reducer.js';
+import type { ChatMessageUi, ChatUiState, RunRecordUi } from './chat-reducer.js';
 
 /** Inactive sessions kept warm. Active is always extra on top. */
 export const MAX_WARM_INACTIVE_SESSIONS = 2;
@@ -36,13 +36,7 @@ export const MAX_WARM_SESSIONS = MAX_WARM_INACTIVE_SESSIONS;
 export type SessionWarmSnapshot = {
   sessionId: string;
   messages: ChatMessageUi[];
-  transcriptWindow: {
-    revision: string;
-    totalCount: number;
-    olderCursor?: string;
-    retainedBytes: number;
-    cacheLimitReached: boolean;
-  } | null;
+  transcriptWindow: ChatUiState['transcriptWindow'];
   outline: SessionOutlineNode[];
   runRecordsById: Record<string, RunRecordUi>;
   walkthroughsByMessageId: Record<string, WalkthroughArtifact>;

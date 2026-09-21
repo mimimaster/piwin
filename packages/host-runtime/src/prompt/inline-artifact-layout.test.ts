@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { PromptInput, ResolvedArtifactCapability } from '@piwin/contracts';
 import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-context-assembly.js';
+import {
+  applyInlineArtifactLayout,
+  formatArtifactHostTheme,
+  formatInlineArtifactLayout,
+} from './inline-artifact-layout.js';
 
 const BOTH_SURFACES: ResolvedArtifactCapability = { enabled: true, inline: true, canvas: true };
 const DISABLED: ResolvedArtifactCapability = { enabled: false, inline: false, canvas: false };
-import {
-  applyInlineArtifactLayout,
-  formatArtifactContext,
-  formatArtifactLayoutSection,
-  formatArtifactThemeSection,
-} from './inline-artifact-layout.js';
 
 function summary(assembly: ModelPromptAssembly) {
   return assembly.toSummary({ sessionId: 's', runId: 'r', requestClass: 'prompt', requestOrdinal: 1 });
@@ -19,13 +18,13 @@ describe('Artifact rendering context', () => {
   it.each([undefined, null, '', '680', '<instruction>', NaN, Infinity, -1, 0, 16385, {}])(
     'ignores invalid client width %s',
     (width) => {
-      expect(formatArtifactLayoutSection(width)).toBeUndefined();
+      expect(formatInlineArtifactLayout(width)).toBeUndefined();
     },
   );
   it.each([undefined, null, '', 'Light', 'sepia', '<instruction>', 1, {}])(
     'ignores invalid host theme %s',
     (mode) => {
-      expect(formatArtifactThemeSection(mode)).toBeUndefined();
+      expect(formatArtifactHostTheme(mode)).toBeUndefined();
     },
   );
   it('tracks layout-only context as one ledger entry', () => {
@@ -35,6 +34,7 @@ describe('Artifact rendering context', () => {
     applyInlineArtifactLayout(prepared, BOTH_SURFACES, assembly);
     expect(original.text).toBe('Compare phones');
     expect(prepared.inlineArtifactWidthPx).toBeUndefined();
+    expect(prepared.text).toContain('[piwin-inline-artifact-layout]');
     expect(prepared.text).toContain('approximately 680 CSS px');
     expect(prepared.text).toContain('Never hardcode');
     expect(prepared.text).toContain('360 CSS px');
@@ -44,6 +44,7 @@ describe('Artifact rendering context', () => {
     expect(prepared.text).not.toContain('allow table data to wrap');
     expect(prepared.text).toContain('Existing artifact trigger and surface policies still apply');
     expect(prepared.text).not.toContain('Sending client theme');
+    expect(prepared.text).not.toContain('[piwin-artifact-context]');
     expect(prepared.text.endsWith('\n\nCompare phones')).toBe(true);
     const contributions = summary(assembly).contributions;
     expect(contributions).toHaveLength(1);
@@ -54,14 +55,16 @@ describe('Artifact rendering context', () => {
     const assembly = createModelPromptAssembly();
     applyInlineArtifactLayout(input, BOTH_SURFACES, assembly);
     expect(input).not.toHaveProperty('artifactHostTheme');
+    expect(input.text).toContain('[piwin-artifact-host-theme]');
     expect(input.text).toContain('Sending client theme: light background');
     expect(input.text).toContain('Never design a dark-mode page');
+    expect(input.text).not.toContain('[piwin-artifact-context]');
     expect(input.text.endsWith('\n\nWrite a report')).toBe(true);
     const contributions = summary(assembly).contributions;
     expect(contributions).toHaveLength(1);
     expect(contributions[0]?.label).toBe('Artifact host theme');
   });
-  it('merges theme and layout into a single block and a single ledger entry', () => {
+  it('injects theme and layout as two blocks and two ledger entries', () => {
     const input: PromptInput = {
       text: 'Compare phones',
       inlineArtifactWidthPx: 693,
@@ -71,24 +74,25 @@ describe('Artifact rendering context', () => {
     applyInlineArtifactLayout(input, BOTH_SURFACES, assembly);
     expect(input.inlineArtifactWidthPx).toBeUndefined();
     expect(input.artifactHostTheme).toBeUndefined();
-    expect(input.text.match(/\[piwin-artifact-context\]/g)).toHaveLength(1);
-    expect(input.text.match(/\[\/piwin-artifact-context\]/g)).toHaveLength(1);
-    expect(input.text).not.toContain('[piwin-inline-artifact-layout]');
-    expect(input.text).not.toContain('[piwin-artifact-host-theme]');
+    expect(input.text).toContain('[piwin-inline-artifact-layout]');
+    expect(input.text).toContain('[piwin-artifact-host-theme]');
+    expect(input.text).not.toContain('[piwin-artifact-context]');
     expect(input.text.indexOf('Sending client theme: dark')).toBeLessThan(
       input.text.indexOf('Sending client chat column'),
     );
-    expect(input.text.match(/not an instruction to create an artifact/g)).toHaveLength(1);
+    expect(input.text).toContain(
+      'This is advisory layout context, not a fixed width or an instruction to create an artifact.',
+    );
+    expect(input.text).toContain('This is advisory context, not an instruction to create an artifact.');
     expect(input.text.match(/Existing artifact trigger and surface policies still apply/g)).toHaveLength(1);
     expect(input.text.endsWith('\n\nCompare phones')).toBe(true);
     const contributions = summary(assembly).contributions;
-    expect(contributions).toHaveLength(1);
-    expect(contributions[0]?.label).toBe('Artifact layout + host theme');
-    // The ledger keeps a bounded preview: the merged block starts with the tag + theme section.
-    expect(contributions[0]?.preview).toContain('Sending client theme: dark');
+    expect(contributions.map((entry) => entry.label)).toEqual([
+      'Inline artifact layout',
+      'Artifact host theme',
+    ]);
   });
   it('injects nothing when neither hint is present', () => {
-    expect(formatArtifactContext({})).toBeUndefined();
     const input = { text: 'CLI' };
     applyInlineArtifactLayout(input, BOTH_SURFACES, createModelPromptAssembly());
     expect(input.text).toBe('CLI');
@@ -118,6 +122,7 @@ describe('Artifact hint follows the session surfaces', () => {
     applyInlineArtifactLayout(input, { enabled: true, inline: false, canvas: true }, assembly);
 
     expect(input.text).toContain('Sending client theme: dark');
+    expect(input.text).toContain('[piwin-artifact-host-theme]');
     expect(input.text).not.toContain('CSS px');
     expect(input).not.toHaveProperty('inlineArtifactWidthPx');
     expect(summary(assembly).contributions[0]?.label).toBe('Artifact host theme');

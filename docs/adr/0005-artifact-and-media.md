@@ -43,6 +43,17 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
      source. MarkdownView uses `renderingPhase` only.
    - **Flashcards:** structured `FlashcardDisplayPayload` in tool presentation.
      Generic Artifact does not special-case `data-card-id`.
+   - **Failure containment (2026-09-21):** a render throw while streaming is
+     caught next to the surface, not by the window-level boundary. Each of one
+     transcript row, the reply's Markdown (including Inline artifacts), and the
+     Canvas panel degrades to a local error card with the message and technical
+     details, and retries as new tokens arrive; the rest of the shell keeps
+     running. This extends the Mermaid soft-fail rule to the transcript and
+     Canvas. Fence analysis/materialize fall back to source rather than
+     propagating, and the workbench-level Canvas auto-reveal effect contains
+     its own throw (it sits outside those render boundaries). The window-level
+     `AppErrorBoundary` remains the last resort and now retries in place before
+     offering a full reload.
    - Thinking/tool work uses timeline/cards, not Artifacts.
 
 ## Consequences

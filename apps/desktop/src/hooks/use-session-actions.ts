@@ -17,7 +17,7 @@ import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import type { SessionRowMenuAction } from '../session-row-menu';
 import { pickOrPromptWorkspaceFolder } from '../workspace-open';
 import { summaryToListItem } from './session-list-item';
-import { chooseSessionExportPath } from '../session-export-dialog';
+import { useSessionExport } from './use-session-export.js';
 import { copySessionTranscript } from '../copy-session-transcript';
 import { isSessionBodyOffloaded } from '../session-storage-ui';
 import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
@@ -104,13 +104,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const sessionListRequestGenerations = useRef(new Map<string, number>());
   const sessionListScopesRef = useRef(state.sessionListScopes);
   sessionListScopesRef.current = state.sessionListScopes;
-  const {
-    transcriptHistoryLoading,
-    loadUserMessageIndex,
-    handleJumpToHistoryAnchor,
-    handleReturnToLiveTranscript,
-    handleLoadOlderTranscript,
-  } = useSessionTranscriptActions({
+  const transcriptActions = useSessionTranscriptActions({
     hostClient,
     state,
     dispatch,
@@ -534,65 +528,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ],
   );
 
-  const handleExportSession = useCallback(
-    async (options?: { format?: 'md' | 'html'; redactTools?: boolean }): Promise<void> => {
-      const sessionId = state.activeSessionId;
-      if (!sessionId) {
-        dispatchNotification(pushError('Select a session before exporting.'));
-        return;
-      }
-      const format = options?.format === 'html' ? 'html' : 'md';
-      const redactTools = options?.redactTools === true;
-      const defaultName = `piwin-export-${sessionId.slice(0, 8)}.${
-        format === 'html' ? 'html' : 'md'
-      }`;
-
-      let outputPath: string | undefined;
-      const selectedPath = await chooseSessionExportPath({
-        title: 'Export session',
-        defaultName,
-        format,
-      });
-      if (selectedPath === null) {
-        return;
-      }
-      if (selectedPath) {
-        outputPath = selectedPath;
-      }
-
-      const command: {
-        type: 'session/export';
-        sessionId: string;
-        format: 'md' | 'html';
-        redactTools: boolean;
-        outputPath?: string;
-      } = {
-        type: 'session/export',
-        sessionId,
-        format,
-        redactTools,
-      };
-      if (outputPath) {
-        command.outputPath = outputPath;
-      }
-      const response = await hostClient.request(command);
-      if (!response.success) {
-        dispatchNotification(pushError(response.error));
-        return;
-      }
-      const data = response.data as { path?: string; byteLength?: number; format?: string };
-      const pathLabel = data.path ?? '(unknown path)';
-      const sizeLabel = typeof data.byteLength === 'number' ? ` (${data.byteLength} bytes)` : '';
-      setHostLogEntries((current) =>
-        appendHostLogEntry(current, {
-          level: 'info',
-          message: `Exported session to ${pathLabel}${sizeLabel}`,
-          at: new Date().toISOString(),
-        }),
-      );
-    },
-    [dispatchNotification, hostClient, setHostLogEntries, state.activeSessionId],
-  );
+  const handleExportSession = useSessionExport(args);
 
   const handleTogglePin = useCallback(
     async (sessionId: string, currentlyPinned: boolean): Promise<void> => {
@@ -1024,10 +960,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   return {
     hydrateSessions,
-    transcriptHistoryLoading,
-    loadUserMessageIndex,
-    handleJumpToHistoryAnchor,
-    handleReturnToLiveTranscript,
+    ...transcriptActions,
     handleOpenWorkspaceClick,
     handleBrowseProject,
     handleOpenProject,
@@ -1038,7 +971,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     coldRestorePrompt,
     confirmColdRestore,
     clearColdRestorePrompt,
-    handleLoadOlderTranscript,
     handleExportSession,
     handleTogglePin,
     handleRenameSession,

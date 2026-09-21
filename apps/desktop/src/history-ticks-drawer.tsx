@@ -1,3 +1,4 @@
+import { buildHistoryTickMessages } from './history-tick-messages.js';
 /**
  * Thin history ticks for the transcript viewport (left-edge ruler).
  *
@@ -88,13 +89,6 @@ type CollapsedRailMetrics = {
   top: number;
   bubbleLeft: number;
   tickCount: number;
-};
-
-type HistoryTickMessage = {
-  id: string;
-  text: string;
-  createdAt?: string;
-  anchor?: SessionUserMessageAnchor;
 };
 
 /** Gap between the peak wave tip and the preview bubble. Keep small so the
@@ -188,23 +182,9 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
   const railMetricsRef = useRef<CollapsedRailMetrics | null>(null);
   const hoveredIndexRef = useRef<number | null>(null);
 
-  const userMessages = useMemo<HistoryTickMessage[]>(() => {
-    if (historyIndex !== null) {
-      return historyIndex.anchors.map((anchor) => ({
-        id: anchor.messageId,
-        text: anchor.preview,
-        createdAt: anchor.createdAt,
-        anchor,
-      }));
-    }
-    return messages
-      .filter((message) => message.role === 'user' && message.text.trim().length > 0)
-      .map((message) => ({
-        id: message.id,
-        text: message.text,
-        ...(message.createdAt ? { createdAt: message.createdAt } : {}),
-      }));
-  }, [historyIndex, messages]);
+  const userMessages = useMemo(
+    () => buildHistoryTickMessages(messages, historyIndex), [historyIndex, messages],
+  );
 
   const clearPreview = useCallback((): void => {
     setHoveredMessageId(null);
