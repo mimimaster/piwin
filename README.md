@@ -122,21 +122,24 @@ pnpm package:desktop # 打包 macOS / Windows 桌面安装包
 `piwin` 采用 **多端接入、单一 Host 权威、数据 100% 留在本地** 的系统设计：
 
 ```mermaid
-%%{init: {'flowchart': {'curve': 'linear'}}}%%\nflowchart TB
+%%{init: {"flowchart": {"curve": "linear"}}}%%
+flowchart TB
     Client["多端接入<br/>Desktop · Web · Mobile · CLI"]
 
-    subgraph Host["Piwin Host (统一状态与执行权威)"]
+    subgraph Host["Piwin Host（统一状态与执行权威）"]
         Gateway["统一协议网关<br/>连接 · 鉴权 · 实时同步 · 断线重放"]
 
         Session["会话控制<br/>SQLite 历史树 · Run 调度"]
         Security["安全防护<br/>Deny / Ask / Allow 统一门禁"]
         Subagent["子代理编排<br/>Git Worktree 隔离并发"]
 
-        Engine["Agent 引擎<br/>Pi Kernel (进程内 / Worker)"]
+        Engine["Agent 引擎<br/>Pi Kernel（进程内 / Worker）"]
         Work["工程执行<br/>代码读写 · 终端任务 · Git"]
         Ext["能力生态<br/>浏览器沙箱 · 制品预览 · 向量知识库"]
 
-        Gateway --> Session & Security & Subagent
+        Gateway --> Session
+        Gateway --> Security
+        Gateway --> Subagent
         Session --> Engine
         Security --> Work
         Subagent --> Ext
