@@ -14,9 +14,9 @@ describe('Inkstone document typography unified rules', () => {
     expect(documentCss).toContain('--md-code-inline-line-height: 1.4;');
   });
 
-  it('paints inline code pure red, not ink', () => {
+  it('paints inline code with neutral readable token', () => {
     expect(documentCss).toMatch(
-      /\.markdown \.md-inline-code\s*\{[^}]*color:\s*var\(--inline-code, #923030\)/,
+      /\.markdown \.md-inline-code\s*\{[^}]*color:\s*var\(--inline-code, #8e2626\);/,
     );
   });
 
@@ -32,13 +32,13 @@ describe('Inkstone document typography unified rules', () => {
     );
   });
 
-  it('paints openable transcript file references as a flat underlined link', () => {
+  it('paints openable transcript file references as a flat link with underline on hover', () => {
     expect(documentCss).toContain('color: var(--file-link);');
     expect(documentCss).toMatch(
-      /\.role-assistant \.markdown :is\(a\.pc, a\.md-doc-chip\):not\(\.static\)\s*\{[^}]*background:\s*transparent;/,
+      /\.role-assistant \.markdown :is\(a\.pc, a\.md-doc-chip\):not\(\.static\)\s*\{[^}]*background:\s*transparent\s*!important;/,
     );
     expect(documentCss).toMatch(
-      /\.role-assistant \.markdown :is\(a\.pc, a\.md-doc-chip\):not\(\.static\)\s*\{[^}]*text-decoration:\s*underline;/,
+      /\.role-assistant \.markdown :is\(a\.pc, a\.md-doc-chip\):not\(\.static\):hover[^{]*\{[^}]*text-decoration:\s*underline\s*!important;/,
     );
     expect(documentCss).toMatch(
       /\.role-assistant \.markdown :is\(a\.pc, a\.md-doc-chip\):not\(\.static\) :is\(\.chip-dir, \.chip-file/,

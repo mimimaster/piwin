@@ -24,7 +24,7 @@
   box-sizing: border-box;
   border: none;
   border-radius: 0;
-  background: transparent;
+  background: var(--inline-code-bg, color-mix(in srgb, var(--t1, #1d1b17) 5%, transparent));
   box-shadow: none;
   font-family: var(--font);
   color: var(--text-2);
@@ -219,7 +219,7 @@
   padding: 2px var(--s-3);
   border-radius: var(--r-chip);
   background: transparent;
-  color: var(--inline-code, #923030);
+  color: var(--inline-code, #8e2626);
   border: none;
   font-weight: 450;
 }

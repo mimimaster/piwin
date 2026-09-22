@@ -15,15 +15,33 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: inline;
   padding: 0;
   border: 0;
-  background: transparent;
-  box-shadow: none;
+  background: transparent !important;
+  box-shadow: none !important;
   color: var(--file-link);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration: none !important;
+  cursor: pointer;
+  font-weight: 500;
+}
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static):hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static):hover :is(.chip-dir, .chip-file, .chip-text, span) {
+  color: var(--file-link-hover, var(--file-link)) !important;
+  text-decoration: underline !important;
+  text-decoration-color: currentColor !important;
+  text-underline-offset: 3px !important;
 }
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.i, svg, .path-chip-icon, .file-icon) {
   display: none;
+}
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.chip-dir, .chip-file, .chip-text, span) {
+  display: inline !important;
+  color: inherit !important;
+  opacity: 1;
+  background: transparent !important;
+  text-decoration: inherit !important;
 }
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.chip-dir, .chip-file, .chip-text, span),

@@ -184,14 +184,16 @@
    (.static) are not openable and stay ink. Keyed off the app's
    data-theme-mode, not the OS color-scheme. */
 html[data-theme-mode='light'] {
-  --file-link: #3a7797;
-  --inline-code: #923030;
-  --inline-code-bg: #f2f3f5;
+  --file-link: #184f95;
+  --file-link-hover: #256abf;
+  --inline-code: #8e2626;
+  --inline-code-bg: color-mix(in srgb, var(--t1, #1d1b17) 5%, transparent);
 }
 html:not([data-theme-mode='light']) {
-  --file-link: #6ba4c3;
-  --inline-code: #e7b3b0;
-  --inline-code-bg: rgba(255, 255, 255, 0.08);
+  --file-link: #6f9bbf;
+  --file-link-hover: #8fb4d4;
+  --inline-code: #d08a80;
+  --inline-code-bg: rgba(255, 255, 255, 0.07);
 }
 
 /* Drop the capsule: no fill, no border, no icon. The underline carries the
@@ -204,13 +206,14 @@ html:not([data-theme-mode='light']) {
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  background: transparent !important;
+  box-shadow: none !important;
   color: var(--file-link);
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--file-link) 55%, transparent);
-  text-underline-offset: 2px;
+  text-decoration: none !important;
+  cursor: pointer;
   vertical-align: baseline;
+  font-weight: 500;
+  transition: color 0.12s ease, text-decoration-color 0.12s ease;
 }
 
 .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) :is(.i, svg, .path-chip-icon, .file-icon),
@@ -220,18 +223,24 @@ html:not([data-theme-mode='light']) {
 
 .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) :is(.chip-dir, .chip-file, .chip-text, span),
 .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.chip-dir, .chip-file, .chip-text, span) {
-  color: var(--file-link) !important;
+  display: inline !important;
+  color: inherit !important;
   opacity: 1;
-  font-weight: 400;
-  background: transparent;
+  font-weight: 500;
+  background: transparent !important;
+  text-decoration: inherit !important;
 }
 
 .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static):hover,
-.role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static):hover {
-  background: transparent;
-  border-color: transparent;
-  color: var(--file-link);
-  text-decoration-color: currentColor;
+.role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static):hover :is(.chip-dir, .chip-file, .chip-text, span),
+.role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static):hover,
+.role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static):hover :is(.chip-dir, .chip-file, .chip-text, span) {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--file-link-hover, var(--file-link)) !important;
+  text-decoration: underline !important;
+  text-decoration-color: currentColor !important;
+  text-underline-offset: 3px !important;
 }
 
 .md-link:hover {
@@ -402,8 +411,8 @@ html:not([data-theme-mode='light']) {
   max-width: 100%;
   font-family: var(--font-mono);
   /* A restrained text marker, not a large pill-shaped control. */
-  background: var(--inline-code-bg, #f2f3f5);
-  color: var(--inline-code, #923030);
+  background: var(--inline-code-bg, color-mix(in srgb, var(--t1, #1d1b17) 5%, transparent));
+  color: var(--inline-code, #8e2626);
   border: 1px solid var(--line-1);
   border-radius: 3px;
   padding: 0.05em 0.28em;

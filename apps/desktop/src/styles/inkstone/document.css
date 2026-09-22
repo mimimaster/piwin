@@ -57,8 +57,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     display: inline;
     font-family: var(--mono);
     border: 0;
-    background: var(--inline-code-bg, #f2f3f5);
-    color: var(--inline-code, #923030);
+    background: var(--inline-code-bg, color-mix(in srgb, var(--t1) 5%, transparent));
+    color: var(--inline-code, #8e2626);
     padding: 0 0.25em;
     font-size: var(--md-code-inline-font-size, calc(var(--chat-font-size) * 0.9));
     line-height: var(--md-code-inline-line-height, 1.4);
@@ -119,7 +119,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     font-weight: 500;
     color: var(--t1);
   }
-  /* Openable file references in assistant prose are a flat underlined link:
+  /* Openable file references in assistant prose are a flat link with underline on hover:
      the capsule fill, border and icon come off. Beats the chip rules above.
      Static (not openable) chips stay capsules. */
   .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) {
@@ -128,27 +128,34 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     padding: 0;
     border: 0;
     border-radius: 0;
-    background: transparent;
-    box-shadow: none;
+    background: transparent !important;
+    box-shadow: none !important;
     color: var(--file-link);
-    text-decoration: underline;
-    text-decoration-color: color-mix(in srgb, var(--file-link) 55%, transparent);
-    text-underline-offset: 2px;
+    text-decoration: none !important;
+    cursor: pointer;
     vertical-align: baseline;
+    font-weight: 500;
+    transition: color 0.12s ease, text-decoration-color 0.12s ease;
   }
   .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) :is(.i, svg, .path-chip-icon, .file-icon) {
     display: none;
   }
   .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) :is(.chip-dir, .chip-file, .chip-text, span) {
-    color: var(--file-link) !important;
+    display: inline !important;
+    color: inherit !important;
     opacity: 1;
-    font-weight: 400;
+    font-weight: 500;
+    background: transparent !important;
+    text-decoration: inherit !important;
   }
-  .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static):hover {
-    background: transparent;
-    border-color: transparent;
-    color: var(--file-link);
-    text-decoration-color: currentColor;
+  .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static):hover,
+  .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static):hover :is(.chip-dir, .chip-file, .chip-text, span) {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--file-link-hover, var(--file-link)) !important;
+    text-decoration: underline !important;
+    text-decoration-color: currentColor !important;
+    text-underline-offset: 3px !important;
   }
   .markdown .md-code-block {
     background: var(--code);
