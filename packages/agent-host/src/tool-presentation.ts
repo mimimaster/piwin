@@ -28,6 +28,32 @@ import {
 
 export { classifyToolKind, isWriteLikeTool } from './tool-presentation-classification.js';
 
+export type ShellStatusLine =
+  | { kind: 'exit'; code: number; line: string }
+  | { kind: 'timeout'; line: string }
+  | { kind: 'aborted'; line: string };
+
+/**
+ * Pi's bash tool appends one status line to the output when a command does
+ * not finish cleanly (`Command exited with code N`, `Command timed out after
+ * N seconds`, `Command aborted`) and reports no exit code of its own.
+ */
+export function parseShellStatusLine(outputText: string): ShellStatusLine | null {
+  const lines = outputText.trimEnd().split('\n');
+  const line = (lines[lines.length - 1] ?? '').trim();
+  const exit = /^Command exited with code (\d+)$/.exec(line);
+  if (exit?.[1]) {
+    return { kind: 'exit', code: Number(exit[1]), line };
+  }
+  if (/^Command timed out after \d+ seconds?$/.test(line)) {
+    return { kind: 'timeout', line };
+  }
+  if (line === 'Command aborted') {
+    return { kind: 'aborted', line };
+  }
+  return null;
+}
+
 function looksLikeCancelledToolOutput(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   return (
@@ -268,7 +294,24 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
   }
 
   let toolWasCancelled = false;
-  if (input.isError) {
+  // A shell failure names itself in its last line; the head of the output is
+  // just the command's own stdout and repeats what the expanded row shows.
+  const shellStatus =
+    input.isError && presentation.kind === 'shell' && typeof input.outputText === 'string'
+      ? parseShellStatusLine(input.outputText)
+      : null;
+  if (shellStatus) {
+    toolWasCancelled = shellStatus.kind === 'aborted';
+    presentation.error = {
+      category:
+        shellStatus.kind === 'timeout'
+          ? 'timeout'
+          : shellStatus.kind === 'aborted'
+            ? 'cancelled'
+            : 'execution',
+      message: shellStatus.line,
+    };
+  } else if (input.isError) {
     const rawMessage =
       presentation.output?.text.slice(0, 240).replace(/\s+/g, ' ').trim() || 'Tool failed';
     toolWasCancelled = looksLikeCancelledToolOutput(rawMessage);

@@ -2,6 +2,7 @@ import type { AgentEvent, ToolPresentation } from '@piwin/contracts';
 import {
   boundToolOutput,
   buildToolPresentation,
+  parseShellStatusLine,
   resolvePresentedToolInvocation,
 } from './tool-presentation.js';
 import {
@@ -122,6 +123,16 @@ export function mapToolExecutionEndEvent(
     ...(healthFields.sensitivity !== undefined ? { sensitivity: healthFields.sensitivity } : {}),
     ...(truncation !== undefined ? { truncation } : {}),
   });
+  // Pi's bash reports no exit code: a clean finish is 0, a failure carries it
+  // in its trailing status line.
+  if (presentation.exitCode === undefined && presentation.kind === 'shell') {
+    const status = isError && outputText !== undefined ? parseShellStatusLine(outputText) : null;
+    if (!isError) {
+      presentation.exitCode = 0;
+    } else if (status?.kind === 'exit') {
+      presentation.exitCode = status.code;
+    }
+  }
   const attachments = extractToolResultAttachments(result?.details ?? event.details);
   const responseMessageId = resolveResponseMessageId(
     event,
