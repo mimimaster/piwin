@@ -168,29 +168,34 @@ function selectTranscriptWindowMessages(
   const selected = new Map<string, TranscriptWindowEntry>();
   const truncatedMessageIds: string[] = [];
   let messageBytes = 2;
-  const add = (entry: TranscriptWindowEntry, force = false): void => {
-    if (selected.has(entry.message.id)) return;
+  // Returns false when the entry does not fit. Callers stop there: skipping
+  // one oversized message and taking the smaller ones beyond it leaves a hole
+  // the client cannot see (it treats the window as contiguous) and no later
+  // page ever fills.
+  const add = (entry: TranscriptWindowEntry, force = false): boolean => {
+    if (selected.has(entry.message.id)) return true;
     const delimiterBytes = selected.size === 0 ? 0 : 1;
     let candidate = entry.message;
     let encodedBytes = serializedMessageBytes(candidate);
     if (messageBytes + delimiterBytes + encodedBytes > maximumBytes) {
-      if (!force && selected.size > 0) return;
+      if (!force && selected.size > 0) return false;
       candidate = clipOversizedMessage(entry.message, maximumBytes - 2);
       encodedBytes = serializedMessageBytes(candidate);
       truncatedMessageIds.push(entry.message.id);
     }
     selected.set(entry.message.id, { ...entry, message: candidate });
     messageBytes += delimiterBytes + encodedBytes;
+    return true;
   };
 
   add(anchor, true);
   for (let index = anchorIndex + 1; index < entries.length; index += 1) {
     const entry = entries[index];
-    if (entry) add(entry);
+    if (entry && !add(entry)) break;
   }
   for (let index = anchorIndex - 1; index >= 0; index -= 1) {
     const entry = entries[index];
-    if (entry) add(entry);
+    if (entry && !add(entry)) break;
   }
   const selectedEntries = [...selected.values()].sort(
     (left, right) => left.sequence - right.sequence,

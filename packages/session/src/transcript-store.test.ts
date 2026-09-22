@@ -1274,6 +1274,42 @@ describe('SessionTranscriptStore', () => {
     store.close();
   });
 
+  it('keeps a byte-capped window contiguous instead of skipping an oversized message', async () => {
+    const { store } = await openStore('transcript-window-contiguous');
+    for (let index = 0; index < 12; index += 1) {
+      await store.appendMessage(
+        messageInput({
+          id: `message-${index}`,
+          runtimeGenerationId: 'gen-window',
+          backendMessageId: `message-${index}`,
+          role: index % 2 === 0 ? 'user' : 'assistant',
+          // message-6 is a long delivery report that no longer fits once the
+          // newer ones are in; the older short ones would still fit.
+          text: index === 6 ? `report ${'长'.repeat(20_000)}` : `message ${index}`,
+        }),
+      );
+    }
+    const result = await store.transcriptWindow({
+      sessionId: 'session-transcript-window-contiguous',
+      anchorMessageId: 'message-11',
+      beforeItems: 11,
+      afterItems: 0,
+      maximumBytes: 32 * 1024,
+    });
+    expect(result.status).toBe('window');
+    if (result.status === 'window') {
+      expect(result.messages.map((message) => message.id)).toEqual([
+        'message-7',
+        'message-8',
+        'message-9',
+        'message-10',
+        'message-11',
+      ]);
+      expect(result.window.startIndex).toBe(7);
+    }
+    store.close();
+  });
+
   it('rejects operations after close', async () => {
     const { store } = await openStore('closed');
     store.close();
