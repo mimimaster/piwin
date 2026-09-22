@@ -15,6 +15,7 @@ import type { RunInterventionStatus } from './run-intervention.js';
 import type { ReplyWriterAttribution } from './reply-writer.js';
 import type { AgentFailure } from './agent-failure.js';
 import type { AgentPromptStopReason } from './agent-prompt-outcome.js';
+import type { ExecutionRunRecord } from './run.js';
 
 /**
  * Reserved generation namespace for legacy transcript rows (ADR 0040 §9).
@@ -161,6 +162,8 @@ export type SessionResumeData = {
   sessionId: string;
   /** True when a live host handle is bound and can accept prompts. */
   live: boolean;
+  /** Active foreground turn at resume time, used to reconcile run chrome without flicker. */
+  activeRun?: ExecutionRunRecord;
   /** Bounded newest transcript page; never the complete durable transcript. */
   messages: SessionTranscriptMessage[];
   /** Present for page-aware Hosts; absent on legacy resume responses. */

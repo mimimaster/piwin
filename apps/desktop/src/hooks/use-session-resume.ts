@@ -257,6 +257,9 @@ export function useSessionResume(input: {
       const data = resumed.data as SessionResumeData & {
         contextUsage?: import('@piwin/contracts').ContextUsageSnapshot;
       };
+      if (data.activeRun) {
+        dispatch({ type: 'run/updated', run: data.activeRun });
+      }
       const resumedProjectPath =
         data.scope?.kind === 'project'
           ? data.scope.projectPath

@@ -7,7 +7,7 @@ import { groupSessionsByRecency } from './session-groups.js';
 import type { SessionListScopeState } from './session-list-scope';
 import { sessionScopeKey } from './session-scope-key';
 import {
-  sessionRowHasLiveActivity,
+  sessionRowHasOrderingActivity,
   type SessionRowRunPhase,
 } from './session-row-working';
 import {
@@ -794,7 +794,7 @@ function sessionIsLiveActivity(
     | 'waitingPermissionSessionIds'
   >,
 ): boolean {
-  return sessionRowHasLiveActivity({
+  return sessionRowHasOrderingActivity({
     sessionId,
     isDraft: false,
     activeSessionId: input.revealSessionId ?? null,

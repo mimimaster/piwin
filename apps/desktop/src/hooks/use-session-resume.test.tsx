@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HostCommand, HostResponse, ModelRef } from '@piwin/contracts';
+import type { ExecutionRunRecord, HostCommand, HostResponse, ModelRef } from '@piwin/contracts';
 import { createInitialChatUiState, type ChatUiAction, type ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
 import {
@@ -319,6 +319,45 @@ describe('useSessionResume continue-in-project', () => {
         sessionId: continuedId,
       }),
     );
+  });
+
+  it('restores an active run before loading the resumed transcript', async () => {
+    const activeRun: ExecutionRunRecord = {
+      runId: 'run-active',
+      kind: 'session-turn',
+      status: 'running',
+      rootRunId: 'run-active',
+      sessionId: continuedId,
+      phase: 'streaming',
+    };
+    const hostClient = liveHost(async (command) => {
+      if (command.type === 'project/open') {
+        return ok(command, { path: projectPath, trusted: true, trust: 'trusted' });
+      }
+      if (command.type === 'session/resume') {
+        return ok(command, { ...projectResumeData(continuedId), activeRun });
+      }
+      if (command.type === 'session/queued-turn-list') {
+        return ok(command, { queueRevision: 0, queuedTurns: [] });
+      }
+      if (command.type === 'session/list-children') {
+        return ok(command, { sessions: [], invocations: [] });
+      }
+      return ok(command);
+    });
+    const { latest, dispatch } = renderContinueHook({ hostClient });
+
+    await act(async () => {
+      await latest().handleResumeSession(continuedId, {
+        scope: { kind: 'project', projectPath },
+      });
+    });
+
+    const actions = dispatch.mock.calls.map((call) => call[0] as ChatUiAction);
+    const runIndex = actions.findIndex((action) => action.type === 'run/updated');
+    const messagesIndex = actions.findIndex((action) => action.type === 'session/load-messages');
+    expect(actions[runIndex]).toEqual({ type: 'run/updated', run: activeRun });
+    expect(runIndex).toBeLessThan(messagesIndex);
   });
 
   it('selects the session before project activation and does not wait on list hydrate', async () => {

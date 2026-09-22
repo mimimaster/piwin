@@ -536,9 +536,11 @@ export async function handleSessionLiveCommand(
       const restoredUsage =
         context.sessionContextCoordinator?.projectLegacyUsage(contextSnapshot) ??
         (await context.loadSessionUsage(command.sessionId));
+      const activeRun = context.getForegroundRun(command.sessionId);
       const data: SessionResumeData = {
         sessionId: command.sessionId,
         live,
+        ...(activeRun ? { activeRun } : {}),
         messages: await bindOrphanGeneratedMediaToStore({
           store,
           sessionMediaDir: getPiwinSessionMediaDir(rootDir, command.sessionId),

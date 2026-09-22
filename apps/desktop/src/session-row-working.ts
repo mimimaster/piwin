@@ -25,6 +25,26 @@ export function sessionRowIsWorking(input: {
  * indicator. Used by the row view and by recency sort so in-progress
  * sessions stay at the top of the project list while they run.
  */
+export function sessionRowHasOrderingActivity(input: {
+  sessionId: string;
+  isDraft?: boolean;
+  activeSessionId: string | null;
+  runPhase: SessionRowRunPhase;
+  workingSessionIds?: Record<string, true> | undefined;
+  backendServiceSessionIds?: Record<string, true> | undefined;
+  waitingPermissionSessionIds?: Record<string, true> | undefined;
+}): boolean {
+  if (input.isDraft === true) {
+    return false;
+  }
+  // Selection temporarily resets the foreground run projection while resume
+  // reconciles. The global run marker must keep the row in the same sort slot.
+  if (input.workingSessionIds != null && input.sessionId in input.workingSessionIds) {
+    return true;
+  }
+  return sessionRowHasLiveActivity(input);
+}
+
 export function sessionRowHasLiveActivity(input: {
   sessionId: string;
   isDraft?: boolean;

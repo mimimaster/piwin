@@ -964,6 +964,35 @@ describe('buildSidebarTreeRows', () => {
     expect(ids).not.toContain('recent-5');
   });
 
+  it('keeps multiple running sessions in place when one becomes the active session', () => {
+    const projectSessions = [
+      session('running-newer', 'Running newer', { updatedAt: '2026-08-12T00:00:00.000Z' }),
+      session('running-older', 'Running older', { updatedAt: '2026-08-11T00:00:00.000Z' }),
+      session('idle-active', 'Idle active', { updatedAt: '2026-08-13T00:00:00.000Z' }),
+    ];
+    const input = {
+      recentProjects: [{ path: '/a' }],
+      projectSessionsByPath: { '/a': projectSessions },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated' as const,
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: false,
+      collapsedProjects: { '/a': false },
+      sessionListScopes: createSessionListScopeState(),
+      workingSessionIds: { 'running-newer': true, 'running-older': true } as Record<string, true>,
+      runPhase: 'idle' as const,
+    };
+    const before = buildSidebarTreeRows({ ...input, revealSessionId: 'idle-active' }).flatMap(
+      (row) => (row.kind === 'session' ? [row.session.id] : []),
+    );
+    const after = buildSidebarTreeRows({ ...input, revealSessionId: 'running-newer' }).flatMap(
+      (row) => (row.kind === 'session' ? [row.session.id] : []),
+    );
+
+    expect(after).toEqual(before);
+  });
+
   it('does not float live-activity sessions when sorting alphabetically', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [{ path: '/a' }],

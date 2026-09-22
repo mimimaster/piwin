@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { sessionRowHasLiveActivity, sessionRowIsWorking } from './session-row-working';
+import {
+  sessionRowHasLiveActivity,
+  sessionRowHasOrderingActivity,
+  sessionRowIsWorking,
+} from './session-row-working';
 
 const base = {
   sessionId: 's1',
@@ -107,3 +111,15 @@ describe('sessionRowHasLiveActivity', () => {
   });
 });
 
+describe('sessionRowHasOrderingActivity', () => {
+  it('keeps a selected running session in its live sort bucket during resume', () => {
+    expect(
+      sessionRowHasOrderingActivity({
+        sessionId: 's1',
+        activeSessionId: 's1',
+        runPhase: 'idle',
+        workingSessionIds: { s1: true },
+      }),
+    ).toBe(true);
+  });
+});
