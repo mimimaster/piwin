@@ -54,6 +54,19 @@ export const ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE = 'piwin-artifact:measure-requ
 export const ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE = 'piwin-artifact:stream-update' as const;
 /** User-intent actions from artifact UI → product (strict whitelist). */
 export const ARTIFACT_BRIDGE_ACTION_TYPE = 'piwin-artifact:action' as const;
+/**
+ * Script failures inside the sandbox → parent, so a broken artifact can say so
+ * instead of showing whatever fallback markup its author left on screen. The
+ * message is diagnostic only: it grants the sandboxed document no capability.
+ */
+export const ARTIFACT_BRIDGE_ERROR_TYPE = 'piwin-artifact:error' as const;
+/** Clipped length for any error string crossing the sandbox boundary. */
+export const ARTIFACT_ERROR_MESSAGE_MAX_CHARS = 400;
+/**
+ * Reports one frame may send. A broken animation loop throws every frame, so
+ * the budget keeps a bad artifact from flooding the parent.
+ */
+export const ARTIFACT_ERROR_REPORT_BUDGET = 5;
 
 /**
  * Iframe-whitelist action names. Extend deliberately — every entry is a

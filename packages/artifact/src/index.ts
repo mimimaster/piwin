@@ -14,6 +14,7 @@ export {
   ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   ARTIFACT_BRIDGE_ACTION_TYPE,
+  ARTIFACT_BRIDGE_ERROR_TYPE,
   COMPOSER_PROPOSE_TEXT_ACTION,
 } from './constants.js';
 
@@ -24,6 +25,7 @@ export type {
   ArtifactDocumentKind,
   ArtifactThemeVariables,
   ArtifactActionMessage,
+  ArtifactErrorMessage,
   ComposerProposeTextActionPayload,
   ArtifactFrameMode,
   ArtifactCapabilityReport,
@@ -35,6 +37,7 @@ export { createDefaultArtifactIframePolicy } from './iframe-policy.js';
 
 export { indexArtifactFences, createArtifactFenceRecord } from './fence-index.js';
 export type { ArtifactFenceRecord } from './fence-index.js';
+export { isProjectableStreamingFence } from './fence-syntax.js';
 
 export { projectArtifactMarkdownForRender } from './markdown-projection.js';
 
@@ -43,6 +46,7 @@ export { createDefaultArtifactTheme } from './theme.js';
 export {
   parseArtifactBridgeMessage,
   parseArtifactActionMessage,
+  parseArtifactErrorMessage,
   parseArtifactRenderSnapshot,
   readArtifactPostSeq,
 } from './bridge-protocol.js';

@@ -553,7 +553,7 @@ describe('theme identity and migration', () => {
     expect(resolveBuiltinAppearance(PIWIN_INKSTONE_THEME_ID, 'dark')).toBe(
       PIWIN_APPEARANCE_INKSTONE_INK,
     );
-    expect(resolveBuiltinAppearance(undefined)).toBe(PIWIN_APPEARANCE_INKSTONE_PAPER);
+    expect(resolveBuiltinAppearance(undefined)).toBe(PIWIN_APPEARANCE_INKSTONE_INK);
   });
 
   it('recognises built-in ids including retired ones', () => {

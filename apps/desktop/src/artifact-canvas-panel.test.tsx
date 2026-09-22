@@ -195,6 +195,20 @@ describe('ArtifactCanvasPanel', () => {
     spy.mockRestore();
   });
 
+  it('shows source and an incomplete marker without rendering a settled open Canvas fence', () => {
+    const spy = vi.spyOn(artifact, 'materializeArtifact');
+    const { container, root } = renderPanel({
+      activeTarget: makeTarget({ source: '<div>unfinished', sourceIncomplete: true }),
+    });
+    instances.push({ container, root });
+
+    expect(container.querySelector('[data-testid="artifact-source-incomplete"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')?.textContent).toContain('unfinished');
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it('renders the active target through ArtifactFrame in canvas presentation', async () => {
     const { container, root } = renderPanel({ activeTarget: makeTarget() });
     instances.push({ container, root });

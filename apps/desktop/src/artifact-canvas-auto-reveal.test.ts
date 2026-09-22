@@ -123,6 +123,22 @@ describe('Artifact Canvas automatic reveal', () => {
     expect(repeated.action).toBeNull();
   });
 
+  it('replaces a live open Canvas fence with an incomplete-source state on completion', () => {
+    const streaming = step(createArtifactCanvasAutoRevealState(), {
+      status: 'streaming',
+      text: OPEN_CANVAS_MARKDOWN,
+    });
+    const completed = step(streaming.state, {
+      status: 'done',
+      text: OPEN_CANVAS_MARKDOWN,
+    });
+
+    expect(completed.action).toBe('update');
+    expect(completed.target?.id).toBe(streaming.target?.id);
+    expect(completed.target?.streaming).toBeUndefined();
+    expect(completed.target?.sourceIncomplete).toBe(true);
+  });
+
   it('does not reveal an Inline Artifact while live or after completion', () => {
     const streaming = step(createArtifactCanvasAutoRevealState(), {
       status: 'streaming',

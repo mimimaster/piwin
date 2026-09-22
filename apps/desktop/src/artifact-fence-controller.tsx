@@ -3,12 +3,14 @@ import {
   analyzeArtifactFence,
   createArtifactFenceRecord,
   createDefaultArtifactTheme,
+  isProjectableStreamingFence,
   materializeArtifact,
   type ArtifactRenderPlan,
 } from '@piwin/artifact';
 import { Button } from '@piwin/ui-kit';
 import { ArtifactCanvasLauncher } from './artifact-canvas-launcher.js';
 import { ArtifactInlinePreview } from './artifact-inline-preview.js';
+import { artifactIncompleteCopy } from './artifact-incomplete-copy.js';
 import { createArtifactCanvasTarget } from './artifact-canvas-model.js';
 import { isShellLanguage, SourceCodeBlock } from './markdown-code-block.js';
 import type { MarkdownCodeFenceProps } from './markdown-code-fence.js';
@@ -39,6 +41,11 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   // working for isolated renders (Flashcards, Doc Cards, tests).
   const inlineEnabled = props.artifactInlineEnabled;
   const canvasEnabled = props.artifactCanvasEnabled ?? props.artifactInlineEnabled;
+  const settledIncompleteArtifact =
+    fenceOpen &&
+    !streamMode &&
+    (inlineEnabled || canvasEnabled) &&
+    isProjectableStreamingFence(props.fenceInfo);
   const boundFenceIndex = props.fenceIndex;
   // Freeze fence identity on first mount. Source growth must not remount an iframe.
   const stickyFenceIdRef = useRef<string | null>(null);
@@ -64,7 +71,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
           info: props.fenceInfo,
           source: props.source,
           ordinal: boundFenceIndex,
-          open: liveFence,
+          open: fenceOpen,
         }),
         {
           id: stickyFenceId,
@@ -89,6 +96,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     props.fenceInfo,
     props.source,
     liveFence,
+    fenceOpen,
     props.htmlUiModeEnabled,
     props.artifactMaxBytes,
     props.artifactBlockExternalScripts,
@@ -103,6 +111,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     inlineEnabled &&
     artifactPreviewOpen &&
     mountsInline &&
+    !settledIncompleteArtifact &&
     !(liveFence && artifactCodeFirst);
 
   const mediaDataUrls = useArtifactSessionMediaDataUrls({
@@ -155,6 +164,17 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
       {children}
     </div>
   );
+
+  if (settledIncompleteArtifact) {
+    return (
+      <div className="artifact-with-source" data-artifact-id={stickyFenceId ?? undefined}>
+        <SourceCodeBlock language={props.language} source={props.source} isShell={false} />
+        <p className="artifact-source-incomplete" data-testid="artifact-source-incomplete" role="status">
+          {artifactIncompleteCopy(props.locale)}
+        </p>
+      </div>
+    );
+  }
 
   if (boundFenceIndex === null || stickyFenceId === null || analysis === null) {
     return (

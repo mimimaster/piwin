@@ -186,6 +186,40 @@ describe('ArtifactFrame chrome', () => {
     expect(container.textContent).not.toContain('42 bytes');
   });
 
+  it('shows an artifact script failure from its iframe and ignores a foreign sender', async () => {
+    const decision = makeRenderPlan();
+    const { container, root } = renderFrame(decision, 'inline', undefined, 'zh-CN');
+    instances.push({ container, root });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    const error = {
+      type: 'piwin-artifact:error',
+      channelId: decision.intent.descriptor.id,
+      kind: 'script',
+      name: 'SyntaxError',
+      message: "Identifier 'TEA' has already been declared",
+      line: 155,
+    };
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', { source: window, data: error }));
+    });
+    expect(container.querySelector('[data-testid="artifact-script-error"]')).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', { source: iframe?.contentWindow ?? null, data: error }),
+      );
+    });
+    expect(container.querySelector('[data-testid="artifact-script-error"]')?.textContent).toContain(
+      "SyntaxError: Identifier 'TEA' has already been declared",
+    );
+  });
+
   it('lets an Inline frame grow past the legacy 900px scrollport', async () => {
     const decision = makeRenderPlan();
     const { container, root } = renderFrame(decision);

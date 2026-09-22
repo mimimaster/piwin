@@ -374,6 +374,19 @@
   line-height: 1.45;
 }
 
+/* The artifact's own script failed. A diagnostic, not a product error: keep it
+   quiet and legible rather than alarming, and let the long message wrap. */
+.artifact-script-error,
+.artifact-source-incomplete {
+  margin: var(--s-2) 0 0;
+  padding: 0 var(--artifact-flyout-reserve, 0) 0 0;
+  color: var(--coral);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .artifact-static-overflow-shell {
   display: flex;
   flex-direction: column;

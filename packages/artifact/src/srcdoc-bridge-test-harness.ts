@@ -39,6 +39,8 @@ export function runBridgeSession(
   } = {},
 ): {
   messages: SizeMessage[];
+  /** Every parent post in order, for channels other than the size stream. */
+  postedMessages: unknown[];
   nativeMessages: SizeMessage[];
   documentElement: { attributes: Record<string, string> };
   observerCount: () => number;
@@ -53,14 +55,19 @@ export function runBridgeSession(
   dispatchRenderCommand: (data: unknown) => void;
   attachStreamRoot: (nextRoot: MeasuredRoot) => void;
   flushDocumentReady: () => void;
+  /** Fire a non-`message` window event (`error`, `unhandledrejection`). */
+  dispatchWindowEvent: (type: string, event: unknown) => void;
 } {
   const messages: SizeMessage[] = [];
+  /** Every parent post, not just the size stream. */
+  const postedMessages: unknown[] = [];
   const nativeMessages: SizeMessage[] = [];
   const resizeCallbacks = new Set<() => void>();
   const mutationCallbacks = new Set<() => void>();
   const animationCallbacks: Array<() => void> = [];
   const timeoutCallbacks: Array<() => void> = [];
   const messageListeners: Array<(event: { data: unknown }) => void> = [];
+  const windowListeners = new Map<string, Array<(event: unknown) => void>>();
   const documentListeners = new Map<string, Array<() => void>>();
   const documentElement = {
     attributes: {} as Record<string, string>,
@@ -76,7 +83,13 @@ export function runBridgeSession(
     },
     dispatchEvent: () => undefined,
     addEventListener: (type: string, listener: (event: { data: unknown }) => void) => {
-      if (type === 'message') messageListeners.push(listener);
+      if (type === 'message') {
+        messageListeners.push(listener);
+        return;
+      }
+      const existing = windowListeners.get(type) ?? [];
+      existing.push(listener as (event: unknown) => void);
+      windowListeners.set(type, existing);
     },
     removeEventListener: (type: string, listener: (event: { data: unknown }) => void) => {
       if (type !== 'message') return;
@@ -177,6 +190,7 @@ export function runBridgeSession(
   };
   const parentObject = {
     postMessage: (data: unknown): void => {
+      postedMessages.push(data);
       if (isSizeMessage(data)) messages.push(data);
     },
   };
@@ -226,6 +240,7 @@ export function runBridgeSession(
 
   return {
     messages,
+    postedMessages,
     nativeMessages,
     documentElement,
     observerCount: () => resizeCallbacks.size,
@@ -251,6 +266,9 @@ export function runBridgeSession(
     dispatchRenderCommand: (data: unknown): void => {
       for (const listener of [...messageListeners]) listener({ data });
       flushAnimationFrames();
+    },
+    dispatchWindowEvent: (type: string, event: unknown): void => {
+      for (const listener of [...(windowListeners.get(type) ?? [])]) listener(event);
     },
     attachStreamRoot: (nextRoot: MeasuredRoot): void => {
       fragmentRoot = wrapStreamRoot(nextRoot);

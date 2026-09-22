@@ -47,6 +47,13 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   cannot suppress browser delivery. A stream height is retained during document
   replacement, but only the replacement document's report confirms readiness;
   a missing report enables the scrollable recovery viewport.
+- **Script diagnostics and incomplete source (2026-09-22):** the sandbox
+  bootstrap reports bounded `error` and `unhandledrejection` diagnostics to
+  Desktop before authored scripts run. Desktop accepts reports only from the
+  matching iframe/channel and shows the first failure as text beside the
+  preview. A settled artifact fence without a closing marker stays as source
+  with an incomplete-source label; it offers neither an Inline preview nor a
+  Canvas launcher. Streaming previews continue while the fence is still open.
 - **Session media (2026-09-16):** vault images bind as size-capped `data:`
   URLs, never `blob:`. The sandbox iframe has an opaque origin
   (`allow-scripts`, no `allow-same-origin`), so a host-origin blob URL errors

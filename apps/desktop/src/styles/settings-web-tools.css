@@ -492,9 +492,7 @@ button.web-cli-example:hover:not(:disabled) {
   margin-top: var(--s-6);
   padding: var(--s-4) var(--s-6);
   border-top: 1px solid var(--line-1);
-  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--surface-1);
   display: flex;
   align-items: center;
   gap: var(--s-6);

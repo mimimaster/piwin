@@ -28,6 +28,7 @@ import {
   ConversationTurnIdentityHeader,
 } from './conversation-message-header';
 import { resolveConversationTurnChrome } from './conversation-turn-chrome';
+import { resolveHiddenLifecyclePlaceholderIds } from './lifecycle-placeholder.js';
 import { projectTurnWorkDisclosure } from './turn-work-disclosure-model.js';
 import { TurnWorkDisclosure } from './turn-work-disclosure.js';
 import { TurnWorkDetails } from './turn-work-details.js';
@@ -150,6 +151,15 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         : buildExploreFlowRoles(chatMessages, { streamActive: props.streaming === true }),
     [chatMessages, props.isConversationSession, props.streaming],
   );
+  // Messages whose tools already render inside an explore capsule. The
+  // turn-level fold skips a chain that group has covered on its own.
+  const exploreFoldedMessageIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [messageId, role] of exploreRolesByMessageId) {
+      if (role.kind === 'anchor' || role.kind === 'member') ids.add(messageId);
+    }
+    return ids;
+  }, [exploreRolesByMessageId]);
   const precedingUser = useMemo(() => {
     for (let i = chatMessages.length - 1; i >= 0; i--) {
       const msg = chatMessages[i];
@@ -260,6 +270,14 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   permissionPending: Boolean(props.permissionPrompt),
                 })
               : null;
+          // Empty `message/start` rows anywhere in a live turn, not just the
+          // one the model-wait footer stands in for.
+          const hiddenPlaceholderIds = resolveHiddenLifecyclePlaceholderIds({
+            messages: turnMessages,
+            streaming: props.streaming === true,
+            showThinking: props.showThinking !== false,
+            permissionPending: Boolean(props.permissionPrompt),
+          });
           const currentTurnStreaming =
             turn.id === currentResponseTurnId && props.streaming === true;
           const turnModel =
@@ -281,9 +299,14 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
             runRecordsById: props.runRecordsById ?? {},
             activeRunId: props.activeRunId ?? null,
             currentTurnStreaming,
+            permissionPending: Boolean(props.permissionPrompt),
+            exploreFoldedMessageIds,
           });
           const workDisclosureKey = `${props.sessionId ?? 'session'}:${turn.id}`;
-          const workDisclosureDefaultOpen = props.workDetailsExpanded === 'always';
+          // 详细 means detailed: nothing the agent did sits behind a summary
+          // the user has to click. An explicit per-turn toggle still wins.
+          const workDisclosureDefaultOpen =
+            props.workDetailsExpanded === 'always' || props.toolDensity === 'detailed';
           const workDisclosureOpen =
             workDisclosureOpenByTurnId[workDisclosureKey] ?? workDisclosureDefaultOpen;
           const identityItemIndex = conversationChrome?.identityMessageId
@@ -324,11 +347,18 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           const renderedAssistantItems: ReactElement[] = [];
 
           turn.items.forEach(({ message, messageIndex }, itemIndex) => {
-            if (modelWaitTail?.placeholderMessageIds.includes(message.id)) {
-              return;
-            }
             const planDisplay =
               turn.lastAssistantMessageId === message.id ? turnPlanDisplay : null;
+            // A placeholder still owns its row when the turn hung chrome on it:
+            // a plan gate, or the Conversation identity header.
+            if (
+              (modelWaitTail?.placeholderMessageIds.includes(message.id) === true ||
+                hiddenPlaceholderIds.has(message.id)) &&
+              !planDisplay &&
+              conversationChrome?.identityMessageId !== message.id
+            ) {
+              return;
+            }
             const isDisclosureWorkItem =
               workDisclosureProjection !== null &&
               itemIndex >= workDisclosureProjection.startIndex &&

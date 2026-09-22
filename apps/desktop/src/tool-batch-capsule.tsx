@@ -392,7 +392,9 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
               <ToolCallCard
                 key={tool.toolCallId}
                 tool={tool}
-                density="compact"
+                // Honour the setting literally. Pinning nested rows to
+                // `compact` meant 详细 never actually showed more than 平衡.
+                density={props.density ?? 'compact'}
                 expandWhileRunning={false}
                 inkLineSubrow
                 {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}

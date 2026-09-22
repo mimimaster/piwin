@@ -6,6 +6,7 @@ import {
   advanceArtifactFrameMode,
   estimateSvgFenceHeight,
   type ArtifactActionMessage,
+  type ArtifactErrorMessage,
   type ArtifactFrameMode,
   type ArtifactRenderPlan,
 } from '@piwin/artifact';
@@ -20,6 +21,7 @@ import {
   type ArtifactSandboxView,
 } from './artifact-frame-stream.js';
 import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
+import { artifactScriptErrorCopy } from './artifact-script-error-copy.js';
 import { useTranscriptScrollPort } from './transcript-scroll-port.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
@@ -152,6 +154,15 @@ export function ArtifactSandboxFrame(props: {
   const scrollPort = useTranscriptScrollPort();
   const bootstrapHeight = resolveBootstrapHeight(props.plan, props.presentation, frameWidth);
   const measureHeight = props.presentation === 'inline' && plannedFrameMode === 'inline-flow';
+  // First script failure of the current document. A broken artifact used to
+  // show whatever placeholder its author left behind ("enable JavaScript"),
+  // which reads as a platform block rather than the author's own bug.
+  const [scriptError, setScriptError] = useState<ArtifactErrorMessage | null>(null);
+  const scriptErrorDocumentRef = useRef<string | null>(null);
+  if (scriptErrorDocumentRef.current !== document.documentKey) {
+    scriptErrorDocumentRef.current = document.documentKey;
+    if (scriptError !== null) setScriptError(null);
+  }
   const bridge = useArtifactFrameBridge({
     channelId,
     documentKey: document.documentKey,
@@ -165,6 +176,7 @@ export function ArtifactSandboxFrame(props: {
     ...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {}),
     ...(props.onComposerProposal ? { onComposerProposal: props.onComposerProposal } : {}),
     ...(scrollPort ? { onContentGrew: scrollPort.notifyContentGrew } : {}),
+    onScriptError: (error) => setScriptError((current) => current ?? error),
   });
   const appliedFrameMode = bridge.overflowsInlineFlow
     ? advanceArtifactFrameMode(plannedFrameMode, 'inline-overflow')
@@ -252,6 +264,19 @@ export function ArtifactSandboxFrame(props: {
               aria-live="polite"
             >
               {artifactOverflowHintCopy(props.locale)}
+            </p>
+          ) : null}
+          {/* The artifact's own script failed. Say so plainly: otherwise the
+              only thing on screen is whatever fallback the author left, which
+              users read as the platform blocking JavaScript. */}
+          {scriptError ? (
+            <p
+              className="artifact-script-error"
+              data-testid="artifact-script-error"
+              role="status"
+              aria-live="polite"
+            >
+              {artifactScriptErrorCopy(scriptError, props.locale)}
             </p>
           ) : null}
           {/* Mid-stream the frame is still growing; the recovery copy only helps

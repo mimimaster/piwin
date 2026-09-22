@@ -9,10 +9,12 @@ import {
   clampArtifactHeight,
   parseArtifactActionMessage,
   parseArtifactBridgeMessage,
+  parseArtifactErrorMessage,
   readArtifactPostSeq,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
   type ArtifactActionMessage,
+  type ArtifactErrorMessage,
   type ArtifactFrameMode,
 } from '@piwin/artifact';
 import { subscribeNativeArtifactBridge } from './artifact-native-bridge.js';
@@ -42,6 +44,8 @@ type BridgeInput = {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onComposerProposal?: (payload: { text: string; label?: string }) => void;
   onContentGrew?: () => void;
+  /** A script in the sandbox failed. Diagnostic only — never a capability. */
+  onScriptError?: (error: ArtifactErrorMessage) => void;
 };
 
 function hostOwnsViewport(frameMode: ArtifactFrameMode): boolean {
@@ -197,6 +201,20 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     if (postSeq !== null && postSeq <= lastPostSeqRef.current) {
       return;
     }
+    // A failure report carries no capability, so it is handled before the
+    // action whitelist and needs nothing from it.
+    const scriptError = parseArtifactErrorMessage(data);
+    if (scriptError) {
+      if (!trustedSource || scriptError.channelId !== current.channelId) {
+        return;
+      }
+      if (postSeq !== null) {
+        lastPostSeqRef.current = postSeq;
+      }
+      current.onScriptError?.(scriptError);
+      return;
+    }
+
     const action = parseArtifactActionMessage(data);
     if (action) {
       if (!trustedSource || action.channelId !== current.channelId) {

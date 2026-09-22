@@ -5,14 +5,17 @@
 import { getUtf8ByteSize } from './security.js';
 import {
   ARTIFACT_BRIDGE_ACTION_TYPE,
+  ARTIFACT_BRIDGE_ERROR_TYPE,
   ARTIFACT_BRIDGE_SIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+  ARTIFACT_ERROR_MESSAGE_MAX_CHARS,
   ARTIFACT_FRAME_MODES,
   DEFAULT_MAX_ARTIFACT_BYTES,
 } from './constants.js';
 import type {
   ArtifactActionMessage,
   ArtifactBridgeMessage,
+  ArtifactErrorMessage,
   ArtifactFrameMode,
   ArtifactRenderSnapshot,
 } from './types.js';
@@ -183,5 +186,49 @@ export function parseArtifactActionMessage(data: unknown): ArtifactActionMessage
       text,
       ...(typeof label === 'string' ? { label } : {}),
     },
+  };
+}
+
+function finiteLineNumber(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return undefined;
+  return Math.floor(value);
+}
+
+/**
+ * Parse a script-failure report from the sandbox. Diagnostic only: the payload
+ * is untrusted text, clipped here as well as in the frame so a hostile
+ * document cannot grow the parent's state with one huge string.
+ */
+export function parseArtifactErrorMessage(data: unknown): ArtifactErrorMessage | null {
+  if (!isRecord(data)) return null;
+  if (data['type'] !== ARTIFACT_BRIDGE_ERROR_TYPE) return null;
+
+  const channelId = data['channelId'];
+  if (typeof channelId !== 'string' || channelId.length === 0 || channelId.length > 200) {
+    return null;
+  }
+  const kind = data['kind'];
+  if (kind !== 'script' && kind !== 'rejection') return null;
+  const rawMessage = data['message'];
+  if (typeof rawMessage !== 'string' || rawMessage.trim().length === 0) return null;
+
+  const clip = (value: string): string =>
+    value.length > ARTIFACT_ERROR_MESSAGE_MAX_CHARS
+      ? `${value.slice(0, ARTIFACT_ERROR_MESSAGE_MAX_CHARS)}…`
+      : value;
+  const rawName = data['name'];
+  const line = finiteLineNumber(data['line']);
+  const column = finiteLineNumber(data['column']);
+
+  return {
+    type: ARTIFACT_BRIDGE_ERROR_TYPE,
+    channelId,
+    kind,
+    message: clip(rawMessage),
+    ...(typeof rawName === 'string' && rawName.trim().length > 0
+      ? { name: clip(rawName) }
+      : {}),
+    ...(line !== undefined ? { line } : {}),
+    ...(column !== undefined ? { column } : {}),
   };
 }

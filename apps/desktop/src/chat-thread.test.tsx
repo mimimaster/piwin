@@ -2156,6 +2156,9 @@ describe('ChatThread render isolation (E1)', () => {
               onInspectSubagent={undefined}
               composerCard={composerCard}
               locale="en"
+              // A live turn folds its chain; this test is about which card a
+              // row renders, so keep the fold open.
+              workDetailsExpanded="always"
             />
           </PiwinUiProvider>,
         );
@@ -2392,12 +2395,16 @@ describe('ChatThread render isolation (E1)', () => {
     }
 
     act(() => renderThread('run-thinking-timer', null));
-    let summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');
-    // Live tool state lives on the chain; the header stays the frozen thought.
-    expect(summary?.textContent).toContain('思考过程');
-    expect(summary?.textContent).not.toContain('正在运行');
-    expect(summary?.querySelector('.lamp')).toBeNull();
-    expect(summary?.querySelector('[data-testid="work-fold-elapsed"]')?.textContent).toBe('4s');
+    // The live turn folds its chain behind one header. No tool is running, so
+    // that header must not claim 正在运行 — the run status footer owns run
+    // state, and this fold only summarises work.
+    const liveTrigger = container.querySelector<HTMLElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    expect(liveTrigger).not.toBeNull();
+    expect(liveTrigger?.textContent).not.toContain('正在运行');
+    expect(liveTrigger?.querySelector('.lamp')).toBeNull();
+    expect(liveTrigger?.textContent).not.toContain('1707');
 
     act(() => renderThread(null, 1_707_000));
     const trigger = container.querySelector<HTMLButtonElement>(
@@ -2408,7 +2415,7 @@ describe('ChatThread render isolation (E1)', () => {
     expect(trigger?.textContent).not.toContain('1707');
 
     act(() => trigger?.click());
-    summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');
+    const summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');
     expect(summary?.textContent).toContain('思考过程');
     expect(summary?.querySelector('[data-testid="work-fold-elapsed"]')?.textContent).toBe('4s');
     expect(summary?.textContent).not.toContain('已思考');

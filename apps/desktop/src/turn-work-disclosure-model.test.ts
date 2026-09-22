@@ -87,7 +87,7 @@ describe('projectTurnWorkDisclosure', () => {
     });
   });
 
-  it('keeps the causal rows mounted while the current turn is streaming', () => {
+  it('folds the streaming turn behind a running header', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -104,10 +104,17 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: null,
         currentTurnStreaming: true,
       }),
-    ).toBeNull();
+    ).toEqual({
+      startIndex: 1,
+      endIndex: 1,
+      failureCount: 0,
+      toolCount: 1,
+      live: true,
+      runningToolIndex: 1,
+    });
   });
 
-  it('keeps a completed-looking turn expanded while its Run is still active', () => {
+  it('folds behind a running header while the Run is still active', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -125,10 +132,17 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: 'run-1',
         currentTurnStreaming: false,
       }),
-    ).toBeNull();
+    ).toEqual({
+      startIndex: 1,
+      endIndex: 1,
+      failureCount: 0,
+      toolCount: 1,
+      live: true,
+      runningToolIndex: 1,
+    });
   });
 
-  it('keeps settled process rows mounted while the live tail is still streaming', () => {
+  it('folds the finished process rows and leaves the streaming answer outside', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -152,10 +166,17 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: 'run-1',
         currentTurnStreaming: true,
       }),
-    ).toBeNull();
+    ).toEqual({
+      startIndex: 1,
+      endIndex: 2,
+      failureCount: 0,
+      toolCount: 2,
+      live: true,
+      runningToolIndex: 2,
+    });
   });
 
-  it('keeps earlier tool-loop rows mounted while a later tool is still running', () => {
+  it('names the running tool on the folded header', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -177,7 +198,13 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: 'run-1',
         currentTurnStreaming: true,
       }),
-    ).toBeNull();
+    ).toMatchObject({
+      startIndex: 1,
+      endIndex: 2,
+      live: true,
+      runningToolIndex: 2,
+      runningTool: { toolCallId: 'edit-1' },
+    });
   });
 
   it('does not fold when the only assistant row is still live', () => {
@@ -231,7 +258,7 @@ describe('projectTurnWorkDisclosure', () => {
     ).toBeNull();
   });
 
-  it('keeps process rows mounted when the last assistant is still a process step', () => {
+  it('folds a live tool loop that has produced no answer row yet', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -253,10 +280,17 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: 'run-1',
         currentTurnStreaming: false,
       }),
-    ).toBeNull();
+    ).toEqual({
+      startIndex: 1,
+      endIndex: 2,
+      failureCount: 0,
+      toolCount: 2,
+      live: true,
+      runningToolIndex: 2,
+    });
   });
 
-  it('does not fold when a subagent is still running', () => {
+  it('stops the live fold above a running subagent card', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -287,7 +321,14 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: null,
         currentTurnStreaming: false,
       }),
-    ).toBeNull();
+    ).toEqual({
+      startIndex: 1,
+      endIndex: 1,
+      failureCount: 0,
+      toolCount: 1,
+      live: true,
+      runningToolIndex: 1,
+    });
   });
 
   it('does not fold a toolbox image generation that carries the media', () => {
@@ -369,7 +410,7 @@ describe('projectTurnWorkDisclosure', () => {
     });
   });
 
-  it('does not hide an earlier reply when later process work is still running', () => {
+  it('starts the live fold after an earlier reply instead of hiding it', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -391,7 +432,12 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: 'run-1',
         currentTurnStreaming: true,
       }),
-    ).toBeNull();
+    ).toMatchObject({
+      startIndex: 3,
+      endIndex: 3,
+      live: true,
+      runningTool: { toolCallId: 'read-2' },
+    });
   });
 
   it('does not reuse an earlier answer when later Assistant work has no conclusion', () => {
@@ -464,7 +510,7 @@ describe('projectTurnWorkDisclosure', () => {
     });
   });
 
-  it('keeps mixed last-message tools expanded while the run is still active', () => {
+  it('folds earlier work and leaves the row carrying the answer text outside', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -486,7 +532,14 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: 'run-1',
         currentTurnStreaming: false,
       }),
-    ).toBeNull();
+    ).toEqual({
+      startIndex: 1,
+      endIndex: 1,
+      failureCount: 0,
+      toolCount: 1,
+      live: true,
+      runningToolIndex: 1,
+    });
   });
 
   it('folds a settled process-only turn that never emitted a separate reply', () => {
@@ -572,5 +625,74 @@ describe('projectTurnWorkDisclosure', () => {
         currentTurnStreaming: false,
       }),
     ).toBeNull();
+  });
+
+  it('does not fold a live turn while a permission gate is waiting', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        runId: 'run-1',
+        thinking: 'Inspecting.',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '' }],
+      }),
+      message('work-2', {
+        runId: 'run-1',
+        tools: [{ toolCallId: 'edit-1', toolName: 'edit', status: 'running', output: '' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: 'run-1',
+        currentTurnStreaming: true,
+        permissionPending: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('does not fold a live turn whose work already errored', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        runId: 'run-1',
+        status: 'error',
+        error: 'Tool crashed',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'error', output: 'boom' }],
+      }),
+      message('work-2', {
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-2', toolName: 'read', status: 'running', output: '' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: 'run-1',
+        currentTurnStreaming: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('carries the run start so the folded header can run its own clock', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'running', output: '', runId: 'run-1' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: { 'run-1': { ...completedRun(), endedAt: null } },
+        activeRunId: 'run-1',
+        currentTurnStreaming: true,
+      })?.runningSince,
+    ).toBe(completedRun().startedAt);
   });
 });

@@ -46,6 +46,8 @@ export type ArtifactCanvasTarget = {
    * Omit on completed / launcher targets (`exactOptionalPropertyTypes`).
    */
   streaming?: boolean;
+  /** A settled fence never closed; retain source without materializing a preview. */
+  sourceIncomplete?: boolean;
 };
 
 /**
@@ -72,6 +74,7 @@ export function createArtifactCanvasTarget(input: {
   fenceIndex: number;
   intent: ArtifactRenderIntent;
   streaming?: boolean;
+  sourceIncomplete?: boolean;
 }): ArtifactCanvasTarget {
   const { sessionId, messageId, fenceIndex, intent } = input;
   if (intent.layout !== 'canvas') {
@@ -95,6 +98,7 @@ export function createArtifactCanvasTarget(input: {
     source: descriptor.source,
     intent,
     ...(input.streaming === true ? { streaming: true } : {}),
+    ...(input.sourceIncomplete === true ? { sourceIncomplete: true } : {}),
   };
 }
 
@@ -121,6 +125,7 @@ export function collectArtifactCanvasTargets(input: {
       id: `${input.messageId}-artifact-${fence.ordinal}`,
       htmlUiModeEnabled: true,
       mode,
+      ...(fence.open && !streaming ? { allowIncompleteSource: true } : {}),
       ...(input.maxBytes !== undefined ? { maxBytes: input.maxBytes } : {}),
     });
     if (analysis.kind !== 'intent' || analysis.intent.layout !== 'canvas') {
@@ -133,6 +138,7 @@ export function collectArtifactCanvasTargets(input: {
         fenceIndex: fence.ordinal,
         intent: analysis.intent,
         ...(streaming ? { streaming: true } : {}),
+        ...(fence.open && !streaming ? { sourceIncomplete: true } : {}),
       }),
     );
   }
