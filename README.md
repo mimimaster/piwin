@@ -1,6 +1,6 @@
 <div align="center">
 
-# Piwin (砚 · Planora)
+# Piwin 砚
 
 <p align="center">
   <img src="./apps/desktop/public/app-icon-512.png" alt="Piwin Logo" width="120" height="120" />
@@ -8,9 +8,9 @@
 
 ### 沉静如砚，淬砺如锋
 
-**专为严肃工程打造的私有化智能编程 Agent 工作台与操作系统**
+**面向个人、基于Pi的Coding Agent**
 
-数据 100% 本地私有 · 单一 Host 状态权威 · 0-Token 污染代码检索 · 多子代理物理隔离编排 · 全双工实时语音结对
+本地私有 · 拥抱Pi生态 · 灵活的部署方式 · 自带代码检索工具 · 先进的子代理编排模式 · 全双工实时语音
 
 <p align="center">
   <a href="https://github.com/mimimaster/piwin/releases"><img src="https://img.shields.io/github/v/release/mimimaster/piwin?color=6366f1&label=Release&logo=github" alt="Release" /></a>

@@ -8,13 +8,13 @@ Piwin 采用**前后端分离、单一 Host 权威**的现代化架构。你可�
 
 ## 1. 客户端外壳支持一览
 
-| 客户端形式 | 适用平台 | 运行模式 | 特性亮点 |
-| :--- | :--- | :--- | :--- |
-| **macOS 一体包** | macOS (Apple Silicon 推荐) | 本地内置 Sidecar Host | 免配环境，内置 Node 22、LanceDB 向量引擎与 Tauri 2 桌面端 |
-| **Windows 一体包** | Windows 10/11 | 本地内置 Sidecar Host | 双击运行，开箱即用 |
-| **Web 远程端** | 任意现代浏览器 (Chrome/Safari) | 远程直连 Host | 自适应布局，结合 Tailscale 实现随时随地远程访问 |
-| **iOS 移动端** | iPhone / iPad | 移动端轻量壳子直连 Host | 随身查看长程任务执行状态与下发需求 |
-| **CLI 命令行** | macOS / Linux / Windows 终端 | 交互式终端工具 | 适合无 GUI 的纯终端开发与自动化脚本 |
+| 客户端形式           | 适用平台                       | 运行模式              | 特性亮点                                      |
+| :-------------- | :------------------------- | :---------------- | :---------------------------------------- |
+| **macOS 一体包**   | macOS (Apple Silicon 推荐)   | 本地内置 Sidecar Host | 免配环境，内置 Node 22、LanceDB 向量引擎与 Tauri 2 桌面端 |
+| **Windows 一体包** | Windows 10/11              | 本地内置 Sidecar Host | 双击运行，开箱即用                                 |
+| **Web 远程端**     | 任意现代浏览器 (Chrome/Safari)    | 远程直连 Host         | 自适应布局，结合 Tailscale 实现随时随地远程访问             |
+| **iOS 移动端**     | iPhone / iPad              | 移动端轻量壳子直连 Host    | 随身查看长程任务执行状态与下发需求                         |
+
 
 ---
 
@@ -26,7 +26,6 @@ Piwin 采用**前后端分离、单一 Host 权威**的现代化架构。你可�
 2. 下载最新发布包：
    - macOS 用户下载：`piwinwin_<version>_aarch64.dmg`（双击打开后将图标拖入 Applications 文件夹）；
    - Windows 用户下载对应安装压缩包；
-3. **初次启动提示**：由于未购买商业开发者签名证书，macOS 首次打开若提示“无法验证开发者”，前往「系统设置 ➔ 隐私与安全性」点击「仍要打开」即可正常运行。
 
 ---
 

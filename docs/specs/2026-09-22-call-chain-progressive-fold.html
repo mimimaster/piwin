@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="zh-CN" data-theme-id="piwin-inkstone-paper" data-density="comfortable">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>调用链渐进折叠 · 工作胶囊原型</title>
+    <style>
+      /* ══════════════════════════════════════════════════════════════
+         1. 现有 token —— 逐字取自 styles/inkstone/tokens.css
+         ══════════════════════════════════════════════════════════════ */
+      html[data-theme-id='piwin-inkstone-paper'] {
+        color-scheme: light;
+        --void:#e6e1d7; --s1:#f0ece4; --s2:#f8f6f0; --s3:#fffdf8; --s4:#fff;
+        --t1:#1d1b17; --t2:#5a554d; --t3:#726b61; --t4:#8f887d;
+        --l1:rgba(29,27,23,.06); --l2:rgba(29,27,23,.11); --l3:rgba(29,27,23,.2);
+        --zhu:#b03a24; --zhu-wash:rgba(198,65,42,.1);
+        --lamp:#b8801f; --lamp-wash:rgba(184,128,31,.14);
+        --pine:#3d7c5e; --crimson:#9c2e3d; --azure:#3a7797; --azure-wash:rgba(58,119,151,.12);
+        --code:#efece4;
+        --sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);
+        --sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);
+      }
+      html[data-theme-id='piwin-inkstone-ink'] {
+        color-scheme: dark;
+        --void:#0b0a09; --s1:#141210; --s2:#191714; --s3:#201d19; --s4:#2a2621;
+        --t1:#ebe5da; --t2:#a59d92; --t3:#8b8378; --t4:#6a6259;
+        --l1:rgba(235,229,218,.06); --l2:rgba(235,229,218,.1); --l3:rgba(235,229,218,.17);
+        --zhu:#e25a3d; --zhu-wash:rgba(226,90,61,.14);
+        --lamp:#e7b352; --lamp-wash:rgba(231,179,82,.12);
+        --pine:#5fad85; --crimson:#d95f6e; --azure:#6ba4c3; --azure-wash:rgba(107,164,195,.14);
+        --code:#0f0e0c;
+        --sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);
+        --sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);
+      }
+      :root {
+        --sans:Inter,-apple-system,BlinkMacSystemFont,'PingFang SC','Noto Sans SC',system-ui,sans-serif;
+        --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+        --t-1:90ms; --t-2:150ms; --t-3:240ms; --t-4:380ms;
+        --ease-out:cubic-bezier(.16,1,.3,1); --ease-in-out:cubic-bezier(.65,0,.35,1);
+        --breath:2.4s; --shimmer:1.6s; --wash-cycle:4.8s;
+        --row-pad:8px; --surf-x:12px; --surf-y:10px;
+        --cool:1.2s;                      /* 新增：降级缓动 */
+      }
+      * { box-sizing:border-box; }
+      body {
+        margin:0; padding:0; background:var(--void); color:var(--t1);
+        font:13.5px/1.5 var(--sans);
+        transition:background var(--t-3) var(--ease-out), color var(--t-3) var(--ease-out);
+      }
+
+      /* ══════════════════════════════════════════════════════════════
+         2. 现有链路样式 —— 逐字取自 styles/inkstone/tool-timeline.css
+            这些规则原样复制，原型里的行就是应用里的行
+         ══════════════════════════════════════════════════════════════ */
+      .thread { position:relative; padding-left:22px; margin-left:0; }
+      .thread::before {
+        content:''; position:absolute; left:8px; top:10px; bottom:10px;
+        width:1.5px; border-radius:1px; background:var(--l3);
+        pointer-events:none; z-index:0;
+      }
+      .tr, .tool-call-card {
+        position:relative; display:flex; align-items:center; gap:8px; min-height:28px;
+      }
+      .tool-call-card { flex-direction:column; align-items:stretch; }
+      .tool-call-summary {
+        display:flex; align-items:center; height:28px; min-height:28px;
+        padding:0 var(--row-pad) 0 4px; gap:8px; line-height:28px; position:relative;
+        white-space:nowrap; font-size:12.5px; font-weight:400; color:var(--t2);
+        background:transparent; border-radius:6px; cursor:pointer;
+        transition:background var(--t-1) var(--ease-out);
+      }
+      .tool-call-summary:hover { background:var(--s3); box-shadow:var(--sh1); }
+      /* 节点基线（先声明形状，状态色规则在后面覆盖） */
+      .node {
+        position:absolute; width:9px; height:9px; border-radius:50%; z-index:1;
+        background:var(--s2); border:1.5px solid var(--l3);
+      }
+      .tool-call-summary > .node,
+      .hoist > .node,
+      .work-run-phase .work-h > .node { left:-18px; top:50%; margin-top:-4.5px; }
+      .tool-call-card.sub .tool-call-summary > .node,
+      .tool-call-summary > .node.sm { margin-top:-3.5px; width:7px; height:7px; }
+      .node.done { background:var(--pine); border-color:var(--pine); }
+      .node.fail { background:var(--crimson); border-color:var(--crimson); }
+      .node.wait { background:var(--zhu); border-color:var(--zhu); border-radius:2px;
+                   box-shadow:0 0 0 3px var(--zhu-wash); }
+      .node.run  { background:var(--lamp); border-color:var(--lamp);
+                   box-shadow:0 0 0 3px var(--lamp-wash);
+                   animation:breath var(--breath) var(--ease-in-out) infinite; }
+      @keyframes breath { 0%,100%{opacity:.5;transform:scale(.88);} 50%{opacity:1;transform:scale(1.06);} }
+
+      .tool-call-kind-icon { width:14px; height:14px; flex:none; color:var(--t3); stroke-width:1.5; }
+      .tool-call-card.sub .tool-call-kind-icon { width:12px; height:12px; }
+      .tool-call-card.fail .tool-call-kind-icon { color:var(--crimson); }
+
+      .tool-call-action-verb { color:var(--t1); font:600 12.5px/1.5 var(--sans); flex:none; }
+      .tool-call-card.fail .tool-call-action-verb { color:var(--crimson); }
+
+      .tool-call-file-pill, .tool-call-preview {
+        display:inline-flex; align-items:center; overflow:hidden; text-overflow:ellipsis;
+        min-width:0; max-width:min(240px,48%); flex:0 1 auto;
+        font:11.5px var(--mono); font-weight:400; color:var(--t1);
+        background:var(--code); padding:1px 5px; border-radius:3px; border:0; white-space:nowrap;
+      }
+      .tool-call-file-dir { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+      .tool-call-file-name { flex:none; }
+      .tool-call-line-range { flex:none; color:var(--t4); font-variant-numeric:tabular-nums; padding-left:4px; }
+
+      .meta {
+        margin-left:auto; display:flex; gap:8px; align-items:center;
+        font:11.5px var(--mono); color:var(--t4);
+        font-variant-numeric:tabular-nums; flex:none;
+      }
+      .chev { width:11px; height:11px; color:var(--t4);
+              transition:transform var(--t-3) var(--ease-out); }
+      [aria-expanded='true'] > .meta .chev { transform:rotate(90deg); }
+
+      .tb {
+        margin:2px 0 6px var(--row-pad); padding:var(--surf-y) var(--surf-x);
+        border-radius:6px; background:var(--code); box-shadow:var(--sh1); border:0;
+        font:11.5px/1.6 var(--mono); color:var(--t2); white-space:pre-wrap;
+      }
+
+      /* 现有 work fold 头（.work-h / .turn-work-details-summary） */
+      .work-h {
+        display:flex; align-items:center; gap:8px; height:30px;
+        padding:0 var(--row-pad); width:100%; border-radius:6px;
+        font-size:12.5px; color:var(--t2); cursor:pointer; white-space:nowrap;
+        background:transparent; border:0; font-family:inherit; text-align:left;
+        transition:background var(--t-1) var(--ease-out); position:relative;
+      }
+      .work-h:hover { background:var(--s3); }
+
+      /* 现有文字流光配方（behavior-*-active, styles/behavior-activity.css） */
+      .behavior-active {
+        background:linear-gradient(90deg,
+          color-mix(in srgb,var(--t1) 38%,transparent) 0%,
+          color-mix(in srgb,var(--t1) 92%,transparent) 42%,
+          color-mix(in srgb,var(--t1) 38%,transparent) 78%);
+        background-size:220% 100%;
+        -webkit-background-clip:text; background-clip:text;
+        -webkit-text-fill-color:transparent; color:transparent;
+        animation:wb-shimmer var(--shimmer) linear infinite;
+        filter:drop-shadow(0 0 8px color-mix(in srgb,var(--t1) 8%,transparent));
+      }
+      @keyframes wb-shimmer { 0%{background-position:200% 0;} 100%{background-position:-200% 0;} }
+
+      /* ══════════════════════════════════════════════════════════════
+         3. 新增样式 —— 本方案要写进 styles/transcript-work-run.css 的部分
+            打开「标注新增」会给这些元素描边
+         ══════════════════════════════════════════════════════════════ */
+
+      /* 轨道流光：叠在现有 .thread::before 脊线上，不替换它 */
+      .thread.is-live::after {
+        content:''; position:absolute; left:7px; top:10px; bottom:10px; width:3px;
+        border-radius:2px; pointer-events:none; z-index:0;
+        background:linear-gradient(180deg,
+          transparent 0%,
+          color-mix(in srgb,var(--lamp) 0%,transparent) 26%,
+          color-mix(in srgb,var(--lamp) 78%,transparent) 50%,
+          color-mix(in srgb,var(--lamp) 0%,transparent) 74%,
+          transparent 100%);
+        background-size:100% 220%;
+        filter:blur(.4px);
+        animation:rail-sweep var(--shimmer) linear infinite;
+      }
+      @keyframes rail-sweep { from{background-position:0 -120%;} to{background-position:0 120%;} }
+
+      /* 阶段行：沿用 .work-h 的 30px / 8px / radius 6 几何 */
+      .work-run-phase { flex-direction:column; align-items:stretch; position:relative; }
+      .work-run-phase > .work-h {
+        align-items:flex-start; height:auto; min-height:30px; padding:6px var(--row-pad);
+      }
+      .work-run-phase .phase-title { display:flex; flex-direction:column; gap:1px; min-width:0; flex:1 1 auto; }
+      .work-run-phase .phase-lead {
+        font:600 12.5px/1.5 var(--sans); color:var(--t1);
+        transition:color var(--cool) var(--ease-out);
+      }
+      .work-run-phase .phase-rest { font:12.5px/1.5 var(--sans); color:var(--t4); }
+      /* live/cooling 的图标与节点对齐首行，不是整行居中 */
+      .work-run-phase:not(.is-chip) > .work-h > .node { top:15px; }
+      .work-run-phase:not(.is-chip) > .work-h > .tool-call-kind-icon { margin-top:3px; }
+      .work-run-phase:not(.is-chip) > .work-h > .meta { margin-top:2px; align-self:flex-start; }
+
+      /* 底缘微光：4.8s，比 1.6s 轨道慢 3 倍 */
+      .work-run-phase.is-live > .work-h::after {
+        content:''; position:absolute; left:0; right:0; bottom:0; height:1px;
+        background:linear-gradient(90deg,transparent,
+          color-mix(in srgb,var(--lamp) 55%,transparent),transparent);
+        background-size:60% 100%; background-repeat:no-repeat;
+        animation:underglow var(--wash-cycle) var(--ease-in-out) infinite;
+      }
+      @keyframes underglow {
+        0%{background-position:-60% 0;opacity:.25;} 50%{opacity:.85;} 100%{background-position:160% 0;opacity:.25;}
+      }
+
+      /* 轮播副标题：双槽交叉 */
+      .work-run-ticker { position:relative; height:17px; overflow:hidden; min-width:0; }
+      .work-run-ticker span {
+        position:absolute; inset:0; display:block; white-space:nowrap;
+        overflow:hidden; text-overflow:ellipsis;
+        font:11.5px/17px var(--mono); color:var(--t4);
+      }
+      .work-run-ticker span.enter { animation:tick-in var(--t-4) var(--ease-out) both; }
+      @keyframes tick-in { from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:none;} }
+
+      /* 降级阶梯：live → cooling → chip */
+      .work-run-phase.is-cooling .phase-lead { color:var(--t3); font-weight:500; }
+      .work-run-phase.is-cooling .work-run-ticker { animation:cool-collapse var(--cool) var(--ease-out) forwards; }
+      @keyframes cool-collapse { from{height:17px;opacity:.7;} to{height:0;opacity:0;} }
+      .work-run-phase.is-chip .phase-lead { color:var(--t3); font-weight:500; }
+      .work-run-phase.is-chip .work-run-ticker { display:none; }
+      .work-run-phase.is-chip > .work-h { align-items:center; padding:0 var(--row-pad); height:30px; }
+      .work-run-phase.is-chip .phase-title { flex-direction:row; align-items:baseline; gap:6px; }
+
+      /* 强制可见（hoist）：现有卡片语汇，不新造容器 */
+      .hoist { display:flex; align-items:center; gap:8px; height:30px;
+        padding:0 var(--row-pad); border-radius:6px; font-size:12.5px; color:var(--t2);
+        position:relative; margin:2px 0; }
+
+      .hoist.gate { background:var(--zhu-wash); }
+      .hoist.gate b { color:var(--zhu); font-weight:600; }
+      .hoist.edit { background:var(--azure-wash); }
+      .hoist .plus { color:var(--pine); font:11.5px var(--mono); }
+      .hoist .minus { color:var(--crimson); font:11.5px var(--mono); }
+      .hoist.unknown { background:var(--s2); box-shadow:inset 0 0 0 1px var(--l2); }
+      .hoist .why { margin-left:auto; font:10.5px var(--mono); color:var(--t4); }
+      .hoist button { margin-left:auto; border:1px solid var(--l2); background:var(--s3);
+        color:var(--t2); font:500 11.5px var(--sans); padding:3px 10px; border-radius:5px; cursor:pointer; }
+
+      /* 「标注新增」：只描边本方案新增的元素 */
+      html[data-mark='on'] .is-new { outline:1px dashed color-mix(in srgb,var(--zhu) 55%,transparent);
+        outline-offset:2px; border-radius:6px; }
+      html[data-mark='on'] .is-new::before {
+        content:'新'; position:absolute; left:-32px; top:50%; transform:translateY(-50%);
+        font:9px/1 var(--mono); color:var(--zhu); letter-spacing:.06em;
+      }
+
+      /* ══════════════════════════════════════════════════════════════
+         4. 原型外壳（不属于产品）
+         ══════════════════════════════════════════════════════════════ */
+      .bar { position:sticky; top:0; z-index:9; display:flex; gap:16px; align-items:center;
+        flex-wrap:wrap; padding:12px 24px; background:var(--s1); border-bottom:1px solid var(--l2); }
+      .bar h1 { margin:0; font-size:13.5px; font-weight:600; }
+      .bar .tag { font:500 10px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase;
+        color:var(--lamp); padding:4px 7px; border-radius:4px; background:var(--lamp-wash); }
+      .seg { display:inline-flex; background:var(--s2); border:1px solid var(--l2); border-radius:7px; padding:2px; }
+      .seg button { border:0; background:transparent; color:var(--t3); font:500 12px var(--sans);
+        padding:5px 11px; border-radius:5px; cursor:pointer;
+        transition:background var(--t-2) var(--ease-out),color var(--t-2) var(--ease-out); }
+      .seg button[aria-pressed='true'] { background:var(--s4); color:var(--t1); box-shadow:var(--sh1); }
+      .bar label { font-size:12px; color:var(--t3); display:inline-flex; gap:6px; align-items:center; }
+      .spacer { flex:1 1 auto; }
+      main { max-width:820px; margin:0 auto; padding:30px 24px 120px; }
+      .note { margin:0 0 24px; color:var(--t3); font-size:12.5px; line-height:1.75;
+        padding-left:12px; border-left:2px solid var(--l2); }
+      .note b { color:var(--t2); font-weight:600; }
+      h2 { margin:38px 0 3px; font-size:11.5px; font-weight:600; letter-spacing:.11em;
+        text-transform:uppercase; color:var(--t4); }
+      .sub { margin:0 0 14px; font-size:12.5px; color:var(--t3); }
+      .user-row { display:flex; justify-content:flex-end; margin:0 0 14px; }
+      .user-bubble { background:var(--s3); box-shadow:var(--sh1); border-radius:12px;
+        padding:8px 12px; max-width:76%; font-size:13.5px; }
+      .answer { margin:14px 0 0; font-size:13.5px; line-height:1.72; }
+      .answer code { font:12px var(--mono); background:var(--code); padding:1px 5px; border-radius:3px; }
+      .legend { margin-top:8px; display:flex; gap:16px; flex-wrap:wrap; font:11px var(--mono); color:var(--t4); }
+      .legend i { font-style:normal; color:var(--lamp); }
+      .assembly { display:flex; align-items:center; gap:8px; height:26px; padding:0 var(--row-pad);
+        font:11.5px var(--mono); color:var(--t4); }
+      .assembly .node { position:static; width:5px; height:5px; border-radius:50%;
+        background:var(--t4); border:0; flex:none; }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration:.001ms !important;
+          animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <span class="tag">prototype</span>
+      <h1>调用链渐进折叠 · 工作胶囊</h1>
+      <span class="spacer"></span>
+      <label>主题<span class="seg" id="theme">
+        <button data-v="piwin-inkstone-paper" aria-pressed="true">纸</button>
+        <button data-v="piwin-inkstone-ink" aria-pressed="false">墨</button></span></label>
+      <label>密度<span class="seg" id="density">
+        <button data-v="compact" aria-pressed="false">紧凑</button>
+        <button data-v="comfortable" aria-pressed="true">平衡</button>
+        <button data-v="detailed" aria-pressed="false">详细</button></span></label>
+      <span class="seg"><button id="mark" aria-pressed="false">标注新增</button></span>
+      <span class="seg"><button id="replay">↻ 重播</button></span>
+    </div>
+
+    <main>
+      <p class="note">
+        行的几何与配色全部照抄 <b>styles/inkstone/tool-timeline.css</b>：脊线 left 8px / 1.5px / <b>--l3</b>，
+        节点绝对定位 −18px、9×9、运行态 <b>--lamp</b> + 3px <b>--lamp-wash</b> 光晕 + breath，
+        行高 28px，动词 600/12.5px，文件芯片 11.5px mono on <b>--code</b>。
+        点<b>「标注新增」</b>看本方案到底加了什么 —— 其余都是现成的。
+      </p>
+
+      <h2>0 · 现状（截图里的样子）</h2>
+      <p class="sub">思考过程与 bash 交替铺开，每项各占一行；12 次操作 = 12 行 + 6 个思考行。</p>
+      <div class="thread" id="before"></div>
+
+      <h2>A · 新方案 · 运行中（降级阶梯）</h2>
+      <p class="sub">同样这批操作：实时行永远只有一条，已完成阶段褪色沉淀。</p>
+      <div class="user-row"><div class="user-bubble">新建会话按钮点了没反应，查一下</div></div>
+      <div class="assembly"><span class="node"></span>本轮装配内容 · 约 285 tokens（估算）· 用户消息 · Agent mode agent</div>
+      <div class="thread is-live" id="live"></div>
+      <div class="legend">
+        <span><i>◐</i> 节点呼吸 2.4s（现有）</span>
+        <span><i>│</i> 轨道流光 1.6s（新增）</span>
+        <span><i>▁</i> 底缘微光 4.8s（新增）</span>
+        <span><i>↳</i> 轮播 1.8s · 真实事件（新增）</span>
+      </div>
+
+      <h2>B · 完成后</h2>
+      <p class="sub">全部沉淀；写入、未知命令、失败被提升，任何密度都不折叠。</p>
+      <div class="thread" id="settled"></div>
+      <p class="answer">
+        问题在 <code>use-session-actions.ts</code>：<code>handleStartNewSession</code>
+        在 workspace 未解析时提前 return，按钮因此静默失败。已加上回退路径并补了回归测试。
+      </p>
+
+      <h2>C · 展开后</h2>
+      <p class="sub">展开体就是现有的 <code>ToolCallCard</code> 行；流光从阶段头下移到真正在跑的那一行。</p>
+      <div class="thread is-live" id="expanded"></div>
+    </main>
+
+    <script>
+      const $ = (s, r = document) => r.querySelector(s);
+      const h = (tag, cls, html) => { const n = document.createElement(tag);
+        if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
+
+      const SVG = (d, cls) => `<svg class="${cls}" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+      const ICON = {
+        bash:  '<path d="M3.5 4.5 6.5 8l-3 3.5M8.5 11.5h4"/>',
+        read:  '<path d="M4 2.5h5l3 3v8H4v-11ZM9 2.5v3h3"/>',
+        search:'<path d="M6.5 11a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9ZM13 13l-3.2-3.2"/>',
+        edit:  '<path d="M11 2.5 13.5 5 5 13.5H2.5V11L11 2.5Z"/>',
+        check: '<path d="m3 8.5 3 3L13 4"/>',
+        think: '<path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2Zm0 0v12"/>',
+      };
+      const CHEV = '<svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg>';
+
+      /* ── 真实运行脚本（12 次操作，3 个阶段）────────────────── */
+      const SCRIPT = [
+        { id:'analyze', icon:'search', lead:'正在分析代码库', done:'已分析', stat:'6 次搜索 · 3 文件',
+          items:[
+            ['bash','bash','grep -n "add-btn\\|onNewSession" si',null,420],
+            ['bash','bash','grep -rn "onNewSession" workbench-',null,680],
+            ['bash','bash','grep -n "handleStartNewSession" -A',null,540],
+            ['read','read','/U…use-session-actions.ts','L200–319',810],
+            ['bash','bash','rg -n "resolveWorkspace" --type ts',null,510],
+            ['read','read','/session-live-commands.ts','L195–324',330],
+          ]},
+        { id:'edit', icon:'edit', lead:'正在修改文件', done:'已修改', stat:'2 文件 · +42 −18', hoistEdit:true,
+          items:[
+            ['edit','edit','use-session-actions.ts',null,260],
+            ['edit','edit','workspace-resolver.ts',null,180],
+          ]},
+        { id:'verify', icon:'check', lead:'正在验证', done:'已验证', stat:'2 项检查',
+          items:[
+            ['bash','test','pnpm vitest run session-actions',null,3100],
+            ['bash','check','pnpm typecheck',null,2400],
+          ]},
+      ];
+      const THOUGHTS = [7, 1, 1, 4, 2, 7];
+
+      let density = 'comfortable';
+      const showChips = () => density !== 'compact';
+      const showItems = () => density === 'detailed';
+
+      /* ── 现有的 ToolCallCard 行（真实 class 结构）──────────── */
+      function toolRow(it, running, sub) {
+        const [icon, verb, arg, range, ms] = it;
+        const card = h('div', 'tool-call-card tr' + (sub ? ' sub' : ''));
+        const s = h('div', 'tool-call-summary');
+        s.appendChild(h('span', 'node ' + (running ? 'run' : 'done') + (sub ? ' sm' : '')));
+        s.insertAdjacentHTML('beforeend', SVG(ICON[icon], 'tool-call-kind-icon'));
+        s.appendChild(h('b', 'tool-call-action-verb', verb));
+        const pill = h('code', 'tool-call-file-pill');
+        pill.appendChild(h('span', 'tool-call-file-name', arg));
+        if (range) pill.appendChild(h('span', 'tool-call-line-range', range));
+        s.appendChild(pill);
+        const m = h('div', 'meta', running ? '' : (ms / 1000).toFixed(1) + 's');
+        m.insertAdjacentHTML('beforeend', CHEV);
+        s.appendChild(m);
+        card.appendChild(s);
+        return card;
+      }
+      function thoughtRow(sec, live) {
+        const card = h('div', 'tool-call-card tr');
+        const s = h('div', 'tool-call-summary');
+        s.appendChild(h('span', 'node ' + (live ? 'run' : 'done')));
+        s.insertAdjacentHTML('beforeend', SVG(ICON.think, 'tool-call-kind-icon'));
+        s.appendChild(h('b', 'tool-call-action-verb' + (live ? ' behavior-active' : ''), '思考过程'));
+        const m = h('div', 'meta', sec + 's'); m.insertAdjacentHTML('beforeend', CHEV);
+        s.appendChild(m); card.appendChild(s); return card;
+      }
+
+      /* ── 0 · 现状 ─────────────────────────────────────────── */
+      (function renderBefore() {
+        const c = $('#before'); let ti = 0;
+        SCRIPT[0].items.forEach((it, i) => {
+          if (i % 1 === 0 && ti < THOUGHTS.length) c.appendChild(thoughtRow(THOUGHTS[ti++], false));
+          c.appendChild(toolRow(it, false));
+        });
+      })();
+
+      /* ── 新增：阶段行 ─────────────────────────────────────── */
+      function phaseRow(p, state, elapsed, tick, expanded) {
+        const wrap = h('div', 'work-run-phase is-new ' +
+          (state === 'live' ? 'is-live' : state === 'cooling' ? 'is-cooling' : 'is-chip'));
+        const btn = h('button', 'work-h');
+        btn.type = 'button';
+        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        btn.appendChild(h('span', 'node ' + (state === 'live' ? 'run' : 'done')));
+        btn.insertAdjacentHTML('beforeend', SVG(ICON[p.icon], 'tool-call-kind-icon'));
+        const t = h('div', 'phase-title');
+        const lead = h('span', 'phase-lead' + (state === 'live' ? ' behavior-active' : ''),
+          state === 'live' ? p.lead : p.done);
+        t.appendChild(lead);
+        if (state !== 'live') t.appendChild(h('span', 'phase-rest', '· ' + p.stat));
+        if (state !== 'chip') { const k = h('div', 'work-run-ticker');
+          k.appendChild(h('span', 'enter', tick || '')); t.appendChild(k); }
+        btn.appendChild(t);
+        const total = p.items.reduce((a, i) => a + i[4], 0);
+        const m = h('div', 'meta', state === 'live'
+          ? `${p.items.length} 项 · ${(elapsed / 1000).toFixed(0)}s`
+          : `${p.items.length} 项 · ${(total / 1000).toFixed(1)}s`);
+        m.insertAdjacentHTML('beforeend', CHEV);
+        btn.appendChild(m);
+        wrap.appendChild(btn);
+        return wrap;
+      }
+      const editHoist = () => h('div', 'hoist edit is-new',
+        '<span class="node done"></span><span>已修改 <b>2</b> 个文件</span>' +
+        '<span class="plus">+42</span><span class="minus">−18</span><button type="button">查看 diff</button>');
+      const gateHoist = () => h('div', 'hoist gate is-new',
+        '<span class="node wait"></span><b>需要授权</b>' +
+        '<code class="tool-call-file-pill">git commit -m "fix: session start"</code>' +
+        '<button type="button">允许一次</button>');
+      const unknownHoist = () => h('div', 'hoist unknown is-new',
+        '<span class="node done"></span><span>执行</span>' +
+        '<code class="tool-call-file-pill">./scripts/seed-fixtures.sh</code>' +
+        '<span class="why">未知意图 · 不并入「已分析」</span>');
+
+      /* ── A · 运行中 ───────────────────────────────────────── */
+      const live = $('#live'); let timer = null, t0 = 0;
+      function renderLive(now) {
+        let acc = 0, pi = 0; const done = [];
+        for (let i = 0; i < SCRIPT.length; i++) {
+          const len = SCRIPT[i].items.reduce((a, x) => a + x[4], 0);
+          if (now < acc + len) { pi = i; break; }
+          acc += len; done.push(i); pi = i + 1;
+        }
+        const finished = pi >= SCRIPT.length;
+        live.classList.toggle('is-live', !finished);
+        live.replaceChildren();
+        done.forEach((i, k) => {
+          if (!showChips() && !finished) return;
+          const recent = k === done.length - 1 && !finished && (now - acc) < 1200;
+          live.appendChild(phaseRow(SCRIPT[i], recent ? 'cooling' : 'chip', 0, '', showItems()));
+          if (showItems()) SCRIPT[i].items.forEach((it) => live.appendChild(toolRow(it, false, true)));
+          if (SCRIPT[i].hoistEdit) live.appendChild(editHoist());
+        });
+        if (finished) { live.appendChild(gateHoist()); return; }
+        const p = SCRIPT[pi];
+        let into = now - acc, run = 0, k = 0;
+        for (let i = 0; i < p.items.length; i++) {
+          if (into < run + p.items[i][4]) { k = i; break; }
+          run += p.items[i][4]; k = i;
+        }
+        const cur = p.items[Math.min(k, p.items.length - 1)];
+        live.appendChild(phaseRow(p, 'live', into, `↳ ${cur[1]} ${cur[2]}`, showItems()));
+        if (showItems()) p.items.forEach((it, i) => { if (i <= k) live.appendChild(toolRow(it, i === k, true)); });
+      }
+      function replay() {
+        clearInterval(timer); t0 = performance.now();
+        const total = SCRIPT.reduce((a, p) => a + p.items.reduce((b, i) => b + i[4], 0), 0);
+        renderLive(0);
+        timer = setInterval(() => {
+          const now = performance.now() - t0;
+          renderLive(now);
+          if (now > total + 2400) clearInterval(timer);
+        }, 140);
+      }
+
+      /* ── B · 完成后 ───────────────────────────────────────── */
+      function renderSettled() {
+        const c = $('#settled'); c.replaceChildren();
+        if (density === 'compact') {
+          const w = h('div', 'work-run-phase is-chip is-new');
+          const b = h('button', 'work-h'); b.type = 'button';
+          b.appendChild(h('span', 'node done'));
+          b.insertAdjacentHTML('beforeend', SVG(ICON.check, 'tool-call-kind-icon'));
+          const t = h('div', 'phase-title');
+          t.appendChild(h('span', 'phase-lead', '已工作 24s'));
+          t.appendChild(h('span', 'phase-rest', '· 12 个工具 · 5 个文件'));
+          b.appendChild(t);
+          const m = h('div', 'meta'); m.insertAdjacentHTML('beforeend', CHEV);
+          b.appendChild(m); w.appendChild(b); c.appendChild(w);
+        } else {
+          SCRIPT.forEach((p) => {
+            c.appendChild(phaseRow(p, 'chip', 0, '', showItems()));
+            if (showItems()) p.items.forEach((it) => c.appendChild(toolRow(it, false, true)));
+            if (p.hoistEdit) c.appendChild(editHoist());
+          });
+        }
+        c.appendChild(unknownHoist());
+      }
+
+      /* ── C · 展开后 ───────────────────────────────────────── */
+      function renderExpanded() {
+        const c = $('#expanded'); c.replaceChildren();
+        const p = SCRIPT[0];
+        const head = phaseRow(p, 'chip', 0, '', true);
+        head.querySelector('.phase-lead').textContent = '正在分析代码库';   // 头部不带流光
+        head.querySelector('.node').className = 'node run';
+        c.appendChild(head);
+        p.items.forEach((it, i) => { if (i > 3) return; c.appendChild(toolRow(it, i === 3, true)); });
+        // 流光只在真正在跑的那一行
+        const rows = c.querySelectorAll('.tool-call-card');
+        const runRow = rows[3];
+        if (runRow) runRow.querySelector('.tool-call-action-verb').classList.add('behavior-active');
+      }
+
+      $('#theme').addEventListener('click', (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        document.documentElement.dataset.themeId = b.dataset.v;
+        [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      });
+      $('#density').addEventListener('click', (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        density = b.dataset.v; document.documentElement.dataset.density = density;
+        [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        renderSettled(); renderExpanded();
+      });
+      $('#mark').addEventListener('click', (e) => {
+        const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+        e.currentTarget.setAttribute('aria-pressed', String(on));
+        document.documentElement.dataset.mark = on ? 'on' : 'off';
+      });
+      $('#replay').addEventListener('click', replay);
+
+      renderSettled(); renderExpanded(); replay();
+    </script>
+  </body>
+</html>
