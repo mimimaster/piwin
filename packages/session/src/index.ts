@@ -321,6 +321,7 @@ export {
   readToolOutputSnapshot,
   findToolCard,
   isReadFamilyTool,
+  isShellFamilyTool,
   TOOL_SNAPSHOT_DEFAULT_MAX_BYTES,
   TOOL_SNAPSHOT_HARD_MAX_BYTES,
 } from './tool-output-snapshot.js';

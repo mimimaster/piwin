@@ -2,9 +2,11 @@
  * Read-only persisted tool output snapshot recovery (plan Slice 5).
  *
  * Historical transcripts slim UI tool output to '' on hydrate, so Doc
- * Preview cannot recover "what the agent read" by scanning state.messages.
+ * Preview cannot recover "what the agent read" by scanning state.messages,
+ * and an expanded historical bash row cannot show what the command printed.
  * This module extracts the bounded persisted output for one tool call and
- * gates it to filesystem read tools only.
+ * gates it to filesystem read tools and shell tools. Web / edit / search
+ * output stays unreadable here.
  */
 import type {
   SessionToolCardView,
@@ -45,7 +47,7 @@ export function readToolOutputSnapshot(
   if (!tool) {
     return { status: 'unavailable', reason: 'not-found' };
   }
-  if (!isReadFamilyTool(tool)) {
+  if (!isReadFamilyTool(tool) && !isShellFamilyTool(tool)) {
     return { status: 'unavailable', reason: 'not-readable-tool' };
   }
 
@@ -96,6 +98,21 @@ export function isReadFamilyTool(
     actionVerb.startsWith('opened') ||
     actionVerb.startsWith('viewed')
   );
+}
+
+const SHELL_TOOL_NAMES = new Set(['bash', 'shell', 'zsh', 'sh', 'run_command', 'exec']);
+
+/**
+ * Shell tools, for the transcript's expanded bash row. Kept apart from
+ * `isReadFamilyTool` so Doc Preview never treats command output as a file.
+ */
+export function isShellFamilyTool(
+  tool: Pick<SessionToolCardView, 'toolName' | 'presentation'>,
+): boolean {
+  if (tool.presentation?.kind === 'shell') {
+    return true;
+  }
+  return SHELL_TOOL_NAMES.has((tool.toolName ?? '').toLowerCase());
 }
 
 function boundUtf8(

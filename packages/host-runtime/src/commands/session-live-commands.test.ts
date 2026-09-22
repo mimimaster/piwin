@@ -2614,14 +2614,14 @@ describe('session/tool-output snapshot recovery', () => {
       tools: [
         {
           toolCallId: 'tc-bash-1',
-          toolName: 'bash',
+          toolName: 'edit',
           status: 'done',
-          output: 'ls /etc/passwd',
+          output: 'replaced 1 occurrence in /etc/hosts',
           presentation: {
-            kind: 'shell',
-            title: 'Run command',
-            actionVerb: 'Ran command',
-            targetPaths: ['/etc/passwd'],
+            kind: 'filesystem',
+            title: 'edit',
+            actionVerb: 'Edited',
+            targetPaths: ['/etc/hosts'],
           },
         },
       ],

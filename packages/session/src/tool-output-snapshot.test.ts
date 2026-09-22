@@ -70,18 +70,36 @@ describe('readToolOutputSnapshot', () => {
     });
   });
 
-  it('reports not-readable-tool for bash/shell tools', () => {
+  it('returns persisted output for bash/shell tools (expanded historical rows)', () => {
     const message = readMessage({
       tools: [
         {
           toolCallId: 'tc-bash',
           toolName: 'bash',
           status: 'done',
-          output: 'ls -la /tmp',
+          output: 'total 0\ndrwxr-xr-x  2 me  wheel  64 tmp',
         },
       ],
     });
-    expect(readToolOutputSnapshot({ message, toolCallId: 'tc-bash' })).toEqual({
+    const snapshot = readToolOutputSnapshot({ message, toolCallId: 'tc-bash' });
+    expect(snapshot.status).toBe('ready');
+    if (snapshot.status === 'ready') {
+      expect(snapshot.output).toContain('drwxr-xr-x');
+    }
+  });
+
+  it('still reports not-readable-tool for web tools', () => {
+    const message = readMessage({
+      tools: [
+        {
+          toolCallId: 'tc-web',
+          toolName: 'web_fetch',
+          status: 'done',
+          output: '<html>',
+        },
+      ],
+    });
+    expect(readToolOutputSnapshot({ message, toolCallId: 'tc-web' })).toEqual({
       status: 'unavailable',
       reason: 'not-readable-tool',
     });
