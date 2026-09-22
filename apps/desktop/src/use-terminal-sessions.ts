@@ -173,7 +173,7 @@ export function useTerminalSessions(
       if (!cwd) return;
       setSessions((current) => {
         let changed = false;
-        const next = current.map((session) => {
+        const next: TerminalSession[] = current.map((session) => {
           // 'error' counts: an empty cwd fails pty_open, and that failure
           // leaves the session past 'idle' before the real directory arrives.
           if (session.cwd.trim() || session.ptyId) {
