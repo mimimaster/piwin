@@ -167,6 +167,9 @@ describe('ChatThread model wait tail', () => {
         assistant({ id: 'a2', status: 'streaming' }),
       ],
       'waiting-first-token',
+      // The live turn folds its chain; this test reads the toolbox row inside
+      // it, so keep the fold open.
+      { workDetailsExpanded: 'always' },
     );
 
     const footers = container.querySelectorAll('[data-testid="run-status-footer"]');
@@ -215,5 +218,41 @@ describe('ChatThread model wait tail', () => {
     );
     expect(container.querySelector('#msg-a2')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="run-status-footer"]')).toHaveLength(1);
+  });
+
+  /**
+   * A text answer with no tools, then `message/start`. The model-wait tail
+   * only covered a settled *tool* round, so this placeholder used to paint a
+   * bare bubble — the stray blank line under a long answer.
+   */
+  it('hides the empty placeholder after a tool-less text answer', () => {
+    render(
+      [
+        userMessage('u1', '生成一个 3d 箱庭'),
+        assistant({ id: 'a1', text: '说明：这是一个纯 Canvas 2D 渲染的箱庭' }),
+        assistant({ id: 'a2', status: 'streaming' }),
+      ],
+      'streaming',
+    );
+    expect(container.querySelector('#msg-a1')).not.toBeNull();
+    expect(container.querySelector('#msg-a2')).toBeNull();
+  });
+
+  it('hides a thinking-only placeholder when reasoning display is off', () => {
+    const messages = [
+      userMessage('u1', '生成一个 3d 箱庭'),
+      assistant({ id: 'a1', text: '说明：这是一个纯 Canvas 2D 渲染的箱庭' }),
+      assistant({ id: 'a2', status: 'streaming', thinking: '继续想下一段代码…' }),
+    ];
+    render(messages, 'streaming', { showThinking: false });
+    expect(container.querySelector('#msg-a2')).toBeNull();
+
+    render(messages, 'streaming', { showThinking: true });
+    expect(container.querySelector('#msg-a2')).not.toBeNull();
+  });
+
+  it('keeps the first assistant row of a turn even while it is empty', () => {
+    render([userMessage('u1', '你好'), assistant({ id: 'a1', status: 'streaming' })], 'streaming');
+    expect(container.querySelector('#msg-a1')).not.toBeNull();
   });
 });

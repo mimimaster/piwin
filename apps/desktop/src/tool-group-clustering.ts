@@ -1,4 +1,5 @@
 import type { ToolCardUi } from './chat-reducer';
+import { classifyShellCommand } from './shell-command-intent.js';
 
 export type ToolClusterKind =
   | 'explore'
@@ -57,15 +58,25 @@ export function resolveToolClusterKind(tool: ToolCardUi): ToolClusterKind {
     return 'subagent';
   }
 
-  // 1. Host-authored action verbs
+  // 1. Host-authored action verbs. `Ran command` is deliberately absent: the
+  // host stamps it on *every* shell call, so it says nothing about intent.
   if (verb === 'searched' || verb === 'explored') return 'search';
   if (verb === 'read') return 'read';
   if (verb === 'edited') return 'edit';
-  if (verb === 'ran command' || verb === 'ran tests' || verb === 'built') return 'command';
+  if (verb === 'ran tests' || verb === 'built') return 'command';
   if (verb === 'fetched') return 'web';
 
-  // 2. Host kinds that are never read-only exploration, whatever the name says
-  if (kind === 'shell' || kind === 'process') return 'command';
+  // 2. Shell/process: the command text is the only thing that says what ran.
+  // A read-only sweep (`bash grep`) belongs with the reads it interleaves with,
+  // or the explore flow breaks on every other row. Anything the classifier
+  // cannot name stays a command so no side effect hides under "探索了 N 项".
+  if (verb === 'ran command' || kind === 'shell' || kind === 'process') {
+    const shell = classifyShellCommand(tool.presentation?.command);
+    if (shell.intent === 'read-only') return shell.facet === 'search' ? 'search' : 'read';
+    return 'command';
+  }
+
+  // 3. Host kinds that are never read-only exploration, whatever the name says
   if (
     kind === 'mcp' ||
     kind === 'git' ||
@@ -80,7 +91,7 @@ export function resolveToolClusterKind(tool: ToolCardUi): ToolClusterKind {
     return 'other';
   }
 
-  // 3. Legacy name tokens
+  // 4. Legacy name tokens
   const tokens = toolNameTokens(tool.toolName || '');
   const hasToken = (...words: string[]): boolean => words.some((word) => tokens.includes(word));
   // Browser automation clicks/types/navigates: side effects, not exploration.
@@ -93,7 +104,7 @@ export function resolveToolClusterKind(tool: ToolCardUi): ToolClusterKind {
   }
   if (hasToken('web', 'websearch', 'webfetch', 'fetch', 'url', 'http')) return 'web';
 
-  // 4. Fallback to host ToolKind
+  // 5. Fallback to host ToolKind
   switch (kind) {
     case 'filesystem':
       return 'read';
@@ -162,6 +173,11 @@ export function countExploredFiles(tools: readonly ToolCardUi[]): number {
     if (tool.status === 'error' || resolveToolClusterKind(tool) !== 'read') continue;
     const paths = (tool.presentation?.targetPaths ?? []).filter((path) => path.trim().length > 0);
     if (paths.length === 0) {
+      // A read-only shell call reports no `targetPaths`, and its argument may
+      // be a directory or a glob. Counting the call as a file would let
+      // `ls -la` inflate "3 个文件"; only named paths count.
+      const shellKind = tool.presentation?.kind;
+      if (shellKind === 'shell' || shellKind === 'process') continue;
       files.add(`call:${tool.toolCallId}`);
       continue;
     }

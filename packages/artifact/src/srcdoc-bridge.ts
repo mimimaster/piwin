@@ -5,9 +5,12 @@
 import {
   ARTIFACT_ACTION_NAMES,
   ARTIFACT_BRIDGE_ACTION_TYPE,
+  ARTIFACT_BRIDGE_ERROR_TYPE,
   ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE,
   ARTIFACT_BRIDGE_SIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+  ARTIFACT_ERROR_MESSAGE_MAX_CHARS,
+  ARTIFACT_ERROR_REPORT_BUDGET,
   DEFAULT_MAX_ARTIFACT_BYTES,
 } from './constants.js';
 import { buildCanvasStageFitRuntime } from './srcdoc-canvas-fit.js';
@@ -25,6 +28,8 @@ export function buildArtifactBridgeBootstrapScript(
   const measureRequestType = JSON.stringify(ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE);
   const renderType = JSON.stringify(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
   const maxSourceBytes = JSON.stringify(DEFAULT_MAX_ARTIFACT_BYTES);
+  const maxErrorChars = JSON.stringify(ARTIFACT_ERROR_MESSAGE_MAX_CHARS);
+  const errorBudget = JSON.stringify(ARTIFACT_ERROR_REPORT_BUDGET);
 
   return `
 <script data-piwin-artifact-bridge-bootstrap>
@@ -60,6 +65,46 @@ export function buildArtifactBridgeBootstrapScript(
       warnBridge('piwin artifact parent post failed', error);
     }
   };
+  // Installed before the artifact's own scripts parse, so a SyntaxError in
+  // the authored source is reported rather than leaving whatever placeholder
+  // markup the author wrote on screen. At most a handful of reports per frame:
+  // a broken animation loop can throw every frame.
+  var errorType = ${JSON.stringify(ARTIFACT_BRIDGE_ERROR_TYPE)};
+  var errorBudget = ${errorBudget};
+  var clip = function (value) {
+    var text = typeof value === 'string' ? value : String(value == null ? '' : value);
+    return text.length > ${maxErrorChars} ? text.slice(0, ${maxErrorChars}) + '…' : text;
+  };
+  var reportError = function (kind, message, detail) {
+    if (errorBudget <= 0) return;
+    errorBudget -= 1;
+    var payload = { kind: kind, message: clip(message) };
+    if (detail && typeof detail.line === 'number' && isFinite(detail.line)) {
+      payload.line = detail.line;
+    }
+    if (detail && typeof detail.column === 'number' && isFinite(detail.column)) {
+      payload.column = detail.column;
+    }
+    if (detail && typeof detail.name === 'string' && detail.name.length > 0) {
+      payload.name = clip(detail.name);
+    }
+    post(errorType, payload);
+  };
+  window.addEventListener('error', function (event) {
+    var error = event && event.error;
+    reportError('script', (event && event.message) || 'Script error', {
+      line: event && event.lineno,
+      column: event && event.colno,
+      name: error && error.name,
+    });
+  });
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event && event.reason;
+    var message =
+      reason && typeof reason.message === 'string' ? reason.message : 'Unhandled rejection';
+    reportError('rejection', message, { name: reason && reason.name });
+  });
+
   var actionType = ${JSON.stringify(ARTIFACT_BRIDGE_ACTION_TYPE)};
   var allowedActions = ${JSON.stringify([...ARTIFACT_ACTION_NAMES])};
   window.piwinArtifact = {

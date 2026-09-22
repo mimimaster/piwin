@@ -245,3 +245,99 @@ describe('call-chain classification regressions', () => {
     expect(summarizeToolBusyMs([makeTool('read')])).toBeUndefined();
   });
 });
+
+/**
+ * The reported case: a Pi agent loop exploring with `bash grep` rendered as
+ * `思考过程 → bash → 思考过程 → bash` down the transcript, because every shell
+ * call classified as a side-effecting command and broke the explore flow.
+ */
+function shellTool(command: string): ToolCardUi {
+  return makeTool('bash', {
+    presentation: {
+      kind: 'shell',
+      title: 'Ran command',
+      actionVerb: 'Ran command',
+      command,
+    },
+  });
+}
+
+function readTool(path: string): ToolCardUi {
+  return makeTool('read_file', {
+    presentation: {
+      kind: 'filesystem',
+      title: 'Read',
+      actionVerb: 'Read',
+      targetPaths: [path],
+    },
+  });
+}
+
+describe('resolveToolClusterKind — shell intent', () => {
+  it('reads a read-only shell sweep as exploration, not a command', () => {
+    expect(resolveToolClusterKind(shellTool('grep -n "add-btn" src/'))).toBe('search');
+    expect(resolveToolClusterKind(shellTool('rg -n "handleStartNewSession"'))).toBe('search');
+    expect(resolveToolClusterKind(shellTool('cat package.json'))).toBe('read');
+    expect(resolveToolClusterKind(shellTool('ls -la apps/desktop/src'))).toBe('read');
+    expect(resolveToolClusterKind(shellTool('git status --short'))).toBe('read');
+  });
+
+  it('keeps every side effect out of the read-only capsule', () => {
+    expect(resolveToolClusterKind(shellTool('rm -rf dist'))).toBe('command');
+    expect(resolveToolClusterKind(shellTool('cat a.ts > b.ts'))).toBe('command');
+    expect(resolveToolClusterKind(shellTool('git commit -m wip'))).toBe('command');
+    expect(resolveToolClusterKind(shellTool('pnpm install'))).toBe('command');
+    expect(resolveToolClusterKind(shellTool('curl https://example.com'))).toBe('command');
+  });
+
+  it('will not fold a command it cannot name', () => {
+    expect(resolveToolClusterKind(shellTool('./scripts/seed-fixtures.sh'))).toBe('command');
+    expect(resolveToolClusterKind(shellTool('make deploy'))).toBe('command');
+  });
+
+  it('treats verification as a command, not exploration', () => {
+    expect(resolveToolClusterKind(shellTool('pnpm vitest run'))).toBe('command');
+    expect(resolveToolClusterKind(shellTool('pnpm typecheck'))).toBe('command');
+  });
+
+  it('falls back to command when the host reported no command text', () => {
+    const bare = makeTool('bash', {
+      presentation: { kind: 'shell', title: 'Ran command', actionVerb: 'Ran command' },
+    });
+    expect(resolveToolClusterKind(bare)).toBe('command');
+  });
+
+  it('clusters an interleaved read / bash-grep sweep into one explore batch', () => {
+    const clustered = clusterToolCalls([
+      shellTool('grep -n "add-btn" src/'),
+      readTool('src/use-session-actions.ts'),
+      shellTool('rg -n "handleStartNewSession" --type ts'),
+      readTool('src/workspace-resolver.ts'),
+    ]);
+    expect(clustered).toHaveLength(1);
+    expect(clustered[0]?.kind).toBe('batch');
+    if (clustered[0]?.kind !== 'batch') return;
+    expect(clustered[0].tools).toHaveLength(4);
+  });
+
+  it('breaks the batch at a command it cannot vouch for', () => {
+    const clustered = clusterToolCalls([
+      shellTool('grep -n foo src/'),
+      shellTool('cat src/a.ts'),
+      shellTool('./scripts/seed-fixtures.sh'),
+      shellTool('grep -n bar src/'),
+      shellTool('cat src/b.ts'),
+    ]);
+    expect(clustered.map((item) => item.kind)).toEqual(['batch', 'single', 'batch']);
+  });
+});
+
+describe('countExploredFiles — shell reads', () => {
+  it('does not let a pathless shell read inflate the file count', () => {
+    expect(countExploredFiles([shellTool('ls -la src'), shellTool('cat src/a.ts')])).toBe(0);
+  });
+
+  it('still counts files that a read tool names', () => {
+    expect(countExploredFiles([shellTool('ls -la src'), readTool('src/a.ts')])).toBe(1);
+  });
+});

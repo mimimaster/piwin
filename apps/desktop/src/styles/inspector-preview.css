@@ -53,6 +53,12 @@
   font-size: var(--fs-chrome);
 }
 
+.artifact-canvas-incomplete {
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-5);
+}
+
 .artifact-canvas-proposal {
   flex: 0 0 auto;
   padding: var(--s-5);

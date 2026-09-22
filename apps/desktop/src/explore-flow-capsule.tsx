@@ -12,6 +12,7 @@
 import { useState, type ReactElement } from 'react';
 import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 import type { DiffCardRequest } from './diff-card';
+import type { ToolCallDensity } from './ui-preferences.js';
 import type { ExploreFlowGroup, ExploreFlowItem } from './explore-flow';
 import { ToolCallCard, ToolStatusDot, type DocumentOpenInput } from './tool-call-card';
 import { ActionMarquee } from './action-marquee';
@@ -36,6 +37,8 @@ type ExploreDisclosure = 'automatic' | 'live-open' | 'settled-open' | 'closed';
 export type ExploreFlowCapsuleProps = {
   group: ExploreFlowGroup;
   locale?: 'zh-CN' | 'en';
+  /** Row density for the grouped tools. Defaults to the tight chain reading. */
+  density?: ToolCallDensity;
   /** Hide thought rows when the user disabled thinking display. */
   showThinking?: boolean;
   projectPath?: string | null;
@@ -273,7 +276,9 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
                 <ToolCallCard
                   key={item.tool.toolCallId}
                   tool={item.tool}
-                  density="compact"
+                  // Honour the setting literally. Pinning nested rows to
+                  // `compact` meant 详细 never actually showed more than 平衡.
+                  density={props.density ?? 'compact'}
                   expandWhileRunning={false}
                   inkLineSubrow
                   {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}

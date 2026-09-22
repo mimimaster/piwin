@@ -139,7 +139,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 .custom-font-active-badge {
-  font-size: 10px;
+  font-size: 11px;
   padding: 1px 6px;
   border-radius: 4px;
   background: var(--iris-wash, rgba(176, 58, 36, 0.1));
@@ -191,4 +191,3 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   border-color: var(--iris, #b03a24);
   color: var(--on-iris, #ffffff);
 }
-

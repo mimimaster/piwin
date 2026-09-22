@@ -193,6 +193,23 @@ export type ArtifactActionMessage =
       payload: ArtifactDownloadUnsupportedPayload;
     };
 
+/**
+ * A script failure inside the sandbox, reported for display only. Everything
+ * here came from untrusted HTML: render it as text, never as markup, and never
+ * let it drive a decision beyond what the preview shows.
+ */
+export type ArtifactErrorMessage = {
+  type: 'piwin-artifact:error';
+  channelId: string;
+  /** `script` covers parse and runtime failures; `rejection` is a stray promise. */
+  kind: 'script' | 'rejection';
+  message: string;
+  /** Error constructor name when the frame could read one (`SyntaxError`). */
+  name?: string;
+  line?: number;
+  column?: number;
+};
+
 /** Semantic layout from one fence analysis. Overflow is a runtime frame mode (Phase 5). */
 export type ArtifactLayoutIntent = 'flow' | 'viewport' | 'canvas';
 

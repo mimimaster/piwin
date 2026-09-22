@@ -183,6 +183,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         <ExploreFlowCapsule
           group={exploreRole.group}
           locale={locale}
+          {...(props.toolDensity !== undefined ? { density: props.toolDensity } : {})}
           {...(props.showThinking !== undefined ? { showThinking: props.showThinking } : {})}
           {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
           {...(props.request !== undefined ? { request: props.request } : {})}

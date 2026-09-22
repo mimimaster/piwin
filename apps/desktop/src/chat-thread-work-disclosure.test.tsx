@@ -407,7 +407,7 @@ describe('ChatThread completed work disclosure', () => {
     expect(trigger?.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('keeps earlier process rows visible while the live assistant is still working', () => {
+  it('folds the live chain behind one running header and unmounts its rows', () => {
     const messages = [
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -456,7 +456,20 @@ describe('ChatThread completed work disclosure', () => {
       ),
     );
 
-    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).toBeNull();
+    const disclosure = container.querySelector('[data-testid="turn-work-disclosure"]');
+    expect(disclosure?.getAttribute('data-live')).toBe('true');
+    // The chain is the fold now: its rows stay unmounted until the user opens it.
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-live-1')).toBeNull();
+
+    // The running edit is what the header names (this harness renders in `en`).
+    const trigger = container.querySelector<HTMLElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    expect(trigger?.textContent).toContain('Running');
+    expect(trigger?.textContent).toContain('tool 2');
+
+    act(() => trigger?.click());
     expect(container.querySelector('#msg-work-1')).not.toBeNull();
     expect(container.querySelector('#msg-live-1')).not.toBeNull();
   });

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08; amended 2026-09-16; amended 2026-09-19)
+Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08; amended 2026-09-16; amended 2026-09-19; amended 2026-09-22)
 
 ## Context
 
@@ -54,6 +54,11 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
      its own throw (it sits outside those render boundaries). The window-level
      `AppErrorBoundary` remains the last resort and now retries in place before
      offering a full reload.
+   - **Authored source diagnostics (2026-09-22):** sandbox script errors and
+     unhandled rejections are reported through the existing bounded bridge and
+     shown as untrusted text beside the preview. A settled, unclosed artifact
+     fence remains source with an incomplete label and no preview or Canvas
+     launcher. An open fence may still stream-preview while output is live.
    - Thinking/tool work uses timeline/cards, not Artifacts.
 
 ## Consequences

@@ -3,7 +3,7 @@ import {
   assistantHasUserFacingGeneration,
   assistantHasWorkTools,
 } from './assistant-text-role.js';
-import type { ChatMessageUi, RunRecordUi } from './chat-reducer.js';
+import type { ChatMessageUi, RunRecordUi, ToolCardUi } from './chat-reducer.js';
 import type { TranscriptTurn } from './transcript-turns.js';
 
 export type TurnWorkDisclosureProjection = {
@@ -19,6 +19,18 @@ export type TurnWorkDisclosureProjection = {
   failureCount: number;
   toolCount?: number;
   fileCount?: number;
+  /**
+   * The turn is still in flight. The header reads as a running state instead of
+   * a settled summary, and the fold is what the user watches rather than a
+   * retrospective.
+   */
+  live?: boolean;
+  /** Epoch ms the run started — drives the header's live clock. */
+  runningSince?: number;
+  /** 1-based position of the tool currently executing. */
+  runningToolIndex?: number;
+  /** The tool currently executing, so the header can name what it is doing. */
+  runningTool?: ToolCardUi;
 };
 
 export type ProjectTurnWorkDisclosureInput = {
@@ -27,6 +39,19 @@ export type ProjectTurnWorkDisclosureInput = {
   activeRunId: string | null;
   /** Global streaming is relevant only to the newest/current turn. */
   currentTurnStreaming: boolean;
+  /**
+   * A permission gate is open. Gates must stay visible at every density, and
+   * they render inside the work rows, so a live turn does not fold while one
+   * is waiting on the user.
+   */
+  permissionPending?: boolean;
+  /**
+   * Message ids already folded into a cross-message explore capsule. A live
+   * turn whose whole chain is one explore group is *already* a single line,
+   * and a more informative one ("探索了 6 个文件" beats "正在运行 · 第 8 个
+   * 工具"), so the turn-level fold stays out of its way.
+   */
+  exploreFoldedMessageIds?: ReadonlySet<string>;
 };
 
 function hasVisibleFinalContent(message: ChatMessageUi): boolean {
@@ -332,8 +357,162 @@ function projectRange(
 }
 
 /**
- * Wrap intermediate Agent work only after the user query has settled.
- * Returning `null` keeps the original causal stream fully mounted.
+ * A row the user is meant to read rather than watch: prose the model wrote, or
+ * generated media the tool call itself delivers. Both are output, not process,
+ * so the live fold stops at them instead of swallowing them.
+ */
+function isUserFacingLiveRow(message: ChatMessageUi): boolean {
+  return hasVisibleFinalContent(message) || assistantHasUserFacingGeneration(message);
+}
+
+function rangeHasTool(turn: TranscriptTurn, startIndex: number, endIndex: number): boolean {
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    if ((turn.items[index]?.message.tools.length ?? 0) > 0) return true;
+  }
+  return false;
+}
+
+/**
+ * True when every tool in the range already lives inside an explore capsule.
+ * Adding a second fold around one capsule buys no rows and costs a click.
+ */
+function rangeIsWhollyExploreFolded(
+  turn: TranscriptTurn,
+  startIndex: number,
+  endIndex: number,
+  exploreFoldedMessageIds: ReadonlySet<string> | undefined,
+): boolean {
+  if (exploreFoldedMessageIds === undefined || exploreFoldedMessageIds.size === 0) return false;
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const message = turn.items[index]?.message;
+    if (!message || message.tools.length === 0) continue;
+    if (!exploreFoldedMessageIds.has(message.id)) return false;
+  }
+  return true;
+}
+
+/** Earliest start across the turn's runs, open or closed. */
+function resolveRunStartedAt(
+  runIds: ReadonlySet<string>,
+  runRecordsById: Readonly<Record<string, RunRecordUi>>,
+): number | undefined {
+  let earliest: number | undefined;
+  for (const runId of runIds) {
+    const startedAt = runRecordsById[runId]?.startedAt;
+    if (startedAt === null || startedAt === undefined) continue;
+    earliest = earliest === undefined ? startedAt : Math.min(earliest, startedAt);
+  }
+  return earliest;
+}
+
+/** Tools seen so far in the range, and the one currently executing. */
+function resolveLiveToolProgress(
+  turn: TranscriptTurn,
+  startIndex: number,
+  endIndex: number,
+): { runningToolIndex?: number; runningTool?: ToolCardUi } {
+  let seen = 0;
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const message = turn.items[index]?.message;
+    if (!message) continue;
+    for (const tool of message.tools) {
+      seen += 1;
+      if (tool.status === 'running') {
+        return { runningToolIndex: seen, runningTool: tool };
+      }
+    }
+  }
+  return seen > 0 ? { runningToolIndex: seen } : {};
+}
+
+/**
+ * Fold the work of a turn that is still in flight.
+ *
+ * There is no conclusion yet, so everything the agent has done folds behind one
+ * running header — that is the whole point: the chain should not paint itself
+ * row by row while it works. Two kinds of row stay out of the fold:
+ *
+ *   - The row the model is currently writing text into. That is the answer
+ *     appearing, not process.
+ *   - Anything at or before a narration sentence the model already wrote. The
+ *     sentence keeps its place, and the fold covers only the work after it.
+ *
+ * An error or an open permission gate suppresses the fold entirely: both are
+ * things the user has to see and act on, and both render inside these rows.
+ */
+function projectLiveRange(
+  input: ProjectTurnWorkDisclosureInput,
+  lastAssistantIndex: number,
+  runIds: ReadonlySet<string>,
+): TurnWorkDisclosureProjection | null {
+  if (input.permissionPending === true) return null;
+  const items = input.turn.items;
+  const lastAssistant = items[lastAssistantIndex]?.message;
+  if (!lastAssistant) return null;
+
+  let endIndex = isUserFacingLiveRow(lastAssistant)
+    ? lastAssistantIndex - 1
+    : extendThroughEmptyAssistants(input.turn, lastAssistantIndex);
+  if (endIndex < 0) return null;
+
+  // A subagent reports its own live progress in its own card. Folding it would
+  // hide a whole delegated run behind one line, so the fold stops above it and
+  // the work that follows keeps its rows until the delegation settles.
+  for (let index = 0; index <= endIndex; index += 1) {
+    const message = items[index]?.message;
+    if (message && isSubagentActive(message.subagentActivity)) {
+      endIndex = index - 1;
+      break;
+    }
+  }
+  if (endIndex < 0) return null;
+
+  let startIndex = 0;
+  for (let index = endIndex; index >= 0; index -= 1) {
+    const message = items[index]?.message;
+    if (!message) continue;
+    if (message.role !== 'assistant' || isUserFacingLiveRow(message)) {
+      startIndex = index + 1;
+      break;
+    }
+  }
+  while (startIndex <= endIndex) {
+    const message = items[startIndex]?.message;
+    if (message?.role === 'assistant' && !isIgnorableAssistantRow(message)) break;
+    startIndex += 1;
+  }
+  if (startIndex > endIndex) return null;
+
+  // Thinking alone keeps its own row: 「思考中」 with its clock says more than
+  // 「正在运行」 would, and there is no chain to fold yet. The container appears
+  // with the first tool call and holds every one after it.
+  if (!rangeHasTool(input.turn, startIndex, endIndex)) return null;
+  if (prefixHasAssistantError(input.turn, startIndex, endIndex)) return null;
+  if (
+    rangeIsWhollyExploreFolded(
+      input.turn,
+      startIndex,
+      endIndex,
+      input.exploreFoldedMessageIds,
+    )
+  ) {
+    return null;
+  }
+
+  const runningSince = resolveRunStartedAt(runIds, input.runRecordsById);
+  const progress = resolveLiveToolProgress(input.turn, startIndex, endIndex);
+  return {
+    ...projectRange(input, startIndex, endIndex, runIds),
+    live: true,
+    ...(runningSince !== undefined ? { runningSince } : {}),
+    ...progress,
+  };
+}
+
+/**
+ * Wrap intermediate Agent work. A live turn folds behind a running header; a
+ * settled turn folds behind its summary. Returning `null` keeps the original
+ * causal stream fully mounted.
  *
  * Same-message text + work tools is still process while the run is live. Once
  * the turn settles it is a conclusion so the fold is not stuck waiting for a
@@ -350,6 +529,9 @@ export function projectTurnWorkDisclosure(
 
   const runIds = collectRunIds(input.turn);
   const settled = isTurnSettled(input, runIds);
+  if (!settled) {
+    return projectLiveRange(input, lastAssistantIndex, runIds);
+  }
   const lastIsConclusion = isSettledConclusion(lastAssistant, settled);
 
   let startIndex: number;
