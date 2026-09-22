@@ -330,20 +330,19 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
         </div>
       ) : null}
 
-      {livePermissionPrompt && props.onPermission ? (
-        <PermissionBar
-          prompt={livePermissionPrompt}
-          projectPath={props.projectPath ?? null}
-          onPermission={(decision, rememberScope) =>
-            props.onPermission?.(livePermissionPrompt, decision, rememberScope)
-          }
-        />
-      ) : null}
-
           {isEmpty && !props.loading && props.error === null ? (
             <div className="subagent-inspector-state">{isChinese ? '尚无输出' : 'No output yet'}</div>
           ) : null}
         </div>
+        {livePermissionPrompt && props.onPermission ? (
+          <PermissionBar
+            prompt={livePermissionPrompt}
+            projectPath={props.projectPath ?? null}
+            onPermission={(decision, rememberScope) =>
+              props.onPermission?.(livePermissionPrompt, decision, rememberScope)
+            }
+          />
+        ) : null}
         {showJumpToLatest ? (
           <JumpToLatestButton
             label={isChinese ? '回到最新' : 'Back to latest'}

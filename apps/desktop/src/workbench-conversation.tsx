@@ -377,6 +377,12 @@ export function WorkbenchPermissionBar(
     onExtensionUiResolve,
   } = props;
   const isConversationSession = isConversationSessionChrome(state.activeScope, sidebarMode);
+  const visiblePermissionQueue = state.permissionQueue.filter((prompt) => {
+    if (!state.activeSessionId) return false;
+    if (prompt.sessionId === state.activeSessionId) return true;
+    return state.subagentChildren[prompt.sessionId]?.parentSessionId === state.activeSessionId;
+  });
+  const visiblePermissionPrompt = visiblePermissionQueue[0] ?? null;
   const tray =
     sessionPlan && shouldShowPlanTodoTray({ plan: sessionPlan, isConversationSession }) ? (
       <PlanTodoTray
@@ -387,14 +393,14 @@ export function WorkbenchPermissionBar(
     ) : null;
 
   let interruption: ReactElement | null = null;
-  if (state.permissionPrompt) {
+  if (visiblePermissionPrompt) {
     interruption = (
       <PermissionBar
-        key={state.permissionPrompt.requestId}
-        prompt={state.permissionPrompt}
+        key={visiblePermissionPrompt.requestId}
+        prompt={visiblePermissionPrompt}
         projectPath={state.projectPath}
-        queuedRemaining={Math.max(0, state.permissionQueue.length - 1)}
-        {...permissionOriginProps(state, state.permissionPrompt.sessionId)}
+        queuedRemaining={Math.max(0, visiblePermissionQueue.length - 1)}
+        {...permissionOriginProps(state, visiblePermissionPrompt.sessionId)}
         onPermission={(decision, scope) => {
           void onPermission(decision, scope);
         }}

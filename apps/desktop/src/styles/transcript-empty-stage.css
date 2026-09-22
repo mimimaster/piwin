@@ -23,8 +23,15 @@
   text-align: left;
 }
 
-.chat-column-empty .composer-dock.layout-centered {
+.chat-column-empty .composer-plan-stack {
+  /* Same visual group as the centered composer. display:contents lifts the
+     welcome heading, this stack, the dock, and the history list onto
+     .chat-stage; an unordered stack sorts as 0 and lands above the heading. */
   order: 2;
+}
+
+.chat-column-empty .composer-dock.layout-centered {
+  order: 3;
   width: 100%;
   max-width: none;
   margin: 0;
@@ -39,7 +46,7 @@
 .chat-column-empty .empty-stage-landing-history {
   display: flex;
   flex-direction: column;
-  order: 3;
+  order: 4;
   width: min(var(--conversation-width), calc(100% - 2 * var(--chat-inline-pad)));
   max-width: var(--conversation-width);
   margin: 16px auto 0;

@@ -872,6 +872,16 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
   it('lets a permission prompt occupy the composer slot', () => {
     const state = {
       ...projectState(),
+      activeSessionId: 's1',
+      permissionQueue: [
+        {
+          requestId: 'req-1',
+          sessionId: 's1',
+          action: 'bash:ls',
+          detail: 'ls',
+          defaultDecision: 'ask' as const,
+        },
+      ],
       permissionPrompt: {
         requestId: 'req-1',
         sessionId: 's1',
@@ -906,6 +916,7 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
     const onPermission = vi.fn();
     const state = {
       ...createInitialChatUiState(),
+      activeSessionId: 's-general',
       permissionPrompt: {
         requestId: 'req-general',
         sessionId: 's-general',

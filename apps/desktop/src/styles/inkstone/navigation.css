@@ -75,8 +75,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   margin: 4px 0 0;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-plan-stack {
   order: 2;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered {
+  order: 3;
   width: 100%;
   max-width: none;
   margin: 0;
@@ -95,7 +99,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-landing-history {
   display: flex;
   flex-direction: column;
-  order: 3;
+  order: 4;
   width: min(var(--conversation-width), calc(100% - 2 * var(--chat-inline-pad)));
   max-width: var(--conversation-width);
   margin: 16px auto 0;

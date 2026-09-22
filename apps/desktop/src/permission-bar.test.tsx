@@ -340,7 +340,9 @@ describe('PermissionBar', () => {
   it('wraps the permission bar in composer-plan-stack even without an active plan tray', () => {
     const state = {
       ...createInitialChatUiState(),
+      activeSessionId: basePrompt.sessionId,
       permissionPrompt: basePrompt,
+      permissionQueue: [basePrompt],
       projectPath: '/repo',
     };
     act(() =>
@@ -363,5 +365,83 @@ describe('PermissionBar', () => {
     expect(stack).not.toBeNull();
     const bar = stack?.querySelector('[data-testid="permission-bar"]');
     expect(bar).not.toBeNull();
+  });
+
+  it('does not show a permission request that belongs to another session', () => {
+    const foreign: PermissionPromptUi = {
+      ...basePrompt,
+      requestId: 'foreign',
+      sessionId: 'other-session',
+    };
+    const state = {
+      ...createInitialChatUiState(),
+      activeSessionId: 'sess-1',
+      permissionPrompt: foreign,
+      permissionQueue: [foreign, basePrompt],
+      projectPath: '/repo',
+    };
+    act(() =>
+      root.render(
+        <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <WorkbenchPermissionBar
+              state={state}
+              sidebarMode="code"
+              extensionUiRequest={null}
+              sessionPlan={null}
+              onPermission={vi.fn()}
+              onExtensionUiResolve={vi.fn()}
+            />
+          </PiwinUiProvider>
+        </DesktopLocaleProvider>,
+      ),
+    );
+    const title = container.querySelector('.agent-interruption-title');
+    expect(title?.textContent).toContain('bash:ls');
+    expect(title?.textContent).not.toContain('foreign');
+    expect(container.querySelector('[data-testid="permission-queue-badge"]')).toBeNull();
+  });
+
+  it('shows a child subagent request on the parent session', () => {
+    const child: PermissionPromptUi = {
+      ...basePrompt,
+      requestId: 'child-req',
+      sessionId: 'child-1',
+    };
+    const state = {
+      ...createInitialChatUiState(),
+      activeSessionId: 'sess-1',
+      permissionPrompt: child,
+      permissionQueue: [child],
+      subagentChildren: {
+        'child-1': {
+          id: 'child-1',
+          scope: { kind: 'project' as const, projectPath: '/repo' },
+          workingDirectory: '/repo',
+          projectPath: '/repo',
+          updatedAt: '2026-09-22T00:00:00.000Z',
+          messageCount: 0,
+          parentSessionId: 'sess-1',
+          kind: 'subagent' as const,
+        },
+      },
+    };
+    act(() =>
+      root.render(
+        <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <WorkbenchPermissionBar
+              state={state}
+              sidebarMode="code"
+              extensionUiRequest={null}
+              sessionPlan={null}
+              onPermission={vi.fn()}
+              onExtensionUiResolve={vi.fn()}
+            />
+          </PiwinUiProvider>
+        </DesktopLocaleProvider>,
+      ),
+    );
+    expect(container.querySelector('[data-testid="permission-bar"]')).not.toBeNull();
   });
 });

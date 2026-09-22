@@ -184,6 +184,15 @@
   gap: var(--s-6);
 }
 
+/* The permission card is a viewport sibling of the scrollport, so growing
+   output cannot carry it out of view. */
+.subagent-inspector-viewport > [data-testid="permission-bar"] {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  margin: 0 var(--s-6) var(--s-4);
+}
+
 /* Inline embeds cap their own height instead of filling a modal. */
 .subagent-inline-session .subagent-inspector-viewport {
   flex: 0 1 auto;

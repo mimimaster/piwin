@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { ChatMessageUi, SubagentStreamState, ToolCardUi } from './chat-reducer';
+import type { ChatMessageUi, PermissionPromptUi, SubagentStreamState, ToolCardUi } from './chat-reducer';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { SubagentSessionTranscript } from './subagent-session-transcript';
 
@@ -286,5 +286,43 @@ describe('SubagentSessionTranscript jump-to-latest', () => {
     });
     expect(scroll.scrollTop).toBe(800);
     expect(container.querySelector('[data-testid="subagent-inspector-jump-latest"]')).toBeNull();
+  });
+
+  it('pins a live permission request below the scrollport', () => {
+    const prompt: PermissionPromptUi = {
+      requestId: 'child-perm',
+      sessionId: 'child-session-1',
+      action: 'bash',
+      detail: 'rm -rf build',
+      defaultDecision: 'ask',
+    };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentSessionTranscript
+            historicalMessages={historicalMessages}
+            stream={{ ...liveStream, permissionPrompt: prompt }}
+            loading={false}
+            error={null}
+            onRetry={() => undefined}
+            locale="en"
+            artifactInlineEnabled={true}
+            showThinking={false}
+            onPermission={() => undefined}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const bar = container.querySelector('[data-testid="permission-bar"]');
+    const scroll = container.querySelector('.subagent-inspector-scroll');
+    expect(bar).not.toBeNull();
+    expect(scroll?.contains(bar ?? null)).toBe(false);
+    expect(bar?.parentElement?.className).toBe('subagent-inspector-viewport');
   });
 });
