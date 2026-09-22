@@ -46,6 +46,8 @@
 .tool-call-file-pill.is-link:hover .tool-call-file-dir,
 .tool-call-file-pill.is-link:hover .tool-call-file-name {
   text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-skip-ink: none;
   text-underline-offset: 2px;
 }
 
@@ -53,6 +55,8 @@
   background: var(--iris-wash);
   color: var(--iris-lift);
   text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-skip-ink: none;
 }
 
 .tool-call-file-pill.is-openable:focus-visible {

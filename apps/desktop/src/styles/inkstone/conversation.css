@@ -30,6 +30,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   text-decoration: underline !important;
   text-decoration-color: currentColor !important;
   text-underline-offset: 3px !important;
+  /* Unbroken ink line: skip-ink gaps it at every g/p/y/q of a mono path. */
+  text-decoration-thickness: 1px !important;
+  text-decoration-skip-ink: none !important;
 }
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.i, svg, .path-chip-icon, .file-icon) {

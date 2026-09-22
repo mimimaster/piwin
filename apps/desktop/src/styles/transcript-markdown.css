@@ -241,6 +241,9 @@ html:not([data-theme-mode='light']) {
   text-decoration: underline !important;
   text-decoration-color: currentColor !important;
   text-underline-offset: 3px !important;
+  /* Unbroken ink line: skip-ink gaps it at every g/p/y/q of a mono path. */
+  text-decoration-thickness: 1px !important;
+  text-decoration-skip-ink: none !important;
 }
 
 .md-link:hover {
