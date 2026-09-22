@@ -69,6 +69,18 @@ describe('docking persist', () => {
     expect(parsed?.groups[rightGroupId]?.activeViewId).toBe(rightGroup.viewIds[0]);
   });
 
+  it('keeps more than one browser view', () => {
+    const createId = createSequentialIdFactory();
+    const opened = openToolView(createWorkspaceState(createId), 'browser', createId);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    const second = openToolView(opened.state, 'browser', createId);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    const parsed = parseWorkspaceState(serializeWorkspaceState(second.state));
+    expect(Object.values(parsed?.views ?? {}).filter((view) => view.kind === 'browser')).toHaveLength(2);
+  });
+
   it('migrates v1 storage after writing a one-shot backup', () => {
     const storage = new MemoryStorage();
     storage.setItem(CONVERSATION_PANE_STORAGE_KEY, JSON.stringify(createConversationPaneLayout('legacy')));

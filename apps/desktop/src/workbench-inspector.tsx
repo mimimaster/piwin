@@ -4,8 +4,8 @@
  */
 import {
   DOCKING_OWNED_INSPECTOR_TABS,
+  dockedToolTabId,
   inspectorTabToToolKind,
-  toolKindToInspectorTab,
 } from './workbench/docking/docking-tool-bridge.js';
 import { closeView } from './workbench/docking/commands.js';
 import { isMovableToolKind } from './workbench/docking/types.js';
@@ -539,9 +539,12 @@ function resolveDockedTools(
   const groupId = state.rightPanel.groupIds[0] ?? null;
   const group = groupId ? state.groups[groupId] : undefined;
   const tabs: RightPanelTab[] = [];
+  let browsers = 0;
   for (const viewId of group?.viewIds ?? []) {
     const kind = state.views[viewId]?.kind;
-    if (kind && isMovableToolKind(kind)) tabs.push(toolKindToInspectorTab(kind));
+    if (!kind || !isMovableToolKind(kind)) continue;
+    tabs.push(dockedToolTabId(kind, browsers));
+    if (kind === 'browser') browsers += 1;
   }
   const title = canvasTitle?.trim();
   return {

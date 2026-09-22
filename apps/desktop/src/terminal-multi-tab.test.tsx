@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
-import { RightPanel } from './right-panel';
+import { RightPanel, type RightPanelTab } from './right-panel';
 import { writeStoredRightPanelState, RIGHT_PANEL_STATE_STORAGE_KEY } from './right-panel-memory';
 import type { TerminalSessionsApi, TerminalSession } from './use-terminal-sessions';
 import { TerminalDock } from './terminal-dock';
@@ -304,5 +304,64 @@ describe('Terminal Multi-Tab & Cursor-Style Coexistence', () => {
 
     expect(currentActiveTab).toBe('terminal-2');
     expect(mockSessions.sessions.length).toBe(2);
+  });
+
+  it('places a terminal opened from + after the active tab, not with the other terminals', () => {
+    writeStoredRightPanelState({
+      openTabs: ['terminal-1', 'files', 'review'],
+      activeTab: 'review',
+    });
+    const mockSessions = createMockTerminalSessions();
+    let currentActiveTab: RightPanelTab | null = 'review';
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    const render = (): void => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <RightPanel
+            open
+            onOpen={() => {}}
+            onClose={() => {}}
+            activeTab={currentActiveTab}
+            onTabChange={(tab) => {
+              currentActiveTab = tab;
+            }}
+            panelWidthPx={400}
+            isResizing={false}
+            onResizePointerDown={() => {}}
+            onResizeReset={() => {}}
+            terminalSessions={mockSessions}
+            filesContent={<div data-testid="files-body">files</div>}
+            terminalContent={<div data-testid="terminal-body">terminal</div>}
+            reviewContent={<div data-testid="review-body">review</div>}
+          />
+        </PiwinUiProvider>,
+      );
+    };
+
+    act(() => {
+      render();
+    });
+
+    const plusButton = container.querySelector<HTMLButtonElement>('[data-testid="right-panel-tab-add"]');
+    act(() => {
+      plusButton?.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      plusButton?.dispatchEvent(new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+      plusButton?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    act(() => {
+      document.querySelector<HTMLElement>('[data-testid="right-panel-plus-terminal"]')?.click();
+    });
+    act(() => {
+      render();
+    });
+
+    const labels = [...container.querySelectorAll('.right-panel-tab-label')].map(
+      (node) => node.textContent,
+    );
+    expect(labels).toEqual(['zsh1', '文件', '变更', 'zsh2']);
   });
 });

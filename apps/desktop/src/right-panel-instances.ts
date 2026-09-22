@@ -56,3 +56,20 @@ export function allocateRightPanelInstanceId(
   while (taken.has(`${kind}-${index}`)) index += 1;
   return `${kind}-${index}`;
 }
+
+/**
+ * Where a newly opened tab lands: directly after the active tab.
+ * With nothing active, or an active tab the strip no longer lists, it goes
+ * at the end. An id that is already open keeps its place.
+ */
+export function insertTabAfterActive<T extends string>(
+  tabs: readonly T[],
+  tab: T,
+  active: T | null,
+): T[] {
+  if (tabs.includes(tab)) return [...tabs];
+  const next = [...tabs];
+  const anchor = active !== null ? next.indexOf(active) : -1;
+  next.splice(anchor >= 0 ? anchor + 1 : next.length, 0, tab);
+  return next;
+}

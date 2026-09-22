@@ -105,7 +105,7 @@ export {
   placeSurfaceHosts,
   useDockingSurfaceHosts,
 } from './surface-pool.js';
-export { inspectorTabToToolKind, toolKindToInspectorTab, tryOpenDockingTool } from './docking-tool-bridge.js';
+export { dockedToolTabId, inspectorTabToToolKind, toolKindToInspectorTab, tryOpenDockingTool } from './docking-tool-bridge.js';
 export {
   DockToolHostsProvider,
   DockToolSurface,

@@ -16,6 +16,7 @@ import { IconButton, IconClose } from '@piwin/ui-kit';
 import { readStoredRightPanelState, writeStoredRightPanelState } from './right-panel-memory';
 import {
   allocateRightPanelInstanceId,
+  insertTabAfterActive,
   isTerminalTab,
   rightPanelTabKind,
   sectionLabel,
@@ -259,19 +260,20 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     });
   }, [terminalSessions]);
 
-  // Keep openTabs in sync with sessions added externally (e.g. terminal sidebar)
+  // Sessions opened outside the + menu (terminal sidebar) still need a tab.
+  // The + menu inserts its own tab first, so an id already listed stays put
+  // instead of being pulled to the end.
   useEffect(() => {
     if (!terminalSessions) return;
     const activeId = terminalSessions.activeSessionId;
     if (activeId) {
-      setOpenTabs((current) => {
-        if (!current.includes(activeId as RightPanelTab)) {
-          return [...current, activeId as RightPanelTab];
-        }
-        return current;
-      });
+      setOpenTabs((current) =>
+        current.includes(activeId as RightPanelTab)
+          ? current
+          : insertTabAfterActive(current, activeId as RightPanelTab, props.activeTab),
+      );
     }
-  }, [terminalSessions?.activeSessionId]);
+  }, [props.activeTab, terminalSessions?.activeSessionId]);
 
   // Remove closed terminal sessions from openTabs
   useEffect(() => {
@@ -286,12 +288,18 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     });
   }, [terminalSessions?.sessions]);
 
-  const revealTab = useCallback((tab: RightPanelTab): void => {
+  const revealTab = useCallback((tab: RightPanelTab, place: 'after-active' | 'end' = 'end'): void => {
     if (isTerminalTab(tab) && terminalSessions && tab !== 'terminal') {
       terminalSessions.setActiveSessionId(tab);
     }
     if (keepsTab(tab)) {
-      setOpenTabs((current) => (current.includes(tab) ? current : [...current, tab]));
+      setOpenTabs((current) =>
+        place === 'after-active'
+          ? insertTabAfterActive(current, tab, props.activeTab)
+          : current.includes(tab)
+            ? current
+            : [...current, tab],
+      );
     }
     props.onTabChange(tab);
     setPickerOpen(false);
@@ -310,12 +318,12 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       }
       const created = terminalSessions.addSession();
       if (created) {
-        revealTab(created.id as RightPanelTab);
+        revealTab(created.id as RightPanelTab, 'after-active');
         return;
       }
     }
     const id = allocateRightPanelInstanceId(kind, allTabs) as RightPanelTab;
-    revealTab(id);
+    revealTab(id, 'after-active');
   }, [allTabs, props, revealTab, terminalSessions]);
 
   const closeTab = useCallback((tab: RightPanelTab): void => {

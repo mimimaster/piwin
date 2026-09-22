@@ -276,6 +276,7 @@ describe('RightPanel multi-tab', () => {
     expect(document.querySelector('[data-testid="right-panel-plus-notes"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="right-panel-plus-sideChat"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="right-panel-plus-branches"]')).toBeNull();
+    expect(document.querySelector('[data-testid="right-panel-plus-review"]')).toBeNull();
 
     const filesBtn = document.querySelector<HTMLElement>('[data-testid="right-panel-plus-files"]');
     act(() => {
@@ -544,6 +545,10 @@ describe('RightPanel multi-tab', () => {
     });
     expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="right-panel-open-tab-browser-2"]')?.textContent).toContain('浏览器 2');
+    const labels = [...container.querySelectorAll('.right-panel-tab-label')].map(
+      (node) => node.textContent,
+    );
+    expect(labels).toEqual(['浏览器', '浏览器 2']);
   });
 
   it('keeps the browser tool tab closeable when there are no page tabs', () => {

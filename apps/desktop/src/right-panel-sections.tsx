@@ -21,6 +21,7 @@ import type { DesktopLocale } from './desktop-locale';
 import type { RightPanelTabKind } from './right-panel-memory';
 import {
   allocateRightPanelInstanceId,
+  insertTabAfterActive,
   isRightPanelInstanceTab,
   rightPanelTabKind,
   type RightPanelToolKind,
@@ -30,7 +31,7 @@ import {
 export type RightPanelTab = RightPanelTabKind;
 
 export type { RightPanelToolKind };
-export { rightPanelTabKind, isRightPanelInstanceTab, allocateRightPanelInstanceId };
+export { rightPanelTabKind, isRightPanelInstanceTab, allocateRightPanelInstanceId, insertTabAfterActive };
 
 export function isTerminalTab(
   tab: string | null | undefined,
@@ -49,13 +50,16 @@ export const SECTION_META: Array<{
   hidden?: boolean;
   /** Shown in the + menu, not the default home launcher. */
   plusOnly?: boolean;
+  /** Shown in the home launcher, not the + menu. */
+  homeOnly?: boolean;
 }> = [
   { id: 'sideChat', icon: <IconSideChat />, labelEn: 'Side chat', labelZh: '侧聊', shortcut: '⌥⌘S' },
   { id: 'browser', icon: <IconBrowser />, labelEn: 'Browser', labelZh: '浏览器', shortcut: '⌘T' },
   { id: 'files', icon: <IconFile />, labelEn: 'Files', labelZh: '文件', shortcut: '⌘P' },
   { id: 'terminal', icon: <IconTerminal />, labelEn: 'zsh', labelZh: 'zsh', shortcut: '⌘J' },
   { id: 'tasks', icon: <IconActivity />, labelEn: 'Tasks', labelZh: '任务' },
-  { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更', shortcut: '⌥⌘G' },
+  // Changes is one view of the workspace; the + menu does not open another.
+  { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更', shortcut: '⌥⌘G', homeOnly: true },
   { id: 'notes', icon: <IconNote />, labelEn: 'Notes', labelZh: '笔记', plusOnly: true },
   { id: 'cards', icon: <IconCards />, labelEn: 'Flashcards', labelZh: '知识卡片', plusOnly: true },
   { id: 'canvas', icon: <IconDocument />, labelEn: 'Canvas', labelZh: '画布', hidden: true },
@@ -67,7 +71,7 @@ export function isHomeLauncherSection(entry: (typeof SECTION_META)[number]): boo
 }
 
 export function isPlusMenuSection(entry: (typeof SECTION_META)[number]): boolean {
-  return entry.hidden !== true;
+  return entry.hidden !== true && entry.homeOnly !== true;
 }
 
 function kindMeta(kind: RightPanelToolKind | null): (typeof SECTION_META)[number] | undefined {

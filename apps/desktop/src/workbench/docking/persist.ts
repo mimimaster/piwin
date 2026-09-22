@@ -131,8 +131,9 @@ export function parseWorkspaceState(value: unknown): WorkspaceState | null {
     if (viewIds.size >= WORKSPACE_VIEW_HARD_LIMIT) break;
     const view = parseView(raw, viewIds);
     if (!view) continue;
-    // Tool views are one per kind; older layouts could hold cloned canvases.
-    if (view.kind !== 'session' && view.kind !== 'invalid') {
+    // Tool views are one per kind, except browsers; older layouts could hold
+    // cloned canvases.
+    if (view.kind !== 'session' && view.kind !== 'invalid' && view.kind !== 'browser') {
       if (toolKinds.has(view.kind)) {
         viewIds.delete(view.viewId);
         continue;

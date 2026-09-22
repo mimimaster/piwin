@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   allocateRightPanelInstanceId,
+  insertTabAfterActive,
   isRightPanelInstanceTab,
   rightPanelTabKind,
 } from './right-panel-instances';
@@ -25,5 +26,24 @@ describe('right panel instances', () => {
   it('treats a terminal session id as a terminal instance', () => {
     expect(isRightPanelInstanceTab('terminal-4', 'terminal')).toBe(true);
     expect(isRightPanelInstanceTab('browser-2', 'terminal')).toBe(false);
+  });
+
+  it('inserts a new tab directly after the active one', () => {
+    expect(insertTabAfterActive(['zsh1', 'files', 'changes'], 'zsh2', 'changes')).toEqual([
+      'zsh1',
+      'files',
+      'changes',
+      'zsh2',
+    ]);
+    expect(insertTabAfterActive(['browser', 'files'], 'notes', 'browser')).toEqual([
+      'browser',
+      'notes',
+      'files',
+    ]);
+    expect(insertTabAfterActive(['files'], 'browser', null)).toEqual(['files', 'browser']);
+    expect(insertTabAfterActive(['files', 'browser'], 'browser', 'files')).toEqual([
+      'files',
+      'browser',
+    ]);
   });
 });

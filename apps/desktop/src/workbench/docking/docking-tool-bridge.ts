@@ -25,6 +25,12 @@ export function toolKindToInspectorTab(kind: MovableToolKind): RightPanelTab {
   return kind;
 }
 
+/** Tab id of one docked tool view. Browsers are instances; other tools are one per kind. */
+export function dockedToolTabId(kind: MovableToolKind, browsersBefore: number): RightPanelTab {
+  if (kind !== 'browser') return toolKindToInspectorTab(kind);
+  return (browsersBefore === 0 ? 'browser' : `browser-${browsersBefore + 1}`) as RightPanelTab;
+}
+
 export function tryOpenDockingTool(args: {
   enabled: boolean;
   tab: RightPanelTab | null;

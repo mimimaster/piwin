@@ -151,7 +151,7 @@ describe('docking workspace commands', () => {
     expect(Object.values(reopened.state.views).some((view) => view.sessionId === 'gone')).toBe(true);
   });
 
-  it('focuses an existing browser instead of cloning it', () => {
+  it('opens another browser tab instead of focusing the one already open', () => {
     const { createId, state } = setup();
     const first = openToolView(state, 'browser', createId);
     expect(first.ok).toBe(true);
@@ -159,7 +159,9 @@ describe('docking workspace commands', () => {
     const second = openToolView(first.state, 'browser', createId);
     expect(second.ok).toBe(true);
     if (!second.ok) return;
-    expect(Object.values(second.state.views).filter((view) => view.kind === 'browser')).toHaveLength(1);
+    const browsers = Object.values(second.state.views).filter((view) => view.kind === 'browser');
+    expect(browsers).toHaveLength(2);
+    expect(second.state.focusedViewId).not.toBe(first.state.focusedViewId);
   });
 
   it('focuses the existing canvas when auto-reveal and the launcher both open it', () => {

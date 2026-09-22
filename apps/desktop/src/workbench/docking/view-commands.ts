@@ -139,11 +139,14 @@ export function openToolView(
   createId: WorkspaceIdFactory,
   targetGroupId?: string,
 ): WorkspaceOpResult {
-  // One view per tool kind. Every canvas view renders the single workbench
-  // canvas target, so opening again (auto-reveal, launcher, inspector tab)
-  // must focus the existing tab instead of cloning it.
-  for (const view of Object.values(state.views)) {
-    if (view.kind === kind) return okOp(focusView(state, view.viewId));
+  // One view per tool kind, except the browser: each open is its own tab.
+  // Every canvas view renders the single workbench canvas target, so opening
+  // again (auto-reveal, launcher, inspector tab) must focus the existing tab
+  // instead of cloning it.
+  if (kind !== 'browser') {
+    for (const view of Object.values(state.views)) {
+      if (view.kind === kind) return okOp(focusView(state, view.viewId));
+    }
   }
   if (Object.keys(state.views).length >= WORKSPACE_VIEW_HARD_LIMIT) {
     return rejectOp(state, 'view-limit', DOCKING_COPY.viewLimit);
