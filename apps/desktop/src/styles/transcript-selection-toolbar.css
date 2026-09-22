@@ -1,0 +1,75 @@
+/* Floating selection action bar (Add to chat / Generate flashcard) */
+.ui-popover-content.transcript-selection-toolbar {
+  min-width: 0 !important;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  padding: 3px;
+  background: var(--surface-4, #ffffff);
+  border: 1px solid var(--line-1, rgba(0, 0, 0, 0.12));
+  border-radius: var(--r-card, 8px);
+  box-shadow: var(--elev-3, 0 4px 16px -2px rgba(0, 0, 0, 0.15));
+  z-index: var(--layer-popover, 1000);
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.selection-toolbar-inner {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
+.selection-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: calc(var(--r-card, 8px) - 2px);
+  background: transparent;
+  color: var(--text-1, #111827);
+  font-size: var(--fs-chrome, 12px);
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+
+.selection-toolbar-btn:hover:not(:disabled) {
+  background: var(--surface-hover, rgba(128, 128, 128, 0.1));
+  color: var(--text-1, #111827);
+}
+
+.selection-toolbar-btn:active:not(:disabled) {
+  background: var(--surface-active, rgba(128, 128, 128, 0.18));
+}
+
+.selection-toolbar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.selection-toolbar-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-3, var(--muted, #6b7280));
+}
+
+.selection-toolbar-btn:hover:not(:disabled) .selection-toolbar-btn-icon {
+  color: var(--text-1, #111827);
+}
+
+.selection-toolbar-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--line-1, rgba(128, 128, 128, 0.2));
+  flex-shrink: 0;
+  margin: 0 1px;
+}

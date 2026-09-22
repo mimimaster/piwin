@@ -48,6 +48,7 @@ import {
 import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
 import { resolveModelWaitTail } from './model-wait-tail.js';
 import { RunStatusFooter } from './run-status-footer.js';
+import { TranscriptSelectionToolbar } from './transcript-selection-toolbar.js';
 
 /** Render-only copy used to place the final answer's reasoning in Work. */
 function createThinkingOnlyMessage(message: ChatMessageUi): ChatMessageUi {
@@ -240,9 +241,12 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     return null;
   }, [chatMessages]);
 
+  const threadRef = useRef<HTMLDivElement>(null);
+
   return (
     <GoalActionsProvider actions={goalActions}>
     <div
+      ref={threadRef}
       className={`chat-thread${conversationSession ? ' is-conversation' : ''}`}
       data-testid="chat-thread"
     >
@@ -882,6 +886,11 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           ) : null}
         </section>
       ) : null}
+      <TranscriptSelectionToolbar
+        containerRef={threadRef}
+        projectPath={props.projectPath}
+        locale={props.locale}
+      />
       </div>
     </GoalActionsProvider>
   );

@@ -44,6 +44,7 @@
 @import './styles/transcript-tool-chain.css';
 @import './styles/transcript-markdown.css';
 @import './styles/transcript-cards.css';
+@import './styles/transcript-selection-toolbar.css';
 @import './styles/transcript-ink-wash.css';
 @import './styles/artifact.css';
 @import './styles/region-conversation-message.css';
