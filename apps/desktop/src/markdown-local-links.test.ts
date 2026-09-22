@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  hasFilenameSuffix,
   isLocalDirectoryPath,
   isLocalFileMarkdownHref,
   isLocalPathChipCandidate,
@@ -40,6 +41,24 @@ describe('isLocalDirectoryPath', () => {
     expect(isLocalDirectoryPath('/Users/me/docs/plans/')).toBe(true);
     expect(isLocalDirectoryPath('docs/plans/foo.md')).toBe(false);
     expect(isLocalDirectoryPath('https://example.com/docs/plans/')).toBe(false);
+  });
+
+  it('does not treat an extensionless path as a directory unless it ends with /', () => {
+    expect(isLocalDirectoryPath('/Users/yorickjue/Developer/piwin')).toBe(false);
+    expect(isLocalDirectoryPath('README')).toBe(false);
+  });
+});
+
+describe('hasFilenameSuffix', () => {
+  it('requires a real suffix after the dot', () => {
+    expect(hasFilenameSuffix('/Users/me/a.md')).toBe(true);
+    expect(hasFilenameSuffix('/Users/me/.gitignore')).toBe(true);
+    expect(hasFilenameSuffix('src/utils.ts')).toBe(true);
+    expect(hasFilenameSuffix('/Users/yorickjue/Developer/piwin')).toBe(false);
+    expect(hasFilenameSuffix('~/Projects/piwin')).toBe(false);
+    expect(hasFilenameSuffix('/Users/me/README')).toBe(false);
+    expect(hasFilenameSuffix('README')).toBe(false);
+    expect(hasFilenameSuffix('docs/plans/')).toBe(false);
   });
 });
 
@@ -119,5 +138,8 @@ describe('isLocalPathChipCandidate', () => {
     expect(isLocalPathChipCandidate('file:///Users/me/out/')).toBe(false);
     expect(isLocalPathChipCandidate('src/utils.ts')).toBe(true);
     expect(isLocalPathChipCandidate('/Users/me/a.md')).toBe(true);
+    expect(isLocalPathChipCandidate('/Users/yorickjue/Developer/piwin')).toBe(false);
+    expect(isLocalPathChipCandidate('~/Projects/piwin')).toBe(false);
+    expect(isLocalPathChipCandidate('/Users/me/README')).toBe(false);
   });
 });

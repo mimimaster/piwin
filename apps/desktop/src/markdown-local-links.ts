@@ -114,6 +114,14 @@ export function isLocalDirectoryPath(value: string): boolean {
   return isLocalFileMarkdownHref(trimmed) || isLocalFileMarkdownHref(normalized);
 }
 
+/** Last path segment has a filename suffix (`a.md`, `.gitignore`). `piwin` does not. */
+export function hasFilenameSuffix(value: string): boolean {
+  const normalized = normalizeLocalFileHref(stripAngleBrackets(value).trim()).replace(/\\/g, '/');
+  const segment = normalized.split(/[\\/]/).pop() ?? '';
+  const dot = segment.lastIndexOf('.');
+  return dot >= 0 && dot < segment.length - 1;
+}
+
 /**
  * Archives / media / markup agents offer as clickable deliverables.
  * Source and config extensions (`ts`, `md`, `json`, …) are not chips unless
@@ -147,6 +155,10 @@ export function isLocalPathChipCandidate(value: string): boolean {
     return false;
   }
   if (isLocalDirectoryPath(trimmed)) {
+    return false;
+  }
+  // Clickable chips are files. A path with no filename suffix is not one.
+  if (!hasFilenameSuffix(trimmed)) {
     return false;
   }
   if (isLocalFileMarkdownHref(trimmed)) {

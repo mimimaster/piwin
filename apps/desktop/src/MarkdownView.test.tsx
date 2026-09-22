@@ -1094,6 +1094,19 @@ describe('MarkdownView file references', () => {
     expect(container.textContent ?? '').toContain('/Users/me/proj/docs/plans/');
   });
 
+  it('does not chip an extensionless cwd written without a trailing slash', () => {
+    const cwd = '/Users/yorickjue/Developer/piwin';
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={`cwd ${cwd}（与 AGENTS.md 的 bootstrap 路径一致）`}
+        renderingPhase="completed"
+        onOpenDocument={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('.md-doc-chip')).toBeNull();
+    expect(container.textContent ?? '').toContain(cwd);
+  });
+
   it('does not hyperlink an absolute directory markdown link', () => {
     const { container } = renderMarkdown(
       <MarkdownView
@@ -1105,6 +1118,19 @@ describe('MarkdownView file references', () => {
     expect(container.querySelector('.md-doc-chip')).toBeNull();
     expect(container.querySelector('a.md-link')).toBeNull();
     expect(container.querySelector('.md-inline-code')?.textContent).toBe('docs/plans/');
+  });
+
+  it('does not chip a markdown link whose path has no filename suffix', () => {
+    const cwd = '/Users/yorickjue/Developer/piwin';
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={`[piwin](${cwd})`}
+        renderingPhase="completed"
+        onOpenDocument={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('.md-doc-chip')).toBeNull();
+    expect(container.textContent ?? '').toContain('piwin');
   });
 
   it('resolves relative deliverable chips against projectPath', () => {

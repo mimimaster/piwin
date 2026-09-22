@@ -22,6 +22,7 @@ import {
 } from './markdown-code-fence.js';
 import { isLocalFilesystemMarkdownMediaSrc } from './media-path.js';
 import {
+  hasFilenameSuffix,
   isLocalDirectoryPath,
   isLocalFileMarkdownHref,
   isLocalPathChipCandidate,
@@ -254,7 +255,7 @@ export function createStreamdownComponents(optionsRef: {
       label.startsWith('📄');
     const isLocalPathLink = isLocalFileMarkdownHref(url);
 
-    if (isLocalDirectoryPath(url)) {
+    if (isLocalDirectoryPath(url) || (isLocalPathLink && !hasFilenameSuffix(url))) {
       return (
         <code className={mergeMarkdownClassNames('md-inline-code', className)}>{children}</code>
       );
