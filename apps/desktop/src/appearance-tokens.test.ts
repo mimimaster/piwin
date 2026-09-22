@@ -88,6 +88,8 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--focus-ring',
   '--font',
   '--font-mono',
+  '--font-sans',
+  '--font-serif',
   '--hover',
   '--iris',
   '--iris-fill',
@@ -101,6 +103,8 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--line-3',
   '--line-soft',
   '--line-strong',
+  '--mantine-font-family',
+  '--mantine-font-family-monospace',
   '--mint',
   '--mono',
   '--motion-fast',
@@ -118,7 +122,9 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--radius-surface',
   '--rail',
   '--sage',
+  '--sans',
   '--selected',
+  '--serif',
   '--shadow',
   '--shadow-overlay',
   '--sidebar',
@@ -411,16 +417,16 @@ describe('Deck ramp projection', () => {
 
   it('prepends custom fonts when provided to applyAppearanceToDocument', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_INKSTONE_PAPER, {
-      sansFont: 'Anthropic Sans',
-      monoFont: 'Anthropic Mono',
-      serifFont: 'Anthropic Serif',
+      sansFont: 'Sans Variable',
+      monoFont: 'Mono Web',
+      serifFont: 'Serif Variable',
     });
 
     const sans = read('--font');
-    expect(sans.startsWith('"Anthropic Sans"')).toBe(true);
-    expect(read('--font-mono').startsWith('"Anthropic Mono"')).toBe(true);
-    expect(read('--serif').startsWith('"Anthropic Serif"')).toBe(true);
-    expect(document.documentElement.style.fontFamily).toContain('"Anthropic Sans"');
+    expect(sans.startsWith('"Sans Variable"')).toBe(true);
+    expect(read('--font-mono').startsWith('"Mono Web"')).toBe(true);
+    expect(read('--serif').startsWith('"Serif Variable"')).toBe(true);
+    expect(document.documentElement.style.fontFamily).toContain('"Sans Variable"');
   });
 
   it('maps every legacy surface name onto a Deck role', () => {

@@ -90,6 +90,7 @@ export function DesktopThemeRoot() {
     void loadAndRegisterAllCustomFonts(preferences.customFonts);
   }, []);
 
+
   const applyResolvedTheme = useCallback((candidateTheme: ThemeManifest) => {
     const resolvedTheme = resolveDesktopAppearance(candidateTheme);
     const sameSheet = isDocumentThemeId(resolvedTheme.id);

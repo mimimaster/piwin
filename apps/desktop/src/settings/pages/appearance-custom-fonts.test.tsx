@@ -86,8 +86,8 @@ describe('AppearanceCustomFonts', () => {
     const onChange = vi.fn();
 
     await saveCustomFont({
-      family: 'Anthropic Sans',
-      fileName: 'Anthropic Sans.ttf',
+      family: 'Sans Variable',
+      fileName: 'Sans Variable.ttf',
       format: 'truetype',
       data: new Uint8Array([1, 2, 3]).buffer,
     });
@@ -110,8 +110,8 @@ describe('AppearanceCustomFonts', () => {
       await Promise.resolve();
     });
 
-    expect(container?.querySelector('[data-testid="font-card-Anthropic Sans"]')).toBeTruthy();
-    expect(container?.textContent).toContain('Anthropic Sans');
+    expect(container?.querySelector('[data-testid="font-card-Sans Variable"]')).toBeTruthy();
+    expect(container?.textContent).toContain('Sans Variable');
 
     const sansPill = Array.from(container?.querySelectorAll('.custom-font-pill-btn') ?? []).find(
       (btn) => btn.textContent?.includes('界面字体'),
@@ -125,7 +125,7 @@ describe('AppearanceCustomFonts', () => {
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         customFonts: {
-          sansFont: 'Anthropic Sans',
+          sansFont: 'Sans Variable',
         },
       }),
     );
@@ -138,7 +138,7 @@ describe('AppearanceCustomFonts', () => {
     const prefsWithFonts: DesktopPreferences = {
       ...mockPreferences,
       customFonts: {
-        sansFont: 'Anthropic Sans',
+        sansFont: 'Sans Variable',
       },
     };
 

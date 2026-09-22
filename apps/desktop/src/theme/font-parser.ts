@@ -31,6 +31,17 @@ function detectFontFormat(view: DataView, fileName: string): 'truetype' | 'opent
   return 'truetype';
 }
 
+/**
+ * Product-facing family name. The word "anthropic" is never shown, in any case.
+ */
+export function sanitizeFontFamilyName(name: string): string {
+  const stripped = name
+    .replace(/anthropic/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return stripped.length > 0 ? stripped : 'Custom Font';
+}
+
 function cleanFamilyFromFileName(fileName: string): string {
   const withoutExt = fileName.replace(/\.[a-zA-Z0-9]+$/, '');
   const cleaned = withoutExt.replace(/[_-]+/g, ' ').trim();
@@ -127,12 +138,13 @@ function parseSfntFamilyName(view: DataView): string | null {
 
 /**
  * Parses font metadata from buffer and file name.
+ * The displayed family never contains "anthropic".
  */
 export function parseFontMetadata(buffer: ArrayBuffer, fileName: string): ParsedFontMeta {
   const view = new DataView(buffer);
   const format = detectFontFormat(view, fileName);
   const parsedFamily = parseSfntFamilyName(view);
-  const family = parsedFamily && parsedFamily.length > 0 ? parsedFamily : cleanFamilyFromFileName(fileName);
+  const raw = parsedFamily && parsedFamily.length > 0 ? parsedFamily : cleanFamilyFromFileName(fileName);
 
-  return { family, format };
+  return { family: sanitizeFontFamilyName(raw), format };
 }

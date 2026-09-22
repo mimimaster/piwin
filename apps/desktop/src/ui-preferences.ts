@@ -12,6 +12,7 @@ import {
   PIWIN_APPEARANCE_OBSIDIAN,
 } from './theme/deck-palette.js';
 import type { CustomFontPreferences } from './theme/font-manager.js';
+import { sanitizeFontFamilyName } from './theme/font-parser.js';
 
 export type { CustomFontPreferences } from './theme/font-manager.js';
 
@@ -204,9 +205,15 @@ function parseCustomFonts(raw: string | null): CustomFontPreferences | undefined
     if (typeof parsed === 'object' && parsed !== null) {
       const p = parsed as Record<string, unknown>;
       const result: CustomFontPreferences = {};
-      if (typeof p.sansFont === 'string' && p.sansFont.trim()) result.sansFont = p.sansFont.trim();
-      if (typeof p.monoFont === 'string' && p.monoFont.trim()) result.monoFont = p.monoFont.trim();
-      if (typeof p.serifFont === 'string' && p.serifFont.trim()) result.serifFont = p.serifFont.trim();
+      if (typeof p.sansFont === 'string' && p.sansFont.trim()) {
+        result.sansFont = sanitizeFontFamilyName(p.sansFont);
+      }
+      if (typeof p.monoFont === 'string' && p.monoFont.trim()) {
+        result.monoFont = sanitizeFontFamilyName(p.monoFont);
+      }
+      if (typeof p.serifFont === 'string' && p.serifFont.trim()) {
+        result.serifFont = sanitizeFontFamilyName(p.serifFont);
+      }
       return Object.keys(result).length > 0 ? result : undefined;
     }
   } catch {

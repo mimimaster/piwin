@@ -383,16 +383,34 @@ describe('artifactCodeFirst', () => {
     saveDesktopPreferences({
       ...basePrefs,
       customFonts: {
-        sansFont: 'Anthropic Sans',
-        monoFont: 'Anthropic Mono',
-        serifFont: 'Anthropic Serif',
+        sansFont: 'Sans Variable',
+        monoFont: 'Mono Web',
+        serifFont: 'Serif Variable',
       },
     });
 
     const loaded = loadDesktopPreferences();
-    expect(loaded.customFonts?.sansFont).toBe('Anthropic Sans');
-    expect(loaded.customFonts?.monoFont).toBe('Anthropic Mono');
-    expect(loaded.customFonts?.serifFont).toBe('Anthropic Serif');
+    expect(loaded.customFonts?.sansFont).toBe('Sans Variable');
+    expect(loaded.customFonts?.monoFont).toBe('Mono Web');
+    expect(loaded.customFonts?.serifFont).toBe('Serif Variable');
+    expect(JSON.stringify(loaded.customFonts).toLowerCase()).not.toContain('anthropic');
+  });
+
+  it('strips the vendor word from a previously saved font preference', () => {
+    const basePrefs = loadDesktopPreferences();
+    saveDesktopPreferences({
+      ...basePrefs,
+      customFonts: {
+        sansFont: 'Anthropic Sans Variable',
+        monoFont: 'Anthropic Mono Web',
+        serifFont: 'Anthropic Serif Variable',
+      },
+    });
+
+    const loaded = loadDesktopPreferences();
+    expect(loaded.customFonts?.sansFont).toBe('Sans Variable');
+    expect(loaded.customFonts?.monoFont).toBe('Mono Web');
+    expect(loaded.customFonts?.serifFont).toBe('Serif Variable');
   });
 
   it('ignores a leftover artifactPreviewEnabled localStorage key', () => {

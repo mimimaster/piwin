@@ -19,6 +19,8 @@ import './styles.css';
 applyWindowChromeToDocument(document.documentElement);
 const startupPreferences = loadDesktopPreferences();
 applyAppearanceToDocument(resolveStartupAppearance(), startupPreferences.customFonts);
+// Registers the shipped faces, then re-applies so their sanitized families
+// replace the Inter / JetBrains / Noto stacks unless a custom role is set.
 void loadAndRegisterAllCustomFonts(startupPreferences.customFonts);
 
 // Wire native memory samples into the Memory Governor before first render so

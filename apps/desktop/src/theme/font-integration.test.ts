@@ -8,22 +8,22 @@ import {
   computeFontVariables,
 } from './font-manager.js';
 
-describe('font-integration with user test fonts', () => {
-  const testDir = '/Volumes/BigDisk/Downloads/20260918T075744Z-1-001';
+describe('font-integration with the shipped default faces', () => {
+  const testDir = 'public/fonts/default';
   const testFiles = [
-    { file: 'Anthropic Sans.ttf', role: 'sans' as const },
-    { file: 'Anthropic Mono.ttf', role: 'mono' as const },
-    { file: 'Anthropic Serif.ttf', role: 'serif' as const },
+    { file: 'sans.ttf', role: 'sans' as const, family: 'Sans Variable' },
+    { file: 'mono.ttf', role: 'mono' as const, family: 'Mono Web' },
+    { file: 'serif.ttf', role: 'serif' as const, family: 'Serif Variable' },
   ];
 
   beforeEach(async () => {
     await clearCustomFonts();
   });
 
-  it('successfully parses, stores, and configures all three Anthropic test fonts', async () => {
+  it('stores and applies the three faces under sanitized family names', async () => {
     const savedFamilies: Record<string, string> = {};
 
-    for (const { file, role } of testFiles) {
+    for (const { file, role, family } of testFiles) {
       const fullPath = `${testDir}/${file}`;
       if (!existsSync(fullPath)) continue;
 
@@ -31,7 +31,8 @@ describe('font-integration with user test fonts', () => {
       const arrayBuf = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 
       const meta = parseFontMetadata(arrayBuf, file);
-      expect(meta.family).toBeTruthy();
+      expect(meta.family).toBe(family);
+      expect(meta.family.toLowerCase()).not.toContain('anthropic');
 
       const saved = await saveCustomFont({
         family: meta.family,
@@ -56,7 +57,6 @@ describe('font-integration with user test fonts', () => {
     expect(serifFamily).toBeDefined();
     if (!sansFamily || !monoFamily || !serifFamily) throw new Error('Missing families');
 
-    // Verify typography variables resolution with the uploaded fonts
     const vars = computeFontVariables({
       sansFont: sansFamily,
       monoFont: monoFamily,
@@ -69,6 +69,7 @@ describe('font-integration with user test fonts', () => {
     expect(vars['--mono']).toContain(monoFamily);
     expect(vars['--serif']).toContain(serifFamily);
     expect(vars['--font-serif']).toContain(serifFamily);
+    expect(JSON.stringify(vars).toLowerCase()).not.toContain('anthropic');
 
     const root = document.createElement('html');
     applyCustomFontsToDocument(
@@ -84,5 +85,6 @@ describe('font-integration with user test fonts', () => {
     expect(root.style.getPropertyValue('--font-mono')).toContain(savedFamilies.mono);
     expect(root.style.getPropertyValue('--serif')).toContain(savedFamilies.serif);
     expect(root.style.fontFamily).toContain(savedFamilies.sans);
+    expect(root.style.fontFamily.toLowerCase()).not.toContain('anthropic');
   });
 });
