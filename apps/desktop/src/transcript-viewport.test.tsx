@@ -11,6 +11,31 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
+/**
+ * Message rows at fixed content offsets. happy-dom has no layout, so each
+ * row's box is derived from the scroll position the way a browser would.
+ */
+function MessageRows(props: { offsets: Record<string, number> }): ReactElement {
+  return (
+    <>
+      {Object.entries(props.offsets).map(([id, top]) => (
+        <div
+          key={id}
+          id={`msg-${id}`}
+          ref={(element) => {
+            if (!element) return;
+            element.getBoundingClientRect = () => {
+              const stream = element.closest('.chat-stream');
+              const y = top - (stream instanceof HTMLElement ? stream.scrollTop : 0);
+              return { top: y, bottom: y + 80, left: 0, right: 800, width: 800, height: 80 } as DOMRect;
+            };
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
 function TranscriptGeometry(props: { scrollHeight: number }): ReactElement {
   const markerRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
@@ -61,6 +86,7 @@ describe('TranscriptViewport session scroll recovery', () => {
       onReturnToLatest?: () => void;
       liveTurnId?: string;
       messageCount?: number;
+      rows?: Record<string, number>;
     } = {},
   ): Promise<void> {
     await act(async () => {
@@ -81,6 +107,7 @@ describe('TranscriptViewport session scroll recovery', () => {
             {...(options.onReturnToLatest ? { onReturnToLatest: options.onReturnToLatest } : {})}
           >
             <TranscriptGeometry scrollHeight={options.scrollHeight ?? 1_000} />
+            {options.rows ? <MessageRows offsets={options.rows} /> : null}
           </TranscriptViewport>
         </PiwinUiProvider>,
       );
@@ -282,19 +309,14 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(scrollElement.scrollTop).toBe(240);
   });
 
-  it('loads an older page invisibly and preserves the visible scroll anchor', async () => {
-    const onLoadOlder = vi.fn(async () => {
-      const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
-      if (!scrollElement) throw new Error('Expected transcript scroll element');
-      Object.defineProperty(scrollElement, 'scrollHeight', {
-        configurable: true,
-        value: 1_400,
-      });
-    });
+  it('keeps the message on screen in place when an older page lands above it', async () => {
+    const onLoadOlder = vi.fn(async () => undefined);
     await renderSession('history-session', {
       scrollHeight: 1_000,
       canLoadOlder: true,
       onLoadOlder,
+      messageCount: 2,
+      rows: { m2: 100 },
     });
     await finishOpening();
     const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
@@ -310,8 +332,17 @@ describe('TranscriptViewport session scroll recovery', () => {
       scrollElement.dispatchEvent(new Event('scroll'));
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
     });
-
     expect(onLoadOlder).toHaveBeenCalled();
+
+    // The page commits: m1 lands above and pushes m2 down by 400px.
+    await renderSession('history-session', {
+      scrollHeight: 1_400,
+      canLoadOlder: true,
+      onLoadOlder,
+      messageCount: 3,
+      rows: { m1: 100, m2: 500 },
+    });
+
     expect(scrollElement.scrollTop).toBe(460);
   });
 
