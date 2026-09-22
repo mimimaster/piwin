@@ -12,7 +12,18 @@
    never reaches them. Same pure blue as assistant path chips. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   color: var(--file-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.i, svg, .path-chip-icon, .file-icon) {
+  display: none;
 }
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.chip-dir, .chip-file, .chip-text, span),

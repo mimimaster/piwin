@@ -86,100 +86,6 @@
 
 /* Side Chat */
 
-.side-chat-tabstrip {
-  display: flex;
-  align-items: center;
-  gap: var(--s-1);
-  min-width: 0;
-  min-height: var(--h-sm);
-  padding: 0 var(--s-2);
-  border-bottom: 1px solid var(--line);
-}
-
-.side-chat-tabs {
-  display: flex;
-  align-items: center;
-  gap: var(--s-1);
-  min-width: 0;
-  flex: 0 1 auto;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.side-chat-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.side-chat-tab {
-  display: inline-flex;
-  align-items: center;
-  max-width: 168px;
-  height: var(--h-sm);
-  padding: 0 var(--s-1) 0 var(--s-2);
-  border-radius: var(--r-control);
-  color: var(--text-3);
-  flex-shrink: 0;
-}
-
-.side-chat-tab:hover {
-  color: var(--text-1);
-  background: var(--hover);
-}
-
-.side-chat-tab.is-active {
-  background: var(--surface-3);
-  color: var(--text-1);
-  box-shadow: var(--elev-1);
-}
-
-.side-chat-tab-main {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-width: 0;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.side-chat-tab-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  opacity: 0.72;
-}
-
-.side-chat-tab.is-active .side-chat-tab-icon {
-  opacity: 1;
-}
-
-.side-chat-tab-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--fs-chrome);
-}
-
-.side-chat-tab-close {
-  width: 18px;
-  height: 18px;
-  min-width: 18px;
-  min-height: 18px;
-  margin-left: 1px;
-  color: var(--text-4);
-}
-
-.side-chat-tab-close:hover {
-  color: var(--text-1);
-  background: var(--active);
-}
-
-
-
 .side-chat-error {
   flex-shrink: 0;
   padding: var(--s-3) var(--s-5);
@@ -221,13 +127,24 @@
 }
 
 .side-chat-empty-state .empty-state-visual {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--surface-3);
+  margin-bottom: 0;
+  color: var(--text-3);
+}
+
+.side-chat-empty-state .empty-state-visual-inner {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.side-chat-empty-state:hover .empty-state-visual-inner,
+.side-chat-empty-state .empty-state:hover .empty-state-visual-inner {
+  transform: none;
+  border-color: transparent;
+  box-shadow: none;
   color: var(--text-3);
 }
 

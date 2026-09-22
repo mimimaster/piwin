@@ -338,7 +338,7 @@ html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-link:not(
 }
 
 html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-inline-code {
-  color: var(--inline-code, #ff6b6b) !important;
+  color: var(--inline-code, #e7b3b0) !important;
   background: rgba(255, 255, 255, 0.08) !important;
   border-color: rgba(255, 255, 255, 0.14) !important;
 }

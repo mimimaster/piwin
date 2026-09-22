@@ -16,7 +16,7 @@ describe('Inkstone document typography unified rules', () => {
 
   it('paints inline code pure red, not ink', () => {
     expect(documentCss).toMatch(
-      /\.markdown \.md-inline-code\s*\{[^}]*color:\s*var\(--inline-code, #c4232b\)/,
+      /\.markdown \.md-inline-code\s*\{[^}]*color:\s*var\(--inline-code, #923030\)/,
     );
   });
 
@@ -32,8 +32,14 @@ describe('Inkstone document typography unified rules', () => {
     );
   });
 
-  it('paints openable transcript file chips pure blue, icon included', () => {
+  it('paints openable transcript file references as a flat underlined link', () => {
     expect(documentCss).toContain('color: var(--file-link);');
+    expect(documentCss).toMatch(
+      /\.role-assistant \.markdown :is\(a\.pc, a\.md-doc-chip\):not\(\.static\)\s*\{[^}]*background:\s*transparent;/,
+    );
+    expect(documentCss).toMatch(
+      /\.role-assistant \.markdown :is\(a\.pc, a\.md-doc-chip\):not\(\.static\)\s*\{[^}]*text-decoration:\s*underline;/,
+    );
     expect(documentCss).toMatch(
       /\.role-assistant \.markdown :is\(a\.pc, a\.md-doc-chip\):not\(\.static\) :is\(\.chip-dir, \.chip-file/,
     );

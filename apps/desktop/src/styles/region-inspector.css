@@ -179,8 +179,6 @@
 .right-panel-tabstrip .right-panel-tabs,
 .right-panel-tabstrip .right-panel-tab,
 .right-panel-tabstrip .right-panel-side-chat-tabs-slot,
-.right-panel-tabstrip .side-chat-tabstrip,
-.right-panel-tabstrip .side-chat-tab,
 .right-panel-tabstrip .right-panel-actions {
   -webkit-app-region: no-drag;
   app-region: no-drag;
@@ -200,23 +198,6 @@
 
 .right-panel-side-chat-tabs-slot[hidden] {
   display: none;
-}
-
-.right-panel-tabstrip .side-chat-tabstrip {
-  min-width: 0;
-  width: max-content;
-  max-width: 100%;
-  min-height: 0;
-  height: 100%;
-  padding: 0;
-  border-bottom: none;
-  overflow: hidden;
-}
-
-.right-panel-tabstrip .side-chat-tabs {
-  flex: 0 1 auto;
-  min-width: 0;
-  height: 100%;
 }
 
 .right-panel-tabs {

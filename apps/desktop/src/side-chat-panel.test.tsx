@@ -257,10 +257,7 @@ describe('SideChatPanel', () => {
       await vi.waitFor(() => {
         expect(panelInput(container!)?.disabled).toBe(false);
         expect(container?.querySelector('[data-testid="side-chat-empty"]')).not.toBeNull();
-        expect(
-          container?.querySelector('[data-testid="side-chat-tab-draft"]') ??
-            document.querySelector('[data-testid="side-chat-tab-draft"]'),
-        ).not.toBeNull();
+        expect(container?.querySelector('[data-testid="side-chat-tabstrip"]')).toBeNull();
       });
     });
 
@@ -316,8 +313,7 @@ describe('SideChatPanel', () => {
       });
     });
     expect(panelInput(container!)?.disabled).toBe(false);
-    expect(container.querySelector('[data-testid="side-chat-tab-side-existing"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="side-chat-tab-draft"]')).toBeNull();
+    expect(container.querySelector('[data-testid="side-chat-tabstrip"]')).toBeNull();
   });
 
   it('does not show a second plus or a sync control in the tab strip', async () => {
