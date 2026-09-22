@@ -175,6 +175,7 @@ async function main() {
   const assetCopies = [
     ['packages/agent-host/bundled-prompts', 'agent-host/bundled-prompts'],
     ['packages/agent-host/bundled-extensions', 'agent-host/bundled-extensions'],
+    ['packages/host-runtime/bundled/model-catalog', 'model-catalog'],
     ['packages/theme/bundled', 'theme/bundled'],
     ['packages/pet/bundled', 'pet/bundled'],
     ['skills', 'skills'],

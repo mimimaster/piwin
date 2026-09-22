@@ -30,10 +30,14 @@ heuristics) being consulted at different times.
    - `models/catalog/sync` — GET models.dev, map, atomic write, `installModelCatalogSnapshot`
    Remote shells are allowed to call status/sync; they mutate the Host cache.
 
-4. **No auto-fetch on boot or Settings open.** Boot loads the disk snapshot if
-   valid; otherwise Pi builtins remain as **offline bootstrap**
+4. **No auto-fetch on boot or Settings open.** Opening Settings only reads
+   status. Boot loads, in order: the user cache at
+   `~/.piwin/model-catalog.json`, then the packaged snapshot at
+   `bundled-assets/model-catalog/model-catalog.json` (refreshed in-repo by
+   `scripts/refresh-model-catalog.mjs`), then Pi builtins
    (`source: 'pi-bootstrap'`). A failed sync leaves the previous snapshot
-   (or bootstrap) untouched.
+   untouched. Manual sync follows an already-enabled OS or env proxy, and
+   stays direct when none is set.
 
 5. **One in-memory table.** `searchPiCatalog` / `lookupCatalogByModelId` /
    `enrichFromCatalog` / `searchPiImagesCatalog` / `resolvePiModelLimits` all

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { ModelCatalogStatus, ModelCatalogSyncResult } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../desktop-locale-context';
+import { catalogSyncErrorCopy } from './model-catalog-sync-copy';
 import { useSettings } from './settings-context';
 
 function formatFetchedAt(iso: string, locale: string): string {
@@ -35,9 +36,9 @@ export function ModelCatalogSyncControl(): ReactElement {
       const next = await getModelCatalogStatus();
       setStatus(next);
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(catalogSyncErrorCopy(error instanceof Error ? error.message : String(error), isChinese));
     }
-  }, [getModelCatalogStatus, setError]);
+  }, [getModelCatalogStatus, isChinese, setError]);
 
   useEffect(() => {
     void refreshStatus();
@@ -54,7 +55,7 @@ export function ModelCatalogSyncControl(): ReactElement {
           : `Model catalog synced (${result.entryCount} models).`,
       );
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(catalogSyncErrorCopy(error instanceof Error ? error.message : String(error), isChinese));
     } finally {
       setSyncing(false);
     }

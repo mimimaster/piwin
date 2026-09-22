@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -16,6 +16,7 @@ import {
 
 afterEach(() => {
   resetModelCatalogSnapshot();
+  delete process.env.PIWIN_BUNDLED_ASSETS_ROOT;
 });
 
 const payload = {
@@ -32,6 +33,28 @@ const payload = {
     },
   },
 };
+
+function snapshot(modelId: string, context: number): string {
+  return `${JSON.stringify({
+    source: 'models.dev',
+    fetchedAt: '2026-09-21T12:00:00.000Z',
+    apiUrl: 'https://models.dev/api.json',
+    catalogVersion: `models.dev@${modelId}`,
+    entries: [
+      {
+        catalogProviderId: 'xai',
+        modelId,
+        name: modelId,
+        input: ['text'],
+        reasoning: false,
+        contextWindow: context,
+        maxTokens: 8_192,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      },
+    ],
+    imageEntries: [],
+  })}\n`;
+}
 
 describe('model-catalog-store', () => {
   it('syncs from injected fetch, writes the snapshot, and installs lookup', async () => {
@@ -65,6 +88,47 @@ describe('model-catalog-store', () => {
     const loaded = loadModelCatalogFromDisk(rootDir);
     expect(loaded.source).toBe('models.dev');
     expect(lookupCatalogByModelId('grok-4.6')?.maxTokens).toBe(16_384);
+  });
+
+  it('uses the bundled snapshot when the user cache is missing', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-catalog-user-'));
+    const assetsRoot = await mkdtemp(join(tmpdir(), 'piwin-catalog-assets-'));
+    const bundledDir = join(assetsRoot, 'model-catalog');
+    await mkdir(bundledDir, { recursive: true });
+    await writeFile(join(bundledDir, 'model-catalog.json'), snapshot('bundled-model', 111_000));
+    process.env.PIWIN_BUNDLED_ASSETS_ROOT = assetsRoot;
+
+    const loaded = loadModelCatalogFromDisk(rootDir);
+    expect(loaded.source).toBe('models.dev');
+    expect(lookupCatalogByModelId('bundled-model')?.contextWindow).toBe(111_000);
+  });
+
+  it('prefers the user cache over the bundled snapshot', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-catalog-user-win-'));
+    const assetsRoot = await mkdtemp(join(tmpdir(), 'piwin-catalog-assets-win-'));
+    await mkdir(join(assetsRoot, 'model-catalog'), { recursive: true });
+    await writeFile(
+      join(assetsRoot, 'model-catalog', 'model-catalog.json'),
+      snapshot('bundled-model', 111_000),
+    );
+    await writeFile(getPiwinModelCatalogPath(rootDir), snapshot('user-model', 222_000));
+    process.env.PIWIN_BUNDLED_ASSETS_ROOT = assetsRoot;
+
+    loadModelCatalogFromDisk(rootDir);
+    expect(lookupCatalogByModelId('user-model')?.contextWindow).toBe(222_000);
+    expect(lookupCatalogByModelId('bundled-model')).toBeUndefined();
+  });
+
+  it('names the unreachable host instead of a bare fetch failure', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-catalog-net-'));
+    await expect(
+      syncModelCatalogFromModelsDev({
+        rootDir,
+        fetch: async () => {
+          throw new TypeError('fetch failed');
+        },
+      }),
+    ).rejects.toThrow(/https:\/\/models\.dev\/api\.json: fetch failed/);
   });
 
   it('does not clobber a previous snapshot when fetch fails', async () => {
