@@ -917,6 +917,58 @@ describe('ProjectSessionSidebar project row behavior', () => {
     expect(onOpenProject).not.toHaveBeenCalled();
   });
 
+  it('folds No Repo when its row is clicked and does not re-open the workspace', () => {
+    const onOpenProject = vi.fn();
+    const workspace = '/Users/me/.piwin/workspace';
+    const { container } = renderSidebar({
+      projectPath: workspace,
+      noRepoProjectPath: workspace,
+      projectSessionsByPath: { [workspace]: createMockSessions(2) },
+      filteredSessions: createMockSessions(2),
+      onOpenProject,
+    });
+
+    const folderRow = container.querySelector<HTMLButtonElement>(
+      '[data-testid="no-repo-folder"]',
+    );
+    expect(folderRow).not.toBeNull();
+    expect(folderRow?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(2);
+
+    act(() => {
+      folderRow?.click();
+    });
+
+    expect(folderRow?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(0);
+    expect(onOpenProject).not.toHaveBeenCalled();
+  });
+
+  it('expands a collapsed No Repo row without opening the workspace', () => {
+    const onOpenProject = vi.fn();
+    const workspace = '/Users/me/.piwin/workspace';
+    const { container } = renderSidebar({
+      projectPath: '/Users/test/project-a',
+      noRepoProjectPath: workspace,
+      projectSessionsByPath: { [workspace]: createMockSessions(2) },
+      onOpenProject,
+    });
+
+    const folderRow = container.querySelector<HTMLButtonElement>(
+      '[data-testid="no-repo-folder"]',
+    );
+    expect(folderRow?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(0);
+
+    act(() => {
+      folderRow?.click();
+    });
+
+    expect(folderRow?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(2);
+    expect(onOpenProject).not.toHaveBeenCalled();
+  });
+
   it('keeps the footer fade above settings and opens knowledge bases from the sidebar', () => {
     const onOpenKnowledge = vi.fn();
     const { container } = renderSidebar({ onOpenKnowledge });

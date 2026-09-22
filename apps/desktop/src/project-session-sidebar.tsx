@@ -509,7 +509,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         }}
         onRemoveProject={props.onRemoveProject}
         onOpenGeneral={props.onOpenGeneral}
-        onOpenProject={props.onOpenProject}
         noRepoProjectPath={noRepoWorkspaceKey}
         onNewSession={props.onNewSession}
         onOpenWorkspace={props.onOpenWorkspace}

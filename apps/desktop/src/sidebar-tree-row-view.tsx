@@ -61,7 +61,6 @@ export type SidebarTreeRowViewProps = {
   onToggleProjectCollapsed: (projectPath: string, nextCollapsed: boolean) => void;
   onRemoveProject?: ((path: string) => void) | undefined;
   onOpenGeneral: () => void;
-  onOpenProject: (path: string) => void;
   noRepoProjectPath?: string | null;
   onNewSession: (options?: {
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
@@ -417,11 +416,8 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
           type="button"
           className="tree-folder-main"
           data-testid="no-repo-folder"
-          onClick={() => {
-            if (noRepoPath) {
-              props.onOpenProject(noRepoPath);
-            }
-          }}
+          aria-expanded={!row.collapsed}
+          onClick={() => props.onToggleProjectCollapsed(collapseKey, row.collapsed)}
         >
           <span className="tree-folder-title">{sidebarCopy.noRepo}</span>
         </button>

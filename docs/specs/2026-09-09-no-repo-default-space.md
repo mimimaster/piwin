@@ -26,7 +26,10 @@ never appears as a removable recent project.
   folders. `+` creates a project-scoped session against that path.
 - Chat pane: Conversations lists `{ kind: 'general' }` only. Untouched.
 
-Selecting No Repo opens the built-in project (cwd, file tree, agent tools).
+The No Repo row folds and unfolds like any other project folder. It does not
+re-open the workspace. Opening the built-in project (cwd, file tree, agent
+tools) happens when a session in that folder is resumed or created.
+
 Selecting Conversations `+` still `project/clear`s and creates a general chat.
 
 ## Continue in project…
