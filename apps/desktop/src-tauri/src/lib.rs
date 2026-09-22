@@ -249,6 +249,11 @@ pub fn run() {
             // A zero-width title keeps traffic lights while removing visible chrome text.
             if let Some(main_window) = application.get_webview_window("main") {
                 main_window.set_title("\u{200B}")?;
+                #[cfg(target_os = "windows")]
+                {
+                    let _ = main_window.set_decorations(false);
+                    let _ = main_window.set_shadow(true);
+                }
             }
             // Pet overlay is created on demand (hide = destroy). A hidden
             // preference must not keep a second WebContent process resident.

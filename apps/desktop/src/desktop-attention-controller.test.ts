@@ -263,6 +263,8 @@ describe('createDesktopAttentionController', () => {
     await harness.flush();
     expect(harness.notices).toHaveLength(1);
     expect(harness.notices[0]?.tone).toBe('success');
+    expect(harness.notices[0]?.title).toBeUndefined();
+    expect(harness.notices[0]?.body).toContain('piwin');
     expect(harness.notices[0]?.action).toEqual({
       label: '跳转',
       sessionId: 'session-1',

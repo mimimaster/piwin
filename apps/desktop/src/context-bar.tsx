@@ -18,15 +18,22 @@ import { IconButton, IconGit } from '@piwin/ui-kit';
 import type { PermissionPreset } from '@piwin/contracts';
 import type { ProductSessionOrigin } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
-import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
+import { getDesktopCopy, type DesktopLocale } from './desktop-locale.js';
 import {
   IconChevronLeft,
   IconChevronRight,
   IconPanelLeft,
   IconPanelRight,
-} from './shell-icons';
-import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
-import { readWindowChromeFromEnvironment } from './window-chrome';
+} from './shell-icons.js';
+import {
+  WindowDragRegion,
+  handleNativeWindowDragMouseDown,
+  isWindowDragBlockedTarget,
+} from './native-window-drag.js';
+import { readWindowChromeFromEnvironment } from './window-chrome.js';
+import { WindowsCaptionControls } from './windows-caption-controls.js';
+import { isTauriRuntime } from './tauri-pty.js';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export type ContextBarSession = {
   title: string;
@@ -111,7 +118,9 @@ export function ContextBar(props: ContextBarProps): ReactElement {
     ? titlebarCopy.collapseWorkspacePanel
     : titlebarCopy.expandWorkspacePanel;
 
-  const showOverlayTrafficSpacer = readWindowChromeFromEnvironment() === 'macos-overlay';
+  const chrome = readWindowChromeFromEnvironment();
+  const showOverlayTrafficSpacer = chrome === 'macos-overlay';
+  const isWindowsCaption = chrome === 'windows-caption';
 
   const [slab, setSlab] = useState<'ink' | 'paper'>(() => {
     if (typeof window !== 'undefined') {
@@ -156,7 +165,6 @@ export function ContextBar(props: ContextBarProps): ReactElement {
     }
   }, [slab]);
 
-
   return (
     <header
       className="context-bar context-titlebar-box proto"
@@ -165,6 +173,17 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       data-state={shellState}
       data-tauri-drag-region
       onMouseDown={handleNativeWindowDragMouseDown}
+      onDoubleClick={(event) => {
+        if (!isWindowsCaption) return;
+        if (isWindowDragBlockedTarget(event.target)) return;
+        if (isTauriRuntime()) {
+          try {
+            void getCurrentWindow().toggleMaximize?.()?.catch?.(() => {});
+          } catch {
+            // Ignored outside Tauri
+          }
+        }
+      }}
     >
       <div
         className="context-bar-leading proto-nav"
@@ -359,6 +378,8 @@ export function ContextBar(props: ContextBarProps): ReactElement {
             <IconPanelRight width={16} height={16} stroke={1.4} />
           </IconButton>
         ) : null}
+
+        {isWindowsCaption ? <WindowsCaptionControls /> : null}
       </div>
     </header>
   );

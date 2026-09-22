@@ -656,3 +656,24 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     display: none;
   }
 }
+
+/* ── Windows caption controls under Inkstone ────────────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .windows-caption-btn {
+  height: 30px !important;
+  color: var(--t2) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .windows-caption-btn:hover {
+  background: var(--s3) !important;
+  color: var(--t1) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .windows-caption-btn.windows-caption-close:hover {
+  background: #e81123 !important;
+  color: #ffffff !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .windows-caption-btn.windows-caption-close:active {
+  background: #c4101f !important;
+  color: #ffffff !important;
+}

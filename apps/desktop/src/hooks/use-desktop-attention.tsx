@@ -267,8 +267,8 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
     const showInAppNotice = (notice: InAppAttentionNotice): void => {
       showUiNotification({
         tone: notice.tone ?? 'info',
-        title: notice.title,
         message: notice.body,
+        ...(notice.title !== undefined ? { title: notice.title } : {}),
         ...(notice.action
           ? {
               action: {

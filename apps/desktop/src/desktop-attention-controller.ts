@@ -44,7 +44,7 @@ export type DesktopAttentionSnapshot = {
 
 export type InAppAttentionNotice = {
   tone?: UiNotificationTone;
-  title: string;
+  title?: string;
   body: string;
   action?: { label: string; sessionId: string };
 };
@@ -83,6 +83,7 @@ type LastSystemDelivery = {
   chipShown: boolean;
   title: string;
   body: string;
+  kind: AttentionRaise['kind'] | 'summary';
 };
 
 export function createDesktopAttentionController(
@@ -197,7 +198,7 @@ export function createDesktopAttentionController(
   ): void {
     const copy = formatRaiseCopy(raise, snapshot);
     deps.showInAppNotice(
-      inAppNotice(copy, snapshot, raise.sessionId, attentionKindToTone(raise.kind)),
+      inAppNotice(copy, snapshot, raise.sessionId, raise.kind),
     );
     recordDelivered(raise.key, now);
     if (bounce) {
@@ -236,6 +237,7 @@ export function createDesktopAttentionController(
           chipShown: false,
           title: copy.title,
           body: copy.body,
+          kind: raise.kind,
         };
         recordDelivered(raise.key, now);
         if (bounce) {
@@ -248,7 +250,7 @@ export function createDesktopAttentionController(
       }
       if (deps.getSnapshot().presence === 'active') {
         deps.showInAppNotice(
-          inAppNotice(copy, snapshot, raise.sessionId, attentionKindToTone(raise.kind)),
+          inAppNotice(copy, snapshot, raise.sessionId, raise.kind),
         );
         recordDelivered(raise.key, now);
       }
@@ -321,7 +323,7 @@ export function createDesktopAttentionController(
       const jumpSessionId =
         remaining.find((item) => item.kind === 'needs-input')?.sessionId ?? remaining[0]?.sessionId;
       if (jumpSessionId !== undefined) {
-        deps.showInAppNotice(inAppNotice(copy, snapshot, jumpSessionId, 'info'));
+        deps.showInAppNotice(inAppNotice(copy, snapshot, jumpSessionId, 'summary'));
       } else {
         deps.showInAppNotice({ tone: 'info', title: copy.title, body: copy.body });
       }
@@ -356,6 +358,7 @@ export function createDesktopAttentionController(
         chipShown: false,
         title: copy.title,
         body: copy.body,
+        kind: 'summary',
       };
       return;
     }
@@ -363,7 +366,7 @@ export function createDesktopAttentionController(
       (result === 'not-authorized' || result === 'unsupported') &&
       deps.getSnapshot().presence === 'active'
     ) {
-      deps.showInAppNotice(inAppNotice(copy, snapshot, first.sessionId, 'info'));
+      deps.showInAppNotice(inAppNotice(copy, snapshot, first.sessionId, 'summary'));
     }
   }
 
@@ -405,8 +408,8 @@ export function createDesktopAttentionController(
     last.chipShown = true;
     const snapshot = deps.getSnapshot();
     deps.showInAppNotice({
-      tone: 'info',
-      title: last.title,
+      tone: attentionKindToTone(last.kind),
+      ...(last.kind === 'turn-complete' ? {} : { title: last.title }),
       body: last.body,
       action: {
         label: jumpActionLabel(snapshot.locale),
@@ -471,11 +474,14 @@ function inAppNotice(
   copy: { title: string; body: string },
   snapshot: DesktopAttentionSnapshot,
   sessionId: string,
-  tone?: UiNotificationTone,
+  kind: AttentionRaise['kind'] | 'summary',
 ): InAppAttentionNotice {
   return {
-    ...(tone !== undefined ? { tone } : {}),
-    title: copy.title,
+    tone: attentionKindToTone(kind),
+    // A finished turn is already announced by the success seal; its title
+    // ("已完成" / "Finished") only repeats that, so the in-app toast shows
+    // the session line alone.
+    ...(kind === 'turn-complete' ? {} : { title: copy.title }),
     body: copy.body,
     action: {
       label: jumpActionLabel(snapshot.locale),

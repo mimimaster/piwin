@@ -361,3 +361,58 @@ html:not([data-theme-id='piwin-inkstone-paper']):not([data-theme-id='piwin-inkst
   color: var(--iris-lift);
   background: var(--iris-wash);
 }
+
+/* ── Windows caption controls ─────────────────────────────────────── */
+
+html[data-window-chrome='windows-caption'] .context-bar {
+  padding-right: 0 !important;
+}
+
+.windows-caption-controls {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  margin-left: 2px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.windows-caption-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: var(--titleband-height, 30px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2, var(--t2, #5a554d));
+  cursor: default;
+  box-sizing: border-box;
+  transition: background-color var(--t-1, 90ms) ease, color var(--t-1, 90ms) ease;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.windows-caption-btn:hover {
+  background: var(--hover, rgba(128, 128, 128, 0.12));
+  color: var(--text-1, var(--t1, #1d1b17));
+}
+
+.windows-caption-btn:active {
+  background: var(--active, rgba(128, 128, 128, 0.2));
+}
+
+.windows-caption-btn.windows-caption-close:hover {
+  background: #e81123 !important;
+  color: #ffffff !important;
+}
+
+.windows-caption-btn.windows-caption-close:active {
+  background: #c4101f !important;
+  color: #ffffff !important;
+}
+
+.windows-caption-btn svg {
+  flex: none;
+}

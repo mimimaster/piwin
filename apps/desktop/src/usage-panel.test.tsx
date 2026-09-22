@@ -300,6 +300,9 @@ describe('UsagePanel', () => {
     expect(headers).not.toContain('用时');
     expect(headers).toContain('TPS');
     expect(headers).not.toContain('输出速率');
+    expect(headers.indexOf('思考度')).toBeLessThan(headers.indexOf('缓存'));
+    expect(headers.indexOf('缓存')).toBeLessThan(headers.indexOf('首字延迟'));
+    expect(headers.at(-1)).toBe('时间');
 
     const thinkingCells = container?.querySelectorAll('[data-testid="usage-call-thinking"]');
     expect(thinkingCells?.[0]?.textContent).toBe('高');

@@ -274,4 +274,17 @@ describe('ContextBar', () => {
     expect(container.querySelector('[data-testid="run-status-strip"]')).toBeNull();
     expect(container.querySelector('[data-testid="context-bar-mode-badge"]')).toBeNull();
   });
+
+  it('does not render Windows caption controls by default', () => {
+    delete document.documentElement.dataset.windowChrome;
+    renderContextBar(createBaseProps({ runState: createIdleRunStatus() }), root);
+    expect(container.querySelector('[data-testid="windows-caption-controls"]')).toBeNull();
+  });
+
+  it('renders Windows caption controls when windowChrome is windows-caption', () => {
+    document.documentElement.dataset.windowChrome = 'windows-caption';
+    renderContextBar(createBaseProps({ runState: createIdleRunStatus() }), root);
+    expect(container.querySelector('[data-testid="windows-caption-controls"]')).not.toBeNull();
+    delete document.documentElement.dataset.windowChrome;
+  });
 });

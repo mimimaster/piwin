@@ -34,14 +34,14 @@ describe('resolveWindowChrome', () => {
     ).toBe('macos-overlay');
   });
 
-  it('uses the OS frame on Windows and Linux packaged shells', () => {
+  it('uses windows-caption on Windows packaged shell and native-frame on Linux', () => {
     expect(
       resolveWindowChrome({
         isTauri: true,
         platform: 'Win32',
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
       }),
-    ).toBe('native-frame');
+    ).toBe('windows-caption');
     expect(
       resolveWindowChrome({
         isTauri: true,
@@ -69,6 +69,13 @@ describe('applyWindowChromeToDocument', () => {
     applyWindowChromeToDocument(root, 'web');
     expect(root.dataset.windowChrome).toBe('web');
     expect(root.dataset.runtime).toBe('web');
+  });
+
+  it('marks windows caption chrome', () => {
+    const root = fakeRoot();
+    applyWindowChromeToDocument(root, 'windows-caption');
+    expect(root.dataset.windowChrome).toBe('windows-caption');
+    expect(root.dataset.runtime).toBe('tauri');
   });
 });
 

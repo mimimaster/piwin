@@ -485,12 +485,12 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                 <table className="usage-table usage-calls-table">
                   <thead>
                     <tr>
-                      <th>{isZh ? '时间' : 'Time'}</th>
                       <th>{isZh ? '模型' : 'Model'}</th>
                       <th>Key</th>
                       <th title={isZh ? '本次调用的思考度' : 'Thinking level for this call'}>
                         {isZh ? '思考度' : 'Thinking'}
                       </th>
+                      <th>{isZh ? '缓存' : 'Cache'}</th>
                       <th title={isZh ? '首字延迟（Time to First Token）' : 'Time to first token'}>
                         {isZh ? '首字延迟' : 'First token'}
                       </th>
@@ -499,8 +499,8 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                       </th>
                       <th>{isZh ? '直接输入 / 输出' : 'Direct input / output'}</th>
                       <th>{isZh ? '缓存读 / 写' : 'Cache read / write'}</th>
-                      <th>{isZh ? '缓存' : 'Cache'}</th>
                       <th>{isZh ? '总计' : 'Total'}</th>
+                      <th>{isZh ? '时间' : 'Time'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -519,12 +519,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                           data-testid="usage-call-row"
                           data-failed={entry.success === false ? 'true' : undefined}
                         >
-                          <td
-                            className="usage-call-time"
-                            title={formatUsageTimestamp(entry.recordedAt, locale)}
-                          >
-                            {formatUsageClock(entry.recordedAt, locale)}
-                          </td>
                           <td className="usage-table-model" title={entry.modelId ?? undefined}>
                             <strong>
                               {entry.modelId ?? (isZh ? '未知模型' : 'Unknown model')}
@@ -545,6 +539,18 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                           </td>
                           <td className="usage-call-thinking" data-testid="usage-call-thinking">
                             {formatThinkingLabel(entry.thinkingLevel, isZh)}
+                          </td>
+                          <td>
+                            <span
+                              className="usage-call-cache"
+                              data-hit={entry.cacheReadTokens > 0 ? 'true' : 'false'}
+                            >
+                              {entry.cacheReadTokens > 0
+                                ? `${isZh ? '命中' : 'Hit'} ${formatUsagePercent(entryHitRate)}`
+                                : isZh
+                                  ? '未命中'
+                                  : 'Miss'}
+                            </span>
                           </td>
                           <td
                             className="usage-tps-cell"
@@ -576,20 +582,14 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                               {isZh ? '写' : 'W'} {formatUsageCompact(entry.cacheWriteTokens)}
                             </span>
                           </td>
-                          <td>
-                            <span
-                              className="usage-call-cache"
-                              data-hit={entry.cacheReadTokens > 0 ? 'true' : 'false'}
-                            >
-                              {entry.cacheReadTokens > 0
-                                ? `${isZh ? '命中' : 'Hit'} ${formatUsagePercent(entryHitRate)}`
-                                : isZh
-                                  ? '未命中'
-                                  : 'Miss'}
-                            </span>
-                          </td>
                           <td title={formatUsageExact(entry.totalTokens)}>
                             <strong>{formatUsageCompact(entry.totalTokens)}</strong>
+                          </td>
+                          <td
+                            className="usage-call-time"
+                            title={formatUsageTimestamp(entry.recordedAt, locale)}
+                          >
+                            {formatUsageClock(entry.recordedAt, locale)}
                           </td>
                         </tr>
                       );
