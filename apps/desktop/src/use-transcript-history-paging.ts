@@ -65,13 +65,11 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
       skipNextRestoreRef.current = false;
       return;
     }
-    (window as any).__alog?.push({ t: Math.round(performance.now()), ev: 'restore?', reading: reading ? `${reading.anchor.messageId}@${Math.round(reading.anchor.offset)}` : null, same: reading?.pageKey === pageKeyRef.current, follow: scroll.isFollowingTail(), top: container?.scrollTop });
     if (!container || !reading || reading.pageKey === pageKeyRef.current) return;
     if (scroll.isFollowingTail()) return;
     const restorer = restorerRef?.current;
     if (restorer) {
-      const ok = restorer(reading.anchor);
-      (window as any).__alog?.push({ t: Math.round(performance.now()), ev: 'restored', ok, top: container.scrollTop, mounted: Boolean(document.getElementById('msg-' + reading.anchor.messageId)) });
+      restorer(reading.anchor);
       return;
     }
     alignTranscriptReadingAnchor(container, reading.anchor, {
