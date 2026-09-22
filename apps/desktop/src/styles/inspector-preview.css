@@ -54,9 +54,13 @@
 }
 
 .artifact-canvas-incomplete {
-  min-height: 0;
-  overflow: auto;
-  padding: var(--s-5);
+  flex: 0 0 auto;
+  padding: var(--s-2) var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.artifact-canvas-incomplete .artifact-source-incomplete {
+  margin: 0;
 }
 
 .artifact-canvas-proposal {

@@ -51,9 +51,11 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   bootstrap reports bounded `error` and `unhandledrejection` diagnostics to
   Desktop before authored scripts run. Desktop accepts reports only from the
   matching iframe/channel and shows the first failure as text beside the
-  preview. A settled artifact fence without a closing marker stays as source
-  with an incomplete-source label; it offers neither an Inline preview nor a
-  Canvas launcher. Streaming previews continue while the fence is still open.
+  preview. A settled artifact fence without a closing marker still previews
+  generated source through the sandbox and shows an incomplete-output warning
+  beside Inline or Canvas content. Source remains accessible; browser parsing
+  and authored scripts may only work for the generated portion. Streaming
+  previews continue while the fence is still open.
 - **Session media (2026-09-16):** vault images bind as size-capped `data:`
   URLs, never `blob:`. The sandbox iframe has an opaque origin
   (`allow-scripts`, no `allow-same-origin`), so a host-origin blob URL errors

@@ -123,7 +123,7 @@ describe('Artifact Canvas automatic reveal', () => {
     expect(repeated.action).toBeNull();
   });
 
-  it('replaces a live open Canvas fence with an incomplete-source state on completion', () => {
+  it('replaces a live open Canvas fence with a partial-preview warning on completion', () => {
     const streaming = step(createArtifactCanvasAutoRevealState(), {
       status: 'streaming',
       text: OPEN_CANVAS_MARKDOWN,

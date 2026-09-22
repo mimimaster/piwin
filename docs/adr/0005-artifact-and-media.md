@@ -57,8 +57,10 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
    - **Authored source diagnostics (2026-09-22):** sandbox script errors and
      unhandled rejections are reported through the existing bounded bridge and
      shown as untrusted text beside the preview. A settled, unclosed artifact
-     fence remains source with an incomplete label and no preview or Canvas
-     launcher. An open fence may still stream-preview while output is live.
+     fence can preview its generated source in the existing sandbox, with a
+     visible incomplete-output warning and source access. The preview may show
+     only the part a browser can parse or fail to run authored scripts. Open
+     fences continue to stream-preview while output is live.
    - Thinking/tool work uses timeline/cards, not Artifacts.
 
 ## Consequences

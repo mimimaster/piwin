@@ -5,8 +5,9 @@
  * CANVAS block, not the 2-column `.arts` grid). Header is the fence title;
  * the recessed well holds the description. The canvas itself renders in the
  * inspector Canvas tab (ADR 0029). While the fence is still open the transcript
- * dumps source; once closed it folds to this launcher. The panel stream-previews
- * via auto-reveal.
+ * dumps source; once settled it folds to this launcher, including a partial
+ * preview when the closing fence is missing. The panel stream-previews via
+ * auto-reveal.
  */
 
 import type { ReactElement } from 'react';

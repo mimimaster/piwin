@@ -195,17 +195,30 @@ describe('ArtifactCanvasPanel', () => {
     spy.mockRestore();
   });
 
-  it('shows source and an incomplete marker without rendering a settled open Canvas fence', () => {
+  it('renders a settled open Canvas fence with an incomplete-output warning', async () => {
     const spy = vi.spyOn(artifact, 'materializeArtifact');
+    const source = '<main>Visible portion</main><script>const broken = [';
     const { container, root } = renderPanel({
-      activeTarget: makeTarget({ source: '<div>unfinished', sourceIncomplete: true }),
+      activeTarget: makeTarget({ source, intent: makeIntent(source), sourceIncomplete: true }),
     });
     instances.push({ container, root });
 
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(container.querySelector('[data-testid="artifact-source-incomplete"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="code-fence-source"]')?.textContent).toContain('unfinished');
-    expect(container.querySelector('iframe')).toBeNull();
-    expect(spy).not.toHaveBeenCalled();
+    expect(container.querySelector('.artifact-frame')?.getAttribute('data-artifact-renderer')).toBe('sandbox');
+    const plan = spy.mock.results.find((result) => result.type === 'return')?.value;
+    expect(plan?.document.kind).toBe('sandbox');
+    if (plan?.document.kind === 'sandbox') {
+      expect(plan.document.srcdoc).toContain('Visible portion');
+    }
+    expect(spy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ mode: 'interactive', source, presentation: 'canvas' }),
+    );
+    expect(container.querySelector('[data-testid="artifact-canvas-panel-download"]')).not.toBeNull();
     spy.mockRestore();
   });
 

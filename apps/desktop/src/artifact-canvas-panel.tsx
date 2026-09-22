@@ -24,7 +24,6 @@ import { ArtifactFrame } from './ArtifactFrame';
 import { artifactIncompleteCopy } from './artifact-incomplete-copy.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { artifactDownloadLabel, downloadArtifactSource } from './artifact-source-export.js';
-import { SourceCodeBlock } from './markdown-code-block.js';
 import { useDesktopLocale } from './desktop-locale-context';
 import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
 import { RenderErrorBoundary } from './render-error-boundary.js';
@@ -79,7 +78,7 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
   });
 
   const plan = useMemo(() => {
-    if (!activeTarget || activeTarget.sourceIncomplete) return null;
+    if (!activeTarget) return null;
     return materializeArtifact(activeTarget.intent, {
       mode: activeTarget.streaming === true ? 'stream-preview' : 'interactive',
       source: activeTarget.source,
@@ -164,9 +163,9 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
           <p className="artifact-source-incomplete" data-testid="artifact-source-incomplete" role="status">
             {artifactIncompleteCopy(locale)}
           </p>
-          <SourceCodeBlock language={activeTarget.rawLanguage} source={activeTarget.source} isShell={false} />
         </div>
-      ) : plan && (plan.kind === 'render' || plan.kind === 'blocked') ? (
+      ) : null}
+      {plan && (plan.kind === 'render' || plan.kind === 'blocked') ? (
         <ArtifactFrame
           key={`${props.artifactThemeKey ?? 'default'}:${activeTarget.id}`}
           plan={plan}

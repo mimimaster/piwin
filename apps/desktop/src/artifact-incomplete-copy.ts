@@ -1,6 +1,6 @@
-/** A settled open fence has source, but cannot promise a working preview. */
+/** A settled open fence may preview partially, but cannot promise working behavior. */
 export function artifactIncompleteCopy(locale: 'zh-CN' | 'en'): string {
   return locale === 'zh-CN'
-    ? '源码不完整：代码围栏未闭合，预览不可用。'
-    : 'Source incomplete: the code fence was never closed. Preview is unavailable.';
+    ? '模型输出未完成：代码围栏未闭合。以下是已生成内容的预览，部分功能可能无法运行。'
+    : 'Model output is incomplete: the code fence was not closed. This previews the generated content; some features may not work.';
 }

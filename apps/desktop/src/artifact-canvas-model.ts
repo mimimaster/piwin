@@ -46,7 +46,7 @@ export type ArtifactCanvasTarget = {
    * Omit on completed / launcher targets (`exactOptionalPropertyTypes`).
    */
   streaming?: boolean;
-  /** A settled fence never closed; retain source without materializing a preview. */
+  /** A settled fence never closed; show a visible warning beside its partial preview. */
   sourceIncomplete?: boolean;
 };
 

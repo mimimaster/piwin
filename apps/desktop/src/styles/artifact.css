@@ -387,6 +387,10 @@
   overflow-wrap: anywhere;
 }
 
+.artifact-with-source--preview > .artifact-source-incomplete {
+  margin: 0 0 var(--s-2);
+}
+
 .artifact-static-overflow-shell {
   display: flex;
   flex-direction: column;

@@ -193,34 +193,47 @@ describe('MarkdownView artifact preview policy', () => {
     expect(wrapper?.querySelector('iframe')).toBeNull();
   });
 
-  it('marks a settled open Inline artifact fence as incomplete instead of previewing it', () => {
+  it('previews a settled open Inline fence with an incomplete-output warning', async () => {
+    const materialize = vi.spyOn(artifact, 'materializeArtifact');
     const { container } = renderMarkdown(
       <MarkdownView
-        text={'```artifact-html\n<div><script>const broken = ['}
+        text={'```artifact-html\n<main>Visible portion</main><script>const broken = ['}
         renderingPhase="completed"
         locale="zh-CN"
       />,
     );
 
-    expect(container.querySelector('[data-testid="artifact-source-incomplete"]')?.textContent ?? '').toContain('源码不完整');
-    expect(container.querySelector('[data-testid="code-fence-source"]')?.textContent ?? '').toContain('const broken');
-    expect(container.querySelector('.artifact-frame')).toBeNull();
-    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
+    await flushMarkdownEffects();
+    expect(container.querySelector('[data-testid="artifact-source-incomplete"]')?.textContent ?? '').toContain('模型输出未完成');
+    expect(container.querySelector('.artifact-frame')?.getAttribute('data-artifact-renderer')).toBe('sandbox');
+    const plan = materialize.mock.results.find((result) => result.type === 'return')?.value;
+    expect(plan?.document.kind).toBe('sandbox');
+    if (plan?.document.kind === 'sandbox') {
+      expect(plan.document.srcdoc).toContain('Visible portion');
+    }
+    const sourceToggle = container.querySelector<HTMLButtonElement>('[data-testid="artifact-preview-toggle"]');
+    expect(sourceToggle).not.toBeNull();
+    act(() => sourceToggle?.click());
+    expect(container.querySelector('[data-testid="code-fence-source"]')?.textContent).toContain('const broken');
+    expect(container.querySelector('[data-testid="artifact-source-incomplete"]')).not.toBeNull();
   });
 
-  it('marks a settled open Canvas artifact fence as incomplete without an Open action', () => {
+  it('keeps the Canvas launcher available for a settled open fence', () => {
+    const onOpenArtifactCanvas = vi.fn();
     const { container } = renderMarkdown(
       <MarkdownView
         text={'```artifact-html surface="canvas"\n<div>unfinished'}
         renderingPhase="completed"
         artifactOrigin={{ sessionId: 'session-open', messageId: 'message-open' }}
-        onOpenArtifactCanvas={vi.fn()}
+        onOpenArtifactCanvas={onOpenArtifactCanvas}
       />,
     );
 
     expect(container.querySelector('[data-testid="artifact-source-incomplete"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-canvas-launcher-source')?.textContent).toContain('unfinished');
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="artifact-canvas-open"]')?.click());
+    expect(onOpenArtifactCanvas).toHaveBeenCalledWith(expect.objectContaining({ sourceIncomplete: true }));
   });
 
   it('preview overlay downloads original model HTML, never srcdoc', async () => {

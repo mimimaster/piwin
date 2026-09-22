@@ -26,9 +26,10 @@ import {
  * Routing comes from analyzeArtifactFence; this module does not re-classify.
  *
  * Canvas product split: while the fence is still open, dump source in the
- * transcript (right panel stream-previews via auto-reveal). Once the closing
- * fence arrives, fold to the launcher — even if renderingPhase is still
- * stuck on streaming because activeRunId has not cleared.
+ * transcript (right panel stream-previews via auto-reveal). Once output
+ * settles, fold to the launcher, warning when the closing fence is missing.
+ * A closed fence also folds while renderingPhase is still stuck on streaming
+ * because activeRunId has not cleared.
  */
 export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactElement {
   const streamMode = props.renderingPhase === 'streaming';
@@ -77,6 +78,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
           id: stickyFenceId,
           htmlUiModeEnabled: props.htmlUiModeEnabled,
           mode: liveFence ? 'stream-preview' : 'interactive',
+          ...(settledIncompleteArtifact ? { allowIncompleteSource: true } : {}),
           ...(props.artifactMaxBytes !== undefined ? { maxBytes: props.artifactMaxBytes } : {}),
           ...(props.artifactBlockExternalScripts !== undefined
             ? { blockExternalScripts: props.artifactBlockExternalScripts }
@@ -97,6 +99,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     props.source,
     liveFence,
     fenceOpen,
+    settledIncompleteArtifact,
     props.htmlUiModeEnabled,
     props.artifactMaxBytes,
     props.artifactBlockExternalScripts,
@@ -111,7 +114,6 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     inlineEnabled &&
     artifactPreviewOpen &&
     mountsInline &&
-    !settledIncompleteArtifact &&
     !(liveFence && artifactCodeFirst);
 
   const mediaDataUrls = useArtifactSessionMediaDataUrls({
@@ -154,6 +156,12 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     mediaDataUrls,
   ]);
 
+  const incompleteNotice = settledIncompleteArtifact ? (
+    <p className="artifact-source-incomplete" data-testid="artifact-source-incomplete" role="status">
+      {artifactIncompleteCopy(props.locale)}
+    </p>
+  ) : null;
+
   const previewRoot = (children: ReactElement | null, live: boolean): ReactElement => (
     <div
       ref={previewRootRef}
@@ -161,29 +169,26 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
       data-artifact-id={stickyFenceId ?? undefined}
       {...(live ? { 'data-testid': 'artifact-stream-live' } : {})}
     >
+      {!live ? incompleteNotice : null}
       {children}
     </div>
   );
 
-  if (settledIncompleteArtifact) {
-    return (
-      <div className="artifact-with-source" data-artifact-id={stickyFenceId ?? undefined}>
-        <SourceCodeBlock language={props.language} source={props.source} isShell={false} />
-        <p className="artifact-source-incomplete" data-testid="artifact-source-incomplete" role="status">
-          {artifactIncompleteCopy(props.locale)}
-        </p>
-      </div>
-    );
-  }
-
   if (boundFenceIndex === null || stickyFenceId === null || analysis === null) {
-    return (
+    const source = (
       <SourceCodeBlock
         language={props.language}
         source={props.source}
         isShell={isShellLanguage(props.language)}
         streaming={liveFence}
       />
+    );
+    if (!incompleteNotice) return source;
+    return (
+      <div className="artifact-with-source">
+        {source}
+        {incompleteNotice}
+      </div>
     );
   }
 
@@ -214,6 +219,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
         defaultCollapsed={!artifactSourceExpanded}
         {...(liveFence ? { streaming: true } : {})}
       />
+      {incompleteNotice}
     </div>
   );
 
@@ -233,6 +239,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
       fenceIndex: boundFenceIndex,
       intent: analysis.intent,
       ...(liveFence ? { streaming: true } : {}),
+      ...(settledIncompleteArtifact ? { sourceIncomplete: true } : {}),
     });
     canvasLauncher = (
       <ArtifactCanvasLauncher
@@ -285,11 +292,23 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   // Canvas stays available when Inline is off: a canvas fence still folds to
   // its transcript launcher, and a canvas fence without one degrades to source.
   if (canvasLauncher) {
-    return canvasLauncher;
+    return settledIncompleteArtifact ? (
+      <div className="artifact-with-source">
+        {canvasLauncher}
+        {incompleteNotice}
+      </div>
+    ) : canvasLauncher;
   }
 
   if (analysis.kind === 'code' || !inlineEnabled) {
-    return <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
+    const source = <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
+    if (!incompleteNotice) return source;
+    return (
+      <div className="artifact-with-source">
+        {source}
+        {incompleteNotice}
+      </div>
+    );
   }
 
   if (analysis.kind === 'blocked') {
@@ -301,12 +320,20 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
           isShell={isShell}
           blockedReason={analysis.reason}
         />
+        {incompleteNotice}
       </div>
     );
   }
 
   if (layout === 'canvas') {
-    return <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
+    const source = <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
+    if (!incompleteNotice) return source;
+    return (
+      <div className="artifact-with-source">
+        {source}
+        {incompleteNotice}
+      </div>
+    );
   }
 
   if (willMountInlineFrame && plan) {
