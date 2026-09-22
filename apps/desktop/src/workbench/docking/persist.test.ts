@@ -74,7 +74,7 @@ describe('docking persist', () => {
     const opened = openToolView(createWorkspaceState(createId), 'browser', createId);
     expect(opened.ok).toBe(true);
     if (!opened.ok) return;
-    const second = openToolView(opened.state, 'browser', createId);
+    const second = openToolView(opened.state, 'browser', createId, undefined, { another: true });
     expect(second.ok).toBe(true);
     if (!second.ok) return;
     const parsed = parseWorkspaceState(serializeWorkspaceState(second.state));

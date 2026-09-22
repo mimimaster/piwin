@@ -551,6 +551,32 @@ describe('RightPanel multi-tab', () => {
     expect(labels).toEqual(['浏览器', '浏览器 2']);
   });
 
+  it('hands a docked browser opened from + to the host instead of opening it twice', () => {
+    writeStoredRightPanelState({ openTabs: ['files'], activeTab: 'files' });
+    const onOpenInstance = vi.fn();
+    const rendered = renderPanel({
+      activeTab: 'files',
+      handedOffTabs: ['browser', 'review', 'canvas', 'docPreview'],
+      onOpenInstance,
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const plusButton = container.querySelector<HTMLButtonElement>('[data-testid="right-panel-tab-add"]');
+    act(() => {
+      plusButton?.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      plusButton?.dispatchEvent(new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+      plusButton?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    act(() => {
+      document.querySelector<HTMLElement>('[data-testid="right-panel-plus-browser"]')?.click();
+    });
+
+    expect(onOpenInstance).toHaveBeenCalledTimes(1);
+    expect(onOpenInstance).toHaveBeenCalledWith('browser');
+    expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).toBeNull();
+  });
+
   it('keeps the browser tool tab closeable when there are no page tabs', () => {
     writeStoredRightPanelState({ openTabs: ['browser'], activeTab: 'browser' });
     const rendered = renderPanel({

@@ -151,16 +151,21 @@ describe('docking workspace commands', () => {
     expect(Object.values(reopened.state.views).some((view) => view.sessionId === 'gone')).toBe(true);
   });
 
-  it('opens another browser tab instead of focusing the one already open', () => {
+  it('focuses the open browser unless the caller asks for another', () => {
     const { createId, state } = setup();
     const first = openToolView(state, 'browser', createId);
     expect(first.ok).toBe(true);
     if (!first.ok) return;
-    const second = openToolView(first.state, 'browser', createId);
+    const again = openToolView(first.state, 'browser', createId);
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(Object.values(again.state.views).filter((view) => view.kind === 'browser')).toHaveLength(1);
+    expect(again.state.focusedViewId).toBe(first.state.focusedViewId);
+
+    const second = openToolView(first.state, 'browser', createId, undefined, { another: true });
     expect(second.ok).toBe(true);
     if (!second.ok) return;
-    const browsers = Object.values(second.state.views).filter((view) => view.kind === 'browser');
-    expect(browsers).toHaveLength(2);
+    expect(Object.values(second.state.views).filter((view) => view.kind === 'browser')).toHaveLength(2);
     expect(second.state.focusedViewId).not.toBe(first.state.focusedViewId);
   });
 

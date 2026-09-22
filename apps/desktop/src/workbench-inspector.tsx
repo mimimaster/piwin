@@ -258,6 +258,14 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           }}
           activeTab={rightPanelTab}
           {...(dockedTools ? { handedOffTabs: DOCKING_OWNED_INSPECTOR_TABS, dockedTools } : {})}
+          onOpenInstance={(tab) => {
+            if (docking && inspectorTabToToolKind(tab) === 'browser') {
+              docking.openToolView('browser', { another: true });
+              return;
+            }
+            shell.setInspectorTab(tab);
+            if (!rightPanelOpen) shell.openInspector(tab);
+          }}
           onTabChange={(tab) => {
             shell.setInspectorTab(tab);
             if (!rightPanelOpen) {

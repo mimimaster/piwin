@@ -138,12 +138,14 @@ export function openToolView(
   kind: MovableToolKind,
   createId: WorkspaceIdFactory,
   targetGroupId?: string,
+  options?: { another?: boolean },
 ): WorkspaceOpResult {
-  // One view per tool kind, except the browser: each open is its own tab.
-  // Every canvas view renders the single workbench canvas target, so opening
-  // again (auto-reveal, launcher, inspector tab) must focus the existing tab
-  // instead of cloning it.
-  if (kind !== 'browser') {
+  // One view per tool kind. The browser is the exception: the + menu opens
+  // another tab each time. Every other caller (the inspector-tab sync, an
+  // agent reveal, a launcher) passes `another: false` and lands on the tab
+  // already open. Canvas stays singular either way — every canvas view
+  // renders the one workbench canvas target.
+  if (!options?.another || kind !== 'browser') {
     for (const view of Object.values(state.views)) {
       if (view.kind === kind) return okOp(focusView(state, view.viewId));
     }

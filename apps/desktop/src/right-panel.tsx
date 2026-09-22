@@ -62,6 +62,12 @@ export type RightPanelProps = {
   onClose: () => void;
   activeTab: RightPanelTab | null;
   onTabChange: (tab: RightPanelTab | null) => void;
+  /**
+   * The + menu and the empty launcher asked for one more instance of a tool.
+   * A host that owns the tool's surface (docking) handles it; otherwise the
+   * panel opens the tab itself.
+   */
+  onOpenInstance?: ((tab: RightPanelTab) => void) | undefined;
   panelWidthPx: number;
   isResizing: boolean;
   onResizePointerDown: (event: React.PointerEvent<HTMLElement>) => void;
@@ -323,8 +329,13 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       }
     }
     const id = allocateRightPanelInstanceId(kind, allTabs) as RightPanelTab;
+    if (props.onOpenInstance && !keepsTab(id)) {
+      props.onOpenInstance(id);
+      setPickerOpen(false);
+      return;
+    }
     revealTab(id, 'after-active');
-  }, [allTabs, props, revealTab, terminalSessions]);
+  }, [allTabs, keepsTab, props, revealTab, terminalSessions]);
 
   const closeTab = useCallback((tab: RightPanelTab): void => {
     if (isTerminalTab(tab) && terminalSessions && tab !== 'terminal') {

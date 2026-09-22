@@ -27,7 +27,7 @@ export type DockingWorkspaceController = {
   pushNotice: (message: string) => void;
   setState: (update: (current: WorkspaceState) => WorkspaceState) => void;
   openOrFocusSession: (sessionId: string) => void;
-  openToolView: (kind: MovableToolKind) => void;
+  openToolView: (kind: MovableToolKind, options?: { another?: boolean }) => void;
   /** Ask the workbench right panel to show the focused right-group tool. */
   requestRightReveal: () => void;
   /** Elements the workbench right panel lends to the right tool group. */
@@ -129,9 +129,9 @@ export function useDockingWorkspace(args: {
   );
 
   const openToolView = useCallback(
-    (kind: MovableToolKind) => {
+    (kind: MovableToolKind, options?: { another?: boolean }) => {
       setState((current) => {
-        const result = applyOpenToolView(current, kind, createId);
+        const result = applyOpenToolView(current, kind, createId, undefined, options);
         if (!result.ok) {
           const message = result.message;
           window.setTimeout(() => setNotice(message), 0);
