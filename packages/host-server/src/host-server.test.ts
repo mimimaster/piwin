@@ -1615,6 +1615,34 @@ describe('HostServer', () => {
     await server.stop();
   });
 
+  it('admits any browser Origin when the allowlist is a wildcard', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({
+      runtime,
+      port: 0,
+      instanceId: 'host-origin-wildcard-test',
+      allowedOrigins: ['*'],
+    });
+    const address = await server.start();
+    const socket = new WebSocket(address.url, { origin: 'https://ui.example' });
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'origin-wildcard',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+    socket.close();
+    await server.stop();
+  });
+
   it('rejects a non-loopback Origin when no allowlist is configured', async () => {
     const runtime = new FakeRuntime();
     const server = new HostServer({

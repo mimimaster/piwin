@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 1420 --strictPort",
+    "dev:web": "VITE_PIWIN_SHELL_ONLY=1 vite --port 1420 --strictPort",
+    "build:web": "VITE_PIWIN_SHELL_ONLY=1 tsc -b && VITE_PIWIN_SHELL_ONLY=1 vite build",
+    "preview:web": "VITE_PIWIN_SHELL_ONLY=1 vite preview --port 1420 --strictPort",
     "dev:tauri": "tauri dev --config src-tauri/tauri.conf.sidecar.json",
     "dev:tauri:shell": "tauri dev --config src-tauri/tauri.conf.shell.json",
     "build": "tsc -b && vite build",

@@ -208,25 +208,38 @@ flowchart TB
 
 ---
 
-### 方式二：Web 浏览器远程部署（NAS / 远程开发机）
+### 方式二：Web 正式部署（一个目录，给别人访问）
 
-前后端彻底解耦的设计允许你将 Host 部署在算力更强的家庭 NAS、开发服务器或云端主机上，利用 Tailscale 组网在任意设备的浏览器中随时访问：
+不需要源码，也不需要开发服务器。打包一次，把目录拷到要跑的机器上，启动后浏览器打开同一个端口。
 
-#### 1. 启动 Host 后端服务（监听 `8787` 端口）
+在构建机器上：
+
 ```bash
-pnpm dev:host
-# 或构建为独立服务端后启动
+pnpm install
+pnpm package:web
 ```
 
-#### 2. 启动 Web 前端服务（监听 `1420` 端口）
+产物是 `dist/piwin-host/`。里面的 `web/` 是页面，`start-host.sh` 同时提供页面和 WebSocket。拷走整个目录后：
+
 ```bash
-pnpm dev:desktop
+./start-host.sh
 ```
 
-#### 3. 浏览器访问与连接
-1. 在浏览器中打开 `http://localhost:1420`（或你的远程内网 IP）；
-2. 页面自动呈现 **Host 连接网关（Host Connect Wall）**；
-3. 输入 Host WebSocket 地址（如 `ws://127.0.0.1:8787` 或 Tailscale 节点地址），点击 **Connect** 即刻进入完整工作台。
+本机浏览器打开 `http://127.0.0.1:8787`，地址填 `ws://127.0.0.1:8787`，点 Connect。不用 token。不要和这台机器上的一体包同时开，两者会抢同一份 `~/.piwin`。
+
+给别人访问时，Host 继续只听本机，TLS 放在前面：
+
+```bash
+export PIWIN_HOST_BIND=127.0.0.1
+export PIWIN_HOST_PORT=8787
+export PIWIN_HOST_TOKEN='换成长随机口令'
+export PIWIN_HOST_ALLOWED_ORIGINS='https://ui.example.com'
+./start-host.sh
+```
+
+用 Caddy、nginx 或 Tailscale Serve 把 `https://ui.example.com` 反代到 `127.0.0.1:8787`，并升级 WebSocket。`PIWIN_HOST_ALLOWED_ORIGINS` 填浏览器地址栏里的来源，多个用来源逗号分隔。页面里的地址填反代后的 `wss://` 地址，再填口令。
+
+浏览器壳是远程客户端：会话、发消息、设置可用。本机终端、系统文件框、安装扩展不在这条连接上。
 
 ---
 

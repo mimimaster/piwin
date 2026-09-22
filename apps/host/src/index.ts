@@ -10,6 +10,7 @@ import {
   createDeviceToolBrokerForHost,
   type HostConnectionEvent,
 } from '@piwin/host-server';
+import { parseHostAllowedOrigins } from './allowed-origins.js';
 import { createHostPairingAnnouncement, resolveAdvertisedEndpoint } from './pairing-print.js';
 import { resolveAgentWorkerScript } from './resolve-agent-worker-script.js';
 
@@ -27,6 +28,9 @@ const allowRemoteExtensionActivation = process.env.PIWIN_HOST_ALLOW_EXTENSION_AC
 const hostBuildId = process.env.PIWIN_HOST_BUILD_ID?.trim() || '0.0.0-dev';
 const minClientVersion = process.env.PIWIN_HOST_MIN_CLIENT_VERSION?.trim() || undefined;
 const allowCleartext = process.env.PIWIN_HOST_ALLOW_CLEARTEXT === '1';
+const allowedOrigins = parseHostAllowedOrigins(process.env.PIWIN_HOST_ALLOWED_ORIGINS);
+const webRootRaw = process.env.PIWIN_HOST_WEB_ROOT?.trim();
+const webRoot = webRootRaw === undefined || webRootRaw.length === 0 ? undefined : webRootRaw;
 const piwinRoot = resolvePiwinRoot();
 applyPiwinPlaywrightBrowsersPath(piwinRoot);
 
@@ -81,6 +85,8 @@ const server = new HostServer({
   hostBuildId,
   ...(minClientVersion === undefined ? {} : { minClientVersion }),
   ...(authToken === undefined ? {} : { authToken }),
+  ...(allowedOrigins === undefined ? {} : { allowedOrigins }),
+  ...(webRoot === undefined ? {} : { webRoot }),
   ...(devicePairing === undefined ? {} : { devicePairing }),
   ...(devicePairingStore === undefined ? {} : { devicePairingStore }),
   allowRemoteExtensionActivation,
@@ -100,7 +106,7 @@ const server = new HostServer({
 try {
   const address = await server.start();
   console.log(
-    `[piwin-host] listening at ${address.url} (${mode}${mock ? ', mock' : ''}; build=${hostBuildId})`,
+    `[piwin-host] listening at ${address.url} (${mode}${mock ? ', mock' : ''}; build=${hostBuildId}${webRoot === undefined ? '' : '; web'})`,
   );
   if (devicePairing !== undefined && devicePairingStore !== undefined) {
     const minted = devicePairing.mintToken();

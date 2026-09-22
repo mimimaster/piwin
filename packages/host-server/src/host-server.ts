@@ -66,6 +66,7 @@ import {
   toError,
 } from './host-server-support.js';
 import { stampSubscriptionAuthCommand } from './stamp-subscription-auth.js';
+import { serveWebShell } from './web-shell.js';
 import {
   isLiveOwnerCommand,
   isLiveOwnerConnection,
@@ -109,6 +110,8 @@ export type HostServerOptions = {
   egressHub?: HostEgressHub;
   /** Injected process-lifetime mutation identity. */
   idempotencyRegistry?: HostCommandIdempotencyRegistry;
+  /** Directory of a built Web shell. The same port serves the page and the socket. */
+  webRoot?: string;
 };
 
 export type HostServerAddress = {
@@ -176,6 +179,7 @@ export class HostServer {
   private readonly unsubscribeIngest: (() => void) | undefined;
   private readonly clientToolBroker: DeviceToolBroker | undefined;
   private readonly clientToolRouter: ClientToolFrameRouter | undefined;
+  private readonly webRoot: string | undefined;
   private server: WebSocketServer | undefined;
   private livenessTimer: ReturnType<typeof setInterval> | undefined;
   private browserFrameDetach: (() => void) | undefined;
@@ -207,6 +211,8 @@ export class HostServer {
     this.onConnectionEvent = options.onConnectionEvent ?? (() => undefined);
     this.hostBuildId = options.hostBuildId?.trim() || undefined;
     this.minClientVersion = options.minClientVersion?.trim() || undefined;
+    const webRoot = options.webRoot?.trim();
+    this.webRoot = webRoot === undefined || webRoot.length === 0 ? undefined : webRoot;
     this.ownsIdempotencyRegistry = options.idempotencyRegistry === undefined;
     this.idempotencyRegistry = options.idempotencyRegistry ?? new HostCommandIdempotencyRegistry();
     if (options.egressHub !== undefined) {
@@ -271,11 +277,29 @@ export class HostServer {
       );
     }
 
+    const webRoot = this.webRoot;
     const server = new WebSocketServer({
       host: this.host,
       port: this.port,
       maxPayload: HOST_WIRE_HARD_FRAME_BYTES,
     });
+    if (webRoot !== undefined) {
+      const httpServer = server.options.server;
+      if (httpServer === undefined || httpServer === null) {
+        throw new Error('Host Web shell requires the WebSocket HTTP server');
+      }
+      httpServer.on('request', (request, response) => {
+        if (request.headers.upgrade?.toLowerCase() === 'websocket') {
+          return;
+        }
+        void serveWebShell(webRoot, request, response).catch((error: unknown) => {
+          this.onError(toError(error, 'Host Web shell failed'));
+          if (!response.headersSent) {
+            response.writeHead(500).end();
+          }
+        });
+      });
+    }
     this.server = server;
     server.on('connection', (socket, request) => this.handleConnection(socket, request));
     this.livenessTimer = setInterval(() => this.sweepIdleConnections(), HOST_LIVENESS_SWEEP_MS);
@@ -537,7 +561,7 @@ export class HostServer {
       return true;
     }
     if (this.allowedOrigins !== undefined) {
-      return this.allowedOrigins.has(normalized);
+      return this.allowedOrigins.has(normalized) || this.allowedOrigins.has('*');
     }
     return isLoopbackBrowserOrigin(normalized);
   }

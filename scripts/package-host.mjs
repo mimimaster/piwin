@@ -55,6 +55,12 @@ async function main() {
   await mkdir(outDir, { recursive: true });
 
   await copyIfExists(join(distHost, 'host-listen.mjs'), join(outDir, 'host-listen.mjs'));
+  const webDist = join(root, 'apps/desktop/dist');
+  if (await pathExists(join(webDist, 'index.html'))) {
+    await copyIfExists(webDist, join(outDir, 'web'));
+  } else {
+    console.warn('[package-host] apps/desktop/dist missing — run pnpm build:web to include the browser UI');
+  }
   await copyIfExists(join(distHost, 'agent-worker.mjs'), join(outDir, 'agent-worker.mjs'));
   await copyIfExists(join(distHost, 'package.json'), join(outDir, 'package.json'));
   await copyIfExists(join(distHost, 'node_modules'), join(outDir, 'node_modules'));
@@ -87,6 +93,9 @@ export PIWIN_AGENT_WORKER_SCRIPT="$ROOT/agent-worker.mjs"
 if [[ -d "$ROOT/bundled-assets" ]]; then
   export PIWIN_BUNDLED_ASSETS_ROOT="$ROOT/bundled-assets"
 fi
+if [[ -f "$ROOT/web/index.html" ]]; then
+  export PIWIN_HOST_WEB_ROOT="$ROOT/web"
+fi
 NODE="$ROOT/piwin-host"
 if [[ -x "$NODE" ]]; then
   exec "$NODE" "$ROOT/host-listen.mjs"
@@ -103,6 +112,7 @@ set ROOT=%~dp0
 set NODE_PATH=%ROOT%node_modules
 set PIWIN_AGENT_WORKER_SCRIPT=%ROOT%agent-worker.mjs
 if exist "%ROOT%bundled-assets" set PIWIN_BUNDLED_ASSETS_ROOT=%ROOT%bundled-assets
+if exist "%ROOT%web\index.html" set PIWIN_HOST_WEB_ROOT=%ROOT%web
 if exist "%ROOT%piwin-host.exe" (
   "%ROOT%piwin-host.exe" "%ROOT%host-listen.mjs"
 ) else (
@@ -122,6 +132,7 @@ all-in-one Desktop app on the same machine — they cannot share \`~/.piwin\`.
 \`\`\`bash
 ./start-host.sh
 # listens on ws://127.0.0.1:8787
+# with web/index.html present, the same port also serves the browser UI
 \`\`\`
 
 Bind / token:
@@ -129,8 +140,10 @@ Bind / token:
 - \`PIWIN_HOST_BIND\` (default 127.0.0.1)
 - \`PIWIN_HOST_PORT\` (default 8787)
 - \`PIWIN_HOST_TOKEN\` required when not on loopback
+- \`PIWIN_HOST_ALLOWED_ORIGINS\` browser page Origins; unset keeps loopback only
 
-Then in the shell app, connect to \`ws://127.0.0.1:8787\`.
+Then in the shell app or Web UI, connect to \`ws://127.0.0.1:8787\`.
+A page that is not on loopback must be listed in \`PIWIN_HOST_ALLOWED_ORIGINS\`.
 `,
     'utf8',
   );

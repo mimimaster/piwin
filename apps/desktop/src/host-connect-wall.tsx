@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react';
 import { Button, Field, Notice, PasswordInput, TextInput } from '@piwin/ui-kit';
 import { getDesktopCopy } from './desktop-locale.js';
 import { useDesktopLocale } from './desktop-locale-context.js';
+import { desktopShellDefaultEndpoint } from './desktop-shell-build.js';
 import { probeDesktopRemoteHost } from './probe-desktop-remote-host.js';
 import {
   loadDesktopRemoteHostTarget,
@@ -23,7 +24,9 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
   const copy = getDesktopCopy(locale).hostTarget;
   const gate = getDesktopCopy(locale).hostGate;
   const saved = loadDesktopRemoteHostTarget();
-  const [endpoint, setEndpoint] = useState(saved?.endpoint ?? 'ws://127.0.0.1:8787');
+  const [endpoint, setEndpoint] = useState(
+    saved?.endpoint ?? desktopShellDefaultEndpoint() ?? 'ws://127.0.0.1:8787',
+  );
   const [authToken, setAuthToken] = useState(saved?.authToken ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();

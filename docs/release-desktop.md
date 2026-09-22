@@ -86,12 +86,13 @@ Dev: `pnpm dev:tauri:shell`
 ### Standalone Host
 
 ```bash
-pnpm package:host
+pnpm package:web
 ```
 
-Writes `dist/piwin-host/`. Start with `./start-host.sh` (listens on
-`ws://127.0.0.1:8787`, includes `agent-worker.mjs`). Then open the thin shell
-and connect.
+Writes `dist/piwin-host/`, including `web/` from `pnpm build:web`.
+`./start-host.sh` listens on `ws://127.0.0.1:8787` and serves the browser UI
+on that same port. `pnpm package:host` omits the UI unless `apps/desktop/dist`
+already exists.
 
 Optional JSONL sidecar smoke (not part of default `pnpm test`):
 

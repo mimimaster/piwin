@@ -5,9 +5,14 @@ Standalone Host entry point for the initial multi-client slice.
 Packaged layout (no source checkout):
 
 ```bash
-pnpm package:host
+pnpm package:web
 ./dist/piwin-host/start-host.sh
+# http://127.0.0.1:8787 serves the page and the WebSocket
 ```
+
+`pnpm package:host` builds the Host only. `package:web` builds the browser UI
+first and copies it to `dist/piwin-host/web/`. The launcher sets
+`PIWIN_HOST_WEB_ROOT` when that directory is present.
 
 Supervised local process (auto-restart on crash):
 
@@ -51,6 +56,21 @@ non-loopback bind without a door token or pairing store is rejected.
 Door tokens on cleartext LAN WebSockets are visible to anyone on the path.
 Set `PIWIN_HOST_ALLOW_CLEARTEXT=1` only on a trusted private network after you
 accept that risk; otherwise terminate TLS in front of Host.
+
+## Browser Origins
+
+Browsers send an `Origin` header. With no allowlist, Host admits loopback and
+`tauri://localhost` only, so a page on another host is closed with `4009`.
+
+```bash
+PIWIN_HOST_ALLOWED_ORIGINS='https://ui.example.com,http://127.0.0.1:1420' \
+  pnpm --dir apps/host dev
+```
+
+Values are exact Origins (`scheme://host[:port]`), comma-separated, at most 32.
+`PIWIN_HOST_ALLOWED_ORIGINS=*` admits every browser Origin; use it only inside
+a private network you already trust. CLI and native clients omit `Origin` and
+are unchanged.
 
 Device pairing (mobile enrollment) is operator-local:
 
