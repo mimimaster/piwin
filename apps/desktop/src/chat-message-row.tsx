@@ -48,8 +48,18 @@ import { turnAttemptHasRetainedWork } from './turn-attempt-work';
 export type { ChatMessageRowProps } from './chat-message-row-types.js';
 import type { ChatMessageRowProps } from './chat-message-row-types.js';
 import { areChatMessageRowPropsEqual } from './chat-message-row-memo.js';
+import { ToolOutputMessageContext } from './tool-output-reader.js';
 
-export const ChatMessageRow = memo(
+/** Tool cards below read historical output by (message, tool) id. */
+export function ChatMessageRow(props: ChatMessageRowProps): ReactElement {
+  return (
+    <ToolOutputMessageContext.Provider value={props.message.id}>
+      <ChatMessageRowContent {...props} />
+    </ToolOutputMessageContext.Provider>
+  );
+}
+
+const ChatMessageRowContent = memo(
   function ChatMessageRow(props: ChatMessageRowProps): ReactElement | null {
     const { message } = props;
     const errorMessage = resolveTurnErrorMessage({

@@ -447,6 +447,35 @@ describe('ToolCallCard openable file paths', () => {
     expect(card?.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
   });
 
+  it('reads a heredoc by its first line and states a failed exit on the row', () => {
+    const heredocTool: ToolCardUi = {
+      toolCallId: 'shell-heredoc-1',
+      toolName: 'bash',
+      status: 'error',
+      output: 'Traceback (most recent call last)',
+      presentation: {
+        title: 'bash',
+        kind: 'shell',
+        command: "python3 << 'PY'\nimport sys\nsys.exit(2)\nPY",
+        exitCode: 2,
+        output: { text: 'Traceback (most recent call last)' },
+      },
+    };
+
+    act(() => {
+      root.render(
+        <ToolCallCard tool={heredocTool} density="compact" locale="zh-CN" collapseWhenTerminal />,
+      );
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toBe("python3 << 'PY'");
+    expect(card?.querySelector('[data-testid="tool-call-shell-tag"]')?.textContent).toBe(
+      'python · 4 行',
+    );
+    expect(card?.querySelector('[data-testid="tool-call-exit-tag"]')?.textContent).toBe('exit 2');
+  });
+
   it('keeps longer stderr under a structured error when it adds detail', () => {
     const stderr = [
       'Command failed: ls /missing',

@@ -4,7 +4,7 @@ import { canLoadOlderTranscript, canLoadNewerTranscript } from './transcript-his
  * Host commands stay with App; this file owns transcript, permission, and
  * composer-dock chrome.
  */
-import type { ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import type {
   ContextSummaryPush,
   FlashcardReviewCard,
@@ -42,6 +42,7 @@ import { SessionArchivedBanner } from './session-archived-banner';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { DocumentOpenInput } from './tool-call-card';
 import { TranscriptViewport, type TranscriptViewportProps } from './transcript-viewport';
+import { ToolOutputReaderContext, createHostToolOutputReader } from './tool-output-reader.js';
 import type { DesktopPreferences } from './ui-preferences';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 import { isConversationSessionChrome } from './is-conversation-session';
@@ -178,9 +179,18 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
   } = props;
   const activeSessionId = state.activeSessionId;
   const isConversationSession = isConversationSessionChrome(state.activeScope, sidebarMode);
+  const canReadToolOutput = hostClient.supportsCommand('session/tool-output');
+  // Historical tool rows fetch their slimmed output on expand (session-scoped cache).
+  const toolOutputReader = useMemo(
+    () =>
+      activeSessionId && canReadToolOutput
+        ? createHostToolOutputReader((command) => hostClient.request(command), activeSessionId)
+        : null,
+    [activeSessionId, canReadToolOutput, hostClient],
+  );
 
   return (
-    <>
+    <ToolOutputReaderContext.Provider value={toolOutputReader}>
       {shouldShowHostReconnectBanner({
         transport: hostClient.getTransport(),
         wireReady: hostClient.isReady(),
@@ -326,7 +336,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         )}
         </TranscriptViewport>
       </div>
-    </>
+    </ToolOutputReaderContext.Provider>
   );
 }
 

@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkstone · 终端笺</title>
+<!--
+  proto-12 · bash 工具行的展开形态。三个方向并排比较，数据是本地演示，不执行任何命令。
+  2026-09-23 选定 A（墨线），实现见 apps/desktop/src/shell-tool-body.tsx。
+  Tokens 逐字取自 proto-01-transcript.html 的 .app[data-face]；结构语汇沿用 .tr / .node /
+  .think / .dc / .gate / .seal，不新造颜色。
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#e6e1d7;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s14{width:14px;height:14px}
+.ml{margin-left:auto}
+.app{--sans:Inter,"PingFang SC","Noto Sans SC",-apple-system,system-ui,sans-serif;--serif:"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Source Serif 4",Georgia,serif;--mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;--spring:cubic-bezier(.34,1.4,.64,1);height:100dvh;width:100%;display:grid;grid-template-rows:28px minmax(0,1fr);background:var(--void);color:var(--t1);font:13.5px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.app[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--pine-wash:rgba(61,124,94,.12);--ochre:#94611a;--ochre-wash:rgba(148,97,26,.12);--crimson:#9c2e3d;--crimson-wash:rgba(156,46,61,.1);--azure:#3a7797;--azure-wash:rgba(58,119,151,.12);--code:#efece4;--slab:#1f1c18;--slab-t:#efe9df;--slab-ph:#8d857a;--slab-line:rgba(255,255,255,.1);--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);--sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3)}
+.app[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--pine-wash:rgba(95,173,133,.14);--ochre:#c88f3c;--ochre-wash:rgba(200,143,60,.14);--crimson:#d95f6e;--crimson-wash:rgba(217,95,110,.14);--azure:#6ba4c3;--azure-wash:rgba(107,164,195,.14);--code:#0f0e0c;--slab:#0e0d0b;--slab-t:#ebe5da;--slab-ph:#6f685f;--slab-line:rgba(235,229,218,.1);--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);--sh3:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.7),0 14px 34px -10px rgba(0,0,0,.7)}
+
+@keyframes breath{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes ink-bloom{0%{transform:scale(.55);opacity:0}22%{opacity:1}100%{transform:scale(2.5);opacity:0}}
+@keyframes grind{to{transform:rotate(360deg)}}
+@keyframes stamp{0%{transform:scale(1.5) rotate(-3deg);opacity:0}100%{transform:scale(1) rotate(-3deg);opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ── Prototype chrome (proto-01 .proto strip) ─────────────────────── */
+.proto{display:flex;align-items:center;gap:10px;padding:0 12px;font:11px var(--mono);color:var(--t3);border-bottom:1px dashed var(--l2);white-space:nowrap;overflow:hidden}
+.proto .pt{color:var(--t1);margin-right:4px}.proto .pl{color:var(--t4)}.proto .pn{margin-left:auto;color:var(--t4)}
+.seg{display:inline-flex;border:1px solid var(--l2);border-radius:5px;overflow:hidden;flex:none}
+.seg button{font:11px var(--mono);padding:3px 8px;color:var(--t3)}.seg button.on{background:var(--s3);color:var(--t1)}
+.pbtn{font:11px var(--mono);padding:3px 8px;border:1px solid var(--l2);border-radius:5px;color:var(--t3)}.pbtn:hover{color:var(--t1);background:var(--s3)}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:8px;padding:0 8px 8px;min-height:0}
+@media (max-width:1100px){.body{grid-template-columns:minmax(0,1fr)}.notes{display:none}}
+.panel{background:var(--s1);border-radius:12px;box-shadow:var(--sh2);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.stage{background:var(--s2);position:relative}
+.stage::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.035;mix-blend-mode:multiply;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px}
+.app[data-face=ink] .stage::after{mix-blend-mode:screen;opacity:.02}
+.scroll{--measure:720px;--row-pad:8px;--card-x:14px;--card-y:12px;--surf-x:12px;--surf-y:10px;--line-x:8px;--row-in:30px;flex:1;overflow:auto;min-height:0;padding:22px 28px 80px}
+.scroll::-webkit-scrollbar{width:8px}.scroll::-webkit-scrollbar-thumb{background:var(--l2);border-radius:4px}
+.turn{width:100%;max-width:var(--measure);margin:0 auto 26px}
+
+/* ── Shared transcript vocabulary (proto-01) ──────────────────────── */
+.st{display:flex;align-items:baseline;gap:10px;max-width:var(--measure);margin:0 auto 14px}
+.st h2{font:500 20px/1.3 var(--serif);color:var(--t1)}
+.st .sn{font:11px var(--mono);color:var(--t4)}
+.ucard{background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:var(--card-y) var(--card-x);font-size:14.5px;line-height:1.72;color:var(--t1);margin-bottom:18px}
+.head{display:flex;align-items:center;gap:8px;font:11px var(--mono);color:var(--t4);margin-bottom:8px}
+.av{width:18px;height:18px;border-radius:50%;background:var(--s3);box-shadow:var(--sh1);font:600 10.5px/18px var(--serif);text-align:center;color:var(--t1);display:inline-block;flex:none}
+code{font:12.5px var(--mono);color:var(--t1);background:var(--code);padding:1px 5px;border-radius:3px}
+.work-h{display:flex;align-items:center;gap:8px;height:30px;padding:0 var(--row-pad);margin-left:calc(-1*var(--row-pad));border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap}
+.work-h b{color:var(--t1);font-weight:500}.work-h .i{color:var(--t3)}.work-h .fail{color:var(--crimson)}
+.thread{position:relative;padding-left:calc(var(--row-in) - var(--row-pad))}
+.thread::before{content:"";position:absolute;left:var(--line-x);top:8px;bottom:8px;width:1.5px;border-radius:1px;background:var(--l3)}
+.node{position:absolute;left:-18px;top:14px;margin-top:-4.5px;width:9px;height:9px;border-radius:50%;background:var(--s2);border:1.5px solid var(--l3);z-index:1}
+.node.done{background:var(--pine);border-color:var(--pine)}.node.fail{background:var(--crimson);border-color:var(--crimson)}
+.node.run{background:var(--lamp);border-color:var(--lamp);box-shadow:0 0 0 3px var(--lamp-wash);animation:breath 2.4s ease-in-out infinite}
+.blk{position:relative}
+.tr{position:relative;display:flex;align-items:center;gap:8px;height:28px;padding:0 var(--row-pad);border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;width:100%;cursor:pointer}
+.tr:hover{background:var(--s3);box-shadow:var(--sh1)}
+.tr b{color:var(--t1);font-weight:600}
+.tr code{overflow:hidden;text-overflow:ellipsis;min-width:0;font-size:11.5px;max-width:300px}
+.tr .i{color:var(--t3)}
+.tr .meta{margin-left:auto;display:flex;gap:8px;align-items:center;font:11.5px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums;flex:none}
+.tr .meta .x{color:var(--crimson)}
+.tr .meta .run-m{display:inline-flex;gap:6px;align-items:center;color:var(--lamp)}
+.tr.fail b{color:var(--crimson)}
+.chev{color:var(--t4);transition:transform .24s ease-out;flex:none}
+.blk.open > .tr .chev{transform:rotate(180deg)}
+.blk > .fb{display:none}.blk.open > .fb{display:block}
+.tag{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 5px;border-radius:3px;background:var(--s1);box-shadow:var(--sh1);font:10.5px var(--mono);color:var(--t3);white-space:nowrap;flex:none}
+.grind{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--l3);border-top-color:var(--lamp);animation:grind 1.4s linear infinite;flex:none}
+.btn{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 7px;border-radius:6px;font-size:11.5px;color:var(--t2);white-space:nowrap;flex:none}
+.btn:hover{background:var(--s2);color:var(--t1)}
+.btn .i{width:12px;height:12px}
+.btn.done{color:var(--pine)}
+.pc{display:inline-flex;align-items:center;gap:4px;font:11.5px var(--mono);color:var(--t1);background:var(--s3);box-shadow:var(--sh1);padding:1px 6px;border-radius:3px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pc .i{color:var(--t3);width:12px;height:12px}
+.mic{font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3);flex:none}
+.sep{color:var(--t4)}
+.seal{border-radius:2px;background:var(--zhu);color:var(--on-zhu);font:600 9px/1 var(--serif);display:inline-grid;place-items:center;position:relative;width:17px;height:17px;transform:rotate(-3deg);box-shadow:inset 0 0 0 1px rgba(255,255,255,.35);flex:none}
+.seal::after{content:"";position:absolute;inset:2px;border:1px solid rgba(255,255,255,.6);border-radius:1px}
+.prose{font-size:14.5px;line-height:1.72;color:var(--t1);margin-top:14px}
+.prose p{margin:0 0 10px}
+
+/* Syntax roles (proto-01 .code .k/.s/.c/.fx) + flags */
+.k{color:var(--azure)}.s{color:var(--pine)}.c{color:var(--t4)}.fx{color:var(--ochre)}.f{color:var(--t3)}
+
+/* Output tones: only marker lines take colour */
+.ol[data-t=err]{color:var(--crimson)}.ol[data-t=ok]{color:var(--pine)}.ol[data-t=warn]{color:var(--ochre)}
+.caret{display:inline-block;width:7px;height:13px;vertical-align:-2px;background:var(--lamp);animation:breath 1s ease-in-out infinite}
+
+/* ═══ A · 墨线 — no container; the command and its output hang off the thread ═══ */
+.a-body{margin:0 0 10px var(--row-pad);font:11.5px/1.65 var(--mono)}
+.a-cmd{color:var(--t1);white-space:pre-wrap;word-break:break-word}
+.a-cmd .cl{display:grid;grid-template-columns:14px minmax(0,1fr)}
+.a-cmd .pr{color:var(--lamp);font-weight:600;font-style:normal;user-select:none}
+.a-cmd .hd{display:block;position:relative;margin:2px 0 2px 3px;padding-left:10px;border-left:1.5px dotted var(--l3)}
+.a-cmd .hd .cl{display:block}
+.a-cmd .hd[data-lang]::before{content:attr(data-lang);position:absolute;right:0;top:0;font:600 9.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--t4)}
+.a-out{position:relative;margin:6px 0 0 3px;padding:1px 0 1px 11px;border-left:1.5px solid var(--l2);color:var(--t2);white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto}
+.a-out .ol{display:block;position:relative}
+.a-out .ol[data-t=err]::before{content:"";position:absolute;left:-12.5px;top:3px;bottom:3px;width:1.5px;background:var(--crimson)}
+.a-body.run .a-out{border-left-color:var(--lamp)}
+.a-foot{display:flex;align-items:center;gap:8px;margin:6px 0 0 3px;font:11px var(--mono);color:var(--t4);white-space:nowrap}
+.a-foot .x{color:var(--crimson)}.a-foot .ok{color:var(--pine)}.a-foot .run{color:var(--lamp)}.a-foot .tr-note{color:var(--ochre)}
+.a-foot u{text-decoration:none;cursor:pointer;color:var(--t3)}.a-foot u:hover{color:var(--t1);text-decoration:underline}
+.a-foot .acts{margin-left:auto;display:flex;gap:10px;opacity:0;transition:opacity .12s}
+.blk:hover .a-foot .acts{opacity:1}
+.a-err{margin:4px 0 0 3px;padding-left:11px;border-left:1.5px solid var(--crimson);color:var(--crimson)}
+
+/* ═══ B · 笺 — same body as the diff card: head / command / output / foot ═══ */
+.sl{position:relative;margin:4px 0 8px var(--row-pad);border-radius:8px;background:var(--s3);box-shadow:var(--sh1);overflow:hidden}
+.sl::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:transparent;z-index:1}
+.sl.fail::before{background:var(--crimson)}
+.sl.run::before{background:var(--lamp);animation:breath 2.4s ease-in-out infinite}
+.sl-h{display:flex;align-items:center;gap:8px;height:32px;padding:0 6px 0 12px;border-bottom:1px solid var(--l1);font:11.5px var(--mono);color:var(--t3);white-space:nowrap}
+.sl-h .pc{flex:0 1 auto}
+.sl-h .acts{margin-left:auto;display:flex;gap:2px;opacity:.0;transition:opacity .12s}
+.sl:hover .sl-h .acts{opacity:1}
+.sl-cmd{padding:9px 12px 10px;font:12px/1.65 var(--mono);color:var(--t1);white-space:pre-wrap;word-break:break-word}
+.sl-cmd .cl{display:grid;grid-template-columns:16px minmax(0,1fr)}
+.sl-cmd .pr{color:var(--lamp);font-weight:600;font-style:normal;user-select:none}
+.sl-cmd .hd{display:block;position:relative;margin:4px 0 2px 16px;padding:6px 10px;border-radius:4px;background:var(--s2);box-shadow:inset 0 0 0 1px var(--l1);font-size:11.5px}
+.sl-cmd .hd .cl{display:block}
+.sl-cmd .hd[data-lang]::before{content:attr(data-lang);position:absolute;right:8px;top:6px;font:600 9.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--t4)}
+.sl-cmd.folded{max-height:150px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 60%,transparent);mask-image:linear-gradient(#000 60%,transparent)}
+.sl-more{display:block;width:100%;height:24px;margin-top:-6px;font:11px var(--sans);color:var(--t3);text-align:center;position:relative}
+.sl-more:hover{color:var(--t1)}
+.sl-out{font:11.5px/1.75 var(--mono);background:var(--code);border-top:1px solid var(--l1);max-height:252px;overflow:auto;padding:4px 0}
+.sl-out .ol{display:flex;gap:10px;padding:0 12px 0 10px;white-space:pre-wrap;word-break:break-word;color:var(--t2)}
+.sl-out .ol .ln{width:24px;text-align:right;color:var(--t4);flex:none;user-select:none;font-variant-numeric:tabular-nums}
+.sl-out .ol[data-t=ok]{color:var(--pine)}.sl-out .ol[data-t=warn]{color:var(--ochre)}
+.sl-out .ol[data-t=err]{background:var(--crimson-wash);color:var(--crimson)}
+.sl-out .ol[data-t=err] .ln{color:var(--crimson);opacity:.7}
+.sl-out .ol.elided{color:var(--t4);background:var(--s1)}
+.sl-err{display:flex;gap:8px;align-items:baseline;padding:7px 12px;border-top:1px solid var(--l1);background:var(--crimson-wash);font:11.5px var(--mono);color:var(--crimson)}
+.sl-f{display:flex;align-items:center;gap:8px;height:34px;padding:0 6px 0 12px;border-top:1px solid var(--l1);font:11.5px var(--mono);color:var(--t4);white-space:nowrap}
+.vd{font:11.5px var(--mono)}.vd.ok{color:var(--pine)}.vd.no{color:var(--crimson)}.vd.run{color:var(--lamp);display:inline-flex;gap:6px;align-items:center}
+.sl-f .trn{color:var(--ochre);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sl-f .acts{margin-left:auto;display:flex;gap:2px}
+
+/* ═══ C · 砚台 — the terminal as a slab; outcome pressed as a small seal ═══ */
+.sb{position:relative;margin:4px 0 10px var(--row-pad);border-radius:12px;background:var(--slab);color:var(--slab-t);box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 10px 24px -14px rgba(0,0,0,.55);overflow:hidden;
+  --k2:#6ba4c3;--s2x:#5fad85;--fx2:#c88f3c;--cr2:#d95f6e;--lamp2:#e7b352}
+.sb::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.05;mix-blend-mode:screen;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>") 0 0/160px 160px}
+.sb .k{color:var(--k2)}.sb .s{color:var(--s2x)}.sb .fx{color:var(--fx2)}.sb .c,.sb .f{color:var(--slab-ph)}
+.sb-top{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;font:11px var(--mono);color:var(--slab-ph);white-space:nowrap}
+.sb-top .dot{width:5px;height:5px;border-radius:50%;background:var(--slab-ph);opacity:.6}
+.sb-seal{margin-left:auto;width:20px;height:20px;border-radius:2px;display:grid;place-items:center;font:600 11px/1 var(--serif);transform:rotate(-3deg);position:relative;flex:none;animation:stamp .18s var(--spring) both}
+.sb-seal::after{content:"";position:absolute;inset:2px;border:1px solid currentColor;opacity:.45;border-radius:1px}
+.sb-seal.ok{background:var(--s2x);color:#0e1a14}
+.sb-seal.no{background:var(--cr2);color:#1c0b0e}
+.sb-seal.stop{background:transparent;color:var(--cr2);box-shadow:inset 0 0 0 1.5px var(--cr2)}
+.sb-lamp{margin-left:auto;position:relative;width:7px;height:7px;border-radius:50%;background:var(--lamp2);box-shadow:0 0 8px 2px rgba(231,179,82,.35)}
+.sb-lamp::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--lamp2);animation:ink-bloom 3.1s ease-out infinite}
+.sb-cmd{padding:2px 14px 10px;font:12px/1.65 var(--mono);white-space:pre-wrap;word-break:break-word}
+.sb-cmd .cl{display:grid;grid-template-columns:16px minmax(0,1fr)}
+.sb-cmd .pr{color:var(--lamp2);font-style:normal;user-select:none}
+.sb-cmd .hd{display:block;position:relative;margin:2px 0 2px 4px;padding-left:12px;border-left:1px solid var(--slab-line);font-size:11.5px}
+.sb-cmd .hd .cl{display:block}
+.sb-cmd .hd[data-lang]::before{content:attr(data-lang);position:absolute;right:0;top:0;font:600 9.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--slab-ph)}
+.sb-out{border-top:1px dashed var(--slab-line);padding:8px 14px;font:11.5px/1.65 var(--mono);color:#b3aa9e;white-space:pre-wrap;word-break:break-word;max-height:240px;overflow:auto}
+.sb-out .ol{display:block}
+.sb-out .ol[data-t=err]{color:var(--cr2)}.sb-out .ol[data-t=ok]{color:var(--s2x)}.sb-out .ol[data-t=warn]{color:var(--fx2)}
+.sb-out .caret{background:var(--lamp2)}
+.sb-err{padding:0 14px 8px;font:11.5px var(--mono);color:var(--cr2)}
+.sb-f{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px 0 14px;border-top:1px dashed var(--slab-line);font:11px var(--mono);color:var(--slab-ph);white-space:nowrap}
+.sb-f .x{color:var(--cr2)}.sb-f .trn{color:var(--fx2)}
+.sb-f .acts{margin-left:auto;display:flex;gap:2px}
+.sb-f .btn{color:var(--slab-ph)}.sb-f .btn:hover{background:rgba(255,255,255,.06);color:var(--slab-t)}
+
+/* ── Notes panel ─────────────────────────────────────────────────── */
+.notes{padding:0}
+.nt-h{padding:14px 16px 6px;font:500 17px/1.3 var(--serif);color:var(--t1)}
+.nt-h small{display:block;margin-top:3px;font:11px var(--mono);color:var(--t4)}
+.nt{flex:1;overflow:auto;padding:4px 16px 16px;font-size:12.5px;line-height:1.65;color:var(--t2)}
+.nt h4{margin:14px 0 4px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.nt ul{list-style:none}
+.nt li{position:relative;padding-left:12px;margin:4px 0}
+.nt li::before{content:"";position:absolute;left:0;top:.7em;width:4px;height:4px;border-radius:50%;background:var(--t4)}
+.nt li.pro::before{background:var(--pine)}.nt li.con::before{background:var(--crimson)}
+.nt code{font-size:11px}
+.nt .rec{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:999px;font:600 10.5px var(--sans);letter-spacing:.04em;background:var(--pine-wash);color:var(--pine)}
+</style>
+</head>
+<body>
+<div class="app" data-face="paper" data-dir="a" id="app">
+ <div class="proto">
+  <span class="pt">proto-12 · 终端笺</span>
+  <span class="pl">方案</span>
+  <span class="seg" id="seg-dir"><button data-dir="a" class="on">A 墨线</button><button data-dir="b">B 笺</button><button data-dir="c">C 砚台</button></span>
+  <span class="pl">面</span>
+  <span class="seg" id="seg-face"><button data-face="paper" class="on">纸</button><button data-face="ink">墨</button></span>
+  <button class="pbtn" id="replay">重播运行态</button>
+  <button class="pbtn" id="toggle-all">全部收起</button>
+  <span class="pn">演示数据 · 不执行命令</span>
+ </div>
+ <div class="body">
+  <main class="panel stage"><div class="scroll" id="scroll"></div></main>
+  <aside class="panel notes"><div class="nt-h" id="nt-h"></div><div class="nt" id="nt"></div></aside>
+ </div>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5"/></symbol>
+<symbol id="check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></symbol>
+<symbol id="term" viewBox="0 0 16 16"><path d="M3 4.5l3.5 3.5L3 11.5M8.5 12h4.5"/></symbol>
+<symbol id="folder" viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3H6l1.5 1.5h5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+<symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></symbol>
+<symbol id="bulb" viewBox="0 0 16 16"><path d="M8 2.5A4.2 4.2 0 0 0 3.8 6.7c0 1.7 1 2.6 1.7 3.4.4.5.5.9.5 1.4h4c0-.5.1-.9.5-1.4.7-.8 1.7-1.7 1.7-3.4A4.2 4.2 0 0 0 8 2.5zM6.5 13.5h3"/></symbol>
+<symbol id="ext" viewBox="0 0 16 16"><path d="M7 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V9M9 2h5v5M14 2L7.5 8.5"/></symbol>
+</svg>
+
+<script>
+/* ── Demo data ─────────────────────────────────────────────────────── */
+const CWD = '~/Developer/piwin';
+const HEREDOC = [
+  "python3 << 'PY'",
+  'import glob, re',
+  'from pathlib import Path',
+  '',
+  "css_files = glob.glob('/Applications/Claude.app/Contents/Resources/ion-dist/assets/v1/*.css')",
+  '',
+  'tokens = {}',
+  'for f in css_files:',
+  "    content = Path(f).read_text(errors='ignore')",
+  "    for m in re.finditer(r'(--(?:danger|border|accent)[a-zA-Z0-9_-]*)\\s*:\\s*([^;{}]+)', content):",
+  '        k, v = m.group(1), m.group(2).strip()',
+  '        tokens[k] = v',
+  '',
+  'for k in sorted(tokens.keys()):',
+  "    if any(t in k for t in ['danger', 'accent', 'border-300']):",
+  '        print(f"{k}: {tokens[k]}")',
+  'PY',
+].join('\n');
+
+const BUILD_LINES = [
+  '> @piwin/desktop@0.0.0 build',
+  '> tsc -b && vite build',
+  '',
+  'vite v7.1.3 building for production...',
+  'transforming (412) src/tool-call-card.tsx',
+  'transforming (1187) src/styles.css',
+  '✓ 2318 modules transformed.',
+  'warning: chunk index-3f2a.js is larger than 500 kB after minification',
+  'rendering chunks (14)...',
+  'computing gzip size (9)...',
+];
+
+const TOOLS = [
+  { id: 'tokens', cmd: HEREDOC, status: 'done', exit: 0, dur: '1.2s', open: true, out: [
+    '--accent-brand: hsl(15 63.1% 59.6%)',
+    '--accent-main-000: hsl(15 54.2% 51.2%)',
+    '--accent-main-100: hsl(15 55.6% 52.4%)',
+    '--accent-secondary-100: hsl(210 70.9% 51.6%)',
+    '--border-300: hsl(30 3.3% 11.8%)',
+    '--danger-000: hsl(5 69.4% 72.9%)',
+    '--danger-100: hsl(5 69.4% 72.9%)',
+    '--danger-900: hsl(0 21.4% 17.1%)',
+  ] },
+  { id: 'typecheck', cmd: 'pnpm --dir apps/desktop typecheck', status: 'done', exit: 0, dur: '4.1s', open: false, out: [] },
+  { id: 'vitest', cmd: 'pnpm vitest run composer-dock', status: 'fail', exit: 1, dur: '6.2s', count: '1 失败', open: true, out: [
+    ' RUN  v3.2.4 /Users/you/Developer/piwin/apps/desktop',
+    '',
+    ' ✓ src/composer-dock-assembly.test.ts (14 tests) 41ms',
+    ' ❯ src/composer-dock.test.tsx (23 tests | 1 failed) 812ms',
+    '   × queues Enter while streaming 38ms',
+    '',
+    ' FAIL  src/composer-dock.test.tsx > queues Enter while streaming',
+    'AssertionError: expected [] to have a length of 1 but got +0',
+    ' ❯ src/composer-dock.test.tsx:418:34',
+    '',
+    ' Test Files  1 failed | 1 passed (2)',
+    '      Tests  1 failed | 36 passed (37)',
+  ] },
+  { id: 'gitlog', cmd: 'git log --oneline -n 400', status: 'done', exit: 0, dur: '180ms', open: false,
+    trunc: { start: 1, end: 40, total: 400 },
+    out: Array.from({ length: 40 }, (_, i) => `${(0x3cf4929e - i * 7919).toString(16).slice(0, 8)} ${['fix', 'feat', 'style', 'refactor'][i % 4]}(desktop): commit ${400 - i}`) },
+  { id: 'devhost', cmd: 'pnpm dev:host', status: 'fail', timeout: true, dur: '120s', open: true,
+    err: 'command timed out after 120s',
+    out: ['host ready on 127.0.0.1:7420', 'watching for changes…'] },
+  { id: 'build', cmd: 'pnpm --dir apps/desktop build', status: 'run', dur: '', open: true, out: [] },
+];
+
+/* ── Tiny highlighter (prototype only) ─────────────────────────────── */
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const KW = {
+  bash: new Set('if then else elif fi for in do done while case esac function export local return set'.split(' ')),
+  python: new Set('import from def return for in if else elif while class with as not and or is None True False lambda try except raise pass yield'.split(' ')),
+};
+function hl(line, lang) {
+  if (lang === 'text') return esc(line) || ' ';
+  const re = /(#.*$)|([rf]?'(?:[^'\\]|\\.)*'?|[rf]?"(?:[^"\\]|\\.)*"?)|((?:^|\s)--?[A-Za-z][\w-]*)|([A-Za-z_][\w./-]*)/g;
+  let out = '', i = 0, m, first = lang === 'bash';
+  while ((m = re.exec(line))) {
+    const gap = line.slice(i, m.index);
+    out += esc(gap);
+    if (lang === 'bash' && /(&&|\|\|?|;)\s*$/.test(gap)) first = true;
+    i = re.lastIndex;
+    if (m[1] && lang !== 'bash' || m[1] && /^#/.test(m[1]) && (m.index === 0 || /\s$/.test(line.slice(0, m.index)))) out += `<span class="c">${esc(m[1])}</span>`;
+    else if (m[1]) out += esc(m[1]);
+    else if (m[2]) out += `<span class="s">${esc(m[2])}</span>`;
+    else if (m[3]) out += lang === 'bash' ? `<span class="f">${esc(m[3])}</span>` : esc(m[3]);
+    else {
+      const w = m[4];
+      if (lang === 'bash' && first) { out += `<span class="fx">${esc(w)}</span>`; first = false; }
+      else if (KW[lang] && KW[lang].has(w)) out += `<span class="k">${esc(w)}</span>`;
+      else if (lang !== 'bash' && line[i] === '(') out += `<span class="fx">${esc(w)}</span>`;
+      else out += esc(w);
+    }
+  }
+  return (out + esc(line.slice(i))) || ' ';
+}
+
+/* Split heredoc bodies out so each gets its own language. */
+function split(cmd) {
+  const lines = cmd.split('\n'), segs = [];
+  let shell = [], i = 0;
+  const flush = () => { if (shell.length) { segs.push({ kind: 'sh', lines: shell }); shell = []; } };
+  while (i < lines.length) {
+    const line = lines[i++];
+    shell.push(line);
+    const open = line.match(/<<(-?)\s*(['"]?)([A-Za-z_]\w*)\2/);
+    if (!open) continue;
+    const body = [];
+    while (i < lines.length && lines[i].trim() !== open[3]) body.push(lines[i++]);
+    flush();
+    const lang = /python/.test(line) ? 'python' : /\b(node|bun|deno)\b/.test(line) ? 'javascript' : 'text';
+    segs.push({ kind: 'hd', lines: body, lang });
+  }
+  flush();
+  return segs;
+}
+function cmdHtml(cmd) {
+  let firstShell = true;
+  return split(cmd).map((seg) => {
+    if (seg.kind === 'hd') {
+      return `<span class="hd"${seg.lang !== 'text' ? ` data-lang="${seg.lang}"` : ''}>${seg.lines
+        .map((l) => `<span class="cl">${hl(l, seg.lang)}\n</span>`).join('')}</span>`;
+    }
+    const withPrompt = firstShell; firstShell = false;
+    return seg.lines.map((l, idx) =>
+      `<span class="cl"><i class="pr">${withPrompt && idx === 0 ? '$' : ''}</i><span>${hl(l, 'bash')}\n</span></span>`).join('');
+  }).join('');
+}
+const tone = (l) =>
+  /^\s*(?:FAIL\b|ERROR\b|npm ERR!|fatal:|error(?:\[[^\]]*\])?:|[A-Za-z]*Error\b|Traceback\b|[×✗✖])/.test(l) ? 'err'
+  : /^\s*(?:[✓✔]|PASS\b)/.test(l) ? 'ok'
+  : /^\s*(?:warn(?:ing)?\b|WARN\b|⚠)/i.test(l) ? 'warn' : '';
+function outHtml(t, { gutter }) {
+  const lines = t.out.map((l, n) => {
+    const tn = tone(l);
+    return gutter
+      ? `<span class="ol"${tn ? ` data-t="${tn}"` : ''}><span class="ln">${n + 1}</span><span>${esc(l) || ' '}</span></span>`
+      : `<span class="ol"${tn ? ` data-t="${tn}"` : ''}>${esc(l) || ' '}</span>`;
+  }).join('');
+  const caret = t.status === 'run' ? (gutter ? `<span class="ol"><span class="ln"></span><span class="caret"></span></span>` : `<span class="ol"><span class="caret"></span></span>`) : '';
+  return lines + caret;
+}
+const firstLine = (cmd) => cmd.split('\n')[0];
+const extraLines = (cmd) => cmd.split('\n').length - 1;
+const heredocLang = (cmd) => (split(cmd).find((s) => s.kind === 'hd') || {}).lang;
+const lineCount = (t) => (t.out.length ? `${t.out.length} 行输出` : t.status === 'run' ? '' : '无输出');
+const truncNote = (t) => (t.trunc ? `仅 L${t.trunc.start}–L${t.trunc.end} / 共 ${t.trunc.total} 行` : '');
+const icon = (id, cls = '') => `<svg class="i ${cls}"><use href="#${id}"/></svg>`;
+const copyBtn = (label, what, id) => `<button class="btn" data-copy="${what}" data-id="${id}">${icon('copy')}<span>${label}</span></button>`;
+
+/* ── Collapsed row (shared by all three) ───────────────────────────── */
+function rowHtml(t) {
+  const node = t.status === 'run' ? 'run' : t.status === 'fail' ? 'fail' : 'done';
+  const lang = heredocLang(t.cmd);
+  const more = extraLines(t.cmd);
+  const tag = lang && lang !== 'text' ? `<span class="tag">${lang} · ${more + 1} 行</span>` : more > 0 ? `<span class="tag">+${more} 行</span>` : '';
+  const meta = t.status === 'run'
+    ? `<span class="run-m"><span class="grind"></span><span data-live-dur="${t.id}">${t.dur || '0s'}</span></span>`
+    : [t.timeout ? `<span class="x">超时</span>` : t.exit ? `<span class="x">exit ${t.exit}</span>` : '', t.count ? `<span${t.status === 'fail' ? ' class="x"' : ''}>${t.count}</span>` : '', t.trunc ? `<span style="color:var(--ochre)">部分</span>` : '', `<span>${t.dur}</span>`].filter(Boolean).join('');
+  return `<div class="tr${t.status === 'fail' ? ' fail' : ''}" data-fold="${t.id}"><span class="node ${node}"></span>${icon('term', 's14')}<b>bash</b><code>${esc(firstLine(t.cmd))}</code>${tag}<span class="meta">${meta}${icon('chevd', 's12 chev')}</span></div>`;
+}
+
+/* ── Direction A · 墨线 ────────────────────────────────────────────── */
+function bodyA(t) {
+  const st = t.status === 'run' ? `<span class="run">运行中</span>`
+    : t.timeout ? `<span class="x">超时</span>` : t.exit ? `<span class="x">exit ${t.exit}</span>` : `<span class="ok">exit 0</span>`;
+  const out = t.out.length || t.status === 'run' ? `<div class="a-out" data-live-out="${t.id}">${outHtml(t, { gutter: false })}</div>` : '';
+  return `<div class="a-body${t.status === 'run' ? ' run' : ''}">
+    <div class="a-cmd">${cmdHtml(t.cmd)}</div>${out}
+    ${t.err ? `<div class="a-err">${esc(t.err)}</div>` : ''}
+    <div class="a-foot">${st}<span class="sep">·</span><span data-live-count="${t.id}">${lineCount(t)}</span>${t.trunc ? `<span class="sep">·</span><span class="tr-note">${truncNote(t)}</span>` : ''}
+      <span class="acts"><u data-copy="cmd" data-id="${t.id}">复制命令</u>${t.out.length ? `<u data-copy="out" data-id="${t.id}">复制输出</u>` : ''}</span></div>
+  </div>`;
+}
+
+/* ── Direction B · 笺 ──────────────────────────────────────────────── */
+function bodyB(t) {
+  const cls = t.status === 'run' ? ' run' : t.status === 'fail' ? ' fail' : '';
+  const long = t.cmd.split('\n').length > 12;
+  const vd = t.status === 'run' ? `<span class="vd run"><span class="grind"></span>运行中</span>`
+    : t.timeout ? `<span class="vd no">✕ 超时</span>` : t.exit ? `<span class="vd no">✕ exit ${t.exit}</span>` : `<span class="vd ok">✓ exit 0</span>`;
+  const out = t.out.length || t.status === 'run' ? `<div class="sl-out" data-live-out="${t.id}">${outHtml(t, { gutter: true })}</div>` : '';
+  return `<div class="sl${cls}">
+    <div class="sl-h"><span class="mic">终端</span><span class="pc">${icon('folder')}${CWD}</span><span class="sep">·</span><span>zsh</span>
+      <span class="acts">${copyBtn('复制命令', 'cmd', t.id)}<button class="btn">${icon('ext')}<span>在终端打开</span></button></span></div>
+    <div class="sl-cmd${long ? ' folded' : ''}" data-cmd="${t.id}">${cmdHtml(t.cmd)}</div>
+    ${long ? `<button class="sl-more" data-unfold="${t.id}">展开全部 · 共 ${t.cmd.split('\n').length} 行</button>` : ''}
+    ${out}
+    ${t.err ? `<div class="sl-err"><span>✕</span><span>${esc(t.err)}</span></div>` : ''}
+    <div class="sl-f">${vd}<span class="sep">·</span><span data-live-count="${t.id}">${lineCount(t) || '等待输出'}</span>${t.trunc ? `<span class="sep">·</span><span class="trn">${truncNote(t)}</span>` : ''}
+      <span class="acts">${t.out.length ? copyBtn('复制输出', 'out', t.id) : ''}</span></div>
+  </div>`;
+}
+
+/* ── Direction C · 砚台 ────────────────────────────────────────────── */
+function bodyC(t) {
+  const seal = t.status === 'run' ? `<span class="sb-lamp" title="运行中"></span>`
+    : t.timeout ? `<span class="sb-seal stop" title="超时">止</span>`
+    : t.exit ? `<span class="sb-seal no" title="exit ${t.exit}">误</span>` : `<span class="sb-seal ok" title="exit 0">讫</span>`;
+  const st = t.status === 'run' ? '运行中' : t.timeout ? `<span class="x">超时</span>` : t.exit ? `<span class="x">exit ${t.exit}</span>` : 'exit 0';
+  const out = t.out.length || t.status === 'run' ? `<div class="sb-out" data-live-out="${t.id}">${outHtml(t, { gutter: false })}</div>` : '';
+  return `<div class="sb">
+    <div class="sb-top"><span>${CWD}</span><span class="dot"></span><span>zsh</span>${seal}</div>
+    <div class="sb-cmd">${cmdHtml(t.cmd)}</div>${out}
+    ${t.err ? `<div class="sb-err">${esc(t.err)}</div>` : ''}
+    <div class="sb-f">${st}<span>·</span><span data-live-count="${t.id}">${lineCount(t)}</span>${t.trunc ? `<span>·</span><span class="trn">${truncNote(t)}</span>` : ''}${t.dur ? `<span>·</span><span>${t.dur}</span>` : ''}
+      <span class="acts">${copyBtn('复制命令', 'cmd', t.id)}${t.out.length ? copyBtn('复制输出', 'out', t.id) : ''}</span></div>
+  </div>`;
+}
+
+const NOTES = {
+  a: {
+    title: 'A · 墨线', sub: '不加容器 · 挂在墨线上',
+    html: `<p><span class="rec">已选定 · 2026-09-23</span></p><p>命令与输出直接挂在工具行下面，和「思考」同一种笺注语法：左侧一条细线，文字落在纸面上。</p>
+<h4>要点</h4><ul>
+<li><code>$</code> 用灯色：这条命令是 agent 的手。</li>
+<li>heredoc 用虚线细线挂出，右上角小写语言名。</li>
+<li>失败行在细线上点一笔 crimson——像朱批，而不是把整段染红。</li>
+<li>运行中细线变灯色，末尾一格光标呼吸。</li>
+<li>复制等操作是文字链接，只在悬停时出现。</li></ul>
+<h4>取舍</h4><ul>
+<li class="pro">最轻，最像正文；多条 bash 连排不压版面。</li>
+<li class="con">长输出与正文的边界弱，扫读时不易跳过。</li>
+<li class="con">看不出工作目录。</li></ul>`,
+  },
+  b: {
+    title: 'B · 笺', sub: '与 diff 卡同构 · 头 / 命令 / 输出 / 脚',
+    html: `<p>和内联 diff 卡（<code>.dc</code>）用同一副骨架：32px 头、主体、34px 脚，8px 圆角、<code>--sh1</code>。读者已经学会的形状，再学一次成本为零。</p>
+<h4>要点</h4><ul>
+<li>头部：<code>终端</code> 小标 + 工作目录 chip——折叠行里放不下、但排错时最想知道的那条信息。</li>
+<li>命令是这张笺的标题：12px、t1、落在纸面；<code>$</code> 为灯色。</li>
+<li>heredoc 是嵌进去的一张小纸片，右上角标语言。</li>
+<li>输出落在 <code>--code</code> 上并带行号，和 diff 行同一种排法；报错行整行 crimson 底，与 diff 删除行同义。</li>
+<li>失败 / 运行时左侧 3px 色条，沿用批准卡（<code>.gate</code>）的语法。</li>
+<li>脚部判定沿用 diff 卡的 <code>.vd</code>：<code>✓ exit 0</code> / <code>✕ exit 1</code>。</li></ul>
+<h4>取舍</h4><ul>
+<li class="pro">和现有 diff / 批准卡一眼同族；信息最全。</li>
+<li class="con">比 A 重一档；连续多条展开会占高度（默认只自动展开失败和运行中的）。</li></ul>`,
+  },
+  c: {
+    title: 'C · 砚台', sub: '终端是一块石板 · 结果盖印',
+    html: `<p>把终端做成一块砚：纸面上压着一块暗色石板，结果以小印收尾——<b>讫</b>（完成）、<b>误</b>（非 0 退出）、<b>止</b>（超时 / 中止）。运行时石板角上一盏灯，墨晕向外洇开。</p>
+<h4>要点</h4><ul>
+<li>石板在纸 / 墨两面都保持暗色，终端的「机器感」最强。</li>
+<li>印章字取账簿用语，与已有的「允」印同一套字面。</li>
+<li>虚线分隔命令、输出、脚部，像石板上的刻线。</li></ul>
+<h4>取舍</h4><ul>
+<li class="pro">辨识度最高，一眼知道「这里跑过命令」。</li>
+<li class="con">打破「石板只给输入框」的规则（03-composer：页面上唯一刻意的暗物件）。</li>
+<li class="con">朱印原本表示「你的手」；让 agent 的结果也盖印，语义会变混。</li>
+<li class="con">连排 3 条以上时很压版面。</li></ul>`,
+  },
+};
+
+/* ── Render ────────────────────────────────────────────────────────── */
+const app = document.getElementById('app');
+const scroll = document.getElementById('scroll');
+const bodyFor = { a: bodyA, b: bodyB, c: bodyC };
+
+function render() {
+  const dir = app.dataset.dir;
+  const fails = TOOLS.filter((t) => t.status === 'fail').length;
+  scroll.innerHTML = `
+  <div class="st"><h2>终端笺</h2><span class="sn">bash 工具行 · 展开形态 · 方案 ${dir.toUpperCase()}</span></div>
+  <article class="turn">
+    <div class="ucard">把 Claude.app 里的 danger / accent token 抽出来，顺便跑一下 typecheck、composer-dock 的测试，再 build 一次。</div>
+    <div class="head"><span class="av">C</span><span>Sonnet 4.6</span><span>17:30</span></div>
+    <div class="work-h">${icon('bulb')}<span><b>已工作 2m 14s</b> · ${TOOLS.length + 1} 个工具 · <span class="fail">${fails} 次失败</span></span></div>
+    <div class="thread">
+      <div class="blk"><div class="tr" style="cursor:default"><span class="node done"></span>${icon('file', 's14')}<b>read</b><code>apps/desktop/src/composer-dock.tsx</code><span class="meta">412 行 · 30ms</span></div></div>
+      ${TOOLS.map((t) => `<div class="blk${t.open ? ' open' : ''}" data-blk="${t.id}">${rowHtml(t)}<div class="fb">${bodyFor[dir](t)}</div></div>`).join('')}
+    </div>
+    <div class="prose"><p>token 已列出。typecheck 通过；<code>composer-dock</code> 有 1 个用例失败（排队 Enter）；<code>dev:host</code> 是常驻进程，超时属预期；build 仍在跑。</p></div>
+  </article>`;
+  const n = NOTES[dir];
+  document.getElementById('nt-h').innerHTML = `${n.title}<small>${n.sub}</small>`;
+  document.getElementById('nt').innerHTML = n.html + `
+<h4>三个方案共用</h4><ul>
+<li>折叠行：命令只显示首行；heredoc 补一个 <code>python · 17 行</code> 小标，多行命令补 <code>+N 行</code>。</li>
+<li>非 0 退出 / 超时直接写进折叠行 meta（crimson），不用展开就知道结局。</li>
+<li>默认只自动展开失败与运行中的；成功的保持一行。</li>
+<li>输出只给带标记的行上色（✓ / FAIL / Error / ×），其余保持墨色。</li>
+<li>输出保留尾部；运行中自动贴底。</li></ul>`;
+}
+
+/* Streaming demo for the running build */
+let timer = null;
+function replay() {
+  const t = TOOLS.find((x) => x.id === 'build');
+  t.out = []; t.status = 'run'; t.dur = '0s';
+  clearInterval(timer);
+  let secs = 0;
+  render();
+  timer = setInterval(() => {
+    secs += 0.6;
+    if (t.out.length < BUILD_LINES.length) t.out.push(BUILD_LINES[t.out.length]);
+    t.dur = `${Math.round(secs)}s`;
+    const dir = app.dataset.dir;
+    const outEl = scroll.querySelector(`[data-live-out="build"]`);
+    if (outEl) {
+      outEl.innerHTML = outHtml(t, { gutter: dir === 'b' });
+      outEl.scrollTop = outEl.scrollHeight;
+    }
+    const cnt = scroll.querySelector(`[data-live-count="build"]`);
+    if (cnt) cnt.textContent = `${t.out.length} 行输出`;
+    const dur = scroll.querySelector(`[data-live-dur="build"]`);
+    if (dur) dur.textContent = t.dur;
+  }, 600);
+}
+
+/* ── Interactions ──────────────────────────────────────────────────── */
+function seg(id, key) {
+  document.getElementById(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    [...e.currentTarget.children].forEach((x) => x.classList.toggle('on', x === b));
+    app.dataset[key] = b.dataset[key];
+    if (key === 'dir') render();
+    try { localStorage.setItem(`proto12-${key}`, b.dataset[key]); } catch {}
+  });
+}
+seg('seg-dir', 'dir'); seg('seg-face', 'face');
+for (const key of ['dir', 'face']) {
+  try {
+    const v = localStorage.getItem(`proto12-${key}`);
+    if (v) { app.dataset[key] = v; document.querySelectorAll(`#seg-${key} button`).forEach((b) => b.classList.toggle('on', b.dataset[key] === v)); }
+  } catch {}
+}
+document.getElementById('replay').addEventListener('click', replay);
+document.getElementById('toggle-all').addEventListener('click', (e) => {
+  const anyOpen = TOOLS.some((t) => t.open);
+  TOOLS.forEach((t) => { t.open = !anyOpen; });
+  e.target.textContent = anyOpen ? '全部展开' : '全部收起';
+  scroll.querySelectorAll('[data-blk]').forEach((b) => b.classList.toggle('open', !anyOpen));
+});
+scroll.addEventListener('click', (e) => {
+  const copy = e.target.closest('[data-copy]');
+  if (copy) {
+    const t = TOOLS.find((x) => x.id === copy.dataset.id);
+    const text = copy.dataset.copy === 'cmd' ? t.cmd : t.out.join('\n');
+    navigator.clipboard?.writeText(text).catch(() => {});
+    const label = copy.querySelector('span') || copy;
+    const prev = label.textContent;
+    label.textContent = '已复制'; copy.classList.add('done');
+    setTimeout(() => { label.textContent = prev; copy.classList.remove('done'); }, 1200);
+    return;
+  }
+  const unfold = e.target.closest('[data-unfold]');
+  if (unfold) {
+    scroll.querySelector(`[data-cmd="${unfold.dataset.unfold}"]`).classList.remove('folded');
+    unfold.remove();
+    return;
+  }
+  const fold = e.target.closest('[data-fold]');
+  if (fold) {
+    const t = TOOLS.find((x) => x.id === fold.dataset.fold);
+    t.open = !t.open;
+    fold.parentElement.classList.toggle('open', t.open);
+  }
+});
+
+render();
+replay();
+</script>
+</body>
+</html>

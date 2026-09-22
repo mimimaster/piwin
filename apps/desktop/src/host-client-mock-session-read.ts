@@ -525,7 +525,8 @@ export async function handleMockSessionReadCommands(
             data: { status: 'unavailable', reason: 'not-found' },
           };
         }
-        const output = tool.output || '';
+        // Same precedence as the Host snapshot reader (@piwin/session).
+        const output = tool.presentation?.output?.text ?? (tool.output || '');
         if (!output.trim()) {
           return {
             id,

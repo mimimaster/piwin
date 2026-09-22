@@ -58,6 +58,7 @@ import {
 } from './web-search-diagnostics-display';
 import { shouldShowApprovedSeal } from './tool-approved-seal.js';
 import { useThemeId } from './theme/theme-id.js';
+import { ShellToolBody, describeShellCommand, resolveShellStamp } from './shell-tool-body.js';
 
 
 export type ToolCallCardProps = {
@@ -347,11 +348,30 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const isFetchStyle =
     baseBehaviorId === 'web.fetch' ||
     (baseBehaviorId === 'shell' && isFetchLikeShellCommand(command));
+  // Plain shell commands get the terminal sheet; fetch-like curl keeps its request surface.
+  const isShellSheet = baseBehaviorId === 'shell' && !isFetchStyle && Boolean(command);
   const fetchRequestPreview = isFetchStyle
     ? (command ?? resolveFetchRequestPreview(inputPreview, summary))
     : undefined;
+  const shellShape = isShellSheet && command ? describeShellCommand(command) : undefined;
+  // A multi-line command (heredoc, script) reads by its first line; the tag
+  // beside the chip carries the rest (`python · 17 行` / `+N 行`).
+  const shellFirstLine =
+    shellShape && shellShape.lines > 1 && command && (summary === command || summary.includes('\n'))
+      ? command.split('\n')[0]
+      : undefined;
   const shellHeaderSummary =
-    baseBehaviorId === 'shell' ? (extractCommandDescription(command) ?? summary) : summary;
+    baseBehaviorId === 'shell'
+      ? (extractCommandDescription(command) ?? shellFirstLine ?? summary)
+      : summary;
+  const shellFailStamp = isShellSheet
+    ? resolveShellStamp({
+        status: tool.status,
+        exitCode: tool.presentation?.exitCode,
+        errorCategory: tool.presentation?.error?.category,
+        locale,
+      })
+    : undefined;
   // Collapsed MCP rows append a short query snippet; expanded rows keep the
   // server/tool identity in the header while the body owns full args/result.
   const headerSummary = isMcpBehavior
@@ -568,6 +588,13 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
             {previewText}
           </code>
         ) : null}
+        {shellShape && shellShape.lines > 1 && !expanded ? (
+          <span className="tool-call-shell-tag" data-testid="tool-call-shell-tag">
+            {shellShape.heredocLang
+              ? `${shellShape.heredocLang} · ${shellShape.lines}${locale === 'zh-CN' ? ' 行' : ' lines'}`
+              : `+${shellShape.lines - 1}${locale === 'zh-CN' ? ' 行' : ' lines'}`}
+          </span>
+        ) : null}
         {tool.status === 'done' ? (
           <span
             className="tool-call-ok"
@@ -592,6 +619,11 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               {diffStats.removed > 0 ? (
                 <span className="minus del">−{diffStats.removed}</span>
               ) : null}
+            </span>
+          ) : null}
+          {shellFailStamp?.tone === 'fail' ? (
+            <span className="tool-call-exit-tag" data-testid="tool-call-exit-tag">
+              {shellFailStamp.label}
             </span>
           ) : null}
           {truncationCopy ? (
@@ -665,8 +697,12 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         </span>
       </div>
       {expanded && hasBody ? (
-        <div className={`tool-call-body tb${tool.status === 'error' ? ' err' : ''}`}>
-          {truncationCopy ? (
+        <div
+          className={`tool-call-body tb${tool.status === 'error' ? ' err' : ''}${
+            isShellSheet ? ' has-shell-trail' : ''
+          }`}
+        >
+          {truncationCopy && !isShellSheet ? (
             <div
               className="tool-call-output-notice"
               data-testid="tool-call-output-notice"
@@ -729,7 +765,21 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               prefix="changed: "
             />
           ) : null}
-          {tool.presentation?.error ? (
+          {isShellSheet && command ? (
+            <ShellToolBody
+              toolCallId={tool.toolCallId}
+              command={command}
+              output={bodyOutput}
+              status={tool.status}
+              exitCode={tool.presentation?.exitCode}
+              error={tool.presentation?.error}
+              truncation={outputTruncation}
+              truncationNotice={truncationCopy?.notice}
+              density={density}
+              locale={locale}
+            />
+          ) : null}
+          {tool.presentation?.error && !isShellSheet ? (
             <div className="tool-call-error" data-testid="tool-call-error" role="status">
               {tool.presentation.error.category}: {tool.presentation.error.message}
             </div>
@@ -752,6 +802,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
           ) : null}
           <CitationCards parsed={citations} />
           {!isFetchStyle &&
+          !isShellSheet &&
           (command ||
             inputPreview ||
             (bodyOutput && citations.kind === 'none' && !canRenderDiffCard)) ? (

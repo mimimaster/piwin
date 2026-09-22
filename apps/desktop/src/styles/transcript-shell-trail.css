@@ -1,0 +1,306 @@
+/* Shell trail (墨线) — the expanded body of a bash/zsh tool row.
+   Source: docs/design/inkstone/proto-12-shell.html, direction A.
+
+   No container. The command and its output hang off the tool row the way a
+   thinking note does (`.think`: a hairline and text on the paper):
+     command  11.5px mono, t1, lamp `$` (the agent's hand); a heredoc body
+              hangs off a dotted hairline with its language in small caps
+     output   1.5px l2 hairline gutter, t2 text; an error line gets a crimson
+              tick on the hairline (朱批) instead of dyeing the whole block;
+              the hairline turns lamp while the command runs
+     foot     11px mono t4: exit · lines · truncation; copy links on hover
+   Written in Inkstone token names with Deck fallbacks. Imported after
+   inkstone/tool-timeline.css so the body reset beats its `.tool-call-body`. */
+
+.tool-call-card .tool-call-body.has-shell-trail,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .tool-call-card
+  .tool-call-body.has-shell-trail {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  white-space: normal;
+  word-break: normal;
+}
+
+.shell-trail {
+  --shell-prompt-col: 14px;
+  position: relative;
+  margin: 1px 0 10px var(--row-pad, 8px);
+  font: 11.5px/1.65 var(--mono, var(--font-mono, monospace));
+  font-variant-ligatures: none;
+}
+
+/* ── Command ─────────────────────────────────────────────────────────── */
+
+/* The row is a `.tr`, so Inkstone's `.tr code` chip rule reaches this <code>;
+   out-rank it (0,4,1) rather than let it paint a --code block. */
+.shell-trail-code,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .tool-call-card
+  .shell-trail
+  code.shell-trail-code {
+  display: block;
+  box-shadow: none;
+  border: 0;
+  line-height: inherit;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--t1, var(--text-1));
+  font: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.shell-line {
+  display: grid;
+  grid-template-columns: var(--shell-prompt-col) minmax(0, 1fr);
+}
+
+.shell-line-text {
+  min-width: 0;
+}
+
+.shell-prompt {
+  color: var(--lamp, var(--amber));
+  font-weight: 600;
+  user-select: none;
+}
+
+/* Embedded script: a dotted hairline drops from under the `$`; the text
+   lands on the command's x. */
+.shell-heredoc {
+  position: relative;
+  display: block;
+  margin: 2px 0 2px 3px;
+  padding-left: calc(var(--shell-prompt-col) - 4.5px);
+  border-left: 1.5px dotted var(--l3, var(--line-2));
+}
+
+.shell-heredoc .shell-line {
+  display: block;
+}
+
+.shell-heredoc[data-lang]::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 0;
+  right: 0;
+  font: 600 9.5px/19px var(--sans, var(--font-sans, sans-serif));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t4, var(--text-4));
+  user-select: none;
+  pointer-events: none;
+}
+
+.shell-trail-cmd.is-folded .shell-trail-code {
+  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  mask-image: linear-gradient(to bottom, #000 72%, transparent);
+}
+
+/* ── Output ──────────────────────────────────────────────────────────── */
+
+html .tool-call-card .shell-trail pre.shell-trail-out {
+  display: block;
+  position: relative;
+  margin: 6px 0 0 3px;
+  padding: 1px 0 1px 11px;
+  max-height: 240px;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  /* The hairline is painted, not a border: a border sits outside the scroll
+     clip, so the 朱批 ticks drawn onto it would be cut off. `local` keeps it
+     running the full scroll height. */
+  --shell-gutter: var(--l2, var(--line-1));
+  background: linear-gradient(var(--shell-gutter), var(--shell-gutter)) 0 0 / 1.5px 100%
+    no-repeat local;
+  color: var(--t2, var(--text-2));
+  font: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overscroll-behavior: contain;
+}
+
+html .tool-call-card.density-detailed .shell-trail pre.shell-trail-out {
+  max-height: 400px;
+}
+
+html .tool-call-card .shell-trail.is-running pre.shell-trail-out {
+  --shell-gutter: var(--lamp, var(--amber));
+}
+
+.shell-out-line {
+  position: relative;
+  display: block;
+}
+
+.shell-out-line[data-tone='err'] {
+  color: var(--crimson, var(--coral));
+}
+
+/* 朱批: the tick sits on the gutter hairline, not across the text. */
+.shell-out-line[data-tone='err']::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: -11px;
+  width: 1.5px;
+  background: var(--crimson, var(--coral));
+}
+
+.shell-out-line[data-tone='ok'] {
+  color: var(--pine, var(--mint));
+}
+
+.shell-out-line[data-tone='warn'] {
+  color: var(--ochre, var(--amber));
+}
+
+.shell-out-line.is-elided {
+  color: var(--t4, var(--text-4));
+  font-style: italic;
+}
+
+.shell-caret {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  vertical-align: -2px;
+  background: var(--lamp, var(--amber));
+  animation: breath 1s ease-in-out infinite;
+}
+
+.shell-trail .shell-trail-error {
+  margin: 4px 0 0 3px;
+  padding-left: 11px;
+  border-left: 1.5px solid var(--crimson, var(--coral));
+  color: var(--crimson, var(--coral));
+  font: inherit;
+}
+
+/* ── Foot ────────────────────────────────────────────────────────────── */
+
+.shell-trail-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  margin: 5px 0 0 3px;
+  color: var(--t4, var(--text-4));
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.shell-stamp[data-tone='ok'] {
+  color: var(--pine, var(--mint));
+}
+
+.shell-stamp[data-tone='fail'] {
+  color: var(--crimson, var(--coral));
+}
+
+.shell-stamp[data-tone='run'] {
+  color: var(--lamp, var(--amber));
+}
+
+.shell-foot-trunc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ochre, var(--amber));
+}
+
+/* Copy links float over the command's first line on hover, so a quiet
+   success keeps no foot line at all. The wash hides long command tails. */
+.shell-trail-acts {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  gap: 10px;
+  padding-left: 24px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--s2, var(--surface-2, transparent)) 20px
+  );
+  font-size: 11px;
+  line-height: 19px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.shell-trail:hover .shell-trail-acts,
+.shell-trail-acts:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.shell-trail-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--t3, var(--text-3));
+  font: inherit;
+  cursor: pointer;
+}
+
+.shell-trail-link:hover {
+  color: var(--t1, var(--text-1));
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+}
+
+.shell-trail-link.is-copied {
+  color: var(--pine, var(--mint));
+  text-decoration: none;
+}
+
+.shell-trail-more {
+  margin: 2px 0 0 var(--shell-prompt-col);
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-caret {
+    animation: none;
+  }
+}
+
+/* ── Collapsed row ───────────────────────────────────────────────────── */
+
+/* proto-01 `.tag`: what the first-line chip leaves out of a long command. */
+.tool-call-card .tool-call-shell-tag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--s1, var(--surface-2));
+  box-shadow: var(--sh1, none);
+  color: var(--t3, var(--text-3));
+  font: 10.5px var(--mono, var(--font-mono, monospace));
+  white-space: nowrap;
+}
+
+/* A non-zero exit or a timeout is the outcome; say it without expanding. */
+.tool-call-card .tool-call-exit-tag {
+  flex: none;
+  color: var(--crimson, var(--coral));
+}

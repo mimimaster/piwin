@@ -23,6 +23,7 @@ const SESSION_RESEARCH = 'showcase-research-persist';
 const SESSION_FANOUT = 'showcase-subagent-fanout';
 const SESSION_TOOLED = 'showcase-tool-families';
 const SESSION_APPROVAL = 'showcase-approval-gates';
+const SESSION_SHELL = 'showcase-shell-cards';
 const APPROVAL_RUN_ID = 'run-showcase-approval';
 
 function tool(view: SessionToolCardView): SessionToolCardView {
@@ -779,6 +780,9 @@ export function seedChainShowcaseHost(host: MockHostBackend, selector = 'all'): 
   if (wanted('tooled')) {
     seedSession(SESSION_TOOLED, '工具家族一览 · 浏览器 / 配图 / 卡片 / 日志', '2026-09-20T16:32:20.000Z', toolFamilyTranscript);
   }
+  if (wanted('shell')) {
+    seedSession(SESSION_SHELL, '终端卡片 · bash 各种结局', '2026-09-20T17:30:00.000Z', shellTranscript);
+  }
   if (wanted('approval')) {
     host.plans.set(SESSION_APPROVAL, approvalPlan);
     seedSession(SESSION_APPROVAL, '待批准 · ADR 写入 + 计划', '2026-09-20T17:05:40.000Z', approvalTranscript);
@@ -1346,5 +1350,154 @@ const toolFamilyTranscript: SessionTranscriptMessage[] = [
       '',
       '配图放在 `~/.piwin/media/2026-09-20/host-client-boundary.png`，要点已做成 3 张卡（deck: tauri），dev server 日志尾部 200 行无 error。',
     ].join('\n'),
+  },
+];
+
+/* ------------------------------------------------------------------ *
+ * Session 06 — shell cards (every way a bash call can end)
+ * ------------------------------------------------------------------ */
+
+const shellTokenScript = [
+  "python3 << 'PY'",
+  'import glob, re',
+  'from pathlib import Path',
+  '',
+  "css_files = glob.glob('/Applications/Claude.app/Contents/Resources/ion-dist/assets/v1/*.css')",
+  '',
+  'tokens = {}',
+  'for f in css_files:',
+  "    content = Path(f).read_text(errors='ignore')",
+  "    for m in re.finditer(r'(--(?:danger|border|text|accent)[a-zA-Z0-9_-]*)\\s*:\\s*([^;{}]+)', content):",
+  '        k, v = m.group(1), m.group(2).strip()',
+  '        tokens[k] = v',
+  '',
+  'for k in sorted(tokens.keys()):',
+  "    if any(t in k for t in ['danger', 'accent', 'border-300']):",
+  '        print(f"{k}: {tokens[k]}")',
+  'PY',
+].join('\n');
+
+const shellTools: SessionToolCardView[] = [
+  doneTool(
+    'shell-tokens',
+    'bash',
+    {
+      kind: 'shell',
+      title: 'bash',
+      command: shellTokenScript,
+      durationMs: 1240,
+      exitCode: 0,
+    },
+    // Raw output only: hydrate slims it to '', so the expanded row has to
+    // fetch it back through session/tool-output (historical-row path).
+    [
+      '--accent-brand: hsl(15 63.1% 59.6%)',
+      '--accent-main-000: hsl(15 54.2% 51.2%)',
+      '--accent-main-100: hsl(15 55.6% 52.4%)',
+      '--accent-secondary-100: hsl(210 70.9% 51.6%)',
+      '--border-300: hsl(30 3.3% 11.8%)',
+      '--danger-000: hsl(5 69.4% 72.9%)',
+      '--danger-100: hsl(5 69.4% 72.9%)',
+      '--danger-200: hsl(5 69.4% 72.9%)',
+      '--danger-900: hsl(0 21.4% 17.1%)',
+    ].join('\n'),
+  ),
+  doneTool(
+    'shell-typecheck',
+    'bash',
+    {
+      kind: 'shell',
+      title: 'bash',
+      command: 'pnpm --dir apps/desktop typecheck',
+      durationMs: 4100,
+      exitCode: 0,
+    },
+    '',
+  ),
+  tool({
+    toolCallId: 'shell-vitest-fail',
+    toolName: 'bash',
+    status: 'error',
+    output: '',
+    presentation: {
+      kind: 'shell',
+      title: 'bash',
+      command: 'pnpm vitest run composer-dock',
+      countTag: '1 失败',
+      durationMs: 6200,
+      exitCode: 1,
+      output: {
+        text: [
+          ' RUN  v3.2.4 /mock/piwin/apps/desktop',
+          '',
+          ' ✓ src/composer-dock-assembly.test.ts (14 tests) 41ms',
+          ' ❯ src/composer-dock.test.tsx (23 tests | 1 failed) 812ms',
+          '   × queues Enter while streaming 38ms',
+          '',
+          ' FAIL  src/composer-dock.test.tsx > queues Enter while streaming',
+          'AssertionError: expected [] to have a length of 1 but got +0',
+          ' ❯ src/composer-dock.test.tsx:418:34',
+          '',
+          ' Test Files  1 failed | 1 passed (2)',
+          '      Tests  1 failed | 36 passed (37)',
+        ].join('\n'),
+      },
+    },
+  }),
+  doneTool(
+    'shell-git-log',
+    'bash',
+    {
+      kind: 'shell',
+      title: 'bash',
+      command: 'git log --oneline -n 400',
+      durationMs: 180,
+      exitCode: 0,
+      output: {
+        text: Array.from({ length: 40 }, (_, index) => {
+          const hash = (0x3cf4929e - index * 7919).toString(16).slice(0, 8);
+          return `${hash} ${['fix', 'feat', 'style', 'refactor'][index % 4]}(desktop): commit ${400 - index}`;
+        }).join('\n'),
+        truncation: { reason: 'line-limit', shownLines: { start: 1, end: 40 }, totalLines: 400 },
+      },
+    },
+    '',
+  ),
+  tool({
+    toolCallId: 'shell-timeout',
+    toolName: 'bash',
+    status: 'error',
+    output: '',
+    presentation: {
+      kind: 'shell',
+      title: 'bash',
+      command: 'pnpm dev:host',
+      durationMs: 120000,
+      exitCode: null,
+      error: { category: 'timeout', message: 'command timed out after 120s' },
+      output: { text: 'host ready on 127.0.0.1:7420\nwatching for changes…' },
+    },
+  }),
+];
+
+const shellTranscript: SessionTranscriptMessage[] = [
+  {
+    id: 'showcase-shell-user',
+    role: 'user',
+    text: '把 Claude.app 里的 danger / accent token 抽出来，顺便跑一下 typecheck 和 composer-dock 的测试。',
+    createdAt: '2026-09-20T17:28:00.000Z',
+    status: 'done',
+  },
+  {
+    id: 'showcase-shell-assistant',
+    role: 'assistant',
+    status: 'done',
+    outcome: 'completed',
+    createdAt: '2026-09-20T17:30:00.000Z',
+    startedAt: '2026-09-20T17:28:04.000Z',
+    endedAt: '2026-09-20T17:30:00.000Z',
+    model: { providerId: 'anthropic', modelId: 'claude-sonnet-4-6' },
+    tools: shellTools,
+    text: 'token 已列出；typecheck 通过，composer-dock 有 1 个用例失败（排队 Enter），dev:host 超时是因为它是常驻进程。',
   },
 ];
