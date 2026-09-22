@@ -32,11 +32,6 @@ export const TRANSCRIPT_TURN_MAX_MEASURED_HEIGHT_PX = 32_000;
 /** Soft distrust: cached height this many times above content estimate is ignored. */
 const CACHED_HEIGHT_DISTRUST_RATIO = 3.5;
 const CACHED_HEIGHT_DISTRUST_MIN_PX = 360;
-/**
- * Pre-measure prose contribution. 280px was a short-reply cap; a delivery
- * report is thousands of pixels and must not first-paint into a 500px slot.
- */
-const TRANSCRIPT_TURN_PROSE_ESTIMATE_MAX_PX = 3_200;
 /** Artifact-balloon distrust only applies to compact replies, not long prose. */
 const COMPACT_TURN_TEXT_CHARS = 1_500;
 const COMPACT_TURN_TOOL_COUNT = 8;
@@ -192,23 +187,101 @@ function estimateAssistantMediaHeight(count: number): number {
   return TRANSCRIPT_TURN_GALLERY_ROW_ESTIMATE_PX * Math.ceil(count / 2);
 }
 
+/**
+ * Prose height from what the text will wrap to: CJK glyphs are ~2× a Latin
+ * glyph at the reading size (14.5px / 1.72 in the 720px measure). A flat
+ * chars-per-line guess capped at 3200px left a 25k-character reply ~10k px
+ * short, so paging it in shoved everything below by that much.
+ */
+const PROSE_MEASURE_PX = 720;
+const PROSE_LINE_PX = 25;
+const PROSE_WIDE_GLYPH_PX = 14.5;
+const PROSE_NARROW_GLYPH_PX = 7.4;
+const TRANSCRIPT_TURN_PROSE_ESTIMATE_MAX_PX = 40_000;
+/** The closed "已工作 · N 个工具" row a settled turn folds its steps into. */
+const WORK_FOLD_ROW_PX = 40;
+const proseEstimateCache = new WeakMap<object, number>();
+
+function estimateProseHeight(message: TranscriptTurn['items'][number]['message']): number {
+  const cached = proseEstimateCache.get(message);
+  if (cached !== undefined) {
+    return cached;
+  }
+  let lines = 0;
+  for (const paragraph of (message.text ?? '').split('\n')) {
+    let width = 0;
+    for (let index = 0; index < paragraph.length; index += 1) {
+      width += paragraph.charCodeAt(index) > 0x2e7f ? PROSE_WIDE_GLYPH_PX : PROSE_NARROW_GLYPH_PX;
+    }
+    lines += Math.max(1, Math.ceil(width / PROSE_MEASURE_PX));
+  }
+  const height = Math.min(TRANSCRIPT_TURN_PROSE_ESTIMATE_MAX_PX, lines * PROSE_LINE_PX);
+  proseEstimateCache.set(message, height);
+  return height;
+}
+
+type TurnMessage = TranscriptTurn['items'][number]['message'];
+
+function assistantRowEstimate(message: TurnMessage): number {
+  return 72 + (message.text ? estimateProseHeight(message) : 0) + (message.tools?.length ?? 0) * 36;
+}
+
+/**
+ * A settled turn folds every step before its final reply into one closed row
+ * (turn-work-disclosure-model: steps with tools are never user-facing). Those
+ * steps do not render, so they must not be estimated: 45 folded steps priced
+ * at ~4000px measured 213px, and each such row collapsing on mount jolted the
+ * page and the scrollbar.
+ */
+function settledTurnFoldsSteps(assistants: readonly TurnMessage[]): boolean {
+  if (assistants.length < 2) {
+    return false;
+  }
+  if (
+    assistants.some(
+      (message) =>
+        message.status === 'streaming' || message.tools?.some((tool) => tool.status === 'running'),
+    )
+  ) {
+    return false;
+  }
+  const steps = assistants.slice(0, -1);
+  const hasWork = steps.some(
+    (message) => (message.tools?.length ?? 0) > 0 || (message.thinking?.trim().length ?? 0) > 0,
+  );
+  const hasUserFacingStep = steps.some(
+    (message) => (message.tools?.length ?? 0) === 0 && (message.text?.trim().length ?? 0) > 0,
+  );
+  return hasWork && !hasUserFacingStep;
+}
+
 export function estimateTranscriptTurnHeight(turn: TranscriptTurn | undefined): number {
   if (turn === undefined) {
     return TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX;
   }
-  // User row ~88px chrome; each assistant segment ~120px of prose; tools add more.
+  // User row ~88px chrome; each assistant segment ~72px + its prose; tools add more.
   let raw = 56;
+  const assistants: TurnMessage[] = [];
   for (const item of turn.items) {
     if (item.message.role === 'user') {
       raw += 88;
-      continue;
+    } else {
+      assistants.push(item.message);
     }
-    const textLength = item.message.text?.length ?? 0;
-    const toolCount = item.message.tools?.length ?? 0;
-    raw += 72 + Math.min(TRANSCRIPT_TURN_PROSE_ESTIMATE_MAX_PX, Math.ceil(textLength / 90) * 22) + toolCount * 36;
+  }
+  if (settledTurnFoldsSteps(assistants)) {
+    const reply = assistants[assistants.length - 1];
+    raw += WORK_FOLD_ROW_PX + (reply ? assistantRowEstimate(reply) : 0);
+  } else {
+    for (const message of assistants) {
+      raw += assistantRowEstimate(message);
+    }
   }
   raw += estimateAssistantMediaHeight(assistantVisualMediaCount(turn));
-  return normalizeTranscriptTurnEstimate(raw) ?? TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX;
+  const normalized = normalizeTranscriptTurnHeight(raw);
+  return normalized === null
+    ? TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX
+    : Math.min(TRANSCRIPT_TURN_MAX_MEASURED_HEIGHT_PX, normalized);
 }
 
 function transcriptTurnLooksCompact(turn: TranscriptTurn | undefined): boolean {

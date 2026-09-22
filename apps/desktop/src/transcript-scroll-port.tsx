@@ -8,8 +8,10 @@ import {
   useState,
   type ReactElement,
   type ReactNode,
+  type MutableRefObject,
   type RefObject,
 } from 'react';
+import type { TranscriptReadingAnchorRestorer } from './transcript-reading-anchor.js';
 
 export type TranscriptMessageScroller = (messageId: string) => boolean;
 
@@ -19,6 +21,8 @@ export type TranscriptScrollPort = {
   /** Reactive mount notification; a ref assignment alone does not rerender consumers. */
   scrollElement: HTMLDivElement | null;
   registerMessageScroller: (scroller: TranscriptMessageScroller) => () => void;
+  /** The virtualized list restores a paging anchor, mounting its row if needed. */
+  registerReadingAnchorRestorer: (restorer: TranscriptReadingAnchorRestorer) => () => void;
   scrollToMessage: TranscriptMessageScroller;
   /** True while the viewport is pinned to the live tail. */
   isFollowingTail: () => boolean;
@@ -51,6 +55,8 @@ export function TranscriptScrollProvider(props: {
   isFollowingTail?: () => boolean;
   beginProgrammaticScroll?: () => void;
   beginLocalFoldLayout?: () => void;
+  /** Owner-held slot for the list's anchor restorer (history paging lives above this provider). */
+  readingAnchorRestorerRef?: MutableRefObject<TranscriptReadingAnchorRestorer | null>;
   children: ReactNode;
 }): ReactElement {
   const [scrollElement, setScrollElement] = useState(props.scrollElementRef.current);
@@ -81,6 +87,20 @@ export function TranscriptScrollProvider(props: {
     };
   }, []);
 
+  const readingAnchorRestorerRef = props.readingAnchorRestorerRef;
+  const registerReadingAnchorRestorer = useCallback(
+    (restorer: TranscriptReadingAnchorRestorer) => {
+      if (readingAnchorRestorerRef) {
+        readingAnchorRestorerRef.current = restorer;
+      }
+      return () => {
+        if (readingAnchorRestorerRef?.current === restorer) {
+          readingAnchorRestorerRef.current = null;
+        }
+      };
+    },
+    [readingAnchorRestorerRef],
+  );
   const detachFromTail = useCallback((): void => {
     detachFromTailRef.current?.();
   }, []);
@@ -112,6 +132,7 @@ export function TranscriptScrollProvider(props: {
       scrollElementRef: props.scrollElementRef,
       scrollElement,
       registerMessageScroller,
+      registerReadingAnchorRestorer,
       scrollToMessage,
       isFollowingTail,
       detachFromTail,
@@ -124,6 +145,7 @@ export function TranscriptScrollProvider(props: {
       props.scrollElementRef,
       scrollElement,
       registerMessageScroller,
+      registerReadingAnchorRestorer,
       scrollToMessage,
       isFollowingTail,
       detachFromTail,

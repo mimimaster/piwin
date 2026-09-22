@@ -66,9 +66,12 @@ export function shouldAdjustTranscriptScrollOnItemSizeChange(
     }
     return previousEnd <= scrollOffset;
   }
-  if (instance.scrollDirection === 'backward') {
-    return false;
-  }
+  // A row entirely above the fold that re-measures (a long reply whose
+  // markdown finishes rendering after its first measure) pushes the reader by
+  // exactly its delta, whichever way they scroll. Skipping backward re-measures
+  // dropped that growth while reading history: a 25k-character reply settling
+  // shoved the page ~10k px. Spanning rows still stay put (they grow below
+  // the reader's line).
   return previousEnd <= scrollOffset;
 }
 

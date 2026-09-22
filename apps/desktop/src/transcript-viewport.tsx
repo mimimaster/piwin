@@ -26,6 +26,7 @@ import { HistoryTicksDrawer } from './history-ticks-drawer';
 import { TranscriptScrollProvider } from './transcript-scroll-port';
 import { useTranscriptReveal } from './use-transcript-reveal.js';
 import { useTranscriptHistoryPaging } from './use-transcript-history-paging.js';
+import type { TranscriptReadingAnchorRestorer } from './transcript-reading-anchor.js';
 import { JumpToLatestButton } from './jump-to-latest-button';
 import './styles/transcript-opening.css';
 
@@ -43,8 +44,8 @@ export type TranscriptViewportProps = {
   canLoadOlder?: boolean;
   canLoadNewer?: boolean;
   historyLoading?: boolean;
-  onLoadOlder?: () => Promise<void>;
-  onLoadNewer?: () => Promise<void>;
+  onLoadOlder?: (keepMessageId?: string) => Promise<void>;
+  onLoadNewer?: (keepMessageId?: string) => Promise<void>;
   locale?: 'zh-CN' | 'en';
   /** Newly submitted live turn that should restore follow-tail. */
   liveTurnId?: string | null;
@@ -74,7 +75,8 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
 
   const trackRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
-  const paging = useTranscriptHistoryPaging({ ...props, scroll });
+  const readingAnchorRestorerRef = useRef<TranscriptReadingAnchorRestorer | null>(null);
+  const paging = useTranscriptHistoryPaging({ ...props, scroll, readingAnchorRestorerRef });
   handleLoadOlderRef.current = paging.loadOlder;
   const openedSessionPinRef = useRef<{ sessionId: string; pinned: boolean } | null>(null);
 
@@ -192,6 +194,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       isFollowingTail={scroll.isFollowingTail}
       beginProgrammaticScroll={scroll.beginProgrammaticScroll}
       beginLocalFoldLayout={scroll.beginLocalFoldLayout}
+      readingAnchorRestorerRef={readingAnchorRestorerRef}
     >
       <div className={`transcript-viewport${opening ? ' is-opening' : ''}`}>
         {opening || (props.awaitingTranscript && !props.historyViewActive) ? (

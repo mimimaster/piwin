@@ -5,8 +5,8 @@ import {
   retainRunRecordsForMessages,
 } from './chat-reducer-transcript.js';
 import {
+  MAX_HISTORY_VIEW_MESSAGES,
   MAX_TRANSCRIPT_CACHE_BYTES,
-  MAX_TRANSCRIPT_CACHE_MESSAGES,
   measureTranscriptCacheBytes,
 } from './transcript-page-cache.js';
 
@@ -39,12 +39,18 @@ export function reduceTranscriptHistory(state: ChatUiState, action: HistoryActio
   const anchorIndex = action.window.startIndex + action.window.anchorOffset;
   let startIndex =
     direction === 'newer' ? anchorIndex - current.length + 1 : action.window.startIndex;
-  // Evict the far edge, keeping a contiguous window around the reader.
+  // Evict the far edge, keeping a contiguous window around the reader — and
+  // never the message on screen. When a long invisible run (a closed tool
+  // fold) sits between the reader and the loading edge, the "far" edge is
+  // where the reader is; going over the cap beats yanking their view.
+  const keepMessageId = direction ? action.keepMessageId : undefined;
   while (
     messages.length > 1 &&
-    (messages.length > MAX_TRANSCRIPT_CACHE_MESSAGES ||
+    (messages.length > MAX_HISTORY_VIEW_MESSAGES ||
       measureTranscriptCacheBytes(messages) > MAX_TRANSCRIPT_CACHE_BYTES)
   ) {
+    const evicted = direction === 'older' ? messages.at(-1) : messages[0];
+    if (keepMessageId !== undefined && evicted?.id === keepMessageId) break;
     if (direction === 'older') messages = messages.slice(0, -1);
     else {
       messages = messages.slice(1);

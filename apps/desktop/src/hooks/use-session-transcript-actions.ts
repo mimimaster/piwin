@@ -105,7 +105,7 @@ export function useSessionTranscriptActions(input: {
   }, [dispatch, state.activeSessionId]);
 
   const loadHistoryPage = useCallback(
-    async (direction: 'older' | 'newer'): Promise<void> => {
+    async (direction: 'older' | 'newer', keepMessageId?: string): Promise<void> => {
       const sessionId = state.activeSessionId;
       if (!sessionId || historyRequestRef.current) return;
       const requestToken = {};
@@ -185,6 +185,7 @@ export function useSessionTranscriptActions(input: {
             direction,
             messages: data.messages,
             window: data.window,
+            ...(keepMessageId !== undefined ? { keepMessageId } : {}),
           });
       } catch (error) {
         dispatchNotification(pushError(error instanceof Error ? error.message : String(error)));
@@ -208,8 +209,14 @@ export function useSessionTranscriptActions(input: {
     ],
   );
 
-  const handleLoadOlderTranscript = useCallback(() => loadHistoryPage('older'), [loadHistoryPage]);
-  const handleLoadNewerTranscript = useCallback(() => loadHistoryPage('newer'), [loadHistoryPage]);
+  const handleLoadOlderTranscript = useCallback(
+    (keepMessageId?: string) => loadHistoryPage('older', keepMessageId),
+    [loadHistoryPage],
+  );
+  const handleLoadNewerTranscript = useCallback(
+    (keepMessageId?: string) => loadHistoryPage('newer', keepMessageId),
+    [loadHistoryPage],
+  );
   return {
     transcriptHistoryLoading,
     loadUserMessageIndex,

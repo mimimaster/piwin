@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, type MutableRefObject } from 'react';
 import type { ChatMessageUi } from './chat-reducer.js';
+import {
+  alignTranscriptReadingAnchor,
+  captureTranscriptReadingAnchor,
+  type TranscriptReadingAnchor,
+  type TranscriptReadingAnchorRestorer,
+} from './transcript-reading-anchor.js';
 import type { useTranscriptScroll } from './use-transcript-scroll.js';
 
 const EDGE_LOAD_PX = 120;
@@ -12,8 +18,10 @@ type PagingOptions = {
   canLoadOlder?: boolean;
   canLoadNewer?: boolean;
   historyLoading?: boolean;
-  onLoadOlder?: () => Promise<void>;
-  onLoadNewer?: () => Promise<void>;
+  onLoadOlder?: (keepMessageId?: string) => Promise<void>;
+  onLoadNewer?: (keepMessageId?: string) => Promise<void>;
+  /** Set by the virtualized list; restores an anchor whose row may be unmounted. */
+  readingAnchorRestorerRef?: MutableRefObject<TranscriptReadingAnchorRestorer | null>;
 };
 
 /** Page in response to scroll intent; never walk the whole history on mount. */
@@ -25,24 +33,51 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
   const ignoreScrollRef = useRef(false);
   const directionRef = useRef<Direction | null>(null);
   const lastScrollTopRef = useRef(0);
-  const pendingRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
+  const pageKeyRef = useRef(pageKey);
+  pageKeyRef.current = pageKey;
+  const restorerRef = options.readingAnchorRestorerRef;
+  /**
+   * Where the reader is, refreshed on every scroll and after every commit, so
+   * it always describes the view just before the next window change —
+   * whenever that commit lands and however far the wheel moved meanwhile. A
+   * one-shot capture at request time raced the commit and went stale.
+   */
+  const readingRef = useRef<{ anchor: TranscriptReadingAnchor; pageKey: string } | null>(null);
+  /** A deliberate jump (history tick, return to latest) owns the next window change. */
+  const skipNextRestoreRef = useRef(false);
 
-  const restoreAnchor = useCallback(() => {
+  const recordReading = useCallback(() => {
     const container = scroll.containerRef.current;
-    const pending = pendingRef.current;
-    if (!container || !pending) return;
-    // Key-based virtualizer anchoring handles both prepend and opposite-edge
-    // eviction. A total-height delta cannot represent a sliding window.
-    if (container.querySelector('.transcript-turn-window')) {
-      pendingRef.current = null;
+    if (!container) return;
+    const anchor = captureTranscriptReadingAnchor(container);
+    readingRef.current = anchor ? { anchor, pageKey: pageKeyRef.current } : null;
+  }, [scroll.containerRef]);
+
+  // A page prepends above the reader or evicts the far edge; either way the
+  // message they were reading stays put. Row-keyed virtualizer anchoring
+  // cannot do this when one turn spans pages (see transcript-reading-anchor.ts):
+  // it let every older page strand the viewport at the top edge and cascade
+  // to the session start.
+  const restoreReading = useCallback(() => {
+    const container = scroll.containerRef.current;
+    const reading = readingRef.current;
+    if (skipNextRestoreRef.current) {
+      skipNextRestoreRef.current = false;
       return;
     }
-    const delta = container.scrollHeight - pending.scrollHeight;
-    if (delta <= 0) return;
-    scroll.beginProgrammaticScroll();
-    container.scrollTop = pending.scrollTop + delta;
-    pendingRef.current = null;
-  }, [scroll.beginProgrammaticScroll, scroll.containerRef]);
+    (window as any).__alog?.push({ t: Math.round(performance.now()), ev: 'restore?', reading: reading ? `${reading.anchor.messageId}@${Math.round(reading.anchor.offset)}` : null, same: reading?.pageKey === pageKeyRef.current, follow: scroll.isFollowingTail(), top: container?.scrollTop });
+    if (!container || !reading || reading.pageKey === pageKeyRef.current) return;
+    if (scroll.isFollowingTail()) return;
+    const restorer = restorerRef?.current;
+    if (restorer) {
+      const ok = restorer(reading.anchor);
+      (window as any).__alog?.push({ t: Math.round(performance.now()), ev: 'restored', ok, top: container.scrollTop, mounted: Boolean(document.getElementById('msg-' + reading.anchor.messageId)) });
+      return;
+    }
+    alignTranscriptReadingAnchor(container, reading.anchor, {
+      beforeScroll: scroll.beginProgrammaticScroll,
+    });
+  }, [restorerRef, scroll.beginProgrammaticScroll, scroll.containerRef, scroll.isFollowingTail]);
 
   const loadPage = useCallback(
     async (direction: Direction) => {
@@ -55,14 +90,9 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
       lastRequestRef.current = requestKey;
       inFlightRef.current = true;
       scroll.detachFromTail();
-      if (direction === 'older')
-        pendingRef.current = {
-          scrollHeight: container.scrollHeight,
-          scrollTop: container.scrollTop,
-        };
+      recordReading();
       try {
-        await load();
-        restoreAnchor();
+        await load(readingRef.current?.anchor.messageId);
       } catch (error) {
         console.error('Transcript history page failed', error);
       } finally {
@@ -76,9 +106,9 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
       options.onLoadNewer,
       options.historyLoading,
       pageKey,
+      recordReading,
       scroll.containerRef,
       scroll.detachFromTail,
-      restoreAnchor,
     ],
   );
 
@@ -99,11 +129,12 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
     if (!container) return;
     const previousTop = lastScrollTopRef.current;
     lastScrollTopRef.current = container.scrollTop;
+    if (!scroll.isFollowingTail()) recordReading();
     if (inFlightRef.current || ignoreScrollRef.current) return;
     const direction = container.scrollTop < previousTop ? 'older' : 'newer';
     directionRef.current = direction;
     if (!scroll.isFollowingTail() || direction === 'newer') maybeLoad(direction);
-  }, [maybeLoad, scroll.containerRef, scroll.isFollowingTail]);
+  }, [maybeLoad, recordReading, scroll.containerRef, scroll.isFollowingTail]);
 
   useEffect(() => {
     const container = scroll.containerRef.current;
@@ -112,6 +143,7 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
     const onWheel = (event: WheelEvent) => {
       if (event.deltaY === 0) return;
       ignoreScrollRef.current = false;
+      skipNextRestoreRef.current = false;
       const direction = event.deltaY < 0 ? 'older' : 'newer';
       directionRef.current = direction;
       if (!inFlightRef.current) lastRequestRef.current = null;
@@ -132,16 +164,17 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
   }, [maybeLoad, scroll.containerRef]);
 
   useLayoutEffect(() => {
-    restoreAnchor();
+    restoreReading();
+    recordReading();
     const container = scroll.containerRef.current;
     if (container) lastScrollTopRef.current = container.scrollTop;
-  }, [pageKey, options.historyLoading, restoreAnchor, scroll.containerRef]);
+  }, [pageKey, recordReading, restoreReading, scroll.containerRef]);
   useEffect(() => {
     if (directionRef.current && !options.historyLoading) maybeLoad(directionRef.current);
   }, [pageKey, options.historyLoading, maybeLoad]);
   const resetIntent = useCallback(() => {
     directionRef.current = null;
-    pendingRef.current = null;
+    skipNextRestoreRef.current = true;
     lastRequestRef.current = null;
     ignoreScrollRef.current = true;
   }, []);

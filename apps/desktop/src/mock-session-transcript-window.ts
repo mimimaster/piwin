@@ -24,38 +24,41 @@ export function createMockSessionTranscriptWindow(
   }
   const anchorIndex = messages.findIndex((message) => message.id === query.anchorMessageId);
   if (anchorIndex < 0) return { status: 'not-found' };
-  const messageOrder = new Map(messages.map((message, index) => [message.id, index]));
-  const startIndex = Math.max(0, anchorIndex - query.beforeItems);
-  const endIndex = Math.min(messages.length, anchorIndex + query.afterItems + 1);
-  const candidates = [
-    messages[anchorIndex],
-    ...messages.slice(anchorIndex + 1, endIndex),
-    ...messages.slice(startIndex, anchorIndex).reverse(),
-  ].filter((message): message is SessionTranscriptMessage => message !== undefined);
-  const selected: SessionTranscriptMessage[] = [];
+  // Mirrors the Host (@piwin/session transcriptWindow): slimmed UI projection,
+  // anchor first, newer then older, stopping at the first message that does
+  // not fit so the window stays contiguous, and indexes from what was kept.
+  const project = (message: SessionTranscriptMessage): SessionTranscriptMessage =>
+    message.tools && message.tools.length > 0
+      ? { ...message, tools: message.tools.map((tool) => ({ ...tool, output: '' })) }
+      : message;
+  const firstIndex = Math.max(0, anchorIndex - query.beforeItems);
+  const lastIndex = Math.min(messages.length - 1, anchorIndex + query.afterItems);
+  const selected = new Map<number, SessionTranscriptMessage>();
   let messageBytes = 2;
-  for (const candidate of candidates) {
-    let projected = candidate;
+  const add = (index: number, force = false): boolean => {
+    const source = messages[index];
+    if (source === undefined) return false;
+    let projected = project(source);
     let candidateBytes = serializedBytes(projected);
-    const delimiterBytes = selected.length === 0 ? 0 : 1;
+    const delimiterBytes = selected.size === 0 ? 0 : 1;
     if (messageBytes + delimiterBytes + candidateBytes > query.maximumBytes) {
-      if (candidate.id === query.anchorMessageId && selected.length === 0) {
-        projected = clipMessage(candidate, query.maximumBytes - 2);
-        candidateBytes = serializedBytes(projected);
-      } else {
-        continue;
-      }
+      if (!force) return false;
+      projected = clipMessage(projected, query.maximumBytes - 2);
+      candidateBytes = serializedBytes(projected);
     }
-    selected.push(projected);
+    selected.set(index, projected);
     messageBytes += delimiterBytes + candidateBytes;
-  }
-  selected.sort(
-    (left, right) => (messageOrder.get(left.id) ?? 0) - (messageOrder.get(right.id) ?? 0),
-  );
-  const anchorOffset = selected.findIndex((message) => message.id === query.anchorMessageId);
+    return true;
+  };
+  add(anchorIndex, true);
+  for (let index = anchorIndex + 1; index <= lastIndex && add(index); index += 1);
+  for (let index = anchorIndex - 1; index >= firstIndex && add(index); index -= 1);
+  const keptIndexes = [...selected.keys()].sort((left, right) => left - right);
+  const startIndex = keptIndexes[0] ?? anchorIndex;
+  const endIndex = (keptIndexes.at(-1) ?? anchorIndex) + 1;
   return {
     status: 'window',
-    messages: selected,
+    messages: keptIndexes.flatMap((index) => selected.get(index) ?? []),
     window: {
       revision: mockWindowRevision(messages),
       totalCount: messages.length,
@@ -63,7 +66,7 @@ export function createMockSessionTranscriptWindow(
       endIndex,
       messageBytes,
       anchorMessageId: query.anchorMessageId,
-      anchorOffset: Math.max(0, anchorOffset),
+      anchorOffset: Math.max(0, anchorIndex - startIndex),
     },
   };
 }

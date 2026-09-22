@@ -75,8 +75,9 @@ export type WorkbenchTranscriptProps = {
   branchPoints: TranscriptBranchPoint[];
   onJumpToHistoryAnchor: NonNullable<TranscriptViewportProps['onJumpToHistoryAnchor']>;
   onReturnToLatest: () => void;
-  onLoadOlder: () => Promise<void>;
-  onLoadNewer: () => Promise<void>;
+  /** `keepMessageId`: the message on screen, which window eviction must keep. */
+  onLoadOlder: (keepMessageId?: string) => Promise<void>;
+  onLoadNewer: (keepMessageId?: string) => Promise<void>;
   onOpenReview: () => void;
   onPermission: (
     decision: PermissionDecision,

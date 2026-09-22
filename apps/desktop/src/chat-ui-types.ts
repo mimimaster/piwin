@@ -575,6 +575,8 @@ export type ChatUiAction =
       epoch: number;
       messages: SessionTranscriptMessage[];
       window: SessionTranscriptWindowInfo;
+      /** Paging: the message on screen; far-edge eviction stops before it. */
+      keepMessageId?: string;
     }
   | {
       type: 'session/user-message-index';

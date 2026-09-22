@@ -2,6 +2,14 @@ import type { SessionTranscriptMessage } from '@piwin/contracts';
 import type { ChatMessageUi, ChatUiState } from './chat-reducer';
 
 export const MAX_TRANSCRIPT_CACHE_MESSAGES = 160;
+/**
+ * History view (reading older pages) keeps more rows than the live tail. One
+ * agent turn can hold hundreds of tool-only messages that render as a single
+ * closed "已工作 · N 个工具" fold; at 160 the window was shorter than that
+ * invisible run, so paging older evicted the one reply the reader was looking
+ * at. Folded rows do not render, and the byte cap still bounds memory.
+ */
+export const MAX_HISTORY_VIEW_MESSAGES = 600;
 export const MAX_TRANSCRIPT_CACHE_BYTES = 2 * 1024 * 1024;
 
 export type TranscriptPageCacheMerge = {

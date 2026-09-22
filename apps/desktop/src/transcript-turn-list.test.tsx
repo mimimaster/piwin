@@ -702,6 +702,23 @@ describe('shouldAdjustTranscriptScrollOnItemSizeChange', () => {
     ).toBe(true);
   });
 
+  it('compensates an above-fold re-measure while scrolling into history', () => {
+    // A long reply's markdown settles after its first measure; the growth sits
+    // entirely above the reader and must not shove them down the page.
+    expect(
+      shouldAdjustTranscriptScrollOnItemSizeChange(
+        { key: 'turn-report', start: 2_000, size: 3_200 },
+        9_800,
+        createInstance({
+          scrollDirection: 'backward',
+          scrollOffset: 8_800,
+          measuredKeys: ['turn-report'],
+        }),
+        false,
+      ),
+    ).toBe(true);
+  });
+
   it('does not shift a spanning remasure (live tail growth) while following', () => {
     expect(
       shouldAdjustTranscriptScrollOnItemSizeChange(

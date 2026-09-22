@@ -34,6 +34,7 @@ import {
   TRANSCRIPT_TURN_MEASURE_EVENT,
   type TranscriptTurnMeasureDetail,
 } from './transcript-turn-measure.js';
+import { alignTranscriptReadingAnchor } from './transcript-reading-anchor.js';
 
 export type TranscriptTurnListProps = {
   turns: readonly TranscriptTurn[];
@@ -82,6 +83,75 @@ function useVirtualizedMessageJump(
         window.cancelAnimationFrame(jumpFrameRef.current);
         jumpFrameRef.current = null;
       }
+    };
+  }, [indexByMessageId, scrollPort, virtualizer]);
+}
+
+/**
+ * History paging anchor for the virtualized list. Layout-phase registration so
+ * the owner's layout effect (which runs after ours) sees this render's turns.
+ */
+function useVirtualizedReadingAnchor(
+  scrollPort: TranscriptScrollPort,
+  indexByMessageId: ReadonlyMap<string, number>,
+  virtualizer: {
+    scrollToIndex: (index: number, options: { align: 'start'; behavior: 'auto' }) => void;
+    scrollOffset: number | null;
+    scrollAdjustments: number;
+  },
+): void {
+  const frameRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const cancelFrame = (): void => {
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+    };
+    const unregister = scrollPort.registerReadingAnchorRestorer((anchor) => {
+      const container = scrollPort.scrollElementRef.current;
+      if (!container) {
+        return false;
+      }
+      cancelFrame();
+      const align = (): boolean =>
+        alignTranscriptReadingAnchor(container, anchor, {
+          beforeScroll: scrollPort.beginProgrammaticScroll,
+          // TanStack applies size corrections from its own scrollOffset, which
+          // only catches up on the next scroll event. The measure of the rows
+          // this page mounted lands first, so without this it re-applies the
+          // pre-align offset and drags the reader back by the wheel delta.
+          afterScroll: (scrollTop) => {
+            virtualizer.scrollOffset = scrollTop;
+            virtualizer.scrollAdjustments = 0;
+          },
+        });
+      if (align()) {
+        return true;
+      }
+      // The anchor's row was virtualized away (its old scroll offset now points
+      // at freshly prepended rows). Mount it, then settle on the next frames.
+      const turnIndex = indexByMessageId.get(anchor.messageId);
+      if (turnIndex === undefined) {
+        return false;
+      }
+      scrollPort.beginProgrammaticScroll();
+      virtualizer.scrollToIndex(turnIndex, { align: 'start', behavior: 'auto' });
+      let attempts = 0;
+      const settle = (): void => {
+        frameRef.current = null;
+        if (align() || attempts >= 2) {
+          return;
+        }
+        attempts += 1;
+        frameRef.current = window.requestAnimationFrame(settle);
+      };
+      frameRef.current = window.requestAnimationFrame(settle);
+      return true;
+    });
+    return () => {
+      unregister();
+      cancelFrame();
     };
   }, [indexByMessageId, scrollPort, virtualizer]);
 }
@@ -311,6 +381,7 @@ function VirtualizedTranscriptTurns(
   }, [props.scrollPort.scrollElement, props.scrollPort.scrollElementRef]);
 
   useVirtualizedMessageJump(props.scrollPort, turnIndexByMessageId, virtualizer);
+  useVirtualizedReadingAnchor(props.scrollPort, turnIndexByMessageId, virtualizer);
 
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
