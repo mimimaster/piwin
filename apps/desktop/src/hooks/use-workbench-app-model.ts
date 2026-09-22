@@ -113,6 +113,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     clearExtensionUiRequest: host.clearExtensionUiRequest,
     handleAbort: session.handleAbort,
     generalWorkspacePath: host.generalWorkspacePath ?? null,
+    sessionPlan: host.sessionPlan,
   });
   // Auto-reveal follows the Canvas switch of the active session's scope class;
   // artifactCodeFirst is Inline-only and is never folded into it.

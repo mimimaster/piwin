@@ -12,6 +12,74 @@ import { compactPlanSteps } from './plan-todo-model.js';
 import { planDocumentOpenInput, planStepVisual, StepIcon } from './plan-card.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
 
+export function PlanTrayStatusIcon({
+  visual,
+}: {
+  visual: 'run' | 'done' | 'pending';
+}): ReactElement {
+  switch (visual) {
+    case 'done':
+      return (
+        <svg
+          className="plan-tray-icon plan-tray-icon-done"
+          viewBox="0 0 16 16"
+          width="15"
+          height="15"
+          fill="none"
+          stroke="var(--ok, #10b981)"
+          strokeWidth="1.5"
+          aria-label="Done"
+        >
+          <path
+            d="M2.5 5.5l1.8 1.8 3.2-3.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path d="M9.5 5h4M2.5 11h11" strokeLinecap="round" />
+        </svg>
+      );
+    case 'run':
+      return (
+        <svg
+          className="plan-tray-icon plan-tray-icon-run"
+          viewBox="0 0 16 16"
+          width="15"
+          height="15"
+          fill="none"
+          stroke="var(--accent, #6366f1)"
+          strokeWidth="1.5"
+          aria-label="Running"
+        >
+          <circle
+            cx="4.5"
+            cy="5"
+            r="2"
+            fill="var(--accent, #6366f1)"
+            className="plan-tray-icon-pulse"
+          />
+          <path d="M9 5h4.5M3 11h10.5" strokeLinecap="round" />
+        </svg>
+      );
+    default:
+      return (
+        <svg
+          className="plan-tray-icon plan-tray-icon-pending"
+          viewBox="0 0 16 16"
+          width="15"
+          height="15"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-label="Pending"
+          opacity="0.45"
+        >
+          <circle cx="4.5" cy="5" r="1.5" />
+          <path d="M9 5h4.5M3 11h10.5" strokeLinecap="round" />
+        </svg>
+      );
+  }
+}
+
 export type PlanTodoTrayProps = {
   plan: SessionPlan;
   onOpenDocument?: ((doc: DocumentOpenInput) => void) | undefined;
@@ -56,7 +124,7 @@ export function PlanTodoTray({
     await onAbort();
   }
 
-  const heading = isZh ? '计划' : 'Todo';
+  const heading = isZh ? '待办' : 'Todo';
   const moreLabel =
     compact.hiddenCount > 0
       ? isZh
@@ -96,7 +164,7 @@ export function PlanTodoTray({
           }
         >
           <span className="plan-todo-tray-status-icon">
-            <StepIcon visual={headerStatusVisual} />
+            <PlanTrayStatusIcon visual={headerStatusVisual} />
           </span>
           <span className="plan-todo-tray-badge">
             <span className="plan-todo-tray-label">{heading}</span>

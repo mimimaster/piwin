@@ -3,6 +3,7 @@
  * session, drafts, extension UI, and artifact canvas width.
  */
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
+import type { SessionPlan } from '@piwin/contracts';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { ArtifactCanvasTarget } from '../artifact-canvas-model';
 import type { DraftSessionItemUi } from '../draft-session';
@@ -12,6 +13,7 @@ import type { RightPanelTab } from '../right-panel';
 import type { ExtensionUiRequestState } from './use-host-bootstrap';
 import { tryOpenHtmlDocumentInBrowser } from '../open-html-in-browser.js';
 import { isOverlayShellLayout, type ShellLayoutMode } from '../shell-layout';
+import { resolveSessionPlanDocument } from '../plan-card.js';
 
 const ARTIFACT_CANVAS_MIN_PANEL_WIDTH_PX = 560;
 
@@ -48,6 +50,11 @@ export type UseWorkbenchSessionGesturesArgs = {
   handleAbort: () => Promise<void>;
   /** Built-in No Repo root; fills an empty projectPath from the folder +. */
   generalWorkspacePath?: string | null;
+  /**
+   * Live session plan. `plans/<sessionId>.md` is a logical path, not a
+   * workspace file — inject its markdown before the preview looks on disk.
+   */
+  sessionPlan?: SessionPlan | null;
 };
 
 export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArgs) {
@@ -75,14 +82,16 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
     clearExtensionUiRequest,
     handleAbort,
     generalWorkspacePath,
+    sessionPlan,
   } = args;
 
   const handleOpenDocument = useCallback(
     (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => {
       inspectorFileDiff.clear();
+      const resolved = resolveSessionPlanDocument(doc, state.activeSessionId, sessionPlan);
       if (
         tryOpenHtmlDocumentInBrowser({
-          doc,
+          doc: resolved,
           projectPath: state.projectPath,
           canNavigate: hostClient.supportsCommand('browser/navigate'),
           openInspector,
@@ -93,9 +102,17 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
       ) {
         return;
       }
-      openDocumentBase(doc, target);
+      openDocumentBase(resolved, target);
     },
-    [hostClient, inspectorFileDiff, openDocumentBase, openInspector, state.projectPath],
+    [
+      hostClient,
+      inspectorFileDiff,
+      openDocumentBase,
+      openInspector,
+      sessionPlan,
+      state.activeSessionId,
+      state.projectPath,
+    ],
   );
   const handleOpenDiff = useCallback(
     (absolutePath: string, relativePath?: string) => {

@@ -226,7 +226,8 @@ html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray {
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-badge {
-  background: color-mix(in srgb, var(--t1) 6%, transparent);
+  background: transparent;
+  border: 1px solid var(--line-1);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .plan-todo-tray-label {

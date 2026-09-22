@@ -6,6 +6,7 @@
  * opened from tool-card targets, not scraped from message text.
  */
 import type { SessionDocItem } from './DocPreviewPanel';
+import { sessionPlanDisplayPath } from './plan-document-path.js';
 
 export type SessionDocumentMessage = {
   text?: string | undefined;
@@ -65,7 +66,7 @@ export function collectSessionDocuments(
   if (input.sessionPlan) {
     addDocument(
       input.sessionPlan.title || 'Implementation Plan',
-      `plans/${input.sessionPlan.sessionId}.md`,
+      sessionPlanDisplayPath(input.sessionPlan.sessionId),
       'plan',
     );
   }

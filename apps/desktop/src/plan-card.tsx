@@ -6,6 +6,7 @@
 import type { ReactElement } from 'react';
 import type { PlanStepStatus, SessionPlan } from '@piwin/contracts';
 import type { DocumentOpenInput } from './tool-call-card.js';
+import { isSessionPlanDisplayPath, sessionPlanDisplayPath } from './plan-document-path.js';
 
 export type PlanStepVisual = 'done' | 'run' | 'pending' | 'skipped';
 
@@ -30,9 +31,32 @@ export function planDocumentOpenInput(
 ): DocumentOpenInput {
   return {
     title: plan.title || 'Implementation Plan',
-    path: displayPath ?? `plans/${plan.sessionId}.md`,
+    path: displayPath ?? sessionPlanDisplayPath(plan.sessionId),
     content: formatPlanMarkdown(plan),
   };
+}
+
+/**
+ * Path chips and the document rail both open `plans/<sessionId>.md`.
+ * That path is not a workspace file. Only this session's live plan may
+ * fill the virtual document; an explicit body is left untouched.
+ */
+export function resolveSessionPlanDocument(
+  doc: DocumentOpenInput,
+  sessionId: string | null | undefined,
+  sessionPlan: SessionPlan | null | undefined,
+): DocumentOpenInput {
+  if (doc.content !== undefined || !sessionId || !sessionPlan) {
+    return doc;
+  }
+  if (sessionPlan.sessionId !== sessionId) {
+    return doc;
+  }
+  const path = doc.path ?? '';
+  if (!isSessionPlanDisplayPath(path, sessionId)) {
+    return doc;
+  }
+  return planDocumentOpenInput(sessionPlan, path);
 }
 
 /** Maps contract step status to the V7 visual state machine (.step.done/.run/.skipped). */

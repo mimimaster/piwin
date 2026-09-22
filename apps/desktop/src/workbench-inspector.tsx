@@ -37,6 +37,7 @@ import {
 import type { LineCommentItem } from './EnhancedMarkdownView';
 import type { SessionDocItem } from './DocPreviewPanel';
 import { formatPlanMarkdown } from './plan-card';
+import { isSessionPlanDisplayPath } from './plan-document-path.js';
 import type { DocumentOpenInput } from './tool-call-card';
 import type { AddContextRefResult } from './hooks/use-composer-context-refs';
 import type { PtyOutputLine } from './terminal-dock';
@@ -487,7 +488,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               onDeleteComment={handleDeleteDocComment}
               onSelectDocument={(doc) => {
                 const planDocument =
-                  doc.path === `plans/${activeSessionId ?? ''}.md`
+                  doc.path && activeSessionId && isSessionPlanDisplayPath(doc.path, activeSessionId)
                     ? sessionPlan
                     : null;
                 // Walkthrough virtual docs: resolve markdown content from the
