@@ -150,8 +150,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const {
     ptyOutput,
     setPtyOutput,
-    terminalAttention,
-    setTerminalAttention,
     terminalCwd,
     terminalRecentDirs,
     handleTerminalCwdChange,
@@ -459,6 +457,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
         recentProjects={recentProjects}
         request={requestGit}
         onOpenProject={(path) => void handleOpenProject(path)}
+        projectSwitchLocked={state.messages.length > 0 || state.awaitingTranscript}
         disabled={state.streaming}
       />
     ) : null;
@@ -760,8 +759,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       rightPanelResize={rightPanelResize}
                       isOverlayPresentation={inspectorOverlay}
                       runningJobCount={jobs.length}
-                      terminalAttention={terminalAttention}
-                      onTerminalAttentionClear={() => setTerminalAttention(false)}
                       onViewChange={setRightPanelView}
                       docking={dockingActive ? dockingWorkspace : null}
                       locale={desktopLocale}

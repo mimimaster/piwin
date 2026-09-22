@@ -5,11 +5,11 @@
 import { type ReactElement } from 'react';
 import { SECTION_META, isHomeLauncherSection, sectionLabel } from './right-panel-sections';
 import type { DesktopLocale } from './desktop-locale';
-import type { RightPanelTab } from './right-panel-sections';
+import type { RightPanelToolKind } from './right-panel-sections';
 
 export type RightPanelHomeProps = {
   locale: DesktopLocale;
-  onSelect: (tab: RightPanelTab) => void;
+  onSelect: (kind: RightPanelToolKind) => void;
   tasksActiveCount?: number;
 };
 

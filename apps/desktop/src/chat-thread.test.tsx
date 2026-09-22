@@ -3396,6 +3396,76 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     expect(onRetryTurn).toHaveBeenCalledWith('u-1', { keepPrevious: true });
   });
 
+  it('keeps the files-changed summary hidden until the running turn settles', () => {
+    const writeTool: ToolCardUi = {
+      toolCallId: 'tool-write',
+      toolName: 'write_file',
+      status: 'done',
+      output: 'saved',
+      presentation: {
+        kind: 'filesystem',
+        title: 'write_file',
+        targetPaths: ['/workspace/apps/desktop/src/right-panel.tsx'],
+      },
+    };
+    const userMessage = createUserMessage('u-live', 'support multiple instances');
+    const assistant: ChatMessageUi = {
+      id: 'a-live',
+      role: 'assistant',
+      text: '面板本体接下来改。',
+      thinking: '',
+      tools: [writeTool],
+      attachments: [],
+      status: 'done',
+      runId: 'run-live',
+    };
+    // The "接下来" chip projects a pending user row into state. It stays off
+    // the transcript, but lastUserMessageId still points at it, so the live
+    // turn is no longer the thread's last user message.
+    const queuedFollowUp: ChatMessageUi = {
+      ...createUserMessage('u-next', '还有这是什么情况？'),
+      instructionDelivery: {
+        kind: 'queued-turn',
+        instructionId: 'queued-1',
+        status: 'pending',
+        revision: 1,
+      },
+    };
+
+    const render = (streaming: boolean): void => {
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ChatThreadHarness
+              messages={[userMessage, assistant, queuedFollowUp]}
+              streaming={streaming}
+              editingMessageId={null}
+              lastUserMessageId={queuedFollowUp.id}
+              activeRunId={streaming ? 'run-live' : null}
+              activeTheme={null}
+              artifactThemeKey={0}
+              onEdit={noop}
+              onCancelEdit={noop}
+              onEditResend={noop}
+              onRetry={noop}
+              onReviewChanges={noop}
+              onInspectSubagent={undefined}
+              composerCard={composerCard}
+              locale="zh-CN"
+            />
+          </PiwinUiProvider>,
+        );
+      });
+    };
+
+    render(true);
+    expect(container.querySelector('[data-testid="files-changed-bar"]')).toBeNull();
+
+    render(false);
+    expect(container.querySelector('[data-testid="files-changed-bar"]')).not.toBeNull();
+    expect(container.textContent).toContain('1 个文件已更改');
+  });
+
   it('hides regenerate on project sessions', () => {
     const onRetryTurn = vi.fn();
     const u1 = createUserMessage('u-1', 'implement auth');

@@ -140,6 +140,11 @@ export type ChatMessageRowProps = {
   derivedActionsDisabled?: boolean;
   /** SF-03: True only for the last assistant message in a turn group. */
   isLastAssistantInTurn?: boolean;
+  /**
+   * This turn's run is still producing output. The files-changed summary waits
+   * for it: counts and line totals are not final while the run is live.
+   */
+  turnInProgress?: boolean;
   /** SF-04: True only for the newest completed assistant response. */
   isLatestAssistantResponse?: boolean;
   /** Assembly capsule for this user row, if Host recorded one. */

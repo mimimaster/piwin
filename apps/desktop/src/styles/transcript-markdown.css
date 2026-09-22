@@ -179,6 +179,41 @@
   text-underline-offset: 2px;
 }
 
+/* Clickable previewable file references in the transcript (path chips with a
+   file icon) read as links: pure blue, not ink. Ordinary web links keep
+   --iris-lift. Static chips (.static) are not openable and stay ink.
+   Keyed off the app's data-theme-mode, not the OS color-scheme. */
+html[data-theme-mode='light'] {
+  --file-link: #0057d9;
+  --inline-code: #c4232b;
+}
+html:not([data-theme-mode='light']) {
+  --file-link: #4c9aff;
+  --inline-code: #ff6b6b;
+}
+
+.role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static),
+.role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) {
+  color: var(--file-link);
+}
+
+.role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) :is(.chip-dir, .chip-file, .chip-text, span),
+.role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.chip-dir, .chip-file, .chip-text, span) {
+  color: var(--file-link) !important;
+  opacity: 1;
+}
+
+.role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) :is(.i, svg, .path-chip-icon, .file-icon),
+.role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.i, svg, .path-chip-icon, .file-icon) {
+  color: var(--file-link);
+  opacity: 1;
+}
+
+.role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static):hover,
+.role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static):hover {
+  color: var(--file-link);
+}
+
 .md-link:hover {
   text-decoration-color: currentColor;
 }
@@ -348,7 +383,7 @@
   font-family: var(--font-mono);
   /* A restrained text marker, not a large pill-shaped control. */
   background: var(--surface-3);
-  color: var(--text-1);
+  color: var(--inline-code, #c4232b);
   border: 1px solid var(--line-1);
   border-radius: 3px;
   padding: 0.05em 0.28em;

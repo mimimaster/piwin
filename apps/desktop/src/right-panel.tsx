@@ -1,11 +1,11 @@
 /**
  * Right workspace panel — multi-tab like Cursor's side window.
  *
- * - 2x2 home grid: Files / Terminal / Browser / Changes
- * - + opens notes / cards / side chat plus the four home tabs
- * - Drag left edge to resize; double-click resets width
+ * - Empty home lists the tools; picking one opens its first instance.
+ * - + opens another instance of a tool, so two Browsers sit side by side.
+ * - Drag left edge to resize; double-click resets width.
  * - Mount only the active surface; preserve an open terminal as the explicit
- *   PTY-authority exception
+ *   PTY-authority exception.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
@@ -14,7 +14,14 @@ import { getDesktopCopy } from './desktop-locale';
 import type { DesktopLocale } from './desktop-locale';
 import { IconButton, IconClose } from '@piwin/ui-kit';
 import { readStoredRightPanelState, writeStoredRightPanelState } from './right-panel-memory';
-import { isTerminalTab, sectionLabel, type RightPanelTab } from './right-panel-sections';
+import {
+  allocateRightPanelInstanceId,
+  isTerminalTab,
+  rightPanelTabKind,
+  sectionLabel,
+  type RightPanelTab,
+  type RightPanelToolKind,
+} from './right-panel-sections';
 import { RightPanelPlusMenu } from './right-panel-plus-menu';
 import { RightPanelHome } from './right-panel-home';
 import { RightPanelTabs } from './right-panel-tabs.js';
@@ -77,8 +84,6 @@ export type RightPanelProps = {
   runningJobCount?: number;
   cardsDueCount?: number;
   tasksActiveCount?: number;
-  terminalAttention?: boolean;
-  onTerminalAttentionClear?: () => void;
   onViewChange?: (view: RightPanelView) => void;
   locale?: DesktopLocale;
   appearanceMode?: 'light' | 'dark';
@@ -99,10 +104,9 @@ const NO_HANDED_OFF_TABS: readonly RightPanelTab[] = [];
 export type { RightPanelTab } from './right-panel-sections';
 
 function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode | undefined {
-  if (isTerminalTab(tab)) {
-    return props.terminalContent;
-  }
-  switch (tab) {
+  const kind = rightPanelTabKind(tab);
+  if (kind === 'terminal') return props.terminalContent;
+  switch (kind) {
     case 'files':
       return props.filesContent;
     case 'browser':
@@ -155,12 +159,12 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const runningJobCount = props.runningJobCount ?? 0;
   const cardsDueCount = props.cardsDueCount;
   const tasksActiveCount = props.tasksActiveCount ?? 0;
-  const terminalAttention = props.terminalAttention === true;
   const terminalSessions = props.terminalSessions;
 
   const handedOffTabs = props.handedOffTabs ?? NO_HANDED_OFF_TABS;
   const handedOffKey = handedOffTabs.join('|');
-  const keepsTab = (tab: RightPanelTab): boolean => !handedOffTabs.includes(tab);
+  const keepsTab = (tab: RightPanelTab): boolean =>
+    !handedOffTabs.some((owned) => rightPanelTabKind(owned) === rightPanelTabKind(tab));
   const dockedTools = props.dockedTools;
   const dockedTabs = dockedTools?.tabs ?? NO_HANDED_OFF_TABS;
   const initial = useMemo(() => readStoredRightPanelState(), []);
@@ -242,17 +246,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by handedOffKey
   }, [handedOffKey, openTabs]);
 
-  useEffect(() => {
-    if (
-      props.open &&
-      openTabs.some(isTerminalTab) &&
-      isTerminalTab(props.activeTab) &&
-      terminalAttention
-    ) {
-      props.onTerminalAttentionClear?.();
-    }
-  }, [props.open, openTabs, props.activeTab, terminalAttention, props.onTerminalAttentionClear]);
-
   // Migrate legacy 'terminal' in openTabs to concrete active session id
   useEffect(() => {
     if (!terminalSessions || terminalSessions.sessions.length === 0) return;
@@ -285,7 +278,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     if (!terminalSessions) return;
     const validSessionIds = new Set(terminalSessions.sessions.map((s) => s.id));
     setOpenTabs((current) => {
-      const next = current.filter((t) => !t.startsWith('terminal-') || validSessionIds.has(t));
+      const next = current.filter((t) => !isTerminalTab(t) || t === 'terminal' || validSessionIds.has(t));
       if (next.length !== current.length) {
         return next;
       }
@@ -293,45 +286,40 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     });
   }, [terminalSessions?.sessions]);
 
-  const openTab = useCallback((tab: RightPanelTab): void => {
-    if (isTerminalTab(tab)) {
-      if (terminalSessions) {
-        if (tab === 'terminal') {
-          if (allTabs.length === 0 && terminalSessions.sessions.length > 0) {
-            const firstId = terminalSessions.sessions[0]?.id as RightPanelTab;
-            setOpenTabs([firstId]);
-            props.onTabChange(firstId);
-            terminalSessions.setActiveSessionId(firstId);
-            setPickerOpen(false);
-            props.onTerminalAttentionClear?.();
-            return;
-          }
-          const newSession = terminalSessions.addSession();
-          if (newSession) {
-            const newTab = newSession.id as RightPanelTab;
-            setOpenTabs((current) => (current.includes(newTab) ? current : [...current, newTab]));
-            props.onTabChange(newTab);
-            setPickerOpen(false);
-            props.onTerminalAttentionClear?.();
-            return;
-          }
-        } else {
-          terminalSessions.setActiveSessionId(tab);
-        }
-      }
+  const revealTab = useCallback((tab: RightPanelTab): void => {
+    if (isTerminalTab(tab) && terminalSessions && tab !== 'terminal') {
+      terminalSessions.setActiveSessionId(tab);
     }
     if (keepsTab(tab)) {
       setOpenTabs((current) => (current.includes(tab) ? current : [...current, tab]));
     }
     props.onTabChange(tab);
     setPickerOpen(false);
-    if (isTerminalTab(tab)) {
-      props.onTerminalAttentionClear?.();
+  }, [keepsTab, props, terminalSessions]);
+
+  /** + menu and the empty-state launcher: always another instance. */
+  const openKind = useCallback((kind: RightPanelToolKind): void => {
+    if (kind === 'terminal' && terminalSessions) {
+      if (allTabs.length === 0 && terminalSessions.sessions.length > 0) {
+        const firstId = terminalSessions.sessions[0]?.id as RightPanelTab;
+        setOpenTabs([firstId]);
+        props.onTabChange(firstId);
+        terminalSessions.setActiveSessionId(firstId);
+        setPickerOpen(false);
+        return;
+      }
+      const created = terminalSessions.addSession();
+      if (created) {
+        revealTab(created.id as RightPanelTab);
+        return;
+      }
     }
-  }, [allTabs.length, keepsTab, props, terminalSessions]);
+    const id = allocateRightPanelInstanceId(kind, allTabs) as RightPanelTab;
+    revealTab(id);
+  }, [allTabs, props, revealTab, terminalSessions]);
 
   const closeTab = useCallback((tab: RightPanelTab): void => {
-    if (isTerminalTab(tab) && terminalSessions) {
+    if (isTerminalTab(tab) && terminalSessions && tab !== 'terminal') {
       terminalSessions.closeSession(tab);
     }
     const remaining = allTabs.filter((item) => item !== tab);
@@ -351,17 +339,13 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const requested = props.activeTab;
   const active =
     requested != null && allTabs.includes(requested) ? requested : (allTabs[0] ?? null);
+  const activeKind = active ? rightPanelTabKind(active) : null;
   const activeIsDocked = active !== null && !openTabs.includes(active) && dockedTabs.includes(active);
   const mountedTabs = selectMountedRightPanelTabs(openTabs, active, props.open);
-  const sideChatTitlebar = active === 'sideChat';
-  // Page tabs occupy the titlebar only while at least one exists. An empty
-  // workbench keeps the 「浏览器」 tool tab so closing it actually dismisses
-  // the surface instead of leaving a tabless browser body.
+  // Tool tabs stay in the strip. Page tabs (side chats, browser pages) used to
+  // replace them; a second Browser then had nothing to sit beside.
   const browserTitlebar =
-    active === 'browser' && (activeIsDocked || props.browserContent !== undefined);
-  const hideBrowserToolTab = browserTitlebar && browserPageTabCount > 0;
-  const surfaceTitlebar = sideChatTitlebar || browserTitlebar;
-  const toolTabs = sideChatTitlebar || hideBrowserToolTab ? [] : allTabs;
+    activeKind === 'browser' && (activeIsDocked || props.browserContent !== undefined);
 
   const isTerminalActive = isTerminalTab(active);
   const activeTerminalSessionId =
@@ -382,19 +366,17 @@ export function RightPanel(props: RightPanelProps): ReactElement {
 
   const handleSelectTab = useCallback(
     (tab: RightPanelTab) => {
-      if (isTerminalTab(tab) && terminalSessions) {
-        terminalSessions.setActiveSessionId(tab);
-      }
-      openTab(tab);
+      revealTab(tab);
     },
-    [openTab, terminalSessions],
+    [revealTab],
   );
 
   const closeTabRef = useRef<(tab: RightPanelTab) => void>(closeTab);
   closeTabRef.current = closeTab;
   const closeBrowserHost = useCallback(() => {
-    closeTabRef.current('browser');
-  }, []);
+    const current = activeKind === 'browser' ? active : null;
+    if (current) closeTabRef.current(current);
+  }, [active, activeKind]);
   const surfaceTitlebarValue = useMemo<SurfaceTitlebar>(
     () => ({
       tabsSlot: titlebarTabsSlot,
@@ -431,7 +413,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       data-content-expanded={props.open ? 'true' : 'false'}
       data-open={props.open ? 'true' : 'false'}
       data-view={allTabs.length > 0 ? 'detail' : 'home'}
-      data-terminal-attention={terminalAttention ? 'true' : 'false'}
       aria-label={locale === 'zh-CN' ? '工作区面板' : 'Workspace panel'}
       aria-hidden={props.open ? undefined : true}
       {...(!props.open ? ({ inert: true } as Record<string, boolean>) : {})}
@@ -454,36 +435,32 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         onDoubleClick={props.onResizeReset}
       />
 
-      {/* Cursor-style tab strip */}
+      {/* Cursor-style tab strip: one tab per open instance. */}
       <div
-        className={`right-panel-tabstrip right-panel-titlebar-box insp-h${sideChatTitlebar ? ' has-side-chat-tabs' : ''}${browserTitlebar ? ' has-browser-tabs' : ''}${isTerminalActive && terminalSessions ? ' has-terminal-actions' : ''}`}
+        className={`right-panel-tabstrip right-panel-titlebar-box insp-h${browserTitlebar ? ' has-browser-actions' : ''}${isTerminalActive && terminalSessions ? ' has-terminal-actions' : ''}`}
         data-testid="right-panel-tabstrip"
         data-tauri-drag-region
         onMouseDown={handleNativeWindowDragMouseDown}
       >
-        {/* Empty browser workbench: no + (it read as a second new-tab). Tool
-            tabs are visible, so Files/Terminal are still reachable. */}
-        {allTabs.length > 0 && !(browserTitlebar && browserPageTabCount === 0) ? (
+        {allTabs.length > 0 ? (
           <RightPanelPlusMenu
             open={pickerOpen}
             onOpenChange={setPickerOpen}
             locale={locale}
-            openTabs={allTabs}
-            onSelect={openTab}
+            onSelect={openKind}
             active={pickerOpen}
           />
         ) : null}
 
-        {toolTabs.length > 0 ? (
+        {allTabs.length > 0 ? (
           <RightPanelTabs
-            tabs={toolTabs}
-            active={surfaceTitlebar ? null : active}
+            tabs={allTabs}
+            active={active}
             locale={locale}
             changesCount={changesCount}
             runningJobCount={runningJobCount}
             cardsDueCount={cardsDueCount}
             tasksActiveCount={tasksActiveCount}
-            terminalAttention={terminalAttention}
             labels={{ ...dockedTools?.labels, ...terminalLabels }}
             {...(dockedTools?.groupId
               ? { dockedGroup: { groupId: dockedTools.groupId, tabs: dockedTabs } }
@@ -493,13 +470,15 @@ export function RightPanel(props: RightPanelProps): ReactElement {
           />
         ) : null}
 
+        {/* Kept for the docked browser, which still portals its page tabs here.
+            Hidden: the tool strip above is the instance list. */}
         <div
           id={RIGHT_PANEL_SIDE_CHAT_TABS_SLOT_ID}
           ref={setTitlebarTabsSlot}
           className="right-panel-side-chat-tabs-slot"
           data-testid="right-panel-side-chat-tabs-slot"
           data-no-window-drag
-          hidden={!surfaceTitlebar}
+          hidden
         />
 
         <WindowDragRegion
@@ -588,14 +567,14 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             )}
           </IconButton>
 
-          {browserTitlebar && !props.isOverlayPresentation ? (
+          {browserTitlebar && !props.isOverlayPresentation && browserPageTabCount === 0 && active ? (
             <IconButton
               className="right-panel-action-btn ib"
               data-testid="right-panel-close-browser-btn"
               size={22}
               label={locale === 'zh-CN' ? '关闭浏览器' : 'Close browser'}
               title={locale === 'zh-CN' ? '关闭浏览器' : 'Close browser'}
-              onClick={() => closeTab('browser')}
+              onClick={() => closeTab(active)}
             >
               <IconClose width={14} height={14} />
             </IconButton>
@@ -627,7 +606,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       {allTabs.length === 0 ? (
         <RightPanelHome
           locale={locale}
-          onSelect={openTab}
+          onSelect={openKind}
           tasksActiveCount={tasksActiveCount}
         />
       ) : (
@@ -667,7 +646,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
                 ) : (
                   <div className="right-panel-section">
                     <SurfaceTitlebarProvider
-                      value={tab === 'browser' && browserTitlebar ? surfaceTitlebarValue : null}
+                      value={rightPanelTabKind(tab) === 'browser' && browserTitlebar ? surfaceTitlebarValue : null}
                     >
                       <DeferredSurfaceBoundary
                         label={locale === 'zh-CN' ? `正在加载${label}` : `Loading ${label}`}

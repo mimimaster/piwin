@@ -1,19 +1,19 @@
 /**
  * Persist right-panel multi-tab state across collapses (sessionStorage).
+ *
+ * A tab is an instance id: `browser` (the first) or `browser-2` (another).
+ * Terminal session ids (`terminal-1`) are instances too.
  */
 
+import {
+  RIGHT_PANEL_TOOL_KINDS,
+  rightPanelTabKind,
+  type RightPanelToolKind,
+} from './right-panel-instances';
+
 export type RightPanelTabKind =
-  | 'files'
-  | 'terminal'
-  | 'review'
-  | 'browser'
-  | 'notes'
-  | 'cards'
-  | 'canvas'
-  | 'sideChat'
-  | 'docPreview'
-  | 'tasks'
-  | `terminal-${string}`;
+  | RightPanelToolKind
+  | `${RightPanelToolKind}-${string}`;
 
 export type StoredRightPanelState = {
   openTabs: RightPanelTabKind[];
@@ -25,24 +25,10 @@ export const RIGHT_PANEL_STATE_STORAGE_KEY = 'piwin.desktop.rightPanelTabs.v1';
 /** @deprecated legacy key — read once for migration */
 export const RIGHT_PANEL_VIEW_STORAGE_KEY = 'piwin.desktop.rightPanelView';
 
-/** Kinds that can be stored/restored as open right-panel tabs. */
-const ALLOWED_KINDS: RightPanelTabKind[] = [
-  'files',
-  'terminal',
-  'review',
-  'browser',
-  'notes',
-  'cards',
-  'sideChat',
-  'docPreview',
-  'tasks',
-];
+export { RIGHT_PANEL_TOOL_KINDS };
 
-function isAllowedKind(value: unknown): value is RightPanelTabKind {
-  return (
-    typeof value === 'string' &&
-    ((ALLOWED_KINDS as string[]).includes(value) || value.startsWith('terminal-'))
-  );
+function isStoredTab(value: unknown): value is RightPanelTabKind {
+  return typeof value === 'string' && rightPanelTabKind(value) !== null;
 }
 
 export function readStoredRightPanelState(
@@ -55,9 +41,9 @@ export function readStoredRightPanelState(
     const raw = storage.getItem(RIGHT_PANEL_STATE_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as { openTabs?: unknown; activeTab?: unknown };
-      const openTabs = Array.isArray(parsed.openTabs) ? parsed.openTabs.filter(isAllowedKind) : [];
+      const openTabs = Array.isArray(parsed.openTabs) ? parsed.openTabs.filter(isStoredTab) : [];
       const activeTab =
-        isAllowedKind(parsed.activeTab) && openTabs.includes(parsed.activeTab)
+        isStoredTab(parsed.activeTab) && openTabs.includes(parsed.activeTab)
           ? parsed.activeTab
           : (openTabs[0] ?? null);
       return { openTabs, activeTab };

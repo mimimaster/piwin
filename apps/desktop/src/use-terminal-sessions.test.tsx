@@ -179,6 +179,26 @@ describe('useTerminalSessions', () => {
     expect(lastApi?.activeSessionId).toBe(firstId);
   });
 
+  it('stays empty after the last session is closed', () => {
+    const rendered = renderHarness({
+      projectPath: '/project',
+      projectTrusted: true,
+      enabled: true,
+      defaultCwd: '/home',
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const onlyId = lastApi?.sessions[0]?.id;
+    expect(onlyId).toBeDefined();
+    act(() => {
+      if (onlyId) lastApi?.closeSession(onlyId);
+    });
+
+    expect(lastApi?.sessions).toEqual([]);
+    expect(lastApi?.activeSessionId).toBeNull();
+  });
+
   it('updates session status and ptyId', () => {
     const rendered = renderHarness({
       projectPath: '/project',

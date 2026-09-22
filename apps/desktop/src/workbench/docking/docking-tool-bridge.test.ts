@@ -7,6 +7,7 @@ describe('docking tool bridge', () => {
     expect(inspectorTabToToolKind('review')).toBe('changes');
     expect(inspectorTabToToolKind('canvas')).toBe('canvas');
     expect(inspectorTabToToolKind('docPreview')).toBe('doc');
+    expect(inspectorTabToToolKind('browser-2')).toBe('browser');
     expect(inspectorTabToToolKind('files')).toBeNull();
     expect(inspectorTabToToolKind(null)).toBeNull();
   });

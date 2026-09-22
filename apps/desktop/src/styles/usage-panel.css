@@ -574,7 +574,12 @@
 }
 
 .usage-calls-table {
-  min-width: 1100px;
+  min-width: 1180px;
+}
+
+.usage-call-thinking {
+  color: var(--text-1);
+  white-space: nowrap;
 }
 
 .usage-calls-scroll thead th {

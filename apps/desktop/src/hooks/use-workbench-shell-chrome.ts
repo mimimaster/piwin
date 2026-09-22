@@ -152,12 +152,7 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     },
     [shell],
   );
-  const watchingTerminalRef = useRef(false);
-  watchingTerminalRef.current =
-    rightPanelOpen && rightPanelTab === 'terminal' && rightPanelView === 'detail';
   const sessionListChrome = useSessionListChrome();
-  // Conversation-scoped UI memory. Real session switches park/reset Goal in
-  // useComposerDrafts — first-send (draft → created session) must keep it.
   const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
   const [sidebarMode, setSidebarModeState] = useState<SidebarMode>(() => loadSidebarMode());
   const setSidebarMode = useCallback((mode: SidebarMode) => {
@@ -185,7 +180,6 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
   );
   const terminal = useTerminalPanelState({
     projectPath: state.projectPath,
-    watchingTerminalRef,
     preferences,
     setPreferences,
   });

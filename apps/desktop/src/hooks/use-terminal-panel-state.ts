@@ -1,13 +1,10 @@
 /**
  * Right-panel terminal panel state (extracted from App.tsx; ADR 0052 split).
  *
- * Owns the terminal's pty output buffer, the "quiet workbench" attention
- * marker, the working directory, and the recent-directories list. The
- * attention marker is driven by a `watchingTerminalRef` supplied by the shell
- * layout: output only pulses chrome when the panel isn't visible — it never
- * auto-opens the panel.
+ * Owns the terminal's pty output buffer, the working directory, and the
+ * recent-directories list. Output never pulses chrome and never opens the panel.
  */
-import { useCallback, useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import type { PtyOutputLine } from '../terminal-dock';
 import { saveDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
 import {
@@ -17,8 +14,6 @@ import {
 
 export type UseTerminalPanelStateInput = {
   projectPath: string | null | undefined;
-  /** Ref updated by the shell layout when the terminal panel is visible. */
-  watchingTerminalRef: RefObject<boolean>;
   /** App-owned preferences; the handler persists cwd changes through it. */
   preferences: DesktopPreferences;
   setPreferences: Dispatch<SetStateAction<DesktopPreferences>>;
@@ -27,18 +22,15 @@ export type UseTerminalPanelStateInput = {
 export type UseTerminalPanelStateResult = {
   ptyOutput: PtyOutputLine[];
   setPtyOutput: (value: SetStateAction<PtyOutputLine[]>) => void;
-  terminalAttention: boolean;
-  setTerminalAttention: (value: boolean) => void;
   terminalCwd: string;
   terminalRecentDirs: string[];
   handleTerminalCwdChange: (cwd: string) => void;
-  markTerminalAttentionIfHidden: () => void;
 };
 
 export function useTerminalPanelState(
   input: UseTerminalPanelStateInput,
 ): UseTerminalPanelStateResult {
-  const { projectPath, watchingTerminalRef, preferences, setPreferences } = input;
+  const { projectPath, preferences, setPreferences } = input;
 
   // Terminal working directory state.
   // Initialized from saved preference, then falls back to project path or home.
@@ -52,8 +44,6 @@ export function useTerminalPanelState(
     return preferences.terminalRecentDirs || [];
   });
   const [ptyOutput, setPtyOutputBase] = useState<PtyOutputLine[]>([]);
-  /** Quiet workbench: terminal produced output while directory home / panel collapsed. */
-  const [terminalAttention, setTerminalAttention] = useState(false);
 
   // Initialize terminal CWD from home directory when no project/preference is set.
   useEffect(() => {
@@ -89,27 +79,11 @@ export function useTerminalPanelState(
     }
   }, [projectPath, preferences.terminalLastCwd]);
 
-  const markTerminalAttentionIfHidden = useCallback((): void => {
-    // Hard rule: never auto-open the work panel; only pulse chrome.
-    if (!watchingTerminalRef.current) {
-      setTerminalAttention(true);
-    }
-  }, [watchingTerminalRef]);
-
   const setPtyOutput = useCallback(
     (value: SetStateAction<PtyOutputLine[]>): void => {
-      setPtyOutputBase((current) => {
-        const next = typeof value === 'function' ? value(current) : value;
-        // Only new lines (not clear/replace-empty) raise directory attention.
-        if (next.length > current.length) {
-          queueMicrotask(() => {
-            markTerminalAttentionIfHidden();
-          });
-        }
-        return next;
-      });
+      setPtyOutputBase(value);
     },
-    [markTerminalAttentionIfHidden],
+    [],
   );
 
   const handleTerminalCwdChange = useCallback(
@@ -144,11 +118,8 @@ export function useTerminalPanelState(
   return {
     ptyOutput,
     setPtyOutput,
-    terminalAttention,
-    setTerminalAttention,
     terminalCwd,
     terminalRecentDirs,
     handleTerminalCwdChange,
-    markTerminalAttentionIfHidden,
   };
 }

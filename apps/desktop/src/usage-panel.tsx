@@ -24,6 +24,7 @@ import {
   RECENT_CALLS_PAGE_SIZE,
   RECENT_CALLS_PAGE_SIZES,
   RECENT_CALLS_WINDOW_MINUTES,
+  formatThinkingLabel,
   formatTokensPerSecond,
   formatUsageClock,
   formatUsageCompact,
@@ -487,6 +488,9 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                       <th>{isZh ? '时间' : 'Time'}</th>
                       <th>{isZh ? '模型' : 'Model'}</th>
                       <th>Key</th>
+                      <th title={isZh ? '本次调用的思考度' : 'Thinking level for this call'}>
+                        {isZh ? '思考度' : 'Thinking'}
+                      </th>
                       <th title={isZh ? '首字延迟（Time to First Token）' : 'Time to first token'}>
                         {isZh ? '首字延迟' : 'First token'}
                       </th>
@@ -538,6 +542,9 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                             <span className="usage-key-label">
                               {entry.providerId ?? (isZh ? '未知 Key' : 'Unknown Key')}
                             </span>
+                          </td>
+                          <td className="usage-call-thinking" data-testid="usage-call-thinking">
+                            {formatThinkingLabel(entry.thinkingLevel, isZh)}
                           </td>
                           <td
                             className="usage-tps-cell"

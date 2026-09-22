@@ -93,6 +93,7 @@ export function areChatMessageRowPropsEqual(
     previous.onOpenSession === next.onOpenSession &&
     previous.derivedActionsDisabled === next.derivedActionsDisabled &&
     previous.isLastAssistantInTurn === next.isLastAssistantInTurn &&
+    previous.turnInProgress === next.turnInProgress &&
     previous.turnFlashcardTools === next.turnFlashcardTools &&
     previous.turnTools === next.turnTools &&
     previous.isLatestAssistantResponse === next.isLatestAssistantResponse &&

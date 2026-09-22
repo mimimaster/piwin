@@ -1,5 +1,8 @@
 /**
  * Floating side-tool picker for the right panel.
+ *
+ * Every entry opens another instance. Already-open tools stay selectable,
+ * so two Browsers can sit next to each other the way two terminals do.
  */
 
 import { type ReactElement } from 'react';
@@ -11,14 +14,14 @@ import {
   isPlusMenuSection,
   sectionLabel,
   type RightPanelTab,
+  type RightPanelToolKind,
 } from './right-panel-sections';
 
 export type RightPanelPlusMenuProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   locale: DesktopLocale;
-  openTabs: RightPanelTab[];
-  onSelect: (tab: RightPanelTab) => void;
+  onSelect: (kind: RightPanelToolKind) => void;
   active?: boolean;
 };
 
@@ -59,7 +62,6 @@ export function RightPanelPlusMenu(props: RightPanelPlusMenuProps): ReactElement
       </DropdownMenuLabel>
       {SECTION_META.filter(isPlusMenuSection).map((tab) => {
         const labelText = sectionLabel(tab.id, props.locale);
-        const alreadyOpen = tab.id === 'terminal' ? false : props.openTabs.includes(tab.id);
         return (
           <DropdownMenuItem
             key={tab.id}
@@ -70,14 +72,11 @@ export function RightPanelPlusMenu(props: RightPanelPlusMenuProps): ReactElement
               {tab.icon}
             </span>
             <span className="right-panel-plus-label">{labelText}</span>
-            {alreadyOpen ? (
-              <span className="right-panel-plus-hint muted">
-                {props.locale === 'zh-CN' ? '已打开' : 'Open'}
-              </span>
-            ) : null}
           </DropdownMenuItem>
         );
       })}
     </DropdownMenu>
   );
 }
+
+export type { RightPanelTab };

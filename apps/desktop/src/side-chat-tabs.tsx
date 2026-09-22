@@ -1,8 +1,6 @@
-import { useLayoutEffect, useState, type ReactElement } from 'react';
-import { createPortal } from 'react-dom';
+import type { ReactElement } from 'react';
 import { IconButton } from '@piwin/ui-kit';
 import type { SessionSummary } from '@piwin/contracts';
-import { RIGHT_PANEL_SIDE_CHAT_TABS_SLOT_ID } from './right-panel-chrome.js';
 import { IconClose, IconSideChat } from './shell-icons.js';
 
 export const SIDE_CHAT_DRAFT_TAB_ID = 'draft';
@@ -39,6 +37,8 @@ export type SideChatTabStripProps = {
   onClose: (id: string) => void;
 };
 
+/** Session tabs live inside the Side Chat panel. The right-panel strip is the
+ * instance list (Side chat, Side chat 2), so these must not replace it. */
 export function SideChatTabStrip(props: SideChatTabStripProps): ReactElement {
   const isChinese = props.locale === 'zh-CN';
   return (
@@ -81,18 +81,4 @@ export function SideChatTabStrip(props: SideChatTabStripProps): ReactElement {
       </div>
     </div>
   );
-}
-
-/** Prefer the right-panel titlebar slot so session tabs share that one row. */
-export function SideChatTabStripPortal(props: SideChatTabStripProps): ReactElement | null {
-  const [slot, setSlot] = useState<HTMLElement | null>(null);
-  const [lookedUp, setLookedUp] = useState(false);
-  useLayoutEffect(() => {
-    setSlot(document.getElementById(RIGHT_PANEL_SIDE_CHAT_TABS_SLOT_ID));
-    setLookedUp(true);
-  }, []);
-  const strip = <SideChatTabStrip {...props} />;
-  if (slot) return createPortal(strip, slot);
-  if (!lookedUp) return null;
-  return strip;
 }

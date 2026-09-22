@@ -78,6 +78,7 @@ describe('SessionTranscriptStore queued-turn leaf', () => {
     );
     expect(await store.getActiveLeaf()).toBe('asst-2');
     expect(await store.getParentMessageId('asst-2')).toBe('asst-1');
+    expect(await store.listBranchPoints({ previewChars: 40 })).toEqual([]);
 
     const starting = await store.transitionQueuedTurn({
       queuedTurnId: 'queued-1',

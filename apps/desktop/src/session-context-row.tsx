@@ -18,6 +18,12 @@ export type SessionContextRowProps = {
   onOpenWorktreeProject?: (worktreePath: string) => void | Promise<void>;
   /** Branch switching is suspended while the agent is streaming. */
   disabled?: boolean;
+  /**
+   * Project switching is only for a conversation that has not started.
+   * Once messages exist (or a transcript is being restored) the chip
+   * renders as a static label.
+   */
+  projectSwitchLocked?: boolean;
 };
 
 export function SessionContextRow(props: SessionContextRowProps): ReactElement | null {
@@ -25,9 +31,10 @@ export function SessionContextRow(props: SessionContextRowProps): ReactElement |
   if (projectPath === null) {
     return null;
   }
+  const projectSwitchable = props.onOpenProject !== undefined && props.projectSwitchLocked !== true;
   return (
     <div className="session-context" data-testid="session-context-row">
-      {props.onOpenProject ? (
+      {projectSwitchable && props.onOpenProject ? (
         <ProjectChip
           projectPath={projectPath}
           recentProjects={props.recentProjects}

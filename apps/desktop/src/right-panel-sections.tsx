@@ -1,5 +1,8 @@
 /**
  * Right panel tab registry — shared by the panel, its plus menu, and tests.
+ *
+ * A tab id is an instance: `browser`, `browser-2`, or a terminal session
+ * (`terminal-1`). The registry below lists tool kinds, which the + menu opens.
  */
 
 import type { ReactElement } from 'react';
@@ -16,18 +19,27 @@ import {
 } from './shell-icons';
 import type { DesktopLocale } from './desktop-locale';
 import type { RightPanelTabKind } from './right-panel-memory';
+import {
+  allocateRightPanelInstanceId,
+  isRightPanelInstanceTab,
+  rightPanelTabKind,
+  type RightPanelToolKind,
+} from './right-panel-instances';
 
-/** Public tab id — `terminal` replaces legacy `activity`, terminal-* for multiple instances. */
-export type RightPanelTab = RightPanelTabKind | `terminal-${string}`;
+/** Public tab id — one open instance of a tool. */
+export type RightPanelTab = RightPanelTabKind;
+
+export type { RightPanelToolKind };
+export { rightPanelTabKind, isRightPanelInstanceTab, allocateRightPanelInstanceId };
 
 export function isTerminalTab(
   tab: string | null | undefined,
 ): tab is 'terminal' | `terminal-${string}` {
-  return typeof tab === 'string' && (tab === 'terminal' || tab.startsWith('terminal-'));
+  return typeof tab === 'string' && isRightPanelInstanceTab(tab, 'terminal');
 }
 
 export const SECTION_META: Array<{
-  id: RightPanelTab;
+  id: RightPanelToolKind;
   icon: ReactElement;
   labelEn: string;
   labelZh: string;
@@ -58,19 +70,27 @@ export function isPlusMenuSection(entry: (typeof SECTION_META)[number]): boolean
   return entry.hidden !== true;
 }
 
+function kindMeta(kind: RightPanelToolKind | null): (typeof SECTION_META)[number] | undefined {
+  return SECTION_META.find((entry) => entry.id === kind);
+}
+
+/** `Browser`, `Browser 2` — the first instance keeps the plain tool name. */
 export function sectionLabel(tab: RightPanelTab, locale: DesktopLocale): string {
-  if (tab.startsWith('terminal-')) {
-    const num = tab.slice('terminal-'.length);
-    return `zsh${num}`;
+  const kind = rightPanelTabKind(tab);
+  if (kind === 'terminal') {
+    if (tab === 'terminal') return 'zsh';
+    const suffix = tab.slice('terminal-'.length);
+    return suffix.length > 0 ? `zsh${suffix}` : 'zsh';
   }
-  const item = SECTION_META.find((entry) => entry.id === tab);
+  const item = kindMeta(kind);
   if (!item) return tab;
-  return locale === 'zh-CN' ? item.labelZh : item.labelEn;
+  const base = locale === 'zh-CN' ? item.labelZh : item.labelEn;
+  if (!kind || tab === kind) return base;
+  const suffix = tab.slice(kind.length + 1);
+  return suffix.length > 0 ? `${base} ${suffix}` : base;
 }
 
 export function sectionIcon(tab: RightPanelTab): ReactElement | null {
-  if (tab.startsWith('terminal-')) {
-    return <IconTerminal />;
-  }
-  return SECTION_META.find((entry) => entry.id === tab)?.icon ?? null;
+  const kind = rightPanelTabKind(tab);
+  return kindMeta(kind)?.icon ?? null;
 }

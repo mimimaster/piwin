@@ -292,7 +292,7 @@ describe('UsagePanel', () => {
     );
     expect(headers).toContain('Key');
     expect(headers).not.toContain('Key（提供商配置）');
-    expect(headers).not.toContain('思考度');
+    expect(headers).toContain('思考度');
     expect(headers).not.toContain('Thinking');
     expect(headers).not.toContain('会话');
     expect(headers).not.toContain('Session');
@@ -300,6 +300,10 @@ describe('UsagePanel', () => {
     expect(headers).not.toContain('用时');
     expect(headers).toContain('TPS');
     expect(headers).not.toContain('输出速率');
+
+    const thinkingCells = container?.querySelectorAll('[data-testid="usage-call-thinking"]');
+    expect(thinkingCells?.[0]?.textContent).toBe('高');
+    expect(thinkingCells?.[1]?.textContent).toBe('—');
 
     const firstTokenCells = container?.querySelectorAll('[data-testid="usage-call-first-token"]');
     expect(firstTokenCells?.[0]?.textContent).toBe('350ms');
@@ -324,7 +328,7 @@ describe('UsagePanel', () => {
 
     const rows = container?.querySelectorAll('[data-testid="usage-call-row"]');
     expect(rows).toHaveLength(2);
-    expect(container?.querySelector('.usage-call-thinking')).toBeNull();
+    expect(container?.querySelectorAll('.usage-call-thinking')).toHaveLength(2);
     const cacheCells = container?.querySelectorAll('.usage-call-cache');
     expect(cacheCells?.[0]?.getAttribute('data-hit')).toBe('true');
     expect(cacheCells?.[1]?.getAttribute('data-hit')).toBe('false');

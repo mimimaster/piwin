@@ -91,8 +91,6 @@ export type WorkbenchInspectorProps = {
   rightPanelResize: InspectorResize;
   isOverlayPresentation: boolean;
   runningJobCount: number;
-  terminalAttention: boolean;
-  onTerminalAttentionClear: () => void;
   onViewChange: Dispatch<SetStateAction<'home' | 'detail'>>;
   locale: DesktopLocale;
   activeTheme: ThemeManifest;
@@ -157,8 +155,6 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     rightPanelResize,
     isOverlayPresentation,
     runningJobCount,
-    terminalAttention,
-    onTerminalAttentionClear,
     onViewChange,
     locale,
     activeTheme,
@@ -291,8 +287,6 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           }}
           isOverlayPresentation={isOverlayPresentation}
           runningJobCount={runningJobCount}
-          terminalAttention={terminalAttention}
-          onTerminalAttentionClear={onTerminalAttentionClear}
           onViewChange={onViewChange}
           locale={locale}
           appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}

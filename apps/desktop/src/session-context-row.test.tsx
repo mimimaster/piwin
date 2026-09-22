@@ -112,6 +112,40 @@ describe('SessionContextRow', () => {
     expect(row?.textContent).not.toContain('/Users/test/piwin');
   });
 
+  it('keeps the project chip clickable before the conversation starts', () => {
+    const rendered = renderRow(
+      <SessionContextRow
+        projectPath="/Users/test/piwin"
+        recentProjects={projects}
+        request={mockRequest}
+        onOpenProject={() => undefined}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-project-chip"]')?.tagName).toBe('BUTTON');
+  });
+
+  it('locks the project chip once the conversation has started', () => {
+    const rendered = renderRow(
+      <SessionContextRow
+        projectPath="/Users/test/piwin"
+        recentProjects={projects}
+        request={mockRequest}
+        onOpenProject={() => undefined}
+        projectSwitchLocked
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const label = container.querySelector('[data-testid="session-context-project"]');
+    expect(label).not.toBeNull();
+    expect(label?.textContent).toContain('piwin');
+    expect(container.querySelector('[data-testid="composer-project-chip"]')).toBeNull();
+  });
+
   it('keeps chips without a full-bleed session-context bar', () => {
     expect(shellCss).toMatch(
       /\.chat-column > \.session-context \{\s*display: none;/,

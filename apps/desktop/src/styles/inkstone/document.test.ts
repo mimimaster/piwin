@@ -14,6 +14,12 @@ describe('Inkstone document typography unified rules', () => {
     expect(documentCss).toContain('--md-code-inline-line-height: 1.4;');
   });
 
+  it('paints inline code pure red, not ink', () => {
+    expect(documentCss).toMatch(
+      /\.markdown \.md-inline-code\s*\{[^}]*color:\s*var\(--inline-code, #c4232b\)/,
+    );
+  });
+
   it('unifies inline code size and line-height directly with reading base', () => {
     expect(documentCss).toMatch(
       /\.markdown \.md-inline-code\s*\{[^}]*font-size:\s*var\(--md-code-inline-font-size/,
@@ -23,6 +29,13 @@ describe('Inkstone document typography unified rules', () => {
     );
     expect(documentCss).toMatch(
       /\.markdown \.md-inline-code\s*\{[^}]*border:\s*0;/,
+    );
+  });
+
+  it('paints openable transcript file chips pure blue, icon included', () => {
+    expect(documentCss).toContain('color: var(--file-link);');
+    expect(documentCss).toMatch(
+      /\.role-assistant \.markdown :is\(a\.pc, a\.md-doc-chip\):not\(\.static\) :is\(\.chip-dir, \.chip-file/,
     );
   });
 

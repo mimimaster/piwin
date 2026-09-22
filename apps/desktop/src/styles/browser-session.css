@@ -161,7 +161,7 @@
 }
 
 /* Default theme pins actions absolutely; reserve room for ⋯ + expand + close. */
-.right-panel-tabstrip.has-browser-tabs {
+.right-panel-tabstrip.has-browser-actions {
   padding-right: 100px;
 }
 

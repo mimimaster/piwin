@@ -543,6 +543,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     messageIndex={messageIndex}
                     showStreamingCaret={streamingCaretMessageId === message.id}
                     isLastAssistantInTurn={turn.lastAssistantMessageId === message.id}
+                    turnInProgress={currentTurnStreaming}
                     turnTools={turnTools}
                     {...(turnFlashcardTools.length > 0 ? { turnFlashcardTools } : {})}
                     isLatestAssistantResponse={isLatestAssistant}

@@ -4,6 +4,7 @@ import {
   sectionLabel,
   sectionIcon,
   isTerminalTab,
+  rightPanelTabKind,
   type RightPanelTab,
 } from './right-panel-sections.js';
 
@@ -17,7 +18,6 @@ export function RightPanelTabs(props: {
   runningJobCount: number;
   cardsDueCount: number | undefined;
   tasksActiveCount: number;
-  terminalAttention: boolean;
   /** Overrides the registry label (a docked canvas shows its artifact title). */
   labels?: Partial<Record<RightPanelTab, string>>;
   /** Docked tools carry drop-target geometry for the docking workspace. */
@@ -50,6 +50,8 @@ export function RightPanelTabs(props: {
                   'data-docking-right-tab-index': String(dockedIndex),
                 }
               : {};
+          const kind = rightPanelTabKind(tab);
+          // Counts belong to the tool, so only the first instance wears the badge.
           const count =
             tab === 'review'
               ? props.changesCount
@@ -64,6 +66,7 @@ export function RightPanelTabs(props: {
             <div
               key={tab}
               className={`right-panel-tab itab${active ? ' active act' : ''}`}
+              data-right-panel-kind={kind ?? undefined}
               {...dockedAttributes}
             >
               <TabsTrigger
@@ -80,9 +83,6 @@ export function RightPanelTabs(props: {
                 </span>
                 {count !== undefined && count > 0 ? (
                   <span className="right-panel-tab-badge">{count}</span>
-                ) : null}
-                {isTerminalTab(tab) && props.terminalAttention ? (
-                  <span className="right-panel-tab-attention att" aria-hidden="true" />
                 ) : null}
               </TabsTrigger>
               <IconButton

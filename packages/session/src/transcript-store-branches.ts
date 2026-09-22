@@ -54,6 +54,15 @@ export type TranscriptBranchPoint = {
 
 const MAX_PREVIEW_CHARS = 500;
 
+// Queued rows are durable UI projections until Host admission starts. They may
+// share a parent with an in-flight reply, but must not create conversation-tree
+// siblings before transitionQueuedTurn reattaches them to the current leaf.
+const TREE_VISIBLE_MESSAGE = `NOT EXISTS (
+  SELECT 1 FROM queued_turn queued
+  WHERE queued.user_message_id = transcript_message.id
+    AND queued.status NOT IN ('starting', 'started')
+)`;
+
 /** Subtree of one message (inclusive). Consumes one bind param: the head id. */
 const SUBTREE_CTE = `WITH RECURSIVE subtree(id) AS (
   SELECT id FROM transcript_message WHERE id = ?
@@ -337,13 +346,17 @@ export function createTranscriptBranchesOps(
             ? db
                 .prepare(
                   `SELECT id, role, substr(text, 1, ?) AS preview FROM transcript_message
-                   WHERE parent_message_id IS NULL ORDER BY sequence ASC`,
+                   WHERE parent_message_id IS NULL
+                     AND ${TREE_VISIBLE_MESSAGE}
+                   ORDER BY sequence ASC`,
                 )
                 .all(listOptions.previewChars)
             : db
                 .prepare(
                   `SELECT id, role, substr(text, 1, ?) AS preview FROM transcript_message
-                   WHERE parent_message_id = ? ORDER BY sequence ASC`,
+                   WHERE parent_message_id = ?
+                     AND ${TREE_VISIBLE_MESSAGE}
+                   ORDER BY sequence ASC`,
                 )
                 .all(listOptions.previewChars, node.parent_message_id)
         ) as unknown as Array<{ id: string; role: string; preview: string }>;

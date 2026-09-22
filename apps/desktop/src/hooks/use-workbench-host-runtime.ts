@@ -70,7 +70,7 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
     orchestrationSchemeId,
     setOrchestrationSchemeId,
   } = chrome;
-  const { setPtyOutput, markTerminalAttentionIfHidden } = terminal;
+  const { setPtyOutput } = terminal;
   const [, rawDispatchNotification] = useReducer(
     notificationReducer,
     undefined,
@@ -187,9 +187,8 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
   const appendJobLog = useCallback(
     (jobId: string, text: string): void => {
       appendJobLogBase(jobId, text);
-      markTerminalAttentionIfHidden();
     },
-    [appendJobLogBase, markTerminalAttentionIfHidden],
+    [appendJobLogBase],
   );
 
   const {

@@ -43,6 +43,9 @@ export function useTerminalSessions(
 ): TerminalSessionsApi {
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  // Closing the last session must stay empty. The effect below only seeds the
+  // first session once per enable, never in response to length dropping to 0.
+  const seededRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sessionsRef = useRef<TerminalSession[]>([]);
   sessionsRef.current = sessions;
@@ -58,6 +61,7 @@ export function useTerminalSessions(
     setSessions([]);
     setActiveSessionId(null);
     counterRef.current = 1;
+    seededRef.current = false;
   }, []);
 
   const createSession = useCallback(
@@ -153,7 +157,8 @@ export function useTerminalSessions(
     [],
   );
 
-  // Initialize with a default session when enabled.
+  // Seed one session the first time the terminal is enabled. Closing the last
+  // session leaves the list empty: length dropping to 0 must not recreate it.
   // A session created before the cwd resolves keeps an empty directory, and
   // pty_open rejects that as "cwd required" without retrying. Adopt the
   // resolved directory while the session has not opened a PTY yet.
@@ -168,31 +173,34 @@ export function useTerminalSessions(
       return;
     }
 
-    if (sessions.length > 0) {
-      const cwd = defaultCwd.trim();
-      if (!cwd) return;
-      setSessions((current) => {
-        let changed = false;
-        const next: TerminalSession[] = current.map((session) => {
-          // 'error' counts: an empty cwd fails pty_open, and that failure
-          // leaves the session past 'idle' before the real directory arrives.
-          if (session.cwd.trim() || session.ptyId) {
-            return session;
-          }
-          if (session.status !== 'idle' && session.status !== 'error') {
-            return session;
-          }
-          changed = true;
-          return { ...session, cwd, status: 'idle', error: null };
-        });
-        return changed ? next : current;
-      });
+    if (!seededRef.current) {
+      seededRef.current = true;
+      const first = createSession();
+      setSessions([first]);
+      setActiveSessionId(first.id);
       return;
     }
 
-    const first = createSession();
-    setSessions([first]);
-    setActiveSessionId(first.id);
+    if (sessions.length === 0) return;
+
+    const cwd = defaultCwd.trim();
+    if (!cwd) return;
+    setSessions((current) => {
+      let changed = false;
+      const next: TerminalSession[] = current.map((session) => {
+        // 'error' counts: an empty cwd fails pty_open, and that failure
+        // leaves the session past 'idle' before the real directory arrives.
+        if (session.cwd.trim() || session.ptyId) {
+          return session;
+        }
+        if (session.status !== 'idle' && session.status !== 'error') {
+          return session;
+        }
+        changed = true;
+        return { ...session, cwd, status: 'idle', error: null };
+      });
+      return changed ? next : current;
+    });
   }, [createSession, defaultCwd, enabled, reset, sessions.length]);
 
   // Cleanup on unmount.

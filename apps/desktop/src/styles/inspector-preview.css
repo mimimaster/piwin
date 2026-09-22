@@ -92,7 +92,8 @@
   gap: var(--s-1);
   min-width: 0;
   min-height: var(--h-sm);
-  padding: 0;
+  padding: 0 var(--s-2);
+  border-bottom: 1px solid var(--line);
 }
 
 .side-chat-tabs {

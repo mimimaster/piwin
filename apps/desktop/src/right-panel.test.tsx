@@ -477,7 +477,7 @@ describe('RightPanel multi-tab', () => {
     expect(compressGlyph?.innerHTML).toContain('M5 9h4V5');
   });
 
-  it('hides tool tabs while Side Chat owns the titlebar slot', () => {
+  it('keeps tool tabs while Side Chat is active', () => {
     writeStoredRightPanelState({ openTabs: ['files', 'sideChat'], activeTab: 'sideChat' });
     const rendered = renderPanel({
       activeTab: 'sideChat',
@@ -486,14 +486,64 @@ describe('RightPanel multi-tab', () => {
     root = rendered.root;
     container = rendered.container;
 
-    expect(container.querySelector('[data-testid="right-panel-open-tab-sideChat"]')).toBeNull();
-    expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).toBeNull();
-    const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
-    expect(tabstrip?.classList.contains('has-side-chat-tabs')).toBe(true);
+    expect(container.querySelector('[data-testid="right-panel-open-tab-sideChat"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).not.toBeNull();
     const slot = container.querySelector('[data-testid="right-panel-side-chat-tabs-slot"]');
-    expect(slot).not.toBeNull();
-    expect(slot?.hasAttribute('hidden')).toBe(false);
+    expect(slot?.hasAttribute('hidden')).toBe(true);
     expect(container.querySelector('[data-testid="side-chat-body"]')).not.toBeNull();
+  });
+
+  it('opens a second instance beside the first instead of focusing it', () => {
+    writeStoredRightPanelState({ openTabs: ['browser'], activeTab: 'browser' });
+    let activeTab: RightPanelTab | null = 'browser';
+    const rendered = renderPanel({
+      activeTab: 'browser',
+      onTabChange: (tab) => {
+        activeTab = tab;
+      },
+      browserContent: <div data-testid="browser-body">browser</div>,
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const plusButton = container.querySelector<HTMLButtonElement>('[data-testid="right-panel-tab-add"]');
+    act(() => {
+      plusButton?.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      plusButton?.dispatchEvent(new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+      plusButton?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    const item = document.querySelector<HTMLElement>('[data-testid="right-panel-plus-browser"]');
+    expect(item?.textContent).not.toContain('已打开');
+    act(() => {
+      item?.click();
+    });
+
+    expect(activeTab).toBe('browser-2');
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <RightPanel
+            open
+            onOpen={() => {}}
+            onClose={() => {}}
+            activeTab="browser-2"
+            onTabChange={(tab) => {
+              activeTab = tab;
+            }}
+            panelWidthPx={320}
+            isResizing={false}
+            onResizePointerDown={() => {}}
+            onResizeReset={() => {}}
+            filesContent={<div data-testid="files-body">files</div>}
+            terminalContent={<div data-testid="terminal-body">terminal</div>}
+            reviewContent={<div data-testid="review-body">review</div>}
+            browserContent={<div data-testid="browser-body">browser</div>}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-browser-2"]')?.textContent).toContain('浏览器 2');
   });
 
   it('keeps the browser tool tab closeable when there are no page tabs', () => {
@@ -507,12 +557,12 @@ describe('RightPanel multi-tab', () => {
 
     expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).not.toBeNull();
     const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
-    expect(tabstrip?.classList.contains('has-browser-tabs')).toBe(true);
+    expect(tabstrip?.classList.contains('has-browser-actions')).toBe(true);
     const tabsSlot = container.querySelector('[data-testid="right-panel-side-chat-tabs-slot"]');
     const actionsSlot = container.querySelector('[data-testid="right-panel-surface-actions-slot"]');
-    expect(tabsSlot?.hasAttribute('hidden')).toBe(false);
+    expect(tabsSlot?.hasAttribute('hidden')).toBe(true);
     expect(actionsSlot?.hasAttribute('hidden')).toBe(false);
-    expect(tabstrip?.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();
+    expect(tabstrip?.querySelector('[data-testid="right-panel-tab-add"]')).not.toBeNull();
 
     const closeBrowser = container.querySelector<HTMLButtonElement>(
       '[data-testid="right-panel-close-tab-browser"]',
@@ -522,8 +572,8 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="browser-body"]')).toBeNull();
   });
 
-  it('hides the browser tool tab once page tabs occupy the titlebar', () => {
-    writeStoredRightPanelState({ openTabs: ['browser'], activeTab: 'browser' });
+  it('keeps the browser tool tab while page tabs exist', () => {
+    writeStoredRightPanelState({ openTabs: ['browser', 'files'], activeTab: 'browser' });
     const rendered = renderPanel({
       activeTab: 'browser',
       browserContent: <BrowserBodyWithPageTabs count={1} />,
@@ -531,8 +581,8 @@ describe('RightPanel multi-tab', () => {
     root = rendered.root;
     container = rendered.container;
 
-    expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).toBeNull();
-    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="browser-body"]')).not.toBeNull();
   });
 
@@ -600,7 +650,7 @@ describe('RightPanel multi-tab', () => {
     container = rendered.container;
 
     const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
-    expect(tabstrip?.classList.contains('has-browser-tabs')).toBe(true);
+    expect(tabstrip?.classList.contains('has-browser-actions')).toBe(true);
     expect(titlebars.at(-1)).toEqual(
       expect.objectContaining({
         tabsSlot: container.querySelector('[data-testid="right-panel-side-chat-tabs-slot"]'),

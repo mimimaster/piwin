@@ -58,6 +58,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     font-family: var(--mono);
     border: 0;
     background: color-mix(in srgb, var(--t1) 6%, transparent);
+    color: var(--inline-code, #c4232b);
     padding: 0 0.25em;
     font-size: var(--md-code-inline-font-size, calc(var(--chat-font-size) * 0.9));
     line-height: var(--md-code-inline-line-height, 1.4);
@@ -117,6 +118,20 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     flex: none;
     font-weight: 500;
     color: var(--t1);
+  }
+  /* Openable file chips in assistant prose: pure blue, including the icon
+     and the dimmed directory. Beats the neutral chip-dir / chip-file colors
+     above. Static (not openable) chips stay ink. */
+  .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) {
+    color: var(--file-link);
+  }
+  .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) :is(.chip-dir, .chip-file, .chip-text, span),
+  .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) :is(.i, svg, .path-chip-icon, .file-icon) {
+    color: var(--file-link) !important;
+    opacity: 1;
+  }
+  .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static):hover {
+    color: var(--file-link);
   }
   .markdown .md-code-block {
     background: var(--code);

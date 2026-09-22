@@ -84,15 +84,15 @@ describe('right-panel-memory multi-tab', () => {
     expect(readStoredRightPanelView(storage)).toBe('home');
   });
 
-  it('round-trips notes and side chat tabs', () => {
+  it('round-trips notes, side chat, and a second instance', () => {
     const storage = memoryStorage();
     writeStoredRightPanelState(
-      { openTabs: ['notes', 'sideChat'], activeTab: 'notes' },
+      { openTabs: ['notes', 'sideChat', 'browser-2'], activeTab: 'browser-2' },
       storage,
     );
     expect(readStoredRightPanelState(storage)).toEqual({
-      openTabs: ['notes', 'sideChat'],
-      activeTab: 'notes',
+      openTabs: ['notes', 'sideChat', 'browser-2'],
+      activeTab: 'browser-2',
     });
   });
 });

@@ -8,6 +8,20 @@
   display: none !important;
 }
 
+/* System-message file links are outside .markdown, so the document sheet
+   never reaches them. Same pure blue as assistant path chips. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) {
+  color: var(--file-link);
+}
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.chip-dir, .chip-file, .chip-text, span),
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .role-assistant .system-message-content :is(a.pc, a.system-file-link):not(.static) :is(.i, svg, .path-chip-icon, .file-icon) {
+  color: var(--file-link) !important;
+  opacity: 1;
+}
+
 /* The lifted turn identity only wraps the (hidden) Deck message header, but
    `.conversation-response` still reserves min-height: 32px — an empty band
    above 已工作 that pushed the fold row below the rail byline. */

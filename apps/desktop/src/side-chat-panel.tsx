@@ -45,7 +45,7 @@ import {
 import {
   listSideChatTabs,
   SIDE_CHAT_DRAFT_TAB_ID,
-  SideChatTabStripPortal,
+  SideChatTabStrip,
 } from './side-chat-tabs.js';
 import { MarkdownView } from './MarkdownView.js';
 import type { DesktopLocale } from './desktop-locale.js';
@@ -479,7 +479,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
 
   return (
     <div className="side-chat-panel" data-testid="side-chat-panel">
-      <SideChatTabStripPortal
+      <SideChatTabStrip
         tabs={tabs}
         activeId={activeTabId}
         locale={locale}

@@ -219,7 +219,7 @@
   padding: 2px var(--s-3);
   border-radius: var(--r-chip);
   background: transparent;
-  color: var(--text-1);
+  color: var(--inline-code, #c4232b);
   border: none;
   font-weight: 450;
 }
