@@ -15,6 +15,7 @@ import { isUnchangedCurrentTurnResend } from '../conversation-branch';
 import { pushError, type NotificationAction } from '../notification-queue';
 import { hostFailureNotice, isStaleInterventionError } from '../host-problem-copy.js';
 import { useDesktopLocale } from '../desktop-locale-context';
+import type { PlanTrayAction } from '../plan-todo-model.js';
 
 export type UseWorkbenchTurnActionsArgs = {
   hostClient: HostClient;
@@ -205,13 +206,19 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
     [dispatchNotification, hostClient, locale, sendPrompt, state.activeSessionId],
   );
 
-  const handlePlanAbort = useCallback(async (): Promise<void> => {
+  // `abort` stops a live Host execution; `complete`/`dismiss` close a plan the
+  // agent left `executing` after its turn ended, which `plan/abort` rejects.
+  const handlePlanAction = useCallback(async (action: PlanTrayAction): Promise<void> => {
     if (!state.activeSessionId || !sessionPlan) return;
-    const response = await hostClient.request({
-      type: 'plan/abort',
-      sessionId: state.activeSessionId,
-      planId: sessionPlan.id,
-    });
+    const response = await hostClient.request(
+      action === 'abort'
+        ? { type: 'plan/abort', sessionId: state.activeSessionId, planId: sessionPlan.id }
+        : {
+            type: 'plan/set-status',
+            sessionId: state.activeSessionId,
+            status: action === 'complete' ? 'done' : 'abandoned',
+          },
+    );
     if (!response.success) {
       dispatchNotification({
         type: 'notify/push',
@@ -227,6 +234,6 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
     handleEditAndResendMessage,
     handleMessageFeedback,
     handlePlanExecute,
-    handlePlanAbort,
+    handlePlanAction,
   };
 }

@@ -32,6 +32,20 @@ export function isPlanProgressTool(tool: Pick<ToolCardUi, 'toolName' | 'presenta
   );
 }
 
+/** What the todo tray can ask the Host to do with the plan. */
+export type PlanTrayAction = 'abort' | 'complete' | 'dismiss';
+
+/**
+ * A Host-driven execution is actually in flight. `plan.status === 'executing'`
+ * alone is not enough: a plan the agent works through inline, or one left
+ * mid-way when the turn ended, stays `executing` with an idle execution, and
+ * `plan/abort` rejects it ("plan is not running").
+ */
+export function isPlanExecutionLive(plan: Pick<SessionPlan, 'execution'>): boolean {
+  const status = plan.execution?.status;
+  return status === 'running' || status === 'queued';
+}
+
 export function planHasOpenSteps(plan: Pick<SessionPlan, 'steps'>): boolean {
   return plan.steps.some((step) => step.status === 'pending' || step.status === 'active');
 }

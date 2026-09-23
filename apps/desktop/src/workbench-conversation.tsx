@@ -35,7 +35,7 @@ import { InkWashEmptyVignette } from './ink-wash-empty-vignette';
 import type { DoccardsHostRequest } from './knowledge/knowledge-host-request';
 import type { ModelOption } from './model-options';
 import { PermissionBar } from './permission-bar';
-import { shouldShowPlanTodoTray } from './plan-todo-model.js';
+import { shouldShowPlanTodoTray, type PlanTrayAction } from './plan-todo-model.js';
 import { PlanTodoTray } from './plan-todo-tray.js';
 import { ProjectTrustNotice } from './project-trust-notice';
 import { SessionArchivedBanner } from './session-archived-banner';
@@ -346,7 +346,7 @@ export type WorkbenchPermissionBarProps = {
   sidebarMode: SidebarMode;
   extensionUiRequest: ExtensionUiRequestState | null;
   sessionPlan?: SessionPlan | null;
-  onPlanAbort?: () => void | Promise<void>;
+  onPlanAction?: (action: PlanTrayAction) => void | Promise<void>;
   onOpenDocument?: (doc: DocumentOpenInput) => void;
   onPermission: (
     decision: PermissionDecision,
@@ -382,7 +382,7 @@ export function WorkbenchPermissionBar(
     sidebarMode,
     extensionUiRequest,
     sessionPlan,
-    onPlanAbort,
+    onPlanAction,
     onOpenDocument,
     onPermission,
     onExtensionUiResolve,
@@ -399,7 +399,7 @@ export function WorkbenchPermissionBar(
       <PlanTodoTray
         plan={sessionPlan}
         {...(onOpenDocument ? { onOpenDocument } : {})}
-        {...(onPlanAbort ? { onAbort: onPlanAbort } : {})}
+        {...(onPlanAction ? { onAction: onPlanAction } : {})}
       />
     ) : null;
 

@@ -76,8 +76,36 @@ describe('PlanTodoTray', () => {
         childSessionIds: [],
       },
     });
-    const { container, root } = renderTray(<PlanTodoTray plan={plan} onAbort={() => undefined} />);
+    const { container, root } = renderTray(<PlanTodoTray plan={plan} onAction={() => undefined} />);
     expect(container.querySelector('[data-testid="plan-abort"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="plan-dismiss"]')).toBeNull();
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('offers Mark done / Dismiss instead of a dead Abort when the turn left the plan executing', () => {
+    // The agent ended its turn with a step still active: the plan says
+    // `executing` but no Host execution is running, so `plan/abort` would fail.
+    const plan = draftPlan({
+      status: 'executing',
+      execution: {
+        sessionId: 's1',
+        planId: 'p1',
+        mode: 'subagent-driven',
+        status: 'idle',
+        childSessionIds: [],
+      },
+    });
+    const onAction = vi.fn();
+    const { container, root } = renderTray(<PlanTodoTray plan={plan} onAction={onAction} />);
+    expect(container.querySelector('[data-testid="plan-abort"]')).toBeNull();
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="plan-complete"]')?.click();
+    });
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="plan-dismiss"]')?.click();
+    });
+    expect(onAction.mock.calls).toEqual([['complete'], ['dismiss']]);
     act(() => root.unmount());
     container.remove();
   });

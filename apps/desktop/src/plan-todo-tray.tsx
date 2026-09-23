@@ -8,7 +8,7 @@ import { useState, type MouseEvent, type ReactElement } from 'react';
 import type { SessionPlan } from '@piwin/contracts';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import { useDesktopLocale } from './desktop-locale-context.js';
-import { compactPlanSteps } from './plan-todo-model.js';
+import { compactPlanSteps, isPlanExecutionLive, type PlanTrayAction } from './plan-todo-model.js';
 import { planDocumentOpenInput, planStepVisual, StepIcon } from './plan-card.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
 
@@ -83,7 +83,7 @@ export function PlanTrayStatusIcon({
 export type PlanTodoTrayProps = {
   plan: SessionPlan;
   onOpenDocument?: ((doc: DocumentOpenInput) => void) | undefined;
-  onAbort?: () => void | Promise<void>;
+  onAction?: (action: PlanTrayAction) => void | Promise<void>;
   actionInProgress?: boolean;
   defaultExpanded?: boolean;
 };
@@ -91,7 +91,7 @@ export type PlanTodoTrayProps = {
 export function PlanTodoTray({
   plan,
   onOpenDocument,
-  onAbort,
+  onAction,
   actionInProgress = false,
   defaultExpanded = false,
 }: PlanTodoTrayProps): ReactElement {
@@ -99,11 +99,7 @@ export function PlanTodoTray({
   const isZh = locale === 'zh-CN';
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [showAllSteps, setShowAllSteps] = useState(false);
-  const execution = plan.execution;
-  const isRunning =
-    execution?.status === 'running' ||
-    execution?.status === 'queued' ||
-    plan.status === 'executing';
+  const isRunning = isPlanExecutionLive(plan);
   const totalCount = plan.steps.length;
   const doneCount = plan.steps.filter((step) => step.status === 'done').length;
   const compact = compactPlanSteps(plan.steps, showAllSteps);
@@ -118,10 +114,10 @@ export function PlanTodoTray({
     onOpenDocument(planDocumentOpenInput(plan));
   }
 
-  async function handleAbort(event: MouseEvent): Promise<void> {
+  async function handleAction(event: MouseEvent, action: PlanTrayAction): Promise<void> {
     event.stopPropagation();
-    if (!onAbort || actionInProgress) return;
-    await onAbort();
+    if (!onAction || actionInProgress) return;
+    await onAction(action);
   }
 
   const heading = isZh ? '待办' : 'Todo';
@@ -220,13 +216,13 @@ export function PlanTodoTray({
               <span>{isZh ? '文档' : 'Plan'}</span>
             </button>
           ) : null}
-          {isRunning && onAbort ? (
+          {isRunning && onAction ? (
             <button
               type="button"
               className="plan-todo-tray-abort"
               data-testid="plan-abort"
               disabled={actionInProgress}
-              onClick={(e) => void handleAbort(e)}
+              onClick={(e) => void handleAction(e, 'abort')}
               title={isZh ? '中止计划执行' : 'Abort plan'}
             >
               <svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor">
@@ -234,6 +230,30 @@ export function PlanTodoTray({
               </svg>
               <span>{isZh ? '中止' : 'Abort'}</span>
             </button>
+          ) : null}
+          {!isRunning && onAction ? (
+            <>
+              <button
+                type="button"
+                className="plan-todo-tray-doc"
+                data-testid="plan-complete"
+                disabled={actionInProgress}
+                onClick={(e) => void handleAction(e, 'complete')}
+                title={isZh ? '把计划标记为已完成并收起' : 'Mark the plan done and hide it'}
+              >
+                <span>{isZh ? '标记完成' : 'Mark done'}</span>
+              </button>
+              <button
+                type="button"
+                className="plan-todo-tray-doc"
+                data-testid="plan-dismiss"
+                disabled={actionInProgress}
+                onClick={(e) => void handleAction(e, 'dismiss')}
+                title={isZh ? '放弃剩余步骤并收起' : 'Drop the remaining steps and hide it'}
+              >
+                <span>{isZh ? '关闭' : 'Dismiss'}</span>
+              </button>
+            </>
           ) : null}
         </div>
       </div>

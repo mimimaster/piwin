@@ -347,7 +347,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     handleEditAndResendMessage,
     handleMessageFeedback,
     handlePlanExecute,
-    handlePlanAbort,
+    handlePlanAction,
     activeMedia,
     readTranscriptMedia,
     forkCountsByMessageId,
@@ -754,7 +754,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       sidebarMode={sidebarMode}
                       extensionUiRequest={extensionUiRequest}
                       sessionPlan={sessionPlan}
-                      onPlanAbort={handlePlanAbort}
+                      onPlanAction={handlePlanAction}
                       onOpenDocument={handleOpenDocument}
                       onPermission={handlePermission}
                       onExtensionUiResolve={handleExtensionUiResolve}
