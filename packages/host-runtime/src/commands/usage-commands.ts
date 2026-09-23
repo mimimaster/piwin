@@ -31,6 +31,7 @@ export async function handleUsageCommand(
         ...(command.projectPath ? { projectPath: command.projectPath } : {}),
         ...(command.window ? { window: command.window } : {}),
         ...(command.topSessions !== undefined ? { topSessions: command.topSessions } : {}),
+        ...(command.timeZone !== undefined ? { timeZone: command.timeZone } : {}),
       });
       return ok(requestId, 'usage/get-rollup', { rollup });
     }

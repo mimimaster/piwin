@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 /** Token usage statistics panel (CE-OBS). */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { HostResponse, UsageCallLog, UsageRollup } from '@piwin/contracts';
@@ -113,6 +113,7 @@ type UsageRequestCommand = {
   windowMinutes?: number;
   limit?: number;
   offset?: number;
+  timeZone?: string;
 };
 
 const SAMPLE_CALL_LOG: UsageCallLog = {
@@ -222,14 +223,38 @@ describe('UsagePanel', () => {
     ).toBe('project');
   });
 
-  it('renders one consolidated daily token-composition chart', async () => {
-    ({ root, container } = renderPanel());
-    await flushLoad();
+  it('renders a one-year heatmap read in the viewer time zone with a hover card', async () => {
+    vi.useFakeTimers({ now: new Date('2026-08-03T12:00:00Z'), toFake: ['Date'] });
+    const rollupCommands: UsageRequestCommand[] = [];
+    const request = async (command: UsageRequestCommand) => {
+      if (command.type === 'usage/list-recent') return okResponse({ log: SAMPLE_CALL_LOG });
+      rollupCommands.push(command);
+      return okResponse({ rollup: SAMPLE_ROLLUP });
+    };
+    try {
+      ({ root, container } = renderPanel({ request }));
+      await flushLoad();
+      await flushLoad();
 
-    expect(container?.querySelectorAll('.usage-trend-column')).toHaveLength(2);
-    expect(container?.querySelectorAll('.usage-trend-bar span')).toHaveLength(8);
-    expect(container?.querySelector('.usage-heatmap-card')).toBeNull();
-    expect(container?.querySelector('.usage-perf-table')).toBeNull();
+      // Page rollup + the heatmap's own one-year rollup, both with a zone.
+      expect(rollupCommands.length).toBeGreaterThanOrEqual(2);
+      expect(rollupCommands.every((command) => typeof command.timeZone === 'string')).toBe(true);
+      expect(container?.querySelector('.usage-perf-table')).toBeNull();
+
+      const cells = container?.querySelectorAll('.usage-heatmap-cell[role="img"]') ?? [];
+      expect(cells.length).toBeGreaterThan(360);
+      const active = [...cells].filter((cell) => cell.getAttribute('data-level') !== '0');
+      expect(active).toHaveLength(2);
+
+      act(() => {
+        active[0]?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      });
+      expect(container?.querySelector('[data-testid="usage-heatmap-tooltip"]')?.textContent).toContain(
+        'tokens',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('requests the selected project and defaults to a 30-day window', async () => {
@@ -251,12 +276,14 @@ describe('UsagePanel', () => {
   });
 
   it('can switch the time range to all time', async () => {
-    let requestedWindow: { from?: string; to?: string } | undefined;
+    // The heatmap reads its own one-year window; the page rollup is the one
+    // that must drop its window for "all".
+    const requestedWindows: Array<{ from?: string; to?: string } | undefined> = [];
     const request = async (command: UsageRequestCommand) => {
       if (command.type === 'usage/list-recent') {
         return okResponse({ log: SAMPLE_CALL_LOG });
       }
-      requestedWindow = command.window;
+      requestedWindows.push(command.window);
       return okResponse({ rollup: SAMPLE_ROLLUP });
     };
     ({ root, container } = renderPanel({ request }));
@@ -273,7 +300,7 @@ describe('UsagePanel', () => {
       }
     });
     await flushLoad();
-    expect(requestedWindow).toBeUndefined();
+    expect(requestedWindows).toContain(undefined);
   });
 
   it('does not render the model x Key card', async () => {

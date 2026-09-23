@@ -52,6 +52,21 @@ describe('usage-ledger-store', () => {
     expect(records[0]?.sessionId).toBe('s1');
   });
 
+  it('buckets byDay in the viewer time zone, falling back to UTC for an unknown zone', () => {
+    const records = [
+      // 07:30 in Shanghai on the 2nd is still the 1st in UTC.
+      record({ measurementId: 'tz-a', recordedAt: '2026-08-01T23:30:00.000Z', totalTokens: 10 }),
+      record({ measurementId: 'tz-b', recordedAt: '2026-08-02T03:00:00.000Z', totalTokens: 5 }),
+    ];
+    const local = computeUsageRollup(records, { timeZone: 'Asia/Shanghai' });
+    expect(Object.keys(local.byDay)).toEqual(['2026-08-02']);
+    expect(local.byDay['2026-08-02']?.totalTokens).toBe(15);
+
+    const utc = computeUsageRollup(records, { timeZone: 'Not/AZone' });
+    expect(utc.byDay['2026-08-01']?.totalTokens).toBe(10);
+    expect(utc.byDay['2026-08-02']?.totalTokens).toBe(5);
+  });
+
   it('computes totals, byModel, byDay and per-session rollup', async () => {
     const records = [
       record({

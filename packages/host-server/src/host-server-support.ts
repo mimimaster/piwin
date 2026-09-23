@@ -630,7 +630,9 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
             command.topSessions <= 100)) &&
         (command.window === undefined ||
           ((command.window.from === undefined || command.window.from.length <= 128) &&
-            (command.window.to === undefined || command.window.to.length <= 128)))
+            (command.window.to === undefined || command.window.to.length <= 128))) &&
+        (command.timeZone === undefined ||
+          (typeof command.timeZone === 'string' && command.timeZone.length <= 64))
       );
     case 'usage/list-recent':
       return (

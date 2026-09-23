@@ -2,7 +2,7 @@
  * Compact token usage dashboard (CE-OBS).
  *
  * Information is intentionally consolidated into three summary cards, one
- * token-composition trend, and one model + Key table. Provider configuration
+ * usage heatmap, and one model + Key table. Provider configuration
  * ids are the safe Key dimension: API key values never reach the client.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
@@ -18,6 +18,7 @@ import {
 } from '@piwin/contracts';
 import { isRemoteCommandGapError } from './remote-command-gap.js';
 import { useDesktopLocale } from './desktop-locale-context';
+import { UsageActivityHeatmap } from './usage-activity-heatmap';
 import {
   EMPTY_USAGE_CALL_LOG,
   EMPTY_USAGE_ROLLUP,
@@ -38,9 +39,11 @@ import {
   resolveUsageCallLogPage,
   resolveUsageWindow,
   summarizeUsageCallLog,
-  tokenComponents,
   type UsageTimeRange,
 } from './usage-panel-statistics';
+
+/** Days in the chart are the viewer's days, not UTC ones. */
+const VIEWER_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /** How often the live call log re-reads the ledger while the page is visible. */
 const RECENT_CALLS_POLL_MS = 20_000;
@@ -57,6 +60,7 @@ export type UsagePanelProps = {
     windowMinutes?: number;
     limit?: number;
     offset?: number;
+    timeZone?: string;
   }) => Promise<HostResponse>;
 };
 
@@ -128,6 +132,7 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
         type: 'usage/get-rollup',
         ...(scopedProjectPath ? { projectPath: scopedProjectPath } : {}),
         ...(window ? { window } : {}),
+        timeZone: VIEWER_TIME_ZONE,
       });
       if (!response.success) {
         if (!isRemoteCommandGapError(response.error)) {
@@ -170,18 +175,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
     return () => clearInterval(timer);
   }, [autoRefresh, callLogSupported, callOffset, loadCallLog]);
 
-  const days = useMemo(
-    () => Object.entries(rollup.byDay).sort(([left], [right]) => left.localeCompare(right)),
-    [rollup.byDay],
-  );
-  const chartMaxTokens = useMemo(
-    () =>
-      Math.max(
-        1,
-        ...days.map(([, bucket]) => Math.max(bucket.totalTokens, tokenComponents(bucket))),
-      ),
-    [days],
-  );
   const activeDays = useMemo(
     () => Object.values(rollup.byDay).filter((bucket) => bucket.totalTokens > 0).length,
     [rollup.byDay],
@@ -193,8 +186,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   const cacheableInputTokens = rollup.promptTokens + cacheReadTokens + cacheWriteTokens;
   const cacheHitRate = computePromptCacheHitRate(rollup);
   const rangeLabel = `${formatUsageDate(rollup.firstAt, locale)} – ${formatUsageDate(rollup.lastAt, locale)}`;
-  const firstDay = days[0]?.[0] ?? null;
-  const lastDay = days[days.length - 1]?.[0] ?? null;
 
   // A scope switch is a different result set; start it from the newest page.
   useEffect(() => {
@@ -353,80 +344,14 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
           </section>
         </div>
 
-        <section className="usage-card usage-trend-card">
-          <div className="usage-section-header">
-            <div>
-              <h3>{isZh ? 'Token 趋势' : 'Token trend'}</h3>
-              <p>
-                {isZh
-                  ? '一张图合并直接输入、缓存读写与输出。'
-                  : 'Direct input, cache traffic, and output in one chart.'}
-              </p>
-            </div>
-            <div className="usage-trend-legend" aria-label={isZh ? '图例' : 'Legend'}>
-              <span>
-                <i data-tone="input" />
-                {isZh ? '直接输入' : 'Input'}
-              </span>
-              <span>
-                <i data-tone="cache-read" />
-                {isZh ? '缓存读' : 'Cache read'}
-              </span>
-              <span>
-                <i data-tone="cache-write" />
-                {isZh ? '缓存写' : 'Cache write'}
-              </span>
-              <span>
-                <i data-tone="output" />
-                {isZh ? '输出' : 'Output'}
-              </span>
-            </div>
-          </div>
-
-          {days.length > 0 ? (
-            <div className="usage-trend-scroll">
-              <div
-                className="usage-trend-plot"
-                data-testid="usage-day-bars"
-                style={{ minWidth: `${Math.max(560, days.length * 18)}px` }}
-              >
-                {days.map(([day, bucket]) => {
-                  const composedTotal = tokenComponents(bucket);
-                  const chartTotal = Math.max(bucket.totalTokens, composedTotal);
-                  const height = Math.max(4, Math.round((chartTotal / chartMaxTokens) * 100));
-                  const tooltip = isZh
-                    ? `${day}｜直接输入 ${formatUsageExact(bucket.promptTokens)}｜缓存读 ${formatUsageExact(bucket.cacheReadTokens)}｜缓存写 ${formatUsageExact(bucket.cacheWriteTokens)}｜输出 ${formatUsageExact(bucket.completionTokens)}`
-                    : `${day} | input ${formatUsageExact(bucket.promptTokens)} | cache read ${formatUsageExact(bucket.cacheReadTokens)} | cache write ${formatUsageExact(bucket.cacheWriteTokens)} | output ${formatUsageExact(bucket.completionTokens)}`;
-                  return (
-                    <div className="usage-trend-column" key={day} title={tooltip}>
-                      <div
-                        className="usage-trend-bar"
-                        style={{ height: `${height}%` }}
-                        aria-label={tooltip}
-                      >
-                        <span data-tone="input" style={{ flexGrow: bucket.promptTokens }} />
-                        <span data-tone="cache-read" style={{ flexGrow: bucket.cacheReadTokens }} />
-                        <span
-                          data-tone="cache-write"
-                          style={{ flexGrow: bucket.cacheWriteTokens }}
-                        />
-                        <span data-tone="output" style={{ flexGrow: bucket.completionTokens }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="usage-trend-axis">
-                <span>{formatUsageDate(firstDay, locale)}</span>
-                <span>{formatUsageDate(lastDay, locale)}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="usage-compact-empty">
-              {isZh ? '当前范围还没有按天用量。' : 'No daily usage in this range.'}
-            </div>
-          )}
-        </section>
+        <UsageActivityHeatmap
+          request={props.request}
+          {...(scopedProjectPath ? { projectPath: scopedProjectPath } : {})}
+          timeZone={VIEWER_TIME_ZONE}
+          reloadKey={refreshedAt}
+          locale={locale}
+          isZh={isZh}
+        />
 
 
 

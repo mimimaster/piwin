@@ -22,7 +22,34 @@ export type UsageRollupOptions = {
   projectPath?: string;
   window?: { from?: string; to?: string };
   topSessions?: number;
+  /** IANA zone for `byDay` keys; UTC when omitted or unknown. */
+  timeZone?: string;
 };
+
+/**
+ * `YYYY-MM-DD` of an ISO instant in the viewer's zone. A UTC day would put an
+ * 07:00 turn in UTC+8 on the previous day's bar. `en-CA` formats as ISO date.
+ */
+function createDayKeyFormatter(timeZone: string | undefined): (recordedAt: string) => string {
+  if (timeZone === undefined) return (recordedAt) => recordedAt.slice(0, 10);
+  let format: Intl.DateTimeFormat;
+  try {
+    format = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    // Unknown zone name from an older or foreign client: keep UTC days.
+    return (recordedAt) => recordedAt.slice(0, 10);
+  }
+  return (recordedAt) => {
+    const instant = new Date(recordedAt);
+    return Number.isFinite(instant.getTime()) ? format.format(instant) : recordedAt.slice(0, 10);
+  };
+}
 
 export type UsageCallLogOptions = {
   scope?: SessionScope;
@@ -301,6 +328,7 @@ export function computeUsageRollup(
   const windowFrom = options?.window?.from;
   const windowTo = options?.window?.to;
   const topSessions = options?.topSessions ?? 20;
+  const dayKeyOf = createDayKeyFormatter(options?.timeZone);
 
   const seenMeasurementIds = new Set<string>();
   const filtered = records.filter((record) => {
@@ -352,7 +380,7 @@ export function computeUsageRollup(
       }
       addToBucket(modelKeyBucket, record);
     }
-    const day = record.recordedAt.slice(0, 10);
+    const day = dayKeyOf(record.recordedAt);
     if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
       let dayBucket = byDay[day];
       if (!dayBucket) {

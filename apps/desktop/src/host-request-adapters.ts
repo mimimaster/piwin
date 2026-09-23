@@ -88,6 +88,7 @@ export type HostRequestAdapters = {
     force?: boolean;
     window?: { from?: string; to?: string };
     topSessions?: number;
+    timeZone?: string;
     /** usage/list-recent: rolling window, page size and page offset. */
     windowMinutes?: number;
     limit?: number;
@@ -566,6 +567,7 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           topSessions?: number;
           window?: { from?: string; to?: string };
           projectPath?: string;
+          timeZone?: string;
         } = {
           type: 'usage/get-rollup',
         };
@@ -579,6 +581,7 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         }
         if (command.window) payload.window = command.window;
         if (command.topSessions !== undefined) payload.topSessions = command.topSessions;
+        if (command.timeZone !== undefined) payload.timeZone = command.timeZone;
         return hostClient.request(payload);
       }
       if (command.type === 'web/search-log-list') {

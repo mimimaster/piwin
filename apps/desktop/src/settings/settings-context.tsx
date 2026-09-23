@@ -95,6 +95,7 @@ export type SettingsConfigRequest = (command: {
   force?: boolean;
   window?: { from?: string; to?: string };
   topSessions?: number;
+  timeZone?: string;
   /** usage/list-recent: rolling window, page size and page offset. */
   windowMinutes?: number;
   limit?: number;

@@ -1,0 +1,202 @@
+/* ── Usage heatmap ────────────────────────────────────────────────────
+   Weeks × weekdays, one cell per day. Sequential single hue: four steps
+   of the page's token sky mixed toward transparent, so the ramp sits on
+   whatever surface the theme gives the card. Empty days stay a faint
+   neutral so the calendar shape remains readable. */
+
+.usage-heatmap-card {
+  --usage-heat: var(--usage-cache-read);
+  --usage-heat-0: color-mix(in srgb, var(--text-1) 7%, transparent);
+  --usage-heat-1: color-mix(in srgb, var(--usage-heat) 30%, transparent);
+  --usage-heat-2: color-mix(in srgb, var(--usage-heat) 52%, transparent);
+  --usage-heat-3: color-mix(in srgb, var(--usage-heat) 76%, transparent);
+  --usage-heat-4: var(--usage-heat);
+  --usage-heatmap-months-height: calc(var(--s-3) + 14px);
+  padding: var(--s-7);
+}
+
+.usage-heatmap-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  margin: var(--s-6) 0 0;
+}
+
+.usage-heatmap-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.usage-heatmap-stats dt {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.usage-heatmap-stats dd {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-heatmap-stats dd span {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 400;
+}
+
+.usage-heatmap-figure {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-4);
+  margin-top: var(--s-6);
+}
+
+.usage-heatmap-weekdays {
+  display: grid;
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+  /* Leave the month-label strip below so each label lines up with its row. */
+  padding-bottom: var(--usage-heatmap-months-height);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  line-height: 1;
+}
+
+.usage-heatmap-weekdays span {
+  display: flex;
+  align-items: center;
+}
+
+.usage-heatmap-body {
+  min-width: 0;
+}
+
+.usage-heatmap-grid {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, auto);
+  gap: 3px;
+}
+
+.usage-heatmap-cell {
+  display: block;
+  aspect-ratio: 1;
+  min-width: 0;
+  border-radius: 3px;
+  background: var(--usage-heat-0);
+}
+
+.usage-heatmap-cell[data-level='1'] {
+  background: var(--usage-heat-1);
+}
+
+.usage-heatmap-cell[data-level='2'] {
+  background: var(--usage-heat-2);
+}
+
+.usage-heatmap-cell[data-level='3'] {
+  background: var(--usage-heat-3);
+}
+
+.usage-heatmap-cell[data-level='4'] {
+  background: var(--usage-heat-4);
+}
+
+.usage-heatmap-cell[data-future='true'] {
+  background: transparent;
+}
+
+.usage-heatmap-grid .usage-heatmap-cell[role='img']:hover,
+.usage-heatmap-cell[data-today='true'] {
+  outline: 1px solid color-mix(in srgb, var(--text-1) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.usage-heatmap-months {
+  display: grid;
+  height: var(--usage-heatmap-months-height);
+  box-sizing: border-box;
+  gap: 3px;
+  padding-top: var(--s-3);
+  line-height: 14px;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.usage-heatmap-months span {
+  grid-row: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.usage-heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: var(--s-4);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.usage-heatmap-legend .usage-heatmap-cell {
+  width: 11px;
+}
+
+.usage-heatmap-legend span:first-child {
+  margin-right: var(--s-2);
+}
+
+.usage-heatmap-legend span:last-child {
+  margin-left: var(--s-2);
+}
+
+/* Inverse pill above the hovered cell, like a native tooltip. */
+.usage-heatmap-tooltip {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-3) var(--s-5);
+  border-radius: var(--r-control);
+  background: var(--text-1);
+  box-shadow: var(--elev-3);
+  color: var(--void);
+  font-size: var(--fs-micro);
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 6px));
+  white-space: nowrap;
+}
+
+.usage-heatmap-tooltip[data-edge='start'] {
+  transform: translate(-12px, calc(-100% - 6px));
+}
+
+.usage-heatmap-tooltip[data-edge='end'] {
+  transform: translate(calc(-100% + 12px), calc(-100% - 6px));
+}
+
+.usage-heatmap-tooltip strong {
+  font-weight: 620;
+}
+
+.usage-heatmap-tooltip strong span,
+.usage-heatmap-tooltip > span {
+  font-weight: 400;
+  opacity: 0.72;
+}
+
+@media (max-width: 720px) {
+  .usage-heatmap-card {
+    padding: var(--s-6);
+  }
+
+  .usage-heatmap-stats {
+    gap: var(--s-6);
+  }
+}
