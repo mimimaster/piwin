@@ -13,13 +13,13 @@ import {
 
 describe('resolveSubagentSealChar', () => {
   it('maps known english roles to appropriate single Chinese characters', () => {
-    expect(resolveSubagentSealChar('reviewer')).toBe('审');
-    expect(resolveSubagentSealChar('scout')).toBe('探');
-    expect(resolveSubagentSealChar('explorer')).toBe('探');
-    expect(resolveSubagentSealChar('implementer')).toBe('实');
-    expect(resolveSubagentSealChar('tester')).toBe('测');
-    expect(resolveSubagentSealChar('coder')).toBe('编');
-    expect(resolveSubagentSealChar('planner')).toBe('划');
+    expect(resolveSubagentSealChar('reviewer')).toBe('校');
+    expect(resolveSubagentSealChar('scout')).toBe('斥');
+    expect(resolveSubagentSealChar('explorer')).toBe('斥');
+    expect(resolveSubagentSealChar('implementer')).toBe('铸');
+    expect(resolveSubagentSealChar('tester')).toBe('验');
+    expect(resolveSubagentSealChar('coder')).toBe('铸');
+    expect(resolveSubagentSealChar('planner')).toBe('筹');
   });
 
   it('extracts first Chinese character from role or title', () => {
@@ -100,7 +100,7 @@ describe('SubagentInvocationBlock component', () => {
 
     const seal = container.querySelector('[data-testid="subagent-seal"]');
     expect(seal).not.toBeNull();
-    expect(seal?.textContent).toBe('审');
+    expect(seal?.textContent).toBe('校');
     expect(seal?.getAttribute('data-status')).toBe('running');
 
     const spinner = container.querySelector('.subagent-grind-spinner');
@@ -142,7 +142,7 @@ describe('SubagentInvocationBlock component', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="subagent-seal"]')?.textContent).toBe('实');
+    expect(container.querySelector('[data-testid="subagent-seal"]')?.textContent).toBe('铸');
     expect(container.querySelector('[data-testid="subagent-role-chip"]')?.textContent).toBe(
       'implementer',
     );
@@ -242,7 +242,7 @@ describe('SubagentInvocationBlock component', () => {
 
     const seal = container.querySelector('[data-testid="subagent-seal"]');
     expect(seal?.getAttribute('data-status')).toBe('completed');
-    expect(seal?.textContent).toBe('审');
+    expect(seal?.textContent).toBe('校');
 
     const pill = container.querySelector('[data-testid="subagent-execution-badge"]');
     expect(pill).not.toBeNull();

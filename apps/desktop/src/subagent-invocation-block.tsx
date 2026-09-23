@@ -215,29 +215,58 @@ function latestActivity(
 }
 
 const ROLE_CHAR_MAP: Record<string, string> = {
-  reviewer: '审',
-  review: '审',
-  scout: '探',
-  explorer: '探',
-  research: '探',
-  search: '搜',
-  tester: '测',
-  test: '测',
-  coder: '编',
-  code: '编',
-  implementer: '实',
-  engineer: '工',
-  developer: '发',
-  architect: '构',
-  planner: '划',
-  plan: '计',
-  writer: '文',
-  docs: '档',
-  critic: '评',
-  debugger: '调',
-  fixer: '修',
-  optimizer: '优',
+  // 熔金铸器：代码实现
+  implementer: '铸',
+  coder: '铸',
+  code: '铸',
+  developer: '铸',
+  engineer: '铸',
+  worker: '铸',
+  sidekick: '铸',
+
+  // 校书雠谬：代码审查
+  reviewer: '校',
+  review: '校',
+  critic: '校',
+  auditor: '校',
+
+  // 前哨斥候：探索侦巡
+  scout: '斥',
+  explorer: '斥',
+  research: '斥',
+  search: '斥',
+  searcher: '斥',
+
+  // 勘验证伪：测试验收
+  tester: '验',
+  test: '验',
+  qa: '验',
+
+  // 修葺补阙：排错修复
+  fixer: '补',
+  fix: '补',
+  debugger: '补',
+  debug: '补',
+
+  // 运筹定策：统筹规划
+  planner: '筹',
+  plan: '筹',
+
+  // 居中定枢：系统架构
+  architect: '枢',
+
+  // 秉笔实录：文档撰写
+  writer: '录',
+  docs: '录',
+  documentation: '录',
+
+  // 百炼淬火：性能优化
+  optimizer: '淬',
+  optimize: '淬',
+
+  // 条分缕析：剖析推演
   analyst: '析',
+  analysis: '析',
 };
 
 export function resolveSubagentSealChar(

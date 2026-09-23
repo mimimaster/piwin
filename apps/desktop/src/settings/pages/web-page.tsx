@@ -46,6 +46,7 @@ import {
 import { HostWorkspacePicker } from '../../host-workspace-picker';
 import { pickLocalFile } from '../../pick-project-directory';
 import { FETCH_PROVIDER_OPTIONS, SOURCE_KIND_OPTIONS } from './web-page-options';
+import { WebDevinSourceCard } from '../web-devin-source-card';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
 type SearchDelegateOption = {
@@ -78,8 +79,6 @@ export function WebPage(): ReactElement {
   const [webToolsTab, setWebToolsTab] = useState<'search' | 'fetch' | 'log'>('search');
   useResetSettingsMainScroll(webToolsTab);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [devinTestMessage, setDevinTestMessage] = useState<string | null>(null);
-  const [devinTesting, setDevinTesting] = useState(false);
   const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(() => new Set());
   const [filePickerOpen, setFilePickerOpen] = useState(false);
   const [filePickerPath, setFilePickerPath] = useState('');
@@ -524,66 +523,12 @@ export function WebPage(): ReactElement {
                           />
                         </div>
 
-                        {isExpandable &&
-                        source &&
-                        isExpanded &&
-                        option.id === 'devin' ? (
-                          <div
-                            className="web-source-card-body"
-                            onClick={(event) => event.stopPropagation()}
-                            onKeyDown={(event) => event.stopPropagation()}
-                            data-testid="web-search-devin-subscription"
-                          >
-                            <p className="muted">
-                              {zh
-                                ? '使用订阅页的 Devin 登录（oauth:devin），不会再存一份 token。'
-                                : 'Uses the Devin login from Subscriptions (oauth:devin). No second token is stored.'}
-                            </p>
-                            <Button
-                              variant="ghost"
-                              size="compact"
-                              disabled={saving || devinTesting || remoteSettingsReadOnly === true}
-                              data-testid="web-search-devin-test"
-                              onClick={() => {
-                                const sourceId = source.id;
-                                setDevinTesting(true);
-                                setDevinTestMessage(null);
-                                void testSearchConnection(sourceId, 'devin')
-                                  .then((result) => {
-                                    setDevinTestMessage(
-                                      zh
-                                        ? `连接成功 · ${result.resultCount} 条 · ${result.durationMs}ms`
-                                        : `Connected · ${result.resultCount} results · ${result.durationMs}ms`,
-                                    );
-                                  })
-                                  .catch((error: unknown) => {
-                                    setDevinTestMessage(
-                                      error instanceof Error
-                                        ? error.message
-                                        : zh
-                                          ? 'Devin 搜索连接测试失败'
-                                          : 'Devin search connection test failed',
-                                    );
-                                  })
-                                  .finally(() => {
-                                    setDevinTesting(false);
-                                  });
-                              }}
-                            >
-                              {devinTesting
-                                ? zh
-                                  ? '检测中…'
-                                  : 'Testing…'
-                                : zh
-                                  ? '测试连接'
-                                  : 'Test connection'}
-                            </Button>
-                            {devinTestMessage ? (
-                              <p className="muted" data-testid="web-search-devin-test-result">
-                                {devinTestMessage}
-                              </p>
-                            ) : null}
-                          </div>
+                        {isExpandable && source && isExpanded && option.id === 'devin' ? (
+                          <WebDevinSourceCard
+                            zh={zh}
+                            disabled={saving || remoteSettingsReadOnly === true}
+                            onTest={() => testSearchConnection(source.id, 'devin')}
+                          />
                         ) : null}
 
                         {isExpandable &&
