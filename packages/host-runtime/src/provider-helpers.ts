@@ -140,3 +140,13 @@ export function resolveDefaultModelRef(
     source: 'channel',
   };
 }
+
+export function listKnownChatModelKeys(config: PiwinConfig): string[] {
+  return (config.providers ?? [])
+    .filter((provider) => isProviderEnabled(provider))
+    .flatMap((provider) =>
+      provider.models
+        .filter((model) => isModelEnabled(model) && modelSupportsCapability(model, 'chat'))
+        .map((model) => `${provider.id}::${model.id}`),
+    );
+}

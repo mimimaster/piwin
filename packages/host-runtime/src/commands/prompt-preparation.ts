@@ -2,137 +2,51 @@
  * Split from session-live-commands.ts — pure relocation, no behavior change.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 /**
  * Live session IPC: create/spawn/prompt/compact/export and sub-agent lifecycle.
  * HostRuntime provides SessionLiveContext (maps + ensureLiveSession/bindSession/…).
  */
-import { mkdir, open, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 import type {
-  AgentHost,
-  CreateSessionInput,
-  CreateSessionOptions,
   ExecutionRunRecord,
-  RunTerminalCode,
   HostCommand,
-  HostPush,
-  HostResponse,
   ModelRef,
   ThinkingLevel,
-  PermissionPreset,
-  PiwinConfig,
   PromptInput,
-  QueuedTurnRecord,
-  RunInterventionRecord,
-  SessionHandle,
-  SessionCompactData,
-  SessionCompactExportData,
-  SessionCompactResult,
-  SessionIndexRecord,
-  SessionResumeData,
-  SessionRunAcceptedData,
-  SessionPauseAcceptedData,
-  SessionPauseCheckpoint,
-  SessionPauseCheckpointInput,
-  SessionResumeRunAcceptedData,
-  SessionTranscriptPageData,
   SessionTranscriptMessage,
-  PlanExecutionMode,
 } from '@piwin/contracts';
 import {
-  SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
-  SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
-  SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
-  SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
   isPauseContinueUtterance,
-  type ResolvedArtifactCapability,
   readExplicitSkillIntent,
   wrapLiveDelegationForAgent,
-  DEFAULT_PERMISSION_PRESET,
-  resolvePermissionPreset,
-  resolvePromptPermissionMode,
-  mergeAgentModeIntoPrompt,
-  resolveOrchestrationScheme,
-  mergeOrchestrationSchemeIntoPrompt,
-  OrchestrationSchemeError,
-  isModelEnabled,
-  isProviderEnabled,
-  modelSupportsCapability,
-  estimatePendingPromptTokens,
-  readContextOccupiedTokens,
-  resolveModelContextBudget,
-  type ResolvedOrchestrationScheme,
-  RUN_INTERVENTION_MAX_PENDING_BYTES_PER_RUN,
-  RUN_INTERVENTION_MAX_PENDING_PER_RUN,
-  RUN_INTERVENTION_MAX_TEXT_BYTES,
 } from '@piwin/contracts';
-import type { RunAbortReason } from '../run-abort-reason.js';
-import {
-  createPauseRequestedAbortReason,
-  createSupersededByNewPromptAbortReason,
-  createUserStopAbortReason,
-  formatRunAbortReason,
-} from '../run-abort-reason.js';
-import {
-  clearSessionPlan,
-  createSessionRecord,
-  createSubagentRunStore,
-  streamTranscriptExport,
-  getSessionRecord,
-  listChildSessions,
-  loadSessionPlan,
-  mergeProductHistoryIntoPrompt,
-  saveSessionPlan,
-  exportCompactionMarkdown,
-  buildCompactionSeedMessages,
-  suggestSessionExportBasename,
-  suggestCompactionExportBasename,
-  upsertSessionRecord,
-  readToolOutputSnapshot,
-  openModelContextStore,
-  PlanMutationError,
-  type SessionTranscriptStore,
-  updateSessionPlan,
-} from '@piwin/session';
+import { getSessionRecord, mergeProductHistoryIntoPrompt } from '@piwin/session';
 import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
-import { redactToolText } from '@piwin/agent-host';
-import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
-import { formatPlanForModelContext } from '../format-plan-context.js';
-import { createProductShellSession } from '../product-shell-session.js';
-import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-context-assembly.js';
-import { persistAndPushAssembly } from '../model-context-record.js';
+import { type ModelPromptAssembly } from '../model-context-assembly.js';
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
-import { fail, ok } from '../response-helpers.js';
-import { indexRecordToSummary } from '../session-summary-map.js';
-import {
-  getPiwinProjectsPath,
-  getPiwinRoot,
-  getPiwinSessionDir,
-  getPiwinSessionIndexPath,
-  getPiwinSessionModelContextDatabasePath,
-  getPiwinSessionPlanPath,
-} from '../paths.js';
+import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import { findRegisteredProjectRoot, loadProjectStore } from '@piwin/project';
-import type { TranscriptRecorder } from '../transcript-recorder.js';
-import { SessionRuntimeController } from '../sessions/session-runtime-controller.js';
-import { createSessionMessageResponse } from '../session-message-response.js';
-import {
-  artifactScopeKeyForIndexRecord,
-  resolveGenerationArtifactCapability,
-  indexProjectPathForScope,
-  resolveSessionLocation,
-  scopeFromIndexRecord,
-  workingDirectoryFromIndexRecord,
-} from '../session-scope.js';
-import { repairLegacySessionNames } from '../session-name-repair.js';
-import { findEnabledModel } from '../provider-helpers.js';
+import { scopeFromIndexRecord } from '../session-scope.js';
+import { applyAgentPromptContext } from './agent-prompt-context.js';
+import { collectPreparedAttachmentContributions } from './prompt-assembly-contributions.js';
+import { resolvePromptArtifactCapability } from './prompt-artifact-capability.js';
+import { throwIfPromptPreparationAborted } from './prompt-preparation-abort.js';
+import { persistSessionComposerProfile } from './session-composer-model.js';
 import { activateSkillForPrompt } from './activate-skill-for-prompt.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { shouldInjectLiveWorkPreamble } from '../voice/live-work-preamble.js';
 import { applyInlineArtifactLayout } from '../prompt/inline-artifact-layout.js';
-import { resolveExplicitPlanExecutionMode } from './plan-execution-intent.js';
+
+// These moved into their own modules; re-exported so every existing importer
+// of this entry point keeps the surface it already depends on.
+export {
+  applyPromptPermissionOverride,
+  shouldPreserveSessionPermissionOverride,
+} from './agent-prompt-context.js';
+export { listKnownChatModelKeys } from '../provider-helpers.js';
+export { recoverModelFromTranscript } from './session-composer-model.js';
+export { persistSessionComposerProfile, throwIfPromptPreparationAborted };
 
 /** Build resolver deps with registered-project-root enforcement (security). */
 export function createResolveRefsDeps(context: SessionLiveContext): {
@@ -198,73 +112,6 @@ export function resolveResumePromptText(
     return text;
   }
   return `${text}\n\nAdditional user instruction:\n${userText.trim()}`;
-}
-
-class PromptPreparationCancelledError extends Error {
-  constructor() {
-    super('prompt preparation cancelled');
-    this.name = 'PromptPreparationCancelledError';
-  }
-}
-
-export function throwIfPromptPreparationAborted(context: SessionLiveContext, runId: string): void {
-  if (context.getRunSignal(runId)?.aborted) {
-    throw new PromptPreparationCancelledError();
-  }
-}
-
-function isImageAttachment(attachment: NonNullable<PromptInput['attachments']>[number]): boolean {
-  return (
-    attachment.kind === 'media' &&
-    (attachment.contentKind === 'image' ||
-      (attachment.contentKind === undefined &&
-        attachment.mimeType.toLowerCase().startsWith('image/')))
-  );
-}
-
-function collectPreparedAttachmentContributions(
-  assembly: ModelPromptAssembly,
-  original: PromptInput,
-  prepared: PromptInput,
-): void {
-  const originalAttachments = original.attachments ?? [];
-  for (const attachment of originalAttachments) {
-    if (attachment.kind === 'media') {
-      assembly.add({
-        kind: isImageAttachment(attachment) ? 'native-image' : 'attachment-text',
-        label: attachment.mimeType,
-        trustOrigin: 'user',
-        hostPath: attachment.path,
-      });
-    } else {
-      assembly.add({
-        kind: 'web-element',
-        label: 'Web element',
-        trustOrigin: 'external-web',
-        text: attachment.text,
-      });
-    }
-  }
-  if (prepared.text === original.text) {
-    return;
-  }
-  const injected = prepared.text.endsWith(original.text)
-    ? prepared.text.slice(0, Math.max(0, prepared.text.length - original.text.length)).trim()
-    : prepared.text.startsWith(original.text)
-      ? prepared.text.slice(original.text.length).trim()
-      : '';
-  if (injected.length === 0) {
-    return;
-  }
-  const preparedKeptNativeImage =
-    prepared.attachments?.some((attachment) => isImageAttachment(attachment)) === true;
-  const hadImage = originalAttachments.some((attachment) => isImageAttachment(attachment));
-  assembly.add({
-    kind: hadImage && !preparedKeptNativeImage ? 'vision-description' : 'attachment-text',
-    label: hadImage && !preparedKeptNativeImage ? 'Vision / path injection' : 'Attachment text',
-    trustOrigin: 'piwin',
-    text: injected,
-  });
 }
 
 function promptInputFromStoredUser(
@@ -413,7 +260,10 @@ export async function preparePromptInput(
     });
   }
   collectPreparedAttachmentContributions(assembly, promptSource, preparedFromHost);
-  if (promptInput.inlineArtifactWidthPx !== undefined || promptInput.artifactHostTheme !== undefined) {
+  if (
+    promptInput.inlineArtifactWidthPx !== undefined ||
+    promptInput.artifactHostTheme !== undefined
+  ) {
     const config = await context.loadConfig();
     applyInlineArtifactLayout(
       promptInput,
@@ -586,262 +436,6 @@ export async function preparePromptInput(
 }
 
 /**
- * Host-internal continuations omit composer preset/agentMode. Skip
- * applyPromptPermissionOverride so an existing Ask/Auto override is kept
- * instead of clearing back to config (possibly YOLO).
- */
-export function shouldPreserveSessionPermissionOverride(
-  input: Pick<PromptInput, 'permissionPreset' | 'agentMode' | 'source'>,
-): boolean {
-  if (input.permissionPreset !== undefined || input.agentMode !== undefined) {
-    return false;
-  }
-  return (
-    input.source === 'voice-delegation' ||
-    input.source === 'queued-turn' ||
-    input.source === 'resume' ||
-    input.source === 'continuation'
-  );
-}
-
-/** Apply composer Run Mode + agent-mode floor to the session admission gate. */
-export function applyPromptPermissionOverride(
-  context: Pick<
-    SessionLiveContext,
-    'setSessionPermissionOverride' | 'clearSessionPermissionOverride'
-  >,
-  input: {
-    sessionId: string;
-    permissionPreset?: PromptInput['permissionPreset'];
-    agentMode?: PromptInput['agentMode'];
-    configPreset: PermissionPreset;
-  },
-): void {
-  const mode = resolvePromptPermissionMode({
-    configPreset: input.configPreset,
-    ...(input.permissionPreset !== undefined ? { permissionPreset: input.permissionPreset } : {}),
-    ...(input.agentMode !== undefined ? { agentMode: input.agentMode } : {}),
-  });
-  if (mode === undefined) {
-    context.clearSessionPermissionOverride(input.sessionId);
-    return;
-  }
-  context.setSessionPermissionOverride(input.sessionId, mode);
-}
-
-/**
- * Project / Side Chat increments: permission floor, agent-mode contract,
- * orchestration preamble, active plan, and files-touched. Conversation
- * never enters this function (CHT-304).
- */
-/**
- * Artifact capability for the prompt path. The scope class comes from the same
- * durable record the compiler uses, so an Agent chat session with Artifacts off
- * never receives the advisory Inline/theme block. An unreadable record leaves
- * the capability unresolved and the hint is dropped rather than guessed.
- */
-async function resolvePromptArtifactCapability(
-  context: Pick<SessionLiveContext, 'piwinRoot'>,
-  sessionId: string,
-  artifact: PiwinConfig['artifact'] | undefined,
-): Promise<ResolvedArtifactCapability | undefined> {
-  const rootDir = getPiwinRoot(context.piwinRoot);
-  const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
-  const scopeKey = artifactScopeKeyForIndexRecord(record ?? undefined);
-  return scopeKey === undefined
-    ? undefined
-    : resolveGenerationArtifactCapability(artifact, scopeKey, record?.kind === 'subagent');
-}
-
-async function applyAgentPromptContext(
-  context: SessionLiveContext,
-  command: PromptCommand,
-  run: ExecutionRunRecord,
-  assembly: ModelPromptAssembly,
-  promptInput: PromptInput,
-  promptText: string,
-): Promise<void> {
-  // Composer Run Mode (permissionPreset) is session-level and must override
-  // config YOLO. Plan/Ask agent modes still raise the floor via resolvePreset.
-  // Host-internal sources that omit both fields keep the live override.
-  const agentMode = command.input.agentMode;
-  if (!shouldPreserveSessionPermissionOverride(command.input)) {
-    try {
-      const config = await context.loadConfig();
-      applyPromptPermissionOverride(context, {
-        sessionId: command.sessionId,
-        configPreset: resolvePermissionPreset(config.permissions),
-        ...(command.input.permissionPreset !== undefined
-          ? { permissionPreset: command.input.permissionPreset }
-          : {}),
-        ...(agentMode !== undefined ? { agentMode } : {}),
-      });
-    } catch {
-      if (command.input.permissionPreset !== undefined) {
-        applyPromptPermissionOverride(context, {
-          sessionId: command.sessionId,
-          permissionPreset: command.input.permissionPreset,
-          configPreset: DEFAULT_PERMISSION_PRESET,
-          ...(agentMode !== undefined ? { agentMode } : {}),
-        });
-      }
-    }
-  }
-
-  // Agent mode operating contract: model-facing only. Transcript already
-  // recorded the original command.input (user text only) so naming stays clean.
-  if (command.input.agentMode) {
-    const before = promptInput.text;
-    promptInput.text = mergeAgentModeIntoPrompt(command.input.agentMode, promptInput.text);
-    if (promptInput.text !== before) {
-      assembly.add({
-        kind: 'agent-mode',
-        label: `Agent mode ${command.input.agentMode}`,
-        trustOrigin: 'piwin',
-        text: promptInput.text.slice(0, Math.max(0, promptInput.text.length - before.length)),
-      });
-    }
-  }
-
-  // ORCH: per-send orchestration scheme — inject model-facing preamble only.
-  // Transcript already recorded original command.input (user text only).
-  const schemeIdRaw = command.input.orchestrationSchemeId;
-  if (schemeIdRaw && schemeIdRaw.trim() && schemeIdRaw.trim() !== 'off') {
-    const config = await context.loadConfig();
-    const knownProfileIds = await context.listKnownSubagentProfileIds();
-    const subagents = config.subagents;
-    const resolved = resolveOrchestrationScheme(
-      {
-        schemes: subagents?.schemes,
-        maxConcurrency: subagents?.maxConcurrency,
-        maxTasksPerRun: subagents?.maxTasksPerRun,
-      },
-      schemeIdRaw,
-      {
-        knownProfileIds,
-        knownModelKeys: listKnownChatModelKeys(config),
-        globalMaxConcurrency: subagents?.maxConcurrency,
-        globalMaxTasksPerRun: subagents?.maxTasksPerRun,
-      },
-    );
-    if (resolved) {
-      context.setRunOrchestrationScheme(run.runId, resolved);
-      const beforeOrch = promptInput.text;
-      promptInput.text = mergeOrchestrationSchemeIntoPrompt(resolved, promptInput.text);
-      if (promptInput.text !== beforeOrch) {
-        assembly.add({
-          kind: 'orchestration',
-          label: resolved.scheme.name,
-          trustOrigin: 'piwin',
-          text: promptInput.text.slice(0, Math.max(0, promptInput.text.length - beforeOrch.length)),
-        });
-      }
-    }
-  } else {
-    context.setRunOrchestrationScheme(run.runId, undefined);
-  }
-
-  const planPath = getPiwinSessionPlanPath(getPiwinRoot(context.piwinRoot), command.sessionId);
-  let activePlan: Awaited<ReturnType<typeof loadSessionPlan>> = null;
-  try {
-    activePlan = await loadSessionPlan(planPath);
-  } catch (error) {
-    context.push({
-      type: 'host/log',
-      level: 'warn',
-      message: `session plan load failed: ${formatError(error)}`,
-    });
-  }
-  throwIfPromptPreparationAborted(context, run.runId);
-
-  // Composer and card share this path: only an explicit one-mode reply
-  // (inline / subagent / 当前会话执行 / 使用子代理执行) approves a draft.
-  // Later turns reuse the stored mode. "执行一下" is not a mode.
-  const explicitPlanMode = resolveExplicitPlanExecutionMode(promptText);
-  const selectedPlanMode =
-    explicitPlanMode ??
-    (activePlan && (activePlan.status === 'approved' || activePlan.status === 'executing')
-      ? activePlan.execution?.mode
-      : undefined);
-
-  if (activePlan?.status === 'draft' && explicitPlanMode !== undefined) {
-    const draftPlanId = activePlan.id;
-    let approvedHere = false;
-    try {
-      const selectedPlan = await updateSessionPlan(planPath, (current) => {
-        if (current === null || current.id !== draftPlanId || current.status !== 'draft') {
-          return current;
-        }
-        approvedHere = true;
-        return {
-          ...current,
-          status: 'approved' as const,
-          updatedAt: new Date().toISOString(),
-          execution: {
-            ...(current.execution ?? {
-              sessionId: command.sessionId,
-              planId: current.id,
-              status: 'idle' as const,
-              childSessionIds: [],
-            }),
-            sessionId: command.sessionId,
-            planId: current.id,
-            mode: explicitPlanMode,
-          },
-        };
-      });
-      if (selectedPlan?.id === draftPlanId && selectedPlan.status === 'approved') {
-        activePlan = selectedPlan;
-        if (approvedHere) {
-          context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: selectedPlan });
-        }
-      }
-    } catch (error) {
-      const message = error instanceof PlanMutationError ? error.message : formatError(error);
-      context.push({
-        type: 'host/log',
-        level: 'warn',
-        message: `explicit plan mode approval failed: ${message}`,
-      });
-    }
-  }
-
-  if (activePlan && (activePlan.status === 'approved' || activePlan.status === 'executing')) {
-    const modeInstruction =
-      selectedPlanMode === 'subagent-driven'
-        ? 'Execution mode: delegate eligible plan steps to subagents, then summarize and verify their results.'
-        : selectedPlanMode === 'inline'
-          ? 'Execution mode: execute the plan directly in this session; do not spawn implementation subagents.'
-          : undefined;
-    const planText = [
-      formatPlanForModelContext(activePlan),
-      `Plan file: ${planPath}`,
-      ...(modeInstruction !== undefined ? [modeInstruction] : []),
-    ].join(String.fromCharCode(10));
-    promptInput.text = `${planText}\n\n${promptInput.text}`;
-    assembly.add({
-      kind: 'active-plan',
-      label: activePlan.title ?? 'Active plan',
-      trustOrigin: 'piwin',
-      text: planText,
-    });
-  }
-
-  throwIfPromptPreparationAborted(context, run.runId);
-
-  const filesTouched = context.sessionFilesTouched.get(command.sessionId);
-  if (filesTouched) {
-    promptInput.text = `${filesTouched}\n\n${promptInput.text}`;
-    assembly.add({
-      kind: 'files-touched',
-      label: 'Files touched',
-      trustOrigin: 'piwin',
-      text: filesTouched,
-    });
-  }
-}
-
-/**
  * ADR 0040 §7(6): inject bounded product history into the model prompt exactly
  * once for a reconstructed runtime generation. Called after cold activation so
  * the marker set by activation is honored; later turns reuse the backend's own
@@ -923,69 +517,4 @@ async function formatBoundedHistoryWithContext(
   }
   lines.push('[/piwin-product-history]');
   return lines.join('\n');
-}
-
-/**
- * Persist the last composer model/thinking onto the product session index so
- * resume and session switch can restore them after process restart.
- */
-export async function persistSessionComposerProfile(
-  context: Pick<SessionLiveContext, 'piwinRoot'>,
-  sessionId: string,
-  profile: { model?: ModelRef; thinkingLevel?: ThinkingLevel },
-): Promise<void> {
-  if (!profile.model && profile.thinkingLevel === undefined) {
-    return;
-  }
-  const rootDir = getPiwinRoot(context.piwinRoot);
-  const indexPath = getPiwinSessionIndexPath(rootDir);
-  const record = await getSessionRecord(indexPath, sessionId);
-  if (!record) {
-    return;
-  }
-  let changed = false;
-  if (profile.model) {
-    const previous = record.model;
-    const sameModel =
-      previous &&
-      previous.protocol === profile.model.protocol &&
-      previous.providerId === profile.model.providerId &&
-      previous.modelId === profile.model.modelId;
-    if (!sameModel) {
-      record.model = profile.model;
-      changed = true;
-    }
-  }
-  if (profile.thinkingLevel !== undefined && record.thinkingLevel !== profile.thinkingLevel) {
-    record.thinkingLevel = profile.thinkingLevel;
-    changed = true;
-  }
-  if (!changed) {
-    return;
-  }
-  record.updatedAt = new Date().toISOString();
-  await upsertSessionRecord(indexPath, record);
-}
-
-/** Recover the last assistant model snapshot from transcript (legacy sessions). */
-export function recoverModelFromTranscript(
-  messages: readonly SessionTranscriptMessage[],
-): ModelRef | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message?.role === 'assistant' && message.model) {
-      return message.model;
-    }
-  }
-  return undefined;
-}
-
-export function listKnownChatModelKeys(config: PiwinConfig): string[] {
-  return (config.providers ?? [])
-    .filter((provider) => isProviderEnabled(provider))
-    .flatMap((provider) =>
-      provider.models
-        .filter((model) => isModelEnabled(model) && modelSupportsCapability(model, 'chat'))
-        .map((model) => `${provider.id}::${model.id}`),
-    );
 }
