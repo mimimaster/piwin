@@ -1,6 +1,6 @@
 /**
- * Provider draft type and pure helpers shared between ProviderSettings
- * and provider-connection components.
+ * Provider draft type and pure helpers shared by ProviderSettings and
+ * the provider drawer.
  */
 
 import type { ModelCategory, ModelConfigEntry, ModelProviderConfig, ModelSource } from '@piwin/contracts';

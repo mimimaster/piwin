@@ -1,4 +1,4 @@
-/* Settings: provider connection strip, model edit popover, inline model form.
+/* Settings: model edit popover, inline model form.
    Split out of settings-resources.css (one region, split by responsibility
    per AGENTS.md 3.2).
 
@@ -6,104 +6,6 @@
    everything in it recesses — the panel is a well cut into the row, and the
    fields are wells cut into that. Going up another step here would put a
    sub-form above the card that contains it. */
-
-/* ── Connection strip ─────────────────────────────────────────────────── */
-
-.provider-connection-strip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-6);
-  padding: var(--s-5) var(--s-6);
-  background: var(--surface-2);
-  border: 0;
-  box-shadow: var(--elev-1);
-  border-radius: var(--r-card);
-  margin-bottom: var(--s-4);
-}
-
-.provider-connection-strip-main {
-  display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  min-width: 0;
-  flex: 1;
-}
-
-.provider-connection-strip-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  min-width: 0;
-}
-
-.provider-connection-strip-title {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-1);
-  letter-spacing: var(--tracking-tight);
-}
-
-.provider-connection-strip-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  font-size: var(--fs-chrome);
-  color: var(--text-3);
-  line-height: 1.35;
-  min-width: 0;
-}
-
-.provider-connection-strip-url {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 320px;
-}
-
-.provider-connection-strip-sep {
-  color: var(--text-4);
-}
-
-.provider-connection-strip-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  flex-shrink: 0;
-}
-
-.provider-connection-strip-status {
-  font-size: var(--fs-micro);
-  color: var(--text-4);
-}
-
-.provider-connection-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-4);
-}
-
-.provider-connection-dot--ok {
-  background: var(--mint);
-}
-
-.provider-connection-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-6);
-  padding: var(--s-2) var(--s-1) var(--s-1);
-  min-width: 0;
-}
-
-.provider-connection-form-hint {
-  font-size: var(--fs-chrome);
-  line-height: var(--lh-normal);
-  margin: 0 0 var(--s-1);
-}
 
 /* ── Model edit popover ───────────────────────────────────────────────── */
 
