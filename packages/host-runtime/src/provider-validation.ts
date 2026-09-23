@@ -277,6 +277,10 @@ export function validateProviders(
 
 export function validatePiwinConfig(config: PiwinConfig): ProviderValidationIssue[] {
   const issues: ProviderValidationIssue[] = validateProviders(config.providers);
+  // A configured imageGeneration defaultModel must still be resolvable to a real,
+  // enabled, image-capable model. Like web delegate references, this is a warning,
+  // not an error: disabling a provider or model in the same save is a legal edit —
+  // image generation degrades until the user updates the reference or re-enables the model.
   const imageDefault = config.imageGeneration?.defaultModel;
   if (imageDefault) {
     const providerIndex = config.providers.findIndex(
@@ -287,12 +291,14 @@ export function validatePiwinConfig(config: PiwinConfig): ProviderValidationIssu
       issues.push({
         path: 'imageGeneration.defaultModel.providerId',
         message: 'default image provider is missing or disabled',
+        severity: 'warning',
       });
     } else {
       if (provider.protocol !== imageDefault.protocol) {
         issues.push({
           path: 'imageGeneration.defaultModel.protocol',
           message: 'default image model protocol does not match its provider',
+          severity: 'warning',
         });
       }
       const model = provider.models.find((candidate) => candidate.id === imageDefault.modelId);
@@ -305,6 +311,7 @@ export function validatePiwinConfig(config: PiwinConfig): ProviderValidationIssu
         issues.push({
           path: 'imageGeneration.defaultModel.modelId',
           message: 'default image model is missing, disabled, or not image-capable',
+          severity: 'warning',
         });
       }
     }

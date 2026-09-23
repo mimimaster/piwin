@@ -1,0 +1,294 @@
+/* Settings → Models → providers workspace: the models section
+   (provider-model-list.tsx). Owns .pmodel* and the shared .provider-spin.
+   Test results keep the reserved hues: mint = passed, coral = failed. */
+
+/* ── Models ───────────────────────────────────────────────────────────── */
+
+/* Each model is its own raised card — a thing you can pick up. It lifts on
+   hover and ends in a round disclosure button: together they say "this
+   opens" without a line of instruction text. The editor grows inside the same
+   card, so the open state reads as one object. */
+.pmodel-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.pmodel-item {
+  border-radius: var(--r-card);
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  transition:
+    box-shadow var(--t-2) var(--ease-out),
+    transform var(--t-2) var(--ease-out);
+}
+
+.pmodel-item:hover:not(.is-editing) {
+  box-shadow: var(--elev-2);
+  transform: translateY(-1px);
+}
+
+.pmodel-item.is-editing {
+  box-shadow:
+    var(--elev-2),
+    0 0 0 1.5px color-mix(in srgb, var(--iris) 45%, transparent);
+}
+
+.pmodel-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto auto auto 26px;
+  align-items: center;
+  gap: var(--s-5);
+  min-height: 56px;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-card);
+  cursor: pointer;
+}
+
+.pmodel-row:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--iris) 55%, transparent);
+  outline-offset: -2px;
+}
+
+.pmodel-glyph {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  line-height: 0;
+}
+
+.pmodel-item.is-off .pmodel-glyph {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+.pmodel-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-2);
+  transition:
+    transform var(--t-2) var(--ease-out),
+    color var(--t-2) var(--ease-out),
+    background-color var(--t-2) var(--ease-out);
+}
+
+.pmodel-item:hover .pmodel-chevron {
+  background: color-mix(in srgb, var(--text-1) 10%, transparent);
+  color: var(--text-1);
+}
+
+.pmodel-item.is-editing .pmodel-chevron {
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  transform: rotate(180deg);
+}
+
+/* The editor is a well inside the card; its fields start on the name column. */
+.pmodel-item.is-editing .model-edit-inline {
+  margin: 0;
+  padding: var(--s-5) var(--s-6) var(--s-6) calc(var(--s-5) + 30px + var(--s-5));
+  border-top: 1px solid var(--line-1);
+  border-radius: 0 0 var(--r-card) var(--r-card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pmodel-item:hover:not(.is-editing) {
+    transform: none;
+  }
+}
+
+.pmodel-who {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pmodel-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  font-weight: 540;
+  white-space: nowrap;
+}
+
+.pmodel-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.pmodel-param {
+  flex: none;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--hover);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.pmodel-id {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pmodel-item.is-off .pmodel-name {
+  color: var(--text-3);
+}
+
+.pmodel-item.is-off .pmodel-id,
+.pmodel-item.is-off .pmodel-caps {
+  opacity: 0.6;
+}
+
+.pmodel-default {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  padding: 0 var(--s-3) 0 var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.pmodel-caps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
+/* Capability chips stay neutral; only the dot carries the hue, so a row of
+   five chips does not turn into a rainbow. */
+.pmodel-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--hover);
+  color: var(--text-2);
+  font-size: 10.5px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.pmodel-cap::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--text-3);
+}
+
+.pmodel-cap--chat::before {
+  background: var(--sky);
+}
+
+.pmodel-cap--vision::before {
+  background: var(--mint);
+}
+
+.pmodel-cap--reason::before {
+  background: var(--violet, var(--iris));
+}
+
+.pmodel-cap--image::before {
+  background: var(--amber);
+}
+
+.pmodel-cap--video::before {
+  background: var(--coral);
+}
+
+.pmodel-cap--native-web-search::before {
+  background: var(--iris-lift);
+}
+
+.pmodel-test {
+  min-width: 0;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pmodel-test:empty {
+  display: none;
+}
+
+.pmodel-test--ok {
+  color: var(--mint);
+}
+
+.pmodel-test--error {
+  color: var(--coral);
+}
+
+.pmodel-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.pmodel-more.piwin-icon-button {
+  color: var(--text-3);
+  opacity: 0.6;
+  transition: opacity var(--t-2) var(--ease-out);
+}
+
+.pmodel-row:hover .pmodel-more.piwin-icon-button,
+.pmodel-more.piwin-icon-button:focus-visible,
+.pmodel-more.piwin-icon-button[aria-expanded='true'] {
+  color: var(--text-1);
+  opacity: 1;
+}
+
+.pmodel-empty {
+  margin: 0;
+  padding: var(--s-9) var(--s-6);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-card);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-relaxed);
+  text-align: center;
+}
+
+.provider-spin {
+  animation: provider-spin 0.9s linear infinite;
+}
+
+@keyframes provider-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 860px) {
+  .pmodel-caps {
+    display: none;
+  }
+}

@@ -155,64 +155,56 @@ const BRANDS: Record<string, BrandEntry> = {
   azureai: { Icon: AzureAI as BrandIcon, softBg: '#e8f0fe', softFg: '#0078d4' },
 };
 
+/**
+ * Words of an id: "openai/gpt-5.3-codex-spark" → openai, gpt, 5, 3, codex, spark.
+ * Brand keywords match whole words or word prefixes, never the middle of a
+ * word — plain substring matching read "sp·ark" as Volcengine Ark.
+ */
+function idWords(value: string): string[] {
+  return value.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+/** Brand of a model id, if its words name a vendor. Exported for tests. */
+export function resolveModelBrandKey(modelId: string): string | null {
+  const words = idWords(modelId);
+  // Prefix: "qwen3", "stepfun", "gpt5" still name their vendor.
+  const has = (prefix: string): boolean => words.some((word) => word.startsWith(prefix));
+  // Exact: short keywords that are also fragments of ordinary words.
+  const is = (word: string): boolean => words.includes(word);
+
+  if (has('grok')) return 'grok';
+  if (has('gemini') || has('google')) return 'gemini';
+  if (has('claude') || has('anthropic')) return 'claude';
+  if (has('deepseek')) return 'deepseek';
+  if (has('qwen') || has('dashscope') || has('tongyi')) return 'qwen';
+  if (has('kimi')) return 'kimi';
+  if (has('moonshot')) return 'moonshot';
+  if (has('copilot')) return 'github-copilot';
+  if (has('zhipu') || has('glm') || has('chatglm')) return 'zhipu';
+  if (has('silicon')) return 'siliconflow';
+  if (has('mimo')) return 'mimo';
+  if (has('step')) return 'stepfun';
+  if (has('doubao') || has('seedance') || has('seedream')) return 'doubao';
+  if (has('volc') || is('ark')) return 'volcengine';
+  if (has('opencode')) return 'opencode-go';
+  if (has('groq')) return 'groq';
+  if (has('ollama')) return 'ollama';
+  if (has('lmstudio') || (is('lm') && is('studio'))) return 'lmstudio';
+  if (has('codex')) return 'openai-codex';
+  if (has('openai') || has('gpt') || has('chatgpt') || is('o1') || is('o3') || is('o4')) {
+    return 'openai';
+  }
+  if (has('xai')) return 'xai';
+  return null;
+}
+
 function resolveBrand(id: string, modelId?: string): BrandEntry | null {
-  // If modelId is provided (e.g. proxying gemini/claude via a custom endpoint or openai-compatible relay,
-  // or specific model like grok under xai/openrouter), check modelId first for specific brand matching.
+  // A proxied model (gemini via a relay, grok via openrouter…) shows its own
+  // vendor, so the model id is checked before the provider id.
   if (modelId) {
-    const lowerModel = modelId.toLowerCase();
-    if (lowerModel.includes('grok')) return BRANDS.grok!;
-    if (lowerModel.includes('gemini') || lowerModel.includes('google')) return BRANDS.gemini!;
-    if (lowerModel.includes('claude') || lowerModel.includes('anthropic')) return BRANDS.claude ?? BRANDS.anthropic!;
-    if (lowerModel.includes('deepseek')) return BRANDS.deepseek!;
-    if (
-      lowerModel.includes('qwen') ||
-      lowerModel.includes('dashscope') ||
-      lowerModel.includes('tongyi')
-    ) {
-      return BRANDS.qwen!;
-    }
-    if (lowerModel.includes('kimi')) return BRANDS.kimi!;
-    if (lowerModel.includes('moonshot')) return BRANDS.moonshot!;
-    if (lowerModel.includes('copilot')) return BRANDS['github-copilot'] ?? BRANDS.copilot!;
-    if (
-      lowerModel.includes('zhipu') ||
-      lowerModel.includes('glm') ||
-      lowerModel.includes('chatglm')
-    ) {
-      return BRANDS.zhipu!;
-    }
-    if (lowerModel.includes('silicon') || lowerModel.includes('siliconflow')) {
-      return BRANDS.siliconflow!;
-    }
-    if (lowerModel.includes('mimo')) return BRANDS.mimo!;
-    if (lowerModel.includes('step')) return BRANDS.stepfun!;
-    if (
-      lowerModel.includes('doubao') ||
-      lowerModel.includes('seedance') ||
-      lowerModel.includes('seedream')
-    ) {
-      return BRANDS.doubao!;
-    }
-    if (lowerModel.includes('volc') || lowerModel.includes('ark')) {
-      return BRANDS.volcengine!;
-    }
-    if (lowerModel.includes('opencode')) return BRANDS['opencode-go'] ?? BRANDS.opencode!;
-    if (lowerModel.includes('groq')) return BRANDS.groq!;
-    if (lowerModel.includes('ollama')) return BRANDS.ollama!;
-    if (lowerModel.includes('lmstudio') || lowerModel.includes('lm-studio')) {
-      return BRANDS.lmstudio!;
-    }
-    if (lowerModel.includes('codex')) return BRANDS['openai-codex'] ?? BRANDS.codex!;
-    if (
-      lowerModel.includes('openai') ||
-      lowerModel.includes('gpt') ||
-      lowerModel.includes('o1') ||
-      lowerModel.includes('o3') ||
-      lowerModel.includes('chatgpt')
-    ) {
-      return BRANDS.openai!;
-    }
-    if (lowerModel.includes('xai')) return BRANDS.xai!;
+    const key = resolveModelBrandKey(modelId);
+    const brand = key ? BRANDS[key] : undefined;
+    if (brand) return brand;
   }
 
   const direct = BRANDS[id];
@@ -268,7 +260,7 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
   if (
     lower.includes('volcengine') ||
     lower.includes('volces') ||
-    lower.includes('ark') ||
+    idWords(lower).includes('ark') ||
     lower.includes('bytedance')
   ) {
     return BRANDS.volcengine!;
@@ -280,8 +272,11 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
   if (lower.includes('openai') || lower.includes('gpt')) return BRANDS.openai!;
 
   const keys = Object.keys(BRANDS).sort((a, b) => b.length - a.length);
+  const words = idWords(lower);
   for (const key of keys) {
-    if (lower.includes(key)) return BRANDS[key]!;
+    // Short keys (ark, xai, glm) are fragments of ordinary words: whole word only.
+    const matches = key.length <= 3 ? words.includes(key) : lower.includes(key);
+    if (matches) return BRANDS[key]!;
   }
   return null;
 }

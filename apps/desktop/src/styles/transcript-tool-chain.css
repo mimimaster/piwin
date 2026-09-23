@@ -260,36 +260,16 @@
   border-top-color: var(--line-1);
 }
 
-/* The fetch surface owns its own body treatment below the title row. */
+/* The fetch surface owns its own body treatment below the title row. The
+   title row itself is a chain row like any other: no gap / padding / type
+   overrides here, or fetch rows drift off the shared label column (these
+   selectors outrank the Inkstone row rule outside density-compact). */
 .turn-work-details .tool-call-card.is-fetch-style,
 .turn-work-details .tool-call-card.is-fetch-style.is-expanded {
   border: 0;
   background: transparent;
   box-shadow: none;
   overflow: visible;
-}
-
-.turn-work-details .tool-call-card.is-fetch-style .tool-call-summary {
-  gap: var(--s-2);
-  padding: var(--s-2) 0;
-  color: var(--text-3);
-  font-size: var(--fs-body);
-  font-weight: 400;
-}
-
-.turn-work-details .tool-call-card.is-fetch-style .tool-call-action-verb {
-  color: var(--text-3);
-  font-size: var(--fs-body);
-  font-weight: 500;
-}
-
-.turn-work-details .tool-call-card.is-fetch-style .tool-call-preview {
-  flex: 0 1 auto;
-  max-width: calc(100% - 26px);
-  color: var(--text-4);
-  font-family: inherit;
-  font-size: var(--fs-body);
-  font-weight: 400;
 }
 
 .turn-work-details .tool-call-card.is-fetch-style:not(.is-expanded) .tool-call-chevron,

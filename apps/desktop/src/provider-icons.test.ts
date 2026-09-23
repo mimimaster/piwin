@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ProviderIcon } from './provider-icons';
+import { ProviderIcon, resolveModelBrandKey } from './provider-icons';
 
 describe('ProviderIcon', () => {
   it('renders a real brand mark for known preset ids', () => {
@@ -180,5 +180,27 @@ describe('ProviderIcon', () => {
       createElement(ProviderIcon, { id: 'custom-gateway', modelId: 'volcengine-ark-model' }),
     );
     expect(arkModel).toContain('data-provider-brand="Volcengine"');
+  });
+
+  it('matches model brands by whole words, not fragments of words', () => {
+    // "spark" contains "ark" (Volcengine Ark) — it must not match.
+    expect(resolveModelBrandKey('gpt-5.3-codex-spark')).toBe('openai-codex');
+    expect(resolveModelBrandKey('spark-lite')).toBeNull();
+    expect(resolveModelBrandKey('maxai-1')).toBeNull();
+    // Word prefixes still count: versioned and fused names.
+    expect(resolveModelBrandKey('qwen3-max')).toBe('qwen');
+    expect(resolveModelBrandKey('stepfun/step-3')).toBe('stepfun');
+    expect(resolveModelBrandKey('gpt5-mini')).toBe('openai');
+    // Short keywords need the whole word.
+    expect(resolveModelBrandKey('o3-mini')).toBe('openai');
+    expect(resolveModelBrandKey('ark-endpoint-1')).toBe('volcengine');
+    expect(resolveModelBrandKey('lm-studio-local')).toBe('lmstudio');
+    expect(resolveModelBrandKey('google/gemini-3.8-pro')).toBe('gemini');
+    expect(resolveModelBrandKey('deepseek/deepseek-v4-flash-0731:free')).toBe('deepseek');
+  });
+
+  it('keeps a provider id containing "ark" inside a word off Volcengine', () => {
+    const html = renderToStaticMarkup(createElement(ProviderIcon, { id: 'spark-relay' }));
+    expect(html).not.toContain('data-provider-brand="Volcengine"');
   });
 });

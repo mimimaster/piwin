@@ -1,40 +1,46 @@
 /**
- * Models / providers settings — BYOK list + drawer layout:
- *   - provider rows with search, filter, status pill, and enable switch
- *   - expanded row for model list / discover / add / edit
- *   - drawer for connection credentials and API address only
- *   - provider add dialog with preset grid
+ * Models → providers workspace: rail on the left, the selected provider's
+ * connection and models on the right (spec:
+ * docs/specs/2026-09-23-provider-settings-master-detail.md).
  *
- * Manual save in the drawer; the enable switch in the list persists immediately.
+ * Connection fields are a draft with an explicit save; enable switches and
+ * model edits persist immediately.
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { formatError, isProviderEnabled, isSubscriptionProvider } from '@piwin/contracts';
-import type { AuthStatusData } from '@piwin/contracts';
+import {
+  formatError,
+  isSubscriptionProvider,
+  resolveProviderCategory,
+  subscriptionUsesThirdPartyExtraUsage,
+} from '@piwin/contracts';
 import type {
-  ModelConfigEntry,
+  AuthStatusData,
+  ModelCatalogEntry,
   ModelDiscoveryResult,
   ModelProviderConfig,
   PiwinConfig,
 } from '@piwin/contracts';
+import { Button } from '@piwin/ui-kit';
 import { ProviderAddDialog } from './provider-add-dialog.js';
-import { ProviderDrawer } from './provider-drawer.js';
-import { ProviderList, type ModelTestState } from './provider-list.js';
+import { ProviderDetail } from './provider-detail.js';
 import {
-  allocateUniqueProviderId,
-  allocateUniqueProviderName,
-} from './provider-instance-id.js';
-import type { ProviderPreset } from './provider-presets.js';
+  isConnectionDirty,
+  mergeConnectionDraft,
+  pendingApiKey,
+  providerToDraft,
+  withProviders,
+  type ProviderDraft,
+} from './provider-draft.js';
+import { allocateUniqueProviderId, allocateUniqueProviderName } from './provider-instance-id.js';
+import { presetTitle, type ProviderPreset } from './provider-presets.js';
+import { ProviderRail, type ProviderRailTone } from './provider-rail.js';
 import type { ProviderTestStatus } from './provider-status.js';
 import { useDesktopLocale } from './desktop-locale-context.js';
 import { useConfirmDialog } from './use-confirm-dialog.js';
-import {
-  draftToProvider,
-  providerToDraft,
-  resolveDefaultAfterProviderChange,
-  type ProviderDraft,
-} from './provider-draft.js';
+import { useProviderModelActions } from './use-provider-model-actions.js';
 import { useSettings } from './settings/settings-context.js';
+import { IconPlus } from './shell-icons.js';
 
 export type DiscoverModelsOptions = {
   apiKey?: string;
@@ -57,40 +63,68 @@ export type ProviderSettingsProps = {
   ) => Promise<{ durationMs: number }>;
   /** Persist secret on the Host; returns apiKeyRef. */
   onStoreSecret: (providerId: string, secret: string) => Promise<string>;
-  /** Read the saved secret back from the Host so the drawer can reveal it. */
+  /** Read the saved secret back from the Host so the key field can reveal it. */
   onLoadSecret?: (providerId: string) => Promise<string | null>;
-  searchCatalog?: (query: string) => Promise<import('@piwin/contracts').ModelCatalogEntry[]>;
+  searchCatalog?: (query: string) => Promise<ModelCatalogEntry[]>;
+  /**
+   * Selected provider, owned by the page when given: the capability tabs
+   * unmount this component, and coming back should not lose the selection.
+   */
+  selectedProviderId?: string | null;
+  onSelectProvider?: (providerId: string | null) => void;
 };
 
+type ConnectionEdit = { draft: ProviderDraft; isNew: boolean };
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url || '—';
+  }
+}
+
+/** Rail order: custom channels first, then OAuth packages, config order within. */
+function orderForRail(providers: readonly ModelProviderConfig[]): ModelProviderConfig[] {
+  return [
+    ...providers.filter((provider) => resolveProviderCategory(provider) === 'custom'),
+    ...providers.filter((provider) => resolveProviderCategory(provider) === 'package'),
+  ];
+}
+
+function matchesQuery(provider: ModelProviderConfig, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  const haystack = [provider.name, provider.id, provider.baseUrl, ...provider.models.map((m) => m.id)];
+  return haystack.join(' ').toLowerCase().includes(needle);
+}
+
 export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
-  const {
-    config,
-    saving,
-    onSave,
-    onError,
-    onInfo,
-    onDiscoverModels,
-    onTestModel,
-    onStoreSecret,
-    onLoadSecret,
-    searchCatalog,
-  } = props;
+  const { config, saving, onSave, onError, onInfo, onDiscoverModels, onStoreSecret, onLoadSecret } =
+    props;
   const { locale, translator } = useDesktopLocale();
   const copy = translator.settings.provider;
   const common = translator.common;
   const isChinese = locale === 'zh-CN';
   const confirmDialog = useConfirmDialog();
   const { hostClient } = useSettings();
+
   const [reservedSubscriptionIds, setReservedSubscriptionIds] = useState<string[]>([]);
+  const [query, setQuery] = useState('');
+  const [ownSelectedId, setOwnSelectedId] = useState<string | null>(null);
+  const selectedId =
+    props.selectedProviderId !== undefined ? props.selectedProviderId : ownSelectedId;
+  const setSelectedId = props.onSelectProvider ?? setOwnSelectedId;
+  const [edit, setEdit] = useState<ConnectionEdit | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [testStatus, setTestStatus] = useState<Record<string, ProviderTestStatus>>({});
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const testInFlightRef = useRef(false);
 
   useEffect(() => {
-    if (!hostClient?.request) {
-      return;
-    }
+    if (!hostClient?.request) return;
     void hostClient.request({ type: 'auth/status' }).then((response) => {
-      if (!response.success || !response.data || typeof response.data !== 'object') {
-        return;
-      }
+      if (!response.success || !response.data || typeof response.data !== 'object') return;
       const data = response.data as AuthStatusData;
       setReservedSubscriptionIds(
         data.accounts
@@ -106,86 +140,60 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     });
   }, [hostClient]);
 
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<'all' | 'on' | 'off'>('all');
-  const [drawer, setDrawer] = useState<{ draft: ProviderDraft; isNew: boolean } | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
-  const [testStatus, setTestStatus] = useState<Record<string, ProviderTestStatus>>({});
-  const [testingId, setTestingId] = useState<string | null>(null);
-  const testInFlightRef = useRef(false);
-  const [listModelTestStatus, setListModelTestStatus] = useState<Record<string, ModelTestState>>(
-    {},
-  );
-  const [listTestingModelKey, setListTestingModelKey] = useState<string | null>(null);
+  const ordered = useMemo(() => orderForRail(config.providers), [config.providers]);
+  const visible = ordered.filter((provider) => matchesQuery(provider, query));
+  // No (or a removed) selection falls back to the default provider, then to
+  // the first one in the rail.
+  const selected =
+    ordered.find((provider) => provider.id === selectedId) ??
+    ordered.find((provider) => provider.id === config.defaultProviderId) ??
+    ordered[0] ??
+    null;
+  const baselineDraft = useMemo(() => (selected ? providerToDraft(selected) : null), [selected]);
+  const draft = edit?.draft ?? baselineDraft;
+  const isNew = edit?.isNew === true;
+  const dirty = edit !== null && !isNew && selected !== null && isConnectionDirty(edit.draft, selected);
+  const detailProvider = isNew ? null : selected;
 
-  const filteredProviders = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return config.providers.filter((provider) => {
-      if (filter === 'on' && provider.enabled === false) return false;
-      if (filter === 'off' && provider.enabled !== false) return false;
-      if (!q) return true;
-      const hay =
-        `${provider.name} ${provider.id} ${provider.baseUrl} ${provider.models.map((m) => m.id).join(' ')}`.toLowerCase();
-      return hay.includes(q);
+  const modelPropsFor = useProviderModelActions({
+    config,
+    isChinese,
+    onSave,
+    onError,
+    onTestModel: props.onTestModel,
+    onDiscoverModels,
+    searchCatalog: props.searchCatalog,
+  });
+
+  async function confirmDiscard(): Promise<boolean> {
+    if (!isNew && !dirty) return true;
+    return confirmDialog.confirm({
+      title: isChinese ? '放弃未保存的修改？' : 'Discard unsaved changes?',
+      description: isChinese
+        ? '连接设置的修改还没有保存，离开后会丢失。'
+        : 'Your connection changes have not been saved and will be lost.',
+      confirmLabel: isChinese ? '放弃修改' : 'Discard',
+      cancelLabel: common.cancel,
+      tone: 'danger',
     });
-  }, [config.providers, filter, query]);
-
-  const enabledCount = config.providers.filter((p) => p.enabled !== false).length;
-  const modelCount = config.providers.reduce((sum, p) => sum + p.models.length, 0);
-
-  function getProviderStatus(provider: ModelProviderConfig): ProviderTestStatus | null {
-    if (provider.enabled === false) {
-      return { tone: 'off', message: copy.statusOff };
-    }
-    const test = testStatus[provider.id];
-    if (test) return test;
-    return null;
   }
 
-  function markDraft(next: ProviderDraft): void {
-    if (!drawer) return;
-    setDrawer({ ...drawer, draft: next });
+  async function handleSelect(providerId: string): Promise<void> {
+    if (providerId === selected?.id && !isNew) return;
+    if (!(await confirmDiscard())) return;
+    setEdit(null);
+    setSelectedId(providerId);
   }
 
-  async function handleTestConnection(): Promise<void> {
-    if (!drawer || testInFlightRef.current) return;
-    const id = drawer.draft.id;
-    testInFlightRef.current = true;
-    setTestingId(id);
-    const start = performance.now();
-    try {
-      const apiKey = drawer.draft.apiKeyInput.trim();
-      const result = await onDiscoverModels(
-        draftToProvider(drawer.draft),
-        apiKey ? { apiKey } : undefined,
-      );
-      const duration = Math.round(performance.now() - start);
-      const nextStatus: ProviderTestStatus = {
-        tone: 'ok',
-        message: copy.testOk(result.models.length, duration),
-        durationMs: duration,
-      };
-      setTestStatus((prev) => ({ ...prev, [id]: nextStatus }));
-      onInfo(copy.testOk(result.models.length, duration));
-    } catch (error) {
-      const message = formatError(error);
-      const nextStatus: ProviderTestStatus = {
-        tone: 'err',
-        message: `${copy.statusFail}: ${message}`,
-      };
-      setTestStatus((prev) => ({ ...prev, [id]: nextStatus }));
-      onError(`${copy.statusFail}: ${message}`);
-    } finally {
-      testInFlightRef.current = false;
-      setTestingId(null);
-    }
+  function handleDraftChange(next: ProviderDraft): void {
+    setEdit((current) => ({ draft: next, isNew: current?.isNew ?? false }));
   }
 
   async function handleRevealStoredKey(): Promise<void> {
-    if (!drawer || !onLoadSecret) return;
-    const providerId = drawer.draft.id;
+    if (!draft || !onLoadSecret) return;
+    const base = draft;
     try {
-      const secret = (await onLoadSecret(providerId))?.trim() ?? '';
+      const secret = (await onLoadSecret(base.id))?.trim() ?? '';
       if (!secret) {
         onError(isChinese ? '没有读到已保存的密钥。' : 'No saved key was found on the Host.');
         return;
@@ -200,128 +208,107 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
         return;
       }
       // The Host read is async: keep whatever the user typed meanwhile, and
-      // never paste into a different provider's drawer.
-      setDrawer((current) =>
-        current && current.draft.id === providerId && !current.draft.apiKeyInput
-          ? { ...current, draft: { ...current.draft, apiKeyInput: secret } }
-          : current,
-      );
+      // never paste into a different provider's form.
+      setEdit((current) => {
+        const latest = current?.draft ?? base;
+        if (latest.id !== base.id || latest.apiKeyInput) return current;
+        return {
+          draft: { ...latest, apiKeyInput: secret, revealedApiKey: secret },
+          isNew: current?.isNew ?? false,
+        };
+      });
     } catch (error) {
       onError(formatError(error));
     }
   }
 
-  function applyDefaultToConfig(
-    next: PiwinConfig,
-    nextDefault: { defaultProviderId?: string; defaultModelId?: string },
-  ): void {
-    if (nextDefault.defaultProviderId) {
-      next.defaultProviderId = nextDefault.defaultProviderId;
-    } else {
-      delete next.defaultProviderId;
-    }
-    if (nextDefault.defaultModelId) {
-      next.defaultModelId = nextDefault.defaultModelId;
-    } else {
-      delete next.defaultModelId;
+  async function handleTestConnection(): Promise<void> {
+    if (!draft || testInFlightRef.current) return;
+    const id = draft.id;
+    testInFlightRef.current = true;
+    setTestingId(id);
+    const start = performance.now();
+    try {
+      const apiKey = draft.apiKeyInput.trim();
+      const result = await onDiscoverModels(
+        mergeConnectionDraft(draft, detailProvider ?? undefined),
+        apiKey ? { apiKey } : undefined,
+      );
+      const duration = Math.round(performance.now() - start);
+      const message = copy.testOk(result.models.length, duration);
+      setTestStatus((previous) => ({
+        ...previous,
+        [id]: { tone: 'ok', message, durationMs: duration },
+      }));
+      onInfo(message);
+    } catch (error) {
+      const message = `${copy.statusFail}: ${formatError(error)}`;
+      setTestStatus((previous) => ({ ...previous, [id]: { tone: 'err', message } }));
+      onError(message);
+    } finally {
+      testInFlightRef.current = false;
+      setTestingId(null);
     }
   }
 
-  async function handleSave(opts?: {
-    keepOpen?: boolean;
-    default?: { providerId: string; modelId: string };
-  }): Promise<boolean> {
-    if (!drawer) return false;
-    const { draft, isNew } = drawer;
+  async function handleSave(): Promise<void> {
+    if (!draft) return;
     if (!draft.name.trim()) {
       onError(isChinese ? '请填写提供商名称。' : 'Provider name is required.');
-      return false;
+      return;
     }
     if (!draft.baseUrl.trim()) {
       onError(isChinese ? '请填写 API 地址。' : 'API address is required.');
-      return false;
+      return;
     }
-
     let current = draft;
-    const enteredApiKey = draft.apiKeyInput.trim();
-    if (enteredApiKey) {
-      const apiKeyRef = await onStoreSecret(draft.id.trim(), enteredApiKey);
-      current = { ...draft, apiKeyInput: '', storedApiKeyEnv: '', storedApiKeyRef: apiKeyRef };
+    const typedKey = pendingApiKey(draft);
+    if (typedKey) {
+      const apiKeyRef = await onStoreSecret(draft.id.trim(), typedKey);
+      current = { ...draft, storedApiKeyEnv: '', storedApiKeyRef: apiKeyRef };
     }
-
-    const provider = draftToProvider(current);
-    if (isNew && config.providers.find((p) => p.id === provider.id)) {
+    const provider = mergeConnectionDraft(current, detailProvider ?? undefined);
+    if (isNew && config.providers.some((entry) => entry.id === provider.id)) {
       onError(isChinese ? '提供商 ID 已存在。' : 'Provider ID already exists.');
-      return false;
+      return;
     }
-
-    const nextProviders = isNew
+    const providers = isNew
       ? [...config.providers, provider]
-      : config.providers.map((p) => (p.id === provider.id ? provider : p));
-
-    const next: PiwinConfig = { ...config, providers: nextProviders };
-    const defaultSource = opts?.default ?? {
-      providerId: config.defaultProviderId,
-      modelId: config.defaultModelId,
-    };
-    const nextDefault = resolveDefaultAfterProviderChange(nextProviders, defaultSource);
-    applyDefaultToConfig(next, nextDefault);
-
-    const ok = await onSave(next);
-    if (ok) {
+      : config.providers.map((entry) => (entry.id === provider.id ? provider : entry));
+    if (await onSave(withProviders(config, providers))) {
       onInfo(isChinese ? '已保存。' : 'Saved.');
-      if (opts?.keepOpen) {
-        setDrawer({ draft: providerToDraft(provider), isNew: false });
-      } else {
-        setDrawer(null);
-      }
-      return true;
+      setEdit(null);
+      setSelectedId(provider.id);
     }
-    return false;
   }
 
-  async function handleDeleteFromDrawer(): Promise<void> {
-    if (!drawer) return;
+  async function handleDelete(): Promise<void> {
+    if (!detailProvider) return;
     const confirmed = await confirmDialog.confirm({
       title: copy.removeProviderTitle,
       description: copy.removeProviderDescription,
-      affectedObject: drawer.draft.name,
+      affectedObject: detailProvider.name,
       confirmLabel: common.delete,
+      cancelLabel: common.cancel,
       tone: 'danger',
     });
     if (!confirmed) return;
-
-    const id = drawer.draft.id;
-    const nextProviders = config.providers.filter((p) => p.id !== id);
-    const next: PiwinConfig = { ...config, providers: nextProviders };
-    const nextDefault = resolveDefaultAfterProviderChange(nextProviders, {
-      ...(config.defaultProviderId !== undefined ? { providerId: config.defaultProviderId } : {}),
-      ...(config.defaultModelId !== undefined ? { modelId: config.defaultModelId } : {}),
-    });
-    applyDefaultToConfig(next, nextDefault);
-
-    if (await onSave(next)) {
-      setDrawer(null);
+    const providers = config.providers.filter((entry) => entry.id !== detailProvider.id);
+    if (await onSave(withProviders(config, providers))) {
+      setEdit(null);
+      setSelectedId(null);
       onInfo(isChinese ? '已移除提供商。' : 'Provider removed.');
     }
   }
 
-  async function handleToggleFromList(id: string): Promise<void> {
-    const provider = config.providers.find((p) => p.id === id);
-    if (!provider) return;
-    const nextEnabled = provider.enabled === false;
-    const nextProvider = { ...provider, enabled: nextEnabled };
-    const nextProviders = config.providers.map((p) => (p.id === id ? nextProvider : p));
-    const next: PiwinConfig = { ...config, providers: nextProviders };
-    const nextDefault = resolveDefaultAfterProviderChange(nextProviders, {
-      ...(config.defaultProviderId !== undefined ? { providerId: config.defaultProviderId } : {}),
-      ...(config.defaultModelId !== undefined ? { modelId: config.defaultModelId } : {}),
-    });
-    applyDefaultToConfig(next, nextDefault);
-
-    if (await onSave(next)) {
+  async function handleToggleEnabled(provider: ModelProviderConfig): Promise<void> {
+    const enabled = provider.enabled === false;
+    const providers = config.providers.map((entry) =>
+      entry.id === provider.id ? { ...entry, enabled } : entry,
+    );
+    if (await onSave(withProviders(config, providers))) {
       onInfo(
-        nextEnabled
+        enabled
           ? isChinese
             ? '已启用提供商。'
             : 'Provider enabled.'
@@ -329,31 +316,24 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
             ? '已停用提供商。'
             : 'Provider disabled.',
       );
-      if (drawer?.draft.id === id) {
-        setDrawer({ ...drawer, draft: { ...drawer.draft, enabled: nextEnabled } });
-      }
     }
   }
 
-  function openAddDialog(): void {
-    setAddOpen(true);
-  }
-
-  function handleAddFromPreset(preset: ProviderPreset): void {
+  async function handleAddFromPreset(preset: ProviderPreset): Promise<void> {
+    setAddOpen(false);
+    if (!(await confirmDiscard())) return;
     // One vendor may back many channels (own baseUrl + key each), so a preset
     // that is already configured still yields a new unique provider entry.
-    const id = allocateUniqueProviderId(preset.id, [
-      ...config.providers.map((provider) => provider.id),
-      ...reservedSubscriptionIds,
-    ]);
-    const name = allocateUniqueProviderName(
-      preset.name,
-      config.providers.map((provider) => provider.name),
-    );
     const provider: ModelProviderConfig = {
-      id,
+      id: allocateUniqueProviderId(preset.id, [
+        ...config.providers.map((entry) => entry.id),
+        ...reservedSubscriptionIds,
+      ]),
       protocol: preset.protocol,
-      name,
+      name: allocateUniqueProviderName(
+        presetTitle(preset, isChinese),
+        config.providers.map((entry) => entry.name),
+      ),
       baseUrl: preset.baseUrl,
       enabled: true,
       models: preset.models.map((model) => ({
@@ -361,192 +341,95 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
         ...(model.label ? { label: model.label } : {}),
       })),
     };
-    if (preset.apiKeyEnv.trim()) {
-      provider.apiKeyEnv = preset.apiKeyEnv.trim();
+    if (preset.apiKeyEnv.trim()) provider.apiKeyEnv = preset.apiKeyEnv.trim();
+    setEdit({ draft: providerToDraft(provider), isNew: true });
+  }
+
+  function subtitleOf(provider: ModelProviderConfig): string {
+    if (!isSubscriptionProvider(provider)) return hostOf(provider.baseUrl);
+    if (subscriptionUsesThirdPartyExtraUsage(provider.id)) {
+      return isChinese ? 'OAuth · extra 计费' : 'OAuth · extra usage';
     }
-    setAddOpen(false);
-    setDrawer({ draft: providerToDraft(provider), isNew: true });
+    return isChinese ? 'OAuth 套餐' : 'OAuth plan';
   }
 
-  function handleOpenDrawer(provider: ModelProviderConfig): void {
-    if (isSubscriptionProvider(provider)) {
-      onInfo(
-        isChinese
-          ? '套餐提供商没有 API Key。展开这一行即可开关模型、改参数、设默认。'
-          : 'Subscription providers have no API key. Expand the row to toggle models, edit params, and set the default.',
-      );
-      return;
-    }
-    setDrawer({ draft: providerToDraft(provider), isNew: false });
-  }
-
-  async function handleUpdateProviderModelsFromList(
-    providerId: string,
-    models: ModelConfigEntry[],
-  ): Promise<void> {
-    const nextProviders = config.providers.map((p) => (p.id === providerId ? { ...p, models } : p));
-    const next: PiwinConfig = { ...config, providers: nextProviders };
-    const nextDefault = resolveDefaultAfterProviderChange(nextProviders, {
-      ...(config.defaultProviderId !== undefined ? { providerId: config.defaultProviderId } : {}),
-      ...(config.defaultModelId !== undefined ? { modelId: config.defaultModelId } : {}),
-    });
-    applyDefaultToConfig(next, nextDefault);
-    await onSave(next);
-  }
-
-  async function handleTestProviderModelFromList(
-    providerId: string,
-    modelId: string,
-  ): Promise<void> {
-    const key = `${providerId}::${modelId}`;
-    setListTestingModelKey(key);
-    setListModelTestStatus((prev) => ({
-      ...prev,
-      [key]: { tone: 'busy', message: isChinese ? '检测中…' : 'Testing…' },
-    }));
-    try {
-      const provider = config.providers.find((p) => p.id === providerId);
-      if (!provider) throw new Error('provider not found');
-      const result = await onTestModel(provider, modelId);
-      const seconds = (result.durationMs / 1000).toFixed(1);
-      setListModelTestStatus((prev) => ({
-        ...prev,
-        [key]: {
-          tone: 'ok',
-          message: isChinese ? `可用 · ${seconds}s` : `OK · ${seconds}s`,
-        },
-      }));
-    } catch (error) {
-      const message = formatError(error);
-      setListModelTestStatus((prev) => ({
-        ...prev,
-        [key]: {
-          tone: 'error',
-          message: isChinese ? '失败' : 'Fail',
-          errorMessage: message,
-        },
-      }));
-      onError(
-        isChinese
-          ? `模型「${modelId}」测试失败：${message}`
-          : `Model "${modelId}" test failed: ${message}`,
-      );
-    } finally {
-      setListTestingModelKey(null);
-    }
-  }
-
-  async function handleSetDefaultModelFromList(providerId: string, modelId: string): Promise<void> {
-    const provider = config.providers.find((entry) => entry.id === providerId);
-    if (!provider || !isProviderEnabled(provider)) return;
-    const next: PiwinConfig = {
-      ...config,
-      defaultProviderId: providerId,
-      defaultModelId: modelId,
-    };
-    await onSave(next);
-  }
-
-  async function handleToggleModelFromList(providerId: string, modelId: string): Promise<void> {
-    const target = config.providers.find((entry) => entry.id === providerId);
-    if (!target || !isProviderEnabled(target)) return;
-    const nextProviders = config.providers.map((provider) => {
-      if (provider.id !== providerId) return provider;
-      const nextModels = provider.models.map((model) =>
-        model.id === modelId
-          ? { ...model, enabled: model.enabled !== false ? false : true }
-          : model,
-      );
-      return { ...provider, models: nextModels };
-    });
-    const next: PiwinConfig = { ...config, providers: nextProviders };
-    const nextDefault = resolveDefaultAfterProviderChange(nextProviders, {
-      ...(config.defaultProviderId !== undefined ? { providerId: config.defaultProviderId } : {}),
-      ...(config.defaultModelId !== undefined ? { modelId: config.defaultModelId } : {}),
-    });
-    applyDefaultToConfig(next, nextDefault);
-    await onSave(next);
-  }
-
-  async function handleDiscoverProviderModelsFromList(
-    provider: ModelProviderConfig,
-  ): Promise<ModelDiscoveryResult> {
-    try {
-      return await onDiscoverModels(provider);
-    } catch (error) {
-      const message = formatError(error);
-      onError(isChinese ? `模型发现失败：${message}` : `Model discovery failed: ${message}`);
-      throw error;
-    }
+  function toneOf(provider: ModelProviderConfig): ProviderRailTone {
+    if (provider.enabled === false) return 'off';
+    const tone = testStatus[provider.id]?.tone;
+    if (tone === 'err') return 'err';
+    if (tone === 'ok') return 'ok';
+    return 'on';
   }
 
   return (
     <>
       {confirmDialog.dialog}
-
-      <ProviderList
-        config={config}
-        filteredProviders={filteredProviders}
-        providerCount={config.providers.length}
-        enabledCount={enabledCount}
-        modelCount={modelCount}
-        query={query}
-        setQuery={setQuery}
-        filter={filter}
-        setFilter={setFilter}
-        isChinese={isChinese}
-        saving={saving}
-        copy={copy}
-        getProviderStatus={getProviderStatus}
-        onOpenProvider={handleOpenDrawer}
-        onToggleProvider={(id) => void handleToggleFromList(id)}
-        onAddOpen={openAddDialog}
-        onUpdateProviderModels={(providerId, models) =>
-          void handleUpdateProviderModelsFromList(providerId, models)
-        }
-        onTestProviderModel={(providerId, modelId) =>
-          void handleTestProviderModelFromList(providerId, modelId)
-        }
-        onSetDefaultModel={(providerId, modelId) =>
-          void handleSetDefaultModelFromList(providerId, modelId)
-        }
-        onToggleModel={(providerId, modelId) => void handleToggleModelFromList(providerId, modelId)}
-        onDiscoverProviderModels={handleDiscoverProviderModelsFromList}
-        modelTestStatus={listModelTestStatus}
-        testingModelKey={listTestingModelKey}
-        {...(searchCatalog ? { searchCatalog } : {})}
-      />
-
-      {drawer && (
-        <ProviderDrawer
-          draft={drawer.draft}
-          isNew={drawer.isNew}
-          saving={saving}
-          testingId={testingId}
-          testStatus={testStatus}
+      <div className="pws" data-testid="provider-settings">
+        <ProviderRail
+          providers={visible}
+          selectedId={isNew ? null : (selected?.id ?? null)}
+          pending={isNew && draft ? { id: draft.id, name: draft.name } : null}
+          defaultProviderId={config.defaultProviderId}
+          query={query}
           isChinese={isChinese}
           copy={copy}
-          common={common}
-          onClose={() => setDrawer(null)}
-          onSave={handleSave}
-          onDelete={handleDeleteFromDrawer}
-          onDraftChange={markDraft}
-          onTestConnection={handleTestConnection}
-          {...(onLoadSecret ? { onRevealStoredKey: handleRevealStoredKey } : {})}
+          subtitleOf={subtitleOf}
+          toneOf={toneOf}
+          onQueryChange={setQuery}
+          onSelect={(providerId) => void handleSelect(providerId)}
+          onAdd={() => setAddOpen(true)}
         />
-      )}
+
+        {draft ? (
+          <ProviderDetail
+            key={isNew ? `new:${draft.id}` : draft.id}
+            provider={detailProvider}
+            draft={draft}
+            dirty={dirty}
+            status={
+              detailProvider?.enabled === false
+                ? { tone: 'off', message: copy.statusOff }
+                : (testStatus[draft.id] ?? null)
+            }
+            isChinese={isChinese}
+            saving={saving}
+            testing={testingId === draft.id}
+            copy={copy}
+            common={common}
+            models={modelPropsFor(detailProvider ?? mergeConnectionDraft(draft, undefined))}
+            onDraftChange={handleDraftChange}
+            onSave={() => void handleSave()}
+            onRevert={() => setEdit(null)}
+            onDelete={() => void handleDelete()}
+            onToggleEnabled={() => {
+              if (detailProvider) void handleToggleEnabled(detailProvider);
+            }}
+            onTestConnection={() => void handleTestConnection()}
+            {...(onLoadSecret ? { onRevealStoredKey: handleRevealStoredKey } : {})}
+          />
+        ) : (
+          <div className="pws-empty" data-testid="provider-workspace-empty">
+            <h3>{isChinese ? '还没有接入模型提供商' : 'No model providers yet'}</h3>
+            <p>
+              {isChinese
+                ? '接入 OpenAI、Anthropic 等厂商，或任意 OpenAI / Anthropic 兼容接口。'
+                : 'Connect OpenAI, Anthropic and others, or any OpenAI- / Anthropic-compatible endpoint.'}
+            </p>
+            <Button variant="primary" onClick={() => setAddOpen(true)} data-testid="provider-add-empty">
+              <IconPlus width={14} height={14} />
+              {copy.addProvider}
+            </Button>
+          </div>
+        )}
+      </div>
 
       <ProviderAddDialog
         open={addOpen}
         onOpenChange={setAddOpen}
         isChinese={isChinese}
-        copy={{
-          addProviderTitle: copy.addProviderTitle,
-          addProviderDesc: copy.addProviderDesc,
-        }}
-        onAdd={handleAddFromPreset}
+        copy={{ addProviderTitle: copy.addProviderTitle, addProviderDesc: copy.addProviderDesc }}
+        onAdd={(preset) => void handleAddFromPreset(preset)}
       />
-
     </>
   );
 }

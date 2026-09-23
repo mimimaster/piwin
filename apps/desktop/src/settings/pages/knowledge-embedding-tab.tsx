@@ -3,7 +3,6 @@
  */
 import type { ReactElement } from 'react';
 import {
-  Notice,
   PasswordInput,
   Select,
   Switch,
@@ -50,8 +49,6 @@ export type KnowledgeEmbeddingTabProps = {
   saving: boolean;
   readOnly: boolean;
   isZh: boolean;
-  validation: string | null;
-  validationMessage: string | null;
 };
 
 export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactElement {
@@ -69,31 +66,33 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
           title={isZh ? '向量检索 (Embedding)' : 'Vector Embedding'}
           description={
             isZh
-              ? '将 Markdown 文档与源码片段转化为语义向量以支持相似度检索。未启用时，笔记与知识库将自动回退为本地全文检索。'
+              ? '将 Markdown 文档与源码片段转化为向量进行语义检索。未启用时，笔记与知识库将无缝降级为 FTS5 关键词全文检索。'
               : 'Vectorize markdown documents and code snippets for semantic retrieval. If disabled, notes and knowledge bases will seamlessly use FTS5 keyword full-text search.'
           }
         />
+
         {draft.enabled ? (
-          <button
-            type="button"
-            className="knowledge-test-btn"
-            onClick={props.onTest}
-            disabled={props.testing || props.saving || props.readOnly}
-            data-testid="knowledge-embedding-test-btn"
-            title={isZh ? '测试接口连通性' : 'Test connection'}
-          >
-            {props.testing ? (
-              <>
-                <IconRefresh width={13} height={13} className="knowledge-spin" />
-                <span>{isZh ? '测试中…' : 'Testing…'}</span>
-              </>
-            ) : (
-              <>
-                <IconSpark width={13} height={13} />
-                <span>{isZh ? '测试连接' : 'Test connection'}</span>
-              </>
-            )}
-          </button>
+          <div className="knowledge-tab-panel-header-actions">
+            <button
+              type="button"
+              className="knowledge-test-btn"
+              onClick={props.onTest}
+              disabled={props.testing || props.saving || props.readOnly}
+              data-testid="knowledge-embedding-test-btn"
+            >
+              {props.testing ? (
+                <>
+                  <IconRefresh className="spin" size={13} />
+                  <span>{isZh ? '测试中…' : 'Testing…'}</span>
+                </>
+              ) : (
+                <>
+                  <IconSpark size={13} />
+                  <span>{isZh ? '测试连接' : 'Test connection'}</span>
+                </>
+              )}
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -103,9 +102,9 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
           data-testid="knowledge-embedding-test-result"
         >
           {props.testStatus.tone === 'ok' ? (
-            <IconCheckCircle width={14} height={14} />
+            <IconCheckCircle size={14} />
           ) : (
-            <IconAlertCircle width={14} height={14} />
+            <IconAlertCircle size={14} />
           )}
           <span>{props.testStatus.message}</span>
         </div>
@@ -124,6 +123,7 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
           checked={draft.enabled}
           onCheckedChange={(enabled) => patch({ enabled })}
           aria-label={isZh ? '启用 Embedding' : 'Enable embedding'}
+          disabled={props.saving || props.readOnly}
           testId="knowledge-embedding-enabled"
         />
       </FieldRow>
@@ -146,6 +146,7 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
               }))}
               value={draft.provider}
               onChange={(event) => props.onProviderChange(event.currentTarget.value)}
+              disabled={props.saving || props.readOnly}
               testId="knowledge-embedding-provider"
             />
           </FieldRow>
@@ -168,6 +169,7 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
                   ? DEFAULT_OLLAMA_EMBEDDING_URL
                   : DEFAULT_OPENAI_EMBEDDING_URL
               }
+              disabled={props.saving || props.readOnly}
             />
           </FieldRow>
 
@@ -187,6 +189,7 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
               placeholder={
                 draft.provider === 'ollama' ? 'nomic-embed-text' : 'text-embedding-3-small'
               }
+              disabled={props.saving || props.readOnly}
             />
           </FieldRow>
 
@@ -206,17 +209,22 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
               value={draft.dimension}
               onChange={(event) => patch({ dimension: event.currentTarget.value })}
               placeholder={isZh ? '自动' : 'Auto'}
+              disabled={props.saving || props.readOnly}
             />
           </FieldRow>
 
           <FieldRow
             label="API Key"
             description={
-              isZh
-                ? '密钥保存在 Host 密钥库，点击下方「保存知识配置」时自动同步。留空使用已有密钥。'
-                : 'Key is stored in Host secret store and automatically synced on save. Leave blank to keep saved key.'
+              hasStoredKey
+                ? isZh
+                  ? '已安全保存在 Host 密钥库。点击下方「保存知识配置」可更新。留空使用已有密钥。'
+                  : 'Saved securely in Host secret store. Click "Save knowledge" to update. Leave blank to keep existing key.'
+                : isZh
+                  ? '密钥保存在 Host 密钥库，点击下方「保存知识配置」时自动同步。留空使用已有密钥。'
+                  : 'Saved in Host secret store on "Save knowledge". Leave blank to keep existing key.'
             }
-            testId="knowledge-embedding-api-key-row"
+            testId="knowledge-embedding-secret-row"
           >
             <PasswordInput
               testId="knowledge-embedding-api-key"
@@ -224,23 +232,24 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
               onChange={(event) => patch({ apiKeyInput: event.currentTarget.value })}
               placeholder={
                 hasStoredKey
-                  ? '••••••••'
+                  ? isZh
+                    ? '留空使用已有密钥，输入新 Key 覆盖'
+                    : 'Leave blank to keep existing key, or enter new key'
                   : isZh
                     ? '粘贴 API Key（本地 Ollama 可留空）'
-                    : 'Paste API key (optional for local Ollama)'
+                    : 'Paste API Key (optional for local Ollama)'
               }
-              autoComplete="off"
               spellCheck={false}
               disabled={props.saving || props.readOnly}
             />
           </FieldRow>
 
-          <details className="knowledge-field-advanced">
-            <summary>
-              {isZh ? '高级设置：环境变量回退' : 'Advanced: environment variable fallback'}
+          <details className="knowledge-advanced-disclosure">
+            <summary className="knowledge-advanced-toggle">
+              <span>{isZh ? '高级设置：环境变量回退' : 'Advanced: environment variable fallback'}</span>
             </summary>
             <FieldRow
-              label={isZh ? '环境变量名' : 'Environment variable'}
+              label={isZh ? 'API Key 环境变量名' : 'API Key env var'}
               description={
                 isZh
                   ? 'Host 密钥库没有密钥时才读取该变量；这里只填变量名。'
@@ -259,16 +268,6 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
             </FieldRow>
           </details>
         </>
-      ) : null}
-
-      {props.validationMessage &&
-      (props.validation === 'baseUrl' ||
-        props.validation === 'model' ||
-        props.validation === 'dimension' ||
-        props.validation === 'apiKeyEnv') ? (
-        <Notice tone="warning" testId="knowledge-embedding-validation">
-          {props.validationMessage}
-        </Notice>
       ) : null}
     </div>
   );

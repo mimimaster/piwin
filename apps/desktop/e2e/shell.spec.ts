@@ -128,11 +128,12 @@ test.describe('desktop shell (vite + host mock)', () => {
     await expect(page.getByTestId('provider-settings')).toBeVisible();
     await page.getByTestId('provider-add-block').click();
     await page.getByTestId('provider-preset-openai').click();
-    await expect(page.getByTestId('provider-drawer')).toBeVisible();
+    await expect(page.getByTestId('provider-detail')).toBeVisible();
+    await expect(page.getByTestId('provider-row-pending')).toBeVisible();
     await expect(page.getByTestId('provider-baseurl-input')).toHaveValue(/api\.openai\.com/);
-    await expect(page.getByTestId('model-workbench')).toBeVisible();
     await page.getByTestId('provider-save-btn').click();
     await expect(page.getByTestId('provider-row-openai')).toBeVisible();
+    await expect(page.getByTestId('provider-savebar')).toHaveCount(0);
   });
 
   test('Models settings can add Google Gemini protocol preset', async ({ page }) => {
@@ -143,15 +144,15 @@ test.describe('desktop shell (vite + host mock)', () => {
     await expect(page.getByTestId('provider-settings')).toBeVisible();
     await page.getByTestId('provider-add-block').click();
     await page.getByTestId('provider-preset-gemini').click();
-    await expect(page.getByTestId('provider-drawer')).toBeVisible();
+    await expect(page.getByTestId('provider-detail')).toBeVisible();
     await expect(page.getByTestId('provider-baseurl-input')).toHaveValue(
       /generativelanguage\.googleapis\.com/,
     );
-    await expect(page.getByTestId('model-workbench')).toBeVisible();
+    await page.getByTestId('provider-advanced-toggle').click();
     await page.getByTestId('provider-apikey-env-input').fill('fake-gemini-key');
     await page.getByTestId('provider-save-btn').click();
     await expect(page.getByTestId('provider-row-gemini')).toBeVisible();
-    await expect(page.getByTestId('provider-drawer')).toHaveCount(0);
+    await expect(page.getByTestId('provider-savebar')).toHaveCount(0);
   });
 
   test('open project → session ready for chat', async ({ page }) => {

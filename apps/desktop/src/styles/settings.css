@@ -1,6 +1,7 @@
 /* Deferred settings stylesheet entry. Loaded with SettingsPanel rather than
    parsed by every cold Desktop renderer. */
 @import './region-settings-shell.css';
+@import './settings-workspace.css';
 @import './region-settings-models.css';
 @import './region-settings-speech.css';
 @import './region-settings-vision.css';
@@ -16,6 +17,10 @@
 @import './region-settings-oauth.css';
 @import './settings-byok-editor.css';
 @import './settings-provider-connection.css';
+@import './settings-provider-workspace.css';
+@import './settings-provider-rail.css';
+@import './settings-provider-model-list.css';
+@import './settings-provider-connection-form.css';
 @import './settings-misc-pages.css';
 @import './settings-orchestration.css';
 @import './settings-permissions.css';

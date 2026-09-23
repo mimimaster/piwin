@@ -178,7 +178,7 @@ can actually receive it.
 | Host `web_search` model delegation | `packages/agent-host/src/native-model-web-search.ts`, `packages/tools-web/src/model-search-delegate.ts`, `packages/host-runtime/src/model-web-search-delegate.ts` | Implemented 2026-08-11 |
 | Desktop native citation rendering | `apps/desktop/src/CitationCards.tsx`, `apps/desktop/src/chat-reducer.ts`, `apps/desktop/src/chat-thread.tsx` | Implemented |
 | Web Settings policy and live status | `apps/desktop/src/settings/pages/web-page.tsx`, `apps/desktop/src/settings/search-route-status.tsx`, `apps/desktop/src/settings/web-draft.ts` | Implemented |
-| Model editor/add native-search badge | `apps/desktop/src/AddModelDialog.tsx`, `apps/desktop/src/model-edit-inline.tsx`, `apps/desktop/src/ModelWorkbench.tsx`, `apps/desktop/src/provider-row.tsx` | Implemented |
+| Model editor/add native-search badge | `apps/desktop/src/AddModelDialog.tsx`, `apps/desktop/src/model-edit-inline.tsx`, `apps/desktop/src/model-caps.ts`, `apps/desktop/src/provider-model-list.tsx` | Implemented |
 | Video model discovery and settings | `packages/contracts/src/model-catalog.ts`, `packages/host-runtime/src/provider-model-discovery.ts`, `packages/host-runtime/src/provider-model-capabilities.ts`, `apps/desktop/src/video-model-suggest.tsx`, `apps/desktop/src/video-model-discovery.ts`, `apps/desktop/src/VideoGenerationSettings.tsx` | Implemented |
 
 Video runtime execution remains governed by [ADR 0034](0034-video-generation.md). ADR 0043 adds discovery, enrichment, and settings UI only; the `video-generation` capability, `routes['video-generation']`, and the existing `video_gen` adapter surface are unchanged.

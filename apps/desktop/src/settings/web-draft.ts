@@ -4,6 +4,7 @@
  */
 import { formatEnvLines, linesToArgs, parseEnvLines } from './cli-command-line.js';
 import {
+  createDefaultWebConfig,
   DEFAULT_FETCH_CACHE_TTL_MS,
   DEFAULT_FETCH_RETURN_MAX_CHARS,
   DEFAULT_FETCH_STORE_MAX_CHARS,
@@ -161,6 +162,11 @@ export function draftToWeb(draft: DraftWeb): WebConfig {
       .map((item) => item.trim())
       .filter(Boolean),
   };
+}
+
+export function webDraftDirty(draft: DraftWeb, saved?: WebConfig): boolean {
+  const cleanSaved = webToDraft(saved ?? createDefaultWebConfig());
+  return JSON.stringify(draft) !== JSON.stringify(cleanSaved);
 }
 
 export function findCustomSearchSource(

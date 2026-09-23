@@ -112,6 +112,32 @@ function makeProps(
   };
 }
 
+async function flush(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+/** Radix DropdownMenu.Trigger opens on pointerdown, not a bare click. */
+function openMenu(trigger: Element | null): void {
+  act(() => {
+    trigger?.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    trigger?.dispatchEvent(new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+    trigger?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  });
+}
+
+function byTestId<T extends Element = HTMLElement>(scope: ParentNode, testId: string): T | null {
+  return scope.querySelector<T>(`[data-testid="${testId}"]`);
+}
+
+/** A configured provider's connection is folded under its models. */
+function openConnection(container: HTMLElement): void {
+  act(() => {
+    byTestId<HTMLButtonElement>(container, 'provider-connection-toggle')?.click();
+  });
+}
+
 describe('ProviderSettings', () => {
   let instances: { container: HTMLDivElement; root: Root }[] = [];
   let previousActEnvironment: boolean | undefined;
@@ -132,611 +158,399 @@ describe('ProviderSettings', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
-  it('renders the BYOK provider list with search and add buttons', () => {
-    const { container, root } = renderProviderSettings(makeProps());
-    instances.push({ container, root });
-    expect(container.querySelector('[data-testid="provider-settings"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-search-input"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-add-open"]')).toBeNull();
-    expect(container.querySelector('[data-testid="provider-add-block"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-row-openai"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-row-custom-local"]')).not.toBeNull();
+  function mount(props: ProviderSettingsProps): HTMLDivElement {
+    const rendered = renderProviderSettings(props);
+    instances.push(rendered);
+    return rendered.container;
+  }
+
+  it('shows the rail and the first provider in the detail pane', () => {
+    const container = mount(makeProps());
+    expect(byTestId(container, 'provider-settings')).not.toBeNull();
+    expect(byTestId(container, 'provider-search-input')).not.toBeNull();
+    expect(byTestId(container, 'provider-add-block')).not.toBeNull();
+    expect(byTestId(container, 'provider-row-openai')?.getAttribute('aria-current')).toBe('true');
+    expect(byTestId(container, 'provider-row-custom-local')).not.toBeNull();
+    // Models are the body; a configured connection is only a line in the header
+    // (key state + address) with a button that opens its panel.
+    expect(byTestId(container, 'provider-models-openai')).not.toBeNull();
+    expect(byTestId(container, 'provider-connection-section')).toBeNull();
+    expect(byTestId(container, 'provider-key-state')?.textContent).toBe('Key saved');
+    expect(container.querySelector('.pdetail-host')?.textContent).toBe('api.openai.com/v1');
+    const toggle = byTestId(container, 'provider-connection-toggle');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+
+    openConnection(container);
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    // The panel opens under the header, above the models.
+    const panel = byTestId(container, 'provider-connection-section');
+    const models = byTestId(container, 'provider-models-openai');
+    expect(
+      panel && models ? panel.compareDocumentPosition(models) & Node.DOCUMENT_POSITION_FOLLOWING : 0,
+    ).toBeTruthy();
+    expect(byTestId<HTMLInputElement>(container, 'provider-baseurl-input')?.value).toBe(
+      'https://api.openai.com/v1',
+    );
+    expect(byTestId(container, 'provider-savebar')).toBeNull();
   });
 
-  it('hides the untested provider state and labels enlarged model actions', () => {
-    const { container, root } = renderProviderSettings(makeProps());
-    instances.push({ container, root });
-
-    const openaiRow = container.querySelector('[data-testid="provider-row-openai"]');
-    expect(openaiRow?.querySelector('.provider-status-pill')).toBeNull();
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
-        ?.click();
+  it('selects another provider from the rail', async () => {
+    const container = mount(makeProps());
+    await act(async () => {
+      byTestId<HTMLButtonElement>(container, 'provider-row-custom-local')?.click();
     });
-
-    const expandButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-model-expand-gpt-4.1"]',
+    // No saved key: the folded summary says so.
+    expect(byTestId(container, 'provider-key-state')?.textContent).toBe('No key');
+    expect(byTestId(container, 'provider-key-state')?.className).toContain('is-missing');
+    openConnection(container);
+    expect(byTestId<HTMLInputElement>(container, 'provider-name-input')?.value).toBe('Local');
+    expect(byTestId(container, 'provider-row-custom-local')?.getAttribute('aria-current')).toBe(
+      'true',
     );
-    const testButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-model-test-gpt-4.1"]',
-    );
-    const removeButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-model-remove-gpt-4.1"]',
-    );
-
-    expect(expandButton?.getAttribute('aria-label')).toBe('Expand');
-    expect(expandButton?.getAttribute('aria-expanded')).toBe('false');
-    expect(testButton?.title).toBe('Test');
-    expect(testButton?.getAttribute('aria-label')).toBe('Test');
-    expect(removeButton?.title).toBe('Delete');
-    expect(removeButton?.getAttribute('aria-label')).toBe('Delete');
-    // The pencil edit icon was removed in favor of the row dropdown.
-    expect(container.querySelector('[data-testid="provider-model-edit-gpt-4.1"]')).toBeNull();
+    expect(byTestId(container, 'provider-row-custom-local')?.className).toContain('is-off');
   });
 
-  it('opens the provider editor when the edit button is clicked', () => {
-    const { container, root } = renderProviderSettings(makeProps());
-    instances.push({ container, root });
-    const openBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-row-open-openai"]',
-    );
-    expect(openBtn).not.toBeNull();
-    act(() => {
-      openBtn?.click();
+  it('lists custom providers before OAuth packages in the rail', () => {
+    const container = mount({
+      ...makeProps(),
+      config: {
+        ...makeConfig(),
+        providers: [
+          {
+            id: 'kimi-coding',
+            protocol: 'openai-compatible',
+            name: 'Kimi Coding',
+            source: 'subscription',
+            category: 'package',
+            baseUrl: 'oauth://kimi-coding',
+            models: [{ id: 'kimi-k1.5' }],
+          },
+          ...makeConfig().providers,
+        ],
+      },
     });
-    expect(container.querySelector('[data-testid="provider-drawer"]')).not.toBeNull();
-    expect(container.querySelector('.provider-editor-modal')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-baseurl-input"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-test-connection"]')).not.toBeNull();
+    const custom = byTestId(container, 'provider-section-custom');
+    const packages = byTestId(container, 'provider-section-package');
+    expect(custom?.querySelector('[data-testid="provider-row-openai"]')).not.toBeNull();
+    expect(packages?.querySelector('[data-testid="provider-row-kimi-coding"]')).not.toBeNull();
+    expect(
+      custom && packages
+        ? custom.compareDocumentPosition(packages) & Node.DOCUMENT_POSITION_FOLLOWING
+        : 0,
+    ).toBeTruthy();
+    // The rail falls back to the first custom provider, not the package.
+    expect(byTestId(container, 'provider-row-openai')?.getAttribute('aria-current')).toBe('true');
   });
 
-  it('opens the provider editor when the chevron button is clicked', () => {
-    const { container, root } = renderProviderSettings(makeProps());
-    instances.push({ container, root });
-    const openBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-row-open-openai"]',
-    );
-    expect(openBtn).not.toBeNull();
-    act(() => {
-      openBtn?.click();
+  it('shows a package without a connection form', () => {
+    const container = mount({
+      ...makeProps(),
+      config: {
+        ...makeConfig(),
+        defaultProviderId: 'kimi-coding',
+        providers: [
+          {
+            id: 'kimi-coding',
+            protocol: 'openai-compatible',
+            name: 'Kimi Coding',
+            source: 'subscription',
+            category: 'package',
+            baseUrl: 'oauth://kimi-coding',
+            models: [{ id: 'kimi-k1.5' }],
+          },
+        ],
+      },
     });
-    expect(container.querySelector('[data-testid="provider-drawer"]')).not.toBeNull();
-    expect(container.querySelector('.provider-editor-modal')).not.toBeNull();
+    expect(byTestId(container, 'provider-connection')).toBeNull();
+    expect(byTestId(container, 'provider-models-kimi-coding')).not.toBeNull();
+    expect(byTestId(container, 'provider-discover-models-kimi-coding')).toBeNull();
   });
 
-  it('reveals the saved key from the Host when the eye is clicked', async () => {
+  it('filters the rail by search query', () => {
+    const container = mount(makeProps());
+    act(() => {
+      setInputValue(byTestId<HTMLInputElement>(container, 'provider-search-input'), 'local');
+    });
+    expect(byTestId(container, 'provider-row-openai')).toBeNull();
+    expect(byTestId(container, 'provider-row-custom-local')).not.toBeNull();
+  });
+
+  it('reveals the saved key without counting it as an edit', async () => {
     const onLoadSecret = vi.fn(async () => 'sk-saved-secret');
-    const { container, root } = renderProviderSettings({ ...makeProps(), onLoadSecret });
-    instances.push({ container, root });
-    act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="provider-row-open-openai"]')?.click();
-    });
-    const input = container.querySelector<HTMLInputElement>('[data-testid="provider-apikey-input"]');
+    const container = mount({ ...makeProps(), onLoadSecret });
+    openConnection(container);
+    const input = byTestId<HTMLInputElement>(container, 'provider-apikey-input');
     expect(input?.value).toBe('');
     expect(input?.type).toBe('password');
 
     await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-toggle-key-visibility"]')
-        ?.click();
+      byTestId<HTMLButtonElement>(container, 'provider-toggle-key-visibility')?.click();
     });
 
     expect(onLoadSecret).toHaveBeenCalledWith('openai');
     expect(input?.value).toBe('sk-saved-secret');
     expect(input?.type).toBe('text');
+    expect(byTestId(container, 'provider-savebar')).toBeNull();
 
     // Hiding and showing again reuses the filled value instead of re-reading.
     await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-toggle-key-visibility"]')
-        ?.click();
+      byTestId<HTMLButtonElement>(container, 'provider-toggle-key-visibility')?.click();
     });
     await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-toggle-key-visibility"]')
-        ?.click();
+      byTestId<HTMLButtonElement>(container, 'provider-toggle-key-visibility')?.click();
     });
     expect(onLoadSecret).toHaveBeenCalledTimes(1);
   });
 
   it('does not paste a multi-key secret into the single-line key input', async () => {
     const props = { ...makeProps(), onLoadSecret: vi.fn(async () => 'sk-one\nsk-two') };
-    const { container, root } = renderProviderSettings(props);
-    instances.push({ container, root });
-    act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="provider-row-open-openai"]')?.click();
-    });
-
+    const container = mount(props);
+    openConnection(container);
     await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-toggle-key-visibility"]')
-        ?.click();
+      byTestId<HTMLButtonElement>(container, 'provider-toggle-key-visibility')?.click();
     });
-
-    const input = container.querySelector<HTMLInputElement>('[data-testid="provider-apikey-input"]');
-    expect(input?.value).toBe('');
+    expect(byTestId<HTMLInputElement>(container, 'provider-apikey-input')?.value).toBe('');
     expect(props.onError).toHaveBeenCalled();
   });
 
-  it('filters rows by enabled/disabled', () => {
-    const { container, root } = renderProviderSettings(makeProps());
-    instances.push({ container, root });
-    expect(container.querySelectorAll('.provider-row')).toHaveLength(2);
-
-    const onFilter = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-filter-on"]',
-    );
-    expect(onFilter).not.toBeNull();
-    act(() => {
-      onFilter?.click();
-    });
-    expect(container.querySelectorAll('.provider-row')).toHaveLength(1);
-
-    const offFilter = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-filter-off"]',
-    );
-    expect(offFilter).not.toBeNull();
-    act(() => {
-      offFilter?.click();
-    });
-    expect(container.querySelectorAll('.provider-row')).toHaveLength(1);
-  });
-
-  it('updates base url through the drawer connection form', async () => {
-    const { container, root } = renderProviderSettings(makeProps());
-    instances.push({ container, root });
-    const openBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-row-open-openai"]',
-    );
-    act(() => {
-      openBtn?.click();
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    const input = container.querySelector<HTMLInputElement>(
-      '[data-testid="provider-baseurl-input"]',
-    );
-    expect(input).not.toBeNull();
+  it('shows a save bar only while the connection differs, and reverts it', () => {
+    const container = mount(makeProps());
+    openConnection(container);
+    const input = byTestId<HTMLInputElement>(container, 'provider-baseurl-input');
     act(() => {
       setInputValue(input, 'https://new.example.com/v1');
     });
-    expect(input?.value).toBe('https://new.example.com/v1');
-  });
-
-  it('toggles provider enabled from the list and saves', async () => {
-    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
-    const { container, root } = renderProviderSettings(makeProps(onSave));
-    instances.push({ container, root });
-    const rowSwitch = container.querySelector<HTMLElement>(
-      '[data-testid="provider-enable-switch-openai"]',
-    );
-    expect(rowSwitch).not.toBeNull();
-    await act(async () => {
-      rowSwitch?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(onSave).toHaveBeenCalled();
-    const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
-    const openai = saved?.providers.find((p: ModelProviderConfig) => p.id === 'openai');
-    expect(openai).toBeTruthy();
-    expect(openai?.enabled).toBe(false);
-    expect(openai?.models[0]?.enabled).toBeUndefined();
-  });
-
-  it('shows child models as off when the provider is disabled', async () => {
-    const props = makeProps();
-    props.config = {
-      ...makeConfig(),
-      providers: [
-        {
-          id: 'xgrok',
-          protocol: 'openai-compatible',
-          name: 'xgrok',
-          baseUrl: 'https://xgrok.planora.chat',
-          enabled: false,
-          models: [
-            {
-              id: 'grok-imagine-image-lite',
-              capabilities: ['image-generation'],
-            },
-          ],
-        },
-      ],
-    };
-    const { container, root } = renderProviderSettings(props);
-    instances.push({ container, root });
+    expect(byTestId(container, 'provider-savebar')).not.toBeNull();
+    // Unsaved edits cannot be folded away.
+    expect(byTestId<HTMLButtonElement>(container, 'provider-connection-toggle')?.disabled).toBe(true);
 
     act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-xgrok"]')
-        ?.click();
+      setInputValue(input, 'https://api.openai.com/v1');
     });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    expect(byTestId(container, 'provider-savebar')).toBeNull();
 
-    const row = container.querySelector('[data-testid="provider-row-xgrok"]');
-    expect(row?.className).toContain('provider-row--off');
-    expect(container.querySelector('[data-testid="provider-model-row"]')?.className).toContain(
-      'provider-model-row--off',
-    );
-    const modelSwitch = readSwitch(container, 'provider-model-toggle-grok-imagine-image-lite');
-    expect(modelSwitch.checked).toBe(false);
-    expect(modelSwitch.disabled).toBe(true);
-    expect(
-      container.querySelector<HTMLButtonElement>(
-        '[data-testid="provider-model-default-grok-imagine-image-lite"]',
-      )?.disabled,
-    ).toBe(true);
-  });
-
-  it('saves a new base url from the drawer', async () => {
-    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
-    const { container, root } = renderProviderSettings(makeProps(onSave));
-    instances.push({ container, root });
-    const openBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-row-open-openai"]',
-    );
-    act(() => {
-      openBtn?.click();
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    const input = container.querySelector<HTMLInputElement>(
-      '[data-testid="provider-baseurl-input"]',
-    );
     act(() => {
       setInputValue(input, 'https://new.example.com/v1');
     });
-    const saveBtn = container.querySelector<HTMLButtonElement>('[data-testid="provider-save-btn"]');
-    expect(saveBtn).not.toBeNull();
-    await act(async () => {
-      saveBtn?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    act(() => {
+      byTestId<HTMLButtonElement>(container, 'provider-cancel-btn')?.click();
     });
-    expect(onSave).toHaveBeenCalled();
+    expect(byTestId<HTMLInputElement>(container, 'provider-baseurl-input')?.value).toBe(
+      'https://api.openai.com/v1',
+    );
+    expect(byTestId(container, 'provider-savebar')).toBeNull();
+  });
+
+  it('asks before leaving unsaved connection edits', async () => {
+    const container = mount(makeProps());
+    openConnection(container);
+    act(() => {
+      setInputValue(byTestId<HTMLInputElement>(container, 'provider-name-input'), 'Renamed');
+    });
+    act(() => {
+      byTestId<HTMLButtonElement>(container, 'provider-row-custom-local')?.click();
+    });
+    await flush();
+    expect(byTestId(document.body, 'confirm-dialog')).not.toBeNull();
+
+    await act(async () => {
+      byTestId<HTMLButtonElement>(document.body, 'confirm-dialog-cancel')?.click();
+    });
+    await flush();
+    expect(byTestId<HTMLInputElement>(container, 'provider-name-input')?.value).toBe('Renamed');
+
+    act(() => {
+      byTestId<HTMLButtonElement>(container, 'provider-row-custom-local')?.click();
+    });
+    await flush();
+    await act(async () => {
+      byTestId<HTMLButtonElement>(document.body, 'confirm-dialog-confirm')?.click();
+    });
+    await flush();
+    openConnection(container);
+    expect(byTestId<HTMLInputElement>(container, 'provider-name-input')?.value).toBe('Local');
+  });
+
+  it('saves a new base url without rolling back models edited meanwhile', async () => {
+    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
+    const props = makeProps(onSave);
+    const rendered = renderProviderSettings(props);
+    instances.push(rendered);
+    const { container, root } = rendered;
+    openConnection(container);
+    act(() => {
+      setInputValue(byTestId<HTMLInputElement>(container, 'provider-baseurl-input'), 'https://new.example.com/v1');
+    });
+
+    // A model edit persisted elsewhere on the page after the draft was opened.
+    const nextConfig = makeConfig();
+    const openaiNow = nextConfig.providers[0];
+    if (!openaiNow) throw new Error('fixture');
+    openaiNow.models = [...openaiNow.models, { id: 'gpt-4.1-mini' }];
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+            <SettingsProvider value={{ hostClient: undefined } as unknown as SettingsContextValue}>
+              <ProviderSettings {...props} config={nextConfig} />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>,
+      );
+    });
+
+    await act(async () => {
+      byTestId<HTMLButtonElement>(container, 'provider-save-btn')?.click();
+    });
+    await flush();
     const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
-    const openai = saved?.providers.find((p: ModelProviderConfig) => p.id === 'openai');
+    const openai = saved.providers.find((p: ModelProviderConfig) => p.id === 'openai');
     expect(openai?.baseUrl).toBe('https://new.example.com/v1');
+    expect(openai?.models.map((model) => model.id)).toEqual(['gpt-4.1', 'gpt-4.1-mini']);
+    expect(byTestId(container, 'provider-savebar')).toBeNull();
   });
 
-  it('opens add dialog, picks a preset, and opens a new-provider drawer', async () => {
-    const { container, root } = renderProviderSettings(makeProps());
-    instances.push({ container, root });
-    const addBtn = container.querySelector<HTMLButtonElement>('[data-testid="provider-add-block"]');
-    await act(async () => {
-      addBtn?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    // Mantine Modal portals into document.body.
-    const scope = document.body;
-    expect(scope.querySelector('[data-testid="provider-preset-picker"]')).not.toBeNull();
-    expect(scope.querySelector('[data-testid="provider-preset-deepseek"]')).not.toBeNull();
-    expect(scope.querySelector('[data-testid="provider-preset-qwen"]')).not.toBeNull();
-    expect(scope.querySelector('[data-testid="provider-preset-azure"]')).not.toBeNull();
-    expect(scope.querySelector('[data-testid="provider-preset-opencode-go"]')).not.toBeNull();
-    expect(scope.querySelector('[data-testid="provider-preset-mimo"]')).not.toBeNull();
-    expect(scope.querySelector('[data-testid="provider-preset-stepfun"]')).not.toBeNull();
-    expect(scope.querySelector('[data-testid="provider-preset-volcengine"]')).not.toBeNull();
-
-    const deepseek = scope.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-preset-deepseek"]',
-    );
-    await act(async () => {
-      deepseek?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(container.querySelector('[data-testid="provider-drawer"]')).not.toBeNull();
-    // New providers always show the name field.
-    expect(container.querySelector('[data-testid="provider-name-input"]')).not.toBeNull();
-  });
-
-  it('adds a second config for an already-configured preset with a unique id and name', async () => {
-    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
-    const { container, root } = renderProviderSettings(makeProps(onSave));
-    instances.push({ container, root });
-
-    const addBtn = container.querySelector<HTMLButtonElement>('[data-testid="provider-add-block"]');
-    await act(async () => {
-      addBtn?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    // 'openai' is already configured in makeConfig(), so picking the preset
-    // must allocate a second instance instead of erroring out.
-    const openaiPreset = document.body.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-preset-openai"]',
-    );
-    expect(openaiPreset).not.toBeNull();
-    await act(async () => {
-      openaiPreset?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    const nameInput = container.querySelector<HTMLInputElement>(
-      '[data-testid="provider-name-input"]',
-    );
-    expect(nameInput?.value).toBe('OpenAI 2');
-
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>('[data-testid="provider-save-btn"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(onSave).toHaveBeenCalled();
-    const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
-    expect(saved?.providers.map((provider) => provider.id)).toContain('openai-2');
-    const second = saved?.providers.find((provider) => provider.id === 'openai-2');
-    expect(second?.name).toBe('OpenAI 2');
-    expect(second?.protocol).toBe('openai-compatible');
-  });
-
-  it('filters providers by search query', () => {
-    const { container, root } = renderProviderSettings(makeProps());
-    instances.push({ container, root });
-    const search = container.querySelector<HTMLInputElement>(
-      '[data-testid="provider-search-input"]',
-    );
-    expect(search).not.toBeNull();
-    act(() => {
-      setInputValue(search, 'openai');
-    });
-    expect(container.querySelectorAll('.provider-row')).toHaveLength(1);
-    expect(container.querySelector('[data-testid="provider-row-openai"]')).not.toBeNull();
-  });
-
-  it('tests connection from the drawer and surfaces status', async () => {
+  it('tests the connection with the typed key and stores it on save', async () => {
     const onDiscoverModels = vi.fn(async () => ({
       providerId: 'openai',
       protocol: 'openai-compatible' as const,
       models: [{ id: 'gpt-4.1' }, { id: 'gpt-4.1-mini' }],
     }));
     const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
-    const props = makeProps(onSave);
-    props.onDiscoverModels = onDiscoverModels;
-    const { container, root } = renderProviderSettings(props);
-    instances.push({ container, root });
+    const props = { ...makeProps(onSave), onDiscoverModels };
+    const container = mount(props);
+    openConnection(container);
     act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-row-open-openai"]')
-        ?.click();
+      setInputValue(byTestId<HTMLInputElement>(container, 'provider-apikey-input'), '123456');
     });
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      byTestId<HTMLButtonElement>(container, 'provider-test-connection')?.click();
     });
-    const apiKeyInput = container.querySelector<HTMLInputElement>(
-      '[data-testid="provider-apikey-input"]',
-    );
-    expect(apiKeyInput).not.toBeNull();
-    act(() => {
-      setInputValue(apiKeyInput, '123456');
-    });
-    const testBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-test-connection"]',
-    );
-    expect(testBtn).not.toBeNull();
-    await act(async () => {
-      testBtn?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    await flush();
     expect(onDiscoverModels).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai' }), {
       apiKey: '123456',
     });
     expect(props.onStoreSecret).not.toHaveBeenCalled();
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>('[data-testid="provider-save-btn"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      byTestId<HTMLButtonElement>(container, 'provider-save-btn')?.click();
     });
+    await flush();
     expect(props.onStoreSecret).toHaveBeenCalledWith('openai', '123456');
     const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
     const provider = saved.providers.find((item) => item.id === 'openai');
     expect(provider?.apiKeyRef).toBe('keychain-openai');
     expect(provider?.apiKeyEnv).toBeUndefined();
-    expect(props.onInfo).toHaveBeenCalled();
   });
 
-  it('discovers models from the expanded provider row on the models page', async () => {
-    const onDiscoverModels = vi.fn(async () => ({
-      providerId: 'openai',
-      protocol: 'openai-compatible' as const,
-      models: [
-        { id: 'gpt-4.1', label: 'GPT-4.1' },
-        { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
-      ],
-    }));
-    const props = makeProps();
-    props.onDiscoverModels = onDiscoverModels;
-    const { container, root } = renderProviderSettings(props);
-    instances.push({ container, root });
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
-        ?.click();
+  it('marks the rail item red and keeps delete reachable after a failed test', async () => {
+    const onDiscoverModels = vi.fn(async () => {
+      throw new Error('Model discovery failed (404 Not Found: <!DOCTYPE html>)');
     });
+    const container = mount({ ...makeProps(), onDiscoverModels });
+    openConnection(container);
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      byTestId<HTMLButtonElement>(container, 'provider-test-connection')?.click();
     });
-    expect(container.querySelector('[data-testid="provider-row-models-openai"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-model-list"]')).not.toBeNull();
+    await flush();
+    expect(
+      byTestId(container, 'provider-row-openai')?.querySelector('.prail-dot--err'),
+    ).not.toBeNull();
+    const pill = container.querySelector('.provider-status-pill--err');
+    expect(pill?.getAttribute('title')).toContain('Model discovery failed');
 
-    const discoverBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-discover-models-openai"]',
-    );
-    expect(discoverBtn).not.toBeNull();
-    await act(async () => {
-      discoverBtn?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(onDiscoverModels).toHaveBeenCalled();
-    const search = document.querySelector<HTMLInputElement>(
-      '[data-testid="discover-models-search"]',
-    );
-    expect(search).not.toBeNull();
-
-    await act(async () => {
-      search?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-      search?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      search?.focus();
-      setInputValue(search, 'mini');
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(document.querySelector('[data-testid="discover-models-search"]')).not.toBeNull();
-    expect(search?.value).toBe('mini');
+    openMenu(byTestId(container, 'provider-detail-more'));
+    expect(byTestId(document.body, 'provider-delete-btn')).not.toBeNull();
   });
 
-  it('edits a provider model from the expanded row and persists immediately', async () => {
+  it('deletes the provider after confirmation and selects the next one', async () => {
     const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
-    const props = makeProps(onSave);
-    const { container, root } = renderProviderSettings(props);
-    instances.push({ container, root });
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
-        ?.click();
-    });
+    const container = mount(makeProps(onSave));
+    openMenu(byTestId(container, 'provider-detail-more'));
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      byTestId<HTMLElement>(document.body, 'provider-delete-btn')?.click();
     });
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-model-expand-gpt-4.1"]')
-        ?.click();
-    });
+    await flush();
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      byTestId<HTMLButtonElement>(document.body, 'confirm-dialog-confirm')?.click();
     });
-
-    const contextInput = container.querySelector<HTMLInputElement>(
-      '[data-testid="model-edit-context"]',
-    );
-    const outputInput = container.querySelector<HTMLInputElement>(
-      '[data-testid="model-edit-output"]',
-    );
-    expect(contextInput).not.toBeNull();
-    expect(outputInput).not.toBeNull();
-
-    act(() => {
-      setInputValue(contextInput, '256000');
-      setInputValue(outputInput, '16000');
-    });
-
-    act(() => {
-      container
-        .querySelector<HTMLInputElement>('[data-testid="model-edit-image-generation"]')
-        ?.click();
-    });
-
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>('[data-testid="model-edit-save"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(onSave).toHaveBeenCalled();
+    await flush();
     const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
-    const openai = saved?.providers.find((p: ModelProviderConfig) => p.id === 'openai');
-    const gpt = openai?.models.find((m) => m.id === 'gpt-4.1');
-    expect(gpt).toEqual(
-      expect.objectContaining({
-        contextWindow: 256000,
-        maxOutputTokens: 16000,
-        capabilities: ['image-generation'],
-      }),
-    );
+    expect(saved.providers.map((provider) => provider.id)).toEqual(['custom-local']);
   });
 
-  it('saves a model parameter change from the expanded row when clicking save', async () => {
+  it('toggles the provider from the detail header and saves at once', async () => {
     const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
-    const props = makeProps(onSave);
-    const { container, root } = renderProviderSettings(props);
-    instances.push({ container, root });
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
-        ?.click();
-    });
+    const container = mount(makeProps(onSave));
+    const toggle = byTestId<HTMLElement>(container, 'provider-enable-switch');
+    const input =
+      toggle instanceof HTMLInputElement ? toggle : toggle?.querySelector<HTMLInputElement>('input');
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      input?.click();
     });
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-model-expand-gpt-4.1"]')
-        ?.click();
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    const contextInput = container.querySelector<HTMLInputElement>(
-      '[data-testid="model-edit-context"]',
-    );
-    expect(contextInput).not.toBeNull();
-
-    act(() => {
-      setInputValue(contextInput, '256000');
-    });
-
-    expect(onSave).not.toHaveBeenCalled();
-
-    act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="model-edit-save"]')?.click();
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(onSave).toHaveBeenCalled();
+    await flush();
     const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
-    const openai = saved?.providers.find((p: ModelProviderConfig) => p.id === 'openai');
-    const gpt = openai?.models.find((m) => m.id === 'gpt-4.1');
-    expect(gpt).toEqual(expect.objectContaining({ contextWindow: 256000 }));
+    const openai = saved.providers.find((p: ModelProviderConfig) => p.id === 'openai');
+    expect(openai?.enabled).toBe(false);
+    expect(openai?.models[0]?.enabled).toBeUndefined();
   });
 
-  it('separates package and custom providers into vertical sections', () => {
-    const configWithPackage: PiwinConfig = {
-      ...makeConfig(),
-      providers: [
-        {
-          id: 'kimi-coding',
-          protocol: 'openai-compatible',
-          name: 'Kimi Coding',
-          source: 'subscription',
-          category: 'package',
-          baseUrl: 'oauth://kimi-coding',
-          models: [{ id: 'kimi-k1.5' }],
-        },
-        ...makeConfig().providers,
-      ],
-    };
-    const { container, root } = renderProviderSettings({
+  it('shows models as off and locked when the provider is disabled', () => {
+    const container = mount({
       ...makeProps(),
-      config: configWithPackage,
+      config: {
+        ...makeConfig(),
+        providers: [
+          {
+            id: 'xgrok',
+            protocol: 'openai-compatible',
+            name: 'xgrok',
+            baseUrl: 'https://xgrok.planora.chat',
+            enabled: false,
+            models: [{ id: 'grok-imagine-image-lite', capabilities: ['image-generation'] }],
+          },
+        ],
+      },
     });
-    instances.push({ container, root });
-
-    const packageSection = container.querySelector('[data-testid="provider-section-package"]');
-    const customSection = container.querySelector('[data-testid="provider-section-custom"]');
-
-    expect(packageSection).not.toBeNull();
-    expect(customSection).not.toBeNull();
-
-    expect(packageSection?.querySelector('[data-testid="provider-row-kimi-coding"]')).not.toBeNull();
-    expect(customSection?.querySelector('[data-testid="provider-row-openai"]')).not.toBeNull();
-    expect(customSection?.querySelector('[data-testid="provider-row-custom-local"]')).not.toBeNull();
+    expect(byTestId(container, 'provider-row-xgrok')?.className).toContain('is-off');
+    expect(container.querySelector('.pmodel-item')?.className).toContain('is-off');
+    const modelSwitch = readSwitch(container, 'provider-model-toggle-grok-imagine-image-lite');
+    expect(modelSwitch.checked).toBe(false);
+    expect(modelSwitch.disabled).toBe(true);
   });
 
-  it('surfaces model test error through onError and displays failure status when model test fails', async () => {
+  it('opens the add dialog with the custom endpoints first and drafts a new provider', async () => {
+    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
+    const container = mount(makeProps(onSave));
+    await act(async () => {
+      byTestId<HTMLButtonElement>(container, 'provider-add-block')?.click();
+    });
+    await flush();
+    const picker = byTestId(document.body, 'provider-preset-picker');
+    const firstPreset = picker?.querySelector('[data-testid^="provider-preset-"]');
+    expect(firstPreset?.getAttribute('data-testid')).toBe('provider-preset-custom-openai');
+    expect(byTestId(document.body, 'provider-preset-deepseek')).not.toBeNull();
+
+    // 'openai' is configured already, so the preset yields a second instance.
+    await act(async () => {
+      byTestId<HTMLButtonElement>(document.body, 'provider-preset-openai')?.click();
+    });
+    await flush();
+    expect(byTestId(container, 'provider-row-pending')).not.toBeNull();
+    expect(byTestId<HTMLInputElement>(container, 'provider-name-input')?.value).toBe('OpenAI 2');
+    expect(byTestId(container, 'provider-models-openai-2')).toBeNull();
+
+    await act(async () => {
+      byTestId<HTMLButtonElement>(container, 'provider-save-btn')?.click();
+    });
+    await flush();
+    const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
+    const second = saved.providers.find((provider) => provider.id === 'openai-2');
+    expect(second?.name).toBe('OpenAI 2');
+    expect(second?.protocol).toBe('openai-compatible');
+  });
+
+  it('runs a model test from the row menu and shows the result inline', async () => {
     const onError = vi.fn();
     const props = {
       ...makeProps(),
@@ -745,124 +559,77 @@ describe('ProviderSettings', () => {
         throw new Error('401 Unauthorized');
       }),
     };
-    const { container, root } = renderProviderSettings(props);
-    instances.push({ container, root });
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
-        ?.click();
-    });
+    const container = mount(props);
+    openMenu(byTestId(container, 'provider-model-more-gpt-4.1'));
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      byTestId<HTMLElement>(document.body, 'provider-model-test-gpt-4.1')?.click();
     });
-
-    const testButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-model-test-gpt-4.1"]',
-    );
-    expect(testButton).not.toBeNull();
-
-    act(() => {
-      testButton?.click();
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
+    await flush();
     expect(onError).toHaveBeenCalledWith('Model "gpt-4.1" test failed: 401 Unauthorized');
-    const statusPill = container.querySelector('.provider-model-test-status--error');
-    expect(statusPill).not.toBeNull();
-    expect(statusPill?.textContent).toBe('Fail');
-    expect(statusPill?.getAttribute('title')).toBe('401 Unauthorized');
+    const status = byTestId(container, 'provider-model-test-status-gpt-4.1');
+    expect(status?.className).toContain('pmodel-test--error');
+    expect(status?.textContent).toBe('Failed');
+    expect(status?.getAttribute('title')).toBe('401 Unauthorized');
   });
 
-  it('updates model status pill to OK when model test succeeds', async () => {
-    const props = {
-      ...makeProps(),
-      onTestModel: vi.fn(async () => ({ durationMs: 800 })),
-    };
-    const { container, root } = renderProviderSettings(props);
-    instances.push({ container, root });
-
+  it('edits model parameters inline from the row and persists on save', async () => {
+    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
+    const container = mount(makeProps(onSave));
     act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
-        ?.click();
+      byTestId<HTMLElement>(container, 'provider-model-row')?.click();
     });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
+    await flush();
+    const contextInput = byTestId<HTMLInputElement>(container, 'model-edit-context');
+    expect(contextInput).not.toBeNull();
     act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-model-test-gpt-4.1"]')
-        ?.click();
+      setInputValue(contextInput, '256000');
     });
+    expect(onSave).not.toHaveBeenCalled();
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      byTestId<HTMLButtonElement>(container, 'model-edit-save')?.click();
     });
-
-    const statusPill = container.querySelector('.provider-model-test-status--ok');
-    expect(statusPill).not.toBeNull();
-    expect(statusPill?.textContent).toBe('OK · 0.8s');
+    await flush();
+    const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
+    const gpt = saved.providers
+      .find((p: ModelProviderConfig) => p.id === 'openai')
+      ?.models.find((model) => model.id === 'gpt-4.1');
+    expect(gpt).toEqual(expect.objectContaining({ contextWindow: 256000 }));
   });
 
-  it('keeps edit and delete accessible when provider connection test fails with long error', async () => {
-    const onDiscoverModels = vi.fn(async () => {
-      throw new Error('Model discovery failed (404 Not Found: <!DOCTYPE html><html><body>error page</body></html>)');
-    });
-    const { container, root } = renderProviderSettings({
-      ...makeProps(),
-      onDiscoverModels,
-    });
-    instances.push({ container, root });
+  it('marks model rows as expandable and opens the editor from the keyboard', async () => {
+    const container = mount(makeProps());
+    const row = byTestId<HTMLElement>(container, 'provider-model-row');
+    expect(row?.getAttribute('role')).toBe('button');
+    expect(row?.getAttribute('aria-expanded')).toBe('false');
+    expect(row?.querySelector('.pmodel-chevron')).not.toBeNull();
+    // Configured parameters show on the folded row.
+    expect([...(row?.querySelectorAll('.pmodel-param') ?? [])].map((el) => el.textContent)).toEqual([
+      'ctx 128K',
+      'out 33K',
+    ]);
 
-    // Open drawer to trigger test connection
-    const openBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-row-open-openai"]',
-    );
-    expect(openBtn).not.toBeNull();
-    act(() => {
-      openBtn?.click();
-    });
-
-    const testBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-test-connection"]',
-    );
-    expect(testBtn).not.toBeNull();
     await act(async () => {
-      testBtn?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      row?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     });
+    expect(row?.getAttribute('aria-expanded')).toBe('true');
+    expect(byTestId(container, 'model-edit-context')).not.toBeNull();
+  });
 
-    // Close drawer
-    const closeBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-drawer-close"]',
-    );
-    act(() => {
-      closeBtn?.click();
+  it('fetches models from the models section', async () => {
+    const onDiscoverModels = vi.fn(async () => ({
+      providerId: 'openai',
+      protocol: 'openai-compatible' as const,
+      models: [
+        { id: 'gpt-4.1', label: 'GPT-4.1' },
+        { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
+      ],
+    }));
+    const container = mount({ ...makeProps(), onDiscoverModels });
+    await act(async () => {
+      byTestId<HTMLButtonElement>(container, 'provider-discover-models-openai')?.click();
     });
-
-    // Verify row now shows status pill with full error in title and text in sub-element
-    const row = container.querySelector('[data-testid="provider-row-openai"]');
-    const pill = row?.querySelector('.provider-status-pill--err');
-    expect(pill).not.toBeNull();
-    expect(pill?.getAttribute('title')).toContain('Model discovery failed');
-    expect(pill?.querySelector('.provider-status-pill-text')).not.toBeNull();
-
-    // Verify edit button is still present in the row and opens drawer with delete button
-    const editBtnAfterError = row?.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-row-open-openai"]',
-    );
-    expect(editBtnAfterError).not.toBeNull();
-    act(() => {
-      editBtnAfterError?.click();
-    });
-
-    const deleteBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-delete-btn"]',
-    );
-    expect(deleteBtn).not.toBeNull();
+    await flush();
+    expect(onDiscoverModels).toHaveBeenCalled();
+    expect(byTestId(document.body, 'discover-models-search')).not.toBeNull();
   });
 });
-

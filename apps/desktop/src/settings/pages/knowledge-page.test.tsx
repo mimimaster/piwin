@@ -280,7 +280,14 @@ describe('KnowledgePage settings', () => {
     const save = container!.querySelector<HTMLButtonElement>(
       '[data-testid="knowledge-embedding-save"]',
     );
-    expect(save?.disabled).toBe(true);
+    expect(save?.disabled).toBe(false);
+    await act(async () => {
+      save!.click();
+    });
+    expect(context.setError).toHaveBeenCalledWith(
+      'Enter a parser Base URL when MinerU is enabled.',
+    );
+    expect(context.saveConfig).not.toHaveBeenCalled();
 
     act(() => {
       setInputValue(url, 'http://127.0.0.1:8000');

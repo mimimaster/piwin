@@ -35,7 +35,14 @@ import { WebSearchLogPanel } from '../web-search-log-panel';
 import { useSettings } from '../settings-context';
 import { WebSecretEditor } from '../web-secret-editor';
 import { WebCliSourceFields } from '../web-cli-source-fields';
-import { createDraftSearchSource, draftToWeb, findCustomSearchSource, type DraftSearchSource } from '../web-draft';
+import {
+  createDraftSearchSource,
+  draftToWeb,
+  findCustomSearchSource,
+  webDraftDirty,
+  webToDraft,
+  type DraftSearchSource,
+} from '../web-draft';
 import { HostWorkspacePicker } from '../../host-workspace-picker';
 import { pickLocalFile } from '../../pick-project-directory';
 import { FETCH_PROVIDER_OPTIONS, SOURCE_KIND_OPTIONS } from './web-page-options';
@@ -79,10 +86,10 @@ export function WebPage(): ReactElement {
   const [routePreviewLoading, setRoutePreviewLoading] = useState(false);
   const [routePreviewError, setRoutePreviewError] = useState(false);
   const zh = locale === 'zh-CN';
-  const isDirty = config
-    ? JSON.stringify(draftToWeb(webDraft)) !==
-      JSON.stringify(config.web ?? createDefaultWebConfig())
-    : false;
+  const isDirty = useMemo(
+    () => Boolean(config && webDraftDirty(webDraft, config.web)),
+    [config, webDraft],
+  );
   const previewInput = useMemo<SearchRoutePreviewInput>(() => {
     const web = draftToWeb(webDraft);
     return {
@@ -177,10 +184,25 @@ export function WebPage(): ReactElement {
   }, [previewInput, request]);
 
   useEffect(() => {
+    if (saveStatus === 'saved') {
+      const timer = window.setTimeout(() => {
+        setSaveStatus('idle');
+      }, 1800);
+      return () => window.clearTimeout(timer);
+    }
+  }, [saveStatus]);
+
+  useEffect(() => {
     if (isDirty && saveStatus === 'saved') {
       setSaveStatus('idle');
     }
   }, [isDirty, saveStatus]);
+
+  const resetDraft = (): void => {
+    if (!config) return;
+    setWebDraft(webToDraft(config.web ?? createDefaultWebConfig()));
+    setSaveStatus('idle');
+  };
 
   const isKindEnabled = (kind: WebSearchSourceKind): boolean => {
     if (kind === 'cli') {
@@ -854,41 +876,62 @@ export function WebPage(): ReactElement {
             </div>
           )}
 
-          <div className="web-tools-actions">
-            <div className="web-tools-save-meta">
-              <div
-                className={`web-tools-save-status is-${saveStatus}`}
-                role="status"
-                aria-live="polite"
-              >
-                {saveStatus === 'saving'
-                  ? zh
-                    ? '正在保存...'
-                    : 'Saving...'
-                  : saveStatus === 'saved'
+          {isDirty || saveStatus !== 'idle' ? (
+            <div
+              className={`web-tools-actions is-floating is-${saveStatus}`}
+              data-testid="web-tools-floating-bar"
+            >
+              <div className="web-tools-floating-pill">
+                <div
+                  className={`web-tools-save-status is-${saveStatus}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {saveStatus === 'saving'
                     ? zh
-                      ? '✓ 配置已保存'
-                      : '✓ Settings saved'
-                    : saveStatus === 'error'
+                      ? '正在保存...'
+                      : 'Saving...'
+                    : saveStatus === 'saved'
                       ? zh
-                        ? '保存失败，请查看上方错误'
-                        : 'Save failed; see the error above'
-                      : isDirty
+                        ? '✓ 配置已保存'
+                        : '✓ Settings saved'
+                      : saveStatus === 'error'
                         ? zh
+                          ? '保存失败，请重试'
+                          : 'Save failed, please retry'
+                        : zh
                           ? '● 有未保存更改'
-                          : '● Unsaved changes'
-                        : ''}
-              </div>
-              <div className="web-tools-effective-scope">
-                {zh
-                  ? '当前轮次完成后自动应用；无需重启应用'
-                  : 'Applied automatically after the current Run; no app restart required'}
+                          : '● Unsaved changes'}
+                </div>
+                {isDirty && saveStatus !== 'saving' ? (
+                  <Button
+                    variant="ghost"
+                    size="compact"
+                    disabled={saving}
+                    onClick={resetDraft}
+                    data-testid="web-tools-reset-button"
+                  >
+                    {zh ? '还原' : 'Reset'}
+                  </Button>
+                ) : null}
+                <Button
+                  variant="primary"
+                  size="compact"
+                  disabled={saving || !isDirty}
+                  onClick={() => void saveAllWebSettings()}
+                  data-testid="web-tools-save-button"
+                >
+                  {saving
+                    ? zh
+                      ? '保存中...'
+                      : 'Saving...'
+                    : zh
+                      ? '保存更改'
+                      : 'Save changes'}
+                </Button>
               </div>
             </div>
-            <Button variant="primary" disabled={saving} onClick={() => void saveAllWebSettings()}>
-              {saving ? (zh ? '保存中...' : 'Saving...') : zh ? '保存 Web 配置' : 'Save Web Config'}
-            </Button>
-          </div>
+          ) : null}
         </div>
       )}
       </div>

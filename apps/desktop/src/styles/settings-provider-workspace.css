@@ -1,0 +1,343 @@
+/* Settings → Models → providers workspace (ProviderSettings.tsx).
+   Owns .pws / .pdetail*. The rail is in settings-provider-rail.css, the
+   models section in settings-provider-model-list.css, the connection section
+   in settings-provider-connection-form.css.
+
+   One card, two panes. The rail is recessed (a well cut into the card) so the
+   detail pane reads as the working surface; the selected rail item is the one
+   raised object on the left, marked with the iris edge — iris means "this is
+   what you are acting on". Status dots keep their reserved meaning:
+   mint = last test passed, coral = last test failed. */
+
+/* ── Frame ────────────────────────────────────────────────────────────── */
+
+/* Full-bleed split view. The providers workspace is a list + detail, like a
+   native split pane, so it is not a card inside the page: it runs to the
+   settings panel's left, right and bottom edges, the rail's tint ends in the
+   panel's own rounded corner, and one hairline under the tabs separates the
+   page header from the panes. (A card here had its hairline clipped by the
+   scrolling panel, which is what made its corners look broken.) */
+.settings-main:has(.pws) {
+  /* The pane rails own their scrollbars; no reserved gutter at the edge. */
+  scrollbar-gutter: auto;
+}
+
+.settings-main .settings-main-content:has(.pws) {
+  --workspace-gutter: 28px;
+  padding: 0 var(--workspace-gutter);
+}
+
+.settings-workspace-panel:has(.pws) {
+  margin: 0 calc(-1 * var(--workspace-gutter, 0px));
+}
+
+.settings-workspace-panel > .settings-card-flush:has(> .pws) {
+  height: 100%;
+}
+
+.pws {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  /* Fills the pinned models panel (settings-workspace.css); each pane
+     scrolls on its own, so a shorter provider (an OAuth plan has no
+     connection form) never changes the page height. */
+  height: 100%;
+  min-height: 420px;
+  border-top: 1px solid var(--line-2);
+  background: transparent;
+  overflow: hidden;
+}
+
+.pws-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  padding: var(--s-10) var(--s-8);
+  text-align: center;
+}
+
+.pws-empty h3 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-title);
+  font-weight: 650;
+}
+
+.pws-empty p {
+  max-width: 360px;
+  margin: 0 0 var(--s-4);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-relaxed);
+}
+
+/* ── Detail ───────────────────────────────────────────────────────────── */
+
+.pdetail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--s-8) 28px var(--s-9) var(--s-9);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+
+/* Content keeps a readable measure on wide windows; the pane itself still
+   fills the card, so its scrollbar sits at the card edge. */
+.pdetail > * {
+  width: 100%;
+  max-width: 860px;
+}
+
+.pdetail-head {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-6);
+}
+
+.pdetail-who {
+  min-width: 0;
+}
+
+.pdetail-name {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-1);
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdetail-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+  margin: var(--s-3) 0 0;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+}
+
+.pdetail-chip {
+  flex: none;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--hover);
+  color: var(--text-2);
+  font-family: var(--font-sans, inherit);
+  font-size: 10.5px;
+  font-weight: 560;
+  line-height: 18px;
+}
+
+.pdetail-host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdetail-key {
+  flex: none;
+  color: var(--text-3);
+  font-family: var(--font-sans, inherit);
+  font-size: 11.5px;
+}
+
+.pdetail-key::before {
+  content: '·';
+  margin-right: var(--s-4);
+  color: var(--text-4);
+}
+
+.pdetail-key.is-missing {
+  color: var(--amber);
+}
+
+.pdetail-conn-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: var(--h-sm);
+  padding: 0 var(--s-4) 0 var(--s-5);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: 560;
+  cursor: pointer;
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    color var(--t-2) var(--ease-out);
+}
+
+.pdetail-conn-btn:hover:not(:disabled),
+.pdetail-conn-btn.is-open {
+  background: color-mix(in srgb, var(--text-1) 10%, transparent);
+  color: var(--text-1);
+}
+
+.pdetail-conn-btn:disabled {
+  cursor: default;
+}
+
+.pdetail-conn-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--iris) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.pdetail-conn-chevron {
+  color: var(--text-3);
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.pdetail-conn-btn.is-open .pdetail-conn-chevron {
+  transform: rotate(180deg);
+}
+
+.pdetail-head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+}
+
+.pdetail-enable {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.pdetail-enable-label {
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+}
+
+.pdetail-note {
+  margin: 0;
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-control);
+  background: var(--hover);
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-relaxed);
+}
+
+/* Sections read as chapters: a hairline, a real title, one line saying what
+   the section does. */
+.pdetail-section {
+  min-width: 0;
+  padding-top: var(--s-8);
+  border-top: 1px solid var(--line-1);
+}
+
+.pdetail-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-7);
+}
+
+.pdetail-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin: 0;
+  color: var(--text-1);
+  font-size: 13.5px;
+  font-weight: 620;
+  letter-spacing: -0.005em;
+}
+
+.pdetail-section-desc {
+  margin: var(--s-2) 0 0;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.pdetail-section-count {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdetail-section-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.pdetail-section-actions .piwin-button {
+  gap: var(--s-3);
+  color: var(--text-2);
+}
+
+.pdetail-section-actions .piwin-button:hover:not(:disabled) {
+  color: var(--text-1);
+}
+
+.pdetail-savebar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-top: var(--s-6);
+  padding: var(--s-4) var(--s-4) var(--s-4) var(--s-6);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--iris) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 24%, transparent);
+  animation: pdetail-savebar-in var(--t-3) var(--ease-out);
+}
+
+.pdetail-savebar-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+}
+
+.pdetail-savebar .piwin-button {
+  gap: var(--s-3);
+}
+
+@keyframes pdetail-savebar-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+/* ── Narrow ───────────────────────────────────────────────────────────── */
+
+/* Stacked: the rail sits above the detail, so the page scrolls as a whole. */
+@media (max-width: 860px) {
+  .pws {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 0;
+  }
+
+  .pdetail {
+    padding: var(--s-6);
+    overflow: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdetail-savebar {
+    animation: none;
+  }
+}

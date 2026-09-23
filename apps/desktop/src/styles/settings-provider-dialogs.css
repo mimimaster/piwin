@@ -1,4 +1,4 @@
-/* Settings: add-provider and add-model dialogs, image generation form.
+/* Settings: add-provider and add-model dialogs.
    Split out of settings-resources.css (one region, split by responsibility
    per AGENTS.md 3.2).
 
@@ -52,6 +52,22 @@
   .provider-preset-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+/* Custom endpoints lead the dialog as two wide cards: they back most of the
+   providers people actually configure. */
+.provider-preset-grid.provider-preset-grid--featured {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.provider-preset-grid--featured .provider-preset-card {
+  min-height: 64px;
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+}
+
+.provider-preset-grid--featured .provider-preset-card-meta {
+  white-space: normal;
 }
 
 .provider-preset-card {
@@ -226,59 +242,4 @@
   justify-content: flex-end;
   gap: var(--s-5);
   margin-top: var(--s-8);
-}
-
-/* ── Image generation form ────────────────────────────────────────────── */
-
-.image-gen-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-6);
-}
-
-.image-gen-type-pills {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-3);
-  padding: var(--s-1);
-  background: var(--void);
-  border: 0;
-  box-shadow: inset 0 0 0 1px var(--line-1);
-  border-radius: var(--r-control);
-}
-
-.image-gen-type-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--s-2) var(--s-6);
-  border-radius: var(--r-chip);
-  font-size: var(--fs-chrome);
-  font-weight: 500;
-  color: var(--text-3);
-  background: transparent;
-  user-select: none;
-}
-
-/* The one filled segment in the product: picking a generation type is a mode
-   switch, and the fill is what tells you which mode you are in at a glance. */
-.image-gen-type-pill.active {
-  background: var(--iris);
-  color: var(--on-iris);
-  font-weight: 600;
-}
-
-.image-gen-type-pill.disabled {
-  color: var(--text-4);
-  cursor: not-allowed;
-}
-
-.image-gen-form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--s-5);
-}
-
-.image-gen-form-row--full {
-  grid-template-columns: 1fr;
 }

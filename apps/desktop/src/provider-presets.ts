@@ -305,7 +305,7 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     apiKeyEnv: 'CUSTOM_API_KEY',
     models: [],
     badge: '+',
-    desc: 'Any OpenAI-compatible API',
+    desc: 'Relays, gateways, or self-hosted · /v1/chat/completions',
     group: 'custom',
   },
   {
@@ -317,7 +317,7 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     apiKeyEnv: 'CUSTOM_ANTHROPIC_KEY',
     models: [],
     badge: '+',
-    desc: 'Any Anthropic-compatible API',
+    desc: 'Relays, gateways, or self-hosted · /v1/messages',
     group: 'custom',
   },
 ] as const;
@@ -346,12 +346,16 @@ export function getProviderPreset(presetId: string): ProviderPreset | undefined 
   return undefined;
 }
 
+/**
+ * Presets grouped for the add dialog, in display order. Custom endpoints come
+ * first: most configured providers are custom channels, not vendor presets.
+ */
 export function presetsByGroup(): Record<ProviderPreset['group'], ProviderPreset[]> {
   const groups: Record<ProviderPreset['group'], ProviderPreset[]> = {
+    custom: [],
     cloud: [],
     gateway: [],
     local: [],
-    custom: [],
   };
   for (const preset of PROVIDER_PRESETS) {
     groups[preset.group].push(preset);
@@ -363,8 +367,23 @@ export const PROVIDER_GROUP_LABELS: Record<ProviderPreset['group'], string> = {
   cloud: 'Cloud',
   gateway: 'Gateways',
   local: 'Local',
-  custom: 'Custom',
+  custom: 'Custom endpoints',
 };
+
+/**
+ * Card title in the add dialog. The custom presets are named by what they
+ * connect to; their config names ("Custom (OpenAI-compatible)") are too long
+ * for a card and read as jargon in Chinese.
+ */
+export function presetTitle(preset: ProviderPreset, isChinese: boolean): string {
+  if (preset.presetId === 'custom-openai') {
+    return isChinese ? 'OpenAI 兼容接口' : 'OpenAI-compatible endpoint';
+  }
+  if (preset.presetId === 'custom-anthropic') {
+    return isChinese ? 'Anthropic 兼容接口' : 'Anthropic-compatible endpoint';
+  }
+  return preset.name;
+}
 
 /** Localized one-line descriptions for the add-provider dialog. */
 export function presetDesc(preset: ProviderPreset, isChinese: boolean): string {
@@ -388,8 +407,8 @@ export function presetDesc(preset: ProviderPreset, isChinese: boolean): string {
     'gemini-proxy': 'Gemini 兼容代理',
     ollama: '本地运行',
     lmstudio: '本地桌面服务',
-    'custom-openai': '任意 OpenAI 兼容接口',
-    'custom-anthropic': '任意 Anthropic 兼容接口',
+    'custom-openai': '中转站、网关或自建服务 · /v1/chat/completions',
+    'custom-anthropic': '中转站、网关或自建服务 · /v1/messages',
   };
   return zh[preset.presetId] ?? preset.desc;
 }

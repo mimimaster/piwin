@@ -1,8 +1,6 @@
 /** Settings → unified model configuration workspace. */
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from '@piwin/contracts';
-import type { ModelConfigEntry, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
-import { StatusBadge, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
+import { Tabs, TabsContent } from '@piwin/ui-kit';
 import { ModelCatalogSyncControl } from '../model-catalog-sync-control';
 import { ProviderSettings } from '../../ProviderSettings';
 import { VisionDelegationSettings } from '../../VisionDelegationSettings';
@@ -12,159 +10,37 @@ import { VideoGenerationSettings } from '../../VideoGenerationSettings';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { useSettings } from '../settings-context';
 import { AsrModelSettings } from '../asr-model-settings.js';
+import {
+  WorkspaceHealth,
+  WorkspaceSummary,
+  WorkspaceTab,
+  WorkspaceTabStrip,
+} from '../settings-workspace-header.js';
+import {
+  buildModelWorkspaceSummary,
+  type ModelTab,
+  type ModelWorkspaceIssue,
+} from './models-workspace-summary.js';
 
-type ModelTab = 'text' | 'vision' | 'writer' | 'image' | 'video' | 'speech';
+export { buildModelWorkspaceSummary };
+export type { ModelWorkspaceSummary } from './models-workspace-summary.js';
+
+function issueLabel(issue: ModelWorkspaceIssue, isChinese: boolean): string {
+  switch (issue.kind) {
+    case 'no-provider':
+      return isChinese ? '没有启用的接口' : 'No provider is enabled';
+    case 'no-chat-default':
+      return isChinese ? '对话未设置默认模型' : 'No default chat model';
+    case 'no-image-default':
+      return isChinese ? '图片生成未设置默认模型' : 'No default image model';
+    case 'no-video-default':
+      return isChinese ? '视频生成未设置默认模型' : 'No default video model';
+    case 'speech-default-unavailable':
+      return isChinese ? '语音识别的默认模型不可用' : 'Default speech model is unavailable';
+  }
+}
+
 type CapabilityKind = ModelTab;
-
-type ModelTarget = {
-  provider: ModelProviderConfig;
-  model: ModelConfigEntry;
-};
-
-export type ModelWorkspaceSummary = {
-  providerCount: number;
-  activeProviderCount: number;
-  modelCount: number;
-  enabledModelCount: number;
-  textModelCount: number;
-  imageModelCount: number;
-  videoModelCount: number;
-  speechModelCount: number;
-  readyDefaultCount: number;
-  applicableDefaultCount: number;
-  issueCount: number;
-  chatDefaultLabel: string | null;
-  imageDefaultLabel: string | null;
-  videoDefaultLabel: string | null;
-  speechDefaultLabel: string | null;
-};
-
-function isImageModel(model: ModelConfigEntry): boolean {
-  return (
-    model.capabilities?.includes('image-generation') === true ||
-    model.routes?.['image-generation'] !== undefined
-  );
-}
-
-function isVideoModel(model: ModelConfigEntry): boolean {
-  return (
-    model.capabilities?.includes('video-generation') === true ||
-    model.routes?.['video-generation'] !== undefined
-  );
-}
-
-function isSpeechModel(model: ModelConfigEntry): boolean {
-  return (
-    model.capabilities?.includes('speech-to-text') === true ||
-    model.capabilities?.includes('text-to-speech') === true
-  );
-}
-
-function enabledTargets(config: PiwinConfig): ModelTarget[] {
-  return config.providers.flatMap((provider) =>
-    isProviderEnabled(provider)
-      ? provider.models
-          .filter((model) => isModelEnabled(model))
-          .map((model) => ({ provider, model }))
-      : [],
-  );
-}
-
-function resolveDefaultTarget(
-  config: PiwinConfig,
-  providerId: string | undefined,
-  modelId: string | undefined,
-  supports: (model: ModelConfigEntry) => boolean,
-): ModelTarget | null {
-  if (!providerId || !modelId) return null;
-  const provider = config.providers.find(
-    (candidate) => candidate.id === providerId && isProviderEnabled(candidate),
-  );
-  const model = provider?.models.find(
-    (candidate) => candidate.id === modelId && isModelEnabled(candidate) && supports(candidate),
-  );
-  return provider && model ? { provider, model } : null;
-}
-
-function targetLabel(target: ModelTarget | null): string | null {
-  return target ? (target.model.label ?? target.model.id) : null;
-}
-
-export function buildModelWorkspaceSummary(config: PiwinConfig): ModelWorkspaceSummary {
-  const targets = enabledTargets(config);
-  const textTargets = targets.filter(({ model }) => modelSupportsCapability(model, 'chat'));
-  const imageTargets = targets.filter(({ model }) => isImageModel(model));
-  const videoTargets = targets.filter(({ model }) => isVideoModel(model));
-  const speechTargets = targets.filter(({ model }) => isSpeechModel(model));
-
-  const chatDefault = resolveDefaultTarget(
-    config,
-    config.defaultProviderId,
-    config.defaultModelId,
-    (model) => modelSupportsCapability(model, 'chat'),
-  );
-  const imageRef = config.imageGeneration?.defaultModel;
-  const imageDefault = resolveDefaultTarget(
-    config,
-    imageRef?.providerId,
-    imageRef?.modelId,
-    isImageModel,
-  );
-  const videoRef = config.videoGeneration?.defaultModel;
-  const videoDefault = resolveDefaultTarget(
-    config,
-    videoRef?.providerId,
-    videoRef?.modelId,
-    isVideoModel,
-  );
-  const speechRef = config.speech?.asr?.defaultModel;
-  const speechDefault = resolveDefaultTarget(
-    config,
-    speechRef?.providerId,
-    speechRef?.modelId,
-    (model) => model.capabilities?.includes('speech-to-text') === true,
-  );
-
-  const activeProviderCount = config.providers.filter((provider) =>
-    isProviderEnabled(provider),
-  ).length;
-  let issueCount = activeProviderCount === 0 || !chatDefault ? 1 : 0;
-  if (imageTargets.length > 0 && !imageDefault) issueCount += 1;
-  if (videoTargets.length > 0 && !videoDefault) issueCount += 1;
-  if (speechRef && !speechDefault) issueCount += 1;
-
-  const applicableDefaultCount =
-    1 +
-    (imageTargets.length > 0 ? 1 : 0) +
-    (videoTargets.length > 0 ? 1 : 0) +
-    (speechTargets.some(({ model }) => model.capabilities?.includes('speech-to-text')) ? 1 : 0);
-  const readyDefaultCount =
-    (chatDefault ? 1 : 0) +
-    (imageTargets.length > 0 && imageDefault ? 1 : 0) +
-    (videoTargets.length > 0 && videoDefault ? 1 : 0) +
-    (speechTargets.some(({ model }) => model.capabilities?.includes('speech-to-text')) &&
-    speechDefault
-      ? 1
-      : 0);
-
-  return {
-    providerCount: config.providers.length,
-    activeProviderCount,
-    modelCount: config.providers.reduce((total, provider) => total + provider.models.length, 0),
-    enabledModelCount: targets.length,
-    textModelCount: textTargets.length,
-    imageModelCount: imageTargets.length,
-    videoModelCount: videoTargets.length,
-    speechModelCount: speechTargets.length,
-    readyDefaultCount,
-    applicableDefaultCount,
-    issueCount,
-    chatDefaultLabel: targetLabel(chatDefault),
-    imageDefaultLabel: targetLabel(imageDefault),
-    videoDefaultLabel: targetLabel(videoDefault),
-    speechDefaultLabel: targetLabel(speechDefault),
-  };
-}
 
 export function ModelsPage(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -184,6 +60,8 @@ export function ModelsPage(): ReactElement {
     hostClient,
   } = useSettings();
   const [activeTab, setActiveTab] = useState<ModelTab>('text');
+  // Kept here so switching capability tabs does not reset the provider rail.
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
 
   if (!config) {
     return (
@@ -194,130 +72,115 @@ export function ModelsPage(): ReactElement {
   }
 
   const summary = buildModelWorkspaceSummary(config);
+  const attentionTabs = new Set(summary.issues.map((issue) => issue.tab));
   const unsetLabel = isChinese ? '未设置默认模型' : 'No default selected';
 
   return (
-    <div className="settings-models-page" data-testid="settings-models">
+    <div className="settings-models-page settings-hub-page settings-workspace-page" data-testid="settings-models">
       <section className="model-management" data-testid="settings-model-management">
-        <div className="model-workspace-intro">
-          <p>
-            {isChinese
-              ? '集中管理对话、视觉、生图、视频与语音模型。支持多提供商接入、协议自定义与默认模型分流。'
-              : 'Centrally configure chat, vision, image, video, and speech models with custom wire protocols and defaults.'}
-          </p>
-          <div className="model-workspace-intro-actions">
-            <ModelCatalogSyncControl />
-            <StatusBadge
-              tone={summary.issueCount === 0 ? 'success' : 'warning'}
-              label={
-                summary.issueCount === 0
-                  ? isChinese
-                    ? '配置就绪'
-                    : 'Ready'
-                  : isChinese
-                    ? `${summary.issueCount} 项待处理`
-                    : `${summary.issueCount} need attention`
-              }
-              testId="model-workspace-health"
-            />
-          </div>
-        </div>
-
-        <div className="model-workspace-overview" data-testid="model-workspace-overview">
-          <OverviewMetric
-            label={isChinese ? '接口通道' : 'Provider channels'}
-            value={`${summary.activeProviderCount} / ${summary.providerCount}`}
-            detail={isChinese ? '已启用 / 全部' : 'active / total'}
-          />
-          <OverviewMetric
-            label={isChinese ? '可用模型' : 'Available models'}
-            value={`${summary.enabledModelCount} / ${summary.modelCount}`}
-            detail={isChinese ? '已启用 / 全部' : 'enabled / total'}
-          />
-          <OverviewMetric
-            label={isChinese ? '能力默认值' : 'Capability defaults'}
-            value={`${summary.readyDefaultCount} / ${summary.applicableDefaultCount}`}
-            detail={isChinese ? '已配置 / 适用' : 'ready / applicable'}
-          />
-        </div>
+        <WorkspaceSummary
+          testId="model-workspace-overview"
+          readouts={[
+            {
+              value: `${summary.activeProviderCount}/${summary.providerCount}`,
+              label: isChinese ? '接口已启用' : 'channels on',
+            },
+            {
+              value: `${summary.enabledModelCount}/${summary.modelCount}`,
+              label: isChinese ? '模型可用' : 'models available',
+            },
+            {
+              value: `${summary.readyDefaultCount}/${summary.applicableDefaultCount}`,
+              label: isChinese ? '能力已设默认' : 'defaults set',
+            },
+          ]}
+          actions={
+            <>
+              <ModelCatalogSyncControl />
+              <WorkspaceHealth
+                issues={summary.issues.map((issue) => ({ label: issueLabel(issue, isChinese) }))}
+                readyLabel={isChinese ? '配置就绪' : 'Ready'}
+                pendingLabel={(count) =>
+                  isChinese ? `${count} 项待处理` : `${count} need attention`
+                }
+                onOpen={() => {
+                  const first = summary.issues[0];
+                  if (first) setActiveTab(first.tab);
+                }}
+                testId="model-workspace-health"
+              />
+            </>
+          }
+        />
 
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as ModelTab)}
-          className="model-workspace-tabs"
+          className="settings-workspace"
           testId="model-config-tabs"
         >
-          <TabsList
-            className="model-workspace-nav"
-            label={isChinese ? '模型能力' : 'Model capabilities'}
-          >
-            <WorkspaceNavItem
+          <WorkspaceTabStrip label={isChinese ? '模型能力' : 'Model capabilities'}>
+            <WorkspaceTab
               value="text"
-              kind="text"
-              title={isChinese ? '模型配置' : 'Channels & chat'}
-              description={
-                isChinese ? '密钥、接口和对话默认模型' : 'Keys, endpoints, and chat default'
-              }
+              icon={<ModelCapabilityIcon kind="text" />}
+              title={isChinese ? '接口与对话' : 'Channels & chat'}
+              hint={`${isChinese ? '密钥、接口和对话默认模型' : 'Keys, endpoints, and chat default'} · ${summary.chatDefaultLabel ?? unsetLabel}`}
               count={summary.textModelCount}
-              defaultLabel={summary.chatDefaultLabel ?? unsetLabel}
+              attention={attentionTabs.has('text')}
               testId="model-config-tab-text"
             />
-            <WorkspaceNavItem
+            <WorkspaceTab
               value="vision"
-              kind="vision"
+              icon={<ModelCapabilityIcon kind="vision" />}
               title={isChinese ? '视觉委派' : 'Vision'}
-              description={
-                isChinese ? '纯文本模型的多模态图片转写' : 'Multimodal description for text models'
-              }
-              count={config.visionDelegation?.enabled ? 1 : 0}
-              defaultLabel={config.visionDelegation?.enabled ? (isChinese ? '已启用' : 'Enabled') : (isChinese ? '未启用' : 'Disabled')}
+              hint={isChinese ? '纯文本模型的多模态图片转写' : 'Multimodal description for text models'}
+              tone={config.visionDelegation?.enabled ? 'ok' : 'off'}
               testId="model-config-tab-vision"
             />
-            <WorkspaceNavItem
+            <WorkspaceTab
               value="writer"
-              kind="writer"
+              icon={<ModelCapabilityIcon kind="writer" />}
               title={isChinese ? '输出委托' : 'Reply writer'}
-              description={
-                isChinese ? '主模型完成任务后由写作模型润色回复表达' : 'Rewrite the visible reply after the worker turn'
+              hint={
+                isChinese
+                  ? '主模型完成任务后由写作模型润色回复表达'
+                  : 'Rewrite the visible reply after the worker turn'
               }
-              count={config.replyWriter?.enabled ? 1 : 0}
-              defaultLabel={config.replyWriter?.enabled ? (isChinese ? '已启用' : 'Enabled') : (isChinese ? '未启用' : 'Disabled')}
+              tone={config.replyWriter?.enabled ? 'ok' : 'off'}
               testId="model-config-tab-writer"
             />
-            <WorkspaceNavItem
+            <WorkspaceTab
               value="image"
-              kind="image"
+              icon={<ModelCapabilityIcon kind="image" />}
               title={isChinese ? '图片生成' : 'Images'}
-              description={
-                isChinese ? '生图路由、模型和调用测试' : 'Routes, models, and call tests'
-              }
+              hint={`${isChinese ? '生图路由、模型和调用测试' : 'Routes, models, and call tests'} · ${summary.imageDefaultLabel ?? unsetLabel}`}
               count={summary.imageModelCount}
-              defaultLabel={summary.imageDefaultLabel ?? unsetLabel}
+              attention={attentionTabs.has('image')}
               testId="model-config-tab-image"
             />
-            <WorkspaceNavItem
+            <WorkspaceTab
               value="video"
-              kind="video"
+              icon={<ModelCapabilityIcon kind="video" />}
               title={isChinese ? '视频生成' : 'Video'}
-              description={isChinese ? '异步任务接口和默认模型' : 'Async APIs and video default'}
+              hint={`${isChinese ? '异步任务接口和默认模型' : 'Async APIs and video default'} · ${summary.videoDefaultLabel ?? unsetLabel}`}
               count={summary.videoModelCount}
-              defaultLabel={summary.videoDefaultLabel ?? unsetLabel}
+              attention={attentionTabs.has('video')}
               testId="model-config-tab-video"
             />
-            <WorkspaceNavItem
+            <WorkspaceTab
               value="speech"
-              kind="speech"
+              icon={<ModelCapabilityIcon kind="speech" />}
               title={isChinese ? '语音能力' : 'Speech'}
-              description={isChinese ? 'piwin Live 实时语音' : 'piwin Live realtime voice'}
+              hint={isChinese ? 'piwin Live 实时语音' : 'piwin Live realtime voice'}
               count={summary.speechModelCount}
-              defaultLabel={isChinese ? 'Live' : 'Live'}
+              attention={attentionTabs.has('speech')}
               testId="model-config-tab-speech"
             />
-          </TabsList>
+          </WorkspaceTabStrip>
 
           <TabsContent
             value="text"
-            className="model-management-tab-content"
+            className="model-management-tab-content settings-workspace-panel"
             testId="model-config-panel-text"
           >
             <div className="settings-card settings-card-flush" data-testid="settings-provider-card">
@@ -331,6 +194,8 @@ export function ModelsPage(): ReactElement {
                 onTestModel={testProviderModel}
                 onStoreSecret={storeProviderSecret}
                 onLoadSecret={loadProviderSecret}
+                selectedProviderId={selectedProviderId}
+                onSelectProvider={setSelectedProviderId}
                 searchCatalog={async (query) => {
                   const result = await searchModelCatalog({ query, limit: 12 });
                   return result.entries;
@@ -341,7 +206,7 @@ export function ModelsPage(): ReactElement {
 
           <TabsContent
             value="vision"
-            className="model-management-tab-content"
+            className="model-management-tab-content settings-workspace-panel"
             testId="model-config-panel-vision"
           >
             <div className="settings-section settings-section-card" data-testid="settings-vision-page">
@@ -351,7 +216,7 @@ export function ModelsPage(): ReactElement {
 
           <TabsContent
             value="writer"
-            className="model-management-tab-content"
+            className="model-management-tab-content settings-workspace-panel"
             testId="model-config-panel-writer"
           >
             <div className="settings-section settings-section-card" data-testid="settings-reply-writer-page">
@@ -361,7 +226,7 @@ export function ModelsPage(): ReactElement {
 
           <TabsContent
             value="image"
-            className="model-management-tab-content"
+            className="model-management-tab-content settings-workspace-panel"
             testId="model-config-panel-image"
           >
             <ImageGenerationSettings />
@@ -369,7 +234,7 @@ export function ModelsPage(): ReactElement {
 
           <TabsContent
             value="video"
-            className="model-management-tab-content"
+            className="model-management-tab-content settings-workspace-panel"
             testId="model-config-panel-video"
           >
             <VideoGenerationSettings />
@@ -377,7 +242,7 @@ export function ModelsPage(): ReactElement {
 
           <TabsContent
             value="speech"
-            className="model-management-tab-content"
+            className="model-management-tab-content settings-workspace-panel"
             testId="model-config-panel-speech"
           >
             <AsrModelSettings
@@ -400,45 +265,6 @@ export function ModelsPage(): ReactElement {
         </Tabs>
       </section>
     </div>
-  );
-}
-
-function OverviewMetric(props: {
-  label: string;
-  value: string;
-  detail: string;
-  compact?: boolean;
-}): ReactElement {
-  return (
-    <div className="model-workspace-metric">
-      <span className="model-workspace-metric-label">{props.label}</span>
-      <strong className={props.compact ? 'is-compact' : undefined}>{props.value}</strong>
-      <small>{props.detail}</small>
-    </div>
-  );
-}
-
-function WorkspaceNavItem(props: {
-  value: ModelTab;
-  kind: CapabilityKind;
-  title: string;
-  description: string;
-  count: number;
-  defaultLabel: string;
-  testId: string;
-}): ReactElement {
-  return (
-    <TabsTrigger value={props.value} className="model-workspace-nav-item" testId={props.testId}>
-      <ModelCapabilityIcon kind={props.kind} />
-      <span className="model-workspace-nav-copy">
-        <span className="model-workspace-nav-title">
-          <strong>{props.title}</strong>
-          <span>{props.count}</span>
-        </span>
-        <small>{props.description}</small>
-        <em title={props.defaultLabel}>{props.defaultLabel}</em>
-      </span>
-    </TabsTrigger>
   );
 }
 
@@ -484,10 +310,8 @@ function ModelCapabilityIcon(props: { kind: CapabilityKind }): ReactElement {
     ),
   };
   return (
-    <span className={`model-workspace-nav-icon is-${props.kind}`} aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65">
-        {paths[props.kind]}
-      </svg>
-    </span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65">
+      {paths[props.kind]}
+    </svg>
   );
 }

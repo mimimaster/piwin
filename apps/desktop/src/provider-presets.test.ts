@@ -12,6 +12,15 @@ describe('provider-presets', () => {
     expect(getProviderPreset('anthropic')?.protocol).toBe('anthropic-compatible');
   });
 
+  it('lists the two custom endpoint presets first', () => {
+    const groups = presetsByGroup();
+    expect(Object.keys(groups)[0]).toBe('custom');
+    expect(groups.custom.map((preset) => preset.presetId)).toEqual([
+      'custom-openai',
+      'custom-anthropic',
+    ]);
+  });
+
   it('has unique preset ids and groups', () => {
     const ids = PROVIDER_PRESETS.map((preset) => preset.presetId);
     expect(new Set(ids).size).toBe(ids.length);

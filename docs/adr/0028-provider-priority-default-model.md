@@ -49,7 +49,10 @@ influences **default-model fallback** ordering.
 - Desktop `resolveDefaultAfterProviderChange` uses the same sort so the UI's
   "default" marker matches what the host would actually pick.
 - Validation: `priority` must be a non-negative integer.
-- Desktop provider drawer exposes the field under **Advanced**.
+- Desktop exposes the field under **Advanced** in the provider connection form.
+  (As of 2026-09-23 no `priority` field exists in contracts or Desktop; the
+  provider editor moved from a drawer to the Models list + detail workspace —
+  see `docs/specs/2026-09-23-provider-settings-master-detail.md`.)
 
 ### Explicit non-goals (this ADR)
 
@@ -87,5 +90,5 @@ influences **default-model fallback** ordering.
 - `packages/agent-host/src/provider-helpers.ts` (`resolveDefaultModelRef`)
 - `packages/agent-host/src/provider-validation.ts`
 - `apps/desktop/src/provider-draft.ts` (`resolveDefaultAfterProviderChange`)
-- `apps/desktop/src/provider-drawer.tsx` (Advanced → Priority)
+- `apps/desktop/src/provider-connection-fields.tsx` (Advanced → Priority, once added)
 - ADR 0004 (user-configured dual protocol surface)

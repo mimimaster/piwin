@@ -6,9 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { ModelCatalogEntry, ModelProviderConfig } from '@piwin/contracts';
+import type { ModelCatalogEntry } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
-import { ModelWorkbench } from './ModelWorkbench';
 import { ModelEditInline } from './model-edit-inline.js';
 
 declare global {
@@ -237,33 +236,6 @@ describe('ModelEditInline', () => {
         videoPath: '/videos/generations',
       }),
     );
-  });
-
-  it('shows the native search badge in the model workbench row', () => {
-    const provider: ModelProviderConfig = {
-      id: 'search-provider',
-      name: 'Search Provider',
-      protocol: 'openai-compatible',
-      baseUrl: 'https://provider.example/v1',
-      models: [{ id: 'search-model', capabilities: ['native-web-search'] }],
-    };
-    render(
-      <ModelWorkbench
-        provider={provider}
-        disabled={false}
-        defaultModelId={null}
-        onModelsChange={vi.fn()}
-        onSetDefaultModel={vi.fn()}
-        onDiscoverModels={vi.fn(async () => ({
-          providerId: 'search-provider',
-          protocol: 'openai-compatible' as const,
-          models: [],
-        }))}
-        onTestModel={vi.fn(async () => ({ durationMs: 0 }))}
-      />,
-    );
-
-    expect(query('[data-testid="model-pill-native-search-search-model"]')).not.toBeNull();
   });
 
   it('renders inline with all fields visible (no popover trigger needed)', () => {

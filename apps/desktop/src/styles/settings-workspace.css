@@ -1,0 +1,246 @@
+/* Settings: shared header for capability workspaces (Models, Knowledge) —
+   settings-workspace-header.tsx. One readout line with page actions, then
+   one row of capability tabs; the active workspace gets the full width.
+
+   Deck rule: the tab strip is a segmented control — recessed track, one raised
+   active segment — the same shape as the permission mode pills. A tab's dot
+   keeps the reserved semantics: mint = configured, amber = needs attention,
+   hollow = not in use. */
+
+/* Capability workspaces are hub pages (.settings-hub-page in
+   region-settings-shell.css): the page title, summary line and tabs stay
+   pinned, and only the active panel scrolls in the space left over. Switching
+   to a shorter tab or provider therefore never moves the chrome. */
+.settings-workspace-page.settings-hub-page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 0;
+}
+
+.settings-workspace-page > section {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.settings-workspace {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--s-6);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Only the panel may give up height; the pinned chrome keeps its size. */
+.settings-workspace-intro,
+.settings-workspace > .settings-workspace-tabs {
+  flex: none;
+}
+
+.settings-workspace-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.settings-workspace-panel:focus-visible {
+  outline: none;
+}
+
+/* ── Summary line ─────────────────────────────────────────────────────── */
+
+.settings-workspace-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4) var(--s-5);
+  /* Same height with or without page actions, so tabs line up across pages. */
+  min-height: var(--h-md);
+  margin-bottom: var(--s-5);
+}
+
+/* The numbers carry the weight; the words stay muted. */
+.settings-workspace-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-7);
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  white-space: nowrap;
+}
+
+.settings-workspace-readout strong {
+  margin-right: var(--s-3);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.settings-workspace-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.settings-workspace-actions .ui-status-badge {
+  flex: 0 0 auto;
+}
+
+/* Health that needs attention is a button: it jumps to the tab that fixes it. */
+.settings-workspace-attention {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: var(--h-sm);
+  padding: 0 var(--s-4) 0 var(--s-5);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  cursor: pointer;
+  transition: background-color var(--t-2) var(--ease-out);
+}
+
+.settings-workspace-attention:hover {
+  background: color-mix(in srgb, var(--amber) 20%, transparent);
+}
+
+.settings-workspace-attention:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--iris) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.settings-workspace-attention-arrow {
+  color: var(--text-3);
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.settings-workspace-attention:hover .settings-workspace-attention-arrow {
+  color: var(--text-1);
+  transform: translateX(2px);
+}
+
+/* ── Capability tabs ──────────────────────────────────────────────────── */
+
+.settings-workspace-tabs.ui-tabs-list {
+  display: flex;
+  gap: var(--s-1);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px;
+  overflow-x: auto;
+  border: 0;
+  border-radius: calc(var(--r-control) + 3px);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  scrollbar-width: none;
+}
+
+.settings-workspace-tabs .settings-workspace-tab {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-3);
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.settings-workspace-tabs .settings-workspace-tab:hover {
+  border-color: transparent;
+  background: var(--hover);
+  color: var(--text-2);
+}
+
+.settings-workspace-tabs .settings-workspace-tab[data-state='active'] {
+  border-color: transparent;
+  background: var(--surface-3);
+  color: var(--text-1);
+  box-shadow: var(--elev-1);
+}
+
+.settings-workspace-tabs .settings-workspace-tab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--iris) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.settings-workspace-tab-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: 28px;
+  padding: 0 var(--s-5) 0 var(--s-4);
+}
+
+.settings-workspace-tab-icon {
+  display: inline-flex;
+  color: inherit;
+}
+
+.settings-workspace-tab[data-state='active'] .settings-workspace-tab-icon {
+  color: var(--iris-lift);
+}
+
+.settings-workspace-tab-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.settings-workspace-tab-title {
+  font-size: var(--fs-chrome);
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.settings-workspace-tab-count {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-workspace-tab[data-state='active'] .settings-workspace-tab-count {
+  color: var(--text-3);
+}
+
+.settings-workspace-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+}
+
+.settings-workspace-tab-dot.is-ok {
+  background: var(--mint);
+}
+
+.settings-workspace-tab-dot.is-warn {
+  background: var(--amber);
+}
+
+.settings-workspace-tab-dot.is-off {
+  box-shadow: inset 0 0 0 1.5px var(--text-4);
+}
+
+@media (max-width: 560px) {
+  .settings-workspace-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

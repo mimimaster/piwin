@@ -3,7 +3,7 @@
  * Models-page inspired two-column workspace with capability metrics, status beacons, and tab navigation.
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Button, Notice, StatusBadge } from '@piwin/ui-kit';
+import { Button, StatusBadge, Tabs } from '@piwin/ui-kit';
 import { formatError } from '@piwin/contracts';
 import { useDesktopLocale } from '../../desktop-locale-context.js';
 import { useSettings } from '../settings-context.js';
@@ -34,7 +34,8 @@ import {
   testKnowledgeParser,
   testKnowledgeReranker,
 } from '../knowledge-test.js';
-import { KnowledgeMetric, KnowledgeNavItem } from './knowledge-nav.js';
+import { KnowledgeCapabilityIcon } from './knowledge-capability-icon.js';
+import { WorkspaceSummary, WorkspaceTab, WorkspaceTabStrip } from '../settings-workspace-header.js';
 import {
   KnowledgeEmbeddingTab,
   type TestStatus,
@@ -261,7 +262,10 @@ function KnowledgeBaseWorkspace(): ReactElement {
   const handleSave = async (): Promise<void> => {
     if (!config) return;
     if (validation) {
-      setError(validationMessage);
+      setError(
+        validationMessage ??
+          (isZh ? '请完善必填配置。' : 'Please complete the required configuration.'),
+      );
       return;
     }
 
@@ -374,129 +378,80 @@ function KnowledgeBaseWorkspace(): ReactElement {
   };
 
   return (
-    <div className="knowledge-workspace-page" data-testid="settings-knowledge">
+    <div className="knowledge-workspace-page settings-hub-page settings-workspace-page" data-testid="settings-knowledge">
       <section className="knowledge-management">
-        {/* Intro Row */}
-        <div className="knowledge-workspace-intro">
-          <p>
-            {t(
-              'Configure vector embedding, reranker, document parsers, and dedicated models. All capabilities share the same knowledge index. Falls back to full-text search when unconfigured.',
-              '配置向量嵌入 (Embedding)、精准重排 (Reranker)、文档解析器与专用模型。所有能力共用同一套知识索引体系。未配置向量时自动使用全文检索。',
-            )}
-          </p>
-          <StatusBadge
-            tone={isEmbeddingReady ? 'success' : 'warning'}
-            label={isEmbeddingReady ? t('Vector Ready', '向量检索就绪') : t('FTS Fallback', '全文检索模式')}
-            testId="knowledge-workspace-health"
-          />
-        </div>
+        <WorkspaceSummary
+          testId="knowledge-capabilities-overview"
+          readouts={[
+            { value: `${[isEmbeddingReady, isRerankerReady, isParserReady, true].filter(Boolean).length}/4`, label: t('capabilities configured', '项能力已配置') },
+            {
+              value: isEmbeddingReady ? t('Vector', '向量') : t('Full-text', '全文'),
+              label: t('retrieval', '检索'),
+            },
+          ]}
+          actions={
+            <StatusBadge
+              tone={isEmbeddingReady ? 'success' : 'warning'}
+              label={isEmbeddingReady ? t('Vector Ready', '向量检索就绪') : t('FTS Fallback', '全文检索模式')}
+              testId="knowledge-workspace-health"
+            />
+          }
+        />
 
-        {/* Overview Metrics Cards */}
-        <div className="knowledge-workspace-overview" data-testid="knowledge-capabilities-overview">
-          <KnowledgeMetric
-            label={t('Embedding Search', '向量模型')}
-            value={isEmbeddingReady ? draft.model : t('Unconfigured', '未配置')}
-            detail={
-              draft.enabled
-                ? draft.provider === 'ollama'
-                  ? 'Ollama'
-                  : 'OpenAI-compatible'
-                : t('FTS5 Full-text fallback', '全文检索模式')
-            }
-            statusTone={isEmbeddingReady ? 'green' : 'amber'}
-            onClick={() => setActiveTab('embedding')}
-            compact
-          />
-          <KnowledgeMetric
-            label={t('Reranker Model', '重排模型')}
-            value={isRerankerReady ? extras.rerankerModel : t('Disabled', '未开启')}
-            detail={extras.rerankerEnabled ? 'Cross-Encoder' : t('Optional booster', '可选增强')}
-            statusTone={isRerankerReady ? 'green' : 'gray'}
-            onClick={() => setActiveTab('reranker')}
-            compact
-          />
-          <KnowledgeMetric
-            label={t('Document Parsers', '文档解析')}
-            value={
-              isMineruReady
-                ? 'MinerU'
-                : isUnstructuredReady
-                  ? 'Unstructured'
-                  : t('Plain Text', '基础解析')
-            }
-            detail={
-              isParserReady
-                ? t('HTTP parser endpoint', '已配置解析服务')
-                : t('Code & Markdown', 'Markdown / 源码')
-            }
-            statusTone={isParserReady ? 'green' : 'gray'}
-            onClick={() => setActiveTab('parsers')}
-            compact
-          />
-          <KnowledgeMetric
-            label={t('Dedicated LLMs', '专用模型')}
-            value={extras.flashcardModelKey || t('Default Model', '默认对话模型')}
-            detail={t('Extraction & Flashcards', '知识抽取 + 闪卡制作')}
-            statusTone="green"
-            onClick={() => setActiveTab('llms')}
-            compact
-          />
-        </div>
-
-        {/* Two-Column Tabs Layout */}
-        <div className="knowledge-workspace-tabs">
-          {/* Left Column: Capability Nav List */}
-          <div className="knowledge-workspace-nav" role="tablist" aria-label={t('Knowledge capabilities', '知识引擎能力')}>
-            <KnowledgeNavItem
-              active={activeTab === 'embedding'}
-              kind="embedding"
-              title={t('Vector Embedding', '向量检索 (Embedding)')}
-              description={t('Semantic similarity & indexing', '语义向量匹配与代码索引')}
-              defaultLabel={isEmbeddingReady ? draft.model : t('FTS fallback', '未配置 (全文降级)')}
-              statusTone={isEmbeddingReady ? 'green' : 'amber'}
-              onClick={() => setActiveTab('embedding')}
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as KnowledgeTab)}
+          className="settings-workspace"
+          testId="knowledge-capability-tabs"
+        >
+          <WorkspaceTabStrip label={t('Knowledge capabilities', '知识引擎能力')}>
+            <WorkspaceTab
+              value="embedding"
+              icon={<KnowledgeCapabilityIcon kind="embedding" />}
+              title={t('Vector search', '向量检索')}
+              hint={`${t('Semantic similarity & indexing', '语义向量匹配与代码索引')} · ${
+                isEmbeddingReady ? draft.model : t('FTS fallback', '未配置（全文降级）')
+              }`}
+              tone={isEmbeddingReady ? 'ok' : 'warn'}
               testId="capability-card-embedding"
             />
-            <KnowledgeNavItem
-              active={activeTab === 'reranker'}
-              kind="reranker"
-              title={t('Precision Reranker', '精准重排 (Reranker)')}
-              description={t('Cross-encoder reranking', '交叉编码二次打分增强')}
-              defaultLabel={isRerankerReady ? extras.rerankerModel : t('Disabled (Optional)', '未开启 (可选)')}
-              statusTone={isRerankerReady ? 'green' : 'gray'}
-              onClick={() => setActiveTab('reranker')}
+            <WorkspaceTab
+              value="reranker"
+              icon={<KnowledgeCapabilityIcon kind="reranker" />}
+              title={t('Reranker', '精准重排')}
+              hint={`${t('Cross-encoder reranking', '交叉编码二次打分增强')} · ${
+                isRerankerReady ? extras.rerankerModel : t('Disabled (optional)', '未开启（可选）')
+              }`}
+              tone={isRerankerReady ? 'ok' : 'off'}
               testId="capability-card-reranker"
             />
-            <KnowledgeNavItem
-              active={activeTab === 'parsers'}
-              kind="parsers"
-              title={t('Document Parsers', '文档解析 (Parsers)')}
-              description={t('PDF, Word & HTML parsing', 'PDF 与复杂版面抽取')}
-              defaultLabel={
-                isParserReady
-                  ? isMineruReady
-                    ? 'MinerU (PDF)'
-                    : 'Unstructured'
-                  : t('Disabled (Optional)', '未开启 (可选)')
-              }
-              statusTone={isParserReady ? 'green' : 'gray'}
-              onClick={() => setActiveTab('parsers')}
+            <WorkspaceTab
+              value="parsers"
+              icon={<KnowledgeCapabilityIcon kind="parsers" />}
+              title={t('Document parsers', '文档解析')}
+              hint={`${t('PDF, Word & HTML parsing', 'PDF 与复杂版面抽取')} · ${
+                isMineruReady
+                  ? 'MinerU'
+                  : isUnstructuredReady
+                    ? 'Unstructured'
+                    : t('Plain text only', '基础解析')
+              }`}
+              tone={isParserReady ? 'ok' : 'off'}
               testId="capability-card-mineru"
             />
-            <KnowledgeNavItem
-              active={activeTab === 'llms'}
-              kind="llms"
-              title={t('Dedicated Models', '专用模型 (LLMs)')}
-              description={t('Extraction & flashcard authoring', '知识抽取与闪卡生成')}
-              defaultLabel={extras.flashcardModelKey || t('Default chat model', '默认对话模型')}
-              statusTone="green"
-              onClick={() => setActiveTab('llms')}
+            <WorkspaceTab
+              value="llms"
+              icon={<KnowledgeCapabilityIcon kind="llms" />}
+              title={t('Dedicated models', '专用模型')}
+              hint={`${t('Extraction & flashcard authoring', '知识抽取与闪卡生成')} · ${
+                extras.flashcardModelKey || t('Default chat model', '默认对话模型')
+              }`}
+              tone="ok"
               testId="capability-card-extraction"
             />
-          </div>
+          </WorkspaceTabStrip>
 
-          {/* Right Column: Active Tab Content Panel */}
-          <div className="knowledge-workspace-content">
+          <div className="knowledge-workspace-content settings-workspace-panel">
             <KnowledgeEmbeddingTab
               active={activeTab === 'embedding'}
               draft={draft}
@@ -508,8 +463,6 @@ function KnowledgeBaseWorkspace(): ReactElement {
               saving={saving}
               readOnly={remoteSettingsReadOnly === true}
               isZh={isZh}
-              validation={validation}
-              validationMessage={validationMessage}
             />
 
             <KnowledgeRerankerTab
@@ -548,16 +501,10 @@ function KnowledgeBaseWorkspace(): ReactElement {
               isZh={isZh}
             />
 
-            {validationMessage ? (
-              <Notice tone="warning" testId="knowledge-settings-validation">
-                {validationMessage}
-              </Notice>
-            ) : null}
-
             <div className="settings-actions">
               <Button
                 variant="primary"
-                disabled={!config || saving || !dirty || validation !== null}
+                disabled={!config || saving || !dirty}
                 onClick={() => void handleSave()}
                 data-testid="knowledge-embedding-save"
               >
@@ -565,7 +512,7 @@ function KnowledgeBaseWorkspace(): ReactElement {
               </Button>
             </div>
           </div>
-        </div>
+        </Tabs>
       </section>
     </div>
   );

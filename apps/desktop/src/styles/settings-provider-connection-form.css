@@ -1,0 +1,191 @@
+/* Settings → Models → providers workspace: the connection section
+   (provider-connection-section.tsx, provider-connection-fields.tsx).
+   Owns .pconn*. */
+
+/* ── Connection panel (provider-connection-section.tsx) ─────────────────
+   Opens under the detail header on demand, as a well cut into the pane:
+   it is a tool drawer for a rarely-edited setting, not a peer of the models
+   below. A new provider shows it as the only section. */
+
+.pconn-panel:not(.is-new) {
+  padding: var(--s-6) var(--s-7) var(--s-7);
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--void) 45%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  animation: pconn-panel-in var(--t-3) var(--ease-out);
+}
+
+.pconn-panel.is-new {
+  padding-top: var(--s-2);
+}
+
+.pconn-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-7);
+}
+
+@keyframes pconn-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pconn-panel:not(.is-new) {
+    animation: none;
+  }
+}
+
+/* ── Connection form ──────────────────────────────────────────────────── */
+
+.pconn {
+  display: grid;
+  gap: var(--s-6);
+}
+
+.pconn-row {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-6);
+}
+
+.pconn-label {
+  padding-top: 7px;
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  line-height: 1.4;
+}
+
+.pconn-control {
+  min-width: 0;
+}
+
+.pconn-control .piwin-text-input,
+.pconn-control .piwin-text-input-field,
+.pconn-control input {
+  width: 100%;
+  max-width: 100%;
+}
+
+.pconn-mono input,
+.pconn-mono .piwin-text-input-field {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.pconn-hint {
+  margin: var(--s-3) 0 0;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.pconn-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.pconn-inline > .piwin-button {
+  flex: none;
+  gap: var(--s-3);
+}
+
+.pconn-key {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.pconn-key input {
+  padding-right: 34px;
+}
+
+.pconn-key-eye.piwin-icon-button {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  color: var(--text-3);
+  transform: translateY(-50%);
+}
+
+.pconn-key-eye.piwin-icon-button:hover {
+  color: var(--text-1);
+}
+
+.pconn-advanced {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  cursor: pointer;
+  transition: color var(--t-2) var(--ease-out);
+}
+
+.pconn-advanced:hover {
+  color: var(--text-1);
+}
+
+.pconn-advanced svg {
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.pconn-advanced.is-open svg {
+  transform: rotate(90deg);
+}
+
+.pconn-advanced-body {
+  display: grid;
+  gap: var(--s-6);
+}
+
+.pconn-header-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) 26px;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.pconn-add-header {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--iris-lift);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  cursor: pointer;
+}
+
+.pconn-add-header:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 560px) {
+  .pconn-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-3);
+  }
+
+  .pconn-label {
+    padding-top: 0;
+  }
+
+  .pconn-inline {
+    flex-wrap: wrap;
+  }
+}

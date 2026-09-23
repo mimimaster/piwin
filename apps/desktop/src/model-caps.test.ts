@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelConfigEntry } from '@piwin/contracts';
-import { modelCaps } from './provider-row.js';
+import { modelCaps } from './model-caps.js';
 
 describe('modelCaps', () => {
   it('renders the video chip used to identify video-generation models', () => {
@@ -12,8 +12,6 @@ describe('modelCaps', () => {
     expect(modelCaps(model, true)).toContainEqual({
       key: 'video',
       label: '视频',
-      bg: '#dcefff',
-      fg: '#0066cc',
     });
     expect(modelCaps(model, true).some((cap) => cap.key === 'chat')).toBe(false);
   });
@@ -57,14 +55,10 @@ describe('modelCaps', () => {
     expect(modelCaps(model, false)).toContainEqual({
       key: 'native-web-search',
       label: 'Native search',
-      bg: '#e5ecfd',
-      fg: '#3558b8',
     });
     expect(modelCaps(model, true)).toContainEqual({
       key: 'native-web-search',
       label: '模型内置搜索',
-      bg: '#e5ecfd',
-      fg: '#3558b8',
     });
   });
 });

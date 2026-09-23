@@ -73,7 +73,7 @@ paste/drop → media/save → PromptInput.attachments（path 引用）
 
 ### 3.2 现有 UI 流程
 
-**Settings → 模型配置**（`ProviderSettings.tsx` → `ModelWorkbench.tsx`）：
+**Settings → 模型配置**（`ProviderSettings.tsx` → `provider-detail.tsx` → `provider-model-list.tsx`）：
 
 ```
 provider pills
@@ -348,9 +348,9 @@ Props：
 onSearchCatalog: (query: string) => Promise<ModelCatalogEntry[]>;
 ```
 
-#### 4.4.2 ModelWorkbench 列表
+#### 4.4.2 模型列表（`provider-model-list.tsx`）
 
-- 行内 pill：`input` 含 `image` → Vision；`reasoning === true` → Reasoning
+- 行内 pill（`model-caps.ts`）：`input` 含 `image` → Vision；`reasoning === true` → Reasoning
 - `ModelInlineEditor`：可编辑 supportsImage / reasoning
 
 #### 4.4.3 `model-configuration.ts`
@@ -441,7 +441,7 @@ CLI 已通过 `attachments` 走 adapter 原生传图（2026-08-01）。
 |----|------|------|
 | B1 | AddModelDialog catalog combobox | 手动 |
 | B2 | 选中自动填表 + supportsImage | 手动 |
-| B3 | ModelWorkbench 能力 pill | 手动 |
+| B3 | 模型列表能力 pill | 手动 |
 | B4 | ModelInlineEditor + draft 类型 | typecheck + 手动 |
 | B5 | mergeDiscoveredModels 保留能力字段 | 单测 |
 
@@ -540,13 +540,16 @@ list from the selected configured model; it does not infer levels from provider
 protocol. A missing/empty list hides the effort controls while keeping the model
 picker available.
 
-Settings → Models adds a pencil edit icon to each configured model row. The
-anchored editor reads missing context/output/input/reasoning values from the
-existing Pi catalog search result, falls back to the host defaults
+Settings → Models opens an inline editor under a configured model row (click
+the row, or "Edit parameters" in its `⋯` menu). The editor reads missing
+context/output/input/reasoning values from the existing Pi catalog search
+result, falls back to the host defaults
 (128000 context and 8192 output), and never overwrites configured user values.
 Vision maps to `input: ['text', 'image']`; image generation maps to
 `capabilities: ['image-generation']`; reasoning maps to `reasoning`. The
-provider drawer's existing footer Save remains the persistence boundary.
+editor's own Save persists the model immediately; provider connection fields
+keep their separate save bar (see
+`docs/specs/2026-09-23-provider-settings-master-detail.md`).
 
 The send / edit / retry paths in `use-composer-media` and `use-session-actions`
 gate `PromptInput.thinkingLevel` through `canUseThinkingLevel` against the

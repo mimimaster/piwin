@@ -78,6 +78,7 @@ describe('buildModelWorkspaceSummary', () => {
       readyDefaultCount: 4,
       applicableDefaultCount: 4,
       issueCount: 0,
+      issues: [],
       chatDefaultLabel: 'Chat default',
       imageDefaultLabel: 'image',
       videoDefaultLabel: 'video',
@@ -99,5 +100,17 @@ describe('buildModelWorkspaceSummary', () => {
     expect(summary.imageDefaultLabel).toBeNull();
     expect(summary.speechDefaultLabel).toBeNull();
     expect(summary.issueCount).toBe(1);
+    // Each issue names the capability tab that fixes it.
+    expect(summary.issues).toEqual([{ tab: 'image', kind: 'no-image-default' }]);
+  });
+
+  it('points a missing chat default at the channels tab', () => {
+    const config = makeConfig();
+    delete config.defaultModelId;
+    delete config.defaultProviderId;
+    expect(buildModelWorkspaceSummary(config).issues).toContainEqual({
+      tab: 'text',
+      kind: 'no-chat-default',
+    });
   });
 });

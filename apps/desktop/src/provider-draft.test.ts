@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   draftToProvider,
+  isConnectionDirty,
+  mergeConnectionDraft,
+  pendingApiKey,
   providerToDraft,
   resolveDefaultAfterProviderChange,
+  withProviders,
 } from './provider-draft.js';
-import type { ModelProviderConfig } from '@piwin/contracts';
+import type { ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 
 function makeProvider(partial: Partial<ModelProviderConfig> & { id: string }): ModelProviderConfig {
   return {
@@ -74,5 +78,107 @@ describe('provider-draft', () => {
       modelId: 'model-a',
     });
     expect(result).toEqual({});
+  });
+
+  it('treats a revealed saved key as no new key', () => {
+    const draft = providerToDraft(makeProvider({ id: 'a', apiKeyRef: 'ref-1' }));
+    expect(pendingApiKey({ ...draft, apiKeyInput: 'sk-saved', revealedApiKey: 'sk-saved' })).toBe('');
+    expect(pendingApiKey({ ...draft, apiKeyInput: 'sk-new ', revealedApiKey: 'sk-saved' })).toBe(
+      'sk-new',
+    );
+    expect(pendingApiKey({ ...draft, apiKeyInput: 'sk-typed' })).toBe('sk-typed');
+  });
+
+  it('reports a connection as dirty only when it differs from the saved provider', () => {
+    const saved = makeProvider({ id: 'a', apiKeyRef: 'ref-1', headers: { 'X-A': '1' } });
+    const draft = providerToDraft(saved);
+    expect(isConnectionDirty(draft, saved)).toBe(false);
+    expect(isConnectionDirty({ ...draft, baseUrl: 'https://other.example/v1' }, saved)).toBe(true);
+    expect(isConnectionDirty({ ...draft, apiKeyInput: 'sk-x', revealedApiKey: 'sk-x' }, saved)).toBe(
+      false,
+    );
+    expect(isConnectionDirty({ ...draft, apiKeyInput: 'sk-new' }, saved)).toBe(true);
+    // Legacy configs carry both refs; the draft drops the env one, which is not an edit.
+    const legacy = makeProvider({ id: 'b', apiKeyRef: 'ref-2', apiKeyEnv: 'OLD_ENV' });
+    expect(isConnectionDirty(providerToDraft(legacy), legacy)).toBe(false);
+  });
+
+  it('merges a connection draft onto the current models and enable state', () => {
+    const opened = makeProvider({ id: 'a', models: [{ id: 'm1' }] });
+    const draft = { ...providerToDraft(opened), baseUrl: 'https://new.example/v1' };
+    const current = { ...opened, enabled: false, models: [{ id: 'm1' }, { id: 'm2' }] };
+    const merged = mergeConnectionDraft(draft, current);
+    expect(merged.baseUrl).toBe('https://new.example/v1');
+    expect(merged.enabled).toBe(false);
+    expect(merged.models.map((model) => model.id)).toEqual(['m1', 'm2']);
+  });
+
+  it('re-resolves the default when the provider list changes', () => {
+    const config = {
+      hostMode: 'sdk',
+      defaultProviderId: 'a',
+      defaultModelId: 'model-a',
+      providers: [makeProvider({ id: 'a' }), makeProvider({ id: 'b', models: [{ id: 'model-b' }] })],
+    } as unknown as PiwinConfig;
+    const next = withProviders(config, [makeProvider({ id: 'b', models: [{ id: 'model-b' }] })]);
+    expect(next.defaultProviderId).toBe('b');
+    expect(next.defaultModelId).toBe('model-b');
+    expect(withProviders(config, []).defaultProviderId).toBeUndefined();
+  });
+
+  it('preserves imageGeneration.defaultModel when provider or model is disabled', () => {
+    const config = {
+      hostMode: 'sdk',
+      providers: [
+        makeProvider({
+          id: 'grok',
+          enabled: false,
+          models: [{ id: 'grok-imagine-image', capabilities: ['image-generation'], enabled: false }],
+        }),
+      ],
+      imageGeneration: {
+        defaultModel: {
+          protocol: 'openai-compatible',
+          providerId: 'grok',
+          modelId: 'grok-imagine-image',
+        },
+      },
+    } as unknown as PiwinConfig;
+
+    const next = withProviders(config, config.providers);
+    expect(next.imageGeneration?.defaultModel).toEqual({
+      protocol: 'openai-compatible',
+      providerId: 'grok',
+      modelId: 'grok-imagine-image',
+    });
+  });
+
+  it('cleans up imageGeneration.defaultModel when provider or model is deleted', () => {
+    const config = {
+      hostMode: 'sdk',
+      providers: [
+        makeProvider({
+          id: 'grok',
+          models: [{ id: 'grok-imagine-image', capabilities: ['image-generation'] }],
+        }),
+      ],
+      imageGeneration: {
+        defaultModel: {
+          protocol: 'openai-compatible',
+          providerId: 'grok',
+          modelId: 'grok-imagine-image',
+        },
+      },
+    } as unknown as PiwinConfig;
+
+    // Provider deleted
+    const withoutProvider = withProviders(config, []);
+    expect(withoutProvider.imageGeneration?.defaultModel).toBeUndefined();
+
+    // Model deleted
+    const withoutModel = withProviders(config, [
+      makeProvider({ id: 'grok', models: [{ id: 'other-model' }] }),
+    ]);
+    expect(withoutModel.imageGeneration?.defaultModel).toBeUndefined();
   });
 });

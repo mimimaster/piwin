@@ -281,7 +281,26 @@ html:is(
   }
 
   .settings-main .web-tools-actions {
-    background: color-mix(in srgb, var(--s1) 92%, transparent);
+    background: transparent;
+    border-top: 0;
+  }
+
+  .settings-main .web-tools-floating-pill {
+    background: var(--s1);
+    border: 1px solid var(--b1);
+    box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.28), 0 3px 8px -2px rgba(0, 0, 0, 0.12);
+  }
+
+  .settings-main .web-tools-save-status {
+    color: var(--t2);
+  }
+
+  .settings-main .web-tools-save-status.is-saved {
+    color: var(--mint);
+  }
+
+  .settings-main .web-tools-save-status.is-error {
+    color: var(--zhu);
   }
 
   /* The page is a document; only the sections inside it are raised cards. */

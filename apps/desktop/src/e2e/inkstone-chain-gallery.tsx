@@ -87,6 +87,22 @@ const webSearchTool = tool({
   },
 });
 
+// Collapsed web rows inside a work fold: fetch and search must share one row
+// geometry so their labels start on the same column.
+const webFetchTool = tool({
+  toolCallId: 'web-fetch-1',
+  toolName: 'web_fetch',
+  status: 'done',
+  output: 'OpenRouter Terms of Service',
+  presentation: {
+    kind: 'web',
+    title: 'web_fetch',
+    actionVerb: 'web_fetch',
+    summary: 'https://openrouter.ai/terms',
+    durationMs: 820,
+  },
+});
+
 const writeTool = tool({
   toolCallId: 'write-1',
   toolName: 'write_file',
@@ -137,6 +153,8 @@ const exploreGroup: ExploreFlowGroup = {
       }),
     },
     { kind: 'thought', messageId: 'anchor', text: 'check steer-queue next', seconds: 3 },
+    { kind: 'tool', messageId: 'anchor', tool: webFetchTool },
+    { kind: 'tool', messageId: 'anchor', tool: webSearchTool },
     {
       kind: 'tool',
       messageId: 'anchor',
@@ -266,6 +284,18 @@ export function InkstoneChainGallery(): ReactElement {
             locale="zh-CN"
             onReview={() => undefined}
           />
+        </div>
+        <div className="turn-work-details" data-testid="gallery-web-rows">
+          <div className="thread turn-tool-sequence">
+            <ToolCallCard tool={webFetchTool} density="compact" locale="zh-CN" />
+            <ToolCallCard tool={webSearchTool} density="compact" locale="zh-CN" />
+          </div>
+          {/* Non-compact density: the unified Inkstone row rule only outranks the
+              fetch variant for density-compact, so this is where they drifted. */}
+          <div className="thread turn-tool-sequence" data-testid="gallery-web-rows-balanced">
+            <ToolCallCard tool={webFetchTool} density="comfortable" locale="zh-CN" inkLineSubrow />
+            <ToolCallCard tool={webSearchTool} density="comfortable" locale="zh-CN" inkLineSubrow />
+          </div>
         </div>
         <div className="turn-work-details" data-testid="gallery-model-wait">
           <div className="thread turn-tool-sequence">

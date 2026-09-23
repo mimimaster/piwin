@@ -14,7 +14,7 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens';
 import { DesktopLocaleProvider } from '../../desktop-locale-context';
 import { SettingsProvider, type SettingsContextValue } from '../settings-context';
-import { webToDraft, type DraftWeb } from '../web-draft';
+import { draftToWeb, webToDraft, type DraftWeb } from '../web-draft';
 import { WebPage } from './web-page';
 
 declare global {
@@ -36,6 +36,7 @@ type WebPageHarnessProps = {
   request: SettingsRequest;
   initialDraft?: DraftWeb;
   transport?: 'live' | 'remote';
+  saveWeb?: (draft?: DraftWeb) => Promise<boolean>;
 };
 
 function baseConfig(): PiwinConfig {
@@ -180,12 +181,23 @@ function createContextValue(request: SettingsRequest): SettingsContextValue {
 }
 
 function WebPageHarness(props: WebPageHarnessProps): ReactElement {
+  const [config, setConfig] = useState<PiwinConfig>(baseConfig());
   const [webDraft, setWebDraft] = useState<DraftWeb>(
     props.initialDraft ?? webToDraft(createDefaultWebConfig()),
   );
   const contextValue = createContextValue(props.request);
+  contextValue.config = config;
   contextValue.webDraft = webDraft;
   contextValue.setWebDraft = setWebDraft;
+  contextValue.saveWeb = async (override?: DraftWeb) => {
+    const draftToSave = override ?? webDraft;
+    const nextWeb = draftToWeb(draftToSave);
+    setConfig((prev) => ({ ...prev, web: nextWeb }));
+    if (props.saveWeb) {
+      return props.saveWeb(draftToSave);
+    }
+    return true;
+  };
   if (props.transport) {
     const transport = props.transport;
     contextValue.hostClient = {
@@ -247,6 +259,7 @@ describe('WebPage search route settings', () => {
     request: SettingsRequest,
     initialDraft?: DraftWeb,
     transport?: 'live' | 'remote',
+    saveWeb?: (draft?: DraftWeb) => Promise<boolean>,
   ): HTMLElement {
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -257,6 +270,7 @@ describe('WebPage search route settings', () => {
       request,
       ...(initialDraft === undefined ? {} : { initialDraft }),
       ...(transport === undefined ? {} : { transport }),
+      ...(saveWeb === undefined ? {} : { saveWeb }),
     };
     act(() => {
       root.render(<WebPageHarness {...harnessProps} />);
@@ -603,5 +617,91 @@ describe('WebPage search route settings', () => {
     expect(container.querySelector('[data-testid="web-tools-search-panel"]')).toBeNull();
     expect(container.querySelector('[data-testid="web-tools-fetch-panel"]')).toBeNull();
     expect(container.querySelector('.web-tools-actions')).toBeNull();
+  });
+
+  it('hides the floating bar when there are no unsaved changes, and displays it when dirty', async () => {
+    const request = vi.fn(async (command: SettingsCommand): Promise<HostResponse> => {
+      if (command.type === 'web/search-route-preview') {
+        return successResponse(nativePreview('native-first'));
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+
+    // 1. Initial render without dirty changes -> floating bar is hidden
+    const container = renderPage(request);
+    await flushPreviewDebounce();
+    expect(container.querySelector('[data-testid="web-tools-floating-bar"]')).toBeNull();
+
+    // 2. Initial render with dirty draft -> floating bar is visible
+    const dirtyDraft: DraftWeb = {
+      ...webToDraft(createDefaultWebConfig()),
+      searchMaxResults: '42',
+    };
+    const dirtyContainer = renderPage(request, dirtyDraft);
+    await flushPreviewDebounce();
+    const floatingBar = dirtyContainer.querySelector('[data-testid="web-tools-floating-bar"]');
+    expect(floatingBar).not.toBeNull();
+    expect(floatingBar?.classList.contains('is-floating')).toBe(true);
+    expect(floatingBar?.querySelector('.web-tools-save-status')?.textContent).toContain('Unsaved changes');
+    expect(floatingBar?.querySelector('[data-testid="web-tools-reset-button"]')).not.toBeNull();
+    expect(floatingBar?.querySelector('[data-testid="web-tools-save-button"]')).not.toBeNull();
+  });
+
+  it('resets dirty changes when Reset button is clicked', async () => {
+    const request = vi.fn(async (command: SettingsCommand): Promise<HostResponse> => {
+      if (command.type === 'web/search-route-preview') {
+        return successResponse(nativePreview('native-first'));
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+
+    const dirtyDraft: DraftWeb = {
+      ...webToDraft(createDefaultWebConfig()),
+      searchMaxResults: '42',
+    };
+    const container = renderPage(request, dirtyDraft);
+    await flushPreviewDebounce();
+
+    const resetBtn = container.querySelector<HTMLButtonElement>('[data-testid="web-tools-reset-button"]');
+    expect(resetBtn).not.toBeNull();
+    act(() => {
+      resetBtn?.click();
+    });
+
+    expect(container.querySelector('[data-testid="web-tools-floating-bar"]')).toBeNull();
+  });
+
+  it('saves settings and auto-dismisses the saved indicator', async () => {
+    const request = vi.fn(async (command: SettingsCommand): Promise<HostResponse> => {
+      if (command.type === 'web/search-route-preview') {
+        return successResponse(nativePreview('native-first'));
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+
+    const saveWebMock = vi.fn(async () => true);
+    const dirtyDraft: DraftWeb = {
+      ...webToDraft(createDefaultWebConfig()),
+      searchMaxResults: '42',
+    };
+    const container = renderPage(request, dirtyDraft, undefined, saveWebMock);
+    await flushPreviewDebounce();
+
+    const saveBtn = container.querySelector<HTMLButtonElement>('[data-testid="web-tools-save-button"]');
+    expect(saveBtn).not.toBeNull();
+    await act(async () => {
+      saveBtn?.click();
+      await Promise.resolve();
+    });
+
+    expect(saveWebMock).toHaveBeenCalled();
+    expect(container.querySelector('.web-tools-save-status')?.textContent).toContain('Settings saved');
+
+    // Advance past the 1.8s auto-dismiss timer
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(container.querySelector('[data-testid="web-tools-floating-bar"]')).toBeNull();
   });
 });

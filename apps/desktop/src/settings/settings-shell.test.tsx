@@ -295,17 +295,12 @@ describe('SettingsShell', () => {
       });
       expect(container.querySelector('[data-testid="settings-models"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="provider-settings"]')).not.toBeNull();
-      // Expand the provider row — model list / discover live on the models page.
+      // The selected provider's models sit in the detail pane next to the rail.
       const providerRow = container.querySelector<HTMLElement>(
         '[data-testid="provider-row-deepseek"]',
       );
-      expect(providerRow).not.toBeNull();
-      act(() => {
-        container
-          .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-deepseek"]')
-          ?.click();
-      });
-      expect(container.querySelector('[data-testid="provider-row-models-deepseek"]')).not.toBeNull();
+      expect(providerRow?.getAttribute('aria-current')).toBe('true');
+      expect(container.querySelector('[data-testid="provider-models-deepseek"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="provider-model-list"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="provider-model-row"]')).not.toBeNull();
       expect(

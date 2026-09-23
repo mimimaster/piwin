@@ -485,34 +485,58 @@ button.web-cli-example:hover:not(:disabled) {
   line-height: var(--lh-relaxed);
 }
 
-.web-tools-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
-  margin-top: var(--s-6);
-  padding: var(--s-4) var(--s-6);
-  border-top: 1px solid var(--line-1);
-  background: var(--surface-1);
+.web-tools-tab-body {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: var(--s-6);
-  justify-content: flex-end;
+  flex-direction: column;
+  padding-bottom: var(--s-8);
 }
 
-.web-tools-save-meta {
+.web-tools-actions {
+  position: sticky;
+  bottom: 16px;
+  z-index: 50;
+  margin-top: var(--s-6);
   display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-1);
-  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  border-top: 0;
+  background: transparent;
+}
+
+.web-tools-floating-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 6px 8px 6px 14px;
+  border-radius: 9999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.22), 0 2px 6px -1px rgba(0, 0, 0, 0.12);
+  pointer-events: auto;
+  animation: web-tools-pill-slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes web-tools-pill-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .web-tools-save-status {
-  min-height: 20px;
-  margin-right: auto;
+  display: flex;
+  align-items: center;
   font-size: var(--fs-chrome);
-  color: var(--text-3);
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+  padding-right: var(--s-1);
 }
 
 .web-tools-save-status.is-saved {
@@ -521,12 +545,6 @@ button.web-cli-example:hover:not(:disabled) {
 
 .web-tools-save-status.is-error {
   color: var(--coral);
-}
-
-.web-tools-effective-scope {
-  color: var(--text-4);
-  font-size: var(--fs-micro);
-  line-height: 1.35;
 }
 
 /* ── Secret editor ────────────────────────────────────────────────────── */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelProviderConfig } from '@piwin/contracts';
 import {
+  isBlockingValidationIssue,
   looksLikeRawApiKey,
   sanitizeProvidersForSave,
   validatePiwinConfig,
@@ -207,7 +208,73 @@ describe('validatePiwinConfig', () => {
         },
       },
     });
-    expect(issues.map((issue) => issue.path)).toContain('imageGeneration.defaultModel.modelId');
+    const imageIssue = issues.find(
+      (issue) => issue.path === 'imageGeneration.defaultModel.modelId',
+    );
+    expect(imageIssue).toBeDefined();
+    expect(imageIssue?.severity).toBe('warning');
+    expect(isBlockingValidationIssue(imageIssue!)).toBe(false);
+  });
+
+  it('warns but does not block save when the default image provider is disabled', () => {
+    const provider = sampleProvider({
+      enabled: false,
+      models: [{ id: 'imagen', capabilities: ['image-generation'] }],
+    });
+    const issues = validatePiwinConfig({
+      hostMode: 'sdk',
+      providers: [provider],
+      media: { maxPasteBytes: 1, allowedMimeTypes: ['image/png'] },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 1,
+      },
+      imageGeneration: {
+        defaultModel: {
+          protocol: 'openai-compatible',
+          providerId: provider.id,
+          modelId: 'imagen',
+        },
+      },
+    });
+    const issue = issues.find(
+      (entry) => entry.path === 'imageGeneration.defaultModel.providerId',
+    );
+    expect(issue).toBeDefined();
+    expect(issue?.severity).toBe('warning');
+    expect(isBlockingValidationIssue(issue!)).toBe(false);
+  });
+
+  it('warns but does not block save when all models of the image provider are disabled', () => {
+    const provider = sampleProvider({
+      models: [{ id: 'imagen', capabilities: ['image-generation'], enabled: false }],
+    });
+    const issues = validatePiwinConfig({
+      hostMode: 'sdk',
+      providers: [provider],
+      media: { maxPasteBytes: 1, allowedMimeTypes: ['image/png'] },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 1,
+      },
+      imageGeneration: {
+        defaultModel: {
+          protocol: 'openai-compatible',
+          providerId: provider.id,
+          modelId: 'imagen',
+        },
+      },
+    });
+    const issue = issues.find(
+      (entry) => entry.path === 'imageGeneration.defaultModel.modelId',
+    );
+    expect(issue).toBeDefined();
+    expect(issue?.severity).toBe('warning');
+    expect(isBlockingValidationIssue(issue!)).toBe(false);
   });
 });
 
