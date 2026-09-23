@@ -94,6 +94,7 @@ vi.mock('@piwin/ui-kit', async (importOriginal) => {
 });
 
 import { DesktopAttentionLayer } from './use-desktop-attention';
+import { ACTIVATION_RESOLVE_GRACE_MS } from './use-attention-activation';
 
 function sessionItem(
   id: string,
@@ -175,7 +176,7 @@ describe('useDesktopAttention', () => {
 
   it('AN-T59 opens the session on activation and notices when it is missing', async () => {
     const openSessionFromShell = vi.fn(async () => undefined);
-    const args = defaultArgs({ openSessionFromShell });
+    const args = defaultArgs({ openSessionFromShell, state: baseState({ hostReady: true }) });
     let activationListener: ((activation: { sessionId: string; attentionKey: string }) => void) | null =
       null;
     subscribeActivation.mockImplementation((listener) => {
@@ -194,14 +195,50 @@ describe('useDesktopAttention', () => {
     expect(showUiNotification).not.toHaveBeenCalled();
 
     openSessionFromShell.mockClear();
-    await act(async () => {
-      activationListener?.({ sessionId: 'missing', attentionKey: 'complete:run-2' });
-    });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await act(async () => {
+        activationListener?.({ sessionId: 'missing', attentionKey: 'complete:run-2' });
+      });
+      // Host is ready, so the missing row gets one grace window to hydrate.
+      expect(showUiNotification).not.toHaveBeenCalled();
+      await act(async () => {
+        vi.advanceTimersByTime(ACTIVATION_RESOLVE_GRACE_MS);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
     expect(openSessionFromShell).not.toHaveBeenCalled();
     expect(showUiNotification).toHaveBeenCalledWith({
       tone: 'info',
       message: '该会话已不可用',
     });
+  });
+
+  it('holds a cold-launch activation until the session lists hydrate', async () => {
+    const openSessionFromShell = vi.fn(async () => undefined);
+    takePendingActivation.mockResolvedValue({
+      sessionId: 'project-session',
+      attentionKey: 'complete:run-9',
+    });
+    const coldState = baseState({ sessions: [], activeSessionId: null, hostReady: false });
+    await renderLayer(defaultArgs({ openSessionFromShell, state: coldState }));
+    expect(openSessionFromShell).not.toHaveBeenCalled();
+    expect(showUiNotification).not.toHaveBeenCalled();
+
+    await renderLayer(
+      defaultArgs({
+        openSessionFromShell,
+        state: {
+          ...coldState,
+          hostReady: true,
+          projectSessionsByPath: { '/repo/piwin': [sessionItem('project-session')] },
+        },
+      }),
+    );
+    expect(openSessionFromShell).toHaveBeenCalledTimes(1);
+    expect(openSessionFromShell).toHaveBeenCalledWith('project-session');
+    expect(showUiNotification).not.toHaveBeenCalled();
   });
 
   it('AN-T59 opens the parent session when the list item has parentSessionId', async () => {

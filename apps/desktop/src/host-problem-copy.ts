@@ -32,6 +32,16 @@ export function hostFailureNotice(response: HostResponse, locale: DesktopLocale)
       ? '上一轮已暂停。点继续接着做，或再发一条新消息结束暂停。'
       : 'The previous turn is paused. Continue it, or send a new message to start a new turn.';
   }
+  if (isStaleQueuedTurnError(response.error)) {
+    return locale === 'zh-CN'
+      ? '这条排队消息已经开始执行或已被移除，列表已刷新。'
+      : 'This queued message already started or was removed. The queue has been refreshed.';
+  }
+  if (isStaleInterventionError(response.error)) {
+    return locale === 'zh-CN'
+      ? '这条调整已经生效或已结束，不能再修改。'
+      : 'This adjustment was already applied or has ended, so it can no longer be changed.';
+  }
   if (response.error.includes('intervention-command-unsupported')) {
     return locale === 'zh-CN'
       ? '当前对话轮次正在执行中，无法插入斜杠命令。请等待本轮结束再发送 /compact。'
@@ -46,6 +56,26 @@ export function hostFailureNotice(response: HostResponse, locale: DesktopLocale)
     return piwinRootLeaseNotice(locale);
   }
   return remoteAdmissionNotice(response.error, locale) ?? response.error;
+}
+
+/**
+ * Edit/cancel reached Host after the intervention left `pending`. Host
+ * re-pushes the durable record with the failure, so the card corrects itself.
+ */
+export function isStaleInterventionError(error: string): boolean {
+  return error === 'intervention-revision-conflict' || error === 'intervention-not-found';
+}
+
+/**
+ * A queue action targeted a row Host already moved on (started, converted,
+ * cancelled, edited elsewhere). Callers refresh the queue from Host.
+ */
+export function isStaleQueuedTurnError(error: string): boolean {
+  return (
+    error === 'queued-turn-revision-conflict' ||
+    error === 'queued-turn-not-found' ||
+    error === 'queued-turn-not-pending'
+  );
 }
 
 function isPiwinRootLeaseError(error: string): boolean {

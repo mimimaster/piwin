@@ -15,7 +15,11 @@ import {
   readAttentionPreferences,
   subscribeAttentionPreferences,
 } from '../attention-preferences';
-import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reducer';
+import {
+  lookupAttentionSession,
+  type AttentionLookupSession,
+} from '../attention-session-lookup';
+import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import {
   createDesktopAttentionController,
   type DesktopAttentionSnapshot,
@@ -23,25 +27,17 @@ import {
 } from '../desktop-attention-controller';
 import {
   createDesktopAttentionOs,
-  type AttentionActivation,
   type AttentionAuthorization,
   type DesktopAttentionOs,
 } from '../desktop-attention-os';
 import type { DesktopLocale } from '../desktop-locale';
 import type { HostClient } from '../host-client';
 import { projectLabel } from '../project-display-name';
-import { findSessionForLookup } from '../session-list-lookup';
 import type { ConversationPaneLayoutController } from '../use-conversation-pane-layout';
 import { getWindowPresence, subscribeWindowPresence } from '../window-focus-signal';
+import { useAttentionActivation } from './use-attention-activation';
 import { selectVisibleSessionIds } from '../workbench/docking/visible-sessions';
 import type { DockingWorkspaceController } from '../workbench/docking/use-docking-workspace';
-
-type AttentionLookupSession = SessionListItemUi & {
-  title?: string;
-  parentSessionId?: string;
-  projectPath?: string;
-  projectId?: string;
-};
 
 export type DesktopAttentionArgs = {
   hostClient: HostClient;
@@ -61,18 +57,6 @@ export type DesktopAttentionArgs = {
   children?: ReactNode;
 };
 
-function sessionLists(state: ChatUiState) {
-  return {
-    sessions: state.sessions,
-    generalSessions: state.generalSessions,
-    projectSessionsByPath: state.projectSessionsByPath,
-  };
-}
-
-function lookupSession(state: ChatUiState, sessionId: string): AttentionLookupSession | undefined {
-  return findSessionForLookup(sessionId, sessionLists(state)) as AttentionLookupSession | undefined;
-}
-
 function sessionProjectPath(session: AttentionLookupSession, state: ChatUiState): string | null {
   if (typeof session.projectPath === 'string' && session.projectPath !== '') {
     return session.projectPath;
@@ -91,7 +75,7 @@ function describeSessionForAttention(
   state: ChatUiState,
   projects: readonly { path: string; displayName?: string }[],
 ): ReturnType<DesktopAttentionSnapshot['describeSession']> {
-  const session = lookupSession(state, sessionId);
+  const session = lookupAttentionSession(state, sessionId);
   if (!session) {
     return {};
   }
@@ -105,17 +89,6 @@ function describeSessionForAttention(
     ...(projectPath ? { projectName: projectLabel(projectPath, projects) } : {}),
     projectId,
   };
-}
-
-function resolveActivationSessionId(state: ChatUiState, sessionId: string): string | null {
-  const session = lookupSession(state, sessionId);
-  if (!session) {
-    return null;
-  }
-  if (typeof session.parentSessionId === 'string' && session.parentSessionId !== '') {
-    return session.parentSessionId;
-  }
-  return sessionId;
 }
 
 function readOptInDismissedAt(storage: Pick<Storage, 'getItem'>): number | null {
@@ -189,6 +162,11 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
   projectsRef.current = recentProjects;
   const openSessionRef = useRef(openSessionFromShell);
   openSessionRef.current = openSessionFromShell;
+  const handleActivation = useAttentionActivation({
+    state,
+    locale,
+    openSession: openSessionFromShell,
+  });
   const preferencesRef = useRef(readAttentionPreferences());
   const conversationCovered = Boolean(activeSubPage) || isOverlayPresentation;
   const visibleSessionIds = selectVisibleSessionIds({
@@ -309,30 +287,19 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
     const unsubscribePresence = subscribeWindowPresence((presence) => {
       applyPresence(presence.focused, presence.documentVisible);
     });
-    const openActivation = (activation: AttentionActivation): void => {
-      const target = resolveActivationSessionId(stateRef.current, activation.sessionId);
-      if (target === null) {
-        showUiNotification({
-          tone: 'info',
-          message:
-            localeRef.current === 'zh-CN'
-              ? '该会话已不可用'
-              : 'This session is no longer available',
-        });
-        return;
-      }
-      void openSessionRef.current(target);
-    };
     let cancelled = false;
     void os.takePendingActivation().then((pending) => {
       if (cancelled || pending === null) {
         return;
       }
-      openActivation(pending);
+      handleActivation(pending);
     });
     const unsubscribeActivation = os.subscribeActivation((activation) => {
       if (!cancelled) {
-        openActivation(activation);
+        handleActivation(activation);
+        // Native keeps a pending copy of every click for cold launch; drain it
+        // so a later remount of this effect does not replay the same click.
+        void os.takePendingActivation();
       }
     });
     return () => {
@@ -344,7 +311,7 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
         controllerRef.current = null;
       }
     };
-  }, [dispatch, hostClient, os]);
+  }, [dispatch, handleActivation, hostClient, os]);
 
   const sessionsKey = visibleKey(visibleSessionIds, conversationCovered);
   useEffect(() => {
