@@ -6,11 +6,11 @@
   <img src="./apps/desktop/public/app-icon-512.png" alt="Piwin Logo" width="120" height="120" />
 </p>
 
-### 沉静如砚，淬砺如锋
+### 以砚为主题，明、墨分离，优雅的动态交互
 
-**面向个人、基于Pi的Coding Agent**
+**PiWin 面向个人、基于Pi的Coding Agent Desktop**
 
-本地私有 · 拥抱Pi生态 · 灵活的部署方式 · 自带代码检索工具 · 先进的子代理编排模式 · 全双工实时语音
+本地私有 · 拥抱Pi生态 · 灵活的部署方式 · 代码语义检索 · 先进的子代理编排 · 全双工实时语音 · LLM WIKI · BYOK友好配置
 
 <p align="center">
   <a href="https://github.com/mimimaster/piwin/releases"><img src="https://img.shields.io/github/v/release/mimimaster/piwin?color=6366f1&label=Release&logo=github" alt="Release" /></a>
@@ -48,39 +48,40 @@
 
 > *“砚者，研墨沉淀、静水流深。集百家之所长，归于一案之间。”*
 
-在 AI 编程工具百花齐放的当下，从 Cursor、Devin、Windsurf，到 Claude Code、ChatGPT Codex、Kiro、Qoder，各类尝试层出不穷。然而在真实的复杂软件工程实践中，开发者往往面临难以妥协的痛点：
+ 现在各类工具壳层出不穷又大差不差，有一个适合自己，有生态支撑又足够开放的agent还是蛮重要的，Pi应该是首选，但对于不习惯终端操作，嫌弃配置麻烦，喜欢desktop的用户，我这个工具也算是不错的选择
+ - 基于Pi SDK，参考了诸多Pi设计原则，像Yolo First，没有Plan模式（落档成计划文件）
+ - 架构上支持Agent Runtime级别的拓展，热插拔，但是毕竟没有TUI，所以只能部分支持，内置拓展市场，可以分级安装拓展；
+ - code-search 原生工具，跟grep、read同级，参考devin实现的代码语义检索工具（得配模型），防止上下文腐烂，提高agent决策质量；
+ - 子代理编排 可以自定义符合自己的子代理派发方式，自带ultra code和fusion两种编排方式，前者参考codex ultra，后者参考devin fusion
+ - 内置artifact渲染，分为inline和canvas，对于信息密集度较高的场景，极大提升效率，你可以自己控制开关
+ - 极其自由和友好的BYOK配置方式，包含各类模型的配置和委托方式，从文本模型到各类音视频模型；从embedding到reranker；支持oauth登录（Pi原生）等；
+ - 内置视觉委托和web_search自由配置，方便你使用文本模型，简单下拉选择视觉模型，使用极其方便，你可以选择使用模型内置搜索，也可以使用外部各类搜索，具体可见使用文档，这部分可玩性大；
+ - 内置部分实用拓展，比如缓存拓展，提高提示词命中缓存率，降低你的token消费；
+ - 全双工的语音托管功能，是的，你可以边聊天，边coding；
+ - 权限管理，虽然基于PI，但是还是加了个权限管理，方便你的场景。注意！默认是YOLO！，但依旧拦截rm等危险操作；
+ - chat与agent分开管理，chat模式更少上下文注入，只读，响应快，交互方便；agent更专业；
+ - 内置各类工具配合使用，terminal、浏览器、画布、note、
+ - llm wiki + 闪卡，核心是闪卡，产出方式：知识库产出闪卡，也可以在任意对话区域划词或者调用Skill生成闪卡，支持闪卡管理，目前仍缺乏一定产品创意，欢迎各位的改造
+ - 自由的部署方式，采用客户端与Host Runtime分离的分层架构，你可以使用一体包（我提供的，web可访问），也可以分开部署，核心是Host Runtime，你可以部署Host在服务器或者你的电脑，单独起一个shell客户端连接Host服务，可以简单理解为前后端分离，目前正在开发ios shell壳子，可以接入apple health kit, 申请可能需要点时间，期间欢迎大家使用web方式访问，或者自行开发对应系统的壳子；
+ - 其他功能：包括codex宠物功能、冷存储（方便管理会话资源）、会话树、用量统计、资源管理等，大家在使用的过程中会发现更多的细节的
 
-- **数据隐私隐忧**：商业云端平台闭源黑盒，核心商业代码与私有凭证上传云端存在不可控的合规风险；
-- **长程上下文污染 (Attention Dilution)**：在大型代码库中，主模型频繁读取全量文件导致上下文极速膨胀，注意力被无关代码严重稀释，迅速引发幻觉与代码遗忘；
-- **生态割裂与账号分散**：手里握着各大厂商的官方 OAuth 订阅或 API Key，却不得不为了不同模型频繁切换各个封闭客户端；
-- **算力成本失衡**：用最昂贵的 SOTA 规划模型去逐行敲打机械的样板代码，成本高昂且缺乏并行效率。
 
-**Piwin（砚 · Planora）** 应运而生。它是一款“吃百家饭”长大的私有化智能编程工作台 —— 汲取 **Devin** 的 Fast-Context 零污染检索、**Codex** 的 Ultra Code 侦察协同、**Astra** 级的全双工实时语音、**Cursor** 沉浸式多窗格交互，以及 **Pi** 强大的热插拔内核生态。
-
-我们坚守三项核心追求：
-
-1. **信（Fidelity & Security）**：**数据 100% 留在本地**。基于 Host 单一权威与 SQLite 完整会话历史树，敏感凭据全本地加密存储，源码与执行环境受到严格物理门禁防护；
-2. **达（Ubiquity & Decoupling）**：**多端解耦，万端归一**。前后端彻底分离，桌面端（macOS/Windows）、Web 浏览器、移动端外壳均通过标准双向契约直连同一 Host，支持 Tailscale 组网跨端实时接续长程开发；
-3. **雅（Aesthetics & Craftsmanship）**：**将工程美学融入每一次交互**。内嵌与宽屏双模制品预览沙箱（Artifacts）、Aria Snapshot 语义浏览器工作台、可视化目标追踪面板，重塑心手合一的结对编程体验。
 
 ---
 
 ## ✨ 核心特性亮点
 
-### 1. 0-Token 污染的智能代码语义搜索 (Code Search)
-- **智能体拓扑勘探**：灵感源自对 Devin (原 Windsurf) Fast-Context 机制的底层逆向与深度重构；
-- **零上下文注意力稀释**：派发轻量独立的**只读 Scout 子代理**深入代码库梳理文件路径、接口定义与调用关系，**仅向主模型回传高信噪比提炼报告**，彻底告别几千行无关代码冲垮主会话长上下文的弊病；
-- **一等公民核心工具**：在 Piwin 中与 `read_file`、`grep` 同级，主模型按需自主调用；
-- **双模极速驱动**：支持绑定个人免费的 **Devin 专属 Token**（零额外开销、免费极速），亦支持配置高速轻量推理模型。
-
+### 1. 0-Token 污染的智能语义搜索
+- **Code Search**：对 Devin (原 Windsurf) Fast-Context 机制的实现，与grep、read等原生工具同级，对比fast-context mcp 召回率更高、门槛更低、模型兼容替换，推荐使用devin的key token响应极快；
+- **零上下文注意力稀释**：自带编排模板会派发轻量独立的**只读 Scout 子代理**深入代码库梳理文件路径、接口定义与调用关系，**仅向主模型回传高信噪比提炼报告**，彻底告别几千行无关代码冲垮主会话长上下文的弊病，结合code_search使用效果更佳；
 ---
 
 ### 2. 工业级多子代理编排体系 (Subagent Orchestration)
-在输入框（Composer）上方即可一键切换顶尖智能体协作范式：
+在输入框（Composer）一键切换多agent编排模式
 
 - **Ultra Code 模式（侦察兵 + 精准打击）**：先派发只读 Scout 子代理完成全代码库的依赖梳理与潜在影响面分析，输出结构化蓝图；主模型审阅报告后在纯净的上下文中精准落实代码修改；
-- **Fusion 模式（SOTA 规划 + 高性价比执行）**：
-  - **规划与执行解耦**：主控会话（Lead）使用顶尖 SOTA 模型（Claude 3.7 Sonnet / DeepSeek V3）把握顶层架构与需求澄清；执行节点（Sidekick）配置高速轻量模型处理机械编码；
+- **Fusion 模式（SOTA 规划 + 高性价比执行）**： 参考devin公开资料实现
+  - **规划与执行解耦**：主控会话（Lead）使用顶尖 SOTA 模型把握顶层架构与需求澄清；执行节点（Sidekick）配置高速轻量模型处理机械编码；
   - **Git Worktree 物理隔离**：所有代码写入均在临时的 Git Worktree 分支中并发实测与编译自愈，杜绝半成品污染主工作区；
   - **原子级合并与审查**：测试通过后生成 Candidate 候选集，经主控审查后原子级合入主分支，**Token 综合成本降低 60%+**。
 
@@ -192,7 +193,18 @@ flowchart TB
 
 ## 🚀 快速上手与使用方式
 
-你可以根据实际使用场景选择**桌面一体安装包**（推荐 · 零环境门槛）、**Web 浏览器远程模式**、**终端 Agent CLI** 或 **开发者源码编译**：
+命令都在仓库根目录执行。开发和打包是两条命令，不要混用。
+
+| 入口 | 用途 | 开发 | 打包与使用 |
+| :--- | :--- | :--- | :--- |
+| Desktop | 一体包。窗口里自带 Host，本机直接用 | `pnpm dev:tauri` | `pnpm package:desktop`，安装生成的 dmg / exe |
+| Web | 浏览器访问。页面和 Host 打进同一个目录，同一个端口 | `pnpm dev:host` 与 `pnpm dev:web`，打开 `http://127.0.0.1:1420` | `pnpm package:web`，再运行 `./dist/piwin-host/start-host.sh`，打开 `http://127.0.0.1:8787` |
+| 桌面端壳子 | 只有桌面窗口，不带 Host。连已经跑起来的 Host | `pnpm dev:tauri:shell` | `pnpm package:desktop-shell`，启动后填 Host 的 `ws://` 地址 |
+| Host | 单独的后端。给桌面端壳子、Web 或别的机器连 | `pnpm dev:host`，监听 `ws://127.0.0.1:8787` | `pnpm package:host`，再运行 `./dist/piwin-host/start-host.sh` |
+
+一体包和单独的 Host 不要在同一台机器同时开，两者会抢 `~/.piwin`。
+
+你也可以按场景往下看：**桌面一体安装包**、**Web 正式部署** 或 **源码开发**。
 
 ### 方式一：下载桌面一体安装包（推荐 · 零环境门槛）
 

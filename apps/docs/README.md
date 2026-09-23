@@ -1,4 +1,4 @@
-# Piwin Docs · 砚 (Planora)
+# Piwin Docs · 砚
 
 VitePress documentation for Piwin, designed with the Inkstone (砚) aesthetic.
 
