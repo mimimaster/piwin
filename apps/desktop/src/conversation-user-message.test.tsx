@@ -354,6 +354,51 @@ describe('UserMessageContent collapse', () => {
     expect(bubble?.classList.contains('has-attachments')).toBe(true);
   });
 
+  it('expands a collapsed card when an image preview opens, and folds the preview with the card', async () => {
+    render(
+      <UserMessageContent
+        message={{
+          ...message,
+          text: '看这张图',
+          contextRefs: [],
+          attachments: [
+            {
+              id: 'attachment-image',
+              kind: 'media',
+              path: '/tmp/history-image.png',
+              mimeType: 'image/png',
+              byteSize: 1024,
+              source: 'paste',
+            },
+          ],
+        }}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+      />,
+    );
+    const bubble = container?.querySelector<HTMLElement>('[data-testid="user-message-collapsible-body"]');
+    const chip = container?.querySelector<HTMLButtonElement>('button[data-testid="transcript-att-chip"]');
+    const slot = container?.querySelector('[data-testid="att-image-preview-slot"]');
+    expect(bubble?.classList.contains('is-collapsed')).toBe(true);
+
+    // Opening mounts MediaPreview, which reads the image asynchronously.
+    await act(async () => {
+      chip?.click();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(bubble?.classList.contains('is-expanded')).toBe(true);
+    expect(slot?.getAttribute('data-open')).toBe('true');
+    expect(chip?.getAttribute('aria-expanded')).toBe('true');
+
+    act(() => {
+      bubble?.click();
+    });
+    expect(bubble?.classList.contains('is-collapsed')).toBe(true);
+    expect(slot?.getAttribute('data-open')).toBe('false');
+    expect(chip?.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('pins collapsed overflow to the start of a long Conversation prompt', () => {
     scrollHeightSpy = vi
       .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')

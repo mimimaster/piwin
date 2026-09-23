@@ -14,20 +14,29 @@ function UserAttachmentCapsules(props: {
   attachments: ChatMessageUi['attachments'];
   contextRefs: readonly PromptContextRef[];
   locale?: 'zh-CN' | 'en' | undefined;
+  cardCollapsed?: boolean | undefined;
+  onPreviewOpen?: (() => void) | undefined;
 }): ReactElement {
   const [openIds, setOpenIds] = useState<ReadonlySet<string>>(() => new Set());
   const [revealedIds, setRevealedIds] = useState<ReadonlySet<string>>(() => new Set());
+  // A collapsed card clamps its height; an open preview inside it overflows
+  // and squeezes the text row under the chips. Fold previews with the card —
+  // expanding the card again restores them.
+  const cardCollapsed = props.cardCollapsed === true;
+  const isPreviewOpen = (id: string): boolean => !cardCollapsed && openIds.has(id);
 
   function togglePreview(id: string): void {
+    const opening = !isPreviewOpen(id);
     setOpenIds((current) => {
       const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
+      if (opening) {
         next.add(id);
+      } else {
+        next.delete(id);
       }
       return next;
     });
+    if (opening) props.onPreviewOpen?.();
     setRevealedIds((current) => {
       if (current.has(id)) {
         return current;
@@ -73,7 +82,7 @@ function UserAttachmentCapsules(props: {
               text={model.text}
               {...(previewable
                 ? {
-                    expanded: openIds.has(attachment.id),
+                    expanded: isPreviewOpen(attachment.id),
                     onToggle: () => togglePreview(attachment.id),
                   }
                 : {})}
@@ -85,7 +94,7 @@ function UserAttachmentCapsules(props: {
         if (attachment.kind === 'web-element' || !isTranscriptMediaPreviewable(attachment)) {
           return null;
         }
-        const open = openIds.has(attachment.id);
+        const open = isPreviewOpen(attachment.id);
         return (
           <div
             key={`preview-${attachment.id}`}
@@ -118,6 +127,10 @@ export function MessageAttachments(props: {
   contextRefs?: readonly PromptContextRef[] | undefined;
   role?: ChatMessageUi['role'] | undefined;
   locale?: 'zh-CN' | 'en' | undefined;
+  /** User cards only: previews stay folded while the host card is collapsed. */
+  cardCollapsed?: boolean | undefined;
+  /** User cards only: a preview opened, so the host card should expand. */
+  onPreviewOpen?: (() => void) | undefined;
 }): ReactElement | null {
   const contextRefs = props.contextRefs ?? [];
   const attachments = props.attachments ?? [];
@@ -132,6 +145,8 @@ export function MessageAttachments(props: {
         attachments={attachments}
         contextRefs={contextRefs}
         {...(props.locale !== undefined ? { locale: props.locale } : {})}
+        cardCollapsed={props.cardCollapsed}
+        onPreviewOpen={props.onPreviewOpen}
       />
     );
   }

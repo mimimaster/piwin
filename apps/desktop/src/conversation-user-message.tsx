@@ -272,6 +272,8 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
               {...(message.contextRefs ? { contextRefs: message.contextRefs } : {})}
               role="user"
               {...(props.locale !== undefined ? { locale: props.locale } : {})}
+              cardCollapsed={collapsed}
+              onPreviewOpen={() => setIsCollapsed(false)}
             />
 
             <div
@@ -396,6 +398,8 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
           {...(message.contextRefs ? { contextRefs: message.contextRefs } : {})}
           role="user"
           {...(props.locale !== undefined ? { locale: props.locale } : {})}
+          cardCollapsed={collapsed}
+          onPreviewOpen={() => setIsCollapsed(false)}
         />
       </div>
       {props.branchSwitcher ? (
