@@ -15,7 +15,14 @@ import { TranscriptTurnList } from '../transcript-turn-list.js';
 import { groupTranscriptTurns } from '../transcript-turns.js';
 import { messageAnchorId } from '../transcript-outline.js';
 
-const HISTORY: SessionTranscriptMessage[] = Array.from({ length: 300 }, (_, index) => ({
+/**
+ * Longer than the history-view cap (MAX_HISTORY_VIEW_MESSAGES) so walking it
+ * still has to evict, and a history tick far from the tail still has to seek.
+ */
+export const PAGING_GALLERY_TOTAL = 1_200;
+/** The live tail holds the last 160 (MAX_TRANSCRIPT_CACHE_MESSAGES). */
+const TAIL_START = PAGING_GALLERY_TOTAL - 160;
+const HISTORY: SessionTranscriptMessage[] = Array.from({ length: PAGING_GALLERY_TOTAL }, (_, index) => ({
   id: `page-${index}`,
   role: 'user',
   text: `Historical turn ${index}`,
@@ -25,7 +32,7 @@ const HISTORY: SessionTranscriptMessage[] = Array.from({ length: 300 }, (_, inde
 const INDEX: SessionUserMessageIndexData = {
   sessionId: 'paging',
   revision: 'r1',
-  totalUserMessages: 300,
+  totalUserMessages: PAGING_GALLERY_TOTAL,
   mode: 'exact',
   anchorBytes: 100,
   anchors: HISTORY.map((message, ordinal) => ({
@@ -45,12 +52,12 @@ function initialState() {
   state = chatUiReducer(state, {
     type: 'session/load-messages',
     sessionId: 'paging',
-    messages: HISTORY.slice(140),
+    messages: HISTORY.slice(TAIL_START),
     transcriptPage: {
       revision: 'r1',
-      totalCount: 300,
-      startIndex: 140,
-      endIndex: 300,
+      totalCount: PAGING_GALLERY_TOTAL,
+      startIndex: TAIL_START,
+      endIndex: PAGING_GALLERY_TOTAL,
       messageBytes: 100,
     },
   });
