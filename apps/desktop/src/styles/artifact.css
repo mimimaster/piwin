@@ -387,6 +387,11 @@
   overflow-wrap: anywhere;
 }
 
+/* The preview still renders, so a truncated fence is a caveat, not an error. */
+.artifact-source-incomplete {
+  color: var(--amber);
+}
+
 .artifact-with-source--preview > .artifact-source-incomplete {
   margin: 0 0 var(--s-2);
 }

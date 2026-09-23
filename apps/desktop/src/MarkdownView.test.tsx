@@ -204,7 +204,7 @@ describe('MarkdownView artifact preview policy', () => {
     );
 
     await flushMarkdownEffects();
-    expect(container.querySelector('[data-testid="artifact-source-incomplete"]')?.textContent ?? '').toContain('模型输出未完成');
+    expect(container.querySelector('[data-testid="artifact-source-incomplete"]')?.textContent ?? '').toContain('输出未完成');
     expect(container.querySelector('.artifact-frame')?.getAttribute('data-artifact-renderer')).toBe('sandbox');
     const plan = materialize.mock.results.find((result) => result.type === 'return')?.value;
     expect(plan?.document.kind).toBe('sandbox');

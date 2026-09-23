@@ -368,8 +368,16 @@ artifact: {
 ```
 
 Shipped default (`createDefaultArtifactScopes()`): Conversation chat has both
-surfaces **on**; Agent chat has both surfaces **off** — the coding agent answers
-in Markdown/source unless the user opts a surface back in.
+surfaces **on**; Agent chat is **Canvas only** (2026-09-23, owner decision) — a
+coding transcript stays Markdown/source, while a standalone deliverable can open
+in the side workspace. Existing configs keep their stored switches: normalization
+already materialized the old default, and it cannot be told apart from a
+deliberate choice.
+
+Subagent generations get **no** Artifact surface in any scope
+(`resolveGenerationArtifactCapability`): a subagent's reply is read by its parent
+model, never rendered for a person, so neither the instructions nor the
+`artifact_instructions` tool reach it.
 
 `scopes` is optional, and a missing scope *or surface* follows that shipped
 default rather than "on". A `config.json` written before `scopes` existed (or an

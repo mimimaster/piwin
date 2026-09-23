@@ -158,7 +158,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
 
   const incompleteNotice = settledIncompleteArtifact ? (
     <p className="artifact-source-incomplete" data-testid="artifact-source-incomplete" role="status">
-      {artifactIncompleteCopy(props.locale)}
+      {artifactIncompleteCopy(props.locale, props.source)}
     </p>
   ) : null;
 

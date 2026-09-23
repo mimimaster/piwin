@@ -152,13 +152,14 @@ export const ARTIFACT_CANVAS_ONLY_HINT =
  * Shipped per-scope surface switches.
  *
  * Conversation chat renders Artifacts by default. Agent chat (a project folder
- * session) ships with **both surfaces off**: the coding agent answers in
- * Markdown/source unless the user opts a surface back in.
+ * session) ships with **Canvas only**: a coding transcript stays Markdown and
+ * source, while a standalone deliverable (a report, a prototype) can open in
+ * the side workspace instead of flooding the chat column.
  */
 export function createDefaultArtifactScopes(): ArtifactScopesConfig {
   return {
     general: { inline: true, canvas: true },
-    project: { inline: false, canvas: false },
+    project: { inline: false, canvas: true },
   };
 }
 
@@ -236,7 +237,7 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
 export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
-  '[piwin-prompt-meta kind="artifact:decision" version="8" applies="artifacts-enabled"]',
+  '[piwin-prompt-meta kind="artifact:decision" version="9" applies="artifacts-enabled"]',
   '<artifact-decision-policy name="piwin-proactive-surfaces">',
   '## Decision Criteria',
   "Choose the presentation that makes the user's information easiest to scan, understand, search, copy, compare, and reuse.",
@@ -266,6 +267,7 @@ export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
   '- Full app/page prototypes, multi-step flows with local state, interactive tools/calculators, or dashboards requiring a dedicated wide workspace.',
   '- A coordinated workspace or result that should remain beside the conversation, or a layout whose utility requires sustained width.',
   '- Standalone reports and reviews (MUST): architecture / plan / design / code-base reviews, audits, delivery reports, findings. Design a scannable hierarchy — status, grouped findings, comparisons — not a Markdown document pasted into a single `<pre>` or article. Ordinary in-thread comments on a specific snippet stay Markdown.',
+  '- Already written to a file this turn: do not repeat the file in a Canvas. A Canvas still earns its place when it shows what the text cannot at a glance — conclusions, status, key comparisons — and points to the file for the full text.',
   'Declare Canvas explicitly with `surface="canvas"`. A completed Canvas opens the right workspace automatically; do not ask the user to click a second launcher before using it.',
   '</artifact-decision-policy>',
 ].join('\n');

@@ -47,6 +47,7 @@ import {
   isConversationChatSession,
   resolveSessionLocation,
   resolveAgentCwd,
+  resolveGenerationArtifactCapability,
 } from './session-scope.js';
 import { windowsShellPrompt } from './tools/windows-shell-prompt.js';
 import { buildResourceShadowDiagnostics, createPiResourceLoader } from './pi-resource-loader.js';
@@ -235,9 +236,9 @@ function conversationArtifactCapability(config: PiwinConfig): ResolvedArtifactCa
   return resolveArtifactCapability(config.artifact, 'general');
 }
 
-/** Artifact capability for an Agent (project-scope) session. */
-function agentArtifactCapability(config: PiwinConfig): ResolvedArtifactCapability {
-  return resolveArtifactCapability(config.artifact, 'project');
+/** Artifact capability for an Agent (project-scope) session; none for a subagent. */
+function agentArtifactCapability(config: PiwinConfig, input: CreateSessionInput): ResolvedArtifactCapability {
+  return resolveGenerationArtifactCapability(config.artifact, 'project', input.subagent !== undefined);
 }
 
 /** Capability decisions shared by both compile paths. */
@@ -383,7 +384,7 @@ async function compileAgentCapabilityPlan(
   const artifactAppendPrompt = formatResidentArtifactPrompt(
     config.artifact,
     snapshot.tools.hostTools,
-    agentArtifactCapability(config),
+    agentArtifactCapability(config, input),
   );
 
   // MCP guidance is part of the model-visible contract only when the compiled
@@ -944,7 +945,7 @@ function compileToolPolicy(
         : config.flashcards?.enabled === false
           ? 'off'
           : 'agent-create',
-    artifact: agentArtifactCapability(config).enabled,
+    artifact: agentArtifactCapability(config, input).enabled,
     availability: {
       webSearchReady,
       webFetchReady,

@@ -5,7 +5,12 @@ import { describe, expect, it } from 'vitest';
 import { openOrCreateProject } from '@piwin/project';
 import { getPiwinProjectsPath, getPiwinRoot } from './paths.js';
 import { createRemoteProjectId } from './remote-project-id.js';
-import { resolveSessionLocation, resolveScopeRefToListIntent } from './session-scope.js';
+import { createDefaultArtifactConfig } from '@piwin/contracts';
+import {
+  resolveGenerationArtifactCapability,
+  resolveSessionLocation,
+  resolveScopeRefToListIntent,
+} from './session-scope.js';
 
 describe('resolveSessionLocation projectId', () => {
   it('binds a remote projectId to the registered project path', async () => {
@@ -95,5 +100,29 @@ describe('resolveScopeRefToListIntent', () => {
         rootDir,
       ),
     ).rejects.toThrow('Unknown project');
+  });
+});
+
+describe('resolveGenerationArtifactCapability', () => {
+  it('gives Agent sessions Canvas only by default', () => {
+    expect(resolveGenerationArtifactCapability(createDefaultArtifactConfig(), 'project', false)).toEqual({
+      enabled: true,
+      inline: false,
+      canvas: true,
+    });
+  });
+
+  it('gives subagents no Artifact surface even when every switch is on', () => {
+    const artifact = {
+      ...createDefaultArtifactConfig(),
+      scopes: { general: { inline: true, canvas: true }, project: { inline: true, canvas: true } },
+    };
+    for (const scopeKey of ['general', 'project'] as const) {
+      expect(resolveGenerationArtifactCapability(artifact, scopeKey, true)).toMatchObject({
+        enabled: false,
+        inline: false,
+        canvas: false,
+      });
+    }
   });
 });

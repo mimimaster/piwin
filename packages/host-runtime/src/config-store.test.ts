@@ -886,10 +886,10 @@ describe('artifact per-scope switches', () => {
     );
     const loaded = await loadPiwinConfig(rootDir);
     // A config written before `scopes` existed adopts the shipped default:
-    // Conversation chat on, Agent chat off.
+    // Conversation chat on, Agent chat Canvas-only.
     expect(loaded.artifact.scopes).toEqual({
       general: { inline: true, canvas: true },
-      project: { inline: false, canvas: false },
+      project: { inline: false, canvas: true },
     });
     expect(createDefaultPiwinConfig().artifact.scopes).toEqual(loaded.artifact.scopes);
   });
@@ -914,7 +914,7 @@ describe('artifact per-scope switches', () => {
       general: { inline: false, canvas: true },
       // A malformed or missing entry follows the shipped default rather than
       // inventing a surface the user never opted into.
-      project: { inline: false, canvas: false },
+      project: { inline: false, canvas: true },
     });
   });
 });

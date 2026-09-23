@@ -11,7 +11,7 @@ import type {
   SessionIndexRecord,
 } from '@piwin/contracts';
 import { randomUUID } from 'node:crypto';
-import { formatError, normalizeExecutionConfig, resolveArtifactCapability } from '@piwin/contracts';
+import { formatError, normalizeExecutionConfig } from '@piwin/contracts';
 import { healthProviderDisclosure } from './health-turn-display.js';
 import { effectivePermissionMode } from './effective-permission-mode.js';
 import { evaluateBashPermission } from './permission-policy.js';
@@ -20,7 +20,10 @@ import { loadMcpConfig, createMcpGenerationSnapshot } from '@piwin/mcp';
 import { listProjects } from '@piwin/project';
 import { getSessionRecord } from '@piwin/session';
 import { isGeneralWorkspacePath } from './general-workspace.js';
-import { artifactScopeKeyForIndexRecord } from './session-scope.js';
+import {
+  artifactScopeKeyForIndexRecord,
+  resolveGenerationArtifactCapability,
+} from './session-scope.js';
 
 import { type ProductAgentHostToolRegistrationMode } from './product-agent-host.js';
 import { loadPiwinConfig } from './config-store.js';
@@ -205,14 +208,15 @@ export async function composeSessionHostToolsForSession(
   // register the passive session here or `browser_*` never reach the model.
   await ensureBrowserSessionBestEffort(deps);
   // Artifact capability must match the compiled manifest: both derive the scope
-  // class from the same durable record. A subagent generation belongs to the
-  // Agent class; an unreadable record leaves the capability unresolved so the
+  // class from the same durable record. A subagent generation gets no Artifact
+  // surface; an unreadable record leaves the capability unresolved so the
   // master switch alone decides rather than guessing a class.
+  const subagent = childContext !== undefined || sessionRecord?.kind === 'subagent';
   const artifactScopeKey = childContext ? 'project' : artifactScopeKeyForIndexRecord(sessionRecord);
   const artifactCapability =
     artifactScopeKey === undefined
       ? undefined
-      : resolveArtifactCapability(config?.artifact, artifactScopeKey);
+      : resolveGenerationArtifactCapability(config?.artifact, artifactScopeKey, subagent);
   const tools = await buildSessionHostTools({
     sessionId,
     piwinRoot: rootDir,

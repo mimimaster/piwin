@@ -3,12 +3,15 @@
  * Apps send scope intent; only the host resolves filesystem paths.
  */
 import type {
+  ArtifactConfig,
   ArtifactScopeKey,
   CreateSessionInput,
   ResolvedSessionLocation,
   SessionListScopeRef,
   SessionScope,
 } from '@piwin/contracts';
+import { DISABLED_ARTIFACT_CAPABILITY, resolveArtifactCapability } from '@piwin/contracts';
+import type { ResolvedArtifactCapability } from '@piwin/contracts';
 import { listProjects, resolveProjectPathById } from '@piwin/project';
 import { ensureGeneralWorkspace, isGeneralWorkspacePath } from './general-workspace.js';
 import { getPiwinGeneralWorkspacePath, getPiwinProjectsPath, getPiwinRoot } from './paths.js';
@@ -165,6 +168,21 @@ export function artifactScopeKeyForIndexRecord(
     return undefined;
   }
   return isConversationIndexRecord(record) ? 'general' : 'project';
+}
+
+/**
+ * Artifact capability one generation gets. A subagent's reply is read by its
+ * parent model, never rendered for a person, so subagents get no Artifact
+ * surface in any scope — neither the instructions nor the tool.
+ */
+export function resolveGenerationArtifactCapability(
+  artifact: ArtifactConfig | undefined,
+  scopeKey: ArtifactScopeKey,
+  subagent: boolean,
+): ResolvedArtifactCapability {
+  return subagent
+    ? { ...DISABLED_ARTIFACT_CAPABILITY }
+    : resolveArtifactCapability(artifact, scopeKey);
 }
 
 /**

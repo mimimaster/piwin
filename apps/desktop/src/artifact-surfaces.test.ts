@@ -20,7 +20,7 @@ describe('artifact scope class', () => {
 });
 
 describe('Desktop Artifact surfaces', () => {
-  it('ships Conversation chat on and Agent chat off', () => {
+  it('ships Conversation chat on and Agent chat Canvas-only', () => {
     const config = createDefaultArtifactConfig();
     expect(resolveArtifactSurfacesForScope(config, GENERAL)).toEqual({
       enabled: true,
@@ -28,9 +28,9 @@ describe('Desktop Artifact surfaces', () => {
       canvas: true,
     });
     expect(resolveArtifactSurfacesForScope(config, PROJECT)).toEqual({
-      enabled: false,
+      enabled: true,
       inline: false,
-      canvas: false,
+      canvas: true,
     });
   });
 
@@ -55,7 +55,11 @@ describe('Desktop Artifact surfaces', () => {
 
   it('missing Host config keeps the shipped default instead of disabling everything', () => {
     expect(resolveArtifactSurfacesForScope(undefined, GENERAL).canvas).toBe(true);
-    expect(resolveArtifactSurfacesForScope(undefined, PROJECT).enabled).toBe(false);
+    expect(resolveArtifactSurfacesForScope(undefined, PROJECT)).toEqual({
+      enabled: true,
+      inline: false,
+      canvas: true,
+    });
   });
 
   it('always passes both booleans so a false survives a prop spread', () => {

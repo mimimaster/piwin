@@ -51,7 +51,7 @@ describe('canonical artifact language', () => {
 describe('default artifact decision prompt', () => {
   it('wraps the proactive decision policy in a metadata block', () => {
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '[piwin-prompt-meta kind="artifact:decision" version="8" applies="artifacts-enabled"]',
+      '[piwin-prompt-meta kind="artifact:decision" version="9" applies="artifacts-enabled"]',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
       '<artifact-decision-policy name="piwin-proactive-surfaces">',
@@ -202,11 +202,11 @@ describe('artifact protocol formatter', () => {
 });
 
 describe('per-scope Artifact capability', () => {
-  it('ships Conversation chat on and Agent chat off', () => {
+  it('ships Conversation chat on and Agent chat Canvas-only', () => {
     expect(createDefaultArtifactConfig().scopes).toEqual(createDefaultArtifactScopes());
     expect(createDefaultArtifactScopes()).toEqual({
       general: { inline: true, canvas: true },
-      project: { inline: false, canvas: false },
+      project: { inline: false, canvas: true },
     });
   });
 
@@ -221,30 +221,26 @@ describe('per-scope Artifact capability', () => {
     // A config written before `scopes` existed adopts the shipped default
     // rather than keeping a surface the user never chose.
     expect(resolveArtifactCapability(config, 'project')).toEqual({
-      enabled: false,
+      enabled: true,
       inline: false,
-      canvas: false,
+      canvas: true,
     });
 
     config.scopes = {
       general: { inline: true, canvas: true },
       project: { inline: true, canvas: true },
     };
-    expect(resolveArtifactCapability(config, 'project').canvas).toBe(true);
+    expect(resolveArtifactCapability(config, 'project').inline).toBe(true);
   });
 
   it('treats a partial scope entry per surface', () => {
     const config = createDefaultArtifactConfig();
     config.scopes = {
       general: { inline: true, canvas: true },
-      project: { inline: true } as { inline: boolean; canvas: boolean },
+      project: { canvas: false } as { inline: boolean; canvas: boolean },
     };
-    // The missing surface follows the default (off for Agent chat), not "on".
-    expect(resolveArtifactCapability(config, 'project')).toEqual({
-      enabled: true,
-      inline: true,
-      canvas: false,
-    });
+    // The missing surface follows the default (Inline off for Agent chat), not "on".
+    expect(resolveArtifactCapability(config, 'project')).toEqual(DISABLED_ARTIFACT_CAPABILITY);
   });
 
   it('gates each scope independently and collapses to disabled when empty', () => {
@@ -277,9 +273,11 @@ describe('per-scope Artifact capability', () => {
       inline: true,
       canvas: true,
     });
-    expect(resolveArtifactCapability(undefined, 'project')).toEqual(
-      DISABLED_ARTIFACT_CAPABILITY,
-    );
+    expect(resolveArtifactCapability(undefined, 'project')).toEqual({
+      enabled: true,
+      inline: false,
+      canvas: true,
+    });
   });
 
   it('hints only the restricted surface and never weakens the shared protocol', () => {

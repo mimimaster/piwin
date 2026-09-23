@@ -47,7 +47,6 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
   isPauseContinueUtterance,
-  resolveArtifactCapability,
   type ResolvedArtifactCapability,
   readExplicitSkillIntent,
   wrapLiveDelegationForAgent,
@@ -121,6 +120,7 @@ import { SessionRuntimeController } from '../sessions/session-runtime-controller
 import { createSessionMessageResponse } from '../session-message-response.js';
 import {
   artifactScopeKeyForIndexRecord,
+  resolveGenerationArtifactCapability,
   indexProjectPathForScope,
   resolveSessionLocation,
   scopeFromIndexRecord,
@@ -648,7 +648,9 @@ async function resolvePromptArtifactCapability(
   const rootDir = getPiwinRoot(context.piwinRoot);
   const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
   const scopeKey = artifactScopeKeyForIndexRecord(record ?? undefined);
-  return scopeKey === undefined ? undefined : resolveArtifactCapability(artifact, scopeKey);
+  return scopeKey === undefined
+    ? undefined
+    : resolveGenerationArtifactCapability(artifact, scopeKey, record?.kind === 'subagent');
 }
 
 async function applyAgentPromptContext(

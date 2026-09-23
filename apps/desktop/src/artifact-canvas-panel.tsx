@@ -161,7 +161,7 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
       {activeTarget.sourceIncomplete ? (
         <div className="artifact-canvas-incomplete">
           <p className="artifact-source-incomplete" data-testid="artifact-source-incomplete" role="status">
-            {artifactIncompleteCopy(locale)}
+            {artifactIncompleteCopy(locale, activeTarget.source)}
           </p>
         </div>
       ) : null}

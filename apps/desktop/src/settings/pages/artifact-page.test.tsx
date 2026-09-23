@@ -171,12 +171,12 @@ describe('ArtifactPage per-scope surface tree', () => {
     return input;
   }
 
-  it('renders both scope classes with the shipped default: Agent chat off', () => {
+  it('renders both scope classes with the shipped default: Agent chat Canvas-only', () => {
     const container = renderPage(artifactConfig());
     expect(switchAt(container, 'artifact-scope-general-inline-switch').checked).toBe(true);
     expect(switchAt(container, 'artifact-scope-general-canvas-switch').checked).toBe(true);
     expect(switchAt(container, 'artifact-scope-project-inline-switch').checked).toBe(false);
-    expect(switchAt(container, 'artifact-scope-project-canvas-switch').checked).toBe(false);
+    expect(switchAt(container, 'artifact-scope-project-canvas-switch').checked).toBe(true);
   });
 
   it('shows the saved per-scope state instead of the default', () => {
@@ -194,10 +194,10 @@ describe('ArtifactPage per-scope surface tree', () => {
 
   it('saves the toggled surface with the rest of the artifact draft', async () => {
     const container = renderPage(artifactConfig());
-    // Agent chat ships off, so the first toggle opts its Inline surface in.
-    const canvasInput = switchAt(container, 'artifact-scope-project-inline-switch');
+    // Agent chat ships Canvas-only, so the first toggle opts its Inline surface in.
+    const inlineInput = switchAt(container, 'artifact-scope-project-inline-switch');
     act(() => {
-      canvasInput.click();
+      inlineInput.click();
     });
     const saveButton = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-save-button"]',
@@ -211,7 +211,7 @@ describe('ArtifactPage per-scope surface tree', () => {
     const saved = saveSpy!.mock.calls[0]?.[0] as PiwinConfig;
     expect(saved.artifact.scopes).toEqual({
       general: { inline: true, canvas: true },
-      project: { inline: true, canvas: false },
+      project: { inline: true, canvas: true },
     });
   });
 
