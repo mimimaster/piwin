@@ -230,8 +230,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   background: linear-gradient(
     to right,
     transparent 0%,
-    color-mix(in srgb, var(--s3) 70%, transparent) 32%,
-    var(--s3) 58%
+    color-mix(in srgb, var(--s3) 70%, transparent) 18px,
+    var(--s3) 36px
   );
 }
 
@@ -261,6 +261,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   padding: 6px 0 0;
   justify-content: flex-end;
   background: transparent;
+  /* The delivery status is state, not hover chrome. */
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* proto-01 `.atts` / `.att` — history capsules on the paper user card */

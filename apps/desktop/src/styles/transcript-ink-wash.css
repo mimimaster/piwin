@@ -60,8 +60,10 @@ html[data-theme-visual-style='ink-wash'] .bubble.role-user:not(.is-conversation-
 html[data-theme-visual-style='ink-wash']
   .bubble.role-user:not(.is-conversation-bubble)
   .user-message-actions {
-  background: rgba(255, 255, 255, 0.08) !important;
+  /* Opaque: the chip floats over the banner's last line of text. */
+  background: rgb(30, 32, 40) !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: var(--r-control) !important;
 }
 
 html[data-theme-visual-style='ink-wash']

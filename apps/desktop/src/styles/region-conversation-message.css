@@ -316,8 +316,8 @@
   background: linear-gradient(
     to right,
     transparent 0%,
-    color-mix(in srgb, var(--user-message-mask) 70%, transparent) 32%,
-    var(--user-message-mask) 58%
+    color-mix(in srgb, var(--user-message-mask) 70%, transparent) 18px,
+    var(--user-message-mask) 36px
   );
   opacity: 0;
   pointer-events: none;
@@ -457,8 +457,8 @@ html[data-theme-visual-style='ink-wash']
   background: linear-gradient(
     to right,
     transparent 0%,
-    color-mix(in srgb, var(--void) 70%, transparent) 32%,
-    color-mix(in srgb, var(--void) 98%, transparent) 58%
+    color-mix(in srgb, var(--void) 70%, transparent) 18px,
+    color-mix(in srgb, var(--void) 98%, transparent) 36px
   );
   border: none;
   box-shadow: none;

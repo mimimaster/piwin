@@ -370,18 +370,27 @@ html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
   align-items: center;
   justify-content: space-between;
   gap: var(--s-2) var(--s-5);
+  position: relative;
   width: 100%;
   max-width: 100%;
   min-height: 22px;
   margin: 0;
 }
 
-/* The fork foot is a sibling of the prompt body and the hover actions. Without
-   a full-width row it is squeezed into the leftover of the card's flex line, and
-   the ‹ n / m › label wraps one glyph per line. */
+/* The fork foot is a sibling of the prompt body and the actions. A forked
+   prompt gives the body its own line so the foot never squeezes into the body's
+   leftover (the ‹ n / m › label would wrap one glyph per line). Sized by its
+   content, the foot shares its line with the actions only when both fit;
+   otherwise the actions drop below instead of shredding the hint. */
+.bubble.role-user:not(.is-conversation-bubble)
+  .user-message-wrapper:has(> .ufoot)
+  > .user-message-collapsible {
+  flex-basis: 100%;
+}
+
 .bubble.role-user:not(.is-conversation-bubble) .user-message-wrapper > .ufoot {
-  flex: 1 0 100%;
-  min-width: 0;
+  flex: 1 1 auto;
+  margin-top: 0;
 }
 
 .bubble.role-user:not(.is-conversation-bubble) .message-text {
@@ -456,19 +465,33 @@ html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
   mask-image: none;
 }
 
-/* Row actions live inside the card and appear on hover — no frame of their
-   own, since the card already provides the surface. */
+/* Row actions live inside the card and appear on hover. They float over the
+   bottom-right of the prompt instead of taking a flex line: a hover-only row
+   that reserves layout leaves an empty band under every wrapped, collapsed or
+   attachment-bearing prompt. The fade keeps the covered words from colliding
+   with the chip (same treatment as the conversation card). */
 .bubble.role-user:not(.is-conversation-bubble) .user-message-actions {
+  --user-card-actions-fade: var(--surface-3);
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
-  align-self: center;
   gap: var(--s-2);
-  flex: 0 0 auto;
   height: var(--h-xs);
-  padding: 0 var(--s-2);
+  margin: 0;
+  padding: 0 var(--s-2) 0 44px;
   border: 0;
-  border-radius: var(--r-control);
-  background: transparent;
+  border-radius: 0;
+  /* Solid before the 44px lead-in ends so no covered glyph shows behind the
+     age label. */
+  background: linear-gradient(
+    to right,
+    transparent 0,
+    color-mix(in srgb, var(--user-card-actions-fade) 70%, transparent) 18px,
+    var(--user-card-actions-fade) 36px
+  );
   font-size: var(--fs-mono);
   line-height: 1;
   color: var(--text-4);
@@ -476,6 +499,27 @@ html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--t-3) var(--ease-out);
+}
+
+/* Rows that are already visible host the actions in flow: the fork foot owns
+   a line under the prompt anyway, and an intervention status must be readable
+   without hovering. Trailing via margin-left even on a line of their own. */
+.bubble.role-user:not(.is-conversation-bubble)
+  .user-message-wrapper:has(> .ufoot)
+  > .user-message-actions,
+.bubble.role-user:not(.is-conversation-bubble)
+  .user-message-actions:has([data-testid='intervention-delivery-status']) {
+  position: static;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0 var(--s-2);
+  background: transparent;
+}
+
+.bubble.role-user:not(.is-conversation-bubble)
+  .user-message-actions:has([data-testid='intervention-delivery-status']) {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .bubble.role-user:not(.is-conversation-bubble):hover .user-message-actions,
