@@ -57,6 +57,8 @@ export type ProviderSettingsProps = {
   ) => Promise<{ durationMs: number }>;
   /** Persist secret on the Host; returns apiKeyRef. */
   onStoreSecret: (providerId: string, secret: string) => Promise<string>;
+  /** Read the saved secret back from the Host so the drawer can reveal it. */
+  onLoadSecret?: (providerId: string) => Promise<string | null>;
   searchCatalog?: (query: string) => Promise<import('@piwin/contracts').ModelCatalogEntry[]>;
 };
 
@@ -70,6 +72,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     onDiscoverModels,
     onTestModel,
     onStoreSecret,
+    onLoadSecret,
     searchCatalog,
   } = props;
   const { locale, translator } = useDesktopLocale();
@@ -175,6 +178,36 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     } finally {
       testInFlightRef.current = false;
       setTestingId(null);
+    }
+  }
+
+  async function handleRevealStoredKey(): Promise<void> {
+    if (!drawer || !onLoadSecret) return;
+    const providerId = drawer.draft.id;
+    try {
+      const secret = (await onLoadSecret(providerId))?.trim() ?? '';
+      if (!secret) {
+        onError(isChinese ? '没有读到已保存的密钥。' : 'No saved key was found on the Host.');
+        return;
+      }
+      // A single-line input would silently join a multi-key secret on save.
+      if (/[\r\n]/.test(secret)) {
+        onError(
+          isChinese
+            ? '该提供商保存了多个密钥，无法在此显示。'
+            : 'This provider stores several keys and cannot show them here.',
+        );
+        return;
+      }
+      // The Host read is async: keep whatever the user typed meanwhile, and
+      // never paste into a different provider's drawer.
+      setDrawer((current) =>
+        current && current.draft.id === providerId && !current.draft.apiKeyInput
+          ? { ...current, draft: { ...current.draft, apiKeyInput: secret } }
+          : current,
+      );
+    } catch (error) {
+      onError(formatError(error));
     }
   }
 
@@ -499,6 +532,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
           onDelete={handleDeleteFromDrawer}
           onDraftChange={markDraft}
           onTestConnection={handleTestConnection}
+          {...(onLoadSecret ? { onRevealStoredKey: handleRevealStoredKey } : {})}
         />
       )}
 

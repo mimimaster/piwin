@@ -123,6 +123,8 @@ export type ProviderDrawerProps = {
   onDelete: () => Promise<void>;
   onDraftChange: (draft: ProviderDraft) => void;
   onTestConnection: () => void;
+  /** Fill the key input with the secret already saved on the Host. */
+  onRevealStoredKey?: () => Promise<void>;
 };
 
 export function ProviderDrawer({
@@ -139,8 +141,10 @@ export function ProviderDrawer({
   onDelete,
   onDraftChange,
   onTestConnection,
+  onRevealStoredKey,
 }: ProviderDrawerProps): ReactElement {
   const [showKey, setShowKey] = useState(false);
+  const [revealingKey, setRevealingKey] = useState(false);
   const [advOpen, setAdvOpen] = useState(false);
   const overlayDismiss = useOverlayDismiss(onClose);
 
@@ -155,8 +159,17 @@ export function ProviderDrawer({
     setAdvOpen(true);
   }
 
-  function handleToggleKeyVisibility(): void {
-    setShowKey((current) => !current);
+  async function handleToggleKeyVisibility(): Promise<void> {
+    const nextShowKey = !showKey;
+    setShowKey(nextShowKey);
+    // The saved key never ships with the config; fetch it on first reveal.
+    if (!nextShowKey || !hasStoredKey || draft.apiKeyInput || !onRevealStoredKey) return;
+    setRevealingKey(true);
+    try {
+      await onRevealStoredKey();
+    } finally {
+      setRevealingKey(false);
+    }
   }
 
   return (
@@ -284,7 +297,7 @@ export function ProviderDrawer({
                       : 'Show key'
                 }
                 data-testid="provider-toggle-key-visibility"
-                disabled={saving}
+                disabled={saving || revealingKey}
               >
                 {showKey ? (
                   <IconEyeOff width={14} height={14} />

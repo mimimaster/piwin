@@ -206,6 +206,60 @@ describe('ProviderSettings', () => {
     expect(container.querySelector('.provider-editor-modal')).not.toBeNull();
   });
 
+  it('reveals the saved key from the Host when the eye is clicked', async () => {
+    const onLoadSecret = vi.fn(async () => 'sk-saved-secret');
+    const { container, root } = renderProviderSettings({ ...makeProps(), onLoadSecret });
+    instances.push({ container, root });
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="provider-row-open-openai"]')?.click();
+    });
+    const input = container.querySelector<HTMLInputElement>('[data-testid="provider-apikey-input"]');
+    expect(input?.value).toBe('');
+    expect(input?.type).toBe('password');
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-toggle-key-visibility"]')
+        ?.click();
+    });
+
+    expect(onLoadSecret).toHaveBeenCalledWith('openai');
+    expect(input?.value).toBe('sk-saved-secret');
+    expect(input?.type).toBe('text');
+
+    // Hiding and showing again reuses the filled value instead of re-reading.
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-toggle-key-visibility"]')
+        ?.click();
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-toggle-key-visibility"]')
+        ?.click();
+    });
+    expect(onLoadSecret).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not paste a multi-key secret into the single-line key input', async () => {
+    const props = { ...makeProps(), onLoadSecret: vi.fn(async () => 'sk-one\nsk-two') };
+    const { container, root } = renderProviderSettings(props);
+    instances.push({ container, root });
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="provider-row-open-openai"]')?.click();
+    });
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-toggle-key-visibility"]')
+        ?.click();
+    });
+
+    const input = container.querySelector<HTMLInputElement>('[data-testid="provider-apikey-input"]');
+    expect(input?.value).toBe('');
+    expect(props.onError).toHaveBeenCalled();
+  });
+
   it('filters rows by enabled/disabled', () => {
     const { container, root } = renderProviderSettings(makeProps());
     instances.push({ container, root });

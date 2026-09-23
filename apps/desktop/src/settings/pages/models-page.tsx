@@ -179,6 +179,7 @@ export function ModelsPage(): ReactElement {
     testProviderModel,
     searchModelCatalog,
     storeProviderSecret,
+    loadProviderSecret,
     remoteSettingsReadOnly,
     hostClient,
   } = useSettings();
@@ -329,6 +330,7 @@ export function ModelsPage(): ReactElement {
                 onDiscoverModels={discoverProviderModels}
                 onTestModel={testProviderModel}
                 onStoreSecret={storeProviderSecret}
+                onLoadSecret={loadProviderSecret}
                 searchCatalog={async (query) => {
                   const result = await searchModelCatalog({ query, limit: 12 });
                   return result.entries;
