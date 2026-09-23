@@ -29,6 +29,16 @@ export type ResolveBrowserScreencastSizeInput = {
   maxEncodedArea?: number;
 };
 
+/**
+ * Host-owned Chromium renders on the CPU (SwiftShader) outside macOS, and those
+ * desktops mostly run at 100–150% scaling — a 2x surface there quadruples the
+ * software-rendered pixels for sharpness the panel rarely shows. The Retina
+ * default stays on macOS only; `browser.deviceScaleFactor` still overrides.
+ */
+export function defaultBrowserDeviceScaleFactor(platform: string): number {
+  return platform === 'darwin' ? BROWSER_DEFAULT_DEVICE_SCALE_FACTOR : 1;
+}
+
 /** Clamp a page DPR into the workbench capture range [1, max] (default max: 3). */
 export function clampBrowserDeviceScaleFactor(
   value: number,

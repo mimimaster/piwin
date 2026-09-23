@@ -99,7 +99,7 @@ export type BrowserRuntime = {
   /** Returns false when a tombstoned lease must not resurrect the mirror. */
   acquireMirrorLease(leaseId?: string): boolean;
   /** Returns true when the caller should tear the runtime down. */
-  releaseMirrorLease(leaseId?: string): boolean;
+  releaseMirrorLease(leaseId?: string, options?: { retire?: boolean }): boolean;
   clearLeases(): void;
   markClosed(): void;
   ensureConsoleCapture(page: Page, context: BrowserContext): void;
@@ -853,7 +853,7 @@ export function createBrowserRuntime(
     mirrorLeaseCount: () => leaseTracker.mirrorLeaseCount(),
     hasMirrorLease: (leaseId) => leaseTracker.hasMirrorLease(leaseId),
     acquireMirrorLease: (leaseId) => leaseTracker.acquireMirrorLease(leaseId),
-    releaseMirrorLease: (leaseId) => leaseTracker.releaseMirrorLease(leaseId),
+    releaseMirrorLease: (leaseId, options) => leaseTracker.releaseMirrorLease(leaseId, options),
     clearLeases: () => leaseTracker.clearLeases(),
     markClosed(): void {
       closed = true;

@@ -238,22 +238,36 @@ export function startBrowserSessionLease(input: {
   mirrorLeaseId?: string;
 }): () => void {
   let cancelled = false;
+  let hostLost = false;
   const mirrorLeaseId = input.mirrorLeaseId ?? crypto.randomUUID();
+  const acquire = (): void => {
+    void input.host
+      .browserStart(mirrorLeaseId)
+      .then((response) => {
+        if (!cancelled && !response.success) input.onStartFailed(response.error);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          input.onStartFailed(error instanceof Error ? error.message : undefined);
+        }
+      });
+  };
   const unsubscribe = input.host.subscribe((message) => {
     if (cancelled) return;
+    // The Host releases a dropped connection's lease (after a grace period),
+    // so a panel that outlives the socket re-asserts the same id on reconnect.
+    if (message.type === 'host/status') {
+      if (!message.ready) {
+        hostLost = true;
+      } else if (hostLost) {
+        hostLost = false;
+        acquire();
+      }
+    }
     input.onMessage(message);
   });
 
-  void input.host
-    .browserStart(mirrorLeaseId)
-    .then((response) => {
-      if (!cancelled && !response.success) input.onStartFailed(response.error);
-    })
-    .catch((error: unknown) => {
-      if (!cancelled) {
-        input.onStartFailed(error instanceof Error ? error.message : undefined);
-      }
-    });
+  acquire();
 
   return () => {
     cancelled = true;

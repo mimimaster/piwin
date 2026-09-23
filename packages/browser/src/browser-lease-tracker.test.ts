@@ -36,6 +36,16 @@ describe('createBrowserLeaseTracker', () => {
     expect(tracker.hasActiveMirrorLease()).toBe(false);
   });
 
+  it('lets a lease released on disconnect be acquired again', () => {
+    const tracker = createBrowserLeaseTracker();
+    tracker.acquireMirrorLease('lease-1');
+
+    expect(tracker.releaseMirrorLease('lease-1', { retire: false })).toBe(true);
+    expect(tracker.mirrorLeaseCount()).toBe(0);
+    expect(tracker.acquireMirrorLease('lease-1')).toBe(true);
+    expect(tracker.hasMirrorLease('lease-1')).toBe(true);
+  });
+
   it('validates lease ID bounds', () => {
     const tracker = createBrowserLeaseTracker();
     expect(() => tracker.acquireMirrorLease('')).toThrow(RangeError);

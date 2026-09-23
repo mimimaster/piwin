@@ -54,8 +54,11 @@ export function resolveFollowViewportBox(
  * condition clears (another mirror closing, Host back) without a fresh drag.
  */
 export const BROWSER_FOLLOW_RETRY_DELAY_MS = 2000;
-/** Retries per rejection episode; a new observation restarts the budget. */
-export const BROWSER_FOLLOW_MAX_RETRY_ATTEMPTS = 5;
+/**
+ * Retries per rejection episode; a new observation restarts the budget. Spans
+ * the Host's 30s grace before it reaps a disconnected client's mirror lease.
+ */
+export const BROWSER_FOLLOW_MAX_RETRY_ATTEMPTS = 20;
 
 /** True when at least one axis moved by the minimum delta (or nothing sent yet). */
 export function shouldSendFollowResize(

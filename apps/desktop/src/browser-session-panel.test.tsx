@@ -238,7 +238,7 @@ describe('BrowserSessionPanel', () => {
     expect(queryByTestId('browser-session-frame-container')?.getAttribute('data-fill')).toBe(
       'false',
     );
-    expect(queryByTestId('browser-session-notice')?.textContent).toContain('跟随面板');
+    expect(queryByTestId('browser-session-notice')?.textContent).toContain('页面尺寸暂不跟随本面板');
   });
 
   it('fixed mode never sends follow resizes', async () => {

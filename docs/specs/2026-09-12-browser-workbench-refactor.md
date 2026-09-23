@@ -76,6 +76,7 @@
 - 尺寸连续变化时 150ms 防抖；宽或高变化小于 8px 不发送；
 - 仅在 controller 为 `idle` 或 `user` 时发送 `browser/resize`；Agent 持锁期间保留最后意图，释放后再提交一次；
 - `browser/resize` 携带当前 mirror `leaseId`。只有一个有效 mirror lease 时 Host 才接受自动 follow resize；多个客户端同时挂载时冻结最后实际 viewport，避免彼此抖动，用户仍可通过显式 viewport set 改变共享页面；
+- mirror lease 随连接回收：客户端连接关闭（崩溃、被杀、断网）而未发 `browser/stop` 时，Host 在 30s 宽限后以 `browser/stop { reason: 'disconnect' }` 代为释放，除非仍有在线连接持有同一 id。断线释放不作废 lease id；Desktop 在 Host 重新 ready 后用同一 id 重新 `browser/start`。只有 panel 卸载的 stop 才作废 id；
 - Host 不再使用单一 `maxDimension=1280` 同时限制宽高。`follow` 的 CSS viewport 独立限制为最大 1920×1200、最小沿用现有 viewport 下界；超出时保持比例缩入该矩形；
 - resize 失败时保持上一帧和上一实际尺寸，不乐观修改坐标空间。
 

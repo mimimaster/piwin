@@ -157,7 +157,9 @@ export async function handleBrowserCommand(
 
     case 'browser/stop': {
       try {
-        await session.stop(command.leaseId);
+        await (command.reason === undefined
+          ? session.stop(command.leaseId)
+          : session.stop(command.leaseId, { reason: command.reason }));
         return ok(requestId, 'browser/stop', { stopped: true });
       } catch (error) {
         return failFromBrowserError(requestId, command.type, error);

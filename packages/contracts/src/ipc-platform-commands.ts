@@ -484,6 +484,11 @@ export type PlatformHostCommand =
       window?: { from?: string; to?: string };
       /** Max number of per-session rows in the breakdown. Default 20. */
       topSessions?: number;
+      /**
+       * IANA time zone for `byDay` keys (the viewer's calendar). Omitted or
+       * invalid falls back to UTC days.
+       */
+      timeZone?: string;
     }
   /** CE-OBS: rolling log of recent model calls (default last 60 minutes). */
   | {
@@ -513,7 +518,12 @@ export type PlatformHostCommand =
   | { id?: string; type: 'browser/pick-at'; x: number; y: number; target?: BrowserTargetIdentity }
   | { id?: string; type: 'browser/screenshot'; path?: string }
   | { id?: string; type: 'browser/capture'; sessionId?: string; quality?: number; fullPage?: boolean }
-  | { id?: string; type: 'browser/stop'; leaseId?: string }
+  /**
+   * `reason: 'disconnect'` is the Host releasing a lease whose connection went
+   * away; unlike an unmount it leaves the id reusable so the client can
+   * re-assert it after reconnecting.
+   */
+  | { id?: string; type: 'browser/stop'; leaseId?: string; reason?: 'disconnect' }
   | { id?: string; type: 'browser/restart' }
   | { id?: string; type: 'browser/reload' }
   | { id?: string; type: 'browser/input'; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }

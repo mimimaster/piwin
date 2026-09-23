@@ -68,6 +68,11 @@ import {
 import { stampSubscriptionAuthCommand } from './stamp-subscription-auth.js';
 import { serveWebShell } from './web-shell.js';
 import {
+  applyBrowserLeaseCommand,
+  createDisconnectedMirrorLeaseReaper,
+  type DisconnectedMirrorLeaseReaper,
+} from './browser-mirror-leases.js';
+import {
   isLiveOwnerCommand,
   isLiveOwnerConnection,
   liveOwnerCommandRejectedReason,
@@ -138,8 +143,8 @@ type ClientConnection = {
   ingressTail: Promise<void>;
   /** Client declared the out-of-band binary browser-frame channel. */
   browserFrameBinary: boolean;
-  /** Lease id from this client's successful `browser/start`; undefined when idle. */
-  browserMirrorLease: string | undefined;
+  /** Lease ids from this client's successful `browser/start`s; empty when idle. */
+  browserMirrorLeases: Set<string>;
   /** Latest-only pending frame; a newer frame overwrites an unsent one. */
   pendingBrowserFrame: Uint8Array | undefined;
   browserFrameFlush: ReturnType<typeof setTimeout> | undefined;
@@ -183,12 +188,19 @@ export class HostServer {
   private server: WebSocketServer | undefined;
   private livenessTimer: ReturnType<typeof setInterval> | undefined;
   private browserFrameDetach: (() => void) | undefined;
+  private readonly mirrorLeaseReaper: DisconnectedMirrorLeaseReaper;
 
   public constructor(options: HostServerOptions) {
     if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 0)) {
       throw new Error('Host server port must be a non-negative integer');
     }
     this.runtime = options.runtime;
+    this.mirrorLeaseReaper = createDisconnectedMirrorLeaseReaper({
+      isHeldByLiveConnection: (lease) =>
+        [...this.connections].some((connection) => connection.browserMirrorLeases.has(lease)),
+      execute: (command) => this.runtime.handleCommand(command),
+      onError: (error) => this.onError(error),
+    });
     this.host = options.host ?? DEFAULT_HOST;
     this.port = options.port ?? DEFAULT_PORT;
     this.mode = options.mode ?? 'sdk';
@@ -351,6 +363,7 @@ export class HostServer {
   public async stop(closeReason = 'Host server stopping'): Promise<void> {
     this.browserFrameDetach?.();
     this.browserFrameDetach = undefined;
+    this.mirrorLeaseReaper.dispose();
     for (const connection of this.connections) {
       if (connection.browserFrameFlush !== undefined) {
         clearTimeout(connection.browserFrameFlush);
@@ -459,7 +472,7 @@ export class HostServer {
       lastInboundAt: Date.now(),
       ingressTail: Promise.resolve(),
       browserFrameBinary: false,
-      browserMirrorLease: undefined,
+      browserMirrorLeases: new Set(),
       pendingBrowserFrame: undefined,
       browserFrameFlush: undefined,
       handshakeTimer: setTimeout(() => {
@@ -514,6 +527,7 @@ export class HostServer {
       this.clientToolBroker?.detach(connection.connectionId);
       connection.egressDetach();
       this.connections.delete(connection);
+      this.mirrorLeaseReaper.schedule(connection.browserMirrorLeases);
       this.onConnectionEvent({
         phase: 'close',
         connectionId: connection.connectionId,
@@ -929,11 +943,8 @@ export class HostServer {
         },
       });
       if (browserLeaseCommand !== undefined && safeResponse.success) {
-        connection.browserMirrorLease =
-          browserLeaseCommand.type === 'browser/start'
-            ? (browserLeaseCommand.leaseId ?? 'default')
-            : undefined;
-        if (connection.browserMirrorLease === undefined) {
+        applyBrowserLeaseCommand(connection.browserMirrorLeases, browserLeaseCommand);
+        if (connection.browserMirrorLeases.size === 0) {
           connection.pendingBrowserFrame = undefined;
         }
       }
@@ -1074,7 +1085,7 @@ export class HostServer {
     }
     for (const connection of this.connections) {
       if (!connection.browserFrameBinary) continue;
-      if (connection.browserMirrorLease === undefined) continue;
+      if (connection.browserMirrorLeases.size === 0) continue;
       if (connection.socket.readyState !== OPEN_READY_STATE) continue;
       // A newer frame replaces the unsent one; the client waits for the next
       // live frame after a reconnect instead of replaying stale pixels.

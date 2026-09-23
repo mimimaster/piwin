@@ -56,7 +56,7 @@ import type {
 import type { BrowserDialogInfo, BrowserTabInfo } from './browser-pages.js';
 import {
   BROWSER_CAPTURE_QUALITY,
-  BROWSER_DEFAULT_DEVICE_SCALE_FACTOR,
+  defaultBrowserDeviceScaleFactor,
   BROWSER_SCREENCAST_QUALITY,
   clampBrowserDeviceScaleFactor,
 } from './screencast-size.js';
@@ -66,6 +66,7 @@ import {
   BrowserStaleTargetError,
 } from './browser-errors.js';
 import type { EnsureOwnedChromium } from './ensure-playwright-chromium.js';
+import { createMirrorRestartScheduler } from './mirror-restart-scheduler.js';
 
 export type BrowserFramePush = Extract<HostPush, { type: 'browser/frame' }>;
 export type BrowserStatePush = Extract<HostPush, { type: 'browser/state' }>;
@@ -170,7 +171,7 @@ export type BrowserSession = {
   /** Acquire a desktop mirror lease; launches Chromium lazily and starts frames. */
   start(leaseId?: string): Promise<BrowserSessionState>;
   /** Release one mirror lease. Last lease releases Chromium unless an agent claim is held. */
-  stop(leaseId?: string): Promise<void>;
+  stop(leaseId?: string, options?: { reason?: 'disconnect' }): Promise<void>;
   navigate(url: string, options?: BrowserOpOptions): Promise<void>;
   snapshot(options?: { signal?: AbortSignal }): Promise<BrowserSnapshotNode[]>;
   click(target: string, options?: BrowserOpOptions): Promise<void>;
@@ -290,7 +291,8 @@ const MAX_INPUT_EVENTS = 64;
 export function createBrowserSession(options: BrowserSessionOptions = {}): BrowserSession {
   const maxDimension = options.maxDimension ?? 1280;
   const requestedViewport = options.viewport ?? { width: 1280, height: 800 };
-  const deviceScaleFactor = options.deviceScaleFactor ?? BROWSER_DEFAULT_DEVICE_SCALE_FACTOR;
+  const deviceScaleFactor =
+    options.deviceScaleFactor ?? defaultBrowserDeviceScaleFactor(process.platform);
   const screencastQuality = options.screencastQuality ?? BROWSER_SCREENCAST_QUALITY;
   const headless = options.headless ?? true;
   const maxFps = options.maxFps ?? 12;
@@ -538,17 +540,23 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     if (result.changed) emitController(reason);
   }
 
+  const mirrorRestart = createMirrorRestartScheduler({
+    restart: () =>
+      runExclusive(async () => {
+        const activePage = runtime.peekPage();
+        if (activePage === undefined || !runtime.hasActiveMirrorLease()) return;
+        await mirror.startMirrorFrames(activePage);
+      }),
+    onError: (error) =>
+      console.warn('[browser] mirror restart failed', error instanceof Error ? error.message : error),
+  });
   const operations = createBrowserOperations({
     getPage: () => runtime.getPage(),
     peekPage: () => runtime.peekPage(),
     pageId: () => runtime.pageId(),
     emitState,
     requestFrame: () => requestMirrorFrame(),
-    restartMirror: async () => {
-      const activePage = runtime.peekPage();
-      if (activePage === undefined || !runtime.hasActiveMirrorLease()) return;
-      await mirror.startMirrorFrames(activePage);
-    },
+    restartMirror: async () => mirrorRestart.schedule(),
     assertActor,
     maxDimension,
   });
@@ -595,10 +603,13 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         return { ...state };
       }),
 
-    stop: (leaseId) =>
+    stop: (leaseId, options) =>
       runExclusive(async () => {
         if (runtime.isClosed()) return;
-        if (!runtime.releaseMirrorLease(leaseId)) return;
+        // A dropped connection may come back with the same id; only an
+        // unmount retires it for good.
+        const retire = options?.reason !== 'disconnect';
+        if (!runtime.releaseMirrorLease(leaseId, { retire })) return;
         // Closing the workbench must not leave a sticky user lock.
         const previous = controller.snapshot();
         const next = controller.giveBack();
@@ -845,6 +856,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       runExclusive(async () => {
         if (runtime.isClosed()) return;
         runtime.markClosed();
+        mirrorRestart.cancel();
         controller.releaseAgentControl();
         runtime.clearLeases();
         mirror.frameLoop.stop();

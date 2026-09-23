@@ -282,6 +282,17 @@ describe('handleBrowserCommand', () => {
     expect(result).toMatchObject({ type: 'response', command: 'browser/stop', success: true });
   });
 
+  it('browser/stop forwards a disconnect release so the lease id stays reusable', async () => {
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const session = createMockSession({ stop });
+    await handleBrowserCommand(
+      { type: 'browser/stop', leaseId: 'panel-1', reason: 'disconnect' },
+      'req-1',
+      createContext(session),
+    );
+    expect(stop).toHaveBeenCalledWith('panel-1', { reason: 'disconnect' });
+  });
+
   it('browser/restart delegates to session.restart without a new lease', async () => {
     const restart = vi.fn().mockResolvedValue({ pageStateLost: true, generation: 2, pageId: 'p2' });
     const session = createMockSession({ restart });

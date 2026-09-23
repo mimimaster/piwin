@@ -60,6 +60,7 @@ export {
   resolveBrowserScreencastSize,
   resolveBrowserScreencastFps,
   BROWSER_DEFAULT_DEVICE_SCALE_FACTOR,
+  defaultBrowserDeviceScaleFactor,
   BROWSER_SCREENCAST_MAX_ENCODED_WIDTH,
   BROWSER_SCREENCAST_MAX_ENCODED_HEIGHT,
   BROWSER_SCREENCAST_MAX_ENCODED_AREA,

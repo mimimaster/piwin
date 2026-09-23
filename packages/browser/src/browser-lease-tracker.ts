@@ -13,7 +13,8 @@ export type BrowserLeaseTracker = {
   mirrorLeaseCount(): number;
   hasMirrorLease(leaseId: string): boolean;
   acquireMirrorLease(leaseId?: string): boolean;
-  releaseMirrorLease(leaseId?: string): boolean;
+  /** `retire: false` releases without tombstoning, so the id may be acquired again. */
+  releaseMirrorLease(leaseId?: string, options?: { retire?: boolean }): boolean;
   clearLeases(): void;
 };
 
@@ -65,13 +66,13 @@ export function createBrowserLeaseTracker(): BrowserLeaseTracker {
       }
       return true;
     },
-    releaseMirrorLease(leaseId?: string): boolean {
+    releaseMirrorLease(leaseId?: string, options?: { retire?: boolean }): boolean {
       const normalizedLeaseId = validateMirrorLeaseId(leaseId);
       if (normalizedLeaseId === undefined) {
         legacyMirrorLeaseActive = false;
       } else {
         activeMirrorLeaseIds.delete(normalizedLeaseId);
-        rememberReleasedMirrorLease(normalizedLeaseId);
+        if (options?.retire !== false) rememberReleasedMirrorLease(normalizedLeaseId);
       }
       return !legacyMirrorLeaseActive && activeMirrorLeaseIds.size === 0;
     },

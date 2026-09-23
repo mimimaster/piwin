@@ -288,6 +288,34 @@ describe('startBrowserSessionLease', () => {
     expect(stop).toHaveBeenCalledWith(leaseId);
   });
 
+  it('re-asserts the same lease id when the Host comes back', () => {
+    const start = vi.fn<(leaseId: string) => Promise<{ success: boolean }>>(async () => ({
+      success: true,
+    }));
+    const host = createFakeHost({ start });
+    const release = startBrowserSessionLease({
+      host,
+      onMessage: vi.fn(),
+      onStartFailed: vi.fn(),
+      onStopFailed: vi.fn(),
+    });
+    const leaseId = start.mock.calls[0]?.[0];
+
+    // A ready status without a prior loss is not a reconnect.
+    host.emit({ type: 'host/status', mode: 'sdk', ready: true, mock: false });
+    expect(start).toHaveBeenCalledTimes(1);
+
+    host.emit({ type: 'host/status', mode: 'sdk', ready: false, mock: false });
+    host.emit({ type: 'host/status', mode: 'sdk', ready: true, mock: false });
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(start).toHaveBeenLastCalledWith(leaseId);
+
+    release();
+    host.emit({ type: 'host/status', mode: 'sdk', ready: false, mock: false });
+    host.emit({ type: 'host/status', mode: 'sdk', ready: true, mock: false });
+    expect(start).toHaveBeenCalledTimes(2);
+  });
+
   it('forwards HostPush until the lease is released', () => {
     const host = createFakeHost();
     const onMessage = vi.fn();

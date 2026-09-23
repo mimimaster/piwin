@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  defaultBrowserDeviceScaleFactor,
   BROWSER_DEFAULT_DEVICE_SCALE_FACTOR,
   BROWSER_MAX_DEVICE_SCALE_FACTOR,
   BROWSER_SCREENCAST_MAX_ENCODED_AREA,
@@ -9,6 +10,14 @@ import {
   resolveBrowserScreencastFps,
   resolveBrowserScreencastSize,
 } from './screencast-size.js';
+
+describe('defaultBrowserDeviceScaleFactor', () => {
+  it('keeps the Retina surface on macOS only', () => {
+    expect(defaultBrowserDeviceScaleFactor('darwin')).toBe(BROWSER_DEFAULT_DEVICE_SCALE_FACTOR);
+    expect(defaultBrowserDeviceScaleFactor('win32')).toBe(1);
+    expect(defaultBrowserDeviceScaleFactor('linux')).toBe(1);
+  });
+});
 
 describe('clampBrowserDeviceScaleFactor', () => {
   it('floors below 1 and caps at the workbench max', () => {
