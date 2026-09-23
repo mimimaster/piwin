@@ -1,5 +1,7 @@
 import type { JobController, ToolResult } from '@piwin/contracts';
 
+import { resolveAgentShell } from './windows-bash-shell.js';
+
 const MAX_BASH_OUTPUT_BYTES = 1024 * 1024;
 const BASH_STOP_WAIT_MS = 5_000;
 
@@ -12,19 +14,6 @@ export type ManagedBashInput = {
   runId: string;
   sessionId: string;
 };
-
-function shellInvocation(command: string): { command: string; argv: string[] } {
-  if (process.platform === 'win32') {
-    return {
-      command: process.env.ComSpec ?? 'cmd.exe',
-      argv: ['/d', '/s', '/c', command],
-    };
-  }
-  return {
-    command: process.env.SHELL ?? '/bin/bash',
-    argv: ['-c', command],
-  };
-}
 
 async function readManagedBashOutput(controller: JobController, jobId: string): Promise<string> {
   const logs = await controller.readLogs({
@@ -48,7 +37,7 @@ export async function runManagedBash(input: ManagedBashInput): Promise<ToolResul
     return { ok: false, code: 'aborted', message: 'tool execution aborted' };
   }
 
-  const invocation = shellInvocation(input.command);
+  const invocation = resolveAgentShell(input.command);
   let job;
   try {
     job = await input.controller.start({

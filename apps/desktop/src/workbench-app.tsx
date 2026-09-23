@@ -25,7 +25,9 @@ import {
 import { useWorkbenchShellChrome } from './hooks/use-workbench-shell-chrome';
 import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
 import { useShellSessionOpen } from './hooks/use-shell-session-open';
+import { useWindowsShellOffer } from './hooks/use-windows-shell-offer';
 import { DesktopAttentionLayer } from './hooks/use-desktop-attention';
+import { WindowsShellOfferBanner } from './windows-shell-offer-banner';
 import { installRendererSelfHeal } from './renderer-self-heal';
 import { WorkspaceShell } from './workspace-shell';
 import { WorkbenchInspector } from './workbench-inspector';
@@ -354,6 +356,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     dispatchNotification,
     artifactCanvas,
   } = model;
+  const windowsShellOffer = useWindowsShellOffer({ hostClient, config, requestConfig });
   const openSessionFromShell = useShellSessionOpen({
     setActiveSubPage,
     isOverlayPresentation,
@@ -636,6 +639,13 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       .join(' ') || undefined
                   }
                   renderStage={(primaryPane) => (
+                    <>
+                    <WindowsShellOfferBanner
+                      visible={windowsShellOffer.offer}
+                      locale={desktopLocale}
+                      onUseGitBash={windowsShellOffer.useGitBash}
+                      onDecline={windowsShellOffer.declineGitBash}
+                    />
                     <DesktopAttentionLayer hostClient={hostClient} state={state} dispatch={dispatch} locale={desktopLocale} hostStatus={hostStatus} extensionUiRequest={extensionUiRequest} isOverlayPresentation={isOverlayPresentation} activeSubPage={activeSubPage} dockingEnabled={dockingEnabled} dockingWorkspace={dockingWorkspace} conversationPanesEnabled={conversationPanesEnabled} conversationPaneController={conversationPaneController} openSessionFromShell={openSessionFromShell} recentProjects={recentProjects}>
                     <WorkbenchConversationStage
                       primaryPane={primaryPane}
@@ -671,6 +681,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       fileBrowseRoot={fileBrowseRoot}
                     />
                     </DesktopAttentionLayer>
+                    </>
                   )}
                   transcript={
                     <WorkbenchTranscript

@@ -1,6 +1,6 @@
 import type { AutomationConfig } from './automation.js';
 import type { CodeSearchConfig } from './code-search.js';
-import type { CompactionConfig, ProcessConfig, ThinkingConfig } from './config.js';
+import type { CompactionConfig, ProcessConfig, ShellConfig, ThinkingConfig } from './config.js';
 import type { DesktopRestoreConfig, ImageGenerationConfig, PiwinConfig } from './config.js';
 import type { ExtensionsConfig } from './extensions.js';
 import type { FlashcardsConfig } from './flashcards.js';
@@ -44,6 +44,7 @@ export type SettingsDomain =
   | 'extensions'
   | 'prompts'
   | 'compaction'
+  | 'shell'
   | 'process'
   | 'session'
   | 'notes'
@@ -80,6 +81,7 @@ export type SettingsDomainValueMap = {
   extensions: ExtensionsConfig | undefined;
   prompts: PromptsConfig | undefined;
   compaction: CompactionConfig | undefined;
+  shell: ShellConfig | undefined;
   process: ProcessConfig | undefined;
   session: SessionConfig | undefined;
   notes: NotesConfig | undefined;
@@ -145,6 +147,7 @@ export const REMOTE_SETTINGS_APPLY_DOMAINS = [
   'extensions',
   'prompts',
   'compaction',
+  'shell',
   'process',
   'session',
   'notes',
@@ -291,6 +294,7 @@ export const SETTINGS_DOMAINS = [
   'extensions',
   'prompts',
   'compaction',
+  'shell',
   'process',
   'session',
   'notes',
@@ -327,6 +331,7 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   extensions: true,
   prompts: true,
   compaction: true,
+  shell: true,
   process: true,
   session: true,
   notes: true,

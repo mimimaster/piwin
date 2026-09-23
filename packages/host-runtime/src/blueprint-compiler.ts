@@ -48,6 +48,7 @@ import {
   resolveSessionLocation,
   resolveAgentCwd,
 } from './session-scope.js';
+import { windowsShellPrompt } from './tools/windows-shell-prompt.js';
 import { buildResourceShadowDiagnostics, createPiResourceLoader } from './pi-resource-loader.js';
 import { createSecretResolver, type SecretResolver } from './secret-resolver.js';
 import { getEnabledProviders, resolveDefaultModelRef } from './provider-helpers.js';
@@ -414,6 +415,7 @@ async function compileAgentCapabilityPlan(
   });
   const appendSystemPromptParts = [
     DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
+    windowsShellPrompt(),
     artifactAppendPrompt,
     mcpAppendPrompt,
     knowledgeAppendPrompt,

@@ -229,6 +229,25 @@ describe('compileBlueprintForWorker', () => {
     expect(result.blueprint.appendSystemPrompt).not.toContain('When to produce an Artifact');
   });
 
+  it('omits the PowerShell shell note where the bash tool is not PowerShell', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: agentProjectScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [],
+        hostToolFamilyIndex: new Map(),
+      },
+    );
+
+    // Non-Windows Hosts never get a Windows shell note; the guard also keeps
+    // the note tied to the shell the bash tool actually resolves to.
+    if (process.platform === 'win32') return;
+    expect(result.blueprint.appendSystemPrompt).toContain('<agent_contract>');
+    expect(result.blueprint.appendSystemPrompt).not.toContain('<shell>');
+    expect(result.blueprint.appendSystemPrompt).not.toContain('Windows PowerShell');
+  });
+
   it('does not advertise Artifact instructions without a concrete executor', async () => {
     const result = await compileBlueprintForWorker(
       { scope: agentProjectScope },

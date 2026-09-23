@@ -207,6 +207,7 @@ export function createSettingsDomainRevisions(
     'extensions',
     'prompts',
     'compaction',
+    'shell',
     'process',
     'session',
     'notes',

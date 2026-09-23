@@ -19,6 +19,7 @@ import type {
   ProcessConfig,
   PromptsConfig,
   SessionConfig,
+  ShellConfig,
   SpeechConfig,
   SkillsConfig,
   SubagentConfig,
@@ -247,6 +248,8 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
     record.compaction,
     defaults.compaction ?? createDefaultCompactionConfig(),
   );
+  const shell = normalizeShellConfig(record.shell);
+  if (shell) normalized.shell = shell;
   normalized.process = normalizeProcessConfig(
     record.process,
     defaults.process ?? createDefaultProcessConfig(),
@@ -1203,6 +1206,14 @@ function normalizeCompactionConfig(value: unknown, defaults: CompactionConfig): 
     normalized.writeTranscriptNote = defaults.writeTranscriptNote;
   }
   return normalized;
+}
+
+function normalizeShellConfig(value: unknown): ShellConfig | undefined {
+  const record = asRecord(value);
+  if (record?.windowsBashOfferDeclined === true) {
+    return { windowsBashOfferDeclined: true };
+  }
+  return undefined;
 }
 
 function normalizeProcessConfig(value: unknown, defaults: ProcessConfig): ProcessConfig {

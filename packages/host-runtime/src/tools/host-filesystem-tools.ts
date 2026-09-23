@@ -16,7 +16,7 @@
 
 import { readFile, writeFile, readdir, mkdir, unlink } from 'node:fs/promises';
 import { join, resolve, isAbsolute, relative } from 'node:path';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { HostToolRegistration, JobController, ToolResult } from '@piwin/contracts';
 import {
@@ -29,8 +29,9 @@ import {
 import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
 import { runWithWorkspaceWriteGate } from './run-with-workspace-write-gate.js';
 import { runManagedBash } from './run-managed-bash.js';
+import { resolveAgentShell } from './windows-bash-shell.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const utf8 = new TextEncoder();
 
 export type BuildHostFilesystemToolsOptions = {
@@ -302,9 +303,11 @@ export function buildHostFilesystemTools(
               sessionId: context.sessionId,
             });
           }
-          const { stdout, stderr } = await execAsync(command, {
+          const invocation = resolveAgentShell(command);
+          const { stdout, stderr } = await execFileAsync(invocation.command, invocation.argv, {
             cwd,
             timeout,
+            windowsHide: true,
             ...(signal ? { signal } : {}),
             maxBuffer: 1024 * 1024,
           });
@@ -360,9 +363,11 @@ export function buildHostFilesystemTools(
               sessionId: context.sessionId,
             });
           }
-          const { stdout, stderr } = await execAsync(command, {
+          const invocation = resolveAgentShell(command);
+          const { stdout, stderr } = await execFileAsync(invocation.command, invocation.argv, {
             cwd,
             timeout,
+            windowsHide: true,
             ...(signal ? { signal } : {}),
             maxBuffer: 1024 * 1024,
           });

@@ -358,6 +358,17 @@ export type CompactionConfig = {
 };
 
 /**
+ * Windows bash tool offer state. The shell itself is never configured: it is
+ * detected on every launch, so a Git Bash installed later — by any route —
+ * takes effect without touching config. This records only that the offer was
+ * answered.
+ */
+export type ShellConfig = {
+  /** True once the user declined the Git Bash offer. Suppresses the offer only. */
+  windowsBashOfferDeclined?: boolean;
+};
+
+/**
  * Persisted Job settings retained under the historical `process` config key.
  * Runtime lifecycle data belongs to JobRecord/JobController, not this config.
  */
@@ -754,6 +765,8 @@ export type PiwinConfig = {
   extensions?: ExtensionsConfig;
   prompts?: PromptsConfig;
   compaction?: CompactionConfig;
+  /** Windows Git Bash offer state. Absent means never answered. */
+  shell?: ShellConfig;
   /** Managed process registry (CE-PROC). */
   process?: ProcessConfig;
   /** Product session behavior. */

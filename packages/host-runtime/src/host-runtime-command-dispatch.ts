@@ -133,6 +133,13 @@ export async function handleCommandWithTranscriptLease(
         return ok(requestId, 'host/ping', { pong: true });
       case 'host/status':
         return ok(requestId, 'host/status', deps.getStatus());
+      case 'host/shell-environment': {
+        const { findGitBash } = await import('./tools/windows-bash-shell.js');
+        return ok(requestId, 'host/shell-environment', {
+          platform: process.platform,
+          gitBashInstalled: process.platform === 'win32' && findGitBash() !== undefined,
+        });
+      }
       case 'host/list-dir':
         return handleHostListDir(command, requestId);
       case 'activity/summary':
