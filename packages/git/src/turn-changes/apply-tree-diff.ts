@@ -5,6 +5,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { gitExecOptions } from '../git-process-options.js';
 import { runGitCommand } from '../git-command-runner.js';
 import { deleteTurnChangeFile, writeTurnChangeFile } from './file-writer.js';
 import type { TurnChangeObjectStore } from './object-store.js';
@@ -58,11 +59,17 @@ async function catTreePath(
   relativePath: string,
 ): Promise<Uint8Array> {
   const spec = `${tree}:${relativePath}`;
-  const { stdout } = await execFileAsync('git', ['cat-file', 'blob', spec], {
-    cwd: workspaceRoot,
-    encoding: 'buffer',
-    maxBuffer: MAX_BLOB_BYTES,
-    timeout: 15_000,
-  });
+  const { stdout } = await execFileAsync(
+    'git',
+    ['cat-file', 'blob', spec],
+    {
+      ...gitExecOptions({
+        cwd: workspaceRoot,
+        maxBuffer: MAX_BLOB_BYTES,
+        timeout: 15_000,
+      }),
+      encoding: 'buffer' as const,
+    },
+  );
   return new Uint8Array(stdout);
 }

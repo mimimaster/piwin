@@ -14,6 +14,7 @@ import { promisify } from 'node:util';
 
 import { composeFileActions, type ComposedFileAction, type ComposeCoverage } from './compose.js';
 import { DEFAULT_TURN_CHANGE_MAX_OBJECT_BYTES } from './object-store.js';
+import { gitExecOptions } from '../git-process-options.js';
 import { runGitCommand } from '../git-command-runner.js';
 import { assertSafeRef } from '../path-safety.js';
 
@@ -171,12 +172,18 @@ async function putBytes(
 }
 
 async function catBlob(worktreePath: string, sha: string): Promise<Uint8Array> {
-  const { stdout } = await execFileAsync('git', ['cat-file', 'blob', sha], {
-    cwd: worktreePath,
-    encoding: 'buffer',
-    maxBuffer: MAX_BLOB_BYTES,
-    timeout: 15_000,
-  });
+  const { stdout } = await execFileAsync(
+    'git',
+    ['cat-file', 'blob', sha],
+    {
+      ...gitExecOptions({
+        cwd: worktreePath,
+        maxBuffer: MAX_BLOB_BYTES,
+        timeout: 15_000,
+      }),
+      encoding: 'buffer' as const,
+    },
+  );
   return new Uint8Array(stdout);
 }
 

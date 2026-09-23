@@ -5,6 +5,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { gitExecOptions } from './git-process-options.js';
+
 const execFileAsync = promisify(execFile);
 
 export type GitCommandResult = {
@@ -95,18 +97,16 @@ export function classifyGitCommandError(err: {
 export async function runGitCommand(options: RunGitCommandOptions): Promise<GitCommandResult> {
   const timeoutMs = options.timeoutMs ?? 15_000;
   try {
-    const { stdout, stderr } = await execFileAsync('git', options.args, {
-      cwd: options.cwd,
-      timeout: timeoutMs,
-      maxBuffer: options.maxBufferBytes ?? 4 * 1024 * 1024,
-      env: {
-        ...process.env,
-        ...options.env,
-        // Stable machine-readable output
-        GIT_TERMINAL_PROMPT: '0',
-        LANG: 'C',
-      },
-    });
+    const { stdout, stderr } = await execFileAsync(
+      'git',
+      options.args,
+      gitExecOptions({
+        cwd: options.cwd,
+        timeout: timeoutMs,
+        maxBuffer: options.maxBufferBytes ?? 4 * 1024 * 1024,
+        ...(options.env !== undefined ? { env: options.env } : {}),
+      }),
+    );
     return {
       stdout: typeof stdout === 'string' ? stdout : String(stdout),
       stderr: typeof stderr === 'string' ? stderr : String(stderr),

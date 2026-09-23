@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -472,6 +474,12 @@ fn host_start_blocking(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env("PIWIN_MOCK", if mock { "1" } else { "0" });
+    // CREATE_NO_WINDOW. A console Host otherwise flashes conhost.
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
     if let Some(assets) = assets_root {
         command.env("PIWIN_BUNDLED_ASSETS_ROOT", assets);
     }
