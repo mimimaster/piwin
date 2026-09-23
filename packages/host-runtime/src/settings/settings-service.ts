@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type {
@@ -17,6 +17,7 @@ import {
   resolveArtifactCapability,
 } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from '../paths.js';
+import { replaceFileWithRetry } from './replace-file-with-retry.js';
 import {
   createDefaultPiwinConfig,
   loadPiwinConfig,
@@ -563,7 +564,7 @@ async function writeValidatedConfigAtomically(
   await mkdir(dirname(configPath), { recursive: true });
   const temporaryPath = join(
     dirname(configPath),
-    `.${basename(configPath)}.${process.pid}.tmp`,
+    `.${basename(configPath)}.${process.pid}.${randomUUID()}.tmp`,
   );
   const serialized = `${JSON.stringify(
     { schemaVersion: PIWIN_SETTINGS_SCHEMA_VERSION, ...config, providers },
@@ -572,7 +573,7 @@ async function writeValidatedConfigAtomically(
   )}\n`;
   try {
     await writeFile(temporaryPath, serialized, { encoding: 'utf8', mode: 0o600 });
-    await rename(temporaryPath, configPath);
+    await replaceFileWithRetry(temporaryPath, configPath);
   } catch (error) {
     try {
       await rename(temporaryPath, `${configPath}.failed-${process.pid}`);
