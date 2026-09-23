@@ -477,4 +477,34 @@ describe('UserMessageContent collapse', () => {
     expect(bubble?.classList.contains('is-expanded')).toBe(true);
     expect(bubble?.classList.contains('is-multiline')).toBe(true);
   });
+
+  it('re-observes the mounted card after switching between Agent and Conversation layouts', () => {
+    const observed: Element[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe(target: Element): void {
+          observed.push(target);
+        }
+        disconnect(): void {}
+        unobserve(): void {}
+      },
+    );
+    try {
+      const props = {
+        message: { ...message, text: '第一行\n第二行', contextRefs: [], attachments: [] },
+        onRetry: vi.fn(),
+        locale: 'zh-CN' as const,
+      };
+      render(<UserMessageContent {...props} isConversationSession={false} />);
+      act(() => {
+        root?.render(<UserMessageContent {...props} isConversationSession={true} />);
+      });
+      const bubble = container?.querySelector('[data-testid="user-message-collapsible-body"]');
+      expect(bubble?.classList.contains('user-message-bubble')).toBe(true);
+      expect(observed).toContain(bubble);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

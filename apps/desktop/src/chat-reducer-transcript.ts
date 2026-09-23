@@ -10,6 +10,7 @@ import {
 import { createTranscriptCacheMetadata, retainBoundedTranscriptWindow } from './transcript-page-cache';
 import type { ChatMessageUi, ChatUiState, RunRecordUi, ToolCardUi } from './chat-ui-types';
 import { createBoundedToolOutput, projectBoundedToolPresentation } from './chat-reducer-tools';
+import { withNewerInstructionDelivery } from './instruction-delivery-order';
 
 export const MAX_LIVE_ASSISTANT_TEXT_BYTES = 500_000;
 export const MAX_LIVE_THINKING_BYTES = 200_000;
@@ -280,8 +281,10 @@ function mergeLiveRow(
   persisted: ChatMessageUi,
   persistedClosed: boolean,
 ): ChatMessageUi {
-  // User rows carry live-only delivery state; a streaming row's local text is newer.
-  if (live.role !== 'assistant' || !persistedClosed) return live;
+  // A streaming row's local text is newer. User rows keep their local copy
+  // except delivery state, where the page repairs a missed lifecycle push.
+  if (live.role !== 'assistant') return withNewerInstructionDelivery(live, persisted);
+  if (!persistedClosed) return live;
   const liveTools = new Map(live.tools.map((tool) => [tool.toolCallId, tool]));
   const tools = persisted.tools.map((tool) => {
     const liveTool = liveTools.get(tool.toolCallId);
@@ -320,6 +323,11 @@ function transcriptRowFidelityKey(message: ChatMessageUi): string {
     message.error ?? '',
     message.failure?.code ?? '',
     message.runId ?? '',
+    // Delivery state changes without touching text: pending → applied must
+    // not reuse the stale row object.
+    message.instructionDelivery
+      ? `${message.instructionDelivery.kind}:${message.instructionDelivery.instructionId}:${message.instructionDelivery.status}:${message.instructionDelivery.revision}`
+      : '',
   ].join('\0');
 }
 

@@ -1836,6 +1836,8 @@ describe('ChatThread render isolation (E1)', () => {
     const cancelButton = container.querySelector(
       '[data-testid="intervention-cancel-btn"]',
     ) as HTMLButtonElement;
+    // One pencil: the pending adjustment's own edit replaces edit-and-resend.
+    expect(container.querySelector('[data-testid="message-edit-btn"]')).toBeNull();
     act(() => editButton.click());
     act(() => cancelButton.click());
     expect(onEdit).toHaveBeenCalledWith('msg-intervention');

@@ -122,6 +122,11 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
   const hasShelfContent = hasMediaAttachments || (message.contextRefs?.length ?? 0) > 0;
   const interventionStatus = message.instructionDelivery?.status;
   const isChinese = props.locale !== 'en';
+  // A pending adjustment shows its own edit; edit-and-resend would be a
+  // second, disabled pencil beside it.
+  const showInterventionEdit =
+    interventionStatus === 'pending' && props.onInterventionEdit !== undefined;
+  const showRetryEdit = props.onRetry !== undefined && !showInterventionEdit;
 
   if (message.source === 'voice-delegation') {
     return (
@@ -197,7 +202,10 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
     if (textNode) observer.observe(textNode);
     if (bubble) observer.observe(bubble);
     return () => observer.disconnect();
-  }, [hasShelfContent, message.text]);
+    // The two layouts mount different text/bubble nodes. Without the layout in
+    // the deps, switching it keeps observing detached nodes, which measure 0
+    // wide and pin a wrapped prompt to the single-line footer column.
+  }, [hasShelfContent, message.text, isConversationSession]);
 
   async function handleCopy(): Promise<void> {
     const payload = message.text.trim();
@@ -313,7 +321,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
                     <IconClose />
                   </button>
                 ) : null}
-                {interventionStatus === 'pending' && props.onInterventionEdit ? (
+                {showInterventionEdit ? (
                   <button
                     type="button"
                     className="user-msg-btn"
@@ -325,7 +333,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
                     <IconEdit />
                   </button>
                 ) : null}
-                {props.onRetry ? (
+                {showRetryEdit ? (
                   <button
                     type="button"
                     className="user-msg-btn"
@@ -445,7 +453,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
             <IconClose />
           </button>
         ) : null}
-        {interventionStatus === 'pending' && props.onInterventionEdit ? (
+        {showInterventionEdit ? (
           <button
             type="button"
             className="user-msg-btn"
@@ -457,7 +465,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
             <IconEdit />
           </button>
         ) : null}
-        {props.onRetry ? (
+        {showRetryEdit ? (
           <button
             type="button"
             className="user-msg-btn"
