@@ -132,7 +132,14 @@ export function getSubagentSeam(
       if (!deps.subagentRunStore) return undefined;
       return loadPersistedReviewObservation(deps.subagentRunStore, runId);
     },
-    resolveFusionLane: (parentSessionId) => resolveFusionSidekickLane(deps, parentSessionId),
+    resolveFusionLane: (parentSessionId) =>
+      resolveFusionSidekickLane(deps, parentSessionId, (laneId, error) => {
+        deps.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `fusion sidekick ${laneId} cannot continue; starting a fresh sidekick: ${formatError(error)}`,
+        });
+      }),
   };
   const seam = createSubagentControlSeam(controlDeps, sessionId);
   return {

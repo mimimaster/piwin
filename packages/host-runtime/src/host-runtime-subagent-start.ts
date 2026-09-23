@@ -39,6 +39,7 @@ import {
   observeAcceptedBatch,
 } from './subagent-accepted-batch.js';
 import { resolveFusionStartTaskPatch } from './fusion-sidekick-lane.js';
+import { resolveSchemeDeliveryLock } from './scheme-delivery-lock.js';
 import type { PreparedSubagentContinuation } from './subagent-continuation-prep.js';
 
 export { SubagentControlError };
@@ -178,6 +179,7 @@ async function prepareAndStartSubagent(
       parentSessionId: sessionId,
       ...(deps.resolveFusionLane ? { resolveLane: deps.resolveFusionLane } : {}),
     });
+    const deliveryLock = resolveSchemeDeliveryLock(activeScheme, schemeSpawn.role);
     const preparedRequest = await deps.prepareBatch(
       {
         parentSessionId: sessionId,
@@ -194,12 +196,12 @@ async function prepareAndStartSubagent(
               ? {
                   applyPolicy: fusionPatch.applyPolicy,
                   deliveryIntent: fusionPatch.deliveryIntent,
-                  retainWorktree: fusionPatch.retainWorktree,
                   capabilities: fusionPatch.capabilities,
                 }
               : {
                   ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
                   ...(input.deliveryIntent ? { deliveryIntent: input.deliveryIntent } : {}),
+                  ...deliveryLock,
                 }),
             ...(fusionPatch?.continuationSessionId
               ? { continuationSessionId: fusionPatch.continuationSessionId }
@@ -223,24 +225,26 @@ async function prepareAndStartSubagent(
       },
       'model-tool',
     );
-    const fusionForcedRequest =
-      fusionPatch && preparedRequest.tasks[0]
+    const preparedTask = preparedRequest.tasks[0];
+    const forcedRequest =
+      fusionPatch && preparedTask
         ? {
             ...preparedRequest,
             tasks: [
               {
-                ...preparedRequest.tasks[0],
+                ...preparedTask,
                 capabilities: fusionPatch.capabilities,
-                retainWorktree: fusionPatch.retainWorktree,
                 deliveryIntent: fusionPatch.deliveryIntent,
                 applyPolicy: fusionPatch.applyPolicy,
               },
             ],
           }
-        : preparedRequest;
+        : deliveryLock && preparedTask
+          ? { ...preparedRequest, tasks: [{ ...preparedTask, ...deliveryLock }] }
+          : preparedRequest;
     const admittedRequest = input.reviewOf
-      ? attachReviewTarget(deps, sessionId, input.reviewOf, fusionForcedRequest)
-      : fusionForcedRequest;
+      ? attachReviewTarget(deps, sessionId, input.reviewOf, forcedRequest)
+      : forcedRequest;
     const handle = deps.orchestrator.startBatch(admittedRequest, parentRunId);
     return { handle, releaseAdmission };
   } catch (error) {

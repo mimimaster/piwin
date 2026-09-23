@@ -324,6 +324,39 @@ describe('SubagentIntegrationCoordinator', () => {
     expect(removeWorktree).not.toHaveBeenCalledWith(conflictedWorktree, '/tmp/project');
   });
 
+  it('leaves a worktree that is mid-integrate at dispose for the guarded GC', async () => {
+    let finishIntegrate: (() => void) | undefined;
+    const integrateWorktree: WorktreeIntegrationFunction = vi.fn(
+      (input) =>
+        new Promise<Awaited<ReturnType<WorktreeIntegrationFunction>>>((resolve) => {
+          finishIntegrate = () =>
+            resolve({
+              success: false as const,
+              conflict: true as const,
+              conflictFiles: ['src/late.ts'],
+              allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
+            });
+        }),
+    );
+    const removeWorktree = vi.fn().mockResolvedValue(undefined);
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree,
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree,
+    });
+
+    const pending = coordinator.integrate(
+      createTaskResult('task-1'),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/in-flight'),
+    );
+    await vi.waitFor(() => expect(integrateWorktree).toHaveBeenCalled());
+    await coordinator.dispose();
+    expect(removeWorktree).not.toHaveBeenCalled();
+
+    finishIntegrate?.();
+    await pending;
+  });
+
   it('removes the copy once after a successful integrate with resultRef', async () => {
     const removeWorktree = vi.fn().mockResolvedValue(undefined);
     const coordinator = createSubagentIntegrationCoordinator({

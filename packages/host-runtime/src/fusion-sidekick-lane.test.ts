@@ -34,7 +34,11 @@ function child(overrides: Partial<SessionIndexRecord>): SessionIndexRecord {
     subagentRole: 'sidekick',
     subagentStatus: 'done',
     subagentMode: 'worktree',
-    subagentRetainWorktree: true,
+    subagentLifecycle: {
+      executionStatus: 'completed',
+      summaryStatus: 'merged',
+      integrationStatus: 'retained',
+    },
     worktreePath: '/tmp/wt',
     ...overrides,
   };
@@ -48,12 +52,13 @@ describe('fusion sidekick lane', () => {
     expect(isFusionSidekickRole(undefined, 'sidekick')).toBe(false);
   });
 
-  it('wraps the brief, retains a candidate worktree, and strips delegate', () => {
+  it('wraps the brief, holds the change as an explicit candidate, and strips delegate', () => {
     const fields = buildFusionSidekickSpawnFields('fix flaky test');
     expect(fields.task).toContain(PIWIN_FUSION_BRIEF_MARKER);
     expect(fields.task).toMatch(/cannot see the parent conversation/i);
     expect(fields.task).toContain('fix flaky test');
-    expect(fields.retainWorktree).toBe(true);
+    // No retainWorktree: an applied candidate's copy is reclaimed like any other.
+    expect(fields).not.toHaveProperty('retainWorktree');
     expect(fields.deliveryIntent).toBe('candidate');
     expect(fields.applyPolicy).toBe('explicit');
     expect(fields.capabilities).not.toContain('delegate');
@@ -87,6 +92,21 @@ describe('fusion sidekick lane', () => {
       })(),
     ]);
     expect(selected?.id).toBe('lane');
+  });
+
+  it('does not continue a lane whose candidate was already applied, even if retained', () => {
+    expect(
+      selectFusionSidekickLane([
+        child({
+          subagentRetainWorktree: true,
+          subagentLifecycle: {
+            executionStatus: 'completed',
+            summaryStatus: 'merged',
+            integrationStatus: 'applied',
+          },
+        }),
+      ]),
+    ).toBeUndefined();
   });
 
   it('does not select a child without retain or retained integration', () => {

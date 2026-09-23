@@ -144,7 +144,6 @@ function buildContinuationTask(
     isolationOverride: mode,
     applyPolicy: extras.applyPolicy,
     ...(extras.deliveryIntent ? { deliveryIntent: extras.deliveryIntent } : {}),
-    retainWorktree: mode === 'worktree',
     ...(child.subagentRole ? { role: child.subagentRole } : {}),
     ...(child.subagentAllowedOutputPaths
       ? { allowedOutputPaths: [...child.subagentAllowedOutputPaths] }

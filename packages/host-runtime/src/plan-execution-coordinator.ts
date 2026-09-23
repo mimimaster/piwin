@@ -95,9 +95,10 @@ export function buildPlanSubagentTask(
     parentSessionId: plan.sessionId,
     task: directive.promptText,
     profileId: step.profileId ?? 'implementer',
+    // A candidate waits for an explicit apply; the Host keeps its copy until
+    // then. No retainWorktree: that would pin the copy past apply and past GC.
     applyPolicy: 'explicit',
     deliveryIntent: 'candidate',
-    retainWorktree: true,
     ...(step.dependsOn ? { dependsOn: step.dependsOn } : {}),
     ...(step.parallelGroup ? { parallelGroup: step.parallelGroup } : {}),
   };

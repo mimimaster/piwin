@@ -60,6 +60,18 @@ guards and only skips the 7-day wait (plus a 2-minute in-flight grace).
 Orphans (disk copy, no lease) may be deleted under those path/age/lock
 guards. Commands: `subagent/worktree-gc-preview`, `subagent/worktree-gc`.
 
+**Worktree lifecycle fixes (2026-09-23):** `integrationStatus='retained'` now
+counts as *pending a decision* only for a **completed** candidate; a
+failed/cancelled copy retained for inspection is an ordinary leftover and is
+reclaimed under the guards above. "User-retained" means `retainWorktree=true`
+only. The integration coordinator's `dispose` no longer deletes worktrees: a
+copy still queued or mid-integrate at shutdown may hold the only copy of
+unfrozen work, so it is left to startup reconciliation and this GC.
+Continuations no longer force `retainWorktree`. The Reviewed Delivery worker's
+`deliveryIntent='candidate'` / `applyPolicy='explicit'` are Host-forced
+(`resolveSchemeDeliveryLock`), not left to the model — an omitted field
+defaults to integrate + auto and would apply before review.
+
 **Reviewed delivery shipped (2026-09-13):** The builtin scheme `reviewed-delivery`
 is the first-party loop. Parent tools are `piwin_subagent_start` (worker
 `deliveryIntent='candidate'`, `applyPolicy='explicit'`, worktree, retain
@@ -82,9 +94,12 @@ parent transcript into the child; seed/continuation is a brief envelope
 (`you cannot see the parent conversation`). Wait returns Result
 (`summaryPreview` / reportContract). Pairing is sticky; compact-time sidekick
 upgrade is out of scope. Host forces `deliveryIntent='candidate'`,
-`applyPolicy='explicit'`, `retainWorktree=true`, `maxConcurrency: 1`, and
-strips `delegate`. Lane reuse uses `continuationSessionId` without the
-reviewed-delivery continue/review binding. Metric is price-per-task; no cost
+`applyPolicy='explicit'`, `maxConcurrency: 1`, and strips `delegate`
+(`retainWorktree=true` was dropped 2026-09-23: it made every sidekick copy
+immune to GC). Lane reuse uses `continuationSessionId` without the
+reviewed-delivery continue/review binding, and only while the lane's last
+candidate is unapplied (retained / conflict / failed); after an apply the
+worktree's base predates the parent, so the next brief starts a fresh lane. Metric is price-per-task; no cost
 dashboard in this change. Spec: [`orchestration-scheme.md`](../specs/orchestration-scheme.md) §9.2.
 
 **Write exclusivity (2026-09-18):** Concurrent worktree **writes** are forbidden.
@@ -92,7 +107,8 @@ The scheduler admits at most one running `isolationOverride=worktree` task.
 `SubagentWorkspaceService` holds a per-parent-project worktree lease until
 `release`. Readonly explore/review may still run in parallel under
 `maxConcurrency`. Plan-driven write slices default to
-`deliveryIntent=candidate`, `applyPolicy=explicit`, and `retainWorktree=true`.
+`deliveryIntent=candidate` and `applyPolicy=explicit` (`retainWorktree=true`
+dropped 2026-09-23 so applied slices stay reclaimable).
 `independentSteps` means isolatable child sessions, not parallel writers.
 Writes stay single-threaded; additional agents contribute intelligence
 rather than concurrent write actions.

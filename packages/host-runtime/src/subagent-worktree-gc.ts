@@ -225,9 +225,14 @@ function collectLeaseRecords(
           executionStatus === 'queued' ||
           executionStatus === 'running' ||
           isRunActive(manifest.runId),
-        pendingIntegration: integrationStatus === 'pending',
+        // `retained` means two things: a completed candidate waiting for an
+        // apply/discard decision (keep), or a failed/cancelled copy kept for
+        // inspection (reclaimable after the auto age, like any leftover).
+        pendingIntegration:
+          integrationStatus === 'pending' ||
+          (integrationStatus === 'retained' && executionStatus === 'completed'),
         conflict: integrationStatus === 'conflict',
-        userRetained: task?.retainWorktree === true || integrationStatus === 'retained',
+        userRetained: task?.retainWorktree === true,
         unfrozenSnapshot: isUnfrozenWorktreeSnapshot({
           executionStatus,
           integrationStatus,

@@ -153,6 +153,54 @@ describe('subagent worktree GC controller', () => {
     expect(removed.sort()).toEqual([orphan, stale].sort());
   });
 
+  it('reclaims a stale failed copy kept for inspection but keeps a candidate awaiting a decision', async () => {
+    const storageRoot = await mkdtemp(join(tmpdir(), 'piwin-wt-gc-retained-'));
+    temporaryRoots.push(storageRoot);
+    const parentRepoPath = join(storageRoot, 'main');
+    const failed = await makeWorktree(storageRoot, 'failed');
+    const candidate = await makeWorktree(storageRoot, 'candidate');
+    const old = new Date(Date.now() - SUBAGENT_WORKTREE_GC_AUTO_MIN_AGE_MS - 60_000);
+    for (const path of [failed, candidate]) {
+      await utimes(path, old, old);
+    }
+    const controller = createSubagentWorktreeGcController({
+      storageRoot,
+      listManifests: async () => [
+        manifest({
+          runId: 'run-failed',
+          worktreePath: failed,
+          parentRepoPath,
+          executionStatus: 'failed',
+          integrationStatus: 'retained',
+        }),
+        manifest({
+          runId: 'run-candidate',
+          worktreePath: candidate,
+          parentRepoPath,
+          executionStatus: 'completed',
+          integrationStatus: 'retained',
+        }),
+      ],
+      isRunActive: () => false,
+      listPausedBatchRunIds: async () => new Set(),
+      now: () => Date.now(),
+      measureBytes: async () => 1024,
+      lookupGit: async (input) => ({
+        isPrimary: false,
+        locked: false,
+        branch: `piwin/subagent/${input.worktreePath.split('/').pop() ?? 'x'}`,
+        parentRepoPath,
+      }),
+      removeWorktree: async () => undefined,
+    });
+
+    const preview = await controller.preview();
+    expect(preview.entries.find((entry) => entry.worktreePath === failed)?.reclaimable).toBe(true);
+    expect(preview.entries.find((entry) => entry.worktreePath === candidate)?.keepReasons).toContain(
+      'pending-integration',
+    );
+  });
+
   it('does not treat a path outside the storage root as reclaimable', async () => {
     const storageRoot = await mkdtemp(join(tmpdir(), 'piwin-wt-gc-'));
     const outsideRoot = await mkdtemp(join(tmpdir(), 'piwin-wt-out-'));

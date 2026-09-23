@@ -1,6 +1,6 @@
 /**
- * Fusion sidekick spawn policy: brief envelope, no nested delegate, retained
- * candidate worktree, optional continuation of one persistent child lane.
+ * Fusion sidekick spawn policy: brief envelope, no nested delegate, candidate
+ * worktree awaiting the Lead's apply, optional continuation of one child lane.
  */
 import {
   FUSION_SCHEME_ID,
@@ -34,7 +34,6 @@ export function isFusionSidekickRole(
 
 export type FusionStartTaskPatch = {
   task: string;
-  retainWorktree: true;
   deliveryIntent: Extract<SubagentDeliveryIntent, 'candidate'>;
   applyPolicy: Extract<SubagentApplyPolicy, 'explicit'>;
   capabilities: SubagentCapability[];
@@ -45,7 +44,6 @@ export type FusionStartTaskPatch = {
 export function buildFusionSidekickSpawnFields(task: string): FusionStartTaskPatch {
   return {
     task: formatFusionBriefEnvelope(task),
-    retainWorktree: true,
     deliveryIntent: 'candidate',
     applyPolicy: 'explicit',
     capabilities: [...FUSION_SIDEKICK_CAPABILITIES],
@@ -66,17 +64,18 @@ export function selectFusionSidekickLane(
   });
 }
 
+/**
+ * A lane continues only while its last candidate is still unapplied — the same
+ * states `resolveRetainedSubagentWorktreeLease` accepts. After an apply the
+ * worktree's base predates the parent, so the next brief needs a fresh lane.
+ */
 export function isFusionLaneWorktreeRetained(
-  child: Pick<
-    SessionIndexRecord,
-    'subagentRetainWorktree' | 'subagentLifecycle' | 'subagentMode' | 'worktreePath'
-  >,
+  child: Pick<SessionIndexRecord, 'subagentLifecycle' | 'subagentMode' | 'worktreePath'>,
 ): boolean {
   const integration = child.subagentLifecycle?.integrationStatus;
-  const userRetained = child.subagentRetainWorktree === true;
-  const statusRetained =
-    integration === 'retained' || integration === 'conflict' || integration === 'failed';
-  if (!userRetained && !statusRetained) return false;
+  if (integration !== 'retained' && integration !== 'conflict' && integration !== 'failed') {
+    return false;
+  }
   if ((child.subagentMode ?? 'worktree') === 'worktree' && !child.worktreePath) return false;
   return true;
 }
@@ -84,6 +83,7 @@ export function isFusionLaneWorktreeRetained(
 export async function resolveFusionSidekickLane(
   deps: SubagentContinuationPrepDeps,
   parentSessionId: string,
+  onLaneUnavailable: (laneId: string, error: unknown) => void,
 ): Promise<PreparedSubagentContinuation | undefined> {
   const indexPath = getPiwinSessionIndexPath(getPiwinRoot(deps.options.piwinRoot));
   const children = await listChildSessions(indexPath, parentSessionId);
@@ -91,7 +91,10 @@ export async function resolveFusionSidekickLane(
   if (!lane) return undefined;
   try {
     return await prepareRetainedSubagentContinuation(deps, lane.id);
-  } catch {
+  } catch (error) {
+    // A lane that cannot continue (worktree gone, lease missing) falls back to
+    // a fresh sidekick, but the fallback must be visible, not silent.
+    onLaneUnavailable(lane.id, error);
     return undefined;
   }
 }

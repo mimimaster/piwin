@@ -198,8 +198,8 @@ Host 在 Fusion + role=sidekick 时包裹任务文本，大意：
 
 Host 行为：
 
-1. 本父会话已有 `subagentRole=sidekick` 且 retain worktree、还能续的 child → 设 `continuationSessionId`，走现有续跑路径，**不**绑定 Reviewed Delivery 的 review。
-2. 否则新建 worktree child，`retainWorktree: true`。
+1. 本父会话已有 `subagentRole=sidekick`、上一份候选**尚未 apply**（integration 为 retained / conflict / failed）且 worktree 还在的 child → 设 `continuationSessionId`，走现有续跑路径，**不**绑定 Reviewed Delivery 的 review。
+2. 否则新建 worktree child（候选 + explicit apply）。已 apply 的 lane 不再续：它的 worktree 基线早于父工作区，续跑会把已合入的改动再算一遍；apply 后副本按正常规则回收。（2026-09-23：去掉 `retainWorktree: true`，它让每个 sidekick 副本永远躲过 GC。）
 3. `maxConcurrency: 1`，不会两个 writer 抢同一棵树。
 4. 子会话自己的 transcript 作为它的缓存；Lead 仍然只看见 Result。
 

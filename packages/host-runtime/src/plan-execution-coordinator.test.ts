@@ -77,8 +77,9 @@ describe('buildPlanSubagentTask', () => {
       profileId: 'implementer',
       applyPolicy: 'explicit',
       deliveryIntent: 'candidate',
-      retainWorktree: true,
     });
+    // An applied slice's copy must stay reclaimable by the worktree GC.
+    expect(task).not.toHaveProperty('retainWorktree');
   });
 
   it('preserves an explicit step profile', () => {

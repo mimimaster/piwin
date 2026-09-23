@@ -11,6 +11,7 @@ import type {
 } from '@piwin/contracts';
 import {
   FUSION_SCHEME_ID,
+  REVIEWED_DELIVERY_SCHEME_ID,
   PIWIN_FUSION_BRIEF_MARKER,
   emptySubagentResultReviewFields,
   resolveOrchestrationScheme,
@@ -67,6 +68,16 @@ async function executeTool(
     runId: PARENT_RUN_ID,
     toolName: tool.descriptor.name,
   });
+}
+
+function reviewedDeliveryScheme(): ResolvedOrchestrationScheme {
+  const resolved = resolveOrchestrationScheme(
+    { maxConcurrency: 4, maxTasksPerRun: 8 },
+    REVIEWED_DELIVERY_SCHEME_ID,
+    { knownProfileIds: ['implementer', 'reviewer'] },
+  );
+  if (!resolved) throw new Error('expected builtin reviewed-delivery scheme');
+  return resolved;
 }
 
 function fusionScheme(): ResolvedOrchestrationScheme {
@@ -293,7 +304,7 @@ describe('piwin_subagent_start reviewOf', () => {
 });
 
 describe('piwin_subagent_start fusion seam', () => {
-  it('wraps the first sidekick spawn as a retained candidate brief', async () => {
+  it('wraps the first sidekick spawn as an explicit candidate brief', async () => {
     const harness = createHarness({ getActiveScheme: fusionScheme });
     const result = await executeTool(harness.startTool, {
       task: 'fix the flake',
@@ -304,7 +315,7 @@ describe('piwin_subagent_start fusion seam', () => {
     expect(task?.isolationOverride).toBe('worktree');
     expect(task?.deliveryIntent).toBe('candidate');
     expect(task?.applyPolicy).toBe('explicit');
-    expect(task?.retainWorktree).toBe(true);
+    expect(task?.retainWorktree).toBeUndefined();
     expect(task?.capabilities).not.toContain('delegate');
     expect(task?.capabilities).toContain('write');
     expect(task?.continuationSessionId).toBeUndefined();
@@ -329,6 +340,21 @@ describe('piwin_subagent_start fusion seam', () => {
     expect(task?.task).toContain('second brief');
     expect(task?.task).toContain(PIWIN_FUSION_BRIEF_MARKER);
     expect(task?.task).not.toMatch(/parent history|user said/i);
+  });
+
+  it('locks a Reviewed Delivery worker to an explicit candidate the model cannot override', async () => {
+    const harness = createHarness({ getActiveScheme: reviewedDeliveryScheme });
+    const result = await executeTool(harness.startTool, {
+      task: 'implement the endpoint',
+      role: 'worker',
+      deliveryIntent: 'integrate',
+      applyPolicy: 'auto',
+    });
+    expect(result.ok).toBe(true);
+    const task = harness.batches[0]?.tasks[0];
+    expect(task?.role).toBe('worker');
+    expect(task?.deliveryIntent).toBe('candidate');
+    expect(task?.applyPolicy).toBe('explicit');
   });
 
   it('leaves Off spawns unwrapped', async () => {

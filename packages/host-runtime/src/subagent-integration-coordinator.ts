@@ -11,7 +11,9 @@
  * Integration is serialized by normalized repository identity (rule 4), not
  * session ID. Each repo path gets a promise chain so integrations for the
  * same repo never overlap. Conflicted or failed worktrees are retained
- * (rule 6) and never cleaned up by `dispose` (rule 7).
+ * (rule 6). `dispose` never deletes a worktree (rule 7): one still queued or
+ * mid-integrate at shutdown may hold the only copy of unfrozen child work, so
+ * it is left for startup reconciliation and the guarded worktree GC.
  */
 
 import { resolve } from 'node:path';
@@ -171,7 +173,7 @@ export type SubagentIntegrationCoordinator = {
   /** Check if a base is clean for parallel writes. */
   isBaseClean(repoPath: string): Promise<boolean>;
 
-  /** Dispose: clean up any non-retained worktrees. */
+  /** Dispose: drop in-memory state; worktrees stay for the guarded GC. */
   dispose(): Promise<void>;
 };
 
@@ -255,8 +257,6 @@ export function createSubagentIntegrationCoordinator(
   /** Worktrees retained for inspection, missing freeze, or retainWorktree. */
   const retainedWorktrees = new Map<string, RetainedWorktree>();
 
-  /** Worktrees created during this coordinator's lifetime (for dispose). */
-  const managedWorktrees = new Map<string, string>();
 
   /**
    * Acquire the serialized integration slot for a repo path.
@@ -265,11 +265,9 @@ export function createSubagentIntegrationCoordinator(
    */
   function acquireIntegrationSlot(
     repoPath: string,
-    worktreePath: string,
     signal?: AbortSignal,
   ): Promise<IntegrationQueueLease> {
     const key = normalizeRepoPath(repoPath);
-    managedWorktrees.set(worktreePath, repoPath);
 
     if (signal?.aborted) {
       return Promise.reject(new IntegrationQueueCancelledError());
@@ -368,7 +366,7 @@ export function createSubagentIntegrationCoordinator(
     let writeStarted = false;
 
     try {
-      slot = await acquireIntegrationSlot(parentRepoPath, worktreePath, control.signal);
+      slot = await acquireIntegrationSlot(parentRepoPath, control.signal);
       if (control.signal?.aborted) {
         throw new IntegrationQueueCancelledError();
       }
@@ -448,9 +446,6 @@ export function createSubagentIntegrationCoordinator(
           ...(control.retainWorktree === true ? { retainWorktree: true } : {}),
           removeWorktree: () => removeWorktree(worktreePath, parentRepoPath, worktreeBranch),
           keepWorktree: (reason) => retain(worktreePath, reason),
-          onRemoved: () => {
-            managedWorktrees.delete(worktreePath);
-          },
         });
       }
 
@@ -514,9 +509,6 @@ export function createSubagentIntegrationCoordinator(
       reason,
       retainedAt: new Date().toISOString(),
     });
-    // A retained worktree is removed from the managed set so dispose
-    // will not clean it up (rule 7).
-    managedWorktrees.delete(worktreePath);
   }
 
   async function checkBaseClean(repoPath: string): Promise<boolean> {
@@ -524,19 +516,7 @@ export function createSubagentIntegrationCoordinator(
   }
 
   async function dispose(): Promise<void> {
-    // Only clean up non-retained worktrees (rule 7).
-    const toRemove = Array.from(managedWorktrees.entries());
-    managedWorktrees.clear();
-
-    const removals = toRemove.map(async ([worktreePath, parentRepoPath]) => {
-      try {
-        await removeWorktree(worktreePath, parentRepoPath);
-      } catch {
-        // Best-effort cleanup; do not throw from dispose.
-      }
-    });
-
-    await Promise.all(removals);
+    retainedWorktrees.clear();
   }
 
   return {
