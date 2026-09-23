@@ -12,6 +12,24 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+mod logs;
+mod pending;
+mod process;
+mod resolve;
+mod streams;
+mod supervisor;
+
+use logs::{emit_log, emit_status};
+use pending::{
+    assign_host_request_id, fail_all_pending, resolve_host_request_timeout, PendingResponse,
+};
+use process::{process_has_exited, stop_process, StopOutcome};
+use resolve::{resolve_host_command, HostCommandTier};
+use streams::{spawn_stderr_reader, spawn_stdout_reader};
+
+// Re-exported for `lib.rs`, which drives stop-time observability.
+pub use process::{observe_host_process_blocking, HostObservability};
+
 pub struct HostBridgeState {
     pub inner: Arc<Mutex<Option<Arc<HostProcess>>>>,
     lifecycle: Arc<Mutex<()>>,
@@ -30,11 +48,6 @@ pub(crate) struct HostProcess {
     shutting_down: Arc<AtomicBool>,
 }
 
-struct PendingResponse {
-    tx: std::sync::mpsc::Sender<Value>,
-}
-
-static REQUEST_SEQ: AtomicU64 = AtomicU64::new(1);
 const HOST_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(750);
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
@@ -45,321 +58,12 @@ pub(crate) fn is_shell_only_build() -> bool {
     cfg!(feature = "shell-only")
 }
 
-/// Auto-restart backoff schedule (ADR: host death must not require app restart).
-/// Each entry is the delay before that retry attempt. After the schedule is
-/// exhausted, the supervisor gives up and surfaces a fatal log to the UI.
-const RESTART_BACKOFF_SCHEDULE: &[Duration] = &[
-    Duration::from_millis(500),
-    Duration::from_millis(1_000),
-    Duration::from_millis(2_000),
-    Duration::from_millis(4_000),
-];
-
-#[derive(Debug, PartialEq, Eq)]
-enum StopOutcome {
-    GracefulExit,
-    AbnormalExit,
-    ForcedKill,
-}
-
 impl Default for HostBridgeState {
     fn default() -> Self {
         Self {
             inner: Arc::new(Mutex::new(None)),
             lifecycle: Arc::new(Mutex::new(())),
             mock: Arc::new(AtomicBool::new(false)),
-        }
-    }
-}
-
-#[derive(Clone, serde::Serialize)]
-struct HostLogPayload {
-    level: String,
-    message: String,
-}
-
-/// Status payload emitted to the UI so it can show reconnecting / fatal states
-/// without leaking the word "host" into user-facing copy. The UI maps
-/// `reconnecting` → "piwinwin 正在重连" and `fatal` → "piwinwin 遇到问题".
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct HostStatusPayload {
-    /// "reconnecting" | "restarted" | "fatal"
-    state: String,
-    /// Retry attempt number (1-based) when state == "reconnecting".
-    attempt: Option<u32>,
-}
-
-fn emit_log(app: &AppHandle, level: &str, message: impl Into<String>) {
-    let _ = app.emit(
-        "host-log",
-        HostLogPayload {
-            level: level.to_string(),
-            message: message.into(),
-        },
-    );
-}
-
-fn emit_status(app: &AppHandle, state: &str, attempt: Option<u32>) {
-    let _ = app.emit(
-        "host-status",
-        HostStatusPayload {
-            state: state.to_string(),
-            attempt,
-        },
-    );
-}
-
-/// Deliver unsolicited host pushes only to the main WebView. Responses are
-/// correlated with `host_request` through the pending map and must never enter
-/// this event lane: broadcasting them would make every subscriber process a
-/// request result a second time.
-fn host_push_event_name(parsed: &Value) -> Option<&'static str> {
-    match parsed.get("type").and_then(Value::as_str) {
-        Some("response") => None,
-        Some("push/batch") => Some("host-message-batch"),
-        Some(_) => Some("host-message"),
-        None => None,
-    }
-}
-
-fn emit_host_push(app: &AppHandle, parsed: &Value) {
-    let Some(event_name) = host_push_event_name(parsed) else {
-        return;
-    };
-    let Some(main_window) = app.get_webview_window("main") else {
-        return;
-    };
-    let _ = main_window.emit(event_name, parsed);
-}
-
-/// How the host process was resolved (ADR 0017 two-tier spawn).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HostCommandTier {
-    /// Packaged sidecar: bundled Node + host-serve.mjs under resources.
-    Packaged,
-    /// Dev: pnpm/tsx against the workspace checkout (unchanged).
-    Dev,
-}
-
-/// Optional filesystem layout for the packaged tier (unit-testable without Tauri).
-#[derive(Debug, Clone)]
-pub(crate) struct PackagedHostPaths {
-    pub node_bin: PathBuf,
-    pub host_js: PathBuf,
-    pub bundled_assets: PathBuf,
-    pub cwd: PathBuf,
-}
-
-/// Pure resolution decision used by spawn and unit tests.
-pub(crate) fn resolve_host_command_tiered(
-    mock: bool,
-    packaged: Option<&PackagedHostPaths>,
-) -> Result<(String, Vec<String>, HostCommandTier, Option<PathBuf>), String> {
-    if let Some(paths) = packaged {
-        if paths.node_bin.is_file() && paths.host_js.is_file() {
-            let mut args = vec![
-                paths.host_js.to_string_lossy().into_owned(),
-                "host".to_string(),
-                "serve".to_string(),
-                "--mode".to_string(),
-                "sdk".to_string(),
-            ];
-            if mock {
-                args.push("--mock".to_string());
-            }
-            let assets = if paths.bundled_assets.is_dir() {
-                Some(paths.bundled_assets.clone())
-            } else {
-                None
-            };
-            return Ok((
-                paths.node_bin.to_string_lossy().into_owned(),
-                args,
-                HostCommandTier::Packaged,
-                assets,
-            ));
-        }
-    }
-
-    let pnpm = which("pnpm").unwrap_or_else(|| "pnpm".to_string());
-    let mut args = vec![
-        "--filter".to_string(),
-        "@piwin/cli".to_string(),
-        "exec".to_string(),
-        "tsx".to_string(),
-        "src/index.ts".to_string(),
-        "host".to_string(),
-        "serve".to_string(),
-        "--mode".to_string(),
-        "sdk".to_string(),
-    ];
-    if mock {
-        args.push("--mock".to_string());
-    }
-
-    Ok((pnpm, args, HostCommandTier::Dev, None))
-}
-
-fn detect_host_triple() -> String {
-    let arch = std::env::consts::ARCH;
-    let os = std::env::consts::OS;
-    match (os, arch) {
-        ("macos", "aarch64") => "aarch64-apple-darwin".to_string(),
-        ("macos", "x86_64") => "x86_64-apple-darwin".to_string(),
-        ("linux", "x86_64") => "x86_64-unknown-linux-gnu".to_string(),
-        ("linux", "aarch64") => "aarch64-unknown-linux-gnu".to_string(),
-        ("windows", "x86_64") => "x86_64-pc-windows-msvc".to_string(),
-        _ => format!("{arch}-unknown-{os}"),
-    }
-}
-
-fn find_sidecar_node(resource_dir: &std::path::Path) -> Option<PathBuf> {
-    let triple = detect_host_triple();
-    let exe_name = if cfg!(windows) {
-        "piwin-host.exe"
-    } else {
-        "piwin-host"
-    };
-    let triple_name = if cfg!(windows) {
-        format!("piwin-host-{triple}.exe")
-    } else {
-        format!("piwin-host-{triple}")
-    };
-
-    let mut candidates: Vec<PathBuf> = Vec::new();
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            candidates.push(dir.join(exe_name));
-            candidates.push(dir.join(&triple_name));
-        }
-    }
-    candidates.push(resource_dir.join(exe_name));
-    candidates.push(resource_dir.join(&triple_name));
-    // Dev packaging dry-run: binaries next to Cargo.toml.
-    // `packaged_host_paths_from_resource_dir` guards against placeholder
-    // host-serve.mjs stubs, so this candidate is safe in dev too.
-    let manifest_binaries = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
-    candidates.push(manifest_binaries.join(&triple_name));
-    candidates.push(manifest_binaries.join(exe_name));
-
-    candidates.into_iter().find(|path| path.is_file())
-}
-
-fn packaged_host_paths_from_resource_dir(
-    resource_dir: &std::path::Path,
-) -> Option<PackagedHostPaths> {
-    let host_js = resource_dir.join("host").join("host-serve.mjs");
-    let node_bin = find_sidecar_node(resource_dir)?;
-    if !host_js.is_file() {
-        return None;
-    }
-    // Reject placeholder stubs created by `ensure-packaging-placeholders`.
-    // The real bundled host-serve.mjs is several KB; the placeholder is ~65
-    // bytes. Without this guard, dev builds spawn Node on an empty file and
-    // the sidecar exits immediately.
-    if let Ok(metadata) = std::fs::metadata(&host_js) {
-        if metadata.len() < 200 {
-            return None;
-        }
-    }
-    Some(PackagedHostPaths {
-        node_bin,
-        host_js: host_js.clone(),
-        bundled_assets: resource_dir.join("host").join("bundled-assets"),
-        cwd: resource_dir.join("host"),
-    })
-}
-
-fn resolve_host_command(
-    mock: bool,
-    resource_dir: Option<PathBuf>,
-) -> Result<
-    (
-        String,
-        Vec<String>,
-        HostCommandTier,
-        Option<PathBuf>,
-        PathBuf,
-    ),
-    String,
-> {
-    // Development must execute the workspace Host source. Tauri copies resource
-    // files into its debug target and those copies can outlive a source change;
-    // preferring them here made real-provider E2E exercise a stale Host bundle.
-    // Release builds continue to require and prefer the packaged sidecar.
-    let packaged = if cfg!(debug_assertions) {
-        None
-    } else {
-        resource_dir
-            .as_ref()
-            .and_then(|dir| packaged_host_paths_from_resource_dir(dir))
-    };
-    let (program, args, tier, assets) = resolve_host_command_tiered(mock, packaged.as_ref())?;
-
-    let cwd = match (&tier, packaged) {
-        (HostCommandTier::Packaged, Some(paths)) => paths.cwd,
-        _ => {
-            let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            manifest_dir
-                .join("../../..")
-                .canonicalize()
-                .map_err(|error| format!("resolve repo root: {error}"))?
-        }
-    };
-
-    Ok((program, args, tier, assets, cwd))
-}
-
-fn which(bin: &str) -> Option<String> {
-    let path = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&path) {
-        let candidate = dir.join(bin);
-        if candidate.is_file() {
-            return Some(candidate.to_string_lossy().into_owned());
-        }
-    }
-    for candidate in [
-        format!("/opt/homebrew/bin/{bin}"),
-        format!("/usr/local/bin/{bin}"),
-        format!(
-            "{}/.local/share/pnpm/{bin}",
-            std::env::var("HOME").unwrap_or_default()
-        ),
-    ] {
-        if PathBuf::from(&candidate).is_file() {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
-/// Drain all pending requests with an error so callers fail immediately
-/// instead of waiting for a 60s timeout on a dead process.
-fn fail_all_pending(pending: &Mutex<HashMap<String, PendingResponse>>, reason: &str) {
-    if let Ok(mut map) = pending.lock() {
-        let error_response = serde_json::json!({
-            "type": "response",
-            "success": false,
-            "error": format!("host process died: {reason}"),
-        });
-        for (_id, entry) in map.drain() {
-            let _ = entry.tx.send(error_response.clone());
-        }
-    }
-}
-
-fn fail_pending_after_stop(
-    pending: &Mutex<HashMap<String, PendingResponse>>,
-    outcome: &StopOutcome,
-) {
-    match outcome {
-        StopOutcome::GracefulExit => {}
-        StopOutcome::AbnormalExit => {
-            fail_all_pending(pending, "host process exited abnormally during shutdown")
-        }
-        StopOutcome::ForcedKill => {
-            fail_all_pending(pending, "host process required forced termination")
         }
     }
 }
@@ -516,100 +220,17 @@ fn host_start_blocking(
     let alive = Arc::new(AtomicBool::new(true));
     let shutting_down = Arc::new(AtomicBool::new(false));
 
-    let pending_reader = Arc::clone(&pending);
-    let alive_reader = Arc::clone(&alive);
-    let shutting_down_reader = Arc::clone(&shutting_down);
-    let app_reader = app.clone();
-    // Supervisor needs these to attempt a restart on unexpected death.
-    let inner_for_supervisor = Arc::clone(&inner);
-    let lifecycle_for_supervisor = Arc::clone(&lifecycle);
-    let mock_flag_for_supervisor = Arc::clone(&mock_flag);
-    let app_for_supervisor = app.clone();
-
-    thread::spawn(move || {
-        let reader = BufReader::new(stdout);
-        for line_result in reader.lines() {
-            let Ok(line) = line_result else {
-                break;
-            };
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            let parsed: Value = match serde_json::from_str(trimmed) {
-                Ok(value) => value,
-                Err(error) => {
-                    emit_log(
-                        &app_reader,
-                        "warn",
-                        format!("invalid host JSON line: {error}; line={trimmed}"),
-                    );
-                    continue;
-                }
-            };
-
-            let message_type = parsed.get("type").and_then(|value| value.as_str());
-            if message_type == Some("response") {
-                if let Some(id) = parsed.get("id").and_then(|value| value.as_str()) {
-                    let mut map = match pending_reader.lock() {
-                        Ok(map) => map,
-                        Err(_) => break,
-                    };
-                    if let Some(entry) = map.remove(id) {
-                        let _ = entry.tx.send(parsed.clone());
-                    }
-                }
-                // A response is request-correlated only. Do not broadcast it
-                // as an unsolicited host push to the WebView.
-                continue;
-            }
-
-            emit_host_push(&app_reader, &parsed);
-        }
-
-        // EOF is a failure during normal operation, but is the expected
-        // completion signal after stdin was closed for graceful shutdown.
-        alive_reader.store(false, Ordering::Release);
-        if shutting_down_reader.load(Ordering::Acquire) {
-            emit_log(
-                &app_reader,
-                "info",
-                "host process stdout closed during shutdown",
-            );
-        } else {
-            fail_all_pending(&pending_reader, "stdout closed");
-            emit_log(
-                &app_reader,
-                "error",
-                "host process stdout closed unexpectedly — supervisor will restart",
-            );
-            // Spawn a supervisor thread that retries host_start with backoff.
-            // The reader thread exits after launching the supervisor; the
-            // supervisor's host_start_blocking will spawn a fresh reader.
-            thread::spawn(move || {
-                supervise_restart(
-                    app_for_supervisor,
-                    inner_for_supervisor,
-                    lifecycle_for_supervisor,
-                    mock_flag_for_supervisor,
-                );
-            });
-        }
-    });
-
-    let app_err = app.clone();
-    thread::spawn(move || {
-        let reader = BufReader::new(stderr);
-        for line_result in reader.lines() {
-            if let Ok(line) = line_result {
-                if !line.trim().is_empty() {
-                    emit_log(&app_err, "warn", format!("host stderr: {line}"));
-                }
-            } else {
-                break;
-            }
-        }
-    });
+    spawn_stdout_reader(
+        app.clone(),
+        stdout,
+        Arc::clone(&pending),
+        Arc::clone(&alive),
+        Arc::clone(&shutting_down),
+        Arc::clone(&inner),
+        Arc::clone(&lifecycle),
+        Arc::clone(&mock_flag),
+    );
+    spawn_stderr_reader(app.clone(), stderr);
 
     let process = Arc::new(HostProcess {
         child: Mutex::new(child),
@@ -624,81 +245,6 @@ fn host_start_blocking(
     mock_flag.store(mock, Ordering::Release);
 
     Ok(serde_json::json!({ "started": true, "mock": mock }))
-}
-
-/// Supervisor: retries `host_start_blocking` with exponential backoff after an
-/// unexpected sidecar death. Emits `host-status` events so the UI can surface
-/// "reconnecting" / "fatal" states without polling. Gives up after
-/// `RESTART_BACKOFF_SCHEDULE` attempts and emits a fatal status.
-fn supervise_restart(
-    app: AppHandle,
-    inner: Arc<Mutex<Option<Arc<HostProcess>>>>,
-    lifecycle: Arc<Mutex<()>>,
-    mock_flag: Arc<AtomicBool>,
-) {
-    let mock = mock_flag.load(Ordering::Acquire);
-    for (index, delay) in RESTART_BACKOFF_SCHEDULE.iter().enumerate() {
-        let attempt = (index + 1) as u32;
-        emit_status(&app, "reconnecting", Some(attempt));
-        emit_log(
-            &app,
-            "warn",
-            format!(
-                "host supervisor: retry {}/{} in {:?} (mock={mock})",
-                attempt,
-                RESTART_BACKOFF_SCHEDULE.len(),
-                delay
-            ),
-        );
-        thread::sleep(*delay);
-
-        // If a manual host_stop or a concurrent host_start already replaced
-        // the process, don't fight it — check if the current one is alive.
-        if let Some(existing) = inner.lock().ok().and_then(|guard| guard.clone()) {
-            if existing.alive.load(Ordering::Acquire) {
-                emit_log(
-                    &app,
-                    "info",
-                    "host supervisor: process already alive, aborting restart",
-                );
-                return;
-            }
-        }
-
-        match host_start_blocking(
-            app.clone(),
-            Arc::clone(&inner),
-            Arc::clone(&lifecycle),
-            Arc::clone(&mock_flag),
-            mock,
-        ) {
-            Ok(_) => {
-                emit_status(&app, "restarted", None);
-                emit_log(&app, "info", "host supervisor: restart succeeded");
-                return;
-            }
-            Err(error) => {
-                emit_log(
-                    &app,
-                    "error",
-                    format!(
-                        "host supervisor: restart {}/{} failed: {error}",
-                        attempt,
-                        RESTART_BACKOFF_SCHEDULE.len()
-                    ),
-                );
-            }
-        }
-    }
-    emit_status(&app, "fatal", None);
-    emit_log(
-        &app,
-        "error",
-        format!(
-            "host supervisor: exhausted {} restart attempts",
-            RESTART_BACKOFF_SCHEDULE.len()
-        ),
-    );
 }
 
 #[tauri::command]
@@ -821,46 +367,6 @@ pub fn host_request_blocking(
     }
 }
 
-/// Preserve a versioned local envelope (`v`, `command`, `idempotencyKey`)
-/// unchanged except for assigning `command.id` used by the pending map.
-fn assign_host_request_id(command: &mut Value) -> String {
-    let inner_command = command
-        .get("v")
-        .and_then(|value| value.as_u64())
-        .filter(|version| *version == 1)
-        .and_then(|_| command.get("command"))
-        .cloned();
-    if let Some(Value::Object(mut inner)) = inner_command {
-        let request_id = inner
-            .get("id")
-            .and_then(|value| value.as_str())
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| format!("tauri-{}", REQUEST_SEQ.fetch_add(1, Ordering::Relaxed)));
-        inner.insert("id".to_string(), Value::String(request_id.clone()));
-        if let Some(object) = command.as_object_mut() {
-            object.insert("command".to_string(), Value::Object(inner));
-        }
-        return request_id;
-    }
-    let request_id = command
-        .get("id")
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
-        .unwrap_or_else(|| format!("tauri-{}", REQUEST_SEQ.fetch_add(1, Ordering::Relaxed)));
-    if let Some(object) = command.as_object_mut() {
-        object.insert("id".to_string(), Value::String(request_id.clone()));
-    }
-    request_id
-}
-
-fn resolve_host_request_timeout(timeout_ms: Option<u64>) -> Option<Duration> {
-    match timeout_ms {
-        Some(0) => None,
-        Some(milliseconds) => Some(Duration::from_millis(milliseconds)),
-        None => Some(Duration::from_millis(30_000)),
-    }
-}
-
 #[tauri::command]
 pub async fn host_is_running(state: State<'_, HostBridgeState>) -> Result<bool, String> {
     let inner = Arc::clone(&state.inner);
@@ -885,143 +391,11 @@ fn host_is_running_blocking(inner: Arc<Mutex<Option<Arc<HostProcess>>>>) -> Resu
     }
 }
 
-/**
- * E4: collect bounded, non-secret observability data before shutting down the
- * host bridge. Returns sidecar PID, MCP child PIDs (from mcp/status), and a
- * snapshot of pending request count.
- *
- * This must be called BEFORE host_stop closes stdin, so the host can still
- * respond to `mcp/status`.
- */
-pub struct HostObservability {
-    pub sidecar_pid: Option<i32>,
-    pub host_alive: bool,
-    pub pending_request_count: usize,
-}
-
-/**
- * Retrieve bounded observability from the host process. Returns sidecar PID
- * (if known), liveness flag, and pending request count.
- *
- * This acquires the child lock briefly to call try_wait() and id(). It does
- * NOT close stdin or send any commands.
- */
-pub fn observe_host_process_blocking(
-    inner: &Arc<Mutex<Option<Arc<HostProcess>>>>,
-) -> HostObservability {
-    let process = match inner.lock().ok().and_then(|guard| guard.clone()) {
-        Some(process) => process,
-        None => {
-            return HostObservability {
-                sidecar_pid: None,
-                host_alive: false,
-                pending_request_count: 0,
-            };
-        }
-    };
-
-    let alive = process.alive.load(Ordering::Acquire);
-    let pid = process.child.lock().ok().map(|child| child.id() as i32);
-
-    HostObservability {
-        sidecar_pid: pid,
-        host_alive: alive,
-        pending_request_count: process.pending.lock().ok().map_or(0, |map| map.len()),
-    }
-}
-
-fn process_has_exited(process: &HostProcess) -> bool {
-    process
-        .child
-        .lock()
-        .ok()
-        .and_then(|mut child| child.try_wait().ok())
-        .flatten()
-        .is_some()
-}
-
-fn stop_process(process: &HostProcess) -> Result<StopOutcome, String> {
-    // Publish this before closing the pipe so the reader can distinguish
-    // expected EOF from an unexpected sidecar death.
-    process.shutting_down.store(true, Ordering::Release);
-    close_stdin(process)?;
-
-    // host serve treats stdin EOF as a shutdown request. Give its runtime a
-    // short bounded window to flush/dispose before using process termination.
-    if let Some(exit_status) = wait_for_process_exit(process, HOST_GRACEFUL_SHUTDOWN_TIMEOUT) {
-        let exit_status = reap_process(process).map(|_| exit_status)?;
-        process.alive.store(false, Ordering::Release);
-        let outcome = if exit_status.success() {
-            StopOutcome::GracefulExit
-        } else {
-            StopOutcome::AbnormalExit
-        };
-        fail_pending_after_stop(&process.pending, &outcome);
-        return Ok(outcome);
-    }
-
-    let kill_result = {
-        let mut child = process
-            .child
-            .lock()
-            .map_err(|error| format!("lock host child for termination: {error}"))?;
-        child
-            .kill()
-            .map_err(|error| format!("terminate host process: {error}"))
-    };
-    let reap_result = reap_process(process);
-    process.alive.store(false, Ordering::Release);
-    fail_pending_after_stop(&process.pending, &StopOutcome::ForcedKill);
-
-    kill_result
-        .and(reap_result)
-        .map(|_| StopOutcome::ForcedKill)
-}
-
-fn close_stdin(process: &HostProcess) -> Result<(), String> {
-    let stdin_to_close = process
-        .stdin
-        .lock()
-        .map_err(|error| format!("lock host stdin for shutdown: {error}"))?
-        .take();
-    // Drop the pipe after releasing the mutex. This unblocks the sidecar's
-    // readline loop without retaining the stdin lock during any wait.
-    drop(stdin_to_close);
-    Ok(())
-}
-
-fn wait_for_process_exit(process: &HostProcess, timeout: Duration) -> Option<ExitStatus> {
-    let started = Instant::now();
-    while started.elapsed() < timeout {
-        if let Some(exit_status) = process_exit_status(process) {
-            return Some(exit_status);
-        }
-        thread::sleep(PROCESS_POLL_INTERVAL);
-    }
-    process_exit_status(process)
-}
-
-fn process_exit_status(process: &HostProcess) -> Option<ExitStatus> {
-    process
-        .child
-        .lock()
-        .ok()
-        .and_then(|mut child| child.try_wait().ok())
-        .flatten()
-}
-
-fn reap_process(process: &HostProcess) -> Result<ExitStatus, String> {
-    let mut child = process
-        .child
-        .lock()
-        .map_err(|error| format!("lock host child for reaping: {error}"))?;
-    child
-        .wait()
-        .map_err(|error| format!("reap host process: {error}"))
-}
-
 #[cfg(test)]
 mod tests {
+    use super::logs::host_push_event_name;
+    use super::pending::fail_pending_after_stop;
+    use super::resolve::{detect_host_triple, resolve_host_command_tiered, PackagedHostPaths};
     use super::*;
 
     #[test]
