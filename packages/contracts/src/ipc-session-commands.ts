@@ -420,6 +420,19 @@ export type SessionHostCommand =
       /** Defaults to `full`; Desktop requests a bounded `tail`. */
       messageProjection?: SessionMessageProjection;
     }
+  /**
+   * Take back the prompt of a turn the user paused before the model produced
+   * any output: clears the checkpoint and deletes the prompt row so the
+   * client can restore it to the composer. Refused once any output exists.
+   */
+  | {
+      id?: string;
+      type: 'session/retract-paused-prompt';
+      sessionId: string;
+      checkpointId: string;
+      /** Defaults to `full`; Desktop requests a bounded `tail`. */
+      messageProjection?: SessionMessageProjection;
+    }
   /** CE-SHARE-01: local transcript export (MD/HTML). */
   | {
       id?: string;

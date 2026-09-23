@@ -181,6 +181,22 @@ async function armPendingIntervention(
 }
 
 /**
+ * A rejected edit/cancel means the client acted on a stale row (usually a
+ * lost lifecycle push). Re-push the durable record so the card leaves
+ * 「等待当前步骤完成」 without waiting for a transcript reload.
+ */
+async function resyncStaleIntervention(
+  context: SessionLiveContext,
+  store: Awaited<ReturnType<SessionLiveContext['getTranscriptStore']>>,
+  interventionId: string,
+): Promise<void> {
+  const latest = await store.getRunIntervention(interventionId);
+  if (latest !== undefined) {
+    context.push({ type: 'run/intervention-updated', intervention: latest });
+  }
+}
+
+/**
  * Pre-flight the durable queued turn an adoption wants to convert. The store
  * conversion re-checks status/revision atomically; this guard exists to fail
  * before any mutation when the request targets the wrong record, a replace-mode
@@ -517,12 +533,15 @@ export async function handleRunInterventionCommand(
     case 'run/intervention-edit': {
       const validationError = validateRunInterventionInput(command.input);
       if (validationError) return fail(requestId, command.type, validationError);
-      const target = validateInterventionTarget(context, command.sessionId, command.runId);
-      if (typeof target === 'string') return fail(requestId, command.type, target);
       const store = await context.getTranscriptStore(command.sessionId);
       const existing = await store.getRunIntervention(command.interventionId);
       if (!existing || existing.runId !== command.runId) {
         return fail(requestId, command.type, 'intervention-not-found');
+      }
+      const target = validateInterventionTarget(context, command.sessionId, command.runId);
+      if (typeof target === 'string') {
+        await resyncStaleIntervention(context, store, command.interventionId);
+        return fail(requestId, command.type, target);
       }
       let prepared: PreparedRunIntervention;
       try {
@@ -543,7 +562,10 @@ export async function handleRunInterventionCommand(
         }),
         updatedAt: new Date().toISOString(),
       });
-      if (!updated) return fail(requestId, command.type, 'intervention-revision-conflict');
+      if (!updated) {
+        await resyncStaleIntervention(context, store, command.interventionId);
+        return fail(requestId, command.type, 'intervention-revision-conflict');
+      }
       try {
         await armPendingIntervention(context, updated, prepared);
       } catch {
@@ -574,7 +596,10 @@ export async function handleRunInterventionCommand(
         to: 'cancelled',
         updatedAt: new Date().toISOString(),
       });
-      if (!cancelled) return fail(requestId, command.type, 'intervention-revision-conflict');
+      if (!cancelled) {
+        await resyncStaleIntervention(context, store, command.interventionId);
+        return fail(requestId, command.type, 'intervention-revision-conflict');
+      }
       await context
         .requireSession(command.sessionId)
         .cancelRunIntervention?.(command.interventionId, command.expectedRevision)

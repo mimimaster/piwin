@@ -864,6 +864,54 @@ describe('session live control commands', () => {
       });
       expect(cancelRunIntervention).toHaveBeenCalledWith('intervention-edit-1', 2);
       expect(await store.buildHistoryWindow()).toEqual([]);
+
+      // A client still showing the old pending row gets the durable record
+      // back alongside the conflict, so its card stops offering edit/cancel.
+      const pushes: HostPush[] = [];
+      control.context.push = (message: HostPush): void => {
+        pushes.push(message);
+      };
+      const staleCancel = await handleSessionLiveCommand(
+        {
+          type: 'run/intervention-cancel',
+          sessionId: session.id,
+          runId: control.activeRun.runId,
+          interventionId: 'intervention-edit-1',
+          expectedRevision: 1,
+        },
+        undefined,
+        control.context,
+      );
+      expect(staleCancel).toMatchObject({
+        success: false,
+        error: 'intervention-revision-conflict',
+      });
+      const staleEdit = await handleSessionLiveCommand(
+        {
+          type: 'run/intervention-edit',
+          sessionId: session.id,
+          runId: control.activeRun.runId,
+          interventionId: 'intervention-edit-1',
+          expectedRevision: 1,
+          input: { text: 'too late' },
+        },
+        undefined,
+        control.context,
+      );
+      expect(staleEdit).toMatchObject({
+        success: false,
+        error: 'intervention-revision-conflict',
+      });
+      expect(pushes).toEqual([
+        {
+          type: 'run/intervention-updated',
+          intervention: expect.objectContaining({ revision: 3, status: 'cancelled' }),
+        },
+        {
+          type: 'run/intervention-updated',
+          intervention: expect.objectContaining({ revision: 3, status: 'cancelled' }),
+        },
+      ]);
     } finally {
       store.close();
       await rm(rootDir, { recursive: true, force: true });

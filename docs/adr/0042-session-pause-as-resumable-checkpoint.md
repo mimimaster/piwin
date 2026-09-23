@@ -109,6 +109,31 @@ ordinary coding-agent interruption: pause stops work; the next user message may
 redirect it. Implementation and regression scope:
 [`paused-new-message-send.md`](../plans/2026-09-01-paused-new-message-send.md).
 
+### Product addition (2026-09-23): pausing before any output retracts the prompt
+
+The owner asked for Cursor's behavior: a prompt sent and stopped before the
+model showed anything goes back to the composer instead of staying in the
+transcript as a paused, unanswered turn.
+
+- Host adds `session/retract-paused-prompt { sessionId, checkpointId }`. It
+  requires the named checkpoint to be the active one, and refuses
+  (`retract-has-output`) when any assistant row after the checkpoint's source
+  prompt carries text, thinking, or tool calls, or the pause interrupted
+  subagents. Resume/continuation/voice prompts and steers are
+  `retract-not-retractable`. Otherwise it deletes the prompt subtree through
+  the same path as `session/truncate-from`, then clears the checkpoint, and
+  returns the original text, attachments, and context refs.
+- Host owns the "nothing produced yet" decision from the durable transcript;
+  the shell's own check only decides whether to ask. A refusal leaves an
+  ordinary pause.
+- Desktop records the candidate when the user presses Pause with no visible
+  reply, and retracts once the paused terminal arrives. The prompt leads the
+  composer; anything typed meanwhile follows it. If the user switched sessions,
+  the prompt is parked in that session's composer snapshot.
+- CLI keeps plain pause semantics (intentional degradation): it has no
+  composer to restore into, and a new message already ends the pause.
+- Remote shells do not expose the command yet; they fall back to a plain pause.
+
 ## Future replacement point
 
 If Pi later adds native pause/resume, the Host command and checkpoint contract

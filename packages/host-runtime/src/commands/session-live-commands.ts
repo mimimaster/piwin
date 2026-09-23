@@ -132,6 +132,8 @@ import { handleRunControlCommand } from './run-control-commands.js';
 import { handleRunInterventionCommand } from './run-intervention-commands.js';
 import { handleSessionBranchCommand, pushBranchUpdated } from './session-branch-commands.js';
 import { handleSessionPromptCommand } from './session-prompt-command.js';
+import { truncateSessionFrom } from './session-truncate.js';
+import { retractPausedPrompt } from './retract-paused-prompt.js';
 import { normalizeSessionMcpServerIds } from '../session-mcp-overrides.js';
 
 export type { SessionLiveContext } from './session-live-context.js';
@@ -142,6 +144,7 @@ const TYPES = new Set<HostCommand['type']>([
   'session/branch-list',
   'session/branch-switch',
   'session/truncate-from',
+  'session/retract-paused-prompt',
   'session/resume',
   'session/outline-page',
   'session/user-message-index',
@@ -310,151 +313,21 @@ export async function handleSessionLiveCommand(
         invocations,
       });
     }
-    case 'session/truncate-from': {
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const indexPath = getPiwinSessionIndexPath(rootDir);
-      const record = await getSessionRecord(indexPath, command.sessionId);
-      if (!record) {
-        return fail(requestId, 'session/truncate-from', `Unknown session: ${command.sessionId}`);
-      }
-      const rejectedTruncate = rejectUnavailableSessionBody(
-        requestId,
-        'session/truncate-from',
-        record,
-        'truncate',
-      );
-      if (rejectedTruncate) {
-        return rejectedTruncate;
-      }
-      if (context.getForegroundRun(command.sessionId)) {
-        return sessionBusyResponse(
-          requestId,
-          'session/truncate-from',
-          command.sessionId,
-          'foreground-run',
-        );
-      }
-      if (!context.tryReserveSessionBody(command.sessionId)) {
-        return sessionBusyResponse(
-          requestId,
-          'session/truncate-from',
-          command.sessionId,
-          'body-job',
-        );
-      }
-      try {
-        const store = await context.getTranscriptStore(command.sessionId);
-        const truncationAnchor = await store.getMessage(command.messageId);
-        if (truncationAnchor === undefined) {
-          return fail(
-            requestId,
-            'session/truncate-from',
-            `Message not found in transcript: ${command.messageId}`,
-          );
-        }
-        // Ledger boundaries only exist on the active path (ADR 0055 R3): a
-        // side-branch subtree deletion must not cut the linear model-context
-        // ledger, so record whether the anchor is on-path while scanning.
-        let anchorOnActivePath = false;
-        let ledgerBoundaryMessageId: string | undefined;
-        let ledgerBoundaryCreatedAt = truncationAnchor.createdAt;
-        for await (const message of store.iterateActivePath(100)) {
-          if (message.id === truncationAnchor.id) {
-            anchorOnActivePath = true;
-            break;
-          }
-          if (message.role === 'user') {
-            ledgerBoundaryMessageId = message.id;
-            ledgerBoundaryCreatedAt = message.createdAt;
-          }
-        }
-        if (truncationAnchor.role === 'user' && anchorOnActivePath) {
-          ledgerBoundaryMessageId = truncationAnchor.id;
-          ledgerBoundaryCreatedAt = truncationAnchor.createdAt;
-        }
-        // Runtime reset is a Host lifecycle transaction: it cancels replacement
-        // and active work, flushes/detaches the generation, releases residency,
-        // and preserves the durable session record that is about to be cut.
-        await context.disposeLiveSession(command.sessionId, 'manual');
-        const truncated = await store.truncateFrom(command.messageId);
-        if (!truncated.found) {
-          throw new Error(`Transcript changed before truncate: ${command.messageId}`);
-        }
-        if (anchorOnActivePath) {
-          const modelContextStore = await openModelContextStore({
-            dbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
-            sessionId: command.sessionId,
-          });
-          try {
-            const events = await modelContextStore.listEvents();
-            const matchingUserEvent =
-              ledgerBoundaryMessageId !== undefined
-                ? events
-                    .filter((event) => {
-                      if (event.type !== 'turn/input') return false;
-                      if (
-                        event.payload === null ||
-                        typeof event.payload !== 'object' ||
-                        Array.isArray(event.payload)
-                      ) {
-                        return false;
-                      }
-                      return (
-                        (event.payload as { userMessageId?: unknown }).userMessageId ===
-                        ledgerBoundaryMessageId
-                      );
-                    })
-                    .at(-1)
-                : undefined;
-            const boundarySeq =
-              matchingUserEvent?.seq ??
-              events.find((event) =>
-                ledgerBoundaryMessageId !== undefined
-                  ? event.createdAt >= ledgerBoundaryCreatedAt
-                  : event.createdAt > truncationAnchor.createdAt,
-              )?.seq;
-            if (boundarySeq !== undefined) {
-              await modelContextStore.truncateEventsFrom(boundarySeq);
-            }
-          } finally {
-            modelContextStore.close();
-          }
-        }
-        // ADR 0040 §7: no eager rebuild. The next session/prompt activates a
-        // fresh runtime generation for the stable product session id and
-        // injects the truncated product history exactly once. Keep the durable
-        // history requirement pending so a cold prompt rebuilds from the cut
-        // transcript only.
-        const remaining = await store.listTail(50);
-        record.messageCount = truncated.remainingCount;
-        const last = remaining.at(-1);
-        if (last?.text) {
-          record.lastPreview = last.text.slice(0, 160);
-        } else {
-          delete record.lastPreview;
-        }
-        record.updatedAt = new Date().toISOString();
-        await upsertSessionRecord(indexPath, record);
-        // Subtree deletion can move the leaf and dissolve branch points.
-        await pushBranchUpdated(context, command.sessionId, store);
-        // Leaf write and occupancy invalidate are consecutive store ops, not one
-        // SQLite transaction (`truncateFrom` does not accept context CAS).
-        await context.sessionContextCoordinator?.invalidate(command.sessionId, {
-          reason: 'truncate',
-          empty: truncated.remainingCount === 0,
-          contextBoundary: { activeLeafMessageId: await store.getActiveLeaf() },
-        });
-        return ok(requestId, 'session/truncate-from', {
+    case 'session/truncate-from':
+      return truncateSessionFrom(
+        {
           sessionId: command.sessionId,
-          removedCount: truncated.removedCount,
-          remainingCount: truncated.remainingCount,
-          ...createSessionMessageResponse(command.sessionId, remaining, command.messageProjection),
-          session: indexRecordToSummary(record),
-        });
-      } finally {
-        context.releaseSessionBody(command.sessionId);
-      }
-    }
+          messageId: command.messageId,
+          ...(command.messageProjection !== undefined
+            ? { messageProjection: command.messageProjection }
+            : {}),
+        },
+        requestId,
+        context,
+        'session/truncate-from',
+      );
+    case 'session/retract-paused-prompt':
+      return retractPausedPrompt(command, requestId, context);
     case 'session/resume': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       const indexPath = getPiwinSessionIndexPath(rootDir);

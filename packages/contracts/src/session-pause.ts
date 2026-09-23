@@ -1,3 +1,7 @@
+import type { MediaAttachmentRef } from './host.js';
+import type { PromptContextRef } from './side-chat.js';
+import type { SessionTranscriptMessage } from './session-transcript.js';
+
 const PAUSE_CONTINUE_UTTERANCES = new Set([
   '继续',
   '接着',
@@ -66,3 +70,37 @@ export type SessionResumeRunAcceptedData = {
   checkpointId: string;
   acceptedAt: string;
 };
+
+/**
+ * A prompt taken back after the user stopped it before the model produced
+ * anything (Cursor-style). Clients put it back into their composer.
+ */
+export type SessionRetractedPrompt = {
+  userMessageId: string;
+  text: string;
+  attachments?: MediaAttachmentRef[];
+  contextRefs?: PromptContextRef[];
+};
+
+/**
+ * `session/retract-paused-prompt` result: the paused checkpoint is cleared,
+ * the prompt row and its empty reply are deleted, and the remaining tail is
+ * returned in the requested projection (same shape as `session/truncate-from`).
+ */
+export type SessionRetractPausedPromptData = {
+  sessionId: string;
+  retracted: SessionRetractedPrompt;
+  removedCount: number;
+  remainingCount: number;
+  messages?: SessionTranscriptMessage[];
+};
+
+/** Stable refusal codes for `session/retract-paused-prompt`. */
+export const SESSION_RETRACT_REFUSALS = {
+  /** No active pause checkpoint, or the client named a different one. */
+  checkpointStale: 'retract-checkpoint-stale',
+  /** The model already produced text, thinking, or tool calls this turn. */
+  hasOutput: 'retract-has-output',
+  /** The paused turn did not start from a plain user prompt. */
+  notRetractable: 'retract-not-retractable',
+} as const;

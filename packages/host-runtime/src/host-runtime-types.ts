@@ -33,6 +33,7 @@ export const TRANSCRIPT_STORE_LEASED_COMMANDS = new Set<HostCommand['type']>([
   'session/replace-run',
   'session/export',
   'session/truncate-from',
+  'session/retract-paused-prompt',
   'session/branch-list',
   'session/branch-switch',
   'session/duplicate',
