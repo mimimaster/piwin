@@ -1,8 +1,4 @@
-import type {
-  ModelRef,
-  SessionTranscriptMessage,
-  ThinkingLevel,
-} from '@piwin/contracts';
+import type { ModelRef, SessionTranscriptMessage, ThinkingLevel } from '@piwin/contracts';
 import { getSessionRecord, upsertSessionRecord } from '@piwin/session';
 import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import type { SessionLiveContext } from './session-live-context.js';
