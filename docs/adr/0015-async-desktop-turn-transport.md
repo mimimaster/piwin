@@ -83,3 +83,25 @@ unnecessary and harmful.
   replacing the single global FIFO.
 - ADR 0006 remains valid for framing, event push, and short request/response
   commands. Only the long-operation completion semantics are superseded.
+
+## Amendment (2026-09-23): the output side must not block the Host
+
+The control lane only helps if the Host's event loop keeps running. On
+Windows, Node writes to a stdout **pipe** synchronously: when the Desktop's
+reader falls behind (large `browser/frame` JSON, a busy WebView), a single
+`process.stdout.write` blocked 2.4s and the event loop ran 3 of 50 timer ticks.
+Every command — `host/status` included — stalls, the Desktop reports the Host
+as unreachable, then the backlog floods in at once.
+
+- `host serve` on Windows writes JSONL from a worker thread
+  (`host-serve-worker-jsonl-writer.ts`); the blocking write happens there. The
+  same probe with the worker kept 42 of 50 ticks.
+- The local egress client's `canSend` is the output backlog under
+  `HOST_SERVE_OUTPUT_BACKLOG_BYTES` (2 MB), so pushes wait in the egress channel
+  where projections (browser frames) coalesce to the latest value and a
+  response never queues behind tens of MB. The local client gets large queue
+  limits so it is never closed as a slow consumer.
+- macOS/Linux keep the stream writer (their stdout pipes are asynchronous, so
+  the loop never blocks), but the same backpressure applies: the backlog counts
+  lines waiting in the writer's drain chain plus `writableLength` — the chain
+  alone is invisible to `writableLength`, which never passes one buffer.

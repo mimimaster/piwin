@@ -61,10 +61,14 @@ import { admitAndExecuteHostCommand, createDeviceToolBrokerForHost } from '@piwi
 import { createSidecarHostAuthority, LOCAL_JSONL_CLIENT_ID } from './sidecar-host-authority.js';
 import { collectRefArgs, buildCliContextRefs } from './context-ref-args.js';
 
+import { installHostDiagnosticLog } from './host-diagnostic-log.js';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import { createCliExtensionUiRequestHandler } from './extension-ui-cli.js';
 import { EXTENSION_COMPAT_NOTE } from './extension-compat-note.js';
-import { createJsonlStdioTransport } from './host-serve-transport.js';
+import {
+  createJsonlStdioTransport,
+  HOST_SERVE_LOCAL_EGRESS_LIMITS,
+} from './host-serve-transport.js';
 import { createSidecarMobileAccess, interceptSidecarMobileAccess } from './mobile-access-serve.js';
 import { parsePermissionModeOverride } from './permission-mode-override.js';
 import { resolveCliChatPrompt } from './chat-prompt.js';
@@ -2610,13 +2614,13 @@ async function commandDocCards(argv: string[]): Promise<void> {
 }
 
 async function commandHostServe(argv: string[]): Promise<void> {
-  redirectHostLogsToStandardError();
+  const hostDataRoot = resolveHostDataRoot();
+  installHostDiagnosticLog(hostDataRoot);
   const mode = parseMode(argv);
   const mock = parseMock(argv);
   const testFixture = parseHostServeTestFixture(argv);
   const permissionModeOverride = resolvePermissionModeOverride(argv);
   const transport = createJsonlStdioTransport();
-  const hostDataRoot = resolveHostDataRoot();
   applyPiwinPlaywrightBrowsersPath(hostDataRoot);
   const runtimeOptions: ConstructorParameters<typeof HostRuntime>[0] = {
     mode,
@@ -2648,7 +2652,8 @@ async function commandHostServe(argv: string[]): Promise<void> {
     id: LOCAL_JSONL_CLIENT_ID,
     initialSeq: 0,
     supportsBatch: true,
-    canSend: () => true,
+    canSend: () => transport.canAcceptPush(),
+    ...HOST_SERVE_LOCAL_EGRESS_LIMITS,
     send: (message) => {
       const localMessage = message.type === 'push/batch' ? message : message.push;
       void transport.send(localMessage).catch((error: unknown) => {
@@ -2737,18 +2742,6 @@ async function commandHostServe(argv: string[]): Promise<void> {
   });
 
   await shutdown();
-}
-
-/**
- * The desktop sidecar treats stdout as a strict JSONL protocol. Agent-host and
- * third-party extensions use console.info/warn for diagnostics, which otherwise
- * insert plain text between protocol messages and corrupt the stream.
- */
-function redirectHostLogsToStandardError(): void {
-  const writeDiagnostic = console.error.bind(console);
-  console.log = writeDiagnostic;
-  console.info = writeDiagnostic;
-  console.warn = writeDiagnostic;
 }
 
 async function commandCron(argv: string[]): Promise<void> {

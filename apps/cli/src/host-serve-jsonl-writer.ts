@@ -6,15 +6,24 @@ import type { HostServerMessage } from '@piwin/contracts';
 
 export type JsonlWriter = {
   write: (message: HostServerMessage | Record<string, unknown>) => Promise<void>;
+  /**
+   * Bytes accepted by `write` but not yet handed to the stream. Lines behind a
+   * full buffer wait in this writer's chain, which `writableLength` never
+   * sees, so backpressure must read this count.
+   */
+  pendingBytes: () => number;
 };
 
 export function createJsonlWriter(
   writeStream: NodeJS.WritableStream = process.stdout,
 ): JsonlWriter {
   let chain: Promise<void> = Promise.resolve();
+  let queuedBytes = 0;
 
   function write(message: HostServerMessage | Record<string, unknown>): Promise<void> {
     const line = `${JSON.stringify(message)}\n`;
+    const bytes = Buffer.byteLength(line);
+    queuedBytes += bytes;
     const attempt = chain.then(
       () =>
         new Promise<void>((resolve, reject) => {
@@ -63,8 +72,11 @@ export function createJsonlWriter(
     // can log. Without this catch, one rejection skips every subsequent
     // `.then` and the sidecar silently stops writing stdout.
     chain = attempt.catch(() => undefined);
+    void chain.then(() => {
+      queuedBytes -= bytes;
+    });
     return attempt;
   }
 
-  return { write };
+  return { write, pendingBytes: () => queuedBytes };
 }

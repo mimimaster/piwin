@@ -5,7 +5,7 @@
 import type { HostCommand, HostCommandRequest, HostResponse, HostServerMessage } from '@piwin/contracts';
 import { formatHostError } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/host-runtime';
-import { classifyHostServeCommand } from './host-serve-command-lane.js';
+import { classifyHostServeCommand, type HostServeCommandLane } from './host-serve-command-lane.js';
 
 /** Frame sender the dispatcher uses to write responses. Transport-agnostic. */
 export type HostServeSend = (message: HostServerMessage) => Promise<void>;
@@ -28,6 +28,8 @@ export type HostServeDispatcher = {
 };
 
 const DEFAULT_COMMAND_TIMEOUT_MS = 45_000;
+/** Commands slower than this (queue wait + run) leave a line in the Host log. */
+export const HOST_SERVE_SLOW_COMMAND_MS = 2_000;
 
 function commandTimeoutMs(command: HostCommand, defaultTimeoutMs: number): number | undefined {
   switch (command.type) {
@@ -67,17 +69,20 @@ export function createHostServeDispatcher(
     const request = toHostCommandRequest(command);
     const lane = classifyHostServeCommand(request.command);
     const commandDeadlineMs = commandTimeoutMs(request.command, timeoutMs);
+    const queuedAt = Date.now();
+    const run = async (): Promise<void> => {
+      const startedAt = Date.now();
+      try {
+        await runCommand(options.runtime, options.send, request, commandDeadlineMs, options.admit);
+      } finally {
+        reportSlowCommand(request.command.type, lane, queuedAt, startedAt, Date.now());
+      }
+    };
     if (lane === 'control' || lane === 'concurrent') {
-      void trackCommand(
-        runCommand(options.runtime, options.send, request, commandDeadlineMs, options.admit),
-      );
+      void trackCommand(run());
       return;
     }
-    serializedChain = trackCommand(
-      serializedChain.then(() =>
-        runCommand(options.runtime, options.send, request, commandDeadlineMs, options.admit),
-      ),
-    );
+    serializedChain = trackCommand(serializedChain.then(run));
   }
 
   async function drain(): Promise<void> {
@@ -104,6 +109,23 @@ export function createHostServeDispatcher(
   }
 
   return { dispatch, drain };
+}
+
+/**
+ * A slow serialized command stalls every command queued behind it (session
+ * switches included); the queue/run split shows which one held the lane.
+ */
+function reportSlowCommand(
+  type: HostCommand['type'],
+  lane: HostServeCommandLane,
+  queuedAt: number,
+  startedAt: number,
+  finishedAt: number,
+): void {
+  if (finishedAt - queuedAt < HOST_SERVE_SLOW_COMMAND_MS) return;
+  console.error(
+    `[piwin host serve] slow command ${type} lane=${lane} queued=${startedAt - queuedAt}ms ran=${finishedAt - startedAt}ms`,
+  );
 }
 
 async function runCommand(

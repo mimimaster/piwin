@@ -11,6 +11,23 @@ import { createInterface } from 'node:readline';
 import type { HostCommandRequest, HostServerMessage } from '@piwin/contracts';
 import { parseHostCommandRequest } from '@piwin/contracts';
 import { createJsonlWriter, type JsonlWriter } from './host-serve-jsonl-writer.js';
+import { createWorkerJsonlWriter } from './host-serve-worker-jsonl-writer.js';
+
+/**
+ * Output bytes allowed in flight before pushes wait in the egress channel,
+ * where browser frames and other projections coalesce to their latest value.
+ * Keeps a response from queueing behind tens of MB of frames.
+ */
+export const HOST_SERVE_OUTPUT_BACKLOG_BYTES = 2 * 1024 * 1024;
+
+/**
+ * The local Desktop is the only client and must never be dropped as a slow
+ * consumer; backpressure plus coalescing bound the queue instead.
+ */
+export const HOST_SERVE_LOCAL_EGRESS_LIMITS = {
+  maxQueueBytes: 256 * 1024 * 1024,
+  maxQueueItems: 200_000,
+} as const;
 
 /**
  * A bidirectional transport for the host serve protocol.
@@ -26,6 +43,8 @@ export type Transport = {
   start: (onCommand: (request: HostCommandRequest) => void) => Promise<void>;
   /** Stop reading commands and flush the output side. Idempotent. */
   stop: () => Promise<void>;
+  /** False while the output backlog is over budget; pushes should wait. */
+  canAcceptPush: () => boolean;
 };
 
 export type JsonlStdioTransportOptions = {
@@ -40,7 +59,14 @@ export type JsonlStdioTransportOptions = {
  */
 export function createJsonlStdioTransport(options: JsonlStdioTransportOptions = {}): Transport {
   const input = options.input ?? process.stdin;
-  const writer: JsonlWriter = createJsonlWriter(options.output ?? process.stdout);
+  const output = options.output ?? process.stdout;
+  // Windows stdout pipes block the event loop; write them from a worker.
+  const workerWriter =
+    output === process.stdout && process.platform === 'win32' ? createWorkerJsonlWriter() : undefined;
+  const writer: JsonlWriter = workerWriter ?? createJsonlWriter(output);
+  // Chain backlog plus what the stream itself still buffers.
+  const backlogBytes = (): number =>
+    writer.pendingBytes() + ((output as { writableLength?: number }).writableLength ?? 0);
   let readlineInterface: ReturnType<typeof createInterface> | undefined;
   let stopPromise: Promise<void> | undefined;
   let startResolve: (() => void) | undefined;
@@ -110,5 +136,10 @@ export function createJsonlStdioTransport(options: JsonlStdioTransportOptions = 
     });
   }
 
-  return { send, start, stop };
+  return {
+    send,
+    start,
+    stop,
+    canAcceptPush: () => backlogBytes() < HOST_SERVE_OUTPUT_BACKLOG_BYTES,
+  };
 }

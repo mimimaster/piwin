@@ -59,6 +59,24 @@ describe('createJsonlWriter', () => {
     expect(stdout.lines).toHaveLength(1);
   });
 
+  it('counts lines waiting behind a full buffer as backlog until drain', async () => {
+    const stdout = new FakeStdout();
+    stdout.setBackpressured(true);
+    const writer = createJsonlWriter(stdout);
+    const first = writer.write(message('one'));
+    const second = writer.write(message('two'));
+    await flushMicrotasks();
+    // `two` is not in the stream yet, so writableLength could never see it.
+    expect(stdout.lines).toEqual(['{"type":"one"}\n']);
+    expect(writer.pendingBytes()).toBe('{"type":"one"}\n'.length + '{"type":"two"}\n'.length);
+
+    stdout.setBackpressured(false);
+    stdout.emit('drain');
+    await Promise.all([first, second]);
+    await flushMicrotasks();
+    expect(writer.pendingBytes()).toBe(0);
+  });
+
   it('rejects the failing write but keeps the chain usable', async () => {
     const stdout = new FakeStdout();
     stdout.setBackpressured(true);
