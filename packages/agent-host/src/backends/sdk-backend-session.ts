@@ -56,6 +56,7 @@ import {
 } from '../run-intervention-stager.js';
 import { resolvePiRuntimeAgentDir } from '../pi-runtime-agent-dir.js';
 import { registerClaudeCodeOauthProvider } from '../anthropic-oauth/register-claude-code-provider.js';
+import { registerDevinOauthProvider } from '../devin/register-devin-provider.js';
 import { wrapModelRuntimeStreamTiming } from '../stream-request-timing.js';
 
 /** Options for backend-only SDK session creation. */
@@ -229,6 +230,9 @@ async function createBackendModelRuntime(
     if (provider.auth.kind === 'oauth') {
       if (provider.providerId === 'anthropic-claude-code') {
         await registerClaudeCodeOauthProvider(modelRuntime, agentDir, provider);
+      }
+      if (provider.providerId === 'devin') {
+        registerDevinOauthProvider(modelRuntime as { registerProvider(id: string, config: object): void });
       }
       continue;
     }

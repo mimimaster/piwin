@@ -42,6 +42,7 @@ const OAUTH_DISPLAY_PROVIDER_IDS: readonly SubscriptionOauthProviderId[] = [
   CLAUDE_CODE_OAUTH_PROVIDER_ID,
   'xai',
   'github-copilot',
+  'devin',
 ];
 
 type OauthCardId = (typeof OAUTH_DISPLAY_PROVIDER_IDS)[number];
@@ -92,6 +93,14 @@ const CARD_COPY: Record<OauthCardId, ProviderCardMeta> = {
     titleEn: 'GitHub Copilot',
     tagline: 'GitHub 订阅授权',
     taglineEn: 'GitHub Subscription',
+    login: '授权登录',
+    loginEn: 'Connect',
+  },
+  devin: {
+    title: 'Devin',
+    titleEn: 'Devin',
+    tagline: 'Windsurf 套餐 · 非官方接口，账号风险自负',
+    taglineEn: 'Windsurf plan · unofficial API, you own the risk',
     login: '授权登录',
     loginEn: 'Connect',
   },

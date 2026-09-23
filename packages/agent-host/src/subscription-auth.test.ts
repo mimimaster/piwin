@@ -38,6 +38,30 @@ describe('subscription auth port', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
+  it('calls runtime.login for Devin OAuth', async () => {
+    const login = vi.fn(async (_providerId: string, _type: 'oauth', _interaction: unknown) => undefined);
+    const port = await createSubscriptionAuthPort({
+      authPath: '/tmp/auth.json',
+      createRuntime: async () =>
+        ({
+          listCredentials: async () => [],
+          isUsingSubscription: () => false,
+          getModels: () => [],
+          login,
+          logout: async () => undefined,
+          refresh: async () => undefined,
+        }) as never,
+    });
+    const result = await port.login('devin', {
+      prompt: async () => '',
+      notify: () => undefined,
+    });
+    expect(result).toEqual({ kind: 'ok' });
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(login.mock.calls[0]?.[0]).toBe('devin');
+    expect(login.mock.calls[0]?.[1]).toBe('oauth');
+  });
+
   it('treats stored oauth as the only subscription signal', async () => {
     const port = await createSubscriptionAuthPort({
       authPath: '/tmp/auth.json',

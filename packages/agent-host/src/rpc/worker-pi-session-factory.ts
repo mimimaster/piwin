@@ -51,6 +51,7 @@ import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { resolvePiRuntimeAgentDir } from '../pi-runtime-agent-dir.js';
 import { mergeSkillAwareReadTool } from '../skill-aware-read-tool.js';
 import { registerClaudeCodeOauthProvider } from '../anthropic-oauth/register-claude-code-provider.js';
+import { registerDevinOauthProvider } from '../devin/register-devin-provider.js';
 import {
   readPiAutoCompactionEnabled,
   setPiAutoCompactionEnabled,
@@ -361,6 +362,9 @@ export function createWorkerPiSessionFactory(
       for (const provider of providers) {
         if (provider.auth.kind === 'oauth' && provider.providerId === 'anthropic-claude-code') {
           await registerClaudeCodeOauthProvider(modelRuntime, agentDir, provider);
+        }
+        if (provider.auth.kind === 'oauth' && provider.providerId === 'devin') {
+          registerDevinOauthProvider(modelRuntime as { registerProvider(id: string, config: object): void });
         }
       }
     }

@@ -93,6 +93,7 @@ describe('auth commands', () => {
       'anthropic',
       'xai',
       'github-copilot',
+      'devin',
       'anthropic-claude-code',
     ]);
 

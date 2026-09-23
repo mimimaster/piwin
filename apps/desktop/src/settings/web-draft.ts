@@ -196,6 +196,8 @@ export function createDraftSearchSource(
     base.apiKeyEnv = 'BRAVE_API_KEY';
   } else if (kind === 'tavily') {
     base.apiKeyEnv = 'TAVILY_API_KEY';
+  } else if (kind === 'devin') {
+    base.apiKeyRef = 'oauth:devin';
   } else if (kind === 'searxng') {
     base.baseUrl = 'http://127.0.0.1:8080';
   } else if (kind === 'cli') {

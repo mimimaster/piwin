@@ -87,8 +87,14 @@ export type CodeSearchConfig = {
   /** `backend: 'model'` — configured chat model used for the search loop. */
   model?: ModelRef;
   /**
-   * `backend: 'windsurf'` — keychain ref holding the Windsurf/Devin token.
+   * `backend: 'windsurf'` — secret ref holding the Windsurf/Devin token.
    * Preferred over {@link apiKeyEnv}: raw secrets never enter config files.
+   *
+   * Accepted forms (type stays `string`):
+   * - `keychain:<service>` — existing Host keychain lookup
+   * - `oauth:<providerId>` — Host resolves from `~/.piwin/pi-agent/auth.json`
+   *   (see {@link OAUTH_SECRET_REF_PREFIX}). Host-runtime may auto-fill
+   *   `oauth:devin` later; this field is still required here.
    */
   apiKeyRef?: string;
   /** `backend: 'windsurf'` — env var name fallback for the token. */
@@ -188,9 +194,33 @@ export function resolveCodeSearchConfig(
 }
 
 /**
+ * Prefix for `apiKeyRef` values resolved from Pi `auth.json`, e.g. `oauth:devin`.
+ * Distinct from `keychain:<service>`. Host-runtime resolves the token; contracts
+ * only parse the ref.
+ */
+export const OAUTH_SECRET_REF_PREFIX = 'oauth:' as const;
+
+export function isOauthSecretRef(ref: string): boolean {
+  return ref.startsWith(OAUTH_SECRET_REF_PREFIX) && ref.length > OAUTH_SECRET_REF_PREFIX.length;
+}
+
+/** Provider id after `oauth:`, or `undefined` when the ref is not that form. */
+export function oauthSecretRefProviderId(ref: string): string | undefined {
+  if (!isOauthSecretRef(ref)) {
+    return undefined;
+  }
+  const providerId = ref.slice(OAUTH_SECRET_REF_PREFIX.length);
+  return providerId.length > 0 ? providerId : undefined;
+}
+
+/**
  * Whether the configured backend has everything it needs to run. Used by
  * Settings and the tool registration path so a half-configured feature
  * reports itself instead of failing at call time.
+ *
+ * Windsurf is ready only when `apiKeyRef` or `apiKeyEnv` is set. An
+ * `oauth:devin` ref counts once present; empty refs stay not-ready even if a
+ * later Host layer can resolve the Devin OAuth account.
  */
 export function isCodeSearchBackendReady(config: ResolvedCodeSearchConfig): boolean {
   if (config.backend === 'windsurf') {

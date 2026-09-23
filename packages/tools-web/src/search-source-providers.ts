@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { SearchHit, WebSearchSource, WebSearchSourceAttempt } from '@piwin/contracts';
+import { createDevinProvider } from './devin-search-provider.js';
 
 export type SearchProviderOptions = {
   limit: number;
@@ -32,6 +33,9 @@ export function createProviderForSource(source: WebSearchSource, apiKey?: string
   }
   if (source.kind === 'http') {
     return createHttpProvider(source, apiKey);
+  }
+  if (source.kind === 'devin') {
+    return createDevinProvider(source, apiKey);
   }
   return createCliProvider(source);
 }

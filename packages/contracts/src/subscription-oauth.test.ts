@@ -21,6 +21,9 @@ describe('subscription oauth contracts', () => {
     expect(isV1SubscriptionProviderId('anthropic')).toBe(true);
     expect(isV1SubscriptionProviderId('xai')).toBe(true);
     expect(isV1SubscriptionProviderId('github-copilot')).toBe(true);
+    expect(isV1SubscriptionProviderId('devin')).toBe(true);
+    expect(isSubscriptionOauthProviderId('devin')).toBe(true);
+    expect(piOauthLoginProviderId('devin')).toBe('devin');
     expect(isV1SubscriptionProviderId('openrouter')).toBe(false);
     expect(isV1SubscriptionProviderId(CLAUDE_CODE_OAUTH_PROVIDER_ID)).toBe(false);
     expect(isSubscriptionOauthProviderId(CLAUDE_CODE_OAUTH_PROVIDER_ID)).toBe(true);

@@ -369,6 +369,37 @@ describe('CodeSearchPage', () => {
   });
 
 
+  it('uses the Devin subscription when the Devin login button is clicked', async () => {
+    const saveConfig = vi.fn(async () => true);
+    const contextValue = createContextValue({
+      config: createConfig({ codeSearch: { enabled: false, backend: 'windsurf' } }),
+      saveConfig,
+    });
+    await renderPage(contextValue);
+
+    const login = container.querySelector<HTMLButtonElement>(
+      '[data-testid="code-search-devin-login"]',
+    );
+    expect(login).not.toBeNull();
+    expect(login?.textContent).toContain('使用 Devin 登录');
+    expect(container.textContent).toContain('未填写 token 时使用 Devin 订阅（oauth:devin）。');
+    expect(container.querySelector('[data-testid="code-search-windsurf-token"]')).not.toBeNull();
+
+    await act(async () => {
+      login?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(saveConfig).toHaveBeenCalled();
+    const savedCall = saveConfig.mock.calls.at(-1) as [PiwinConfig] | undefined;
+    const saved = savedCall?.[0];
+    expect(saved?.codeSearch?.enabled).toBe(true);
+    expect(saved?.codeSearch?.backend).toBe('windsurf');
+    expect(saved?.codeSearch?.apiKeyRef).toBe('oauth:devin');
+    expect(saved?.codeSearch?.apiKeyEnv).toBeUndefined();
+  });
+
   it('auto-enables code_search when the Windsurf API key is saved', async () => {
     const storeProviderSecret = vi.fn(async () => 'keychain:piwin-code-search-windsurf');
     const saveConfig = vi.fn(async () => true);

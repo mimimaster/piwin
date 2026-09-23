@@ -114,8 +114,8 @@ describe('buildCodeSearchTool gating', () => {
     ).toBeUndefined();
   });
 
-  it('is absent when the windsurf backend has no token', () => {
-    expect(buildTool({ injectPort: false, config: { enabled: true, backend: 'windsurf' } })).toBeUndefined();
+  it('registers windsurf with an empty config by reusing the Devin oauth account', () => {
+    expect(buildTool({ injectPort: false, config: { enabled: true, backend: 'windsurf' } })).toBeDefined();
   });
 
   it('is absent when the selected model is not configured', () => {
@@ -124,15 +124,52 @@ describe('buildCodeSearchTool gating', () => {
 });
 
 describe('resolveCodeSearchBackend', () => {
-  it('explains why a windsurf backend is not ready', () => {
+  it('treats an empty windsurf config as ready via oauth:devin', () => {
     const readiness = resolveCodeSearchBackend({
       cwd: root,
       config: { enabled: true, backend: 'windsurf' },
     });
-    expect(readiness.ready).toBe(false);
+    expect(readiness.ready).toBe(true);
+  });
+
+  it('keeps an explicit windsurf apiKeyEnv instead of filling oauth:devin', async () => {
+    const secretReads: string[] = [];
+    let sawExplicitToken = false;
+    const readiness = resolveCodeSearchBackend({
+      cwd: root,
+      config: { enabled: true, backend: 'windsurf', apiKeyEnv: 'WINDSURF_API_KEY' },
+      env: { WINDSURF_API_KEY: 'explicit-env-token' },
+      readSecretByRef: async (ref) => {
+        secretReads.push(ref);
+        return null;
+      },
+      fetch: (async (_input, init) => {
+        const body = init?.body;
+        const raw = typeof body === 'string' ? body : body instanceof Uint8Array ? Buffer.from(body).toString('utf8') : '';
+        if (raw.includes('explicit-env-token')) {
+          sawExplicitToken = true;
+        }
+        if (raw.includes('oauth:devin')) {
+          throw new Error('oauth:devin was sent instead of the explicit env token');
+        }
+        return new Response(new Uint8Array(), { status: 401 });
+      }) as typeof fetch,
+    });
+    expect(readiness.ready).toBe(true);
     if (!readiness.ready) {
-      expect(readiness.reason).toContain('no token is configured');
+      return;
     }
+    await expect(
+      readiness.port({
+        systemPrompt: 's',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [],
+        timeoutMs: 1000,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toBeInstanceOf(Error);
+    expect(secretReads).toEqual([]);
+    expect(sawExplicitToken).toBe(true);
   });
 
   it('explains why a model backend is not ready', () => {
@@ -163,7 +200,8 @@ describe('resolveCodeSearchBackend', () => {
         model: { providerId: 'custom-openai', modelId: 'gpt-5-mini' },
       },
     });
-    expect(readiness.ready).toBe(false);
+    // Empty credentials auto-fill oauth:devin; they do not switch backend to model.
+    expect(readiness.ready).toBe(true);
   });
 });
 

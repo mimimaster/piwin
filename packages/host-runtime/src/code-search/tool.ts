@@ -77,18 +77,17 @@ export function resolveCodeSearchBackend(
     return { ready: false, reason: 'code_search is disabled' };
   }
   if (config.backend === 'windsurf') {
-    if (!config.apiKeyRef && !config.apiKeyEnv) {
-      return {
-        ready: false,
-        reason:
-          'code_search backend is windsurf but no token is configured (set apiKeyRef or apiKeyEnv in Settings → Code search)',
-      };
-    }
+    // Host-only: an empty windsurf config reuses the Devin OAuth account.
+    // Explicit apiKeyRef / apiKeyEnv still win. Contracts stay strict — empty
+    // refs are not-ready until this layer fills `oauth:devin`.
+    const apiKeyRef = config.apiKeyRef?.trim() || undefined;
+    const apiKeyEnv = config.apiKeyEnv?.trim() || undefined;
+    const resolvedApiKeyRef = apiKeyRef ?? (apiKeyEnv ? undefined : 'oauth:devin');
     return {
       ready: true,
       port: createWindsurfCompletionPort({
-        ...(config.apiKeyRef ? { apiKeyRef: config.apiKeyRef } : {}),
-        ...(config.apiKeyEnv ? { apiKeyEnv: config.apiKeyEnv } : {}),
+        ...(resolvedApiKeyRef ? { apiKeyRef: resolvedApiKeyRef } : {}),
+        ...(apiKeyEnv ? { apiKeyEnv } : {}),
         ...(options.readSecretByRef ? { readSecretByRef: options.readSecretByRef } : {}),
         ...(options.fetch ? { fetch: options.fetch } : {}),
         ...(options.env ? { env: options.env } : {}),

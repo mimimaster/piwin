@@ -17,6 +17,7 @@ import {
   materializeClaudeCodeCredentialFromAnthropic,
 } from './subscription-auth-credentials.js';
 import { thinkingLevelsFromPiMap } from './map-thinking-level.js';
+import { registerDevinOauthProvider } from './devin/register-devin-provider.js';
 
 export type SubscriptionCredentialType = 'oauth' | 'api_key';
 
@@ -148,6 +149,7 @@ type PiModelRuntimeLike = {
     allowNetwork: boolean;
     signal?: AbortSignal;
   }) => Promise<unknown>;
+  registerProvider?(id: string, config: object): void;
 };
 
 export type CreateSubscriptionAuthPortOptions = {
@@ -331,11 +333,15 @@ async function createDefaultRuntime(
   if (!piModule.ModelRuntime?.create) {
     throw new Error('Pi ModelRuntime export missing from @earendil-works/pi-coding-agent');
   }
-  return piModule.ModelRuntime.create({
+  const runtime = await piModule.ModelRuntime.create({
     authPath,
     ...(modelsPath !== undefined ? { modelsPath } : {}),
     ...SUBSCRIPTION_RUNTIME_CREATE_OPTIONS,
   });
+  if (typeof runtime.registerProvider === 'function') {
+    registerDevinOauthProvider({ registerProvider: runtime.registerProvider });
+  }
+  return runtime;
 }
 
 function mapPrompt(prompt: PiAuthPrompt): HostAuthPrompt {

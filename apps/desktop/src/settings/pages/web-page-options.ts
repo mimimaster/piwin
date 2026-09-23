@@ -25,6 +25,12 @@ export const SOURCE_KIND_OPTIONS: Array<{
     descriptionZh: '需要 API Key · 保存在 Host',
   },
   {
+    id: 'devin',
+    title: 'Devin',
+    description: 'Uses the Devin subscription',
+    descriptionZh: '使用 Devin 套餐登录',
+  },
+  {
     id: 'cli',
     title: 'Custom CLI',
     description: 'MCP-style command, args, and env — or an HTTP endpoint',

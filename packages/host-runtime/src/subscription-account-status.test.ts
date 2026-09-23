@@ -36,4 +36,12 @@ describe('buildSubscriptionAccounts', () => {
       )?.state,
     ).toBe('logged-out');
   });
+
+  it('marks a live devin oauth credential as logged-in', () => {
+    const accounts = buildSubscriptionAccounts(
+      [{ providerId: 'devin', type: 'oauth' }],
+      { providers: [] },
+    );
+    expect(accounts.find((account) => account.providerId === 'devin')?.state).toBe('logged-in');
+  });
 });

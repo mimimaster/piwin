@@ -81,7 +81,7 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     container = null;
   });
 
-  it('renders all 5 subscription providers plus separate Claude Code card', async () => {
+  it('renders subscription providers including Devin plus separate Claude Code card', async () => {
     const mockRequest = vi.fn(async (command) => {
       const ext = extensionListOk(command);
       if (ext) return ext;
@@ -105,6 +105,7 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
               { providerId: 'anthropic', surface: 'v1', state: 'logged-out' },
               { providerId: 'xai', surface: 'v1', state: 'logged-out' },
               { providerId: 'github-copilot', surface: 'v1', state: 'logged-out' },
+              { providerId: 'devin', surface: 'v1', state: 'logged-out' },
             ],
           },
         };
@@ -140,13 +141,17 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     expect(container!.querySelector('[data-testid="settings-oauth"]')).toBeTruthy();
     expect(container!.querySelector('[data-testid="subscription-accounts"]')).toBeTruthy();
 
-    for (const id of ['kimi-coding', 'openai-codex', 'anthropic', 'anthropic-claude-code', 'xai', 'github-copilot']) {
+    for (const id of ['kimi-coding', 'openai-codex', 'anthropic', 'anthropic-claude-code', 'xai', 'github-copilot', 'devin']) {
       const card = container!.querySelector(`[data-testid="subscription-account-${id}"]`);
       expect(card).toBeTruthy();
       const stateBadge = container!.querySelector(`[data-testid="subscription-account-state-${id}"]`);
       expect(stateBadge).toBeTruthy();
     }
     // Extension-path Claude sits under plain Claude in the same official list.
+    const devinCard = container!.querySelector('[data-testid="subscription-account-devin"]');
+    expect(devinCard?.textContent).toContain('Devin');
+    expect(devinCard?.textContent).toContain('非官方接口，账号风险自负');
+
     expect(container!.querySelector('[data-testid="claude-extension-oauth"]')).toBeNull();
     expect(
       container!.querySelector(

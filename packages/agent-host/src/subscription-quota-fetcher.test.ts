@@ -401,4 +401,37 @@ describe('fetchSubscriptionQuota', () => {
     expect(result.ok).toBe(true);
     expect(result.quota?.groups[0]?.windows[0]?.percentage).toBe(0);
   });
+
+  it('maps Devin GetUserStatus remaining percents from auth.json oauth', async () => {
+    const authPath = await writeAuth({
+      devin: { type: 'oauth', access: 'devin-session-token$x' },
+    });
+    const quota = await fetchSubscriptionQuota({
+      authPath,
+      providerId: 'devin',
+      nowMs: NOW,
+      fetchImpl: async (input, init) => {
+        expect(String(input)).toContain('SeatManagementService/GetUserStatus');
+        expect(init?.method).toBe('POST');
+        return jsonResponse({
+          userStatus: {
+            planStatus: {
+              dailyQuotaRemainingPercent: 75,
+              weeklyQuotaRemainingPercent: 50,
+              overageBalanceMicros: 2500000,
+            },
+          },
+          planInfo: { planName: 'Pro' },
+        });
+      },
+    });
+    expect(quota.error).toBeUndefined();
+    expect(quota.planType).toBe('Pro');
+    expect(quota.groups[0]?.windows[0]?.label).toBe('每日额度');
+    expect(quota.groups[0]?.windows[0]?.type).toBe('remaining');
+    expect(quota.groups[0]?.windows[0]?.percentage).toBe(75);
+    expect(quota.groups[0]?.windows[1]?.label).toBe('每周额度');
+    expect(quota.groups[0]?.windows[1]?.percentage).toBe(50);
+    expect(quota.payg?.usedText).toBe('$2.50');
+  });
 });

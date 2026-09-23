@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_CODE_SEARCH_EXCLUDE_PATHS,
+  OAUTH_SECRET_REF_PREFIX,
   createDefaultCodeSearchConfig,
   isCodeSearchBackendReady,
+  isOauthSecretRef,
+  oauthSecretRefProviderId,
   resolveCodeSearchConfig,
 } from './code-search.js';
 
@@ -124,6 +127,15 @@ describe('isCodeSearchBackendReady', () => {
         }),
       ),
     ).toBe(true);
+    expect(
+      isCodeSearchBackendReady(
+        resolveCodeSearchConfig({
+          enabled: true,
+          backend: 'windsurf',
+          apiKeyRef: 'oauth:devin',
+        }),
+      ),
+    ).toBe(true);
   });
 
   it('does not accept a model as windsurf credentials', () => {
@@ -133,5 +145,17 @@ describe('isCodeSearchBackendReady', () => {
       model: { providerId: 'custom-openai', modelId: 'gpt-5-mini' },
     });
     expect(isCodeSearchBackendReady(resolved)).toBe(false);
+  });
+});
+
+describe('oauth secret refs', () => {
+  it('parses oauth:<providerId> and rejects other forms', () => {
+    expect(OAUTH_SECRET_REF_PREFIX).toBe('oauth:');
+    expect(isOauthSecretRef('oauth:devin')).toBe(true);
+    expect(oauthSecretRefProviderId('oauth:devin')).toBe('devin');
+    expect(isOauthSecretRef('oauth:')).toBe(false);
+    expect(oauthSecretRefProviderId('oauth:')).toBeUndefined();
+    expect(isOauthSecretRef('keychain:piwin-code-search-windsurf')).toBe(false);
+    expect(oauthSecretRefProviderId('keychain:piwin-code-search-windsurf')).toBeUndefined();
   });
 });

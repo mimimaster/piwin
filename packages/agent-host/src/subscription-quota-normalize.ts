@@ -524,3 +524,78 @@ export function quotaErrorResult(
     error,
   });
 }
+
+
+/** Devin: POST GetUserStatus remaining percents (vendor remaining → card remaining). */
+export function normalizeDevinUsagePayload(
+  payload: Record<string, unknown>,
+  emailOrId?: string,
+  nowMs = Date.now(),
+): SubscriptionAccountQuota {
+  const userStatus = asRecord(payload.userStatus) ?? asRecord(payload.user_status);
+  const planInfo = asRecord(payload.planInfo) ?? asRecord(payload.plan_info);
+  const planStatus = asRecord(userStatus?.planStatus) ?? asRecord(userStatus?.plan_status);
+  const nestedPlan = asRecord(planStatus?.planInfo) ?? asRecord(planStatus?.plan_info);
+  const planName =
+    asString(planInfo?.planName) ??
+    asString(planInfo?.plan_name) ??
+    asString(nestedPlan?.planName) ??
+    asString(nestedPlan?.plan_name);
+  const hideDaily = planInfo?.hideDailyQuota === true || planInfo?.hide_daily_quota === true;
+  const hideWeekly = planInfo?.hideWeeklyQuota === true || planInfo?.hide_weekly_quota === true;
+  const dailyRemaining =
+    asFiniteNumber(planStatus?.dailyQuotaRemainingPercent) ??
+    asFiniteNumber(planStatus?.daily_quota_remaining_percent);
+  const weeklyRemaining =
+    asFiniteNumber(planStatus?.weeklyQuotaRemainingPercent) ??
+    asFiniteNumber(planStatus?.weekly_quota_remaining_percent);
+  const dailyReset = planStatus?.dailyQuotaResetAtUnix ?? planStatus?.daily_quota_reset_at_unix;
+  const weeklyReset = planStatus?.weeklyQuotaResetAtUnix ?? planStatus?.weekly_quota_reset_at_unix;
+  const overageMicros =
+    asFiniteNumber(planStatus?.overageBalanceMicros) ??
+    asFiniteNumber(planStatus?.overage_balance_micros);
+
+  const windows: QuotaWindow[] = [];
+  if (hideDaily) {
+    windows.push(disabledWindow('每日额度'));
+  } else if (dailyRemaining !== undefined) {
+    windows.push(
+      usedWindow({
+        id: 'daily',
+        label: '每日额度',
+        usedPercent: 100 - dailyRemaining,
+        ...(typeof dailyReset === 'string' || typeof dailyReset === 'number' ? { resetAt: dailyReset } : {}),
+        nowMs,
+        remainingStyle: true,
+      }),
+    );
+  }
+  if (hideWeekly) {
+    windows.push(disabledWindow('每周额度'));
+  } else if (weeklyRemaining !== undefined) {
+    windows.push(
+      usedWindow({
+        id: 'weekly',
+        label: '每周额度',
+        usedPercent: 100 - weeklyRemaining,
+        ...(typeof weeklyReset === 'string' || typeof weeklyReset === 'number' ? { resetAt: weeklyReset } : {}),
+        nowMs,
+        remainingStyle: true,
+      }),
+    );
+  }
+
+  const payg =
+    overageMicros !== undefined
+      ? { enabled: true, usedText: `$${(overageMicros / 1_000_000).toFixed(2)}` }
+      : undefined;
+
+  return {
+    providerId: 'devin',
+    ...(emailOrId ? { accountEmailOrId: emailOrId } : {}),
+    planType: titleCasePlan(planName, 'Devin'),
+    groups: [{ windows }],
+    ...(payg ? { payg } : {}),
+    lastUpdated: new Date(nowMs).toISOString(),
+  };
+}

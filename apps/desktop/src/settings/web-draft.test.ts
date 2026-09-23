@@ -209,6 +209,15 @@ describe('web draft conversion', () => {
     expect(draftToWeb(draft).searchProvider).toBe('none');
   });
 
+  it('creates a devin search source bound to the subscription secret', () => {
+    const source = createDraftSearchSource('devin', []);
+    expect(source.kind).toBe('devin');
+    expect(source.id).toBe('devin');
+    expect(source.apiKeyRef).toBe('oauth:devin');
+    expect(source.apiKeyEnv).toBe('');
+    expect(source.baseUrl).toBe('');
+  });
+
   it('creates unique draft source ids', () => {
     const first = createDraftSearchSource('tavily', []);
     const second = createDraftSearchSource('tavily', [first.id]);

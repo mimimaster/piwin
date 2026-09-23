@@ -12,6 +12,7 @@ const TESTABLE_KINDS = new Set<WebSearchTestableSourceKind>([
   'searxng',
   'cli',
   'http',
+  'devin',
 ]);
 
 function isTestableKind(kind: WebSearchSource['kind']): kind is WebSearchTestableSourceKind {

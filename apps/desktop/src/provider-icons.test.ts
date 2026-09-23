@@ -132,6 +132,11 @@ describe('ProviderIcon', () => {
     expect(copilot).toContain('data-provider-icon="github-copilot"');
     expect(copilot).toContain('data-provider-brand="GithubCopilot"');
     expect(copilot).toContain('<svg');
+
+    const devin = renderToStaticMarkup(createElement(ProviderIcon, { id: 'devin' }));
+    expect(devin).toContain('data-provider-icon="devin"');
+    expect(devin).toContain('data-provider-brand="Devin"');
+    expect(devin).toContain('<svg');
   });
 
   it('resolves official brand icons for new cloud providers: opencode-go, mimo, stepfun, volcengine', () => {

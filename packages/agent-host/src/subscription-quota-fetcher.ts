@@ -11,10 +11,12 @@ import {
   normalizeClaudeUsagePayload,
   normalizeCodexUsagePayload,
   normalizeCopilotUsagePayload,
+  normalizeDevinUsagePayload,
   normalizeGrokUsagePayload,
   normalizeKimiUsagePayload,
   quotaErrorResult,
 } from './subscription-quota-normalize.js';
+import { DEVIN_HOST, normalizeSessionToken } from './devin/protocol.js';
 import {
   asRecord,
   asString,
@@ -32,6 +34,7 @@ export {
   normalizeClaudeUsagePayload,
   normalizeCodexUsagePayload,
   normalizeCopilotUsagePayload,
+  normalizeDevinUsagePayload,
   normalizeGrokUsagePayload,
   normalizeKimiUsagePayload,
 } from './subscription-quota-normalize.js';
@@ -191,6 +194,8 @@ export async function fetchSubscriptionQuota(
           return fetchCopilotQuota(material, fetchImpl, nowMs);
         case 'kimi-coding':
           return fetchKimiQuota(material, fetchImpl, nowMs);
+        case 'devin':
+          return fetchDevinQuota(material, fetchImpl, nowMs);
         default:
           return quotaErrorResult(providerId, `不支持的套餐平台：${providerId}`, material.email, nowMs);
       }
@@ -370,6 +375,40 @@ async function fetchKimiQuota(
     }
   }
   throw lastError ?? new QuotaHttpError(404, '额度接口不存在或当前套餐未开放查询');
+}
+
+const DEVIN_QUOTA_URL = `${DEVIN_HOST}/exa.seat_management_pb.SeatManagementService/GetUserStatus`;
+
+async function fetchDevinQuota(
+  material: StoredOAuthMaterial,
+  fetchImpl: typeof fetch,
+  nowMs: number,
+): Promise<SubscriptionAccountQuota> {
+  const result = await fetchJson(fetchImpl, DEVIN_QUOTA_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'connect-protocol-version': '1',
+      Accept: 'application/json',
+      'User-Agent': PIWIN_UA,
+    },
+    body: JSON.stringify({
+      metadata: {
+        apiKey: normalizeSessionToken(material.accessToken),
+        ideName: 'devin',
+        ideVersion: '1.108.2',
+        extensionName: 'devin',
+        extensionVersion: '1.108.2',
+        locale: 'en',
+      },
+    }),
+  });
+  const json = requireOk(result, 'devin quota');
+  return normalizeDevinUsagePayload(
+    json,
+    material.email ?? extractEmailFromJwt(material.accessToken),
+    nowMs,
+  );
 }
 
 export async function resetSubscriptionQuota(

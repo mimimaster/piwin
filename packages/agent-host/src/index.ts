@@ -76,6 +76,8 @@ export {
   SUBSCRIPTION_RUNTIME_CREATE_OPTIONS,
   LIVE_CATALOG_REFRESH_TIMEOUT_MS,
 } from './subscription-auth.js';
+export { registerDevinOauthProvider } from './devin/register-devin-provider.js';
+export type { DevinModelRuntime } from './devin/register-devin-provider.js';
 export {
   copyOauthCredential,
   deleteOauthCredential,
@@ -102,6 +104,7 @@ export {
   normalizeGrokUsagePayload,
   normalizeClaudeUsagePayload,
   normalizeCopilotUsagePayload,
+  normalizeDevinUsagePayload,
   normalizeKimiUsagePayload,
   readOAuthMaterialFromAuthFile,
   formatFriendlyTimeAgoOrUntil,

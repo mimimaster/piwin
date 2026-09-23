@@ -309,7 +309,57 @@ export function CodeSearchPage(): ReactElement {
             </select>
           </FieldRow>
         ) : (
-          <WebSecretEditor
+          <>
+            <FieldRow
+              label={zh ? 'Devin 订阅' : 'Devin subscription'}
+              description={
+                zh
+                  ? '未填写 token 时使用 Devin 订阅（oauth:devin）。'
+                  : 'With no token, code search uses the Devin subscription (oauth:devin).'
+              }
+            >
+              <Button
+                variant="ghost"
+                size="compact"
+                disabled={settings.remoteSettingsReadOnly === true}
+                data-testid="code-search-devin-login"
+                onClick={() => {
+                  void (async () => {
+                    const next: CodeSearchConfig = {
+                      ...composeCodeSearchConfig(),
+                      enabled: true,
+                      backend: 'windsurf',
+                      apiKeyRef: 'oauth:devin',
+                    };
+                    delete next.apiKeyEnv;
+                    setDraft((current) => {
+                      const updated: CodeSearchConfig = {
+                        ...current,
+                        enabled: true,
+                        backend: 'windsurf',
+                        apiKeyRef: 'oauth:devin',
+                      };
+                      delete updated.apiKeyEnv;
+                      return updated;
+                    });
+                    if (!config) return;
+                    const ok = await saveConfig({ ...config, codeSearch: next });
+                    setInfo(
+                      ok
+                        ? zh
+                          ? '已改用 Devin 订阅（oauth:devin）并启用 code_search。手动 token 仍可在下方填写。'
+                          : 'code_search now uses the Devin subscription (oauth:devin). You can still paste a token below.'
+                        : zh
+                          ? '保存失败：无法写入配置文件。'
+                          : 'Save failed: could not write config.',
+                    );
+                  })();
+                }}
+              >
+                {zh ? '使用 Devin 登录' : 'Use Devin login'}
+              </Button>
+            </FieldRow>
+            <WebSecretEditor
             secretId={WINDSURF_SECRET_ID}
             apiKeyRef={draft.apiKeyRef ?? ''}
             apiKeyEnv={draft.apiKeyEnv ?? ''}
@@ -370,6 +420,7 @@ export function CodeSearchPage(): ReactElement {
             }}
             testId="code-search-windsurf-token"
           />
+          </>
         )}
       </section>
 

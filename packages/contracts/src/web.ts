@@ -13,6 +13,7 @@ export type WebSearchProvider =
   | 'searxng'
   | 'cli'
   | 'http'
+  | 'devin'
   | 'aggregate'
   | 'none';
 
@@ -23,6 +24,7 @@ const WEB_SEARCH_SOURCE_KINDS = [
   'searxng',
   'cli',
   'http',
+  'devin',
 ] as const;
 
 /** Built-in and user-defined search backends that tools-web can execute. */
@@ -44,7 +46,7 @@ export function isCustomWebSearchKind(
 /** Provider kinds that support a lightweight connectivity check from Settings. */
 export type WebSearchTestableSourceKind = Extract<
   WebSearchSourceKind,
-  'brave' | 'tavily' | 'searxng' | 'cli' | 'http'
+  'brave' | 'tavily' | 'searxng' | 'cli' | 'http' | 'devin'
 >;
 
 export type WebSearchTestInput = {

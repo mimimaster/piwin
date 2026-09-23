@@ -1,6 +1,9 @@
 /**
  * Resolve provider secrets without logging values.
- * Precedence: apiKeyRef (keychain, then Host file store) → apiKeyEnv → error.
+ * Precedence: apiKeyRef (oauth: from auth.json, else keychain, then Host file store) → apiKeyEnv → error.
+ *
+ * `oauth:<providerId>` is not a keychain entry. The token lives in
+ * `{piwinRoot}/pi-agent/auth.json` and is owned by login/logout.
  *
  * Remote Hosts (Linux NAS / server) have no macOS keychain. Shell-updated keys
  * persist under `~/.piwin/secrets/` on the Host so `secrets/set` works there.
@@ -9,8 +12,9 @@ import { spawn } from 'node:child_process';
 import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ModelProviderConfig } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
-import { getPiwinRoot } from './paths.js';
+import { formatError, isOauthSecretRef, oauthSecretRefProviderId } from '@piwin/contracts';
+import { readOauthAccessToken } from '@piwin/agent-host';
+import { getPiwinPiAgentDir, getPiwinRoot } from './paths.js';
 
 export type SecretResolveStatus = 'ok' | 'missing' | 'error';
 
@@ -64,7 +68,7 @@ export function createSecretResolver(options: CreateSecretResolverOptions = {}):
 
   async function resolveProviderSecret(provider: ModelProviderConfig): Promise<string> {
     if (provider.apiKeyRef?.trim()) {
-      const fromRef = await readKeychain(provider.apiKeyRef.trim());
+      const fromRef = await readSecretByRef(provider.apiKeyRef);
       if (fromRef && fromRef.length > 0) {
         // First non-empty line is the active key (multi-key store).
         const firstLine = fromRef
@@ -116,7 +120,7 @@ export function createSecretResolver(options: CreateSecretResolverOptions = {}):
   async function reportProviderSecret(provider: ModelProviderConfig): Promise<SecretResolveReport> {
     try {
       if (provider.apiKeyRef?.trim()) {
-        const fromRef = await readKeychain(provider.apiKeyRef.trim());
+        const fromRef = await readSecretByRef(provider.apiKeyRef);
         if (fromRef && fromRef.length > 0) {
           return { providerId: provider.id, status: 'ok', source: 'keychain' };
         }
@@ -146,22 +150,45 @@ export function createSecretResolver(options: CreateSecretResolverOptions = {}):
     }
   }
 
+  function rejectOauthSecretRef(ref: string): void {
+    if (isOauthSecretRef(ref) || ref.startsWith('oauth:')) {
+      throw new Error(
+        `oauth secret refs are owned by auth.json login/logout and cannot be written or deleted via the secret store (${ref})`,
+      );
+    }
+  }
+
   async function writeSecretByRef(ref: string, secret: string): Promise<void> {
     const trimmedRef = ref.trim();
     const trimmedSecret = secret.trim();
     if (!trimmedRef) {
       throw new Error('keychain ref is required to store a secret');
     }
+    rejectOauthSecretRef(trimmedRef);
     if (!trimmedSecret) {
       throw new Error('secret is required');
     }
     await writeKeychain(trimmedRef, trimmedSecret);
   }
 
+  async function readOauthSecretRef(trimmedRef: string): Promise<string | null> {
+    const providerId = oauthSecretRefProviderId(trimmedRef)?.trim() ?? '';
+    if (!providerId) {
+      return null;
+    }
+    const authPath = join(getPiwinPiAgentDir(root), 'auth.json');
+    const token = await readOauthAccessToken(authPath, providerId);
+    return token && token.length > 0 ? token : null;
+  }
+
   async function readSecretByRef(ref: string): Promise<string | null> {
     const trimmedRef = ref.trim();
     if (!trimmedRef) {
       return null;
+    }
+    // OAuth tokens stay in auth.json. Never copy them into the keychain.
+    if (trimmedRef.startsWith('oauth:')) {
+      return readOauthSecretRef(trimmedRef);
     }
     return readKeychain(trimmedRef);
   }
@@ -171,6 +198,7 @@ export function createSecretResolver(options: CreateSecretResolverOptions = {}):
     if (!trimmedRef) {
       throw new Error('keychain ref is required to delete a secret');
     }
+    rejectOauthSecretRef(trimmedRef);
     await deleteKeychain(trimmedRef);
   }
 

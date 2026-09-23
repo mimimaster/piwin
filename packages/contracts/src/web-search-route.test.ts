@@ -3,6 +3,7 @@ import {
   DEFAULT_SEARCH_ROUTE_POLICY,
   inferSearchRoutePolicy,
   isSearchRoutePolicy,
+  isWebSearchSourceKind,
 } from './web.js';
 
 describe('inferSearchRoutePolicy', () => {
@@ -26,5 +27,12 @@ describe('inferSearchRoutePolicy', () => {
   it('rejects unknown policy strings', () => {
     expect(isSearchRoutePolicy('parallel')).toBe(false);
     expect(inferSearchRoutePolicy('parallel', [])).toBe('native-first');
+  });
+});
+
+describe('isWebSearchSourceKind', () => {
+  it('accepts Devin as a configured search source', () => {
+    expect(isWebSearchSourceKind('devin')).toBe(true);
+    expect(isWebSearchSourceKind('none')).toBe(false);
   });
 });

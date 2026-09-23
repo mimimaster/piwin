@@ -66,4 +66,27 @@ describe('testSearchSource', () => {
     });
     expect(result).toMatchObject({ sourceId: 'http', kind: 'http', resultCount: 1 });
   });
+
+  it('tests a Devin source with the host-resolved oauth key', async () => {
+    let posted = '';
+    vi.stubGlobal('fetch', (async (input: unknown, init?: RequestInit) => {
+      posted = String(input);
+      expect(init?.method).toBe('POST');
+      const body = JSON.parse(String(init?.body)) as { metadata?: { apiKey?: string } };
+      expect(body.metadata?.apiKey).toBe('tok');
+      return new Response(
+        JSON.stringify({
+          results: [{ title: 'piwin', url: 'https://example.com/piwin', snippet: 'test' }],
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch);
+
+    const result = await testSearchSource(
+      { id: 'devin', kind: 'devin', enabled: true },
+      { searchApiKeysBySourceId: { devin: 'tok' } },
+    );
+    expect(posted).toContain('server.codeium.com');
+    expect(result).toMatchObject({ sourceId: 'devin', kind: 'devin', resultCount: 1 });
+  });
 });

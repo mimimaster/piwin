@@ -11,6 +11,7 @@ export const V1_SUBSCRIPTION_PROVIDER_IDS = [
   'anthropic',
   'xai',
   'github-copilot',
+  'devin',
 ] as const;
 
 export type V1SubscriptionProviderId = (typeof V1_SUBSCRIPTION_PROVIDER_IDS)[number];
@@ -205,6 +206,7 @@ export type AuthProblemCode = (typeof AUTH_PROBLEM_CODES)[number];
 export const AUTH_LOGIN_IDLE_MS = 15 * 60 * 1000;
 export const AUTH_UPDATED_DEBOUNCE_MS = 100;
 export const CODEX_OAUTH_CALLBACK_PORT = 1455;
+export const DEVIN_OAUTH_CALLBACK_PORT = 59653;
 
 export const V1_SUBSCRIPTION_PROVIDER_META: Record<
   V1SubscriptionProviderId,
@@ -215,6 +217,7 @@ export const V1_SUBSCRIPTION_PROVIDER_META: Record<
   anthropic: { name: 'Claude', oauthOrigin: 'oauth://anthropic' },
   xai: { name: 'Grok', oauthOrigin: 'oauth://xai' },
   'github-copilot': { name: 'GitHub Copilot', oauthOrigin: 'oauth://github-copilot' },
+  devin: { name: 'Devin', oauthOrigin: 'oauth://devin' },
 };
 
 export const CLAUDE_CODE_OAUTH_PROVIDER_META = {

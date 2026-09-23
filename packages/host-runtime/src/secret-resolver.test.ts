@@ -105,4 +105,36 @@ describe('createSecretResolver', () => {
     });
     expect(await resolver.readProviderSecret('google-gemini')).toBeNull();
   });
+
+  it('reads oauth:devin from pi-agent/auth.json and never the keychain', async () => {
+    const { mkdir, mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const root = await mkdtemp(join(tmpdir(), 'piwin-oauth-secret-'));
+    const authDir = join(root, 'pi-agent');
+    await mkdir(authDir, { recursive: true });
+    await writeFile(
+      join(authDir, 'auth.json'),
+      JSON.stringify({
+        devin: { type: 'oauth', access: 'devin-session-token$test' },
+      }),
+      'utf8',
+    );
+    const keychainReads: string[] = [];
+    const resolver = createSecretResolver({
+      piwinRoot: root,
+      preferFileStore: true,
+      readKeychain: async (ref) => {
+        keychainReads.push(ref);
+        return 'should-not-be-used';
+      },
+    });
+    expect(await resolver.readSecretByRef('oauth:devin')).toBe('devin-session-token$test');
+    expect(keychainReads).toEqual([]);
+    expect(await resolver.readSecretByRef('oauth:')).toBeNull();
+    expect(await resolver.readSecretByRef('oauth:   ')).toBeNull();
+    expect(await resolver.readSecretByRef('oauth:missing')).toBeNull();
+    await expect(resolver.writeSecretByRef('oauth:devin', 'x')).rejects.toThrow(/oauth/);
+    await expect(resolver.deleteSecretByRef('oauth:devin')).rejects.toThrow(/oauth/);
+  });
 });
