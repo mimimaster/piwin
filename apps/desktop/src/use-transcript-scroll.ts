@@ -27,6 +27,13 @@ const OVERFLOW_EPSILON = 0.002;
  * programmatic stick flag is still set (race with rAF stick frames).
  */
 const USER_SCROLL_AWAY_DELTA_PX = 8;
+/**
+ * How long a user-toggled fold may keep resizing before follow-tail resumes.
+ * Fold bodies animate for 240ms (inkstone motion); two frames only covered the
+ * first ~33ms, so the rest of the expand re-pinned the tail and pushed the row
+ * the user just clicked out from under the pointer.
+ */
+export const LOCAL_FOLD_SETTLE_MS = 320;
 
 export type TranscriptScrollState = {
   followTail: boolean;
@@ -170,7 +177,7 @@ export function useTranscriptScroll(options: {
   const stickFramesRef = useRef<number[]>([]);
   /** Skip pin-to-end while a user-owned fold remasures (see beginLocalFoldLayout). */
   const suppressFollowStickRef = useRef(false);
-  const suppressStickFramesRef = useRef<number[]>([]);
+  const suppressStickTimerRef = useRef<number | null>(null);
   const previousLiveTurnIdRef = useRef<string | null>(null);
   /** Last observed scroll geometry — distinguishes user scroll from growth. */
   const lastScrollGeometryRef = useRef({ scrollTop: 0, scrollHeight: 0 });
@@ -202,25 +209,19 @@ export function useTranscriptScroll(options: {
   }, []);
 
   const cancelSuppressStickClear = useCallback(() => {
-    for (const frameId of suppressStickFramesRef.current) {
-      window.cancelAnimationFrame(frameId);
+    if (suppressStickTimerRef.current !== null) {
+      window.clearTimeout(suppressStickTimerRef.current);
+      suppressStickTimerRef.current = null;
     }
-    suppressStickFramesRef.current = [];
   }, []);
 
   const beginLocalFoldLayout = useCallback(() => {
     suppressFollowStickRef.current = true;
     cancelSuppressStickClear();
-    const frame1 = window.requestAnimationFrame(() => {
-      const frame2 = window.requestAnimationFrame(() => {
-        suppressFollowStickRef.current = false;
-        suppressStickFramesRef.current = suppressStickFramesRef.current.filter(
-          (id) => id !== frame1 && id !== frame2,
-        );
-      });
-      suppressStickFramesRef.current.push(frame2);
-    });
-    suppressStickFramesRef.current.push(frame1);
+    suppressStickTimerRef.current = window.setTimeout(() => {
+      suppressStickTimerRef.current = null;
+      suppressFollowStickRef.current = false;
+    }, LOCAL_FOLD_SETTLE_MS);
   }, [cancelSuppressStickClear]);
 
   const detachFromTail = useCallback(() => {
