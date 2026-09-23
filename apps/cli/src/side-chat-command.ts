@@ -25,6 +25,9 @@ import type {
 import { parseSessionContextSnapshot } from '@piwin/contracts';
 import { formatCliAgentErrorEvent } from './cli-agent-error.js';
 import { formatSessionContextOccupancy } from './context-command.js';
+import { formatError } from '@piwin/contracts';
+import { hasFlag, parseMock, parseMode, readOption } from './cli-args.js';
+import { createSideChatHostClient } from './cli-host-clients.js';
 
 /* ------------------------------------------------------------------ */
 /* Host client seam (testable)                                         */
@@ -247,10 +250,7 @@ function waitForSideChatRun(
           default:
             break;
         }
-      } else if (
-        message.type === 'run/terminal' &&
-        message.run.sessionId === sessionId
-      ) {
+      } else if (message.type === 'run/terminal' && message.run.sessionId === sessionId) {
         resolve(message.run.status);
       }
     });
@@ -294,4 +294,125 @@ export async function runSideChatResume(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export async function commandSideChat(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? '';
+  const mock = parseMock(argv);
+  const mode = parseMode(argv);
+
+  if (sub === 'list') {
+    const sourceSessionId = argv[2];
+    if (!sourceSessionId || sourceSessionId.startsWith('--')) {
+      console.error(
+        'Usage: piwin side-chat list <source-session-id> [--include-archived] [--mock]',
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const includeArchived = hasFlag(argv, '--include-archived');
+    const client = await createSideChatHostClient(mode, mock);
+    try {
+      await runSideChatList(client, sourceSessionId, console.log, {
+        ...(includeArchived ? { includeArchived: true } : {}),
+      });
+    } catch (error) {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'open') {
+    const sourceSessionId = argv[2];
+    if (!sourceSessionId || sourceSessionId.startsWith('--')) {
+      console.error(
+        'Usage: piwin side-chat open <source-session-id> [--name <name>] [--message <message-id>] [--mock]',
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const name = readOption(argv, '--name');
+    const sourceMessageId = readOption(argv, '--message');
+    const client = await createSideChatHostClient(mode, mock);
+    try {
+      await runSideChatOpen(client, sourceSessionId, console.log, {
+        ...(name ? { name } : {}),
+        ...(sourceMessageId ? { sourceMessageId } : {}),
+      });
+    } catch (error) {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'sync') {
+    const sideChatSessionId = argv[2];
+    if (!sideChatSessionId || sideChatSessionId.startsWith('--')) {
+      console.error('Usage: piwin side-chat sync <side-chat-session-id> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = await createSideChatHostClient(mode, mock);
+    try {
+      await runSideChatSync(client, sideChatSessionId, console.log);
+    } catch (error) {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'send') {
+    const sideChatSessionId = argv[2];
+    const text = argv
+      .slice(3)
+      .filter((arg) => !arg.startsWith('--'))
+      .join(' ');
+    if (!sideChatSessionId || !text || sideChatSessionId.startsWith('--')) {
+      console.error('Usage: piwin side-chat send <side-chat-session-id> <text> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = await createSideChatHostClient(mode, mock);
+    try {
+      await runSideChatSend(client, sideChatSessionId, text, console.log);
+    } catch (error) {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'resume') {
+    const sideChatSessionId = argv[2];
+    if (!sideChatSessionId || sideChatSessionId.startsWith('--')) {
+      console.error('Usage: piwin side-chat resume <side-chat-session-id> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = await createSideChatHostClient(mode, mock);
+    try {
+      await runSideChatResume(client, sideChatSessionId, console.log);
+    } catch (error) {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  console.error(`Unknown side-chat subcommand: ${sub || '(none)'}`);
+  console.error('Usage: piwin side-chat list|open|sync|send|resume');
+  process.exitCode = 1;
 }

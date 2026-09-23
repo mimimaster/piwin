@@ -11,6 +11,9 @@ import type {
   SessionContextSnapshot,
 } from '@piwin/contracts';
 import { parseSessionContextSnapshot } from '@piwin/contracts';
+import { openCliHost } from './cli-host.js';
+import { formatError } from '@piwin/contracts';
+import { parseMock, parseMode } from './cli-args.js';
 
 export type ContextHostClient = {
   handleCommand: (command: HostCommand) => Promise<HostResponse>;
@@ -32,8 +35,7 @@ export function formatContextSummary(data: ModelContextSummaryData): string {
     ];
     for (const item of summary.contributions) {
       const label = item.displayPath ?? item.label;
-      const itemTokens =
-        item.estimatedTokens === undefined ? '' : `\t~${item.estimatedTokens}`;
+      const itemTokens = item.estimatedTokens === undefined ? '' : `\t~${item.estimatedTokens}`;
       lines.push(`  ${item.kind}\t${label}${itemTokens}`);
     }
     return lines.join('\n');
@@ -64,8 +66,7 @@ export function formatSessionContextOccupancy(
   }
   const used = snapshot.occupancy.tokensUsed;
   const limit = snapshot.occupancy.tokensLimit;
-  const tokens =
-    typeof limit === 'number' ? `${used}/${limit}` : `${used}`;
+  const tokens = typeof limit === 'number' ? `${used}/${limit}` : `${used}`;
   return locale === 'zh-CN'
     ? `上下文占用\t${quality}\t${tokens}`
     : `context occupancy\t${quality}\t${tokens}`;
@@ -94,4 +95,24 @@ export async function runContextSummary(
     throw new Error(response.error);
   }
   write(formatContextSummary(response.data as ModelContextSummaryData));
+}
+
+export async function commandContext(argv: string[]): Promise<void> {
+  const sessionId = argv[1];
+  if (!sessionId || sessionId.startsWith('--')) {
+    console.error('Usage: piwin context <sessionId> [--mock]');
+    process.exitCode = 1;
+    return;
+  }
+  const mock = parseMock(argv);
+  const mode = parseMode(argv);
+  const runtime = await openCliHost({ mode, mock });
+  try {
+    await runContextSummary(runtime, sessionId, console.log);
+  } catch (error) {
+    console.error(formatError(error));
+    process.exitCode = 1;
+  } finally {
+    await runtime.dispose();
+  }
 }

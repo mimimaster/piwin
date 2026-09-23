@@ -22,6 +22,9 @@ import type {
   WalkthroughGenerateData,
   WalkthroughListData,
 } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
+import { parseMock, parseMode, readOption } from './cli-args.js';
+import { createWalkthroughHostClient } from './cli-host-clients.js';
 
 /* ------------------------------------------------------------------ */
 /* Host client seam (testable)                                         */
@@ -300,4 +303,78 @@ function waitForWalkthroughUpdated(
   };
 
   return { promise, cancel };
+}
+
+export async function commandWalkthrough(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? '';
+  const mock = parseMock(argv);
+  const mode = parseMode(argv);
+
+  if (sub === 'list') {
+    const sessionId = argv[2];
+    if (!sessionId || sessionId.startsWith('--')) {
+      console.error('Usage: piwin walkthrough list <session-id> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = await createWalkthroughHostClient(mode, mock);
+    try {
+      await runWalkthroughList(client, sessionId, console.log);
+    } catch (error) {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'generate') {
+    const sessionId = argv[2];
+    const messageId = argv[3];
+    if (!sessionId || !messageId || sessionId.startsWith('--') || messageId.startsWith('--')) {
+      console.error('Usage: piwin walkthrough generate <session-id> <message-id> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = await createWalkthroughHostClient(mode, mock);
+    try {
+      await runWalkthroughGenerate(client, sessionId, messageId, console.log);
+    } catch (error) {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'export') {
+    const sessionId = argv[2];
+    const messageId = argv[3];
+    if (!sessionId || !messageId || sessionId.startsWith('--') || messageId.startsWith('--')) {
+      console.error(
+        'Usage: piwin walkthrough export <session-id> <message-id> [--output <path>] [--mock]',
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const outputPath = readOption(argv, '--output');
+    const client = await createWalkthroughHostClient(mode, mock);
+    try {
+      await runWalkthroughExport(client, sessionId, messageId, console.log, {
+        ...(outputPath ? { outputPath } : {}),
+      });
+    } catch (error) {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  console.error(`Unknown walkthrough subcommand: ${sub || '(none)'}`);
+  console.error('Usage: piwin walkthrough list|generate|export');
+  process.exitCode = 1;
 }

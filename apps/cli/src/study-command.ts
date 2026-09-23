@@ -23,6 +23,9 @@ import {
   remoteCommandRequiresIdempotencyKey,
 } from '@piwin/contracts';
 import { createIdempotencyKey } from '@piwin/host-client';
+import { formatError } from '@piwin/contracts';
+import { parseMock, parseMode } from './cli-args.js';
+import { createStudyHostClient } from './cli-host-clients.js';
 
 export const STUDY_VERBS = [
   'catalog',
@@ -64,10 +67,7 @@ ${CLI_STUDY_NO_MOTION_NOTICE}`;
 export type StudyHostRequestOptions = { idempotencyKey?: string };
 
 export type StudyHostClient = {
-  handleCommand: (
-    command: HostCommand,
-    options?: StudyHostRequestOptions,
-  ) => Promise<HostResponse>;
+  handleCommand: (command: HostCommand, options?: StudyHostRequestOptions) => Promise<HostResponse>;
   dispose: () => Promise<void>;
 };
 
@@ -110,10 +110,7 @@ const RATINGS: ReadonlySet<string> = new Set(['again', 'hard', 'good', 'easy']);
 const FACES: ReadonlySet<string> = new Set(['question', 'answer']);
 
 export function formatStudyCatalogPage(page: FlashcardStudyCatalogPage): string {
-  const lines = [
-    CLI_STUDY_NO_MOTION_NOTICE,
-    `due=${page.dueCount}\tnew=${page.newCount}`,
-  ];
+  const lines = [CLI_STUDY_NO_MOTION_NOTICE, `due=${page.dueCount}\tnew=${page.newCount}`];
   if (page.unfinishedRounds.length === 0) {
     lines.push('unfinished\t(none)');
   } else {
@@ -239,7 +236,10 @@ function buildStudyCommand(verb: StudyVerb, argv: string[]): HostCommand {
     case 'start':
       return buildStart(argv);
     case 'get':
-      return { type: 'flashcards/study/get', roundId: requireStudyId(requireRoundId(argv), 'roundId') };
+      return {
+        type: 'flashcards/study/get',
+        roundId: requireStudyId(requireRoundId(argv), 'roundId'),
+      };
     case 'claim':
       return {
         type: 'flashcards/study/claim',
@@ -264,7 +264,10 @@ function buildStudyCommand(verb: StudyVerb, argv: string[]): HostCommand {
         roundId: requireStudyId(requireRoundId(argv), 'roundId'),
         expectedRevision: requireInt(argv, '--revision', 'revision'),
         controlEpoch: requireInt(argv, '--epoch', 'epoch'),
-        targetOperationId: requireStudyId(requireOption(argv, '--operation', 'operation'), 'operation'),
+        targetOperationId: requireStudyId(
+          requireOption(argv, '--operation', 'operation'),
+          'operation',
+        ),
       };
     case 'pause':
     case 'resume':
@@ -283,10 +286,14 @@ function buildStudyCommand(verb: StudyVerb, argv: string[]): HostCommand {
   }
 }
 
-function buildCatalog(argv: string[]): Extract<FlashcardStudyHostCommand, { type: 'flashcards/study/catalog' }> {
+function buildCatalog(
+  argv: string[],
+): Extract<FlashcardStudyHostCommand, { type: 'flashcards/study/catalog' }> {
   const limitRaw = readOption(argv, '--limit');
   const limit =
-    limitRaw === undefined ? FLASHCARD_STUDY_CATALOG_DEFAULT_LIMIT : parsePositiveInt(limitRaw, 'limit');
+    limitRaw === undefined
+      ? FLASHCARD_STUDY_CATALOG_DEFAULT_LIMIT
+      : parsePositiveInt(limitRaw, 'limit');
   const query = readOption(argv, '--query');
   const cursor = readOption(argv, '--cursor');
   const scopeFilter = parseCatalogScope(argv);
@@ -310,7 +317,9 @@ function parseCatalogScope(argv: string[]): FlashcardStudyScope | undefined {
   return undefined;
 }
 
-function buildStart(argv: string[]): Extract<FlashcardStudyHostCommand, { type: 'flashcards/study/start' }> {
+function buildStart(
+  argv: string[],
+): Extract<FlashcardStudyHostCommand, { type: 'flashcards/study/start' }> {
   const mode = parseStartMode(argv);
   return {
     type: 'flashcards/study/start',
@@ -383,7 +392,10 @@ function advanceBase(argv: string[]): {
     expectedRevision: requireInt(argv, '--revision', 'revision'),
     controlEpoch: requireInt(argv, '--epoch', 'epoch'),
     entryId: requireStudyId(requireOption(argv, '--entry', 'entry'), 'entryId'),
-    contentVersion: requireStudyId(requireOption(argv, '--content-version', 'content-version'), 'contentVersion'),
+    contentVersion: requireStudyId(
+      requireOption(argv, '--content-version', 'content-version'),
+      'contentVersion',
+    ),
   };
 }
 
@@ -405,10 +417,16 @@ function formatStudySuccess(verb: StudyVerb, data: unknown, key: string | undefi
   if (verb === 'operation') {
     return formatStudyOperation(data as FlashcardStudyOperationResult);
   }
-  return formatStudySnapshot(data as FlashcardStudySnapshot, key ? { idempotencyKey: key } : undefined);
+  return formatStudySnapshot(
+    data as FlashcardStudySnapshot,
+    key ? { idempotencyKey: key } : undefined,
+  );
 }
 
-function formatStudyFailure(verb: StudyVerb, response: Extract<HostResponse, { success: false }>): string {
+function formatStudyFailure(
+  verb: StudyVerb,
+  response: Extract<HostResponse, { success: false }>,
+): string {
   const code = response.problem?.code;
   const base = code ? `${code}: ${response.error}` : response.error;
   if (verb === 'rate') {
@@ -495,7 +513,11 @@ function positionals(argv: string[]): string[] {
     const token = argv[index];
     if (!token) continue;
     if (token.startsWith('--')) {
-      if (isValueOption(token) && argv[index + 1] !== undefined && !argv[index + 1]?.startsWith('--')) {
+      if (
+        isValueOption(token) &&
+        argv[index + 1] !== undefined &&
+        !argv[index + 1]?.startsWith('--')
+      ) {
         index += 1;
       }
       continue;
@@ -519,4 +541,18 @@ function readOption(argv: string[], name: string): string | undefined {
   const value = argv[index + 1];
   if (value === undefined || value.startsWith('--')) return undefined;
   return value;
+}
+
+export async function commandStudy(argv: string[]): Promise<void> {
+  const mock = parseMock(argv);
+  const mode = parseMode(argv);
+  const client = await createStudyHostClient(mode, mock);
+  try {
+    await runStudyCommand(client, argv, console.log);
+  } catch (error) {
+    console.error(formatError(error));
+    process.exitCode = 1;
+  } finally {
+    await client.dispose();
+  }
 }

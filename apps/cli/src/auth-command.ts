@@ -1,12 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
-import type { AuthPromptPayload, AuthStatusData, HostCommand, HostPush, HostResponse } from '@piwin/contracts';
+import type {
+  AuthPromptPayload,
+  AuthStatusData,
+  HostCommand,
+  HostPush,
+  HostResponse,
+} from '@piwin/contracts';
 import {
   AUTH_CLI_PROVIDER_IDS,
   getSubscriptionBillingNotice,
   isV1SubscriptionProviderId,
 } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
+import { createWalkthroughHostClient } from './cli-host-clients.js';
 
 function authCliLocale(): 'zh-CN' | 'en' {
   const lang = process.env.LANG ?? process.env.LC_ALL ?? '';
@@ -37,7 +45,9 @@ export async function runAuthCommand(client: AuthHostClient, argv: string[]): Pr
     }
     const data = response.data as AuthStatusData;
     for (const account of data.accounts) {
-      const collision = account.collidingChannelId ? ` collision=${account.collidingChannelId}` : '';
+      const collision = account.collidingChannelId
+        ? ` collision=${account.collidingChannelId}`
+        : '';
       console.log(`${account.providerId}\t${account.surface}\t${account.state}${collision}`);
       if (account.state === 'logged-in') {
         printSubscriptionBillingNotice(account.providerId);
@@ -185,5 +195,17 @@ async function respondToPrompt(
   });
   if (!respond.success) {
     throw new Error(respond.error ?? 'auth/respond failed');
+  }
+}
+
+export async function commandAuth(argv: string[]): Promise<void> {
+  const client = await createWalkthroughHostClient('sdk', false);
+  try {
+    await runAuthCommand(client, argv);
+  } catch (error) {
+    console.error(formatError(error));
+    process.exitCode = 1;
+  } finally {
+    await client.dispose();
   }
 }
