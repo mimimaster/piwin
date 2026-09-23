@@ -218,7 +218,7 @@ export function ArtifactPage(): ReactElement {
                       label={isZh ? '自定义决策提示词' : 'Custom decision prompt'}
                       description={
                         isZh
-                          ? '替换默认的 Artifact 触发与 surface 路由规则。留空时回退到默认策略。运行时契约（主题变量、布局约束）始终注入，不受此设置影响。'
+                          ? '替换默认的 Artifact 触发与显示位置规则。留空时回退到默认策略。运行时契约（主题变量、布局约束）始终注入，不受此设置影响。'
                           : 'Replaces the default artifact trigger and surface routing rules. Empty falls back to default. The runtime contract (theme variables, layout constraints) is always injected regardless.'
                       }
                       rows={14}

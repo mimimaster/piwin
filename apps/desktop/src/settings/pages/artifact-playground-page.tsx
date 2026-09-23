@@ -15,7 +15,6 @@ import { Button, TextArea } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { mapThemeToArtifactVariables } from '../../artifact-theme-map';
 import { ArtifactFrame } from '../../ArtifactFrame';
-import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 
 const SAMPLE_HTML = `<section style="font-family: system-ui; padding: 24px;">
@@ -101,14 +100,11 @@ export function ArtifactPlaygroundPage(): ReactElement {
 
   return (
     <div className="settings-card" data-testid="settings-artifact-playground">
-      <PageTitle
-        title={isZh ? 'Artifact 实验场' : 'Artifact Playground'}
-        description={
-          isZh
-            ? '粘贴 HTML/CSS/JS 代码，一键转换为沙箱化 Artifact 预览。无需模型参与，使用与聊天相同的 @piwin/artifact 管线。'
-            : 'Paste HTML/CSS/JS and instantly preview it as a sandboxed artifact. Uses the same @piwin/artifact pipeline as chat — no model required.'
-        }
-      />
+      <p className="muted" data-testid="playground-description">
+        {isZh
+          ? '粘贴 HTML/CSS/JS 代码，一键转换为沙箱化 Artifact 预览。无需模型参与，使用与会话相同的 Artifact 渲染引擎。'
+          : 'Paste HTML/CSS/JS and instantly preview it as a sandboxed artifact. Uses the same @piwin/artifact pipeline as chat — no model required.'}
+      </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
         {/* Toolbar */}
@@ -125,7 +121,7 @@ export function ArtifactPlaygroundPage(): ReactElement {
           <span style={{ flex: 1 }} />
           <span className="muted" style={{ fontSize: '0.8em' }}>
             {isZh
-              ? '内联 JS/CSS only · 无外部资源 · 最大 100KB'
+              ? '仅限内联 JS/CSS · 无外部资源 · 最大 100KB'
               : 'Inline JS/CSS only · No external resources · Max 100KB'}
           </span>
         </div>

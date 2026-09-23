@@ -755,7 +755,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     },
     composer: {
       dropFiles: '拖放文件或图片以添加上下文',
-      textOnlyModelWarning: '当前模型不支持图像。请切换到 Vision 模型，或开启视觉委派。',
+      textOnlyModelWarning: '当前模型不支持图像。请切换到 Vision 模型，或开启视觉委托。',
       openModelSettings: '模型设置',
       removeCommentAttachment: '移除评论附件',
       removeAttachment: '移除附件',
@@ -875,7 +875,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       supersededByNewPrompt: '任务被另一台设备发送的新消息中断',
       sessionBodyBusy: '这个会话正在整理或删除，请稍后再发',
       permissionAlreadyResolved: '这条权限已经在另一端处理过了',
-      requestDuplicateKey: '这次操作的幂等键和内容对不上，不要盲目重试',
+      requestDuplicateKey: '操作请求已被记录但内容不一致，请刷新后重试',
     },
     interruption: {
       agentWaiting: 'Agent 正等待你的回答',
@@ -1374,7 +1374,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
     },
     settings: {
       application: isChinese ? '应用' : 'Application',
-      agent: 'Agent',
+      agent: isChinese ? '智能体' : 'Agent',
       integrations: isChinese ? '集成' : 'Integrations',
       system: isChinese ? '系统' : 'System',
       personalization: isChinese ? '个性化' : 'Personalization',
@@ -1391,18 +1391,18 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       domainConflict: isChinese
         ? '这部分设置已被另一端改过，请先重新加载再保存'
         : 'Another client changed this settings page. Reload it before saving again.',
-      notesConflict: isChinese ? '这条笔记已被另一端改过' : 'Another client changed this note.',
-      todoConflict: isChinese ? '待办已被另一端改过' : 'Another client changed these todos.',
+      notesConflict: isChinese ? '此笔记已被另一端修改' : 'Another client changed this note.',
+      todoConflict: isChinese ? '待办事项已被另一端修改' : 'Another client changed these todos.',
       nav: {
         general: isChinese ? '通用与外观' : 'General & Appearance',
         notifications: isChinese ? '通知' : 'Notifications',
         models: isChinese ? '模型' : 'Models & Providers',
         oauth: isChinese ? 'OAuth 登录' : 'OAuth Login',
-        hooks: 'Hooks',
+        hooks: isChinese ? '事件钩子' : 'Hooks',
         extensions: isChinese ? '技能与扩展' : 'Skills & Extensions',
         agent: isChinese ? '智能体策略' : 'Agent & Workflows',
         knowledge: isChinese ? '知识库' : 'Knowledge & Embeddings',
-        web: isChinese ? '搜索与抓取' : 'Web Search & Fetch',
+        web: isChinese ? '网页搜索' : 'Web Search & Fetch',
         codeSearch: isChinese ? '代码搜索' : 'Code Search',
         session: isChinese ? '会话' : 'Sessions & Runtime',
         permissions: isChinese ? '权限与安全' : 'Security & Permissions',
@@ -1411,34 +1411,34 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         imageGeneration: isChinese ? '图像生成' : 'Image Generation',
         artifact: isChinese ? 'Artifact' : 'Artifact',
         artifactPlayground: isChinese ? 'Artifact 实验场' : 'Artifact Playground',
-        sessions: 'Walkthrough',
+        sessions: isChinese ? '交付报告' : 'Walkthrough',
         coldStorage: isChinese ? '冷存储' : 'Cold storage',
         runtime: isChinese ? '会话运行时' : 'Session Runtime',
         archive: isChinese ? '归档管理' : 'Archive Management',
         rules: isChinese ? '规则' : 'Rules',
-        skills: 'Skills',
-        tools: 'MCP',
+        skills: isChinese ? '技能' : 'Skills',
+        tools: isChinese ? 'MCP 工具' : 'MCP',
         plugins: isChinese ? '插件' : 'Plugins',
         prompts: isChinese ? 'Prompt 模板' : 'Prompt templates',
         automation: isChinese ? '自动化' : 'Automation',
-        agents: isChinese ? 'Agent' : 'Sub-agents',
+        agents: isChinese ? '子代理' : 'Sub-agents',
         subagents: isChinese ? '子代理编排' : 'Orchestration',
-        pets: isChinese ? '宠物' : 'Companion',
+        pets: isChinese ? '桌宠' : 'Companion',
         usage: isChinese ? '用量统计' : 'Usage',
         shortcuts: isChinese ? '快捷键' : 'Shortcuts',
         animations: isChinese ? '动效' : 'Animations',
       },
       web: {
-        searchRoute: isChinese ? '搜索路由' : 'Search route',
+        searchRoute: isChinese ? '搜索优先级' : 'Search route',
         searchRouteDescription: isChinese
-          ? '每次请求仅使用一种搜索渠道；若失败不会静默切换至其他渠道重试。'
+          ? '每次搜索仅使用一种通道，失败后不会自动切换至其他通道。'
           : 'Each generation uses one search outlet; a completed or failed request is never silently retried through the other outlet.',
         nativeSearchFirst: isChinese ? '模型内置搜索优先' : 'Native search first',
         externalSearchFirst: isChinese ? '外部搜索优先（默认）' : 'External search first (default)',
         nativeSearchOnly: isChinese ? '仅模型内置搜索' : 'Native search only',
         externalSearchOnly: isChinese ? '仅外部搜索' : 'External search only',
         previewRequestFailed: isChinese
-          ? '暂时无法计算搜索路由，已保留上一次成功的预览。'
+          ? '暂时无法计算搜索优先级，已保留上一次成功的预览。'
           : 'Could not resolve the search route right now; the last successful preview is still shown.',
       },
       provider: {
@@ -1486,7 +1486,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
             : `Using env var ${envName} (must be exported in the process).`,
         apiKeyEnvironment: isChinese ? 'API Key 环境变量名' : 'API key environment variable',
         apiKeyEnvironmentDescription: isChinese
-          ? 'RPC/Worker 模式使用。填写变量名，不要粘贴密钥；填写后将改用该环境变量。'
+          ? '多进程或容器部署时使用。填写变量名，不要粘贴密钥；填写后将改用该环境变量。'
           : 'For RPC/Worker mode. Enter the variable name, not the secret; setting it switches this provider to env auth.',
         enableProvider: isChinese ? '启用此提供商' : 'Enable provider',
         providerEnabledHint: isChinese ? '已加入全局模型列表' : 'Included in the global model list',
@@ -1553,7 +1553,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         modelNamePlaceholder: isChinese ? '例如 GPT-4.1' : 'e.g. GPT-4.1',
         modelGroupName: isChinese ? '分组名称' : 'Group name',
         modelGroupPlaceholder: isChinese ? '例如 ChatGPT' : 'e.g. ChatGPT',
-        modelTooltipLabel: isChinese ? '提示信息 (Tooltip)' : 'Tooltip (Markdown)',
+        modelTooltipLabel: isChinese ? '提示信息 (Markdown)' : 'Tooltip (Markdown)',
         modelTooltipPlaceholder: isChinese
           ? '例如：擅长代码与多步推理'
           : 'e.g. Strong at coding and multi-step reasoning',
@@ -1565,7 +1565,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         modelId: isChinese ? '模型 ID' : 'Model ID',
         modelDisplayName: isChinese ? '模型名称' : 'Model name',
         nativeSearch: isChinese ? '模型内置搜索' : 'Native search',
-        contextLimit: isChinese ? 'Context 上限' : 'Context token limit',
+        contextLimit: isChinese ? '上下文长度上限' : 'Context token limit',
         outputLimit: isChinese ? '最大输出' : 'Max output tokens',
         tooltipMarkdown: isChinese ? 'Tooltip Markdown' : 'Tooltip markdown',
         discoveryLabel: isChinese ? '获取模型列表' : 'Fetch model list',
@@ -1595,10 +1595,10 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       imageGeneration: {
         pageTitle: isChinese ? '图像生成' : 'Image Generation',
         pageDescription: isChinese
-          ? '从已勾选「生图」的模型里选默认值，并在这里调协议、路径和超时。'
+          ? '从已勾选「图像生成」的模型中选择默认值，并在此配置协议、路径与超时。'
           : 'Pick a default from models tagged Image, and tune their API style, path, and timeout here.',
         discoveryError: isChinese ? '模型发现失败。' : 'Model discovery failed.',
-        provider: isChinese ? '接口通道' : 'Provider',
+        provider: isChinese ? '服务商' : 'Provider',
         apiEndpoint: isChinese ? 'API 接口地址' : 'API endpoint',
         apiKey: isChinese ? 'API Key' : 'API key',
         apiKeyStoredKeychain: '••••••••',
@@ -1615,25 +1615,25 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         modelDescription: isChinese ? '模型介绍' : 'Model description',
         discoverModels: isChinese ? '获取模型' : 'Fetch models',
         discoveringModels: isChinese ? '获取中…' : 'Fetching…',
-        setDefault: isChinese ? '设为默认图片模型' : 'Set as default image model',
+        setDefault: isChinese ? '设为默认图像模型' : 'Set as default image model',
         editRoute: isChinese ? '配置协议' : 'Edit protocol',
         saveRoute: isChinese ? '保存协议' : 'Save protocol',
-        addModel: isChinese ? '保存图片模型' : 'Save image model',
+        addModel: isChinese ? '保存图像模型' : 'Save image model',
         saveHint: isChinese
-          ? '选中只是填入 ID，要点「保存图片模型」才写入配置。'
+          ? '选中仅填入 ID，点击「保存图像模型」后才会写入配置。'
           : 'Choosing only fills the ID — click “Save image model” to write it.',
         removeModel: isChinese ? '移除' : 'Remove',
         noModels: isChinese
-          ? '还没有生图模型。先到「模型配置」给模型勾上「生图」。'
+          ? '还没有图像生成模型。请先在「模型」中为模型启用「图像生成」。'
           : 'No image models yet. Tag a model with Image generation under Channels & chat.',
-        modelsHeading: isChinese ? '图片生成模型' : 'Image generation models',
+        modelsHeading: isChinese ? '图像生成模型' : 'Image generation models',
       },
       videoGeneration: {
         pageTitle: isChinese ? '视频生成' : 'Video Generation',
         pageDescription: isChinese
-          ? '从已勾选「视频」的模型里选默认值，并在这里调协议、路径、超时和轮询。'
+          ? '从已勾选「视频生成」的模型中选择默认值，并在此配置协议、路径、超时与轮询。'
           : 'Pick a default from models tagged Video, and tune their API style, path, timeout, and polling here.',
-        provider: isChinese ? '接口通道' : 'Provider',
+        provider: isChinese ? '服务商' : 'Provider',
         apiEndpoint: isChinese ? 'API 接口地址' : 'API endpoint',
         apiKey: isChinese ? 'API Key' : 'API key',
         apiKeyStoredKeychain: '••••••••',
@@ -1660,7 +1660,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         addModel: isChinese ? '添加视频模型' : 'Add video model',
         removeModel: isChinese ? '移除' : 'Remove',
         noModels: isChinese
-          ? '还没有视频模型。请先在「模型配置」里给对应模型勾选「视频」，并填写接口协议和请求路径。'
+          ? '还没有视频生成模型。请先在「模型」中为模型启用「视频生成」，并填写接口协议和请求路径。'
           : 'No video models yet. Tag a model with Video generation under Channels & chat, and set its API style and request path.',
         modelsHeading: isChinese ? '视频生成模型' : 'Video generation models',
         recognizedModels: isChinese ? '自动识别' : 'Recognized',

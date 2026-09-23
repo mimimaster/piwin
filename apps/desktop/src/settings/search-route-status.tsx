@@ -11,7 +11,7 @@ export type SearchRouteStatusProps = {
 const ISSUE_TRANSLATIONS_ZH: Record<string, string> = {
   'selected chat model is not tagged native-web-search': '当前选择的对话模型未标记“模型内置搜索”能力',
   'no enabled external search source': '未启用任何外部搜索源',
-  'no search backend is ready for the configured policy': '当前配置的路由策略下无可用搜索渠道',
+  'no search backend is ready for the configured policy': '当前配置的搜索优先级下无可用搜索渠道',
   'no chat model selected for native web search': '未选择对话模型',
   'selected chat model is disabled': '当前选择的对话模型已停用',
   'active Pi adapter cannot express provider-native web search for this model':
@@ -31,7 +31,7 @@ export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement |
   if (!props.preview) {
     return props.loading ? (
       <p className="muted" data-testid="search-route-loading">
-        {zh ? '正在计算搜索路由…' : 'Resolving search route…'}
+        {zh ? '正在计算搜索优先级…' : 'Resolving search route…'}
       </p>
     ) : null;
   }
@@ -44,7 +44,7 @@ export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement |
         : 'Provider-native search'
       : route.selected === 'external'
         ? zh
-          ? 'piwin 外部搜索'
+          ? '外部搜索'
           : 'External Host search'
         : zh
           ? '未启用搜索'

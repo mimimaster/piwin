@@ -379,9 +379,9 @@ export function parseWebSearchSourceInfo(providerId: string, isZh: boolean): Web
   if (providerId.startsWith('model-delegate:')) {
     const model = providerId.slice('model-delegate:'.length);
     return {
-      label: isZh ? '模型自带' : 'Model native',
+      label: isZh ? '模型内置' : 'Model native',
       kind: 'model',
-      title: isZh ? `模型自带搜索 (${model})` : `Model native search (${model})`,
+      title: isZh ? `模型内置搜索 (${model})` : `Model native search (${model})`,
     };
   }
   if (providerId.startsWith('aggregate:')) {

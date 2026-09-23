@@ -28,7 +28,7 @@ export const SOURCE_KIND_OPTIONS: Array<{
     id: 'cli',
     title: 'Custom CLI',
     description: 'MCP-style command, args, and env — or an HTTP endpoint',
-    descriptionZh: '和 MCP 一样填 command / args / env，或走 HTTP',
+    descriptionZh: '支持类似 MCP 的 command / args / env，或直接调用 HTTP 接口',
   },
 ];
 
@@ -37,13 +37,13 @@ export const FETCH_PROVIDER_OPTIONS = [
     id: 'supermarkdown' as const,
     title: 'Supermarkdown',
     description: 'Local HTML→Markdown · Free default',
-    descriptionZh: '本地 HTML 转换 · 默认免费',
+    descriptionZh: '本地 HTML→Markdown 转换 · 免费',
   },
   {
     id: 'jina' as const,
     title: 'Jina Reader',
     description: 'r.jina.ai — handles JS-rendered pages',
-    descriptionZh: 'r.jina.ai — 适合 JS 渲染',
+    descriptionZh: 'r.jina.ai — 适合动态渲染页面',
   },
   {
     id: 'firecrawl' as const,

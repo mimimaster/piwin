@@ -28,7 +28,7 @@ export type { ModelWorkspaceSummary } from './models-workspace-summary.js';
 function issueLabel(issue: ModelWorkspaceIssue, isChinese: boolean): string {
   switch (issue.kind) {
     case 'no-provider':
-      return isChinese ? '没有启用的接口' : 'No provider is enabled';
+      return isChinese ? '没有启用的服务商' : 'No provider is enabled';
     case 'no-chat-default':
       return isChinese ? '对话未设置默认模型' : 'No default chat model';
     case 'no-image-default':
@@ -83,7 +83,7 @@ export function ModelsPage(): ReactElement {
           readouts={[
             {
               value: `${summary.activeProviderCount}/${summary.providerCount}`,
-              label: isChinese ? '接口已启用' : 'channels on',
+              label: isChinese ? '服务商已启用' : 'channels on',
             },
             {
               value: `${summary.enabledModelCount}/${summary.modelCount}`,
@@ -123,8 +123,8 @@ export function ModelsPage(): ReactElement {
             <WorkspaceTab
               value="text"
               icon={<ModelCapabilityIcon kind="text" />}
-              title={isChinese ? '接口与对话' : 'Channels & chat'}
-              hint={`${isChinese ? '密钥、接口和对话默认模型' : 'Keys, endpoints, and chat default'} · ${summary.chatDefaultLabel ?? unsetLabel}`}
+              title={isChinese ? '服务商与对话' : 'Channels & chat'}
+              hint={`${isChinese ? '密钥、端点和对话默认模型' : 'Keys, endpoints, and chat default'} · ${summary.chatDefaultLabel ?? unsetLabel}`}
               count={summary.textModelCount}
               attention={attentionTabs.has('text')}
               testId="model-config-tab-text"
@@ -132,7 +132,7 @@ export function ModelsPage(): ReactElement {
             <WorkspaceTab
               value="vision"
               icon={<ModelCapabilityIcon kind="vision" />}
-              title={isChinese ? '视觉委派' : 'Vision'}
+              title={isChinese ? '视觉委托' : 'Vision'}
               hint={isChinese ? '纯文本模型的多模态图片转写' : 'Multimodal description for text models'}
               tone={config.visionDelegation?.enabled ? 'ok' : 'off'}
               testId="model-config-tab-vision"

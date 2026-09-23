@@ -391,7 +391,7 @@ export function WebPage(): ReactElement {
           onChange={(value) => setWebToolsTab(value as 'search' | 'fetch' | 'log')}
           data={[
             { value: 'search', label: zh ? '搜索' : 'Search' },
-            { value: 'fetch', label: 'Fetch' },
+            { value: 'fetch', label: zh ? '网页抓取' : 'Fetch' },
             { value: 'log', label: zh ? '调用日志' : 'Call log' },
           ]}
           testId="web-tools-tab"
@@ -411,7 +411,7 @@ export function WebPage(): ReactElement {
             <div className="web-tools-panel" data-testid="web-tools-search-panel">
               <div className="settings-section settings-section-card">
                 <Field
-                  label={zh ? 'web_search 委托模型' : 'web_search delegate model'}
+                  label={zh ? '搜索代理模型' : 'web_search delegate model'}
                   description={
                     zh
                       ? '可选：只显示已启用且标记“模型内置搜索”的模型。选择后，web_search 会调用该模型的内置搜索。'
@@ -426,7 +426,7 @@ export function WebPage(): ReactElement {
                       {
                         value: '',
                         label: zh
-                          ? '不委托（使用下方搜索源）'
+                          ? '不指定（使用下方搜索源）'
                           : 'No delegation (use search sources below)',
                       },
                       ...(webDraft.searchDelegateModel &&
@@ -436,7 +436,7 @@ export function WebPage(): ReactElement {
                         ? [
                             {
                               value: modelRefKey(webDraft.searchDelegateModel),
-                              label: zh ? '当前委托模型不可用' : 'Current delegate is unavailable',
+                              label: zh ? '当前代理模型不可用' : 'Current delegate is unavailable',
                               disabled: true,
                             },
                           ]
@@ -451,7 +451,7 @@ export function WebPage(): ReactElement {
                 {webDraft.searchDelegateModel ? (
                   <Notice tone="info" testId="web-search-delegate-active">
                     {zh
-                      ? '委托启用时，web_search 只调用所选模型；下方普通搜索源会保留配置，但不会同时请求。'
+                      ? '已指定代理模型时，搜索直接由该模型完成；下方搜索源仅在未指定代理模型时生效。'
                       : 'While delegation is enabled, web_search calls only the selected model. Ordinary sources below remain configured but are not queried.'}
                   </Notice>
                 ) : null}
@@ -459,10 +459,10 @@ export function WebPage(): ReactElement {
 
               <div className="settings-section settings-section-card">
                 <div className="settings-card-heading">
-                  <h4>{zh ? '搜索源渠道' : 'Search sources'}</h4>
+                  <h4>{zh ? '搜索源' : 'Search sources'}</h4>
                   <p className="muted">
                     {zh
-                      ? '搜索源在 Host 上执行。模型只看到统一的 web_search 工具。'
+                      ? '搜索在 Host 端执行，模型统一使用 web_search 工具获取结果。'
                       : 'Search sources execute on the Host. The model only sees one web_search tool.'}
                   </p>
                 </div>
@@ -669,22 +669,16 @@ export function WebPage(): ReactElement {
                     </FieldRow>
                   </div>
                 </details>
-
-                <p className="muted web-tools-tip" data-testid="web-search-quota-tip">
-                  {zh
-                    ? '提示：并行聚合会同时请求所有已选源，各自消耗搜索额度。自托管或需额外 Key 的服务，请用 Custom CLI 封装。'
-                    : 'Tip: parallel aggregation queries every selected source at once and uses each source’s quota. For self-hosted or key-gated services, wrap them with Custom CLI.'}
-                </p>
               </div>
             </div>
           ) : (
             <div className="web-tools-panel" data-testid="web-tools-fetch-panel">
               <div className="settings-section settings-section-card">
                 <Field
-                  label={zh ? 'web_fetch 聚焦提取模型' : 'web_fetch extract model'}
+                  label={zh ? '网页提取模型' : 'web_fetch extract model'}
                   description={
                     zh
-                      ? '可选：使用轻量对话模型提取与问题相关的重点段落（约 4,000 字符）。未配置或提取失败时回退为读取页面头部内容。'
+                      ? '可选：使用轻量对话模型提取与查询相关的重点内容。未配置或提取失败时回退为直接读取页面正文前段。'
                       : 'Optional: a small chat model extracts about 4,000 characters relevant to the query. Missing or failed extraction falls back to the page head.'
                   }
                 >
@@ -695,7 +689,7 @@ export function WebPage(): ReactElement {
                     data={[
                       {
                         value: '',
-                        label: zh ? '不提取（返回页面头部内容）' : 'No extract (return the page head)',
+                        label: zh ? '不提取（直接读取正文前段）' : 'No extract (return the page head)',
                       },
                       ...(webDraft.fetchDelegateModel &&
                       !fetchDelegateOptions.some(
@@ -719,7 +713,7 @@ export function WebPage(): ReactElement {
                 {webDraft.fetchDelegateModel ? (
                   <Notice tone="info" testId="web-fetch-delegate-active">
                     {zh
-                      ? '配置后，web_fetch 附带查询词时将提取重点内容；获取目录或分页时仍按固定字符截取。'
+                      ? '配置提取模型后，带查询词抓取时将智能提炼重点段落；未带查询词时仍按字符上限截取。'
                       : 'When set, web_fetch with query returns a focused excerpt. outline and offset still use the mechanical window.'}
                   </Notice>
                 ) : fetchDelegateOptions.length === 0 ? (
@@ -740,7 +734,7 @@ export function WebPage(): ReactElement {
                     testId="web-fetch-return-max-chars"
                   />
                 </FieldRow>
-                <FieldRow label={zh ? '缓存全文上限（字符）' : 'Cached extract (chars)'}>
+                <FieldRow label={zh ? '缓存提取上限（字符）' : 'Cached extract (chars)'}>
                   <TextInput
                     value={webDraft.fetchStoreMaxChars ?? ''}
                     onChange={(event) =>
@@ -762,19 +756,14 @@ export function WebPage(): ReactElement {
                     testId="web-fetch-cache-ttl-ms"
                   />
                 </FieldRow>
-                <p className="muted web-tools-tip">
-                  {zh
-                    ? '返回上限控制单次载入对话的最大字符数；完整缓存内容可通过 offset 偏移量续读，或在文件中检索全文。'
-                    : 'Return window is what one call injects. The cache can be longer — continue with offset or search spillPath.'}
-                </p>
               </div>
 
               <div className="settings-section settings-section-card">
                 <Field
-                  label={zh ? 'JS 站兜底' : 'JS-page fallback'}
+                  label={zh ? 'JS 渲染页面回退' : 'JS-page fallback'}
                   description={
                     zh
-                      ? '当本地解析提取到的正文内容过少时，自动使用 Jina 或本地 Chromium 重新抓取渲染结果。结果会标注实际使用的抓取服务。'
+                      ? '当本地直接解析提取到的正文内容过少时（如单页 SPA 应用），自动调用 Jina 或本地 Chromium 重新渲染抓取。'
                       : 'When the local extract looks empty (SPA / JS-rendered), retry once with Jina or local Chromium. The result names the provider that actually produced the text.'
                   }
                   className="web-search-route-field"
@@ -889,7 +878,7 @@ export function WebPage(): ReactElement {
                 >
                   {saveStatus === 'saving'
                     ? zh
-                      ? '正在保存...'
+                      ? '保存中…'
                       : 'Saving...'
                     : saveStatus === 'saved'
                       ? zh
@@ -923,7 +912,7 @@ export function WebPage(): ReactElement {
                 >
                   {saving
                     ? zh
-                      ? '保存中...'
+                      ? '保存中…'
                       : 'Saving...'
                     : zh
                       ? '保存更改'

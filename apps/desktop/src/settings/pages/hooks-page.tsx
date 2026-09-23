@@ -210,7 +210,7 @@ export function HooksPage(): ReactElement {
           title={isChinese ? '扩展拦截' : 'Extension intercepts'}
           description={
             isChinese
-              ? '已安装扩展中静态检测到的 pi.on 事件钩子（仅做展示，不会主动执行扩展代码）。'
+              ? '已安装扩展中检测到的事件钩子（仅作展示，不会主动执行扩展代码）。'
               : 'pi.on events detected in installed extension source. Modules are not executed.'
           }
         />

@@ -57,15 +57,15 @@ const CAPABILITY_LABEL_EN: Record<string, string> = {
 
 const CAPABILITY_NOTE_ZH: Record<string, string> = {
   'Host path is shell preview; interactive PTY is Tauri desktop (ADR 0013)':
-    'Host 路径为 Shell 预览；交互 PTY 由 Tauri 桌面提供（ADR 0013）',
-  'Hooks are post-event only; optional': 'Hooks 仅 post-event；可选',
+    'Host 路径为 Shell 预览；交互式终端由桌面端提供',
+  'Hooks are post-event only; optional': '事件钩子仅在事件结束后触发；可选',
   'Host mode is SDK (in-process)': '运行模式为 SDK（进程内）',
   'RPC host uses SDK session backend': 'RPC 模式使用 SDK 会话后端',
   'Use SDK host mode (or live RPC with SDK fallback)': '使用 SDK 模式（或带 SDK 回退的 RPC）',
   'Not available': '不可用',
   'Superseded by real PTY': '已被真实 PTY 取代',
   'RPC mode: SDK backend (no process isolation)': 'RPC 模式：SDK 后端（无进程隔离）',
-  'Mock RPC — isolation not simulated': 'Mock RPC — 未模拟隔离',
+  'Mock RPC — isolation not simulated': '测试模式 — 未模拟隔离',
 };
 
 function localizeCapabilityNote(
@@ -246,7 +246,7 @@ export function GeneralPage(): ReactElement {
             { value: 'shortcuts', label: isChinese ? '快捷键' : 'Shortcuts' },
             {
               value: 'pets',
-              label: isChinese ? '灵动伴侣 (桌宠)' : 'Companion',
+              label: isChinese ? '桌宠' : 'Companion',
               disabled: !petsAvailable,
             },
           ]}
@@ -281,7 +281,7 @@ export function GeneralPage(): ReactElement {
           <Suspense
             fallback={
               <div className="deferred-surface-fallback" data-testid="settings-pets-loading">
-                <Spinner label={isChinese ? '正在加载灵动伴侣' : 'Loading companion'} />
+                <Spinner label={isChinese ? '正在加载桌宠' : 'Loading companion'} />
               </div>
             }
           >

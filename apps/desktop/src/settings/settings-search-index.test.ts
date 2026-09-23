@@ -12,6 +12,10 @@ describe('settings search index', () => {
     ['image-generation', 'models'],
     ['编排', 'subagents'],
     ['orchestration', 'subagents'],
+    ['渲染', 'artifact'],
+    ['playground', 'artifact'],
+    ['实验场', 'artifact'],
+    ['自动化', 'agent'],
     ['通知', 'notifications'],
     ['badge', 'notifications'],
   ])('routes %s to %s', (query, id) => {

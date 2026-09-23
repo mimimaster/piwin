@@ -43,9 +43,9 @@ function patternPlaceholder(kind: VisualRuleRow['kind'], isChinese: boolean): st
     case 'git':
       return isChinese ? '命令模式' : 'command pattern';
     case 'file-write':
-      return isChinese ? '路径 glob' : 'path glob';
+      return isChinese ? '路径匹配模式' : 'path glob';
     case 'web-fetch':
-      return isChinese ? '主机 glob' : 'host glob';
+      return isChinese ? '域名匹配模式' : 'host glob';
     default:
       return '';
   }
@@ -110,7 +110,7 @@ export function PermissionRulesEditor(): ReactElement | null {
         return;
       }
       if (next.version !== 1) {
-        setError(isChinese ? 'version 必须是 1。' : 'version must be 1.');
+        setError(isChinese ? '规则版本号必须是 1。' : 'version must be 1.');
         return;
       }
       applyRules(next);
@@ -140,7 +140,7 @@ export function PermissionRulesEditor(): ReactElement | null {
         title={isChinese ? '全局规则' : 'Global rules'}
         description={
           isChinese
-            ? '按层编辑拒绝 / 询问 / 允许。文件在 Host 上；保存后由 Host 写入。'
+            ? '按层编辑拒绝 / 询问 / 允许规则。点击下方保存后写入生效。'
             : 'Edit deny / ask / allow rows. The file lives on the Host; saving asks the Host to write it.'
         }
       />
@@ -211,7 +211,7 @@ export function PermissionRulesEditor(): ReactElement | null {
                 }}
                 disabled={saving}
               >
-                {isChinese ? `添加${tierLabel(tier, isChinese)}` : `Add ${tier}`}
+                {isChinese ? `添加${tierLabel(tier, isChinese)}规则` : `Add ${tier}`}
               </Button>
             </div>
           );

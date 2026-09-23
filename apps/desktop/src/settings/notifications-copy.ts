@@ -64,8 +64,8 @@ const ZH: NotificationsCopy = {
   badgeDescription: '用应用图标角标显示未处理的完成、失败或待批准会话数。不受总开关影响。',
   soundLabel: '提示音',
   soundDescription: '系统通知附带声音。',
-  bounceOnNeedsInputLabel: '需要批准时提醒应用图标',
-  bounceOnNeedsInputDescription: '窗口不在前台且需要你批准时，提醒应用图标。',
+  bounceOnNeedsInputLabel: '需要批准时闪烁应用图标',
+  bounceOnNeedsInputDescription: '窗口不在前台且需要你批准时，在程序坞中跳动或闪烁应用图标。',
 };
 
 const EN: NotificationsCopy = {

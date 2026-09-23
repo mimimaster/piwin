@@ -86,7 +86,7 @@ export function VisionDelegationSettings(): ReactElement {
       };
       const ok = await saveConfig({ ...config, visionDelegation: next });
       if (ok) {
-        setInfo(isChinese ? '已保存视觉委派设置。' : 'Vision delegation settings saved.');
+        setInfo(isChinese ? '已保存视觉委托设置。' : 'Vision delegation settings saved.');
       }
     } catch (error) {
       setError(formatError(error));
@@ -146,7 +146,7 @@ export function VisionDelegationSettings(): ReactElement {
     <div data-testid="vision-delegation-settings">
       <section className="settings-section settings-section-card">
         <PageTitle
-          title={isChinese ? '视觉委派' : 'Vision Delegation'}
+          title={isChinese ? '视觉委托' : 'Vision Delegation'}
           description={
             isChinese
               ? '主模型只认文本时，先用视觉模型把图片转成文字描述。'
@@ -173,7 +173,7 @@ export function VisionDelegationSettings(): ReactElement {
             checked={draftEnabled}
             disabled={saving}
             onCheckedChange={setDraftEnabled}
-            aria-label={isChinese ? '启用视觉委派' : 'Enable vision delegation'}
+            aria-label={isChinese ? '启用视觉委托' : 'Enable vision delegation'}
             testId="vision-delegation-enabled"
           />
         </FieldRow>

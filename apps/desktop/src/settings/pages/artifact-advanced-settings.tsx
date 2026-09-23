@@ -29,7 +29,7 @@ export function ArtifactAdvancedSettings(props: ArtifactAdvancedSettingsProps): 
           label={props.isZh ? '拦截外部脚本' : 'Block external scripts'}
           description={
             props.isZh
-              ? '拦截带外部 src 的 script。关闭后仍受沙箱 CSP 约束。'
+              ? '拦截加载外部远程脚本。关闭后仍受沙箱安全策略保护。'
               : 'Block <script src> to other origins. Off still keeps the sandbox CSP.'
           }
           testId="artifact-block-scripts-row"

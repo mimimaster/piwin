@@ -1,19 +1,14 @@
 /**
  * Settings → Agent & Workflows page.
- * Automation, artifacts policy, and the artifact playground.
+ * Automation (cron jobs and event hooks) plus the live subagent inspector.
+ * Artifact policy and the playground are their own nav sections.
  * Orchestration schemes live in the dedicated `subagents` section.
  */
-import { useState, type ReactElement } from 'react';
-import { Button, SegmentedControl } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import type { ReactElement } from 'react';
 import { AutomationPanel } from '../../AutomationPanel';
 import { SubAgentPanel } from '../../SubAgentPanel';
-import { ArtifactPage } from './artifact-page';
-import { ArtifactPlaygroundPage } from './artifact-playground-page';
+import { useDesktopLocale } from '../../desktop-locale-context';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
-import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
-
-type AgentSubTab = 'automation' | 'artifact' | 'playground';
 
 export function AgentPage(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -31,75 +26,37 @@ export function AgentPage(): ReactElement {
   } = settings;
   const automationAvailable = settingsHostSupportsCommand(settings, 'cron/list');
 
-  const [activeTab, setActiveTab] = useState<AgentSubTab>(
-    automationAvailable ? 'automation' : 'artifact',
-  );
-  useResetSettingsMainScroll(activeTab);
-
   const liveChildren =
     activeSessionId && subagentChildren
       ? Object.values(subagentChildren).filter((child) => child.parentSessionId === activeSessionId)
       : undefined;
 
+  if (!automationAvailable) {
+    return (
+      <div className="settings-card" data-testid="settings-agent-hub">
+        <p className="muted" data-testid="agent-automation-unavailable">
+          {isChinese
+            ? '当前 Host 不支持自动化（缺少 cron/list）。'
+            : 'This Host does not support automation (cron/list is unavailable).'}
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="settings-card settings-hub-page agent-hub-page" data-testid="settings-agent-hub">
-      <div className="settings-hub-tabs">
-        <SegmentedControl
-          value={activeTab}
-          onChange={(val) => setActiveTab(val as AgentSubTab)}
-          data={[
-            {
-              value: 'automation',
-              label: isChinese ? '自动化与任务 (Automation)' : 'Automation',
-              disabled: !automationAvailable,
-            },
-            { value: 'artifact', label: isChinese ? '渲染 (Artifact)' : 'Artifact' },
-            { value: 'playground', label: isChinese ? 'Artifact 实验场' : 'Playground' },
-          ]}
-          testId="agent-subtabs-control"
+    <div className="settings-card" data-testid="settings-agent-hub">
+      <AutomationPanel projectPath={projectPath} request={requestAutomation} variant="inline" />
+      {requestSubAgent ? (
+        <SubAgentPanel
+          parentSessionId={activeSessionId}
+          request={requestSubAgent}
+          variant="embedded"
+          onOpenSession={(sessionId) => onOpenSubagentSession?.(sessionId)}
+          {...(liveChildren ? { children: liveChildren } : {})}
+          {...(subagentBatches ? { batches: subagentBatches } : {})}
+          {...(subagentInvocations ? { invocations: subagentInvocations } : {})}
         />
-      </div>
-
-      <div className="settings-hub-panels">
-      {activeTab === 'automation' && (
-        <div className="settings-card" data-testid="agent-tab-automation">
-          <AutomationPanel projectPath={projectPath} request={requestAutomation} variant="inline" />
-          {requestSubAgent ? (
-            <SubAgentPanel
-              parentSessionId={activeSessionId}
-              request={requestSubAgent}
-              variant="embedded"
-              onOpenSession={(sessionId) => onOpenSubagentSession?.(sessionId)}
-              {...(liveChildren ? { children: liveChildren } : {})}
-              {...(subagentBatches ? { batches: subagentBatches } : {})}
-              {...(subagentInvocations ? { invocations: subagentInvocations } : {})}
-            />
-          ) : null}
-        </div>
-      )}
-
-      {activeTab === 'artifact' && (
-        <div data-testid="agent-tab-artifact">
-          <ArtifactPage />
-          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              variant="ghost"
-              size="compact"
-              onClick={() => setActiveTab('playground')}
-              data-testid="artifact-goto-playground"
-            >
-              {isChinese ? '在 Artifact 实验场中调试 →' : 'Debug in Artifact Playground →'}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'playground' && (
-        <div data-testid="agent-tab-playground">
-          <ArtifactPlaygroundPage />
-        </div>
-      )}
-      </div>
+      ) : null}
     </div>
   );
 }

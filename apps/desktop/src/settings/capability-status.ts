@@ -32,6 +32,8 @@ export type CapabilityStatusInput = {
   config: PiwinConfig;
   /** Current runtime status of the active session (undefined when none). */
   runtimeStatus: SessionRuntimeStatus | undefined;
+  /** Optional UI locale to translate notes. Defaults to English for backwards compatibility. */
+  locale?: string;
   /** MCP/Process/Browser service health snapshots. */
   services?: {
     mcpRunning: boolean;
@@ -46,7 +48,8 @@ export type CapabilityStatusInput = {
  * stale runtime reports loaded=false so the UI can show Pending Changes.
  */
 export function resolveCapabilityStatuses(input: CapabilityStatusInput): CapabilityStatus[] {
-  const { config, runtimeStatus, services } = input;
+  const { config, runtimeStatus, locale, services } = input;
+  const isZh = locale === 'zh-CN' || locale === 'zh';
   const stale = runtimeStatus?.state === 'stale';
   const webConfig = config.web;
   const searchSourcesReady =
@@ -82,11 +85,11 @@ export function resolveCapabilityStatuses(input: CapabilityStatusInput): Capabil
       loaded: !stale,
       running: true,
       ...(!searchConfigured
-        ? { note: 'No search provider configured' }
+        ? { note: isZh ? '未配置搜索服务商' : 'No search provider configured' }
         : delegateRef && !delegateReady
-          ? { note: 'Configured web_search delegate model is unavailable' }
+          ? { note: isZh ? '已配置的搜索代理模型不可用' : 'Configured web_search delegate model is unavailable' }
           : !delegateRef && !searchSourcesReady
-            ? { note: 'No enabled search source is ready' }
+            ? { note: isZh ? '未配置或启用任何就绪的搜索源' : 'No enabled search source is ready' }
             : {}),
     },
     {
@@ -95,7 +98,7 @@ export function resolveCapabilityStatuses(input: CapabilityStatusInput): Capabil
       effective: mcpRunning,
       loaded: !stale,
       running: mcpRunning,
-      ...(mcpRunning ? {} : { note: 'No enabled MCP server is running' }),
+      ...(mcpRunning ? {} : { note: isZh ? '没有正在运行的已启用 MCP 服务' : 'No enabled MCP server is running' }),
     },
     {
       key: 'process',
@@ -110,7 +113,7 @@ export function resolveCapabilityStatuses(input: CapabilityStatusInput): Capabil
       effective: browserRunning,
       loaded: !stale,
       running: browserRunning,
-      ...(browserRunning ? {} : { note: 'Browser session not started' }),
+      ...(browserRunning ? {} : { note: isZh ? '浏览器会话未启动' : 'Browser session not started' }),
     },
     {
       key: 'imageGeneration',

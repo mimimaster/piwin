@@ -38,18 +38,18 @@ import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 function residencyLabel(residency: SessionRuntimeResidency | undefined, isZh: boolean): string {
   switch (residency) {
     case 'activating':
-      return isZh ? '启动中（Starting）' : 'Starting';
+      return isZh ? '启动中' : 'Starting';
     case 'resident-idle':
-      return isZh ? '就绪（Ready）' : 'Ready';
+      return isZh ? '就绪' : 'Ready';
     case 'resident-busy':
-      return isZh ? '忙碌（Busy）' : 'Busy';
+      return isZh ? '忙碌' : 'Busy';
     case 'suspending':
-      return isZh ? '挂起中（Suspending）' : 'Suspending';
+      return isZh ? '挂起中' : 'Suspending';
     case 'cold':
     case undefined:
       // Host projects cold for history-only sessions; treat missing as cold so
       // diagnostics never show a vague "Unknown" for a normal cold session.
-      return isZh ? '冷态（Cold）' : 'Cold';
+      return isZh ? '冷态' : 'Cold';
     default:
       return isZh ? '未知' : 'Unknown';
   }
@@ -336,22 +336,22 @@ export function SessionRuntimePage(): ReactElement {
         : 'No active session'
       : runtimeStatus.state === 'stale'
         ? isZh
-          ? '待更新（Stale）'
+          ? '待更新'
           : 'Stale'
         : runtimeStatus.state === 'rebuilding'
           ? isZh
-            ? '重建中（Rebuilding）'
+            ? '重建中'
             : 'Rebuilding'
           : runtimeStatus.state === 'failed'
             ? isZh
-              ? '重建失败（Failed）'
+              ? '重建失败'
               : 'Failed'
             : runtimeStatus.state === 'live'
               ? isZh
-                ? '运行中（Live）'
+                ? '运行中'
                 : 'Live'
               : isZh
-                ? '轻量外壳（Lazy shell）'
+                ? '轻量外壳'
                 : 'Lazy shell';
 
   const residencyValue = runtimeStatus?.residency;
@@ -414,7 +414,7 @@ export function SessionRuntimePage(): ReactElement {
                     ? '运行时正在重建，旧运行时仍负责当前调用。'
                     : 'Runtime is rebuilding; the previous runtime remains responsible for current calls.'
                   : isZh
-                    ? '设置已保存，但当前 Agent 仍在使用旧的运行时 schema。'
+                    ? '设置已保存，但当前 Agent 仍在使用旧的运行时配置。'
                     : 'Settings are saved, but the current Agent still uses the previous runtime schema.'}
             </p>
             {runtimeStatus.candidateError ? (
@@ -501,7 +501,7 @@ export function SessionRuntimePage(): ReactElement {
           label={isZh ? '可用内存下限 (MiB)' : 'Available memory floor (MiB)'}
           description={
             isZh
-              ? `默认 ${DEFAULT_MIN_AVAILABLE_MEMORY_MIB}，最大 ${MAX_MIN_AVAILABLE_MEMORY_MIB}，填 0 关闭。系统可用内存低于此值时拒绝执行 shell 命令，并提示模型改用串行参数重跑。上面的并发上限按“任务数”计数，拦不住单条命令自己 fork 出的一堆子进程（例如 pnpm test 拉起十个 vitest worker），这一项补的就是那一层。无法读取系统内存时不拦截。`
+              ? `默认 ${DEFAULT_MIN_AVAILABLE_MEMORY_MIB}，最大 ${MAX_MIN_AVAILABLE_MEMORY_MIB}，填 0 关闭。系统可用内存低于此阈值时拒绝执行 shell 命令，并提示模型改用串行执行。此项用于防止单条命令生成大量子进程耗尽系统资源。无法读取系统内存时不拦截。`
               : `Default ${DEFAULT_MIN_AVAILABLE_MEMORY_MIB}, max ${MAX_MIN_AVAILABLE_MEMORY_MIB}, 0 disables. Shell commands are refused while system available memory is below this, and the model is told to retry serially. The cap above counts runs, so it cannot see the subprocesses one command forks (a single \`pnpm test\` spawning ten vitest workers); this covers that layer. Never blocks when memory cannot be measured.`
           }
           testId="execution-min-memory-row"

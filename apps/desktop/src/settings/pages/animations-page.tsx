@@ -25,17 +25,18 @@ import { AgentLocator } from '../../agent-locator.js';
 import type { AgentLocatorAnimation } from '../../ui-preferences.js';
 
 const SIZE_VARIANT_GROUPS: ReadonlyArray<{
-  label: string;
+  labelZh: string;
+  labelEn: string;
   render: (size: AnimationSize) => ReactElement;
 }> = [
-  { label: '圆点呼吸', render: (s) => <BreathDot size={s} /> },
-  { label: '方块脉冲', render: (s) => <PulseBlock size={s} /> },
-  { label: '条形呼吸', render: (s) => <SolidBars size={s} /> },
-  { label: '变形有机体', render: (s) => <OrganicBlob size={s} /> },
-  { label: '呼吸矩阵', render: (s) => <BreathMatrix size={s} /> },
-  { label: '辐射风箱', render: (s) => <RadialBellow size={s} /> },
-  { label: '级联涟漪', render: (s) => <CascadeRipple size={s} /> },
-  { label: '星芒呼吸', render: (s) => <AsteriskBreath size={s} /> },
+  { labelZh: '圆点呼吸', labelEn: 'Breath Dot', render: (s) => <BreathDot size={s} /> },
+  { labelZh: '方块脉冲', labelEn: 'Pulse Block', render: (s) => <PulseBlock size={s} /> },
+  { labelZh: '条形呼吸', labelEn: 'Solid Bars', render: (s) => <SolidBars size={s} /> },
+  { labelZh: '变形有机体', labelEn: 'Organic Blob', render: (s) => <OrganicBlob size={s} /> },
+  { labelZh: '呼吸矩阵', labelEn: 'Breath Matrix', render: (s) => <BreathMatrix size={s} /> },
+  { labelZh: '辐射风箱', labelEn: 'Radial Bellow', render: (s) => <RadialBellow size={s} /> },
+  { labelZh: '级联涟漪', labelEn: 'Cascade Ripple', render: (s) => <CascadeRipple size={s} /> },
+  { labelZh: '星芒呼吸', labelEn: 'Asterisk Breath', render: (s) => <AsteriskBreath size={s} /> },
 ];
 
 const SIZES: readonly AnimationSize[] = ['sm', 'md', 'lg'] as const;
@@ -132,8 +133,8 @@ export function AnimationsPage(): ReactElement {
           />
           <div className="animations-sizes-table">
             {SIZE_VARIANT_GROUPS.map((group) => (
-              <div key={group.label} className="animations-sizes-row">
-                <span className="animations-sizes-label">{group.label}</span>
+              <div key={group.labelEn} className="animations-sizes-row">
+                <span className="animations-sizes-label">{isChinese ? group.labelZh : group.labelEn}</span>
                 <div className="animations-sizes-cells">
                   {SIZES.map((size) => (
                     <div key={size} className="animations-sizes-cell">

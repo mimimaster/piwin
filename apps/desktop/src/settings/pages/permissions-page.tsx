@@ -63,10 +63,10 @@ function getModeMeta(preset: PermissionPreset, isChinese: boolean): ModeMeta {
         badgeTone: 'zhu',
         tagline: isChinese ? '全速推进 · 跳过常规确认' : 'Full Throttle · Zero Friction',
         description: isChinese
-          ? '跳过常规确认，全速执行；仅 rm -rf 仍询问，deny 熔断仍拒绝。'
+          ? '跳过常规确认，全速执行；仅高危删除仍询问，拒绝规则仍强制生效。'
           : 'Skips routine confirmations. Only rm -rf still asks. Deny circuit breakers still apply.',
         features: isChinese
-          ? ['常规免确认', '仅拦 rm -rf', '硬性熔断兜底']
+          ? ['常规免确认', '仅拦高危删除', '硬性熔断兜底']
           : ['No routine prompts', 'rm -rf still asks', 'Hard breakers active'],
       };
   }
@@ -227,7 +227,7 @@ export function PermissionsPage(): ReactElement {
                   {' '}
                   —{' '}
                   {isChinese
-                    ? 'Ask 层规则优先于 allow 层规则（例如系统预置的 ~/.config/** 保护不可被工作区规则覆盖）。'
+                    ? '「询问」层规则优先于「允许」层规则（例如系统预置的 ~/.config/** 保护不可被工作区规则覆盖）。'
                     : 'Ask-tier rules beat allow-tier rules (e.g. bundled ~/.config/** ask cannot be allowed away by a more specific allow).'}
                 </span>
               </span>
@@ -272,7 +272,7 @@ export function PermissionsPage(): ReactElement {
                   {' '}
                   —{' '}
                   {isChinese
-                    ? '全局 deny 拒绝规则、高危破坏性命令拦截及路径越界防护在所有模式下强制生效。'
+                    ? '全局拒绝规则、高危破坏性命令拦截及路径越界防护在所有模式下强制生效。'
                     : 'Global deny rules, dangerous command blocks, and path traversal protection remain active in all modes.'}
                 </span>
               </span>
@@ -297,13 +297,13 @@ export function PermissionsPage(): ReactElement {
           {projectTrusted ? (
             <Notice tone="success" testId="settings-permission-trust-trusted">
               {isChinese
-                ? '当前项目已信任：项目 allow 规则生效，可使用 YOLO 模式。'
+                ? '当前项目已信任：项目允许规则生效，可使用 YOLO 模式。'
                 : 'This project is trusted: project allow rules apply and YOLO mode is available.'}
             </Notice>
           ) : (
             <Notice tone="warning" testId="settings-permission-trust-untrusted">
               {isChinese
-                ? '当前项目未信任：项目 allow 规则被忽略；YOLO 模式将被拒绝（降级为 Auto）。'
+                ? '当前项目未信任：项目允许规则被忽略；YOLO 模式将被禁用（自动降级为 Auto）。'
                 : 'This project is untrusted: project allow rules are ignored and YOLO mode is refused (downgraded to Auto).'}
             </Notice>
           )}
@@ -314,7 +314,7 @@ export function PermissionsPage(): ReactElement {
         <div className="settings-section">
           <Notice tone="warning" testId="settings-permission-bypass-refused">
             {isChinese
-              ? 'YOLO 模式对未信任项目被拒绝。请先信任项目，或切换到 Auto / Ask。'
+              ? '未信任项目无法使用 YOLO 模式。请先信任该项目，或切换到 Auto / Ask。'
               : 'YOLO mode is refused for untrusted projects. Trust the project first, or switch to Auto / Ask.'}
           </Notice>
         </div>

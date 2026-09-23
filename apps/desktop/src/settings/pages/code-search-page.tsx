@@ -180,7 +180,7 @@ export function CodeSearchPage(): ReactElement {
           title={zh ? '代码搜索' : 'Code search'}
           description={
             zh
-              ? 'code_search 与 grep / read 同级：内部跑一个只读搜索子代理，返回相关文件与行号范围。'
+              ? 'code_search 与 grep / read 同级：在后台运行只读搜索子代理，返回相关文件与行号范围。'
               : 'code_search sits alongside grep / read: a read-only search subagent returns relevant files and line ranges.'
           }
         />
@@ -206,7 +206,7 @@ export function CodeSearchPage(): ReactElement {
           {!draft.enabled ? (
             zh ? (
               <>
-                当前关闭：只配 Token/模型还不够，会话里不会出现 <code>code_search</code>。
+                当前关闭：只配置 Token / 模型还不够，会话中不会出现 <code>code_search</code>。
                 {backend === 'windsurf'
                   ? '保存 API Key 时会自动打开此开关；或手动打开后再点底部「保存」。'
                   : '选择搜索模型时会自动打开；或手动打开后再点底部「保存」。'}
@@ -223,13 +223,13 @@ export function CodeSearchPage(): ReactElement {
             zh ? <>已开启，但后端未就绪：{issue}</> : <>Enabled, but the backend is not ready: {issue}</>
           ) : !persistedEnabled ? (
             zh ? (
-              <>草稿已可保存，但 Host 配置里还没有启用记录。点下方「保存」写入；若保存报 Host 不支持，需更新并重启 Host。</>
+              <>草稿已可保存，但 Host 配置中尚未启用。点击下方「保存」写入；若提示 Host 不支持，需更新并重启 Host。</>
             ) : (
               <>Draft is ready, but the Host config does not yet have it enabled. Click Save below. If save says the Host cannot persist Code search, update and restart the Host.</>
             )
           ) : (
             zh ? (
-              <>已写入 Host。本轮结束后会换新 runtime，或开一个新会话；之后工具列表里应出现 <code>code_search</code>。</>
+              <>已写入 Host。本轮任务结束后运行时将自动更新，或新建会话使用；之后工具列表中将出现 <code>code_search</code>。</>
             ) : (
               <>Persisted on the Host. After the current run ends (or in a new session), <code>code_search</code> should appear in the tool list.</>
             )
@@ -242,7 +242,7 @@ export function CodeSearchPage(): ReactElement {
           title={zh ? '推理后端' : 'Reasoning backend'}
           description={
             zh
-              ? '本地命令执行两条后端一致；只有“谁来规划下一轮搜索”不同。'
+              ? '两种后端的本地命令执行一致，仅下一轮搜索的规划方式不同。'
               : 'Local command execution is identical either way; only who plans the next search round changes.'
           }
         />
@@ -250,7 +250,7 @@ export function CodeSearchPage(): ReactElement {
           label={zh ? '后端' : 'Backend'}
           description={
             zh
-              ? '默认用已配置的模型；也可填自己的 Windsurf / Devin token 走云端。'
+              ? '默认使用已配置的模型；亦可填入自己的 Windsurf / Devin Token 使用云端服务。'
               : 'Default uses a configured model; you may instead supply your own Windsurf / Devin token.'
           }
         >
@@ -375,14 +375,14 @@ export function CodeSearchPage(): ReactElement {
 
       <section className="settings-section settings-section-card">
         <PageTitle
-          title={zh ? '高级' : 'Advanced'}
+          title={zh ? '高级设置' : 'Advanced'}
           description={
             zh
-              ? '搜索循环的预算。默认值对齐参考实现，通常不需要改。'
+              ? '搜索循环的执行限额。默认值已做优化，通常无需调整。'
               : 'Budgets for the search loop. Defaults follow the reference implementation and rarely need changing.'
           }
         />
-        <FieldRow label={zh ? '调整预算' : 'Adjust budgets'}>
+        <FieldRow label={zh ? '高级搜索参数' : 'Adjust budgets'}>
           <Button variant="ghost" onClick={() => setAdvancedOpen((current) => !current)}>
             {advancedOpen ? (zh ? '收起' : 'Hide') : zh ? '展开' : 'Show'}
           </Button>
@@ -435,17 +435,17 @@ export function CodeSearchPage(): ReactElement {
               />
             </FieldRow>
             <FieldRow
-              label={zh ? '结果带代码片段' : 'Include code snippets'}
+              label={zh ? '包含代码片段' : 'Include code snippets'}
               description={
                 zh
-                  ? '关闭后只返回文件与行号范围。'
+                  ? '关闭后只返回文件路径与行号范围。'
                   : 'When off, only file paths and line ranges are returned.'
               }
             >
               <Switch
                 checked={draft.includeSnippets ?? true}
                 onCheckedChange={(checked) => patch({ includeSnippets: checked })}
-                aria-label={zh ? '结果带代码片段' : 'Include code snippets'}
+                aria-label={zh ? '包含代码片段' : 'Include code snippets'}
               />
             </FieldRow>
           </>

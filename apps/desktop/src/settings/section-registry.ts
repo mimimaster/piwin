@@ -19,6 +19,7 @@ export type SettingsSectionId =
   | 'hooks'
   | 'subagents'
   | 'agent'
+  | 'artifact'
   | 'extensions'
   | 'web'
   | 'code-search'
@@ -52,8 +53,9 @@ export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionI
 
   // Consolidated sections into Agent
   automation: 'agent',
-  artifact: 'agent',
-  'artifact-playground': 'agent',
+
+  // Playground lives inside the Artifact section (render pane first).
+  'artifact-playground': 'artifact',
 
   // Consolidated sections into Session
   runtime: 'session',
@@ -69,6 +71,8 @@ export type SettingsSectionMeta = {
   /** Key into translator.settings.nav — not always equal to the section id. */
   labelKey: keyof DesktopTranslator['settings']['nav'];
   beta?: boolean;
+  /** Registered and deep-linkable, but omitted from the settings sidebar. */
+  hidden?: boolean;
 };
 
 /** Nav order within each group follows array order. */
@@ -80,7 +84,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'oauth', group: 'agent', labelKey: 'oauth' },
   { id: 'hooks', group: 'agent', labelKey: 'hooks' },
   { id: 'subagents', group: 'agent', labelKey: 'subagents' },
-  { id: 'agent', group: 'agent', labelKey: 'agent' },
+  { id: 'agent', group: 'agent', labelKey: 'agent', hidden: true },
+  { id: 'artifact', group: 'agent', labelKey: 'artifact' },
   { id: 'extensions', group: 'integrations', labelKey: 'extensions' },
   { id: 'web', group: 'integrations', labelKey: 'web' },
   { id: 'code-search', group: 'integrations', labelKey: 'codeSearch' },
@@ -127,6 +132,11 @@ export function normalizeSettingsSection(value: string): SettingsSectionId {
 
 export function sectionsForGroup(group: SettingsGroupId): SettingsSectionMeta[] {
   return SETTINGS_SECTIONS.filter((section) => section.group === group);
+}
+
+/** Sidebar entries. Hidden sections stay registered for deep links. */
+export function visibleSettingsSections(): SettingsSectionMeta[] {
+  return SETTINGS_SECTIONS.filter((section) => section.hidden !== true);
 }
 
 /**

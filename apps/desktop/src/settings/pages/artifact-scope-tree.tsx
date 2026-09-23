@@ -37,14 +37,14 @@ function scopeCopy(isZh: boolean): readonly ScopeCopy[] {
       key: 'general',
       label: isZh ? '通用会话' : 'General chat',
       hint: isZh
-        ? '素笺等通用作用域会话。这里的开关只影响这一类会话。'
+        ? '首页与素笺等通用会话。此处的开关仅对该类会话生效。'
         : 'Conversation sessions in the general scope (Home / Clean Slate). These switches apply to that class only.',
     },
     {
       key: 'project',
       label: isZh ? '项目会话' : 'Project chat',
       hint: isZh
-        ? '项目文件夹内的 Agent 会话，包含 No Repo。'
+        ? '项目工作区内的 Agent 会话（含无 Git 仓库的项目）。'
         : 'Agent sessions inside a project folder, including No Repo.',
     },
   ];

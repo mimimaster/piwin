@@ -122,7 +122,7 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
         <Switch
           checked={draft.enabled}
           onCheckedChange={(enabled) => patch({ enabled })}
-          aria-label={isZh ? '启用 Embedding' : 'Enable embedding'}
+          aria-label={isZh ? '启用向量检索' : 'Enable embedding'}
           disabled={props.saving || props.readOnly}
           testId="knowledge-embedding-enabled"
         />

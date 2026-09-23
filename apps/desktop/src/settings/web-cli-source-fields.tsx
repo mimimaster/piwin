@@ -93,7 +93,7 @@ export function WebCliSourceFields(props: WebCliSourceFieldsProps): ReactElement
     <>
       <p className="muted web-cli-intro">
         {zh
-          ? '和添加 MCP 一样：command、args、env。搜索词写成 {{query}}。也可以改走 HTTP（Open WebUI External Search 那套）。'
+          ? '配置方式与 MCP 工具相同：command、args、env。搜索词使用 {{query}} 占位。亦可切换至 HTTP 接口（兼容 Open WebUI External Search 规范）。'
           : 'Same as adding an MCP server: command, args, env. Put {{query}} where the search text goes. Or use HTTP (Open WebUI External Search).'}
       </p>
       <SegmentedControl
@@ -202,7 +202,7 @@ export function WebCliSourceFields(props: WebCliSourceFieldsProps): ReactElement
           {looksLikeVersionPinnedNode(source.command) ? (
             <div className="web-cli-notice is-warn">
               {zh
-                ? 'command 绑死了某个 Node 版本。Host 通常没有 fnm：给脚本加 shebang，或点「选择脚本」。'
+                ? '命令固定了特定的 Node 路径。若 Host 环境未安装对应版本，建议为脚本添加 shebang 或点击「选择脚本」。'
                 : 'Command pins a Node version. Host usually lacks fnm — add a shebang, or choose the script.'}
             </div>
           ) : null}
@@ -246,7 +246,7 @@ export function WebCliSourceFields(props: WebCliSourceFieldsProps): ReactElement
           </div>
           {!commandLineHasQueryToken(source.command, args) ? (
             <div className="web-cli-notice is-warn">
-              {zh ? 'args 里还没有 {{query}}，Host 不知道查询词往哪插。' : 'Add {{query}} to args so Host can insert the search text.'}
+              {zh ? '参数中尚未包含 {{query}}，未指定查询词的插入位置。' : 'Add {{query}} to args so Host can insert the search text.'}
             </div>
           ) : null}
 
@@ -312,7 +312,7 @@ export function WebCliSourceFields(props: WebCliSourceFieldsProps): ReactElement
             <code className="web-cli-example-command">POST /search {'{ query, count }'}</code>
             <div className="web-cli-example-note">
               {zh
-                ? 'Open WebUI External Search 同款。已有搜索网关就用这个。'
+                ? '兼容 Open WebUI External Search 规范。已有统一搜索网关时推荐使用。'
                 : 'Same contract as Open WebUI External Search. Use this when you already have an HTTP API.'}
             </div>
           </button>
@@ -349,7 +349,7 @@ export function WebCliSourceFields(props: WebCliSourceFieldsProps): ReactElement
       {test.status === 'ok' ? (
         <div className="web-secret-test-result is-success" data-testid="web-search-cli-test-result">
           {zh
-            ? `解析到 ${test.resultCount} 条 hits · ${test.durationMs}ms`
+            ? `获取到 ${test.resultCount} 条搜索结果 · ${test.durationMs}ms`
             : `${test.resultCount} hits · ${test.durationMs}ms`}
         </div>
       ) : null}

@@ -66,7 +66,7 @@ const CARD_COPY: Record<OauthCardId, ProviderCardMeta> = {
   anthropic: {
     title: 'Claude',
     titleEn: 'Claude',
-    tagline: 'Pro/Max OAuth · 按 extra 计费',
+    tagline: 'Pro/Max OAuth · 按额外用量计费',
     taglineEn: 'Pro/Max OAuth · extra usage',
     login: '授权登录',
     loginEn: 'Connect',
@@ -74,7 +74,7 @@ const CARD_COPY: Record<OauthCardId, ProviderCardMeta> = {
   [CLAUDE_CODE_OAUTH_PROVIDER_ID]: {
     title: 'Claude',
     titleEn: 'Claude',
-    tagline: 'Pro/Max OAuth · 走的套餐',
+    tagline: 'Pro/Max OAuth · 套餐额度',
     taglineEn: 'Pro/Max OAuth · plan quota',
     login: '授权登录',
     loginEn: 'Connect',
@@ -103,7 +103,7 @@ function isClaudeFamilyId(providerId: string): boolean {
 
 const STATE_LABEL: Record<SubscriptionAccount['state'], { zh: string; en: string }> = {
   'logged-out': { zh: '未连接', en: 'Not connected' },
-  'logging-in': { zh: '连接中...', en: 'Connecting...' },
+  'logging-in': { zh: '连接中…', en: 'Connecting...' },
   'logged-in': { zh: '已连接', en: 'Connected' },
   'needs-reauth': { zh: '需重新登录', en: 'Re-auth required' },
   'sync-error': { zh: '同步失败', en: 'Sync failed' },
@@ -345,9 +345,9 @@ export function SubscriptionAccountsPanel(): ReactElement {
         const ok = await confirmDialog.confirm({
           title: isChinese ? '切换 Claude 登录方式' : 'Switch Claude login mode',
           description: isChinese
-            ? 'Claude extra 与扩展路径只能登录其中一个。继续将退出另一个 Claude 登录。'
+            ? 'Claude 额外用量模式与套餐路径只能登录其中一个。继续将退出当前登录。'
             : 'Only one Claude mode can be signed in. Continue will sign out the other Claude card.',
-          confirmLabel: isChinese ? '继续并顶掉另一个' : 'Continue and replace',
+          confirmLabel: isChinese ? '继续并替换当前登录' : 'Continue and replace',
           cancelLabel: isChinese ? '取消' : 'Cancel',
           tone: 'danger',
         });
@@ -680,7 +680,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
                   ) : (
                     <div className="oauth-inline-loading">
                       <span className="oauth-status-dot is-spinning" />
-                      <span>{isChinese ? '正在初始化授权流程...' : 'Initializing authorization...'}</span>
+                      <span>{isChinese ? '正在初始化授权流程…' : 'Initializing authorization...'}</span>
                     </div>
                   )}
                 </div>

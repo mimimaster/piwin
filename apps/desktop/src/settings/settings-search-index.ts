@@ -27,7 +27,11 @@ const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[
     '子代理', '编排', '方案',
   ],
   agent: [
-    'agent', 'automation', 'artifact', 'playground', '定时', '自动化', '产物', '工件',
+    'agent', 'automation', 'cron', '定时', '自动化', '任务',
+  ],
+  artifact: [
+    'artifact', 'render', 'canvas', 'inline', 'playground', 'sandbox', 'html', 'preview',
+    '产物', '工件', '渲染', '实验场', '沙箱', '预览',
   ],
   extensions: [
     'extension', 'extensions', 'skill', 'skills', 'tool', 'tools', 'mcp', 'plugin', 'plugins',

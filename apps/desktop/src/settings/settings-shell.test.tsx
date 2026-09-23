@@ -8,7 +8,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
-import { SETTINGS_SECTIONS } from './section-registry';
+import { SETTINGS_SECTIONS, visibleSettingsSections } from './section-registry';
 import { ensureSettingsLazyLoaded } from './settings-lazy-load';
 import { SettingsShell } from './settings-shell';
 import * as openExternalUrlModule from '../open-external-url.js';
@@ -49,13 +49,15 @@ describe('SettingsShell', () => {
     act(() => {
       root.render(<ShellHarness />);
     });
-    for (const section of SETTINGS_SECTIONS) {
+    for (const section of visibleSettingsSections()) {
       expect(
         container.querySelector(`[data-testid="settings-nav-${section.id}"]`),
         `nav item for ${section.id}`,
       ).not.toBeNull();
     }
-    expect(container.querySelectorAll('.settings-nav-item')).toHaveLength(SETTINGS_SECTIONS.length);
+    expect(container.querySelector('[data-testid="settings-nav-agent"]')).toBeNull();
+    expect(container.querySelectorAll('.settings-nav-item')).toHaveLength(visibleSettingsSections().length);
+    expect(visibleSettingsSections().length).toBe(SETTINGS_SECTIONS.length - 1);
   });
 
   it(
@@ -83,17 +85,37 @@ describe('SettingsShell', () => {
       expect(container.querySelector('[data-testid="settings-subagents-loading"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="settings-agent-hub"]')).toBeNull();
       expect(container.querySelector('[data-testid="agent-tab-subagents"]')).toBeNull();
+      expect(container.querySelector('[data-testid="settings-nav-agent"]')).toBeNull();
+    },
+    SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
+  );
 
-      const agentNav = container.querySelector<HTMLButtonElement>(
-        '[data-testid="settings-nav-agent"]',
-      );
-      expect(agentNav).not.toBeNull();
-      act(() => {
-        agentNav?.click();
+  it(
+    'keeps artifact policy and the playground in one nav section, policy first',
+    async () => {
+      await act(async () => {
+        root.render(<ShellHarness initialSection="artifact" />);
+        await ensureSettingsLazyLoaded();
       });
-      expect(container.querySelector('[data-testid="settings-agent-hub"]')).not.toBeNull();
-      expect(container.querySelector('[data-testid="agent-tab-subagents"]')).toBeNull();
-      expect(container.querySelector('[data-testid="settings-subagents-loading"]')).toBeNull();
+      expect(container.querySelector('[data-testid="settings-nav-artifact"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="settings-nav-artifact-playground"]')).toBeNull();
+      expect(container.querySelector('.settings-main-heading h1')?.textContent).toBe('Artifact');
+      expect(container.querySelector('[data-testid="settings-artifact"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="settings-artifact-playground"]')).toBeNull();
+      expect(container.querySelector('[data-testid="settings-agent-hub"]')).toBeNull();
+
+      const tabs = container.querySelector('[data-testid="artifact-subtabs-control"]');
+      expect(tabs?.textContent).toContain('Artifact');
+      expect(tabs?.textContent).toContain('实验场');
+      const playgroundTab = Array.from(tabs?.querySelectorAll('label, button, [role="radio"]') ?? []).find(
+        (node) => node.textContent?.includes('实验场'),
+      );
+      expect(playgroundTab).toBeTruthy();
+      act(() => {
+        (playgroundTab as HTMLElement).click();
+      });
+      expect(container.querySelector('[data-testid="settings-artifact-playground"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="artifact-tab-render"]')).toBeNull();
     },
     SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
   );

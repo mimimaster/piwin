@@ -46,7 +46,7 @@ export function KnowledgeRerankerTab(props: KnowledgeRerankerTabProps): ReactEle
     >
       <div className="knowledge-tab-panel-header">
         <PageTitle
-          title={isZh ? '二次重排 (Reranker)' : 'Precision Reranker'}
+          title={isZh ? '精准重排 (Reranker)' : 'Precision Reranker'}
           description={
             isZh
               ? '可选。开启后系统将先初步检索候选文档片段，再使用重排模型按语义相关度精细重新排序。'
@@ -103,7 +103,7 @@ export function KnowledgeRerankerTab(props: KnowledgeRerankerTabProps): ReactEle
         <Switch
           checked={extras.rerankerEnabled}
           onCheckedChange={(enabled) => patchExtras({ rerankerEnabled: enabled })}
-          aria-label={isZh ? '启用 Reranker' : 'Enable reranker'}
+          aria-label={isZh ? '启用精准重排' : 'Enable reranker'}
           testId="knowledge-reranker-enabled"
         />
       </FieldRow>

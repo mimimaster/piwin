@@ -172,7 +172,7 @@ function SessionLifecycleSection(): ReactElement {
       walkthrough: draft,
     };
     if (await saveConfig(next)) {
-      setInfo(isZh ? '已保存 WalkThrough 设置。' : 'WalkThrough settings saved.');
+      setInfo(isZh ? '已保存 Walkthrough 设置。' : 'Walkthrough settings saved.');
     } else {
       setInfo(isZh ? '保存失败：无法写入配置文件。' : 'Save failed: could not write config.');
     }
@@ -345,7 +345,7 @@ function SessionLifecycleSection(): ReactElement {
           title={isZh ? '会话摘要导出' : 'Session summary export'}
           description={
             isZh
-              ? '复制当前会话到临时上下文，复用 Pi compact 生成摘要并保存为 Markdown。原会话不会被压缩或改写。'
+              ? '复制当前会话到临时上下文，自动压缩生成摘要并导出为 Markdown。原会话不会被压缩或改写。'
               : 'Copy the current session into a temporary context, reuse Pi compact to create a Markdown summary, and leave the original session unchanged.'
           }
         />

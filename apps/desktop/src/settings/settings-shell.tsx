@@ -32,7 +32,7 @@ import {
   SETTINGS_GROUPS,
   SETTINGS_SECTIONS,
   getSettingsSection,
-  sectionsForGroup,
+  visibleSettingsSections,
   type SettingsSectionId,
 } from './section-registry';
 import { matchesSettingsSearch } from './settings-search-index.js';
@@ -169,6 +169,22 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       <path d="M20 14h2" />
       <path d="M15 13v2" />
       <path d="M9 13v2" />
+    </svg>
+  ),
+  artifact: (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect width="18" height="14" x="3" y="5" rx="2" />
+      <path d="M3 9h18" />
+      <path d="M8 13h4" />
     </svg>
   ),
   extensions: (
@@ -382,7 +398,7 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
     ? translator.settings.nav[activeSectionMeta.labelKey]
     : copy.settings;
   const hasSearchResults = SETTINGS_GROUPS.some((group) =>
-    sectionsForGroup(group.id).some((item) => {
+    visibleSettingsSections().filter((item) => item.group === group.id).some((item) => {
       if (!query) return true;
       const label = translator.settings.nav[item.labelKey]?.toLowerCase() ?? '';
       const groupLabel = translator.settings[group.labelKey]?.toLowerCase() ?? '';
@@ -476,12 +492,14 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
           </div>
           <nav className="settings-nav-list" aria-label={copy.settings}>
             {SETTINGS_GROUPS.map((group) => {
-              const groupSections = sectionsForGroup(group.id).filter((item) => {
-                if (!query) return true;
-                const label = translator.settings.nav[item.labelKey]?.toLowerCase() ?? '';
-                const groupLabel = translator.settings[group.labelKey]?.toLowerCase() ?? '';
-                return matchesSettingsSearch(query, item, [label, groupLabel]);
-              });
+              const groupSections = visibleSettingsSections()
+                .filter((item) => item.group === group.id)
+                .filter((item) => {
+                  if (!query) return true;
+                  const label = translator.settings.nav[item.labelKey]?.toLowerCase() ?? '';
+                  const groupLabel = translator.settings[group.labelKey]?.toLowerCase() ?? '';
+                  return matchesSettingsSearch(query, item, [label, groupLabel]);
+                });
               if (groupSections.length === 0) return null;
               return (
                 <div key={group.id} className="settings-nav-group">

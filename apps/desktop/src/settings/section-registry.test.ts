@@ -19,6 +19,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'hooks',
   'subagents',
   'agent',
+  'artifact',
   'extensions',
   'web',
   'code-search',
@@ -77,6 +78,10 @@ describe('section registry', () => {
     expect(normalizeSettingsSection('image-generation')).toBe('models');
     expect(normalizeSettingsSection('oauth')).toBe('oauth');
     expect(normalizeSettingsSection('hooks')).toBe('hooks');
+    expect(normalizeSettingsSection('artifact')).toBe('artifact');
+    expect(normalizeSettingsSection('artifact-playground')).toBe('artifact');
+    expect(isLegacySettingsSectionId('artifact')).toBe(false);
+    expect(isLegacySettingsSectionId('artifact-playground')).toBe(true);
     expect(isLegacySettingsSectionId('subagents')).toBe(false);
     expect(isSettingsSectionId('subagents')).toBe(true);
     expect(Object.keys(LEGACY_SETTINGS_REDIRECTS).length).toBeGreaterThanOrEqual(13);
