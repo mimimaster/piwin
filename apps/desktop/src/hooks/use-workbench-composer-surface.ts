@@ -112,7 +112,12 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     onSendWithComments,
     onSteer: composer.handleSteer,
     onFollowUp: composer.handleFollowUp,
-    onPause: session.handlePause,
+    onPause: () => {
+      // Snapshot before the pause lands: a prompt with no visible reply yet
+      // goes back to the composer once Host confirms the pause.
+      composer.notePauseRequested();
+      return session.handlePause();
+    },
     onResumeRun: session.handleResumeRun,
     onAbort: session.handleAbort,
     onCompact: session.handleCompact,

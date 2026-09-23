@@ -16,7 +16,7 @@ import { formatError } from '@piwin/contracts';
 import type { PendingComposerAttachment } from '../media-utils.js';
 import type { DesktopCopy, DesktopLocale } from '../desktop-locale.js';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import { hostFailureNotice } from '../host-problem-copy.js';
+import { hostFailureNotice, isStaleQueuedTurnError } from '../host-problem-copy.js';
 import type { SteerQueueMessage } from '../steer-queue-model';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import { normalizeCompactCustomInstructions, parseComposerSlashSubmit } from '../slash';
@@ -252,6 +252,7 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         .then((response) => {
           if (!response.success) {
             notifyError(hostFailureNotice(response, locale));
+            if (isStaleQueuedTurnError(response.error)) refreshQueuedTurnQueue(sessionId);
             return;
           }
           const cancelled = (response.data as { queuedTurn?: QueuedTurnRecord } | undefined)
@@ -262,7 +263,7 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         })
         .catch((error: unknown) => notifyError(formatError(error)));
     },
-    [args, notifyError],
+    [args, locale, notifyError, refreshQueuedTurnQueue],
   );
 
   const handleSteerQueueSendNow = useCallback(
@@ -310,6 +311,7 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         }
         if (!response.success) {
           notifyError(hostFailureNotice(response, locale));
+          if (isStaleQueuedTurnError(response.error)) refreshQueuedTurnQueue(sessionId);
           return;
         }
         const data = response.data as
@@ -326,7 +328,7 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         queuedSubmissions.current.delete(submissionKey);
       }
     },
-    [args, attachmentCopy, locale, notifyError],
+    [args, attachmentCopy, locale, notifyError, refreshQueuedTurnQueue],
   );
 
   const steerQueueMessages: SteerQueueMessage[] =

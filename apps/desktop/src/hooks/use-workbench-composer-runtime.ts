@@ -149,6 +149,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     handleSteerQueueRemove,
     queuedTurnEditId,
     cancelQueuedTurnEdit,
+    notePauseRequested,
   } = useComposerMedia({
     hostClient,
     state,
@@ -256,6 +257,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     handleSteerQueueRemove,
     queuedTurnEditId,
     cancelQueuedTurnEdit,
+    notePauseRequested,
   };
 }
 

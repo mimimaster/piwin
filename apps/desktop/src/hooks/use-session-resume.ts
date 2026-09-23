@@ -10,6 +10,7 @@ import type {
 } from '@piwin/contracts';
 import { parseSessionContextSnapshot } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
+import { requestQueuedTurnQueue } from '../queued-turn-queue-request.js';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
 import { pushError, pushInfo } from '../notification-queue';
@@ -94,30 +95,9 @@ export function useSessionResume(input: {
 
   const hydrateQueuedTurns = useCallback(
     async (sessionId: string, ticketMatches: () => boolean): Promise<void> => {
-      const response = await hostClient.request({
-        type: 'session/queued-turn-list',
-        sessionId,
-      });
-      if (!response.success || !ticketMatches()) return;
-      const data = response.data as
-        | {
-            queueRevision?: unknown;
-            queuedTurns?: unknown;
-          }
-        | undefined;
-      if (
-        data === undefined ||
-        !Number.isSafeInteger(data.queueRevision) ||
-        !Array.isArray(data.queuedTurns)
-      ) {
-        return;
-      }
-      dispatch({
-        type: 'session/queued-turns-hydrate',
-        sessionId,
-        queueRevision: data.queueRevision as number,
-        queuedTurns: data.queuedTurns as import('@piwin/contracts').QueuedTurnRecord[],
-      });
+      const hydrate = await requestQueuedTurnQueue(hostClient, sessionId);
+      if (hydrate === null || !ticketMatches()) return;
+      dispatch(hydrate);
     },
     [dispatch, hostClient],
   );

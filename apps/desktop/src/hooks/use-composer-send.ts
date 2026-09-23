@@ -34,6 +34,7 @@ import {
   requestPromptWithForeground,
 } from '../prompt-foreground';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
+import { requestQueuedTurnQueue } from '../queued-turn-queue-request.js';
 import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js';
 import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
 import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
@@ -219,25 +220,9 @@ export function useComposerSend(params: UseComposerSendArgs) {
 
   const refreshQueuedTurnQueue = useCallback(
     (sessionId: string): void => {
-      void args.hostClient
-        .request({ type: 'session/queued-turn-list', sessionId })
-        .then((response) => {
-          if (!response.success) return;
-          const data = response.data as
-            { queueRevision?: unknown; queuedTurns?: unknown } | undefined;
-          if (
-            data === undefined ||
-            !Number.isSafeInteger(data.queueRevision) ||
-            !Array.isArray(data.queuedTurns)
-          ) {
-            return;
-          }
-          args.dispatch({
-            type: 'session/queued-turns-hydrate',
-            sessionId,
-            queueRevision: data.queueRevision as number,
-            queuedTurns: data.queuedTurns as QueuedTurnRecord[],
-          });
+      void requestQueuedTurnQueue(args.hostClient, sessionId)
+        .then((hydrate) => {
+          if (hydrate !== null) args.dispatch(hydrate);
         })
         .catch((error: unknown) => {
           args.dispatch({ type: 'error', message: formatError(error) });
@@ -496,7 +481,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
           if (!supportsImage && !args.visionDelegationEnabled) {
             const message =
               '当前模型是纯文本（无视觉）。图片只会以本地路径字符串注入，模型看不到像素。' +
-              '请切换到带「视觉」标签的模型，或在设置里开启视觉委派。仍要发送吗？';
+              '请切换到带「视觉」标签的模型，或在设置里开启视觉委托。仍要发送吗？';
             if (args.confirmTextOnlyImageSend) {
               const ok = await args.confirmTextOnlyImageSend(message);
               if (!ok) {

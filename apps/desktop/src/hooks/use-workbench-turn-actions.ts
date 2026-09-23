@@ -13,7 +13,7 @@ import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
 import { isUnchangedCurrentTurnResend } from '../conversation-branch';
 import { pushError, type NotificationAction } from '../notification-queue';
-import { hostFailureNotice } from '../host-problem-copy.js';
+import { hostFailureNotice, isStaleInterventionError } from '../host-problem-copy.js';
 import { useDesktopLocale } from '../desktop-locale-context';
 
 export type UseWorkbenchTurnActionsArgs = {
@@ -80,7 +80,10 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
         input: { text },
       });
       if (!response.success) {
-        dispatchNotification(pushError(response.error));
+        dispatchNotification(pushError(hostFailureNotice(response, locale)));
+        // Host re-pushed the applied/ended record; the editor has nothing left
+        // to revise, and resending from it would branch instead.
+        if (isStaleInterventionError(response.error)) setEditingMessageId(null);
         return;
       }
       const responseData = response.data as { intervention?: RunInterventionRecord } | undefined;
@@ -96,6 +99,7 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
       dispatch,
       dispatchNotification,
       hostClient,
+      locale,
       setEditingMessageId,
       state.activeSessionId,
       state.messages,
@@ -122,7 +126,7 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
         expectedRevision: delivery.revision,
       });
       if (!response.success) {
-        dispatchNotification(pushError(response.error));
+        dispatchNotification(pushError(hostFailureNotice(response, locale)));
         return;
       }
       const responseData = response.data as { intervention?: RunInterventionRecord } | undefined;
@@ -133,7 +137,7 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
         });
       }
     },
-    [dispatch, dispatchNotification, hostClient, state.activeSessionId, state.messages],
+    [dispatch, dispatchNotification, hostClient, locale, state.activeSessionId, state.messages],
   );
 
   const handleEditAndResendMessage = useCallback(

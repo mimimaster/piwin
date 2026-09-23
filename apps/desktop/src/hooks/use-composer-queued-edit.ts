@@ -12,10 +12,12 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
-import type { PromptAttachment, QueuedTurnRecord } from '@piwin/contracts';
+import type { QueuedTurnRecord } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import type { DesktopCopy, DesktopLocale } from '../desktop-locale.js';
-import { hostFailureNotice } from '../host-problem-copy.js';
+import { hostFailureNotice, isStaleQueuedTurnError } from '../host-problem-copy.js';
+import { requestQueuedTurnQueue } from '../queued-turn-queue-request.js';
+import { chipsFromPromptAttachments } from '../composer-attachment-chips.js';
 import {
   isFailedMediaAttachment,
   isPendingAttachmentReady,
@@ -42,17 +44,6 @@ export type UseComposerQueuedEditArgs = {
   readResolvedComposerChips: () => PendingComposerAttachment[];
   saveDeferredMediaChips: (sessionId: string, chips: PendingComposerAttachment[]) => Promise<void>;
 };
-
-function chipsFromPromptAttachments(
-  attachments: readonly PromptAttachment[] | undefined,
-): PendingComposerAttachment[] {
-  return (attachments ?? []).map((attachment) => ({
-    localId: attachment.id,
-    attachment,
-    previewUrl: '',
-    uploadStatus: 'ready' as const,
-  }));
-}
 
 export function useComposerQueuedEdit(params: UseComposerQueuedEditArgs) {
   const {
@@ -212,6 +203,10 @@ export function useComposerQueuedEdit(params: UseComposerQueuedEditArgs) {
       });
       if (!response.success) {
         notifyError(hostFailureNotice(response, locale));
+        if (isStaleQueuedTurnError(response.error)) {
+          const hydrate = await requestQueuedTurnQueue(args.hostClient, sessionId);
+          if (hydrate !== null) args.dispatch(hydrate);
+        }
         return;
       }
       const updated = (response.data as { queuedTurn?: QueuedTurnRecord } | undefined)?.queuedTurn;

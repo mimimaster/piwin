@@ -24,6 +24,7 @@ import {
 import { useComposerQueuedEdit } from './use-composer-queued-edit.js';
 import { useComposerSend } from './use-composer-send.js';
 import { useComposerSteerQueue } from './use-composer-steer-queue.js';
+import { usePausedPromptRetract } from './use-paused-prompt-retract.js';
 import { parseComposerSlashSubmit } from '../slash';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
@@ -142,6 +143,15 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     saveDeferredMediaChips: attachments.saveDeferredMediaChips,
   });
 
+  const pausedPromptRetract = usePausedPromptRetract({
+    args,
+    setComposer,
+    composerRef,
+    pendingAttachmentsRef,
+    setPendingAttachments,
+    sessionComposerSnapshotsRef,
+  });
+
   const steerQueue = useComposerSteerQueue({
     args,
     locale,
@@ -229,5 +239,6 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     handleSteerQueueRemove: steerQueue.handleSteerQueueRemove,
     queuedTurnEditId: queuedEdit.queuedTurnEditId,
     cancelQueuedTurnEdit: queuedEdit.cancelQueuedTurnEdit,
+    notePauseRequested: pausedPromptRetract.notePauseRequested,
   };
 }

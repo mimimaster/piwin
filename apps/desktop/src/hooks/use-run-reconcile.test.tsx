@@ -49,6 +49,14 @@ class FakeHostClient {
         data: { sessionId: command.sessionId, messages: [] },
       });
     }
+    if (command.type === 'session/queued-turn-list') {
+      return Promise.resolve({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: { sessionId: command.sessionId, queueRevision: 4, queuedTurns: [] },
+      });
+    }
     return Promise.resolve({
       type: 'response',
       command: command.type,
@@ -173,9 +181,12 @@ describe('useRunReconcile', () => {
       'permission/pending-list',
       'session/foreground-run',
       'session/messages',
+      'session/queued-turn-list',
     ]);
+    // Queued-turn pushes fall into the same hole; the queue chips resync too.
     expect(actions.slice(actionCountAfterAdmit).map((action) => action.type)).toEqual([
       'session/load-messages',
+      'session/queued-turns-hydrate',
       'run/terminal',
     ]);
     root.unmount();
@@ -227,6 +238,7 @@ describe('useRunReconcile', () => {
 
     expect(actions.slice(actionCountAfterAdmit).map((action) => action.type)).toEqual([
       'session/load-messages',
+      'session/queued-turns-hydrate',
       'run/stale-clear',
     ]);
     root.unmount();
@@ -265,8 +277,12 @@ describe('useRunReconcile', () => {
       'permission/pending-list',
       'session/foreground-run',
       'session/messages',
+      'session/queued-turn-list',
     ]);
-    expect(actions.map((action) => action.type)).toEqual(['session/load-messages']);
+    expect(actions.map((action) => action.type)).toEqual([
+      'session/load-messages',
+      'session/queued-turns-hydrate',
+    ]);
     expect(actions[0]).toMatchObject({ preserveActiveTail: true });
     root.unmount();
     container.remove();
@@ -343,8 +359,10 @@ describe('useRunReconcile', () => {
         'session/foreground-run',
         'session/foreground-run',
         'session/messages',
+        'session/queued-turn-list',
         'session/foreground-run',
         'session/messages',
+        'session/queued-turn-list',
       ]);
       expect(actions.map((action) => action.type)).toContain('run/stale-clear');
       root.unmount();

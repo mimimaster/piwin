@@ -136,6 +136,81 @@ describe('queued-turn send-now with structured input', () => {
     expect(hostClient.request).toHaveBeenCalledTimes(3);
 
   });
+  it('resyncs the queue instead of echoing a raw code when send-now hits a stale row', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: vi.fn(async (command: { type: string }) =>
+        command.type === 'session/queued-turn-list'
+          ? {
+              type: 'response' as const,
+              command: command.type,
+              success: true as const,
+              data: { sessionId: 'session-1', queueRevision: 9, queuedTurns: [] },
+            }
+          : {
+              type: 'response' as const,
+              command: command.type,
+              success: false as const,
+              error: 'queued-turn-revision-conflict',
+            },
+      ),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialTestChatUiState(),
+          activeSessionId: 'session-1',
+          activeRunId: 'run-1',
+          runPhase: 'streaming',
+          streaming: true,
+          queuedTurnsBySession: {
+            'session-1': [
+              {
+                queuedTurnId: 'queued-1',
+                revision: 1,
+                sessionId: 'session-1',
+                sequence: 1,
+                userMessageId: 'user-queued-1',
+                mode: 'next',
+                status: 'pending',
+                input: { text: 'Already started on Host' },
+                submittedAt: '2026-08-15T00:00:00.000Z',
+                updatedAt: '2026-08-15T00:00:00.000Z',
+              },
+            ],
+          },
+        },
+        dispatch,
+        agentMode: 'agent',
+      });
+      return null;
+    }
+    act(() => root?.render(<Harness />));
+
+    await act(async () => {
+      await captured?.handleSteerQueueSendNow('queued-1');
+    });
+
+    expect(vi.mocked(hostClient.request).mock.calls.map(([command]) => command.type)).toEqual([
+      'run/intervention-submit',
+      'session/queued-turn-list',
+    ]);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'session/queued-turns-hydrate',
+      sessionId: 'session-1',
+      queueRevision: 9,
+      queuedTurns: [],
+    });
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'queued-turn-revision-conflict' }),
+    );
+  });
+
   it('preserves text and pasted attachments instead of submitting a partial intervention', async () => {
     container = document.createElement('div');
     document.body.append(container);

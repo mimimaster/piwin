@@ -5,6 +5,7 @@ import type { HostClient } from '../host-client.js';
 import type { ChatUiAction } from '../chat-reducer.js';
 import { planRunReconcile } from '../run-reconcile.js';
 import { reconcilePendingPermissions } from './reconcile-pending-permissions.js';
+import { requestQueuedTurnQueue } from '../queued-turn-queue-request.js';
 
 // A prompt acknowledgement arrives before provider execution. These are
 // bounded convergence checks for a terminal push that was lost after the Run
@@ -91,6 +92,12 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
           ? { preserveActiveTail: true }
           : {}),
       });
+      // The same hole can swallow queued-turn pushes (started, converted to an
+      // intervention, cancelled). Without this the chip above the composer
+      // stays stale until the session is reopened, and acting on it conflicts.
+      if (hostClient.supportsCommand?.('session/queued-turn-list') === false) return;
+      const queue = await requestQueuedTurnQueue(hostClient, sessionId);
+      if (queue !== null && sessionRef.current === sessionId) dispatch(queue);
     },
     [dispatch, hostClient],
   );
