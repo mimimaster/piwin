@@ -171,3 +171,26 @@ describe('SessionRuntimeController', () => {
     expect(controller.getStatus('s1').lastEvictionReason).toBeUndefined();
   });
 });
+
+describe('SessionRuntimeController loaded extensions', () => {
+  it('tracks the active generation and keeps a pending candidate until it wins or the session detaches', () => {
+    const controller = new SessionRuntimeController({ isRunInFlight: () => false });
+    controller.recordLoadedExtensions('s1', 'g1', [{ resourceId: 'a', contentRevision: 'r-a1' }]);
+    expect(controller.getLoadedExtensions('s1')).toBeUndefined();
+
+    controller.attachGeneration('s1', 'g1', 'settings-1');
+    expect(controller.getLoadedExtensions('s1')).toEqual([{ resourceId: 'a', contentRevision: 'r-a1' }]);
+
+    // A replacement candidate compiles while g1 is still active.
+    controller.recordLoadedExtensions('s1', 'g2', [{ resourceId: 'a', contentRevision: 'r-a2' }]);
+    expect([...controller.listLoadedExtensionRevisions()].sort()).toEqual(['r-a1', 'r-a2']);
+
+    controller.attachGeneration('s1', 'g2', 'settings-2');
+    expect(controller.getLoadedExtensions('s1')).toEqual([{ resourceId: 'a', contentRevision: 'r-a2' }]);
+    expect([...controller.listLoadedExtensionRevisions()]).toEqual(['r-a2']);
+
+    controller.detachGeneration('s1');
+    expect(controller.getLoadedExtensions('s1')).toBeUndefined();
+    expect(controller.listLoadedExtensionRevisions().size).toBe(0);
+  });
+});

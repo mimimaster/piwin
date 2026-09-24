@@ -1,6 +1,27 @@
-/** CE-HUB-SK: skill store listing from static catalog (git-index later). */
-import type { SkillStoreEntry } from '@piwin/contracts';
-import { RECOMMENDED_SKILLS } from './catalog.js';
+/** Skill store listing, projected from the curated marketplace catalog. */
+import type { InstallSource, SkillStoreEntry } from '@piwin/contracts';
+import { SKILL_CATALOG } from './catalog/skills.js';
+
+export type RecommendedSkill = {
+  id: string;
+  name: string;
+  description: string;
+  source: Extract<InstallSource, { kind: 'git' }>;
+};
+
+/** Legacy shape kept for `piwin skill recommended` and `skills/store-list`. */
+export const RECOMMENDED_SKILLS: RecommendedSkill[] = SKILL_CATALOG.flatMap((entry) =>
+  entry.install.kind === 'skill' && entry.install.source.kind === 'git'
+    ? [
+        {
+          id: entry.capabilityId,
+          name: entry.capabilityId,
+          description: entry.summary.en,
+          source: entry.install.source,
+        },
+      ]
+    : [],
+);
 
 export function listSkillStoreEntries(query?: string): SkillStoreEntry[] {
   const entries: SkillStoreEntry[] = RECOMMENDED_SKILLS.map((item) => ({

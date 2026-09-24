@@ -84,6 +84,10 @@ describe('loadPiNativeInventory', () => {
     ]);
     const packaged = inventory.extensions.find((item) => item.id === 'pi-build-ios-apps');
     expect(packaged?.source).toBe('pi-native');
+    expect(packaged?.piPackageSource).toBe('npm:pi-build-ios-apps');
+    expect(
+      inventory.extensions.find((item) => item.id === 'deepseek-cache')?.piPackageSource,
+    ).toBeUndefined();
     expect(packaged?.enabled).toBe(true);
     expect(packaged?.description).toContain('React Native');
     expect(inventory.skills.map((item) => item.id)).toEqual(['pi-build-ios-apps']);

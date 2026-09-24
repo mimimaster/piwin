@@ -67,6 +67,7 @@ export type ExtensionDeploymentPatch = {
 export const EXTENSION_REGISTRY_MUTATING_COMMANDS = new Set<HostCommand['type']>([
   'extensions/set_enabled',
   'extensions/install',
+  'extensions/uninstall',
   'extensions/ensure-bundled',
 ]);
 

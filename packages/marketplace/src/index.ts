@@ -2,9 +2,18 @@ export { installSkill } from './install-skill.js';
 export type { InstallSkillOptions, InstallSkillResult } from './install-skill.js';
 export { installExtension } from './install-extension.js';
 export type { InstallExtensionOptions, InstallExtensionResult } from './install-extension.js';
-export { RECOMMENDED_SKILLS } from './catalog.js';
-export type { RecommendedSkill } from './catalog.js';
+export { RECOMMENDED_SKILLS } from './skill-store.js';
+export type { RecommendedSkill } from './skill-store.js';
 export {
+  MARKETPLACE_CATALOG,
+  findCatalogEntry,
+  listCatalogEntries,
+  matchCatalogEntry,
+  validateCatalogEntry,
+} from './catalog/catalog.js';
+export type { ListCatalogEntriesOptions } from './catalog/catalog.js';
+export {
+  isExactNpmVersion,
   isNpmPackageName,
   normalizeRepositoryUrl,
   npmPackagePageUrl,

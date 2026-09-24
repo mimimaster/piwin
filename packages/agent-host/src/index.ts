@@ -92,10 +92,15 @@ export {
   PIWIN_PI_AGENT_DIRNAME,
   resolvePiRuntimeAgentDir,
 } from './pi-runtime-agent-dir.js';
-export { installPiPackage } from './pi-package-installer.js';
+export {
+  installPiPackage,
+  PiPackageNotConfiguredError,
+  removePiPackage,
+} from './pi-package-installer.js';
 export type {
   InstallPiPackageOptions,
   InstallPiPackageResult,
+  RemovePiPackageOptions,
 } from './pi-package-installer.js';
 export {
   fetchSubscriptionQuota,

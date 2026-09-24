@@ -33,6 +33,7 @@ import { loadPiwinConfig } from './config-store.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
 import type { HostRuntimeTestFixture } from './host-runtime-types.js';
 import { getPiwinPiAgentDir } from './paths.js';
+import type { LoadedExtensionRef } from './sessions/session-runtime-controller.js';
 
 export type ProductAgentHostToolRegistrationMode = 'active' | 'pending';
 
@@ -57,6 +58,12 @@ type ProductAgentHostCommonOptions = {
     extensionSetRevision?: string,
   ) => void;
   onGenerationDetached?: (sessionId: string) => void | Promise<void>;
+  /** Exact extensions compiled into a generation (active or pending candidate). */
+  onGenerationCompiled?: (
+    sessionId: string,
+    generationId: string,
+    extensions: readonly LoadedExtensionRef[],
+  ) => void;
   /**
    * Resolve whether a project path is trusted. When provided, the compiler
    * calls this to gate write/process/bash/delegate capabilities. When
@@ -416,6 +423,18 @@ export class ProductAgentHost implements AgentHost {
         ...(this.options.trustResolver ? { trustResolver: this.options.trustResolver } : {}),
         ...(mountedKnowledgeBaseNames.length > 0 ? { mountedKnowledgeBaseNames } : {}),
       });
+      this.options.onGenerationCompiled?.(
+        sessionId,
+        runtimeGenerationId,
+        compiled.sessionBlueprint.capabilitySnapshot.resourceManifest.extensions.map(
+          (extension) => ({
+            resourceId: extension.resourceId,
+            ...(extension.contentRevision !== undefined
+              ? { contentRevision: extension.contentRevision }
+              : {}),
+          }),
+        ),
+      );
       this.options.restrictToolSurface(
         sessionId,
         runtimeGenerationId,

@@ -8,6 +8,7 @@ import type {
 import type { GenerationJob, IngestionJob } from './doc-rag-v2.js';
 import type { ExtensionUiKind } from './extension-ui.js';
 import type { ExtensionDeploymentRecord, ExtensionSummary } from './extensions.js';
+import type { MarketplaceCapabilityKind } from './marketplace.js';
 import type {
   AgentEvent,
   AgentEventEnvelope,
@@ -204,6 +205,15 @@ export type HostPushVariant =
     }
   | { type: 'extension/catalog-updated'; registryRevision: string; extensions: ExtensionSummary[] }
   | { type: 'extension/deployment-updated'; deployment: ExtensionDeploymentRecord }
+  /**
+   * Installed capability inventory changed. Carries only the new revision;
+   * clients re-read `marketplace/installed-list`.
+   */
+  | {
+      type: 'marketplace/inventory-updated';
+      revision: string;
+      changedKinds: MarketplaceCapabilityKind[];
+    }
   | {
       /** ADR 0027: replay buffer drained for a sequenced sink. */
       type: 'host/replay-done';

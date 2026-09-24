@@ -3,42 +3,23 @@
  * Official/Smithery network fetch is best-effort; static fixture always works offline.
  */
 import type { McpRegistryCard, McpServerConfig } from '@piwin/contracts';
+import { MCP_CATALOG } from './catalog/mcp.js';
 
-/** Offline-friendly recommended MCP servers (stdio drafts). */
-export const STATIC_MCP_REGISTRY: McpRegistryCard[] = [
-  {
-    id: 'filesystem',
-    title: 'Filesystem',
-    description: 'Official MCP filesystem server (npx)',
-    source: 'static',
-    homepage: 'https://github.com/modelcontextprotocol/servers',
-    installDraft: {
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
-    },
-  },
-  {
-    id: 'memory',
-    title: 'Memory',
-    description: 'Official MCP memory server (npx)',
-    source: 'static',
-    installDraft: {
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-memory'],
-    },
-  },
-  {
-    id: 'fetch-sse-example',
-    title: 'Example SSE server',
-    description: 'Placeholder for HTTP/SSE transport (not fully supported yet)',
-    source: 'static',
-    requiresSse: true,
-    manualDraft: {
-      command: 'npx',
-      args: ['-y', 'example-sse-mcp'],
-    },
-  },
-];
+/** Offline-friendly recommended MCP servers, projected from the curated catalog. */
+export const STATIC_MCP_REGISTRY: McpRegistryCard[] = MCP_CATALOG.flatMap((entry) =>
+  entry.install.kind === 'mcp'
+    ? [
+        {
+          id: entry.install.serverId,
+          title: entry.name.en,
+          description: entry.summary.en,
+          source: 'static' as const,
+          ...(entry.homepage ? { homepage: entry.homepage } : {}),
+          installDraft: entry.install.draft,
+        },
+      ]
+    : [],
+);
 
 export function listStaticMcpRegistry(query?: string): McpRegistryCard[] {
   const q = query?.trim().toLowerCase() ?? '';

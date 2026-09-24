@@ -22,6 +22,13 @@ export function isNpmPackageName(value: string): boolean {
   return NPM_NAME.test(value.trim());
 }
 
+const EXACT_NPM_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+/** Exact semver only — ranges and tags would let the installed code drift. */
+export function isExactNpmVersion(value: string): boolean {
+  return EXACT_NPM_VERSION.test(value.trim());
+}
+
 export function npmPackagePageUrl(name: string): string {
   return `https://www.npmjs.com/package/${name}`;
 }

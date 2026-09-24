@@ -353,6 +353,19 @@ export async function activateExtensionApply(
       });
     }
   }
+  try {
+    // The replaced generation no longer pins its revisions; finish any
+    // uninstall that was waiting on it before the catalog push below.
+    await deps.extensionRevisionStore.purgeRemoved(
+      deps.runtimeController.listLoadedExtensionRevisions(),
+    );
+  } catch (error) {
+    deps.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `extension removal cleanup failed: ${formatError(error)}`,
+    });
+  }
   const registryAfterActivation = await deps.extensionRevisionStore.readRegistry();
   const activeConfig = await loadPiwinConfig(deps.options.piwinRoot);
   const catalog = await scanExtensions({

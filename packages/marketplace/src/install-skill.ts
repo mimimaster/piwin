@@ -63,14 +63,12 @@ async function installFromGit(
 ): Promise<InstallSkillResult> {
   const tempName = `.tmp-git-${Date.now().toString(36)}`;
   const clonePath = join(skillsRoot, tempName);
-  const args = ['clone', '--depth', '1'];
-  if (source.ref) {
-    args.push('--branch', source.ref);
-  }
-  args.push(source.url, clonePath);
   try {
-    await execFileAsync('git', args, { timeout: 120_000 });
+    for (const args of gitFetchCommands(source, clonePath)) {
+      await execFileAsync('git', args, { timeout: 120_000 });
+    }
   } catch (error) {
+    await rmQuiet(clonePath);
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`git clone failed: ${message}`);
   }
@@ -110,6 +108,32 @@ async function installFromGit(
     targetPath,
     source: resultSource,
   };
+}
+
+const GIT_COMMIT = /^[0-9a-f]{40}$/;
+
+/**
+ * `clone --branch` only accepts branches and tags. A pinned commit is fetched
+ * directly (GitHub serves any reachable commit) so curated installs get
+ * exactly the reviewed tree.
+ */
+export function gitFetchCommands(
+  source: Extract<InstallSource, { kind: 'git' }>,
+  clonePath: string,
+): string[][] {
+  if (source.ref && GIT_COMMIT.test(source.ref)) {
+    return [
+      ['init', '--quiet', clonePath],
+      ['-C', clonePath, 'fetch', '--quiet', '--depth', '1', source.url, source.ref],
+      ['-C', clonePath, 'checkout', '--quiet', '--detach', 'FETCH_HEAD'],
+    ];
+  }
+  const clone = ['clone', '--depth', '1'];
+  if (source.ref) {
+    clone.push('--branch', source.ref);
+  }
+  clone.push(source.url, clonePath);
+  return [clone];
 }
 
 async function assertHasSkillMarkdown(directoryPath: string): Promise<void> {

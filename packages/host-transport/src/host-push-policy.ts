@@ -109,6 +109,9 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return control([deliveryKey('session', push.sessionId, 'extension', push.requestId)]);
     case 'extension/catalog-updated':
       return projection(deliveryKey('extensions', 'catalog'));
+    case 'marketplace/inventory-updated':
+      // Latest revision wins; clients re-read the inventory on receipt.
+      return projection(deliveryKey('marketplace', 'inventory'));
     case 'extension/deployment-updated': {
       const key = deliveryKey('extensions', 'deployment', push.deployment.deploymentId);
       if (

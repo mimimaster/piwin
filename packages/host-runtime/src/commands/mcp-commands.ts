@@ -154,6 +154,15 @@ export async function handleMcpCommand(
           const rootDir = getPiwinRoot(context.piwinRoot);
           const document = await loadMcpConfig(rootDir);
           const { serverId, config } = draftToServerConfig(command.serverId, command.draft);
+          const existing = document.mcpServers[serverId];
+          if (existing && JSON.stringify(existing) !== JSON.stringify(config)) {
+            // Never overwrite a server the user already configured differently.
+            return fail(
+              requestId,
+              'mcp/registry-install-draft',
+              `MCP server "${serverId}" is already configured with different settings.`,
+            );
+          }
           document.mcpServers[serverId] = config;
           await saveMcpConfig(rootDir, document);
           const report = await context.getMcpManager().applyConfig(document);

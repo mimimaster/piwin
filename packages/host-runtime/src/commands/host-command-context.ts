@@ -69,6 +69,12 @@ export type HostCommandContext = {
    */
   requireDurableSession?: (sessionId: string) => Promise<void>;
   getMcpManager: () => McpLifecycleManager;
+  /** Extensions compiled into the session's live runtime; undefined when not live. */
+  getLoadedExtensions?: (
+    sessionId: string,
+  ) => import('../sessions/session-runtime-controller.js').LoadedExtensionRef[] | undefined;
+  /** Content revisions any live or pending runtime generation still holds. */
+  listLoadedExtensionRevisions?: () => ReadonlySet<string>;
   /** Single Host Job authority (process/* IPC adapts through this). */
   getJobController: () => import('@piwin/contracts').JobController;
   /** Browser session owned by HostRuntime; undefined when not started (ADR 0020). */

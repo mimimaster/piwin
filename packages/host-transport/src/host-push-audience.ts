@@ -19,6 +19,7 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'session/index-updated':
     case 'extension/catalog-updated':
     case 'extension/deployment-updated':
+    case 'marketplace/inventory-updated':
     case 'pet/state':
     case 'browser/frame':
     case 'browser/state':

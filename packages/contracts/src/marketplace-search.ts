@@ -4,7 +4,8 @@ export type MarketplaceSearchSource = 'npm-pi-package' | 'github';
 
 /** Installable Pi package sources returned by the live ecosystem search. */
 export type MarketplacePiPackageSource =
-  | { kind: 'npm'; packageName: string }
+  /** `version` pins an exact npm version (`npm:<name>@<version>`). */
+  | { kind: 'npm'; packageName: string; version?: string }
   | { kind: 'git'; repositoryUrl: string };
 
 export type MarketplaceSearchHit = {

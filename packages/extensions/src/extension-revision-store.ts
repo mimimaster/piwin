@@ -253,6 +253,9 @@ export class ExtensionRevisionStore {
       if (enabled && !selectedRevision) {
         throw new Error(`Managed extension has no installed revision: ${id}`);
       }
+      if (enabled && record.installationState === 'pending-removal') {
+        throw new Error(`Managed extension is being removed: ${id}`);
+      }
       return {
         ...current,
         extensions: {
@@ -354,6 +357,53 @@ export class ExtensionRevisionStore {
         },
       };
     });
+  }
+
+  /**
+   * Uninstall step 1: stop loading the extension in new runtimes while keeping
+   * its revisions on disk for runtimes that still reference them.
+   */
+  async markPendingRemoval(extensionId: string): Promise<ExtensionRegistryDocument> {
+    const id = normalizeResourceId(extensionId);
+    return this.mutate((current) => {
+      const record = current.extensions[id];
+      if (!record) throw new Error(`Managed extension not found: ${id}`);
+      return {
+        ...current,
+        extensions: {
+          ...current.extensions,
+          [id]: { ...cloneRecord(record), configuredEnabled: false, installationState: 'pending-removal' },
+        },
+      };
+    });
+  }
+
+  /**
+   * Uninstall step 2: drop every pending-removal record none of whose
+   * revisions is still referenced by a live runtime, then delete its files.
+   * Registry first, files second — a crash in between leaves orphan files,
+   * never a record pointing at deleted code.
+   */
+  async purgeRemoved(referencedRevisions: ReadonlySet<string>): Promise<string[]> {
+    const removed: string[] = [];
+    await this.mutate((current) => {
+      const extensions = { ...current.extensions };
+      for (const record of Object.values(current.extensions)) {
+        if (record.installationState !== 'pending-removal') continue;
+        const stillReferenced = record.revisions.some((revision) =>
+          referencedRevisions.has(revision.contentRevision),
+        );
+        if (stillReferenced) continue;
+        delete extensions[record.id];
+        removed.push(record.id);
+      }
+      return { ...current, extensions };
+    });
+    for (const extensionId of removed) {
+      assertSafeIdentifier(extensionId, 'extension id');
+      await rm(join(this.revisionsDir, extensionId), { recursive: true, force: true });
+    }
+    return removed;
   }
 
   async listActiveRevisionRefs(): Promise<ExtensionRevisionRef[]> {

@@ -687,6 +687,19 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
       return true;
     case 'extensions/list':
       return command.projectPath === undefined;
+    case 'marketplace/catalog-list':
+      return (
+        (command.query === undefined || command.query.length <= 256) &&
+        (command.kinds === undefined || command.kinds.length <= 8)
+      );
+    case 'marketplace/catalog-get':
+      return command.entryId.trim().length > 0 && command.entryId.length <= 256;
+    case 'marketplace/installed-list':
+      // Client paths are never Host paths (ADR 0047 §12).
+      return (
+        command.projectPath === undefined &&
+        (command.sessionId === undefined || command.sessionId.length <= 256)
+      );
     case 'extensions/set_enabled':
       return command.extensionId.trim().length > 0 && command.extensionId.length <= 256;
     case 'extensions/apply':

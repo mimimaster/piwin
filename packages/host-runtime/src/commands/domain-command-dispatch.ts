@@ -6,6 +6,8 @@ import type { HostCommandContext } from './host-command-context.js';
 import { handleCatalogCommand } from './catalog-commands.js';
 import { handleMarketplaceSearchCommand } from './marketplace-search-commands.js';
 import { handleMcpCommand } from './mcp-commands.js';
+import { handleMarketplaceCatalogCommand } from './marketplace-catalog-commands.js';
+import { handleCapabilityRemovalCommand } from './capability-removal-commands.js';
 import { handleGitCommand } from './git-commands.js';
 import { handlePlanCommand } from './plan-commands.js';
 import { handleJobCommand } from './job-commands.js';
@@ -144,6 +146,8 @@ export async function dispatchDomainCommands(
 
   for (const handler of [
     handleCatalogCommand,
+    handleMarketplaceCatalogCommand,
+    handleCapabilityRemovalCommand,
     handleMcpCommand,
     handleGitCommand,
     handlePlanCommand,

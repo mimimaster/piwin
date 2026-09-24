@@ -64,6 +64,9 @@ export function parseRecord(id: string, value: unknown): InstalledExtensionRecor
     ...(selectedRevision ? { selectedRevision } : {}),
     ...(lastKnownGoodRevision ? { lastKnownGoodRevision } : {}),
     revisions,
+    ...(value.installationState === 'pending-removal'
+      ? { installationState: 'pending-removal' as const }
+      : {}),
   };
 }
 

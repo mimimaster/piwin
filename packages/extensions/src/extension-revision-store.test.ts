@@ -103,4 +103,42 @@ describe('ExtensionRevisionStore', () => {
       'Invalid extension deployment record',
     );
   });
+  it('keeps a pending-removal extension until no runtime references its revision', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-extension-store-remove-'));
+    const sourceDir = await mkdtemp(join(tmpdir(), 'piwin-extension-source-remove-'));
+    const sourcePath = join(sourceDir, 'hello.ts');
+    await writeFile(sourcePath, 'export default function () {}\n', 'utf8');
+    const store = createExtensionRevisionStore(rootDir);
+    const staged = await store.stage({ sourcePath });
+    await store.setEnabled('hello', true);
+
+    await store.markPendingRemoval('hello');
+    const pending = await store.getRecord('hello');
+    expect(pending?.installationState).toBe('pending-removal');
+    expect(pending?.configuredEnabled).toBe(false);
+    expect(await store.listActiveRevisionRefs()).toEqual([]);
+    await expect(store.setEnabled('hello', true)).rejects.toThrow(/being removed/);
+
+    expect(await store.purgeRemoved(new Set([staged.contentRevision]))).toEqual([]);
+    expect(await store.getRecord('hello')).toBeDefined();
+    expect((await stat(staged.targetPath)).isFile()).toBe(true);
+
+    expect(await store.purgeRemoved(new Set())).toEqual(['hello']);
+    expect(await store.getRecord('hello')).toBeUndefined();
+    await expect(stat(join(rootDir, 'extensions', 'revisions', 'hello'))).rejects.toThrow();
+  });
+
+  it('clears pending removal when the same extension is installed again', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-extension-store-reinstall-'));
+    const sourceDir = await mkdtemp(join(tmpdir(), 'piwin-extension-source-reinstall-'));
+    const sourcePath = join(sourceDir, 'hello.ts');
+    await writeFile(sourcePath, 'export default function () {}\n', 'utf8');
+    const store = createExtensionRevisionStore(rootDir);
+    await store.stage({ sourcePath });
+    await store.markPendingRemoval('hello');
+
+    await store.stage({ sourcePath });
+
+    expect((await store.getRecord('hello'))?.installationState).toBeUndefined();
+  });
 });

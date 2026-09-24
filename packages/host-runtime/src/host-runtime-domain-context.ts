@@ -77,6 +77,8 @@ export async function buildDomainContext(
     requireSession: (sessionId) => deps.requireSession(sessionId),
     requireDurableSession: (sessionId) => deps.requireDurableSession(sessionId),
     getMcpManager: () => deps.getMcpManager(),
+    getLoadedExtensions: (sessionId) => deps.runtimeController.getLoadedExtensions(sessionId),
+    listLoadedExtensionRevisions: () => deps.runtimeController.listLoadedExtensionRevisions(),
     getJobController: () => deps.getJobController(),
     getBrowserSession: () => deps.browserSession ?? undefined,
     ensureBrowserSession: () => deps.ensureBrowserSession(),

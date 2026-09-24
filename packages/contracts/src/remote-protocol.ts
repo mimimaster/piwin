@@ -165,6 +165,10 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'preview/read-trusted-text',
   'skills/read',
   'extensions/list',
+  // Read-only marketplace views; installs and removals stay local-only.
+  'marketplace/catalog-list',
+  'marketplace/catalog-get',
+  'marketplace/installed-list',
   'flashcards/study/catalog',
   'flashcards/study/start',
   'flashcards/study/get',

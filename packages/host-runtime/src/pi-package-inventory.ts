@@ -145,7 +145,13 @@ async function collectSettingsLayer(input: {
       });
       continue;
     }
-    input.extensions.push(...listed.extensions);
+    // Only user-global packages are removable through Pi's user scope; project
+    // packages belong to the repository and stay out of the removal path.
+    input.extensions.push(
+      ...(input.source === 'pi-native'
+        ? listed.extensions.map((extension) => ({ ...extension, piPackageSource: spec.raw }))
+        : listed.extensions),
+    );
     input.skills.push(...listed.skills);
     input.prompts.push(...listed.prompts);
   }

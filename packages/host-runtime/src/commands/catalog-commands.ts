@@ -84,6 +84,7 @@ import { testSearchSource } from '@piwin/tools-web';
 import { probeWindsurfToken } from '../code-search/backends/windsurf-backend.js';
 import { buildSearchRoutePreview } from '../capabilities/search-route-preview.js';
 import type { HostCommandContext } from './host-command-context.js';
+import { loadCatalogResources, pushExtensionCatalog } from './catalog-resources.js';
 
 /**
  * In-flight pet install/query AbortControllers keyed by request id, so the
@@ -916,32 +917,6 @@ export async function handleCatalogCommand(
     default:
       return null;
   }
-}
-
-async function loadCatalogResources(rootDir: string, projectPath?: string) {
-  const config = await loadPiwinConfig(rootDir);
-  const path = typeof projectPath === 'string' && projectPath.trim() ? projectPath.trim() : undefined;
-  return loadDiscoveredResources({
-    piwinRoot: rootDir,
-    ...(path ? { projectPath: path } : {}),
-    ...(config.extensions ? { extensionsConfig: config.extensions } : {}),
-    ...(config.skills ? { skillsConfig: config.skills } : {}),
-    ...(config.prompts ? { promptsConfig: config.prompts } : {}),
-  });
-}
-
-async function pushExtensionCatalog(
-  context: HostCommandContext,
-  rootDir: string,
-  registryRevision: string,
-): Promise<void> {
-  await ensureBundledExtensionsInstalled(rootDir);
-  const discovered = await loadCatalogResources(rootDir);
-  context.push({
-    type: 'extension/catalog-updated',
-    registryRevision,
-    extensions: discovered.extensions,
-  });
 }
 
 function maskSecretPreview(secret: string): string {

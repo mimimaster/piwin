@@ -15,6 +15,7 @@ import { fail, ok } from './response-helpers.js';
 import { handleHostListDir } from './commands/host-list-dir.js';
 import { projectActivitySummary } from './activity-summary.js';
 import { dispatchDomainCommands } from './commands/domain-command-dispatch.js';
+import { inventoryKindsChangedBy, pushInventoryUpdated } from './marketplace/inventory-reader.js';
 import { handleSessionLiveCommand } from './commands/session-live-commands.js';
 import { handleWalkthroughCancel } from './commands/walkthrough-commands.js';
 
@@ -109,6 +110,11 @@ export async function handleCommandWithTranscriptLease(
     }
     const domain = await dispatchDomainCommands(command, requestId, ctx);
     if (domain) {
+      const inventoryKinds = inventoryKindsChangedBy(command.type);
+      if (inventoryKinds && domain.type === 'response' && domain.success) {
+        // Off the response path: the push re-scans resources, and it never throws.
+        void pushInventoryUpdated(ctx, inventoryKinds);
+      }
       // Spec §12.3/12.4: when Settings change, mark the affected live
       // sessions stale and keep safety gates tight without aborting the
       // current run. Only runtime-stale domains are recorded.

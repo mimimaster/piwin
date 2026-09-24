@@ -21,6 +21,49 @@ export type InstallPiPackageResult = {
 export async function installPiPackage(
   options: InstallPiPackageOptions,
 ): Promise<InstallPiPackageResult> {
+  const { settingsManager, packageManager } = createUserPackageManager(options);
+
+  await packageManager.installAndPersist(options.source);
+  await settingsManager.flush();
+
+  const installedPath = packageManager.getInstalledPath(options.source, 'user');
+  return {
+    source: options.source,
+    ...(installedPath ? { installedPath } : {}),
+  };
+}
+
+export type RemovePiPackageOptions = InstallPiPackageOptions;
+
+export class PiPackageNotConfiguredError extends Error {
+  override readonly name = 'PiPackageNotConfiguredError';
+  constructor(readonly source: string) {
+    super(`Pi package is not installed for this user: ${source}`);
+  }
+}
+
+/**
+ * Remove a user-scope Pi package exactly like `pi remove`. Only a source
+ * already listed in user settings is accepted, so a client cannot turn this
+ * into an arbitrary uninstall of project or unmanaged paths.
+ */
+export async function removePiPackage(options: RemovePiPackageOptions): Promise<{ source: string }> {
+  const { settingsManager, packageManager } = createUserPackageManager(options);
+  const configured = packageManager
+    .listConfiguredPackages()
+    .some((entry) => entry.scope === 'user' && entry.source === options.source);
+  if (!configured) {
+    throw new PiPackageNotConfiguredError(options.source);
+  }
+  await packageManager.removeAndPersist(options.source);
+  await settingsManager.flush();
+  return { source: options.source };
+}
+
+function createUserPackageManager(options: InstallPiPackageOptions): {
+  settingsManager: SettingsManager;
+  packageManager: DefaultPackageManager;
+} {
   const settingsManager = SettingsManager.create(
     options.workingDirectory,
     options.agentDirectory,
@@ -31,13 +74,5 @@ export async function installPiPackage(
     agentDir: options.agentDirectory,
     settingsManager,
   });
-
-  await packageManager.installAndPersist(options.source);
-  await settingsManager.flush();
-
-  const installedPath = packageManager.getInstalledPath(options.source, 'user');
-  return {
-    source: options.source,
-    ...(installedPath ? { installedPath } : {}),
-  };
+  return { settingsManager, packageManager };
 }

@@ -69,6 +69,7 @@ import type {
 import type { LiveSetIntendedSessionInput } from './live-intended-session.js';
 import type { MediaReadCommandInput, MediaSaveCommandInput } from './ipc-media.js';
 import type { MarketplacePiPackageSource } from './marketplace-search.js';
+import type { MarketplaceCapabilityKind, MarketplaceCategory } from './marketplace.js';
 
 export type PlatformHostCommand =
   | SubscriptionAuthCommand
@@ -246,6 +247,15 @@ export type PlatformHostCommand =
   | { id?: string; type: 'extensions/ensure-bundled' }
   | {
       id?: string;
+      type: 'extensions/uninstall';
+      /**
+       * Host-managed extensions only. Live sessions drop it through the usual
+       * `extensions/apply`; files are deleted once no runtime references them.
+       */
+      extensionId: string;
+    }
+  | {
+      id?: string;
       type: 'extensions/install';
       source: InstallSource;
       name?: string;
@@ -264,6 +274,8 @@ export type PlatformHostCommand =
   | { id?: string; type: 'mcp/status' }
   | { id?: string; type: 'mcp/start'; serverId: string }
   | { id?: string; type: 'mcp/stop'; serverId: string }
+  /** Stop the server, then drop it from Host MCP config. */
+  | { id?: string; type: 'mcp/remove'; serverId: string }
   /** Replaces the MCP servers this session opts out of; applies from the next prompt. */
   | { id?: string; type: 'session/set-mcp-servers'; sessionId: string; disabledServerIds: string[] }
   | { id?: string; type: 'git/status'; projectPath: string }
@@ -450,6 +462,28 @@ export type PlatformHostCommand =
       id?: string;
       type: 'marketplace/package-install';
       source: MarketplacePiPackageSource;
+    }
+  | {
+      id?: string;
+      type: 'marketplace/package-remove';
+      /** Raw source exactly as listed in Pi user settings `packages`. */
+      packageSource: string;
+    }
+  | {
+      id?: string;
+      type: 'marketplace/catalog-list';
+      query?: string;
+      kinds?: MarketplaceCapabilityKind[];
+      category?: MarketplaceCategory;
+      includeWithdrawn?: boolean;
+    }
+  | { id?: string; type: 'marketplace/catalog-get'; entryId: string }
+  | {
+      id?: string;
+      type: 'marketplace/installed-list';
+      /** When set, extension availability reflects this session's loaded runtime. */
+      sessionId?: string;
+      projectPath?: string;
     }
   | { id?: string; type: 'mcp/registry-list'; query?: string }
   | {

@@ -125,4 +125,54 @@ describe('handleMarketplaceSearchCommand', () => {
       expect.objectContaining({ source: 'git:github.com/nicobailon/pi-subagents' }),
     );
   });
+  it('pins an exact npm version and rejects ranges', async () => {
+    const installPackage = vi.fn(async (input: { source: string }) => ({ source: input.source }));
+    const pinned = await handleMarketplaceSearchCommand(
+      {
+        type: 'marketplace/package-install',
+        source: { kind: 'npm', packageName: 'pi-lens', version: '4.2.1' },
+      },
+      'req-pinned',
+      { installPackage },
+    );
+    expect(pinned?.success).toBe(true);
+    expect(installPackage).toHaveBeenCalledWith(expect.objectContaining({ source: 'npm:pi-lens@4.2.1' }));
+
+    const ranged = await handleMarketplaceSearchCommand(
+      {
+        type: 'marketplace/package-install',
+        source: { kind: 'npm', packageName: 'pi-lens', version: '^4.0.0' },
+      },
+      'req-range',
+      { installPackage },
+    );
+    expect(ranged?.success).toBe(false);
+    expect(installPackage).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes a configured Pi package and reports refusal as failure', async () => {
+    const removePackage = vi.fn(async (input: { source: string }) => ({ source: input.source }));
+    const removed = await handleMarketplaceSearchCommand(
+      { type: 'marketplace/package-remove', packageSource: 'npm:pi-lens@4.2.1' },
+      'req-remove',
+      { piwinRoot: '/tmp/piwin', agentDir: '/tmp/pi-agent', removePackage },
+    );
+    expect(removed?.success).toBe(true);
+    expect(removePackage).toHaveBeenCalledWith({
+      source: 'npm:pi-lens@4.2.1',
+      workingDirectory: '/tmp/piwin',
+      agentDirectory: '/tmp/pi-agent',
+    });
+
+    const refused = await handleMarketplaceSearchCommand(
+      { type: 'marketplace/package-remove', packageSource: 'npm:not-installed' },
+      'req-refused',
+      {
+        removePackage: vi.fn(async () => {
+          throw new Error('Pi package is not installed for this user: npm:not-installed');
+        }),
+      },
+    );
+    expect(refused?.success).toBe(false);
+  });
 });

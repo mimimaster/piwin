@@ -1,8 +1,14 @@
-/** Host IPC: search and install npm/GitHub Pi packages. */
-import type { HostCommand, HostResponse, MarketplaceSearchResult } from '@piwin/contracts';
+/** Host IPC: search, install and remove npm/GitHub Pi packages. */
+import type {
+  HostCommand,
+  HostResponse,
+  MarketplacePackageRemoveData,
+  MarketplaceSearchResult,
+} from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import { installPiPackage } from '@piwin/agent-host';
+import { installPiPackage, removePiPackage } from '@piwin/agent-host';
 import {
+  isExactNpmVersion,
   isNpmPackageName,
   normalizeRepositoryUrl,
   searchMarketplaceSources,
@@ -13,6 +19,7 @@ import { getPiAgentDir, getPiwinRoot } from '../paths.js';
 const TYPES = new Set<HostCommand['type']>([
   'marketplace/search',
   'marketplace/package-install',
+  'marketplace/package-remove',
 ]);
 const GITHUB_SEGMENT = /^[A-Za-z0-9_.-]+$/;
 
@@ -21,6 +28,7 @@ export type MarketplaceSearchCommandDeps = {
   piwinRoot?: string;
   agentDir?: string;
   installPackage?: typeof installPiPackage;
+  removePackage?: typeof removePiPackage;
 };
 
 function resolvePiPackageSource(
@@ -31,7 +39,13 @@ function resolvePiPackageSource(
     if (!isNpmPackageName(packageName)) {
       throw new Error('Invalid npm package name');
     }
-    return `npm:${packageName}`;
+    if (source.version === undefined) {
+      return `npm:${packageName}`;
+    }
+    if (!isExactNpmVersion(source.version)) {
+      throw new Error('npm version must be an exact version like 1.2.3');
+    }
+    return `npm:${packageName}@${source.version.trim()}`;
   }
 
   const normalized = normalizeRepositoryUrl(source.repositoryUrl);
@@ -74,6 +88,21 @@ export async function handleMarketplaceSearchCommand(
       return ok(requestId, 'marketplace/package-install', { source: result.source });
     } catch (error) {
       return fail(requestId, 'marketplace/package-install', formatError(error));
+    }
+  }
+  if (command.type === 'marketplace/package-remove') {
+    try {
+      // removePiPackage only accepts a source already listed in user
+      // settings, so this cannot delete arbitrary paths.
+      const result = await (deps.removePackage ?? removePiPackage)({
+        source: command.packageSource,
+        workingDirectory: getPiwinRoot(deps.piwinRoot),
+        agentDirectory: deps.agentDir ?? getPiAgentDir(),
+      });
+      const data: MarketplacePackageRemoveData = { packageSource: result.source };
+      return ok(requestId, 'marketplace/package-remove', data);
+    } catch (error) {
+      return fail(requestId, 'marketplace/package-remove', formatError(error));
     }
   }
   if (command.type !== 'marketplace/search') {

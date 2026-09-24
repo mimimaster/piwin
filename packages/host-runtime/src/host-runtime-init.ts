@@ -38,7 +38,10 @@ import { fail } from './response-helpers.js';
 import { RunRegistry } from './run-registry.js';
 import { handleSessionLiveCommand } from './commands/session-live-commands.js';
 import { QueuedTurnController } from './queued-turn-controller.js';
-import { SessionRuntimeController } from './sessions/session-runtime-controller.js';
+import {
+  SessionRuntimeController,
+  type LoadedExtensionRef,
+} from './sessions/session-runtime-controller.js';
 import { createSessionRuntimeResidencyController } from './sessions/session-runtime-residency-controller.js';
 import { createImmediateSafetyPredicate } from './sessions/immediate-safety-gate.js';
 import { SessionRuntimeReplacementEngine } from './session-runtime-replacement.js';
@@ -444,6 +447,11 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
           settingsRevision,
           extensionSetRevision,
         ),
+      onGenerationCompiled: (
+        sessionId: string,
+        generationId: string,
+        extensions: readonly LoadedExtensionRef[],
+      ) => deps.runtimeController.recordLoadedExtensions(sessionId, generationId, extensions),
       onGenerationDetached: async (sessionId: string) => {
         deps.runtimeController.detachGeneration(sessionId);
         deps.sessionHostToolPort?.clearSession(sessionId);

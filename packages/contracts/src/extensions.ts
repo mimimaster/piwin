@@ -33,6 +33,11 @@ export type InstalledExtensionRecord = {
   selectedRevision?: string;
   lastKnownGoodRevision?: string;
   revisions: ManagedExtensionRevision[];
+  /**
+   * `pending-removal` keeps the record (and its revisions) until no live
+   * runtime references them; absent means `installed`.
+   */
+  installationState?: 'installed' | 'pending-removal';
 };
 
 export type ExtensionRuntimeBinding = {
@@ -110,6 +115,12 @@ export type ExtensionSummary = {
    * Settings do not list the product copy and `~/.pi` copy as two extensions.
    */
   bundledFrom?: string;
+  /**
+   * Raw Pi user-settings package source this entry was loaded from
+   * (`npm:pi-lens@4.2.1`, `git:github.com/o/r`). Present only for user-global
+   * Pi packages; it is the only identity `marketplace/package-remove` accepts.
+   */
+  piPackageSource?: string;
 };
 
 export type ExtensionsConfig = {

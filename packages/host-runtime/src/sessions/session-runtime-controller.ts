@@ -45,8 +45,20 @@ export type SessionRuntimeCandidate = {
  * domains changed since, so the Host can report accurate staleness and gate
  * immediate safety tightening without replacing the runtime mid-turn.
  */
+/** One Pi extension a runtime generation actually received. */
+export type LoadedExtensionRef = {
+  resourceId: string;
+  contentRevision?: string;
+};
+
 export class SessionRuntimeController {
   private readonly generationBySession = new Map<string, string>();
+  /**
+   * Extensions compiled into each generation, keyed `session\0generation`.
+   * The set revision alone is a hash and cannot say *which* extension is
+   * live; marketplace inventory and uninstall cleanup need the members.
+   */
+  private readonly loadedExtensionsByGeneration = new Map<string, LoadedExtensionRef[]>();
   private readonly revisionBySession = new Map<string, string>();
   private readonly loadedExtensionSetRevisionBySession = new Map<string, string>();
   private readonly targetExtensionSetRevisionBySession = new Map<string, string>();
@@ -119,6 +131,7 @@ export class SessionRuntimeController {
   ): void {
     this.generationBySession.set(sessionId, generationId);
     this.revisionBySession.set(sessionId, settingsRevision);
+    this.forgetLoadedExtensions(sessionId, generationId);
     if (extensionSetRevision !== undefined) {
       this.loadedExtensionSetRevisionBySession.set(sessionId, extensionSetRevision);
     }
@@ -143,6 +156,7 @@ export class SessionRuntimeController {
 
   detachGeneration(sessionId: string): void {
     this.generationBySession.delete(sessionId);
+    this.forgetLoadedExtensions(sessionId);
     this.revisionBySession.delete(sessionId);
     this.loadedExtensionSetRevisionBySession.delete(sessionId);
     this.desiredRevisionBySession.delete(sessionId);
@@ -151,6 +165,53 @@ export class SessionRuntimeController {
     this.immediateRestrictionsBySession.delete(sessionId);
     this.candidateBySession.delete(sessionId);
     this.notifyChanged(sessionId);
+  }
+
+  /** Record the exact extensions a (possibly still pending) generation compiled. */
+  recordLoadedExtensions(
+    sessionId: string,
+    generationId: string,
+    extensions: readonly LoadedExtensionRef[],
+  ): void {
+    this.loadedExtensionsByGeneration.set(
+      generationKey(sessionId, generationId),
+      extensions.map((extension) => ({ ...extension })),
+    );
+  }
+
+  /** Extensions of the session's active generation; undefined when not live. */
+  getLoadedExtensions(sessionId: string): LoadedExtensionRef[] | undefined {
+    const generationId = this.generationBySession.get(sessionId);
+    if (generationId === undefined) return undefined;
+    return this.loadedExtensionsByGeneration
+      .get(generationKey(sessionId, generationId))
+      ?.map((extension) => ({ ...extension }));
+  }
+
+  /**
+   * Every content revision any recorded generation still holds, including
+   * pending candidates — a removal must not delete code a runtime may load.
+   */
+  listLoadedExtensionRevisions(): Set<string> {
+    const revisions = new Set<string>();
+    for (const extensions of this.loadedExtensionsByGeneration.values()) {
+      for (const extension of extensions) {
+        if (extension.contentRevision) revisions.add(extension.contentRevision);
+      }
+    }
+    return revisions;
+  }
+
+  /** Drop entries for a session, keeping only `keepGenerationId` when given. */
+  private forgetLoadedExtensions(sessionId: string, keepGenerationId?: string): void {
+    const prefix = generationKey(sessionId, '');
+    for (const key of [...this.loadedExtensionsByGeneration.keys()]) {
+      if (!key.startsWith(prefix)) continue;
+      if (keepGenerationId !== undefined && key === generationKey(sessionId, keepGenerationId)) {
+        continue;
+      }
+      this.loadedExtensionsByGeneration.delete(key);
+    }
   }
 
   setExtensionDeploymentTarget(
@@ -443,4 +504,8 @@ function immediateRestrictionsForDomain(domain: SettingsDomain): ImmediateCapabi
     default:
       return [];
   }
+}
+
+function generationKey(sessionId: string, generationId: string): string {
+  return `${sessionId}\u0000${generationId}`;
 }
