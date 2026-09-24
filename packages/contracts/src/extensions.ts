@@ -129,10 +129,11 @@ export type ExtensionsConfig = {
   /** Disabled extension ids (basename without .ts). */
   disabledIds: string[];
   /**
-   * Expose `extension_install` / `extension_list` to the Agent so a request in
-   * the conversation ("install extension X") can stage + hot-activate it.
-   * Every install still passes through a per-call permission prompt. Default
-   * true; set false to require the Settings panel for all installs.
+   * Expose `extension_install` / `extension_list` and the curated catalog
+   * tools `capability_search` / `capability_install` to the Agent, so a
+   * request in the conversation ("install extension X", "find a skill for Y")
+   * can find and install it. Every install still passes through a per-call
+   * permission prompt. Default true; set false to turn off agent installs.
    */
   agentInstall?: boolean;
 };

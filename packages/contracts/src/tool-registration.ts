@@ -69,6 +69,8 @@ export const HOST_TOOL_PERMISSION_ACTIONS = [
   'flashcards:delete',
   'extensions:install',
   'extensions:list',
+  'capabilities:install',
+  'capabilities:search',
   'planning:create',
   'planning:update',
   'subagent:run',

@@ -271,6 +271,7 @@ export function evaluateHostToolDomainPolicy(input: {
         reason: `${input.action} mutation requires review`,
       };
     case 'extensions:install':
+    case 'capabilities:install':
       // Installing an extension loads new code into the agent runtime; always
       // confirm with the user except under an explicit bypass mode.
       return {
@@ -368,6 +369,7 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'browser:network':
     case 'flashcards:list':
     case 'extensions:list':
+    case 'capabilities:search':
     case 'artifact:instructions':
     case 'toolbox:route':
     case 'mcp:trusted':

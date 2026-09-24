@@ -11,11 +11,6 @@ import {
   Notice,
   Spinner,
   Switch,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-  TextInput,
   showUiNotification,
 } from '@piwin/ui-kit';
 import type {
@@ -26,10 +21,10 @@ import type {
   McpServerConfig,
   McpServerHealth,
   McpToolSummary,
-  McpRegistryCard,
   McpValidateData,
 } from '@piwin/contracts';
 import { PageTitle } from './settings/page-title';
+import { CapabilityDiscoveryHint } from './settings/capability-discovery-hint';
 import { McpServerEditorDialog } from './McpServerEditorDialog';
 import { McpServerDetailPanel } from './mcp-server-detail-panel.js';
 import {
@@ -48,13 +43,9 @@ export type McpPanelProps = {
       | 'mcp/list_tools'
       | 'mcp/status'
       | 'mcp/start'
-      | 'mcp/stop'
-      | 'mcp/registry-list'
-      | 'mcp/registry-install-draft';
+      | 'mcp/stop';
     document?: unknown;
     serverId?: string;
-    query?: string;
-    draft?: import('@piwin/contracts').McpServerConfig;
   }) => Promise<HostResponse>;
   onClose?: () => void;
   variant?: 'inline' | 'modal';
@@ -64,10 +55,6 @@ export function McpPanel(props: McpPanelProps) {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
   const confirmDialog = useConfirmDialog();
-  const [mainTab, setMainTab] = useState<'configured' | 'registry'>('configured');
-  const [registryCards, setRegistryCards] = useState<McpRegistryCard[]>([]);
-  const [registryQuery, setRegistryQuery] = useState('');
-  const [registryLoading, setRegistryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [document, setDocument] = useState<McpConfigDocument>({
     mcpServers: {},
@@ -124,31 +111,9 @@ export function McpPanel(props: McpPanelProps) {
     setLoading(false);
   }, [props, refreshHealth]);
 
-  const loadRegistry = useCallback(async () => {
-    setRegistryLoading(true);
-    setError(null);
-    const response = await props.request({
-      type: 'mcp/registry-list',
-      ...(registryQuery.trim() ? { query: registryQuery.trim() } : {}),
-    });
-    setRegistryLoading(false);
-    if (!response.success) {
-      setError(response.error);
-      return;
-    }
-    const data = response.data as { cards?: McpRegistryCard[] };
-    setRegistryCards(data.cards ?? []);
-  }, [props, registryQuery]);
-
   useEffect(() => {
     void loadConfig();
   }, [loadConfig]);
-
-  useEffect(() => {
-    if (mainTab === 'registry') {
-      void loadRegistry();
-    }
-  }, [mainTab, loadRegistry]);
 
   async function saveDocumentNow(payload: McpConfigDocument): Promise<boolean> {
     setError(null);
@@ -522,42 +487,6 @@ export function McpPanel(props: McpPanelProps) {
     }
   }
 
-  async function handleInstallDraft(card: McpRegistryCard): Promise<void> {
-    setError(null);
-    const draft = card.installDraft ?? (card.manualDraft as McpServerConfig | undefined);
-    if (!draft || !draft.command) {
-      showUiNotification({
-        tone: 'error',
-        message: isChinese
-          ? '此卡片没有安装草稿，请手动配置。'
-          : 'This card has no install draft — configure manually.',
-        autoClose: 4000,
-      });
-      return;
-    }
-    const response = await props.request({
-      type: 'mcp/registry-install-draft',
-      serverId: card.id.replace(/[^a-zA-Z0-9._-]/g, '-'),
-      draft,
-    });
-    if (!response.success) {
-      showUiNotification({
-        tone: 'error',
-        title: isChinese ? '安装草稿失败' : 'Failed to install draft',
-        message: response.error,
-        autoClose: 5000,
-      });
-      return;
-    }
-    showUiNotification({
-      tone: 'success',
-      message: isChinese ? `已安装 ${card.title} 的草稿` : `Installed draft for ${card.title}`,
-      autoClose: 3500,
-    });
-    setMainTab('configured');
-    await loadConfig();
-  }
-
   const serverIds = Object.keys(document.mcpServers);
 
   return (
@@ -569,22 +498,14 @@ export function McpPanel(props: McpPanelProps) {
             props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'
           }
         >
-          <Tabs
-            value={mainTab}
-            onValueChange={(value) => setMainTab(value as 'configured' | 'registry')}
-            testId="mcp-main-tabs"
-          >
+          <div data-testid="mcp-main">
             {props.variant !== 'inline' ? (
               <PageTitle
                 title={isChinese ? 'MCP 服务器' : 'MCP Servers'}
                 description={
-                  mainTab === 'configured'
-                    ? isChinese
-                      ? '管理本地 MCP 服务器。打开服务器可固定直调工具；未固定工具由 Agent 通过 piwin_toolbox 搜索并调用。'
-                      : 'Manage local MCP servers. Open a server to pin direct tools; unpinned tools are called via piwin_toolbox.'
-                    : isChinese
-                      ? '从开放市场浏览并安装社区 MCP 服务器。'
-                      : 'Browse and install MCP servers from the community marketplace.'
+                  isChinese
+                    ? '管理本地 MCP 服务器。打开服务器可固定直调工具；未固定工具由 Agent 通过 piwin_toolbox 搜索并调用。'
+                    : 'Manage local MCP servers. Open a server to pin direct tools; unpinned tools are called via piwin_toolbox.'
                 }
               />
             ) : null}
@@ -599,35 +520,21 @@ export function McpPanel(props: McpPanelProps) {
                 gap: 12,
               }}
             >
-              <TabsList className="segmented-control" label={isChinese ? 'MCP 视图' : 'MCP views'}>
-                <TabsTrigger
-                  value="configured"
-                  className="segmented-control-item"
-                  testId="mcp-tab-configured"
-                >
-                  {isChinese ? `已配置 (${serverIds.length})` : `Configured (${serverIds.length})`}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="registry"
-                  className="segmented-control-item"
-                  testId="mcp-tab-registry"
-                >
-                  {isChinese ? '市场' : 'Marketplace'}
-                </TabsTrigger>
-              </TabsList>
-              {mainTab === 'configured' && (
-                <Button
-                  size="compact"
-                  variant="primary"
-                  onClick={openAddEditor}
-                  data-testid="mcp-add-btn"
-                >
-                  + {isChinese ? '添加服务器' : 'Add Server'}
-                </Button>
-              )}
+              <span className="mcp-configured-count" data-testid="mcp-configured-count">
+                {isChinese ? `已配置 ${serverIds.length} 个` : `${serverIds.length} configured`}
+              </span>
+              <Button
+                size="compact"
+                variant="primary"
+                onClick={openAddEditor}
+                data-testid="mcp-add-btn"
+              >
+                + {isChinese ? '添加服务器' : 'Add Server'}
+              </Button>
             </div>
 
-            <TabsContent value="configured" className="mcp-tab-content">
+            <CapabilityDiscoveryHint kind="mcp" />
+            <div className="mcp-tab-content">
               <div className="mcp-pin-tip">
                 <Notice
                   tone="info"
@@ -901,70 +808,8 @@ export function McpPanel(props: McpPanelProps) {
                   })}
                 </ul>
               )}
-            </TabsContent>
-
-            <TabsContent value="registry" className="mcp-tab-content" testId="mcp-registry-panel">
-              <div className="settings-toolbar mcp-marketplace-search">
-                <TextInput
-                  toolbar
-                  data-testid="mcp-registry-search"
-                  value={registryQuery}
-                  onChange={(event) => setRegistryQuery(event.currentTarget.value)}
-                  placeholder={
-                    isChinese ? '筛选标题、ID 或描述…' : 'Filter by title, id, or description…'
-                  }
-                  aria-label={isChinese ? '筛选' : 'Filter'}
-                />
-                <Button
-                  size="compact"
-                  data-testid="mcp-registry-refresh"
-                  disabled={registryLoading}
-                  onClick={() => void loadRegistry()}
-                >
-                  {registryLoading
-                    ? isChinese
-                      ? '加载中...'
-                      : 'Loading...'
-                    : isChinese
-                      ? '刷新'
-                      : 'Refresh'}
-                </Button>
-              </div>
-              {registryLoading && (
-                <div className="mcp-loading-state">
-                  <Spinner />
-                </div>
-              )}
-              <ul className="ext-list" data-testid="mcp-registry-list">
-                {registryCards.length === 0 && !registryLoading ? (
-                  <li className="mcp-empty-inline muted">
-                    {isChinese ? '未找到相关服务器' : 'No servers found'}
-                  </li>
-                ) : (
-                  registryCards.map((card) => (
-                    <li key={card.id} className="ext-list-item" data-testid="mcp-registry-item">
-                      <div className="ext-list-main">
-                        <div className="ext-list-title">
-                          <strong>{card.title}</strong>
-                          <span className="pill">{card.source}</span>
-                          {card.requiresSse ? <span className="pill">sse</span> : null}
-                        </div>
-                        <div className="muted ext-desc">{card.description}</div>
-                      </div>
-                      <Button
-                        variant="primary"
-                        size="compact"
-                        data-testid="mcp-registry-install-btn"
-                        onClick={() => void handleInstallDraft(card)}
-                      >
-                        {isChinese ? '安装' : 'Install'}
-                      </Button>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
         </div>
       </div>
 

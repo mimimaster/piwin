@@ -138,3 +138,79 @@ describe('SkillsPanel bundled skills', () => {
     expect(bundled?.textContent).not.toContain('bundled');
   });
 });
+
+describe('SkillsPanel external path mapping', () => {
+  let root: Root | undefined;
+  let container: HTMLDivElement | undefined;
+
+  afterEach(() => {
+    if (root && container) {
+      act(() => root?.unmount());
+      container.remove();
+    }
+    root = undefined;
+    container = undefined;
+  });
+
+  function statefulRequest() {
+    let config = { skills: { extraPaths: [] as string[], disabledIds: [] as string[] } };
+    const sent: Array<{ type: string; config?: typeof config }> = [];
+    const fn = async (command: { type: string; config?: typeof config }) => {
+      sent.push(command);
+      if (command.type === 'config/get') {
+        return { type: 'response' as const, command: 'config/get', success: true, data: { config } };
+      }
+      if (command.type === 'config/set' && command.config) {
+        config = command.config;
+        return { type: 'response' as const, command: 'config/set', success: true, data: {} };
+      }
+      if (command.type === 'skills/list') {
+        return { type: 'response' as const, command: 'skills/list', success: true, data: { skills: [] } };
+      }
+      return { type: 'response' as const, command: command.type, success: true, data: {} };
+    };
+    return { request: fn as never, sent, current: () => config };
+  }
+
+  async function settle() {
+    for (let index = 0; index < 6; index += 1) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+  }
+
+  it('has no store tab and maps then unmaps a preset path', async () => {
+    const state = statefulRequest();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+            <SkillsPanel projectPath={null} request={state.request} variant="inline" />
+          </DesktopLocaleProvider>
+        </PiwinUiProvider> as ReactElement,
+      );
+    });
+    await settle();
+    expect(container.querySelector('[data-testid="skills-tab-store"]')).toBeNull();
+    expect(container.querySelector('[data-testid="capability-discovery-hint-skill"]')).not.toBeNull();
+
+    const button = () => container?.querySelector<HTMLButtonElement>('[data-testid="skill-map-claude"]');
+    await act(async () => {
+      button()?.click();
+    });
+    await settle();
+    expect(state.current().skills.extraPaths).toEqual(['~/.claude/skills']);
+    expect(button()?.textContent).toContain('click to unmap');
+
+    await act(async () => {
+      button()?.click();
+    });
+    await settle();
+    expect(state.current().skills.extraPaths).toEqual([]);
+    expect(button()?.textContent).toContain('Map Claude skills');
+  });
+});

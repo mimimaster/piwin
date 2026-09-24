@@ -429,6 +429,7 @@ describe('host tool admission composition', () => {
       'knowledge:knowledge_read',
       'flashcards:list',
       'extensions:list',
+      'capabilities:search',
       'artifact:instructions',
       'toolbox:route',
     ]);

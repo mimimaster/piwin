@@ -118,7 +118,6 @@ export type HostRequestAdapters = {
       | 'skills/set_enabled'
       | 'skills/install'
       | 'skills/uninstall'
-      | 'skills/store-list'
       | 'config/get'
       | 'config/set';
     projectPath?: string;
@@ -782,9 +781,6 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           payload.projectPath = command.projectPath;
         }
         return hostClient.request(payload);
-      }
-      if (command.type === 'skills/store-list') {
-        return hostClient.request({ type: 'skills/store-list' });
       }
       if (command.type === 'skills/uninstall') {
         return hostClient.request({

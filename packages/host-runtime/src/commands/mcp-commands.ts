@@ -9,7 +9,12 @@ import {
   saveMcpConfig,
   tryValidateMcpConfig,
 } from '@piwin/mcp';
-import { listMcpRegistryCards, draftToServerConfig } from '@piwin/marketplace';
+import { listMcpRegistryCards } from '@piwin/marketplace';
+import {
+  McpServerConflictError,
+  saveMcpServerDraft,
+  startMcpServerWithDiscovery,
+} from '../marketplace/mcp-install.js';
 import { fail, ok } from '../response-helpers.js';
 import { getSessionRecord, upsertSessionRecord } from '@piwin/session';
 import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
@@ -115,28 +120,7 @@ export async function handleMcpCommand(
           return ok(requestId, 'mcp/status', { servers });
         }
         case 'mcp/start': {
-          const manager = context.getMcpManager();
-          let health = await manager.start(command.serverId);
-          // Prime metadata cache so the next session can expose direct tools.
-          if (health.status === 'running') {
-            try {
-              await manager.discoverTools(command.serverId);
-              const refreshed = (await manager.listHealth()).find(
-                (item) => item.serverId === command.serverId,
-              );
-              if (refreshed) {
-                health = refreshed;
-              }
-            } catch (error) {
-              const message = formatError(error);
-              health = {
-                ...health,
-                lastError: health.lastError
-                  ? `${health.lastError}; discover: ${message}`
-                  : `discover: ${message}`,
-              };
-            }
-          }
+          const health = await startMcpServerWithDiscovery(context.getMcpManager(), command.serverId);
           return ok(requestId, 'mcp/start', { health });
         }
         case 'mcp/stop': {
@@ -151,26 +135,20 @@ export async function handleMcpCommand(
           return ok(requestId, 'mcp/registry-list', { cards });
         }
         case 'mcp/registry-install-draft': {
-          const rootDir = getPiwinRoot(context.piwinRoot);
-          const document = await loadMcpConfig(rootDir);
-          const { serverId, config } = draftToServerConfig(command.serverId, command.draft);
-          const existing = document.mcpServers[serverId];
-          if (existing && JSON.stringify(existing) !== JSON.stringify(config)) {
-            // Never overwrite a server the user already configured differently.
-            return fail(
-              requestId,
-              'mcp/registry-install-draft',
-              `MCP server "${serverId}" is already configured with different settings.`,
+          try {
+            const result = await saveMcpServerDraft(
+              getPiwinRoot(context.piwinRoot),
+              context.getMcpManager(),
+              command.serverId,
+              command.draft,
             );
+            return ok(requestId, 'mcp/registry-install-draft', result);
+          } catch (error) {
+            if (error instanceof McpServerConflictError) {
+              return fail(requestId, 'mcp/registry-install-draft', error.message);
+            }
+            throw error;
           }
-          document.mcpServers[serverId] = config;
-          await saveMcpConfig(rootDir, document);
-          const report = await context.getMcpManager().applyConfig(document);
-          return ok(requestId, 'mcp/registry-install-draft', {
-            serverId,
-            document,
-            report,
-          });
         }
 
     default:

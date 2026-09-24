@@ -6,7 +6,6 @@ import type {
   SkillSummary,
   SkillsInstallData,
   SkillsListData,
-  SkillStoreEntry,
 } from '@piwin/contracts';
 import {
   canToggleSkill,
@@ -24,15 +23,13 @@ import {
   SegmentedControl,
   Spinner,
   Switch,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
   TextInput,
 } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
+import { CapabilityDiscoveryHint } from './settings/capability-discovery-hint';
 import { skillInstalledEffectMessage } from './settings-effect-copy.js';
+import { nextSkillsConfigForMapping } from './skill-path-mapping.js';
 import { notifySkillsChanged } from './skills-changed.js';
 
 export type SkillsPanelProps = {
@@ -43,7 +40,6 @@ export type SkillsPanelProps = {
       | 'skills/set_enabled'
       | 'skills/install'
       | 'skills/uninstall'
-      | 'skills/store-list'
       | 'config/get'
       | 'config/set';
     projectPath?: string;
@@ -76,9 +72,6 @@ export function SkillsPanel(props: SkillsPanelProps) {
   const [installOpen, setInstallOpen] = useState(false);
   const [mappedPaths, setMappedPaths] = useState<string[]>([]);
   const [mappingBusy, setMappingBusy] = useState(false);
-  const [mainTab, setMainTab] = useState<'installed' | 'store'>('installed');
-  const [storeEntries, setStoreEntries] = useState<SkillStoreEntry[]>([]);
-  const [storeLoading, setStoreLoading] = useState(false);
 
   const loadSkills = useCallback(async () => {
     setLoading(true);
@@ -99,21 +92,6 @@ export function SkillsPanel(props: SkillsPanelProps) {
     setSkills(data.skills ?? []);
   }, [props]);
 
-  const loadStore = useCallback(async () => {
-    setStoreLoading(true);
-    setError(null);
-    const response = await props.request({ type: 'skills/store-list' });
-    setStoreLoading(false);
-    if (!response.success) {
-      if (!isRemoteCommandGapError(response.error)) {
-        setError(response.error);
-      }
-      return;
-    }
-    const data = response.data as { entries?: SkillStoreEntry[] };
-    setStoreEntries(data.entries ?? []);
-  }, [props]);
-
   const loadMappedPaths = useCallback(async () => {
     if (props.readOnly) {
       setMappedPaths([]);
@@ -129,12 +107,6 @@ export function SkillsPanel(props: SkillsPanelProps) {
     void loadSkills();
     void loadMappedPaths();
   }, [loadSkills, loadMappedPaths]);
-
-  useEffect(() => {
-    if (mainTab === 'store') {
-      void loadStore();
-    }
-  }, [mainTab, loadStore]);
 
   const visible = useMemo(() => {
     const listed = skills.filter((s) => s.hidden !== true || s.source === 'bundled');
@@ -253,59 +225,46 @@ export function SkillsPanel(props: SkillsPanelProps) {
     void loadSkills();
   }
 
-  async function handleInstallStore(entry: SkillStoreEntry) {
-    setInstalling(true);
-    setError(null);
-    setInfo(null);
-    const response = await props.request({
-      type: 'skills/install',
-      source: entry.source,
-      name: entry.name,
-    });
-    setInstalling(false);
-    if (!response.success) {
-      setError(response.error);
-      return;
-    }
-    const data = response.data as SkillsInstallData;
-    setInfo(skillInstalledEffectMessage(locale, data.skillId || entry.name));
-    setMainTab('installed');
-    notifySkillsChanged();
-    void loadSkills();
-  }
-
-  async function handleMapPreset(path: string) {
+  /**
+   * Map or unmap an external skill root. `config/set` goes through the
+   * desktop adapter, which diffs the draft into a CAS-checked settings/apply.
+   */
+  async function handleSetMapping(path: string, mapped: boolean) {
     setMappingBusy(true);
     setError(null);
-    const getResp = await props.request({ type: 'config/get' });
-    if (!getResp.success) {
+    try {
+      const getResp = await props.request({ type: 'config/get' });
+      if (!getResp.success) {
+        setError(getResp.error);
+        return;
+      }
+      const { config } = getResp.data as { config: PiwinConfig };
+      const nextSkills = nextSkillsConfigForMapping(config.skills, path, mapped);
+      if (nextSkills) {
+        const setResp = await props.request({
+          type: 'config/set',
+          config: { ...config, skills: nextSkills },
+        });
+        if (!setResp.success) {
+          setError(setResp.error);
+          return;
+        }
+      }
+      setInfo(
+        mapped
+          ? isChinese
+            ? `已映射路径：${path}`
+            : `Mapped path: ${path}`
+          : isChinese
+            ? `已取消映射：${path}`
+            : `Unmapped path: ${path}`,
+      );
+      notifySkillsChanged();
+      await loadMappedPaths();
+      await loadSkills();
+    } finally {
       setMappingBusy(false);
-      setError(getResp.error);
-      return;
     }
-    const data = getResp.data as { config: PiwinConfig };
-    const config = data.config;
-    const extraPaths = config.skills?.extraPaths ?? [];
-    if (extraPaths.includes(path)) {
-      setMappingBusy(false);
-      return;
-    }
-    const nextConfig: PiwinConfig = {
-      ...config,
-      skills: {
-        extraPaths: [...extraPaths, path],
-        disabledIds: config.skills?.disabledIds ?? [],
-      },
-    };
-    const setResp = await props.request({ type: 'config/set', config: nextConfig });
-    setMappingBusy(false);
-    if (!setResp.success) {
-      setError(setResp.error);
-      return;
-    }
-    setInfo(isChinese ? `已映射路径：${path}` : `Mapped path: ${path}`);
-    void loadMappedPaths();
-    void loadSkills();
   }
 
   return (
@@ -313,30 +272,8 @@ export function SkillsPanel(props: SkillsPanelProps) {
       <div
         className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}
       >
-        <Tabs
-          value={mainTab}
-          onValueChange={(value) => setMainTab(value as 'installed' | 'store')}
-          testId="skills-main-tabs"
-        >
-          <TabsList className="segmented-control">
-            <TabsTrigger
-              value="installed"
-              className="segmented-control-item"
-              testId="skills-tab-installed"
-            >
-              {isChinese ? '已安装' : 'Installed'}
-            </TabsTrigger>
-            <TabsTrigger
-              value="store"
-              className="segmented-control-item"
-              testId="skills-tab-store"
-              disabled={props.readOnly === true}
-            >
-              {isChinese ? '商店' : 'Store'}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="installed" className="mcp-tab-content">
+          <div className="mcp-tab-content">
+            <CapabilityDiscoveryHint kind="skill" />
             <div style={{ marginBottom: 24 }}>
               <div className="settings-toolbar" style={{ marginBottom: 16 }}>
                 <TextInput
@@ -461,12 +398,15 @@ export function SkillsPanel(props: SkillsPanelProps) {
                       key={preset.id}
                       size="compact"
                       variant={mapped ? 'ghost' : 'secondary'}
-                      disabled={mappingBusy || mapped || props.readOnly}
-                      onClick={() => void handleMapPreset(preset.path)}
+                      disabled={mappingBusy || props.readOnly}
+                      onClick={() => void handleSetMapping(preset.path, !mapped)}
+                      title={preset.path}
                       data-testid={`skill-map-${preset.id}`}
                     >
                       {mapped
-                        ? `✓ ${preset.label}`
+                        ? isChinese
+                          ? `✓ ${preset.label}（点击取消）`
+                          : `✓ ${preset.label} (click to unmap)`
                         : isChinese
                           ? `映射 ${preset.label}`
                           : `Map ${preset.label}`}
@@ -569,46 +509,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
                 </div>
               </Collapse>
             </div>
-          </TabsContent>
-
-          <TabsContent value="store" className="mcp-tab-content">
-            <div className="mcp-marketplace-header">
-              <PageTitle
-                title={isChinese ? '技能商店' : 'Skills Store'}
-                description={
-                  isChinese
-                    ? '浏览社区推荐的技能集。'
-                    : 'Browse recommended skills from the community.'
-                }
-              />
-            </div>
-            {storeLoading && (
-              <div style={{ padding: '40px', textAlign: 'center' }}>
-                <Spinner />
-              </div>
-            )}
-            <ul className="ext-list">
-              {storeEntries.map((entry) => (
-                <li key={entry.id} className="ext-list-item">
-                  <div className="ext-list-main">
-                    <div className="ext-list-title">
-                      <strong>{entry.name}</strong>
-                    </div>
-                    <div className="muted ext-desc">{entry.description}</div>
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="compact"
-                    disabled={installing}
-                    onClick={() => void handleInstallStore(entry)}
-                  >
-                    {isChinese ? '安装' : 'Install'}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </TabsContent>
-        </Tabs>
+          </div>
       </div>
     </div>
   );

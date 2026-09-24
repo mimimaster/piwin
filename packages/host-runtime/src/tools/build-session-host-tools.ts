@@ -29,6 +29,7 @@ import type { FolderRag } from '@piwin/doc-rag';
 import { createDefaultPiwinConfig } from '../config-store.js';
 import { buildFlashcardTools } from '../flashcard-tools.js';
 import { buildExtensionTools, type ExtensionApplyOutcome } from '../extension-tools.js';
+import { buildCapabilityTools } from '../capability-tools.js';
 import { createPlanCreateTool } from '../plan-create-tool.js';
 import { createPlanPresentTool } from '../plan-present-tool.js';
 import { createPlanStepTool } from '../plan-step-tool.js';
@@ -397,6 +398,14 @@ export async function buildSessionHostTools(
       applyExtensions: options.applyExtensions,
     });
     tools.push(...extensionTools);
+    // Curated catalog search/install; same opt-out as agent extension installs.
+    tools.push(
+      ...buildCapabilityTools({
+        piwinRoot: rootDir ?? options.piwinRoot ?? process.cwd(),
+        ...(options.mcpManager ? { mcpManager: options.mcpManager } : {}),
+        applyExtensions: options.applyExtensions,
+      }),
+    );
   }
 
   // --- MCP capability brief, gateway, and cached direct tools ---

@@ -65,6 +65,26 @@ export async function readMarketplaceInventory(
 }
 
 /**
+ * Catalog entries already present on this Host, by entry id. Cheap (no MCP
+ * health, no session view) so agent tools can mark search results.
+ */
+export async function readInstalledCatalogEntryIds(piwinRoot: string): Promise<Set<string>> {
+  const [resources, mcpConfig] = await Promise.all([
+    loadCatalogResources(piwinRoot),
+    loadMcpConfig(piwinRoot),
+  ]);
+  const installed = new Set<string>();
+  const mark = (kind: MarketplaceCapabilityKind, capabilityId: string): void => {
+    const entry = matchCatalogEntry(kind, capabilityId);
+    if (entry) installed.add(entry.entryId);
+  };
+  for (const extension of resources.extensions) mark('extension', extension.id);
+  for (const skill of resources.skills) mark('skill', skill.id);
+  for (const serverId of Object.keys(mcpConfig.mcpServers)) mark('mcp', serverId);
+  return installed;
+}
+
+/**
  * Finish any uninstall whose revisions no runtime holds anymore. Safe to call
  * often: it only deletes records already marked pending-removal.
  */

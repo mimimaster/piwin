@@ -74,6 +74,16 @@ export function buildPermissionRequestContext(
     };
   }
 
+  if (lowered === 'capabilities:install' || lowered.startsWith('capabilities:install ')) {
+    return {
+      kind: 'unknown' satisfies PermissionRiskKind,
+      summary: 'Install a capability from the piwin catalog',
+      reason:
+        'Skills can ship scripts, and extensions and MCP servers run with your OS privileges. The source is pinned to the catalog version.',
+      ...(detailText ? { command: detailText } : {}),
+    };
+  }
+
   if (lowered === 'bash' || lowered.startsWith('bash:')) {
     return {
       kind: 'command',

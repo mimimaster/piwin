@@ -558,3 +558,12 @@ piwin mcp remove <id>
 - `@piwin/marketplace → @piwin/extensions` 依赖已移除（2026-09-25）。`installExtension` 在 `@piwin/extensions`；`installSkill` 与 `gitFetchCommands` 在 `@piwin/skills`。Plugin 安装不再直接调用 Skill/Extension：`installPlugin` 的 `installSkill` 端口为必传，由 `@piwin/host-runtime` 与 CLI 注入。git 子目录越界校验统一为 `@piwin/contracts` 的 `normalizeRepositorySubdir`（纯字符串规则，拒绝绝对路径与任何 `..` 段），三个安装器共用，应用包之间没有新边。
 
 未做（后续 Slice）：Plugin 组件归属与保守卸载、MCP 配置表单与需密钥的服务、条目更新与下架流程、piwin 实测记录。
+
+### 11.1 发现入口调整（2026-09-25，产品负责人决定）
+
+设置页里技能「商店」、MCP「市场」、插件「市场」三个子页已删除：它们各自维护一份静态列表，不读 Host 库存，安装后仍显示「安装」，与侧栏市场重复。设置页只管理已安装项（查看、启停、删除、手动从本地/Git 安装），顶部统一提示两条发现路径：
+
+1. **对话内**：Agent 工具 `capability_search`（检索精选目录，标出已安装项）与 `capability_install`（按 `entryId` 安装精选条目，只用目录中固定的来源；每次安装单独弹权限确认，`rememberable: false`）。内置技能 `find-skill` 先查已安装技能，无合适项再检索目录，征得用户同意后才安装。两个工具与 `extension_install` 共用 `extensions.agentInstall` 开关。
+2. **侧栏「扩展市场」页**：唯一的浏览入口，状态来自 Host 库存；安装中卡片显示不确定进度条（安装过程不报告真实百分比，不伪造），结果统一走应用通用 toast。
+
+MCP 草稿保存/启动与 Pi 包来源校验抽为共享函数（`host-runtime/src/marketplace/mcp-install.ts`、`pi-package-source.ts`），IPC 命令与 Agent 工具共用同一套「不覆盖同名不同配置」和「运行且完成工具发现才算成功」的规则。

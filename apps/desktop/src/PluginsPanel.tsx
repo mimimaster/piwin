@@ -1,6 +1,6 @@
 /**
- * Plugins panel — marketplace of opt-in plugins, plus installed ("Yours")
- * management and advanced local/git/registry install.
+ * Plugins panel — installed plugins plus advanced local/git/registry install.
+ * Discovery happens in conversation or on the sidebar marketplace page.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
@@ -9,16 +9,10 @@ import type {
   PluginInstallSource,
   PluginRegistryIndex,
 } from '@piwin/contracts';
-import { Notice, SegmentedControl, Spinner, TextInput } from '@piwin/ui-kit';
+import { Notice, Spinner, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
-import {
-  filterMarketplaceCards,
-  marketplaceCardsForCategory,
-  type PluginMarketplaceCard,
-} from './plugin-marketplace-catalog';
-import { PluginMarketplaceCardView } from './plugin-marketplace-card';
-import { PluginMarketplaceSecretDialog } from './plugin-marketplace-secret-dialog';
+import { CapabilityDiscoveryHint } from './settings/capability-discovery-hint';
 import { PluginYoursPane } from './plugin-yours-pane';
 
 export type PluginsPanelProps = {
@@ -38,12 +32,10 @@ export type PluginsPanelProps = {
   variant?: 'inline' | 'modal';
 };
 
-type MarketTab = 'marketplace' | 'yours';
 
 export function PluginsPanel(props: PluginsPanelProps) {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
-  const [tab, setTab] = useState<MarketTab>('marketplace');
   const [plugins, setPlugins] = useState<InstalledPlugin[]>([]);
   const [registry, setRegistry] = useState<PluginRegistryIndex | null>(null);
   const [filter, setFilter] = useState('');
@@ -58,7 +50,6 @@ export function PluginsPanel(props: PluginsPanelProps) {
   const [installingId, setInstallingId] = useState<string | null>(null);
   const [installOpen, setInstallOpen] = useState(false);
   const [registryOpen, setRegistryOpen] = useState(false);
-  const [pendingCard, setPendingCard] = useState<PluginMarketplaceCard | null>(null);
 
   const loadPlugins = useCallback(async () => {
     setLoading(true);
@@ -77,10 +68,6 @@ export function PluginsPanel(props: PluginsPanelProps) {
     void loadPlugins();
   }, [loadPlugins]);
 
-  const installedIds = useMemo(() => new Set(plugins.map((plugin) => plugin.id)), [plugins]);
-  const featuredCards = useMemo(() => {
-    return filterMarketplaceCards(marketplaceCardsForCategory('featured'), filter);
-  }, [filter]);
   const yoursVisible = useMemo(() => {
     const query = filter.trim().toLowerCase();
     if (!query) return plugins;
@@ -130,27 +117,6 @@ export function PluginsPanel(props: PluginsPanelProps) {
     return true;
   }
 
-  async function addMarketplaceCard(
-    card: PluginMarketplaceCard,
-    secrets: Record<string, string>,
-  ): Promise<void> {
-    const ok = await handleInstall(
-      { kind: 'bundled', bundledId: card.id },
-      secrets,
-      isChinese ? `已添加 ${card.name}` : `Added ${card.name}`,
-      card.id,
-    );
-    if (ok) setPendingCard(null);
-  }
-
-  function handleMarketplaceAdd(card: PluginMarketplaceCard): void {
-    if (card.secrets.some((secret) => secret.required)) {
-      setPendingCard(card);
-      return;
-    }
-    void addMarketplaceCard(card, {});
-  }
-
   async function handleUninstall(plugin: InstalledPlugin): Promise<void> {
     setError(null);
     const response = await props.request({
@@ -193,16 +159,8 @@ export function PluginsPanel(props: PluginsPanelProps) {
         ) : null}
 
         <div className="plugin-market">
+          <CapabilityDiscoveryHint kind="plugin" />
           <div className="plugin-market-header">
-            <SegmentedControl
-              value={tab}
-              onChange={(value) => setTab(value as MarketTab)}
-              data={[
-                { value: 'marketplace', label: isChinese ? '市场' : 'Marketplace' },
-                { value: 'yours', label: isChinese ? '已安装' : 'Yours' },
-              ]}
-              testId="plugin-market-tabs"
-            />
             <TextInput
               toolbar
               value={filter}
@@ -220,24 +178,7 @@ export function PluginsPanel(props: PluginsPanelProps) {
             </div>
           ) : null}
 
-          {tab === 'marketplace' ? (
-            <MarketplacePane
-              cards={featuredCards}
-              installedIds={installedIds}
-              installingId={installingId}
-              isChinese={isChinese}
-              empty={
-                filter
-                  ? isChinese
-                    ? '没有匹配的插件'
-                    : 'No matching plugins'
-                  : isChinese
-                    ? '暂无推荐插件'
-                    : 'No featured plugins'
-              }
-              onAdd={handleMarketplaceAdd}
-            />
-          ) : loading ? (
+          {loading ? (
             <div style={{ padding: '32px', textAlign: 'center' }}>
               <Spinner />
             </div>
@@ -299,45 +240,6 @@ export function PluginsPanel(props: PluginsPanelProps) {
           )}
         </div>
       </div>
-      {pendingCard ? (
-        <PluginMarketplaceSecretDialog
-          card={pendingCard}
-          isChinese={isChinese}
-          busy={installingId === pendingCard.id}
-          onClose={() => setPendingCard(null)}
-          onConfirm={(secrets) => void addMarketplaceCard(pendingCard, secrets)}
-        />
-      ) : null}
     </div>
-  );
-}
-
-function MarketplacePane(props: {
-  cards: PluginMarketplaceCard[];
-  installedIds: Set<string>;
-  installingId: string | null;
-  isChinese: boolean;
-  empty: string;
-  onAdd: (card: PluginMarketplaceCard) => void;
-}) {
-  if (props.cards.length === 0) {
-    return <p className="plugin-market-empty">{props.empty}</p>;
-  }
-  return (
-    <section className="plugin-market-section" data-testid="plugin-market-featured">
-      <h4 className="plugin-market-section-label">{props.isChinese ? '精选' : 'Featured'}</h4>
-      <div className="plugin-market-grid">
-        {props.cards.map((card) => (
-          <PluginMarketplaceCardView
-            key={card.id}
-            card={card}
-            added={props.installedIds.has(card.id)}
-            busy={props.installingId === card.id}
-            isChinese={props.isChinese}
-            onAdd={props.onAdd}
-          />
-        ))}
-      </div>
-    </section>
   );
 }

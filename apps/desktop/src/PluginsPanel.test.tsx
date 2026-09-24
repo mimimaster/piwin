@@ -87,87 +87,33 @@ async function renderPanel(request: (command: PluginCommand) => Promise<HostResp
   return { container, root };
 }
 
-describe('PluginsPanel marketplace', () => {
-  let root: Root | undefined;
-  let container: HTMLDivElement | undefined;
+describe('PluginsPanel', () => {
+  let mounted: { container: HTMLDivElement; root: Root } | null = null;
 
   afterEach(() => {
-    if (root && container) {
-      act(() => root?.unmount());
+    if (mounted) {
+      const { root, container } = mounted;
+      act(() => root.unmount());
       container.remove();
+      mounted = null;
     }
-    root = undefined;
-    container = undefined;
   });
 
-  it('shows Cloudflare and GitHub as Featured Add cards', async () => {
-    const { request } = createRequest();
-    const rendered = await renderPanel(request);
-    container = rendered.container;
-    root = rendered.root;
-    expect(container.querySelector('[data-testid="plugin-market-card-cloudflare"]')?.textContent).toContain(
-      'Cloudflare',
-    );
-    expect(container.querySelector('[data-testid="plugin-market-add-github"]')?.textContent).toContain(
-      'Add',
-    );
-    expect(container.querySelector('[data-testid="plugin-market-card-remotion"]')?.textContent).toContain(
-      'Remotion',
-    );
-    expect(container.querySelector('[data-testid="plugin-market-card-hyperframes"]')?.textContent).toContain(
-      'HyperFrames',
-    );
-    expect(container.querySelector('[data-testid="plugin-market-card-figma"]')?.textContent).toContain(
-      'Figma',
-    );
-  });
-
-  it('adds Cloudflare without a secret dialog', async () => {
-    const { request, calls } = createRequest();
-    const rendered = await renderPanel(request);
-    container = rendered.container;
-    root = rendered.root;
-    const add = container.querySelector(
-      '[data-testid="plugin-market-add-cloudflare"]',
-    ) as HTMLButtonElement;
-    await act(async () => {
-      add.click();
-    });
-    expect(calls.some((call) => call.type === 'plugins/install' && call.source?.kind === 'bundled')).toBe(
-      true,
-    );
-    expect(container.querySelector('[data-testid="plugin-market-secret-dialog"]')).toBeNull();
-  });
-
-  it('asks for a GitHub token before installing', async () => {
-    const { request, calls } = createRequest();
-    const rendered = await renderPanel(request);
-    container = rendered.container;
-    root = rendered.root;
-    const add = container.querySelector(
-      '[data-testid="plugin-market-add-github"]',
-    ) as HTMLButtonElement;
-    await act(async () => {
-      add.click();
-      await Promise.resolve();
-    });
-    const dialog =
-      document.body.querySelector('[data-testid="plugin-market-secret-dialog"]') ??
-      Array.from(document.body.querySelectorAll('h3')).find((node) =>
-        node.textContent?.includes('Add GitHub'),
-      );
-    expect(dialog).toBeTruthy();
-    expect(calls.some((call) => call.type === 'plugins/install')).toBe(false);
-  });
-
-  it('marks an already installed plugin as Added', async () => {
+  it('shows installed plugins directly, with no built-in marketplace', async () => {
     const { request } = createRequest([installedCloudflare()]);
-    const rendered = await renderPanel(request);
-    container = rendered.container;
-    root = rendered.root;
-    expect(container.querySelector('[data-testid="plugin-market-added-cloudflare"]')?.textContent).toContain(
-      'Added',
-    );
-    expect(container.querySelector('[data-testid="plugin-market-add-cloudflare"]')).toBeNull();
+    mounted = await renderPanel(request);
+    const text = mounted.container.textContent ?? '';
+    expect(text).toContain('Cloudflare');
+    expect(mounted.container.querySelector('[data-testid="plugin-market-tabs"]')).toBeNull();
+    expect(mounted.container.querySelector('[data-testid="plugin-market-featured"]')).toBeNull();
+  });
+
+  it('points discovery at the agent and the sidebar marketplace', async () => {
+    const { request, calls } = createRequest();
+    mounted = await renderPanel(request);
+    expect(
+      mounted.container.querySelector('[data-testid="capability-discovery-hint-plugin"]')?.textContent,
+    ).toContain('Marketplace');
+    expect(calls.some((call) => call.type === 'plugins/install')).toBe(false);
   });
 });
