@@ -3,9 +3,21 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   lang: 'zh-CN',
   title: 'Piwin · 砚',
-  description: '私有化 AI 智能体工作台与生产力生态',
+  description: '面向个人的智能编程工作台 — 极其方便的配置方式，模型、视觉委托、Web 搜索随心掌控',
   cleanUrls: true,
   lastUpdated: true,
+  ignoreDeadLinks: true,
+
+  // 对外唯一域名是 docs.piwinwin.com：逐页输出 canonical / og:url，
+  // 避免旧别名（docs.planora.chat）在迁移后被当作重复内容收录。
+  transformHead({ pageData }) {
+    const routePath = pageData.relativePath.replace(/index\.md$/, '').replace(/\.md$/, '');
+    const canonicalUrl = `https://docs.piwinwin.com/${routePath}`;
+    return [
+      ['link', { rel: 'canonical', href: canonicalUrl }],
+      ['meta', { property: 'og:url', content: canonicalUrl }],
+    ];
+  },
 
   head: [
     ['link', { rel: 'icon', type: 'image/png', href: '/favicon.png' }],
@@ -14,8 +26,8 @@ export default defineConfig({
     ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+SC:wght@500;600;700&display=swap' }],
     ['meta', { name: 'theme-color', content: '#c6412a' }],
     ['meta', { name: 'og:type', content: 'website' }],
-    ['meta', { name: 'og:title', content: 'Piwin Docs · 砚 - 私有化 AI 智能体工作台' }],
-    ['meta', { name: 'og:description', content: '构筑于 Pi 内核之上，具备清晰分层、独立 Host 权威、多端解耦契约以及模块化扩展生态' }],
+    ['meta', { name: 'og:title', content: 'Piwin · 砚 — 面向个人的智能编程工作台' }],
+    ['meta', { name: 'og:description', content: '专为个人开发者打造：官方订阅一键授权，联网搜索即插即用，免费视觉委托跑腿，Devin 专属生态加持。' }],
   ],
 
   themeConfig: {
@@ -25,16 +37,19 @@ export default defineConfig({
     nav: [
       { text: '首页', link: '/' },
       { text: '快速起步', link: '/docs/getting-started' },
-      { text: '架构与愿景', link: '/docs/about' },
-      { text: '模型配置', link: '/docs/model-config' },
-      { text: '智能体能力', link: '/docs/code-search' },
-      { text: '多端部署', link: '/docs/deployment' },
+      { text: '智能能力', link: '/docs/code-search' },
+      { text: '配置指南', link: '/docs/model-config' },
+      { text: '系统生态', link: '/docs/extensions' },
+      { text: '视觉画廊', link: '/docs/gallery' },
+      { text: '背后故事', link: '/docs/about' },
       {
-        text: '生态与源码',
+        text: '更多',
         items: [
+          { text: '实机体验与特性画廊', link: '/docs/gallery' },
           { text: 'GitHub 仓库', link: 'https://github.com/mimimaster/piwin' },
-          { text: '社区自荐帖子', link: '/docs/community-post' },
-          { text: '提示词设计体系', link: '/docs/prompt-system' },
+          { text: '社区自荐帖', link: '/docs/community-post' },
+          { text: '提示词体系', link: '/docs/prompt-system' },
+          { text: '文档共建指引', link: '/docs/how-to-write-docs' },
         ],
       },
     ],
@@ -42,43 +57,60 @@ export default defineConfig({
     sidebar: {
       '/docs/': [
         {
-          text: '快速起步与入门',
+          text: '入门与使用',
           collapsed: false,
           items: [
-            { text: '快速起步概览与 BYOK', link: '/docs/getting-started' },
-            { text: '架构起源与设计原则', link: '/docs/about' },
-            { text: '开源自荐与生态故事', link: '/docs/community-post' },
-            { text: '多端部署与私有化运行', link: '/docs/deployment' },
+            { text: '快速起步与配置概览', link: '/docs/getting-started' },
+            { text: '为什么要做 Piwin', link: '/docs/about' },
+            { text: '多端运行与开箱安装', link: '/docs/deployment' },
+            { text: '开源自荐与折腾故事', link: '/docs/community-post' },
           ],
         },
         {
-          text: '模型与多模态配置',
+          text: '智能体核心能力',
           collapsed: false,
           items: [
-            { text: '模型与委托体系总览', link: '/docs/model-config' },
-            { text: '视觉模型与免费渠道', link: '/docs/vision-models' },
-            { text: 'OAuth 登录与账号管理', link: '/docs/oauth-login' },
-            { text: '实时语音与 Live 协作', link: '/docs/realtime-voice' },
-            { text: 'Devin Key 专属获取指引', link: '/docs/token-acquisition' },
+            { text: 'Code Search 代码拓扑检索', link: '/docs/code-search' },
+            { text: '子代理协同 (Ultra & Fusion)', link: '/docs/subagent-orchestration' },
+            { text: '全双工实时语音 Live', link: '/docs/realtime-voice' },
+            { text: 'Artifact 实时渲染与画布', link: '/docs/artifact-rendering' },
           ],
         },
         {
-          text: '智能体执行与工程能力',
+          text: '配置指南（模型 · 搜索 · 委托）',
           collapsed: false,
           items: [
-            { text: 'Code Search 智能代码搜索', link: '/docs/code-search' },
-            { text: '子代理编排 (Ultra Code & Fusion)', link: '/docs/subagent-orchestration' },
-            { text: 'Web 搜索与网络检索', link: '/docs/web-search' },
-            { text: 'Pi 扩展生态与热加载', link: '/docs/extensions' },
-            { text: '提示词工程与上下文设计体系', link: '/docs/prompt-system' },
+            { text: '模型与通道配置总览', link: '/docs/model-config' },
+            { text: '视觉模型（免费渠道与委托）', link: '/docs/vision-models' },
+            { text: 'Web 搜索与网络检索配置', link: '/docs/web-search' },
+            { text: '官方订阅 OAuth 一键登录', link: '/docs/oauth-login' },
+            { text: 'Devin OAuth 授权与获取', link: '/docs/token-acquisition' },
           ],
         },
         {
-          text: '社群与文档指南',
+          text: '系统、生态与安全',
           collapsed: false,
           items: [
-            { text: 'Web 社群与精选资源', link: '/docs/web-community' },
-            { text: '文档编写与层级管理', link: '/docs/how-to-write-docs' },
+            { text: '扩展、Skill 与 MCP 生态', link: '/docs/extensions' },
+            { text: '权限管控与安全拦截', link: '/docs/permissions' },
+            { text: '知识库与多媒体资料库', link: '/docs/knowledge-and-media' },
+            { text: '会话管理、归档与用量统计', link: '/docs/session-and-stats' },
+          ],
+        },
+        {
+          text: '视觉画廊与实景',
+          collapsed: false,
+          items: [
+            { text: '实机体验与特性画廊', link: '/docs/gallery' },
+          ],
+        },
+        {
+          text: '进阶与共建',
+          collapsed: false,
+          items: [
+            { text: '提示词与上下文设计体系', link: '/docs/prompt-system' },
+            { text: '精选社群与优质资源', link: '/docs/web-community' },
+            { text: '如何编写与扩充文档', link: '/docs/how-to-write-docs' },
           ],
         },
       ],
@@ -125,7 +157,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2024-present Piwin (Planora). All rights reserved.',
+      copyright: 'Copyright © 2024-present Piwin. All rights reserved.',
     },
 
     darkModeSwitchLabel: '面（纸 / 墨）',

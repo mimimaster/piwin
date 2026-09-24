@@ -1,8 +1,8 @@
-# 开源自荐：我做了一款“吃百家饭”长大的私有化 Coding Agent 工作台 —— Piwin (砚)
+# 开源自荐：我做了一款“吃百家饭”长大的面向个人 Coding Agent 工作台 —— Piwin (砚)
 
-> **项目主页**：[https://docs.planora.chat](https://docs.planora.chat)  
+> **项目主页**：[https://docs.piwinwin.com](https://docs.piwinwin.com)  
 > **开源仓库**：[https://github.com/mimimaster/piwin](https://github.com/mimimaster/piwin)  
-> **一句话介绍**：基于 Pi 内核打造、数据 100% 留在本地、内核与多端外壳彻底解耦的私有化 AI 智能编程工作台。
+> **一句话介绍**：基于 Pi 内核打造、专为个人开发者打磨、配置极度省心方便的随身智能编程工作台。
 
 ---
 
@@ -11,12 +11,12 @@
 在过去的一年里，AI 编程工具爆发式增长。作为一名重度开发者，我自费体验了几乎市面上所有的产品：从 Cursor、Devin、Windsurf，到 Claude Code、Codex、Kiro、Qoder、Grok Code 等。
 
 然而在长期实际工程使用中，我经常面临几个痛苦的困境：
-- **数据与安全顾虑**：很多核心业务代码和敏感凭证并不适合直接上传至商业云端平台；
-- **多工具切换繁琐**：不同工具绑死在各自专有的生态中，换个客户端历史记录和配置全部丢失；
+- **配置与切换繁琐**：不同工具绑死在各自专有的生态中，换个客户端历史记录和配置全部丢失；
 - **上下文污染严重**：一次长对话随着读取的文件变多，主模型上下文迅速恶化，注意力急剧稀释；
-- **计费与限制割裂**：手里握着各家官方订阅或 API Key，却无法在一个称心如意的前端统一调度。
+- **官方订阅调用受限**：手里握着官方订阅或各种 Key，却很难找到一个能够一键集成、方便调度、不搞强制消费的前端；
+- **Token 浪费肉疼**：用昂贵的大模型看报错截图、对齐前端样式，不知不觉烧掉几刀。
 
-于是，我决定打造一款**完全属于开发者自己、数据 100% 留在本地、内核与多端解耦、架构极致透明**的 Agent 宿主环境 —— **Piwin（砚 · Planora）**。
+于是，我决定打造一款**完全属于开发者自己、配置自由省心、真正面向个人使用习惯**的 Agent 工作台 —— **Piwin**。
 
 ---
 
@@ -61,8 +61,8 @@
 
 1. 前往 GitHub Releases 下载 **macOS 一体包**（`piwinwin_<version>_aarch64.dmg`）或 Windows 安装包；
 2. 拖入应用程序直接启动；
-3. 进入客户端「设置」配置你的 API Key（支持 BYOK 自由配置或 OAuth 一键登录）；
-4. 开始享受私有化、零环境污染的智能编程体验！
+3. 进入客户端「设置」快捷配置你的模型（支持官方订阅 OAuth 一键登录或输入自定义 Key）；
+4. 配好 Web 搜索或视觉委托，开始享受随身掌控的智能编程体验！
 
-- **在线文档站**：[https://docs.planora.chat](https://docs.planora.chat)
+- **在线文档站**：[https://docs.piwinwin.com](https://docs.piwinwin.com)
 - **开源仓库**：[https://github.com/mimimaster/piwin](https://github.com/mimimaster/piwin)

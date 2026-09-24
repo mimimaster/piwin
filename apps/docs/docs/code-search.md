@@ -11,18 +11,19 @@
 
 与传统的关键词匹配（如纯 Grep）或容易断章取义的简单向量检索（Vector RAG）不同，Code Search 采用 **Agentic 智能体驱动搜索范式**：
 
-```mermaid
-%%{init: {'flowchart': {'curve': 'linear'}}}%%
-flowchart LR
-    UserMsg["用户任务需求"] --> MainAgent["主编码 Agent<br/>(保持上下文纯净)"]
-
-    MainAgent -->|"派发搜索任务"| ScoutSub["Code Search 子代理<br/>(只读沙盒)"]
-    ScoutSub -->|"并行 Grep / AST / Read"| Codebase["本地代码仓库"]
-    Codebase -->|"返回局部代码"| ScoutSub
-    ScoutSub -->|"提炼代码拓扑与精确路径"| MainAgent
-
-    MainAgent -->|"精准编码"| ModifiedCode["修改代码"]
+```text
+┌──────────────┐       派发检索任务       ┌────────────────────────┐
+│  主编码模型  │ ───────────────────────> │  Code Search 只读侦察兵 │
+│ (上下文纯净) │ <─────────────────────── │ (深入代码库扫视依赖与定义)│
+└──────────────┘     结构化拓扑与精确路径  └────────────────────────┘
+       │
+       ▼ 精准修改代码
+┌──────────────┐
+│  目标代码落地 │
+└──────────────┘
 ```
+
+![Code Search 智能代码搜索特性图解](/images/promo/features/02-code-search.jpg)
 
 ---
 
@@ -66,10 +67,10 @@ Code Search 派发独立的**轻量级只读子智能体**去深入代码库探�
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 选项 A：使用 Devin 官方 Token 【推荐 · 免费极速】
-- **优势**：不仅速度极快、检索质量出色，而且完全免费；提取的同一个 Key 还可以直接供 [Web 搜索服务](./web-search.md) 使用；
-- **获取方法**：请参考专属教程：[Devin Token 与专属 Key 获取指引](./token-acquisition.md)；
-- **配套工具**：你也可以访问开源 MCP 连接器 [windsurf-search-mcp](https://github.com/mimimaster/windsurf-search-mcp)。
+### 选项 A：使用 Devin 官方 OAuth 【最推荐 · 一键自动打通 · 免费极速】
+- **优势**：不仅检索质量极高，而且完全免费；直接在「设置 ➔ OAuth 登录」点击 Devin 授权后，系统自动配置并同时激活 [Web 搜索服务](./web-search.md)；
+- **配置方法**：无需繁琐抓包，进入客户端「设置 ➔ OAuth 登录」点击 Devin 完成浏览器授权即可；习惯手动填入的用户也保留了手动粘贴 Token 入口，详见：[Devin 授权与 Token 指引](./token-acquisition.md)；
+- **配套工具**：底层兼容开源 MCP 连接器 [windsurf-search-mcp](https://github.com/mimimaster/windsurf-search-mcp)。
 
 ### 选项 B：使用自定义推理模型
 - **模型要求**：建议配置首字延迟（TTFT）极低、每秒输出 Token 数（TPS）极快的高速模型（如 DeepSeek Flash、Gemini Flash、Claude 3.5 Haiku 等）；

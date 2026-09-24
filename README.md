@@ -6,19 +6,19 @@
   <img src="./apps/desktop/public/app-icon-512.png" alt="Piwin Logo" width="120" height="120" />
 </p>
 
-**基于 Pi 的私有 Coding Agent Desktop — 把终端级 Agent 装进桌面**
+**基于 Pi 的面向个人的 Coding Agent Desktop**
 
 <p align="center">
   <a href="https://github.com/mimimaster/piwin/releases"><img src="https://img.shields.io/github/v/release/mimimaster/piwin?color=6366f1&label=Release&logo=github" alt="Release" /></a>
   <a href="./docs/architecture.md"><img src="https://img.shields.io/badge/Architecture-Host--First-10b981?logo=diagramsdotnet" alt="Architecture" /></a>
-  <a href="https://docs.planora.chat"><img src="https://img.shields.io/badge/Docs-docs.planora.chat-6366f1?logo=gitbook" alt="Docs" /></a>
+  <a href="https://docs.piwinwin.com"><img src="https://img.shields.io/badge/Docs-docs.piwinwin.com-6366f1?logo=gitbook" alt="Docs" /></a>
   <img src="https://img.shields.io/badge/Platforms-macOS%20%7C%20Windows%20%7C%20Web-0ea5e9" alt="Platforms" />
   <img src="https://img.shields.io/badge/Stack-Tauri%202%20%7C%20React%2019%20%7C%20Node%2022%20%7C%20Rust-f59e0b" alt="Stack" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" /></a>
 </p>
 
 <p align="center">
-  <a href="https://docs.planora.chat"><b>📖 文档</b></a> ·
+  <a href="https://docs.piwinwin.com"><b>📖 文档</b></a> ·
   <a href="#-快速上手"><b>⚡ 快速上手</b></a> ·
   <a href="#-功能矩阵"><b>✨ 功能矩阵</b></a> ·
   <a href="#-架构总览"><b>🏛️ 架构</b></a> ·
@@ -41,9 +41,10 @@
 
 ## 为什么做这个
 
-各类 Agent 壳层出不穷但大差不差。Pi 是很多人的首选 Coding Agent，但对于不习惯终端操作、嫌弃配置麻烦、偏好桌面端的用户，缺一个有生态支撑又足够开放的 GUI。
+现在各类coding agent层出不穷，功能也天天迭代，是否看的眼花缭乱？是否担心自己的数据被遥测？ Pi 其实是可以解决大家问题的首选 Coding Agent，自己把控功能，自己决定提示词和工具接入；
+但对于不习惯终端操作、嫌弃配置麻烦、偏好桌面端的用户，一个生态足够丰富、功能齐全的desktop也是很重要的
 
-Piwin 就是这个 GUI —— 基于 Pi SDK，客户端与 Host Runtime 分离，支持 Desktop / Web / Mobile 多端接入，所有数据留在本地。
+Piwin 就是这样的桌面端应用 —— 基于 Pi SDK，客户端与 Host Runtime 分离，支持 Desktop / Web / Mobile 多端接入，所有数据留在本地。
 
 > *砚者，研墨沉淀、静水流深。集百家之所长，归于一案之间。*
 
@@ -51,7 +52,7 @@ Piwin 就是这个 GUI —— 基于 Pi SDK，客户端与 Host Runtime 分离�
 
 ## ⚡ 快速上手
 
-所有命令在仓库根目录执行。一体包和独立 Host **不要在同一台机器同时开**（会抢 `~/.piwin`）。
+所有命令在仓库根目录执行。一体包和独立 Host **不要在同一台机器同时开**（会抢 `~/.piwin`，可以自己额外指向目录从而达成多host配置）。
 
 | 入口 | 场景 | 开发 | 打包 / 使用 |
 | :--- | :--- | :--- | :--- |
@@ -109,7 +110,7 @@ export PIWIN_HOST_ALLOWED_ORIGINS='https://ui.example.com'
 | **Code Search** | 参考 Devin Fast-Context 实现的代码语义检索工具，与 grep / read 同级，防止上下文腐烂，提升 Agent 决策质量 |
 | **子代理编排** | 自定义子代理派发方式，内置 **Ultra Code**（侦察兵 + 精准打击）和 **Fusion**（SOTA 规划 + 高性价比执行）两种编排，详见下文 |
 | **Artifact 渲染** | Inline 内嵌 + Canvas 独立面板双模态，iframe + CSP 安全沙箱，流式实时渲染 |
-| **BYOK 配置** | 极其自由的配置方式，覆盖文本模型、音视频模型、embedding、reranker 等各类模型的配置与委托；支持自定义端点 + OAuth 一键登录官方订阅（Kimi Coding / Codex / Claude / Grok / Copilot） |
+| **BYOK 配置** | 极其自由的配置方式，覆盖文本模型、音视频模型、embedding、reranker 等各类模型的配置与委托；支持自定义端点 + OAuth 一键登录官方订阅（Kimi Coding / Codex / Claude / Grok / Copilot / Devin） |
 | **视觉委托** | 给纯文本模型挂轻量多模态节点，粘贴截图自动 OCR + 特征提炼，省 70–90% 上下文 Token（OpenRouter / 硅基流动 / GLM 等平台提供免费多模态模型可直接使用） |
 | **全双工语音** | 边聊天边 Coding 的语音托管，支持 OpenAI Realtime / Codex Live / Grok 语音通道 |
 | **权限引擎** | Deny → Ask → Allow 三层门禁，默认 Yolo 但拦截 rm 等危险操作，支持项目级命令白名单 |
@@ -145,12 +146,12 @@ export PIWIN_HOST_ALLOWED_ORIGINS='https://ui.example.com'
 
 | 模块 | 推荐方案 | 文档 |
 | :--- | :--- | :--- |
-| OAuth 官方订阅 | 设置 → OAuth 登录，一键授权 Kimi / Codex / Claude / Grok | [指南](https://docs.planora.chat/oauth-login.html) |
-| 模型 & 视觉委托 | DeepSeek V3 / Claude 3.7 + Gemini Flash 视觉 | [指南](https://docs.planora.chat/model-config.html) |
-| Code Search | 提取 Devin Token（免费极速） | [指引](https://docs.planora.chat/token-acquisition.html) |
-| Web Search | Tavily API（1000 次/月免费）/ Devin Key | [指南](https://docs.planora.chat/web-search.html) |
-| 实时语音 | OpenAI Codex Live / Realtime 协议 | [指南](https://docs.planora.chat/realtime-voice.html) |
-| 多端组网 | Tailscale 加密组网，Host 托管 NAS | [指南](https://docs.planora.chat/deployment.html) |
+| OAuth 官方订阅 | 设置 → OAuth 登录，一键授权 Kimi / Codex / Claude / Grok | [指南](https://docs.piwinwin.com/oauth-login.html) |
+| 模型 & 视觉委托 | DeepSeek V3 / Claude 3.7 + Gemini Flash 视觉 | [指南](https://docs.piwinwin.com/model-config.html) |
+| Code Search | Devin OAuth 登录后直接复用，或手动填入 Devin Token（免费极速） | [指引](https://docs.piwinwin.com/token-acquisition.html) |
+| Web Search | Tavily API（1000 次/月免费）/ Devin Key | [指南](https://docs.piwinwin.com/web-search.html) |
+| 实时语音 | OpenAI Codex Live / Realtime 协议 | [指南](https://docs.piwinwin.com/realtime-voice.html) |
+| 多端组网 | Tailscale 加密组网，Host 托管 NAS | [指南](https://docs.piwinwin.com/deployment.html) |
 
 ---
 
@@ -251,7 +252,7 @@ piwin/
 
 ## 🤝 参与 & 社区
 
-- **文档站**：[docs.planora.chat](https://docs.planora.chat)
+- **文档站**：[docs.piwinwin.com](https://docs.piwinwin.com)
 - **代码仓库**：[github.com/mimimaster/piwin](https://github.com/mimimaster/piwin)
 - **反馈 & PR**：[GitHub Issues](https://github.com/mimimaster/piwin/issues)
 

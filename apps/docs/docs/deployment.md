@@ -1,65 +1,41 @@
-# 多端部署与私有化运行指南
+# 多端使用与运行指南
 
-Piwin 采用**前后端分离、单一 Host 权威**的现代化架构。你可以将负责核心计算、会话状态与代码执行的 **Host Runtime（后端）** 部署在任意受信任的物理机、自建服务器或家庭 NAS 上，然后通过各类**多端外壳（Desktop / Web / Mobile / CLI）**进行访问。
+平时写代码，最舒服的方式莫过于直接在主力机上双击桌面包开箱使用。如果你有一台性能强劲的台式机或常开的软路由/NAS，也可以将它作为常驻后台，出门在外用笔记本或平板随时连回继续工作。
 
-本文档将为你介绍桌面一体包、Web 远程访问、iOS 移动端以及二次开发构建指引。
+本文档为你介绍桌面一体包安装、远程访问与二次开发指引。
 
 ---
 
-## 1. 客户端外壳支持一览
+## 1. 客户端形式一览
 
-| 客户端形式           | 适用平台                       | 运行模式              | 特性亮点                                      |
-| :-------------- | :------------------------- | :---------------- | :---------------------------------------- |
-| **macOS 一体包**   | macOS (Apple Silicon 推荐)   | 本地内置 Sidecar Host | 免配环境，内置 Node 22、LanceDB 向量引擎与 Tauri 2 桌面端 |
-| **Windows 一体包** | Windows 10/11              | 本地内置 Sidecar Host | 双击运行，开箱即用                                 |
-| **Web 远程端**     | 任意现代浏览器 (Chrome/Safari)    | 远程直连 Host         | 自适应布局，结合 Tailscale 实现随时随地远程访问             |
-| **iOS 移动端**     | iPhone / iPad              | 移动端轻量壳子直连 Host    | 随身查看长程任务执行状态与下发需求                         |
-
+| 客户端形式 | 适用场景 | 亮点体验 |
+| :--- | :--- | :--- |
+| **macOS 一体包** | Mac 笔记本 / 主力机 | 双击即跑，免配环境，Apple Silicon 极致流畅 |
+| **Windows 一体包** | PC 台式机 / 笔记本 | 双击运行，开箱即用，自动拉起核心服务 |
+| **Web 远程端** | 平板 / 任意浏览器 | 自适应宽屏布局，结合组网随时随地远程接续 |
+| **iOS 移动端** | iPhone / 随身查看 | 出门在外随手查看长程任务执行进度与报错 |
 
 ---
 
 ## 2. 桌面一体包快速安装 (开箱即用)
 
-对于绝大多数普通用户，推荐直接使用一体化安装包：
+对于绝大多数日常使用者，直接下载安装包是最舒服的选择：
 
-1. 前往 GitHub 仓库右侧 **[Releases (github.com/mimimaster/piwin/releases)](https://github.com/mimimaster/piwin/releases)**；
-2. 下载最新发布包：
-   - macOS 用户下载：`piwinwin_<version>_aarch64.dmg`（双击打开后将图标拖入 Applications 文件夹）；
-   - Windows 用户下载对应安装压缩包；
+1. 前往 GitHub Releases：**[最新发布包页面 (github.com/mimimaster/piwin/releases)](https://github.com/mimimaster/piwin/releases)**；
+2. 下载对应系统的安装包：
+   - macOS 用户：下载 `piwinwin_<version>_aarch64.dmg`，双击拖入 Applications 文件夹；
+   - Windows 用户：下载对应 zip 安装包解压即用。
 
 ---
 
-## 3. 私有化与远程部署推荐方案 (Tailscale + Host)
+## 3. 远程访问方案 (Tailscale + 家用台式机/NAS)
 
-如果你希望将 Host 部署在算力更强的远程服务器或常开的 NAS 上，并在户外或手机上随时访问：
+如果你想把计算跑在家里配置更高的台式机上，用轻薄本或者平板随时随地连回：
 
-```mermaid
-%%{init: {'flowchart': {'curve': 'linear'}}}%%
-flowchart LR
-    subgraph Remote["远程服务器 / 私有 NAS"]
-        HostServer["Piwin Host Runtime<br/>(Node 22 + WebSocket 3000/3210)"]
-        CodeRoot["项目代码与 ~/.piwin 状态"]
-        HostServer --- CodeRoot
-    end
-
-    subgraph Network["加密虚拟局域网"]
-        VPN["Tailscale / 局域网组网"]
-    end
-
-    subgraph Clients["多端接入"]
-        Mac["MacBook 桌面端"]
-        Web["iPad / 浏览器 Web 端"]
-        iPhone["iOS 移动端外壳"]
-    end
-
-    HostServer <--> VPN
-    VPN <--> Mac & Web & iPhone
-```
-
-### 3.1 组网与连接步骤
-1. **组网配置**：在服务器与客户端设备上同时安装并登录 [Tailscale](https://tailscale.com/)（iOS 端也可使用支持 Tailscale 协议的 Shadowrocket）；
-2. **启动 Host**：在服务器上通过 Docker 或直接以 Node 启动 `apps/host`；
-3. **客户端连接**：在客户端启动参数或连接设置中填入服务器的 Tailscale IP 与 WebSocket 端口，即可实现零配置、端到端加密的远程直连。
+### 连接步骤
+1. **免费组网**：在台式机和笔记本上同时安装并登录 [Tailscale](https://tailscale.com/)，加入同一网络；
+2. **启动服务**：在台式机上直接启动 Piwin；
+3. **远程输入**：在远端设备的浏览器或客户端中填入台式机的 Tailscale 内网 IP，即可丝滑接入，进度完全同步。
 
 ---
 

@@ -10,20 +10,19 @@
 
 ## 1. 核心编排模式解析
 
+![子代理协同编排体系特性图解](/images/promo/features/01-orchestration.jpg)
+
 ### 1.1 Ultra Code 模式（侦察兵 + 精准执行）
 Ultra Code 模式专为中大型代码库的深度改造设计：
 
-```mermaid
-%%{init: {'flowchart': {'curve': 'linear'}}}%%
-flowchart TB
-    UserPrompt["用户复杂需求"] --> MasterAgent["主编排模型 (Master)"]
-    
-    MasterAgent -->|"派发调研任务"| ScoutSub["Scout 侦察子代理<br/>(只读模式)"]
-    ScoutSub -->|"深入代码库分析依赖与定义"| Codebase["代码库"]
-    Codebase -->|"结构化调研结论"| ScoutSub
-    ScoutSub -->|"输出 STATUS: COMPLETE 报告"| MasterAgent
-
-    MasterAgent -->|"审阅报告，实施精准修改"| CodeChanges["代码落地与实测"]
+```text
+[用户需求] ──> [主编排模型]
+                     │ 派发侦察任务
+                     ▼
+           [Scout 只读侦察兵] ──深入代码库──> [分析依赖与定义]
+                     │
+                     ▼ 结构化报告
+               [主编排模型] ──审阅报告──> [精准落地修改]
 ```
 
 - **Scout（侦察兵）子代理**：以只读模式（Readonly Sandbox）进入代码库，只负责梳理接口定义、调用关系与潜在风险，输出标准化的结构报告；
@@ -34,22 +33,24 @@ flowchart TB
 ### 1.2 Fusion 模式（SOTA 规划 + 高性价比执行）
 Fusion 模式借鉴了顶级工程智能体的协作架构：**“主规划大脑 (Lead) + 高性价比执行节点 (Sidekick)”**。
 
-```mermaid
-%%{init: {'flowchart': {'curve': 'linear'}}}%%
-flowchart TB
-    subgraph Lead["Lead (主会话主控)"]
-        A["理解需求与歧义澄清"] --> B["设计架构与拆解 SessionPlan"]
-        B --> C["审查 Sidekick 候选结果"]
-    end
-
-    subgraph Sidekick["Sidekick (独立子会话 + Git Worktree)"]
-        D["接收独立 Task Brief 信封"] --> E["在临时 Worktree 分支并发写代码"]
-        E --> F["运行本地单测与类型检查"]
-        F --> G["提交变更候选集 Candidate Result"]
-    end
-
-    B -->|"派发 piwin_subagent_start"| D
-    G -->|"piwin_subagent_result_apply"| C
+```text
+┌─────────────────────────────────┐
+│     Lead (主会话规划主控)        │
+│  理解需求 ➔ 拆解任务 ➔ 审查结果  │
+└─────────────────────────────────┘
+        │ 派发任务信封
+        ▼
+┌─────────────────────────────────┐
+│   Sidekick (独立子会话执行节点)   │
+│ • 独立 Git Worktree 隔离写代码   │
+│ • 本地单测与校验自愈             │
+│ • 提交变更候选集 Candidate Result │
+└─────────────────────────────────┘
+        │ 审核通过原子合并
+        ▼
+┌─────────────────────────────────┐
+│        主工程代码干净落地        │
+└─────────────────────────────────┘
 ```
 
 - **Lead（当前会话主控）**：使用顶尖 SOTA 模型（如 Claude 3.7 Sonnet / DeepSeek V3 / o3-mini），握有全局上下文，负责拆解计划、理解歧义与终审；

@@ -4,7 +4,7 @@ VitePress documentation for Piwin, designed with the Inkstone (砚) aesthetic.
 
 ## 🌐 Live Documentation
 
-- **Custom domain**: [https://docs.planora.chat](https://docs.planora.chat)
+- **Custom domain**: [https://docs.piwinwin.com](https://docs.piwinwin.com)
 - **Production Pages**: [https://piwin-docs.pages.dev](https://piwin-docs.pages.dev)
 
 ## 📖 Content Structure

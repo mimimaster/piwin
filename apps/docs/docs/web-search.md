@@ -30,13 +30,13 @@ Piwin 提供了极为开放和自由的网络检索配置，你可以根据自�
 ```
 
 ---
-### 选项 A：Devin 专属 Token (windsurf-search-mcp) <span class="tag-badge tag-free">完全免费</span> <span class="tag-badge tag-fast">极速高质量</span>
+### 选项 A：Devin 官方 OAuth (最推荐，一键自动打通) <span class="tag-badge tag-free">完全免费</span> <span class="tag-badge tag-fast">极速高质量</span>
 
-基于对 Devin 官方能力的探索与逆向实现，你可以直接提取个人 Devin 账号生成的专用 Token：
+不需要自己去抓包找 Token！在客户端「设置 ➔ OAuth 登录」点击 **Devin** 完成浏览器授权，系统即可自动获取并配置好搜索能力：
 
-- **核心亮点**：同一个 Devin Key 不仅可以用于高质量 Web 搜索，还可以直接用于 [Code Search 语义代码检索](./code-search.md)，速度极快；
-- **获取方法**：请参考专属指引：[Devin Token 与专属 Key 获取指引](./token-acquisition.md)；
-- **开源 MCP 项目**：访问 [mimimaster/windsurf-search-mcp](https://github.com/mimimaster/windsurf-search-mcp)。
+- **核心亮点**：一键授权后，不仅可以直接享受高质量 Web 搜索，还可以直接驱动 [Code Search 语义代码检索](./code-search.md)，双料功能即刻点亮；
+- **极简配置**：进入客户端「设置 ➔ OAuth 登录」点击 Devin 登录即可；如果习惯手动填入 Token 也同样支持，详见：[Devin 授权与 Token 指引](./token-acquisition.md)；
+- **开源 MCP 项目**：底层兼容开源生态 [mimimaster/windsurf-search-mcp](https://github.com/mimimaster/windsurf-search-mcp)。
 ---
 ### 选项 B：Tavily Search API <span class="tag-badge tag-free">每月 1000 次免费</span> <span class="tag-badge tag-fast">专为 AI 设计</span>
 

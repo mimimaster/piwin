@@ -1,6 +1,16 @@
-## 拓展 
-大部分拓展都是用来实现特定的功能、goal啊、llm-wiki啊、pi-deepseek-cache是为了缓存命中率，好用的嘞，擅自主张加进去了捏😁![image.png](https://img.yorickjue.com/file/1789920107045_image.png)
-然后我们的拓展是支持agent-runtime级别的热安装、热更新的，一些比较好用、比较好的idea，我也会去做适配的
-## skill
-同拓展一样，内置skill是跟功能息息相关的
-![image.png](https://img.yorickjue.com/file/1789920361744_image.png)
+# 内置拓展、Skill 以及 MCP 推荐
+
+本指南已整合至完整版文档：请查阅 [扩展生态、内置 Skill 与 MCP 推荐](/docs/extensions)。
+
+---
+
+## 快速摘要
+
+### 拓展
+大部分拓展都是用来实现特定的功能，`goal`、`llm-wiki`、`pi-deepseek-cache`（为了提高提示词前缀缓存命中率，大幅降本提速）。
+支持 Agent-Runtime 级别的热安装与热更新！
+![扩展市场](https://img.yorickjue.com/file/1789920107045_image.png)
+
+### Skill
+同拓展一样，内置 Skill 与核心能力息息相关。
+![内置 Skill](https://img.yorickjue.com/file/1789920361744_image.png)

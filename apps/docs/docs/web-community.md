@@ -25,7 +25,7 @@ Piwin 全面兼容 **Model Context Protocol (MCP)** 标准与 Pi 扩展协议：
 
 - **开源仓库**：访问 [GitHub Repository (github.com/mimimaster/piwin)](https://github.com/mimimaster/piwin) 提交 Issue、提出 Feature Request 或参与代码贡献；
 - **LINUX DO 社区**：访问 LINUX DO 开源专区，与更多热衷于折腾 AI Agent、模型路由与自动化编程的开发者交流心得；
-- **技术文档站**：[https://docs.planora.chat](https://docs.planora.chat)。
+- **技术文档站**：[https://docs.piwinwin.com](https://docs.piwinwin.com)。
 
 ---
 

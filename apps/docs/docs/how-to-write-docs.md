@@ -75,4 +75,4 @@ sidebar: {
 
 1. **本地热更新预览**：在项目根目录运行 `pnpm dev:docs` 或进入 `apps/docs` 运行 `pnpm dev`，修改 Markdown 后浏览器会**秒级热重载**；
 2. **构建验证**：运行 `pnpm build` 确认无断链（Broken Links）；
-3. **自动发布**：代码推送到 GitHub `main` 分支后，Cloudflare Pages 会自动拉取最新提交并秒级部署至 [https://docs.planora.chat](https://docs.planora.chat)。
+3. **自动发布**：代码推送到 GitHub `main` 分支后，Cloudflare Pages 会自动拉取最新提交并秒级部署至 [https://docs.piwinwin.com](https://docs.piwinwin.com)。
