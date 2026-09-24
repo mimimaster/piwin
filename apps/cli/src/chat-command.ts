@@ -1,7 +1,9 @@
 import type { AgentEvent, HostPush, PromptAttachment } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import { connectCliAttachedHost, readCliHostAttachTarget } from './attach-existing-host.js';
 import { resolveCliChatPrompt } from './chat-prompt.js';
 import { formatCliAgentErrorEvent } from './cli-agent-error.js';
+import { createCliExtensionUiPushResponder } from './extension-ui-cli.js';
 import { saveAttachedCliImageAttachment, saveLocalCliImageAttachment } from './cli-prompt-image.js';
 import { buildCliContextRefs, collectRefArgs } from './context-ref-args.js';
 import { formatCliFlashcardToolResult } from './flashcard-tool-result.js';
@@ -219,9 +221,18 @@ export async function commandChat(argv: string[]): Promise<void> {
     }, attachedPromptTimeoutMs);
     const attachedDisplay = createAssistantCliDisplay();
     const attachedWaiting = { printed: false };
+    const answerAttachedExtensionUi = createCliExtensionUiPushResponder((command) =>
+      client.request(command),
+    );
     const unsubscribe = client.subscribePush((push) => {
       if (push.type === 'run/terminal') {
         resolveAttachedCompletion?.();
+        return;
+      }
+      if (push.type === 'extension/ui_request') {
+        answerAttachedExtensionUi(push).catch((error: unknown) => {
+          console.error(`[extension-ui] ${formatError(error)}`);
+        });
         return;
       }
       printCliWaitingResource(push, attachedWaiting);
@@ -314,12 +325,23 @@ export async function commandChat(argv: string[]): Promise<void> {
   }, localPromptTimeoutMs);
   const display = createAssistantCliDisplay();
   const localWaiting = { printed: false };
-  const runtime = new HostRuntime({
+  // `runtime` is assigned before any session exists, so the first push that can
+  // carry an Extension UI request always sees it.
+  const answerLocalExtensionUi = createCliExtensionUiPushResponder((command) =>
+    runtime.handleCommand(command),
+  );
+  const runtime: HostRuntime = new HostRuntime({
     mode,
     mock,
     onPush: (push) => {
       if (push.type === 'run/terminal') {
         resolvePromptCompletion?.();
+        return;
+      }
+      if (push.type === 'extension/ui_request') {
+        answerLocalExtensionUi(push).catch((error: unknown) => {
+          console.error(`[extension-ui] ${formatError(error)}`);
+        });
         return;
       }
       printCliWaitingResource(push, localWaiting);

@@ -163,4 +163,35 @@ describe('TurnWorkDisclosure', () => {
     expect(trigger?.querySelector('.work-fold-brain')).toBeNull();
     expect(trigger?.querySelector('svg.chev')?.innerHTML).toContain('M6 4l4 4-4 4');
   });
+
+  it('renders running narration, tool count, and command during a live run', () => {
+    act(() =>
+      renderHarness(
+        {
+          startIndex: 1,
+          endIndex: 2,
+          failureCount: 0,
+          toolCount: 2,
+          live: true,
+          runningToolIndex: 2,
+          runningTool: {
+            toolCallId: 't1',
+            toolName: 'bash',
+            status: 'running',
+            output: '',
+            presentation: { kind: 'shell', title: 'pnpm test', command: 'pnpm test' },
+          },
+          latestNarration: '正在运行测试套件',
+        },
+        { defaultOpen: false, locale: 'zh-CN' },
+      ),
+    );
+
+    const trigger = container.querySelector<HTMLElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    expect(trigger?.textContent).toBe('正在运行 · 正在运行测试套件 · 第 2 个工具 · pnpm test');
+    expect(trigger?.querySelector('.work-fold-narration')?.textContent).toBe('正在运行测试套件');
+    expect(trigger?.querySelector('code')?.textContent).toBe('pnpm test');
+  });
 });

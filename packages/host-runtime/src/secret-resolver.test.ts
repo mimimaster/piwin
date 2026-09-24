@@ -137,4 +137,25 @@ describe('createSecretResolver', () => {
     await expect(resolver.writeSecretByRef('oauth:devin', 'x')).rejects.toThrow(/oauth/);
     await expect(resolver.deleteSecretByRef('oauth:devin')).rejects.toThrow(/oauth/);
   });
+
+  it('hands Windsurf-protocol callers the prefixed form of the bare JWT the Devin sign-in stores', async () => {
+    const { mkdir, mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const root = await mkdtemp(join(tmpdir(), 'piwin-oauth-devin-jwt-'));
+    await mkdir(join(root, 'pi-agent'), { recursive: true });
+    await writeFile(
+      join(root, 'pi-agent', 'auth.json'),
+      JSON.stringify({
+        // What POST /auth/cli/token actually returns: the JWT alone.
+        devin: { type: 'oauth', access: 'eyJhbGciOi.payload.sig', refresh: 'eyJhbGciOi.payload.sig' },
+        xai: { type: 'oauth', access: 'xai-token' },
+      }),
+      'utf8',
+    );
+    const resolver = createSecretResolver({ piwinRoot: root, preferFileStore: true });
+    expect(await resolver.readSecretByRef('oauth:devin')).toBe('devin-session-token$eyJhbGciOi.payload.sig');
+    // Other providers are not Windsurf clients and keep their token as stored.
+    expect(await resolver.readSecretByRef('oauth:xai')).toBe('xai-token');
+  });
 });

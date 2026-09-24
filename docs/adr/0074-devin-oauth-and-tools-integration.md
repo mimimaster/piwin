@@ -59,3 +59,11 @@ a piwin bug.
   unofficial client behind a first-party tone.
 - Downstream packages (`agent-host`, `host-runtime`, `tools-web`, desktop)
   implement against these contracts in later slices.
+
+## Amendment (2026-09-24)
+
+- **Logged-out accounts are not offered.** `code_search` with `backend: 'windsurf'` resolves an `oauth:<provider>` ref (explicit, or the implicit `oauth:devin` for an empty config) only when that account is present in `auth.json` (`hasOauthCredentialSync`). Otherwise the tool is left out with a composition diagnostic, instead of reaching the model and failing every call.
+- **Expired sessions ask for a login.** Devin CLI tokens have no refresh grant. `refreshToken` returns the credentials unchanged while they are valid and throws "log in to Devin again" once `expires` has passed, rather than handing back an expired token that surfaces as a bare 401.
+- The Code search settings action is "Use Devin account": it switches the ref, it does not start a login.
+- **Token shape (2026-09-24).** `POST /auth/cli/token` returns the bare JWT (`{"session_id":"windsurf-session-…"}`), not `devin-session-token$…`. The Host resolves `oauth:devin` to the prefixed form (`toDevinSessionToken`, shared with the chat protocol), so code_search and the Devin web-search source send what the Windsurf API expects. Verified live against a real sign-in: both returned results. Settings tests for an unsaved Devin source send the draft, and the Host resolves the draft's key alongside the saved sources (`withDraftSearchSource`).
+- **Sign-in sets up the free tools (2026-09-24, owner decision).** On a successful Devin login the Host (`subscription-login-defaults.ts`) turns on code_search with `oauth:devin` unless the user already chose a model or pasted a token, and adds an enabled Devin web-search source unless one exists (a source the user switched off stays off). It never changes `searchRoutePolicy`; when the policy is model-native first, `auth/login-finished.followUp.suggestExternalSearchPriority` lets the client offer a one-click switch, which re-reads the Host config before saving so the new domains are not overwritten. Open settings forms re-sync `web` and `codeSearch` on that event. Doing this on the Host keeps CLI and remote shells consistent.

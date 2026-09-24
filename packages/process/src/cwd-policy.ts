@@ -1,7 +1,33 @@
 /**
  * Managed process cwd policy: absolute path must resolve under a trusted project root.
  */
-import { resolve, sep } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { basename, dirname, join, resolve, sep } from 'node:path';
+
+/**
+ * The real location behind a path. Trust is about the directory, not the
+ * spelling: a project registered through a symlink (`/Volumes/…/piwin` →
+ * `~/Developer/piwin`) must still cover a path spelled through the target, and
+ * a symlink inside a project that points elsewhere is elsewhere. A path that
+ * does not exist yet (a file about to be written) is resolved through its
+ * nearest existing ancestor, then the missing tail is re-attached.
+ */
+export function canonicalFsPath(path: string): string {
+  const absolute = resolve(path);
+  const missing: string[] = [];
+  let current = absolute;
+  for (;;) {
+    try {
+      const real = realpathSync.native(current);
+      return missing.length === 0 ? real : join(real, ...missing.reverse());
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return absolute;
+      missing.push(basename(current));
+      current = parent;
+    }
+  }
+}
 
 export type CwdPolicyResult =
   | { ok: true; absoluteCwd: string; projectRoot: string }
@@ -38,8 +64,9 @@ export function resolveTrustedCwd(
     return { ok: false, reason: 'no trusted project roots' };
   }
   const absoluteCwd = resolve(cwd);
+  const canonicalCwd = canonicalFsPath(absoluteCwd);
   for (const root of trustedProjectRoots) {
-    if (isPathInsideRoot(absoluteCwd, root)) {
+    if (isPathInsideRoot(canonicalCwd, canonicalFsPath(root))) {
       return { ok: true, absoluteCwd, projectRoot: resolve(root) };
     }
   }

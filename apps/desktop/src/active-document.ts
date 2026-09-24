@@ -2,7 +2,7 @@
  * Discriminated ActiveDocument model for Doc Preview (plan Slice 4).
  * Loading / unavailable are first-class states — not fake markdown stubs only.
  */
-import type { DocumentTargetRef } from '@piwin/contracts';
+import type { DocumentPathAttempt, DocumentTargetRef } from '@piwin/contracts';
 
 export type DocumentProvenance =
   | 'inline'
@@ -63,6 +63,12 @@ export type ActiveDocument =
       suggestion?: string;
       byteSize?: number;
       maxBytes?: number;
+      /**
+       * Routes the Host tried while resolving the raw path (ADR 0052 §6).
+       * Shown as a diagnostic disclosure so a failure names its cause instead
+       * of collapsing every miss into `not-found`.
+       */
+      attempts?: readonly DocumentPathAttempt[];
     };
 
 export function createDocumentRequestId(): string {

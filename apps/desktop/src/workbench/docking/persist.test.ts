@@ -69,16 +69,30 @@ describe('docking persist', () => {
     expect(parsed?.groups[rightGroupId]?.activeViewId).toBe(rightGroup.viewIds[0]);
   });
 
-  it('keeps more than one browser view', () => {
+  it('collapses extra browser views saved by older layouts into one', () => {
     const createId = createSequentialIdFactory();
     const opened = openToolView(createWorkspaceState(createId), 'browser', createId);
     expect(opened.ok).toBe(true);
     if (!opened.ok) return;
-    const second = openToolView(opened.state, 'browser', createId, undefined, { another: true });
-    expect(second.ok).toBe(true);
-    if (!second.ok) return;
-    const parsed = parseWorkspaceState(serializeWorkspaceState(second.state));
-    expect(Object.values(parsed?.views ?? {}).filter((view) => view.kind === 'browser')).toHaveLength(2);
+    const firstBrowser = Object.values(opened.state.views).find((view) => view.kind === 'browser');
+    const groupId = Object.keys(opened.state.groups).find((id) =>
+      opened.state.groups[id]?.viewIds.includes(firstBrowser?.viewId ?? ''),
+    );
+    const group = groupId ? opened.state.groups[groupId] : undefined;
+    if (!firstBrowser || !groupId || !group) throw new Error('expected an open browser view');
+    const extra = { viewId: 'view-extra-browser', kind: 'browser' as const };
+    const duplicated = {
+      ...opened.state,
+      views: { ...opened.state.views, [extra.viewId]: extra },
+      groups: {
+        ...opened.state.groups,
+        [groupId]: { ...group, viewIds: [...group.viewIds, extra.viewId], activeViewId: extra.viewId },
+      },
+    };
+    const parsed = parseWorkspaceState(serializeWorkspaceState(duplicated));
+    const browsers = Object.values(parsed?.views ?? {}).filter((view) => view.kind === 'browser');
+    expect(browsers.map((view) => view.viewId)).toEqual([firstBrowser.viewId]);
+    expect(parsed?.groups[groupId]?.viewIds).toEqual(group.viewIds);
   });
 
   it('migrates v1 storage after writing a one-shot backup', () => {

@@ -244,6 +244,42 @@ describe('host tool admission composition', () => {
     expect(result.allowed).toBe(false);
     if (!result.allowed) {
       expect(result.result).toMatchObject({ code: 'permission-denied' });
+      if (!result.result.ok) {
+        expect(result.result.message).toContain('/etc/piwin-shot.jpg');
+        expect(result.result.message).toContain("outside this session's workspace was not approved");
+      }
+    }
+  });
+
+  it('explains a rejected outside-workspace Job cwd to the model', async () => {
+    const registration: HostToolRegistration = {
+      descriptor: {
+        name: 'process_start',
+        description: 'start a Job',
+        parameters: { type: 'object', properties: { cwd: { type: 'string' } } },
+      },
+      family: 'process',
+      permissionSpec: {
+        action: 'process:start',
+        risk: 'command',
+        rememberable: false,
+        subjectBuilder: (args) => ({ kind: 'process', cwd: String(args.cwd ?? '') }),
+      },
+      execute: async () => ({ ok: true, output: 'ok' }),
+    };
+    const result = await admit({
+      rules: createEmptyRuleSet(),
+      getPermissionMode: () => 'bypass',
+      requestPermission: async () => 'deny',
+      projectRoot: '/tmp/project',
+    }, registration, { command: 'pwd', cwd: '/tmp/other' });
+
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      if (!result.result.ok) {
+        expect(result.result.message).toContain('/tmp/other');
+        expect(result.result.message).toContain("outside this session's workspace was not approved");
+      }
     }
   });
 

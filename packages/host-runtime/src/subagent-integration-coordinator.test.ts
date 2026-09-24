@@ -84,6 +84,30 @@ function createSuccessIntegration(changedFiles: string[]): WorktreeIntegrationFu
 }
 
 describe('SubagentIntegrationCoordinator', () => {
+  it('refuses a later apply of a shared-slot result that has no frozen snapshot', async () => {
+    const integrateWorktree = vi.fn(createSuccessIntegration(['src/a.ts']));
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree,
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree: vi.fn().mockResolvedValue(undefined),
+    });
+    const slotLease = { ...createWorktreeLease('/tmp/slots/key/slot-0'), slotId: 'slot-0' };
+
+    // Deferred apply: another task may have reset the slot since.
+    const deferred = await coordinator.integrate(createTaskResult('task-1'), slotLease);
+    expect(deferred.integrationStatus).toBe('failed');
+    expect(deferred.error).toContain('snapshot is unavailable');
+    expect(integrateWorktree).not.toHaveBeenCalled();
+
+    // Auto-apply straight after the run still owns the live copy.
+    const immediate = await coordinator.integrate(createTaskResult('task-2'), slotLease, {
+      liveCopyOwned: true,
+    });
+    expect(immediate.integrationStatus).toBe('applied');
+    expect(integrateWorktree).toHaveBeenCalledTimes(1);
+    await coordinator.dispose();
+  });
+
   it('does not overlap integrations for the same normalized parent repository', async () => {
     const firstIntegrationStarted = createDeferred();
     const releaseFirstIntegration = createDeferred();
@@ -449,7 +473,17 @@ describe('SubagentIntegrationCoordinator', () => {
         };
       },
     );
-    const adapter = createGitWorktreeIntegrationAdapter(gitIntegrateWorktree);
+    const adapter = createGitWorktreeIntegrationAdapter(
+      gitIntegrateWorktree,
+      vi.fn(
+        async (): Promise<GitWorktreeIntegrationResult> => ({
+          status: 'rejected',
+          integratedFiles: [],
+          conflictedFiles: [],
+          rejectedFiles: [],
+        }),
+      ),
+    );
     const input: WorktreeIntegrationInput = {
       parentRepoPath: '/tmp/project',
       worktreePath: '/tmp/project/.piwin-worktrees/one',
@@ -483,6 +517,14 @@ describe('SubagentIntegrationCoordinator', () => {
         rejectedFiles: [],
         error: 'patch does not apply: game.js',
       })),
+      vi.fn(
+        async (): Promise<GitWorktreeIntegrationResult> => ({
+          status: 'rejected',
+          integratedFiles: [],
+          conflictedFiles: [],
+          rejectedFiles: [],
+        }),
+      ),
     );
 
     const result = await adapter({

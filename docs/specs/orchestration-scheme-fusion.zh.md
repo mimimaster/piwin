@@ -45,7 +45,7 @@
 
 - 子会话 seed **不得**拷贝父 transcript（现有 `prepareSubagentTask` 已是 task 文本，回归测试锁死）。
 - Fusion 下 Host 再包一层 brief 信封，写明隔离。
-- `piwin_subagent_wait` 只回流 `summaryPreview`（Result），不回流 child 工具轨迹。
+- `piwin_subagent_wait` 只回流 `summaryPreview`（Result）和精确引用（`result={…}`、有审查时 `reviewRef={…}`），不回流 child 工具轨迹。引用必须写进**文本**：Pi 只把文本给模型，`details` 只到 UI（2026-09-24 修复：之前引用只在 `details` 里，Lead 拿不到，apply 卡死）。
 - Lead 若把整段对话粘进 `task`，信封挡不住恶意粘贴，但 preamble 禁止；Host 不把父消息当第二参数。
 
 ### 2. Lead 始终握有计划、歧义解释、终审
@@ -55,7 +55,7 @@ Sidekick 默认 **执行 + 回报**，不是自己拍板。
 - 父会话 / composer = Lead，**不是** child role。
 - Sidekick 回报首行只能是 `done` / `blocked` / `escalate`。
 - `escalate` 或成员 `fallback: main` = Lead 收回自己做。
-- 不另设 reviewer 角色（那是 Reviewed Delivery）。
+- 不另设 reviewer 角色（那是 Reviewed Delivery）。终审由 Lead 自己落盘：见 §4.1。
 
 ### 3. 「判断即交付物」禁止下放到便宜模型
 
@@ -204,6 +204,20 @@ Host 行为：
 4. 子会话自己的 transcript 作为它的缓存；Lead 仍然只看见 Result。
 
 这是「同机独立对话链 + 复用」，对标开源 Fusion 的 `fusion_delegate` 复用同一 child，**不是** Devin 进程内双车道。
+
+### 4.1 Lead 审查（2026-09-24）
+
+apply 的闸门要求一条持久化的 `approved` 审查（`approvedBy`），而审查原本只能由 `reviewOf` 绑定的 reviewer 子代理写。Fusion 没有 reviewer 成员，于是候选永远合不进来。现在：
+
+- Host 在接纳 Fusion sidekick 任务时写入 `reviewAuthority: 'lead'`（`SubagentTaskSpec`，Host 专有，模型填不了），和 `deliveryIntent`/`applyPolicy` 一样由 `buildFusionSidekickSpawnFields` 强制。
+- 父会话注册 Lead 版 `piwin_subagent_review_submit`（同名同入参；reviewer 子代理仍用自己的 scoped 版本）。Host 只接受：本父会话的结果、任务带 `lead` 权限、是当前 lineage head、冻结数据还在。
+- 审查记录写在**候选任务自己**身上（没有 reviewer run），`authority: 'lead'`，`reviewerSessionId` = 父会话。沿用「每个任务一条决定」：Lead 想要改动就发新 brief，不在同一候选上翻案。
+- apply 路径不变：精确 result、精确 reviewRef、旧审查失效、候选被取代都照旧拦截。工具输出直接给出 `result=…` / `approvedBy=…` 供 apply 原样引用。
+- 其他候选（Reviewed Delivery、plan 执行、自由模式）仍需独立 reviewer。
+
+### 4.2 暂停/恢复保留方案（2026-09-24）
+
+方案按 run 绑定，resume 是新 run。之前 `session/resume-run` 只带 `text/source/resumeCheckpointId`，恢复后的 run 落回自由模式：sidekick 丢了钉定模型（落回主模型）和 Lead 审查权限。现在 Host 在接纳 prompt 时记录请求的方案 id 与 `delegationMode: 'disabled'`（早于 prompt 准备，准备期间暂停也不丢），暂停时写进 checkpoint 的 `turnPolicy`，resume 原样带回。恢复的是同一轮，所以以被暂停 run 的方案为准，而不是 composer 当前的选择。
 
 ---
 

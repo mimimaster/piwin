@@ -330,7 +330,12 @@ export type HostContentCommand =
   | { id?: string; type: 'browser/restart' }
   | { id?: string; type: 'browser/reload' }
   | { id?: string; type: 'browser/input'; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }
-  | { id?: string; type: 'browser/resize'; width: number; height: number; leaseId?: string; origin?: 'follow' | 'explicit' }
+  /**
+   * `claim` (follow only): this panel takes over driving the follow viewport,
+   * e.g. its window gained focus. Without it a follow resize from a panel that
+   * does not own the viewport is refused with `browser-viewport-owned`.
+   */
+  | { id?: string; type: 'browser/resize'; width: number; height: number; leaseId?: string; origin?: 'follow' | 'explicit'; claim?: boolean }
   | { id?: string; type: 'browser/back' }
   | { id?: string; type: 'browser/forward' }
   | { id?: string; type: 'browser/new-tab'; url?: string }

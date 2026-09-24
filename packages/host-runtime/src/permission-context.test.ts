@@ -56,4 +56,40 @@ describe('buildPermissionRequestContext', () => {
     expect(context.kind).toBe('file-write');
     expect(context.secretRelated).toBe(true);
   });
+
+  it('shows the outside path and boundary reason for a file write', () => {
+    const context = buildPermissionRequestContext('file-write', '/other/report.txt', {
+      policyReason: 'path-escapes-project-root',
+    });
+    expect(context).toMatchObject({
+      kind: 'file-write',
+      outsideWorkspace: true,
+      paths: ['/other/report.txt'],
+    });
+    expect(context.reason).toContain('outside the session workspace');
+  });
+
+  it('shows the requested directory and command for a Job boundary prompt', () => {
+    const context = buildPermissionRequestContext(
+      'process:start',
+      'cwd-outside-workspace: /other\n$ pnpm dev',
+      { policyReason: 'cwd-outside-workspace', cwd: '/other', command: 'pnpm dev' },
+    );
+    expect(context).toMatchObject({
+      kind: 'command',
+      outsideWorkspace: true,
+      cwd: '/other',
+      command: 'pnpm dev',
+    });
+  });
+
+  it('lists every browser upload path, including names with spaces', () => {
+    const paths = ['/repo/one.txt', '/other/two words.txt'];
+    const context = buildPermissionRequestContext('browser:upload', paths.join('\n'), {
+      policyReason: 'path-escapes-project-root',
+      paths,
+    });
+    expect(context).toMatchObject({ kind: 'file-write', outsideWorkspace: true, paths });
+    expect(context.reason).toContain('sent to the browser page');
+  });
 });

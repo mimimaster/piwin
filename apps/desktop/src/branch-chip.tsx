@@ -17,6 +17,7 @@ import type {
   GitStatusSnapshot,
   HostResponse,
 } from '@piwin/contracts';
+import { isWriterSlotWorktreePath } from '@piwin/contracts';
 import { DropdownMenu, DropdownMenuItem } from '@piwin/ui-kit';
 import { useConfirmDialog } from './use-confirm-dialog';
 import { useDesktopLocale } from './desktop-locale-context';
@@ -178,6 +179,16 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
           return;
         }
         const folderName = worktreeFolderName(occupiedPath);
+        // A shared writer slot is not a task's own working tree: it is reset in
+        // place between tasks and may be in use right now. Such a branch is a
+        // Host artifact the user never picks deliberately, so inform and stop
+        // rather than offering to open it as a project.
+        if (isWriterSlotWorktreePath(occupiedPath) || !props.onOpenWorktreeProject) {
+          const message = copy.branchOccupiedToast(folderName);
+          setError(message);
+          reportBranchChipError(message, props.onError);
+          return;
+        }
         const confirmed = await confirmDialog.confirm({
           title: copy.branchOccupiedConfirmTitle,
           description: copy.branchOccupiedConfirm(branchName, folderName),
@@ -185,12 +196,6 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
           tone: 'default',
         });
         if (!confirmed) {
-          return;
-        }
-        if (!props.onOpenWorktreeProject) {
-          const message = copy.branchOccupiedToast(folderName);
-          setError(message);
-          reportBranchChipError(message, props.onError);
           return;
         }
         setSwitching(true);

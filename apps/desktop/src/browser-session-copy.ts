@@ -25,7 +25,6 @@ export type BrowserSessionCopy = BrowserSessionChromeCopy & {
   frameUnavailable: string;
   commandFailed: string;
   viewportFailed: string;
-  viewportFollowRefused: string;
   panelActionFailed: string;
   diagCss: string;
   diagEncoded: string;
@@ -106,7 +105,6 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
       frameUnavailable: '远程浏览画面需要更新 Host 或 Desktop',
       commandFailed: '浏览器命令失败，请重试。',
       viewportFailed: '无法调整视口。',
-      viewportFollowRefused: '另一个窗口也在显示这个浏览器，页面尺寸暂不跟随本面板。',
       panelActionFailed: '面板操作失败，请重试。',
     };
   }
@@ -178,8 +176,6 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
     frameUnavailable: 'Remote browser view needs a Host or Desktop update',
     commandFailed: 'Browser command failed. Try again.',
     viewportFailed: 'Could not change the viewport.',
-    viewportFollowRefused:
-      'Another window is also showing this browser, so the page size does not follow this panel.',
     panelActionFailed: 'Panel action failed. Try again.',
   };
 }

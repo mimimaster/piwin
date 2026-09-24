@@ -2559,6 +2559,98 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('routes only freehand read-only model-facing tasks to the configured model', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-freehand-routing-'));
+    const { savePiwinConfig, createDefaultPiwinConfig } = await import('./config-store.js');
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'test-provider',
+        protocol: 'openai-compatible',
+        name: 'Test',
+        baseUrl: 'https://example.test/v1',
+        models: [{ id: 'light' }, { id: 'pinned' }, { id: 'explicit' }],
+      },
+    ];
+    const light = {
+      providerId: 'test-provider',
+      modelId: 'light',
+      protocol: 'openai-compatible' as const,
+    };
+    const pinned = {
+      providerId: 'test-provider',
+      modelId: 'pinned',
+      protocol: 'openai-compatible' as const,
+    };
+    const explicit = {
+      providerId: 'test-provider',
+      modelId: 'explicit',
+      protocol: 'openai-compatible' as const,
+    };
+    config.subagents = {
+      profiles: [
+        { id: 'pinned-reader', description: 'read', isolation: 'readonly', model: pinned },
+        { id: 'writer', description: 'write', isolation: 'worktree' },
+      ],
+      maxConcurrency: 4,
+      maxTasksPerRun: 8,
+      processIsolation: 'required',
+      parallelWritePolicy: 'worktree-only',
+      dirtyBasePolicy: 'ask',
+      freehandReadonlyModel: light,
+    };
+    await savePiwinConfig(config, rootDir);
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const main = { providerId: 'main', modelId: 'primary', protocol: 'openai-compatible' as const };
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/freehand-routing', model: main },
+    });
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const prepare = (
+      task: {
+        role?: string;
+        profileId?: string;
+        model?: typeof light;
+        isolationOverride?: 'readonly' | 'worktree';
+      },
+      source: 'model-tool-freehand' | 'model-tool' | 'plan' = 'model-tool-freehand',
+    ) =>
+      runtime.prepareSubagentBatch(
+        {
+          parentSessionId: sessionId,
+          tasks: [{ id: 'task', parentSessionId: sessionId, task: 'Inspect code', ...task }],
+        },
+        source,
+      );
+    try {
+      expect((await prepare({})).tasks[0]?.model).toMatchObject(light);
+      expect((await prepare({ role: 'scout' })).tasks[0]?.model).toMatchObject(light);
+      expect(
+        (await prepare({ role: 'reviewer', isolationOverride: 'readonly' })).tasks[0]?.model,
+      ).toMatchObject(light);
+      expect((await prepare({ role: 'coder' })).tasks[0]?.model).toEqual(main);
+      expect((await prepare({ role: 'implementer' })).tasks[0]?.model).toEqual(main);
+      expect((await prepare({ isolationOverride: 'worktree' })).tasks[0]?.model).toEqual(main);
+      expect(
+        (await prepare({ profileId: 'writer', isolationOverride: 'readonly' })).tasks[0]?.model,
+      ).toEqual(main);
+      expect((await prepare({ profileId: 'pinned-reader' })).tasks[0]?.model).toEqual(pinned);
+      expect((await prepare({ model: explicit })).tasks[0]?.model).toEqual(explicit);
+      expect((await prepare({}, 'plan')).tasks[0]?.model).toEqual(main);
+      expect((await prepare({}, 'model-tool')).tasks[0]?.model).toEqual(main);
+      config.subagents.freehandReadonlyModel = { providerId: 'missing', modelId: 'gone' };
+      await savePiwinConfig(config, rootDir);
+      await expect(prepare({ role: 'scout' })).rejects.toThrow(
+        /freehand read-only subagent model.*unavailable/,
+      );
+      expect((await prepare({ isolationOverride: 'worktree' })).tasks[0]?.model).toEqual(main);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('persists plan abort before cancelling and terminalizes the Plan Run', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-abort-'));
     const pushes: HostPush[] = [];

@@ -232,7 +232,10 @@ async function createBackendModelRuntime(
         await registerClaudeCodeOauthProvider(modelRuntime, agentDir, provider);
       }
       if (provider.providerId === 'devin') {
-        registerDevinOauthProvider(modelRuntime as { registerProvider(id: string, config: object): void });
+        registerDevinOauthProvider(
+          modelRuntime as { registerProvider(id: string, config: object): void },
+          provider,
+        );
       }
       continue;
     }

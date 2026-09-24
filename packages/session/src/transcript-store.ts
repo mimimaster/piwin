@@ -546,7 +546,8 @@ export async function openSessionTranscriptStore(
       transcript_revision INTEGER NOT NULL,
       status TEXT NOT NULL,
       consumed_at TEXT,
-      interrupted_subagent_run_ids_json TEXT
+      interrupted_subagent_run_ids_json TEXT,
+      turn_policy_json TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_pause_checkpoint_session
       ON pause_checkpoint(session_id, created_at DESC);
@@ -634,6 +635,9 @@ export async function openSessionTranscriptStore(
     .all() as Array<{ name: string }>;
   if (!pauseCheckpointColumns.some((column) => column.name === 'interrupted_subagent_run_ids_json')) {
     db.exec('ALTER TABLE pause_checkpoint ADD COLUMN interrupted_subagent_run_ids_json TEXT');
+  }
+  if (!pauseCheckpointColumns.some((column) => column.name === 'turn_policy_json')) {
+    db.exec('ALTER TABLE pause_checkpoint ADD COLUMN turn_policy_json TEXT');
   }
   const messageColumns = db.prepare('PRAGMA table_info(transcript_message)').all() as Array<{
     name: string;

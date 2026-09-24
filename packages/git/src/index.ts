@@ -152,6 +152,9 @@ export {
   removeWorktree,
   diffWorktreeAgainstMain,
   worktreeDisplayName,
+  worktreeRepositoryKey,
+  resetWorktreeToBase,
+  isWorktreeUsable,
 } from './worktree.js';
 export type {
   CreateWorktreeInput,
@@ -159,13 +162,28 @@ export type {
   RemoveWorktreeInput,
   DiffWorktreeInput,
   DiffWorktreeResult,
+  ResetWorktreeInput,
 } from './worktree.js';
 
 export {
   integrateWorktreeChanges,
+  integrateSnapshotChanges,
+  readChildPatchFromWorktree,
+  readChildPatchFromTree,
+  applyChildPatchToParent,
   isWorktreeBaseClean,
 } from './worktree-integration.js';
 export type {
+  ChildChangePatch,
+  SnapshotIntegrationInput,
   WorktreeIntegrationInput,
   WorktreeIntegrationResult,
 } from './worktree-integration.js';
+
+export {
+  writeWorktreeResultTree,
+  commitResultSnapshot,
+  deleteResultSnapshotRef,
+  checkoutWorktreeTree,
+  resultSnapshotRefName,
+} from './turn-changes/git-snapshot.js';

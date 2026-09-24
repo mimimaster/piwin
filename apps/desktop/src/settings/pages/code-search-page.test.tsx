@@ -259,14 +259,69 @@ describe('CodeSearchPage', () => {
     expect(saved.codeSearch?.model).toBeUndefined();
   });
 
-  it('shows the token editor for the windsurf backend', async () => {
+  it('shows the token editor when the windsurf backend uses a manual token', async () => {
+    const contextValue = createContextValue({
+      config: createConfig({ codeSearch: { enabled: true, backend: 'windsurf', apiKeyEnv: 'WINDSURF_API_KEY' } }),
+    });
+    await renderPage(contextValue);
+
+    expect(container.querySelector('[data-testid="code-search-windsurf-token"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-search-devin-credential"]')).toBeNull();
+    expect(container.querySelector('[data-testid="code-search-model"]')).toBeNull();
+  });
+
+  it('defaults an empty windsurf config to the Devin account, without a token field', async () => {
     const contextValue = createContextValue({
       config: createConfig({ codeSearch: { enabled: true, backend: 'windsurf' } }),
     });
     await renderPage(contextValue);
 
-    expect(container.querySelector('[data-testid="code-search-windsurf-token"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="code-search-model"]')).toBeNull();
+    expect(container.querySelector('[data-testid="code-search-devin-credential"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-search-windsurf-token"]')).toBeNull();
+  });
+
+  it('connects the Devin account in place and reports it in the status line', async () => {
+    const hostRequest = vi.fn(async (command: { type: string }) => ({
+      id: '0',
+      type: 'response' as const,
+      command: command.type,
+      success: true as const,
+      data:
+        command.type === 'auth/status'
+          ? { accounts: [{ providerId: 'devin', surface: 'v1', state: 'logged-out' }] }
+          : {},
+    }));
+    const contextValue = createContextValue({
+      config: createConfig({ codeSearch: { enabled: true, backend: 'windsurf', apiKeyRef: 'oauth:devin' } }),
+      hostClient: {
+        request: hostRequest,
+        subscribe: vi.fn(() => () => {}),
+        getTransport: () => 'local',
+      } as unknown as NonNullable<SettingsContextValue['hostClient']>,
+    });
+    await renderPage(contextValue);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-testid="code-search-status"]')?.textContent).toContain(
+      'Devin 账号未连接',
+    );
+    const connect = container.querySelector<HTMLButtonElement>(
+      '[data-testid="code-search-devin-account-connect"]',
+    );
+    expect(connect?.textContent).toContain('连接 Devin');
+    expect(container.querySelector('[data-testid="code-search-devin-account"]')?.textContent).toContain(
+      '登录后可免费使用 web_search 和 code_search',
+    );
+    await act(async () => {
+      connect?.click();
+      await Promise.resolve();
+    });
+    const login = hostRequest.mock.calls.find(([command]) => command.type === 'auth/login')?.[0] as
+      | { input?: { providerId?: string } }
+      | undefined;
+    expect(login?.input?.providerId).toBe('devin');
   });
 
   it('blocks saving windsurf without a token', async () => {
@@ -350,7 +405,7 @@ describe('CodeSearchPage', () => {
     });
     const contextValue = createContextValue({
       request,
-      config: createConfig({ codeSearch: { enabled: true, backend: 'windsurf' } }),
+      config: createConfig({ codeSearch: { enabled: true, backend: 'windsurf', apiKeyEnv: 'WINDSURF_API_KEY' } }),
     });
     await renderPage(contextValue);
     const testIcon = container.querySelector('[data-testid="code-search-windsurf-token-test"]');
@@ -369,33 +424,88 @@ describe('CodeSearchPage', () => {
   });
 
 
-  it('uses the Devin subscription when the Devin login button is clicked', async () => {
-    const saveConfig = vi.fn(async () => true);
+  it('turns code_search on once a Devin login started here completes', async () => {
+    let push: ((message: { type: string; accounts?: unknown[] }) => void) | undefined;
+    let loggedIn = false;
+    const hostRequest = vi.fn(async (command: { type: string }) => ({
+      id: '0',
+      type: 'response' as const,
+      command: command.type,
+      success: true as const,
+      data:
+        command.type === 'auth/status'
+          ? {
+              accounts: [
+                { providerId: 'devin', surface: 'v1', state: loggedIn ? 'logged-in' : 'logged-out' },
+              ],
+            }
+          : {},
+    }));
     const contextValue = createContextValue({
-      config: createConfig({ codeSearch: { enabled: false, backend: 'windsurf' } }),
-      saveConfig,
+      config: createConfig({ codeSearch: { enabled: false, backend: 'windsurf', apiKeyRef: 'oauth:devin' } }),
+      hostClient: {
+        request: hostRequest,
+        subscribe: vi.fn((listener: typeof push) => {
+          push = listener;
+          return () => {};
+        }),
+        getTransport: () => 'local',
+      } as unknown as NonNullable<SettingsContextValue['hostClient']>,
     });
     await renderPage(contextValue);
-
-    const login = container.querySelector<HTMLButtonElement>(
-      '[data-testid="code-search-devin-login"]',
-    );
-    expect(login).not.toBeNull();
-    expect(login?.textContent).toContain('使用 Devin 登录');
-    expect(container.textContent).toContain('未填写 token 时使用 Devin 订阅（oauth:devin）。');
-    expect(container.querySelector('[data-testid="code-search-windsurf-token"]')).not.toBeNull();
-
     await act(async () => {
-      login?.click();
-      await Promise.resolve();
       await Promise.resolve();
     });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="code-search-devin-account-connect"]')?.click();
+      await Promise.resolve();
+    });
+    loggedIn = true;
+    await act(async () => {
+      push?.({ type: 'auth/updated', accounts: [{ providerId: 'devin', surface: 'v1', state: 'logged-in' }] });
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="code-search-devin-account"]')?.textContent).toContain(
+      '已连接 Devin 账号',
+    );
+    const enable = container.querySelector<HTMLInputElement>('input[aria-label="启用 code_search"]');
+    expect(enable?.checked).toBe(true);
+  });
 
-    expect(saveConfig).toHaveBeenCalled();
-    const savedCall = saveConfig.mock.calls.at(-1) as [PiwinConfig] | undefined;
-    const saved = savedCall?.[0];
-    expect(saved?.codeSearch?.enabled).toBe(true);
-    expect(saved?.codeSearch?.backend).toBe('windsurf');
+  it('switches a manual-token config to the Devin account and saves it with the page', async () => {
+    const saveConfig = vi.fn(async () => true);
+    const contextValue = createContextValue({
+      config: createConfig({
+        codeSearch: {
+          enabled: true,
+          backend: 'windsurf',
+          apiKeyRef: 'keychain:piwin-code-search-windsurf',
+          apiKeyEnv: 'WINDSURF_API_KEY',
+        },
+      }),
+      saveConfig,
+      loadProviderSecret: vi.fn(async () => null),
+    });
+    await renderPage(contextValue);
+    expect(container.querySelector('[data-testid^="code-search-windsurf-token"]')).not.toBeNull();
+
+    await act(async () => {
+      container
+        .querySelector<HTMLInputElement>('[data-testid="code-search-credential-source"] input[value="devin"]')
+        ?.click();
+    });
+    expect(container.querySelector('[data-testid="code-search-devin-credential"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid^="code-search-windsurf-token"]')).toBeNull();
+    // Switching only edits the draft.
+    expect(saveConfig).not.toHaveBeenCalled();
+
+    await act(async () => {
+      [...container.querySelectorAll('button')]
+        .find((button) => button.textContent?.trim() === '保存')
+        ?.click();
+      await Promise.resolve();
+    });
+    const saved = (saveConfig.mock.calls.at(-1) as [PiwinConfig] | undefined)?.[0];
     expect(saved?.codeSearch?.apiKeyRef).toBe('oauth:devin');
     expect(saved?.codeSearch?.apiKeyEnv).toBeUndefined();
   });
@@ -411,7 +521,7 @@ describe('CodeSearchPage', () => {
       data: cmd.type === 'code-search/test-windsurf' ? { durationMs: 1, resultCount: 1 } : {},
     }));
     const contextValue = createContextValue({
-      config: createConfig({ codeSearch: { enabled: false, backend: 'windsurf' } }),
+      config: createConfig({ codeSearch: { enabled: false, backend: 'windsurf', apiKeyEnv: 'WINDSURF_API_KEY' } }),
       storeProviderSecret,
       saveConfig,
       request,

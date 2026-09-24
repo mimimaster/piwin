@@ -9,7 +9,6 @@ import { createDefaultWebConfig, type ThemeManifest } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import {
   PIWIN_APPEARANCE_DARK,
-  PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_LIGHT,
 } from '../../appearance-tokens';
 import { DesktopLocaleProvider } from '../../desktop-locale-context';
@@ -65,15 +64,6 @@ function createContextValue(
               source: 'bundled' as const,
               active: true,
             },
-            {
-              id: 'piwin-ink-wash',
-              name: '砚夜泼墨',
-              version: '1.0.0',
-              mode: 'dark' as const,
-              path: '/themes/piwin-ink-wash',
-              source: 'bundled' as const,
-              active: false,
-            },
           ],
           activeThemeId: 'piwin-inkstone',
         },
@@ -81,11 +71,9 @@ function createContextValue(
     }
     if (cmd.type === 'theme/set-active') {
       const theme: ThemeManifest =
-        cmd.themeId === 'piwin-ink-wash'
-          ? PIWIN_APPEARANCE_INK_WASH
-          : cmd.themeId === 'piwin-inkstone-paper' || cmd.themeId === 'piwin-light'
-            ? PIWIN_APPEARANCE_LIGHT
-            : PIWIN_APPEARANCE_DARK;
+        cmd.themeId === 'piwin-inkstone-paper' || cmd.themeId === 'piwin-light'
+          ? PIWIN_APPEARANCE_LIGHT
+          : PIWIN_APPEARANCE_DARK;
       return {
         id: '2',
         type: 'response' as const,
@@ -186,17 +174,9 @@ describe('AppearancePage', () => {
     });
   }
 
-  it('renders theme library dropdown and appearance controls', async () => {
+  it('renders appearance mode controls and settings', async () => {
     const contextValue = createContextValue();
     await renderPage(contextValue);
-
-    const themeSelect = container.querySelector('[data-testid="theme-library-select"]');
-    expect(themeSelect).not.toBeNull();
-    expect((themeSelect as HTMLSelectElement | null)?.value).toBe('piwin-inkstone');
-    const options = [...(themeSelect as HTMLSelectElement).options];
-    expect(options.some((option) => option.value === 'system')).toBe(false);
-    expect(options[0]?.value).toBe('piwin-inkstone');
-    expect(options[0]?.textContent).toBe('系统默认');
 
     const modeControl = container.querySelector('[data-testid="appearance-mode-control"]');
     expect(modeControl).not.toBeNull();
@@ -205,143 +185,6 @@ describe('AppearancePage', () => {
     expect(container.querySelectorAll('[data-testid="dark-theme-preview"]')).toHaveLength(0);
     expect(modeControl?.textContent).toContain('纸面');
     expect(modeControl?.textContent).toContain('墨面');
-  });
-
-  it('switches from ink-wash back to Inkstone and restores light appearance', async () => {
-    const preferences = createPreferences({ appearanceMode: 'light' });
-    const contextValue = createContextValue({
-      activeTheme: PIWIN_APPEARANCE_INK_WASH,
-      preferences,
-    });
-
-    await renderPage(contextValue);
-
-    const select = container.querySelector<HTMLSelectElement>(
-      '[data-testid="theme-library-select"]',
-    );
-    expect(select).not.toBeNull();
-    if (!select) return;
-    expect(select.value).toBe('piwin-ink-wash');
-
-    await act(async () => {
-      select.value = 'piwin-inkstone';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-
-    expect(contextValue.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'theme/set-active',
-        themeId: 'piwin-inkstone-paper',
-      }),
-    );
-    expect(contextValue.onThemeApplied).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'piwin-inkstone-paper',
-        mode: 'light',
-        tokens: expect.objectContaining({
-          bg: DEFAULT_LIGHT_THEME_SETTINGS.background.toLowerCase(),
-        }),
-      }),
-    );
-    expect(contextValue.setInfo).toHaveBeenCalledWith('已恢复系统默认外观。', 'success');
-  });
-
-  it('switches from ink-wash back to Inkstone and applies custom dark settings', async () => {
-    const customDarkSettings = {
-      preset: 'default' as const,
-      background: '#090A0F',
-      foreground: '#D0D0D0',
-      accent: '#FF5500',
-    };
-    const preferences = createPreferences({
-      appearanceMode: 'dark',
-      darkTheme: customDarkSettings,
-    });
-    const contextValue = createContextValue({
-      activeTheme: PIWIN_APPEARANCE_INK_WASH,
-      preferences,
-    });
-
-    await renderPage(contextValue);
-
-    const select = container.querySelector<HTMLSelectElement>(
-      '[data-testid="theme-library-select"]',
-    );
-    expect(select).not.toBeNull();
-    if (!select) return;
-
-    await act(async () => {
-      select.value = 'piwin-inkstone';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-
-    expect(contextValue.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'theme/set-active',
-        themeId: 'piwin-inkstone-ink',
-      }),
-    );
-    expect(contextValue.onThemeApplied).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'piwin-dark-appearance',
-        mode: 'dark',
-        tokens: expect.objectContaining({
-          bg: '#090A0F',
-          text: '#D0D0D0',
-          accent: '#FF5500',
-        }),
-      }),
-    );
-  });
-
-  it('switches from Inkstone to ink-wash correctly', async () => {
-    const contextValue = createContextValue({
-      activeTheme: PIWIN_APPEARANCE_DARK,
-    });
-
-    await renderPage(contextValue);
-
-    const select = container.querySelector<HTMLSelectElement>(
-      '[data-testid="theme-library-select"]',
-    );
-    expect(select).not.toBeNull();
-    if (!select) return;
-    expect(select.value).toBe('piwin-inkstone');
-
-    await act(async () => {
-      select.value = 'piwin-ink-wash';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-
-    expect(contextValue.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'theme/set-active',
-        themeId: 'piwin-ink-wash',
-      }),
-    );
-    expect(contextValue.onThemeApplied).toHaveBeenCalledWith(PIWIN_APPEARANCE_INK_WASH);
-    expect(contextValue.setInfo).toHaveBeenCalledWith('已切换到 砚夜泼墨。', 'success');
-  });
-
-  it('ignores redundant switch when selecting the currently active theme', async () => {
-    const contextValue = createContextValue({
-      activeTheme: PIWIN_APPEARANCE_DARK,
-    });
-
-    await renderPage(contextValue);
-
-    const select = container.querySelector<HTMLSelectElement>(
-      '[data-testid="theme-library-select"]',
-    );
-    expect(select).not.toBeNull();
-    if (!select) return;
-
-    await act(async () => {
-      select.value = 'piwin-inkstone';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-
-    expect(contextValue.onThemeApplied).not.toHaveBeenCalled();
   });
 
   it('updates appearance mode and applies corresponding theme when not locked by theme package', async () => {
@@ -372,10 +215,14 @@ describe('AppearancePage', () => {
     );
   });
 
-
   it('blocks appearance mode changes when theme package is active', async () => {
+    const lockedTheme: ThemeManifest = {
+      ...PIWIN_APPEARANCE_DARK,
+      id: 'custom-locked-theme',
+      visualStyle: 'flat',
+    };
     const contextValue = createContextValue({
-      activeTheme: PIWIN_APPEARANCE_INK_WASH,
+      activeTheme: lockedTheme,
     });
 
     await renderPage(contextValue);
@@ -391,49 +238,6 @@ describe('AppearancePage', () => {
     });
 
     expect(contextValue.onPreferencesChange).not.toHaveBeenCalled();
-    expect(contextValue.onThemeApplied).not.toHaveBeenCalled();
-  });
-
-  it('does not surface raw Host ENOENT when selecting Inkstone', async () => {
-    const contextValue = createContextValue({
-      activeTheme: PIWIN_APPEARANCE_INK_WASH,
-      preferences: createPreferences({ appearanceMode: 'light' }),
-    });
-    contextValue.request = vi.fn(async (cmd) => {
-      if (cmd.type === 'theme/list') {
-        return {
-          id: '1',
-          type: 'response' as const,
-          command: 'theme/list',
-          success: true as const,
-          data: { themes: [], activeThemeId: 'piwin-ink-wash' },
-        };
-      }
-      return {
-        id: '2',
-        type: 'response' as const,
-        command: 'theme/set-active',
-        success: false as const,
-        error: "ENOENT: no such file or directory, open '[host-path]'",
-      };
-    });
-
-    await renderPage(contextValue);
-
-    const select = container.querySelector<HTMLSelectElement>(
-      '[data-testid="theme-library-select"]',
-    );
-    expect(select).not.toBeNull();
-    if (!select) return;
-
-    await act(async () => {
-      select.value = 'piwin-inkstone';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-
-    expect(contextValue.setError).toHaveBeenCalledWith(
-      '这个主题 Host 上还没有，还停在当前主题。',
-    );
     expect(contextValue.onThemeApplied).not.toHaveBeenCalled();
   });
 });

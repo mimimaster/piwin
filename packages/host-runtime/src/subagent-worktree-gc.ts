@@ -20,6 +20,7 @@ import {
   isSubagentWorktreeBranch,
   isUnfrozenWorktreeSnapshot,
 } from './subagent-worktree-gc-policy.js';
+import { isWriterSlotBranch, isWriterSlotWorktreePath } from './subagent-writer-slots.js';
 
 const MAX_PREVIEW_ENTRIES = 200;
 
@@ -285,6 +286,8 @@ async function buildEntry(input: {
   const mtimeMs = Math.max(await readMtimeMs(input.worktreePath), input.lease?.updatedAtMs ?? 0);
   const branch = git.branch ?? input.lease?.worktreeBranch ?? null;
   const branchAllowed = branch === null || isSubagentWorktreeBranch(branch);
+  const writerSlot =
+    isWriterSlotWorktreePath(input.worktreePath) || isWriterSlotBranch(branch);
   const decision = decideWorktreeGc(
     {
       orphan: input.lease === undefined,
@@ -298,6 +301,7 @@ async function buildEntry(input: {
       userRetained: input.lease?.userRetained === true,
       unfrozenSnapshot: input.lease?.unfrozenSnapshot === true,
       pauseCheckpoint: input.lease !== undefined && input.paused.has(input.lease.runId),
+      writerSlot,
       ageMs: Math.max(0, input.nowMs - mtimeMs),
     },
     { mode: input.mode },

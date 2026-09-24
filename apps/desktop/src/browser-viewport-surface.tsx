@@ -39,6 +39,8 @@ export type BrowserViewportSurfaceProps = {
   onImeKey: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onCompositionEnd: (event: { data: string; currentTarget: HTMLTextAreaElement }) => void;
   onPaste: (event: { preventDefault: () => void; clipboardData: DataTransfer }) => void;
+  /** Pointer entered the page area — used to take the shared page size back. */
+  onPointerEnterSurface?: (() => void) | undefined;
   children?: ReactElement | null;
 };
 
@@ -58,6 +60,7 @@ export function BrowserViewportSurface(props: BrowserViewportSurfaceProps): Reac
       data-testid="browser-session-frame-container"
       data-zoom={props.zoom}
       data-fill={props.fillPanel ? 'true' : 'false'}
+      onPointerEnter={props.onPointerEnterSurface}
     >
       {props.frameSrc ? (
         <img

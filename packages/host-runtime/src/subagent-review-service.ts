@@ -5,14 +5,12 @@
 import { randomUUID } from 'node:crypto';
 import type {
   HostPush,
-  SubagentInvocation,
   SubagentReviewDecision,
   SubagentReviewFinding,
   SubagentReviewRecord,
   SubagentReviewRef,
   SubagentResultRef,
   SubagentResultSummary,
-  SubagentTaskResult,
   ToolResult,
 } from '@piwin/contracts';
 import {
@@ -26,11 +24,31 @@ import {
   type SubagentReviewCapabilityScope,
 } from './subagent-review-context.js';
 import type { SubagentResultService } from './subagent-result-service.js';
+import {
+  checkReviewableTarget,
+  collectFrozenRelativePaths,
+  findReviewerBinding,
+  reviewerTaskResultForPublish,
+} from './subagent-review-target.js';
 
 export type SubagentReviewSubmitInput = {
   reviewerSessionId: string;
   invocationId?: string;
   scope: SubagentReviewCapabilityScope;
+  target: SubagentResultRef;
+  decision: SubagentReviewDecision;
+  findings: SubagentReviewFinding[];
+  verification: SubagentReviewRecord['verification'];
+};
+
+/**
+ * The Lead's own review of a candidate whose task grants `lead` authority.
+ * No capability scope: the Host checks the candidate belongs to this parent
+ * and was admitted for Lead review.
+ */
+export type SubagentLeadReviewSubmitInput = {
+  parentSessionId: string;
+  parentRunId: string;
   target: SubagentResultRef;
   decision: SubagentReviewDecision;
   findings: SubagentReviewFinding[];
@@ -48,6 +66,7 @@ export type SubagentReviewObservation = {
 
 export type SubagentReviewService = {
   submit(input: SubagentReviewSubmitInput): Promise<SubagentReviewSubmitResult>;
+  submitLead(input: SubagentLeadReviewSubmitInput): Promise<SubagentReviewSubmitResult>;
 };
 
 export type SubagentReviewServiceOptions = {
@@ -119,88 +138,6 @@ export async function findPersistedReview(
   return undefined;
 }
 
-function reviewerTaskResultForPublish(
-  binding: { runId: string; taskId: string },
-  review: SubagentReviewRecord,
-  existing: SubagentTaskResult | undefined,
-): SubagentTaskResult {
-  const reviewRef = { reviewId: review.reviewId, revision: review.revision };
-  if (existing) {
-    return { ...existing, review, reviewRef };
-  }
-  return {
-    runId: binding.runId,
-    taskId: binding.taskId,
-    childSessionId: review.reviewerSessionId,
-    executionStatus: 'running',
-    summaryStatus: 'not-requested',
-    integrationStatus: 'not-requested',
-    review,
-    reviewRef,
-  };
-}
-
-function collectFrozenRelativePaths(
-  resultService: SubagentResultService,
-  resultId: string,
-  revision: number,
-): string[] | undefined {
-  const paths: string[] = [];
-  let cursor: string | undefined;
-  for (let page = 0; page < 20; page += 1) {
-    const listed = resultService.listFiles({
-      resultId,
-      revision,
-      ...(cursor ? { cursor } : {}),
-      limit: 200,
-    });
-    for (const file of listed.files) paths.push(file.relativePath);
-    if (!listed.nextCursor) break;
-    cursor = listed.nextCursor;
-  }
-  return paths.length > 0 ? paths : undefined;
-}
-
-async function findReviewerBinding(
-  store: SubagentRunStore,
-  input: { reviewerSessionId: string; invocationId?: string },
-): Promise<
-  | { runId: string; taskId: string; invocation?: SubagentInvocation }
-  | undefined
-> {
-  for (const manifest of await store.listManifests()) {
-    if (input.invocationId) {
-      const invocation = manifest.invocations[input.invocationId];
-      if (invocation) {
-        return { runId: manifest.runId, taskId: invocation.taskId, invocation };
-      }
-      const task = manifest.tasks.find((candidate) => candidate.invocationId === input.invocationId);
-      if (task) {
-        return {
-          runId: manifest.runId,
-          taskId: task.id,
-          ...(task.invocationId && manifest.invocations[task.invocationId]
-            ? { invocation: manifest.invocations[task.invocationId] }
-            : {}),
-        };
-      }
-    }
-    const byChild = Object.values(manifest.invocations).find(
-      (candidate) => candidate.childSessionId === input.reviewerSessionId,
-    );
-    if (byChild) {
-      return { runId: manifest.runId, taskId: byChild.taskId, invocation: byChild };
-    }
-    const result = Object.values(manifest.results).find(
-      (candidate) => candidate.childSessionId === input.reviewerSessionId,
-    );
-    if (result) {
-      return { runId: manifest.runId, taskId: result.taskId };
-    }
-  }
-  return undefined;
-}
-
 export function createSubagentReviewService(
   options: SubagentReviewServiceOptions,
 ): SubagentReviewService {
@@ -233,120 +170,172 @@ export function createSubagentReviewService(
         return reviewError('review-data-expired', 'frozen review data is unavailable');
       }
 
-      const summary = options.resultService.get(input.target.resultId);
-      if (!summary) {
-        return reviewError('review-target-not-found', 'review target was not found');
-      }
-      if (summary.revision !== input.target.revision) {
-        return reviewError('stale-revision', 'review target revision is stale');
-      }
-      if (summary.reviewStatus === 'stale') {
-        return reviewError('stale-revision', 'review target is not the current lineage head');
-      }
-      if (
-        !summary.childChanges ||
-        summary.copyState === 'removed' ||
-        summary.copyState === 'missing' ||
-        !isSameChangeVersionRef(summary.childChanges, input.scope.changes)
-      ) {
-        return reviewError('review-data-expired', 'frozen review data is unavailable');
-      }
+      const summary = checkReviewableTarget(options.resultService, input.target, input.scope.changes);
+      if (!('resultId' in summary)) return summary;
 
-      const decisionCheck = validateSubagentReviewDecision({
-        decision: input.decision,
-        findings: input.findings,
-      });
-      if (!decisionCheck.ok) {
-        return reviewError('invalid-input', decisionCheck.issues[0]?.message ?? 'invalid review decision');
-      }
-      const frozenRelativePaths = collectFrozenRelativePaths(
-        options.resultService,
-        summary.resultId,
-        summary.childChanges.revision,
-      );
-      const bounds = validateSubagentReviewBounds({
-        findings: input.findings,
-        verification: input.verification,
-        // Optional under exactOptionalPropertyTypes: omit it rather than
-        // passing an explicit undefined when the listing could not be read.
-        ...(frozenRelativePaths === undefined ? {} : { frozenRelativePaths }),
-      });
-      if (!bounds.ok) {
-        return reviewError('invalid-input', bounds.issues[0]?.message ?? 'review exceeds bounds');
-      }
-
-      const record: SubagentReviewRecord = {
-        reviewId: createId(),
-        revision: 1,
-        parentSessionId: summary.parentSessionId,
+      return commitReview(summary, binding, {
         reviewerSessionId: input.reviewerSessionId,
         reviewerRunId: binding.runId,
-        targetResult: { ...input.scope.result },
         targetChanges: { ...input.scope.changes },
         decision: input.decision,
         findings: input.findings,
         verification: input.verification,
-        createdAt: now().toISOString(),
-      };
-
-      const persisted = await options.runStore.persistReviewerDecision(
-        binding.runId,
-        binding.taskId,
-        record,
-      );
-      if (!persisted.ok) {
-        return persisted.code === 'conflict'
-          ? reviewError('invalid-input', 'this reviewer run already submitted a different review')
-          : reviewError('review-target-not-found', 'reviewer run was not found');
-      }
-
-      const duplicate = persisted.record.reviewId !== record.reviewId ||
-        persisted.record.createdAt !== record.createdAt;
-      const stored = persisted.record;
-      const reviewRef = { reviewId: stored.reviewId, revision: stored.revision };
-
-      const nextSummary: SubagentResultSummary = {
-        ...summary,
-        latestReview: reviewRef,
-        reviewStatus: stored.decision,
-      };
-      options.resultService.register(nextSummary);
-      await options.runStore.projectResultReview(
-        summary.batchRunId,
-        summary.taskId,
-        reviewRef,
-        stored.decision,
-      );
-
-      options.publish?.({
-        type: 'subagent/result-updated',
-        parentSessionId: summary.parentSessionId,
-        result: options.resultService.get(summary.resultId) ?? nextSummary,
       });
+    },
 
-      const refreshed = await options.runStore.loadManifest(binding.runId);
-      options.publish?.({
-        type: 'subagent/task-updated',
-        runId: binding.runId,
-        parentSessionId: summary.parentSessionId,
-        result: reviewerTaskResultForPublish(
-          binding,
-          stored,
-          refreshed?.results[binding.taskId],
-        ),
-      });
-      const invocation = Object.values(refreshed?.invocations ?? {}).find(
-        (candidate) => candidate.taskId === binding.taskId,
-      );
-      if (invocation) {
-        options.publish?.({
-          type: 'subagent/invocation-updated',
-          parentSessionId: invocation.parentSessionId,
-          invocation,
-        });
+    async submitLead(input) {
+      const current = options.resultService.get(input.target.resultId);
+      if (!current) {
+        return reviewError('review-target-not-found', 'review target was not found');
       }
+      if (current.parentSessionId !== input.parentSessionId) {
+        return reviewError('review-target-forbidden', 'result belongs to another parent session');
+      }
+      const manifest = await options.runStore.loadManifest(current.batchRunId);
+      const task = manifest?.tasks.find((candidate) => candidate.id === current.taskId);
+      if (task?.reviewAuthority !== 'lead') {
+        return reviewError(
+          'review-target-forbidden',
+          'this candidate requires an independent reviewer; start one with reviewOf',
+        );
+      }
+      if (!current.childChanges) {
+        return reviewError('review-data-expired', 'frozen review data is unavailable');
+      }
+      const summary = checkReviewableTarget(
+        options.resultService,
+        input.target,
+        current.childChanges,
+      );
+      if (!('resultId' in summary)) return summary;
 
-      return { ok: true, record: stored, duplicate };
+      // Stored on the candidate's own task: there is no reviewer run, and the
+      // one-review-per-task rule then means one Lead decision per candidate.
+      return commitReview(
+        summary,
+        { runId: summary.batchRunId, taskId: summary.taskId },
+        {
+          reviewerSessionId: input.parentSessionId,
+          reviewerRunId: input.parentRunId,
+          authority: 'lead',
+          targetChanges: { ...current.childChanges },
+          decision: input.decision,
+          findings: input.findings,
+          verification: input.verification,
+        },
+      );
     },
   };
+
+  async function commitReview(
+    summary: SubagentResultSummary,
+    binding: { runId: string; taskId: string },
+    draft: Pick<
+      SubagentReviewRecord,
+      'reviewerSessionId' | 'reviewerRunId' | 'authority' | 'targetChanges' | 'decision' | 'findings' | 'verification'
+    >,
+  ): Promise<SubagentReviewSubmitResult> {
+    const decisionCheck = validateSubagentReviewDecision({
+      decision: draft.decision,
+      findings: draft.findings,
+    });
+    if (!decisionCheck.ok) {
+      return reviewError('invalid-input', decisionCheck.issues[0]?.message ?? 'invalid review decision');
+    }
+    const frozenRelativePaths = collectFrozenRelativePaths(
+      options.resultService,
+      summary.resultId,
+      draft.targetChanges.revision,
+    );
+    const bounds = validateSubagentReviewBounds({
+      findings: draft.findings,
+      verification: draft.verification,
+      // Optional under exactOptionalPropertyTypes: omit it rather than
+      // passing an explicit undefined when the listing could not be read.
+      ...(frozenRelativePaths === undefined ? {} : { frozenRelativePaths }),
+    });
+    if (!bounds.ok) {
+      return reviewError('invalid-input', bounds.issues[0]?.message ?? 'review exceeds bounds');
+    }
+
+    const record: SubagentReviewRecord = {
+      reviewId: createId(),
+      revision: 1,
+      parentSessionId: summary.parentSessionId,
+      reviewerSessionId: draft.reviewerSessionId,
+      reviewerRunId: draft.reviewerRunId,
+      ...(draft.authority ? { authority: draft.authority } : {}),
+      targetResult: { resultId: summary.resultId, revision: summary.revision },
+      targetChanges: { ...draft.targetChanges },
+      decision: draft.decision,
+      findings: draft.findings,
+      verification: draft.verification,
+      createdAt: now().toISOString(),
+    };
+
+    const persisted = await options.runStore.persistReviewerDecision(
+      binding.runId,
+      binding.taskId,
+      record,
+    );
+    if (!persisted.ok) {
+      if (persisted.code !== 'conflict') {
+        return reviewError('review-target-not-found', 'reviewer run was not found');
+      }
+      return reviewError(
+        'invalid-input',
+        draft.authority === 'lead'
+          ? 'a different Lead decision is already recorded for this candidate; send the sidekick a new brief instead'
+          : 'this reviewer run already submitted a different review',
+      );
+    }
+
+    const duplicate = persisted.record.reviewId !== record.reviewId ||
+      persisted.record.createdAt !== record.createdAt;
+    const stored = persisted.record;
+    const reviewRef = { reviewId: stored.reviewId, revision: stored.revision };
+
+    const nextSummary: SubagentResultSummary = {
+      ...summary,
+      latestReview: reviewRef,
+      reviewStatus: stored.decision,
+    };
+    options.resultService.register(nextSummary);
+    await options.runStore.projectResultReview(
+      summary.batchRunId,
+      summary.taskId,
+      reviewRef,
+      stored.decision,
+    );
+
+    options.publish?.({
+      type: 'subagent/result-updated',
+      parentSessionId: summary.parentSessionId,
+      result: options.resultService.get(summary.resultId) ?? nextSummary,
+    });
+
+    const refreshed = await options.runStore.loadManifest(binding.runId);
+    options.publish?.({
+      type: 'subagent/task-updated',
+      runId: binding.runId,
+      parentSessionId: summary.parentSessionId,
+      result: reviewerTaskResultForPublish(
+        binding,
+        stored,
+        refreshed?.results[binding.taskId],
+      ),
+    });
+    const invocation = Object.values(refreshed?.invocations ?? {}).find(
+      (candidate) => candidate.taskId === binding.taskId,
+    );
+    if (invocation) {
+      options.publish?.({
+        type: 'subagent/invocation-updated',
+        parentSessionId: invocation.parentSessionId,
+        invocation,
+      });
+    }
+
+    return { ok: true, record: stored, duplicate };
+  }
 }

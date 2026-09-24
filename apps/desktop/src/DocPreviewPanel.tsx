@@ -15,6 +15,7 @@ import { EnhancedMarkdownView, type LineCommentItem } from './EnhancedMarkdownVi
 import { CodePreviewView } from './code-preview-view';
 import type { DesktopLocale } from './desktop-locale';
 import type { DocumentProvenance } from './active-document';
+import type { DocumentPathAttempt } from '@piwin/contracts';
 import type { ArtifactThemeVariables } from '@piwin/artifact';
 import { MarkupPreviewView, markupPreviewKind } from './markup-preview-view';
 import { PreviewUnavailable } from './PreviewUnavailable';
@@ -71,6 +72,8 @@ export type DocPreviewPanelProps = {
   suggestion?: string | undefined;
   byteSize?: number | undefined;
   maxBytes?: number | undefined;
+  /** Routes the Host tried during path resolution (ADR 0052 §6). */
+  attempts?: readonly DocumentPathAttempt[] | undefined;
   /** Trusted-domain preview badge (ADR 0052 Slice 3). */
   readOnly?: boolean | undefined;
   sessionDocuments?: SessionDocItem[] | undefined;
@@ -101,6 +104,7 @@ export function DocPreviewPanel({
   unavailableReason,
   byteSize,
   maxBytes,
+  attempts,
   readOnly = false,
   sessionDocuments,
   onSelectDocument,
@@ -311,6 +315,7 @@ export function DocPreviewPanel({
               fileName={targetPath}
               {...(byteSize !== undefined ? { byteSize } : {})}
               {...(maxBytes !== undefined ? { maxBytes } : {})}
+              {...(attempts !== undefined ? { attempts } : {})}
               testId="doc-preview-state-unavailable"
             />
           ) : (

@@ -9,8 +9,8 @@ import {
 } from './protocol.js';
 
 const DISCOVERY_PATH = '/exa.api_server_pb.ApiServerService/GetCliModelConfigs';
-const DEFAULT_CONTEXT_WINDOW = 200_000;
-const DEFAULT_MAX_TOKENS = 64_000;
+export const DEFAULT_CONTEXT_WINDOW = 200_000;
+export const DEFAULT_MAX_TOKENS = 64_000;
 const REASONING_LABEL = /think|thinking|minimal|high|medium|low|xhigh|max|reasoning/i;
 const NO_REASONING_LABEL = /\bno thinking\b/i;
 

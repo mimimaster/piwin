@@ -163,7 +163,9 @@ export function ToolDocumentTargetList(props: {
                   ? target.skillId
                   : target.kind === 'media'
                     ? target.displayRef
-                    : target.relativePath.split(/[\\/]/).pop() || target.relativePath;
+                    : target.kind === 'local-file'
+                      ? target.absolutePath.split(/[\\/]/).pop() || target.absolutePath
+                      : target.relativePath.split(/[\\/]/).pop() || target.relativePath;
               props.onOpenDocument?.({
                 title,
                 target,

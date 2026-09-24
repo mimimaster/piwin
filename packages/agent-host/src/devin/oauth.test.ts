@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildDevinAuthUrl, exchangeDevinCliToken, generatePKCE } from './oauth.js';
+import {
+  buildDevinAuthUrl,
+  exchangeDevinCliToken,
+  generatePKCE,
+  refreshDevinCredentials,
+} from './oauth.js';
 
 describe('devin oauth', () => {
   it('builds the CLI continue URL with PKCE query params', () => {
@@ -34,5 +39,11 @@ describe('devin oauth', () => {
     await expect(exchangeDevinCliToken('auth-code', 'verifier', fetchImpl)).resolves.toBe(
       'devin-session-token$abc',
     );
+  });
+
+  it('keeps a live session and asks for a new login once it has expired', async () => {
+    const live = { access: 't', refresh: 't', expires: 2_000 };
+    await expect(refreshDevinCredentials(live, () => 1_000)).resolves.toBe(live);
+    await expect(refreshDevinCredentials(live, () => 2_000)).rejects.toThrow(/log in to Devin again/);
   });
 });

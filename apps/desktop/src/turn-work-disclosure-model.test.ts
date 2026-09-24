@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessageUi, RunRecordUi } from './chat-reducer.js';
-import { projectTurnWorkDisclosure } from './turn-work-disclosure-model.js';
+import {
+  extractLatestNarration,
+  projectTurnWorkDisclosure,
+} from './turn-work-disclosure-model.js';
 import type { TranscriptTurn } from './transcript-turns.js';
 
 function message(id: string, overrides: Partial<ChatMessageUi> = {}): ChatMessageUi {
@@ -176,17 +179,17 @@ describe('projectTurnWorkDisclosure', () => {
     });
   });
 
-  it('names the running tool on the folded header', () => {
+  it('names the running tool and latest narration on the folded header', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
         runId: 'run-1',
-        thinking: 'Inspecting.',
+        text: 'Inspecting the files.',
         tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '' }],
       }),
       message('work-2', {
         runId: 'run-1',
-        thinking: 'Editing.',
+        text: 'Editing the implementation.',
         tools: [{ toolCallId: 'edit-1', toolName: 'edit', status: 'running', output: '' }],
       }),
     ]);
@@ -204,6 +207,7 @@ describe('projectTurnWorkDisclosure', () => {
       live: true,
       runningToolIndex: 2,
       runningTool: { toolCallId: 'edit-1' },
+      latestNarration: 'Editing the implementation.',
     });
   });
 
@@ -510,7 +514,7 @@ describe('projectTurnWorkDisclosure', () => {
     });
   });
 
-  it('folds earlier work and leaves the row carrying the answer text outside', () => {
+  it('folds intermediate narration rows with work tools into the single live fold', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -534,12 +538,302 @@ describe('projectTurnWorkDisclosure', () => {
       }),
     ).toEqual({
       startIndex: 1,
+      endIndex: 2,
+      failureCount: 0,
+      toolCount: 2,
+      live: true,
+      runningToolIndex: 2,
+      latestNarration: 'Still writing.',
+    });
+  });
+
+  it('leaves a trailing row streaming pure text outside the fold', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        thinking: 'Inspecting.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '', runId: 'run-1' }],
+      }),
+      message('answer-pure', {
+        text: 'Still writing.',
+        runId: 'run-1',
+        status: 'streaming',
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: 'run-1',
+        currentTurnStreaming: false,
+      }),
+    ).toEqual({
+      startIndex: 1,
       endIndex: 1,
       failureCount: 0,
       toolCount: 1,
       live: true,
       runningToolIndex: 1,
     });
+  });
+
+  it('folds a live turn with multiple narration + tool rows behind a single fold (target a)', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Refactor the module.' }),
+      message('step-1', {
+        text: 'Checking existing files first.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: 'ok' }],
+      }),
+      message('step-2', {
+        text: 'Now updating the implementation.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'edit-1', toolName: 'edit', status: 'done', output: 'ok' }],
+      }),
+      message('step-3', {
+        text: 'Running verification tests.',
+        runId: 'run-1',
+        status: 'streaming',
+        tools: [{ toolCallId: 'bash-1', toolName: 'bash', status: 'running', output: '' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: 'run-1',
+        currentTurnStreaming: true,
+      }),
+    ).toEqual({
+      startIndex: 1,
+      endIndex: 3,
+      failureCount: 0,
+      toolCount: 3,
+      live: true,
+      runningToolIndex: 3,
+      runningTool: { toolCallId: 'bash-1', toolName: 'bash', status: 'running', output: '' },
+      latestNarration: 'Running verification tests.',
+    });
+  });
+
+  it('leaves the last row outside while streaming pure text, then merges it when tool calls appear (target b, c)', () => {
+    const baseTurn = [
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('step-1', {
+        text: 'Inspecting code.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '' }],
+      }),
+    ];
+
+    // b) Streaming pure text without tools -> stays outside
+    const streamingTextTurn = turn([
+      ...baseTurn,
+      message('step-2', {
+        text: 'I will now run the linter.',
+        runId: 'run-1',
+        status: 'streaming',
+        tools: [],
+      }),
+    ]);
+
+    const projectionBeforeTool = projectTurnWorkDisclosure({
+      turn: streamingTextTurn,
+      runRecordsById: {},
+      activeRunId: 'run-1',
+      currentTurnStreaming: true,
+    });
+
+    expect(projectionBeforeTool).toEqual({
+      startIndex: 1,
+      endIndex: 1,
+      failureCount: 0,
+      toolCount: 1,
+      live: true,
+      runningToolIndex: 1,
+      latestNarration: 'Inspecting code.',
+    });
+
+    // c) Same row receives a tool call -> merges into fold
+    const withToolTurn = turn([
+      ...baseTurn,
+      message('step-2', {
+        text: 'I will now run the linter.',
+        runId: 'run-1',
+        status: 'streaming',
+        tools: [{ toolCallId: 'bash-1', toolName: 'bash', status: 'running', output: '' }],
+      }),
+    ]);
+
+    const projectionAfterTool = projectTurnWorkDisclosure({
+      turn: withToolTurn,
+      runRecordsById: {},
+      activeRunId: 'run-1',
+      currentTurnStreaming: true,
+    });
+
+    expect(projectionAfterTool).toEqual({
+      startIndex: 1,
+      endIndex: 2,
+      failureCount: 0,
+      toolCount: 2,
+      live: true,
+      runningToolIndex: 2,
+      runningTool: { toolCallId: 'bash-1', toolName: 'bash', status: 'running', output: '' },
+      latestNarration: 'I will now run the linter.',
+    });
+  });
+
+  it('treats mid-turn generated media as a cutoff point and starts the live fold after it (target d)', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Generate an icon then update code.' }),
+      message('work-1', {
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '' }],
+      }),
+      message('gen-media', {
+        text: 'Generated icon asset.',
+        runId: 'run-1',
+        attachments: [
+          {
+            id: 'att-1',
+            kind: 'media',
+            path: '/tmp/icon.png',
+            mimeType: 'image/png',
+            name: 'icon.png',
+            byteSize: 1024,
+            source: 'generated',
+          },
+        ],
+      }),
+      message('work-2', {
+        text: 'Now updating component.',
+        runId: 'run-1',
+        status: 'streaming',
+        tools: [{ toolCallId: 'edit-1', toolName: 'edit', status: 'running', output: '' }],
+      }),
+    ]);
+
+    const projection = projectTurnWorkDisclosure({
+      turn: transcriptTurn,
+      runRecordsById: {},
+      activeRunId: 'run-1',
+      currentTurnStreaming: true,
+    });
+
+    expect(projection).toEqual({
+      startIndex: 3,
+      endIndex: 3,
+      failureCount: 0,
+      toolCount: 1,
+      live: true,
+      runningToolIndex: 1,
+      runningTool: { toolCallId: 'edit-1', toolName: 'edit', status: 'running', output: '' },
+      latestNarration: 'Now updating component.',
+    });
+  });
+
+  it('does not fold a live turn whose only output is generated media', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Draw one.' }),
+      message('gen-media', {
+        text: 'Here it is.',
+        runId: 'run-1',
+        attachments: [
+          {
+            id: 'att-1',
+            kind: 'media',
+            path: '/tmp/icon.png',
+            mimeType: 'image/png',
+            name: 'icon.png',
+            byteSize: 1024,
+            source: 'generated',
+          },
+        ],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: 'run-1',
+        currentTurnStreaming: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('keeps a failed tool visible while its assistant row is still streaming', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Run it.' }),
+      message('work-1', {
+        runId: 'run-1',
+        status: 'streaming',
+        text: 'The command failed.',
+        tools: [{ toolCallId: 'bash-1', toolName: 'bash', status: 'error', output: 'boom' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: 'run-1',
+        currentTurnStreaming: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('does not wrap a chain that is already one explore capsule', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Look around.' }),
+      message('work-1', {
+        id: 'explore-1',
+        runId: 'run-1',
+        text: 'Reading the tree.',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'running', output: '' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: 'run-1',
+        currentTurnStreaming: true,
+        exploreFoldedMessageIds: new Set(['explore-1']),
+      }),
+    ).toBeNull();
+  });
+
+  it('still folds when one tool in the range is outside the explore capsule', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Look around.' }),
+      message('work-1', {
+        id: 'explore-1',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '' }],
+      }),
+      message('work-2', {
+        id: 'edit-row',
+        runId: 'run-1',
+        text: 'Editing now.',
+        tools: [{ toolCallId: 'edit-1', toolName: 'edit', status: 'running', output: '' }],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: 'run-1',
+        currentTurnStreaming: true,
+        exploreFoldedMessageIds: new Set(['explore-1']),
+      }),
+    ).toMatchObject({ startIndex: 1, endIndex: 2, live: true });
   });
 
   it('folds a settled process-only turn that never emitted a separate reply', () => {
@@ -694,5 +988,144 @@ describe('projectTurnWorkDisclosure', () => {
         currentTurnStreaming: true,
       })?.runningSince,
     ).toBe(completedRun().startedAt);
+  });
+
+  describe('extractLatestNarration', () => {
+    it('extracts the first non-empty line, trims it, and truncates to ~60 characters (target e)', () => {
+      const longNarration =
+        'This is an exceptionally long narrative sentence written by an LLM before taking action that exceeds sixty characters easily.';
+      const transcriptTurn = turn([
+        message('user-1', { role: 'user', text: 'Run task.' }),
+        message('work-1', {
+          text: `\n\n  ${longNarration}  \nSecond line should be ignored.`,
+          tools: [{ toolCallId: 't1', toolName: 'read', status: 'done', output: '' }],
+        }),
+      ]);
+
+      const narration = extractLatestNarration(transcriptTurn, 1, 1);
+      expect(narration).toBe('This is an exceptionally long narrative sentence written by …');
+      expect(narration?.endsWith(longNarration.slice(60, 70))).toBe(false);
+    });
+
+    it('keeps a 60-character line intact and ignores a later empty row', () => {
+      const exact = '1234567890'.repeat(6);
+      const transcriptTurn = turn([
+        message('user-1', { role: 'user', text: 'Run task.' }),
+        message('work-1', {
+          text: exact,
+          tools: [{ toolCallId: 't1', toolName: 'read', status: 'done', output: '' }],
+        }),
+        message('work-2', {
+          text: '   ',
+          tools: [{ toolCallId: 't2', toolName: 'bash', status: 'running', output: '' }],
+        }),
+      ]);
+
+      expect(extractLatestNarration(transcriptTurn, 1, 2)).toBe(exact);
+    });
+
+    it('returns undefined when process rows have no text (target e fallback)', () => {
+      const transcriptTurn = turn([
+        message('user-1', { role: 'user', text: 'Run task.' }),
+        message('work-1', {
+          text: '   \n  ',
+          tools: [{ toolCallId: 't1', toolName: 'read', status: 'done', output: '' }],
+        }),
+      ]);
+
+      expect(extractLatestNarration(transcriptTurn, 1, 1)).toBeUndefined();
+    });
+  });
+
+  describe('after a pause and resume', () => {
+    const tool = (id: string, runId: string, status: 'done' | 'running' = 'done') => ({
+      toolCallId: id,
+      toolName: 'bash',
+      status,
+      output: '',
+      runId,
+    });
+    const pausedRun = completedRun({ startedAt: 1_000, endedAt: 5_000, outcome: 'paused' });
+    const pausedRows = [
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('w1', { text: 'Checking the tree first.', runId: 'run-1', tools: [tool('t1', 'run-1')] }),
+      message('w2', { runId: 'run-1', tools: [tool('t2', 'run-1')] }),
+    ];
+
+    it('keeps the paused run in the live fold instead of splitting at its narration', () => {
+      const projection = projectTurnWorkDisclosure({
+        turn: turn([
+          ...pausedRows,
+          message('r1', { runId: 'run-2', tools: [tool('t3', 'run-2')] }),
+          message('r2', { runId: 'run-2', status: 'streaming', tools: [tool('t4', 'run-2', 'running')] }),
+        ]),
+        runRecordsById: {
+          'run-1': pausedRun,
+          'run-2': { runId: 'run-2', phaseHistory: [], startedAt: 600_000, endedAt: null },
+        },
+        activeRunId: 'run-2',
+        currentTurnStreaming: true,
+      });
+      expect(projection).toMatchObject({ startIndex: 1, endIndex: 4, live: true, runningToolIndex: 4 });
+      // The clock resumes from the 4s already worked, not from before the pause.
+      expect(projection?.runningSince).toBe(600_000 - 4_000);
+    });
+
+    it('keeps earlier paused run and resumed narration rows in the single live fold', () => {
+      const projection = projectTurnWorkDisclosure({
+        turn: turn([
+          ...pausedRows,
+          message('r1', { text: 'Resuming with the edit.', runId: 'run-2', tools: [tool('t3', 'run-2')] }),
+          message('r2', { runId: 'run-2', status: 'streaming', tools: [tool('t4', 'run-2', 'running')] }),
+        ]),
+        runRecordsById: {
+          'run-1': pausedRun,
+          'run-2': { runId: 'run-2', phaseHistory: [], startedAt: 600_000, endedAt: null },
+        },
+        activeRunId: 'run-2',
+        currentTurnStreaming: true,
+      });
+      expect(projection).toMatchObject({
+        startIndex: 1,
+        endIndex: 4,
+        live: true,
+        runningToolIndex: 4,
+        latestNarration: 'Resuming with the edit.',
+      });
+    });
+
+    it('stops the live fold at a pure reply row the resumed run writes', () => {
+      const projection = projectTurnWorkDisclosure({
+        turn: turn([
+          ...pausedRows,
+          message('reply', { text: 'Provisional reply.', runId: 'run-2' }),
+          message('r2', { runId: 'run-2', status: 'streaming', tools: [tool('t4', 'run-2', 'running')] }),
+        ]),
+        runRecordsById: {
+          'run-1': pausedRun,
+          'run-2': { runId: 'run-2', phaseHistory: [], startedAt: 600_000, endedAt: null },
+        },
+        activeRunId: 'run-2',
+        currentTurnStreaming: true,
+      });
+      expect(projection).toMatchObject({ startIndex: 4, endIndex: 4 });
+    });
+
+    it('does not count the pause as worked time once the resumed run settles', () => {
+      const projection = projectTurnWorkDisclosure({
+        turn: turn([
+          ...pausedRows,
+          message('r1', { runId: 'run-2', tools: [tool('t3', 'run-2')] }),
+          message('answer', { runId: 'run-2', text: 'Done.' }),
+        ]),
+        runRecordsById: {
+          'run-1': pausedRun,
+          'run-2': completedRun({ runId: 'run-2', startedAt: 600_000, endedAt: 610_000 }),
+        },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      });
+      expect(projection).toMatchObject({ startIndex: 1, endIndex: 3, elapsedMs: 14_000 });
+    });
   });
 });

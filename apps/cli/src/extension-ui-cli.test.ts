@@ -1,7 +1,9 @@
 import { Readable, Writable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import {
+  createCliExtensionUiPushResponder,
   createCliExtensionUiRequestHandler,
+  toExtensionUiResolveCommand,
   formatSelectPrompt,
   parseSelection,
   type CliExtensionUiRequest,
@@ -194,5 +196,84 @@ describe('createCliExtensionUiRequestHandler', () => {
     });
 
     await expect(handler(createRequest({ kind: 'input' }))).rejects.toBe(error);
+  });
+});
+
+describe('toExtensionUiResolveCommand', () => {
+  it('maps each response kind onto extension/ui_resolve', () => {
+    expect(toExtensionUiResolveCommand('r1', { kind: 'confirm', confirmed: true })).toEqual({
+      type: 'extension/ui_resolve',
+      requestId: 'r1',
+      confirmed: true,
+    });
+    expect(toExtensionUiResolveCommand('r2', { kind: 'select', value: 'Beta' })).toEqual({
+      type: 'extension/ui_resolve',
+      requestId: 'r2',
+      value: 'Beta',
+    });
+    expect(toExtensionUiResolveCommand('r3', { kind: 'input', cancelled: true })).toEqual({
+      type: 'extension/ui_resolve',
+      requestId: 'r3',
+      cancelled: true,
+    });
+  });
+});
+
+describe('createCliExtensionUiPushResponder', () => {
+  it('answers pushes in order and resolves them on the Host', async () => {
+    const resolved: unknown[] = [];
+    const answers = ['2', 'typed'];
+    const respond = createCliExtensionUiPushResponder(
+      async (command) => {
+        resolved.push(command);
+      },
+      { isInteractive: true, ask: async () => answers.shift() ?? '' },
+    );
+
+    await Promise.all([
+      respond({
+        type: 'extension/ui_request',
+        sessionId: 'session-1',
+        requestId: 'q1',
+        kind: 'select',
+        title: 'Pick one',
+        options: ['Alpha', 'Beta'],
+      }),
+      respond({
+        type: 'extension/ui_request',
+        sessionId: 'session-1',
+        requestId: 'q2',
+        kind: 'input',
+        title: 'Other',
+      }),
+    ]);
+
+    expect(resolved).toEqual([
+      { type: 'extension/ui_resolve', requestId: 'q1', value: 'Beta' },
+      { type: 'extension/ui_resolve', requestId: 'q2', value: 'typed' },
+    ]);
+  });
+
+  it('cancels instead of blocking when the CLI is not interactive', async () => {
+    const resolved: unknown[] = [];
+    const respond = createCliExtensionUiPushResponder(
+      async (command) => {
+        resolved.push(command);
+      },
+      { isInteractive: false },
+    );
+
+    await respond({
+      type: 'extension/ui_request',
+      sessionId: 'session-1',
+      requestId: 'q1',
+      kind: 'select',
+      title: 'Pick one',
+      options: ['Alpha'],
+    });
+
+    expect(resolved).toEqual([
+      { type: 'extension/ui_resolve', requestId: 'q1', cancelled: true },
+    ]);
   });
 });

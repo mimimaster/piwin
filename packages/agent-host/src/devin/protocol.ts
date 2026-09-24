@@ -1,10 +1,11 @@
 import { gunzipSync, gzipSync } from 'node:zlib';
 import type { Api, Context, Message, Model, SimpleStreamOptions, Tool } from '@earendil-works/pi-ai';
+import { DEVIN_SESSION_TOKEN_PREFIX, toDevinSessionToken } from '@piwin/contracts';
 
 export const DEVIN_HOST = 'https://server.codeium.com';
 export const DEVIN_API = 'devin-cloud';
 export const DEVIN_PROVIDER_ID = 'devin';
-export const DEVIN_SESSION_TOKEN_PREFIX = 'devin-session-token$';
+export { DEVIN_SESSION_TOKEN_PREFIX };
 export const DEVIN_MAX_FRAME_PAYLOAD = 16 * 1024 * 1024;
 
 const IDE_VERSION = '3.2.23';
@@ -26,11 +27,7 @@ export type DevinDelta =
   | { type: 'stop'; reason: number }
   | { type: 'message'; id: string };
 
-export function normalizeSessionToken(apiKey: string): string {
-  return apiKey.startsWith(DEVIN_SESSION_TOKEN_PREFIX)
-    ? apiKey
-    : `${DEVIN_SESSION_TOKEN_PREFIX}${apiKey}`;
-}
+export const normalizeSessionToken = toDevinSessionToken;
 
 export function buildUserJwtRequest(apiKey: string): Buffer {
   return encodeLengthDelimited(1, encodeMetadata(normalizeSessionToken(apiKey), undefined));

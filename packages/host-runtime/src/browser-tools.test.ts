@@ -190,6 +190,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
       calls.push({ method: 'setViewport', args: [size] });
       return size;
     },
+    viewportFollowLeaseId: () => undefined,
     mirrorLeaseCount: () => 1,
     hasMirrorLease: () => true,
     takeOver: async () => ({ owner: 'user' as const, agentWantsLock: true }),

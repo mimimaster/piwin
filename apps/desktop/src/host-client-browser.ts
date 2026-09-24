@@ -65,6 +65,7 @@ export type BrowserResizeOptions = {
   leaseId?: string;
   mode?: BrowserViewportMode;
   origin?: 'follow' | 'explicit';
+  claim?: boolean;
 };
 
 /** Start the shared browser session (idempotent). */
@@ -169,5 +170,6 @@ export function requestBrowserResize(
     ...(options?.leaseId !== undefined ? { leaseId: options.leaseId } : {}),
     ...(options?.mode !== undefined ? { mode: options.mode } : {}),
     ...(options?.origin !== undefined ? { origin: options.origin } : {}),
+    ...(options?.claim ? { claim: true } : {}),
   });
 }

@@ -339,7 +339,9 @@ async function createDefaultRuntime(
     ...SUBSCRIPTION_RUNTIME_CREATE_OPTIONS,
   });
   if (typeof runtime.registerProvider === 'function') {
-    registerDevinOauthProvider({ registerProvider: runtime.registerProvider });
+    // Pass the runtime itself: Pi's `registerProvider` reads `this.builtins`,
+    // so a detached method reference throws "reading 'get'" of undefined.
+    registerDevinOauthProvider(runtime as { registerProvider(id: string, config: object): void });
   }
   return runtime;
 }

@@ -85,7 +85,7 @@
 
   pages.automations = () => `${header('自动化', 'Host 定时运行', 'desk', iconButton('plus', '新建', 'sheet', 'automation-new'))}<div class="screen-scroll">${heading('小事，按时发生。', 'Host 定时触发，手机随时审阅')}${row('refresh', '每日复盘未完工作', '每天 09:00 · 待办汇总', 'sheet', 'automation-edit', '已启用')}${row('git', '每周依赖安全走查', '每周一 10:00 · piwin', 'sheet', 'automation-edit', '已暂停')}</div>`;
 
-  pages.walkthrough = () => `${header('走查报告', 'Inkstone · 桌面主题', 'chat', iconButton('copy', '复制报告', 'copy-report'))}<div class="screen-scroll">${heading('纸与墨，\n终于有了同一种语气。', '交付验收报告 · 4 个文件验证记录')}<article class="assistant-prose"><p>已统一纸墨主题语义、会话节点、砚台与权限印章。</p><div class="command">✓ session restore 8 tests\n✓ draft persistence 6 tests\n✓ typecheck green</div></article>${fullButton('回到会话', 'navigate', 'chat')}</div>`;
+  pages.walkthrough = () => `${header('报告', 'Inkstone · 桌面主题', 'chat', iconButton('copy', '复制报告', 'copy-report'))}<div class="screen-scroll">${heading('纸与墨，\n终于有了同一种语气。', '交付验收报告 · 4 个文件验证记录')}<article class="assistant-prose"><p>已统一纸墨主题语义、会话节点、砚台与权限印章。</p><div class="command">✓ session restore 8 tests\n✓ draft persistence 6 tests\n✓ typecheck green</div></article>${fullButton('回到会话', 'navigate', 'chat')}</div>`;
 
   pages.connect = () => `${header('私有 Host', '配对与连接', 'desk')}<div class="screen-scroll"><div class="empty-state"><span class="brand-seal">砚</span><h2>连回自己的书案。</h2><p>项目、模型与会话归 Host，手机是随身窗口。</p></div><button class="host-card" data-action="pair-demo"><span class="host-monogram">书</span><span class="grow"><strong>${escape(state.hostName)}</strong><small>已配对 · ${state.offline ? '离线' : '可连接'}</small></span>${dot(state.offline ? 'waiting' : 'done')}</button>${fullButton('扫描桌面接入码', 'sheet', 'pairing')}${fullButton('手动输入连接地址', 'sheet', 'manual-connect', 'secondary')}</div>`;
 

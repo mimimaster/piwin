@@ -8,6 +8,7 @@ import type {
   ModelRef,
   PermissionDecision,
   PermissionMode,
+  PermissionRequestContext,
   SessionHandle,
   CreateSessionOptions,
   PushSink,
@@ -116,6 +117,12 @@ export class HostRuntimeFields {
   >();
   /** ORCH: turn-scoped model-facing delegation policy. */
   runDelegationModes = new Map<string, 'auto' | 'disabled'>();
+  /**
+   * Turn choices as requested at admission, keyed by run id. Unlike the two
+   * maps above it exists before prompt preparation, so a pause during
+   * preparation still hands the resume the right scheme.
+   */
+  runTurnPolicies = new Map<string, import('@piwin/contracts').SessionPauseTurnPolicy>();
   /** Delegation surface frozen into each currently resident generation. */
   sessionRuntimeDelegationModes = new Map<string, 'auto' | 'disabled'>();
   /**
@@ -204,6 +211,9 @@ export class HostRuntimeFields {
       action: string;
       detail: string;
       defaultDecision?: PermissionDecision;
+      context?: PermissionRequestContext;
+      /** What "Allow for session" grants beyond the exact detail (ADR 0019 §4.1). */
+      sessionGrant?: import('./session-allowlist.js').SessionWorkspaceGrant;
       cleanup?: () => void;
     }
   >();

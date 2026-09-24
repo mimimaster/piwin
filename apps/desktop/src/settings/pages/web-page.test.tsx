@@ -512,6 +512,28 @@ describe('WebPage search route settings', () => {
     expect(container.textContent).not.toContain('SearXNG');
   });
 
+  it('opens the Devin card before the source is enabled and asks to turn it on first', async () => {
+    const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
+      const input = getSearchRoutePreviewInput(command);
+      if (input) {
+        return successResponse(nativePreview(input.policy));
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+    const container = renderPage(request);
+    await flushPreviewDebounce();
+    expect(container.querySelector('[data-testid="web-search-devin-subscription"]')).toBeNull();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="web-search-source-devin"]')?.click();
+    });
+    const card = container.querySelector('[data-testid="web-search-devin-subscription"]');
+    expect(card?.textContent).toContain('Turn the switch on to test the connection');
+    expect(
+      container.querySelector<HTMLButtonElement>('[data-testid="web-search-devin-test"]')?.disabled,
+    ).toBe(true);
+  });
+
   it('fills a CLI example into the command line', async () => {
     const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
       const input = getSearchRoutePreviewInput(command);

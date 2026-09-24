@@ -155,8 +155,18 @@ export type WaitForJobInput = {
 };
 
 /** Job controller interface — the only product Job authority surface. */
+/**
+ * Host-internal admission for one Job start (ADR 0019 §4.1). Never read from a
+ * client command: `job/start` passes only `StartJobInput`, so clients keep the
+ * trusted-project check.
+ */
+export type StartJobAdmission = {
+  /** Directories the Host permission layer admitted as this Job's cwd root. */
+  admittedCwdRoots?: readonly string[];
+};
+
 export interface JobController {
-  start(input: StartJobInput): Promise<JobRecord>;
+  start(input: StartJobInput, admission?: StartJobAdmission): Promise<JobRecord>;
   list(filter?: JobListFilter): Promise<JobRecord[]>;
   get(jobId: string): Promise<JobRecord | undefined>;
   readLogs(input: ReadJobLogsInput): Promise<ReadJobLogsResult>;

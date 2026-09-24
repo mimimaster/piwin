@@ -126,6 +126,26 @@ describe('chat-turn-marginalia', () => {
     expect(data.usage).toBe('1 工具');
   });
 
+  it('bylines a turn that switched models with the switch, iconed by the latest', () => {
+    const base: ChatMessageUi = {
+      id: 'msg-a',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [],
+      status: 'done',
+      createdAt: '2026-09-24T09:00:00.000Z',
+      attachments: [],
+    };
+    const data = resolveTurnMarginalia([
+      { ...base, id: 'msg-1', model: { providerId: 'anthropic', modelId: 'claude-sonnet-4-6' } },
+      { ...base, id: 'msg-2', model: { providerId: 'deepseek', modelId: 'deepseek-chat' } },
+    ]);
+    expect(data.who).toBe('Sonnet 4.6 → DeepSeek V3');
+    expect(data.fullModelId).toBe('claude-sonnet-4-6 → deepseek-chat');
+    expect(data.model).toEqual({ providerId: 'deepseek', modelId: 'deepseek-chat' });
+  });
+
   it('keeps tokens and thinking duration off the rail', () => {
     const asstMsg: ChatMessageUi = {
       id: 'msg-3',

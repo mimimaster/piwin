@@ -154,12 +154,24 @@ export type AuthLogoutInput = {
   providerId: string;
 };
 
+/**
+ * What the Host set up because a new sign-in now backs it (e.g. Devin's token
+ * powering code_search and a web-search source), for the client to report.
+ */
+export type SubscriptionLoginFollowUp = {
+  /** Features switched on by this sign-in; empty when the user had set them up already. */
+  enabled: Array<'code-search' | 'web-search-source'>;
+  /** Web search still prefers model-native search, so the new source would rarely run. */
+  suggestExternalSearchPriority?: boolean;
+};
+
 export type AuthLoginFinishedData = {
   loginId: string;
   providerId: string;
   ok: boolean;
   errorCode?: string;
   newChannelId?: string;
+  followUp?: SubscriptionLoginFollowUp;
 };
 
 export type AuthUpdatedData = {

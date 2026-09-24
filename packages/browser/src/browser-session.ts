@@ -169,7 +169,16 @@ export type BrowserCaptureResult = {
 
 export type BrowserSession = {
   /** Acquire a desktop mirror lease; launches Chromium lazily and starts frames. */
-  start(leaseId?: string): Promise<BrowserSessionState>;
+  /**
+   * `clientKey` identifies the client (device/connection principal) holding
+   * the lease. A client shows one browser panel, so its newer lease retires
+   * any older one it still holds — a leaked or duplicated panel must not look
+   * like a second window to the Host.
+   */
+  start(
+    leaseId?: string,
+    options?: { clientKey?: string; onSuperseded?: (leaseIds: string[]) => void },
+  ): Promise<BrowserSessionState>;
   /** Release one mirror lease. Last lease releases Chromium unless an agent claim is held. */
   stop(leaseId?: string, options?: { reason?: 'disconnect' }): Promise<void>;
   navigate(url: string, options?: BrowserOpOptions): Promise<void>;
@@ -236,8 +245,16 @@ export type BrowserSession = {
   /** Fit the Playwright viewport to the panel CSS box; does not take the lock. */
   setViewport(
     size: { width: number; height: number },
-    options?: { signal?: AbortSignal; mode?: BrowserViewportMode; setBy?: BrowserViewportSetBy },
+    options?: {
+      signal?: AbortSignal;
+      mode?: BrowserViewportMode;
+      setBy?: BrowserViewportSetBy;
+      /** `follow` only: the mirror lease that now drives the viewport. */
+      followLeaseId?: string;
+    },
   ): Promise<{ width: number; height: number }>;
+  /** Mirror lease that drives the `follow` viewport, if any. */
+  viewportFollowLeaseId(): string | undefined;
   mirrorLeaseCount(): number;
   hasMirrorLease(leaseId: string): boolean;
   takeOver(): Promise<BrowserControllerState>;
@@ -305,6 +322,10 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   const state: BrowserSessionState = {};
   let viewportMode: BrowserViewportMode = 'follow';
   let viewportSetBy: BrowserViewportSetBy = 'host';
+  /** Only meaningful while `viewportMode === 'follow'`; see BrowserViewportConfig. */
+  let viewportFollowLeaseId: string | undefined;
+  /** Named lease → the client that holds it (see `start`). */
+  const leaseClients = new Map<string, string>();
   const frameTransport: BrowserFrameTransport = options.frameTransport ?? 'inline';
   /**
    * Monotonic inside one BrowserSession. A main-frame navigation bumps it, so
@@ -494,6 +515,9 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
             width: viewportSize.width,
             height: viewportSize.height,
             setBy: viewportSetBy,
+            ...(viewportMode === 'follow' && viewportFollowLeaseId !== undefined
+              ? { followLeaseId: viewportFollowLeaseId }
+              : {}),
           },
           tabs: tabs ?? [],
           pendingDialog: pendingDialog ?? null,
@@ -585,10 +609,23 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   }
 
   return {
-    start: (leaseId) =>
+    start: (leaseId, options) =>
       runExclusive(async () => {
         runtime.assertOpen();
         if (!runtime.acquireMirrorLease(leaseId)) return { ...state };
+        const clientKey = options?.clientKey;
+        if (leaseId !== undefined && clientKey !== undefined) {
+          const superseded: string[] = [];
+          for (const [held, holder] of leaseClients) {
+            if (held === leaseId || holder !== clientKey) continue;
+            runtime.releaseMirrorLease(held, { retire: true });
+            leaseClients.delete(held);
+            if (held === viewportFollowLeaseId) viewportFollowLeaseId = undefined;
+            superseded.push(held);
+          }
+          leaseClients.set(leaseId, clientKey);
+          if (superseded.length > 0) options?.onSuperseded?.(superseded);
+        }
         await runtime.getPage();
         const activePage = runtime.peekPage();
         const activeContext = runtime.peekContext();
@@ -609,7 +646,15 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         // A dropped connection may come back with the same id; only an
         // unmount retires it for good.
         const retire = options?.reason !== 'disconnect';
-        if (!runtime.releaseMirrorLease(leaseId, { retire })) return;
+        // The window that drove the viewport is gone: the next focused window
+        // takes over instead of every other mirror staying frozen.
+        if (leaseId !== undefined) leaseClients.delete(leaseId);
+        const releasedFollower = leaseId !== undefined && leaseId === viewportFollowLeaseId;
+        if (releasedFollower) viewportFollowLeaseId = undefined;
+        if (!runtime.releaseMirrorLease(leaseId, { retire })) {
+          if (releasedFollower) await emitState();
+          return;
+        }
         // Closing the workbench must not leave a sticky user lock.
         const previous = controller.snapshot();
         const next = controller.giveBack();
@@ -698,6 +743,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         assertActor(options?.actor ?? 'agent', 'agent-write', options?.runId);
         viewportSetBy = options?.actor ?? 'agent';
         if (options?.mode !== undefined) viewportMode = options.mode;
+        if (viewportMode !== 'follow') viewportFollowLeaseId = undefined;
         const next = await operations.setViewport(size, options?.mode);
         await emitState();
         return next;
@@ -784,10 +830,13 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       withAbort(async () => {
         if (options?.mode !== undefined) viewportMode = options.mode;
         viewportSetBy = options?.setBy ?? 'user';
+        if (viewportMode !== 'follow') viewportFollowLeaseId = undefined;
+        else if (options?.followLeaseId !== undefined) viewportFollowLeaseId = options.followLeaseId;
         const next = await operations.setViewport(size, options?.mode);
         await emitState();
         return next;
       }, options?.signal),
+    viewportFollowLeaseId: () => viewportFollowLeaseId,
     mirrorLeaseCount: () => runtime.mirrorLeaseCount(),
     hasMirrorLease: (leaseId) => runtime.hasMirrorLease(leaseId),
 

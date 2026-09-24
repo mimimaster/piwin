@@ -7,7 +7,11 @@
  */
 import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { TrustedTextReadData, TrustedTextReadFailureReason } from '@piwin/contracts';
+import {
+  configStoreDisplayRef,
+  type TrustedTextReadData,
+  type TrustedTextReadFailureReason,
+} from '@piwin/contracts';
 import { resolveInsideRootWithRealpath } from '@piwin/project';
 import { getPiwinMediaDir } from './paths.js';
 
@@ -23,6 +27,17 @@ export type ReadTrustedTextInput = {
 export async function readTrustedConfigText(
   input: ReadTrustedTextInput,
 ): Promise<TrustedTextReadData> {
+  const display = (relativePath: string): string => configStoreDisplayRef(input.piwinRoot, relativePath);
+  const unavailable = (
+    reason: TrustedTextReadFailureReason,
+    relativePath: string,
+    suggestion?: string,
+  ): TrustedTextReadData => ({
+    status: 'unavailable',
+    reason,
+    displayRef: display(relativePath.trim().replace(/^\/+/, '')),
+    ...(suggestion ? { suggestion } : {}),
+  });
   const relativeNormalized = normalizeTrustedRelativePath(input.relativePath);
   if (relativeNormalized === null) {
     return unavailable('invalid-request', input.relativePath, 'Provide a config-root-relative path.');
@@ -88,7 +103,7 @@ export async function readTrustedConfigText(
   return {
     status: 'ready',
     relativePath: relativeNormalized,
-    displayRef: formatTrustedDisplayRef(relativeNormalized),
+    displayRef: display(relativeNormalized),
     content: contentBuffer.toString('utf8'),
     byteSize,
     truncated,
@@ -131,22 +146,4 @@ function mapContainmentReason(reason: string): TrustedTextReadFailureReason {
     return 'not-found';
   }
   return 'outside-config-root';
-}
-
-function unavailable(
-  reason: TrustedTextReadFailureReason,
-  displayRef: string,
-  suggestion?: string,
-): TrustedTextReadData {
-  return {
-    status: 'unavailable',
-    reason,
-    displayRef: formatTrustedDisplayRef(displayRef),
-    ...(suggestion ? { suggestion } : {}),
-  };
-}
-
-function formatTrustedDisplayRef(relativePath: string): string {
-  const trimmed = relativePath.trim().replace(/^\/+/, '');
-  return trimmed ? `~/.piwin/${trimmed}` : '~/.piwin';
 }

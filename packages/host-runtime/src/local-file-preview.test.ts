@@ -109,6 +109,20 @@ describe('previewLocalFile', () => {
     expect(result).toMatchObject({ status: 'unavailable', reason: 'not-found' });
   });
 
+  it('expands a leading ~ instead of rejecting the path as non-absolute', async () => {
+    const ctx = await setup();
+    const result = await previewLocalFile({
+      // Reaching the filesystem (not-found) is the assertion: before expansion
+      // a `~/...` chip was rejected as invalid-request without any stat.
+      absolutePath: '~/__piwin_preview_probe_missing__',
+      sessionId: ctx.sessionId,
+      mediaRoot: ctx.mediaRoot,
+      maxImageBytes: 1024,
+      allowedMimeTypes: ['image/png'],
+    });
+    expect(result).toMatchObject({ status: 'unavailable', reason: 'not-found' });
+  });
+
   it('rejects a relative path', async () => {
     const ctx = await setup();
     const result = await previewLocalFile({

@@ -11,10 +11,9 @@ import { useDesktopLocale } from '../../desktop-locale-context.js';
 import { DEFAULT_DARK_THEME_SETTINGS, DEFAULT_LIGHT_THEME_SETTINGS, saveDesktopPreferences, type AppearanceMode, type DesktopPreferences, type ConversationWidth, type ToolCallDensity } from '../../ui-preferences.js';
 import { FieldRow } from '../field-row.js';
 import { PageTitle } from '../page-title.js';
-import { settingsHostSupportsCommand, useSettings } from '../settings-context.js';
+import { useSettings } from '../settings-context.js';
 import { AppearanceCustomFonts } from './appearance-custom-fonts.js';
 import { AppearanceModeControl, getAppearanceThemeSettings } from './appearance-theme-controls.js';
-import { ThemeLibraryCard } from './appearance-theme-library.js';
 import { applyCustomFontsToDocument } from '../../theme/font-manager.js';
 
 function updatePreference<K extends keyof DesktopPreferences>(
@@ -33,7 +32,6 @@ export function AppearancePage(): ReactElement {
   const copy = getDesktopCopy(locale).appearance;
   const settings = useSettings();
   const { preferences, onPreferencesChange, onThemeApplied, activeTheme } = settings;
-  const themeLibraryAvailable = settingsHostSupportsCommand(settings, 'theme/list');
   const themePackageActive = isThemeAppearanceLocked(activeTheme);
 
   function handleAppearanceModeChange(mode: AppearanceMode): void {
@@ -89,7 +87,6 @@ export function AppearancePage(): ReactElement {
         </div>
       </section>
 
-      {themeLibraryAvailable ? <ThemeLibraryCard /> : null}
       <section className="settings-section settings-section-card">
         <PageTitle title={copy.chatSettings} description={copy.chatSettingsDescription} />
         <FieldRow label={copy.verboseAgentChat} description={copy.verboseAgentChatDescription}>

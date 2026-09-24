@@ -44,7 +44,7 @@
 3. 可以自己制定方案，选择后执行。
 4. **不要**做成「只有 `/exe-ultra-subagent` 才触发」的深藏 skill——方案一多难管理，功能发现性差。
 5. 交互最终敲定为：**设置里配好方案；对话框附近下拉框选方案；打过去（发送）这条消息按方案跑**。
-6. **不做跨会话保持、不做设为默认、不做静默自动启用**——「主动选择才会应用；用户自己承担」。
+6. **不做全局默认、不做静默自动启用**——方案跟当前会话走；切走再回来恢复该会话的选择，新开 Agent 仍是自由。不写入磁盘默认。
 
 ### 0.3 一句话问题陈述
 
@@ -54,9 +54,11 @@
 
 | 场景 | 感知 |
 |------|------|
-| 下拉 Off | 与今日完全一致：无新系统提示、无强制探子、无 schema/并发特殊约束 |
+| 下拉 Off | 无方案提示、强制角色或 schema/并发特殊约束；仍可自主委派；若单独配置只读子代理模型，新建只读子代理可使用该模型 |
 | 选 Ultra Code 再发送 | 本条更倾向拆只读探子、等证据再综合；子代理偏 low 思考；不乱填 model/thinking |
 | 选 Ultra Code 后从 New Agent 发出 | 会话创建后 pill 仍显示 Ultra Code；不得跳回「自由」 |
+| 同一会话后续发送 | pill 保持所选方案，直到用户改选或新开 Agent |
+| 切走再回到该会话 | 恢复该会话上次所选方案；其他会话与 New Agent 仍是自由 |
 | Settings | 能看到内置 Ultra Code 与 Reviewed Delivery，可 overlay / clone 改纪律/profile/模型 |
 | 切会话 / 重启 | 下拉回到 Off；没有「上次方案自动跟过来」的惊喜惊吓 |
 
@@ -64,7 +66,7 @@
 
 ## 1. Product one-liner
 
-> **编排方案（Orchestration Scheme）** 是**逐条消息的 opt-in 工作方式**：用户在 Composer 下拉选中非 Off 方案并发送后，本条 prompt 才注入主代理派发纪律，并按方案收紧子代理角色、并发与（可选）工具 schema；**Off 时与实现前行为 bit-identical**。
+> **编排方案（Orchestration Scheme）** 是**逐条消息的 opt-in 工作方式**：用户在 Composer 下拉选中非 Off 方案并发送后，本条 prompt 才注入主代理派发纪律，并按方案收紧子代理角色、并发与（可选）工具 schema；**Off 不注入方案纪律**；若配置了自由模式只读子代理模型，子代理模型选择会按下述规则变化。
 
 中文产品名：**编排方案**。英文类型名：`OrchestrationScheme`。  
 内置方案名：**Ultra Code**（与主代理 thinking 档位 **Ultra** 无关，禁止共用配置或混名叙事）与 **Reviewed Delivery**。
@@ -114,7 +116,7 @@ Settings（配）          Composer（选）           Host（本条生效）
 
 | 下拉 | 用户操作 | 系统行为 |
 |------|----------|----------|
-| Off / 空 | 发送 | **零方案逻辑**：不读方案库、不注入 preamble、不收窄 schema、不覆盖并发 |
+| Off / 空 | 发送 | **零方案逻辑**：不读方案库、不注入 preamble、不收窄 schema、不覆盖并发；独立的自由模式只读子代理模型设置仅在自主委派时生效 |
 | 合法 scheme id | 发送 | 本条 `PromptInput.orchestrationSchemeId = id`；Host 解析并生效 |
 | 已删 / 非法 id | 发送 | **Host 失败返回明确错误**（不静默当 Off）；Desktop 发送前应校验 |
 
@@ -208,7 +210,7 @@ Slash / CLI **不是**「执行一次 ultra 脚本」；真正生效永远是**�
 |----|------|
 | ORCH-G1 | Composer 输入框旁编排方案下拉；默认 Off |
 | ORCH-G2 | **仅当选中非 Off 并发送时** Host 才注入纪律与运行时约束 |
-| ORCH-G3 | Off 时零注入——与实现前 bit-identical |
+| ORCH-G3 | Off 时零方案注入；未配置自由模式只读模型时仍继承原模型 |
 | ORCH-G4 | 内置 Ultra Code：只读探子倾向、泛型调用语义、等待纪律、子代理 thinking ≤ low |
 | ORCH-G5 | 用户可 clone/自建；方案只引用 Profile |
 | ORCH-G6 | `PromptInput.orchestrationSchemeId`；Host 为权威执行点 |
@@ -227,6 +229,7 @@ ORCH-N1..N9：见 §2.6 表（跨会话持久化、默认方案、自动启用�
 PiwinConfig.subagents
   ├── profiles[]                 # L1 已有
   ├── defaultProfileId?          # L1 全局（Off 时子代理仍可用）
+  ├── freehandReadonlyModel?      # 自由模式自主委派只读子代理的可选模型
   ├── maxConcurrency / maxTasksPerRun / processIsolation / …
   └── schemes[]                  # L3 新增（用户自建；内置不写死进磁盘默认）
         └── OrchestrationSchemeSettings
@@ -234,6 +237,8 @@ PiwinConfig.subagents
 
 内置 Ultra Code 与 Reviewed Delivery：**contracts 只读常量 merge**，模式对齐 builtin profiles：  
 `createDefaultSubagentConfig()` **不**把任一内置方案写入默认磁盘 config。Settings 以同 id overlay 覆盖该内置（`source` 变为 `settings`）。
+
+自由模式的 `freehandReadonlyModel` 是独立于编排方案的可选 `ModelRef`，不写入默认配置。Host 仅对没有 activeScheme 的模型自主 `piwin_subagent_run/start` 生效：调用显式模型 > 档案固定模型 > 有效只读任务的自由模式模型 > 主会话模型。worktree、已知写入角色（coder/implementer）及写入档案即使被收紧到只读也不使用只读模型；角色名不提升写权限。失效的已选模型在创建 child 前报错而非静默回退。已选方案、计划/程序化批任务、continue 及独立 `code_search` 均不受影响，既有未配置用户仍继承主模型。设置变更仅影响后续新建子代理。
 
 ### 6.1 与现有 subagent 栈
 
@@ -522,14 +527,14 @@ Fusion 不是第二套 Orchestrator，也不是 in-process 双 Pi loop。它是 
 
 `defaultRole` = `sidekick`；`defaultProfileId` = `implementer`；`exposeSpawnMetadata` = `false`；`waitPolicy` = `await-all`；`maxConcurrency: 1`；`maxTasksPerRun` = `8`；`fallback` = `main`。不硬编码 provider/model id。不钳 thinking（不要套 Ultra Code 的 low）。
 
-Host **强制**（模型设不了 `retainWorktree`）：`deliveryIntent='candidate'`、`applyPolicy='explicit'`、`retainWorktree=true`。默认 worktree `integrate`+`auto` 会拆掉 lane 租约，禁止用于 Fusion。续跑走 `continuationSessionId` + `prepareRetainedSubagentContinuation`，**不**走审查绑定的 `piwin_subagent_continue`。
+Host **强制**（模型设不了这些字段）：`deliveryIntent='candidate'`、`applyPolicy='explicit'`、`reviewAuthority='lead'`（2026-09-23 起不再设 `retainWorktree`）。默认 worktree `integrate`+`auto` 会拆掉 lane 租约，禁止用于 Fusion。续跑走 `continuationSessionId` + `prepareRetainedSubagentContinuation`，**不**走审查绑定的 `piwin_subagent_continue`。
 
 #### 原则 → 实现检查
 
 | # | Invariant | Host / contract check |
 |---|-----------|------------------------|
 | 1 | Brief/result only | Seed/continuation = `formatFusionBriefEnvelope(task)` only. Wait = `summaryPreview` / reportContract. Parent transcript never in `preparedPrompt` / `seedMessages`. |
-| 2 | Lead owns plan, ambiguity, final review | Parent is not a child role. Sidekick first line `done \| blocked \| escalate`. `escalate` / `fallback=main` = take-back. |
+| 2 | Lead owns plan, ambiguity, final review | Parent is not a child role. Sidekick first line `done \| blocked \| escalate`. `escalate` / `fallback=main` = take-back. Final review is durable: the Lead's `piwin_subagent_review_submit` writes an `authority: 'lead'` review on the candidate task, accepted only for tasks the Host admitted with `reviewAuthority: 'lead'`. |
 | 3 | Judgment-as-deliverable stays on Lead | Preamble cites the search-bar 54→27 case. Host does **not** classify task type. |
 | 4 | Sticky pairing; no per-turn model swap | Member.model overlay or inherit. Compact-time sidekick upgrade is a later `SessionCompactionRecord` hook — out of this change. |
 | 5 | Metric is price-per-task | No telemetry UI. Unpinned sidekick inherits composer (usually worse price-per-task); existing Composer warning stays. |
@@ -539,7 +544,9 @@ Host **强制**（模型设不了 `retainWorktree`）：`deliveryIntent='candida
 | 9 | Honest isolation | Envelope: cli-subagent lane; **you cannot see the parent conversation**; this brief is the entire assignment. Not a dual Pi loop, not a VM. |
 | 10 | Recoverability | Retained worktree + child transcript + `continuationSessionId`. No prompt-hash workflow cache. |
 
-Parent loop by tool name: `piwin_subagent_start` (`role="sidekick"`) → `piwin_subagent_wait` (Result only) → Lead reviews checks or takes back → exact `piwin_subagent_result_apply` when the candidate is accepted. Sequential briefs reuse the same sidekick child when the worktree is still retained.
+Parent loop by tool name: `piwin_subagent_start` (`role="sidekick"`) → `piwin_subagent_wait` (Result + exact `result={…}` ref in the text) → Lead reviews checks or takes back → `piwin_subagent_review_submit` on that exact result → `piwin_subagent_result_apply` with the result and the returned `reviewRef` as `approvedBy`.
+
+The scheme survives pause/resume: the Host records the requested scheme id at prompt admission and a pause copies it into the checkpoint's `turnPolicy`, which `session/resume-run` replays. Before 2026-09-24 a resumed run silently ran freehand, so its sidekick fell back to the parent model and had no Lead-review authority. Sequential briefs reuse the same sidekick child when the worktree is still retained.
 
 Sidekick `reportContract` last assistant message: line 1 exactly `done | blocked | escalate`; body: summary, changed paths, checks (command/exit), residual risks, `escalate_reason` if escalate. `isSubagentReportContractMessage` must recognize that first line so merge summary prefers the Result.
 
@@ -559,9 +566,10 @@ Same-session dual Pi loops; compact-time classifier / model swap; Lead write-too
 const [orchestrationSchemeId, setOrchestrationSchemeId] = useState('off');
 ```
 
-- 切换 active session → **强制 `off`**
-- 应用启动 → `off`
-- 无跨会话、无 localStorage 方案记忆（v1）
+- 同一会话后续发送 → **保持所选方案**
+- 切到别的会话 → 恢复目标会话上次的选择；没有则 `off`
+- New Agent / 应用启动 → `off`
+- 无 localStorage、无全局默认（进程内按会话记忆）
 
 ### 10.2 发送
 
@@ -606,7 +614,8 @@ piwin session prompt --scheme ultra-code "..."
 | 选中后改回 Off 再发送 | Off |
 | 方案/profile 被删 | invalid；Host 错误；Settings 标红 |
 | 运行中切换下拉 | 当前 run 不变 |
-| 切 session | 下拉 Off |
+| 切 session | 恢复目标会话上次选择；没有则 Off。New Agent 为 Off |
+| 同会话下一轮 | 保持所选方案 |
 | 与 thinking ultra 同开 | 允许；互不影响 |
 | 与 YOLO | 允许；方案不管权限 |
 | 空 preamble 用户方案 | Settings 拒绝保存 |
@@ -655,10 +664,10 @@ piwin session prompt --scheme ultra-code "..."
 
 ## 15. Acceptance criteria
 
-1. 默认 Off：与加功能前一致。  
+1. 默认 Off：无方案注入；未配置独立只读子代理模型时，子代理模型选择与此前一致。
 2. 选 Ultra Code 发送：model-facing 有纪律；子代理强制/倾向 explorer；thinking ≤ low；并发有上限。  
 3. 用户 transcript 无大段方案说明书冒充用户。  
-4. 切会话 / 重启：下拉 Off。  
+4. 同会话后续发送保持所选方案；切走再回来恢复该会话的选择；New Agent / 重启为 Off。  
 5. 可 clone Ultra Code；下拉出现副本（Settings 交付后）。  
 6. Desktop 与 CLI 对同一 id 语义一致。  
 7. 与 agentMode / runMode / thinking 可同时用且职责不覆盖。  
@@ -683,8 +692,8 @@ piwin session prompt --scheme ultra-code "..."
 
 ## 17. 否决回潮清单
 
-- 左栏工作方式 + 跨会话保持  
-- 设为默认 / 项目默认  
+- 左栏工作方式  
+- 设为默认 / 项目默认 / 全局默认  
 - skill 主入口  
 - 自动启用  
 - 内置方案膨胀  
@@ -721,7 +730,7 @@ piwin session prompt --scheme ultra-code "..."
 
 ## 20. 最小用户故事
 
-1. 打开 piwin，下拉 Off，正常聊天——无变化。  
+1. 打开 piwin，下拉 Off，正常聊天——不注入方案；未配置独立只读模型时行为不变。
 2. 选 **Ultra Code**，问「这个报错根因在哪」。  
 3. 主代理按纪律派 1–N 个 explorer 探子；Host 强制默认 profile 与 low 思考；探子只读回证据。  
 4. 主代理综合后回答。  

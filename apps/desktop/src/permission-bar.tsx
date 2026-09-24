@@ -89,6 +89,7 @@ function shouldDefaultExpand(prompt: PermissionPromptUi): boolean {
   return (
     context.destructive === true ||
     context.secretRelated === true ||
+    context.outsideWorkspace === true ||
     context.kind === 'unknown'
   );
 }
@@ -161,6 +162,11 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
       activityStatus="running"
     >
       <div className="permission-bar-quick-facts">
+        {context?.outsideWorkspace && context.reason ? (
+          <span className="permission-fact-item" data-testid="permission-bar-boundary-reason">
+            {context.reason}
+          </span>
+        ) : null}
         {origin ? (
           <span className="permission-fact-item" data-testid="permission-bar-origin">
             {origin.kind === 'subagent'

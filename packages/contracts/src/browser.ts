@@ -61,6 +61,8 @@ export const BROWSER_RUNTIME_GONE = 'browser-runtime-gone';
 export const BROWSER_UNAVAILABLE = 'browser-unavailable';
 export const BROWSER_STALE_TARGET = 'browser-stale-target';
 export const BROWSER_ACTION_FAILED = 'browser-action-failed';
+/** A follow resize from a window that does not currently drive the viewport. */
+export const BROWSER_VIEWPORT_OWNED = 'browser-viewport-owned';
 export const BROWSER_OPERATION_INTERRUPTED = 'browser-operation-interrupted';
 export const BROWSER_AGENT_HAS_CONTROL = 'browser-agent-has-control';
 
@@ -106,6 +108,13 @@ export type BrowserViewportConfig = {
   height: number;
   /** Who last changed the Host CSS viewport. Omitted by older emitters. */
   setBy?: BrowserViewportSetBy;
+  /**
+   * `follow` only: the mirror lease whose panel the viewport tracks. With
+   * several windows mirroring one Host browser, exactly one drives the size —
+   * the one the user last focused — and the others show that page scaled.
+   * Cleared when that lease is released.
+   */
+  followLeaseId?: string;
 };
 
 /**

@@ -213,6 +213,7 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
   deps.subagentSessionContexts.clear();
   deps.runOrchestrationSchemes.clear();
   deps.runDelegationModes.clear();
+  deps.runTurnPolicies.clear();
   deps.sessionRuntimeDelegationModes.clear();
   deps.generationToolSurfaces.clear();
   deps.generationMcpConfigs.clear();

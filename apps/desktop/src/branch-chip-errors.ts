@@ -1,6 +1,7 @@
 import {
   BRANCH_CHECKED_OUT_IN_WORKTREE_PREFIX,
   CHECKOUT_BLOCKED_BY_LOCAL_CHANGES_PREFIX,
+  worktreeFolderName,
 } from '@piwin/contracts';
 import { showErrorNotification } from '@piwin/ui-kit';
 import { getDesktopCopy } from './desktop-locale';
@@ -8,11 +9,7 @@ import { getDesktopCopy } from './desktop-locale';
 const LOCAL_CHANGES_OVERWRITE_PATTERN = /would be overwritten by checkout/i;
 const COMPACT_ERROR_LIMIT = 160;
 
-export function worktreeFolderName(worktreePath: string): string {
-  const trimmed = worktreePath.replace(/[\\/]+$/, '');
-  const segments = trimmed.split(/[\\/]/);
-  return segments[segments.length - 1] || worktreePath;
-}
+export { worktreeFolderName };
 
 export function localizeCheckoutError(
   message: string,

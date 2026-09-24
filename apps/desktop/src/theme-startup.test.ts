@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   PIWIN_APPEARANCE_DARK,
-  PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_LIGHT,
   applyAppearanceToDocument,
 } from './appearance-tokens';
@@ -36,10 +35,10 @@ describe('resolveStartupAppearance', () => {
     expect(theme.mode).toBe('dark');
   });
 
-  it('pre-paints ink-wash from the last applied library theme id', () => {
+  it('migrates a retired ink-wash theme id into Inkstone on cold start', () => {
     localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-ink-wash');
     const theme = resolveStartupAppearance();
-    expect(theme).toBe(PIWIN_APPEARANCE_INK_WASH);
+    expect(theme.id).toBe('piwin-inkstone-ink');
   });
 
   it('migrates a retired default face into Inkstone', () => {
@@ -80,14 +79,14 @@ describe('rememberAppliedTheme / isDocumentThemeId', () => {
   });
 
   it('persists the applied theme id for the next cold start', () => {
-    rememberAppliedTheme(PIWIN_APPEARANCE_INK_WASH);
-    expect(localStorage.getItem('piwin.desktop.lastThemeId')).toBe('piwin-ink-wash');
+    rememberAppliedTheme(PIWIN_APPEARANCE_DARK);
+    expect(localStorage.getItem('piwin.desktop.lastThemeId')).toBe('piwin-inkstone-ink');
   });
 
   it('detects when document already matches the resolved id', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_DARK);
     expect(isDocumentThemeId('piwin-dark')).toBe(true);
-    expect(isDocumentThemeId('piwin-ink-wash')).toBe(false);
+    expect(isDocumentThemeId('piwin-inkstone-ink')).toBe(true);
   });
 
   it('treats Appearance overlay ids as the Inkstone face already on the document', () => {
@@ -97,7 +96,7 @@ describe('rememberAppliedTheme / isDocumentThemeId', () => {
   });
 
   it('classifies product library themes as startup-safe builtins', () => {
-    expect(isStartupBuiltinThemeId('piwin-ink-wash')).toBe(true);
+    expect(isStartupBuiltinThemeId('piwin-inkstone')).toBe(true);
     expect(isStartupBuiltinThemeId('piwin-dark-appearance')).toBe(false);
     expect(isStartupBuiltinThemeId('community-nord')).toBe(false);
   });

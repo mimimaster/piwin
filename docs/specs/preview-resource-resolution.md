@@ -1,6 +1,6 @@
 # Preview Resource Resolution — Spec
 
-Status: Slices 1–4 implemented.
+Status: Slices 1–6 implemented.
 ADR: [`../adr/0052-preview-resource-resolution.md`](../adr/0052-preview-resource-resolution.md)
 
 ## Problem
@@ -22,10 +22,22 @@ transcript opens the right-panel Doc Preview and fails with
 | Local clicked file | host-absolute path + user click | Slice 4 `preview/read-local-file` (local Host only) | media viewer or text |
 | Anything else | — | none | unavailable with a real reason (`not-found` / `binary` / `too-large`) |
 
-Classification rule: **store identity, not extension**. `planDocumentOpenPath`
-returns `kind: 'media'` iff `isPiwinMediaPath(path)` or the path is an opaque
-`remote-asset:<id>` ref. The media viewer may use extensions/MIME to pick
-image vs video *rendering*.
+Classification rule: **store identity, not extension**, decided by the Host
+(Slice 6). `preview/resolve-path` returns `kind: 'media'` iff the path is in
+this Host's media root (or the conventional `~/.piwin/media/`), never by
+extension. The media viewer may use extensions/MIME to pick image vs video
+*rendering*.
+
+The client sends exactly what was clicked, and dispatches on the returned
+`DocumentTargetRef`:
+
+| Target | Client channel |
+|--------|----------------|
+| `project-file` | `project/read-file` (+ bounded `project/find-file` retry) |
+| `skill` | `skills/read` |
+| `media` | Tauri asset protocol (local) / `media/read` (remote) |
+| `trusted-config` | `preview/read-trusted-text` |
+| `local-file` | `preview/read-local-file` — **refused on remote projection** |
 
 ## Slice 1 — Desktop dispatch + media viewer (implemented)
 
@@ -169,13 +181,73 @@ addressed that, because every one of them trusted the click text.
   `suggestion`, `byteSize`, `maxBytes`, `provenance`, `warning` — the previous
   omitting of those made every failure read "无法加载预览 / 文件当前无法读取。".
 
+## Slice 6 — Host-side path resolution (implemented)
+
+Every slice above taught one more interpreter what a spelling meant; a single
+click still crossed seven of them, and whichever missed answered `not-found`.
+Slice 6 moves interpretation to the Host, which is the only party that knows the
+host user's home, its own config root, realpath aliases, and whether the client
+is local.
+
+- `preview/resolve-path` `{ sessionId?, projectPath?, rawPath }` →
+  `{ status: 'resolved', target, attempts }` or
+  `{ status: 'unresolved', reason, attempts }`. `attempts` is a list of
+  `{ route, reason, detail? }` with `route` ∈ `media | skill | project |
+  trusted-config | local-file | find-file`; it is returned for successful
+  resolutions too, because it is the diagnostic.
+- Failure reasons are stable and specific: `empty-path`, `invalid-path`,
+  `not-found`, `not-a-file`, `outside-domains`, `ambiguous-file`,
+  `project-root-missing`, `remote-local-path-denied`.
+- One classifier (`document-path-classify.ts`) serves both this command and the
+  tool-card `buildDocumentTargetsForPath`; tool cards never emit `local-file`.
+- Resolution order: media → skill → project (realpath containment on both the
+  clicked path and the root) → config store (`configStoreRelativePath`, Host
+  home) → local file. `~` is expanded, `file://` stripped, percent escapes
+  decoded by the Host.
+- `project/find-file` is invoked by the Host only after the project route
+  matched and the exact path was not on disk; unique + complete resolves,
+  several matches answer `ambiguous-file`, an incomplete walk resolves nothing.
+- Remote projection applies `denyRemoteLocalFileTarget`: a `local-file` target
+  becomes `remote-local-path-denied`, so the client is told it may not read the
+  path and is not told whether it exists. The command stays on the remote
+  allowlist because the Host is resolving *for* the remote shell.
+- Desktop sends the raw path once. `planDocumentOpenPath` and
+  `projectRelativeAliasForPath` no longer route; they cover a Host that does
+  not implement the command (a rejected answer falls back to them instead of
+  surfacing "Unhandled command") and transcript recovery.
+- Unavailable states carry `attempts`; Doc Preview renders the specific reason
+  plus a diagnostic disclosure listing each route.
+- `use-active-document.ts` is split (it was 1057 lines): per-target loaders
+  (`project`, `skill`, `trusted-config`, `local-file`, `media`), a shared
+  snapshot → read → transcript ladder, the target dispatcher, and the legacy
+  planner.
+
+### Slice 6 test matrix
+
+- Golden table (`document-path-resolution.test.ts`): every spelling ×
+  {local Host, remote shell, test root `~/.piwin-test`, Windows root} → expected
+  target or reason. Rows cover the historical regressions: a `~/.piwin/...`
+  chip, a workspace reached through `/tmp` while the root is `/private/tmp`,
+  `file://`, percent escapes, a bare file name only `find-file` can place, an
+  ambiguous name, a vanished workspace, and a Windows spelling arriving at a
+  POSIX Host.
+- Command test (`document-path-commands.test.ts`): real filesystem —
+  registered browse root, bounded search, ambiguity, vanished root, config
+  identity, media identity, and a miss that reports its attempts.
+- Projection test (`remote-path-resolution.test.ts`): payload validation and
+  the `local-file` refusal (the response must not contain the host path).
+- Desktop tests: dispatch by the returned target, the specific reason +
+  attempts (never the generic `not-found` copy), transcript recovery on an
+  unresolved answer, and the fallback when the Host rejects the command.
+
 ## Security invariants
 
 1. Read authority = store identity. Media vault reads stay inside
-   `~/.piwin/media/` after realpath; project reads stay inside registered
+   the Host media root after realpath; project reads stay inside registered
    roots. The only absolute-path preview command is local-Host
-   `preview/read-local-file` (user click; render image or text);
-   remote clients cannot send it.
+   `preview/read-local-file` (user click; render image or text); remote clients
+   cannot send it, and Slice 6 refuses the `local-file` target in projection so
+   a remote client cannot even be handed the path.
 2. Remote clients never send host-local absolute paths for media; they send
    opaque ids. Host absolute paths never appear in remote payloads.
 3. Model-emitted path chips gain no new read authority beyond existing
@@ -185,6 +257,8 @@ addressed that, because every one of them trusted the click text.
 5. `project/find-file` grants no read authority: it only lists candidate
    relative paths inside an already-registered browse root, and Desktop opens
    nothing unless the answer is unique and complete.
-6. Absolute-path remapping is bounded by the workspace folder name: only a
-   chip whose trailing segments name a file inside the root is retried, and
-   the retry still goes through `project/read-file`'s root check.
+6. Absolute-path remapping is decided by realpath containment inside the
+   resolver: the clicked path and the registered root are both realpath'd
+   before comparison, and any resolved `project-file` still goes through
+   `project/read-file`'s own root check. `preview/resolve-path` grants no read
+   authority of its own — it only names the channel.

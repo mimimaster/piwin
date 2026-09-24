@@ -66,6 +66,20 @@ export function previewUnavailableCopy(input: {
         title: zh ? '无法预览' : 'Preview unavailable',
         detail: zh ? '这不是一个文件。' : 'This path is not a file.',
       };
+    case 'outside-domains':
+      return {
+        title: zh ? '无法预览' : 'Preview unavailable',
+        detail: zh
+          ? '这个路径不属于当前工作区、配置目录，也不是本机可读取的文件。'
+          : 'This path is not in the workspace, the config store, or a readable file on the Host.',
+      };
+    case 'remote-local-path-denied':
+      return {
+        title: zh ? '远程 Host 不允许读取本机路径' : 'This Host will not read a path on your machine',
+        detail: zh
+          ? '你连接的是另一台机器上的 Host，它只能读取自己那台机器上的文件。请在 Host 所在机器上操作，或改用对话中的文件。'
+          : 'You are connected to a Host on another machine; it can only read files on that machine. Open the file there, or use the file from the conversation instead.',
+      };
     case 'outside-project':
     case 'outside-config-root':
     case 'media-vault':
@@ -106,7 +120,13 @@ export function previewUnavailableCopy(input: {
         title: zh ? '无法预览' : 'Preview unavailable',
         detail: zh ? '找不到对应的 Skill 文档。' : 'The matching Skill document could not be found.',
       };
+    case 'empty-path':
+      return {
+        title: zh ? '没有可打开的路径' : 'No path to open',
+        detail: zh ? '这条记录里没有文件路径。' : 'This entry carries no file path.',
+      };
     case 'invalid-request':
+    case 'invalid-path':
     case 'no-path':
       return {
         title: zh ? '无法预览' : 'Preview unavailable',

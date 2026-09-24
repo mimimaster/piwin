@@ -197,6 +197,7 @@ async function observeJoinedBatch(
     integrationStatus: taskResult?.integrationStatus ?? 'not-requested',
     ...(taskResult?.summaryStatus ? { summaryStatus: taskResult.summaryStatus } : {}),
     ...(taskResult?.error ? { error: taskResult.error } : {}),
+    ...(taskResult?.resultRef ? { resultRef: taskResult.resultRef } : {}),
   };
 }
 

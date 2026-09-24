@@ -316,7 +316,7 @@ export function InboxPage(): ReactElement {
         </div>
         <ListRow
           name="file"
-          title="一份新的走查报告"
+          title="一份新的报告"
           subtitle="Inkstone · 桌面主题"
           onClick={go('walkthrough')}
         />

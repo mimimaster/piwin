@@ -183,6 +183,39 @@ describe('DocPreviewPanel', () => {
     expect(state?.textContent).toContain('12.4 MB exceeds the 8.0 MB preview limit');
   });
 
+  it('shows the Host resolution attempts behind an unavailable preview (ADR 0052 §6)', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DocPreviewPanel
+            title="notes.md"
+            filePath="/Users/wren/notes.md"
+            status="unavailable"
+            unavailableReason="remote-local-path-denied"
+            attempts={[
+              { route: 'media', reason: 'not-a-vault-path' },
+              { route: 'project', reason: 'not-inside-project-root' },
+              { route: 'local-file', reason: 'channel-denied-by-remote-shell' },
+            ]}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const state = container.querySelector('[data-testid="doc-preview-state-unavailable"]');
+    expect(state?.getAttribute('data-reason')).toBe('remote-local-path-denied');
+    expect(state?.textContent).toContain('远程 Host 不允许读取本机路径');
+    expect(state?.textContent).not.toContain('找不到此文件');
+
+    const diagnostics = container.querySelector(
+      '[data-testid="doc-preview-state-unavailable-attempts"]',
+    );
+    expect(diagnostics?.textContent).toContain('尝试过的路径（3）');
+    expect(diagnostics?.textContent).toContain('channel-denied-by-remote-shell');
+    expect(state?.getAttribute('data-attempts')).toBe('3');
+  });
+
   it('renders SVG files visually instead of as source code', () => {
     act(() => {
       root.render(

@@ -127,27 +127,23 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         : { message, count: 1 },
     );
   }, []);
-  const { refused: followRefused } = useBrowserViewport({
+  const { refused: followRefused, claim: claimViewport } = useBrowserViewport({
     containerRef,
     enabled: viewportPreference.mode === 'follow',
     leaseId: mirrorLeaseId,
+    hostViewport: viewport,
     resize: (width, height, resizeOptions) =>
       hostClient.browserResize(width, height, resizeOptions),
   });
-  // One notice per refusal episode: the panel stopped driving the Host
-  // viewport, so say so instead of silently showing a stale frame.
-  const followRefusedNotified = useRef(false);
-  useEffect(() => {
-    if (viewportPreference.mode !== 'follow' || !followRefused) {
-      followRefusedNotified.current = false;
-      return;
-    }
-    if (followRefusedNotified.current) {
-      return;
-    }
-    followRefusedNotified.current = true;
-    pushNotice(copy.viewportFollowRefused);
-  }, [copy.viewportFollowRefused, followRefused, pushNotice, viewportPreference.mode]);
+  // Another client (another device) drives the shared page size. No text for
+  // it: the page just shows scaled, and pointing at it takes the size back.
+  // A refused follow resize is likewise silent — the controller retries.
+  const followsOtherWindow =
+    viewportPreference.mode === 'follow' &&
+    viewport?.mode === 'follow' &&
+    viewport.followLeaseId !== undefined &&
+    mirrorLeaseId !== undefined &&
+    viewport.followLeaseId !== mirrorLeaseId;
 
   const [panelSize, setPanelSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -300,6 +296,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
   const fillPanel =
     viewportPreference.mode === 'follow' &&
     !followRefused &&
+    !followsOtherWindow &&
     (viewport === undefined || viewport.mode === 'follow');
   const displayBox =
     fillPanel && frame.viewportWidth > 0 && panelSize.width > 0
@@ -477,6 +474,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           const insert = pasteToInsertText(event.clipboardData.getData('text'));
           if (insert) input.sendKeyEvents([insert]);
         }}
+        {...(followsOtherWindow ? { onPointerEnterSurface: claimViewport } : {})}
       >
         {annotateMode && frame.src ? (
           <BrowserAnnotationOverlay

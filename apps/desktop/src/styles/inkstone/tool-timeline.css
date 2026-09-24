@@ -117,6 +117,63 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   text-overflow: ellipsis;
 }
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .turn-work-details-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-running-head {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-running-head b {
+  flex: none;
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-narration {
+  display: inline-block;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-running-tail {
+  display: inline-flex;
+  align-items: center;
+  flex: 1 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-running-tail code {
+  min-width: 0;
+  max-width: 16em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .work-h .sq,
 html[data-theme-id='piwin-inkstone-ink'] .work-h .sq,
 html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .sq,

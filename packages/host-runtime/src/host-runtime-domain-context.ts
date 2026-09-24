@@ -89,8 +89,8 @@ export async function buildDomainContext(
     pendingExtensionUi: deps.pendingExtensionUi,
     rememberProjectPermission: (sessionId, action, detail, scope, projectPath) =>
       deps.rememberProjectPermission(sessionId, action, detail, scope, projectPath),
-    rememberSessionPermission: (sessionId, action, detail) =>
-      deps.rememberSessionPermission(sessionId, action, detail),
+    rememberSessionPermission: (sessionId, action, detail, grant) =>
+      deps.rememberSessionPermission(sessionId, action, detail, grant),
     isSessionBodyReserved: (sessionId) => deps.sessionBodyGate.isReserved(sessionId),
     sessionPermissionOverrides: deps.sessionPermissionOverrides,
     setSessionPermissionOverride: (sessionId, mode) =>

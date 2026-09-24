@@ -1,6 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import type {
+  DocumentPathResolveData,
   HostCommand,
   HostMode,
   HostPush,
@@ -12,6 +13,7 @@ import type {
   QueuedTurnRecord,
 } from '@piwin/contracts';
 import {
+  denyRemoteLocalFileTarget,
   hostOsFamilyFromNodePlatform,
   hostPathStyleFromOsFamily,
   readActivitySummaryData,
@@ -181,6 +183,17 @@ export function projectRemoteResponse(
     return response;
   }
 
+  if (command.type === 'preview/resolve-path') {
+    // The resolution itself is remote-safe (it runs on the Host), but a
+    // `local-file` target carries host filesystem layout and the attempts
+    // record whether the file exists. Drop both: the client is told the
+    // channel is closed, nothing more.
+    return {
+      ...response,
+      data: denyRemoteLocalFileTarget(response.data as DocumentPathResolveData),
+    };
+  }
+
   if (
     command.type === 'session/queued-turn-submit' ||
     command.type === 'session/queued-turn-list' ||
@@ -265,6 +278,7 @@ export function createRemoteCapabilities(
     mediaRead: true,
     browserFrameBinary: true,
     trustedTextPreview: true,
+    documentPathResolve: true,
     pushBatching: true,
     cursorBatches: true,
     boundedReplay: true,

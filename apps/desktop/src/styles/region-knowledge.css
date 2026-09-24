@@ -1,9 +1,8 @@
 /* Region: full-window Knowledge Center (KnowledgeCenterPanel.tsx).
    Owns the page shell — titlebar, back button, master-detail split, and the
    project list sidebar. The detail stage lives in region-knowledge-stage.css,
-   card generation in region-knowledge-cards.css, ink-wash in
-   knowledge-ink-wash.css (one region, split by responsibility per AGENTS.md
-   3.2).
+   and card generation in region-knowledge-cards.css (one region, split by
+   responsibility per AGENTS.md 3.2).
 
    Deck rule: same full-window-takeover shape as settings
    (region-settings-shell.css) — content is the page (surface-1), the sidebar

@@ -5,6 +5,7 @@ import {
 } from './assistant-text-role.js';
 import type { ChatMessageUi, RunRecordUi, ToolCardUi } from './chat-reducer.js';
 import type { TranscriptTurn } from './transcript-turns.js';
+import { resolveElapsedMs, resolveRunStartedAt } from './turn-work-timing.js';
 
 export type TurnWorkDisclosureProjection = {
   /** Inclusive index of the first intermediate row hidden by the disclosure. */
@@ -31,6 +32,11 @@ export type TurnWorkDisclosureProjection = {
   runningToolIndex?: number;
   /** The tool currently executing, so the header can name what it is doing. */
   runningTool?: ToolCardUi;
+  /**
+   * The most recent narration line from a process row in the fold, shown in
+   * the live running header to keep the user informed without unsealing the chain.
+   */
+  latestNarration?: string;
 };
 
 export type ProjectTurnWorkDisclosureInput = {
@@ -86,6 +92,13 @@ function isUserFacingReply(message: ChatMessageUi): boolean {
 
 function hasAssistantError(message: ChatMessageUi): boolean {
   return message.status === 'error' || message.error !== undefined;
+}
+
+/** A failed tool is visible work even while its assistant row is still streaming. */
+function hasFailedTool(message: ChatMessageUi): boolean {
+  return message.tools.some(
+    (tool) => tool.status === 'error' && tool.presentation?.error?.category !== 'cancelled',
+  );
 }
 
 /**
@@ -181,51 +194,6 @@ function collectRunIds(turn: TranscriptTurn): Set<string> {
     }
   }
   return runIds;
-}
-
-function resolveElapsedMs(
-  turn: TranscriptTurn,
-  startIndex: number,
-  endIndex: number,
-  runIds: ReadonlySet<string>,
-  runRecordsById: Readonly<Record<string, RunRecordUi>>,
-): number | undefined {
-  let earliestStart: number | undefined;
-  let latestEnd: number | undefined;
-
-  for (const runId of runIds) {
-    const record = runRecordsById[runId];
-    if (!record || record.startedAt === null || record.endedAt === null) continue;
-    earliestStart =
-      earliestStart === undefined ? record.startedAt : Math.min(earliestStart, record.startedAt);
-    latestEnd = latestEnd === undefined ? record.endedAt : Math.max(latestEnd, record.endedAt);
-  }
-
-  if (earliestStart !== undefined && latestEnd !== undefined) {
-    return Math.max(0, latestEnd - earliestStart);
-  }
-
-  for (let index = startIndex; index <= endIndex; index += 1) {
-    const message = turn.items[index]?.message;
-    if (!message) continue;
-    const msgStart =
-      message.thinkingStartedAt ??
-      (message.createdAt ? Date.parse(message.createdAt) : undefined);
-    const msgEnd =
-      message.thinkingEndedAt ??
-      (message.createdAt ? Date.parse(message.createdAt) : undefined);
-
-    if (msgStart !== undefined && !Number.isNaN(msgStart)) {
-      earliestStart =
-        earliestStart === undefined ? msgStart : Math.min(earliestStart, msgStart);
-    }
-    if (msgEnd !== undefined && !Number.isNaN(msgEnd)) {
-      latestEnd = latestEnd === undefined ? msgEnd : Math.max(latestEnd, msgEnd);
-    }
-  }
-
-  if (earliestStart === undefined || latestEnd === undefined) return undefined;
-  return Math.max(0, latestEnd - earliestStart);
 }
 
 function countFailures(
@@ -357,12 +325,54 @@ function projectRange(
 }
 
 /**
- * A row the user is meant to read rather than watch: prose the model wrote, or
- * generated media the tool call itself delivers. Both are output, not process,
- * so the live fold stops at them instead of swallowing them.
+ * A row carrying user-facing deliverables rather than intermediate narration:
+ * either generated media delivered by a generation tool, or visible prose without
+ * work tools. A row that mixes narration text with work tools is still process
+ * while the turn is live, so it folds with the rest of the chain.
  */
-function isUserFacingLiveRow(message: ChatMessageUi): boolean {
-  return hasVisibleFinalContent(message) || assistantHasUserFacingGeneration(message);
+function isUserFacingOutputRow(message: ChatMessageUi): boolean {
+  if (message.role !== 'assistant') {
+    return false;
+  }
+  if (assistantHasUserFacingGeneration(message)) {
+    return true;
+  }
+  return hasVisibleFinalContent(message) && !assistantHasWorkTools(message);
+}
+
+const MAX_NARRATION_PREVIEW_CHARS = 60;
+
+/**
+ * Extract the latest narrative sentence from an assistant process row inside
+ * the folded range. Takes the first non-empty line, trims it, and caps it at
+ * ~60 characters with an ellipsis if truncated.
+ */
+export function extractLatestNarration(
+  turn: TranscriptTurn,
+  startIndex: number,
+  endIndex: number,
+): string | undefined {
+  for (let index = endIndex; index >= startIndex; index -= 1) {
+    const message = turn.items[index]?.message;
+    if (message?.role !== 'assistant') continue;
+    const text = message.text.trim();
+    if (!text) continue;
+    const firstLine = (text.split(/\r?\n/).find((line) => line.trim().length > 0) ?? '').trim();
+    if (!firstLine) continue;
+    return firstLine.length > MAX_NARRATION_PREVIEW_CHARS
+      ? `${firstLine.slice(0, MAX_NARRATION_PREVIEW_CHARS)}…`
+      : firstLine;
+  }
+  return undefined;
+}
+
+/**
+ * A row from a run that already ended in this turn — the paused run before a
+ * resume. Its narration is history, not the answer appearing, so it folds with
+ * the rest of the chain instead of splitting the live fold in two.
+ */
+function isEarlierRunRow(message: ChatMessageUi, activeRunId: string | null): boolean {
+  return activeRunId !== null && message.runId !== undefined && message.runId !== activeRunId;
 }
 
 function rangeHasTool(turn: TranscriptTurn, startIndex: number, endIndex: number): boolean {
@@ -391,20 +401,6 @@ function rangeIsWhollyExploreFolded(
   return true;
 }
 
-/** Earliest start across the turn's runs, open or closed. */
-function resolveRunStartedAt(
-  runIds: ReadonlySet<string>,
-  runRecordsById: Readonly<Record<string, RunRecordUi>>,
-): number | undefined {
-  let earliest: number | undefined;
-  for (const runId of runIds) {
-    const startedAt = runRecordsById[runId]?.startedAt;
-    if (startedAt === null || startedAt === undefined) continue;
-    earliest = earliest === undefined ? startedAt : Math.min(earliest, startedAt);
-  }
-  return earliest;
-}
-
 /** Tools seen so far in the range, and the one currently executing. */
 function resolveLiveToolProgress(
   turn: TranscriptTurn,
@@ -428,17 +424,20 @@ function resolveLiveToolProgress(
 /**
  * Fold the work of a turn that is still in flight.
  *
- * There is no conclusion yet, so everything the agent has done folds behind one
- * running header — that is the whole point: the chain should not paint itself
- * row by row while it works. Two kinds of row stay out of the fold:
+ * Intermediate agent work remains inside a single disclosure while the turn
+ * executes, preventing the chain from repeatedly expanding and collapsing as
+ * models (e.g. DeepSeek) emit narrative sentences between tool calls.
  *
- *   - The row the model is currently writing text into. That is the answer
- *     appearing, not process.
- *   - Anything at or before a narration sentence the model already wrote. The
- *     sentence keeps its place, and the fold covers only the work after it.
+ * Rows stay out of the live fold only when they represent true user-facing
+ * output rather than intermediate process:
+ *   - Genuine replies: assistant prose written without work tools. While
+ *     trailing prose is streaming without tools, it remains outside as the
+ *     emerging answer; as soon as a tool call arrives, it merges into the fold.
+ *   - Generated media deliverables (e.g. generated images/videos).
  *
- * An error or an open permission gate suppresses the fold entirely: both are
- * things the user has to see and act on, and both render inside these rows.
+ * Earlier paused runs (isEarlierRunRow) remain inside the fold. A message
+ * error, a failed tool, an active subagent, or an open permission gate
+ * suppresses or bounds the fold so the user can see and act on blockers.
  */
 function projectLiveRange(
   input: ProjectTurnWorkDisclosureInput,
@@ -450,7 +449,7 @@ function projectLiveRange(
   const lastAssistant = items[lastAssistantIndex]?.message;
   if (!lastAssistant) return null;
 
-  let endIndex = isUserFacingLiveRow(lastAssistant)
+  let endIndex = isUserFacingOutputRow(lastAssistant)
     ? lastAssistantIndex - 1
     : extendThroughEmptyAssistants(input.turn, lastAssistantIndex);
   if (endIndex < 0) return null;
@@ -471,7 +470,10 @@ function projectLiveRange(
   for (let index = endIndex; index >= 0; index -= 1) {
     const message = items[index]?.message;
     if (!message) continue;
-    if (message.role !== 'assistant' || isUserFacingLiveRow(message)) {
+    if (
+      message.role !== 'assistant' ||
+      (isUserFacingOutputRow(message) && !isEarlierRunRow(message, input.activeRunId))
+    ) {
       startIndex = index + 1;
       break;
     }
@@ -488,6 +490,10 @@ function projectLiveRange(
   // with the first tool call and holds every one after it.
   if (!rangeHasTool(input.turn, startIndex, endIndex)) return null;
   if (prefixHasAssistantError(input.turn, startIndex, endIndex)) return null;
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const message = items[index]?.message;
+    if (message && hasFailedTool(message)) return null;
+  }
   if (
     rangeIsWhollyExploreFolded(
       input.turn,
@@ -499,12 +505,14 @@ function projectLiveRange(
     return null;
   }
 
-  const runningSince = resolveRunStartedAt(runIds, input.runRecordsById);
+  const runningSince = resolveRunStartedAt(runIds, input.runRecordsById, input.activeRunId);
   const progress = resolveLiveToolProgress(input.turn, startIndex, endIndex);
+  const latestNarration = extractLatestNarration(input.turn, startIndex, endIndex);
   return {
     ...projectRange(input, startIndex, endIndex, runIds),
     live: true,
     ...(runningSince !== undefined ? { runningSince } : {}),
+    ...(latestNarration ? { latestNarration } : {}),
     ...progress,
   };
 }

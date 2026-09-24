@@ -125,4 +125,85 @@ describe('createToolApprovalBroker', () => {
       }),
     ).resolves.toEqual({ allowed: false, reason: 'destructive-command' });
   });
+
+  it('passes the admitted Job directory and command to the approval prompt', async () => {
+    const requestPermission = vi.fn(async () => 'allow' as const);
+    const broker = createToolApprovalBroker({ requestPermission });
+    await expect(
+      broker.resolve({
+        invocationId: 'inv-job',
+        registration,
+        arguments: { command: 'pnpm', argv: ['dev'], cwd: '/other' },
+        context,
+        policy: policy({
+          action: 'process:start',
+          reason: 'cwd-outside-workspace',
+          subject: { kind: 'process', cwd: '/other' },
+        }),
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toEqual({ allowed: true, source: 'user' });
+    expect(requestPermission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        policyReason: 'cwd-outside-workspace',
+        cwd: '/other',
+        command: 'pnpm dev',
+        sessionGrant: { directory: '/other' },
+      }),
+    );
+  });
+
+  it('shows and remembers every path in a browser upload approval', async () => {
+    const requestPermission = vi.fn(async () => 'allow' as const);
+    const broker = createToolApprovalBroker({ requestPermission });
+    const paths = ['/repo/one.txt', '/other/two words.txt'];
+    await broker.resolve({
+      invocationId: 'inv-upload',
+      registration,
+      arguments: { paths },
+      context,
+      policy: policy({
+        action: 'browser:upload',
+        reason: 'path-escapes-project-root',
+        subject: { kind: 'file-paths', paths },
+      }),
+      signal: new AbortController().signal,
+    });
+    expect(requestPermission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paths,
+        detail: paths.join('\n'),
+        sessionGrant: { filePaths: paths },
+      }),
+    );
+  });
+
+  it('reuses a browser upload approval only when every file was remembered', async () => {
+    const remembered = new Set(['/repo/one.txt']);
+    const requestPermission = vi.fn(async () => 'allow' as const);
+    const broker = createToolApprovalBroker({
+      requestPermission,
+      getSessionAllowlist: () => ({
+        hasBashCommand: () => false,
+        hasFilePath: (path) => remembered.has(path),
+      }),
+    });
+    const input = {
+      invocationId: 'inv-upload-memory',
+      registration,
+      arguments: {},
+      context,
+      policy: policy({
+        action: 'browser:upload',
+        reason: 'path-escapes-project-root',
+        subject: { kind: 'file-paths', paths: ['/repo/one.txt', '/other/two.txt'] },
+      }),
+      signal: new AbortController().signal,
+    };
+    await broker.resolve(input);
+    expect(requestPermission).toHaveBeenCalledTimes(1);
+    remembered.add('/other/two.txt');
+    await expect(broker.resolve(input)).resolves.toEqual({ allowed: true, source: 'session-memory' });
+    expect(requestPermission).toHaveBeenCalledTimes(1);
+  });
 });

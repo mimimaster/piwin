@@ -234,20 +234,11 @@ describe('Desktop renderer resource boundaries', () => {
     expect(petBubble).not.toMatch(/@keyframes\s+pet-bubble-pulse[\s\S]*?box-shadow/);
   });
 
-  it('does not ship deleted ink-wash source files', () => {
+  it('does not ship ink-wash asset directory or references', () => {
     const inkWashDir = fileURLToPath(new URL('../public/ui/ink-wash/', import.meta.url));
-    const deadStems = ['lion-seal', 'inkstone-brush'] as const;
-    for (const stem of deadStems) {
-      expect(existsSync(join(inkWashDir, `${stem}.png`))).toBe(false);
-      expect(existsSync(join(inkWashDir, `${stem}.jpg`))).toBe(false);
-    }
-    expect(existsSync(join(inkWashDir, 'lion-seal-v2.png'))).toBe(false);
-    expect(existsSync(join(inkWashDir, 'inkstone-brush-v2.png'))).toBe(true);
-    expect(existsSync(join(inkWashDir, 'card-paper-bg' + '.jpg'))).toBe(false);
-    expect(existsSync(join(inkWashDir, 'master-bg.jpg'))).toBe(true);
-    expect(existsSync(join(inkWashDir, 'hero.jpg'))).toBe(true);
+    expect(existsSync(inkWashDir)).toBe(false);
 
-    const deadRef = /lion-seal(-v2)?\.(png|jpg)|inkstone-brush\.(png|jpg)|card-paper-bg/;
+    const deadRef = /\/ui\/ink-wash/;
     const desktopSrc = fileURLToPath(new URL('.', import.meta.url));
     const hits: string[] = [];
     for (const cssPath of listCssFiles(desktopSrc)) {

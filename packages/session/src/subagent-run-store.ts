@@ -25,6 +25,7 @@ import {
   type SubagentResultRef,
   type SubagentResultReviewStatus,
   type SubagentDeliveryVerification,
+  type SubagentReviewAuthority,
   type SubagentReviewRecord,
   type SubagentReviewRef,
   type SubagentReviewTarget,
@@ -59,6 +60,7 @@ export type SubagentPersistedTask = {
   targetWorkspaceId?: string;
   reviewTarget?: SubagentReviewTarget;
   reviewRef?: SubagentReviewRef;
+  reviewAuthority?: SubagentReviewAuthority;
   review?: SubagentReviewRecord;
   latestReview?: SubagentReviewRef;
   reviewStatus?: SubagentResultReviewStatus;
@@ -148,6 +150,7 @@ export function snapshotSubagentPersistedTask(task: SubagentTaskSpec): SubagentP
     ...(task.resultRef ? { resultRef: { ...task.resultRef } } : {}),
     ...(task.allowedOutputPaths ? { allowedOutputPaths: [...task.allowedOutputPaths] } : {}),
     ...(task.candidateGroupId ? { candidateGroupId: task.candidateGroupId } : {}),
+    ...(task.reviewAuthority ? { reviewAuthority: task.reviewAuthority } : {}),
     ...pickSubagentLineageRefs(task),
   };
 }

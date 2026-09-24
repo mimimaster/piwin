@@ -12,6 +12,7 @@ import { createEmptyNetworkPolicy, formatError } from '@piwin/contracts';
 import { getProjectNetworkPolicy } from '@piwin/project';
 import { resolveNonInteractiveDecision } from '../permission-policy.js';
 import type { WebPermissionAction } from '../permission-policy.js';
+import type { SessionWorkspaceGrant } from '../session-allowlist.js';
 import type { ToolPolicyDecision } from './tool-policy-evaluator.js';
 
 export type ToolApprovalOutcome =
@@ -37,12 +38,19 @@ export type ToolApprovalBrokerOptions = {
     | {
         hasBashCommand: (command: string) => boolean;
         hasFilePath: (path: string) => boolean;
+        hasWorkspacePath?: (path: string) => boolean;
       }
     | undefined;
   requestPermission?: (input: {
     action: string;
     detail: string;
     defaultDecision: PermissionDecision;
+    policyReason?: string;
+    cwd?: string;
+    command?: string;
+    paths?: readonly string[];
+    /** What "Allow for session" grants: the directory joins the session boundary. */
+    sessionGrant?: SessionWorkspaceGrant;
     signal?: AbortSignal;
   }) => Promise<PermissionDecision>;
   /**
@@ -105,6 +113,7 @@ export function createToolApprovalBroker(options: ToolApprovalBrokerOptions): To
       }
 
       if (options.requestPermission && !input.signal.aborted) {
+        const sessionGrant = resolveSessionGrant(input.policy.action, input.policy.subject);
         const decision = await options.requestPermission({
           action: input.policy.action,
           detail: buildPermissionDetail(
@@ -114,6 +123,19 @@ export function createToolApprovalBroker(options: ToolApprovalBrokerOptions): To
             input.policy.reason,
           ),
           defaultDecision: 'ask',
+          policyReason: input.policy.reason,
+          ...(input.policy.subject?.kind === 'process' && input.policy.subject.cwd
+            ? { cwd: input.policy.subject.cwd }
+            : {}),
+          ...(input.policy.action === 'process:start'
+            ? { command: [String(input.arguments.command ?? ''), ...(Array.isArray(input.arguments.argv) ? input.arguments.argv.map(String) : [])].join(' ').trim() }
+            : {}),
+          ...(input.policy.subject?.kind === 'file-paths'
+            ? { paths: input.policy.subject.paths }
+            : input.policy.subject?.kind === 'file-write'
+              ? { paths: [input.policy.subject.path] }
+              : {}),
+          ...(sessionGrant ? { sessionGrant } : {}),
           ...(input.signal ? { signal: input.signal } : {}),
         });
         return decision === 'allow'
@@ -146,9 +168,41 @@ function isRememberedSessionAllow(
     return allowlist.hasBashCommand(subject.command);
   }
   if (action === 'file-write' && subject?.kind === 'file-write') {
-    return allowlist.hasFilePath(subject.path);
+    return allowlist.hasFilePath(subject.path) || allowlist.hasWorkspacePath?.(subject.path) === true;
+  }
+  if (action === 'browser:upload' && subject?.kind === 'file-paths') {
+    return subject.paths.length > 0 && subject.paths.every(
+      (path) => allowlist.hasFilePath(path) || allowlist.hasWorkspacePath?.(path) === true,
+    );
+  }
+  if (action === 'browser:screenshot' && subject?.kind === 'file-write') {
+    return allowlist.hasFilePath(subject.path) || allowlist.hasWorkspacePath?.(subject.path) === true;
+  }
+  if (action === 'process:start' && subject?.kind === 'process' && subject.cwd !== undefined) {
+    return allowlist.hasWorkspacePath?.(subject.cwd) === true;
   }
   return false;
+}
+
+/**
+ * A Job start's "Allow for session" grants its cwd directory. Browser uploads
+ * and screenshots remember only the exact approved paths; granting a parent
+ * directory for one upload would expose unrelated files.
+ */
+function resolveSessionGrant(
+  action: string,
+  subject: PermissionSubject | undefined,
+): SessionWorkspaceGrant | undefined {
+  if (action === 'process:start' && subject?.kind === 'process' && subject.cwd) {
+    return { directory: subject.cwd };
+  }
+  if (action === 'browser:upload' && subject?.kind === 'file-paths' && subject.paths.length > 0) {
+    return { filePaths: subject.paths };
+  }
+  if (action === 'browser:screenshot' && subject?.kind === 'file-write') {
+    return { filePaths: [subject.path] };
+  }
+  return undefined;
 }
 
 function buildPermissionDetail(
@@ -164,6 +218,13 @@ function buildPermissionDetail(
   if (action === 'file-write') {
     return subject?.kind === 'file-write' ? subject.path : String(args.path ?? '');
   }
+  if (action === 'process:start') {
+    // Name the directory and what would run there, not just the reason code.
+    const cwd = subject?.kind === 'process' && subject.cwd ? subject.cwd : '';
+    const argv = Array.isArray(args.argv) ? args.argv.map(String).join(' ') : '';
+    const commandLine = `${String(args.command ?? '')} ${argv}`.trim();
+    return [cwd ? `${reason}: ${cwd}` : reason, commandLine].filter(Boolean).join('\n$ ');
+  }
   if (action === 'network:web_search') {
     return String(args.query ?? '');
   }
@@ -172,6 +233,9 @@ function buildPermissionDetail(
   }
   if (action === 'browser:screenshot') {
     return subject?.kind === 'file-write' ? subject.path : reason;
+  }
+  if (action === 'browser:upload') {
+    return subject?.kind === 'file-paths' ? subject.paths.join('\n') : reason;
   }
   if (action.startsWith('notes:')) {
     return String(args.noteId ?? args.query ?? args.content ?? reason);

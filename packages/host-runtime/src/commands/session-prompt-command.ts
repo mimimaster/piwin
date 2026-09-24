@@ -33,6 +33,7 @@ import {
 } from './session-prompt-admission.js';
 import { listKnownChatModelKeys } from './prompt-preparation.js';
 import { executeSessionTurn } from './session-turn-executor.js';
+import { requestedTurnPolicy } from './pause-turn-policy.js';
 import { rebaseForPromptTree } from './session-prompt-rebase.js';
 import { resolveSessionTurnProfile } from './session-turn-profile.js';
 
@@ -286,6 +287,7 @@ export async function handleSessionPromptCommand(
 
       const acceptedAt = new Date().toISOString();
       context.updateRunPhase(run.runId, 'accepted');
+      context.setRunTurnPolicy?.(run.runId, requestedTurnPolicy(command.input, conversationChat));
       context.updateRunPhase(run.runId, 'preparing');
 
       // Preparation and the provider turn are deliberately detached from the

@@ -300,14 +300,14 @@ describe('evaluateFileWritePermission', () => {
     expect(result.reason).toBe('ask-all-in-project');
   });
 
-  it('allows out-of-project writes under bypass mode', () => {
+  it('asks for out-of-project writes under bypass mode', () => {
     const result = evaluateFileWritePermission({
       absPath: '/home/u/other/notes.txt',
       projectRoot,
       mode: 'bypass',
     });
-    expect(result.decision).toBe('allow');
-    expect(result.reason).toBe('bypass-no-match');
+    expect(result.decision).toBe('ask');
+    expect(result.reason).toBe('path-escapes-project-root');
   });
 
   it('does not apply leave-workspace in No Repo (empty projectRoot), including yolo', () => {
@@ -341,7 +341,7 @@ describe('evaluateFileWritePermission', () => {
     expect(result.reason).toBe('path-escapes-project-root');
   });
 
-  it('asks for ~/.config writes via bundled rule (after expand)', () => {
+  it('names the workspace boundary when ~/.config is outside the project', () => {
     const home = homedir();
     const result = evaluateFileWritePermission({
       absPath: `${home}/.config/piwin/config.json`,
@@ -349,10 +349,10 @@ describe('evaluateFileWritePermission', () => {
       mode: 'auto',
     });
     expect(result.decision).toBe('ask');
-    expect(result.reason).toBe('config-write');
+    expect(result.reason).toBe('path-escapes-project-root');
   });
 
-  it('promotes ~/.config writes under bypass (yolo only still asks rm -rf)', () => {
+  it('keeps the workspace boundary ask under bypass', () => {
     const home = homedir();
     const configWrite = evaluateFileWritePermission({
       absPath: `${home}/.config/piwin/config.json`,
@@ -360,8 +360,8 @@ describe('evaluateFileWritePermission', () => {
       mode: 'bypass',
     });
     expect(configWrite).toEqual({
-      decision: 'allow',
-      reason: 'bypass-ask:config-write',
+      decision: 'ask',
+      reason: 'path-escapes-project-root',
     });
 
     // Secret-path deny remains a circuit breaker even under yolo.

@@ -2,6 +2,7 @@ import type { MockHostBackend } from '../host-client-mock.js';
 import { seedInkstoneHost } from './inkstone-host-fixture.js';
 import { seedChainShowcaseHost } from './chain-showcase-fixture.js';
 import { seedLongSessionHost } from './long-session-fixture.js';
+import { seedLiveChainHost } from './live-chain-fixture.js';
 
 export function installMockRendererHarness(host: MockHostBackend): void {
   if (typeof window === 'undefined') {
@@ -20,6 +21,9 @@ export function installMockRendererHarness(host: MockHostBackend): void {
   }
   if (import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' && params.get('e2eLongSession') === '1') {
     seedLongSessionHost(host);
+  }
+  if (import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' && params.get('e2eLiveChain') === '1') {
+    seedLiveChainHost(host);
   }
   const seedCount = Number(params.get('e2eSeedSessions'));
   if (Number.isSafeInteger(seedCount) && seedCount > 0) {

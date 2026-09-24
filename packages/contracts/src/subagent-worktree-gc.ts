@@ -21,6 +21,7 @@ export type SubagentWorktreeGcKeepReason =
   | 'user-retained'
   | 'unfrozen-snapshot'
   | 'pause-checkpoint'
+  | 'writer-slot'
   | 'too-recent'
   | 'locked'
   | 'unsafe-path';

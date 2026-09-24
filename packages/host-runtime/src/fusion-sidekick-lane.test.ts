@@ -61,6 +61,8 @@ describe('fusion sidekick lane', () => {
     expect(fields).not.toHaveProperty('retainWorktree');
     expect(fields.deliveryIntent).toBe('candidate');
     expect(fields.applyPolicy).toBe('explicit');
+    // The Lead approves; Fusion has no reviewer member to do it.
+    expect(fields.reviewAuthority).toBe('lead');
     expect(fields.capabilities).not.toContain('delegate');
     expect(FUSION_SIDEKICK_CAPABILITIES).not.toContain('delegate');
     expect(fields.capabilities).toContain('write');
@@ -122,6 +124,33 @@ describe('fusion sidekick lane', () => {
         }),
       ]),
     ).toBeUndefined();
+  });
+
+  it('carries the lane\'s frozen state so a shared slot restores it', async () => {
+    const restore = { baseCommit: 'abc123', tree: 'tree456' };
+    const patch = await resolveFusionStartTaskPatch({
+      scheme: fusionScheme(),
+      role: 'sidekick',
+      task: 'second brief',
+      parentSessionId: 'parent',
+      resolveLane: async () => ({
+        child: child({ id: 'lane-child' }),
+        parent: child({ id: 'parent', kind: 'main' }),
+        runtime: { isolation: 'worktree', workingDirectory: '/tmp/wt' },
+        mode: 'worktree',
+        continuationWorkspaceLease: {
+          mode: 'worktree',
+          cwd: '/tmp/wt',
+          parentRepoPath: '/repo',
+          worktreePath: '/tmp/wt',
+          worktreeBranch: 'piwin/subagent/slot-0',
+          baseCommit: 'abc123',
+          slotId: 'slot-0',
+        },
+        continuationRestore: restore,
+      }),
+    });
+    expect(patch?.continuationRestore).toEqual(restore);
   });
 
   it('continuation prompt is the new brief only (already enveloped by the patch)', async () => {

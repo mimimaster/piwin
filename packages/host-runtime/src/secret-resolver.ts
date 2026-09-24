@@ -12,7 +12,12 @@ import { spawn } from 'node:child_process';
 import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ModelProviderConfig } from '@piwin/contracts';
-import { formatError, isOauthSecretRef, oauthSecretRefProviderId } from '@piwin/contracts';
+import {
+  formatError,
+  isOauthSecretRef,
+  oauthSecretRefProviderId,
+  toDevinSessionToken,
+} from '@piwin/contracts';
 import { readOauthAccessToken } from '@piwin/agent-host';
 import { getPiwinPiAgentDir, getPiwinRoot } from './paths.js';
 
@@ -178,7 +183,11 @@ export function createSecretResolver(options: CreateSecretResolverOptions = {}):
     }
     const authPath = join(getPiwinPiAgentDir(root), 'auth.json');
     const token = await readOauthAccessToken(authPath, providerId);
-    return token && token.length > 0 ? token : null;
+    if (!token) return null;
+    // The Devin sign-in stores the bare JWT; its consumers here (code_search,
+    // the Devin web-search source) speak the Windsurf API, which wants the
+    // `devin-session-token$` form.
+    return providerId === 'devin' ? toDevinSessionToken(token) : token;
   }
 
   async function readSecretByRef(ref: string): Promise<string | null> {

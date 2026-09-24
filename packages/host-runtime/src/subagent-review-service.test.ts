@@ -16,6 +16,7 @@ import {
   loadPersistedReviewObservation,
   reviewAuthorizesApply,
 } from './subagent-review-service.js';
+import { evaluateReviewedApplyInvariants } from './subagent-result-apply.js';
 
 const dirs: string[] = [];
 const TARGET = { resultId: 'result-1', revision: 1 };
@@ -68,6 +69,7 @@ function makeSummary(overrides: Partial<SubagentResultSummary> = {}): SubagentRe
 async function setupReviewer(options?: {
   createId?: () => string;
   summary?: Partial<SubagentResultSummary>;
+  workerReviewAuthority?: 'lead';
 }) {
   const dir = await mkdtemp(join(tmpdir(), 'piwin-review-service-'));
   dirs.push(dir);
@@ -85,6 +87,9 @@ async function setupReviewer(options?: {
         applyPolicy: 'explicit',
         candidateLineageId: 'lineage-1',
         candidateGeneration: 1,
+        ...(options?.workerReviewAuthority
+          ? { reviewAuthority: options.workerReviewAuthority }
+          : {}),
       },
     ],
   });
@@ -362,5 +367,82 @@ describe('subagent review service', () => {
       revision: 1,
     });
     expect(resultUpdated.result).not.toHaveProperty('findings');
+  });
+
+  describe('Lead review (Fusion)', () => {
+    const leadInput = {
+      parentSessionId: 'parent-1',
+      parentRunId: 'lead-run',
+      target: TARGET,
+      findings: [],
+      verification: [{ label: 'pnpm test', status: 'passed' as const }],
+    };
+
+    it('lets the Lead approve its own candidate and that review authorizes apply', async () => {
+      const { service, store, resultService } = await setupReviewer({
+        workerReviewAuthority: 'lead',
+      });
+      const submitted = await service.submitLead({ ...leadInput, decision: 'approved' });
+      expect(submitted).toMatchObject({ ok: true, duplicate: false });
+      if (!submitted.ok) throw new Error('expected lead review');
+      expect(submitted.record).toMatchObject({
+        authority: 'lead',
+        reviewerSessionId: 'parent-1',
+        reviewerRunId: 'lead-run',
+        targetResult: TARGET,
+        targetChanges: CHANGES,
+      });
+
+      const summary = resultService.get(TARGET.resultId);
+      expect(summary && reviewAuthorizesApply(summary)).toBe(true);
+      // Stored on the candidate's own task, so wait observes it for that run.
+      expect(await loadPersistedReviewObservation(store, 'worker-run')).toEqual({
+        reviewRef: { reviewId: submitted.record.reviewId, revision: 1 },
+        reviewDecision: 'approved',
+      });
+      const approvedBy = { reviewId: submitted.record.reviewId, revision: 1 };
+      expect(
+        evaluateReviewedApplyInvariants({
+          summary,
+          expectedRevision: TARGET.revision,
+          parentSessionId: 'parent-1',
+          approvedBy,
+          review: submitted.record,
+          lineageMembers: [],
+        }),
+      ).toMatchObject({ ok: true });
+    });
+
+    it('refuses a candidate that was not admitted for Lead review', async () => {
+      const { service } = await setupReviewer();
+      const submitted = await service.submitLead({ ...leadInput, decision: 'approved' });
+      expect(submitted).toMatchObject({ ok: false, code: 'review-target-forbidden' });
+    });
+
+    it('refuses another parent session and a stale revision', async () => {
+      const { service } = await setupReviewer({ workerReviewAuthority: 'lead' });
+      expect(
+        await service.submitLead({ ...leadInput, parentSessionId: 'parent-2', decision: 'approved' }),
+      ).toMatchObject({ ok: false, code: 'review-target-forbidden' });
+      expect(
+        await service.submitLead({
+          ...leadInput,
+          target: { resultId: TARGET.resultId, revision: 2 },
+          decision: 'approved',
+        }),
+      ).toMatchObject({ ok: false, code: 'stale-revision' });
+    });
+
+    it('keeps one Lead decision per candidate', async () => {
+      const { service } = await setupReviewer({ workerReviewAuthority: 'lead' });
+      const rejected = await service.submitLead({
+        ...leadInput,
+        decision: 'changes-requested',
+        findings: [finding({ title: 'Missing test', detail: 'Add a regression test' })],
+      });
+      expect(rejected.ok).toBe(true);
+      const flipped = await service.submitLead({ ...leadInput, decision: 'approved' });
+      expect(flipped).toMatchObject({ ok: false, code: 'invalid-input' });
+    });
   });
 });

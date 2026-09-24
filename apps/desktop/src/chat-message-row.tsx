@@ -44,6 +44,7 @@ import { TurnTruncationCard } from './turn-truncation-card';
 import { MessageBubbleContextMenu } from './message-bubble-context-menu';
 import { resolveTurnErrorMessage } from './turn-error-presentation';
 import { turnAttemptHasRetainedWork } from './turn-attempt-work';
+import { noteRowRender } from './e2e/render-probe-store.js';
 
 export type { ChatMessageRowProps } from './chat-message-row-types.js';
 import type { ChatMessageRowProps } from './chat-message-row-types.js';
@@ -62,6 +63,7 @@ export function ChatMessageRow(props: ChatMessageRowProps): ReactElement {
 const ChatMessageRowContent = memo(
   function ChatMessageRow(props: ChatMessageRowProps): ReactElement | null {
     const { message } = props;
+    noteRowRender(message.id);
     const errorMessage = resolveTurnErrorMessage({
       messageStatus: message.status,
       messageError: message.error,

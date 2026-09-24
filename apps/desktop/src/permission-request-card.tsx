@@ -197,6 +197,9 @@ export function canRememberPermissionForProject(
   context: PermissionRequestContext | null | undefined,
   action: string,
 ): boolean {
+  // A process cwd grant is session-only; project persistence has no process
+  // rule writer and must never show a button that silently acts like Allow once.
+  if (action === 'process:start' || action === 'browser:upload' || action === 'browser:screenshot') return false;
   if (!context) {
     return action.startsWith('network:');
   }

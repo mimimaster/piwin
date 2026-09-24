@@ -27,6 +27,16 @@ export function isPauseContinueUtterance(text: string): boolean {
   return normalized.length === 0 || PAUSE_CONTINUE_UTTERANCES.has(normalized);
 }
 
+/**
+ * Per-send turn choices a resume must carry over. A resume continues the same
+ * turn, so it keeps the paused run's scheme instead of the composer's current
+ * pick, and must never widen a `disabled` delegation back to `auto`.
+ */
+export type SessionPauseTurnPolicy = {
+  orchestrationSchemeId?: string;
+  delegationMode?: 'auto' | 'disabled';
+};
+
 /** Durable, non-secret checkpoint used to continue an interrupted session turn. */
 export type SessionPauseCheckpoint = {
   checkpointId: string;
@@ -42,6 +52,8 @@ export type SessionPauseCheckpoint = {
    * Pausing cancels them; their worktrees and partial results stay retained.
    */
   interruptedSubagentRunIds?: string[];
+  /** Turn choices of the paused run; absent on checkpoints from older Hosts. */
+  turnPolicy?: SessionPauseTurnPolicy;
   status: 'active' | 'consumed' | 'cleared';
   consumedAt?: string;
 };

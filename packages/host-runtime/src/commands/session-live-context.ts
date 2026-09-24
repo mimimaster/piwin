@@ -33,6 +33,7 @@ import type {
   SessionPauseAcceptedData,
   SessionPauseCheckpoint,
   SessionPauseCheckpointInput,
+  SessionPauseTurnPolicy,
   SessionResumeRunAcceptedData,
   SessionTranscriptPageData,
   SessionTranscriptMessage,
@@ -138,6 +139,9 @@ export type SessionLiveContext = {
   ) => void;
   /** ORCH: bind the per-turn model-facing delegation policy. */
   setRunDelegationMode?: (runId: string, mode: 'auto' | 'disabled') => void;
+  /** Turn choices a run was admitted with; a pause copies them into its checkpoint. */
+  setRunTurnPolicy?: (runId: string, policy: SessionPauseTurnPolicy | undefined) => void;
+  getRunTurnPolicy?: (runId: string) => SessionPauseTurnPolicy | undefined;
   /** Rebuild a warm generation when its frozen delegation surface differs. */
   prepareDelegationRuntime?: (sessionId: string, mode: 'auto' | 'disabled') => Promise<void>;
   /**

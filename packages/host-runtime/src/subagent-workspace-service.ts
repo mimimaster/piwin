@@ -3,12 +3,14 @@
  *
  * Allocates workspace leases (readonly or worktree) for the orchestrator.
  * Readonly tasks use the parent working directory directly. Worktree tasks
- * apply the explicit dirty-base consent policy, create one worktree per child,
- * install the worktree's dependencies, and retain failed/conflicted worktrees
- * for inspection.
+ * apply the explicit dirty-base consent policy and run in a checkout.
  *
  * Worktree leases are exclusive per parent project path: a second acquire
- * for the same repo waits until the previous lease is released.
+ * for the same repo waits until the previous lease is released. Because writes
+ * are already single-threaded per project, the checkout itself is shared
+ * rather than per task: production deployments supply a writer-slot pool and
+ * every task reuses one slot, reset in place. Callers without a storage root
+ * (standalone use, tests) keep the one-worktree-per-task behavior.
  */
 
 import { resolve } from 'node:path';
@@ -17,7 +19,14 @@ import type {
   SubagentWorkspaceLease,
   SubagentWorktreeDependencySetup,
 } from '@piwin/contracts';
-import { createWorktree, isWorktreeBaseClean, runGitCommand } from '@piwin/git';
+import {
+  checkoutWorktreeTree,
+  createWorktree,
+  isWorktreeBaseClean,
+  runGitCommand,
+} from '@piwin/git';
+
+import type { WriterSlotPool } from './subagent-writer-slots.js';
 
 export type SubagentWorkspaceServiceOptions = {
   /** Parent project path (used as the worktree base). */
@@ -35,10 +44,17 @@ export type SubagentWorkspaceServiceOptions = {
   parallelWritePolicy: 'worktree-only' | 'disabled';
   /** Product-owned root for isolated worktree checkouts. */
   worktreeStorageRoot?: string;
+  /**
+   * Shared per-project writer slot. When present (together with a storage
+   * root) every worktree task reuses one reset-in-place checkout instead of
+   * creating one per task.
+   */
+  writerSlotPool?: WriterSlotPool;
   /** Install dependencies into a new worktree before the child starts. */
   prepareWorktreeDependencies?: (input: {
     worktreePath: string;
     parentRepoPath: string;
+    previousFingerprint?: string | undefined;
     signal?: AbortSignal;
   }) => Promise<SubagentWorktreeDependencySetup>;
 };
@@ -129,6 +145,105 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
     return lease;
   }
 
+  /**
+   * Slots need both a pool and a storage root; without either there is nothing
+   * shared to reuse and the service keeps one checkout per task.
+   */
+  const slotContext =
+    options.writerSlotPool !== undefined && options.worktreeStorageRoot !== undefined
+      ? { pool: options.writerSlotPool, storageRoot: options.worktreeStorageRoot }
+      : undefined;
+
+  async function prepareDependencies(input: {
+    worktreePath: string;
+    parentRepoPath: string;
+    projectPath: string;
+    slotId?: string | undefined;
+    baseCommit: string;
+    previousFingerprint?: string | undefined;
+    signal?: AbortSignal;
+  }): Promise<SubagentWorktreeDependencySetup | undefined> {
+    const setup = await options.prepareWorktreeDependencies?.({
+      worktreePath: input.worktreePath,
+      parentRepoPath: input.parentRepoPath,
+      ...(input.previousFingerprint !== undefined
+        ? { previousFingerprint: input.previousFingerprint }
+        : {}),
+      ...(input.signal ? { signal: input.signal } : {}),
+    });
+    // Record the fingerprint even when nothing was installed, so a later task
+    // can tell "already correct" from "never attempted".
+    if (slotContext && input.slotId !== undefined) {
+      await slotContext.pool.recordDependencyFingerprint({
+        projectPath: input.projectPath,
+        storageRoot: slotContext.storageRoot,
+        slotId: input.slotId,
+        fingerprint: setup?.fingerprint,
+        baseCommit: input.baseCommit,
+      });
+    }
+    return setup;
+  }
+
+  /**
+   * Acquire the shared slot for a continuation, restoring the child's own last
+   * state. The slot may have been reset for another task since, so the frozen
+   * tree is checked back out on top of the predecessor's own base commit.
+   */
+  async function acquireSlotForContinuation(input: {
+    slot: { pool: WriterSlotPool; storageRoot: string };
+    task: SubagentTaskSpec;
+    taskProjectPath: string;
+    signal?: AbortSignal;
+  }): Promise<SubagentWorkspaceLease> {
+    const restore = input.task.continuationRestore;
+    if (restore === undefined) {
+      // The shared slot has been reset for other tasks since this child ran;
+      // without its frozen tree the continuation would resume in a clean (or a
+      // stranger's) checkout and silently lose the child's own work.
+      throw new Error(
+        'subagent result snapshot is unavailable; start a new isolated task to continue',
+      );
+    }
+    // Take the project write lock *before* touching the slot: acquiring resets
+    // the checkout, and another writer may be running in it right now.
+    const unlock = await acquireProjectWriteLock(resolve(input.taskProjectPath), input.signal);
+    try {
+      const acquired = await input.slot.pool.acquire({
+        projectPath: input.taskProjectPath,
+        storageRoot: input.slot.storageRoot,
+        baseCommit: restore.baseCommit,
+      });
+      await checkoutWorktreeTree({ worktreePath: acquired.worktreePath, tree: restore.tree });
+      const dependencySetup = await prepareDependencies({
+        worktreePath: acquired.worktreePath,
+        parentRepoPath: input.taskProjectPath,
+        projectPath: input.taskProjectPath,
+        slotId: acquired.slotId,
+        baseCommit: restore.baseCommit,
+        ...(acquired.previousDependencyFingerprint !== undefined
+          ? { previousFingerprint: acquired.previousDependencyFingerprint }
+          : {}),
+        ...(input.signal ? { signal: input.signal } : {}),
+      });
+      const lease: SubagentWorkspaceLease = {
+        mode: 'worktree',
+        cwd: acquired.worktreePath,
+        parentRepoPath: input.taskProjectPath,
+        worktreePath: acquired.worktreePath,
+        worktreeBranch: acquired.worktreeBranch,
+        baseCommit: restore.baseCommit,
+        slotId: acquired.slotId,
+        ...(dependencySetup ? { dependencySetup } : {}),
+      };
+      leaseUnlocks.set(lease, unlock);
+      return lease;
+    } catch (error) {
+      unlock();
+      throw error;
+    }
+  }
+
   async function acquire(
     task: SubagentTaskSpec,
     acquireOptions: { signal?: AbortSignal } = {},
@@ -138,7 +253,18 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
       if (existing.mode !== 'worktree') {
         return existing;
       }
-      return holdWorktreeLock(existing.parentRepoPath, existing, acquireOptions.signal);
+      const continuationProjectPath = existing.parentRepoPath;
+      // A continuation that inherits a slot must restore before it runs; the
+      // copy it inherits has been reset since the child last wrote to it.
+      if (slotContext && existing.slotId !== undefined) {
+        return acquireSlotForContinuation({
+          slot: slotContext,
+          task,
+          taskProjectPath: continuationProjectPath,
+          ...(acquireOptions.signal ? { signal: acquireOptions.signal } : {}),
+        });
+      }
+      return holdWorktreeLock(continuationProjectPath, existing, acquireOptions.signal);
     }
 
     const taskProjectPath = (await options.resolveProjectPath?.(task)) ?? projectPath;
@@ -173,7 +299,7 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
       if (!baseIsClean && dirtyBasePolicy !== 'bypass' && !options.requestDirtyBasePermission) {
         throw new Error('dirty-base-denied: no permission flow is available');
       }
-      // Capture the exact parent tip immediately before worktree creation so the
+      // Capture the exact parent tip immediately before checkout creation so the
       // lease records the commit that the child was actually based on.
       const headResult = await runGitCommand({
         cwd: taskProjectPath,
@@ -184,6 +310,37 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
         throw new Error('could not determine the parent repository HEAD commit');
       }
 
+      if (slotContext) {
+        const acquired = await slotContext.pool.acquire({
+          projectPath: taskProjectPath,
+          storageRoot: slotContext.storageRoot,
+          baseCommit,
+        });
+        const dependencySetup = await prepareDependencies({
+          worktreePath: acquired.worktreePath,
+          parentRepoPath: taskProjectPath,
+          projectPath: taskProjectPath,
+          slotId: acquired.slotId,
+          baseCommit,
+          ...(acquired.previousDependencyFingerprint !== undefined
+            ? { previousFingerprint: acquired.previousDependencyFingerprint }
+            : {}),
+          ...(acquireOptions.signal ? { signal: acquireOptions.signal } : {}),
+        });
+        const lease: SubagentWorkspaceLease = {
+          mode: 'worktree',
+          cwd: acquired.worktreePath,
+          parentRepoPath: taskProjectPath,
+          worktreePath: acquired.worktreePath,
+          worktreeBranch: acquired.worktreeBranch,
+          baseCommit,
+          slotId: acquired.slotId,
+          ...(dependencySetup ? { dependencySetup } : {}),
+        };
+        leaseUnlocks.set(lease, unlock);
+        return lease;
+      }
+
       const worktree = await createWorktree({
         projectPath: taskProjectPath,
         name: `subagent-${task.id}-${Date.now().toString(36)}`,
@@ -191,9 +348,11 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
         ...(options.worktreeStorageRoot ? { storageRoot: options.worktreeStorageRoot } : {}),
       });
 
-      const dependencySetup = await options.prepareWorktreeDependencies?.({
+      const dependencySetup = await prepareDependencies({
         worktreePath: worktree.worktreePath,
         parentRepoPath: taskProjectPath,
+        projectPath: taskProjectPath,
+        baseCommit,
         ...(acquireOptions.signal ? { signal: acquireOptions.signal } : {}),
       });
 
@@ -222,8 +381,18 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
     }
     // Readonly leases have nothing else to release.
     if (lease.mode === 'readonly') return;
-    // Integration owns worktree cleanup because it knows whether the result
-    // was applied successfully or must be retained for inspection.
+    // A slot lease returns to the pool once the task has frozen its result:
+    // the next task resets it in place. Task copies keep the old behavior and
+    // leave cleanup to integration, which knows whether the result applied.
+    if (lease.slotId !== undefined && slotContext) {
+      await slotContext.pool
+        .release({
+          projectPath: lease.parentRepoPath,
+          storageRoot: slotContext.storageRoot,
+          slotId: lease.slotId,
+        })
+        .catch(() => undefined);
+    }
   }
 
   return { acquire, release };

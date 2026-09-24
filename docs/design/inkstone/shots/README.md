@@ -72,7 +72,7 @@ key ∈ `endpoint` / `research` / `fanout` / `tooled` / `approval`（`all` 一�
 文件 pill + 行号胶囊 · `web_fetch` 失败行（crimson + 展开的错误体）· `web_search` 源诊断（1/3 源失败）·
 `knowledge_search` 行 + 正文里的引用卡 · `write_file` 内联差异卡（hunk / 拒绝 / 接受 / 全部差异）·
 `bash` 测试行 · 子代理「等待」行（已收集 1 · 失败 0）· `wiki_write` · `mcp__agent-memory__…`（MCP 徽记）·
-目标达成卡（成果 / 验收证据 / 涉及文件）· 2 个文件已更改条 · 走查报告卡 · 计划托盘（执行中，1 步 active）。
+目标达成卡（成果 / 验收证据 / 涉及文件）· 2 个文件已更改条 · 报告卡 · 计划托盘（执行中，1 步 active）。
 
 ## 已知缺口（想补就说）
 
@@ -81,6 +81,6 @@ key ∈ `endpoint` / `research` / `fanout` / `tooled` / `approval`（`all` 一�
   `subagent/*` 命令 + 推送；现在用「三个印卡 + 聚合等待行 + 生命周期卡」表达并行子代理。
 
 - 已解决：计划执行门 / 权限门见 05（夹具补推 run 记录与权限请求）。
-- 走查报告卡的正文是 mock 合成的英文占位串（`host-client-mock-ops.ts` 的 `walkthrough/list`），
+- 报告卡的正文是 mock 合成的英文占位串（`host-client-mock-ops.ts` 的 `walkthrough/list`），
   卡片本身是真的；要中文占位改那一行即可。
 - 工具行里的 diff 统计来自 mock 的固定 patch（恒为 +2 −1），所以两张差异卡数字相同。

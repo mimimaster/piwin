@@ -55,6 +55,9 @@ export function TurnWorkDisclosure(props: TurnWorkDisclosureProps): ReactElement
                 ? { runningToolIndex: projection.runningToolIndex }
                 : {}),
               ...(runningCode !== undefined ? { runningCode } : {}),
+              ...(projection.latestNarration !== undefined
+                ? { narration: projection.latestNarration }
+                : {}),
             }
           : {
               ...(projection.elapsedMs !== undefined ? { elapsedMs: projection.elapsedMs } : {}),

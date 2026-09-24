@@ -121,6 +121,7 @@ import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext, TerminateHostRunOptions } from './session-live-context.js';
 import { handleSessionLiveCommand } from './session-live-commands.js';
 import { resolveResumePromptText } from './prompt-preparation.js';
+import { capturePausedTurnPolicy, resumeTurnPolicyInput } from './pause-turn-policy.js';
 
 /**
  * Start cancellation side effects without making the control response depend
@@ -387,6 +388,7 @@ async function finalizePausedRun(
       return;
     }
     const interruptedSubagentRunIds = context.getPauseInterruptedSubagentRunIds(runId);
+    const turnPolicy = capturePausedTurnPolicy(context, runId);
     const checkpoint = await context.withTranscriptStore(sessionId, async (store) => {
       const sourceUserMessage = await store.lastMessageByRole('user');
       const lastAssistantMessage = await store.lastMessageByRole('assistant');
@@ -406,6 +408,7 @@ async function finalizePausedRun(
           : {}),
         transcriptRevision: await store.getRevision(),
         ...(interruptedSubagentRunIds.length > 0 ? { interruptedSubagentRunIds } : {}),
+        ...(turnPolicy ? { turnPolicy } : {}),
       });
     });
     context.attachResumeCheckpoint(runId, checkpoint.checkpointId);
@@ -562,6 +565,7 @@ export async function handleRunControlCommand(
           text: resolveResumePromptText(command.text, checkpoint.interruptedSubagentRunIds),
           source: 'resume',
           resumeCheckpointId: checkpoint.checkpointId,
+          ...resumeTurnPolicyInput(checkpoint.turnPolicy),
         },
       };
       const response = await handleSessionLiveCommand(resumePrompt, requestId, context);

@@ -4,10 +4,10 @@
  * repository-local fallback for standalone callers.
  */
 import { createHash } from 'node:crypto';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, realpath } from 'node:fs/promises';
 import { join, resolve, basename } from 'node:path';
 import { runGitCommand } from './git-command-runner.js';
-import { assertSafeBranchName } from './path-safety.js';
+import { assertSafeBranchName, assertSafeRef } from './path-safety.js';
 
 export type CreateWorktreeInput = {
   projectPath: string;
@@ -54,12 +54,22 @@ function sanitizeWorktreeName(name: string): string {
   return cleaned;
 }
 
+/**
+ * Stable per-repository bucket name under a worktree storage root.
+ *
+ * The writer-slot pool derives the same bucket for a project, so a slot and a
+ * one-off child copy never collide and never share a directory.
+ */
+export function worktreeRepositoryKey(projectPath: string): string {
+  return createHash('sha256').update(resolve(projectPath)).digest('hex').slice(0, 16);
+}
+
 export async function createWorktree(input: CreateWorktreeInput): Promise<CreateWorktreeResult> {
   const projectPath = resolve(input.projectPath);
   const safeName = sanitizeWorktreeName(input.name);
   const branch = `piwin/subagent/${safeName}`;
   assertSafeBranchName(branch);
-  const repositoryKey = createHash('sha256').update(projectPath).digest('hex').slice(0, 16);
+  const repositoryKey = worktreeRepositoryKey(projectPath);
   const worktreeRoot = input.storageRoot
     ? join(resolve(input.storageRoot), repositoryKey)
     : join(projectPath, '.piwin-worktrees');
@@ -151,6 +161,86 @@ export async function removeWorktree(input: RemoveWorktreeInput): Promise<void> 
         `git worktree branch cleanup failed: ${branchRemoval.stderr || branchRemoval.stdout}`,
       );
     }
+  }
+}
+
+export type ResetWorktreeInput = {
+  worktreePath: string;
+  baseCommit: string;
+  /** Branch to move onto the base. Defaults to the current branch. */
+  worktreeBranch?: string;
+};
+
+/** Paths preserved across a slot reset: reinstalling them is the cost we avoid. */
+const WORKTREE_RESET_PRESERVED_PATHS = [
+  'node_modules',
+  '.pnpm-store',
+  '.yarn',
+  '.venv',
+] as const;
+
+/**
+ * Return a reusable worktree to a commit before the next task uses it.
+ *
+ * Order matters: `checkout -B` fails while the working tree is dirty, so the
+ * tracked state is discarded first and untracked state cleaned second. `-x`
+ * also removes ignored build output (`dist/`, `*.tsbuildinfo`) whose staleness
+ * across tasks would be worse than a cold rebuild; dependency directories are
+ * excluded so the install survives.
+ */
+export async function resetWorktreeToBase(input: ResetWorktreeInput): Promise<void> {
+  const worktreePath = resolve(input.worktreePath);
+  const baseCommit = assertSafeRef(input.baseCommit);
+  // `reset --hard` + `clean -x` are destructive; never let them reach a
+  // repository that merely encloses this path.
+  if (!(await isWorktreeUsable(worktreePath))) {
+    throw new Error(`refusing to reset: ${worktreePath} is not its own git checkout`);
+  }
+  await runGitCommand({
+    cwd: worktreePath,
+    args: ['reset', '--hard', baseCommit],
+  });
+  const cleanArgs = ['clean', '-ffdx'];
+  for (const preserved of WORKTREE_RESET_PRESERVED_PATHS) {
+    cleanArgs.push('-e', preserved);
+  }
+  await runGitCommand({
+    cwd: worktreePath,
+    args: cleanArgs,
+    timeoutMs: 120_000,
+  });
+  if (input.worktreeBranch) {
+    const branch = assertSafeBranchName(input.worktreeBranch);
+    await runGitCommand({
+      cwd: worktreePath,
+      args: ['checkout', '-B', branch, baseCommit],
+    });
+  }
+}
+
+/**
+ * Whether a worktree path is a usable checkout of the expected repository.
+ * Used before reusing a slot whose metadata claims it is ready.
+ */
+export async function isWorktreeUsable(worktreePath: string): Promise<boolean> {
+  // `--is-inside-work-tree` alone walks up: a slot whose `.git` file is gone
+  // would report the *enclosing* repository (a dotfiles repo around ~/.piwin,
+  // say) as usable, and the slot reset would then run `reset --hard` on it.
+  // Only a checkout whose top level is this directory itself counts.
+  const result = await runGitCommand({
+    cwd: worktreePath,
+    args: ['rev-parse', '--show-toplevel'],
+    allowFailure: true,
+  });
+  if (result.exitCode !== 0) return false;
+  const topLevel = result.stdout.trim();
+  if (!topLevel) return false;
+  try {
+    const [expected, actual] = await Promise.all([realpath(worktreePath), realpath(topLevel)]);
+    return expected === actual;
+  } catch {
+    // Either path vanished between the two calls: not usable.
+    return false;
   }
 }
 

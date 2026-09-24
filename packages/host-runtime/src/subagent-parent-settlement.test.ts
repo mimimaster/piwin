@@ -492,6 +492,7 @@ describe('non-success parent descendant barrier', () => {
         runOrchestrationSchemes: new Map(),
         schemeAdmissionGate: { clear: () => undefined },
         runDelegationModes: new Map(),
+        runTurnPolicies: new Map(),
         runEventCorrelator: { markRunTerminal: () => undefined },
         maybeTriggerAutoName: async () => undefined,
         subagentOrchestrator: {

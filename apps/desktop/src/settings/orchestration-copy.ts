@@ -9,6 +9,10 @@ export type OrchestrationCopy = {
   title: string;
   pageDescription: string;
   noModels: string;
+  freehandModelLabel: string;
+  freehandModelHint: string;
+  freehandModelInherit: string;
+  freehandModelUnavailable: string;
   schemeCount: (count: number) => string;
   roleCount: (count: number) => string;
 
@@ -104,8 +108,13 @@ export type OrchestrationCopy = {
 const ZH: OrchestrationCopy = {
   title: '子代理编排',
   pageDescription:
-    '为主智能体预置一组可调用的子代理角色。写清每个角色的职责与可选模型，主智能体便会按任务目标自主分派；发送消息时选择方案，选「无」则仅由主智能体执行。',
+    '为主智能体预置一组可调用的子代理角色。写清每个角色的职责与可选模型，主智能体便会按任务目标自主分派；发送消息时选择方案，选「自由」时仍可自主委派，下面可单独设置只读子代理模型。',
   noModels: '尚未配置模型。请先在「模型」页面添加服务商。',
+  freehandModelLabel: '自由模式 · 只读子代理模型',
+  freehandModelHint:
+    '仅影响之后自主委派的只读子代理；写入类子代理仍继承主模型。显式指定及档案固定的模型优先。',
+  freehandModelInherit: '继承主模型',
+  freehandModelUnavailable: '已选模型不可用',
   schemeCount: (count) => `${count} 个方案`,
   roleCount: (count) => `${count} 个角色`,
 
@@ -195,8 +204,13 @@ const ZH: OrchestrationCopy = {
 const EN: OrchestrationCopy = {
   title: 'Orchestration',
   pageDescription:
-    'Give the main agent a roster of named subagent roles. Describe each duty (and optionally pin a model); the main agent decides who to call. Pick a scheme in Composer — "None" keeps everything on the main agent.',
+    'Give the main agent a roster of named subagent roles. Describe each duty (and optionally pin a model); the main agent decides who to call. Pick a scheme in Composer; Freehand still allows delegation and can use a separate model for read-only tasks.',
   noModels: 'No models configured. Add a provider under Models first.',
+  freehandModelLabel: 'Freehand · read-only subagent model',
+  freehandModelHint:
+    'Only new autonomously delegated read-only tasks use this model; writing tasks inherit the main model. Explicit and profile models take priority.',
+  freehandModelInherit: 'Inherit main model',
+  freehandModelUnavailable: 'Selected model unavailable',
   schemeCount: (count) => `${count} scheme${count === 1 ? '' : 's'}`,
   roleCount: (count) => `${count} role${count === 1 ? '' : 's'}`,
 

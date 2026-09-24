@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { normalizeTrustedRelativePath, readTrustedConfigText } from './trusted-text-reader.js';
 
@@ -29,7 +29,7 @@ describe('readTrustedConfigText', () => {
     expect(result).toMatchObject({
       status: 'ready',
       relativePath: 'config.json',
-      displayRef: '~/.piwin/config.json',
+      displayRef: `~/${basename(rootDir)}/config.json`,
       content: '{"ok":true}\n',
       truncated: false,
       readOnly: true,

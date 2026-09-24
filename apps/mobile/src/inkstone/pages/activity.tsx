@@ -357,7 +357,7 @@ export function ActivityPage(): ReactElement {
     <>
       <ListRow
         name="file"
-        title="走查报告 · 纸与墨"
+        title="报告 · 纸与墨"
         subtitle="Inkstone · 桌面主题 · 1 小时前"
         onClick={() => dispatch({ type: 'navigate', route: 'walkthrough' })}
         trailing={<Pill variant="pine">就绪</Pill>}

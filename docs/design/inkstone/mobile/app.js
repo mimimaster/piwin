@@ -200,7 +200,7 @@
     disconnect: () => { state.offline = true; closeSheet(); render(); toast('已模拟断线'); },
     reconnect: () => { state.offline = false; closeSheet(); render(); toast('Host 已重新连接'); },
     'pair-demo': () => { state.offline = false; closeSheet(); navigate('sessions'); toast('已接入示例 Host'); },
-    'copy-report': () => { toast('走查报告已复制'); },
+    'copy-report': () => { toast('报告已复制'); },
     'copy-response': () => { toast('回复已复制'); },
     'dismiss-done': (id) => { state.dismissed.push(id); render(); },
     branch: (delta) => { state.branchIndex = Math.max(1, Math.min(2, state.branchIndex + Number(delta))); render(); },

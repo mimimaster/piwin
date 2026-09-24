@@ -69,6 +69,27 @@ describe('PermissionBar', () => {
     expect(title?.textContent).toContain('bash:ls');
   });
 
+  it('opens details and names the target directory for an outside Job', () => {
+    const prompt: PermissionPromptUi = {
+      ...basePrompt,
+      action: 'process:start',
+      detail: 'cwd-outside-workspace: /other\n$ pnpm dev',
+      context: {
+        kind: 'command',
+        summary: 'Run a process outside this workspace',
+        reason: 'The process will run in a directory outside the session workspace.',
+        outsideWorkspace: true,
+        cwd: '/other',
+        command: 'pnpm dev',
+      },
+    };
+    act(() => root.render(<Harness prompt={prompt} projectPath="/repo" onPermission={vi.fn()} />));
+    expect(container.querySelector('[data-testid="permission-bar-toggle"]')?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-testid="permission-bar-boundary-reason"]')?.textContent).toContain('outside');
+    expect(container.textContent).toContain('/other');
+    expect(container.querySelector('[data-testid="permission-bar-allow-project"]')).toBeNull();
+  });
+
   it('fires allow-session with rememberScope "session" after the seal-stamp flourish', () => {
     vi.useFakeTimers();
     const onPermission = vi.fn();

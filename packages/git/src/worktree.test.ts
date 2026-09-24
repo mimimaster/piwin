@@ -1,11 +1,16 @@
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runGitCommand } from './git-command-runner.js';
 import { isWorktreeBaseClean } from './worktree-integration.js';
-import { createWorktree, removeWorktree } from './worktree.js';
+import {
+  createWorktree,
+  isWorktreeUsable,
+  removeWorktree,
+  resetWorktreeToBase,
+} from './worktree.js';
 
 const temporaryRepositories: string[] = [];
 
@@ -69,5 +74,30 @@ describe('subagent worktrees', () => {
     expect(branchCheck.exitCode).not.toBe(0);
     expect(worktree.worktreePath.startsWith(storageRoot)).toBe(true);
     expect(await isWorktreeBaseClean(projectPath)).toBe(true);
+  });
+});
+
+describe('writer slot safety', () => {
+  afterEach(async () => {
+    await Promise.all(
+      temporaryRepositories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+    );
+  });
+
+  it('never treats a plain directory inside another repository as a checkout to reset', async () => {
+    // A slot whose `.git` file vanished, sitting inside some enclosing repo.
+    const enclosing = await createRepository();
+    const orphanSlot = join(enclosing, 'worktrees', 'slot-0');
+    await mkdir(orphanSlot, { recursive: true });
+    await writeFile(join(enclosing, 'README.md'), 'uncommitted user work\n');
+    const base = await runGit(enclosing, ['rev-parse', 'HEAD']);
+
+    expect(await isWorktreeUsable(enclosing)).toBe(true);
+    expect(await isWorktreeUsable(orphanSlot)).toBe(false);
+    await expect(resetWorktreeToBase({ worktreePath: orphanSlot, baseCommit: base })).rejects.toThrow(
+      /not its own git checkout/,
+    );
+    // The enclosing repository's work is untouched.
+    expect(await readFile(join(enclosing, 'README.md'), 'utf8')).toBe('uncommitted user work\n');
   });
 });

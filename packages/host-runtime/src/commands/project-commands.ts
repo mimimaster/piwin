@@ -611,6 +611,29 @@ async function findProjectFile(
 }
 
 /**
+ * Validated browse root for callers outside the `project/*` family
+ * (ADR 0052 §6 path resolution reuses the same authority as `project/find-file`
+ * instead of inventing a second, looser one).
+ */
+export async function resolveBrowseRoot(input: {
+  projectPath: string;
+  piwinRoot: string | undefined;
+}): Promise<{ ok: true; rootAbsolute: string } | { ok: false; error: string }> {
+  const rootDir = getPiwinRoot(input.piwinRoot);
+  const result = await requireBrowseRoot(
+    getPiwinProjectsPath(rootDir),
+    input.projectPath,
+    undefined,
+    'project/find-file',
+    rootDir,
+  );
+  if (result.ok) {
+    return { ok: true, rootAbsolute: result.rootAbsolute };
+  }
+  return { ok: false, error: result.response.success ? 'unknown' : result.response.error };
+}
+
+/**
  * Browse root for list-dir / read-file.
  *
  * Remembered user projects stay registered. The product General workspace

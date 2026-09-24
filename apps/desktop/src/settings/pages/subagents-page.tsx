@@ -17,7 +17,7 @@ import {
   type ModelRef,
   type SubagentConfig,
 } from '@piwin/contracts';
-import { Button, Notice, TextInput } from '@piwin/ui-kit';
+import { Button, Notice, Select, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import {
   buildEnabledModelOptions,
@@ -47,11 +47,15 @@ export function SubagentProfilesPage(): ReactElement {
     () => subagents.schemes ?? [],
   );
   const [schemeNotice, setSchemeNotice] = useState<string | null>(null);
+  const [freehandModel, setFreehandModel] = useState<ModelRef | undefined>(
+    () => subagents.freehandReadonlyModel,
+  );
   const [maxConcurrency, setMaxConcurrency] = useState<number>(subagents.maxConcurrency);
   const [maxTasksPerRun, setMaxTasksPerRun] = useState<number>(subagents.maxTasksPerRun);
 
   useEffect(() => {
     setSchemeDrafts(subagents.schemes ?? []);
+    setFreehandModel(subagents.freehandReadonlyModel);
     setMaxConcurrency(subagents.maxConcurrency);
     setMaxTasksPerRun(subagents.maxTasksPerRun);
     setSchemeNotice(null);
@@ -135,10 +139,27 @@ export function SubagentProfilesPage(): ReactElement {
     if (subagents.defaultProfileId) {
       payload.defaultProfileId = subagents.defaultProfileId;
     }
+    if (freehandModel) payload.freehandReadonlyModel = freehandModel;
     if (schemes && schemes.length > 0) {
       payload.schemes = schemes;
     }
     return payload;
+  }
+
+  async function saveFreehandModel(value: string): Promise<void> {
+    if (!config) return;
+    const selected = pickerModelOptions.find((option) => option.value === value);
+    if (value && !selected) return;
+    const previous = freehandModel;
+    setFreehandModel(selected?.ref);
+    const payload = baseSubagentPayload(schemeDrafts.length > 0 ? schemeDrafts : undefined);
+    if (selected) payload.freehandReadonlyModel = selected.ref;
+    else delete payload.freehandReadonlyModel;
+    const ok = await saveConfig({ ...config, subagents: payload });
+    if (!ok) {
+      setFreehandModel(previous);
+      setError(copy.saveFailed);
+    }
   }
 
   async function handleCloneScheme(schemeId: string): Promise<void> {
@@ -247,7 +268,36 @@ export function SubagentProfilesPage(): ReactElement {
         listIntro={
           /* The settings shell already renders the section name as the page
              <h1>; a second heading here would say the same word twice. */
-          <p className="orch-page-intro">{copy.pageDescription}</p>
+          <>
+            <p className="orch-page-intro">{copy.pageDescription}</p>
+            <FieldRow
+              label={copy.freehandModelLabel}
+              description={copy.freehandModelHint}
+              testId="freehand-readonly-model-row"
+            >
+              <Select
+                value={modelSelectValue(freehandModel)}
+                disabled={saving}
+                testId="freehand-readonly-model"
+                onChange={(event) => void saveFreehandModel(event.target.value)}
+              >
+                <option value="">{copy.freehandModelInherit}</option>
+                {freehandModel &&
+                !pickerModelOptions.some(
+                  (option) => option.value === modelSelectValue(freehandModel),
+                ) ? (
+                  <option value={modelSelectValue(freehandModel)} disabled>
+                    {copy.freehandModelUnavailable}
+                  </option>
+                ) : null}
+                {pickerModelOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </FieldRow>
+          </>
         }
         listFooter={
           <details

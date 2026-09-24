@@ -289,7 +289,12 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
 
   // ORCH §7.6: if the selected scheme was deleted from config, fall back to Off
   // before send so Desktop does not paint a bubble that Host will reject.
+  // Config arrives after first paint. Builtins are already in the empty-config
+  // list; do not treat "config not loaded yet" as "scheme was deleted".
   useEffect(() => {
+    if (!config) {
+      return;
+    }
     if (!orchestrationSchemeId || orchestrationSchemeId === ORCHESTRATION_SCHEME_OFF_ID) {
       return;
     }
@@ -299,7 +304,7 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
     if (!stillAvailable) {
       setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
     }
-  }, [orchestrationSchemeId, orchestrationSchemeOptions, setOrchestrationSchemeId]);
+  }, [config, orchestrationSchemeId, orchestrationSchemeOptions, setOrchestrationSchemeId]);
 
   const sessionDocuments = useMemo(
     () =>

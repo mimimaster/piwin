@@ -221,13 +221,13 @@ describe('BrowserSessionPanel', () => {
     expect(queryByTestId('browser-session-frame-container')?.getAttribute('data-fill')).toBe('true');
   });
 
-  it('stops filling and reports it when the Host refuses follow resizes', async () => {
+  it('stops filling without any notice when the Host refuses follow resizes', async () => {
     const client = createMockHostClient();
     vi.spyOn(client, 'browserResize').mockResolvedValue({
       type: 'response',
       command: 'browser/resize',
       success: false,
-      error: 'follow resize is frozen while multiple clients mirror the browser',
+      error: 'follow resize lease is not active',
     });
     stubFrameContainerBox({ width: 1024, height: 700 });
     renderPanel({ hostClient: client });
@@ -238,7 +238,47 @@ describe('BrowserSessionPanel', () => {
     expect(queryByTestId('browser-session-frame-container')?.getAttribute('data-fill')).toBe(
       'false',
     );
-    expect(queryByTestId('browser-session-notice')?.textContent).toContain('页面尺寸暂不跟随本面板');
+    // A size mismatch is not worth a banner; the controller retries quietly.
+    expect(queryByTestId('browser-session-notice')).toBeNull();
+  });
+
+  it('shows the page scaled while another client drives the size, and takes it back on hover', async () => {
+    const client = createMockHostClient();
+    const startSpy = vi.spyOn(client, 'browserStart');
+    const resizeSpy = vi.spyOn(client, 'browserResize').mockResolvedValue({
+      type: 'response',
+      command: 'browser/resize',
+      success: false,
+      error: 'the viewport follows another window',
+      problem: { code: 'browser-viewport-owned', retryable: false },
+    });
+    stubFrameContainerBox({ width: 1024, height: 700 });
+    renderPanel({ hostClient: client });
+    const leaseId = startSpy.mock.calls[0]?.[0];
+    expect(leaseId).toEqual(expect.any(String));
+
+    await emitHostPush(client, browserFramePush({ width: 390, height: 800, ts: Date.now() }));
+    await emitHostPush(client, {
+      type: 'browser/state',
+      ts: Date.now(),
+      viewport: { mode: 'follow', width: 390, height: 800, setBy: 'user', followLeaseId: 'other-client' },
+    });
+    await flushMicrotasks();
+
+    expect(queryByTestId('browser-session-notice')).toBeNull();
+    expect(queryByTestId('browser-session-frame-container')?.getAttribute('data-fill')).toBe('false');
+
+    resizeSpy.mockClear();
+    await act(async () => {
+      queryByTestId('browser-session-frame-container')?.dispatchEvent(
+        new PointerEvent('pointerover', { bubbles: true }),
+      );
+    });
+    expect(resizeSpy).toHaveBeenCalledWith(
+      1024,
+      700,
+      expect.objectContaining({ origin: 'follow', leaseId, claim: true }),
+    );
   });
 
   it('fixed mode never sends follow resizes', async () => {

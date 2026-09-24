@@ -40,6 +40,7 @@ import { loadPiwinConfig } from './config-store.js';
 import { getPiwinRoot, resolveHostPiAgentDir } from './paths.js';
 import { rewriteChannelModelRefs } from './rewrite-channel-model-refs.js';
 import { buildSubscriptionAccounts, findCollidingChannelId } from './subscription-account-status.js';
+import { applySubscriptionLoginDefaults } from './subscription-login-defaults.js';
 import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
 import {
   ensureSubscriptionProviders,
@@ -623,7 +624,7 @@ export class SubscriptionAuthService {
           this.syncErrorProviderIds.add(providerId);
         }
       }
-      await this.ensureProviderForAccount(providerId);
+      Object.assign(finished, await this.ensureProviderForAccount(providerId));
       await this.evictSiblingClaudeAuth(providerId);
       await this.maybeSeedDefault(providerId);
       this.startWatch();
@@ -889,16 +890,18 @@ export class SubscriptionAuthService {
     }
   }
 
-  private async ensureProviderForAccount(providerId: string): Promise<void> {
+  private async ensureProviderForAccount(providerId: string): Promise<Pick<AuthLoginFinishedData, 'followUp'>> {
     if (!isSubscriptionOauthProviderId(providerId)) {
-      return;
+      return {};
     }
     const port = await this.ensurePort();
     const config = await this.loadConfig();
-    const next = upsertSubscriptionProvider(config, providerId, this.chatCatalogFor(providerId));
+    const upserted = upsertSubscriptionProvider(config, providerId, this.chatCatalogFor(providerId));
+    const { config: next, followUp } = applySubscriptionLoginDefaults(upserted, providerId);
     if (next !== config) {
       await this.saveConfig(next);
     }
+    return followUp ? { followUp } : {};
   }
 
   private async maybeSeedDefault(providerId: string): Promise<void> {

@@ -1,10 +1,21 @@
 /**
- * CE-SUB-ORCH: three-way worktree integration for parallel writes.
+ * CE-SUB-ORCH: three-way child integration for serialized writes.
  *
- * Integrates changes from a child worktree back to the parent branch. Uses
+ * Integrates changes from a child copy back to the parent branch. Uses
  * diff + apply (not `git checkout <branch> -- <paths>`) so the parent branch
- * history is preserved. Detects file overlap conflicts when multiple children
- * touch the same file.
+ * history is preserved. Detects file overlap conflicts when the child touched
+ * a file the parent also moved.
+ *
+ * A child result has two equally valid sources:
+ *  - `readChildPatchFromWorktree` reads the live child copy (legacy path, and
+ *    the path used when no frozen Git snapshot exists);
+ *  - `readChildPatchFromTree` reads the frozen result tree, which is what the
+ *    reviewer actually approved and what survives releasing the copy.
+ *
+ * Both produce the same patch, so `applyChildPatchToParent` is shared and the
+ * parent-side write path is identical either way. The two sources are
+ * compared by tree OID, not by patch bytes: patch text depends on rename
+ * detection and diff heuristics, and is not a stable identity.
  */
 
 import { copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -31,6 +42,18 @@ export type WorktreeIntegrationInput = {
   allowedOutputPaths?: string[];
 };
 
+export type SnapshotIntegrationInput = {
+  /** Parent project path (main worktree). */
+  projectPath: string;
+  /** Exact parent commit captured before the child worktree was created. */
+  baseCommit: string;
+  /** Frozen child result tree (`SubagentGitSnapshot.tree`). */
+  childTree: string;
+  /** Allowed output paths (relative to project root). When set, files
+   * outside this list are rejected. */
+  allowedOutputPaths?: string[];
+};
+
 export type WorktreeIntegrationResult = {
   status: 'applied' | 'conflict' | 'rejected';
   /** Files that were integrated (relative to project root). */
@@ -43,82 +66,107 @@ export type WorktreeIntegrationResult = {
   error?: string;
 };
 
-/**
- * Integrate a child worktree's changes into the parent branch using diff +
- * apply. This is a serialized operation — the caller must ensure no other
- * integration is running concurrently.
- */
-export async function integrateWorktreeChanges(
-  input: WorktreeIntegrationInput,
-): Promise<WorktreeIntegrationResult> {
-  const { projectPath, worktreePath, allowedOutputPaths } = input;
-  const baseCommit = assertSafeRef(input.baseCommit);
-  const rejectedFiles: string[] = [];
+/** A child's changes as a parent-applicable patch plus the file list. */
+export type ChildChangePatch = {
+  changedFiles: string[];
+  childPatch: string;
+};
 
-  // Build a complete child snapshot in an alternate index. This captures
-  // committed, unstaged, and untracked files without changing the child's real
-  // index (which must remain inspectable if integration is rejected/conflicted).
-  let changedFiles: string[];
-  let childPatch: string;
+/**
+ * Read the child copy's changes as a patch against `baseCommit`.
+ *
+ * An alternate index captures committed, unstaged and untracked files without
+ * changing the child's real index (which must remain inspectable if the
+ * integration is rejected or conflicted).
+ */
+export async function readChildPatchFromWorktree(input: {
+  worktreePath: string;
+  baseCommit: string;
+}): Promise<ChildChangePatch> {
+  const baseCommit = assertSafeRef(input.baseCommit);
   const childIndexDirectory = await mkdtemp(join(tmpdir(), 'piwin-child-index-'));
-  const childIndexPath = join(childIndexDirectory, 'index');
-  const childIndexEnvironment = { GIT_INDEX_FILE: childIndexPath };
+  const childIndexEnvironment = { GIT_INDEX_FILE: join(childIndexDirectory, 'index') };
   try {
     await runGitCommand({
-      cwd: worktreePath,
+      cwd: input.worktreePath,
       args: ['read-tree', baseCommit],
       env: childIndexEnvironment,
     });
     await runGitCommand({
-      cwd: worktreePath,
+      cwd: input.worktreePath,
       args: ['add', '--all', '--', '.'],
       env: childIndexEnvironment,
+      maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
     });
     const changedFilesResult = await runGitCommand({
-      cwd: worktreePath,
+      cwd: input.worktreePath,
       args: ['diff', '--cached', '--name-status', '-z', '--find-renames', baseCommit, '--'],
       env: childIndexEnvironment,
       maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
     });
-    changedFiles = parseChangedFiles(changedFilesResult.stdout);
     const diffOutput = await runGitCommand({
-      cwd: worktreePath,
+      cwd: input.worktreePath,
       args: ['diff', '--cached', baseCommit, '--binary', '--full-index', '--'],
       env: childIndexEnvironment,
       maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
     });
-    childPatch = diffOutput.stdout;
-  } catch (error) {
     return {
-      status: 'conflict',
-      integratedFiles: [],
-      conflictedFiles: [],
-      rejectedFiles: [],
-      error: error instanceof Error ? error.message : String(error),
+      changedFiles: parseChangedFiles(changedFilesResult.stdout),
+      childPatch: diffOutput.stdout,
     };
   } finally {
     await rm(childIndexDirectory, { recursive: true, force: true });
   }
+}
 
-  // Check allowedOutputPaths. `undefined` means unrestricted; an explicit
-  // empty list denies every changed file.
-  if (allowedOutputPaths !== undefined) {
-    const allowed = new Set(allowedOutputPaths.map((p) => p.replace(/^\.\//, '')));
-    for (const file of changedFiles) {
-      if (!allowed.has(file)) {
-        rejectedFiles.push(file);
-      }
-    }
-    if (rejectedFiles.length > 0) {
-      return {
-        status: 'rejected',
-        integratedFiles: [],
-        conflictedFiles: [],
-        rejectedFiles,
-        error: `files outside allowedOutputPaths: ${rejectedFiles.join(', ')}`,
-      };
-    }
-  }
+/**
+ * Read a frozen result tree's changes as a patch against `baseCommit`.
+ *
+ * Reads only Git objects, so it works after the child copy is gone.
+ */
+export async function readChildPatchFromTree(input: {
+  projectPath: string;
+  baseCommit: string;
+  childTree: string;
+}): Promise<ChildChangePatch> {
+  const baseCommit = assertSafeRef(input.baseCommit);
+  const childTree = assertSafeRef(input.childTree);
+  const changedFilesResult = await runGitCommand({
+    cwd: input.projectPath,
+    args: ['diff', '--name-status', '-z', '--find-renames', baseCommit, childTree, '--'],
+    maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
+  });
+  const diffOutput = await runGitCommand({
+    cwd: input.projectPath,
+    args: ['diff', baseCommit, childTree, '--binary', '--full-index', '--'],
+    maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
+  });
+  return {
+    changedFiles: parseChangedFiles(changedFilesResult.stdout),
+    childPatch: diffOutput.stdout,
+  };
+}
+
+/**
+ * Apply a child patch to the parent branch.
+ *
+ * Computes the three-way result in an alternate copy of the parent's index and
+ * only then writes the resulting delta through the bounded writer, so the
+ * user's real staging area is never modified.
+ */
+export async function applyChildPatchToParent(input: {
+  projectPath: string;
+  baseCommit: string;
+  changedFiles: string[];
+  childPatch: string;
+  allowedOutputPaths?: readonly string[];
+}): Promise<WorktreeIntegrationResult> {
+  const { projectPath, changedFiles } = input;
+  const allowedOutputPaths = input.allowedOutputPaths;
+  const childPatch = input.childPatch;
+
+  const rejected = rejectDisallowedOutputPaths(changedFiles, allowedOutputPaths);
+  if (rejected) return rejected;
 
   if (!childPatch.trim()) {
     return {
@@ -129,9 +177,6 @@ export async function integrateWorktreeChanges(
     };
   }
 
-  // Compute the three-way result in an alternate copy of the parent's index.
-  // Only after that succeeds do we apply the resulting delta to the working
-  // tree without `--index`. The user's real staging area is never modified.
   const integrationDirectory = await mkdtemp(join(tmpdir(), 'piwin-parent-index-'));
   const temporaryIndexPath = join(integrationDirectory, 'index');
   const childPatchPath = join(integrationDirectory, 'child.patch');
@@ -219,6 +264,97 @@ export async function integrateWorktreeChanges(
   } finally {
     await rm(integrationDirectory, { recursive: true, force: true });
   }
+}
+
+/**
+ * Integrate the child copy's changes. This is a serialized operation — the
+ * caller must ensure no other integration is running concurrently.
+ */
+export async function integrateWorktreeChanges(
+  input: WorktreeIntegrationInput,
+): Promise<WorktreeIntegrationResult> {
+  // Validate the ref before the guarded read: an unsafe base commit is a
+  // caller error, not a child conflict, so it must reject instead of being
+  // reported as a failed integration.
+  assertSafeRef(input.baseCommit);
+  let patch: ChildChangePatch;
+  try {
+    patch = await readChildPatchFromWorktree({
+      worktreePath: input.worktreePath,
+      baseCommit: input.baseCommit,
+    });
+  } catch (error) {
+    return {
+      status: 'conflict',
+      integratedFiles: [],
+      conflictedFiles: [],
+      rejectedFiles: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+  return applyChildPatchToParent({
+    projectPath: input.projectPath,
+    baseCommit: input.baseCommit,
+    changedFiles: patch.changedFiles,
+    childPatch: patch.childPatch,
+    ...(input.allowedOutputPaths !== undefined
+      ? { allowedOutputPaths: input.allowedOutputPaths }
+      : {}),
+  });
+}
+
+/**
+ * Integrate a frozen result tree. Same parent write path as
+ * `integrateWorktreeChanges`; the child copy is not required to exist.
+ */
+export async function integrateSnapshotChanges(
+  input: SnapshotIntegrationInput,
+): Promise<WorktreeIntegrationResult> {
+  assertSafeRef(input.baseCommit);
+  assertSafeRef(input.childTree);
+  let patch: ChildChangePatch;
+  try {
+    patch = await readChildPatchFromTree({
+      projectPath: input.projectPath,
+      baseCommit: input.baseCommit,
+      childTree: input.childTree,
+    });
+  } catch (error) {
+    return {
+      status: 'conflict',
+      integratedFiles: [],
+      conflictedFiles: [],
+      rejectedFiles: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+  return applyChildPatchToParent({
+    projectPath: input.projectPath,
+    baseCommit: input.baseCommit,
+    changedFiles: patch.changedFiles,
+    childPatch: patch.childPatch,
+    ...(input.allowedOutputPaths !== undefined
+      ? { allowedOutputPaths: input.allowedOutputPaths }
+      : {}),
+  });
+}
+
+function rejectDisallowedOutputPaths(
+  changedFiles: string[],
+  allowedOutputPaths: readonly string[] | undefined,
+): WorktreeIntegrationResult | undefined {
+  // `undefined` means unrestricted; an explicit empty list denies everything.
+  if (allowedOutputPaths === undefined) return undefined;
+  const allowed = new Set(allowedOutputPaths.map((p) => p.replace(/^\.\//, '')));
+  const rejectedFiles = changedFiles.filter((file) => !allowed.has(file));
+  if (rejectedFiles.length === 0) return undefined;
+  return {
+    status: 'rejected',
+    integratedFiles: [],
+    conflictedFiles: [],
+    rejectedFiles,
+    error: `files outside allowedOutputPaths: ${rejectedFiles.join(', ')}`,
+  };
 }
 
 function parseChangedFiles(nameStatusOutput: string): string[] {

@@ -411,6 +411,8 @@ export type SubagentConfig = {
   profiles: SubagentProfileSettings[];
   /** Default profile id used when a caller omits `profileId`. */
   defaultProfileId?: string;
+  /** Model for new freehand read-only model-facing subagents; omitted inherits the parent. */
+  freehandReadonlyModel?: ModelRef;
   /**
    * 同时运行的子代理上限（跨所有 batch）。同时决定 worker 进程池大小
    * `deriveWorkerPoolSize(N) = N + 1`（主会话预留，上限 `ABSOLUTE_MAX_RESIDENT_RUNTIMES`）与

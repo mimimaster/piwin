@@ -114,14 +114,16 @@ export function evaluateBashPermission(
  * 1. `evaluateRules` for `{ kind: 'file-write', path: absPath }`.
  * 2. On match → that decision + reason.
  *    Under `bypass`, matched `ask` is promoted to allow; matched `deny` still
- *    denies. YOLO does not apply the leave-workspace gate.
+ *    denies.
  * 3. On `'no-match'`:
- *    - bound project + `escapesRoot` → ask in `auto` / `ask-all` (not YOLO).
+ *    - bound project + `escapesRoot` → ask in every mode, YOLO included
+ *      (ADR 0019 §4.1: writing elsewhere is operating another space).
  *    - `bypass` → allow.
  *    - else in-project → allow in `auto`, ask in `ask-all`.
  *
- * Pure — no FS. The caller is expected to realpath-resolve `absPath` when
- * possible so symlink-aware checks happen before this function.
+ * Pure — no FS. Callers pass canonical paths for both `absPath` and
+ * `projectRoot` (`canonicalFsPath`) so a symlinked project root and a path
+ * spelled through its target compare equal.
  */
 export function evaluateFileWritePermission(input: {
   absPath: string;
@@ -138,12 +140,19 @@ export function evaluateFileWritePermission(input: {
   const ruleSet = rules ?? createBundledRuleSet();
   const matched = findMatchingRule({ kind: 'file-write', path: normalizedPath }, ruleSet);
   const bound = isBoundPermissionProjectRoot(projectRoot);
-  if (matched) {
+  // Deny and explicit allow rules are standing decisions; they win. A matched
+  // `ask` rule (`~/.config/**`) is promoted to allow under YOLO, so it must not
+  // hide the boundary ask for a path outside the workspace.
+  if (matched && matched.decision !== 'ask') {
     return applyModeToMatchedRule(matched, mode);
   }
 
-  if (mode !== 'bypass' && bound && escapesRoot(projectRoot, normalizedPath)) {
+  if (bound && escapesRoot(projectRoot, normalizedPath)) {
     return { decision: 'ask', reason: 'path-escapes-project-root' };
+  }
+
+  if (matched) {
+    return applyModeToMatchedRule(matched, mode);
   }
 
   if (mode === 'bypass') {
@@ -276,17 +285,31 @@ export type ProcessPermissionAction = 'process:start' | 'process:stop';
 /**
  * Managed process tools: start/stop always ask (Desktop) or deny non-interactive.
  * list/logs are read-only and are not gated here.
+ *
+ * A start whose (canonical) cwd leaves the bound workspace asks in every mode
+ * (ADR 0019 §4.1) — after deny rules, before allow rules, because a `process`
+ * rule has no path and must not wave a Job into another space.
  */
 export function evaluateProcessPermission(
   action: ProcessPermissionAction,
   rules?: PermissionRuleSet,
   mode?: PermissionMode,
+  boundary?: { cwd?: string; projectRoot: string },
 ): PermissionEvaluation {
-  if (rules) {
-    const matched = findMatchingRule({ kind: 'process' }, rules);
-    if (matched) {
-      return applyModeToMatchedRule(matched, mode ?? 'auto');
-    }
+  const matched = rules ? findMatchingRule({ kind: 'process' }, rules) : undefined;
+  if (matched?.decision === 'deny') {
+    return applyModeToMatchedRule(matched, mode ?? 'auto');
+  }
+  if (
+    action === 'process:start' &&
+    boundary?.cwd !== undefined &&
+    isBoundPermissionProjectRoot(boundary.projectRoot) &&
+    escapesRoot(boundary.projectRoot, boundary.cwd)
+  ) {
+    return { decision: 'ask', reason: 'cwd-outside-workspace' };
+  }
+  if (matched) {
+    return applyModeToMatchedRule(matched, mode ?? 'auto');
   }
   if (action === 'process:start') {
     if (mode === 'bypass') {

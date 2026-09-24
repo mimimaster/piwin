@@ -136,7 +136,12 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolRe
           },
           command: { type: 'string', description: 'Executable to run (no shell).' },
           argv: { type: 'array', items: { type: 'string' }, description: 'Argument list.' },
-          cwd: { type: 'string', description: 'Working directory inside a trusted project.' },
+          cwd: {
+            type: 'string',
+            description:
+              'Working directory; defaults to the session workspace. A directory outside the ' +
+              'workspace is allowed after the user approves it — just call the tool.',
+          },
           label: { type: 'string', description: 'Optional short label for UI.' },
         },
         required: ['command', 'argv', 'cwd'],
@@ -147,7 +152,11 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolRe
       action: 'process:start',
       risk: 'command',
       rememberable: false,
-      subjectBuilder: () => ({ kind: 'process' }),
+      // The cwd is checked against the workspace boundary (ADR 0019 §4.1).
+      subjectBuilder: (argumentsObject) => ({
+        kind: 'process',
+        cwd: readStringArgument(argumentsObject, 'cwd') || projectPath || process.cwd(),
+      }),
     },
     prepareArgs: passThroughPrepareArgs,
     async execute(argumentsObject, signal, context: HostToolExecutionContext) {
@@ -160,7 +169,14 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolRe
       const startInput = createStartJobInput(argumentsObject, defaults, context.runId);
       let job: Awaited<ReturnType<JobController['start']>>;
       try {
-        job = await jobController.start(startInput);
+        // Admission already put this cwd through the workspace boundary: inside
+        // the session workspace, or approved by the user. Hand it to the Job
+        // registry as a Host-internal root so its trusted-project check (kept
+        // for client-started Jobs) does not refuse what the user allowed.
+        job = await jobController.start(
+          startInput,
+          projectPath ? { admittedCwdRoots: [cwd] } : undefined,
+        );
       } catch (error) {
         return jobFailure(error, context.runId);
       }

@@ -725,6 +725,7 @@ describe('shell subagent/continue compatibility', () => {
       {
         options: { piwinRoot: rootDir },
         resolveRetainedSubagentWorktreeLease: async () => WORKTREE_LEASE,
+        resolveSubagentContinuationRestore: async () => undefined,
       },
       CHILD_ID,
     );
@@ -743,6 +744,7 @@ describe('shell subagent/continue compatibility', () => {
       {
         options: { piwinRoot: rootDir },
         resolveRetainedSubagentWorktreeLease: async () => WORKTREE_LEASE,
+        resolveSubagentContinuationRestore: async () => undefined,
         push: () => {},
       },
       {

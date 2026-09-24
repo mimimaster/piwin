@@ -144,6 +144,13 @@ export type SubagentRunSeam = {
     runId: string;
     invocationId: string;
   }>;
+  /**
+   * Record the Lead's own review of a candidate whose task grants `lead`
+   * authority (Fusion). Reviewer children use their scoped submit instead.
+   */
+  submitLeadReview?: (
+    input: import('./subagent-review-service.js').SubagentLeadReviewSubmitInput,
+  ) => Promise<import('./subagent-review-service.js').SubagentReviewSubmitResult>;
   applyReviewed?: (input: {
     parentSessionId: string;
     parentRunId: string;

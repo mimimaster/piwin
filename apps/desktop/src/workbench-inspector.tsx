@@ -65,6 +65,7 @@ import {
 import { TerminalJobMonitor, type TerminalJobMonitorProps } from './terminal-job-monitor';
 import { isTauriPtyAvailable } from './tauri-pty';
 import { useTerminalSessions } from './use-terminal-sessions';
+import { requestBrowserNewTab } from './host-client-browser';
 
 type InspectorShell = {
   closeOverlay: () => void;
@@ -260,7 +261,13 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           {...(dockedTools ? { handedOffTabs: DOCKING_OWNED_INSPECTOR_TABS, dockedTools } : {})}
           onOpenInstance={(tab) => {
             if (docking && inspectorTabToToolKind(tab) === 'browser') {
-              docking.openToolView('browser', { another: true });
+              // "Another browser" is another Chromium tab in the one browser
+              // view, not a second view mirroring the same page.
+              const browserOpen = Object.values(docking.state.views).some(
+                (view) => view.kind === 'browser',
+              );
+              docking.openToolView('browser');
+              if (browserOpen) void requestBrowserNewTab(hostClient);
               return;
             }
             shell.setInspectorTab(tab);
@@ -469,6 +476,9 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
                 activeDocument?.status === 'unavailable'
                   ? activeDocument.suggestion
                   : undefined
+              }
+              attempts={
+                activeDocument?.status === 'unavailable' ? activeDocument.attempts : undefined
               }
               byteSize={
                 activeDocument?.status === 'unavailable' ? activeDocument.byteSize : undefined

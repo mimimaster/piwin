@@ -57,13 +57,9 @@ describe('useDockingWorkspace right panel reveal', () => {
     act(() => mounted.current().openToolView('browser'));
     expect(Object.values(mounted.current().state.views).filter((view) => view.kind === 'browser')).toHaveLength(1);
 
-    // The + menu asks for another instance, and that one is a new tab.
-    act(() => mounted.current().openToolView('browser', { another: true }));
-    expect(Object.values(mounted.current().state.views).filter((view) => view.kind === 'browser')).toHaveLength(2);
-
     // Closing the browser refocuses the canvas tab: no reveal for that.
     const browserId = Object.values(mounted.current().state.views).find((view) => view.kind === 'browser')?.viewId;
     act(() => mounted.current().setState((state) => (browserId ? closeView(state, browserId) : state)));
-    expect(onReveal).toHaveBeenCalledTimes(4);
+    expect(onReveal).toHaveBeenCalledTimes(3);
   });
 });

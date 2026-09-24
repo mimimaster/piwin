@@ -1,5 +1,7 @@
+import type { PiwinConfig } from '@piwin/contracts';
 import { describe, expect, it } from 'vitest';
 import {
+  applyHostLoginFollowUpDomains,
   applyHostProviderSnapshot,
   configFromSettingsWriteResponse,
   createSettingsViewConfig,
@@ -360,5 +362,28 @@ describe('codeSearchWriteRetained', () => {
         codeSearch: { enabled: true, backend: 'windsurf', apiKeyRef: 'keychain:x' },
       }),
     ).toBe(true);
+  });
+});
+
+describe('applyHostLoginFollowUpDomains', () => {
+  it('takes web and codeSearch from the Host after a sign-in set them up, keeping other drafts', () => {
+    const current = {
+      providers: [],
+      notes: { enabled: false },
+      web: { searchSources: [] },
+      codeSearch: { enabled: false },
+    } as unknown as PiwinConfig;
+    const host = {
+      providers: [{ id: 'devin' }],
+      notes: { enabled: true },
+      web: { searchSources: [{ id: 'devin', kind: 'devin', enabled: true, apiKeyRef: 'oauth:devin' }] },
+      codeSearch: { enabled: true, backend: 'windsurf', apiKeyRef: 'oauth:devin' },
+    } as unknown as PiwinConfig;
+    const next = applyHostLoginFollowUpDomains(current, host);
+    expect(next.web).toBe(host.web);
+    expect(next.codeSearch).toBe(host.codeSearch);
+    expect(next.providers).toBe(host.providers);
+    // Unrelated domains keep the open form's draft.
+    expect(next.notes).toBe(current.notes);
   });
 });

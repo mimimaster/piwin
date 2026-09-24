@@ -294,6 +294,7 @@ describe('PiwinConfig.subagents', () => {
     expect(defaults.processIsolation).toBe('required');
     expect(defaults.parallelWritePolicy).toBe('worktree-only');
     expect(defaults.dirtyBasePolicy).toBe('ask');
+    expect(defaults.freehandReadonlyModel).toBeUndefined();
   });
 
   it('SubagentConfig type accepts empty profiles', () => {
@@ -307,6 +308,11 @@ describe('PiwinConfig.subagents', () => {
     };
     expect(cfg.profiles).toHaveLength(0);
     expect(cfg.processIsolation).toBe('best-effort');
+    const pinned: SubagentConfig = {
+      ...cfg,
+      freehandReadonlyModel: { providerId: 'codex', modelId: 'gpt-5-mini', source: 'subscription' },
+    };
+    expect(pinned.freehandReadonlyModel?.source).toBe('subscription');
   });
 
   it('createDefaultSubagentConfig.maxConcurrency equals DEFAULT_SUBAGENT_MAX_CONCURRENCY', () => {
@@ -543,4 +549,3 @@ describe('resolveProviderCategory & resolveModelCategory', () => {
     expect(resolveModelCategory({})).toBe('custom');
   });
 });
-

@@ -3,6 +3,7 @@
  * SubagentResultService is only a cache.
  */
 import type {
+  SubagentCopyState,
   SubagentDeliveryIntent,
   SubagentDeliveryVerification,
   SubagentResultAvailability,
@@ -28,6 +29,25 @@ export type SubagentResultProjectionSource = {
 
 function firstDefined<T>(...values: Array<T | undefined>): T | undefined {
   return values.find((value) => value !== undefined);
+}
+
+/**
+ * Where the copy that produced this result lives now.
+ *
+ * `released` is not a missing copy: a shared writer slot returned the checkout
+ * to the pool after the result was frozen as Git objects, so review, apply and
+ * continuation are all still possible. Only `removed` and `missing` mean the
+ * frozen data is gone.
+ */
+export function resolveResultCopyState(
+  result: SubagentTaskResult,
+  lease: SubagentWorkspaceLease | undefined,
+): SubagentCopyState {
+  if (result.copyState !== undefined) return result.copyState;
+  if (result.gitSnapshot !== undefined && lease?.mode === 'worktree' && lease.slotId !== undefined) {
+    return 'released';
+  }
+  return 'present';
 }
 
 function matchingDeliveryVerification(
@@ -167,7 +187,7 @@ export function projectSubagentResultSummary(
     integrationStatus: source.result.integrationStatus,
     childChanges: source.result.childChanges ?? null,
     appliedChanges: appliedChanges ?? null,
-    copyState: 'present',
+    copyState: resolveResultCopyState(source.result, source.lease),
     latestOperationId: latestOperationId ?? null,
     availability: resolveAvailability({
       legacy,

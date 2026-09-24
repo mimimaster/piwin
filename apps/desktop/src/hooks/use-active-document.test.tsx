@@ -5,6 +5,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostClient } from '../host-client';
 import { useActiveDocument } from './use-active-document';
 import type { DocumentContentMessage } from '../resolve-document-content';
+import type { DocumentPathAttempt, DocumentTargetRef } from '@piwin/contracts';
+
+/** Host answers for `preview/resolve-path`, or an unsupported Host. */
+type ResolvePathAnswer =
+  | { status: 'resolved'; target: DocumentTargetRef; attempts?: DocumentPathAttempt[] }
+  | { status: 'unresolved'; reason: string; attempts?: DocumentPathAttempt[] }
+  /** Host advertises the command but rejects it (older/limited build). */
+  | { status: 'unsupported' };
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -45,8 +53,39 @@ function createHostClientFake(options?: {
   localPreviewUnavailable?: { reason: string } | boolean;
   /** Per-relative-path read override; falls back to `projectRead`. */
   projectReadByPath?: Record<string, { success: false } | { success: true; content: string }>;
+  /** When set, the fake advertises `preview/resolve-path` and answers it. */
+  resolvePath?: ResolvePathAnswer;
 }): { client: HostClient; request: ReturnType<typeof vi.fn> } {
-  const request = vi.fn(async (command: HostRequestCall) => {
+  const request = vi.fn(async (command: HostRequestCall & { input?: { rawPath?: string; projectPath?: string } }) => {
+    if (command.type === 'preview/resolve-path') {
+      const answer = options?.resolvePath;
+      if (!answer || answer.status === 'unsupported') {
+        return {
+          type: 'response' as const,
+          command,
+          success: false,
+          error: { message: 'Unhandled command' },
+        };
+      }
+      if (answer.status === 'resolved') {
+        return {
+          type: 'response' as const,
+          command,
+          success: true,
+          data: { status: 'resolved', target: answer.target, attempts: answer.attempts ?? [] },
+        };
+      }
+      return {
+        type: 'response' as const,
+        command,
+        success: true,
+        data: {
+          status: 'unresolved',
+          reason: answer.reason,
+          attempts: answer.attempts ?? [],
+        },
+      };
+    }
     if (command.type === 'project/find-file') {
       const findFile = options?.findFile;
       if (!findFile || findFile.success === false) {
@@ -258,7 +297,12 @@ function createHostClientFake(options?: {
     }
     return { type: 'response' as const, command, success: false, error: { message: 'nope' } };
   });
-  return { client: { request } as unknown as HostClient, request };
+  const client = (
+    options?.resolvePath === undefined
+      ? { request }
+      : { request, supportsCommand: (type: string) => type === 'preview/resolve-path' }
+  ) as unknown as HostClient;
+  return { client, request };
 }
 
 describe('useActiveDocument', () => {
@@ -271,6 +315,7 @@ describe('useActiveDocument', () => {
     client: HostClient,
     options?: {
       projectPath?: string | null;
+      piwinRoot?: string | null;
       messages?: readonly DocumentContentMessage[];
     },
   ): void {
@@ -280,6 +325,7 @@ describe('useActiveDocument', () => {
         revealPreview: reveal,
         activeSessionId: 'session-1',
         projectPath: options?.projectPath === undefined ? '/workspace' : options.projectPath,
+        piwinRoot: options?.piwinRoot ?? null,
         messages: options?.messages ?? [],
       });
       return null;
@@ -506,6 +552,32 @@ describe('useActiveDocument', () => {
     expect(latest.activeDocument?.status).toBe('ready');
     if (latest.activeDocument?.status === 'ready') {
       expect(latest.activeDocument.content).toBe('{"ok":true}\n');
+      expect(latest.activeDocument.provenance).toBe('trusted-config');
+      expect(latest.activeDocument.readOnly).toBe(true);
+    }
+  });
+
+  it('opens a ~/.piwin chip through the trusted config reader, not the project', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake();
+    renderHarness(client, { piwinRoot: '~/.piwin' });
+
+    await act(async () => {
+      latest.openDocument({
+        title: 'auth.json',
+        path: '~/.piwin/pi-agent/auth.json',
+      });
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'preview/read-trusted-text',
+        input: { relativePath: 'pi-agent/auth.json' },
+      }),
+    );
+    expect(request.mock.calls.some((call) => call[0]?.type === 'project/read-file')).toBe(false);
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
       expect(latest.activeDocument.provenance).toBe('trusted-config');
       expect(latest.activeDocument.readOnly).toBe(true);
     }
@@ -809,6 +881,166 @@ describe('useActiveDocument', () => {
     if (latest.activeDocument?.status === 'unavailable') {
       expect(latest.activeDocument.reason).toBe('project-root-missing');
     }
+  });
+
+  it('dispatches on the Host-resolved target instead of planning the path itself', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      resolvePath: {
+        status: 'resolved',
+        target: {
+          kind: 'trusted-config',
+          relativePath: 'pi-agent/auth.json',
+          displayRef: '~/.piwin/pi-agent/auth.json',
+        },
+        attempts: [
+          { route: 'media', reason: 'not-a-vault-path' },
+          { route: 'trusted-config', reason: 'under-config-root' },
+        ],
+      },
+    });
+    renderHarness(client, { piwinRoot: null });
+
+    await act(async () => {
+      latest.openDocument({ title: 'auth.json', path: '~/.piwin/pi-agent/auth.json' });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'preview/resolve-path',
+      'preview/read-trusted-text',
+    ]);
+    expect(request.mock.calls[0]?.[0]).toMatchObject({
+      type: 'preview/resolve-path',
+      input: { rawPath: '~/.piwin/pi-agent/auth.json', projectPath: '/workspace' },
+    });
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.provenance).toBe('trusted-config');
+    }
+  });
+
+  it('renders the resolved local-file target through the local Host reader', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      resolvePath: {
+        status: 'resolved',
+        target: {
+          kind: 'local-file',
+          absolutePath: '/Users/wren/notes/plan.md',
+          displayRef: '~/notes/plan.md',
+        },
+      },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'plan.md', path: '~/notes/plan.md' });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'preview/resolve-path',
+      'preview/read-local-file',
+    ]);
+    expect(request.mock.calls[1]?.[0]).toMatchObject({
+      type: 'preview/read-local-file',
+      input: { sessionId: 'session-1', absolutePath: '/Users/wren/notes/plan.md' },
+    });
+    expect(latest.activeDocument?.status).toBe('ready');
+  });
+
+  it('shows the specific Host reason and attempts instead of a bare not-found', async () => {
+    reveal = vi.fn();
+    const { client } = createHostClientFake({
+      resolvePath: {
+        status: 'unresolved',
+        reason: 'remote-local-path-denied',
+        attempts: [
+          { route: 'media', reason: 'not-a-vault-path' },
+          { route: 'project', reason: 'not-inside-project-root' },
+          { route: 'trusted-config', reason: 'not-under-config-root' },
+          { route: 'local-file', reason: 'channel-denied-by-remote-shell' },
+        ],
+      },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'notes.md', path: '/Users/wren/notes.md' });
+    });
+
+    expect(latest.activeDocument?.status).toBe('unavailable');
+    if (latest.activeDocument?.status === 'unavailable') {
+      expect(latest.activeDocument.reason).toBe('remote-local-path-denied');
+      expect(latest.activeDocument.reason).not.toBe('not-found');
+      expect(latest.activeDocument.attempts?.map((attempt) => attempt.route)).toEqual([
+        'media',
+        'project',
+        'trusted-config',
+        'local-file',
+      ]);
+    }
+  });
+
+  it('still recovers a body from the transcript when the Host cannot resolve the path', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      resolvePath: {
+        status: 'unresolved',
+        reason: 'not-found',
+        attempts: [{ route: 'local-file', reason: 'no-such-file' }],
+      },
+    });
+    renderHarness(client, {
+      messages: [
+        {
+          text: '写入 `/tmp/gone.md` 时权限被拒绝。',
+          tools: [
+            {
+              toolName: 'write_file',
+              output: 'Permission denied',
+              presentation: {
+                inputPreview: JSON.stringify({
+                  path: '/tmp/gone.md',
+                  content:
+                    '# 恢复的文档\n\n' +
+                    '这段正文来自对话记录，用来验证 Host 解析路径失败之后，预览仍然会回退到 transcript 里的内容，而不是直接显示找不到文件。' +
+                    '补充若干句子以满足正文长度阈值：失败时保留原因、保留尝试记录，同时不让面板空白一片。',
+                }),
+                targetPaths: ['/tmp/gone.md'],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    await act(async () => {
+      latest.openDocument({ title: 'gone.md', path: '/tmp/gone.md' });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual(['preview/resolve-path']);
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.provenance).toBe('transcript');
+    }
+  });
+
+  it('falls back to local planning when the Host rejects preview/resolve-path', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      resolvePath: { status: 'unsupported' },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'foo.md', path: '/workspace/docs/foo.md' });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'preview/resolve-path',
+      'project/read-file',
+    ]);
+    expect(latest.activeDocument?.status).toBe('ready');
   });
 
   it('reports a vanished workspace for a relative project chip too', async () => {

@@ -576,7 +576,7 @@ describe('ChatThread completed work disclosure', () => {
     ).not.toBeNull();
   });
 
-  it('keeps the last settled process row mounted without treating its caption as a reply', () => {
+  it('folds intermediate process rows with captions into a single running disclosure during a live turn', () => {
     const earlierCaption = '先读文件。';
     const lastCaption = '接着改这一处。';
     const messages = [
@@ -603,7 +603,7 @@ describe('ChatThread completed work disclosure', () => {
           {
             toolCallId: 'edit-1',
             toolName: 'edit',
-            status: 'done',
+            status: 'running',
             output: 'ok',
             runId: 'run-1',
           },
@@ -614,6 +614,7 @@ describe('ChatThread completed work disclosure', () => {
     act(() =>
       root.render(
         renderThread(messages, {
+          streaming: true,
           activeRunId: 'run-1',
           runRecordsById: {
             'run-1': {
@@ -627,7 +628,18 @@ describe('ChatThread completed work disclosure', () => {
       ),
     );
 
-    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).toBeNull();
+    const disclosure = container.querySelector('[data-testid="turn-work-disclosure"]');
+    expect(disclosure).not.toBeNull();
+    expect(disclosure?.getAttribute('data-live')).toBe('true');
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-work-2')).toBeNull();
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    expect(trigger?.textContent).toContain(lastCaption);
+
+    act(() => trigger?.click());
     expect(container.querySelector('#msg-work-1')).not.toBeNull();
     expect(container.querySelector('#msg-work-2')).not.toBeNull();
     expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);

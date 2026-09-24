@@ -138,17 +138,13 @@ export function openToolView(
   kind: MovableToolKind,
   createId: WorkspaceIdFactory,
   targetGroupId?: string,
-  options?: { another?: boolean },
 ): WorkspaceOpResult {
-  // One view per tool kind. The browser is the exception: the + menu opens
-  // another tab each time. Every other caller (the inspector-tab sync, an
-  // agent reveal, a launcher) passes `another: false` and lands on the tab
-  // already open. Canvas stays singular either way — every canvas view
-  // renders the one workbench canvas target.
-  if (!options?.another || kind !== 'browser') {
-    for (const view of Object.values(state.views)) {
-      if (view.kind === kind) return okOp(focusView(state, view.viewId));
-    }
+  // One view per tool kind. The browser especially: every browser view mirrors
+  // the one Host Chromium, so a second view is the same page twice — and two
+  // mirror leases make the Host treat them as competing windows. More pages
+  // are Chromium tabs inside the one view (see workbench-inspector).
+  for (const view of Object.values(state.views)) {
+    if (view.kind === kind) return okOp(focusView(state, view.viewId));
   }
   if (Object.keys(state.views).length >= WORKSPACE_VIEW_HARD_LIMIT) {
     return rejectOp(state, 'view-limit', DOCKING_COPY.viewLimit);

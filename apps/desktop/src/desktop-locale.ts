@@ -1433,8 +1433,9 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         searchRouteDescription: isChinese
           ? '每次搜索仅使用一种通道，失败后不会自动切换至其他通道。'
           : 'Each generation uses one search outlet; a completed or failed request is never silently retried through the other outlet.',
-        nativeSearchFirst: isChinese ? '模型内置搜索优先' : 'Native search first',
-        externalSearchFirst: isChinese ? '外部搜索优先（默认）' : 'External search first (default)',
+        // Matches DEFAULT_SEARCH_ROUTE_POLICY ('native-first') in contracts.
+        nativeSearchFirst: isChinese ? '模型内置搜索优先（默认）' : 'Native search first (default)',
+        externalSearchFirst: isChinese ? '外部搜索优先' : 'External search first',
         nativeSearchOnly: isChinese ? '仅模型内置搜索' : 'Native search only',
         externalSearchOnly: isChinese ? '仅外部搜索' : 'External search only',
         previewRequestFailed: isChinese

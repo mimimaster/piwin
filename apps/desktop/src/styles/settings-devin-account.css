@@ -1,0 +1,97 @@
+/* ── Devin account row ────────────────────────────────────────────────
+   Shared by code_search and the Devin web-search source: a status dot, one
+   sentence, and the action that fixes a disconnected account. */
+
+.devin-account-row {
+  --devin-dot: var(--text-4);
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--text-3) 7%, transparent);
+}
+
+.devin-account-row[data-tone='ok'] {
+  --devin-dot: var(--mint);
+  background: color-mix(in srgb, var(--mint) 10%, transparent);
+}
+
+.devin-account-row[data-tone='warn'] {
+  --devin-dot: var(--amber);
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+}
+
+.devin-account-row[data-tone='busy'] {
+  --devin-dot: var(--iris);
+}
+
+.devin-account-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: var(--r-pill);
+  background: var(--devin-dot);
+}
+
+.devin-account-row[data-tone='busy'] .devin-account-dot {
+  animation: devin-account-pulse 1.2s var(--ease-in-out) infinite;
+}
+
+.devin-account-text {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.devin-account-label {
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+}
+
+.devin-account-note {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.devin-account-error {
+  color: var(--coral);
+  font-size: var(--fs-micro);
+}
+
+.devin-credential-hint {
+  margin: var(--s-3) 0 0;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+}
+
+@keyframes devin-account-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .devin-account-row[data-tone='busy'] .devin-account-dot {
+    animation: none;
+  }
+}
+
+.devin-credential {
+  display: grid;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+
+.devin-credential .devin-credential-hint {
+  margin: 0;
+}
+
+.devin-credential-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+}

@@ -14,6 +14,7 @@ import { createMediaService } from '@piwin/media';
 import { mapBrowserToolError, sanitizeBrowserErrorMessage } from '../browser-tool-errors.js';
 import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
 import { fail, ok } from '../response-helpers.js';
+import { decideFollowResize } from './browser-follow-viewport.js';
 import type { HostCommandContext } from './host-command-context.js';
 
 const TYPES = new Set<HostCommand['type']>([
@@ -79,7 +80,17 @@ export async function handleBrowserCommand(
       // Opening the panel acquires the mirror lease: launch Chromium if needed
       // and begin the bounded frame stream.
       try {
-        const state = await session.start(command.leaseId);
+        const state = await session.start(command.leaseId, {
+          clientKey: context.devicePrincipalId ?? 'local',
+          // One client shows one browser panel. A second lease from the same
+          // client is a leaked or duplicated panel — a bug, not a window.
+          onSuperseded: (leaseIds) =>
+            context.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `browser mirror: retired ${String(leaseIds.length)} stale lease(s) superseded by the same client`,
+            }),
+        });
         return ok(requestId, 'browser/start', { state });
       } catch (error) {
         return failFromBrowserError(requestId, command.type, error);
@@ -201,27 +212,29 @@ export async function handleBrowserCommand(
         const origin = command.origin ?? 'explicit';
         // Follow resizes queue behind agent operations (runExclusive) rather
         // than being refused while an agent run is active.
+        let followLeaseId: string | undefined;
         if (origin === 'follow') {
-          if (session.mirrorLeaseCount() !== 1) {
-            return fail(
-              requestId,
-              command.type,
-              'follow resize is frozen while multiple clients mirror the browser',
-              { code: 'browser-action-failed', retryable: false },
-            );
-          }
-          if (command.leaseId !== undefined && !session.hasMirrorLease(command.leaseId)) {
-            return fail(requestId, command.type, 'follow resize lease is not active', {
-              code: 'browser-action-failed',
+          const decision = decideFollowResize({
+            leaseId: command.leaseId,
+            claim: command.claim === true,
+            ownerLeaseId: session.viewportFollowLeaseId(),
+            hasMirrorLease: (leaseId) => session.hasMirrorLease(leaseId),
+            mirrorLeaseCount: session.mirrorLeaseCount(),
+          });
+          if (!decision.accept) {
+            return fail(requestId, command.type, decision.message, {
+              code: decision.code,
               retryable: false,
             });
           }
+          followLeaseId = decision.followLeaseId;
         }
         const size = { width: command.width, height: command.height };
         const mode = command.mode ?? (origin === 'follow' ? 'follow' : undefined);
         const viewport = await session.setViewport(size, {
           ...(mode !== undefined ? { mode } : {}),
           setBy: 'user',
+          ...(followLeaseId !== undefined ? { followLeaseId } : {}),
         });
         return ok(requestId, 'browser/resize', { viewport });
       } catch (error) {

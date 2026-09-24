@@ -297,6 +297,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
               });
       if (sessionId) {
         preserveComposerOnSessionActivationRef.current = true;
+        args.onComposerSessionBound?.(sessionId);
         // The draft's mount choice now lives on the created session (or the
         // create call failed to apply it, in which case retrying a stale
         // draft value on the next new draft would be wrong either way).

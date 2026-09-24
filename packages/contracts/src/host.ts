@@ -96,6 +96,8 @@ export type PermissionRequestContext = {
   remote?: string;
   destructive?: boolean;
   secretRelated?: boolean;
+  /** The operation targets a path outside the session's bound workspace. */
+  outsideWorkspace?: boolean;
   /** Structured MCP tool-call target (never parse detail strings in UI). */
   mcpTool?: McpToolCallTarget;
 };

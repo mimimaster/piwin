@@ -22,7 +22,7 @@ import { useDesktopLocale } from '../desktop-locale-context';
 import { openExternalUrl } from '../open-external-url.js';
 import { IconChevronLeft } from '../shell-icons';
 
-const DOCS_HOME_URL = 'https://docs.planora.chat';
+const DOCS_HOME_URL = 'https://docs.piwinwin.com';
 import {
   WindowDragRegion,
   handleNativeWindowDragMouseDown,

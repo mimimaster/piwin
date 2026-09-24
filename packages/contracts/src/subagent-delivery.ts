@@ -8,7 +8,17 @@ export type SubagentResultRef = { resultId: string; revision: number };
 
 export type ChangeVersionRef = { changeSetId: string; revision: number };
 
-export type SubagentCopyState = 'present' | 'cleanup-pending' | 'removed' | 'missing';
+export type SubagentCopyState =
+  | 'present'
+  | 'cleanup-pending'
+  | 'removed'
+  | 'missing'
+  /**
+   * The child copy was returned to the shared writer slot after its result
+   * was frozen as Git objects. Frozen review data is still available; only
+   * the on-disk copy is gone.
+   */
+  | 'released';
 
 export type SubagentResultActionAvailability = {
   allowed: boolean;

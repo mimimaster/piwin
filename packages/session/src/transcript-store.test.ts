@@ -1367,6 +1367,23 @@ describe('SessionTranscriptStore', () => {
     store.close();
   });
 
+  it('round-trips the paused turn policy so resume keeps the scheme', async () => {
+    const { store } = await openStore('pause-checkpoint-policy');
+    const created = await store.createPauseCheckpoint({
+      sessionId: 'session-pause-checkpoint-policy',
+      sourceRunId: 'run-1',
+      createdAt: '2026-09-24T00:00:00.000Z',
+      transcriptRevision: 3,
+      turnPolicy: { orchestrationSchemeId: 'fusion', delegationMode: 'disabled' },
+    });
+    expect(created.turnPolicy).toEqual({
+      orchestrationSchemeId: 'fusion',
+      delegationMode: 'disabled',
+    });
+    expect(await store.getActivePauseCheckpoint()).toEqual(created);
+    store.close();
+  });
+
   it('allows replacing an active checkpoint only when its id is retained', async () => {
     const { store } = await openStore('pause-checkpoint-replace');
     const first = await store.createPauseCheckpoint({

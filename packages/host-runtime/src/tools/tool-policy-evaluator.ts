@@ -53,8 +53,30 @@ export type ToolPolicyEvaluator = {
     rules: PermissionRuleSet;
     mode: PermissionMode;
     projectRoot: string;
+    canonicalizePath?: (path: string) => string;
   }): ToolPolicyOutcome;
 };
+
+/**
+ * Real-path the parts of a subject compared against the workspace boundary
+ * (ADR 0019 §4.1). Injected so this module stays free of filesystem access.
+ */
+function canonicalizeSubject(
+  subject: PermissionSubject | undefined,
+  canonicalizePath: ((path: string) => string) | undefined,
+): PermissionSubject | undefined {
+  if (!subject || !canonicalizePath) return subject;
+  if (subject.kind === 'file-write' && subject.path.trim().length > 0) {
+    return { kind: 'file-write', path: canonicalizePath(subject.path.trim()) };
+  }
+  if (subject.kind === 'file-paths') {
+    return { kind: 'file-paths', paths: subject.paths.map((path) => canonicalizePath(path.trim())) };
+  }
+  if (subject.kind === 'process' && subject.cwd !== undefined && subject.cwd.trim().length > 0) {
+    return { kind: 'process', cwd: canonicalizePath(subject.cwd.trim()) };
+  }
+  return subject;
+}
 
 const SUBJECT_REQUIRED_ACTIONS = new Set<string>([
   'bash',
@@ -79,6 +101,7 @@ export function evaluateHostToolPolicy(input: {
   rules: PermissionRuleSet;
   mode: PermissionMode;
   projectRoot: string;
+  canonicalizePath?: (path: string) => string;
 }): ToolPolicyOutcome {
   const action = input.registration.permissionSpec.action;
   if (!isHostToolPermissionAction(action)) {
@@ -109,9 +132,9 @@ export function evaluateHostToolPolicy(input: {
     };
   }
 
-  const subject = input.registration.permissionSpec.subjectBuilder?.(
-    input.arguments,
-    input.context,
+  const subject = canonicalizeSubject(
+    input.registration.permissionSpec.subjectBuilder?.(input.arguments, input.context),
+    input.canonicalizePath,
   );
   if (SUBJECT_REQUIRED_ACTIONS.has(action) && subject === undefined) {
     return {
@@ -198,7 +221,12 @@ export function evaluateHostToolDomainPolicy(input: {
       return { decision: 'allow', reason: 'legacy-unclassified-allow' };
     case 'process:start':
     case 'process:stop':
-      return evaluateProcessPermission(input.action, input.rules, input.mode);
+      return evaluateProcessPermission(input.action, input.rules, input.mode, {
+        projectRoot: input.projectRoot,
+        ...(input.subject?.kind === 'process' && input.subject.cwd !== undefined
+          ? { cwd: input.subject.cwd }
+          : {}),
+      });
     case 'browser:navigate':
       return evaluateBrowserNavigatePermission(
         String(input.args.url ?? ''),
@@ -287,6 +315,22 @@ export function evaluateHostToolDomainPolicy(input: {
       };
     }
     case 'browser:upload':
+      if (input.subject?.kind === 'file-paths' && input.subject.paths.length > 0) {
+        let firstAsk: PermissionEvaluation | undefined;
+        let firstAllow: PermissionEvaluation | undefined;
+        for (const path of input.subject.paths) {
+          const result = evaluateFileWritePermission({
+            absPath: path,
+            projectRoot: input.projectRoot,
+            mode: input.mode,
+            rules: input.rules,
+          });
+          if (result.decision === 'deny') return result;
+          if (result.decision === 'ask') firstAsk ??= result;
+          else firstAllow ??= result;
+        }
+        return firstAsk ?? firstAllow ?? { decision: 'deny', reason: 'empty-browser-upload' };
+      }
       if (input.subject?.kind === 'file-write') {
         return evaluateFileWritePermission({
           absPath: input.subject.path,

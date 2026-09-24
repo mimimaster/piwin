@@ -1,4 +1,4 @@
-import type { WebConfig } from '@piwin/contracts';
+import type { WebConfig, WebSearchSource } from '@piwin/contracts';
 import type { WebRuntimeCredentials } from '@piwin/tools-web';
 import type { SecretResolver } from './secret-resolver.js';
 
@@ -39,4 +39,17 @@ function firstNonEmptySecretLine(secret: string | null): string | undefined {
     ?.split(/\r?\n/)
     .map((line) => line.trim())
     .find((line) => line.length > 0);
+}
+
+/**
+ * The stored web config with one unsaved draft source folded in (replacing a
+ * saved source of the same id), so a Settings connectivity test can resolve
+ * the key of a source the user just switched on but has not saved.
+ */
+export function withDraftSearchSource(config: WebConfig, draft: WebSearchSource | undefined): WebConfig {
+  if (!draft) return config;
+  return {
+    ...config,
+    searchSources: [...config.searchSources.filter((source) => source.id !== draft.id), draft],
+  };
 }

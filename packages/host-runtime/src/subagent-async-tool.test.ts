@@ -21,7 +21,7 @@ import { RunRegistry } from './run-registry.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import type { SubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
 import { TurnScopedSchemeAdmissionGate } from './orchestration-scheme-admission.js';
-import { createSubagentControlSeam } from './host-runtime-subagent-start.js';
+import { createSubagentControlSeam, formatWaitToolResult } from './host-runtime-subagent-start.js';
 import { createSubagentStartTool } from './subagent-start-tool.js';
 import { createSubagentWaitTool } from './subagent-wait-tool.js';
 import { createSubagentCancelTool } from './subagent-cancel-tool.js';
@@ -721,6 +721,8 @@ describe('async subagent start/wait/cancel', () => {
       reviewDecision: 'approved',
     });
     expect(messageOf(waited)).toContain('review=approved');
+    // The model sees only the text; apply needs the exact review ref from it.
+    expect(messageOf(waited)).toContain('reviewRef={"reviewId":"review-wait-1","revision":1}');
 
     const bare = createHarness();
     const unfinished = await executeTool(bare.startTool, { task: 'forget to review' });
@@ -774,6 +776,30 @@ describe('async subagent start/wait/cancel', () => {
       'piwin_subagent_verification_submit',
       'piwin_subagent_wait',
       'piwin_subagent_cancel',
+      'piwin_subagent_review_submit',
     ]);
+  });
+});
+
+describe('formatWaitToolResult', () => {
+  it('puts the exact candidate result ref in the model-visible text', () => {
+    // Regression: Fusion stalled because the ref lived only in `details`,
+    // which Pi never shows the model, so apply had nothing exact to cite.
+    const formatted = formatWaitToolResult({
+      runs: [
+        {
+          runId: 'run-a',
+          batchStatus: 'completed',
+          executionStatus: 'completed',
+          integrationStatus: 'retained',
+          resultRef: { resultId: 'result-a', revision: 2 },
+          summaryPreview: 'done',
+        },
+      ],
+    });
+    expect(formatted.output).toBe(
+      'subagent wait (1 runs)\n' +
+        'run-a:completed/retained result={"resultId":"result-a","revision":2} done',
+    );
   });
 });

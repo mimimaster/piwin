@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Accepted; Slices 1–4 implemented |
+| Status | Accepted; Slices 1–6 implemented |
 | Date | 2026-08-16 |
 | Related | ADR 0005, ADR 0019, ADR 0036, ADR 0037, ADR 0041 |
 | Specification | [`../specs/preview-resource-resolution.md`](../specs/preview-resource-resolution.md) |
@@ -111,11 +111,74 @@ text.
   retries such a chip inside the project when the path's trailing segments
   after the root's folder name name a workspace file. An unrelated absolute
   path is never force-mapped onto the project.
+- A chip can carry a **home-relative** path (`~/.piwin/pi-agent/auth.json`)
+  while the Host reports an expanded config root (`/Users/<me>/.piwin`). That
+  form was not "absolute", so it took the project branch and the read failed as
+  `not-found` inside the workspace. A leading `~` is now a user-space location:
+  config-store paths go to `preview/read-trusted-text`, skills to `skills/read`,
+  and other home paths to the local user-gesture channel, which expands the home
+  marker before any filesystem hop. A `~` chip and an expanded root name the
+  same file in either direction, but only **this Host's own root** counts
+  (`configStoreRelativePath` in contracts, shared by Desktop and Host): a
+  `~/.piwin/...` chip on a test Host rooted at `~/.piwin-test`, or a
+  `.piwin-old` backup, is a different file and goes to the local-file channel
+  instead of being read from this root under the same relative name. Trusted
+  display refs name the real store (`~/.piwin-test/...`). A remote shell never
+  sees the Host root (projected out) and assumes the conventional `~/.piwin`.
 - A registered root whose directory is gone (acceptance workspaces under
   `/tmp`, cleaned by the OS) answers `project-root-missing` instead of letting
   every file inside report `not-found`. Desktop renders that as its own
   reason ("工作区目录已不存在"), because blaming the file sends the user
   looking for the wrong problem.
+
+### 6. The Host resolves the path, once
+
+Slices 1–5 each taught *another* interpreter what a path spelling meant. A
+single click still crossed seven of them (markdown link, chip, open planner,
+alias retry, tool-card targets, local read, config read), and whichever one
+missed answered `not-found`, so the symptom never named the cause. The
+`~/.piwin/pi-agent/auth.json` report was exactly that: a `~` chip that the
+planner did not treat as absolute, read from inside the workspace.
+
+The client also cannot know the facts it was guessing at: the Host user's home,
+the Host's own config root (projected out for remote shells), realpath aliases,
+and whether it is running beside the Host. So interpretation moves to the side
+that owns those facts.
+
+- New command `preview/resolve-path` `{ sessionId?, projectPath?, rawPath }` →
+  `{ status: 'resolved', target, attempts }` or
+  `{ status: 'unresolved', reason, attempts }`. `attempts` lists every route
+  tried with a stable reason code and an optional detail; it is returned on
+  success too, because that is what makes a failure diagnosable.
+- `buildDocumentTargetsForPath` (the tool-card resolver) and the command share
+  one classifier — `document-path-classify.ts` in host-runtime. Tool cards keep
+  emitting only *logical* targets; they never grow a host path.
+- The Host, not the client, expands `~` (`os.homedir()`), strips `file://`,
+  decodes percent escapes, realpaths both the clicked path and the project
+  root, and classifies in one order: media → skill → project (realpath
+  containment, which absorbs the `/tmp` vs `/private/tmp` and symlinked-checkout
+  aliases) → config store (`configStoreRelativePath` with the Host home) →
+  local file.
+- The bounded `project/find-file` fallback moves into the same resolver: a
+  project-route miss with a unique, complete search resolves there; several
+  matches answer `ambiguous-file`; an incomplete walk resolves nothing.
+- `DocumentTargetRef` gains a `local-file` variant (`absolutePath` +
+  `displayRef`). It is produced for a local shell and **refused on remote
+  projection**: `denyRemoteLocalFileTarget` rewrites it to
+  `remote-local-path-denied` ("远程 Host 不允许读取本机路径"), so host
+  filesystem layout never crosses the wire and the client is not told whether
+  the path exists.
+- Desktop `openDocument` sends the raw path once and dispatches on the returned
+  target. `planDocumentOpenPath` / `projectRelativeAliasForPath` stop routing;
+  they remain only for a Host that does not implement the command (older build,
+  offline shell) and for transcript recovery, and a rejected/unsupported answer
+  falls back to them rather than showing "Unhandled command".
+- An unavailable preview carries the reason and the attempts; the panel shows
+  the specific reason and a diagnostic disclosure listing each route, instead of
+  one generic `not-found` copy.
+- `use-active-document.ts` is split by responsibility (it was 1057 lines, over
+  the cap): target loaders for project / skill / trusted-config / local-file /
+  media, one shared snapshot→read→transcript ladder, and the legacy planner.
 
 ## Consequences
 
@@ -156,7 +219,16 @@ text.
 - The docked Document tool surface forwards the whole document state
   (reason / suggestion / size / provenance). Before that it could only say
   "Preview unavailable", which made a resolvable path look like a broken app.
+- Slice 6 (implemented) removes the client's guesses without adding read
+  authority: `preview/resolve-path` reuses the registered browse root for the
+  project branch and the existing containment rules for vault/config, and its
+  `local-file` answer inherits Slice 4's user-gesture channel — now named by the
+  Host instead of assumed by the client. The command is remote-allowed (the
+  Host must resolve on behalf of a remote shell), so the refusal lives in the
+  projection, not in the command list.
 - Rejected alternatives: forging a project root via `dirname()` (historical bug,
   banned); a generic "read any path read-only" command (prompt-injection /
   remote info-exposure surface); loosening `project/read-file` guards (the
-  command's authority is its registered root, full stop).
+  command's authority is its registered root, full stop); keeping the client
+  planner as the primary router and teaching it one more spelling (the reason
+  this class of bug returned five times).

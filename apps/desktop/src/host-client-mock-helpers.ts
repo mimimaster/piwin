@@ -14,7 +14,6 @@ import {
 } from '@piwin/contracts';
 import { createMockSessionTranscriptPage } from './mock-session-transcript-page';
 import {
-  PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_INKSTONE_INK,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
   migrateThemeId,
@@ -22,7 +21,6 @@ import {
 
 export type MockBuiltinThemeId =
   | 'piwin-inkstone'
-  | 'piwin-ink-wash'
   | 'piwin-inkstone-paper'
   | 'piwin-inkstone-ink';
 
@@ -31,7 +29,6 @@ export function resolveMockThemeId(themeId: string): MockBuiltinThemeId {
   if (
     migrated === 'piwin-inkstone-paper' ||
     migrated === 'piwin-inkstone-ink' ||
-    migrated === 'piwin-ink-wash' ||
     migrated === 'piwin-inkstone'
   ) {
     return migrated;
@@ -41,8 +38,6 @@ export function resolveMockThemeId(themeId: string): MockBuiltinThemeId {
 
 export function mockThemeManifest(themeId: MockBuiltinThemeId): ThemeManifest {
   switch (themeId) {
-    case 'piwin-ink-wash':
-      return PIWIN_APPEARANCE_INK_WASH;
     case 'piwin-inkstone-paper':
       return PIWIN_APPEARANCE_INKSTONE_PAPER;
     case 'piwin-inkstone':

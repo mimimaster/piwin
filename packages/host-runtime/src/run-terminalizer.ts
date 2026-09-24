@@ -216,6 +216,7 @@ export async function terminateHostRun(
   deps.runOrchestrationSchemes.delete(runId);
   deps.schemeAdmissionGate.clear(runId);
   deps.runDelegationModes.delete(runId);
+  deps.runTurnPolicies.delete(runId);
   deps.runEventCorrelator.markRunTerminal(sessionId, runId);
   // CE-NAME: auto-name after first completed exchange (fire-and-forget).
   if (outcome === 'completed') {

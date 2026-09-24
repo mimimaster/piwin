@@ -22,6 +22,7 @@ const SAFE: SubagentWorktreeGcFacts = {
   userRetained: false,
   unfrozenSnapshot: false,
   pauseCheckpoint: false,
+  writerSlot: false,
   ageMs: SUBAGENT_WORKTREE_GC_AUTO_MIN_AGE_MS + 1,
 };
 
@@ -57,6 +58,19 @@ describe('worktree GC policy', () => {
     expect(
       decideWorktreeGc({ ...SAFE, pauseCheckpoint: true }, { mode: 'auto' }).keepReasons,
     ).toContain('pause-checkpoint');
+  });
+
+  it('never reclaims the shared writer slot, even as an aged orphan', () => {
+    const recent = decideWorktreeGc({ ...SAFE, writerSlot: true }, { mode: 'manual' });
+    expect(recent.reclaimable).toBe(false);
+    expect(recent.keepReasons).toContain('writer-slot');
+
+    const orphaned = decideWorktreeGc(
+      { ...SAFE, writerSlot: true, orphan: true },
+      { mode: 'auto' },
+    );
+    expect(orphaned.reclaimable).toBe(false);
+    expect(orphaned.keepReasons).toContain('writer-slot');
   });
 
   it('does not apply lease-only guards to orphans', () => {

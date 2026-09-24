@@ -52,6 +52,8 @@ export function normalizeSubagentConfig(value: unknown): SubagentConfig {
   if (typeof record.defaultProfileId === 'string' && record.defaultProfileId.trim()) {
     config.defaultProfileId = record.defaultProfileId;
   }
+  const freehandReadonlyModel = normalizeSubagentModelRef(record.freehandReadonlyModel);
+  if (freehandReadonlyModel) config.freehandReadonlyModel = freehandReadonlyModel;
   const rawSchemes = Array.isArray(record.schemes) ? record.schemes : [];
   const schemes: OrchestrationSchemeSettings[] = [];
   const seenSchemeIds = new Set<string>();

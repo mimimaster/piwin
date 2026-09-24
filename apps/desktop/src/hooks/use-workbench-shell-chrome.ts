@@ -159,8 +159,9 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     setSidebarModeState(mode);
     saveSidebarMode(mode);
   }, []);
-  // Conversation-scoped UI memory. Reset on real session switches happens in
-  // useComposerDrafts — first-send (draft → created session) must keep the pill.
+  // Conversation-scoped UI memory. Session switches park/restore in
+  // resetComposerTurnControls — first-send (draft → created session) must
+  // keep the pill, and later turns of the same session must too.
   const [orchestrationSchemeId, setOrchestrationSchemeId] = useState<string>(
     ORCHESTRATION_SCHEME_OFF_ID,
   );

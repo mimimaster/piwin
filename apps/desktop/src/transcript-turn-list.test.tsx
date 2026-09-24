@@ -196,6 +196,41 @@ describe('transcript turn window', () => {
     expect(container.querySelector('#msg-user-23')).not.toBeNull();
   });
 
+  it('does not rebuild mounted turns when a scroll re-renders the window', async () => {
+    const turns = createTurns(6);
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, writable: true, value: 640 },
+      offsetWidth: { configurable: true, writable: true, value: 900 },
+      clientHeight: { configurable: true, writable: true, value: 640 },
+      scrollHeight: { configurable: true, writable: true, value: 4_000 },
+      scrollTop: { configurable: true, writable: true, value: 3_000 },
+    });
+    const spy = vi.fn(renderTurn);
+
+    await act(async () => {
+      root.render(
+        <TranscriptScrollProvider sessionId="session-scroll-memo" scrollElementRef={scrollElementRef}>
+          <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={spy} />
+        </TranscriptScrollProvider>,
+      );
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+    const mounted = container.querySelectorAll('[data-testid="rendered-turn"]').length;
+    expect(mounted).toBeGreaterThan(0);
+    spy.mockClear();
+
+    // Scroll start/stop re-renders the virtualizer synchronously (flushSync).
+    // A long call chain re-built on every one of those cost ~400ms.
+    await act(async () => {
+      container.scrollTop = 2_880;
+      container.dispatchEvent(new Event('scroll'));
+      await new Promise<void>((resolve) => setTimeout(resolve, 200));
+    });
+    expect(spy).not.toHaveBeenCalled();
+    expect(container.querySelectorAll('[data-testid="rendered-turn"]').length).toBe(mounted);
+  });
+
   it('bounds mounted rows during streaming while keeping live tail pinned', async () => {
     const turns = createTurns(80);
     const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };

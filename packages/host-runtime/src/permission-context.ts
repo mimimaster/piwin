@@ -6,26 +6,61 @@ import type { PermissionRequestContext, PermissionRiskKind } from '@piwin/contra
 export function buildPermissionRequestContext(
   action: string,
   detail: string,
+  facts?: { policyReason?: string; cwd?: string; command?: string; paths?: readonly string[] },
 ): PermissionRequestContext {
   const lowered = action.toLowerCase();
   const detailText = detail.trim();
+  const outsideWorkspace =
+    facts?.policyReason === 'path-escapes-project-root' ||
+    facts?.policyReason === 'cwd-outside-workspace';
 
   // Explicit action kinds first — these are the canonical permission action
   // strings emitted by the host gates (evaluateFileWritePermission /
   // evaluateBashPermission). Matching them up front keeps the generic
   // `includes` fallbacks below from misclassifying edge cases.
-  if (lowered === 'file-write' || lowered.startsWith('file-write:')) {
-    const paths = extractPaths(detailText);
+  if (
+    lowered === 'file-write' ||
+    lowered.startsWith('file-write:') ||
+    lowered === 'browser:upload' ||
+    lowered === 'browser:screenshot'
+  ) {
+    const paths = facts?.paths ? [...facts.paths] : extractPaths(detailText);
     const secretRelated = /\.env|id_rsa|credentials|secret|api[_-]?key|token/i.test(detailText);
+    const upload = lowered === 'browser:upload';
+    const screenshot = lowered === 'browser:screenshot';
     return {
       kind: 'file-write',
-      summary: action,
+      summary: outsideWorkspace
+        ? upload
+          ? 'Upload files from outside this workspace'
+          : screenshot
+            ? 'Save a screenshot outside this workspace'
+            : 'Write outside this workspace'
+        : action,
       secretRelated,
+      ...(outsideWorkspace ? { outsideWorkspace: true } : {}),
       ...(paths.length > 0 ? { paths } : {}),
-      reason: secretRelated
-        ? 'Write may touch secrets or credentials'
-        : 'File write requires review',
+      reason: outsideWorkspace
+        ? upload
+          ? 'These files include a path outside the session workspace and will be sent to the browser page.'
+          : 'This path is outside the session workspace. Allow this write only if the location is intended.'
+        : secretRelated
+          ? 'Write may touch secrets or credentials'
+          : 'File write requires review',
       ...(detailText ? { command: detailText } : {}),
+    };
+  }
+
+  if (lowered === 'process:start') {
+    return {
+      kind: 'command',
+      summary: outsideWorkspace ? 'Run a process outside this workspace' : 'Start a background process',
+      reason: outsideWorkspace
+        ? 'The process will run in a directory outside the session workspace.'
+        : 'Starting a background process requires review',
+      ...(outsideWorkspace ? { outsideWorkspace: true } : {}),
+      ...(facts?.cwd ? { cwd: facts.cwd } : {}),
+      ...(facts?.command ? { command: facts.command } : {}),
     };
   }
 

@@ -80,7 +80,7 @@ import { fallbackPetSnapshot } from '../pet-snapshot-fallback.js';
 import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
 import { createSecretResolver } from '../secret-resolver.js';
 import { findEnabledModel, findEnabledProvider } from '../provider-helpers.js';
-import { resolveWebRuntimeCredentials } from '../web-credentials.js';
+import { resolveWebRuntimeCredentials, withDraftSearchSource } from '../web-credentials.js';
 import { testSearchSource } from '@piwin/tools-web';
 import { probeWindsurfToken } from '../code-search/backends/windsurf-backend.js';
 import { buildSearchRoutePreview } from '../capabilities/search-route-preview.js';
@@ -890,8 +890,11 @@ export async function handleCatalogCommand(
         if (!config.web && !draft) {
           return fail(requestId, 'web/test-search-source', 'Web tools are not configured');
         }
+        // An unsaved draft (just switched on in Settings) is not in the stored
+        // list, so resolve its key alongside the saved sources — otherwise the
+        // test runs keyless and fails for a reason Save would have fixed.
         const credentials = await resolveWebRuntimeCredentials(
-          config.web ?? createDefaultWebConfig(),
+          withDraftSearchSource(config.web ?? createDefaultWebConfig(), draft),
           createSecretResolver(),
         );
         return ok(requestId, 'web/test-search-source', await testSearchSource(source, credentials));

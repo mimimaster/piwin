@@ -1,3 +1,5 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ResourceCatalogEntry, ToolPresentation } from '@piwin/contracts';
 import {
@@ -174,6 +176,55 @@ describe('buildDocumentTargetsForPath trusted-config dispatch', () => {
         displayRef: '~/.piwin/config.json',
       },
     ]);
+  });
+
+  it('emits trusted-config for a home-relative config path', () => {
+    expect(
+      buildDocumentTargetsForPath('~/.piwin/pi-agent/auth.json', { piwinRoot: '~/.piwin' }),
+    ).toEqual([
+      {
+        kind: 'trusted-config',
+        relativePath: 'pi-agent/auth.json',
+        displayRef: '~/.piwin/pi-agent/auth.json',
+      },
+    ]);
+    // An expanded root and a `~` path name the same store in either direction.
+    expect(
+      buildDocumentTargetsForPath(join(homedir(), '.piwin/pi-agent/auth.json'), {
+        piwinRoot: '~/.piwin',
+      }),
+    ).toMatchObject([{ kind: 'trusted-config', relativePath: 'pi-agent/auth.json' }]);
+    expect(
+      buildDocumentTargetsForPath('~/.piwin/pi-agent/auth.json', {
+        piwinRoot: join(homedir(), '.piwin'),
+      }),
+    ).toMatchObject([{ kind: 'trusted-config', relativePath: 'pi-agent/auth.json' }]);
+  });
+
+  it('never claims another config store for this Host root', () => {
+    const testRoot = join(homedir(), '.piwin-test');
+    expect(buildDocumentTargetsForPath('~/.piwin/pi-agent/auth.json', { piwinRoot: testRoot })).toEqual([]);
+    expect(
+      buildDocumentTargetsForPath('/Users/someone-else/.piwin/config.json', { piwinRoot: '~/.piwin' }),
+    ).toEqual([]);
+    expect(
+      buildDocumentTargetsForPath('~/.piwin-test/pi-agent/auth.json', { piwinRoot: testRoot }),
+    ).toEqual([
+      {
+        kind: 'trusted-config',
+        relativePath: 'pi-agent/auth.json',
+        displayRef: '~/.piwin-test/pi-agent/auth.json',
+      },
+    ]);
+  });
+
+  it('never maps a home path outside the config store to a project file', () => {
+    expect(
+      buildDocumentTargetsForPath('~/notes/plan.md', {
+        projectPath: '/workspace',
+        piwinRoot: '~/.piwin',
+      }),
+    ).toEqual([]);
   });
 
   it('does not emit trusted-config for media vault or project files', () => {

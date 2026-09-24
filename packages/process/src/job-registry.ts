@@ -32,6 +32,7 @@ import type {
   JobTerminalReason,
   ReadJobLogsInput,
   ReadJobLogsResult,
+  StartJobAdmission,
   StartJobInput,
   WaitForJobInput,
   JobListFilter,
@@ -430,7 +431,7 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
 
   // -- start ---------------------------------------------------------------
 
-  async function start(input: StartJobInput): Promise<JobRecord> {
+  async function start(input: StartJobInput, admission?: StartJobAdmission): Promise<JobRecord> {
     if (disposed) {
       throw new Error('JobRegistry is disposed');
     }
@@ -451,7 +452,10 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
       throw new Error(`maxJobs reached (${maxActiveJobs})`);
     }
 
-    const trustedRoots = await Promise.resolve(getTrustedProjectRoots());
+    const trustedRoots = [
+      ...(await Promise.resolve(getTrustedProjectRoots())),
+      ...(admission?.admittedCwdRoots ?? []),
+    ];
     const cwdResult = resolveTrustedCwd(input.cwd, trustedRoots);
     if (!cwdResult.ok) {
       throw new Error(cwdResult.reason);

@@ -455,7 +455,7 @@
       action === 'branch' ||
       title === '会话树' ||
       target.closest('.acts-f') ||
-      target.textContent.trim() === '走查报告'
+      target.textContent.trim() === '报告'
     )
       toast('本增量展示容器与导航；该功能详见同目录专项原型');
   });

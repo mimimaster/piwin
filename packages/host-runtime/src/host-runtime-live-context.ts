@@ -150,6 +150,11 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     setRunDelegationMode: (runId, mode) => {
       deps.runDelegationModes.set(runId, mode);
     },
+    setRunTurnPolicy: (runId, policy) => {
+      if (policy) deps.runTurnPolicies.set(runId, policy);
+      else deps.runTurnPolicies.delete(runId);
+    },
+    getRunTurnPolicy: (runId) => deps.runTurnPolicies.get(runId),
     prepareDelegationRuntime: (sessionId, mode) => deps.prepareDelegationRuntime(sessionId, mode),
     getRunOrchestrationScheme: (runId) => deps.runOrchestrationSchemes.get(runId),
     listKnownSubagentProfileIds: async () => {

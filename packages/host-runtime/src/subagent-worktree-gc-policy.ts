@@ -21,6 +21,8 @@ export type SubagentWorktreeGcFacts = {
   userRetained: boolean;
   unfrozenSnapshot: boolean;
   pauseCheckpoint: boolean;
+  /** The path is the shared writer slot, which outlives every task. */
+  writerSlot: boolean;
   ageMs: number;
 };
 
@@ -38,6 +40,11 @@ export function decideWorktreeGc(
   }
   if (facts.locked) {
     keepReasons.push('locked');
+  }
+  // The writer slot is not a leftover: it is the one checkout the whole
+  // project reuses, and it is idle by design between tasks.
+  if (facts.writerSlot) {
+    keepReasons.push('writer-slot');
   }
   if (facts.ageMs < minAgeForWorktreeGc(input.mode)) {
     keepReasons.push('too-recent');

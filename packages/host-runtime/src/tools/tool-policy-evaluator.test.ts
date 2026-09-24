@@ -65,4 +65,40 @@ describe('evaluateHostToolPolicy', () => {
     });
     expect(outcome.kind).toBe('invalid-input');
   });
+
+  it('checks every browser upload path before allowing the batch', () => {
+    const tool = registration('browser:upload', {
+      subjectBuilder: () => ({ kind: 'file-paths', paths: ['/repo/in.txt', '/other/out.txt'] }),
+    });
+    const outcome = evaluateHostToolPolicy({
+      registration: tool,
+      arguments: {},
+      context,
+      rules: createEmptyRuleSet(),
+      mode: 'bypass',
+      projectRoot: '/repo',
+    });
+    expect(outcome).toMatchObject({
+      kind: 'decision',
+      policy: { decision: 'ask', reason: 'path-escapes-project-root' },
+    });
+  });
+
+  it('canonicalizes every upload path before checking the boundary', () => {
+    const outcome = evaluateHostToolPolicy({
+      registration: registration('browser:upload', {
+        subjectBuilder: () => ({ kind: 'file-paths', paths: ['/repo/in.txt', '/repo/link/out.txt'] }),
+      }),
+      arguments: {},
+      context,
+      rules: createEmptyRuleSet(),
+      mode: 'bypass',
+      projectRoot: '/repo',
+      canonicalizePath: (path) => path === '/repo/link/out.txt' ? '/other/out.txt' : path,
+    });
+    expect(outcome).toMatchObject({
+      kind: 'decision',
+      policy: { decision: 'ask', subject: { paths: ['/repo/in.txt', '/other/out.txt'] } },
+    });
+  });
 });

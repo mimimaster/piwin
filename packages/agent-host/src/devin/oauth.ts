@@ -153,6 +153,21 @@ async function waitForDevinCallback(
   }
 }
 
+/**
+ * Devin CLI tokens have no refresh grant: the token is the session. Handing an
+ * expired token back unchanged would make every request fail with a bare 401,
+ * so an expired session asks for a new login instead.
+ */
+export async function refreshDevinCredentials(
+  credentials: OAuthCredentials,
+  now: () => number = Date.now,
+): Promise<OAuthCredentials> {
+  if (typeof credentials.expires === 'number' && credentials.expires <= now()) {
+    throw new Error('Devin session expired; log in to Devin again in Settings → OAuth');
+  }
+  return credentials;
+}
+
 function tokenExpiry(token: string): number {
   try {
     const payload = token.split('.')[1];

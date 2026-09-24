@@ -109,6 +109,83 @@ describe('HostRuntime pause/resume', () => {
     },
   );
 
+  it('resumes a paused Fusion turn with the same scheme', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-pause-resume-scheme-'));
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (push) => pushes.push(push),
+    });
+    const orchestrationLabels = async (sessionId: string, runId: string): Promise<string[]> => {
+      const response = await runtime.handleCommand({
+        type: 'session/model-context-summary',
+        sessionId,
+      });
+      if (!response.success) throw new Error(response.error);
+      const summaries = (
+        response.data as {
+          summaries: Array<{ runId: string; contributions: Array<{ kind: string; label: string }> }>;
+        }
+      ).summaries;
+      return summaries
+        .filter((summary) => summary.runId === runId)
+        .flatMap((summary) => summary.contributions)
+        .filter((contribution) => contribution.kind === 'orchestration')
+        .map((contribution) => contribution.label);
+    };
+
+    try {
+      const created = await runtime.handleCommand({
+        type: 'session/create',
+        input: { projectPath: '/tmp/pause-resume-scheme' },
+      });
+      if (!created.success) throw new Error(created.error);
+      const sessionId = (created.data as { sessionId: string }).sessionId;
+
+      const prompt = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: {
+          text: 'Please produce a fairly long reply so I can pause mid way.',
+          orchestrationSchemeId: 'fusion',
+        },
+      });
+      if (!prompt.success) throw new Error(prompt.error);
+      const runId = (prompt.data as { runId: string }).runId;
+      await waitFor(() => runRegistry(runtime).getForegroundRun(sessionId));
+
+      await runtime.handleCommand({ type: 'session/pause', sessionId, runId });
+      await waitFor(() =>
+        pushes.find((push) => push.type === 'run/terminal' && push.run.runId === runId),
+      );
+
+      const view = await runtime.handleCommand({ type: 'session/resume', sessionId });
+      if (!view.success) throw new Error(view.error);
+      const checkpoint = (
+        view.data as { pauseCheckpoint: { checkpointId: string; turnPolicy?: unknown } }
+      ).pauseCheckpoint;
+      expect(checkpoint.turnPolicy).toMatchObject({ orchestrationSchemeId: 'fusion' });
+
+      const resume = await runtime.handleCommand({
+        type: 'session/resume-run',
+        sessionId,
+        checkpointId: checkpoint.checkpointId,
+      });
+      if (!resume.success) throw new Error(resume.error);
+      const resumedRunId = (resume.data as { runId: string }).runId;
+      await waitFor(() =>
+        pushes.find((push) => push.type === 'run/terminal' && push.run.runId === resumedRunId),
+      );
+      // Regression: the resume used to run freehand, so Fusion sidekicks lost
+      // their pinned model and Lead-review authority.
+      expect(await orchestrationLabels(sessionId, resumedRunId)).toEqual(['Fusion']);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it.each([
     { mode: 'sdk', text: '先别继续旧任务，解释刚才的错误' },
     { mode: 'rpc', text: '先别继续旧任务，解释刚才的错误' },

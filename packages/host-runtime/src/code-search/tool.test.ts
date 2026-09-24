@@ -115,7 +115,23 @@ describe('buildCodeSearchTool gating', () => {
   });
 
   it('registers windsurf with an empty config by reusing the Devin oauth account', () => {
-    expect(buildTool({ injectPort: false, config: { enabled: true, backend: 'windsurf' } })).toBeDefined();
+    expect(
+      buildTool({
+        injectPort: false,
+        config: { enabled: true, backend: 'windsurf' },
+        hasOauthCredential: (providerId) => providerId === 'devin',
+      }),
+    ).toBeDefined();
+  });
+
+  it('is absent when the Devin account it would reuse is logged out', () => {
+    expect(
+      buildTool({
+        injectPort: false,
+        config: { enabled: true, backend: 'windsurf', apiKeyRef: 'oauth:devin' },
+        hasOauthCredential: () => false,
+      }),
+    ).toBeUndefined();
   });
 
   it('is absent when the selected model is not configured', () => {
@@ -128,8 +144,18 @@ describe('resolveCodeSearchBackend', () => {
     const readiness = resolveCodeSearchBackend({
       cwd: root,
       config: { enabled: true, backend: 'windsurf' },
+      hasOauthCredential: () => true,
     });
     expect(readiness.ready).toBe(true);
+  });
+
+  it('explains instead of offering the tool when the Devin account is logged out', () => {
+    const readiness = resolveCodeSearchBackend({
+      cwd: root,
+      config: { enabled: true, backend: 'windsurf' },
+      hasOauthCredential: () => false,
+    });
+    expect(readiness).toMatchObject({ ready: false, reason: expect.stringContaining('not logged in') });
   });
 
   it('keeps an explicit windsurf apiKeyEnv instead of filling oauth:devin', async () => {
@@ -199,6 +225,7 @@ describe('resolveCodeSearchBackend', () => {
         backend: 'windsurf',
         model: { providerId: 'custom-openai', modelId: 'gpt-5-mini' },
       },
+      hasOauthCredential: () => true,
     });
     // Empty credentials auto-fill oauth:devin; they do not switch backend to model.
     expect(readiness.ready).toBe(true);

@@ -288,7 +288,7 @@ export function WalkthroughPage(): ReactElement {
   const copyReport = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(
-        'Inkstone 走查报告（原型示例）\n主题色、会话节点、砚台输入区与权限印章已统一。',
+        'Inkstone 报告（原型示例）\n主题色、会话节点、砚台输入区与权限印章已统一。',
       );
       dispatch({ type: 'toast', message: '示例内容已复制' });
     } catch {
@@ -298,10 +298,10 @@ export function WalkthroughPage(): ReactElement {
   return (
     <>
       <TopBar
-        title="走查报告"
+        title="报告"
         subtitle="Inkstone · 桌面主题"
         onBack={go('desk')}
-        right={<IconButton name="copy" label="复制走查报告" onClick={() => void copyReport()} />}
+        right={<IconButton name="copy" label="复制报告" onClick={() => void copyReport()} />}
       />
       <div className="screen-scroll">
         <div className="section-label">
@@ -552,14 +552,14 @@ function ConnectedWalkthroughPage({
 
   return (
     <>
-      <TopBar title="走查报告" subtitle="Host · 当前会话" onBack={() => dispatch({ type: 'navigate', route: 'desk' })} />
+      <TopBar title="报告" subtitle="Host · 当前会话" onBack={() => dispatch({ type: 'navigate', route: 'desk' })} />
       <div className="screen-scroll">
         <ScreenHeading title="把交付讲清楚。" subtitle="走查内容由 Host 生成并保存。" />
         {client === undefined ? <p className="muted">正在连接 Host，暂时没有走查记录。</p> : null}
         {sessionId === undefined ? <p className="muted">先选择一个 Host 会话。</p> : null}
         {loading ? <p className="muted">正在读取 Host 走查记录…</p> : null}
         {error !== undefined ? <p className="error-text">{error}</p> : null}
-        {!loading && artifacts.length === 0 && error === undefined ? <p className="muted">当前会话还没有走查报告。</p> : null}
+        {!loading && artifacts.length === 0 && error === undefined ? <p className="muted">当前会话还没有报告。</p> : null}
         {artifacts.map((artifact) => (
           <article className="note-paper" key={artifact.id}>
             <div className="spread">

@@ -53,6 +53,21 @@ and diverge CLI/Desktop handling (AGENTS.md §5: no parallel logic).
 - Permission approval flow is unchanged and is not conflated with
   questionnaire answers (questionnaire is model↔user input, not a trust gate).
 
+## Wiring invariant (2026-09-24)
+
+The ADR 0030 backend refactor (6234b848) dropped the old
+`onExtensionUiRequest` adapter option, and nothing passed the replacement
+`CreateBackendSessionInput.extensionUi` port, so Pi bound no UI context and
+`questionnaire` always returned `Questionnaire UI is unavailable`. The bridge
+now lives at one seam:
+
+- `ProductAgentHost` receives `requestExtensionUi` from `host-runtime-init`
+  and hands every backend session a session-scoped `ExtensionUiPort`
+  (SDK binds it in-process; RPC workers proxy it back to the parent).
+- `piwin chat` (local and attached Host) answers `extension/ui_request`
+  pushes with the TTY handler and resolves them via `extension/ui_resolve`;
+  non-TTY still cancels instead of blocking.
+
 ## Alternatives considered
 
 | Option | Why rejected |

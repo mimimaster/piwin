@@ -44,6 +44,12 @@ export type WorktreeIntegrationInput = {
   readonly baseCommit: string;
   readonly parentRepoPath: string;
   /**
+   * Frozen child result tree. When set the patch is read from Git objects
+   * instead of the live copy, so the integration applies exactly what was
+   * frozen for review and works even after the copy is gone or reused.
+   */
+  readonly childTree?: string;
+  /**
    * Relative paths the integration may apply. `undefined` means unrestricted;
    * an explicit empty list denies every changed file.
    */
@@ -82,8 +88,30 @@ export function createGitWorktreeIntegrationAdapter(
   integrateWorktreeChanges: (
     input: GitWorktreeIntegrationInput,
   ) => Promise<GitWorktreeIntegrationResult>,
+  /**
+   * Reader for a frozen result tree.
+   *
+   * Required, not optional: every freeze produces a Git snapshot, so every
+   * composition that can freeze must be able to integrate one. Leaving it
+   * optional let a caller keep compiling while refusing the frozen version.
+   */
+  integrateSnapshotChanges: (input: {
+    projectPath: string;
+    baseCommit: string;
+    childTree: string;
+    allowedOutputPaths?: string[];
+  }) => Promise<GitWorktreeIntegrationResult>,
 ): WorktreeIntegrationFunction {
   return async (input) => {
+    if (input.childTree !== undefined) {
+      const snapshotResult = await integrateSnapshotChanges({
+        projectPath: input.parentRepoPath,
+        baseCommit: input.baseCommit,
+        childTree: input.childTree,
+        ...(input.allowedOutputPaths ? { allowedOutputPaths: [...input.allowedOutputPaths] } : {}),
+      });
+      return toCoordinatorResult(snapshotResult, input.allowedOutputPaths);
+    }
     const gitResult = await integrateWorktreeChanges({
       projectPath: input.parentRepoPath,
       worktreePath: input.worktreePath,
@@ -94,30 +122,33 @@ export function createGitWorktreeIntegrationAdapter(
         : {}),
     });
 
-    if (gitResult.status === 'applied') {
-      return {
-        success: true,
-        changedFiles: [...gitResult.integratedFiles],
-        allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
-      };
-    }
+    return toCoordinatorResult(gitResult, input.allowedOutputPaths);
+  };
+}
 
-    if (gitResult.status === 'conflict') {
-      return {
-        success: false,
-        conflict: true,
-        conflictFiles: gitResult.conflictedFiles,
-        ...(gitResult.error ? { error: gitResult.error } : {}),
-        allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
-      };
-    }
-
+/** Translate a Git integration result into the coordinator's vocabulary. */
+function toCoordinatorResult(
+  gitResult: GitWorktreeIntegrationResult,
+  allowedOutputPaths: readonly string[] | undefined,
+): WorktreeIntegrationResult {
+  const allowed = allowedOutputPaths ? [...allowedOutputPaths] : [];
+  if (gitResult.status === 'applied') {
+    return { success: true, changedFiles: [...gitResult.integratedFiles], allowedOutputPaths: allowed };
+  }
+  if (gitResult.status === 'conflict') {
     return {
       success: false,
-      conflict: false,
-      error: gitResult.error ?? `integration rejected files: ${gitResult.rejectedFiles.join(', ')}`,
-      allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
+      conflict: true,
+      conflictFiles: gitResult.conflictedFiles,
+      ...(gitResult.error ? { error: gitResult.error } : {}),
+      allowedOutputPaths: allowed,
     };
+  }
+  return {
+    success: false,
+    conflict: false,
+    error: gitResult.error ?? `integration rejected files: ${gitResult.rejectedFiles.join(', ')}`,
+    allowedOutputPaths: allowed,
   };
 }
 
@@ -145,6 +176,12 @@ export type SubagentIntegrationControl = {
   readonly onCommitPoint?: () => void;
   /** Keep the child copy after a successful apply. Does not skip integrate. */
   readonly retainWorktree?: boolean;
+  /**
+   * The caller still holds the lease the child ran in (auto-apply straight
+   * after the task), so its live copy is the child's own. A later apply of a
+   * shared-slot result must not read the slot: another task may have reset it.
+   */
+  readonly liveCopyOwned?: boolean;
 };
 
 export class IntegrationQueueCancelledError extends Error {
@@ -353,6 +390,19 @@ export function createSubagentIntegrationCoordinator(
 
     const worktreePath = lease.worktreePath;
     const worktreeBranch = lease.worktreeBranch;
+    if (
+      lease.slotId !== undefined &&
+      result.gitSnapshot === undefined &&
+      control.liveCopyOwned !== true
+    ) {
+      return {
+        ...result,
+        integrationStatus: 'failed',
+        error:
+          'result snapshot is unavailable and the shared writer slot has been reused; re-run the task to apply it',
+        worktreePath,
+      };
+    }
     const baseCommit = lease.baseCommit;
     const parentRepoPath = lease.parentRepoPath;
     // `undefined` stays unrestricted; an explicit empty list is deny-all.
@@ -411,11 +461,16 @@ export function createSubagentIntegrationCoordinator(
       // cannot interrupt or relabel a Git operation after it starts.
       writeStarted = true;
       control.onCommitPoint?.();
+      // Prefer the frozen tree: it is the exact version the reviewer approved,
+      // and it is the only source that still exists once a shared slot has been
+      // reset for the next task.
+      const childTree = result.gitSnapshot?.tree;
       const integrationResult = await integrateWorktree({
         worktreePath,
         worktreeBranch,
         baseCommit,
         parentRepoPath,
+        ...(childTree !== undefined ? { childTree } : {}),
         ...(allowedOutputPaths !== undefined ? { allowedOutputPaths } : {}),
       });
 
@@ -444,6 +499,7 @@ export function createSubagentIntegrationCoordinator(
           changedFiles: integrationResult.changedFiles,
           worktreePath,
           ...(control.retainWorktree === true ? { retainWorktree: true } : {}),
+          ...(lease.slotId !== undefined ? { sharedSlot: true } : {}),
           removeWorktree: () => removeWorktree(worktreePath, parentRepoPath, worktreeBranch),
           keepWorktree: (reason) => retain(worktreePath, reason),
         });

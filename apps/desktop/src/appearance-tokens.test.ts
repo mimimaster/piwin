@@ -9,7 +9,6 @@ import {
   BUILTIN_APPEARANCES,
   PIWIN_APPEARANCE_BONE,
   PIWIN_APPEARANCE_DARK,
-  PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_INKSTONE_INK,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
   PIWIN_INKSTONE_THEME_ID,
@@ -189,19 +188,6 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--wb-term-bg',
 ] as const;
 
-const INK_WASH_ASSET_VARIABLES = [
-  '--ink-wash-hero',
-  '--ink-wash-conversation-texture',
-  '--ink-wash-sidebar-bg',
-  '--ink-wash-right-panel-bg',
-  '--ink-wash-agent-seal',
-  '--ink-wash-dry-brush-divider',
-  '--ink-wash-empty-session',
-  '--ink-wash-empty-files',
-  '--ink-wash-empty-failure',
-  '--ink-wash-empty-complete',
-];
-
 /**
  * Aliases deleted in earlier passes; re-introducing them must fail the suite.
  * Stored without the `--` prefix so the repo-wide grep gate for the removed
@@ -259,30 +245,6 @@ describe('applyAppearanceToDocument', () => {
     ]);
     for (const name of DOCUMENTED_APPEARANCE_VARIABLES) {
       expect(read(name), `bone ${name}`).not.toBe('');
-    }
-  });
-
-  it('emits the same set for a twelve-token theme package, plus its assets', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_INK_WASH);
-
-    const emitted = emittedVariableNames(document.documentElement.style);
-    expect(emitted.filter((name) => !INK_WASH_ASSET_VARIABLES.includes(name))).toEqual([
-      ...DOCUMENTED_APPEARANCE_VARIABLES,
-    ]);
-    for (const name of INK_WASH_ASSET_VARIABLES) {
-      expect(read(name), `ink-wash ${name}`).not.toBe('');
-    }
-    expect(document.documentElement.dataset.themeId).toBe('piwin-ink-wash');
-    expect(document.documentElement.dataset.themeVisualStyle).toBe('ink-wash');
-  });
-
-  it('clears theme-package image variables when switching to a built-in', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_INK_WASH);
-    expect(read('--ink-wash-hero')).not.toBe('');
-
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
-    for (const name of INK_WASH_ASSET_VARIABLES) {
-      expect(read(name), name).toBe('');
     }
   });
 
@@ -526,7 +488,6 @@ describe('theme identity and migration', () => {
   it('keeps builtin ids stable for stored settings', () => {
     expect(PIWIN_APPEARANCE_OBSIDIAN.id).toBe('piwin-obsidian');
     expect(PIWIN_APPEARANCE_BONE.id).toBe('piwin-bone');
-    expect(PIWIN_APPEARANCE_INK_WASH.id).toBe('piwin-ink-wash');
     expect(PIWIN_APPEARANCE_OBSIDIAN.name).toBe('Obsidian');
     expect(PIWIN_APPEARANCE_BONE.name).toBe('Bone');
   });
@@ -542,14 +503,13 @@ describe('theme identity and migration', () => {
     expect(migrateThemeId('piwin-light')).toBe('piwin-inkstone-paper');
     expect(migrateThemeId('piwin-bone')).toBe('piwin-inkstone-paper');
     expect(migrateThemeId('piwin-orange-white')).toBe('piwin-inkstone-paper');
-    expect(migrateThemeId('piwin-ink-wash')).toBe('piwin-ink-wash');
+    expect(migrateThemeId('piwin-ink-wash')).toBe('piwin-inkstone-ink');
     expect(migrateThemeId('some-installed-theme')).toBe('some-installed-theme');
   });
 
   it('sends Host catalog ids so Deck faces do not ENOENT missing theme folders', () => {
     expect(toHostCatalogThemeId('piwin-obsidian')).toBe('piwin-dark');
     expect(toHostCatalogThemeId('piwin-bone')).toBe('piwin-light');
-    expect(toHostCatalogThemeId('piwin-ink-wash')).toBe('piwin-ink-wash');
     expect(toHostCatalogThemeId('piwin-dark')).toBe('piwin-dark');
   });
 
@@ -578,17 +538,17 @@ describe('theme identity and migration', () => {
     expect(isAppearanceFaceId('piwin-inkstone-ink')).toBe(true);
     expect(isAppearanceFaceId(PIWIN_INKSTONE_THEME_ID)).toBe(true);
     expect(isAppearanceFaceId('piwin-dark-appearance')).toBe(true);
-    expect(isAppearanceFaceId('piwin-ink-wash')).toBe(false);
+    expect(isAppearanceFaceId('piwin-ink-wash')).toBe(true);
     expect(isAppearanceFaceId('community-nord')).toBe(false);
     expect(isInkstoneThemeId('piwin-dark-appearance')).toBe(true);
-    expect(isInkstoneThemeId('piwin-ink-wash')).toBe(false);
+    expect(isInkstoneThemeId('piwin-ink-wash')).toBe(true);
   });
 
   it('prefers the desktop manifest for built-ins and passes installed themes through', () => {
     const stale: ThemeManifest = { ...PIWIN_APPEARANCE_OBSIDIAN, version: '0.0.1' };
     expect(resolveDesktopAppearance(stale)).toBe(PIWIN_APPEARANCE_INKSTONE_INK);
 
-    const installed: ThemeManifest = { ...PIWIN_APPEARANCE_INK_WASH, id: 'installed-theme' };
+    const installed: ThemeManifest = { ...PIWIN_APPEARANCE_OBSIDIAN, id: 'installed-theme' };
     expect(resolveDesktopAppearance(installed)).toBe(installed);
   });
 });

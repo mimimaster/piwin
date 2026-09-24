@@ -14,6 +14,7 @@ import type {
   RunInterventionStatus,
   RunInterventionTerminalReason,
   SessionPauseCheckpoint,
+  SessionPauseTurnPolicy,
   SessionToolCardView,
   SessionTranscriptMessage,
   UserInstructionPayload,
@@ -50,6 +51,7 @@ export type PauseCheckpointRow = {
   status: string;
   consumed_at: string | null;
   interrupted_subagent_run_ids_json?: string | null;
+  turn_policy_json?: string | null;
 };
 
 export type RunInterventionRow = {
@@ -263,7 +265,34 @@ export type QueuedTurnRow = {
     if (interruptedSubagentRunIds.length > 0) {
       checkpoint.interruptedSubagentRunIds = interruptedSubagentRunIds;
     }
+    const turnPolicy = parseTurnPolicy(row.turn_policy_json);
+    if (turnPolicy !== undefined) {
+      checkpoint.turnPolicy = turnPolicy;
+    }
     return checkpoint;
+  }
+
+  /** Unreadable policy JSON degrades to "no policy", never to a wider one. */
+  function parseTurnPolicy(
+    json: string | null | undefined,
+  ): SessionPauseTurnPolicy | undefined {
+    if (!json) return undefined;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      return undefined;
+    }
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+    const record = parsed as Record<string, unknown>;
+    const policy: SessionPauseTurnPolicy = {};
+    if (typeof record.orchestrationSchemeId === 'string' && record.orchestrationSchemeId.length > 0) {
+      policy.orchestrationSchemeId = record.orchestrationSchemeId;
+    }
+    if (record.delegationMode === 'auto' || record.delegationMode === 'disabled') {
+      policy.delegationMode = record.delegationMode;
+    }
+    return Object.keys(policy).length > 0 ? policy : undefined;
   }
 
   function parseRunIdList(json: string | null | undefined): string[] {

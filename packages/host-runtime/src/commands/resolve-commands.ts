@@ -53,7 +53,12 @@ export async function handleResolveCommand(
       }
       // ADR 0024 §4: session-scoped allow (in-memory, no persistence).
       if (command.decision === 'allow' && command.rememberScope === 'session') {
-        context.rememberSessionPermission(pending.sessionId, pending.action, pending.detail);
+        context.rememberSessionPermission(
+          pending.sessionId,
+          pending.action,
+          pending.detail,
+          pending.sessionGrant,
+        );
       }
       pending.resolve(command.decision);
       context.pendingPermissions.delete(command.requestId);
@@ -77,6 +82,7 @@ export async function handleResolveCommand(
         action: string;
         detail: string;
         defaultDecision: PermissionDecision;
+        context?: import('@piwin/contracts').PermissionRequestContext;
         runId?: string;
       }> = [];
       for (const [pendingRequestId, pending] of context.pendingPermissions.entries()) {
@@ -89,6 +95,7 @@ export async function handleResolveCommand(
           action: pending.action,
           detail: pending.detail,
           defaultDecision: pending.defaultDecision ?? 'ask',
+          ...(pending.context ? { context: pending.context } : {}),
           ...(pending.runId ? { runId: pending.runId } : {}),
         });
       }

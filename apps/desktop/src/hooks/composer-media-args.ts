@@ -75,6 +75,8 @@ export type UseComposerMediaArgs = {
   orchestrationSchemeId?: string;
   /** ORCH: slash /scheme sets the composer scheme without sending. */
   onOrchestrationSchemeChange?: (schemeId: string) => void;
+  /** First-send created this Host session; bind conversation-scoped composer controls to it. */
+  onComposerSessionBound?: (sessionId: string) => void;
   /**
    * Leave the current conversation (switch session / New Agent).
    * First-send session creation is not a leave — keep Goal and the scheme.

@@ -215,7 +215,7 @@ describe('WalkthroughCard', () => {
     expect(container.querySelector('[data-testid="walkthrough-status-a1"]')?.textContent).toBe(
       '就绪',
     );
-    expect(container.querySelector('.walkthrough-card-title')?.textContent).toBe('走查报告');
+    expect(container.querySelector('.walkthrough-card-title')?.textContent).toBe('报告');
     const docBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="walkthrough-doc-btn-a1"]',
     );
@@ -236,7 +236,7 @@ describe('WalkthroughCard', () => {
       '生成中',
     );
     expect(container.querySelector('[data-testid="walkthrough-loading-a1"]')?.textContent).toBe(
-      '正在生成走查报告…',
+      '正在生成报告…',
     );
   });
 });

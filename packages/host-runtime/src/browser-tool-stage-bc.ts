@@ -316,9 +316,8 @@ export function createBrowserStageBcToolDefinitions(
       rememberable: false,
       subjectBuilder: (args) => {
         const files = resolveUploadPaths(args, projectRoot, normalizePath);
-        const first = files[0];
-        return first !== undefined
-          ? { kind: 'file-write', path: first }
+        return files.length > 0
+          ? { kind: 'file-paths', paths: files }
           : { kind: 'tool', action: 'browser:upload' };
       },
     },

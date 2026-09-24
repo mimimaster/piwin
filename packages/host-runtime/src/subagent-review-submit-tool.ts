@@ -6,6 +6,7 @@ import type {
   SubagentReviewDecision,
   SubagentReviewFinding,
   SubagentReviewRecord,
+  SubagentResultRef,
   ToolResult,
 } from '@piwin/contracts';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
@@ -15,7 +16,7 @@ import type { SubagentReviewService } from './subagent-review-service.js';
 
 export const SUBAGENT_REVIEW_SUBMIT_TOOL_NAME = 'piwin_subagent_review_submit';
 
-const DECISIONS = new Set<SubagentReviewDecision>(['approved', 'changes-requested', 'blocked']);
+const SUBAGENT_REVIEW_DECISIONS = new Set<SubagentReviewDecision>(['approved', 'changes-requested', 'blocked']);
 const SEVERITIES = new Set(['critical', 'high', 'medium', 'low']);
 const VERIFICATION_STATUSES = new Set(['passed', 'failed', 'not-run']);
 
@@ -84,7 +85,7 @@ function reviewError(
   return { ok: false, code, message };
 }
 
-function parseFindings(value: unknown): { ok: true; value: SubagentReviewFinding[] } | Extract<ToolResult, { ok: false }> {
+function parseReviewFindings(value: unknown): { ok: true; value: SubagentReviewFinding[] } | Extract<ToolResult, { ok: false }> {
   if (!Array.isArray(value)) {
     return reviewError('invalid-input', 'findings must be an array');
   }
@@ -123,7 +124,7 @@ function parseFindings(value: unknown): { ok: true; value: SubagentReviewFinding
   return { ok: true, value: findings };
 }
 
-function parseVerification(
+function parseReviewVerification(
   value: unknown,
 ): { ok: true; value: SubagentReviewRecord['verification'] } | Extract<ToolResult, { ok: false }> {
   if (!Array.isArray(value)) {
@@ -150,6 +151,38 @@ function parseVerification(
   return { ok: true, value: entries };
 }
 
+export type ParsedReviewSubmitArgs = {
+  target: SubagentResultRef;
+  decision: SubagentReviewDecision;
+  findings: SubagentReviewFinding[];
+  verification: SubagentReviewRecord['verification'];
+};
+
+/** Shared by the reviewer-child and Lead variants of the submit tool. */
+export function parseReviewSubmitArgs(
+  args: Record<string, unknown>,
+): { ok: true; value: ParsedReviewSubmitArgs } | Extract<ToolResult, { ok: false }> {
+  const parsedTarget = parseSubagentResultRef(args.target, 'target');
+  if (!parsedTarget.ok) return parsedTarget;
+  const decisionRaw = String(args.decision ?? '').trim();
+  if (!SUBAGENT_REVIEW_DECISIONS.has(decisionRaw as SubagentReviewDecision)) {
+    return reviewError('invalid-input', 'decision must be approved, changes-requested, or blocked');
+  }
+  const findings = parseReviewFindings(args.findings);
+  if (!findings.ok) return findings;
+  const verification = parseReviewVerification(args.verification);
+  if (!verification.ok) return verification;
+  return {
+    ok: true,
+    value: {
+      target: parsedTarget.value,
+      decision: decisionRaw as SubagentReviewDecision,
+      findings: findings.value,
+      verification: verification.value,
+    },
+  };
+}
+
 export function createSubagentReviewSubmitTool(
   options: SubagentReviewSubmitToolOptions,
 ): HostToolRegistration {
@@ -170,25 +203,14 @@ export function createSubagentReviewSubmitTool(
     },
     prepareArgs: passThroughPrepareArgs,
     async execute(args) {
-      const parsedTarget = parseSubagentResultRef(args.target, 'target');
-      if (!parsedTarget.ok) return parsedTarget;
-      const decisionRaw = String(args.decision ?? '').trim();
-      if (!DECISIONS.has(decisionRaw as SubagentReviewDecision)) {
-        return reviewError('invalid-input', 'decision must be approved, changes-requested, or blocked');
-      }
-      const findings = parseFindings(args.findings);
-      if (!findings.ok) return findings;
-      const verification = parseVerification(args.verification);
-      if (!verification.ok) return verification;
+      const parsed = parseReviewSubmitArgs(args);
+      if (!parsed.ok) return parsed;
 
       const submitted = await options.service.submit({
         reviewerSessionId: options.reviewerSessionId,
         ...(options.invocationId ? { invocationId: options.invocationId } : {}),
         scope: options.scope,
-        target: parsedTarget.value,
-        decision: decisionRaw as SubagentReviewDecision,
-        findings: findings.value,
-        verification: verification.value,
+        ...parsed.value,
       });
       if (!submitted.ok) return submitted;
       const { record } = submitted;

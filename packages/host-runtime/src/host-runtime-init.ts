@@ -13,6 +13,7 @@ import {
   normalizeSessionRuntimeRetentionConfig,
   DEFAULT_MAX_CONCURRENT_RUNS,
   createDefaultSubagentConfig,
+  type ExtensionUiRequest,
 } from '@piwin/contracts';
 import { createExtensionRevisionStore } from '@piwin/extensions';
 import { createMcpLifecycleManager } from '@piwin/mcp';
@@ -20,6 +21,7 @@ import { createFileRecordStore, createJobRegistry, type JobRegistryEvent } from 
 import { listProjects } from '@piwin/project';
 
 import { getSessionRecord } from '@piwin/session';
+import { ensureLoginShellPath } from './login-shell-path.js';
 import { createSessionTranscriptStoreRegistry } from './session-transcript-store-registry.js';
 import { ProductAgentHost } from './product-agent-host.js';
 import { loadPiwinConfig } from './config-store.js';
@@ -95,6 +97,27 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
   try {
     deps.options = options;
     applyPiwinPlaywrightBrowsersPath(getPiwinRoot(options.piwinRoot));
+    // A packaged Host is launched by the OS, not by a login shell, so the
+    // user's version-managed node/pnpm are not on PATH and every `spawn pnpm`
+    // fails. Warm the merge before anything can spawn a child; the lookup is
+    // memoized and never throws, so it cannot delay or fail startup.
+    void ensureLoginShellPath().then((resolved) => {
+      if (resolved.source === 'login-shell') {
+        deps.push({
+          type: 'host/log',
+          level: 'info',
+          message: `toolchain PATH extended from the login shell (+${String(resolved.addedEntryCount)} entries)`,
+        });
+        return;
+      }
+      if (resolved.source === 'unavailable') {
+        deps.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `login shell PATH unavailable: ${resolved.reason ?? 'unknown reason'}`,
+        });
+      }
+    });
     if (process.env.NODE_ENV !== 'test' || typeof options.piwinRoot === 'string') {
       loadModelCatalogFromDisk(getPiwinRoot(options.piwinRoot));
     }
@@ -485,6 +508,10 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         }
       },
       getCurrentRunId: () => deps.runExecutionContext.getStore(),
+      // Stop settles these waits per session (settlePendingExtensionUiForSession),
+      // so the backend's own AbortSignal is not needed here.
+      requestExtensionUi: (input: ExtensionUiRequest & { sessionId: string }) =>
+        deps.requestExtensionUi(input),
       ...(options.testFixture !== undefined ? { testFixture: options.testFixture } : {}),
       getSubscriptionCompileContext: async () => {
         const accounts = (await deps.subscriptionAuth?.chatResolveInput()) ?? { accounts: [] };

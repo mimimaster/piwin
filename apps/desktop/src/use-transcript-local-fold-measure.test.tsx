@@ -38,11 +38,12 @@ function Fold(): ReactElement {
   );
 }
 
-function mount(): { grew: () => number; button: HTMLButtonElement } {
+function mount(): { grew: () => number; detached: () => number; button: HTMLButtonElement } {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
   let grewCount = 0;
+  let detachCount = 0;
   const scrollElementRef: RefObject<HTMLDivElement | null> = { current: null };
   act(() => {
     root?.render(
@@ -53,6 +54,9 @@ function mount(): { grew: () => number; button: HTMLButtonElement } {
           grewCount += 1;
         }}
         beginLocalFoldLayout={() => undefined}
+        detachFromTail={() => {
+          detachCount += 1;
+        }}
       >
         <Fold />
       </TranscriptScrollProvider>,
@@ -60,7 +64,7 @@ function mount(): { grew: () => number; button: HTMLButtonElement } {
   });
   const button = container.querySelector('button');
   if (!button) throw new Error('fold button missing');
-  return { grew: () => grewCount, button };
+  return { grew: () => grewCount, detached: () => detachCount, button };
 }
 
 describe('useTranscriptLocalFoldMeasure', () => {
@@ -69,6 +73,14 @@ describe('useTranscriptLocalFoldMeasure', () => {
     act(() => button.click());
     act(() => button.click());
     expect(grew()).toBe(0);
+  });
+
+  it('leaves follow-tail when the user opens a fold, not when they close it', () => {
+    const { detached, button } = mount();
+    act(() => button.click());
+    expect(detached()).toBe(1);
+    act(() => button.click());
+    expect(detached()).toBe(1);
   });
 
   it('follows the tail when a fold opens on its own', () => {

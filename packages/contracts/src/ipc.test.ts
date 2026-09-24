@@ -218,6 +218,17 @@ describe('ipc types', () => {
     }
   });
 
+  it('accepts preview/resolve-path command shape', () => {
+    const command: HostCommand = {
+      type: 'preview/resolve-path',
+      input: { rawPath: '~/.piwin/pi-agent/auth.json', projectPath: '/workspace' },
+    };
+    expect(command.type).toBe('preview/resolve-path');
+    if (command.type === 'preview/resolve-path') {
+      expect(command.input.rawPath).toBe('~/.piwin/pi-agent/auth.json');
+    }
+  });
+
   it('accepts preview/read-local-file command shape', () => {
     const command: HostCommand = {
       type: 'preview/read-local-file',

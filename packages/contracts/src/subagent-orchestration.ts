@@ -53,11 +53,13 @@ import type {
 } from './subagent-lifecycle.js';
 import type {
   ChangeVersionRef,
+  SubagentCopyState,
   SubagentDeliveryIntent,
   SubagentResultRef,
 } from './subagent-delivery.js';
 import type {
   SubagentDeliveryVerification,
+  SubagentReviewAuthority,
   SubagentReviewRecord,
   SubagentReviewRef,
   SubagentReviewTarget,
@@ -90,11 +92,18 @@ export type SubagentReadonlyWorkspaceLease = {
  * checkout's code instead of their own.
  */
 export type SubagentWorktreeDependencySetup = {
-  readonly status: 'installed' | 'skipped' | 'failed';
+  /** `reused` means the slot already held a matching dependency fingerprint. */
+  readonly status: 'installed' | 'reused' | 'skipped' | 'failed';
   readonly manager?: 'pnpm' | 'npm' | 'yarn' | 'bun';
   /** Skip reason or bounded failure detail. */
   readonly reason?: string;
   readonly durationMs?: number;
+  /**
+   * Hash of the dependency inputs (lockfile, workspace manifest, registry
+   * config, patches, declared package manager). A workspace whose fingerprint
+   * still matches keeps its installed tree instead of reinstalling.
+   */
+  readonly fingerprint?: string;
 };
 
 /** A worktree workspace lease allocated by the workspace service. */
@@ -109,8 +118,29 @@ export type SubagentWorktreeWorkspaceLease = {
   readonly worktreeBranch: string;
   /** Exact parent HEAD used as the worktree base. */
   readonly baseCommit: string;
+  /**
+   * Writer-slot id when this lease came from the shared per-project slot
+   * pool. Slot leases are shared across tasks: the copy is returned to the
+   * pool on release instead of being deleted or retained per task.
+   */
+  readonly slotId?: string;
   /** Dependency install the Host ran after creating the worktree. */
   readonly dependencySetup?: SubagentWorktreeDependencySetup;
+};
+
+/**
+ * Authoritative child result as Git objects inside the parent repository.
+ *
+ * `tree` is the frozen S1 tree, `commit` parents it on the lease `baseCommit`,
+ * and `ref` (`refs/piwin/results/<resultId>`) keeps both reachable after the
+ * copy is released and after the parent branch is amended or rebased.
+ * Symlinks, executable bits and large blobs round-trip exactly, unlike the
+ * regular-file-only CAS.
+ */
+export type SubagentGitSnapshot = {
+  readonly tree: string;
+  readonly commit: string;
+  readonly ref: string;
 };
 
 /** A workspace lease allocated by the workspace service. */
@@ -156,6 +186,8 @@ export type SubagentTaskSpec = {
   candidateGroupId?: string;
   reviewTarget?: SubagentReviewTarget;
   reviewRef?: SubagentReviewRef;
+  /** Host-only: who may approve this candidate. Absent = independent reviewer. */
+  reviewAuthority?: SubagentReviewAuthority;
   candidateLineageId?: string;
   candidateGeneration?: number;
   predecessorResult?: SubagentResultRef;
@@ -175,6 +207,15 @@ export type SubagentTaskSpec = {
   continuationSessionId?: string;
   /** Host-validated existing workspace; continuation never allocates a new worktree. */
   continuationWorkspaceLease?: SubagentWorkspaceLease;
+  /**
+   * Frozen state a continuation must restore before the child resumes.
+   *
+   * A continuation reuses a shared writer slot, so the copy it inherits has
+   * been reset since: the child's own last state only survives as Git objects.
+   * `baseCommit` is the predecessor's lease base (not the parent's current
+   * HEAD) and `tree` is the predecessor's frozen result tree.
+   */
+  continuationRestore?: { baseCommit: string; tree: string };
 };
 
 /** Durable parent-transcript projection for one delegation tool invocation. */
@@ -287,6 +328,10 @@ export type SubagentTaskResult = {
   resultRef?: SubagentResultRef;
   /** Child S0→S1 snapshot. Not the parent Git HEAD. */
   childChanges?: ChangeVersionRef;
+  /** Disk residency of the child copy that produced this result. */
+  copyState?: SubagentCopyState;
+  /** Authoritative Git-object snapshot of the frozen child result. */
+  gitSnapshot?: SubagentGitSnapshot;
   deliveryIntent?: SubagentDeliveryIntent;
   applyPolicy?: SubagentApplyPolicy;
   legacyManual?: boolean;

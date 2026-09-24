@@ -499,6 +499,23 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
         Number.isSafeInteger(command.expectedRevision) &&
         command.expectedRevision > 0
       );
+    case 'preview/resolve-path':
+      // ADR 0052 §6: the Host interprets the raw path for any client, but the
+      // answer is a logical target — a host-absolute `local-file` target is
+      // refused on projection (see denyRemoteLocalFileTarget).
+      return (
+        typeof command.input.rawPath === 'string' &&
+        command.input.rawPath.length > 0 &&
+        command.input.rawPath.length <= 4096 &&
+        !command.input.rawPath.includes('\0') &&
+        (command.input.projectPath === undefined ||
+          (typeof command.input.projectPath === 'string' &&
+            command.input.projectPath.length <= 4096)) &&
+        (command.input.sessionId === undefined ||
+          (typeof command.input.sessionId === 'string' &&
+            command.input.sessionId.length > 0 &&
+            command.input.sessionId.length <= 256))
+      );
     case 'preview/read-local-file':
       // ADR 0052 Slice 4: host-absolute path preview is local-sidecar only.
       // Remote clients must not send this command even as the operator.

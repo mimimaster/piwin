@@ -30,7 +30,6 @@
 @import './styles/composer-steer.css';
 @import './styles/composer-menus.css';
 @import './styles/composer-popovers.css';
-@import './styles/composer-ink-wash.css';
 @import './styles/composer-activity-pill.css';
 @import './styles/terminal-job-monitor.css';
 @import './styles/region-transcript.css';
@@ -73,7 +72,6 @@
 @import './styles/region-knowledge-wiki-article.css';
 @import './styles/region-knowledge-base.css';
 @import './styles/region-knowledge-hub.css';
-@import './styles/knowledge-ink-wash.css';
 @import './styles/run-activity.css';
 @import './styles/region-inspector.css';
 @import './styles/inspector-sections.css';
@@ -111,6 +109,7 @@
 @import './styles/inkstone/tool-timeline.css';
 @import './styles/transcript-shell-trail.css';
 @import './styles/inkstone/permission-gates.css';
+@import './styles/inkstone/question-prompt.css';
 @import './styles/inkstone/delivery-cards.css';
 @import './styles/inkstone/document.css';
 @import './styles/inkstone/conversation.css';

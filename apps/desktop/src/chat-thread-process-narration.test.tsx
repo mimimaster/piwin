@@ -190,7 +190,7 @@ describe('ChatThread process narration', () => {
     ).not.toBeNull();
   });
 
-  it('keeps live process markdown visible before a conclusion arrives', () => {
+  it('folds live narration plus a finished tool until the turn settles', () => {
     const processBody = '接着核对中间轮次的操作栏。';
     render(
       [
@@ -202,11 +202,25 @@ describe('ChatThread process narration', () => {
           tools: [{ toolCallId: 't1', toolName: 'read', status: 'done', output: 'ok' }],
         }),
       ],
-      { isConversationSession: true, onBranchResend: vi.fn(), onForkFromMessage: vi.fn() },
+      {
+        streaming: true,
+        isConversationSession: true,
+        onBranchResend: vi.fn(),
+        onForkFromMessage: vi.fn(),
+      },
     );
 
+    expect(container.querySelector('#msg-a-live')).toBeNull();
+    expect(container.textContent).not.toContain(processBody);
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    expect(trigger).not.toBeNull();
+    expect(trigger?.textContent).toContain('已工作');
+    expect(trigger?.textContent).toContain('1 个工具');
+
+    act(() => trigger?.click());
     expect(container.querySelector('#msg-a-live .markdown')?.textContent).toContain(processBody);
-    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).toBeNull();
   });
 
   it('restores Project process markdown inside the expanded work disclosure', () => {

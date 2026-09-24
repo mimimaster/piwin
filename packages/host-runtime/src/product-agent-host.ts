@@ -14,6 +14,8 @@ import type {
   McpConfigDocument,
   ModelRef,
   SessionToolFamily,
+  ExtensionUiRequest,
+  ExtensionUiResponse,
 } from '@piwin/contracts';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 import {
@@ -106,6 +108,13 @@ type ProductAgentHostCommonOptions = {
     toolboxTargetNames: readonly string[],
     mcpCatalogEnabled: boolean,
   ) => void;
+  /**
+   * Parent-owned Pi Extension UI bridge (ADR 0023). When omitted, Pi binds no
+   * UI context and extensions such as `questionnaire` see `hasUI === false`.
+   */
+  requestExtensionUi?: (
+    input: ExtensionUiRequest & { sessionId: string },
+  ) => Promise<ExtensionUiResponse>;
   /** Explicit timing fixture used by HostRuntime tests, never production. */
   testFixture?: HostRuntimeTestFixture;
 };
@@ -351,6 +360,7 @@ export class ProductAgentHost implements AgentHost {
       throw new Error('ProductAgentHost backend is unavailable');
     }
     const hostToolExecution = this.options.hostToolExecution;
+    const requestExtensionUi = this.options.requestExtensionUi;
     if (!hostToolExecution) {
       throw new Error(
         'ProductAgentHost requires a parent-owned HostToolExecutionPort in non-mock mode',
@@ -448,6 +458,14 @@ export class ProductAgentHost implements AgentHost {
         providers: compiled.providers,
         ...(compiled.providerSecrets ? { providerSecrets: compiled.providerSecrets } : {}),
         hostToolExecution,
+        ...(requestExtensionUi
+          ? {
+              extensionUi: {
+                request: (request: ExtensionUiRequest) =>
+                  requestExtensionUi({ ...request, sessionId }),
+              },
+            }
+          : {}),
         ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
         ...(options.seedMode ? { seedMode: options.seedMode } : {}),
         ...(options.compactionSeed ? { compactionSeed: options.compactionSeed } : {}),

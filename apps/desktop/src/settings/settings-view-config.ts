@@ -399,3 +399,16 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   }
   return value as Record<string, unknown>;
 }
+
+/**
+ * A sign-in that set up features on the Host (`auth/login-finished.followUp`,
+ * e.g. Devin turning on code_search and its web-search source) changed these
+ * domains too. An open settings form must show them — and must not later save
+ * its stale copy back over them.
+ */
+export function applyHostLoginFollowUpDomains(current: PiwinConfig, host: PiwinConfig): PiwinConfig {
+  const next: PiwinConfig = { ...applyHostProviderSnapshot(current, host) };
+  if (host.web !== undefined) next.web = host.web;
+  if (host.codeSearch !== undefined) next.codeSearch = host.codeSearch;
+  return next;
+}

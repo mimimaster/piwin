@@ -22,7 +22,7 @@ import {
 
 import { getPiwinProjectsPath, getPiwinRoot } from './paths.js';
 import { buildPermissionRequestContext } from './permission-context.js';
-import { SessionAllowlist } from './session-allowlist.js';
+import { SessionAllowlist, type SessionWorkspaceGrant } from './session-allowlist.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { extractBashCommandFromDetail } from './permission-bash-detail.js';
@@ -79,11 +79,21 @@ export function requestPermission(
     action: string;
     detail: string;
     defaultDecision: PermissionDecision;
+    policyReason?: string;
+    cwd?: string;
+    command?: string;
+    paths?: readonly string[];
+    sessionGrant?: SessionWorkspaceGrant;
     signal?: AbortSignal;
   },
 ): Promise<PermissionDecision> {
   const requestId = randomUUID();
-  const context = buildPermissionRequestContext(input.action, input.detail);
+  const context = buildPermissionRequestContext(input.action, input.detail, {
+    ...(input.policyReason ? { policyReason: input.policyReason } : {}),
+    ...(input.cwd ? { cwd: input.cwd } : {}),
+    ...(input.command ? { command: input.command } : {}),
+    ...(input.paths ? { paths: input.paths } : {}),
+  });
   return new Promise((resolve) => {
     const activeRun = deps.runRegistry.getForegroundRun(input.sessionId);
     const executionRunId = deps.runExecutionContext.getStore();
@@ -125,6 +135,8 @@ export function requestPermission(
       action: input.action,
       detail: input.detail,
       defaultDecision: input.defaultDecision,
+      context,
+      ...(input.sessionGrant ? { sessionGrant: input.sessionGrant } : {}),
       cleanup,
     };
     deps.pendingPermissions.set(requestId, pendingPermission);
@@ -187,8 +199,15 @@ export function rememberSessionPermission(
   sessionId: string,
   action: string,
   detail: string,
+  grant?: SessionWorkspaceGrant,
 ): void {
   const al = deps.getOrCreateSessionAllowlist(sessionId);
+  // A boundary ask grants its directory: the session may keep working there.
+  if (grant) {
+    if ('directory' in grant) al.addWorkspaceDirectory(grant.directory);
+    else for (const path of grant.filePaths) al.addFilePath(path);
+    return;
+  }
   // Bash detail format: `<reason>: <command>` — the command is after `: `.
   // File-write detail is the resolved absolute path.
   if (action === 'bash') {

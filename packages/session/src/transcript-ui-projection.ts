@@ -37,40 +37,22 @@ function isPreservedToolOutput(
   });
 }
 
-/** Keep presentation fields needed for collapsed tool rows / FilesChangedBar. */
+/**
+ * Drop only the bulk tool body (`presentation.output`); keep every structured
+ * field. This used to be an allowlist, and each field added later without a
+ * line here silently vanished on reload — Goal cards fell back to "Goal
+ * execution is blocked", and knowledge citations, web-search diagnostics and
+ * subagent control cards lost their data the same way. Structured fields are
+ * bounded where they are produced; `output` is the only unbounded one.
+ */
 export function slimToolPresentation(
   presentation: ToolPresentation | undefined,
 ): ToolPresentation | undefined {
   if (!presentation) {
     return undefined;
   }
-  const slim: ToolPresentation = {
-    kind: presentation.kind,
-    title: presentation.title,
-  };
-  if (presentation.routedToolName !== undefined) {
-    slim.routedToolName = presentation.routedToolName;
-  }
-  if (presentation.summary !== undefined) slim.summary = presentation.summary;
-  if (presentation.inputPreview !== undefined) slim.inputPreview = presentation.inputPreview;
-  if (presentation.command !== undefined) slim.command = presentation.command;
-  if (presentation.targetPaths !== undefined) slim.targetPaths = presentation.targetPaths;
-  if (presentation.documentTargets !== undefined) {
-    slim.documentTargets = presentation.documentTargets;
-  }
-  if (presentation.startedAt !== undefined) slim.startedAt = presentation.startedAt;
-  if (presentation.endedAt !== undefined) slim.endedAt = presentation.endedAt;
-  if (presentation.durationMs !== undefined) slim.durationMs = presentation.durationMs;
-  if (presentation.exitCode !== undefined) slim.exitCode = presentation.exitCode;
-  if (presentation.changedPaths !== undefined) slim.changedPaths = presentation.changedPaths;
-  if (presentation.error !== undefined) slim.error = presentation.error;
-  if (presentation.actionVerb !== undefined) slim.actionVerb = presentation.actionVerb;
-  if (presentation.lineRange !== undefined) slim.lineRange = presentation.lineRange;
-  if (presentation.countTag !== undefined) slim.countTag = presentation.countTag;
-  if (presentation.flashcard !== undefined) slim.flashcard = presentation.flashcard;
-  if (presentation.health !== undefined) slim.health = presentation.health;
-  if (presentation.plan !== undefined) slim.plan = presentation.plan;
-  if (presentation.sensitivity !== undefined) slim.sensitivity = presentation.sensitivity;
+  const { output, ...structured } = presentation;
+  const slim: ToolPresentation = { ...structured };
   if (
     isPreservedToolOutput(
       presentation.title,
@@ -79,19 +61,19 @@ export function slimToolPresentation(
       presentation.kind,
     )
   ) {
-    if (presentation.output !== undefined) {
-      slim.output = presentation.output;
+    if (output !== undefined) {
+      slim.output = output;
     }
-  } else if (presentation.output?.truncation !== undefined) {
+  } else if (output?.truncation !== undefined) {
     // Keep the small status payload so a historical card can explain why its
     // bulk output was omitted from the hydrate projection.
     slim.output = {
       text: '',
       truncated: true,
-      truncation: presentation.output.truncation,
+      truncation: output.truncation,
     };
   }
-  // Intentionally drop presentation.output for bulk tools (often hundreds of KB of web/bash text).
+  // Bulk tools lose presentation.output here (often hundreds of KB of web/bash text).
   return slim;
 }
 

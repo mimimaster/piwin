@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { listOrchestrationSchemes } from '@piwin/contracts';
+import { createDefaultSubagentConfig, listOrchestrationSchemes } from '@piwin/contracts';
 import {
   createDefaultPiwinConfig,
   initPiwinConfig,
@@ -597,6 +597,72 @@ describe('config-store', () => {
     expect(loaded.subagents?.dirtyBasePolicy).toBe('ask');
   });
 
+  it('round-trips freehand read-only model refs and ignores malformed refs', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-freehand-model-'));
+    const config = createDefaultPiwinConfig();
+    config.subagents = {
+      ...createDefaultSubagentConfig(),
+      freehandReadonlyModel: {
+        providerId: 'channel',
+        modelId: 'light',
+        protocol: 'openai-compatible',
+        source: 'channel',
+      },
+    };
+    await savePiwinConfig(config, rootDir);
+    const channel = await loadPiwinConfig(rootDir);
+    expect(channel.subagents?.freehandReadonlyModel).toEqual(
+      config.subagents.freehandReadonlyModel,
+    );
+
+    if (!channel.subagents) throw new Error('subagent config missing');
+    channel.subagents = {
+      ...channel.subagents,
+      freehandReadonlyModel: { providerId: 'codex', modelId: 'small', source: 'subscription' },
+    };
+    await savePiwinConfig(channel, rootDir);
+    const subscription = await loadPiwinConfig(rootDir);
+    expect(subscription.subagents?.freehandReadonlyModel).toEqual({
+      providerId: 'codex',
+      modelId: 'small',
+      source: 'subscription',
+    });
+    await savePiwinConfig(subscription, rootDir);
+    expect((await loadPiwinConfig(rootDir)).subagents?.freehandReadonlyModel).toEqual(
+      subscription.subagents?.freehandReadonlyModel,
+    );
+
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        ...subscription,
+        subagents: {
+          ...subscription.subagents,
+          freehandReadonlyModel: { providerId: '', modelId: 'small' },
+        },
+      }),
+      'utf8',
+    );
+    expect((await loadPiwinConfig(rootDir)).subagents?.freehandReadonlyModel).toBeUndefined();
+  });
+
+  it.each([
+    null,
+    ['not-a-model'],
+    { providerId: 'custom' },
+    { providerId: '   ', modelId: 'fast' },
+    { providerId: 'custom', modelId: 42 },
+  ])('drops an invalid freehand read-only model ref: %j', async (invalidModel) => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-subagents-invalid-freehand-'));
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({ subagents: { freehandReadonlyModel: invalidModel } }),
+      'utf8',
+    );
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.subagents?.freehandReadonlyModel).toBeUndefined();
+  });
+
   it('round-trips orchestration schemes and drops invalid ids', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-orch-schemes-'));
     const config = createDefaultPiwinConfig();
@@ -866,7 +932,6 @@ describe('config-store', () => {
     expect(loaded.hostMode).toBe('rpc');
     expect(await readFile(savedPath, 'utf8')).toContain('"hostMode": "rpc"');
   });
-
 });
 
 describe('artifact per-scope switches', () => {

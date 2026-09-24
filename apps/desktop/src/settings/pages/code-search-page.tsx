@@ -7,7 +7,7 @@
  * written to config). Loop knobs stay collapsed — the main agent must not be
  * able to retune the subagent per call.
  */
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   createDefaultCodeSearchConfig,
   isModelEnabled,
@@ -26,11 +26,16 @@ import {
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
-import { WebSecretEditor } from '../web-secret-editor';
+import {
+  CodeSearchWindsurfCredentials,
+  DEFAULT_WINDSURF_KEY_ENV,
+  DEVIN_ACCOUNT_REF,
+  windsurfCredentialSource,
+  type WindsurfCredentialSource,
+} from '../code-search-windsurf-credentials';
+import { useDevinAccount } from '../use-devin-account';
 import { useSettings } from '../settings-context';
 
-const WINDSURF_SECRET_ID = 'code-search-windsurf';
-const DEFAULT_WINDSURF_KEY_ENV = 'WINDSURF_API_KEY';
 
 type ModelOption = {
   ref: ModelRef;
@@ -110,8 +115,30 @@ export function CodeSearchPage(): ReactElement {
   }, [config]);
 
   const modelOptions = useMemo(() => collectChatModels(config), [config]);
+  const devinAccount = useDevinAccount();
+  // Connecting here is the configure gesture, like saving a token: turn the
+  // feature on. Only a login completed on this page counts — reading an
+  // already-connected account must not undo a deliberate "off".
+  const previousDevinState = useRef(devinAccount.state);
+  useEffect(() => {
+    const before = previousDevinState.current;
+    previousDevinState.current = devinAccount.state;
+    if (before === 'logging-in' && devinAccount.connected) {
+      setDraft((current) =>
+        current.backend === 'windsurf' && windsurfCredentialSource(current) === 'devin'
+          ? { ...current, enabled: true }
+          : current,
+      );
+    }
+  }, [devinAccount.state, devinAccount.connected]);
   const backend = draft.backend ?? 'model';
   const issue = describeDraftIssue(draft, zh);
+  // Not a save blocker: the account can be connected before or after saving.
+  const accountIssue =
+    backend === 'windsurf' &&
+    windsurfCredentialSource(draft) === 'devin' &&
+    devinAccount.state !== 'unknown' &&
+    !devinAccount.connected;
   const invalidNumber =
     (turnDraft.trim() && parseOptionalPositiveInt(turnDraft) === undefined) ||
     (commandDraft.trim() && parseOptionalPositiveInt(commandDraft) === undefined) ||
@@ -145,6 +172,22 @@ export function CodeSearchPage(): ReactElement {
 
   function patch(changes: Partial<CodeSearchConfig>): void {
     setDraft((current) => ({ ...current, ...changes }));
+  }
+
+  /** Switching source only edits the draft; the bottom Save persists it. */
+  function selectCredentialSource(source: WindsurfCredentialSource): void {
+    setDraft((current) => {
+      const next: CodeSearchConfig = { ...current };
+      if (source === 'devin') {
+        next.apiKeyRef = DEVIN_ACCOUNT_REF;
+        delete next.apiKeyEnv;
+        if (devinAccount.connected) next.enabled = true;
+      } else if (next.apiKeyRef === DEVIN_ACCOUNT_REF) {
+        delete next.apiKeyRef;
+        next.apiKeyEnv = DEFAULT_WINDSURF_KEY_ENV;
+      }
+      return next;
+    });
   }
 
   async function handleSave(): Promise<void> {
@@ -199,7 +242,7 @@ export function CodeSearchPage(): ReactElement {
           />
         </FieldRow>
         <div
-          className={`code-search-status${draft.enabled && draftReady ? (persistedEnabled ? ' is-ready' : ' is-pending') : ' is-blocked'}`}
+          className={`code-search-status${draft.enabled && draftReady && !accountIssue ? (persistedEnabled ? ' is-ready' : ' is-pending') : ' is-blocked'}`}
           data-testid="code-search-status"
           role="status"
         >
@@ -207,20 +250,30 @@ export function CodeSearchPage(): ReactElement {
             zh ? (
               <>
                 当前关闭：只配置 Token / 模型还不够，会话中不会出现 <code>code_search</code>。
-                {backend === 'windsurf'
-                  ? '保存 API Key 时会自动打开此开关；或手动打开后再点底部「保存」。'
-                  : '选择搜索模型时会自动打开；或手动打开后再点底部「保存」。'}
+                {backend !== 'windsurf'
+                  ? '选择搜索模型时会自动打开；或手动打开后再点底部「保存」。'
+                  : windsurfCredentialSource(draft) === 'devin'
+                    ? '连接 Devin 账号后会自动打开此开关；或手动打开后再点底部「保存」。'
+                    : '保存 API Key 时会自动打开此开关；或手动打开后再点底部「保存」。'}
               </>
             ) : (
               <>
                 Off: a token/model alone is not enough — sessions will not get <code>code_search</code>.
-                {backend === 'windsurf'
-                  ? ' Saving the API key turns this on automatically; or flip it and click Save below.'
-                  : ' Picking a search model turns this on; or flip it and click Save below.'}
+                {backend !== 'windsurf'
+                  ? ' Picking a search model turns this on; or flip it and click Save below.'
+                  : windsurfCredentialSource(draft) === 'devin'
+                    ? ' Connecting the Devin account turns this on; or flip it and click Save below.'
+                    : ' Saving the API key turns this on automatically; or flip it and click Save below.'}
               </>
             )
           ) : issue ? (
             zh ? <>已开启，但后端未就绪：{issue}</> : <>Enabled, but the backend is not ready: {issue}</>
+          ) : accountIssue ? (
+            zh ? (
+              <>已开启，但 Devin 账号未连接：连接后会话里才会出现 <code>code_search</code>。</>
+            ) : (
+              <>Enabled, but the Devin account is not connected: <code>code_search</code> appears once it is.</>
+            )
           ) : !persistedEnabled ? (
             zh ? (
               <>草稿已可保存，但 Host 配置中尚未启用。点击下方「保存」写入；若提示 Host 不支持，需更新并重启 Host。</>
@@ -250,8 +303,8 @@ export function CodeSearchPage(): ReactElement {
           label={zh ? '后端' : 'Backend'}
           description={
             zh
-              ? '默认使用已配置的模型；亦可填入自己的 Windsurf / Devin Token 使用云端服务。'
-              : 'Default uses a configured model; you may instead supply your own Windsurf / Devin token.'
+              ? '默认使用已配置的模型；也可以用 Devin 账号或 Windsurf Token 走云端服务。'
+              : 'Default uses a configured model; or use the Devin account / a Windsurf token for the cloud service.'
           }
         >
           <SegmentedControl
@@ -260,7 +313,7 @@ export function CodeSearchPage(): ReactElement {
               const nextBackend = value as NonNullable<CodeSearchConfig['backend']>;
               const ready =
                 nextBackend === 'windsurf'
-                  ? Boolean(draft.apiKeyRef || draft.apiKeyEnv)
+                  ? windsurfCredentialSource(draft) === 'token' || devinAccount.connected
                   : Boolean(draft.model);
               patch({
                 backend: nextBackend,
@@ -309,80 +362,16 @@ export function CodeSearchPage(): ReactElement {
             </select>
           </FieldRow>
         ) : (
-          <>
-            <FieldRow
-              label={zh ? 'Devin 订阅' : 'Devin subscription'}
-              description={
-                zh
-                  ? '未填写 token 时使用 Devin 订阅（oauth:devin）。'
-                  : 'With no token, code search uses the Devin subscription (oauth:devin).'
-              }
-            >
-              <Button
-                variant="ghost"
-                size="compact"
-                disabled={settings.remoteSettingsReadOnly === true}
-                data-testid="code-search-devin-login"
-                onClick={() => {
-                  void (async () => {
-                    const next: CodeSearchConfig = {
-                      ...composeCodeSearchConfig(),
-                      enabled: true,
-                      backend: 'windsurf',
-                      apiKeyRef: 'oauth:devin',
-                    };
-                    delete next.apiKeyEnv;
-                    setDraft((current) => {
-                      const updated: CodeSearchConfig = {
-                        ...current,
-                        enabled: true,
-                        backend: 'windsurf',
-                        apiKeyRef: 'oauth:devin',
-                      };
-                      delete updated.apiKeyEnv;
-                      return updated;
-                    });
-                    if (!config) return;
-                    const ok = await saveConfig({ ...config, codeSearch: next });
-                    setInfo(
-                      ok
-                        ? zh
-                          ? '已改用 Devin 订阅（oauth:devin）并启用 code_search。手动 token 仍可在下方填写。'
-                          : 'code_search now uses the Devin subscription (oauth:devin). You can still paste a token below.'
-                        : zh
-                          ? '保存失败：无法写入配置文件。'
-                          : 'Save failed: could not write config.',
-                    );
-                  })();
-                }}
-              >
-                {zh ? '使用 Devin 登录' : 'Use Devin login'}
-              </Button>
-            </FieldRow>
-            <WebSecretEditor
-            secretId={WINDSURF_SECRET_ID}
-            apiKeyRef={draft.apiKeyRef ?? ''}
-            apiKeyEnv={draft.apiKeyEnv ?? ''}
-            defaultApiKeyEnv={DEFAULT_WINDSURF_KEY_ENV}
-            disabled={settings.remoteSettingsReadOnly === true}
+          <CodeSearchWindsurfCredentials
+            draft={draft}
             zh={zh}
+            readOnly={settings.remoteSettingsReadOnly === true}
+            account={devinAccount}
+            onSelectSource={selectCredentialSource}
             loadSecret={loadProviderSecret}
             storeSecret={storeProviderSecret}
-            testConnection={async (input) => {
-              if (!testCodeSearchWindsurf) {
-                throw new Error(
-                  zh
-                    ? '当前客户端不支持 code_search 连通测试，请更新 Desktop。'
-                    : 'This client cannot test code_search connectivity. Update Desktop.',
-                );
-              }
-              return testCodeSearchWindsurf({
-                ...(input?.apiKey ? { apiKey: input.apiKey } : {}),
-                ...(draft.apiKeyRef ? { apiKeyRef: draft.apiKeyRef } : {}),
-                ...(draft.apiKeyEnv ? { apiKeyEnv: draft.apiKeyEnv } : {}),
-              });
-            }}
-            onSaved={async (apiKeyRef, apiKeyEnv) => {
+            {...(testCodeSearchWindsurf ? { testConnection: testCodeSearchWindsurf } : {})}
+            onTokenSaved={async (apiKeyRef, apiKeyEnv) => {
               // Saving a Windsurf token is the configure gesture: wire the backend
               // AND flip the feature on so the tool actually registers. A bare
               // key with enabled=false is what made "I already configured it"
@@ -418,9 +407,7 @@ export function CodeSearchPage(): ReactElement {
               }
               return ok;
             }}
-            testId="code-search-windsurf-token"
           />
-          </>
         )}
       </section>
 

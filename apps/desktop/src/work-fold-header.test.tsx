@@ -246,4 +246,60 @@ describe('WorkFoldHeader', () => {
     expect(header?.querySelector('.work-fold-brain')).toBeNull();
     expect(header?.textContent).toContain('已工作 2m 33s · 4 个工具');
   });
+
+  it('renders running copy with latest narration, tool index, and command code', () => {
+    act(() => {
+      root.render(
+        <>
+          <WorkFoldHeader
+            state="running"
+            locale="zh-CN"
+            narration="正在检查文件结构"
+            runningToolIndex={3}
+            runningCode="git status"
+            testId="run-narration-zh"
+          />
+          <WorkFoldHeader
+            state="running"
+            locale="en"
+            narration="Inspecting file structure"
+            runningToolIndex={3}
+            runningCode="git status"
+            testId="run-narration-en"
+          />
+          <WorkFoldHeader
+            state="running"
+            locale="zh-CN"
+            narration="仅有叙述与工具"
+            runningToolIndex={2}
+            testId="run-narration-nocode"
+          />
+          <WorkFoldHeader
+            state="running"
+            locale="zh-CN"
+            runningToolIndex={3}
+            testId="run-fallback"
+          />
+        </>,
+      );
+    });
+
+    const zh = container.querySelector('[data-testid="run-narration-zh"]');
+    expect(zh?.textContent).toBe('正在运行 · 正在检查文件结构 · 第 3 个工具 · git status');
+    expect(zh?.querySelector('.work-fold-narration')?.textContent).toBe('正在检查文件结构');
+    expect(zh?.querySelector('code')?.textContent).toBe('git status');
+    expect(zh?.querySelector('.work-fold-running-tail')?.textContent).toBe(' · 第 3 个工具 · git status');
+
+    const en = container.querySelector('[data-testid="run-narration-en"]');
+    expect(en?.textContent).toBe('Running · Inspecting file structure · tool 3 · git status');
+    expect(en?.querySelector('.work-fold-narration')?.textContent).toBe('Inspecting file structure');
+
+    const nocode = container.querySelector('[data-testid="run-narration-nocode"]');
+    expect(nocode?.textContent).toBe('正在运行 · 仅有叙述与工具 · 第 2 个工具');
+    expect(nocode?.querySelector('code')).toBeNull();
+
+    const fallback = container.querySelector('[data-testid="run-fallback"]');
+    expect(fallback?.textContent).toBe('正在运行 · 第 3 个工具');
+    expect(fallback?.querySelector('.work-fold-narration')).toBeNull();
+  });
 });

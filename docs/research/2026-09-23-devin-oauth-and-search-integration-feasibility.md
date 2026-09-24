@@ -75,7 +75,7 @@ Devin 是**同构**的，对应产物应是 `packages/agent-host/src/devin/regis
 
 - PKCE + `http://127.0.0.1:59653/callback` 回环
 - 授权页 `https://app.devin.ai/auth/cli/continue?…`
-- 换 token `POST https://api.devin.ai/auth/cli/token` → `{token}`，形如 `devin-session-token$…`
+- 换 token `POST https://api.devin.ai/auth/cli/token` → `{token}`：**实测是裸 JWT**（payload 为 `{"session_id":"windsurf-session-…"}`），Windsurf 协议调用方需自行补 `devin-session-token$` 前缀（2026-09-24 更正）
 - 注册形态 `{name:'Devin', api:'devin-cloud', baseUrl:'https://server.codeium.com', models, refreshModels, oauth:{login, refreshToken, getApiKey}, streamSimple}`
 
 ### 1.5 一个必须知道的限制：`models.json` 表达不了自定义 OAuth（已验证）

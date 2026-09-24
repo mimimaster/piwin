@@ -6,6 +6,7 @@ import { afterEach, expect, it } from 'vitest';
 import type { SubagentTaskResult, SubagentWorkspaceLease } from '@piwin/contracts';
 import {
   createWorktree,
+  integrateSnapshotChanges,
   integrateWorktreeChanges,
   isWorktreeBaseClean,
   removeWorktree,
@@ -67,7 +68,7 @@ it('applies an uncommitted new file, cleans its worktree, and removes its branch
     resultRef: { resultId: 'result-1', revision: 1 },
   };
   const coordinator = createSubagentIntegrationCoordinator({
-    integrateWorktree: createGitWorktreeIntegrationAdapter(integrateWorktreeChanges),
+    integrateWorktree: createGitWorktreeIntegrationAdapter(integrateWorktreeChanges, integrateSnapshotChanges),
     isBaseClean: isWorktreeBaseClean,
     removeWorktree: async (worktreePath, parentRepoPath, worktreeBranch) => {
       await removeWorktree({

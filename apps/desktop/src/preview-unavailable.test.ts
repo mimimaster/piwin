@@ -141,3 +141,28 @@ describe('interpretProjectReadPreview', () => {
     ).toMatchObject({ kind: 'unavailable', reason: 'binary' });
   });
 });
+
+describe('previewUnavailableCopy resolution reasons (ADR 0052 §6)', () => {
+  it('never answers a Host refusal with the not-found copy', () => {
+    const zh = previewUnavailableCopy({ reason: 'remote-local-path-denied', locale: 'zh-CN' });
+    expect(zh.title).toBe('远程 Host 不允许读取本机路径');
+    expect(zh.title).not.toBe('找不到此文件');
+
+    const notFound = previewUnavailableCopy({ reason: 'not-found', locale: 'zh-CN' });
+    expect(zh.detail).not.toBe(notFound.detail);
+  });
+
+  it('explains a path that belongs to no readable domain', () => {
+    const copy = previewUnavailableCopy({ reason: 'outside-domains', locale: 'zh-CN' });
+    expect(copy.detail).toContain('工作区');
+  });
+
+  it('handles an empty or unusable path without pretending it went missing', () => {
+    expect(previewUnavailableCopy({ reason: 'empty-path', locale: 'zh-CN' }).title).toBe(
+      '没有可打开的路径',
+    );
+    expect(previewUnavailableCopy({ reason: 'invalid-path', locale: 'en' }).title).toBe(
+      'Preview unavailable',
+    );
+  });
+});

@@ -58,8 +58,8 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
         : isZh
           ? '错误'
           : 'Error';
-  const titleLabel = isZh ? '走查报告' : 'Walkthrough';
-  const loadingLabel = isZh ? '正在生成走查报告…' : 'Generating walkthrough…';
+  const titleLabel = isZh ? '报告' : 'Walkthrough';
+  const loadingLabel = isZh ? '正在生成报告…' : 'Generating walkthrough…';
   const viewDocLabel = isZh ? '作为文档查看' : 'View as document';
   const regenerateLabel = isZh ? '重新生成' : 'Regenerate';
   const retryLabel = isZh ? '重试' : 'Retry';

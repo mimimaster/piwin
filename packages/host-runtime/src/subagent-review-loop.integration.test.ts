@@ -20,6 +20,7 @@ import type {
 } from '@piwin/contracts';
 import { resolveOrchestrationScheme } from '@piwin/contracts';
 import {
+  integrateSnapshotChanges,
   integrateWorktreeChanges,
   isWorktreeBaseClean,
   openTurnChangeStore,
@@ -166,7 +167,7 @@ async function createHarness(scripts: ReviewerScript[]) {
   runRegistry.start(parentRun.runId);
 
   const coordinator = createSubagentIntegrationCoordinator({
-    integrateWorktree: createGitWorktreeIntegrationAdapter(integrateWorktreeChanges),
+    integrateWorktree: createGitWorktreeIntegrationAdapter(integrateWorktreeChanges, integrateSnapshotChanges),
     isBaseClean: isWorktreeBaseClean,
     removeWorktree: async (worktreePath, parentRepoPath, worktreeBranch) => {
       await removeWorktree({
@@ -426,6 +427,31 @@ async function createHarness(scripts: ReviewerScript[]) {
                     throw new Error('subagent worktree lease is unavailable');
                   }
                   return lease;
+                },
+                resolveSubagentContinuationRestore: async (child) => {
+                  const manifests = await runStore.listManifests();
+                  const restored = manifests
+                    .flatMap((manifest) =>
+                      manifest.tasks.flatMap((task) => {
+                        const stored = manifest.results[task.id];
+                        const taskLease = manifest.leases[task.id];
+                        if (
+                          stored?.childSessionId !== child.id ||
+                          taskLease?.mode !== 'worktree' ||
+                          !stored.gitSnapshot
+                        ) {
+                          return [];
+                        }
+                        return [
+                          {
+                            baseCommit: taskLease.baseCommit,
+                            tree: stored.gitSnapshot.tree,
+                          },
+                        ];
+                      }),
+                    )
+                    .at(-1);
+                  return restored;
                 },
               },
               childSessionId,

@@ -30,15 +30,6 @@ export async function handleMockCatalogCommands(
             activeThemeId,
             themes: [
               {
-                id: 'piwin-ink-wash',
-                name: '砚夜泼墨',
-                version: '1.0.0',
-                mode: 'dark',
-                path: '/mock/themes/piwin-ink-wash',
-                source: 'bundled',
-                active: activeThemeId === 'piwin-ink-wash',
-              },
-              {
                 id: PIWIN_INKSTONE_THEME_ID,
                 name: 'Inkstone',
                 version: '2.0.0',

@@ -16,6 +16,8 @@ export type PreparedSubagentContinuation = {
   runtime: NonNullable<SessionIndexRecord['subagentRuntime']>;
   mode: SubagentIsolationMode;
   continuationWorkspaceLease: SubagentWorkspaceLease;
+  /** Set when the child's own frozen state must be checked back out first. */
+  continuationRestore?: { baseCommit: string; tree: string };
 };
 
 export type SubagentContinuationPrepDeps = {
@@ -23,6 +25,15 @@ export type SubagentContinuationPrepDeps = {
   resolveRetainedSubagentWorktreeLease: (
     child: SessionIndexRecord,
   ) => Promise<Extract<SubagentWorkspaceLease, { mode: 'worktree' }>>;
+  /**
+   * Frozen state the continuation must restore. A shared writer slot has been
+   * reset since the child last wrote to it, so the child's own state only
+   * survives as Git objects; without this the child would resume in a stranger's
+   * working directory.
+   */
+  resolveSubagentContinuationRestore: (
+    child: SessionIndexRecord,
+  ) => Promise<{ baseCommit: string; tree: string } | undefined>;
 };
 
 export type ReviewedContinuationTaskExtras = {
@@ -79,7 +90,18 @@ export async function prepareRetainedSubagentContinuation(
               ? parentScope.projectPath
               : getPiwinGeneralWorkspacePath(rootDir),
         };
-  return { child, parent, runtime, mode, continuationWorkspaceLease };
+  const continuationRestore =
+    mode === 'worktree'
+      ? await deps.resolveSubagentContinuationRestore(child)
+      : undefined;
+  return {
+    child,
+    parent,
+    runtime,
+    mode,
+    continuationWorkspaceLease,
+    ...(continuationRestore ? { continuationRestore } : {}),
+  };
 }
 
 export function buildShellContinuationTask(
@@ -132,6 +154,9 @@ function buildContinuationTask(
     task: extras.task,
     continuationSessionId: child.id,
     continuationWorkspaceLease,
+    ...(prepared.continuationRestore
+      ? { continuationRestore: prepared.continuationRestore }
+      : {}),
     sessionName: child.name ?? `subagent-${child.id.slice(0, 8)}`,
     ...(extras.invocationId ? { invocationId: extras.invocationId } : {}),
     ...(extras.parentRunId ? { parentRunId: extras.parentRunId } : {}),

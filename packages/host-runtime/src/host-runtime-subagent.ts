@@ -11,7 +11,12 @@ import {
   createDefaultSubagentConfig,
 } from '@piwin/contracts';
 import { createSubagentWorkerAdmission } from './subagent-worker-admission.js';
-import { removeWorktree, integrateWorktreeChanges, isWorktreeBaseClean } from '@piwin/git';
+import {
+  removeWorktree,
+  integrateWorktreeChanges,
+  integrateSnapshotChanges,
+  isWorktreeBaseClean,
+} from '@piwin/git';
 
 import {
   createSessionRecord,
@@ -41,6 +46,7 @@ import type { SubagentTaskPreflightContext } from './subagent-orchestrator.js';
 import { resolveSubagentChildPrompt } from './subagent-lifecycle-service.js';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
 import { createSubagentWorktreeGcController } from './subagent-worktree-gc.js';
+import { createWriterSlotPool } from './subagent-writer-slots.js';
 import { prepareWorktreeDependencies } from './subagent-worktree-dependencies.js';
 import { resolveSubagentParentLocation } from './subagent-parent-scope.js';
 import {
@@ -89,9 +95,14 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const runStore = createSubagentRunStore({ runsDir: join(rootDir, 'subagent-runs') });
   const defaultProjectPath = getPiwinGeneralWorkspacePath(rootDir);
+  // Writes are already serialized per project, so one reused checkout is all
+  // the isolation a write task needs. One slot per project replaces a fresh
+  // worktree (and a fresh dependency install) per task.
+  const writerSlotPool = createWriterSlotPool();
   deps.subagentWorkspaceService = createSubagentWorkspaceService({
     projectPath: defaultProjectPath,
     worktreeStorageRoot: join(rootDir, 'worktrees'),
+    writerSlotPool,
     resolveProjectPath: async (task) => {
       const parentRecord = await getSessionRecord(
         getPiwinSessionIndexPath(rootDir),
@@ -128,7 +139,10 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
   });
 
   // Create the integration coordinator with git functions from @piwin/git.
-  const integrationAdapter = createGitWorktreeIntegrationAdapter(integrateWorktreeChanges);
+  const integrationAdapter = createGitWorktreeIntegrationAdapter(
+    integrateWorktreeChanges,
+    integrateSnapshotChanges,
+  );
   deps.subagentIntegrationCoordinator = createSubagentIntegrationCoordinator({
     integrateWorktree: integrationAdapter,
     isBaseClean: isWorktreeBaseClean,
@@ -632,6 +646,11 @@ export async function preflightSubagentTask(
   const resolved = task.model
     ? resolveChatModel({ providers: config.providers }, task.model, accounts)
     : undefined;
+  if (task.model && !resolved) {
+    throw new Error(
+      `subagent model "${task.model.providerId}/${task.model.modelId}" is unavailable; choose an enabled chat model`,
+    );
+  }
   const model = resolved?.ref ?? resolveDefaultModelRef(config, accounts);
   if (!model) {
     return { config, resolvedProviderSecrets: [] };

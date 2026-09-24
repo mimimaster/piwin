@@ -11,12 +11,16 @@
  * workspace makes its read surface identical to the other workspace tools
  * instead of granting an unlimited filesystem read.
  */
+import { join } from 'node:path';
 import type {
   CodeSearchConfig,
   HostToolRegistration,
   ModelProviderConfig,
   ModelRef,
 } from '@piwin/contracts';
+import { hasOauthCredentialSync } from '@piwin/agent-host';
+import { oauthSecretRefProviderId } from '@piwin/contracts';
+import { getPiwinPiAgentDir, getPiwinRoot } from '../paths.js';
 import { checkSearchFolder, isInsideRoot } from './codebase-paths.js';
 import {
   createModelCompletionPort,
@@ -54,6 +58,8 @@ export type BuildCodeSearchToolOptions = {
   fetch?: typeof globalThis.fetch;
   env?: NodeJS.ProcessEnv;
   piwinRoot?: string;
+  /** Test seam: whether an `oauth:<provider>` account is logged in. */
+  hasOauthCredential?: (providerId: string) => boolean;
 };
 
 /** Status of the configured backend, used for diagnostics and the tool gate. */
@@ -83,6 +89,25 @@ export function resolveCodeSearchBackend(
     const apiKeyRef = config.apiKeyRef?.trim() || undefined;
     const apiKeyEnv = config.apiKeyEnv?.trim() || undefined;
     const resolvedApiKeyRef = apiKeyRef ?? (apiKeyEnv ? undefined : 'oauth:devin');
+    // An `oauth:` ref is only a pointer into auth.json. Offering the tool while
+    // that account is logged out hands the model a tool that fails every call.
+    const oauthProvider =
+      resolvedApiKeyRef !== undefined && apiKeyEnv === undefined
+        ? oauthSecretRefProviderId(resolvedApiKeyRef)
+        : undefined;
+    const hasCredential =
+      options.hasOauthCredential ??
+      ((providerId: string) =>
+        hasOauthCredentialSync(
+          join(getPiwinPiAgentDir(getPiwinRoot(options.piwinRoot)), 'auth.json'),
+          providerId,
+        ));
+    if (oauthProvider !== undefined && !hasCredential(oauthProvider)) {
+      return {
+        ready: false,
+        reason: `code_search uses the ${oauthProvider} account but it is not logged in (Settings → OAuth), and no token is configured`,
+      };
+    }
     return {
       ready: true,
       port: createWindsurfCompletionPort({

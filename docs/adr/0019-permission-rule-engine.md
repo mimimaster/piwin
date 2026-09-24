@@ -368,6 +368,59 @@ Pi API (verified on `@earendil-works/pi-coding-agent@0.80.10`):
 extension layer still blocks secret basenames), but the primary gate moves to
 the host rule engine so it is configurable, testable, and rememberable.
 
+### 4.1 Workspace boundary: ask, never silently refuse (2026-09-24)
+
+Product owner decision: when the agent wants to operate outside the space it
+was given, it asks the user. It never hard-fails in a way only the model sees.
+
+**Boundary.** The session's bound workspace root (project path, or the worktree
+the session runs in), plus directories the user granted for this session.
+Paths are compared by their real path on both sides, so a project registered
+through a symlink (`/Volumes/…/piwin` → `~/Developer/piwin`) still covers a cwd
+spelled through its target. General sessions with no bound root have no
+boundary gate (unchanged).
+
+**What crosses it, and what happens:**
+
+| Crossing | `auto` / `ask-all` | `bypass` (YOLO) |
+|----------|--------------------|-----------------|
+| `write` / `edit` to a path outside the boundary | ask | **ask** (was allow) |
+| Background Job (`process_start`) with a cwd outside the boundary | ask | **ask** (was a hard refusal from the Job registry's trusted-project check) |
+| Browser upload containing any file outside the boundary | ask | **ask** |
+| Browser screenshot saved outside the boundary | ask | **ask** |
+| `bash` whose arguments reference outside paths (lexical heuristic) | ask (unchanged) | allow (unchanged) |
+
+The bash heuristic is intentionally not promoted into YOLO: it matches any
+non-`cd/ls/cat/echo` program with an outside operand (`rg foo /usr/include`),
+which would turn YOLO into constant prompting. Writing files, running
+long-lived processes elsewhere, and uploading local files from another space
+warrant an explicit decision.
+
+Circuit breakers are unchanged and still win: secret paths deny with no
+prompt, `deny` rules deny, and no grant can widen them.
+
+**Answers on the prompt:**
+
+- *Allow once* — this call only.
+- *Allow for session* — for a Job, the cwd directory (and everything under it)
+  joins this session's boundary; for a file write, screenshot, or upload,
+  the approved path or paths are remembered. In-memory, cleared with the session.
+- *Deny* — the tool fails with a reason that names the boundary, so the model
+  can explain or choose another path instead of guessing.
+
+A session grant is **not** project trust: the granted directory's
+`.piwin/permissions.json` and YOLO settings still do not apply. Trust stays an
+explicit Settings action.
+
+Non-interactive callers (CLI `-p`, schedules) cannot answer, so a boundary ask
+resolves to deny with the same reason. Subagent asks route to the parent
+session's user as before.
+
+**Job registry.** The trusted-project check stays for clients that start Jobs
+directly (`job/start`). The model-facing `process_start` tool passes the cwd it
+was admitted with as a Host-internal extra root — never through the public
+`StartJobInput`, so a client cannot use it to skip the check.
+
 ### 5. MCP boundary (superseded by ADR 0033)
 
 MCP is outside this permission ADR. The configured server is the user's trust

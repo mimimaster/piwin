@@ -6,6 +6,7 @@
  * Media vault paths / remote-asset refs dispatch to the media viewer by store
  * identity (ADR 0052). Skill / host absolute paths are classified as legacy.
  */
+import { configStoreRelativePath } from '@piwin/contracts';
 import { isPiwinMediaPath, isRemoteMediaAssetRef, REMOTE_MEDIA_ASSET_PREFIX } from './media-path';
 
 export type DocumentOpenPathKind =
@@ -59,6 +60,16 @@ export type DocumentOpenPathPlan =
 
 function normalizeSeparators(value: string): string {
   return value.replace(/\\/g, '/');
+}
+
+/**
+ * Home-relative paths such as `~/notes.md` name the Host user's home, never
+ * the workspace. Without this they took the project-relative branch and
+ * resolved inside the active project, so a `~/.piwin/...` chip read as
+ * not-found.
+ */
+function isHomeRelativePath(value: string): boolean {
+  return /^~[\\/]/.test(value);
 }
 
 /**
@@ -179,8 +190,11 @@ export function planDocumentOpenPath(input: {
   }
 
   // Relative path that looks project-relative when we have a project root.
+  // Home-relative paths are absolute user locations, not workspace paths.
   const looksAbsolute =
-    cleanPath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(cleanPath);
+    cleanPath.startsWith('/') ||
+    /^[A-Za-z]:[\\/]/.test(cleanPath) ||
+    isHomeRelativePath(cleanPath);
   if (!looksAbsolute && projectPath) {
     return {
       kind: 'project',
@@ -204,7 +218,7 @@ export function planDocumentOpenPath(input: {
       return {
         kind: 'trusted-config',
         relativePath: trustedRelative,
-        displayPath: `~/.piwin/${trustedRelative}`,
+        displayPath: cleanPath,
       };
     }
     return {
@@ -271,42 +285,21 @@ export function buildDocumentUnavailableStub(input: {
 }
 
 /**
- * Config-root-relative path for trusted text preview. Media vault stays on
- * the media channel; the config root itself is not a file.
+ * Where the product config store lives unless the Host says otherwise. A
+ * remote Host never reports its root (paths are projected out), so this is the
+ * best claim a remote shell can make; the Host re-validates every read.
+ */
+const CONVENTIONAL_CONFIG_ROOT = '~/.piwin';
+
+/**
+ * Config-root-relative path for trusted text preview, or null when the path is
+ * not under this Host's config root (see `configStoreRelativePath`).
  */
 export function trustedConfigRelativeFromPath(
   filePath: string,
   configRoot?: string | null | undefined,
 ): string | null {
-  const normalized = normalizeSeparators(filePath).replace(/^file:\/\//, '');
-  const root = configRoot?.trim();
-  if (root) {
-    const rootNorm = normalizeSeparators(root).replace(/\/+$/, '');
-    if (normalized === rootNorm) {
-      return null;
-    }
-    if (!normalized.toLowerCase().startsWith(`${rootNorm.toLowerCase()}/`)) {
-      return null;
-    }
-    const relative = normalized.slice(rootNorm.length).replace(/^\/+/, '');
-    return sanitizeTrustedRelative(relative);
-  }
-  const match = normalized.match(/\/\.piwin\/(.+)$/);
-  if (!match?.[1]) {
-    return null;
-  }
-  return sanitizeTrustedRelative(match[1]);
-}
-
-function sanitizeTrustedRelative(relativePath: string): string | null {
-  const relative = relativePath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
-  if (!relative || relative.includes('..')) {
-    return null;
-  }
-  if (relative === 'media' || relative.startsWith('media/')) {
-    return null;
-  }
-  return relative;
+  return configStoreRelativePath(filePath, configRoot?.trim() || CONVENTIONAL_CONFIG_ROOT);
 }
 
 /**

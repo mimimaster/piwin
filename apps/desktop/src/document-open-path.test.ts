@@ -154,7 +154,7 @@ describe('planDocumentOpenPath', () => {
     ).toEqual({
       kind: 'trusted-config',
       relativePath: 'config.json',
-      displayPath: '~/.piwin/config.json',
+      displayPath: '/Users/t/.piwin/config.json',
     });
     expect(
       planDocumentOpenPath({
@@ -180,7 +180,7 @@ describe('planDocumentOpenPath', () => {
     ).toEqual({
       kind: 'trusted-config',
       relativePath: 'permissions.json',
-      displayPath: '~/.piwin/permissions.json',
+      displayPath: '/var/piwin-root/permissions.json',
     });
     expect(
       planDocumentOpenPath({
@@ -228,6 +228,74 @@ describe('planDocumentOpenPath', () => {
       projectPath: '/w',
       relativePath: 'media/session-1/a.jpg',
       displayPath: 'media/session-1/a.jpg',
+    });
+  });
+
+  it('treats a home-relative config path as trusted-config, not project-relative', () => {
+    expect(
+      planDocumentOpenPath({
+        path: '~/.piwin/pi-agent/auth.json',
+        projectPath: '/workspace',
+        configRoot: '~/.piwin',
+      }),
+    ).toEqual({
+      kind: 'trusted-config',
+      relativePath: 'pi-agent/auth.json',
+      displayPath: '~/.piwin/pi-agent/auth.json',
+    });
+    // The Host may report an expanded root while the chip keeps the `~` form.
+    expect(
+      planDocumentOpenPath({
+        path: '~/.piwin/pi-agent/auth.json',
+        projectPath: '/workspace',
+        configRoot: '/Users/t/.piwin',
+      }),
+    ).toMatchObject({ kind: 'trusted-config', relativePath: 'pi-agent/auth.json' });
+  });
+
+  it('never reads another config store from this Host root', () => {
+    // A test Host rooted at ~/.piwin-test must not answer a production-store
+    // chip with its own auth.json; the chip goes to the local-file channel.
+    expect(
+      planDocumentOpenPath({
+        path: '~/.piwin/pi-agent/auth.json',
+        projectPath: '/workspace',
+        configRoot: '/Users/t/.piwin-test',
+      }),
+    ).toEqual({
+      kind: 'legacy-absolute',
+      absolutePath: '~/.piwin/pi-agent/auth.json',
+      displayPath: '~/.piwin/pi-agent/auth.json',
+    });
+    expect(
+      planDocumentOpenPath({
+        path: '/Users/t/backup/.piwin-old/config.json',
+        projectPath: '/workspace',
+        configRoot: '/Users/t/.piwin',
+      }).kind,
+    ).toBe('legacy-absolute');
+    expect(
+      planDocumentOpenPath({
+        path: '~/.piwin-test/pi-agent/auth.json',
+        projectPath: '/workspace',
+        configRoot: '/Users/t/.piwin-test',
+      }),
+    ).toMatchObject({ kind: 'trusted-config', relativePath: 'pi-agent/auth.json' });
+  });
+
+  it('keeps home-relative skills and non-config home paths out of the project', () => {
+    expect(
+      planDocumentOpenPath({
+        path: '~/.piwin/skills/executing-plans/SKILL.md',
+        projectPath: '/workspace',
+      }).kind,
+    ).toBe('skill-legacy');
+    expect(
+      planDocumentOpenPath({ path: '~/notes/plan.md', projectPath: '/workspace' }),
+    ).toEqual({
+      kind: 'legacy-absolute',
+      absolutePath: '~/notes/plan.md',
+      displayPath: '~/notes/plan.md',
     });
   });
 

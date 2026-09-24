@@ -9,7 +9,6 @@ import {
   PIWIN_APPEARANCE_BONE,
   PIWIN_APPEARANCE_INKSTONE_INK,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
-  PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_OBSIDIAN,
 } from './appearance-tokens.js';
 import { FilePanelEmptyFallback } from './file-panel-empty-fallback.js';
@@ -90,23 +89,6 @@ describe('FilePanelEmptyFallback', () => {
 
     const title = container.querySelector('[data-testid="file-tree-empty-title"]');
     expect(title?.textContent).toBe('砚案静候新章');
-  });
-
-  it('renders Ink Wash theme with poetic seal', () => {
-    renderFallback(
-      <FilePanelEmptyFallback
-        locale="zh-CN"
-        activeTheme={PIWIN_APPEARANCE_INK_WASH}
-      />,
-      PIWIN_APPEARANCE_INK_WASH,
-    );
-
-    const seal = container.querySelector('[data-testid="file-tree-empty-seal"]');
-    expect(seal).not.toBeNull();
-    expect(seal?.textContent).toBe('素');
-
-    const title = container.querySelector('[data-testid="file-tree-empty-title"]');
-    expect(title?.textContent).toBe('素笺待发 · 暂无文件');
   });
 
   it('renders modern Obsidian theme with geometric SVG icon instead of seal', () => {

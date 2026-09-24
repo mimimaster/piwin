@@ -75,7 +75,12 @@
 - 用 `ResizeObserver` 读取 frame 内容区，取整为 CSS px；
 - 尺寸连续变化时 150ms 防抖；宽或高变化小于 8px 不发送；
 - 仅在 controller 为 `idle` 或 `user` 时发送 `browser/resize`；Agent 持锁期间保留最后意图，释放后再提交一次；
-- `browser/resize` 携带当前 mirror `leaseId`。只有一个有效 mirror lease 时 Host 才接受自动 follow resize；多个客户端同时挂载时冻结最后实际 viewport，避免彼此抖动，用户仍可通过显式 viewport set 改变共享页面；
+- **一个客户端只有一个浏览器面板**（2026-09-24）：浏览器视图对应的是同一个 Host Chromium，再开一个视图只是同一页面的第二份镜像。Dock 每种工具只保留一个视图（含浏览器，旧布局里多出的浏览器视图加载时合并）；+ 菜单的"再开浏览器"在已有面板里新建 Chromium 标签页。Host 端兜底：`browser/start` 带客户端标识（`devicePrincipalId`，本地为 `local`），同一客户端的新 lease 会作废它仍持有的旧 lease 并记 `host/log` warn——同一客户端出现两个 lease 属于泄漏，不是"另一个窗口"。
+- `browser/resize` 携带当前 mirror `leaseId`。多个客户端（如 Mac 与手机）同时挂载时，**当前使用的那个决定尺寸**（此前是全部冻结在最后的实际 viewport，并挂一条无操作的提示条）：
+  - Host 在 `viewport.followLeaseId` 里记录由哪个 lease 决定跟随尺寸。`browser/resize { origin: 'follow', claim: true }` 接管；不带 `claim` 的 follow resize 只在自己就是归属方、只有一个 mirror、或归属 lease 已失效时被接受，否则返回 `browser-viewport-owned`；
+  - Desktop 在面板打开（窗口在前台）、窗口获得焦点、页面重新可见、指针移入页面区域时发 `claim`；归属窗口离开后，前台客户端接手。Agent 固定的非 follow 视口不会被接手覆盖；
+  - **视口相关不出任何文字提示**：非归属客户端只是按比例缩放显示页面；follow resize 失败时静默退回等比显示并重试；
+  - 用户仍可通过显式 viewport set 改变共享页面，这会清空 `followLeaseId`；
 - mirror lease 随连接回收：客户端连接关闭（崩溃、被杀、断网）而未发 `browser/stop` 时，Host 在 30s 宽限后以 `browser/stop { reason: 'disconnect' }` 代为释放，除非仍有在线连接持有同一 id。断线释放不作废 lease id；Desktop 在 Host 重新 ready 后用同一 id 重新 `browser/start`。只有 panel 卸载的 stop 才作废 id；
 - Host 不再使用单一 `maxDimension=1280` 同时限制宽高。`follow` 的 CSS viewport 独立限制为最大 1920×1200、最小沿用现有 viewport 下界；超出时保持比例缩入该矩形；
 - resize 失败时保持上一帧和上一实际尺寸，不乐观修改坐标空间。

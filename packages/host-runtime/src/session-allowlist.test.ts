@@ -68,6 +68,16 @@ describe('SessionAllowlist', () => {
     expect(al.size).toBe(1);
   });
 
+  it('keeps a granted directory within its own subtree and clears it', () => {
+    const al = new SessionAllowlist();
+    al.addWorkspaceDirectory('/tmp/other/');
+    expect(al.hasWorkspacePath('/tmp/other')).toBe(true);
+    expect(al.hasWorkspacePath('/tmp/other/subdir/file.txt')).toBe(true);
+    expect(al.hasWorkspacePath('/tmp/other-sibling')).toBe(false);
+    al.clear();
+    expect(al.hasWorkspacePath('/tmp/other')).toBe(false);
+  });
+
   it('ignores empty entries', () => {
     const al = new SessionAllowlist();
     al.addBashCommand('  ');

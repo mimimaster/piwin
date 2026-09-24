@@ -4,6 +4,7 @@
  * (oauth-type credentials require provider.auth.oauth, which this product path
  * does not register).
  */
+import { readFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -31,8 +32,26 @@ export async function readOauthAccessToken(
   authPath: string,
   providerId: string,
 ): Promise<string | undefined> {
-  const root = await readAuthFileRoot(authPath);
-  const entry = asRecord(root[providerId]);
+  return accessTokenOf(asRecord((await readAuthFileRoot(authPath))[providerId]));
+}
+
+/**
+ * Synchronous presence check for tool composition, which decides what the
+ * model sees without awaiting: a tool backed by an `oauth:<provider>` ref must
+ * not be offered when that account is not logged in.
+ */
+export function hasOauthCredentialSync(authPath: string, providerId: string): boolean {
+  let root: Record<string, unknown> | undefined;
+  try {
+    root = asRecord(JSON.parse(readFileSync(authPath, 'utf8')) as unknown);
+  } catch {
+    // Missing or unreadable auth.json means no account is logged in.
+    return false;
+  }
+  return accessTokenOf(asRecord(root?.[providerId])) !== undefined;
+}
+
+function accessTokenOf(entry: Record<string, unknown> | undefined): string | undefined {
   if (!entry) return undefined;
   // Pi api_key shape (Claude Code isolated path)
   if (typeof entry.key === 'string' && entry.key.trim()) {

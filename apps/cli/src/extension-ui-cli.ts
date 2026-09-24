@@ -1,5 +1,10 @@
 import { createInterface } from 'node:readline/promises';
-import type { ExtensionUiRequest, ExtensionUiResponse } from '@piwin/contracts';
+import type {
+  ExtensionUiRequest,
+  ExtensionUiResponse,
+  HostCommand,
+  HostPush,
+} from '@piwin/contracts';
 
 export type CliExtensionUiRequest = ExtensionUiRequest & { sessionId: string };
 
@@ -185,5 +190,45 @@ export function createCliExtensionUiRequestHandler(
         return { kind: 'input', value: answer };
       }
     }
+  };
+}
+
+type ExtensionUiRequestPush = Extract<HostPush, { type: 'extension/ui_request' }>;
+type ExtensionUiResolveCommand = Extract<HostCommand, { type: 'extension/ui_resolve' }>;
+
+export function toExtensionUiResolveCommand(
+  requestId: string,
+  response: ExtensionUiResponse,
+): ExtensionUiResolveCommand {
+  if (response.kind === 'confirm') {
+    return { type: 'extension/ui_resolve', requestId, confirmed: response.confirmed };
+  }
+  if (response.cancelled === true || response.value === undefined) {
+    return { type: 'extension/ui_resolve', requestId, cancelled: true };
+  }
+  return { type: 'extension/ui_resolve', requestId, value: response.value };
+}
+
+/**
+ * Answer Host `extension/ui_request` pushes on the TTY and send the answer back
+ * as `extension/ui_resolve` (ADR 0023). Without this, a CLI-driven run blocks
+ * on the Host's pending Extension UI promise until the prompt timeout.
+ *
+ * Requests are answered one at a time so concurrent prompts never interleave
+ * on stderr.
+ */
+export function createCliExtensionUiPushResponder(
+  resolve: (command: ExtensionUiResolveCommand) => Promise<unknown>,
+  options?: CliExtensionUiOptions,
+): (push: ExtensionUiRequestPush) => Promise<void> {
+  const handle = createCliExtensionUiRequestHandler(options);
+  let queue: Promise<void> = Promise.resolve();
+  return (push) => {
+    const answered = queue.then(async () => {
+      const response = await handle(push);
+      await resolve(toExtensionUiResolveCommand(push.requestId, response));
+    });
+    queue = answered.catch(() => undefined);
+    return answered;
   };
 }

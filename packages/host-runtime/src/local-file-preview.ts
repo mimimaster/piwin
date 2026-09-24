@@ -7,7 +7,8 @@
  * `outside-project`. Remote clients never call this.
  */
 import { open, realpath, stat } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, join } from 'node:path';
 import {
   contentKindForMimeType,
   inferAttachmentMimeType,
@@ -30,8 +31,11 @@ export type PreviewLocalFileInput = {
 };
 
 export async function previewLocalFile(input: PreviewLocalFileInput): Promise<LocalFilePreviewData> {
-  const absolutePath = input.absolutePath.trim();
-  if (!isAbsoluteFilesystemPath(absolutePath) || absolutePath.includes('\0')) {
+  const requestedPath = input.absolutePath.trim();
+  // A chip copies `~/…` literally (see Desktop resolveLocalFileAbsolutePath),
+  // so the Host expands the home marker before any filesystem hop.
+  const absolutePath = expandHomePath(requestedPath);
+  if (!isAbsoluteFilesystemPath(absolutePath) || requestedPath.includes('\0')) {
     return unavailable('invalid-request', 'Provide an absolute file path.');
   }
   if (!Number.isSafeInteger(input.maxImageBytes) || input.maxImageBytes <= 0) {
@@ -165,6 +169,17 @@ function unavailable(
   return suggestion === undefined
     ? { status: 'unavailable', reason }
     : { status: 'unavailable', reason, suggestion };
+}
+
+/** Expand a leading `~` / `~/` to the Host user's home; leave all else alone. */
+function expandHomePath(value: string): string {
+  if (value === '~') {
+    return homedir();
+  }
+  if (!/^~[\\/]/.test(value)) {
+    return value;
+  }
+  return join(homedir(), value.slice(2));
 }
 
 function isAbsoluteFilesystemPath(value: string): boolean {

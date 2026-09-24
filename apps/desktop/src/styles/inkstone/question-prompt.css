@@ -1,0 +1,291 @@
+/* S5.11: Model question (ADR 0023) on the Inkstone desk.
+
+   The docked frame shell (surface, radius, header/content padding) lives in
+   permission-gates.css S5.10 and is shared with the PermissionBar. This file
+   owns what makes a *question* read as Inkstone: a serif question line, a
+   ruled answer sheet instead of grey blocks, and letter keys that are blank
+   seals until the hand hovers, then take the vermilion.
+
+   Keyframes (breath, ink-bloom, stamp) come from motion.css; never redefine
+   them here. */
+
+/* ── Frame: one stripe, one shadow ──────────────────────────────────────
+   The generic `gate-pulse` behavior animates `box-shadow`, and an animation
+   outranks every declaration — it erased --sh2 and painted a second,
+   full-height stripe beside the ::before rule. On Inkstone the frame keeps
+   only its entry slide; the "waiting on you" pulse moves onto the stripe. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption[data-activity-animation] {
+  animation: agent-interruption-slide-in var(--t-2, 0.2s) var(--ease-out, ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption::before {
+  top: 14px;
+  bottom: 14px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption--question[data-tool-status='running']::before {
+  animation: breath 2.4s ease-in-out infinite;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption--question
+  .agent-interruption-header {
+  padding: 14px 18px 2px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption--question
+  .agent-interruption-content {
+  padding: 0 18px 12px;
+}
+
+/* ── Status line: 「问」 seal + mono whisper ──────────────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption--question
+  .ui-status-badge {
+  gap: 8px;
+  font: 500 11px var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--t3);
+}
+
+/* Decorative glyph, same family as the transcript's 「允」 auto-grant seal. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption--question
+  .ui-status-badge::before {
+  content: '问';
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 2px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font: 600 11px / 1 var(--serif);
+  letter-spacing: 0;
+  transform: rotate(-3deg);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption--question
+  .ui-status-dot {
+  display: none;
+}
+
+/* ── Question line ─────────────────────────────────────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption--question
+  .agent-interruption-title {
+  margin-top: 8px;
+  font: 600 16px / 1.5 var(--serif);
+  letter-spacing: 0.01em;
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption--question
+  .agent-interruption-description {
+  margin-top: 3px;
+  font: 12.5px / 1.5 var(--sans);
+  color: var(--t3);
+}
+
+/* ── Answer sheet: ruled rows, not grey blocks ─────────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-choices {
+  gap: 0;
+  margin-top: 10px;
+  border-top: 1px solid var(--l1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-choice {
+  position: relative;
+  gap: 12px;
+  padding: 9px 10px 9px 2px;
+  border-radius: 0;
+  border-bottom: 1px solid var(--l1);
+  background: transparent;
+  box-shadow: none;
+  color: var(--t2);
+  font: 400 13.5px / 1.45 var(--sans);
+  transition:
+    background-color var(--t-2, 0.15s) ease,
+    color var(--t-2, 0.15s) ease;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-choice:hover {
+  /* Wash fades out to the right like ink thinning off the brush. */
+  background: linear-gradient(90deg, var(--zhu-wash), transparent 75%);
+  box-shadow: none;
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-choice:focus-visible {
+  outline: 2px solid var(--azure);
+  outline-offset: -2px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-choice-label {
+  /* Answers are sentences, not labels: wrap instead of truncating. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Letter key = blank seal; hover inks it, press stamps it. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-choice-badge {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--l3);
+  color: var(--t3);
+  font: 600 11px / 1 var(--mono);
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms var(--spring);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-choice:is(:hover, :focus-visible)
+  .agent-interruption-choice-badge {
+  background: var(--zhu);
+  color: var(--on-zhu);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  transform: rotate(-3deg);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-choice:active
+  .agent-interruption-choice-badge {
+  animation: stamp 160ms var(--spring) forwards;
+}
+
+/* ── Confirm: seal primary + ghost secondary ───────────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-actions {
+  gap: 8px;
+  margin-top: 12px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-actions
+  .piwin-button {
+  height: 30px;
+  padding: 0 12px 0 6px;
+  gap: 8px;
+  border: 0;
+  border-radius: 4px;
+  font: 500 12.5px var(--sans);
+}
+
+/* Mantine wraps children in its label span, so the badge/label gap lives there. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-actions
+  .mantine-Button-label {
+  gap: 8px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-actions
+  .piwin-button--primary {
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font-weight: 600;
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-actions
+  .piwin-button--primary:hover {
+  background: var(--zhu-lift);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-actions
+  .piwin-button--primary:active {
+  animation: stamp 160ms var(--spring) forwards;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-actions
+  .piwin-button--primary
+  .agent-interruption-choice-badge {
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+  color: var(--on-zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-actions
+  .piwin-button--secondary {
+  background: transparent;
+  color: var(--t2);
+  box-shadow: inset 0 0 0 1px var(--l3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-actions
+  .piwin-button--secondary:hover {
+  background: var(--s2);
+  color: var(--t1);
+}
+
+/* ── Footer: cancel is a margin note, not a button ─────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-footer {
+  margin-top: 8px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-footer
+  .piwin-button {
+  height: auto;
+  padding: 2px 0;
+  background: transparent;
+  color: var(--t4);
+  font: 11px var(--mono);
+  letter-spacing: 0.02em;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .agent-interruption-footer
+  .piwin-button:hover {
+  background: transparent;
+  color: var(--t2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+    .agent-interruption--question::before,
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+    .agent-interruption-choice:active
+    .agent-interruption-choice-badge,
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+    .agent-interruption-actions
+    .piwin-button--primary:active {
+    animation: none;
+  }
+
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+    .agent-interruption-choice-badge {
+    transition: none;
+  }
+}

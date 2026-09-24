@@ -82,6 +82,7 @@ export {
   copyOauthCredential,
   deleteOauthCredential,
   hasOauthCredential,
+  hasOauthCredentialSync,
   readOauthAccessToken,
   readAuthFileRoot,
   materializeClaudeCodeCredentialFromAnthropic,

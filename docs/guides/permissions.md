@@ -33,17 +33,20 @@ Permissions, or via CLI flags.
 |------|---------|----------|
 | `auto` | On | Low-friction inside the sandbox. Safe commands and in-project writes run without prompts; leaving the workspace or opening network asks. |
 | `ask` | On | Prompts on almost every tool call (still sandboxed). Use when you want to watch every step. |
-| `yolo` (default) | Off | No sandbox, no routine prompts. **Only `rm -rf` still asks.** Deny circuit breakers still fire. Refused for untrusted projects (downgraded to `auto`). |
+| `yolo` (default) | Off | No sandbox or routine prompts. Recursive force-delete and operations that leave the session workspace still ask. Deny circuit breakers still fire. Refused for untrusted projects (downgraded to `auto`). |
 
 ### Circuit breakers (apply in all modes, including `yolo`)
 
 Even in `yolo`, these actions always prompt (or are denied non-interactively):
 
 - Recursive force-delete (`rm -rf …`) still **asks**. `rm -rf /` and equivalent root-deletion patterns still **deny**.
+- A file write, browser screenshot, browser upload, or background Job whose path or working directory is outside the session workspace **asks** in every mode.
 - Writes to secret paths (`~/.ssh/**`, `**/.env`, `**/*.pem`, `**/id_rsa`, …) still **deny**.
 - Any other `deny` rule that matches.
 
-Leave-workspace asks (`tee /tmp`, out-of-project `write`/`edit`) apply in `auto` / `ask`, not in `yolo`.
+The bash outside-path heuristic (`tee /tmp`, for example) asks in `auto` and
+`ask`. In `yolo`, it keeps its existing behavior; direct file writes and
+background Jobs still ask when they cross the workspace boundary.
 
 Circuit breakers cannot be allowed away by project rules or `yolo` mode.
 
@@ -112,8 +115,9 @@ host-gated separately from `web_fetch`:
 
 Other `browser_*` writes (click, hover, select, check, type, lock, restart,
 viewport set, tabs new/select/close, dialog) follow the
-interaction policy: `ask-all` prompts, otherwise allow. `browser_upload` is
-gated as a file-write on the Host path. Read tools
+interaction policy: `ask-all` prompts, otherwise allow. `browser_upload` checks
+every Host file path in the upload and asks if any crosses the session boundary.
+Read tools
 (`snapshot`, `find`, `wait`, `wait_for`, `status`, viewport query, tabs list,
 console, network) are read-only.
 
@@ -245,10 +249,12 @@ rules so a cloned repo cannot weaken the agent's guardrails.
 When a prompt appears in the Desktop UI, you can choose:
 
 - **Allow for session** (default) — remembers the approval for the current
-  session only (in-memory, cleared on close). Lowest commitment.
+  session only (in-memory, cleared on close). For a background Job outside the
+  workspace, this grants its working directory and descendants for this
+  session. A file-write approval remembers its path.
 - **Allow once** — runs this one action, no persistence.
 - **Allow for project** — remembers the approval persistently for the current
-  project (available for bash and file-write subjects).
+  project (available for bash and file-write subjects, not background Jobs).
 
 ### Approval scopes (ADR 0024)
 

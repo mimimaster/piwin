@@ -7,8 +7,8 @@
  * independently for the current turn.
  * Choosing Ultra Code (or a user scheme) attaches PromptInput.orchestrationSchemeId
  * to that send. The pill stays on the chosen scheme for this conversation,
- * including New Agent first-send (Host session creation is not a session switch).
- * Switching conversations or New Agent returns to freehand. No "set as default".
+ * including later turns and returning to this session. New Agent starts
+ * freehand. No "set as default".
  */
 import { useState, type ReactElement } from 'react';
 import { Popover } from '@piwin/ui-kit';

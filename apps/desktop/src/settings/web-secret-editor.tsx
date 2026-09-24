@@ -193,8 +193,8 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
         label="API Key"
         description={
           props.zh
-            ? '密钥保存在 Host，不写入配置文件。新填会写回 Host。点击眼睛可临时显示；闪电图标可测试连通。'
-            : 'Stored on the Host, never in config. Paste a new key to update it. Use the eye to reveal, the spark to test.'
+            ? '密钥保存在 Host，不写入配置文件。'
+            : 'Stored on the Host, never in config.'
         }
         className="web-source-field"
       >

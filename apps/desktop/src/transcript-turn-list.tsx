@@ -1,5 +1,6 @@
 import {
   Fragment,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -35,6 +36,7 @@ import {
   type TranscriptTurnMeasureDetail,
 } from './transcript-turn-measure.js';
 import { alignTranscriptReadingAnchor } from './transcript-reading-anchor.js';
+import { RenderProbeBoundary } from './e2e/render-probe-boundary.js';
 
 export type TranscriptTurnListProps = {
   turns: readonly TranscriptTurn[];
@@ -179,6 +181,24 @@ export function TranscriptTurnList(props: TranscriptTurnListProps): ReactElement
 
   return <VirtualizedTranscriptTurns {...props} scrollPort={scrollPort} />;
 }
+
+/**
+ * One turn's content. The virtualizer re-renders its list on every scroll
+ * state change (scroll start/stop, range shifts) — synchronously, via
+ * flushSync. Without this boundary each of those re-built every mounted turn:
+ * a single 55-step call chain cost ~400ms at every scroll start and stop.
+ * The turn object and renderTurn keep their identity across those renders.
+ */
+const TranscriptTurnBody = memo(function TranscriptTurnBody(props: {
+  turn: TranscriptTurn;
+  renderTurn: (turn: TranscriptTurn) => ReactElement;
+}): ReactElement {
+  return (
+    <RenderProbeBoundary id={`turn:${props.turn.id}`}>
+      {props.renderTurn(props.turn)}
+    </RenderProbeBoundary>
+  );
+});
 
 function VirtualizedTranscriptTurns(
   props: TranscriptTurnListProps & { scrollPort: TranscriptScrollPort },
@@ -431,7 +451,7 @@ function VirtualizedTranscriptTurns(
               data-index={virtualItem.index}
               data-turn-id={turn.id}
             >
-              {props.renderTurn(turn)}
+              <TranscriptTurnBody turn={turn} renderTurn={props.renderTurn} />
             </div>
           </div>
         );

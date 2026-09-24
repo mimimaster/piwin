@@ -15,7 +15,6 @@
  */
 
 import type { ThemeDeckTokens, ThemeManifest } from '@piwin/contracts';
-import { getThemeAsset, type InkWashAssetKind } from '../ink-wash-assets.js';
 import { alpha, mix } from './color.js';
 import { resolveDeckTokens } from './deck-derive.js';
 import { FONT_MONO } from './deck-palette.js';
@@ -53,34 +52,6 @@ const INKSTONE_FONT_MONO =
   '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
 
 type Vars = Record<string, string>;
-
-/**
- * Image-backed variables for the ink-wash theme package. Every other theme
- * clears them, so switching away cannot strand a background image on the shell.
- */
-const INK_WASH_ASSET_VARS: ReadonlyArray<readonly [string, InkWashAssetKind]> = [
-  ['--ink-wash-hero', 'hero'],
-  ['--ink-wash-conversation-texture', 'conversationTexture'],
-  ['--ink-wash-sidebar-bg', 'sidebarBg'],
-  ['--ink-wash-right-panel-bg', 'rightPanelBg'],
-  ['--ink-wash-agent-seal', 'agentSeal'],
-  ['--ink-wash-dry-brush-divider', 'dryBrushDivider'],
-  ['--ink-wash-empty-session', 'emptySession'],
-  ['--ink-wash-empty-files', 'emptyFiles'],
-  ['--ink-wash-empty-failure', 'emptyFailure'],
-  ['--ink-wash-empty-complete', 'emptyComplete'],
-];
-
-function applyInkWashAssets(root: HTMLElement, theme: ThemeManifest): void {
-  for (const [varName, kind] of INK_WASH_ASSET_VARS) {
-    const asset = getThemeAsset(theme, kind);
-    if (asset === undefined) {
-      root.style.removeProperty(varName);
-    } else {
-      root.style.setProperty(varName, `url("${asset}")`);
-    }
-  }
-}
 
 /**
  * Elevation is a rim light plus an outer hairline — never a `border`.
@@ -417,7 +388,6 @@ export function applyAppearanceToDocument(
   for (const name of GEOMETRY_VARIABLES) {
     root.style.removeProperty(name);
   }
-  applyInkWashAssets(root, theme);
 
   root.dataset.themeId = inkstoneDocumentThemeId(theme.id, theme.mode);
   root.dataset.themeMode = theme.mode;

@@ -12,6 +12,7 @@ import type {
   MediaDeleteInput,
 } from './media.js';
 import type {
+  DocumentPathResolveCommandInput,
   LocalFileExportCommandInput,
   LocalFilePreviewCommandInput,
   TrustedTextReadCommandInput,
@@ -177,6 +178,12 @@ export type PlatformHostCommand =
    * callers send a path under `~/.piwin`, never a host-absolute path.
    */
   | { id?: string; type: 'preview/read-trusted-text'; input: TrustedTextReadCommandInput }
+  /**
+   * Interprets a raw clicked path once, Host-side (ADR 0052 §6). Remote-safe:
+   * the answer is a logical target, and a host-absolute `local-file` target is
+   * refused on projection to a remote client.
+   */
+  | { id?: string; type: 'preview/resolve-path'; input: DocumentPathResolveCommandInput }
   /**
    * Local-Host only. Previews a clicked host path as media or text
    * (ADR 0052 Slice 4). Remote host-server rejects this command.
@@ -561,7 +568,8 @@ export type PlatformHostCommand =
   | { id?: string; type: 'browser/restart' }
   | { id?: string; type: 'browser/reload' }
   | { id?: string; type: 'browser/input'; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }
-  | { id?: string; type: 'browser/resize'; width: number; height: number; leaseId?: string; mode?: BrowserViewportMode; origin?: 'follow' | 'explicit' }
+  /** `claim`: see the content command; the focused panel takes the follow viewport. */
+  | { id?: string; type: 'browser/resize'; width: number; height: number; leaseId?: string; mode?: BrowserViewportMode; origin?: 'follow' | 'explicit'; claim?: boolean }
   | { id?: string; type: 'browser/back' }
   | { id?: string; type: 'browser/forward' }
   | { id?: string; type: 'browser/new-tab'; url?: string }

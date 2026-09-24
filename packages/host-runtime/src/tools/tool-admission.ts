@@ -9,6 +9,7 @@ import {
   type HostToolRegistration,
   type PermissionMode,
   type PermissionRuleSet,
+  type PermissionSubject,
   type ToolResult,
 } from '@piwin/contracts';
 import {
@@ -16,6 +17,7 @@ import {
   type ToolApprovalBroker,
   type ToolApprovalBrokerOptions,
 } from './tool-approval-broker.js';
+import { canonicalFsPath } from '@piwin/process';
 import { hostToolPolicyEvaluator, type ToolPolicyEvaluator } from './tool-policy-evaluator.js';
 import type { ToolResourceGate } from '../system-memory.js';
 export type HostToolAdmissionDecision =
@@ -27,7 +29,10 @@ export type HostToolAdmission = {
   approvalBroker: ToolApprovalBroker;
   getPermissionMode: () => PermissionMode;
   rules: PermissionRuleSet;
+  /** Canonical (real path) workspace root; empty for unbound sessions. */
   projectRoot: string;
+  /** Real-path resolver for boundary comparisons; omitted in tests. */
+  canonicalizePath?: (path: string) => string;
   /**
    * Host resource admission, consulted before policy. Omitted means no
    * resource gating — the product default supplies a memory gate.
@@ -44,12 +49,16 @@ export type HostToolAdmissionOptions = ToolApprovalBrokerOptions & {
 };
 
 export function createHostToolAdmission(options: HostToolAdmissionOptions): HostToolAdmission {
+  const projectRoot = options.projectRoot.trim();
   return {
     policyEvaluator: hostToolPolicyEvaluator,
     approvalBroker: createToolApprovalBroker(options),
     getPermissionMode: options.getPermissionMode,
     rules: options.rules,
-    projectRoot: options.projectRoot,
+    // Compared by real path on both sides: a project opened through a symlink
+    // still contains paths spelled through its target (ADR 0019 §4.1).
+    projectRoot: projectRoot.length > 0 ? canonicalFsPath(projectRoot) : '',
+    canonicalizePath: canonicalFsPath,
     ...(options.resourceGate ? { resourceGate: options.resourceGate } : {}),
     ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}),
   };
@@ -114,6 +123,9 @@ export async function resolveHostToolAdmission(input: {
       rules: input.admission.rules,
       mode: input.admission.getPermissionMode(),
       projectRoot: input.admission.projectRoot,
+      ...(input.admission.canonicalizePath
+        ? { canonicalizePath: input.admission.canonicalizePath }
+        : {}),
     });
     if (outcome.kind === 'invalid-input') {
       return {
@@ -133,6 +145,8 @@ export async function resolveHostToolAdmission(input: {
         input.registration.descriptor.name,
         'permission-denied',
         outcome.policy.reason,
+        outcome.policy.action,
+        outcome.policy.subject,
       );
     }
     if (outcome.policy.decision === 'ask') {
@@ -147,7 +161,13 @@ export async function resolveHostToolAdmission(input: {
       if (!approval.allowed) {
         return input.signal.aborted
           ? { allowed: false, result: { ok: false, code: 'aborted', message: 'tool approval aborted' } }
-          : denied(input.registration.descriptor.name, 'permission-denied', approval.reason);
+          : denied(
+              input.registration.descriptor.name,
+              'permission-denied',
+              approval.reason,
+              outcome.policy.action,
+              outcome.policy.subject,
+            );
       }
     }
     return { allowed: true };
@@ -167,18 +187,38 @@ export async function resolveHostToolAdmission(input: {
   }
 }
 
+/**
+ * Boundary refusals say what happened in words (ADR 0019 §4.1). A bare reason
+ * code left models guessing — one concluded a worktree "is not trusted" and
+ * stopped trying instead of reporting that the user said no.
+ */
 function denied(
   toolName: string,
   code: Extract<ToolResult, { ok: false }>['code'],
   reason: string,
+  action?: string,
+  subject?: PermissionSubject,
 ): HostToolAdmissionDecision {
+  const paths = subject?.kind === 'file-paths'
+    ? subject.paths.join(', ')
+    : subject?.kind === 'file-write'
+      ? subject.path
+      : subject?.kind === 'process'
+        ? subject.cwd
+        : undefined;
+  const explanation = reason === 'cwd-outside-workspace'
+    ? `running a process in ${paths ?? 'that directory'} outside this session's workspace was not approved`
+    : reason === 'path-escapes-project-root'
+      ? `${action === 'browser:upload' ? 'uploading' : 'writing to'} ${paths ?? 'that path'} outside this session's workspace was not approved`
+      : undefined;
   return {
     allowed: false,
     result: {
       ok: false,
       code,
-      message: `Permission denied for ${toolName}: ${reason}`,
+      message: explanation
+        ? `Permission denied for ${toolName}: ${explanation} (${reason})`
+        : `Permission denied for ${toolName}: ${reason}`,
     },
   };
 }
-

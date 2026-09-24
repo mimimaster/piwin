@@ -27,6 +27,7 @@ import { webToDraft, draftToWeb, preserveWebCliLaunchers, type DraftWeb } from '
 import { hostFailureNotice } from './host-problem-copy.js';
 import { isRemoteCommandGapError } from './remote-command-gap.js';
 import {
+  applyHostLoginFollowUpDomains,
   applyHostProviderSnapshot,
   configFromSettingsWriteResponse,
   interpretSettingsLoadResponse,
@@ -212,7 +213,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       return;
     }
     let cancelled = false;
-    const syncProviders = async (): Promise<void> => {
+    const syncProviders = async (withLoginFollowUp = false): Promise<void> => {
       if (savingRef.current) {
         return;
       }
@@ -235,8 +236,15 @@ export const SettingsPanel = memo(function SettingsPanel({
           return;
         }
         setConfig((current) =>
-          current ? applyHostProviderSnapshot(current, loaded.config) : loaded.config,
+          !current
+            ? loaded.config
+            : withLoginFollowUp
+              ? applyHostLoginFollowUpDomains(current, loaded.config)
+              : applyHostProviderSnapshot(current, loaded.config),
         );
+        if (withLoginFollowUp) {
+          setWebDraft(webToDraft(loaded.config.web ?? createDefaultWebConfig()));
+        }
       } catch {
         // Keep the open form; the next auth/settings push can retry.
       }
@@ -249,7 +257,9 @@ export const SettingsPanel = memo(function SettingsPanel({
         return;
       }
       if (message.type === 'auth/updated' || message.type === 'auth/login-finished') {
-        void syncProviders();
+        void syncProviders(
+          message.type === 'auth/login-finished' && message.result.followUp !== undefined,
+        );
       }
     });
   }, [hostClient, request]);

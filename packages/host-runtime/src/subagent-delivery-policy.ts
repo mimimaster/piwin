@@ -5,7 +5,8 @@ import {
   type SubagentIsolationMode,
 } from '@piwin/contracts';
 
-export type SubagentDeliveryPolicySource = 'model-tool' | 'plan' | 'cli' | 'batch' | 'legacy';
+export type SubagentDeliveryPolicySource =
+  'model-tool' | 'model-tool-freehand' | 'plan' | 'cli' | 'batch' | 'legacy';
 
 export type ResolvedSubagentDeliveryPolicy = {
   deliveryIntent: SubagentDeliveryIntent;

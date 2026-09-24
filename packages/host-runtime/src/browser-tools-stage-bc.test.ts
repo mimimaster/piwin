@@ -126,6 +126,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     }),
     dispatchInput: async () => {},
     setViewport: async (size) => size,
+    viewportFollowLeaseId: () => undefined,
     mirrorLeaseCount: () => 1,
     hasMirrorLease: () => true,
     takeOver: async () => ({ owner: 'user', agentWantsLock: true }),
@@ -293,6 +294,12 @@ describe('stage B/C browser tools', () => {
       new AbortController().signal,
     );
     if (!prepared || prepared.ok !== true) throw new Error('expected upload prepare to succeed');
+    expect(upload.permissionSpec.subjectBuilder?.(prepared.arguments, {
+      sessionId: 'session-1',
+      runtimeGenerationId: 'g',
+      runId: 'run-1',
+      toolName: 'browser_upload',
+    })).toEqual({ kind: 'file-paths', paths: [path] });
     const result = await executeTool(upload, prepared.arguments);
     expect(result.ok).toBe(true);
     const missing = await upload.prepareArgs?.(

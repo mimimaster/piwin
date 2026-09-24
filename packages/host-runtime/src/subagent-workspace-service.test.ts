@@ -1,13 +1,46 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
 import type { SubagentTaskSpec } from '@piwin/contracts';
-import { createWorktree, isWorktreeBaseClean, runGitCommand } from '@piwin/git';
+import { checkoutWorktreeTree, createWorktree, isWorktreeBaseClean, runGitCommand } from '@piwin/git';
+import type { WriterSlotPool } from './subagent-writer-slots.js';
 
 vi.mock('@piwin/git', () => ({
   createWorktree: vi.fn(),
   isWorktreeBaseClean: vi.fn(),
   runGitCommand: vi.fn(),
+  checkoutWorktreeTree: vi.fn(),
 }));
+
+/** Slot pool stand-in: the real pool owns git and file I/O, not the service. */
+function createFakeSlotPool(): WriterSlotPool & {
+  acquire: ReturnType<typeof vi.fn>;
+  release: ReturnType<typeof vi.fn>;
+  recordDependencyFingerprint: ReturnType<typeof vi.fn>;
+} {
+  // The real pool replays the fingerprint of the install it kept, but only
+  // from the second acquire on: the first acquire created the slot.
+  let acquisitions = 0;
+  return {
+    acquire: vi.fn(async (input: { baseCommit: string }) => {
+      acquisitions += 1;
+      return {
+        slotId: 'slot-0',
+        worktreePath: '/tmp/slots/repo-key/slot-0',
+        worktreeBranch: 'piwin/subagent/slot-0',
+        baseCommit: input.baseCommit,
+        rebuilt: acquisitions === 1,
+        ...(acquisitions > 1 ? { previousDependencyFingerprint: 'fp-1' } : {}),
+      };
+    }),
+    release: vi.fn(async () => undefined),
+    recordDependencyFingerprint: vi.fn(async () => undefined),
+    read: vi.fn(async () => undefined),
+  } as unknown as WriterSlotPool & {
+    acquire: ReturnType<typeof vi.fn>;
+    release: ReturnType<typeof vi.fn>;
+    recordDependencyFingerprint: ReturnType<typeof vi.fn>;
+  };
+}
 
 function makeTask(overrides: Partial<SubagentTaskSpec> = {}): SubagentTaskSpec {
   return {
@@ -253,4 +286,200 @@ describe('SubagentWorkspaceService', () => {
     await service.release(second);
   });
 
+});
+
+describe('shared writer slot', () => {
+  const baseCommit = 'abc123abc123abc123abc123abc123abc123abcd';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(runGitCommand).mockResolvedValue({
+      stdout: `${baseCommit}\n`,
+      stderr: '',
+      exitCode: 0,
+    });
+    vi.mocked(isWorktreeBaseClean).mockResolvedValue(true);
+    vi.mocked(checkoutWorktreeTree).mockResolvedValue(undefined);
+  });
+
+  it('reuses one slot across consecutive write tasks and reuses the install', async () => {
+    const slotPool = createFakeSlotPool();
+    const prepareWorktreeDependencies = vi.fn(async () => ({
+      status: 'reused' as const,
+      manager: 'pnpm' as const,
+      fingerprint: 'fp-1',
+    }));
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      worktreeStorageRoot: '/tmp/slots',
+      writerSlotPool: slotPool,
+      dirtyBasePolicy: 'bypass',
+      parallelWritePolicy: 'worktree-only',
+      prepareWorktreeDependencies,
+    });
+
+    const first = await service.acquire(makeTask({ id: 'task-1', isolationOverride: 'worktree' }));
+    await service.release(first);
+    const second = await service.acquire(makeTask({ id: 'task-2', isolationOverride: 'worktree' }));
+
+    expect(first.mode).toBe('worktree');
+    expect(second.mode).toBe('worktree');
+    if (first.mode !== 'worktree' || second.mode !== 'worktree') throw new Error('expected worktree');
+    // One checkout for both tasks: that is the whole point of the slot.
+    expect(second.worktreePath).toBe(first.worktreePath);
+    expect(second.slotId).toBe('slot-0');
+    expect(vi.mocked(createWorktree)).not.toHaveBeenCalled();
+    expect(slotPool.acquire).toHaveBeenCalledTimes(2);
+    // The second task sees the install the first task recorded.
+    expect(prepareWorktreeDependencies).toHaveBeenLastCalledWith(
+      expect.objectContaining({ worktreePath: '/tmp/slots/repo-key/slot-0', previousFingerprint: 'fp-1' }),
+    );
+    expect(slotPool.recordDependencyFingerprint).toHaveBeenLastCalledWith(
+      expect.objectContaining({ slotId: 'slot-0', fingerprint: 'fp-1' }),
+    );
+  });
+
+  it('still allocates one worktree per task when no slot pool is configured', async () => {
+    vi.mocked(createWorktree).mockImplementation(async (input) => ({
+      worktreePath: `/tmp/worktrees/${input.name}`,
+      branch: `piwin/subagent/${input.name}`,
+    }));
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      worktreeStorageRoot: '/tmp/slots',
+      dirtyBasePolicy: 'bypass',
+      parallelWritePolicy: 'worktree-only',
+    });
+
+    const first = await service.acquire(makeTask({ id: 'task-1', isolationOverride: 'worktree' }));
+    await service.release(first);
+    const second = await service.acquire(makeTask({ id: 'task-2', isolationOverride: 'worktree' }));
+
+    if (first.mode !== 'worktree' || second.mode !== 'worktree') throw new Error('expected worktree');
+    expect(second.worktreePath).not.toBe(first.worktreePath);
+    expect(first.slotId).toBeUndefined();
+    expect(vi.mocked(createWorktree)).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns the slot to the pool on release', async () => {
+    const slotPool = createFakeSlotPool();
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      worktreeStorageRoot: '/tmp/slots',
+      writerSlotPool: slotPool,
+      dirtyBasePolicy: 'bypass',
+      parallelWritePolicy: 'worktree-only',
+    });
+
+    const lease = await service.acquire(makeTask({ isolationOverride: 'worktree' }));
+    await service.release(lease);
+    expect(slotPool.release).toHaveBeenCalledWith({
+      projectPath: '/tmp/project',
+      storageRoot: '/tmp/slots',
+      slotId: 'slot-0',
+    });
+  });
+
+  it('restores the child\'s frozen tree into the slot for a continuation', async () => {
+    const slotPool = createFakeSlotPool();
+    // The predecessor's own base, not the parent's current HEAD.
+    const predecessorBase = '9999999999999999999999999999999999999999';
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      worktreeStorageRoot: '/tmp/slots',
+      writerSlotPool: slotPool,
+      dirtyBasePolicy: 'bypass',
+      parallelWritePolicy: 'worktree-only',
+    });
+
+    const lease = await service.acquire(
+      makeTask({
+        continuationSessionId: 'child-1',
+        isolationOverride: 'worktree',
+        continuationWorkspaceLease: {
+          mode: 'worktree',
+          cwd: '/tmp/slots/repo-key/slot-0',
+          parentRepoPath: '/tmp/project',
+          worktreePath: '/tmp/slots/repo-key/slot-0',
+          worktreeBranch: 'piwin/subagent/slot-0',
+          baseCommit: predecessorBase,
+          slotId: 'slot-0',
+        },
+        continuationRestore: { baseCommit: predecessorBase, tree: 'treeoid123' },
+      }),
+    );
+
+    if (lease.mode !== 'worktree') throw new Error('expected worktree');
+    expect(slotPool.acquire).toHaveBeenCalledWith(
+      expect.objectContaining({ baseCommit: predecessorBase }),
+    );
+    expect(checkoutWorktreeTree).toHaveBeenCalledWith({
+      worktreePath: '/tmp/slots/repo-key/slot-0',
+      tree: 'treeoid123',
+    });
+    expect(lease.baseCommit).toBe(predecessorBase);
+    expect(lease.slotId).toBe('slot-0');
+  });
+
+  function slotContinuationTask(overrides: Partial<SubagentTaskSpec> = {}): SubagentTaskSpec {
+    const base = '9999999999999999999999999999999999999999';
+    return makeTask({
+      id: 'continue-1',
+      continuationSessionId: 'child-1',
+      isolationOverride: 'worktree',
+      continuationWorkspaceLease: {
+        mode: 'worktree',
+        cwd: '/tmp/slots/repo-key/slot-0',
+        parentRepoPath: '/tmp/project',
+        worktreePath: '/tmp/slots/repo-key/slot-0',
+        worktreeBranch: 'piwin/subagent/slot-0',
+        baseCommit: base,
+        slotId: 'slot-0',
+      },
+      continuationRestore: { baseCommit: base, tree: 'treeoid123' },
+      ...overrides,
+    });
+  }
+
+  it('waits for the running writer before resetting the slot for a continuation', async () => {
+    const slotPool = createFakeSlotPool();
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      worktreeStorageRoot: '/tmp/slots',
+      writerSlotPool: slotPool,
+      dirtyBasePolicy: 'bypass',
+      parallelWritePolicy: 'worktree-only',
+    });
+
+    const running = await service.acquire(makeTask({ id: 'writer', isolationOverride: 'worktree' }));
+    const continuation = service.acquire(slotContinuationTask());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The writer still holds the project lock: the slot must not be reset under it.
+    expect(slotPool.acquire).toHaveBeenCalledTimes(1);
+
+    await service.release(running);
+    const lease = await continuation;
+    expect(slotPool.acquire).toHaveBeenCalledTimes(2);
+    if (lease.mode !== 'worktree') throw new Error('expected worktree');
+    expect(lease.slotId).toBe('slot-0');
+  });
+
+  it('refuses a slot continuation that has no frozen tree to restore', async () => {
+    const slotPool = createFakeSlotPool();
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      worktreeStorageRoot: '/tmp/slots',
+      writerSlotPool: slotPool,
+      dirtyBasePolicy: 'bypass',
+      parallelWritePolicy: 'worktree-only',
+    });
+    const task = slotContinuationTask();
+    delete task.continuationRestore;
+
+    await expect(service.acquire(task)).rejects.toThrow(/snapshot is unavailable/);
+    expect(slotPool.acquire).not.toHaveBeenCalled();
+    // The failed continuation must not leave the project locked.
+    const next = await service.acquire(makeTask({ id: 'after', isolationOverride: 'worktree' }));
+    expect(next.mode).toBe('worktree');
+  });
 });

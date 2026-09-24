@@ -472,7 +472,8 @@ export function WebPage(): ReactElement {
                     const selected = isKindEnabled(option.id);
                     const source = findSource(option.id);
                     const isExpandable = option.id !== 'duckduckgo';
-                    const isExpanded = Boolean(source && expandedSourceIds.has(source.id));
+                    // A row can open before its source exists, so the chevron always answers.
+                    const isExpanded = expandedSourceIds.has(source?.id ?? option.id);
                     return (
                       <div
                         key={option.id}
@@ -523,12 +524,27 @@ export function WebPage(): ReactElement {
                           />
                         </div>
 
-                        {isExpandable && source && isExpanded && option.id === 'devin' ? (
+                        {isExpandable && isExpanded && option.id === 'devin' ? (
                           <WebDevinSourceCard
                             zh={zh}
+                            enabled={source !== undefined}
                             disabled={saving || remoteSettingsReadOnly === true}
-                            onTest={() => testSearchConnection(source.id, 'devin')}
+                            onTest={() => {
+                              const id = source?.id ?? option.id;
+                              // Send the draft: an unsaved source is not in the Host config yet.
+                              return testSearchConnection(id, 'devin', {
+                                id,
+                                kind: 'devin',
+                                enabled: true,
+                                apiKeyRef: source?.apiKeyRef || 'oauth:devin',
+                              });
+                            }}
                           />
+                        ) : null}
+                        {isExpandable && isExpanded && !source && option.id !== 'devin' ? (
+                          <div className="web-source-card-body">
+                            <p className="muted">{zh ? '打开右侧开关后在这里配置。' : 'Turn the switch on to configure this source.'}</p>
+                          </div>
                         ) : null}
 
                         {isExpandable &&

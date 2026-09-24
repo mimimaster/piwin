@@ -86,6 +86,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     }),
     dispatchInput: async () => {},
     setViewport: async (size) => size,
+    viewportFollowLeaseId: () => undefined,
     mirrorLeaseCount: () => 1,
     hasMirrorLease: () => true,
     takeOver: async () => ({ owner: 'user' as const, agentWantsLock: true }),
@@ -202,7 +203,7 @@ describe('handleBrowserCommand', () => {
       createContext(undefined, [], { ensureBrowserSession: async () => session }),
     );
     expect(result).toMatchObject({ success: true, command: 'browser/start' });
-    expect(start).toHaveBeenCalledWith('panel-1');
+    expect(start).toHaveBeenCalledWith('panel-1', expect.objectContaining({ clientKey: 'local' }));
   });
 
   it('browser/start acquires the mirror lease and returns its state', async () => {
@@ -222,7 +223,7 @@ describe('handleBrowserCommand', () => {
       success: true,
       data: { state: { url: 'http://localhost:3000', title: 'Test' } },
     });
-    expect(start).toHaveBeenCalledWith('panel-1');
+    expect(start).toHaveBeenCalledWith('panel-1', expect.objectContaining({ clientKey: 'local' }));
   });
 
   it('browser/navigate delegates to session.navigate (no permission prompt)', async () => {
@@ -399,6 +400,82 @@ describe('handleBrowserCommand', () => {
       success: true,
       command: 'browser/resize',
       data: { viewport: { width: 640, height: 900 } },
+    });
+  });
+
+  it('browser/start scopes the lease to its client and logs a retired duplicate', async () => {
+    const pushes: HostPush[] = [];
+    const start = vi.fn(async (_leaseId?: string, options?: { onSuperseded?: (ids: string[]) => void }) => {
+      options?.onSuperseded?.(['panel-old']);
+      return {};
+    });
+    const session = createMockSession({ start });
+    await handleBrowserCommand(
+      { type: 'browser/start', leaseId: 'panel-new' },
+      'req-1',
+      createContext(session, pushes, { devicePrincipalId: 'device-phone' }),
+    );
+    expect(start).toHaveBeenCalledWith(
+      'panel-new',
+      expect.objectContaining({ clientKey: 'device-phone' }),
+    );
+    expect(pushes).toContainEqual(
+      expect.objectContaining({ type: 'host/log', level: 'warn' }),
+    );
+  });
+
+  describe('follow viewport with several windows mirroring', () => {
+    const followResize = (leaseId: string, claim?: boolean): HostCommand => ({
+      type: 'browser/resize',
+      width: 900,
+      height: 700,
+      leaseId,
+      origin: 'follow',
+      ...(claim ? { claim } : {}),
+    });
+
+    it('lets the focused window take the viewport and records it as the driver', async () => {
+      const setViewport = vi.fn().mockResolvedValue({ width: 900, height: 700 });
+      const session = createMockSession({
+        setViewport,
+        mirrorLeaseCount: () => 2,
+        viewportFollowLeaseId: () => 'window-a',
+      });
+      const result = await handleBrowserCommand(followResize('window-b', true), 'req-1', createContext(session));
+      expect(result).toMatchObject({ success: true });
+      expect(setViewport).toHaveBeenCalledWith(
+        { width: 900, height: 700 },
+        expect.objectContaining({ mode: 'follow', followLeaseId: 'window-b' }),
+      );
+    });
+
+    it('quietly refuses a background window instead of freezing everyone', async () => {
+      const setViewport = vi.fn();
+      const session = createMockSession({
+        setViewport,
+        mirrorLeaseCount: () => 2,
+        viewportFollowLeaseId: () => 'window-a',
+      });
+      const background = await handleBrowserCommand(followResize('window-b'), 'req-1', createContext(session));
+      expect(background).toMatchObject({
+        success: false,
+        problem: { code: 'browser-viewport-owned', retryable: false },
+      });
+      const driver = await handleBrowserCommand(followResize('window-a'), 'req-2', createContext(session));
+      expect(driver).toMatchObject({ success: true });
+      expect(setViewport).toHaveBeenCalledTimes(1);
+    });
+
+    it('hands the viewport to the next window once the driver is gone', async () => {
+      const setViewport = vi.fn().mockResolvedValue({ width: 900, height: 700 });
+      const session = createMockSession({
+        setViewport,
+        mirrorLeaseCount: () => 2,
+        viewportFollowLeaseId: () => 'window-closed',
+        hasMirrorLease: (leaseId) => leaseId !== 'window-closed',
+      });
+      const result = await handleBrowserCommand(followResize('window-b'), 'req-1', createContext(session));
+      expect(result).toMatchObject({ success: true });
     });
   });
 

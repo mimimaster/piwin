@@ -138,6 +138,7 @@ function createHarness(options?: {
   ) => Promise<PreparedSubagentContinuation | undefined>;
 }) {
   const batches: SubagentBatchRequest[] = [];
+  const freehandSelections: boolean[] = [];
   const summary = options && 'summary' in options ? options.summary : makeSummary();
   const runRegistry = new RunRegistry({
     createId: (() => {
@@ -243,7 +244,10 @@ function createHarness(options?: {
       getParentRunId: () => parentRun.runId,
       getDelegationMode: () => 'auto',
       getActiveScheme: options?.getActiveScheme ?? (() => undefined),
-      prepareBatch: async (request) => request,
+      prepareBatch: async (request, source) => {
+        freehandSelections.push(source === 'model-tool-freehand');
+        return request;
+      },
       whenReady: async () => {},
       taskResults: new Map(),
       bindReviewTarget: (input) =>
@@ -258,9 +262,26 @@ function createHarness(options?: {
   );
   return {
     batches,
+    freehandSelections,
+    seam,
     startTool: createSubagentStartTool({ sessionId: SESSION_ID, seam }),
   };
 }
+
+describe('model-facing freehand routing flag', () => {
+  it('marks synchronous and async freehand calls, but not selected schemes', async () => {
+    const freehand = createHarness();
+    await freehand.seam.spawn({
+      parentSessionId: SESSION_ID, parentRunId: PARENT_RUN_ID, invocationId: 'sync', task: 'inspect',
+    });
+    expect((await executeTool(freehand.startTool, { task: 'inspect' })).ok).toBe(true);
+    expect(freehand.freehandSelections).toEqual([true, true]);
+
+    const scheme = createHarness({ getActiveScheme: reviewedDeliveryScheme });
+    expect((await executeTool(scheme.startTool, { task: 'review candidate', role: 'reviewer' })).ok).toBe(true);
+    expect(scheme.freehandSelections).toEqual([false]);
+  });
+});
 
 describe('piwin_subagent_start reviewOf', () => {
   it('stores the Host-bound reviewTarget on the reviewer task', async () => {

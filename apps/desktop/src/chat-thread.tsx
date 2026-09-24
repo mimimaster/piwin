@@ -2,7 +2,7 @@
  * Scrollable assistant/user message list with edit/retry actions.
  */
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import type { PlanExecutionMode } from '@piwin/contracts';
+import type { PlanExecutionMode, TranscriptBranchPoint } from '@piwin/contracts';
 
 import { pickArtifactFenceSecurity } from './artifact-fence-security';
 import type { ChatMessageUi } from './chat-reducer';
@@ -16,6 +16,7 @@ import { resolveAssemblySummaryForUserMessage } from './assembly-summary-capsule
 import { isWalkthroughEligible } from './walkthrough-action';
 import { TranscriptTurnList } from './transcript-turn-list';
 import { groupTranscriptTurns, turnUserMessageId } from './transcript-turns';
+import { resolveTurnModelTrail } from './turn-model-trail';
 import { buildExploreFlowRoles } from './explore-flow';
 import { collectMessageChangedFiles } from './collect-message-changed-files';
 import { findStreamingCaretMessageId } from './streaming-caret';
@@ -65,6 +66,12 @@ function createThinkingOnlyMessage(message: ChatMessageUi): ChatMessageUi {
 }
 
 export type { ChatThreadProps } from './chat-thread-types.js';
+
+/**
+ * Stable defaults. A fresh `[]` per render failed the reference check in
+ * `areChatMessageRowPropsEqual` for every user row on every push.
+ */
+const EMPTY_BRANCH_POINTS: TranscriptBranchPoint[] = [];
 import type { ChatThreadProps } from './chat-thread-types.js';
 
 export function ChatThread(props: ChatThreadProps): ReactElement {
@@ -284,7 +291,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           });
           const currentTurnStreaming =
             turn.id === currentResponseTurnId && props.streaming === true;
+          // Latest, not first: a turn that switched models mid-run is
+          // answered by the one it switched to.
           const turnModel =
+            resolveTurnModelTrail(turnMessages).latest ??
             turnMessages.find((item) => item.model)?.model ??
             (conversationSession && currentTurnStreaming
               ? (props.livePromptModel ?? undefined)
@@ -451,6 +461,13 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 const isLatestAssistant =
                   latestAssistantMessageId === message.id ||
                   (conversationSession && isConversationIdentityMessage && isLatestTurn);
+                // R1/R2: `turnTools` and `turnFlashcardTools` are rebuilt on every
+                // ChatThread render. Only two row shapes read them —
+                // ChatTurnFilesSummary on the turn's last assistant, and
+                // turnAttemptHasRetainedWork on an errored row. Handing the array
+                // to every row failed the reference check for the whole turn.
+                const isLastAssistantRow = turn.lastAssistantMessageId === message.id;
+                const rowNeedsTurnTools = isLastAssistantRow || message.status === 'error';
                 // Project/Agent: keepPrevious regenerate stacks answer siblings
                 // without reverting disk. Explore via edit/branch; repair via
                 // error-card retry (keepPrevious: false).
@@ -548,8 +565,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     showStreamingCaret={streamingCaretMessageId === message.id}
                     isLastAssistantInTurn={turn.lastAssistantMessageId === message.id}
                     turnInProgress={currentTurnStreaming}
-                    turnTools={turnTools}
-                    {...(turnFlashcardTools.length > 0 ? { turnFlashcardTools } : {})}
+                    {...(rowNeedsTurnTools ? { turnTools } : {})}
+                    {...(isLastAssistantRow && turnFlashcardTools.length > 0
+                      ? { turnFlashcardTools }
+                      : {})}
                     isLatestAssistantResponse={isLatestAssistant}
                     {...(props.livePromptModel !== undefined
                       ? { livePromptModel: props.livePromptModel }
@@ -560,7 +579,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     {...(props.configProviders !== undefined
                       ? { configProviders: props.configProviders }
                       : {})}
-                    {...(props.contextUsage !== undefined
+                    {...(isLatestAssistant && props.contextUsage !== undefined
                       ? { contextUsage: props.contextUsage }
                       : {})}
                     {...(planExecutionGate ? { planExecutionGate } : {})}
@@ -616,7 +635,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     {...(props.onContinueTurn !== undefined
                       ? { onContinueTurn: props.onContinueTurn }
                       : {})}
-                    branchPoints={props.branchPoints ?? []}
+                    branchPoints={props.branchPoints ?? EMPTY_BRANCH_POINTS}
                     {...(props.onSwitchBranch !== undefined
                       ? { onSwitchBranch: props.onSwitchBranch }
                       : {})}

@@ -3,6 +3,7 @@ import type { ContextUsageSnapshot, ModelRef } from '@piwin/contracts';
 import type { ChatMessageUi } from './chat-reducer';
 import { formatTimestamp } from './format-timestamp.js';
 import { ProviderIcon } from './provider-icons.js';
+import { formatTurnModelTrail, resolveTurnModelTrail } from './turn-model-trail.js';
 
 /**
  * Inkstone turn marginalia (proto-01 §1 block 06).
@@ -248,16 +249,29 @@ export function resolveTurnMarginalia(
 
   // Find the assistant message in the turn (could be lead or subsequent)
   const assistantMsg = messages.find((m) => m.role === 'assistant') ?? lead;
-  const model = assistantMsg?.model ?? options?.model ?? null;
+  // The model answering now, with any mid-turn switch kept visible.
+  const trail = resolveTurnModelTrail(messages);
+  const model = trail.latest ?? options?.model ?? null;
   const modelId = model?.modelId ?? '';
-  const label = modelId.length > 0 ? shortModelLabel(modelId) : 'piwin';
+  const label =
+    trail.models.length > 1
+      ? formatTurnModelTrail(trail, shortModelLabel)
+      : modelId.length > 0
+        ? shortModelLabel(modelId)
+        : 'piwin';
+  const fullModelLabel =
+    trail.models.length > 1
+      ? trail.models.map((entry) => entry.modelId).join(' → ')
+      : modelId.length > 0
+        ? modelId
+        : label;
   const avatar = resolveModelAvatarInitial(modelId, model?.providerId, options?.themeId);
 
   // Conversation byline is who + age. Cost/duration stay off the rail.
   if (options?.isConversationSession === true) {
     return {
       who: label,
-      fullModelId: modelId.length > 0 ? modelId : label,
+      fullModelId: fullModelLabel,
       avatar,
       ...resolveAssistantClocks(assistantMsg?.createdAt, options),
       usage: null,
@@ -277,7 +291,7 @@ export function resolveTurnMarginalia(
 
   return {
     who: label,
-    fullModelId: modelId.length > 0 ? modelId : label,
+    fullModelId: fullModelLabel,
     avatar,
     ...resolveAssistantClocks(assistantMsg?.createdAt, options),
     usage,

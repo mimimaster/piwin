@@ -3,7 +3,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { SessionPauseCheckpoint } from '@piwin/contracts';
+import type { SessionPauseCheckpoint, SessionPauseTurnPolicy } from '@piwin/contracts';
 import type { TranscriptStoreCore, SessionTranscriptStore } from './transcript-store.js';
 import { isSqliteUniqueConstraint } from './sqlite-errors.js';
 import { rowToPauseCheckpoint, type PauseCheckpointRow } from './transcript-store-rows.js';
@@ -62,7 +62,7 @@ export function createTranscriptPauseOps(
                SET source_run_id = ?, runtime_generation_id = ?, created_at = ?,
                    source_user_message_id = ?, last_assistant_message_id = ?,
                    transcript_revision = ?, interrupted_subagent_run_ids_json = ?,
-                   status = 'active', consumed_at = NULL
+                   turn_policy_json = ?, status = 'active', consumed_at = NULL
                WHERE checkpoint_id = ? AND session_id = ?`,
             ).run(
               input.sourceRunId,
@@ -72,6 +72,7 @@ export function createTranscriptPauseOps(
               input.lastAssistantMessageId ?? null,
               input.transcriptRevision,
               runIdListJson(input.interruptedSubagentRunIds),
+              turnPolicyJson(input.turnPolicy),
               existing.checkpointId,
               options.sessionId,
             );
@@ -99,13 +100,16 @@ export function createTranscriptPauseOps(
         if (input.interruptedSubagentRunIds !== undefined && input.interruptedSubagentRunIds.length > 0) {
           checkpoint.interruptedSubagentRunIds = [...input.interruptedSubagentRunIds];
         }
+        if (input.turnPolicy !== undefined && turnPolicyJson(input.turnPolicy) !== null) {
+          checkpoint.turnPolicy = { ...input.turnPolicy };
+        }
         try {
           db.prepare(
             `INSERT INTO pause_checkpoint(
                checkpoint_id, session_id, source_run_id, runtime_generation_id,
                created_at, source_user_message_id, last_assistant_message_id,
-               transcript_revision, interrupted_subagent_run_ids_json, status
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+               transcript_revision, interrupted_subagent_run_ids_json, turn_policy_json, status
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
           ).run(
             checkpoint.checkpointId,
             checkpoint.sessionId,
@@ -116,6 +120,7 @@ export function createTranscriptPauseOps(
             checkpoint.lastAssistantMessageId ?? null,
             checkpoint.transcriptRevision,
             runIdListJson(checkpoint.interruptedSubagentRunIds),
+            turnPolicyJson(checkpoint.turnPolicy),
           );
         } catch (error) {
           if (isSqliteUniqueConstraint(error)) {
@@ -164,4 +169,11 @@ export function createTranscriptPauseOps(
 
 function runIdListJson(runIds: readonly string[] | undefined): string | null {
   return runIds === undefined || runIds.length === 0 ? null : JSON.stringify(runIds);
+}
+
+function turnPolicyJson(policy: SessionPauseTurnPolicy | undefined): string | null {
+  if (policy === undefined) return null;
+  return policy.orchestrationSchemeId === undefined && policy.delegationMode === undefined
+    ? null
+    : JSON.stringify(policy);
 }

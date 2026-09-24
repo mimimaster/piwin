@@ -7,6 +7,7 @@ import type {
   HostPush,
   PermissionDecision,
   PermissionMode,
+  PermissionRequestContext,
   SessionHandle,
   SessionTranscriptMessage,
   SubagentBatchRequest,
@@ -96,6 +97,8 @@ export type HostCommandContext = {
       action: string;
       detail: string;
       defaultDecision?: PermissionDecision;
+      context?: PermissionRequestContext;
+      sessionGrant?: import('../session-allowlist.js').SessionWorkspaceGrant;
     }
   >;
   pendingExtensionUi: Map<
@@ -114,7 +117,12 @@ export type HostCommandContext = {
     projectPath?: string,
   ) => Promise<void>;
   /** ADR 0024 §4: record a session-scoped allow (in-memory, no persistence). */
-  rememberSessionPermission: (sessionId: string, action: string, detail: string) => void;
+  rememberSessionPermission: (
+    sessionId: string,
+    action: string,
+    detail: string,
+    grant?: import('../session-allowlist.js').SessionWorkspaceGrant,
+  ) => void;
   /** Optional plan execution orchestration seam. */
   planExecution?: PlanExecutionSeam;
   /** Compact/truncate/delete/pack hold this; plan execute must not ACK while set. */

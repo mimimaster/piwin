@@ -9,7 +9,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { ThemeManifest } from '@piwin/contracts';
 import type { AppProps } from './App';
 import {
-  PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_LIGHT,
   applyAppearanceToDocument,
   buildAppearanceTheme,
@@ -88,16 +87,18 @@ describe('DesktopThemeRoot', () => {
   });
 
   it('starts with the cached library theme so cold start matches last session', () => {
-    localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-ink-wash');
+    localStorage.setItem('piwin.desktop.appearanceMode', 'light');
+    localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-inkstone-paper');
 
     act(() => {
       root.render(<DesktopThemeRoot />);
     });
 
     const props = capturedProps as unknown as AppProps;
-    expect(props.activeTheme).toBe(PIWIN_APPEARANCE_INK_WASH);
-    expect(document.documentElement.dataset.themeId).toBe('piwin-ink-wash');
-    expect(localStorage.getItem('piwin.desktop.lastThemeId')).toBe('piwin-ink-wash');
+    expect(props.activeTheme.id).toBe('piwin-inkstone-paper');
+    expect(props.activeTheme.mode).toBe('light');
+    expect(document.documentElement.dataset.themeId).toBe('piwin-inkstone-paper');
+    expect(localStorage.getItem('piwin.desktop.lastThemeId')).toBe('piwin-inkstone-paper');
   });
 
   it('applies light identity, tokens, and provider manifest through its callback', () => {
@@ -123,8 +124,9 @@ describe('DesktopThemeRoot', () => {
   });
 
   it('skips a host re-apply when document already has the same theme id', () => {
-    localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-ink-wash');
-    applyAppearanceToDocument(PIWIN_APPEARANCE_INK_WASH);
+    localStorage.setItem('piwin.desktop.appearanceMode', 'light');
+    localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-inkstone-paper');
+    applyAppearanceToDocument(PIWIN_APPEARANCE_LIGHT);
 
     act(() => {
       root.render(<DesktopThemeRoot />);
@@ -134,13 +136,13 @@ describe('DesktopThemeRoot', () => {
 
     act(() => {
       // Host bootstrap re-sends the active library theme after connect.
-      props.onThemeApplied({ ...PIWIN_APPEARANCE_INK_WASH, version: '9.9.9' });
+      props.onThemeApplied({ ...PIWIN_APPEARANCE_LIGHT, version: '9.9.9' });
     });
 
     const rerendered = capturedProps as unknown as AppProps;
     // Same id → keep prior React state reference (no second switch cycle).
     expect(rerendered.activeTheme).toBe(firstTheme);
-    expect(document.documentElement.dataset.themeId).toBe('piwin-ink-wash');
+    expect(document.documentElement.dataset.themeId).toBe('piwin-inkstone-paper');
   });
 
   it('paints new Appearance colors immediately while keeping the Inkstone face id', () => {

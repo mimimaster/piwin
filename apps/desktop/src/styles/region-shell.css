@@ -291,35 +291,6 @@
   justify-content: center;
 }
 
-/* ── Ink wash ──────────────────────────────────────────────────────
-   A theme package, not a built-in: it paints the void with Xuan paper and
-   lets the panels sit on it translucently. Card interiors stay opaque. */
-
-html[data-theme-visual-style='ink-wash'] .app-shell {
-  background-color: #191a1d;
-  background-image: var(--ink-wash-hero, url('/ui/ink-wash/master-bg.jpg?v=restore'));
-  background-position: center center;
-  background-size: cover;
-  background-repeat: no-repeat;
-}
-
-/* Translucent fill only — no blur. These three panels are always mounted and
-   full height, so per-panel backdrop filters are exactly the cost the
-   memory-diet budget forbids (renderer-resource-boundaries.test.ts). The
-   Xuan-paper hero behind them is already soft, so a fill alone reads as paper. */
-html[data-theme-visual-style='ink-wash'] .app-shell > .sidebar,
-html[data-theme-visual-style='ink-wash'] .app-shell > .workspace,
-html[data-theme-visual-style='ink-wash'] .app-shell > .right-panel {
-  background: color-mix(in srgb, var(--surface-1) 78%, transparent);
-}
-
-html[data-theme-visual-style='ink-wash'] .chat-column,
-html[data-theme-visual-style='ink-wash'] .chat-column-empty,
-html[data-theme-visual-style='ink-wash'] .chat-stage,
-html[data-theme-visual-style='ink-wash'] .transcript-viewport {
-  background: transparent;
-}
-
 /* ── Resize performance ────────────────────────────────────────────
    While a column is drag-resized, drop expensive glass blur so the shell does
    not re-composite backdrop filters on every width sample (visible flicker). */

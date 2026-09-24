@@ -151,6 +151,7 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     const devinCard = container!.querySelector('[data-testid="subscription-account-devin"]');
     expect(devinCard?.textContent).toContain('Devin');
     expect(devinCard?.textContent).toContain('非官方接口，账号风险自负');
+    expect(devinCard?.textContent).toContain('登录后可免费使用 web_search 和 code_search');
 
     expect(container!.querySelector('[data-testid="claude-extension-oauth"]')).toBeNull();
     expect(

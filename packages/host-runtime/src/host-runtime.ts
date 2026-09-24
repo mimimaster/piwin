@@ -128,6 +128,7 @@ import {
   prepareSubagentBatch,
   continueSubagentChild,
   resolveRetainedSubagentWorktreeLease,
+  resolveSubagentContinuationRestore,
   actOnSubagentWorktree,
 } from './host-runtime-subagent-tasks.js';
 import {
@@ -365,8 +366,13 @@ export class HostRuntime extends HostRuntimeFields {
     return getOrCreateSessionAllowlist(this.asKernel(), sessionId);
   }
 
-  rememberSessionPermission(sessionId: string, action: string, detail: string): void {
-    return rememberSessionPermission(this.asKernel(), sessionId, action, detail);
+  rememberSessionPermission(
+    sessionId: string,
+    action: string,
+    detail: string,
+    grant?: import('./session-allowlist.js').SessionWorkspaceGrant,
+  ): void {
+    return rememberSessionPermission(this.asKernel(), sessionId, action, detail, grant);
   }
 
   clearSessionAllowlist(sessionId: string): void {
@@ -601,6 +607,12 @@ export class HostRuntime extends HostRuntimeFields {
     child: import('@piwin/contracts').SessionIndexRecord,
   ): Promise<Extract<SubagentWorkspaceLease, { mode: 'worktree' }>> {
     return resolveRetainedSubagentWorktreeLease(this.asKernel(), child);
+  }
+
+  async resolveSubagentContinuationRestore(
+    child: import('@piwin/contracts').SessionIndexRecord,
+  ): Promise<{ baseCommit: string; tree: string } | undefined> {
+    return resolveSubagentContinuationRestore(this.asKernel(), child);
   }
 
   async actOnSubagentWorktree(

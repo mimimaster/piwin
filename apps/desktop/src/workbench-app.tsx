@@ -442,7 +442,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const composerColumn = (
     <WorkbenchComposerColumn
       state={state}
-      activeTheme={activeTheme}
       activeSessionName={activeSessionName}
       composerCard={composerCard}
       onTrustProject={handleTrustProject}

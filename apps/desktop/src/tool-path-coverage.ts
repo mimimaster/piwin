@@ -99,6 +99,10 @@ export function documentTargetCoversPath(
     return clean.includes(target.assetId);
   }
 
+  if (target.kind === 'local-file') {
+    return posixLower(clean) === posixLower(target.absolutePath);
+  }
+
   const relative = target.relativePath.replace(/\\/g, '/').toLowerCase();
   const lower = clean.toLowerCase();
   return lower.endsWith(`/${relative}`) || posixLower(clean) === relative;

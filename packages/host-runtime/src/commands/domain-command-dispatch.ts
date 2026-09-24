@@ -16,6 +16,7 @@ import { handleResolveCommand } from './resolve-commands.js';
 import { handleProjectCommand } from './project-commands.js';
 import { handlePermissionRulesCommand } from './permission-rules-commands.js';
 import { handlePreviewCommand } from './preview-commands.js';
+import { handleDocumentPathCommand } from './document-path-commands.js';
 import { handleMediaIngestCommand } from './media-ingest-commands.js';
 import { handleMediaSaveCommand } from './media-save-commands.js';
 import { handleMediaListCommand } from './media-list-commands.js';
@@ -108,6 +109,9 @@ export async function dispatchDomainCommands(
 
   const permissionRules = await handlePermissionRulesCommand(command, requestId, context);
   if (permissionRules) return permissionRules;
+
+  const documentPath = await handleDocumentPathCommand(command, requestId, context);
+  if (documentPath) return documentPath;
 
   const preview = await handlePreviewCommand(command, requestId, context.piwinRoot);
   if (preview) return preview;

@@ -12,7 +12,6 @@ const BUNDLED_THEME_IDS = new Set([
   'piwin-dark',
   'piwin-light',
   'piwin-orange-white',
-  'piwin-ink-wash',
   'piwin-inkstone-paper',
   'piwin-inkstone-ink',
 ]);
@@ -35,6 +34,7 @@ const THEME_ID_ALIASES: Record<string, string> = {
   'piwin-orange-white': 'piwin-inkstone',
   'piwin-inkstone-paper': 'piwin-inkstone',
   'piwin-inkstone-ink': 'piwin-inkstone',
+  'piwin-ink-wash': 'piwin-inkstone',
 };
 
 const DEFAULT_ACTIVE_THEME_ID = 'piwin-inkstone';

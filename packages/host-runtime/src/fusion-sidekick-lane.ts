@@ -12,6 +12,7 @@ import {
   type SubagentApplyPolicy,
   type SubagentCapability,
   type SubagentDeliveryIntent,
+  type SubagentReviewAuthority,
   type SubagentWorkspaceLease,
 } from '@piwin/contracts';
 import { listChildSessions } from '@piwin/session';
@@ -36,9 +37,13 @@ export type FusionStartTaskPatch = {
   task: string;
   deliveryIntent: Extract<SubagentDeliveryIntent, 'candidate'>;
   applyPolicy: Extract<SubagentApplyPolicy, 'explicit'>;
+  /** Fusion has no reviewer member: the Lead records the approving review. */
+  reviewAuthority: Extract<SubagentReviewAuthority, 'lead'>;
   capabilities: SubagentCapability[];
   continuationSessionId?: string;
   continuationWorkspaceLease?: SubagentWorkspaceLease;
+  /** The lane's frozen state; a shared writer slot must restore it first. */
+  continuationRestore?: { baseCommit: string; tree: string };
 };
 
 export function buildFusionSidekickSpawnFields(task: string): FusionStartTaskPatch {
@@ -46,6 +51,7 @@ export function buildFusionSidekickSpawnFields(task: string): FusionStartTaskPat
     task: formatFusionBriefEnvelope(task),
     deliveryIntent: 'candidate',
     applyPolicy: 'explicit',
+    reviewAuthority: 'lead',
     capabilities: [...FUSION_SIDEKICK_CAPABILITIES],
   };
 }
@@ -117,5 +123,6 @@ export async function resolveFusionStartTaskPatch(input: {
     ...fields,
     continuationSessionId: lane.child.id,
     continuationWorkspaceLease: lane.continuationWorkspaceLease,
+    ...(lane.continuationRestore ? { continuationRestore: lane.continuationRestore } : {}),
   };
 }

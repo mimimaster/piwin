@@ -12,7 +12,6 @@
  */
 
 import type { ThemeManifest } from '@piwin/contracts';
-import inkWashManifest from '@piwin/theme/bundled/piwin-ink-wash';
 import type { AppearanceThemeSettings } from './ui-preferences';
 import {
   PIWIN_APPEARANCE_INKSTONE_INK,
@@ -40,9 +39,6 @@ export {
 
 export const PIWIN_INKSTONE_THEME_ID = 'piwin-inkstone';
 
-/** Browser-safe projection of the bundled token-only ink-wash manifest. */
-export const PIWIN_APPEARANCE_INK_WASH: ThemeManifest = inkWashManifest as ThemeManifest;
-
 /**
  * Mode-named aliases. The overwhelming majority of call sites — every test that
  * mounts `PiwinUiProvider` — only ever want "the dark one" or "the light one",
@@ -53,7 +49,6 @@ export const PIWIN_APPEARANCE_LIGHT = PIWIN_APPEARANCE_INKSTONE_PAPER;
 
 /** Runtime manifests; the user-facing catalog collapses the two Inkstone faces. */
 export const BUILTIN_APPEARANCES: ThemeManifest[] = [
-  PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
   PIWIN_APPEARANCE_INKSTONE_INK,
 ];
@@ -70,6 +65,7 @@ const RETIRED_THEME_IDS: Record<string, string> = {
   'piwin-light': 'piwin-inkstone-paper',
   'piwin-bone': 'piwin-inkstone-paper',
   'piwin-orange-white': 'piwin-inkstone-paper',
+  'piwin-ink-wash': 'piwin-inkstone-ink',
 };
 
 /** Current id for a possibly-retired one. */
@@ -140,8 +136,6 @@ export function resolveBuiltinAppearance(
   mode?: 'light' | 'dark',
 ): ThemeManifest {
   switch (themeId === undefined ? '' : migrateThemeId(themeId)) {
-    case 'piwin-ink-wash':
-      return PIWIN_APPEARANCE_INK_WASH;
     case PIWIN_INKSTONE_THEME_ID:
       return mode === 'light' ? PIWIN_APPEARANCE_INKSTONE_PAPER : PIWIN_APPEARANCE_INKSTONE_INK;
     case 'piwin-inkstone-paper':

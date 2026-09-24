@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createBrowserViewportFollowController,
+  isFollowOwnedElsewhere,
   isFollowResizeRefused,
   resolveFollowViewportBox,
   resolveViewportPresetId,
@@ -40,7 +41,7 @@ describe('createBrowserViewportFollowController', () => {
     const send = vi.fn(async () => undefined);
     const follow = createBrowserViewportFollowController({ send });
     follow.observe({ width: 900, height: 700 });
-    expect(send).toHaveBeenCalledWith({ width: 900, height: 700 });
+    expect(send).toHaveBeenCalledWith({ width: 900, height: 700 }, false);
   });
 
   it('collapses churn during an in-flight resize into the latest size', async () => {
@@ -58,7 +59,7 @@ describe('createBrowserViewportFollowController', () => {
 
     first.resolve();
     await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
-    expect(send).toHaveBeenLastCalledWith({ width: 980, height: 740 });
+    expect(send).toHaveBeenLastCalledWith({ width: 980, height: 740 }, false);
     await vi.waitFor(() => expect(follow.lastAccepted()).toEqual({ width: 980, height: 740 }));
   });
 
@@ -98,6 +99,47 @@ describe('createBrowserViewportFollowController', () => {
   });
 });
 
+describe('createBrowserViewportFollowController with several windows', () => {
+  const ownedElsewhere = {
+    success: false,
+    error: 'the viewport follows another window',
+    problem: { code: 'browser-viewport-owned', retryable: false },
+  };
+
+  it('treats another window driving the viewport as normal, not a refusal', async () => {
+    const onRejected = vi.fn();
+    const send = vi.fn(async () => ownedElsewhere);
+    const follow = createBrowserViewportFollowController({ send, onRejected, retryDelayMs: 1 });
+
+    follow.observe({ width: 900, height: 700 });
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(isFollowOwnedElsewhere(ownedElsewhere)).toBe(true);
+    expect(follow.isRejected()).toBe(false);
+    expect(onRejected).not.toHaveBeenCalled();
+    // No retry storm against a window that simply is not in front.
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('claims the viewport with the last observed box, even at an unchanged size', async () => {
+    const send = vi.fn(async () => undefined);
+    const follow = createBrowserViewportFollowController({ send });
+
+    follow.observe({ width: 900, height: 700 });
+    await vi.waitFor(() => expect(follow.lastAccepted()).toBeDefined());
+    follow.claim();
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    expect(send).toHaveBeenLastCalledWith({ width: 900, height: 700 }, true);
+  });
+
+  it('does nothing on claim before the panel has been measured', () => {
+    const send = vi.fn(async () => undefined);
+    const follow = createBrowserViewportFollowController({ send });
+    follow.claim();
+    expect(send).not.toHaveBeenCalled();
+  });
+});
+
 describe('createBrowserViewportFollowController refusals', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -133,7 +175,7 @@ describe('createBrowserViewportFollowController refusals', () => {
 
     await vi.advanceTimersByTimeAsync(1000);
     expect(send).toHaveBeenCalledTimes(2);
-    expect(send).toHaveBeenLastCalledWith({ width: 900, height: 700 });
+    expect(send).toHaveBeenLastCalledWith({ width: 900, height: 700 }, false);
     expect(follow.lastAccepted()).toEqual({ width: 900, height: 700 });
     expect(follow.isRejected()).toBe(false);
     expect(onAccepted).toHaveBeenCalledTimes(1);
@@ -165,7 +207,7 @@ describe('createBrowserViewportFollowController refusals', () => {
     follow.observe({ width: 950, height: 700 });
     await vi.advanceTimersByTimeAsync(0);
     expect(send).toHaveBeenCalledTimes(4);
-    expect(send).toHaveBeenLastCalledWith({ width: 950, height: 700 });
+    expect(send).toHaveBeenLastCalledWith({ width: 950, height: 700 }, false);
     follow.dispose();
   });
 

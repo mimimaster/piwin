@@ -12,6 +12,7 @@
  */
 
 import type { SavedMediaAsset } from './media.js';
+import type { DocumentTargetRef } from './skills.js';
 
 export type TrustedTextReadCommandInput = {
   /** Posix-style path relative to the Host config root (`~/.piwin`). */
@@ -49,6 +50,99 @@ export type TrustedTextReadData =
       displayRef: string;
       suggestion?: string;
     };
+
+/**
+ * Host-side document path resolution (ADR 0052 §6).
+ *
+ * A clicked path used to be interpreted by the client (markdown layer, chip
+ * layer, open planner, alias retry) and by the Host (tool targets, local read,
+ * config read) at the same time. Every new spelling had to be taught to each
+ * interpreter, and whichever one missed answered `not-found` — hiding the real
+ * cause. The Host now owns the single interpretation: it knows the host user's
+ * home, its own config root, realpath aliases, and whether it is the local
+ * shell. Clients send the raw path once and dispatch on the answer.
+ */
+export type DocumentTargetRoute =
+  | 'media'
+  | 'skill'
+  | 'project'
+  | 'trusted-config'
+  | 'local-file'
+  | 'find-file';
+
+/** One route that was tried, with a stable reason code (never parsed as prose). */
+export type DocumentPathAttempt = {
+  route: DocumentTargetRoute;
+  reason: string;
+  /** Project-relative form when the route learned one (diagnostics only). */
+  detail?: string;
+};
+
+/** Stable failure reasons for `preview/resolve-path` (UI maps to copy). */
+export type DocumentPathFailureReason =
+  | 'empty-path'
+  | 'invalid-path'
+  | 'not-found'
+  | 'not-a-file'
+  | 'outside-domains'
+  | 'ambiguous-file'
+  | 'project-root-missing'
+  /** A local shell may open host paths; a remote client may not. */
+  | 'remote-local-path-denied';
+
+export type DocumentPathResolveCommandInput = {
+  sessionId?: string;
+  /** Active workspace root, when the shell has one. */
+  projectPath?: string;
+  /** Exactly what the user clicked, unstripped and unexpanded. */
+  rawPath: string;
+};
+
+export type DocumentPathResolveData =
+  | {
+      status: 'resolved';
+      target: DocumentTargetRef;
+      /** Kept for the diagnostic disclosure even on success. */
+      attempts: DocumentPathAttempt[];
+    }
+  | {
+      status: 'unresolved';
+      reason: DocumentPathFailureReason;
+      attempts: DocumentPathAttempt[];
+    };
+
+/**
+ * Whether a local-file attempt reports what the Host found on its own disk.
+ * A remote client must not learn that: the refusal says the channel is closed,
+ * not whether the path exists.
+ */
+const LOCAL_FILE_DISK_REASONS = new Set(['exists', 'no-such-file', 'not-a-file']);
+
+/**
+ * A `local-file` answer for a remote client. Resolved or not, the Host has
+ * already looked at its own disk by the time it answers, and that look is
+ * exactly what must not cross the wire: neither the path nor whether it
+ * exists. The client learns only that the channel is closed.
+ */
+export function denyRemoteLocalFileTarget(data: DocumentPathResolveData): DocumentPathResolveData {
+  const probedDisk = data.attempts.some(
+    (attempt) => attempt.route === 'local-file' && LOCAL_FILE_DISK_REASONS.has(attempt.reason),
+  );
+  if (!probedDisk && (data.status !== 'resolved' || data.target.kind !== 'local-file')) {
+    return data;
+  }
+  return {
+    status: 'unresolved',
+    reason: 'remote-local-path-denied',
+    attempts: [
+      ...data.attempts.filter(
+        (attempt) =>
+          attempt.route !== 'local-file' || !LOCAL_FILE_DISK_REASONS.has(attempt.reason),
+      ),
+      { route: 'local-file', reason: 'channel-denied-by-remote-shell' },
+    ],
+  };
+}
 
 /**
  * Local-Host user-gesture preview of a clicked path (ADR 0052 Slice 4).

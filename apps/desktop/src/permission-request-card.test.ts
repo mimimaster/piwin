@@ -19,6 +19,8 @@ describe('canRememberPermissionForProject', () => {
       command: 'rm -rf build',
     };
     expect(canRememberPermissionForProject(context, 'bash:rm -rf build')).toBe(true);
+    expect(canRememberPermissionForProject(context, 'process:start')).toBe(false);
+    expect(canRememberPermissionForProject(context, 'browser:upload')).toBe(false);
   });
 
   it('returns true for file-write context kind', () => {

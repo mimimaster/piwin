@@ -48,6 +48,57 @@ describe('projectTranscriptMessagesForUi', () => {
     expect(slimSize).toBeLessThan(fullSize / 10);
   });
 
+  it('keeps structured Goal, subagent, knowledge and web-search payloads across hydrate', () => {
+    // Regression: an allowlist dropped these, so a reloaded goal_blocked card
+    // showed "Goal execution is blocked" instead of the model's reason.
+    const goal = {
+      phase: 'blocked' as const,
+      reason: '需要你决定提交策略',
+      unblockAction: '(a) 分三段提交 (b) 先不提交',
+    };
+    const subagentControl = {
+      phase: 'waited' as const,
+      total: 1,
+      completed: 1,
+      failed: 0,
+      cancelled: 0,
+      needsIntegration: 0,
+      runs: [],
+    };
+    const messages: SessionTranscriptMessage[] = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        text: '',
+        createdAt: '2026-09-24T00:00:00.000Z',
+        status: 'done',
+        tools: [
+          {
+            toolCallId: 't1',
+            toolName: 'goal_blocked',
+            status: 'done',
+            output: '⚠️ Goal Blocked: 需要你决定提交策略',
+            presentation: {
+              kind: 'other',
+              title: 'goal_blocked',
+              goal,
+              subagentControl,
+              webSearch: { provider: 'tavily', attempts: [] } as never,
+              output: { text: 'z'.repeat(40_000), truncated: false },
+            },
+          },
+        ],
+      },
+    ];
+
+    const tool = projectTranscriptMessagesForUi(messages)[0]?.tools?.[0];
+    expect(tool?.output).toBe('');
+    expect(tool?.presentation?.output).toBeUndefined();
+    expect(tool?.presentation?.goal).toEqual(goal);
+    expect(tool?.presentation?.subagentControl).toEqual(subagentControl);
+    expect(tool?.presentation?.webSearch).toEqual({ provider: 'tavily', attempts: [] });
+  });
+
   it('preserves MCP tool args and results across UI hydrate', () => {
     const memoryResult = JSON.stringify([
       { content: 'Canvas stream-preview needs a fragment root', category: 'bugfix' },

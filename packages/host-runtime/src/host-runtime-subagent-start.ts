@@ -196,6 +196,7 @@ async function prepareAndStartSubagent(
               ? {
                   applyPolicy: fusionPatch.applyPolicy,
                   deliveryIntent: fusionPatch.deliveryIntent,
+                  reviewAuthority: fusionPatch.reviewAuthority,
                   capabilities: fusionPatch.capabilities,
                 }
               : {
@@ -208,6 +209,9 @@ async function prepareAndStartSubagent(
               : {}),
             ...(fusionPatch?.continuationWorkspaceLease
               ? { continuationWorkspaceLease: fusionPatch.continuationWorkspaceLease }
+              : {}),
+            ...(fusionPatch?.continuationRestore
+              ? { continuationRestore: fusionPatch.continuationRestore }
               : {}),
             ...(input.sessionName ? { sessionName: input.sessionName } : {}),
             ...(schemeSpawn.role ? { role: schemeSpawn.role } : {}),
@@ -223,7 +227,7 @@ async function prepareAndStartSubagent(
         ],
         maxConcurrency: 1,
       },
-      'model-tool',
+      activeScheme ? 'model-tool' : 'model-tool-freehand',
     );
     const preparedTask = preparedRequest.tasks[0];
     const forcedRequest =
@@ -236,6 +240,7 @@ async function prepareAndStartSubagent(
                 capabilities: fusionPatch.capabilities,
                 deliveryIntent: fusionPatch.deliveryIntent,
                 applyPolicy: fusionPatch.applyPolicy,
+                reviewAuthority: fusionPatch.reviewAuthority,
               },
             ],
           }
@@ -494,6 +499,30 @@ async function joinWithSignal<T>(join: Promise<T>, signal?: AbortSignal): Promis
   });
 }
 
+/**
+ * Exact refs in the model-visible text. Pi hands the model only the text
+ * content — `details` reach the UI, never the model — yet review, continue and
+ * apply all demand the exact `{resultId, revision}` / `{reviewId, revision}`
+ * from this wait. JSON so the model can copy them into tool args verbatim.
+ */
+function formatWaitRunRefs(run: SubagentWaitRunObservation): string {
+  let refs = '';
+  if (run.resultRef) {
+    refs += ` result=${JSON.stringify({
+      resultId: run.resultRef.resultId,
+      revision: run.resultRef.revision,
+    })}`;
+  }
+  if (run.reviewDecision) refs += ` review=${run.reviewDecision}`;
+  if (run.reviewRef) {
+    refs += ` reviewRef=${JSON.stringify({
+      reviewId: run.reviewRef.reviewId,
+      revision: run.reviewRef.revision,
+    })}`;
+  }
+  return refs;
+}
+
 export function formatWaitToolResult(result: SubagentWaitResult): {
   output: string;
   details: Record<string, unknown>;
@@ -529,7 +558,7 @@ export function formatWaitToolResult(result: SubagentWaitResult): {
       (run) =>
         `${run.runId}:${run.executionStatus}` +
         (run.integrationStatus ? `/${run.integrationStatus}` : '') +
-        (run.reviewDecision ? ` review=${run.reviewDecision}` : '') +
+        formatWaitRunRefs(run) +
         (run.executionStatus !== 'completed' && run.error
           ? ` reason=${run.error.slice(0, 240)}`
           : '') +

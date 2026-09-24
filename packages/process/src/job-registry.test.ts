@@ -494,6 +494,23 @@ describe('JobRegistry', () => {
         }),
       ).rejects.toThrow(/outside trusted/);
     });
+
+    it('starts in a directory the Host permission layer admitted for this start', async () => {
+      const { registry } = await createFixture();
+      const admitted = await mkdtemp(join(tmpdir(), 'piwin-job-admitted-'));
+      const input = {
+        kind: 'command' as const,
+        lifetime: 'host' as const,
+        command: 'node',
+        argv: [],
+        cwd: admitted,
+      };
+      await expect(registry.start(input)).rejects.toThrow(/outside trusted/);
+      const job = await registry.start(input, { admittedCwdRoots: [admitted] });
+      expect(job.cwd).toBe(admitted);
+      // The admission covers that start only.
+      await expect(registry.start(input)).rejects.toThrow(/outside trusted/);
+    });
   });
 
   // -- start: maxJobs ------------------------------------------------------

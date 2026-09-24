@@ -139,10 +139,13 @@ export type PermissionRuleTarget =
 export type PermissionSubject =
   | { kind: 'bash'; command: string }
   | { kind: 'file-write'; path: string }
+  /** A single browser upload may read and transmit several Host files. */
+  | { kind: 'file-paths'; paths: readonly string[] }
   | { kind: 'web-fetch'; host: string }
   | { kind: 'web-search' }
   | { kind: 'git'; command: string }
-  | { kind: 'process' }
+  /** `cwd` (canonical) is set for a Job start; it is checked against the workspace boundary. */
+  | { kind: 'process'; cwd?: string }
   | { kind: 'notes-mutate' }
   /** Host-local fallback subject for side-effect tools without a rule target. */
   | { kind: 'tool'; action: string };

@@ -24,12 +24,21 @@ export function pathInSessionAllowlist(path: string, allowlist: ReadonlySet<stri
 }
 
 /**
+ * Workspace boundary grants are either a directory (including descendants)
+ * or exact file paths. Paths are canonical (real paths).
+ */
+export type SessionWorkspaceGrant =
+  | { directory: string }
+  | { filePaths: readonly string[] };
+
+/**
  * Mutable per-session allowlist. Entries are added when the user picks
  * "Allow for session" on a permission prompt.
  */
 export class SessionAllowlist {
   private readonly bashCommands = new Set<string>();
   private readonly filePaths = new Set<string>();
+  private readonly workspaceDirectories = new Set<string>();
 
   /** Record a bash command approved for this session (exact match). */
   addBashCommand(command: string): void {
@@ -47,6 +56,19 @@ export class SessionAllowlist {
     }
   }
 
+  /** Record a directory the user let this session operate in. */
+  addWorkspaceDirectory(directory: string): void {
+    const trimmed = directory.trim().replace(/\/+$/, '');
+    if (trimmed) {
+      this.workspaceDirectories.add(trimmed);
+    }
+  }
+
+  /** True if `path` is inside a directory granted for this session. */
+  hasWorkspacePath(path: string): boolean {
+    return pathInSessionAllowlist(path, this.workspaceDirectories);
+  }
+
   /** True if the command was approved for this session (exact match). */
   hasBashCommand(command: string): boolean {
     return commandInSessionAllowlist(command, this.bashCommands);
@@ -57,14 +79,15 @@ export class SessionAllowlist {
     return pathInSessionAllowlist(path, this.filePaths);
   }
 
-  /** Number of entries (bash + file). Useful for debugging. */
+  /** Number of entries (bash + file + directory). Useful for debugging. */
   get size(): number {
-    return this.bashCommands.size + this.filePaths.size;
+    return this.bashCommands.size + this.filePaths.size + this.workspaceDirectories.size;
   }
 
   /** Clear all entries (called on session end). */
   clear(): void {
     this.bashCommands.clear();
     this.filePaths.clear();
+    this.workspaceDirectories.clear();
   }
 }

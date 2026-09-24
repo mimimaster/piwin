@@ -254,6 +254,16 @@ export type DocumentTargetRef =
       kind: 'trusted-config';
       relativePath: string;
       displayRef: string;
+    }
+  | {
+      /**
+       * Host-absolute file resolved by the Host for a local shell (ADR 0052 §6).
+       * The Host keeps the path; a remote projection refuses this variant, so it
+       * never carries host filesystem layout across a network boundary.
+       */
+      kind: 'local-file';
+      absolutePath: string;
+      displayRef: string;
     };
 
 /** Stable failure reasons for skills/read (UI maps to copy; do not parse free text). */

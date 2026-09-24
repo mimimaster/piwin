@@ -33,7 +33,7 @@ Judgment-as-deliverable stays here. Do not delegate architecture, unresolved pro
 1. Write a self-contained brief in the task text: goal, scope, constraints, success_criteria. Call \`piwin_subagent_start\` with role="sidekick" only. Do not name provider or model ids.
 2. Call \`piwin_subagent_wait\` and read the Result only. Do not treat child tool traces as your context.
 3. Review the checks. \`escalate\` or consecutive same-mode failure: take the work back in this session (\`fallback=main\`).
-4. Apply only with \`piwin_subagent_result_apply\` against the exact result from wait when you accept the candidate.
+4. You are the review authority. Record your decision with \`piwin_subagent_review_submit\` on the exact \`result\` ref from wait. To accept, submit \`approved\`, then call \`piwin_subagent_result_apply\` with that \`result\` and the returned \`reviewRef\` as \`approvedBy\`. One decision per candidate: for changes, send a new brief instead.
 5. Sequential briefs reuse the same sidekick. Do not fan-out writers. Do not use start as a map-reduce coordinator. Stage graphs belong to SessionPlan, not this scheme.
 
 Pairing is sticky for this conversation. Do not try to switch the sidekick model per turn.

@@ -5,6 +5,7 @@ import type {
   HostCommand,
   SubscriptionAccount,
   SubscriptionAccountQuota,
+  SubscriptionLoginFollowUp,
   SubscriptionOauthProviderId,
 } from '@piwin/contracts';
 import {
@@ -30,6 +31,7 @@ import { useConfirmDialog } from './use-confirm-dialog.js';
 import { InlineAuthPromptForm, readAuthPromptOpenUrl, type ProviderCardMeta } from './auth-prompt-form.js';
 import { SubscriptionQuotaDrawer } from './subscription-quota-drawer.js';
 import { openExternalUrl } from './open-external-url.js';
+import { DevinLoginFollowUp } from './settings/devin-login-follow-up.js';
 
 const EXTENSION_PILL = '@gotgenes/pi-anthropic-auth';
 const EXTENSION_ID = 'pi-anthropic-auth';
@@ -99,8 +101,8 @@ const CARD_COPY: Record<OauthCardId, ProviderCardMeta> = {
   devin: {
     title: 'Devin',
     titleEn: 'Devin',
-    tagline: 'Windsurf 套餐 · 非官方接口，账号风险自负',
-    taglineEn: 'Windsurf plan · unofficial API, you own the risk',
+    tagline: '登录后可免费使用 web_search 和 code_search · 非官方接口，账号风险自负',
+    taglineEn: 'Sign in to use web_search and code_search for free · unofficial API, you own the risk',
     login: '授权登录',
     loginEn: 'Connect',
   },
@@ -130,6 +132,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
   const [loadingQuotaIds, setLoadingQuotaIds] = useState<Set<string>>(new Set());
   const [resettingQuotaIds, setResettingQuotaIds] = useState<Set<string>>(new Set());
   const [refreshingCatalog, setRefreshingCatalog] = useState(false);
+  const [devinFollowUp, setDevinFollowUp] = useState<SubscriptionLoginFollowUp | null>(null);
   const confirmDialog = useConfirmDialog();
   const ownerDeviceId = readDesktopClientPrincipalId();
 
@@ -277,6 +280,9 @@ export function SubscriptionAccountsPanel(): ReactElement {
         });
       }
       if (message.type === 'auth/login-finished') {
+        if (message.result.ok && message.result.providerId === 'devin' && message.result.followUp) {
+          setDevinFollowUp(message.result.followUp);
+        }
         setActiveLogin(undefined);
         setRespondValue('');
         if (message.result.ok) {
@@ -500,6 +506,10 @@ export function SubscriptionAccountsPanel(): ReactElement {
           </span>
         </div>
       </div>
+
+      {devinFollowUp ? (
+        <DevinLoginFollowUp followUp={devinFollowUp} zh={isChinese} onDismiss={() => setDevinFollowUp(null)} />
+      ) : null}
 
       <div className="oauth-account-list oauth-account-grid">
         {OAUTH_DISPLAY_PROVIDER_IDS.map((providerId) => {

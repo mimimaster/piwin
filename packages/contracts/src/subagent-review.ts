@@ -24,6 +24,16 @@ export type SubagentReviewFinding = {
   evidence?: string;
 };
 
+/**
+ * Who may record the review that authorizes applying a candidate.
+ *
+ * `reviewer` (the default) demands an independent reviewer child bound with
+ * `reviewOf`. `lead` lets the parent session itself decide — Fusion's Lead
+ * owns final review and has no reviewer in its roster. Host sets this when it
+ * admits the candidate task; the model can never supply it.
+ */
+export type SubagentReviewAuthority = 'reviewer' | 'lead';
+
 export type SubagentReviewRef = {
   reviewId: string;
   revision: number;
@@ -33,8 +43,11 @@ export type SubagentReviewRecord = {
   reviewId: string;
   revision: number;
   parentSessionId: string;
+  /** For a `lead` review this is the parent session itself. */
   reviewerSessionId: string;
   reviewerRunId: string;
+  /** Absent means an independent reviewer child wrote it. */
+  authority?: SubagentReviewAuthority;
   targetResult: SubagentResultRef;
   targetChanges: ChangeVersionRef;
   decision: SubagentReviewDecision;

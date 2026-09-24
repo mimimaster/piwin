@@ -317,6 +317,64 @@ describe('session operations', () => {
     expect(agentState?.viewport).toMatchObject({ mode: 'mobile', setBy: 'agent' });
   });
 
+  it('keeps one mirror lease per client: a newer panel retires the leaked one', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    const superseded: string[][] = [];
+    await session.start('panel-old', { clientKey: 'local' });
+    await session.start('phone', { clientKey: 'device-phone' });
+    expect(session.mirrorLeaseCount()).toBe(2);
+
+    await session.start('panel-new', {
+      clientKey: 'local',
+      onSuperseded: (leaseIds) => superseded.push(leaseIds),
+    });
+    // The same client cannot hold two panels; another device still can.
+    expect(superseded).toEqual([['panel-old']]);
+    expect(session.hasMirrorLease('panel-old')).toBe(false);
+    expect(session.hasMirrorLease('phone')).toBe(true);
+    expect(session.mirrorLeaseCount()).toBe(2);
+
+    // Retired for good: a late start from the old panel cannot resurrect it.
+    await session.start('panel-old', { clientKey: 'local' });
+    expect(session.hasMirrorLease('panel-old')).toBe(false);
+  });
+
+  it('tracks the window driving the follow viewport and releases it with its lease', async () => {
+    const { page } = installWorkingBrowser();
+    page.setViewportSize.mockImplementation(async (size: { width: number; height: number }) => {
+      page.viewportSize.mockReturnValue(size);
+    });
+    const session = createBrowserSession();
+    const events: Array<{ type: string; viewport?: { followLeaseId?: string } }> = [];
+    session.subscribe((event) => {
+      events.push(event as { type: string; viewport?: { followLeaseId?: string } });
+    });
+    const lastViewport = () =>
+      events.filter((event) => event.type === 'browser/state').at(-1)?.viewport;
+    await session.start('window-a');
+    await session.start('window-b');
+
+    await session.setViewport(
+      { width: 900, height: 700 },
+      { mode: 'follow', setBy: 'user', followLeaseId: 'window-a' },
+    );
+    expect(session.viewportFollowLeaseId()).toBe('window-a');
+    expect(lastViewport()).toMatchObject({ followLeaseId: 'window-a' });
+
+    // Another window still mirrors, yet the driver is gone: publish the release.
+    await session.stop('window-a');
+    expect(session.viewportFollowLeaseId()).toBeUndefined();
+    expect(lastViewport()).not.toHaveProperty('followLeaseId');
+
+    await session.setViewport(
+      { width: 900, height: 700 },
+      { mode: 'follow', setBy: 'user', followLeaseId: 'window-b' },
+    );
+    await session.setViewport({ width: 800, height: 600 }, { mode: 'fixed', setBy: 'user' });
+    expect(session.viewportFollowLeaseId()).toBeUndefined();
+  });
+
   it('bumps the document revision only for main-frame navigation', async () => {
     const { page } = installWorkingBrowser();
     const handlers = new Map<string, (arg?: unknown) => void>();

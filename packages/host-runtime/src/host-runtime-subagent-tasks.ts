@@ -8,7 +8,7 @@ import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { formatError } from '@piwin/contracts';
 import { resolveBundledSkillsRoot, scanSkills } from '@piwin/skills';
-import { removeWorktree, runGitCommand } from '@piwin/git';
+import { deleteResultSnapshotRef, removeWorktree, runGitCommand } from '@piwin/git';
 
 import { getSessionRecord, upsertSessionRecord, createSubagentRunStore } from '@piwin/session';
 import { loadPiwinConfig } from './config-store.js';
@@ -16,6 +16,8 @@ import { getPiwinGeneralWorkspacePath, getPiwinRoot, getPiwinSessionIndexPath } 
 import { indexRecordToSummary } from './session-summary-map.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import { planSubagentSpawn } from './subagent-lifecycle-service.js';
+import { resolveSubagentProfiles } from './subagent-profile-resolver.js';
+import { resolveChatModel } from './resolve-chat-model.js';
 import type { SubagentDeliveryPolicySource } from './subagent-delivery-policy.js';
 import { reconcileSubagentBatchStatusAfterWorktreeAction } from './subagent-batch-status.js';
 import {
@@ -25,7 +27,11 @@ import {
 import type { SubagentRunSeam } from './subagent-run-tool.js';
 import { createSubagentControlSeam, type SubagentControlDeps } from './host-runtime-subagent-start.js';
 import { bindSubagentReviewTarget } from './subagent-review-context.js';
-import { findPersistedReview, loadPersistedReviewObservation } from './subagent-review-service.js';
+import {
+  createSubagentReviewService,
+  findPersistedReview,
+  loadPersistedReviewObservation,
+} from './subagent-review-service.js';
 import { createSubagentVerificationService } from './subagent-verification-service.js';
 import {
   applyReviewedSubagentResult,
@@ -161,6 +167,16 @@ export function getSubagentSeam(
         sessionId,
         input,
       ),
+    submitLeadReview: async (input) => {
+      if (!deps.subagentRunStore || !deps.subagentResultService) {
+        return { ok: false, code: 'tool-not-available', message: 'subagent review is not available' };
+      }
+      return createSubagentReviewService({
+        runStore: deps.subagentRunStore,
+        resultService: deps.subagentResultService,
+        publish: (message) => deps.push(message),
+      }).submitLead(input);
+    },
     applyReviewed: async (input) => {
       const resultService = deps.subagentResultService;
       if (!resultService) {
@@ -285,6 +301,10 @@ export async function prepareSubagentBatch(
     parentRecord?.projectPath ??
     getPiwinGeneralWorkspacePath(rootDir);
   const parentModel = deps.sessionModels.get(request.parentSessionId) ?? parentRecord?.model;
+  const freehandModel = source === 'model-tool-freehand'
+    ? config.subagents?.freehandReadonlyModel
+    : undefined;
+  const profiles = freehandModel ? resolveSubagentProfiles(config) : [];
   const enabledSkillIds = (
     await scanSkills({
       piwinRoot: rootDir,
@@ -296,7 +316,7 @@ export async function prepareSubagentBatch(
     .filter((skill) => skill.enabled)
     .map((skill) => skill.id);
 
-  const tasks = request.tasks.map((task) => {
+  const tasks = await Promise.all(request.tasks.map(async (task) => {
     const planned = planSubagentSpawn({
       config,
       request: {
@@ -325,7 +345,28 @@ export async function prepareSubagentBatch(
       const detail = planned.code ? `${planned.code}: ${planned.error}` : planned.error;
       throw new Error(`subagent task ${task.id}: ${detail}`);
     }
-    const model = planned.snapshot.model ?? parentModel;
+    const configuredModel =
+      freehandModel &&
+      !planned.snapshot.model &&
+      planned.snapshot.isolation === 'readonly' &&
+      task.role?.toLowerCase() !== 'coder' &&
+      task.role?.toLowerCase() !== 'implementer' &&
+      profiles.find((profile) => profile.id === planned.snapshot.profileId)?.isolation !== 'worktree'
+        ? freehandModel
+        : undefined;
+    const resolvedFreehandModel = configuredModel
+      ? resolveChatModel(
+          { providers: config.providers },
+          configuredModel,
+          await deps.subscriptionAuth?.chatResolveInput(),
+        )
+      : undefined;
+    if (configuredModel && !resolvedFreehandModel) {
+      throw new Error(
+        `freehand read-only subagent model "${configuredModel.providerId}/${configuredModel.modelId}" is unavailable; choose an enabled chat model in Settings`,
+      );
+    }
+    const model = planned.snapshot.model ?? resolvedFreehandModel?.ref ?? parentModel;
     return {
       ...task,
       ...(task.role ? { role: task.role } : {}),
@@ -348,7 +389,7 @@ export async function prepareSubagentBatch(
         : {}),
       ...(planned.snapshot.skillIds ? { skillIds: [...planned.snapshot.skillIds] } : {}),
     };
-  });
+  }));
   return { ...request, tasks };
 }
 
@@ -356,6 +397,7 @@ export async function continueSubagentChild(
   deps: {
     options: { piwinRoot?: string };
     resolveRetainedSubagentWorktreeLease: HostRuntimeKernel['resolveRetainedSubagentWorktreeLease'];
+    resolveSubagentContinuationRestore: HostRuntimeKernel['resolveSubagentContinuationRestore'];
     push: HostRuntimeKernel['push'];
   },
   orchestrator: Pick<SubagentOrchestrator, 'startBatch'>,
@@ -395,9 +437,6 @@ export async function resolveRetainedSubagentWorktreeLease(
       'subagent worktree is no longer retained; start a new isolated task to continue',
     );
   }
-  await access(child.worktreePath).catch(() => {
-    throw new Error('subagent worktree no longer exists; start a new isolated task to continue');
-  });
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const manifests = await createSubagentRunStore({
     runsDir: join(rootDir, 'subagent-runs'),
@@ -417,14 +456,71 @@ export async function resolveRetainedSubagentWorktreeLease(
       'subagent worktree lease is unavailable; start a new isolated task to continue',
     );
   }
-  const insideWorktree = await runGitCommand({
-    cwd: matchingLease.worktreePath,
-    args: ['rev-parse', '--is-inside-work-tree'],
-  });
-  if (insideWorktree.stdout.trim() !== 'true') {
-    throw new Error('subagent worktree is invalid; start a new isolated task to continue');
+  // The frozen Git snapshot is the durable copy. A live checkout is only needed
+  // when there is none: a shared writer slot may have been reset or rebuilt
+  // since, which is normal and not a reason to refuse.
+  const snapshot = await resolveSubagentContinuationRestore(deps, child).catch(() => undefined);
+  if (!snapshot && matchingLease.slotId !== undefined) {
+    // A slot path always exists (it is shared), so checking it proves nothing:
+    // without a frozen tree the child's own state is gone.
+    throw new Error(
+      'subagent result snapshot is unavailable; start a new isolated task to continue',
+    );
+  }
+  if (!snapshot) {
+    const insideWorktree = await runGitCommand({
+      cwd: matchingLease.worktreePath,
+      args: ['rev-parse', '--is-inside-work-tree'],
+      allowFailure: true,
+    });
+    if (insideWorktree.stdout.trim() !== 'true') {
+      throw new Error('subagent worktree is invalid; start a new isolated task to continue');
+    }
   }
   return matchingLease;
+}
+
+/**
+ * Latest frozen snapshot for a child, with the base it was frozen against.
+ *
+ * A continuation resumes in the shared writer slot, which has been reset since
+ * this child last ran, so the child's state has to be checked back out of Git
+ * objects. The base is the lease commit the child started from, not the
+ * parent's current HEAD: restoring against a moved parent would hand the child
+ * a different starting point than its predecessor had.
+ */
+export async function resolveSubagentContinuationRestore(
+  deps: HostRuntimeKernel,
+  child: import('@piwin/contracts').SessionIndexRecord,
+): Promise<{ baseCommit: string; tree: string } | undefined> {
+  const rootDir = getPiwinRoot(deps.options.piwinRoot);
+  const manifests = await createSubagentRunStore({
+    runsDir: join(rootDir, 'subagent-runs'),
+  }).listManifests();
+  const matches = manifests
+    .flatMap((manifest) =>
+      manifest.tasks.flatMap((task) => {
+        const result = manifest.results[task.id];
+        const lease = manifest.leases[task.id];
+        if (
+          result?.childSessionId !== child.id ||
+          lease?.mode !== 'worktree' ||
+          !result.gitSnapshot
+        ) {
+          return [];
+        }
+        return [
+          {
+            updatedAtMs: Date.parse(manifest.updatedAt) || 0,
+            baseCommit: lease.baseCommit,
+            tree: result.gitSnapshot.tree,
+          },
+        ];
+      }),
+    )
+    .sort((left, right) => left.updatedAtMs - right.updatedAtMs);
+  const latest = matches[matches.length - 1];
+  return latest ? { baseCommit: latest.baseCommit, tree: latest.tree } : undefined;
 }
 
 export type SubagentWorktreeActionResult = {
@@ -484,12 +580,25 @@ export async function actOnSubagentWorktree(
       signal ? { signal } : {},
     );
   } else if (action === 'discard') {
-    await removeWorktree({
-      projectPath: lease.parentRepoPath,
-      worktreePath: lease.worktreePath,
-      force: true,
-      worktreeBranch: lease.worktreeBranch,
-    });
+    // A shared writer slot is not this task's to delete: discarding the result
+    // returns the copy to the pool, it does not reclaim the checkout.
+    if (lease.slotId === undefined) {
+      await removeWorktree({
+        projectPath: lease.parentRepoPath,
+        worktreePath: lease.worktreePath,
+        force: true,
+        worktreeBranch: lease.worktreeBranch,
+      });
+    }
+    // Nothing will read this result's snapshot again, so release the ref that
+    // kept its objects alive instead of accumulating refs per decided result.
+    const discardedResultId = retainedTask.result.resultRef?.resultId;
+    if (discardedResultId !== undefined) {
+      await deleteResultSnapshotRef({
+        repoPath: lease.parentRepoPath,
+        resultId: discardedResultId,
+      }).catch(() => undefined);
+    }
     const { worktreePath: _discardedWorktreePath, ...resultWithoutWorktree } = retainedTask.result;
     result = {
       ...resultWithoutWorktree,

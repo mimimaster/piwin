@@ -27,8 +27,8 @@ export const SOURCE_KIND_OPTIONS: Array<{
   {
     id: 'devin',
     title: 'Devin',
-    description: 'Uses the Devin subscription',
-    descriptionZh: '使用 Devin 套餐登录',
+    description: 'Reuses your Devin account · nothing to paste',
+    descriptionZh: '复用 Devin 账号 · 无需填写 Key',
   },
   {
     id: 'cli',

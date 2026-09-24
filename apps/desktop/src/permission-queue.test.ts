@@ -106,4 +106,28 @@ describe('reconcilePermissionQueue', () => {
       },
     ]);
   });
+
+  it('restores the outside-directory facts after reconnect', () => {
+    const [prompt] = parsePendingPermissionList({
+      permissions: [{
+        requestId: 'job-1',
+        sessionId: 'session-1',
+        action: 'process:start',
+        detail: 'cwd-outside-workspace: /other\n$ pnpm dev',
+        defaultDecision: 'ask',
+        context: {
+          kind: 'command',
+          summary: 'Run a process outside this workspace',
+          outsideWorkspace: true,
+          cwd: '/other',
+          command: 'pnpm dev',
+        },
+      }],
+    });
+    expect(prompt?.context).toMatchObject({
+      outsideWorkspace: true,
+      cwd: '/other',
+      command: 'pnpm dev',
+    });
+  });
 });

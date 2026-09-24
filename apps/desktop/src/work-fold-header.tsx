@@ -15,6 +15,11 @@ export type WorkFoldHeaderProps = {
   failureCount?: number;
   runningToolIndex?: number;
   runningCode?: string;
+  /**
+   * The most recent narration text from process rows, displayed in the running label
+   * alongside the tool index and running code.
+   */
+  narration?: string;
   /** Epoch ms the run started. Drives the live clock in the running header. */
   runningSince?: number;
   waitingAction?: string;
@@ -199,20 +204,38 @@ function RunningLabel(props: {
   locale: 'zh-CN' | 'en';
   runningToolIndex?: number;
   runningCode?: string;
+  narration?: string;
 }): ReactElement {
+  const isZh = props.locale === 'zh-CN';
+  const narration = props.narration?.trim();
+  const hasToolIndex = props.runningToolIndex !== undefined && props.runningToolIndex > 0;
+  const toolText = hasToolIndex
+    ? isZh
+      ? `第 ${props.runningToolIndex} 个工具`
+      : `tool ${props.runningToolIndex}`
+    : null;
+
   return (
     <span className="turn-work-details-label">
-      <b>{props.locale === 'zh-CN' ? '正在运行' : 'Running'}</b>
-      {props.runningToolIndex !== undefined && props.runningToolIndex > 0
-        ? props.locale === 'zh-CN'
-          ? ` · 第 ${props.runningToolIndex} 个工具`
-          : ` · tool ${props.runningToolIndex}`
-        : null}
-      {props.runningCode ? (
-        <>
-          {' · '}
-          <code>{props.runningCode}</code>
-        </>
+      <span className="work-fold-running-head">
+        <b>{isZh ? '正在运行' : 'Running'}</b>
+        {narration ? (
+          <>
+            {' · '}
+            <span className="work-fold-narration">{narration}</span>
+          </>
+        ) : null}
+      </span>
+      {toolText || props.runningCode ? (
+        <span className="work-fold-running-tail">
+          {toolText ? ` · ${toolText}` : null}
+          {props.runningCode ? (
+            <>
+              {' · '}
+              <code>{props.runningCode}</code>
+            </>
+          ) : null}
+        </span>
       ) : null}
     </span>
   );
@@ -275,6 +298,7 @@ export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
           ? { runningToolIndex: props.runningToolIndex }
           : {})}
         {...(props.runningCode !== undefined ? { runningCode: props.runningCode } : {})}
+        {...(props.narration !== undefined ? { narration: props.narration } : {})}
       />
     ) : props.state === 'waiting' ? (
       <WaitingLabel

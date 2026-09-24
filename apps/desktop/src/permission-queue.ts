@@ -2,7 +2,7 @@
  * Ordered, requestId-deduped permission prompts. Desktop used to keep a single
  * slot; concurrent Host requests overwrote each other and left tools hanging.
  */
-import type { PermissionDecision } from '@piwin/contracts';
+import type { PermissionDecision, PermissionRequestContext, PermissionRiskKind } from '@piwin/contracts';
 import type { ChatUiState, PermissionPromptUi, SubagentStreamState } from './chat-ui-types';
 
 export const MAX_PERMISSION_QUEUE = 16;
@@ -120,6 +120,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function parsePermissionContext(value: unknown): PermissionRequestContext | undefined {
+  if (!isRecord(value) || typeof value.summary !== 'string') return undefined;
+  const kinds: readonly PermissionRiskKind[] = ['command', 'file-write', 'git', 'network', 'mcp', 'unknown'];
+  if (!kinds.includes(value.kind as PermissionRiskKind)) return undefined;
+  const context: PermissionRequestContext = {
+    kind: value.kind as PermissionRiskKind,
+    summary: value.summary,
+  };
+  for (const key of ['reason', 'cwd', 'command', 'host', 'serverId', 'branch', 'remote'] as const) {
+    if (typeof value[key] === 'string') context[key] = value[key];
+  }
+  for (const key of ['destructive', 'secretRelated', 'outsideWorkspace'] as const) {
+    if (typeof value[key] === 'boolean') context[key] = value[key];
+  }
+  if (Array.isArray(value.paths) && value.paths.every((path) => typeof path === 'string')) {
+    context.paths = value.paths;
+  }
+  return context;
+}
+
 export function parsePendingPermissionList(data: unknown): PermissionPromptUi[] {
   if (!isRecord(data) || !Array.isArray(data.permissions)) {
     return [];
@@ -153,6 +173,8 @@ export function parsePendingPermissionList(data: unknown): PermissionPromptUi[] 
     if (typeof item.runId === 'string' && item.runId.length > 0) {
       prompt.runId = item.runId;
     }
+    const context = parsePermissionContext(item.context);
+    if (context) prompt.context = context;
     parsed.push(prompt);
   }
   return parsed;

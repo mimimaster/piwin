@@ -488,3 +488,62 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* ADR 0052 §6: an unavailable preview names the routes the Host tried, so a
+   failure can be diagnosed instead of collapsing into "not found". */
+.preview-unavailable:has(.preview-unavailable-diagnostics) {
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.preview-unavailable-diagnostics {
+  max-width: 34rem;
+  width: 100%;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  text-align: left;
+}
+
+.preview-unavailable-diagnostics > summary {
+  cursor: pointer;
+  color: var(--text-3);
+  user-select: none;
+}
+
+.preview-unavailable-diagnostics > summary:hover {
+  color: var(--text-2);
+}
+
+.preview-unavailable-diagnostics ul {
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.preview-unavailable-diagnostics li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  line-height: var(--lh-normal);
+}
+
+.preview-unavailable-diagnostics code {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: var(--fs-micro, 0.75rem);
+  color: var(--text-2);
+  background: var(--surface-2, transparent);
+  padding: 0 var(--s-1);
+  border-radius: 4px;
+}
+
+.preview-unavailable-diagnostics em {
+  color: var(--text-4);
+  font-style: normal;
+  word-break: break-word;
+}

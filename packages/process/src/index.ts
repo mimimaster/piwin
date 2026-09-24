@@ -31,6 +31,6 @@ export type {
 } from './process-supervisor.js';
 
 // Existing exports (cwd policy + redaction remain shared utilities)
-export { isPathInsideRoot, resolveTrustedCwd } from './cwd-policy.js';
+export { canonicalFsPath, isPathInsideRoot, resolveTrustedCwd } from './cwd-policy.js';
 export type { CwdPolicyResult } from './cwd-policy.js';
 export { redactSecretText } from './redact-logs.js';

@@ -227,6 +227,7 @@ export async function dispatchTask(
       if (shouldIntegrate) {
         result = await integrateTask(deps, result, lease, {
           signal,
+          liveCopyOwned: true,
           onCommitPoint: () => {
             integrationCommitPointReached = true;
           },

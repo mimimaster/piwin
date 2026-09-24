@@ -50,7 +50,7 @@ classify_webcontent() {
     echo pet
     return
   fi
-  if echo "$listing" | grep -Eq 'Caches/piwin-desktop|piwin-desktop\.app|apps/desktop|@piwin/desktop|127\.0\.0\.1:1420|/ui/ink-wash'; then
+  if echo "$listing" | grep -Eq 'Caches/piwin-desktop|piwin-desktop\.app|apps/desktop|@piwin/desktop|127\.0\.0\.1:1420'; then
     echo piwin
     return
   fi

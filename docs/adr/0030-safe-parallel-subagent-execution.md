@@ -60,6 +60,46 @@ guards and only skips the 7-day wait (plus a 2-minute in-flight grace).
 Orphans (disk copy, no lease) may be deleted under those path/age/lock
 guards. Commands: `subagent/worktree-gc-preview`, `subagent/worktree-gc`.
 
+**Writer slot and Git-object results (2026-09-24,
+`plan/2026-09-23-subagent-writer-slot-pool`):** Writes are already serialized
+per project, so each write task no longer gets its own checkout. One shared
+slot per project (`~/.piwin/worktrees/<repoKey>/slot-0`, branch
+`piwin/subagent/slot-0`) is reset in place between tasks with
+`reset --hard` → `clean -ffdx` (dependency directories preserved) →
+`checkout -B`; an unusable or `dirty` slot is rebuilt, and a rebuild failure
+fails the task rather than opening a second copy. Dependencies are re-installed
+only when their fingerprint changes (package manager + lockfile +
+workspace manifest + registry config + `patches/` + `packageManager`), and a
+child that symlinks its `node_modules` outside the workspace is reported in the
+result `verification` instead of being treated as verified. The Host resolves
+its own PATH once from the user's login shell, because a packaged Host does not
+inherit one and `spawn pnpm` was failing for every child.
+
+A settled child is now also frozen as Git objects: a tree written from an
+alternate index, committed on top of the lease `baseCommit`, reachable from
+`refs/piwin/results/<resultId>`. That tree — not the live copy — is what
+integration reads (`git diff <base> <tree>` then the existing parent-index
+`apply --3way` + `applyTreeDiffToWorkspace` write path, unchanged), so the
+integrated version is the reviewed one and can be released or reset before the
+decision. The CAS snapshot stays for the Desktop per-file diff only. Both
+readers are compared by tree OID, not patch bytes. `SubagentCopyState` gains
+`released` (copy returned to the slot, frozen data still available — not
+`removed`/`missing`), and a continuation re-checks the child's frozen tree out
+of the slot against the *predecessor's* base commit via
+`SubagentTaskSpec.continuationRestore`. GC never reclaims `slot-*`, and
+discarding a result deletes its result ref.
+
+The Desktop no longer offers to open a slot as a project (the branch chip's
+occupied-worktree navigation skips it): a slot is reset in place between tasks
+and may be in use. Slot identity is shared with the Desktop through
+`@piwin/contracts`. Deliberately not done: releasing the project write lock
+before integration.
+Write serialization is this ADR's subject and releasing early would let a new
+task capture a base that predates the in-flight integration. Known gap left
+open: the parent write path still writes `0644` regular files, so an executable
+bit or symlink created by a child is not preserved on apply (see the plan's
+"发现、未修的问题").
+
 **Worktree lifecycle fixes (2026-09-23):** `integrationStatus='retained'` now
 counts as *pending a decision* only for a **completed** candidate; a
 failed/cancelled copy retained for inspection is an ordinary leftover and is
@@ -101,6 +141,18 @@ reviewed-delivery continue/review binding, and only while the lane's last
 candidate is unapplied (retained / conflict / failed); after an apply the
 worktree's base predates the parent, so the next brief starts a fresh lane. Metric is price-per-task; no cost
 dashboard in this change. Spec: [`orchestration-scheme.md`](../specs/orchestration-scheme.md) §9.2.
+
+**Fusion Lead review and resume (2026-09-24):** Reviewer prose still never
+authorizes apply, but a durable review no longer has to come from a reviewer
+child. `SubagentTaskSpec.reviewAuthority` (Host-only) names who may write the
+approving review; Fusion sets `lead`, everything else keeps the independent
+reviewer. The parent's `piwin_subagent_review_submit` writes an
+`authority: 'lead'` record on the candidate task, and apply keeps every exact
+version / stale review / superseded check. Wait now prints the exact
+`result={…}` / `reviewRef={…}` in its text (the model never sees `details`).
+Pause checkpoints carry the paused run's `turnPolicy` (scheme id, disabled
+delegation), so a resumed turn keeps its scheme instead of running freehand.
+Spec: [`orchestration-scheme-fusion.zh.md`](../specs/orchestration-scheme-fusion.zh.md) §4.1–4.2.
 
 **Write exclusivity (2026-09-18):** Concurrent worktree **writes** are forbidden.
 The scheduler admits at most one running `isolationOverride=worktree` task.
@@ -260,6 +312,17 @@ integration — not the skill.
 `PiwinConfig.subagents` is the only user configuration source. Profile model
 fields reference existing provider/model entries; the parallel runner never
 defines or copies provider/model catalogs.
+
+**Freehand read-only model (2026-09-24):** `subagents.freehandReadonlyModel?`
+references an already configured chat model; absent preserves parent-model
+inheritance. Only model-initiated `piwin_subagent_run/start` without an active
+scheme may use it. Selection follows explicit call model > profile pin > freehand
+read-only default > parent. Effective isolation must be readonly, with writer
+profile intent or known coder/implementer role excluded; a role never grants
+write access. An unavailable selected model fails before child allocation,
+not silently to the parent model. Scheme spawns, plan/programmatic batches,
+continuations and independent `code_search` keep their prior routing. Settings
+updates affect only future children.
 
 ## Design references
 

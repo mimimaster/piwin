@@ -11,7 +11,7 @@ export type FilePanelEmptyFallbackProps = {
   testId?: string | undefined;
 };
 
-type ThemeStyleKind = 'inkstone-paper' | 'inkstone-ink' | 'ink-wash' | 'modern';
+type ThemeStyleKind = 'inkstone-paper' | 'inkstone-ink' | 'modern';
 
 function detectThemeStyle(theme?: ThemeManifest | undefined): ThemeStyleKind {
   const themeId = theme?.id;
@@ -22,9 +22,6 @@ function detectThemeStyle(theme?: ThemeManifest | undefined): ThemeStyleKind {
   }
   if (themeId === 'piwin-inkstone-paper') {
     return 'inkstone-paper';
-  }
-  if (themeId === 'piwin-ink-wash' || (visualStyle as string) === 'ink-wash') {
-    return 'ink-wash';
   }
   if (visualStyle === 'paper') {
     return 'inkstone-paper';
@@ -39,9 +36,6 @@ function detectThemeStyle(theme?: ThemeManifest | undefined): ThemeStyleKind {
     }
     if (docId === 'piwin-inkstone-paper') {
       return 'inkstone-paper';
-    }
-    if (docId === 'piwin-ink-wash' || docVisual === 'ink-wash') {
-      return 'ink-wash';
     }
     if (docVisual === 'paper') {
       return 'inkstone-paper';
@@ -72,15 +66,6 @@ function resolveCopy(style: ThemeStyleKind, locale: DesktopLocale) {
           : 'Generated or opened files can be browsed and previewed here.',
         action: isZh ? '打开文件夹' : 'Open Folder',
         sealText: '墨',
-      };
-    case 'ink-wash':
-      return {
-        title: isZh ? '素笺待发 · 暂无文件' : 'No files',
-        desc: isZh
-          ? '生成或打开文件后，可以在这里浏览和预览。'
-          : 'Generated or opened files can be browsed and previewed here.',
-        action: isZh ? '打开文件夹' : 'Open Folder',
-        sealText: '素',
       };
     case 'modern':
     default:

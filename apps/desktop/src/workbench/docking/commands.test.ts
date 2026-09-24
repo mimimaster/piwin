@@ -151,7 +151,7 @@ describe('docking workspace commands', () => {
     expect(Object.values(reopened.state.views).some((view) => view.sessionId === 'gone')).toBe(true);
   });
 
-  it('focuses the open browser unless the caller asks for another', () => {
+  it('keeps one browser view: opening it again focuses the open one', () => {
     const { createId, state } = setup();
     const first = openToolView(state, 'browser', createId);
     expect(first.ok).toBe(true);
@@ -161,12 +161,6 @@ describe('docking workspace commands', () => {
     if (!again.ok) return;
     expect(Object.values(again.state.views).filter((view) => view.kind === 'browser')).toHaveLength(1);
     expect(again.state.focusedViewId).toBe(first.state.focusedViewId);
-
-    const second = openToolView(first.state, 'browser', createId, undefined, { another: true });
-    expect(second.ok).toBe(true);
-    if (!second.ok) return;
-    expect(Object.values(second.state.views).filter((view) => view.kind === 'browser')).toHaveLength(2);
-    expect(second.state.focusedViewId).not.toBe(first.state.focusedViewId);
   });
 
   it('focuses the existing canvas when auto-reveal and the launcher both open it', () => {

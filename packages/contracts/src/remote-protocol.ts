@@ -163,6 +163,7 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'media/list',
   'media/delete',
   'preview/read-trusted-text',
+  'preview/resolve-path',
   'skills/read',
   'extensions/list',
   // Read-only marketplace views; installs and removals stay local-only.
@@ -214,6 +215,11 @@ export type RemoteCapabilitySummary = {
   mediaRead?: boolean;
   /** Remote-safe config-root text preview by relative path (ADR 0052 Slice 3). */
   trustedTextPreview?: boolean;
+  /**
+   * Host interprets a raw clicked path and answers with a logical
+   * `DocumentTargetRef` (ADR 0052 §6). Host-absolute targets are refused here.
+   */
+  documentPathResolve?: boolean;
   pushBatching?: boolean;
   cursorBatches?: boolean;
   boundedReplay?: boolean;

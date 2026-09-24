@@ -422,6 +422,6 @@ describe('SettingsShell', () => {
     act(() => {
       docsTab?.click();
     });
-    expect(openSpy).toHaveBeenCalledWith('https://docs.planora.chat');
+    expect(openSpy).toHaveBeenCalledWith('https://docs.piwinwin.com');
   });
 });

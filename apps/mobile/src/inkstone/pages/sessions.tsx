@@ -71,7 +71,7 @@ export interface PrototypeSession {
 export const PROTOTYPE_SESSIONS: PrototypeSession[] = [
   { id: 'memory', title: '让会话拥有记忆', mode: 'code', project: 'piwin', tree: 'main', kind: 'memory', time: '刚刚' },
   { id: 'reconnect', title: '修复移动端重连', mode: 'code', project: 'piwin', tree: 'feat/mobile-reconnect', worktree: true, kind: 'reconnect', time: '26 分钟' },
-  { id: 'theme', title: 'Inkstone · 桌面主题', mode: 'code', project: 'piwin', tree: 'main', kind: 'delivered', time: '1 小时', snippet: '走查报告已就绪 · 4 个文件' },
+  { id: 'theme', title: 'Inkstone · 桌面主题', mode: 'code', project: 'piwin', tree: 'main', kind: 'delivered', time: '1 小时', snippet: '报告已就绪 · 4 个文件' },
   { id: 'deps', title: '升级 Pi 依赖', mode: 'code', project: 'piwin', tree: 'main', kind: 'error', time: '昨天' },
   { id: 'docsite', title: '文档站换肤', mode: 'code', project: 'piwin-docs', tree: 'main', kind: 'delivered', time: '3 天前', snippet: '已交付 · 6 个文件' },
   { id: 'scratch', title: '润色一封英文邮件', mode: 'chat', kind: 'plain', day: '今天', time: '08:12', snippet: '语气保持礼貌，句子更短' },
@@ -86,7 +86,7 @@ export function getSessionStatus(id: string, state: InkstoneState): { dot: DotSt
       ? { dot: 'running', text: state.candidate === 'pending' ? '工作中 · 1 份交付待审阅' : '正在补全恢复路径测试' }
       : state.run === 'paused'
         ? { dot: 'paused', text: '已暂停 · 等你继续', tone: 'tone-lamp' }
-        : { dot: 'done', text: '本轮已完成 · 走查报告就绪' };
+        : { dot: 'done', text: '本轮已完成 · 报告就绪' };
   }
   if (id === 'reconnect') {
     return state.permission === 'pending'

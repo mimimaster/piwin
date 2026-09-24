@@ -23,6 +23,7 @@ import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
 import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
 import { ChatThread } from './chat-thread';
+import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
 import type { ChatMessageUi, ChatUiState, SessionListItemUi } from './chat-reducer';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import type { DesktopLocale } from './desktop-locale';
@@ -31,7 +32,6 @@ import { ExtensionUiPrompt, type ExtensionUiResolvePayload } from './extension-u
 import type { HostClient } from './host-client';
 import { HostReconnectBanner } from './host-reconnect-banner';
 import { shouldShowHostReconnectBanner } from './host-reconnect-gate.js';
-import { InkWashEmptyVignette } from './ink-wash-empty-vignette';
 import type { DoccardsHostRequest } from './knowledge/knowledge-host-request';
 import type { ModelOption } from './model-options';
 import { PermissionBar } from './permission-bar';
@@ -47,6 +47,14 @@ import type { DesktopPreferences } from './ui-preferences';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 import { isConversationSessionChrome } from './is-conversation-session';
 import type { SidebarMode } from './sidebar-mode';
+
+/**
+ * Workbench parents rebuild inline handlers on every chat reducer commit, so a
+ * plain ChatThread re-rendered the whole transcript — and every mounted row —
+ * on each streamed token. The boundary hands ChatThread one stable proxy per
+ * handler; data props (messages, streaming, composerCard) still decide renders.
+ */
+const StableChatThread = memoWithLatestCallbacks(ChatThread);
 
 export type WorkbenchTranscriptProps = {
   locale: DesktopLocale;
@@ -225,7 +233,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
          * activity locator for that state.
          */}
         {visibleMessages.length > 0 || (!historyViewActive && state.streaming) ? (
-          <ChatThread
+          <StableChatThread
             messages={visibleMessages}
             {...(activeSessionId ? { sessionId: activeSessionId } : {})}
             hydrating={state.awaitingTranscript}
@@ -437,7 +445,6 @@ export function WorkbenchPermissionBar(
 
 export type WorkbenchComposerColumnProps = {
   state: ChatUiState;
-  activeTheme: ThemeManifest;
   activeSessionName: string;
   composerCard: ComposerDockProps;
   onTrustProject: (trust: boolean) => void | Promise<void>;
@@ -448,7 +455,6 @@ export type WorkbenchComposerColumnProps = {
 export function WorkbenchComposerColumn(props: WorkbenchComposerColumnProps): ReactElement {
   const {
     state,
-    activeTheme,
     activeSessionName,
     composerCard,
     onTrustProject,
@@ -477,9 +483,6 @@ export function WorkbenchComposerColumn(props: WorkbenchComposerColumnProps): Re
             onNewAgent={() => void onNewSession()}
           />
         </div>
-      ) : null}
-      {state.messages.length === 0 && !state.awaitingTranscript ? (
-        <InkWashEmptyVignette theme={activeTheme} />
       ) : null}
       <ComposerDock {...composerCard} goalMessages={state.messages} />
     </>
