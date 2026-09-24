@@ -337,4 +337,40 @@ describe('MarketplaceWorkspaceView', () => {
     expect(container.querySelector('[data-testid="market-entry-skill:doc-coauthoring"]')).toBeNull();
     expect(container.querySelector('[data-testid="marketplace-ecosystem"]')?.textContent).toContain('pi-lens-extra');
   });
+  it('shows a progress bar on the card while installing, then an app toast', async () => {
+    let finish: (() => void) | undefined;
+    const host = createFakeHost({});
+    host.request.mockImplementation(async (command: HostCommand): Promise<HostResponse> => {
+      if (command.type === 'marketplace/catalog-list') return ok(command.type, { entries: [SKILL_ENTRY] });
+      if (command.type === 'marketplace/installed-list') return ok(command.type, { revision: '0', items: [] });
+      if (command.type === 'skills/install') {
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        return ok(command.type, { skillId: 'doc-coauthoring', targetPath: '/tmp/x' });
+      }
+      return ok(command.type, {});
+    });
+    render(host);
+    await flush();
+    act(() => {
+      findButton(container, '查看并安装')?.click();
+    });
+    act(() => {
+      document.querySelector<HTMLButtonElement>('[data-testid="marketplace-entry-install"]')?.click();
+    });
+    await flush();
+    expect(
+      container.querySelector('[data-testid="market-entry-progress-skill:doc-coauthoring"]'),
+    ).not.toBeNull();
+
+    await act(async () => {
+      finish?.();
+    });
+    await flush();
+    expect(
+      container.querySelector('[data-testid="market-entry-progress-skill:doc-coauthoring"]'),
+    ).toBeNull();
+    expect(document.body.textContent).toContain('下一条消息起即可使用');
+  });
 });

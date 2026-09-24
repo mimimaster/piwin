@@ -9,6 +9,7 @@
    parent selector. */
 
 @import './empty-state.css';
+@import './progress-bar.css';
 
 /* ── Button (Mantine Button wrapper) ─────────────────────────────── */
 

@@ -21,6 +21,8 @@ export type { SpinnerProps } from './spinner.js';
 
 export { ProgressRing } from './progress-ring.js';
 export type { ProgressRingProps, ProgressRingTone } from './progress-ring.js';
+export { ProgressBar } from './progress-bar.js';
+export type { ProgressBarProps } from './progress-bar.js';
 
 export { Toast, ToastHost } from './toast.js';
 export type { ToastProps, ToastTone, ToastHostProps, ToastHostPosition } from './toast.js';

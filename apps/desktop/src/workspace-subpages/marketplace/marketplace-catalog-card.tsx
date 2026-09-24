@@ -4,7 +4,7 @@
  */
 import type { ReactElement } from 'react';
 import type { MarketplaceCatalogEntry, MarketplaceInstalledItem } from '@piwin/contracts';
-import { Button, ProgressRing } from '@piwin/ui-kit';
+import { Button, ProgressBar, ProgressRing } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import {
   availabilityLabel,
@@ -48,6 +48,14 @@ export function MarketplaceCatalogCard(props: MarketplaceCatalogCardProps): Reac
           </div>
         </div>
         <p className="market-card-desc">{localizedText(entry.summary, locale)}</p>
+        {operation ? (
+          // Installs report no byte progress, so the bar sweeps instead of guessing a percentage.
+          <ProgressBar
+            label={operationLabel(operation, locale)}
+            className="market-card-progress"
+            testId={`market-entry-progress-${entry.entryId}`}
+          />
+        ) : null}
       </div>
       <div className="market-card-footer">
         <span className="market-card-source">

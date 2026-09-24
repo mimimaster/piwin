@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import type { MarketplaceSearchHit } from '@piwin/contracts';
-import { Button, ProgressRing } from '@piwin/ui-kit';
+import { Button, ProgressBar, ProgressRing } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import { openExternalUrl } from '../../open-external-url.js';
 import { IconCheck, IconCopy, IconGit } from '../../shell-icons.js';
@@ -98,6 +98,10 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
           </span>
         </button>
       </div>
+
+      {installState === 'installing' ? (
+        <ProgressBar label={t('Installing…', '安装中…')} className="market-card-progress" testId={`${testId}-progress`} />
+      ) : null}
 
       <div className="market-card-footer">
         <div className="market-card-links">

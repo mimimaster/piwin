@@ -842,3 +842,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-style: italic;
   color: var(--text-1);
 }
+
+/* Install progress sits between the card body and its footer. */
+.market-card-progress {
+  margin: 10px 0 2px;
+}

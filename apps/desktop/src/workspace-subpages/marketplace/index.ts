@@ -5,7 +5,6 @@ export * from './marketplace-installed-row.js';
 export * from './marketplace-entry-dialog.js';
 export * from './marketplace-dialogs.js';
 export * from './marketplace-pi-package-card.js';
-export * from './marketplace-toast.js';
 export * from './use-marketplace-data.js';
 export * from './use-marketplace-actions.js';
 export * from './use-marketplace-ecosystem-search.js';

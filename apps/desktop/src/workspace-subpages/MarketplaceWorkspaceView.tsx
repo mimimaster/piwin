@@ -20,12 +20,12 @@ import { Button, ConfirmDialog, EmptyState, Notice } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../desktop-locale.js';
 import { IconExtension } from '../shell-icons.js';
 import { StudioTopbar } from './studio/studio-chrome.js';
+import { emitDesktopNotification } from '../notification-queue.js';
 import {
   MarketplaceCatalogCard,
   MarketplaceEntryDialog,
   MarketplaceInstalledRow,
   MarketplacePiPackageCard,
-  MarketplaceToastView,
   PiPackageInstallDialog,
   categoryLabel,
   kindLabel,
@@ -62,13 +62,13 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
   const [tab, setTab] = useState<MarketTab>('discover');
   const [kindFilter, setKindFilter] = useState<MarketKindFilter>('all');
   const [search, setSearch] = useState('');
-  const [toast, setToast] = useState<MarketplaceToast | null>(null);
   const [openEntryId, setOpenEntryId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<MarketplaceInstalledItem | null>(null);
 
+  // Marketplace outcomes use the app-wide notification toast, not a page-local banner.
   const showToast = (next: MarketplaceToast) => {
-    setToast(next);
-    window.setTimeout(() => setToast((current) => (current === next ? null : current)), 5200);
+    const message = [next.title, next.text].filter((part) => part && part.trim()).join(' · ');
+    emitDesktopNotification({ level: next.type, message });
   };
 
   const data = useMarketplaceData({
@@ -337,7 +337,6 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
       />
 
       <main className="vault-main marketplace-main" id="vault-main">
-        <MarketplaceToastView toast={toast} locale={props.locale} onDismiss={() => setToast(null)} />
         {data.error ? (
           <Notice tone="warning" testId="marketplace-host-error">
             {t('Could not read from the Host: ', '读取 Host 状态失败：')}

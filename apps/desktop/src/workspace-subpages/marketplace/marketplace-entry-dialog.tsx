@@ -5,7 +5,7 @@
  */
 import type { ReactElement } from 'react';
 import type { MarketplaceCatalogEntry, MarketplaceInstalledItem } from '@piwin/contracts';
-import { Button, Dialog, Notice } from '@piwin/ui-kit';
+import { Button, Dialog, Notice, ProgressBar } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import { openExternalUrl } from '../../open-external-url.js';
 import {
@@ -126,6 +126,10 @@ export function MarketplaceEntryDialog(props: MarketplaceEntryDialogProps): Reac
         ) : (
           <Notice tone="warning">{installRiskNotice(entry, locale)}</Notice>
         )}
+
+        {props.operation ? (
+          <ProgressBar label={operationLabel(props.operation, locale)} testId="marketplace-entry-progress" />
+        ) : null}
 
         <div className="market-dialog-footer">
           {entry.homepage ? (
