@@ -36,17 +36,11 @@ import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import { useDesktopLocale } from './desktop-locale-context';
 import { buildSideChatComposerProps } from './side-chat-composer-props.js';
 import { SideChatEmptyState } from './side-chat-empty-state.js';
-import { useRightPanelChrome } from './right-panel-chrome.js';
 import {
   subscribeSideChatComposerSeed,
   takeSideChatComposerSeed,
   type SideChatComposerSeed,
 } from './side-chat-composer-seed.js';
-import {
-  listSideChatTabs,
-  SIDE_CHAT_DRAFT_TAB_ID,
-  SideChatTabStrip,
-} from './side-chat-tabs.js';
 import { MarkdownView } from './MarkdownView.js';
 import type { DesktopLocale } from './desktop-locale.js';
 
@@ -104,10 +98,8 @@ export type SideChatPanelProps = {
 export function SideChatPanel(props: SideChatPanelProps): ReactElement {
   const { hostClient, sessionId } = props;
   const { locale } = useDesktopLocale();
-  const panelChrome = useRightPanelChrome();
   const endRef = useRef<HTMLDivElement | null>(null);
 
-  const [sideChats, setSideChats] = useState<SessionSummary[]>([]);
   const [activeSideChatId, setActiveSideChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SideChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -130,7 +122,6 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
 
   const refreshList = useCallback(async (): Promise<SessionSummary[]> => {
     if (!sessionId) {
-      setSideChats([]);
       return [];
     }
     try {
@@ -141,7 +132,6 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
       if (response.success) {
         const data = response.data as { sessions: SessionSummary[] } | undefined;
         const sessions = data?.sessions ?? [];
-        setSideChats(sessions);
         return sessions;
       }
     } catch {
@@ -337,59 +327,6 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     }
   }
 
-  async function handleSelectSideChat(sideChatId: string): Promise<void> {
-    const selected = sideChats.find((chat) => chat.id === sideChatId);
-    if (!selected) return;
-    await hydrateSideChat(selected);
-  }
-
-  async function handleSelectTab(tabId: string): Promise<void> {
-    if (tabId === SIDE_CHAT_DRAFT_TAB_ID) {
-      setActiveSideChatId(null);
-      setMessages([]);
-      setActiveRunId(null);
-      setResumeModel(null);
-      setResumeThinkingLevel(undefined);
-      setError(null);
-      return;
-    }
-    await handleSelectSideChat(tabId);
-  }
-
-  async function handleCloseTab(sideChatId: string): Promise<void> {
-    if (sideChatId === SIDE_CHAT_DRAFT_TAB_ID) {
-      panelChrome?.closeTab('sideChat');
-      return;
-    }
-    setError(null);
-    try {
-      const response = await hostClient.request({
-        type: 'session/archive',
-        sessionId: sideChatId,
-      });
-      if (!response.success) {
-        setError(response.error);
-        return;
-      }
-      const remaining = (await refreshList()).filter((chat) => chat.id !== sideChatId);
-      if (remaining.length === 0) {
-        panelChrome?.closeTab('sideChat');
-        return;
-      }
-      if (activeSideChatId !== sideChatId) return;
-      const next = remaining[0];
-      if (next) {
-        await hydrateSideChat(next);
-        return;
-      }
-      setActiveSideChatId(null);
-      setMessages([]);
-      setActiveRunId(null);
-    } catch (err) {
-      setError(formatError(err));
-    }
-  }
-
   async function handleSend(textOverride?: string): Promise<void> {
     const text = (textOverride ?? input).trim();
     const promptRefs = contextRefs.snapshotContextRefs();
@@ -473,20 +410,10 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
   }
 
 
-  const tabs = listSideChatTabs(sideChats, locale);
-  const activeTabId = activeSideChatId ?? SIDE_CHAT_DRAFT_TAB_ID;
   const showEmpty = messages.length === 0 && !assistantBuffer && !streaming;
 
   return (
     <div className="side-chat-panel" data-testid="side-chat-panel">
-      <SideChatTabStrip
-        tabs={tabs}
-        activeId={activeTabId}
-        locale={locale}
-        onSelect={(id) => void handleSelectTab(id)}
-        onClose={(id) => void handleCloseTab(id)}
-      />
-
       {error ? (
         <div className="side-chat-error" role="alert">
           {error}
