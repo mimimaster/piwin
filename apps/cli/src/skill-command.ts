@@ -1,7 +1,8 @@
 import { getPiwinRoot, loadDiscoveredResources, loadPiwinConfig } from '@piwin/host-runtime';
-import { RECOMMENDED_SKILLS, installSkill } from '@piwin/marketplace';
+import { RECOMMENDED_SKILLS } from '@piwin/marketplace';
 import {
   ensureBundledSkillsInstalled,
+  installSkill,
   resolveBundledSkillsRoot,
   uninstallUserSkill,
 } from '@piwin/skills';

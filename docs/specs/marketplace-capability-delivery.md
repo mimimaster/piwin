@@ -555,6 +555,6 @@ piwin mcp remove <id>
 - `MarketplaceInstallDescriptor` 的扩展分为 `pi-package`（Pi PackageManager）与 `managed-extension`（受管 revision）两种，因为 npm 社区扩展只能经 Pi 包管理安装。
 - 各领域安装命令暂未增加 `catalogEntryId` 参数。
 - 市场库存只看 Host 全局范围，Desktop 不再传项目路径。
-- `@piwin/marketplace → @piwin/extensions` 依赖与 Skill/Extension 安装器迁移尚未处理，留作单独重构。
+- `@piwin/marketplace → @piwin/extensions` 依赖已移除（2026-09-25）。`installExtension` 在 `@piwin/extensions`；`installSkill` 与 `gitFetchCommands` 在 `@piwin/skills`。Plugin 安装不再直接调用 Skill/Extension：`installPlugin` 的 `installSkill` 端口为必传，由 `@piwin/host-runtime` 与 CLI 注入。git 子目录越界校验统一为 `@piwin/contracts` 的 `normalizeRepositorySubdir`（纯字符串规则，拒绝绝对路径与任何 `..` 段），三个安装器共用，应用包之间没有新边。
 
 未做（后续 Slice）：Plugin 组件归属与保守卸载、MCP 配置表单与需密钥的服务、条目更新与下架流程、piwin 实测记录。

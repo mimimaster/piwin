@@ -13,3 +13,5 @@ export {
 export type { SkillPreviewReadInput } from './skill-preview-reader.js';
 export { resolveSkillDocumentReadPath } from './skill-document-read-path.js';
 export type { SkillDocumentReadTarget } from './skill-document-read-path.js';
+export { installSkill, gitFetchCommands } from './install-skill.js';
+export type { InstallSkillOptions, InstallSkillResult } from './install-skill.js';

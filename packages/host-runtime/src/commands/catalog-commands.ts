@@ -25,16 +25,17 @@ import {
 } from '../settings/settings-service.js';
 import { isSubscriptionProvider, isV1SubscriptionProviderId } from '@piwin/contracts';
 import { createMediaService } from '@piwin/media';
-import { createExtensionRevisionStore } from '@piwin/extensions';
+import { createExtensionRevisionStore, installExtension } from '@piwin/extensions';
 import {
   ensureBundledSkillsInstalled,
+  installSkill,
   readSkillPreview,
   SkillUninstallError,
   uninstallUserSkill,
 } from '@piwin/skills';
 import { loadDiscoveredResources } from '../discovered-resources.js';
 import { getPiAgentDir } from '../paths.js';
-import { installSkill, installExtension, listSkillStoreEntries } from '@piwin/marketplace';
+import { listSkillStoreEntries } from '@piwin/marketplace';
 import {
   getActiveTheme,
   installThemeFromLocalPath,

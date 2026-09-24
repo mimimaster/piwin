@@ -5,7 +5,7 @@
  *   1. Resolve source → local directory (local copy / git clone / registry resolve).
  *   2. Materialize into ~/.piwin/plugins/cache/<id>@<version>/.
  *   3. Parse plugin.json manifest.
- *   4. Install each skill via existing installSkill.
+ *   4. Install each skill via the injected installSkill port.
  *   5. Merge each MCP server (namespaced id) via injected mergeMcpServer callback.
  *   6. Write each collected secret via injected writeSecret callback.
  *   7. Persist InstalledPlugin record via plugin-store.
@@ -23,9 +23,11 @@ import type {
   McpServerConfig,
   PluginInstallSource,
 } from '@piwin/contracts';
-import { pluginMcpServerId as namespacedId, pluginSecretRef as secretRef } from '@piwin/contracts';
-import { installSkill } from '../install-skill.js';
-import { resolveCloneContentRoot } from '../clone-content-root.js';
+import {
+  normalizeRepositorySubdir,
+  pluginMcpServerId as namespacedId,
+  pluginSecretRef as secretRef,
+} from '@piwin/contracts';
 import { parsePluginManifest } from './manifest.js';
 import { resolveSecretArgs, resolveSecretEnv } from './secret-env.js';
 import { findFeaturedPlugin } from './featured-catalog.js';
@@ -35,9 +37,21 @@ type ResolvedPluginSource = Exclude<PluginInstallSource, { kind: 'registry' }>;
 
 const execFileAsync = promisify(execFile);
 
+export type InstallPluginSkill = (options: {
+  piwinRoot: string;
+  source: InstallSource;
+  name?: string;
+}) => Promise<{ skillId: string }>;
+
 export type InstallPluginOptions = {
   piwinRoot: string;
   source: PluginInstallSource;
+  /**
+   * Skill installer, injected by the host (marketplace does not depend on
+   * `@piwin/skills`). Required: a plugin must never report success while its
+   * skills were silently skipped.
+   */
+  installSkill: InstallPluginSkill;
   /** Secret values collected from the user, keyed by secret name. */
   secrets?: Record<string, string>;
   /**
@@ -78,12 +92,12 @@ export async function installPlugin(options: InstallPluginOptions): Promise<Inst
   }
   const manifest = parsePluginManifest(manifestRaw);
 
-  // 4. Install skills.
+  // 4. Install skills through the injected port.
   const installedSkills: string[] = [];
   if (manifest.skills) {
     for (const skillPath of manifest.skills) {
       const absoluteSkillPath = join(materializedDir, skillPath);
-      const result = await installSkill({
+      const result = await options.installSkill({
         piwinRoot: options.piwinRoot,
         source: { kind: 'local', path: absoluteSkillPath },
       });
@@ -266,7 +280,7 @@ async function materializeGit(
 
   let contentRoot: string;
   try {
-    contentRoot = resolveCloneContentRoot(clonePath, source.subdir);
+    contentRoot = resolve(clonePath, normalizeRepositorySubdir(source.subdir));
   } catch (error) {
     await rm(clonePath, { recursive: true, force: true }).catch(() => undefined);
     throw error;

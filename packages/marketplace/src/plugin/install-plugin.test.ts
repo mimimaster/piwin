@@ -2,8 +2,20 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { installPlugin } from './install-plugin.js';
+import { installPlugin, type InstallPluginSkill } from './install-plugin.js';
 import { loadInstalledPlugins } from './plugin-store.js';
+
+/** Test port standing in for `@piwin/skills` installSkill: copies a local skill dir. */
+const copyLocalSkill: InstallPluginSkill = async ({ piwinRoot, source }) => {
+  if (source.kind !== 'local') throw new Error('test only installs local skills');
+  const { cp, mkdir } = await import('node:fs/promises');
+  const { basename, join } = await import('node:path');
+  const skillId = basename(source.path);
+  const targetPath = join(piwinRoot, 'skills', skillId);
+  await mkdir(targetPath, { recursive: true });
+  await cp(source.path, targetPath, { recursive: true, force: true });
+  return { skillId };
+};
 
 async function makePluginDir(parent: string): Promise<string> {
   const pluginDir = join(parent, 'my-plugin');
@@ -48,6 +60,7 @@ describe('installPlugin (local)', () => {
         piwinRoot: root,
         source: { kind: 'local', path: pluginDir },
         secrets: { API_KEY: 'sk-test-123' },
+        installSkill: copyLocalSkill,
         writeSecret: async (ref, value) => {
           writtenSecrets[ref] = value;
         },
@@ -97,6 +110,7 @@ describe('installPlugin (local)', () => {
       await expect(
         installPlugin({
           piwinRoot: root,
+          installSkill: copyLocalSkill,
           source: { kind: 'local', path: pluginDir },
           writeSecret: async () => undefined,
           mergeMcpServer: async () => undefined,
@@ -116,6 +130,7 @@ describe('installPlugin (local)', () => {
       await expect(
         installPlugin({
           piwinRoot: root,
+          installSkill: copyLocalSkill,
           source: { kind: 'local', path: emptyDir },
         }),
       ).rejects.toThrow('plugin.json');
@@ -131,6 +146,7 @@ describe('installPlugin (local)', () => {
       await expect(
         installPlugin({
           piwinRoot: root,
+          installSkill: copyLocalSkill,
           source: { kind: 'registry', registryId: 'some-plugin' },
         }),
       ).rejects.toThrow('resolveRegistrySource');
@@ -145,6 +161,7 @@ describe('installPlugin (local)', () => {
     try {
       const result = await installPlugin({
         piwinRoot: root,
+        installSkill: copyLocalSkill,
         source: { kind: 'bundled', bundledId: 'cloudflare' },
         mergeMcpServer: async (serverId, config) => {
           mergedServers[serverId] = config;
@@ -172,6 +189,7 @@ describe('installPlugin (local)', () => {
     try {
       const result = await installPlugin({
         piwinRoot: root,
+        installSkill: copyLocalSkill,
         source: { kind: 'registry', registryId: 'cloudflare' },
       });
       expect(result.pluginId).toBe('cloudflare');
@@ -187,12 +205,14 @@ describe('installPlugin (local)', () => {
       await expect(
         installPlugin({
           piwinRoot: root,
+          installSkill: copyLocalSkill,
           source: { kind: 'bundled', bundledId: 'github' },
         }),
       ).rejects.toThrow('GITHUB_PERSONAL_ACCESS_TOKEN');
 
       const result = await installPlugin({
         piwinRoot: root,
+        installSkill: copyLocalSkill,
         source: { kind: 'bundled', bundledId: 'github' },
         secrets: { GITHUB_PERSONAL_ACCESS_TOKEN: 'ghp_test' },
         mergeMcpServer: async (serverId, config) => {
@@ -218,6 +238,7 @@ describe('installPlugin (local)', () => {
       try {
         const result = await installPlugin({
           piwinRoot: root,
+          installSkill: copyLocalSkill,
           source: { kind: 'bundled', bundledId },
           mergeMcpServer: async (serverId, config) => {
             mergedServers[serverId] = config;

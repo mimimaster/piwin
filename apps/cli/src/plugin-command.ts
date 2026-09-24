@@ -8,6 +8,7 @@ import {
   removeInstalledPlugin,
 } from '@piwin/marketplace';
 import { loadMcpConfig, saveMcpConfig } from '@piwin/mcp';
+import { installSkill } from '@piwin/skills';
 import { resolve } from 'node:path';
 import { readOption } from './cli-args.js';
 
@@ -73,6 +74,7 @@ export async function commandPlugin(argv: string[]): Promise<void> {
       const result = await installPlugin({
         piwinRoot: root,
         source,
+        installSkill,
         ...(Object.keys(secrets).length > 0 ? { secrets } : {}),
         writeSecret: async (ref, value) => {
           await secretResolver.writeSecretByRef(ref, value);

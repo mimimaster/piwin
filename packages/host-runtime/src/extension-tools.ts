@@ -19,8 +19,7 @@ import type {
   InstallSource,
   ToolResult,
 } from '@piwin/contracts';
-import { installExtension } from '@piwin/marketplace';
-import { createExtensionRevisionStore } from '@piwin/extensions';
+import { createExtensionRevisionStore, installExtension } from '@piwin/extensions';
 import { scanExtensions } from './extension-scanner.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 

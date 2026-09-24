@@ -4,8 +4,8 @@ import { basename, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { InstallSource } from '@piwin/contracts';
-import { createExtensionRevisionStore } from '@piwin/extensions';
-import { resolveCloneContentRoot } from './clone-content-root.js';
+import { normalizeRepositorySubdir } from '@piwin/contracts';
+import { createExtensionRevisionStore } from './extension-revision-store.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -76,7 +76,7 @@ async function installExtensionFromGit(
   args.push('--', options.source.url, clonePath);
   try {
     await execFileAsync('git', args, { timeout: 120_000 });
-    const contentRoot = resolveCloneContentRoot(clonePath, options.source.subdir);
+    const contentRoot = resolve(clonePath, normalizeRepositorySubdir(options.source.subdir));
     const resolvedCommit = await readGitCommit(clonePath);
     const sourceLocator = `git:${options.source.url}@${resolvedCommit}`;
     const staged = await store.stage({

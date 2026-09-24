@@ -3,7 +3,7 @@ import { basename, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { InstallSource } from '@piwin/contracts';
-import { resolveCloneContentRoot } from './clone-content-root.js';
+import { normalizeRepositorySubdir } from '@piwin/contracts';
 
 const execFileAsync = promisify(execFile);
 
@@ -75,7 +75,7 @@ async function installFromGit(
 
   let contentRoot: string;
   try {
-    contentRoot = resolveCloneContentRoot(clonePath, source.subdir);
+    contentRoot = resolve(clonePath, normalizeRepositorySubdir(source.subdir));
   } catch (error) {
     await rmQuiet(clonePath);
     throw error;

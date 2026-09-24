@@ -71,6 +71,11 @@ export {
   loadPiwinConfig,
   savePiwinConfig,
 } from './config-store.js';
+export { installExtension } from '@piwin/extensions';
+export type { InstallExtensionOptions, InstallExtensionResult } from '@piwin/extensions';
+export { installSkill, gitFetchCommands } from '@piwin/skills';
+export type { InstallSkillOptions, InstallSkillResult } from '@piwin/skills';
+
 export {
   getPiAgentDir,
   getPiwinPiAgentDir,

@@ -648,9 +648,6 @@ importers:
       '@piwin/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@piwin/extensions':
-        specifier: workspace:*
-        version: link:../extensions
     devDependencies:
       '@types/node':
         specifier: ^22.10.5

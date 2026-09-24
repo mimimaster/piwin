@@ -2,10 +2,10 @@ import { EXTENSION_COMPAT_NOTE } from './extension-compat-note.js';
 import {
   ensureBundledExtensionsInstalled,
   getPiwinRoot,
+  installExtension,
   loadDiscoveredResources,
   loadPiwinConfig,
 } from '@piwin/host-runtime';
-import { installExtension } from '@piwin/marketplace';
 import { resolve } from 'node:path';
 import { parseProject, readOption } from './cli-args.js';
 

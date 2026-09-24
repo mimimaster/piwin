@@ -20,6 +20,7 @@ import {
   removeInstalledPlugin,
 } from '@piwin/marketplace';
 import { loadMcpConfig, saveMcpConfig } from '@piwin/mcp';
+import { installSkill } from '@piwin/skills';
 import { fail, ok } from '../response-helpers.js';
 import { getPiwinRoot } from '../paths.js';
 import { createSecretResolver } from '../secret-resolver.js';
@@ -53,6 +54,7 @@ export async function handlePluginCommand(
         const result = await installPlugin({
           piwinRoot: rootDir,
           source: command.source,
+          installSkill,
           ...(command.secrets ? { secrets: command.secrets } : {}),
           writeSecret: async (ref, value) => {
             await secretResolver.writeSecretByRef(ref, value);
