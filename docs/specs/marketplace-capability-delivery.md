@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | Ready for implementation |
+| 状态 | P0（Slice 1 + 2）已实现，2026-09-25；Slice 3–5 待做。实现与本文差异见 §11 |
 | 日期 | 2026-09-12 |
 | 产品依据 | [`../plans/2026-09-12-marketplace-product-direction.md`](../plans/2026-09-12-marketplace-product-direction.md) |
 | 相关 | [`pi-extension-productization.md`](./pi-extension-productization.md)、[`w3-marketplace-automation.md`](./w3-marketplace-automation.md)、ADR 0033、ADR 0047 |
@@ -533,3 +533,28 @@ piwin mcp remove <id>
 - 新市场可用 feature flag 分阶段打开。打开前仍可使用现有设置页管理能力。
 - 目录条目下架不删除已安装内容；库存显示下架原因和替代条目。
 - 实施本 Spec 后更新 `docs/prd.md`、`docs/architecture.md` 的市场边界和 `~/.piwin/marketplace/` 存储说明。
+
+## 11. 实现记录（2026-09-25，P0）
+
+产品负责人确认本轮范围：P0 真实闭环；市场包含 Agent 扩展、Skill、MCP 三类，Plugin 继续按 2026-09-14 决定不进市场。
+
+已交付：
+
+- 合同：`packages/contracts/src/marketplace.ts`（目录条目、库存投影、移除路线）；命令 `marketplace/catalog-list|catalog-get|installed-list`、`marketplace/package-remove`、`extensions/uninstall`、`mcp/remove`；推送 `marketplace/inventory-updated`。`MarketplacePiPackageSource` 的 npm 源可固定 `version`。
+- 精选目录：`packages/marketplace/src/catalog/`，首发 8 条真实条目（1 个 Pi 扩展包 pi-fff、5 个 anthropics/skills Skill、2 个 MCP：memory 与 sequential-thinking），全部固定版本或完整 commit，验证级别如实标为 `author-declared`。只收录安装路径已端到端跑通的条目；pi-lens（依赖 LSP/lint 工具链）、Langfuse（需环境变量且数据外传）、time MCP（依赖 uv）暂缓，实测后再加入。目录在模块加载时校验，未固定版本即拒绝。旧 `RECOMMENDED_SKILLS`、`STATIC_MCP_REGISTRY` 改为从目录派生，删除了 “Example SSE server” 占位条目。
+- Skill 的 git 安装支持固定到 commit（`init + fetch <sha> + checkout`）。
+- 库存：`host-runtime/src/marketplace/inventory-projection.ts`（纯函数）按 §7 计算状态；`SessionRuntimeController` 记录每个 runtime generation 实际编译进去的扩展（来自 Blueprint `resourceManifest.extensions`），据此区分“已安装 / 待应用 / 当前可用”，不把静态兼容当成可用。
+- 卸载：受管扩展先标记 `pending-removal` 并停止加载，没有任何 runtime（含待发布候选）引用其 revision 后再删文件；清理时机为卸载时、每次 apply 完成后、每次读库存时。Pi 包扩展通过 `piPackageSource` 走 Pi `removeAndPersist`，只接受已在用户 settings 中登记的来源。MCP 先停进程再删配置，停不下来则保留配置并报错。`mcp/registry-install-draft` 不再静默覆盖同名但配置不同的服务。
+- Desktop：市场页改为 Host 目录 + Host 库存；删除 mock 数据、定时器进度、`Runtime Gen` 徽章和未提交的插件密钥分支；安装/卸载/启停走各自领域命令，结束后重读库存；扩展变更调用 `extensions/apply` 并如实区分“已生效 / 当前任务结束后生效 / 新会话生效 / 同步失败”；详情对话框展示前提、证据、风险与示例，已可用时可把示例填入输入框。
+- CLI：`piwin market search|show|installed|uninstall-extension|remove-mcp`。
+- 远程：三个只读市场命令加入默认远程白名单；`marketplace/installed-list` 远程不接受 `projectPath`。安装与移除沿用 ADR 0047，不进默认远程白名单。
+
+与本文设计的差异（以实现为准）：
+
+- 未实现 `install-links.json`。目录与库存按 `capabilityId` 关联；Pi 包扩展按规范化包名命名空间匹配（多入口包为 `<包名>-<入口>`），足以覆盖当前目录。
+- `MarketplaceInstallDescriptor` 的扩展分为 `pi-package`（Pi PackageManager）与 `managed-extension`（受管 revision）两种，因为 npm 社区扩展只能经 Pi 包管理安装。
+- 各领域安装命令暂未增加 `catalogEntryId` 参数。
+- 市场库存只看 Host 全局范围，Desktop 不再传项目路径。
+- `@piwin/marketplace → @piwin/extensions` 依赖与 Skill/Extension 安装器迁移尚未处理，留作单独重构。
+
+未做（后续 Slice）：Plugin 组件归属与保守卸载、MCP 配置表单与需密钥的服务、条目更新与下架流程、piwin 实测记录。

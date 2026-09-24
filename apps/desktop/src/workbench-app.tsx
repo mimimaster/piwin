@@ -926,6 +926,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 requestFlashcards={(command, options) => hostClient.request(command, options)}
                 refreshToken={mediaLibraryEpoch}
                 onRemixToComposer={handleRemixToComposer}
+                subscribeHostMessages={(listener) => hostClient.subscribe(listener)}
                 projectPath={state.projectPath}
                 sessionId={state.activeSessionId}
                 onConfigureEmbedding={() => {

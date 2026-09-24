@@ -72,8 +72,12 @@ export function getHostRequestTimeoutMs(
     case 'skills/install':
     case 'skills/uninstall':
     case 'extensions/install':
+    case 'extensions/uninstall':
     case 'extensions/apply':
     case 'marketplace/package-install':
+    case 'marketplace/package-remove':
+    case 'mcp/registry-install-draft':
+    case 'mcp/remove':
     case 'plugins/install':
     case 'plugins/uninstall':
     case 'plugins/registry/list':

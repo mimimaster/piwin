@@ -11,7 +11,6 @@ export type MarketplacePiPackageCardProps = {
   onCopyInstall: (hit: MarketplaceSearchHit) => void;
   onInstall: (hit: MarketplaceSearchHit) => void;
   installState?: 'idle' | 'installing' | 'installed' | 'failed' | undefined;
-  installProgress?: number | undefined;
 };
 
 export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): ReactElement {
@@ -27,7 +26,6 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
   const testId = hit.source === 'github' ? `market-github-${slug}` : `market-npm-${slug}`;
   const sourceLabel = hit.source === 'github' ? 'GitHub' : 'npm';
   const installState = props.installState ?? 'idle';
-  const installProgress = props.installProgress;
 
   const handleCopy = () => {
     props.onCopyInstall(hit);
@@ -142,19 +140,9 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
               </span>
             ) : installState === 'installing' ? (
               <span className="market-btn-inner market-btn-installing">
-                <ProgressRing
-                  size={13}
-                  strokeWidth={2.2}
-                  value={installProgress}
-                  tone="pine"
-                  testId={`${testId}-progress-ring`}
-                />
-                <span className="market-btn-progress-label">
-                  {typeof installProgress === 'number' && installProgress > 0
-                    ? `${installProgress}% `
-                    : ''}
-                  {t('Installing…', '安装中…')}
-                </span>
+                {/* Pi reports no byte progress; an honest spinner beats a fake percentage. */}
+                <ProgressRing size={13} strokeWidth={2.2} tone="pine" testId={`${testId}-progress-ring`} />
+                <span className="market-btn-progress-label">{t('Installing…', '安装中…')}</span>
               </span>
             ) : installState === 'failed' ? (
               t('Retry install', '重试安装')

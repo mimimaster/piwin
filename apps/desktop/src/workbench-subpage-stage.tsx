@@ -3,6 +3,7 @@ import type {
   HostCommand,
   HostPush,
   HostResponse,
+  HostServerMessage,
   KnowledgeCitation,
   MediaLibraryItem,
 } from '@piwin/contracts';
@@ -35,6 +36,8 @@ export type WorkbenchSubpageStageProps = {
   subscribePush?: (listener: (push: HostPush) => void) => () => void;
   subscribeKnowledgePush?: (listener: (push: HostPush) => void) => () => void;
   subscribeConnected?: (listener: (connected: boolean) => void) => () => void;
+  /** Unfiltered Host stream; pages pick the pushes they own (marketplace inventory). */
+  subscribeHostMessages?: (listener: (message: HostServerMessage) => void) => () => void;
   hasStudyCapability?: () => boolean;
   flashcardsEntry?: 'gallery' | 'produce';
   flashcardsFolderPath?: string | undefined;
@@ -115,8 +118,9 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         locale={props.locale}
         onClose={props.onClose}
         request={props.request}
-        projectPath={props.projectPath}
         sessionId={props.sessionId}
+        subscribeHostMessages={props.subscribeHostMessages}
+        onUseExample={(text) => props.onRemixToComposer?.({ text })}
       />
     );
   }

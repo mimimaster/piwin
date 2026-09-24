@@ -4,6 +4,7 @@ import {
 } from './host-client-mock-helpers.js';
 import { isInkstoneThemeId, PIWIN_INKSTONE_THEME_ID } from './appearance-tokens.js';
 import type { MockHostBackend } from './host-client-mock.js';
+import { mockMarketplaceCatalog, mockMarketplaceInventory } from './host-client-mock-marketplace.js';
 import type {
   HostCommand,
   HostResponse,
@@ -837,6 +838,10 @@ export async function handleMockCatalogCommands(
                 : `git:${command.source.repositoryUrl}`,
           },
         };
+      case 'marketplace/catalog-list':
+        return { id, type: 'response', command: command.type, success: true, data: mockMarketplaceCatalog() };
+      case 'marketplace/installed-list':
+        return { id, type: 'response', command: command.type, success: true, data: mockMarketplaceInventory() };
       case 'skills/store-list':
         return {
           id,

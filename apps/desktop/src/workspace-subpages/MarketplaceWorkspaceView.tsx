@@ -1,314 +1,323 @@
 /**
- * Marketplace full-window subpage view.
+ * Capability marketplace full-window page.
  *
- * Implements native Pi extension discovery, 4-tier compatibility
- * classification, and turn-boundary live runtime hot-reloading.
- * Fully conforms to the Inkstone design system, pure typography-first layout.
+ * Discover shows the Host's curated catalog (plus live Pi ecosystem search
+ * while a query is typed); Installed shows the Host inventory projection.
+ * Every state on screen comes from a Host response or push — the page never
+ * simulates progress, activation or removal.
  */
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import type {
-  ExtensionSummary,
   HostCommand,
   HostResponse,
+  HostServerMessage,
+  MarketplaceCatalogEntry,
+  MarketplaceInstalledItem,
   MarketplaceSearchHit,
 } from '@piwin/contracts';
-import { resourceSourceLabel } from '@piwin/contracts';
-import { Button, EmptyState, Notice } from '@piwin/ui-kit';
+import { MARKETPLACE_CATEGORIES, normalizeResourceId } from '@piwin/contracts';
+import { Button, ConfirmDialog, EmptyState, Notice } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../desktop-locale.js';
 import { IconExtension } from '../shell-icons.js';
 import { StudioTopbar } from './studio/studio-chrome.js';
 import {
-  INITIAL_EXTENSIONS,
-  type MarketCategory,
-  type MarketExtensionItem,
-  type MarketplaceToast,
-  type MarketTab,
-  MarketplaceExtensionCard,
+  MarketplaceCatalogCard,
+  MarketplaceEntryDialog,
+  MarketplaceInstalledRow,
   MarketplacePiPackageCard,
   MarketplaceToastView,
   PiPackageInstallDialog,
-  ExtensionInstallConsentDialog,
+  categoryLabel,
+  kindLabel,
+  useMarketplaceActions,
+  useMarketplaceData,
   useMarketplaceEcosystemSearch,
   useMarketplacePackageInstall,
+  type MarketKindFilter,
+  type MarketplaceToast,
+  type MarketTab,
 } from './marketplace/index.js';
 
 export type MarketplaceWorkspaceViewProps = {
   locale?: DesktopLocale | undefined;
   onClose: () => void;
   request: (command: HostCommand) => Promise<HostResponse>;
-  projectPath?: string | null | undefined;
   sessionId?: string | null | undefined;
+  subscribeHostMessages?: ((listener: (message: HostServerMessage) => void) => () => void) | undefined;
+  /** Fill the chat composer with an example request and return to the session. */
+  onUseExample?: ((prompt: string) => void) | undefined;
 };
 
+const KIND_FILTERS: readonly MarketKindFilter[] = ['all', 'extension', 'skill', 'mcp'];
+
+function matchesQuery(values: readonly (string | undefined)[], query: string): boolean {
+  if (!query) return true;
+  return values.some((value) => value?.toLowerCase().includes(query));
+}
+
 export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): ReactElement {
-  const isZh = props.locale === 'zh-CN';
-  const t = (en: string, zh: string) => (isZh ? zh : en);
+  const zh = props.locale === 'zh-CN';
+  const t = (en: string, zhText: string) => (zh ? zhText : en);
 
-  const [tab, setTab] = useState<MarketTab>('extensions');
-  const [category, setCategory] = useState<MarketCategory>('all');
+  const [tab, setTab] = useState<MarketTab>('discover');
+  const [kindFilter, setKindFilter] = useState<MarketKindFilter>('all');
   const [search, setSearch] = useState('');
-  const [activeGen, setActiveGen] = useState(1);
-  const [extensions, setExtensions] = useState<MarketExtensionItem[]>(INITIAL_EXTENSIONS);
-  const [extInstallStates, setExtInstallStates] = useState<
-    Record<string, 'idle' | 'installing' | 'installed' | 'failed'>
-  >({});
-  const [extInstallProgress, setExtInstallProgress] = useState<Record<string, number>>({});
   const [toast, setToast] = useState<MarketplaceToast | null>(null);
+  const [openEntryId, setOpenEntryId] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<MarketplaceInstalledItem | null>(null);
 
-  const [consentTarget, setConsentTarget] = useState<MarketExtensionItem | null>(null);
-  const ecosystemQuery = tab === 'installed' ? '' : search;
-  const ecosystem = useMarketplaceEcosystemSearch(ecosystemQuery, props.request);
-
-  // Synchronize with host's real extension inventory on mount
-  useEffect(() => {
-    let unmounted = false;
-    async function loadLiveExtensions() {
-      try {
-        const res = await props.request({
-          type: 'extensions/list',
-          ...(props.projectPath ? { projectPath: props.projectPath } : {}),
-        } as HostCommand);
-
-        if (
-          !unmounted &&
-          res.success &&
-          res.data &&
-          Array.isArray((res.data as { extensions?: ExtensionSummary[] }).extensions)
-        ) {
-          const liveList = (res.data as { extensions: ExtensionSummary[] }).extensions;
-          setExtensions((current) => {
-            const merged = [...current];
-            for (const live of liveList) {
-              const existingIdx = merged.findIndex(
-                (m) => m.id === live.id || m.name === live.name,
-              );
-              if (existingIdx >= 0) {
-                const existing = merged[existingIdx]!;
-                merged[existingIdx] = {
-                  ...existing,
-                  installed: true,
-                  active: live.enabled,
-                  source: live.source,
-                  bundled: live.source === 'bundled',
-                  descriptionZh: live.description || existing.descriptionZh,
-                  author:
-                    live.source === 'bundled'
-                      ? resourceSourceLabel('bundled', isZh ? 'zh-CN' : 'en')
-                      : existing.author,
-                };
-              } else {
-                merged.push({
-                  id: live.id,
-                  name: live.name,
-                  version: live.version || '1.0.0',
-                  source: live.source,
-                  author:
-                    live.source === 'bundled'
-                      ? resourceSourceLabel('bundled', isZh ? 'zh-CN' : 'en')
-                      : live.source,
-                  category: 'tools',
-                  bundled: live.source === 'bundled',
-                  installed: true,
-                  active: live.enabled,
-                  descriptionZh: live.description || live.name,
-                  descriptionEn: live.description || live.name,
-                  tools: [],
-                  hooks: live.hookEvents || [],
-                  tier: live.compatibility?.tier || 'compatible',
-                  degradations: live.compatibility?.degradations?.map((d) => d.tag) || [],
-                });
-              }
-            }
-            return merged;
-          });
-        }
-      } catch {
-        // Fallback to bundled inventory if host does not implement extensions/list
-      }
-    }
-    void loadLiveExtensions();
-    return () => {
-      unmounted = true;
-    };
-  }, [props.request, props.projectPath, isZh]);
-
-  const showToast = (
-    text: string,
-    type: MarketplaceToast['type'] = 'info',
-    title?: string,
-  ) => {
-    setToast({ text, type, title });
-    window.setTimeout(() => setToast(null), 4200);
+  const showToast = (next: MarketplaceToast) => {
+    setToast(next);
+    window.setTimeout(() => setToast((current) => (current === next ? null : current)), 5200);
   };
 
+  const data = useMarketplaceData({
+    request: props.request,
+    sessionId: props.sessionId,
+    subscribeHostMessages: props.subscribeHostMessages,
+  });
+  const actions = useMarketplaceActions({
+    locale: props.locale,
+    sessionId: props.sessionId,
+    request: props.request,
+    refreshInventory: data.refreshInventory,
+    showToast,
+  });
   const packageInstall = useMarketplacePackageInstall({
     locale: props.locale,
     sessionId: props.sessionId,
     request: props.request,
     showToast,
+    onInstalled: data.refreshInventory,
   });
+  const ecosystem = useMarketplaceEcosystemSearch(tab === 'discover' ? search : '', props.request);
 
-  const filteredExtensions = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return extensions.filter((ext) => {
-      // Incompatible extensions are hidden proactively by default; they can only be found via explicit search.
-      if (!q && ext.tier === 'incompatible' && !ext.installed) {
-        return false;
-      }
+  const query = search.trim().toLowerCase();
+  const installedByEntry = useMemo(() => {
+    const map = new Map<string, MarketplaceInstalledItem>();
+    for (const item of data.items) {
+      if (item.catalogEntryId && !map.has(item.catalogEntryId)) map.set(item.catalogEntryId, item);
+    }
+    return map;
+  }, [data.items]);
 
-      const matchCat =
-        category === 'all' ||
-        (category === 'bundled' && ext.bundled) ||
-        ext.category === category;
-      const matchSearch =
-        !q ||
-        ext.name.toLowerCase().includes(q) ||
-        ext.id.toLowerCase().includes(q) ||
-        (isZh ? ext.descriptionZh : ext.descriptionEn).toLowerCase().includes(q) ||
-        ext.tools.some((tool) => tool.toLowerCase().includes(q));
-      return matchCat && matchSearch;
-    });
-  }, [extensions, category, search, isZh]);
-
-  const activeExtensionsCount = useMemo(
-    () => extensions.filter((e) => e.installed && e.active).length,
-    [extensions],
-  );
-
-  const installedTotal = useMemo(
-    () => extensions.filter((e) => e.installed).length,
-    [extensions],
-  );
-
-  const handleInstallExtension = (ext: MarketExtensionItem) => {
-    setConsentTarget(ext);
-  };
-
-  const handleConfirmInstallExtension = (target: MarketExtensionItem) => {
-    setConsentTarget(null);
-    setExtInstallStates((prev) => ({ ...prev, [target.id]: 'installing' }));
-    setExtInstallProgress((prev) => ({ ...prev, [target.id]: 25 }));
-    showToast(
-      t(
-        `Staging [${target.name}] and hot-reloading active runtime...`,
-        `正在暂存 [${target.name}]，并在当前会话热重载生效...`,
-      ),
-      'info',
-      t('Staging Extension', '正在暂存扩展'),
-    );
-
-    const progressTimer = setInterval(() => {
-      setExtInstallProgress((prev) => {
-        const current = prev[target.id] ?? 25;
-        if (current < 85) {
-          return { ...prev, [target.id]: current + 25 };
-        }
-        return prev;
-      });
-    }, 160);
-
-    window.setTimeout(() => {
-      clearInterval(progressTimer);
-      setExtInstallProgress((prev) => ({ ...prev, [target.id]: 100 }));
-      setExtInstallStates((prev) => ({ ...prev, [target.id]: 'installed' }));
-      setExtensions((prev) =>
-        prev.map((e) => (e.id === target.id ? { ...e, installed: true, active: true } : e)),
-      );
-      setActiveGen((g) => g + 1);
-      showToast(
-        t(
-          `[${target.name}] extension installed successfully. Runtime live reloaded (Gen v${activeGen + 1}).`,
-          `[${target.name}] 扩展安装成功，运行时热重载完成（Gen v${activeGen + 1}），所有能力已就绪。`,
-        ),
-        'success',
-        t('Extension Installed', '扩展安装成功'),
-      );
-    }, 600);
-  };
-
-  const handleUninstallExtension = (ext: MarketExtensionItem) => {
-    setExtensions((prev) =>
-      prev.map((e) => (e.id === ext.id ? { ...e, installed: false, active: false } : e)),
-    );
-    showToast(t(`Uninstalled [${ext.name}]`, `已卸载 [${ext.name}]`), 'info');
-  };
-
-  const handleCopyPiInstall = (hit: MarketplaceSearchHit) => {
-    void navigator.clipboard.writeText(hit.installCommand).then(
-      () => {
-        showToast(
-          t(
-            `Copied ${hit.installCommand}. Run it, then Refresh Settings → Extensions.`,
-            `已复制 ${hit.installCommand}。运行后到 设置 → 扩展 点刷新。`,
+  const visibleEntries = useMemo(
+    () =>
+      data.entries.filter(
+        (entry) =>
+          (kindFilter === 'all' || entry.kind === kindFilter) &&
+          matchesQuery(
+            [entry.name.en, entry.name.zhCN, entry.summary.en, entry.summary.zhCN, entry.capabilityId],
+            query,
           ),
-          'success',
-          t('Command Copied', '已复制命令'),
-        );
-      },
-      () => {
-        showToast(
-          t('Could not copy install command', '无法复制安装命令'),
-          'error',
-          t('Copy Failed', '复制失败'),
-        );
-      },
-    );
+      ),
+    [data.entries, kindFilter, query],
+  );
+  const entryGroups = useMemo(
+    () =>
+      MARKETPLACE_CATEGORIES.map((category) => ({
+        category,
+        entries: visibleEntries.filter((entry) => entry.category === category),
+      })).filter((group) => group.entries.length > 0),
+    [visibleEntries],
+  );
+  const visibleItems = useMemo(
+    () =>
+      data.items.filter(
+        (item) =>
+          (kindFilter === 'all' || item.kind === kindFilter) &&
+          matchesQuery([item.name, item.capabilityId, item.description], query),
+      ),
+    [data.items, kindFilter, query],
+  );
+
+  const openEntry: MarketplaceCatalogEntry | null =
+    data.entries.find((entry) => entry.entryId === openEntryId) ?? null;
+  // Pi package extensions are namespaced by the normalized package name.
+  const installedPiPackageIds = useMemo(
+    () =>
+      new Set(
+        data.items.flatMap((item) =>
+          item.removal?.command === 'marketplace/package-remove' ? [item.capabilityId] : [],
+        ),
+      ),
+    [data.items],
+  );
+  const isPiPackageInstalled = (hit: MarketplaceSearchHit): boolean => {
+    const namespace = normalizeResourceId(hit.name);
+    return [...installedPiPackageIds].some((id) => id === namespace || id.startsWith(`${namespace}-`));
   };
 
-  const categories: Array<{ id: MarketCategory; label: string }> = [
-    { id: 'all', label: t('All', '全部') },
-    { id: 'bundled', label: t('bundled', '应用内置') },
-    { id: 'workflow', label: t('Workflow', '任务规划') },
-    { id: 'tools', label: t('Tools', '工具与钩子') },
-    { id: 'guard', label: t('Guards', '安全守卫') },
-  ];
-
-  const subbarFilters = (
+  const filters = (
     <div className="market-filters-group">
       <div className="market-tab-wrap" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'extensions'}
-          className={`market-tab-btn${tab === 'extensions' ? ' is-active' : ''}`}
-          onClick={() => setTab('extensions')}
-        >
-          <span>{t('Extensions', '扩展')}</span>
-          <span className="market-tab-count">({extensions.length})</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'installed'}
-          className={`market-tab-btn${tab === 'installed' ? ' is-active' : ''}`}
-          onClick={() => setTab('installed')}
-        >
-          <span>{t('Installed', '已装载')}</span>
-          <span className="market-tab-count">({installedTotal})</span>
-        </button>
+        {(['discover', 'installed'] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            className={`market-tab-btn${tab === id ? ' is-active' : ''}`}
+            onClick={() => setTab(id)}
+          >
+            <span>{id === 'discover' ? t('Discover', '发现') : t('Installed', '已安装')}</span>
+            <span className="market-tab-count">
+              ({id === 'discover' ? data.entries.length : data.items.length})
+            </span>
+          </button>
+        ))}
       </div>
-
-      {tab !== 'installed' && (
-        <>
-          <div className="market-filter-divider" aria-hidden="true" />
-          <div className="market-category-strip">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                className={`vault-chip${category === cat.id ? ' is-on' : ''}`}
-                onClick={() => setCategory(cat.id)}
-              >
-                <span>{cat.label}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      <div className="market-filter-divider" aria-hidden="true" />
+      <div className="market-category-strip">
+        {KIND_FILTERS.map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            className={`vault-chip${kindFilter === kind ? ' is-on' : ''}`}
+            onClick={() => setKindFilter(kind)}
+          >
+            <span>{kind === 'all' ? t('All', '全部') : kindLabel(kind, props.locale)}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 
-  const currentCount = tab === 'extensions' ? filteredExtensions.length : installedTotal;
+  const renderEcosystem = () => (
+    <section className="market-ecosystem" data-testid="marketplace-ecosystem">
+      <header className="market-ecosystem-header">
+        <div className="market-ecosystem-title-row">
+          <h2 className="market-ecosystem-title">{t('Pi ecosystem', 'Pi 生态')}</h2>
+          {ecosystem.hits.length > 0 ? (
+            <span className="market-ecosystem-count-tag">
+              {t(`${ecosystem.hits.length} packages`, `${ecosystem.hits.length} 个包`)}
+            </span>
+          ) : null}
+        </div>
+        <p className="market-ecosystem-sub">
+          {t(
+            'Live, unreviewed results: npm packages tagged pi-package and GitHub repos with topic:pi-package.',
+            '实时搜索、未经审核：npm 上的 pi-package 与 GitHub 上带 topic:pi-package 的仓库。',
+          )}
+        </p>
+      </header>
+      {ecosystem.error ? (
+        <Notice tone="warning" testId="marketplace-ecosystem-error">
+          {t('Could not reach npm:', '无法连接 npm：')} {ecosystem.error}
+        </Notice>
+      ) : null}
+      {ecosystem.loading && ecosystem.hits.length === 0 ? (
+        <p className="market-ecosystem-status" data-testid="marketplace-ecosystem-loading">
+          {t('Searching npm and GitHub…', '正在搜索 npm 与 GitHub…')}
+        </p>
+      ) : null}
+      {ecosystem.hits.length > 0 ? (
+        <div className="market-grid">
+          {ecosystem.hits.map((hit: MarketplaceSearchHit) => (
+            <MarketplacePiPackageCard
+              key={hit.entryId}
+              hit={hit}
+              locale={props.locale}
+              onCopyInstall={(copied) => {
+                void navigator.clipboard.writeText(copied.installCommand).then(
+                  () =>
+                    showToast({
+                      type: 'success',
+                      title: t('Command copied', '已复制命令'),
+                      text: copied.installCommand,
+                    }),
+                  () =>
+                    showToast({ type: 'error', title: t('Copy failed', '复制失败'), text: copied.installCommand }),
+                );
+              }}
+              onInstall={packageInstall.select}
+              installState={
+                packageInstall.states[hit.entryId] ??
+                (isPiPackageInstalled(hit) ? 'installed' : 'idle')
+              }
+            />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+
+  const renderDiscover = () => (
+    <>
+      {entryGroups.map((group) => (
+        <section key={group.category} className="market-category-section" data-testid={`market-group-${group.category}`}>
+          <header className="market-ecosystem-header">
+            <h2 className="market-ecosystem-title">{categoryLabel(group.category, props.locale)}</h2>
+          </header>
+          <div className="market-grid">
+            {group.entries.map((entry) => (
+              <MarketplaceCatalogCard
+                key={entry.entryId}
+                entry={entry}
+                installed={installedByEntry.get(entry.entryId)}
+                operation={actions.operations[entry.entryId]}
+                locale={props.locale}
+                onOpen={(opened) => setOpenEntryId(opened.entryId)}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+      {query ? renderEcosystem() : null}
+      {!data.loading && entryGroups.length === 0 && !(query && (ecosystem.loading || ecosystem.hits.length > 0)) ? (
+        <EmptyState
+          visual={<IconExtension width={28} height={28} aria-hidden="true" />}
+          seal={query ? '寻' : '空'}
+          title={t('Nothing matches', '没有匹配的能力')}
+          description={t('Try another keyword or type filter.', '换个关键词或类型筛选试试。')}
+          action={
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => {
+                setSearch('');
+                setKindFilter('all');
+              }}
+            >
+              {t('Clear filters', '清空筛选')}
+            </Button>
+          }
+          size="spacious"
+          testId="marketplace-empty"
+        />
+      ) : null}
+    </>
+  );
+
+  const renderInstalled = () =>
+    visibleItems.length === 0 && !data.loading ? (
+      <EmptyState
+        visual={<IconExtension width={28} height={28} aria-hidden="true" />}
+        seal="墨"
+        title={t('Nothing installed here yet', '这里还没有已安装的能力')}
+        description={t('Browse Discover to add capabilities to this Host.', '去「发现」为这台 Host 添加能力。')}
+        action={
+          <Button variant="primary" size="compact" onClick={() => setTab('discover')}>
+            {t('Discover', '去发现')}
+          </Button>
+        }
+        size="spacious"
+        testId="marketplace-empty-installed"
+      />
+    ) : (
+      <div className="market-installed-list">
+        {visibleItems.map((item) => (
+          <MarketplaceInstalledRow
+            key={item.installationKey}
+            item={item}
+            operation={actions.operations[item.installationKey]}
+            locale={props.locale}
+            onToggle={(target) => void actions.toggle(target)}
+            onRemove={setRemoveTarget}
+          />
+        ))}
+      </div>
+    );
 
   return (
     <div className="vault-stage marketplace-stage" data-testid="marketplace-workspace">
@@ -319,216 +328,33 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
         locale={props.locale}
         kind="marketplace"
         layout="page"
-        titleCount={currentCount}
-        searchPlaceholder={t('Search extensions…', '检索扩展…')}
+        titleCount={tab === 'discover' ? visibleEntries.length : visibleItems.length}
+        searchPlaceholder={t('Search capabilities…', '搜索能力…')}
         searchTestId="marketplace-search-input"
         searchValue={search}
         onSearchChange={setSearch}
-        filters={subbarFilters}
-        barActions={
-          <div
-            className="market-gen-badge"
-            title={t(
-              'Live session runtime generation. Hot-reloaded at turn boundaries.',
-              '当前会话运行时世代，任务边界无缝热重载。',
-            )}
-          >
-            <span className="market-gen-dot" aria-hidden="true" />
-            <span className="market-gen-ver">Runtime Gen v{activeGen}</span>
-            <span className="market-gen-sub">
-              • {t(`${activeExtensionsCount} live`, `${activeExtensionsCount} 个已装载`)}
-            </span>
-          </div>
-        }
+        filters={filters}
       />
 
       <main className="vault-main marketplace-main" id="vault-main">
-        <MarketplaceToastView
-          toast={toast}
-          locale={props.locale}
-          onDismiss={() => setToast(null)}
-        />
-
-        {tab === 'extensions' && (
-          <>
-            {search.trim() ? (
-              <section className="market-ecosystem" data-testid="marketplace-ecosystem">
-                <header className="market-ecosystem-header">
-                  <div className="market-ecosystem-title-row">
-                    <h2 className="market-ecosystem-title">
-                      {t('Pi catalog', 'Pi 生态')}
-                    </h2>
-                    {ecosystem.hits.length > 0 && (
-                      <span className="market-ecosystem-count-tag">
-                        {t(`${ecosystem.hits.length} packages`, `${ecosystem.hits.length} 个扩展`)}
-                      </span>
-                    )}
-                  </div>
-                  <p className="market-ecosystem-sub">
-                    {t(
-                      'Live search: npm packages tagged pi-package, plus GitHub repos with topic:pi-package.',
-                      '实时搜索：npm 上的 pi-package，以及 GitHub 上带 topic:pi-package 的仓库。',
-                    )}
-                  </p>
-                </header>
-                {ecosystem.error ? (
-                  <Notice tone="warning" testId="marketplace-ecosystem-error">
-                    {t('Could not reach npm:', '无法连接 npm：')} {ecosystem.error}
-                  </Notice>
-                ) : null}
-                {ecosystem.loading && ecosystem.hits.length === 0 ? (
-                  <p className="market-ecosystem-status" data-testid="marketplace-ecosystem-loading">
-                    {t('Searching npm and GitHub…', '正在搜索 npm 与 GitHub…')}
-                  </p>
-                ) : null}
-                {ecosystem.hits.length > 0 ? (
-                  <div className="market-grid">
-                    {ecosystem.hits.map((hit) => (
-                      <MarketplacePiPackageCard
-                        key={hit.entryId}
-                        hit={hit}
-                        locale={props.locale}
-                        onCopyInstall={handleCopyPiInstall}
-                        onInstall={packageInstall.select}
-                        installState={
-                          packageInstall.states[hit.entryId] ??
-                          (extensions.some(
-                            (extension) =>
-                              extension.installed &&
-                              extension.source === 'pi-native' &&
-                              (extension.id === hit.name || extension.name === hit.name),
-                          )
-                            ? 'installed'
-                            : 'idle')
-                        }
-                        installProgress={packageInstall.progress[hit.entryId]}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </section>
-            ) : null}
-            {filteredExtensions.length === 0 &&
-            !(search.trim() && (ecosystem.loading || ecosystem.hits.length > 0)) ? (
-              <EmptyState
-                visual={<IconExtension width={28} height={28} aria-hidden="true" />}
-                seal={search.trim() ? '寻' : '空'}
-                badge={search.trim() ? t(`Query: "${search.trim()}"`, `搜索: "${search.trim()}"`) : undefined}
-                title={t('No extensions found', '未找到匹配的扩展')}
-                description={
-                  search.trim()
-                    ? t(
-                        'No local extensions match your search. Try adjusting the query or reset filters.',
-                        '未找到与搜索词匹配的扩展。请尝试更换关键词或清空筛选。',
-                      )
-                    : t(
-                        'Try adjusting your search query or switching to another category.',
-                        '请尝试更换关键词或在上方切换筛选分类。',
-                      )
-                }
-                suggestions={
-                  search.trim() || category !== 'all'
-                    ? [
-                        ...(search.trim()
-                          ? [{ label: t('Clear keyword', '清空关键词'), onClick: () => setSearch('') }]
-                          : []),
-                        ...(category !== 'all'
-                          ? [{ label: t('Show all categories', '全部分类'), onClick: () => setCategory('all') }]
-                          : []),
-                      ]
-                    : undefined
-                }
-                action={
-                  <Button variant="secondary" size="compact" onClick={() => { setSearch(''); setCategory('all'); }}>
-                    {t('Clear filters', '清空筛选')}
-                  </Button>
-                }
-                size="spacious"
-                testId="marketplace-empty"
-              />
-            ) : filteredExtensions.length > 0 ? (
-              <div className="market-grid">
-                {filteredExtensions.map((ext) => (
-                  <MarketplaceExtensionCard
-                    key={ext.id}
-                    extension={ext}
-                    locale={props.locale}
-                    onInstall={handleInstallExtension}
-                    onUninstall={handleUninstallExtension}
-                    installState={extInstallStates[ext.id]}
-                    installProgress={extInstallProgress[ext.id]}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </>
-        )}
-
-        {tab === 'installed' && (
-          installedTotal === 0 ? (
-            <EmptyState
-              visual={<IconExtension width={28} height={28} aria-hidden="true" />}
-              seal="墨"
-              title={t('No extensions installed yet', '尚未安装任何扩展')}
-              description={t(
-                'Browse the marketplace to expand your Pi session capabilities.',
-                '前往扩展市场一键安装，为当前会话注入更多专业能力。',
-              )}
-              action={
-                <Button variant="primary" size="compact" onClick={() => setTab('extensions')}>
-                  {t('Browse Extensions', '浏览扩展')}
-                </Button>
-              }
-              size="spacious"
-              testId="marketplace-empty-installed"
-            />
-          ) : (
-            <div className="market-installed-list">
-              {extensions
-                .filter((e) => e.installed)
-                .map((ext) => (
-                  <div key={ext.id} className="market-installed-item">
-                    <div className="market-installed-info">
-                      <div className="market-installed-texts">
-                        <div className="market-card-title-row">
-                          <strong className="market-installed-name">{ext.name}</strong>
-                          <span className={`market-source-pill is-${ext.source}`}>
-                            {ext.source === 'npm' || ext.source === 'git'
-                              ? ext.source
-                              : resourceSourceLabel(ext.source, isZh ? 'zh-CN' : 'en')}
-                          </span>
-                        </div>
-                        <span className="market-card-meta">
-                          {ext.id} • v{ext.version} • {ext.author}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="market-installed-actions">
-                      <span className="market-card-status-active">
-                        {ext.active ? t('Active', '已启用') : t('Paused', '已暂停')}
-                      </span>
-                      {!ext.bundled && (
-                        <Button
-                          variant="ghost"
-                          size="compact"
-                          onClick={() => handleUninstallExtension(ext)}
-                        >
-                          {t('Uninstall', '卸载')}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )
-        )}
+        <MarketplaceToastView toast={toast} locale={props.locale} onDismiss={() => setToast(null)} />
+        {data.error ? (
+          <Notice tone="warning" testId="marketplace-host-error">
+            {t('Could not read from the Host: ', '读取 Host 状态失败：')}
+            {data.error}
+          </Notice>
+        ) : null}
+        {tab === 'discover' ? renderDiscover() : renderInstalled()}
       </main>
 
-      <ExtensionInstallConsentDialog
-        extension={consentTarget}
+      <MarketplaceEntryDialog
+        entry={openEntry}
+        installed={openEntry ? installedByEntry.get(openEntry.entryId) : undefined}
+        operation={openEntry ? actions.operations[openEntry.entryId] : undefined}
         locale={props.locale}
-        onConfirm={handleConfirmInstallExtension}
-        onCancel={() => setConsentTarget(null)}
+        onInstall={(entry) => void actions.install(entry)}
+        onUseExample={props.onUseExample}
+        onClose={() => setOpenEntryId(null)}
       />
 
       <PiPackageInstallDialog
@@ -536,6 +362,28 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
         locale={props.locale}
         onConfirm={(hit) => void packageInstall.confirm(hit)}
         onCancel={packageInstall.cancel}
+      />
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null);
+        }}
+        title={t('Uninstall this capability?', '卸载这项能力？')}
+        description={t(
+          'It stops loading in new runs. Files are deleted once no session still uses them.',
+          '之后的运行不再加载它；没有会话再使用后删除文件。',
+        )}
+        affectedObject={removeTarget ? `${kindLabel(removeTarget.kind, props.locale)} · ${removeTarget.name}` : undefined}
+        confirmLabel={t('Uninstall', '卸载')}
+        cancelLabel={t('Cancel', '取消')}
+        tone="danger"
+        onConfirm={() => {
+          const target = removeTarget;
+          setRemoveTarget(null);
+          if (target) void actions.remove(target);
+        }}
+        testId="marketplace-remove-confirm"
       />
     </div>
   );

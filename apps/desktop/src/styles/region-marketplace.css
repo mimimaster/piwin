@@ -28,55 +28,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   padding: 56px 24px;
 }
 
-/* ── Topbar: Runtime Generation Status Badge ───────────────────────── */
-
-.market-gen-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: var(--r-pill, 9999px);
-  background: var(--pine-wash);
-  border: 1px solid color-mix(in srgb, var(--pine) 25%, transparent);
-  color: var(--pine);
-  font-family: var(--font-mono, monospace);
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.market-gen-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--pine);
-  box-shadow: 0 0 4px var(--pine);
-  animation: pulse-market-dot 2.5s ease-in-out infinite;
-}
-
-@keyframes pulse-market-dot {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
-}
-
-.market-gen-ver {
-  font-weight: 600;
-  color: var(--pine);
-}
-
-.market-gen-sub {
-  color: var(--text-3);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .market-gen-sub {
-  color: var(--t4);
-}
-
 /* ── Subbar: Tabs & Filter Strip ───────────────────────────────────── */
 
 /* Keep one compact chrome row: tabs + categories left, search right. */
@@ -345,9 +296,33 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   line-height: 1.3;
 }
 
-.market-status-pill.is-active {
+.market-status-pill.is-active,
+.market-status-pill.is-available {
   background: var(--pine-wash);
   color: var(--pine);
+}
+
+/* Host inventory availability (MarketplaceAvailability). */
+.market-status-pill.is-installed,
+.market-status-pill.is-pending-apply,
+.market-status-pill.is-pending-removal {
+  background: var(--azure-wash);
+  color: var(--azure);
+}
+
+.market-status-pill.is-configuration-required {
+  background: var(--lamp-wash);
+  color: var(--lamp);
+}
+
+.market-status-pill.is-failed {
+  background: var(--crimson-wash);
+  color: var(--crimson);
+}
+
+.market-status-pill.is-disabled {
+  background: color-mix(in srgb, var(--text-3) 12%, transparent);
+  color: var(--text-3);
 }
 
 .market-card-meta {
@@ -817,4 +792,53 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-size: 11px;
   font-weight: 500;
   letter-spacing: -0.01em;
+}
+
+/* ── Discover groups & entry detail ────────────────────────────────── */
+
+.market-category-section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Groups stack; the last grid's bottom padding is enough separation. */
+.market-category-section .market-grid {
+  padding-bottom: 8px;
+}
+
+.market-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.market-detail-section h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.market-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.market-detail-list li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.market-detail-example {
+  font-style: italic;
+  color: var(--text-1);
 }

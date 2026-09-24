@@ -12,6 +12,7 @@ import { commandCron } from './cron-command.js';
 import { commandDocCards } from './doccards-command.js';
 import { commandDoctor } from './doctor-command.js';
 import { commandExtension } from './extension-command.js';
+import { commandMarket } from './market-command.js';
 import { commandHostMode } from './host-mode-command.js';
 import { commandHostServe } from './host-serve-command.js';
 import { commandMcp } from './mcp-command.js';
@@ -76,6 +77,10 @@ Usage:
   piwin extension list [--project <path>]
   piwin extension ensure-bundled
   piwin extension install --local <file|dir> | --git <url> [--name <id>]
+  piwin market search [query] [--type extension|skill|mcp]
+  piwin market show <entry-id>
+  piwin market installed [--session <id>] [--project <path>]
+  piwin market uninstall-extension <extension-id> | remove-mcp <server-id>
   piwin prompt list [--project <path>]
   piwin mcp list
   piwin mcp validate [path]
@@ -218,6 +223,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'extension') {
     await commandExtension(argv);
+    return;
+  }
+  if (command === 'market') {
+    await commandMarket(argv);
     return;
   }
   if (command === 'prompt') {

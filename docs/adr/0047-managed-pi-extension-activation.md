@@ -207,6 +207,16 @@ activation back in if it was stripped.
 Client paths are never interpreted as Host paths. Gateway processes only relay
 contracts and never inspect, store, approve, or execute extension code.
 
+Implemented (2026-09-25, uninstall): `extensions/uninstall` marks a managed
+record `installationState: 'pending-removal'` and disables it, so no new
+Blueprint selects it; live sessions drop it through the normal
+`extensions/apply` at a Run boundary. Revision files are deleted only once no
+runtime generation — active or pending candidate — still pins one of its
+content revisions (tracked per generation by the Host from the compiled
+Blueprint). The registry entry goes first and files second, so a crash can
+leave orphan files but never a record pointing at deleted code. Re-staging the
+same extension clears the pending removal. Uninstall is local-only like install.
+
 Implemented (2026-08-13): observation (`extensions/list`) allowed; activation
 opt-in via `HostServerOptions.allowRemoteExtensionActivation`.
 
