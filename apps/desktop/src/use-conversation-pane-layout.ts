@@ -1,3 +1,5 @@
+import { mergeLiveSubscriptionIds } from './live-subscription-ids.js';
+import { useSideChatLiveSessionIds } from './side-chat-sessions.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { HostClient } from './host-client.js';
 import {
@@ -122,10 +124,15 @@ export function useConversationPaneSubscriptions(args: {
       new Set(candidates.filter((sessionId): sessionId is string => sessionId !== null)),
     ).slice(0, CONVERSATION_PANE_MAX_COUNT);
   }, [args.activeSessionId, args.paneLayout.root, args.panesEnabled]);
-  const signature = sessionIds.join('\u0000');
+  const sideChatIds = useSideChatLiveSessionIds();
+  const liveIds = useMemo(
+    () => mergeLiveSubscriptionIds(sessionIds, sideChatIds),
+    [sessionIds, sideChatIds],
+  );
+  const signature = liveIds.join('\u0000');
 
   useEffect(() => {
-    void args.hostClient.updateSubscriptions(sessionIds).catch((error: unknown) => {
+    void args.hostClient.updateSubscriptions(liveIds).catch((error: unknown) => {
       console.warn('Failed to update live Chat pane subscriptions.', error);
     });
   }, [args.hostClient, signature]);

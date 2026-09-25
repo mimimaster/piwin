@@ -1,3 +1,5 @@
+import { mergeLiveSubscriptionIds } from '../../live-subscription-ids.js';
+import { useSideChatLiveSessionIds } from '../../side-chat-sessions.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HostClient } from '../../host-client.js';
 import { shouldRevealBrowserInspector } from '../../browser-inspector-reveal.js';
@@ -101,9 +103,14 @@ export function useDockingWorkspace(args: {
     };
   }, [args.enabled, args.scopeKey, hydrated, loadedScopeKey, state]);
 
+  const sideChatIds = useSideChatLiveSessionIds();
   const liveSessionIds = useMemo(
-    () => selectLiveSessionIds(state, args.hiddenMruSessionIds ?? []),
-    [args.hiddenMruSessionIds, state],
+    () =>
+      mergeLiveSubscriptionIds(
+        selectLiveSessionIds(state, args.hiddenMruSessionIds ?? []),
+        sideChatIds,
+      ),
+    [args.hiddenMruSessionIds, sideChatIds, state],
   );
   const liveSignature = liveSessionIds.join('\u0000');
 

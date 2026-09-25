@@ -3,431 +3,147 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type {
-  HostCommand,
-  HostResponse,
-  HostServerMessage,
-  SessionSummary,
-} from '@piwin/contracts';
+import type { HostCommand, HostResponse, SessionSummary } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import type { HostClient } from './host-client.js';
-import { SideChatPanel } from './side-chat-panel.js';
 import {
   publishSideChatComposerSeed,
   resetSideChatComposerSeedForTests,
 } from './side-chat-composer-seed.js';
+import {
+  getSideChatBinding,
+  resetSideChatBindingsForTests,
+  takeSideChatBinding,
+} from './side-chat-sessions.js';
 
+// The full session window has its own tests; here it only has to show which
+// session and how many quoted refs the panel handed it.
+vi.mock('./conversation-pane-session.js', () => ({
+  ConversationPaneSession: (props: { sessionId: string; contextRefs?: { pending: unknown[] } }) => (
+    <div data-testid="pane" data-session={props.sessionId} data-refs={props.contextRefs?.pending.length ?? 0} />
+  ),
+}));
+
+const { SideChatPanel } = await import('./side-chat-panel.js');
+
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-const CONFIGURED_MODELS = {
-  defaultProviderId: 'openai',
-  defaultModelId: 'gpt-4o',
-  models: [
-    {
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      label: 'GPT-4o',
-      protocol: 'openai-compatible',
-      source: 'channel' as const,
-      group: 'channel' as const,
-    },
-  ],
-};
-
-function sideChatSummary(id: string): SessionSummary {
-  const relation = {
-    kind: 'side-chat' as const,
-    sourceSessionId: 'main-1',
-    sourceCapturedAt: '2026-09-04T00:00:00.000Z',
-    contextVersion: 1,
-    sourceState: 'active' as const,
-  };
-  return {
-    id,
-    scope: { kind: 'general' },
-    workingDirectory: '/tmp',
-    projectPath: '',
-    name: `Side Chat · ${id}`,
-    updatedAt: '2026-09-04T00:00:00.000Z',
-    messageCount: 0,
-    kind: 'side-chat',
-    sideChatRelation: relation,
-  };
+function ok(command: string, data: unknown): HostResponse {
+  return { type: 'response', command, success: true, data };
 }
 
-class FakeHostClient {
-  readonly requests: HostCommand[] = [];
-  private readonly listeners = new Set<(message: HostServerMessage) => void>();
-  listed: SessionSummary[] = [];
-  messagesBySession: Record<
-    string,
-    { id: string; role: string; text: string; createdAt: string }[]
-  > = {};
-
-  getTransport(): 'mock' {
-    return 'mock';
-  }
-
-  isReady(): boolean {
-    return true;
-  }
-
-  supportsForegroundAdmission(): boolean {
-    return true;
-  }
-
-  subscribe(listener: (message: HostServerMessage) => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  async sideChatList(_sourceSessionId: string): Promise<HostResponse> {
-    this.requests.push({ type: 'side-chat/list', sourceSessionId: _sourceSessionId });
-    return {
-      type: 'response',
-      command: 'side-chat/list',
-      success: true,
-      data: { sourceSessionId: _sourceSessionId, sessions: this.listed },
-    };
-  }
-
-  async sideChatOpen(sourceSessionId: string): Promise<HostResponse> {
-    const session = sideChatSummary('side-new');
-    this.requests.push({ type: 'side-chat/open', sourceSessionId });
-    this.listed = [session, ...this.listed];
-    const relation = session.sideChatRelation;
-    if (!relation) {
-      return {
-        type: 'response',
-        command: 'side-chat/open',
-        success: false,
-        error: 'missing relation',
-      };
-    }
-    return {
-      type: 'response',
-      command: 'side-chat/open',
-      success: true,
-      data: {
-        sideChatSessionId: session.id,
-        session,
-        relation,
-        context: {
-          version: 1,
-          capturedAt: '2026-09-04T00:00:00.000Z',
-          sourceSessionId,
-          conversation: { messageIds: [], formattedText: '', truncated: false },
-          workspace: { scope: 'general', workingDirectory: '/tmp' },
-          refs: [],
-        },
-      },
-    };
-  }
-
-  request(command: HostCommand): Promise<HostResponse> {
-    this.requests.push(command);
-    if (command.type === 'side-chat/list') {
-      return Promise.resolve({
-        type: 'response',
-        command: command.type,
-        success: true,
-        data: { sourceSessionId: command.sourceSessionId, sessions: this.listed },
-      });
-    }
-    if (command.type === 'side-chat/open') {
-      const session = sideChatSummary('side-new');
-      this.listed = [session, ...this.listed];
-      const relation = session.sideChatRelation;
-      if (!relation) {
-        return Promise.resolve({
-          type: 'response',
-          command: command.type,
-          success: false,
-          error: 'missing relation',
+function fakeHost(existing: string[] = []) {
+  let opened = 0;
+  const calls: HostCommand[] = [];
+  const client = {
+    request: vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+      calls.push(command);
+      if (command.type === 'side-chat/list') {
+        return ok(command.type, {
+          sessions: existing.map((id) => ({ id }) as SessionSummary),
         });
       }
-      return Promise.resolve({
-        type: 'response',
-        command: command.type,
-        success: true,
-        data: {
-          sideChatSessionId: session.id,
-          session,
-          relation,
-          context: {
-            version: 1,
-            capturedAt: '2026-09-04T00:00:00.000Z',
-            sourceSessionId: command.sourceSessionId,
-            conversation: { messageIds: [], formattedText: '', truncated: false },
-            workspace: { scope: 'general', workingDirectory: '/tmp' },
-            refs: [],
-          },
-        },
-      });
-    }
-    if (command.type === 'models/configured') {
-      return Promise.resolve({
-        type: 'response',
-        command: command.type,
-        success: true,
-        data: CONFIGURED_MODELS,
-      });
-    }
-    if (command.type === 'session/set-composer-profile') {
-      return Promise.resolve({ type: 'response', command: command.type, success: true, data: {} });
-    }
-    if (command.type === 'session/resume') {
-      return Promise.resolve({
-        type: 'response',
-        command: command.type,
-        success: true,
-        data: { sessionId: command.sessionId, messages: [] },
-      });
-    }
-    if (command.type === 'session/messages') {
-      return Promise.resolve({
-        type: 'response',
-        command: command.type,
-        success: true,
-        data: {
-          sessionId: command.sessionId,
-          messages: this.messagesBySession[command.sessionId] ?? [],
-        },
-      });
-    }
-    if (command.type === 'session/archive') {
-      this.listed = this.listed.filter((session) => session.id !== command.sessionId);
-      return Promise.resolve({
-        type: 'response',
-        command: command.type,
-        success: true,
-        data: { sessionId: command.sessionId },
-      });
-    }
-    if (command.type === 'session/prompt') {
-      return Promise.resolve({
-        type: 'response',
-        command: command.type,
-        success: true,
-        data: { runId: 'run-side' },
-      });
-    }
-    return Promise.resolve({
-      type: 'response',
-      command: command.type,
-      success: false,
-      error: 'unexpected command',
+      if (command.type === 'side-chat/open') {
+        opened += 1;
+        return ok(command.type, { sideChatSessionId: `new-${opened}`, session: {} });
+      }
+      return ok(command.type, {});
+    }),
+  };
+  return { client: client as unknown as HostClient, calls };
+}
+
+let root: Root | null = null;
+let container: HTMLDivElement | null = null;
+
+async function render(host: HostClient, tabId: string, mainSessionId: string | null = 'main-1') {
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  await act(async () => {
+    root?.render(
+      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+        <SideChatPanel
+          sessionId={mainSessionId}
+          tabId={tabId}
+          hostClient={host}
+          activeTheme={PIWIN_APPEARANCE_DARK as never}
+          artifactThemeKey="t"
+          locale="zh-CN"
+        />
+      </PiwinUiProvider>,
+    );
+  });
+  for (let index = 0; index < 4; index += 1) {
+    await act(async () => {
+      await Promise.resolve();
     });
   }
+  return container;
 }
 
-function panelInput(container: HTMLElement): HTMLTextAreaElement | null {
-  return container.querySelector('[data-testid="side-chat-panel"] [data-testid="composer-input"]');
-}
-
-function panelSend(container: HTMLElement): HTMLButtonElement | null {
-  return container.querySelector('[data-testid="side-chat-panel"] [data-testid="send-btn"]');
-}
+afterEach(() => {
+  act(() => root?.unmount());
+  container?.remove();
+  root = null;
+  container = null;
+  resetSideChatBindingsForTests();
+  resetSideChatComposerSeedForTests();
+});
 
 describe('SideChatPanel', () => {
-  let root: Root | null = null;
-  let container: HTMLDivElement | null = null;
+  it('opens a side chat for the tab and renders it as a full session window', async () => {
+    const { client, calls } = fakeHost();
+    const view = await render(client, 'sideChat');
+    expect(calls.map((call) => call.type)).toEqual(['side-chat/list', 'side-chat/open']);
+    expect(view.querySelector('[data-testid="pane"]')?.getAttribute('data-session')).toBe('new-1');
+    expect(getSideChatBinding('main-1', 'sideChat')).toBe('new-1');
+  });
 
-  afterEach(() => {
+  it('reuses an existing side chat, but never one another tab already shows', async () => {
+    const { client, calls } = fakeHost(['side-a']);
+    const first = await render(client, 'sideChat');
+    expect(first.querySelector('[data-testid="pane"]')?.getAttribute('data-session')).toBe('side-a');
     act(() => root?.unmount());
     container?.remove();
-    root = null;
-    container = null;
-    resetSideChatComposerSeedForTests();
+
+    const second = await render(client, 'sideChat-2');
+    expect(second.querySelector('[data-testid="pane"]')?.getAttribute('data-session')).toBe('new-1');
+    expect(calls.filter((call) => call.type === 'side-chat/open')).toHaveLength(1);
   });
 
-  it('lets the user type and pick a model before a side chat exists', async () => {
-    const host = new FakeHostClient();
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
-    act(() => {
-      root?.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <SideChatPanel sessionId="main-1" hostClient={host as unknown as HostClient} />
-        </PiwinUiProvider>,
-      );
-    });
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(panelInput(container!)?.disabled).toBe(false);
-        expect(container?.querySelector('[data-testid="side-chat-empty"]')).not.toBeNull();
-        expect(container?.querySelector('[data-testid="side-chat-tabstrip"]')).toBeNull();
-      });
-    });
-
-    const textarea = panelInput(container!);
-    expect(textarea).not.toBeNull();
-    expect(textarea?.disabled).toBe(false);
-    expect(container.querySelector('[data-testid="thinking-effort-trigger"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="composer-card"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="composer-plus-btn"]')).toBeNull();
-
-    act(() => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-      if (!setter || !textarea) throw new Error('textarea missing');
-      setter.call(textarea, 'What does this change do?');
-      textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    });
-    act(() => {
-      panelSend(container!)?.click();
-    });
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(host.requests.some((command) => command.type === 'session/prompt')).toBe(true);
-      });
-    });
-
-    expect(host.requests.some((command) => command.type === 'side-chat/open')).toBe(true);
-    const prompt = host.requests.find((command) => command.type === 'session/prompt');
-    expect(prompt).toMatchObject({
-      type: 'session/prompt',
-      sessionId: 'side-new',
-      input: { text: 'What does this change do?' },
-    });
+  it('keeps showing the bound session when the tab remounts', async () => {
+    const { client, calls } = fakeHost();
+    await render(client, 'sideChat');
+    act(() => root?.unmount());
+    container?.remove();
+    const again = await render(client, 'sideChat');
+    expect(again.querySelector('[data-testid="pane"]')?.getAttribute('data-session')).toBe('new-1');
+    expect(calls.filter((call) => call.type === 'side-chat/open')).toHaveLength(1);
   });
 
-  it('auto-selects an existing side chat so the input stays enabled', async () => {
-    const host = new FakeHostClient();
-    host.listed = [sideChatSummary('side-existing')];
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
-    act(() => {
-      root?.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <SideChatPanel sessionId="main-1" hostClient={host as unknown as HostClient} />
-        </PiwinUiProvider>,
-      );
-    });
+  it('applies a selection seed: quoted refs go to the composer, a seeded session is shown', async () => {
+    const { client } = fakeHost();
+    const view = await render(client, 'sideChat');
     await act(async () => {
-      await vi.waitFor(() => {
-        expect(
-          host.requests.some((command) => command.type === 'side-chat/list'),
-        ).toBe(true);
-      });
-    });
-    expect(panelInput(container!)?.disabled).toBe(false);
-    expect(container.querySelector('[data-testid="side-chat-tabstrip"]')).toBeNull();
-  });
-
-  it('does not show a second plus or a sync control in the tab strip', async () => {
-    const host = new FakeHostClient();
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
-    act(() => {
-      root?.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <SideChatPanel sessionId="main-1" hostClient={host as unknown as HostClient} />
-        </PiwinUiProvider>,
-      );
-    });
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(panelInput(container!)).not.toBeNull();
-      });
-    });
-    expect(container.querySelector('[data-testid="side-chat-new"]')).toBeNull();
-    expect(container.querySelector('[data-testid="side-chat-sync"]')).toBeNull();
-  });
-
-  it('shows a selection capsule on the side-chat composer when opened with a quote', async () => {
-    const host = new FakeHostClient();
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
-    act(() => {
-      root?.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <SideChatPanel sessionId="main-1" hostClient={host as unknown as HostClient} />
-        </PiwinUiProvider>,
-      );
-    });
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(panelInput(container!)).not.toBeNull();
-      });
-    });
-    act(() => {
       publishSideChatComposerSeed({
-        sideChatSessionId: 'side-quoted',
-        refs: [
-          {
-            kind: 'selection',
-            snapshotText: '想要基于选中文本调整壁纸',
-            label: '想要基于选中文本调整壁纸',
-          },
-        ],
+        refs: [{ kind: 'main-message', sourceSessionId: 'main-1', messageId: 'm1', label: '热巧克力' }],
+        sideChatSessionId: 'side-seeded',
       });
     });
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(container?.querySelector('[data-testid="composer-context-chip"]')).not.toBeNull();
-      });
-    });
-    expect(container.querySelector('[data-testid="composer-context-chip"]')?.textContent).toContain(
-      '想要基于选中文本调整壁纸',
-    );
+    const pane = view.querySelector('[data-testid="pane"]');
+    expect(pane?.getAttribute('data-session')).toBe('side-seeded');
+    expect(pane?.getAttribute('data-refs')).toBe('1');
+    expect(takeSideChatBinding('main-1', 'sideChat')).toBe('side-seeded');
   });
 
-  it('renders hydrated assistant markdown instead of source markers', async () => {
-    const host = new FakeHostClient();
-    host.listed = [sideChatSummary('side-existing')];
-    host.messagesBySession['side-existing'] = [
-      {
-        id: 'u1',
-        role: 'user',
-        text: 'keep **literal** stars',
-        createdAt: '2026-09-04T00:00:00.000Z',
-      },
-      {
-        id: 'a1',
-        role: 'assistant',
-        text: '**bold** and `code`\n\n### Heading',
-        createdAt: '2026-09-04T00:00:01.000Z',
-      },
-    ];
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
-    act(() => {
-      root?.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <SideChatPanel sessionId="main-1" hostClient={host as unknown as HostClient} />
-        </PiwinUiProvider>,
-      );
-    });
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    await vi.waitFor(
-      () => {
-        const assistant = container?.querySelector('[data-testid="side-chat-message-assistant"]');
-        if (assistant) return;
-        const types = host.requests.map((command) => command.type).join(',');
-        throw new Error(
-          `assistant missing; requests=${types || '(none)'}; html=${container?.innerHTML.slice(0, 500) ?? ''}`,
-        );
-      },
-      { timeout: 4000 },
-    );
-
-    const userBubble = container.querySelector('[data-testid="side-chat-message-user"] .side-chat-bubble');
-    expect(userBubble?.textContent).toContain('keep **literal** stars');
-
-    const assistant = container.querySelector('[data-testid="side-chat-message-assistant"]');
-    expect(assistant).not.toBeNull();
-    expect(assistant?.textContent).toContain('bold');
-    expect(assistant?.textContent).not.toContain('**');
-    expect(assistant?.querySelector('strong, .md-strong')).not.toBeNull();
-    expect(assistant?.querySelector('code')).not.toBeNull();
-    expect(assistant?.querySelector('h3, .md-h, [class*="md-h"]')).not.toBeNull();
+  it('asks for a main conversation first', async () => {
+    const { client, calls } = fakeHost();
+    const view = await render(client, 'sideChat', null);
+    expect(calls).toEqual([]);
+    expect(view.textContent).toContain('先打开一个会话');
   });
 });

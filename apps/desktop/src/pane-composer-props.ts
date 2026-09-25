@@ -3,6 +3,7 @@ import type { PromptAttachment, ThinkingLevel } from '@piwin/contracts';
 import type { ComposerDockProps } from './composer-dock-types.js';
 import type { ComposerPlusSubmenu } from './composer-plus-menu.js';
 import type { ContextRingViewModel } from './context-telemetry-selector.js';
+import type { PendingContextRefItem } from './hooks/use-composer-context-refs.js';
 
 function ignoreEvent(): void {}
 
@@ -34,6 +35,9 @@ export type PaneComposerCardInput = {
   /** Sends a prompt, or steers the live run while one is streaming. */
   onSend: () => void;
   onStop: () => void;
+  /** Quoted selections attached to the next prompt (side chat seeds). */
+  pendingContextRefs?: readonly PendingContextRefItem[];
+  onRemoveContextRef?: (key: string) => void;
 };
 
 /**
@@ -61,6 +65,8 @@ export function buildPaneComposerProps(input: PaneComposerCardInput): ComposerDo
       uploadStatus: 'ready' as const,
     })),
     onRemoveAttachment: input.onRemoveAttachment,
+    ...(input.pendingContextRefs ? { pendingContextRefs: [...input.pendingContextRefs] } : {}),
+    ...(input.onRemoveContextRef ? { onRemoveContextRef: input.onRemoveContextRef } : {}),
     dropActive: input.dropActive,
     onDropActiveChange: input.onDropActiveChange,
     plusMenuOpen: input.plusMenuOpen,

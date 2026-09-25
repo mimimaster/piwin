@@ -15,10 +15,12 @@ import {
   type SessionResumeData,
   type SessionScope,
   type PromptAttachment,
+  type PromptContextRef,
   type SessionTranscriptMessage,
   type ThinkingLevel,
   type ThemeManifest,
 } from '@piwin/contracts';
+import type { PendingContextRefItem } from './hooks/use-composer-context-refs.js';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer.js';
 import {
   isChatCompactPendingOccupancy,
@@ -67,6 +69,18 @@ export type ConversationPaneSessionProps = {
   onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   fileBrowseRoot?: string | null;
+  /**
+   * Quoted context attached to the next prompt (right-panel side chat).
+   * Owned by the caller so selections can arrive before the pane mounts.
+   */
+  contextRefs?: PaneContextRefs;
+};
+
+export type PaneContextRefs = {
+  pending: readonly PendingContextRefItem[];
+  snapshot: () => PromptContextRef[];
+  remove: (key: string) => void;
+  clear: () => void;
 };
 
 function isSupportedPaneScope(scope: PaneResumeData['scope']): boolean {
@@ -369,7 +383,8 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
 
   async function handleSend(): Promise<void> {
     const text = composer.trim();
-    if ((!text && attachments.length === 0) || busy) return;
+    const promptRefs = props.contextRefs?.snapshot() ?? [];
+    if ((!text && attachments.length === 0 && promptRefs.length === 0) || busy) return;
     const reserved = parseComposerSlashSubmit(text, []);
     if (reserved.kind === 'command' && reserved.commandId === 'compact') {
       setComposer('');
@@ -457,6 +472,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           ...(inlineArtifactWidthPx === undefined ? {} : { inlineArtifactWidthPx }),
           ...(artifactHostTheme === undefined ? {} : { artifactHostTheme }),
           ...(outgoingAttachments.length > 0 ? { attachments: outgoingAttachments } : {}),
+          ...(promptRefs.length > 0 ? { contextRefs: promptRefs } : {}),
           ...sessionComposer.promptFields,
         },
         allowReplaceConfirm: false,
@@ -476,6 +492,8 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         setAttachments(outgoingAttachments);
         return;
       }
+      // Quoted context was consumed by this prompt; do not resend it.
+      if (promptRefs.length > 0) props.contextRefs?.clear();
       const run = readRun(response.data);
       const runId = run?.runId ?? (response.data as { runId?: string } | undefined)?.runId;
       if (typeof runId === 'string') dispatch({ type: 'run/accepted', runId });
@@ -613,6 +631,12 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
               contextRingView,
               onSend: () => void handleSend(),
               onStop: () => void handleStop(),
+              ...(props.contextRefs
+                ? {
+                    pendingContextRefs: props.contextRefs.pending,
+                    onRemoveContextRef: props.contextRefs.remove,
+                  }
+                : {}),
             })}
           />
         </div>

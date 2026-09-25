@@ -107,6 +107,7 @@ export * from './pty.js';
 export * from './automation.js';
 export * from './marketplace.js';
 export * from './repository-subdir.js';
+export * from './session-visibility.js';
 export * from './marketplace-registry.js';
 export * from './marketplace-search.js';
 export * from './permission.js';

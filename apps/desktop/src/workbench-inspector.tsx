@@ -21,6 +21,11 @@ import type {
 } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 import { RightPanel, type RightPanelDockedTools, type RightPanelTab } from './right-panel';
+import { rightPanelTabKind } from './right-panel-sections';
+import { takeSideChatBinding } from './side-chat-sessions.js';
+import { endSideChatSession } from './side-chat-host-requests.js';
+import { createGestureIdempotencyKey } from './gesture-idempotency.js';
+import { emitDesktopNotification } from './notification-queue.js';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
 import { RemoteUnavailableSurface } from './remote-unavailable-surface';
 import { WorkbenchReviewSurface } from './workbench-review-surface';
@@ -425,12 +430,35 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               <RemoteUnavailableSurface feature="browser" locale={locale} />
             )
           }
-          sideChatContent={
+          sideChatContent={(tab: RightPanelTab) => (
             <DeferredSideChatPanel
               sessionId={activeSessionId}
+              tabId={tab}
               hostClient={hostClient}
+              activeTheme={activeTheme}
+              artifactThemeKey={artifactThemeKey}
+              locale={locale === 'en' ? 'en' : 'zh-CN'}
+              onOpenDocument={handleOpenDocument}
+              {...(fileBrowseRoot !== undefined ? { fileBrowseRoot } : {})}
+              onInsertToMain={(text) =>
+                setComposer((current) => (current.trim() ? `${current.trimEnd()}\n\n${text}` : text))
+              }
             />
-          }
+          )}
+          onTabClosed={(tab: RightPanelTab) => {
+            if (rightPanelTabKind(tab) !== 'sideChat' || !activeSessionId) return;
+            const sideChatSessionId = takeSideChatBinding(activeSessionId, tab);
+            if (!sideChatSessionId) return;
+            void endSideChatSession({
+              request: (command, options) => hostClient.request(command, options),
+              sessionId: sideChatSessionId,
+              createIdempotencyKey: createGestureIdempotencyKey,
+            }).then((response) => {
+              if (!response.success) {
+                emitDesktopNotification({ level: 'error', message: response.error });
+              }
+            });
+          }}
           docPreviewContent={
             inspectorDiff && projectPath ? (
               <FileDiffInspector

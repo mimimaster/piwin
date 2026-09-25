@@ -84,7 +84,10 @@ export type RightPanelProps = {
   notesContent?: ReactNode;
   cardsContent?: ReactNode;
   canvasContent?: ReactNode;
-  sideChatContent?: ReactNode;
+  /** One side chat per instance tab, so the content is rendered per tab id. */
+  sideChatContent?: ReactNode | ((tab: RightPanelTab) => ReactNode);
+  /** A tab was closed by the user (side chats end their session on close). */
+  onTabClosed?: (tab: RightPanelTab) => void;
   docPreviewContent?: ReactNode;
   tasksContent?: ReactNode;
   changesCount?: number;
@@ -127,7 +130,9 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
     case 'canvas':
       return props.canvasContent;
     case 'sideChat':
-      return props.sideChatContent;
+      return typeof props.sideChatContent === 'function'
+        ? props.sideChatContent(tab)
+        : props.sideChatContent;
     case 'docPreview':
       return props.docPreviewContent;
     case 'tasks':
@@ -338,6 +343,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   }, [allTabs, keepsTab, props, revealTab, terminalSessions]);
 
   const closeTab = useCallback((tab: RightPanelTab): void => {
+    props.onTabClosed?.(tab);
     if (isTerminalTab(tab) && terminalSessions && tab !== 'terminal') {
       terminalSessions.closeSession(tab);
     }

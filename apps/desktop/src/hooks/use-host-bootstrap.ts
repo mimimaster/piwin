@@ -22,7 +22,7 @@ import type {
   ThemeManifest,
 } from '@piwin/contracts';
 import type { PetRuntimeSnapshot } from '@piwin/contracts';
-import { formatError, parseSessionContextSnapshot } from '@piwin/contracts';
+import { formatError, isPrimarySessionRecord, parseSessionContextSnapshot } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import { isRemoteCommandGapError } from '../remote-command-gap.js';
 import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
@@ -463,6 +463,12 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
             args.onActiveSessionCleared?.();
             dispatch({ type: 'session/clear-active' });
           }
+          return;
+        }
+        // Side chats and subagent children live on their own surfaces; their
+        // index pushes must not add them to the main list (the Host listing
+        // already excludes them, so they would vanish again on reload).
+        if (message.session !== undefined && !isPrimarySessionRecord(message.session)) {
           return;
         }
         const listed =
