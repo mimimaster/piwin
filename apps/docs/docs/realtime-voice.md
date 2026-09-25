@@ -49,8 +49,8 @@ Piwin 在底层设计了严格的 **说话面契约（Live Spoken Contract）**�
 ### 渠道 2：OpenAI Realtime 协议兼容端点
 支持填入任何实现了标准 OpenAI WebSocket Realtime 协议的 Base URL 与 API Key。
 
-### 渠道 3：Grok2API 等社区转换通道
-支持通过社区开源的 Grok2API 工具将 xAI Grok 的语音能力转换为实时流接入使用。
+### 渠道 3：xgrok / Grok2API 等社区转换通道
+如果你有一些免费的 xAI Grok 账号，支持通过社区开源的 **xgrok** 或 **Grok2API**（利用 Grok Web 端逆向通道桥接转标准 OpenAI Realtime WebSocket 协议，如 `wss://.../v1/realtime`，语音模型填入 `grok-voice-think-fast`）零成本接入实时全双工语音流。
 
 ---
 

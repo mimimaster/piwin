@@ -66,6 +66,7 @@ Piwin 内置了原生的 `image_gen` 工具契约。当你在对话中要求智�
 
 **支持模型类型**：
 - OpenAI DALL-E 3 (`dall-e-3`)；
+- **xgrok Web 渠道**：通过社区开源 xgrok 桥接免费 Grok 账号的 Imagine 生图端点，或 FLUX 系列；
 - 硅基流动 / 智谱等兼容 OpenAI 图像格式的模型（如 `black-forest-labs/FLUX.1-schnell`、`CogView` 等）；
 - 自定义文生图 API 端点。
 
@@ -76,7 +77,9 @@ Piwin 内置了原生的 `image_gen` 工具契约。当你在对话中要求智�
 与生图模型类似，Piwin 内置了 `video_gen` 动态短视频生成工具：
 
 - **输入支持**：支持根据纯文本描述（Text-to-Video）或参考图片路径（Image-to-Video）生成短视频片段；
-- **配置方式**：在视频生成模型栏目中填入支持视频生成的 API 端点、Key 与 Model ID（如各大平台托管的视频大模型）；
+- **配置方式**：在视频生成模型栏目中填入支持视频生成的 API 端点、Key 与 Model ID：
+  - **xGrok Videos (`xgrok-videos`)**：如果你使用免费 Grok 账号配合社区 `xgrok`，协议选择 `xGrok Videos`（请求路径 `/videos/generations`），填入如 `grok-imagine-video`，即可零成本白嫖短视频生成能力；
+  - **OpenAI / 自定义视频端点**：支持填写各类商用视频生成服务的端点与凭证；
 - **呈现效果**：视频生成完成后由前端原生渲染播放器组件，支持循环预览与本地下载。
 
 ---
