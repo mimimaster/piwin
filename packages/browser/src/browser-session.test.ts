@@ -283,6 +283,32 @@ describe('subscribe / frames', () => {
   });
 });
 
+describe('frame bytes sink', () => {
+  it('hands inline frames to onFrameBytes for the remote binary channel', async () => {
+    installWorkingBrowser();
+    const onFrameBytes = vi.fn();
+    const session = createBrowserSession({ onFrameBytes });
+    const events: unknown[] = [];
+    const unsubscribe = session.subscribe((event) => events.push(event));
+    await session.start();
+
+    await vi.waitFor(() => {
+      expect(onFrameBytes).toHaveBeenCalled();
+    });
+    const frameEvent = events.find((e) => (e as { type: string }).type === 'browser/frame') as {
+      frameId: string;
+      payload: { kind: string };
+    };
+    expect(frameEvent.payload.kind).toBe('inline');
+    const [header, bytes] = onFrameBytes.mock.calls[0] as [{ frameId: string }, Uint8Array];
+    expect(header.frameId).toBe(frameEvent.frameId);
+    expect(bytes.byteLength).toBeGreaterThan(0);
+
+    unsubscribe();
+    await session.stop();
+  });
+});
+
 describe('session operations', () => {
   it('setViewport clamps to the panel box and updates Playwright', async () => {
     const { page } = installWorkingBrowser();

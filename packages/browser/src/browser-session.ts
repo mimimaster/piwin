@@ -119,11 +119,15 @@ export type BrowserSessionOptions = {
   ensureChromium?: EnsureOwnedChromium;
   /**
    * How live frames reach the shell (spec §4.1.2). `inline` keeps base64 in the
-   * local JSON path; `binary` publishes metadata only and hands the JPEG bytes
-   * to `onFrameBytes` for the out-of-band channel.
+   * local JSON path; `binary` publishes metadata only. Either way the JPEG
+   * bytes also go to `onFrameBytes` for the out-of-band channel.
    */
   frameTransport?: BrowserFrameTransport;
-  /** Sink for raw JPEG frames when `frameTransport` is `binary`. */
+  /**
+   * Sink for raw JPEG frames. A Host serving local (inline) and remote
+   * (binary) shells at once needs both, so this is not gated on the transport:
+   * remote projection rewrites the push to `binary` and expects these bytes.
+   */
   onFrameBytes?: (header: BrowserFrameBinaryHeader, bytes: Uint8Array) => void;
 };
 
@@ -453,7 +457,6 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       payload,
     };
     for (const listener of subscribers) listener(event);
-    if (frameTransport !== 'binary') return;
     options.onFrameBytes?.(
       {
         version: BROWSER_FRAME_BINARY_VERSION,
