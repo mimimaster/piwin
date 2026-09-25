@@ -81,9 +81,13 @@ export async function handleProjectCommand(
       return ok(requestId, 'project/list', listed);
     }
     case 'project/open': {
-      const openPath = await resolveOpenProjectPath(projectsPath, command.path, requestId);
+      const openPath = bindProjectLocator(
+        typeof command.path === 'string' ? command.path : '',
+        (await loadProjectStore(projectsPath)).projects,
+        { generalWorkspacePath: getPiwinGeneralWorkspacePath(rootDir) },
+      );
       if (!openPath.ok) {
-        return openPath.response;
+        return fail(requestId, 'project/open', openPath.error);
       }
       const document = await loadProjectStore(projectsPath);
       const registeredPaths = document.projects.map((item) => item.path);
@@ -110,7 +114,9 @@ export async function handleProjectCommand(
       });
     }
     case 'project/remove': {
-      const bound = bindProjectLocator(command.path, (await loadProjectStore(projectsPath)).projects);
+      const bound = bindProjectLocator(command.path, (await loadProjectStore(projectsPath)).projects, {
+        generalWorkspacePath: getPiwinGeneralWorkspacePath(rootDir),
+      });
       if (!bound.ok) {
         return fail(requestId, 'project/remove', bound.error);
       }
@@ -124,7 +130,9 @@ export async function handleProjectCommand(
       });
     }
     case 'project/trust': {
-      const bound = bindProjectLocator(command.path, (await loadProjectStore(projectsPath)).projects);
+      const bound = bindProjectLocator(command.path, (await loadProjectStore(projectsPath)).projects, {
+        generalWorkspacePath: getPiwinGeneralWorkspacePath(rootDir),
+      });
       if (!bound.ok) {
         return fail(requestId, 'project/trust', bound.error);
       }
@@ -138,7 +146,13 @@ export async function handleProjectCommand(
       });
     }
     case 'project/authorize-terminal': {
-      return authorizeTerminalCwd(projectsPath, command.projectPath, command.cwd, requestId);
+      return authorizeTerminalCwd(
+        projectsPath,
+        getPiwinGeneralWorkspacePath(rootDir),
+        command.projectPath,
+        command.cwd,
+        requestId,
+      );
     }
     case 'project/permissions-list': {
       const permissions = await listRememberedPermissions(projectsPath, command.path);
@@ -659,7 +673,9 @@ async function requireBrowseRoot(
     };
   }
   const document = await loadProjectStore(projectsPath);
-  const bound = bindProjectLocator(trimmed, document.projects);
+  const bound = bindProjectLocator(trimmed, document.projects, {
+    generalWorkspacePath: getPiwinGeneralWorkspacePath(piwinRoot),
+  });
   if (!bound.ok) {
     return {
       ok: false,
@@ -705,28 +721,9 @@ async function directoryExists(absolutePath: string): Promise<boolean> {
   }
 }
 
-async function resolveOpenProjectPath(
-  projectsPath: string,
-  locator: string,
-  requestId: string | undefined,
-): Promise<{ ok: true; path: string } | { ok: false; response: HostResponse }> {
-  const trimmed = typeof locator === 'string' ? locator.trim() : '';
-  if (!trimmed) {
-    return { ok: false, response: fail(requestId, 'project/open', 'project-root-required') };
-  }
-  if (!isRemoteProjectId(trimmed)) {
-    return { ok: true, path: trimmed };
-  }
-  const document = await loadProjectStore(projectsPath);
-  const path = resolveProjectPathById(document.projects, trimmed);
-  if (path === undefined) {
-    return { ok: false, response: fail(requestId, 'project/open', 'unknown-project') };
-  }
-  return { ok: true, path };
-}
-
 async function authorizeTerminalCwd(
   projectsPath: string,
+  generalWorkspacePath: string,
   projectPath: string,
   cwd: string | undefined,
   requestId: string | undefined,
@@ -761,7 +758,7 @@ async function authorizeTerminalCwd(
   }
 
   const document = await loadProjectStore(projectsPath);
-  const bound = bindProjectLocator(trimmedProject, document.projects);
+  const bound = bindProjectLocator(trimmedProject, document.projects, { generalWorkspacePath });
   if (!bound.ok) {
     return fail(requestId, 'project/authorize-terminal', bound.error);
   }

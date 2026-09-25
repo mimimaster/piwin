@@ -22,4 +22,14 @@ describe('bindProjectLocator', () => {
       error: 'unknown-project',
     });
   });
+  it('resolves the advertised No Repo workspace id even when it is not registered', () => {
+    const workspace = '/Users/me/.piwin/workspace';
+    const id = createRemoteProjectId(workspace);
+    expect(bindProjectLocator(id, [], { generalWorkspacePath: workspace })).toEqual({
+      ok: true,
+      path: workspace,
+    });
+    // Without the workspace hint the id stays unknown (old behaviour, the bug).
+    expect(bindProjectLocator(id, [])).toEqual({ ok: false, error: 'unknown-project' });
+  });
 });
