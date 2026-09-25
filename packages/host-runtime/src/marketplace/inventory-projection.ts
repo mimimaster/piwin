@@ -32,6 +32,11 @@ export type InventorySessionView = {
   loadedExtensions?: readonly LoadedExtensionRef[];
   /** Most recent deployment for this session, used to surface apply failures. */
   latestDeployment?: ExtensionDeploymentRecord;
+  /**
+   * Pure chat conversations compile with no extensions by design (Pure Chat
+   * spec §5.2), so nothing is ever "pending" for them.
+   */
+  conversationOnly?: boolean;
 };
 
 export type InventoryProjectionInput = {
@@ -65,6 +70,12 @@ function extensionAvailability(
     return {
       availability: 'failed',
       message: 'Not compatible with the piwin Agent Runtime; it will not load.',
+    };
+  }
+  if (session?.conversationOnly) {
+    return {
+      availability: 'installed',
+      message: 'Chat conversations do not load extensions; project sessions do.',
     };
   }
   const loaded = session?.loadedExtensions;

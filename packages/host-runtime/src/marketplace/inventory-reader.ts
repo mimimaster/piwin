@@ -13,9 +13,11 @@ import { formatError } from '@piwin/contracts';
 import { createExtensionRevisionStore } from '@piwin/extensions';
 import { matchCatalogEntry } from '@piwin/marketplace';
 import { loadMcpConfig } from '@piwin/mcp';
+import { getSessionRecord } from '@piwin/session';
 import { loadCatalogResources } from '../commands/catalog-resources.js';
 import type { HostCommandContext } from '../commands/host-command-context.js';
-import { getPiwinRoot } from '../paths.js';
+import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
+import { isConversationIndexRecord } from '../session-scope.js';
 import { projectMarketplaceInventory, type InventorySessionView } from './inventory-projection.js';
 
 export type ReadInventoryOptions = {
@@ -47,10 +49,15 @@ export async function readMarketplaceInventory(
   let session: InventorySessionView | undefined;
   if (options.sessionId) {
     const loadedExtensions = context.getLoadedExtensions?.(options.sessionId);
-    const latestDeployment = latestDeploymentFor(await store.listDeployments(), options.sessionId);
+    const [deployments, record] = await Promise.all([
+      store.listDeployments(),
+      getSessionRecord(getPiwinSessionIndexPath(rootDir), options.sessionId),
+    ]);
+    const latestDeployment = latestDeploymentFor(deployments, options.sessionId);
     session = {
       ...(loadedExtensions ? { loadedExtensions } : {}),
       ...(latestDeployment ? { latestDeployment } : {}),
+      ...(record && isConversationIndexRecord(record) ? { conversationOnly: true } : {}),
     };
   }
   return projectMarketplaceInventory({

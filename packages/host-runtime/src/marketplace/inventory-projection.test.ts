@@ -127,6 +127,20 @@ describe('projectMarketplaceInventory — extensions', () => {
     expect(item.availability).toBe('failed');
   });
 
+  it('does not promise extensions to a pure chat conversation', () => {
+    const item = only(
+      projectMarketplaceInventory(
+        input({
+          extensions: [extension()],
+          managedRecords: [managedRecord()],
+          session: { loadedExtensions: [], conversationOnly: true },
+        }),
+      ),
+    );
+    expect(item.availability).toBe('installed');
+    expect(item.message).toContain('Chat conversations');
+  });
+
   it('shows pending removal and hides a second uninstall', () => {
     const item = only(
       projectMarketplaceInventory(
