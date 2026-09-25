@@ -82,6 +82,39 @@ describe('chatUiReducer queued-turn recovery', () => {
     expect(isQueuedTurnHiddenFromTranscript(state.messages[0]!)).toBe(true);
   });
 
+  it('moves a started queued row after the reply it waited for', () => {
+    let state = chatUiReducer(createInitialChatUiState(), {
+      type: 'session/set',
+      sessionId: 'session-1',
+    });
+    state = chatUiReducer(state, { type: 'session/queued-turn-updated', queuedTurn: pendingTurn });
+    state = {
+      ...state,
+      messages: [
+        ...state.messages,
+        {
+          id: 'assistant-final',
+          role: 'assistant',
+          text: 'done1',
+          thinking: '',
+          tools: [],
+          attachments: [],
+          status: 'done',
+          runId: 'run-1',
+        },
+      ],
+    };
+    state = chatUiReducer(state, {
+      type: 'session/queued-turn-updated',
+      queuedTurn: { ...pendingTurn, revision: 2, status: 'starting' },
+    });
+
+    expect(state.messages.map((message) => message.id)).toEqual([
+      'assistant-final',
+      pendingTurn.userMessageId,
+    ]);
+  });
+
   it('keeps the synthesized row visible when send-now converts it to an intervention', () => {
     let state = chatUiReducer(createInitialChatUiState(), {
       type: 'session/set',

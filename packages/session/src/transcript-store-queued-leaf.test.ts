@@ -90,6 +90,13 @@ describe('SessionTranscriptStore queued-turn leaf', () => {
     expect(starting).toMatchObject({ status: 'starting' });
     expect(await store.getActiveLeaf()).toBe('queued-user');
     expect(await store.getParentMessageId('queued-user')).toBe('asst-2');
+    // Linear pages must show the started turn after the reply it waited for.
+    expect((await store.listTail(10)).map((message) => message.id)).toEqual([
+      'user-1',
+      'asst-1',
+      'asst-2',
+      'queued-user',
+    ]);
     store.close();
   });
 

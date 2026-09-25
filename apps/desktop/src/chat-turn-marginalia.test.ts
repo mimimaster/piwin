@@ -104,6 +104,29 @@ describe('chat-turn-marginalia', () => {
     expect(dataEn.usage).toBe('Editing');
   });
 
+  it('labels a queued turn as queued, not as an intervention', () => {
+    const userMsg: ChatMessageUi = {
+      id: 'msg-1',
+      role: 'user',
+      text: 'next',
+      thinking: '',
+      tools: [],
+      status: 'done',
+      attachments: [],
+    };
+    const delivery = { instructionId: 'i-1', status: 'started' as const, revision: 2 };
+    const queued = resolveTurnMarginalia(
+      [{ ...userMsg, instructionDelivery: { ...delivery, kind: 'queued-turn' } }],
+      { locale: 'zh-CN' },
+    );
+    expect(queued.usage).toBe('排队');
+    const steered = resolveTurnMarginalia(
+      [{ ...userMsg, instructionDelivery: { ...delivery, kind: 'run-intervention', status: 'applied' } }],
+      { locale: 'zh-CN' },
+    );
+    expect(steered.usage).toBe('介入');
+  });
+
   it('resolves assistant turn marginalia with model and metrics', () => {
     const asstMsg: ChatMessageUi = {
       id: 'msg-2',

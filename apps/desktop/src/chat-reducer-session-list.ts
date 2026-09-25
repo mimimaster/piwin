@@ -7,7 +7,7 @@ import {
 } from './session-list-scope';
 import { removeWarmSessionSnapshot } from './session-warm-cache';
 import { applyContextTelemetry } from './context-telemetry-reducer';
-import type { ChatUiAction, ChatUiState, SessionListItemUi } from './chat-ui-types';
+import type { ChatMessageUi, ChatUiAction, ChatUiState, SessionListItemUi } from './chat-ui-types';
 import {
   addSessionTombstone,
   clearSessionTombstone,
@@ -496,13 +496,25 @@ export function reduceChatSessionList(
               revision: queuedTurn.revision,
               ...(targetRunId ? { targetRunId } : {}),
             };
-          messages = [...state.messages];
-          messages[messageIndex] = {
+          const updated: ChatMessageUi = {
             ...previous,
             text: queuedTurn.input.text,
             ...(queuedTurn.startedRunId ? { runId: queuedTurn.startedRunId } : {}),
             instructionDelivery,
           };
+          messages = [...state.messages];
+          // The row was projected at submit time; replies of the run it waited
+          // for landed after it. Once it starts (Host moves it to the transcript
+          // tail too), it belongs after them — before its own run streams.
+          if (
+            previous.instructionDelivery?.status === 'pending' &&
+            (queuedTurn.status === 'starting' || queuedTurn.status === 'started')
+          ) {
+            messages.splice(messageIndex, 1);
+            messages.push(updated);
+          } else {
+            messages[messageIndex] = updated;
+          }
         }
       }
       return {

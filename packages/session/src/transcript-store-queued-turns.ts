@@ -357,6 +357,16 @@ export function createTranscriptQueuedTurnsOps(
           // leaf only when admission actually starts (or jumps to started).
           if (input.to === 'starting' || (input.to === 'started' && row.status !== 'starting')) {
             attachToActiveLeaf(row.user_message_id);
+            // The row was written at submit time, so its sequence sits before
+            // the replies the previous run streamed afterwards. Linear pages
+            // order by sequence; move it to the tail so the turn it starts
+            // follows the reply it waited for.
+            db.prepare(
+              `UPDATE transcript_message
+               SET sequence = (SELECT MAX(sequence) + 1 FROM transcript_message)
+               WHERE id = ?
+                 AND sequence < (SELECT MAX(sequence) FROM transcript_message)`,
+            ).run(row.user_message_id);
           }
           bumpQueueRevision();
           db.exec('COMMIT');

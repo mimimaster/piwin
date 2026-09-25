@@ -228,17 +228,21 @@ export function resolveTurnMarginalia(
       options?.editingMessageId &&
         messages.some((m) => m.id === options.editingMessageId),
     );
-    const isIntervention = lead?.instructionDelivery !== undefined;
+    const deliveryKind = lead?.instructionDelivery?.kind;
     const isChinese = options?.locale !== 'en';
     const usage = isEditing
       ? isChinese
         ? '编辑中'
         : 'Editing'
-      : isIntervention
+      : deliveryKind === 'run-intervention'
         ? isChinese
           ? '介入'
           : 'Intervention'
-        : null;
+        : deliveryKind === 'queued-turn'
+          ? isChinese
+            ? '排队'
+            : 'Queued'
+          : null;
     return {
       who: '',
       avatar: null,
