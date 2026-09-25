@@ -22,6 +22,7 @@ export type DesktopCopy = {
     description: string;
     endpointLabel: string;
     endpointPlaceholder: string;
+    endpointHint: string;
     tokenLabel: string;
     tokenPlaceholder: string;
     connect: string;
@@ -29,6 +30,10 @@ export type DesktopCopy = {
     useThisMac: string;
     instanceId: (id: string) => string;
     invalidEndpoint: string;
+    statusLive: string;
+    statusRemote: string;
+    statusDisconnected: string;
+    shellOnlyNote: string;
   };
   hostGate: {
     chooserTitle: string;
@@ -46,17 +51,27 @@ export type DesktopCopy = {
     listenDescription: string;
     advertisedLabel: string;
     advertisedPlaceholder: string;
+    advertisedHint: string;
     generate: string;
     generating: string;
     copyUri: string;
     copied: string;
     devices: string;
     noDevices: string;
+    emptyDevicesHint: string;
     revoke: string;
     lastSeen: (at: string) => string;
     sidecarOnly: string;
+    sidecarOnlyTitle: string;
+    sidecarOnlyDesc: string;
+    sidecarOnlyShellTitle: string;
+    sidecarOnlyShellDesc: string;
+    switchToLocal: string;
     invalidAdvertised: string;
     pairingExpires: (at: string) => string;
+    statusListening: string;
+    statusIdle: string;
+    statusUnavailable: string;
   };
   backToWorkspace: string;
   configurationRoot: string;
@@ -625,6 +640,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       description: '连接到一台独立运行的 Host。清空后使用本机 sidecar。',
       endpointLabel: 'WebSocket 地址',
       endpointPlaceholder: 'ws://127.0.0.1:8787',
+      endpointHint: '目标 Host 运行端口的 WebSocket 监听地址',
       tokenLabel: 'Token',
       tokenPlaceholder: '未配置访问密码/Token 时可留空',
       connect: '连接',
@@ -632,6 +648,10 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       useThisMac: '使用本机',
       instanceId: (id) => `hostInstanceId：${id}`,
       invalidEndpoint: '请输入 ws:// 或 wss:// 地址',
+      statusLive: '运行中 · 本机 Sidecar',
+      statusRemote: '已连接 · 远程 Host',
+      statusDisconnected: '未连接',
+      shellOnlyNote: '提示：当前客户端为独立 Shell 模式，未内置本机 Sidecar 守护进程。',
     },
     hostGate: {
       chooserTitle: '选择 Host',
@@ -649,17 +669,27 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       listenDescription: '绑定 127.0.0.1:8787。移动设备请使用 Tailscale 或 SSH 隧道转发该端口。',
       advertisedLabel: '手机可达地址',
       advertisedPlaceholder: 'ws://127.0.0.1:8787 或 wss://mac.tailnet.ts.net:8787',
+      advertisedHint: '手机连接使用的 WebSocket 地址，开启监听后不可更改',
       generate: '生成配对码',
       generating: '正在生成…',
       copyUri: '复制 URI',
       copied: '已复制',
       devices: '已配对设备',
       noDevices: '还没有配对设备',
+      emptyDevicesHint: '开启接入后，使用手机端扫描或输入配对码即可连接。',
       revoke: '撤销',
       lastSeen: (at) => `最后活跃：${at}`,
       sidecarOnly: '手机接入只在本机 sidecar 上可用。请先点「使用本机」。',
+      sidecarOnlyTitle: '仅支持本机 Sidecar 服务',
+      sidecarOnlyDesc: '当前已连接远程 Host。手机配对需要直接连接本机运行的 Sidecar 服务。',
+      sidecarOnlyShellTitle: '薄壳模式不可用',
+      sidecarOnlyShellDesc: '当前客户端为纯前端/独立 Shell 模式，未内置本机 Sidecar。如需手机配对，请在运行 Host 的主机上配置。',
+      switchToLocal: '切换至本机 Sidecar',
       invalidAdvertised: '请输入 ws:// 或 wss:// 地址',
       pairingExpires: (at) => `配对码有效至 ${at}`,
+      statusListening: '监听中',
+      statusIdle: '未启用',
+      statusUnavailable: '不可用',
     },
     backToWorkspace: '返回工作区',
     configurationRoot: '配置根目录',
@@ -977,6 +1007,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       description: 'Attach to a standalone Host. Clear the target to use this Mac’s sidecar.',
       endpointLabel: 'WebSocket URL',
       endpointPlaceholder: 'ws://127.0.0.1:8787',
+      endpointHint: 'WebSocket listening URL of the target Host port',
       tokenLabel: 'Token',
       tokenPlaceholder: 'Leave empty if the Host has no door token',
       connect: 'Connect',
@@ -984,6 +1015,10 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       useThisMac: 'Use this Mac',
       instanceId: (id) => `hostInstanceId: ${id}`,
       invalidEndpoint: 'Enter a ws:// or wss:// URL',
+      statusLive: 'Active · Local Sidecar',
+      statusRemote: 'Connected · Remote Host',
+      statusDisconnected: 'Disconnected',
+      shellOnlyNote: 'Note: Current build is a thin shell without a local sidecar daemon.',
     },
     hostGate: {
       chooserTitle: 'Choose a Host',
@@ -1004,18 +1039,28 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
         'Binds 127.0.0.1:8787. For a physical phone, expose that port with Tailscale or an SSH tunnel.',
       advertisedLabel: 'Phone-reachable URL',
       advertisedPlaceholder: 'ws://127.0.0.1:8787 or wss://mac.tailnet.ts.net:8787',
+      advertisedHint: 'WebSocket URL reached by the phone; locked once listening',
       generate: 'Create pairing code',
       generating: 'Creating…',
       copyUri: 'Copy URI',
       copied: 'Copied',
       devices: 'Paired devices',
       noDevices: 'No paired devices yet',
+      emptyDevicesHint: 'Once phone access is turned on, scan or enter the pairing code from your phone.',
       revoke: 'Revoke',
       lastSeen: (at) => `Last seen: ${at}`,
       sidecarOnly:
         'Phone access is only available on this Mac’s sidecar. Choose “Use this Mac” first.',
+      sidecarOnlyTitle: 'Local Sidecar Required',
+      sidecarOnlyDesc: 'Currently connected to a remote Host. Phone pairing requires connecting to a local Sidecar.',
+      sidecarOnlyShellTitle: 'Not available in shell-only mode',
+      sidecarOnlyShellDesc: 'This client is running in shell-only mode without a local Sidecar. To pair a phone, configure mobile access on the Host machine.',
+      switchToLocal: 'Switch to Local Sidecar',
       invalidAdvertised: 'Enter a ws:// or wss:// URL',
       pairingExpires: (at) => `Pairing code expires ${at}`,
+      statusListening: 'Listening',
+      statusIdle: 'Inactive',
+      statusUnavailable: 'Unavailable',
     },
     backToWorkspace: 'Back to workspace',
     configurationRoot: 'Configuration root',

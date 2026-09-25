@@ -248,6 +248,15 @@ html:is(
   .settings-main .settings-hub-tabs,
   .settings-main .session-hub-tabs {
     background: var(--s2);
+    border-bottom: 1px solid var(--l1);
+    margin-bottom: 16px;
+  }
+
+  .settings-main .mobile-access-empty-devices,
+  .settings-main .mobile-access-pairing-card,
+  .settings-main .mobile-access-device-item {
+    background: var(--s2);
+    box-shadow: 0 0 0 1px var(--l2);
   }
 
   .settings-main .settings-section-card {

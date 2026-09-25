@@ -1,0 +1,186 @@
+/* Settings: Host Target and Mobile Access section styling.
+   Improves density, form alignment, status badges, and device list. */
+
+/* Align notices flush inside settings-section-card */
+.settings-section-card .ui-notice {
+  margin: var(--s-3) 0 var(--s-4) 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Host Target Settings ─────────────────────────────────────── */
+
+.host-target-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  margin-top: var(--s-2);
+}
+
+.host-target-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--s-5);
+}
+
+.host-target-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-1);
+}
+
+.host-target-shell-note {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: var(--lh-tight);
+}
+
+/* ── Mobile Access Settings ───────────────────────────────────── */
+
+.mobile-access-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  transition: opacity var(--t-2) var(--ease-out);
+}
+
+.mobile-access-content.is-disabled {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.mobile-access-field {
+  max-width: 520px;
+}
+
+.mobile-access-action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+
+.mobile-access-pairing-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  border-radius: var(--r-control);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  margin-top: var(--s-3);
+}
+
+.mobile-access-pairing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.mobile-access-pairing-title {
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.mobile-access-pairing-expiry {
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
+.mobile-access-pairing-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.mobile-access-pairing-input-row .piwin-text-input {
+  flex: 1;
+}
+
+.mobile-access-devices-section {
+  margin-top: var(--s-5);
+  border-top: 1px solid var(--line-1);
+  padding-top: var(--s-5);
+}
+
+.settings-section-subtitle {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.mobile-access-empty-devices {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-control);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.mobile-access-empty-icon {
+  color: var(--text-4);
+  flex-shrink: 0;
+}
+
+.mobile-access-empty-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobile-access-empty-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.mobile-access-empty-desc {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  line-height: var(--lh-tight);
+}
+
+.mobile-access-device-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.mobile-access-device-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-control);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.mobile-access-device-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.mobile-access-device-name {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.mobile-access-device-meta {
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}

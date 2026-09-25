@@ -23,6 +23,7 @@
 @import './settings-provider-model-list.css';
 @import './settings-provider-connection-form.css';
 @import './settings-misc-pages.css';
+@import './settings-host-access.css';
 @import './settings-orchestration.css';
 @import './settings-permissions.css';
 @import './inkstone/settings.css';

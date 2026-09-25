@@ -91,8 +91,15 @@ function GeneralPreferencesSection(): ReactElement {
 
   return (
     <>
-      <div className="settings-section settings-section-card" data-testid="settings-general-base">
-        <PageTitle title={locale === 'zh-CN' ? '基础偏好' : 'General Preferences'} />
+      <div className="settings-section settings-section-card general-card" data-testid="settings-general-base">
+        <PageTitle
+          title={locale === 'zh-CN' ? '基础偏好' : 'General Preferences'}
+          description={
+            locale === 'zh-CN'
+              ? '桌面端界面显示与语言选项。'
+              : 'Desktop display and language preferences.'
+          }
+        />
         <FieldRow label={copy.language} description={copy.languageDescription}>
           <Select
             value={locale}
@@ -113,7 +120,7 @@ function GeneralPreferencesSection(): ReactElement {
       <MobileAccessSettings />
 
       {hostStatus ? (
-        <div className="settings-section settings-section-card" data-testid="capability-matrix">
+        <div className="settings-section settings-section-card host-capabilities-card" data-testid="capability-matrix">
           <button
             type="button"
             className="settings-collapsible-trigger"
@@ -123,6 +130,11 @@ function GeneralPreferencesSection(): ReactElement {
           >
             <PageTitle
               title={locale === 'zh-CN' ? 'Host 能力 (高级)' : 'Host capabilities (Advanced)'}
+              description={
+                locale === 'zh-CN'
+                  ? '查看当前 Host 支持的底层服务矩阵与运行规格。'
+                  : 'Runtime capability and isolation matrix for the active Host.'
+              }
             />
             <svg
               className={`settings-collapsible-chevron ${capabilitiesOpen ? 'open' : ''}`}
@@ -241,8 +253,8 @@ export function GeneralPage(): ReactElement {
           onChange={(val) => setActiveTab(val as GeneralSubTab)}
           fullWidth
           data={[
-            { value: 'appearance', label: isChinese ? '外观与主题' : 'Appearance' },
             { value: 'general', label: isChinese ? '基础设置' : 'General' },
+            { value: 'appearance', label: isChinese ? '外观与主题' : 'Appearance' },
             { value: 'shortcuts', label: isChinese ? '快捷键' : 'Shortcuts' },
             {
               value: 'pets',

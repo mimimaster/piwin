@@ -1,14 +1,11 @@
-import { useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { DropdownMenu, DropdownMenuItem, EmptyState, FileTypeIcon, IconButton } from '@piwin/ui-kit';
 import {
-  IconBook,
   IconChat,
   IconCopy,
-  IconDocument,
   IconDownload,
   IconClose,
   IconLink,
-  IconMenuList,
   IconMore,
 } from './shell-icons';
 import { EnhancedMarkdownView, type LineCommentItem } from './EnhancedMarkdownView';
@@ -106,8 +103,6 @@ export function DocPreviewPanel({
   maxBytes,
   attempts,
   readOnly = false,
-  sessionDocuments,
-  onSelectDocument,
   onClose,
   onOpenFile,
   comments = [],
@@ -118,8 +113,6 @@ export function DocPreviewPanel({
   locale = 'zh-CN',
   artifactTheme,
 }: DocPreviewPanelProps): ReactElement {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
   const rawTitle = title || 'Implementation Plan';
   const cleanName = rawTitle.split(/[\\/]/).pop() || rawTitle;
   const displayTitle = cleanName.replace(/\.md$/i, '');
@@ -247,59 +240,10 @@ export function DocPreviewPanel({
               </span>
             </DropdownMenuItem>
           </DropdownMenu>
-
-          <IconButton
-            label={locale === 'zh-CN' ? '切换侧边栏' : 'Toggle Sidebar'}
-            title={locale === 'zh-CN' ? '切换侧边栏' : 'Toggle Sidebar'}
-            onClick={() => setSidebarOpen((prev) => !prev)}
-            className={sidebarOpen ? 'doc-action-active' : ''}
-          >
-            <IconMenuList width={14} height={14} />
-          </IconButton>
         </div>
       </header>
 
       <div className="doc-preview-container">
-        {sidebarOpen && sessionDocuments && sessionDocuments.length > 0 ? (
-          <aside className="doc-sidebar" data-testid="doc-sidebar">
-            <div className="doc-sidebar-header">
-              <span>Artifacts</span>
-            </div>
-            <ul className="doc-sidebar-list">
-              {sessionDocuments.map((docItem) => {
-                const isActive =
-                  docItem.title.toLowerCase() === displayTitle.toLowerCase() ||
-                  (docItem.path && filePath && docItem.path.includes(filePath));
-                const itemPath = docItem.path || docItem.title;
-                return (
-                  <li key={docItem.id}>
-                    <button
-                      type="button"
-                      className={`doc-sidebar-item${isActive ? ' active' : ''}`}
-                      onClick={() =>
-                        onSelectDocument?.({
-                          title: docItem.title,
-                          ...(docItem.path ? { path: docItem.path } : {}),
-                        })
-                      }
-                    >
-                      <span className="doc-sidebar-icon">
-                        {docItem.iconKind === 'book' ? (
-                          <IconBook width={14} height={14} />
-                        ) : docItem.iconKind === 'plan' ? (
-                          <IconDocument width={14} height={14} />
-                        ) : (
-                          <FileTypeIcon filePathOrExt={itemPath} />
-                        )}
-                      </span>
-                      <span className="doc-sidebar-title">{docItem.title}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </aside>
-        ) : null}
 
         <div className="doc-preview-body">
           {status === 'loading' ? (
