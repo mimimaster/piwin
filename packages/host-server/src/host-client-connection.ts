@@ -32,6 +32,8 @@ export type HostClientConnection = {
   egressChannel: HostEgressChannel | undefined;
   egressDetach: () => void;
   deviceId: string | undefined;
+  /** Peer is this machine and no proxy relayed it; see `isDirectLoopbackRequest`. */
+  directLoopback: boolean;
   idempotencyScope: string;
   connectionId: string;
   clientId: string | undefined;
@@ -71,6 +73,8 @@ export function isAllowedHostClientOrigin(input: {
  */
 export function createHostClientConnection(options: {
   socket: WebSocket;
+  /** Defaults to false: a connection must prove it is local to skip auth. */
+  directLoopback?: boolean;
   onHandshakeTimeout: (connection: HostClientConnection) => void;
   handshakeTimeoutMs?: number;
 }): HostClientConnection {
@@ -89,6 +93,7 @@ export function createHostClientConnection(options: {
     egressChannel: undefined,
     egressDetach: () => undefined,
     deviceId: undefined,
+    directLoopback: options.directLoopback ?? false,
     idempotencyScope: '',
     connectionId: randomUUID(),
     clientId: undefined,

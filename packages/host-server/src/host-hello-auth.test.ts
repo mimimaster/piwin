@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HostDevicePairing } from './device-pairing.js';
 import { authenticateHostHello } from './host-hello-auth.js';
-import { assertPairingBindIsAdvertisable, createPairingQrPayload } from './pairing-qr.js';
+import { assertPairingEndpointIsDialable, createPairingQrPayload } from './pairing-qr.js';
 
 function tokensEqual(expected: string, provided: string | undefined): boolean {
   return provided === expected;
@@ -90,8 +90,11 @@ describe('authenticateHostHello', () => {
 });
 
 describe('pairing QR', () => {
-  it('refuses a wildcard bind', () => {
-    expect(() => assertPairingBindIsAdvertisable('0.0.0.0')).toThrow('wildcard');
+  it('refuses a wildcard or malformed QR endpoint', () => {
+    expect(() => assertPairingEndpointIsDialable('ws://0.0.0.0:8787')).toThrow('wildcard');
+    expect(() => assertPairingEndpointIsDialable('ws://[::]:8787')).toThrow('wildcard');
+    expect(() => assertPairingEndpointIsDialable('not a url')).toThrow('valid URL');
+    expect(() => assertPairingEndpointIsDialable('ws://192.168.1.5:8787')).not.toThrow();
   });
 
   it('builds a v1 payload without a door token field', () => {

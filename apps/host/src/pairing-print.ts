@@ -1,5 +1,4 @@
 import {
-  assertPairingBindIsAdvertisable,
   createPairingQrPayload,
   pairingQrUri,
   type PairingQrPayload,
@@ -14,13 +13,11 @@ export function resolveAdvertisedEndpoint(
 }
 
 export function createHostPairingAnnouncement(input: {
-  bindHost: string;
   advertisedEndpoint: string;
   pairingToken: string;
   hostInstanceId: string;
   expiresAt: number;
 }): { payload: PairingQrPayload; text: string } {
-  assertPairingBindIsAdvertisable(input.bindHost);
   const payload = createPairingQrPayload({
     advertisedEndpoint: input.advertisedEndpoint,
     pairingToken: input.pairingToken,

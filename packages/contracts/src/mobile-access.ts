@@ -17,8 +17,14 @@ export const LOCAL_MOBILE_ACCESS_COMMAND_TYPES = [
 
 export type LocalMobileAccessCommandType = (typeof LOCAL_MOBILE_ACCESS_COMMAND_TYPES)[number];
 
-/** First supported bind profile: loopback; phone reaches it via an operator tunnel. */
+/** Loopback bind; the phone reaches it only through an operator tunnel. */
 export const MOBILE_ACCESS_LOOPBACK_PROFILE_ID = 'loopback';
+/**
+ * Default bind for the bundled app: all interfaces, so a phone on the same
+ * Wi-Fi or tailnet can scan the QR and connect. Admission still requires a
+ * paired device credential (no anonymous hello off loopback).
+ */
+export const MOBILE_ACCESS_LAN_PROFILE_ID = 'lan';
 
 export type LocalMobileAccessCommand =
   | { id?: string; type: 'mobile-access/status' }
@@ -36,9 +42,23 @@ export type PairedDeviceSummary = {
   revoked: boolean;
 };
 
+/** A phone-reachable address the sidecar found on this machine's interfaces. */
+export type MobileAccessEndpointCandidate = {
+  url: string;
+  kind: 'lan' | 'tailscale';
+  interfaceName: string;
+};
+
 export type MobileAccessStatusData = {
   listening: boolean;
   pairedDeviceCount: number;
+  /** Persisted preference: the sidecar resumes listening on start when true. */
+  enabled?: boolean;
+  /** `auto` = advertised endpoint follows the best detected candidate. */
+  advertisedEndpointSource?: 'auto' | 'custom';
+  endpointCandidates?: MobileAccessEndpointCandidate[];
+  /** Why the last start (including the automatic resume) failed. */
+  lastError?: string;
   profileId?: string;
   bindHost?: string;
   bindPort?: number;
@@ -118,7 +138,29 @@ export function readMobileAccessStatusData(value: unknown): MobileAccessStatusDa
   if (typeof value.hostInstanceId === 'string' && value.hostInstanceId.length > 0) {
     status.hostInstanceId = value.hostInstanceId;
   }
+  if (typeof value.enabled === 'boolean') {
+    status.enabled = value.enabled;
+  }
+  if (value.advertisedEndpointSource === 'auto' || value.advertisedEndpointSource === 'custom') {
+    status.advertisedEndpointSource = value.advertisedEndpointSource;
+  }
+  if (Array.isArray(value.endpointCandidates)) {
+    status.endpointCandidates = value.endpointCandidates.filter(isEndpointCandidate);
+  }
+  if (typeof value.lastError === 'string' && value.lastError.length > 0) {
+    status.lastError = value.lastError;
+  }
   return status;
+}
+
+function isEndpointCandidate(value: unknown): value is MobileAccessEndpointCandidate {
+  return (
+    isRecord(value) &&
+    typeof value.url === 'string' &&
+    value.url.length > 0 &&
+    (value.kind === 'lan' || value.kind === 'tailscale') &&
+    typeof value.interfaceName === 'string'
+  );
 }
 
 export function readMobileAccessPairingCodeData(value: unknown): MobileAccessPairingCodeData | undefined {

@@ -74,6 +74,27 @@ describe('LocalMobileAccessCommand', () => {
     });
 
     expect(
+      readMobileAccessStatusData({
+        listening: false,
+        pairedDeviceCount: 0,
+        enabled: true,
+        advertisedEndpointSource: 'auto',
+        endpointCandidates: [
+          { url: 'ws://192.168.1.5:8787', kind: 'lan', interfaceName: 'en0' },
+          { url: 'ws://10.0.0.1:8787', kind: 'vpn', interfaceName: 'utun3' },
+        ],
+        lastError: 'port busy',
+      }),
+    ).toEqual({
+      listening: false,
+      pairedDeviceCount: 0,
+      enabled: true,
+      advertisedEndpointSource: 'auto',
+      endpointCandidates: [{ url: 'ws://192.168.1.5:8787', kind: 'lan', interfaceName: 'en0' }],
+      lastError: 'port busy',
+    });
+
+    expect(
       readMobileAccessPairingCodeData({
         endpoint: 'ws://127.0.0.1:8787',
         pairingToken: 'token',

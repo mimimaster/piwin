@@ -104,3 +104,27 @@ Costs:
   transport/state and carries PTY, sidecar, and desktop-only assumptions.
 - Remote PTY in P0 — rejected under ADR 0013; it needs a separate security,
   flow-control, and lifecycle design.
+
+## Update 2026-09-25 — Host-only shell
+
+Owner direction: the app is a shell that only displays and relays; all
+behaviour stays on the Host. What shipped
+([plan](../plans/2026-09-25-mobile-shell-host-parity.md)):
+
+- **No demo mode.** Every page and sheet renders Host data or a
+  "needs Host" state; the local reducer holds UI state only
+  (`apps/mobile/src/inkstone/inkstone-state.ts`).
+- **Transcript = Host presentation.** One turn per Host run; tool rows read
+  `ToolPresentation`; outputs load on demand (`session/tool-output`);
+  questionnaires answer through `extension/ui_resolve`; queued turns and
+  interventions follow ADR 0051; retries follow ADR 0064.
+- **Shared reading of user rows.** `extractUserFacingBody` /
+  `readPlanActionMarker` live in `@piwin/contracts`; shells no longer keep
+  their own envelope blacklists.
+- **Live is app-scoped.** The call's media driver outlives the voice page so
+  the user can keep talking while reading; the floating capsule is its handle.
+- **Model output stays sandboxed.** Artifacts render in the sandboxed stage;
+  SVG previews use an inert `<img>`, never `innerHTML`.
+- Still desktop-only by design: remote PTY, installs, credentials and moving
+  Host files (cold storage).
+

@@ -113,6 +113,10 @@ The first supported Hybrid Host deployment is deliberately narrow:
 - WireGuard interface selected explicitly; or
 - Host bound to loopback while a user-operated encrypted tunnel exposes it.
 
+> **Superseded 2026-09-26 by [ADR 0076](../../adr/0076-bundled-phone-access-lan.md):**
+> the bundled app now binds `0.0.0.0` and picks a LAN/tailnet address
+> automatically; only the QR endpoint must be non-wildcard and non-public.
+
 The controller must refuse:
 
 - wildcard binds such as `0.0.0.0` / `::`;

@@ -20,6 +20,7 @@ export function createPairingQrPayload(input: {
   if (endpoint.length === 0) {
     throw new Error('Pairing QR requires an advertised endpoint');
   }
+  assertPairingEndpointIsDialable(endpoint);
   return {
     v: 1,
     endpoint,
@@ -40,8 +41,20 @@ export function pairingQrUri(payload: PairingQrPayload): string {
   return `piwin://pair?${params.toString()}`;
 }
 
-export function assertPairingBindIsAdvertisable(bindHost: string): void {
-  if (isWildcardHostBind(bindHost)) {
-    throw new Error('Refusing to print a pairing QR for a wildcard bind');
+/**
+ * A listener may bind a wildcard address (the bundled app listens on all
+ * interfaces), but the QR must name an address a phone can dial.
+ */
+export function assertPairingEndpointIsDialable(endpoint: string): void {
+  let hostname: string;
+  try {
+    hostname = new URL(endpoint).hostname;
+  } catch {
+    throw new Error(`Pairing endpoint is not a valid URL: ${endpoint}`);
+  }
+  if (isWildcardHostBind(hostname)) {
+    throw new Error(
+      'Refusing to print a pairing QR for a wildcard address; advertise a LAN or tailnet address instead',
+    );
   }
 }

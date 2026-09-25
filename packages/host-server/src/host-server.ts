@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type {
   HostMode,
   HostPairingCommand,
@@ -29,8 +31,10 @@ import {
   HostCommandIdempotencyRegistry,
   admitAndExecuteHostCommand,
 } from './host-command-idempotency-registry.js';
-import type { HostDevicePairing } from './device-pairing.js';
-import type { HostDevicePairingFileStore } from './device-pairing-store.js';
+import { HostDevicePairing } from './device-pairing.js';
+import { HostDevicePairingFileStore } from './device-pairing-store.js';
+import type { PairingRegistry } from './pairing-operations.js';
+import { isDirectLoopbackRequest } from './host-connection-origin.js';
 import { enrichHostListenError } from './listen-busy.js';
 import type { DeviceToolBroker } from './device-tool-broker.js';
 import { ClientToolFrameRouter } from './client-tool-frame-router.js';
@@ -115,6 +119,10 @@ export type HostServerOptions = {
   idempotencyRegistry?: HostCommandIdempotencyRegistry;
   /** Directory of a built Web shell. The same port serves the page and the socket. */
   webRoot?: string;
+  /** Root directory for piwin state (~/.piwin). Used for device pairing store fallback. */
+  piwinRoot?: string;
+  /** Explicit initial pairing status. Defaults to true if devicePairing is provided. */
+  pairingEnabled?: boolean;
   /** Address pairing codes point phones at; defaults to the bound URL. */
   pairingAdvertisedEndpoint?: string;
 };
@@ -134,13 +142,15 @@ const DEFAULT_PORT = 8787;
 
 export class HostServer {
   private readonly runtime: HostRuntimePort;
+  private readonly piwinRoot: string | undefined;
   private readonly host: string;
   private readonly port: number;
   private readonly mode: HostMode;
   private readonly instanceId: string;
   private readonly authToken: string | undefined;
-  private readonly devicePairing: HostDevicePairing | undefined;
-  private readonly devicePairingStore: HostDevicePairingFileStore | undefined;
+  private devicePairing: HostDevicePairing | undefined;
+  private devicePairingStore: HostDevicePairingFileStore | undefined;
+  private pairingEnabled: boolean;
   private readonly allowedOrigins: ReadonlySet<string> | undefined;
   private readonly capabilities: RemoteCapabilitySummary;
   private readonly connections = new Set<HostClientConnection>();
@@ -161,7 +171,7 @@ export class HostServer {
   private livenessTimer: ReturnType<typeof setInterval> | undefined;
   private browserFrameDetach: (() => void) | undefined;
   private readonly mirrorLeaseReaper: DisconnectedMirrorLeaseReaper;
-  private readonly pairingAdvertisedEndpoint: string | undefined;
+  private pairingAdvertisedEndpoint: string | undefined;
   private boundUrl: string | undefined;
 
   public constructor(options: HostServerOptions) {
@@ -180,8 +190,10 @@ export class HostServer {
     this.mode = options.mode ?? 'sdk';
     this.instanceId = options.instanceId ?? randomUUID();
     this.authToken = options.authToken;
+    this.piwinRoot = options.piwinRoot;
     this.devicePairing = options.devicePairing;
     this.devicePairingStore = options.devicePairingStore;
+    this.pairingEnabled = options.pairingEnabled ?? (this.devicePairing !== undefined);
     this.pairingAdvertisedEndpoint = options.pairingAdvertisedEndpoint?.trim() || undefined;
     this.allowedOrigins =
       options.allowedOrigins === undefined ? undefined : new Set(options.allowedOrigins);
@@ -431,6 +443,7 @@ export class HostServer {
     }
     const connection = createHostClientConnection({
       socket,
+      directLoopback: isDirectLoopbackRequest(request),
       onHandshakeTimeout: (pending) => {
         this.sendError(pending, 'authentication-required', 'Host hello is required');
         socket.close(4001, 'Host hello required');
@@ -555,6 +568,7 @@ export class HostServer {
       capabilities: this.capabilities,
       devicePairing: this.devicePairing,
       devicePairingStore: this.devicePairingStore,
+      pairingEnabled: this.pairingEnabled,
       egressHub: this.egressHub,
       clientToolBroker: this.clientToolBroker,
       onError: this.onError,
@@ -568,6 +582,33 @@ export class HostServer {
     };
   }
 
+  private async setPairingEnabled(enabled: boolean, advertisedEndpoint?: string): Promise<void> {
+    if (enabled) {
+      await this.ensurePairingRegistry();
+      this.pairingEnabled = true;
+      if (advertisedEndpoint?.trim()) {
+        this.pairingAdvertisedEndpoint = advertisedEndpoint.trim();
+      }
+    } else {
+      this.pairingEnabled = false;
+      this.devicePairing?.invalidatePendingTokens();
+    }
+  }
+
+  private async ensurePairingRegistry(): Promise<PairingRegistry> {
+    if (this.devicePairing !== undefined) {
+      return { pairing: this.devicePairing, store: this.devicePairingStore };
+    }
+    const root = this.piwinRoot ?? join(homedir(), '.piwin');
+    const pairing = new HostDevicePairing();
+    const store = new HostDevicePairingFileStore(join(root, 'devices', 'pairing.json'));
+    // A corrupt store must fail the enable: starting empty would orphan every paired phone.
+    await store.load(pairing);
+    this.devicePairing = pairing;
+    this.devicePairingStore = store;
+    return { pairing, store };
+  }
+
   private async handleCommand(
     connection: HostClientConnection,
     frame: Extract<HostWireMessage, { type: 'command' }>,
@@ -578,9 +619,12 @@ export class HostServer {
         pairing: this.devicePairing,
         store: this.devicePairingStore,
         hostInstanceId: this.instanceId,
-        bindHost: this.host,
         advertisedEndpoint: this.pairingAdvertisedEndpoint ?? this.boundUrl,
         callerDeviceId: connection.deviceId,
+        pairingEnabled: this.pairingEnabled,
+        setEnabled: async (enabled, advertisedEndpoint) => {
+          await this.setPairingEnabled(enabled, advertisedEndpoint);
+        },
         onRevoked: (deviceId) => {
           this.clientToolBroker?.forgetDevice(deviceId);
           this.disconnectDevice(deviceId, 'device revoked');

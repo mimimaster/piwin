@@ -37,6 +37,7 @@ export type HostHelloAcceptHost = {
   capabilities: RemoteCapabilitySummary;
   devicePairing: HostDevicePairing | undefined;
   devicePairingStore: HostDevicePairingFileStore | undefined;
+  pairingEnabled?: boolean;
   egressHub: HostEgressHub;
   clientToolBroker: DeviceToolBroker | undefined;
   onError: (error: Error) => void;
@@ -132,8 +133,11 @@ export async function acceptHostHello(
 
   const admission = await authenticateHostHello(message, {
     authToken: host.authToken,
-    devicePairing: host.devicePairing,
-    allowAnonymousHello: host.authToken === undefined && isLoopbackHost(host.host),
+    devicePairing: host.pairingEnabled === false ? undefined : host.devicePairing,
+    // A loopback bind is not enough: a reverse proxy on this machine also
+    // connects from 127.0.0.1. Only a direct local peer may skip auth.
+    allowAnonymousHello:
+      host.authToken === undefined && isLoopbackHost(host.host) && connection.directLoopback,
     persistEnrollment: async (pairing) => {
       if (host.devicePairingStore !== undefined) {
         await host.devicePairingStore.save(pairing);

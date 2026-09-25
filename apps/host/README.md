@@ -34,23 +34,40 @@ The Host process itself always creates a **cleartext** `WebSocketServer`.
 `PIWIN_HOST_ADVERTISED_URL` only changes what pairing QR / status print — it
 does **not** enable TLS in-process.
 
-Typical private deployment:
+Typical remote / public deployment:
 
 ```bash
-# Host binds loopback cleartext
-PIWIN_HOST_BIND=127.0.0.1 PIWIN_HOST_PORT=8787 PIWIN_HOST_PAIRING=1 \
-  PIWIN_HOST_ADVERTISED_URL=wss://mac.tailnet.ts.net pnpm --dir apps/host dev
+# Host binds loopback cleartext; a proxy in front terminates TLS
+PIWIN_HOST_BIND=127.0.0.1 PIWIN_HOST_PORT=8787 \
+  PIWIN_HOST_TOKEN="$(openssl rand -hex 32)" \
+  PIWIN_HOST_ADVERTISED_URL=wss://host.example.com pnpm --dir apps/host dev
 
 # Terminate TLS at Tailscale Serve / Caddy / nginx in front of 127.0.0.1:8787
 ```
 
+`PIWIN_HOST_TOKEN` is **required** here: the Host refuses to start when
+`PIWIN_HOST_ADVERTISED_URL` names a non-loopback address without it. Desktop
+enters the token under Settings → Remote Host; phones still pair by QR and
+never need it.
+
 Dialing `wss://host:8787` **directly at the Node process** will fail unless a
 TLS proxy is in front. Prefer Tailscale Serve or a reverse proxy.
+
+## Who may connect without credentials
+
+Only a client **on this machine, connecting directly**: loopback bind, no
+`PIWIN_HOST_TOKEN`, a loopback peer address, and no proxy headers
+(`Forwarded`, `X-Forwarded-*`, `X-Real-IP`, `CF-Connecting-IP`,
+`Tailscale-User-Login`). A reverse proxy also connects from 127.0.0.1, so a
+relayed request must present a token or a paired-device credential. TCP
+forwarders (frp, `ngrok tcp`, socat) add no headers — the startup check above
+is what protects those setups, so always set `PIWIN_HOST_TOKEN` when the Host
+is reachable from anywhere else.
 
 ## Auth on non-loopback
 
 For a private-network bind, set `PIWIN_HOST_BIND` and also set
-`PIWIN_HOST_TOKEN`, or enable device pairing (`PIWIN_HOST_PAIRING=1`). A
+`PIWIN_HOST_TOKEN`, or keep device pairing enabled (enabled by default; disable with `PIWIN_HOST_PAIRING=0`). A
 non-loopback bind without a door token or pairing store is rejected.
 
 Door tokens on cleartext LAN WebSockets are visible to anyone on the path.
@@ -72,10 +89,13 @@ Values are exact Origins (`scheme://host[:port]`), comma-separated, at most 32.
 a private network you already trust. CLI and native clients omit `Origin` and
 are unchanged.
 
-Device pairing (mobile enrollment) is operator-local:
+## Device pairing (mobile enrollment)
+
+Device pairing is enabled by default on the Host (and can be toggled on/off from Desktop settings).
+To specify the reachable public/Tailscale address for pairing codes and the startup QR:
 
 ```bash
-PIWIN_HOST_PAIRING=1 PIWIN_HOST_ADVERTISED_URL=wss://mac.tailnet.ts.net pnpm --dir apps/host dev
+PIWIN_HOST_ADVERTISED_URL=wss://mac.tailnet.ts.net pnpm --dir apps/host dev
 ```
 
 On start the process mints a one-time token (~10 minutes), persists hashes at

@@ -1,8 +1,19 @@
-import { describe, expect, it } from 'vitest';
-import type { HostCommand, HostResponse, PushSink } from '@piwin/contracts';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer, type Server } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type {
+  HostCommand,
+  HostResponse,
+  MobileAccessEndpointCandidate,
+  PushSink,
+} from '@piwin/contracts';
+import { readMobileAccessPairingCodeData, readMobileAccessStatusData } from '@piwin/contracts';
 import { HostDevicePairing } from './device-pairing.js';
 import { HostServer, type HostRuntimePort } from './host-server.js';
-import { MobileAccessController } from './mobile-access-controller.js';
+import { MobileAccessController, createMobileAccessController } from './mobile-access-controller.js';
+import { MobileAccessSettingsFileStore } from './mobile-access-settings-store.js';
 
 class FakeRuntime implements HostRuntimePort {
   public commands: HostCommand[] = [];
@@ -118,7 +129,7 @@ describe('MobileAccessController', () => {
     const { controller } = createController();
     const unsupported = await controller.handle({
       type: 'mobile-access/start',
-      profileId: 'lan',
+      profileId: 'bluetooth',
     });
     expect(unsupported.success).toBe(false);
     if (unsupported.success) {
@@ -128,6 +139,221 @@ describe('MobileAccessController', () => {
 
     const pairing = await controller.handle({ type: 'mobile-access/create-pairing-code' });
     expect(pairing.success).toBe(false);
+  });
+});
+
+function lanCandidates(port: number): MobileAccessEndpointCandidate[] {
+  return [
+    { url: `ws://192.168.1.5:${port}`, kind: 'lan', interfaceName: 'en0' },
+    { url: `ws://100.101.102.103:${port}`, kind: 'tailscale', interfaceName: 'utun4' },
+  ];
+}
+
+async function occupyPort(): Promise<{ server: Server; port: number }> {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '0.0.0.0', () => resolve());
+  });
+  const address = server.address();
+  if (address === null || typeof address === 'string') {
+    throw new Error('expected a TCP address');
+  }
+  return { server, port: address.port };
+}
+
+describe('MobileAccessController LAN profile', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const cleanup of cleanups.splice(0).reverse()) {
+      await cleanup();
+    }
+  });
+
+  async function tempSettingsStore(): Promise<{ store: MobileAccessSettingsFileStore; path: string }> {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-mobile-access-'));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const path = join(dir, 'mobile-access.json');
+    return { store: new MobileAccessSettingsFileStore(path), path };
+  }
+
+  it('binds all interfaces and puts the best LAN address in the QR', async () => {
+    const controller = new MobileAccessController({
+      runtime: new FakeRuntime(),
+      pairing: new HostDevicePairing(),
+      instanceId: 'lan-1',
+      bindPort: 0,
+      listEndpointCandidates: lanCandidates,
+    });
+    cleanups.push(() => controller.dispose());
+
+    const started = await controller.handle({ type: 'mobile-access/start', profileId: 'lan' });
+    const status = readMobileAccessStatusData(started.success ? started.data : undefined);
+    expect(status).toMatchObject({
+      listening: true,
+      enabled: true,
+      bindHost: '0.0.0.0',
+      advertisedEndpointSource: 'auto',
+    });
+    const port = status?.bindPort ?? -1;
+    expect(status?.advertisedEndpoint).toBe(`ws://192.168.1.5:${port}`);
+    expect(status?.endpointCandidates).toHaveLength(2);
+
+    const minted = await controller.handle({ type: 'mobile-access/create-pairing-code' });
+    const code = readMobileAccessPairingCodeData(minted.success ? minted.data : undefined);
+    expect(code?.endpoint).toBe(`ws://192.168.1.5:${port}`);
+
+    const custom = await controller.handle({
+      type: 'mobile-access/start',
+      profileId: 'lan',
+      advertisedEndpoint: `ws://100.101.102.103:${port}`,
+    });
+    expect(custom).toMatchObject({
+      success: true,
+      data: { advertisedEndpoint: `ws://100.101.102.103:${port}`, advertisedEndpointSource: 'custom', bindPort: port },
+    });
+
+    // Stop + start without an address keeps the custom one; blank returns to auto.
+    await controller.handle({ type: 'mobile-access/stop' });
+    const reopened = await controller.handle({ type: 'mobile-access/start', profileId: 'lan' });
+    const reopenedStatus = readMobileAccessStatusData(reopened.success ? reopened.data : undefined);
+    expect(reopenedStatus?.advertisedEndpointSource).toBe('custom');
+    const auto = await controller.handle({
+      type: 'mobile-access/start',
+      profileId: 'lan',
+      advertisedEndpoint: '',
+    });
+    const autoStatus = readMobileAccessStatusData(auto.success ? auto.data : undefined);
+    expect(autoStatus?.advertisedEndpointSource).toBe('auto');
+    expect(autoStatus?.advertisedEndpoint).toBe(`ws://192.168.1.5:${autoStatus?.bindPort ?? -1}`);
+
+    const wildcard = await controller.handle({
+      type: 'mobile-access/start',
+      profileId: 'lan',
+      advertisedEndpoint: 'ws://0.0.0.0:8787',
+    });
+    expect(wildcard).toMatchObject({ success: false, error: expect.stringContaining('wildcard') });
+    const http = await controller.handle({
+      type: 'mobile-access/start',
+      profileId: 'lan',
+      advertisedEndpoint: 'http://192.168.1.5:8787',
+    });
+    expect(http).toMatchObject({ success: false, error: expect.stringContaining('ws://') });
+  });
+
+  it('moves to the next port when the preferred one is taken', async () => {
+    const occupied = await occupyPort();
+    cleanups.push(
+      () => new Promise<void>((resolve) => occupied.server.close(() => resolve())),
+    );
+    const controller = new MobileAccessController({
+      runtime: new FakeRuntime(),
+      pairing: new HostDevicePairing(),
+      instanceId: 'lan-busy',
+      bindPort: occupied.port,
+      listEndpointCandidates: lanCandidates,
+    });
+    cleanups.push(() => controller.dispose());
+
+    const started = await controller.handle({ type: 'mobile-access/start', profileId: 'lan' });
+    expect(started.success).toBe(true);
+    const port = readMobileAccessStatusData(started.success ? started.data : undefined)?.bindPort;
+    expect(port).toBeGreaterThan(occupied.port);
+    expect(port).toBeLessThanOrEqual(occupied.port + 10);
+  });
+
+  it('persists the choice and resumes listening on the saved port', async () => {
+    const { store, path } = await tempSettingsStore();
+    const first = new MobileAccessController({
+      runtime: new FakeRuntime(),
+      pairing: new HostDevicePairing(),
+      settingsStore: store,
+      settings: await store.load(),
+      instanceId: 'lan-persist',
+      listEndpointCandidates: lanCandidates,
+    });
+    cleanups.push(() => first.dispose());
+    await first.resume();
+    const firstStatus = await first.handle({ type: 'mobile-access/status' });
+    const firstPort = readMobileAccessStatusData(firstStatus.success ? firstStatus.data : undefined)
+      ?.bindPort;
+    expect(firstPort).toBeGreaterThan(0);
+    expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({ enabled: true, port: firstPort });
+
+    // App quit keeps the preference; the next launch reopens the same port.
+    await first.dispose();
+    const second = new MobileAccessController({
+      runtime: new FakeRuntime(),
+      pairing: new HostDevicePairing(),
+      settingsStore: store,
+      settings: await store.load(),
+      instanceId: 'lan-persist',
+      listEndpointCandidates: lanCandidates,
+    });
+    cleanups.push(() => second.dispose());
+    await second.resume();
+    const resumed = await second.handle({ type: 'mobile-access/status' });
+    expect(resumed).toMatchObject({ success: true, data: { listening: true, bindPort: firstPort } });
+
+    // Turning it off is remembered; resume then stays closed.
+    await second.handle({ type: 'mobile-access/stop' });
+    expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({ enabled: false, port: firstPort });
+    const third = new MobileAccessController({
+      runtime: new FakeRuntime(),
+      pairing: new HostDevicePairing(),
+      settingsStore: store,
+      settings: await store.load(),
+      instanceId: 'lan-persist',
+    });
+    await third.resume();
+    expect(await third.handle({ type: 'mobile-access/status' })).toMatchObject({
+      data: { listening: false, enabled: false },
+    });
+  });
+
+  it('reports a failed resume through onError and lastError', async () => {
+    const onError = vi.fn();
+    const controller = new MobileAccessController({
+      runtime: new FakeRuntime(),
+      pairing: new HostDevicePairing(),
+      settings: { enabled: true, advertisedEndpoint: 'ws://0.0.0.0:1' },
+      instanceId: 'lan-fail',
+      onError,
+    });
+    await controller.resume();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(await controller.handle({ type: 'mobile-access/status' })).toMatchObject({
+      data: { listening: false, enabled: true, lastError: expect.stringContaining('wildcard') },
+    });
+  });
+
+  it('defaults to on for a fresh install and survives a damaged settings file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-mobile-access-root-'));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const fresh = await createMobileAccessController({
+      runtime: new FakeRuntime(),
+      instanceId: 'fresh',
+      piwinRoot: dir,
+      bindPort: 0,
+    });
+    expect(await fresh.handle({ type: 'mobile-access/status' })).toMatchObject({
+      data: { enabled: true, listening: false },
+    });
+
+    await mkdir(join(dir, 'devices'), { recursive: true });
+    await writeFile(join(dir, 'devices', 'mobile-access.json'), '{not json', 'utf8');
+    const onError = vi.fn();
+    const damaged = await createMobileAccessController({
+      runtime: new FakeRuntime(),
+      instanceId: 'damaged',
+      piwinRoot: dir,
+      bindPort: 0,
+      onError,
+    });
+    expect(onError).toHaveBeenCalledOnce();
+    expect(await damaged.handle({ type: 'mobile-access/status' })).toMatchObject({
+      data: { enabled: false },
+    });
   });
 });
 

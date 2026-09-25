@@ -6,12 +6,12 @@ import {
   HostDevicePairing,
   HostDevicePairingFileStore,
   HostServer,
-  assertPairingBindIsAdvertisable,
   createDeviceToolBrokerForHost,
   type HostConnectionEvent,
 } from '@piwin/host-server';
 import { parseHostAllowedOrigins } from './allowed-origins.js';
 import { createHostPairingAnnouncement, resolveAdvertisedEndpoint } from './pairing-print.js';
+import { findRemoteExposureWithoutToken } from './remote-exposure-guard.js';
 import { resolveAgentWorkerScript } from './resolve-agent-worker-script.js';
 
 const mode = process.env.PIWIN_HOST_MODE === 'rpc' ? 'rpc' : 'sdk';
@@ -22,7 +22,16 @@ const authTokenRaw = process.env.PIWIN_HOST_TOKEN?.trim();
 // Empty PIWIN_HOST_TOKEN= must not enable a token that nothing can satisfy.
 const authToken =
   authTokenRaw === undefined || authTokenRaw.length === 0 ? undefined : authTokenRaw;
-const pairingEnabled = process.env.PIWIN_HOST_PAIRING === '1';
+const exposureError = findRemoteExposureWithoutToken({
+  advertisedUrl: process.env.PIWIN_HOST_ADVERTISED_URL,
+  authToken,
+});
+if (exposureError !== undefined) {
+  console.error(`[piwin-host] ${exposureError}`);
+  process.exit(1);
+}
+// Device pairing is enabled by default unless explicitly disabled with PIWIN_HOST_PAIRING=0.
+const pairingEnabled = process.env.PIWIN_HOST_PAIRING !== '0';
 // Admitted clients are the operator. This flag is accepted for compatibility.
 const allowRemoteExtensionActivation = process.env.PIWIN_HOST_ALLOW_EXTENSION_ACTIVATION === '1';
 const hostBuildId = process.env.PIWIN_HOST_BUILD_ID?.trim() || '0.0.0-dev';
@@ -48,14 +57,6 @@ const hostInstanceId = runtime.getHostInstanceId();
 let devicePairing: HostDevicePairing | undefined;
 let devicePairingStore: HostDevicePairingFileStore | undefined;
 if (pairingEnabled) {
-  try {
-    assertPairingBindIsAdvertisable(host);
-  } catch (error) {
-    await runtime.dispose();
-    console.error(`[piwin-host] ${toError(error).message}`);
-    process.exitCode = 1;
-    throw error;
-  }
   const pairing = new HostDevicePairing();
   const store = new HostDevicePairingFileStore(join(piwinRoot, 'devices', 'pairing.json'));
   try {
@@ -83,6 +84,8 @@ const server = new HostServer({
   port,
   instanceId: hostInstanceId,
   hostBuildId,
+  piwinRoot,
+  pairingEnabled,
   ...(minClientVersion === undefined ? {} : { minClientVersion }),
   ...(authToken === undefined ? {} : { authToken }),
   ...(allowedOrigins === undefined ? {} : { allowedOrigins }),
@@ -113,19 +116,26 @@ try {
     `[piwin-host] listening at ${address.url} (${mode}${mock ? ', mock' : ''}; build=${hostBuildId}${webRoot === undefined ? '' : '; web'})`,
   );
   if (devicePairing !== undefined && devicePairingStore !== undefined) {
-    const minted = devicePairing.mintToken();
-    await devicePairingStore.save(devicePairing);
-    const announcement = createHostPairingAnnouncement({
-      bindHost: host,
-      advertisedEndpoint: resolveAdvertisedEndpoint(
+    try {
+      const advertisedEndpoint = resolveAdvertisedEndpoint(
         process.env.PIWIN_HOST_ADVERTISED_URL,
         address.url,
-      ),
-      pairingToken: minted.token,
-      hostInstanceId,
-      expiresAt: minted.expiresAt,
-    });
-    console.log(announcement.text);
+      );
+      const minted = devicePairing.mintToken();
+      await devicePairingStore.save(devicePairing);
+      const announcement = createHostPairingAnnouncement({
+        advertisedEndpoint,
+        pairingToken: minted.token,
+        hostInstanceId,
+        expiresAt: minted.expiresAt,
+      });
+      console.log(announcement.text);
+    } catch (error) {
+      // Pairing stays on; only the startup QR is skipped (e.g. wildcard bind without an advertised URL).
+      console.log(
+        `[piwin-host] device pairing on; startup QR skipped: ${toError(error).message}. Pair from Desktop settings, or set PIWIN_HOST_ADVERTISED_URL.`,
+      );
+    }
   }
 } catch (error) {
   await server.stop().catch(() => undefined);

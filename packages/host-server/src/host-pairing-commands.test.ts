@@ -13,7 +13,6 @@ function context(overrides: Partial<HostPairingCommandContext> = {}): HostPairin
     pairing: new HostDevicePairing(),
     store: undefined,
     hostInstanceId: 'host-1',
-    bindHost: '127.0.0.1',
     advertisedEndpoint: 'ws://127.0.0.1:8787',
     callerDeviceId: undefined,
     onRevoked: () => undefined,
@@ -89,7 +88,48 @@ describe('handleHostPairingCommand', () => {
     expect(pairing.list()[0]?.revokedAt).toBeUndefined();
   });
 
-  it('rejects a revoke without a device id and a wildcard bind QR', async () => {
+  it('allows an operator to dynamically toggle pairing on and off', async () => {
+    let enabledState = false;
+    let endpointState: string | undefined = 'ws://127.0.0.1:8787';
+    const setEnabled = vi.fn((enabled: boolean, endpoint?: string) => {
+      enabledState = enabled;
+      if (endpoint) endpointState = endpoint;
+    });
+    const ctx = context({
+      pairing: new HostDevicePairing(),
+      pairingEnabled: false,
+      setEnabled,
+      advertisedEndpoint: endpointState,
+    });
+
+    const initialStatus = await handleHostPairingCommand({ type: 'host/pairing-status' }, ctx);
+    expect(initialStatus.success ? initialStatus.data : undefined).toMatchObject({
+      enabled: false,
+      canManage: true,
+    });
+
+    const enableResponse = await handleHostPairingCommand(
+      { type: 'host/pairing-set-enabled', enabled: true, advertisedEndpoint: 'wss://tailscale.net:8787' },
+      ctx,
+    );
+    expect(enableResponse).toMatchObject({
+      success: true,
+      data: { enabled: true, canManage: true, advertisedEndpoint: 'wss://tailscale.net:8787' },
+    });
+    expect(setEnabled).toHaveBeenCalledWith(true, 'wss://tailscale.net:8787');
+
+    const disableResponse = await handleHostPairingCommand(
+      { type: 'host/pairing-set-enabled', enabled: false },
+      ctx,
+    );
+    expect(disableResponse).toMatchObject({
+      success: true,
+      data: { enabled: false, canManage: true },
+    });
+    expect(setEnabled).toHaveBeenCalledWith(false, undefined);
+  });
+
+  it('rejects a revoke without a device id and a wildcard QR endpoint', async () => {
     const empty = await handleHostPairingCommand(
       { type: 'host/pairing-revoke-device', deviceId: '  ' },
       context(),
@@ -97,8 +137,13 @@ describe('handleHostPairingCommand', () => {
     expect(empty.success).toBe(false);
     const wildcard = await handleHostPairingCommand(
       { type: 'host/pairing-create-code' },
-      context({ bindHost: '0.0.0.0' }),
+      context({ advertisedEndpoint: 'ws://0.0.0.0:8787' }),
     );
     expect(wildcard).toMatchObject({ success: false, error: expect.stringContaining('wildcard') });
+    const concrete = await handleHostPairingCommand(
+      { type: 'host/pairing-create-code', advertisedEndpoint: 'ws://192.168.1.5:8787' },
+      context({ advertisedEndpoint: 'ws://0.0.0.0:8787' }),
+    );
+    expect(concrete.success).toBe(true);
   });
 });

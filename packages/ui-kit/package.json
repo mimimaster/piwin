@@ -31,7 +31,8 @@
     "@radix-ui/react-popover": "^1.1.20",
     "@radix-ui/react-tabs": "^1.1.18",
     "@tabler/icons-react": "^3.46.0",
-    "material-file-icons": "^2.4.0"
+    "material-file-icons": "^2.4.0",
+    "uqr": "0.1.3"
   },
   "peerDependencies": {
     "react": "^19.0.0"

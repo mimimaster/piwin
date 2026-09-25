@@ -19,6 +19,9 @@ export type { EmptyStateProps, EmptyStateSuggestion } from './empty-state.js';
 export { Spinner } from './spinner.js';
 export type { SpinnerProps } from './spinner.js';
 
+export { QrCode } from './qr-code.js';
+export type { QrCodeProps } from './qr-code.js';
+
 export { ProgressRing } from './progress-ring.js';
 export type { ProgressRingProps, ProgressRingTone } from './progress-ring.js';
 export { ProgressBar } from './progress-bar.js';

@@ -9,11 +9,7 @@ import type { MobileAccessPairingCodeData, PairedDeviceSummary } from '@piwin/co
 import { projectPairedDeviceSummary } from '@piwin/contracts';
 import type { HostDevicePairing } from './device-pairing.js';
 import type { HostDevicePairingFileStore } from './device-pairing-store.js';
-import {
-  assertPairingBindIsAdvertisable,
-  createPairingQrPayload,
-  pairingQrUri,
-} from './pairing-qr.js';
+import { createPairingQrPayload, pairingQrUri } from './pairing-qr.js';
 
 export type PairingRegistry = {
   pairing: HostDevicePairing;
@@ -30,13 +26,12 @@ async function persistPairing(registry: PairingRegistry): Promise<void> {
 /** A new code replaces any unused one: only the newest QR is ever valid. */
 export async function mintPairingCode(
   registry: PairingRegistry,
-  input: { advertisedEndpoint: string; bindHost: string; hostInstanceId: string },
+  input: { advertisedEndpoint: string; hostInstanceId: string },
 ): Promise<MobileAccessPairingCodeData> {
   const advertised = input.advertisedEndpoint.trim();
   if (advertised.length === 0) {
     throw new Error('An advertised WebSocket endpoint is required to mint a pairing QR');
   }
-  assertPairingBindIsAdvertisable(input.bindHost);
   registry.pairing.invalidatePendingTokens();
   const minted = registry.pairing.mintToken();
   await persistPairing(registry);

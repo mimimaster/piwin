@@ -45,9 +45,18 @@ export async function authenticateHostHello(
     if (context.allowAnonymousHello) {
       return { ok: true };
     }
-    if (context.devicePairing !== undefined && context.authToken === undefined) {
-      return { ok: false, message: 'A paired device is required' };
+    // Never fall through to success without a key: with no token configured
+    // (e.g. pairing switched off at runtime) that would admit anyone.
+    if (context.authToken === undefined) {
+      return {
+        ok: false,
+        message:
+          context.devicePairing === undefined
+            ? 'This Host needs an access token (PIWIN_HOST_TOKEN) for connections from other machines'
+            : 'A paired device is required',
+      };
     }
+    return { ok: false, message: 'Host authentication failed' };
   }
 
   if (hasPairingToken || hasDeviceCredential) {

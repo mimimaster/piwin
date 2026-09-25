@@ -11,7 +11,6 @@ describe('host pairing print', () => {
 
   it('prints v2 JSON and a pairing URI without a door token', () => {
     const printed = createHostPairingAnnouncement({
-      bindHost: '127.0.0.1',
       advertisedEndpoint: 'wss://mac.ts.net:8787',
       pairingToken: 'one-time',
       hostInstanceId: 'host-1',
@@ -27,11 +26,18 @@ describe('host pairing print', () => {
     expect(printed.text).toContain('pairingToken=one-time');
   });
 
-  it('refuses to print a pairing QR for a wildcard bind', () => {
+  it('allows a wildcard bind but refuses a wildcard QR endpoint', () => {
+    expect(
+      createHostPairingAnnouncement({
+        advertisedEndpoint: 'ws://10.0.0.8:8787',
+        pairingToken: 'one-time',
+        hostInstanceId: 'host-1',
+        expiresAt: 1,
+      }).payload.endpoint,
+    ).toBe('ws://10.0.0.8:8787');
     expect(() =>
       createHostPairingAnnouncement({
-        bindHost: '0.0.0.0',
-        advertisedEndpoint: 'ws://10.0.0.8:8787',
+        advertisedEndpoint: 'ws://0.0.0.0:8787',
         pairingToken: 'one-time',
         hostInstanceId: 'host-1',
         expiresAt: 1,

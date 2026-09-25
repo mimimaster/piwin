@@ -23,7 +23,6 @@ export async function createSidecarMobileAccess(options: {
     runtime: options.runtime,
     instanceId: options.instanceId,
     piwinRoot: options.piwinRoot,
-    bindHost: '127.0.0.1',
     ...(bindPort === undefined ? {} : { bindPort }),
     onError: (error) => {
       console.error(`[piwin host serve] phone-access error: ${error.message}`);

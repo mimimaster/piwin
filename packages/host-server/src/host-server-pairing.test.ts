@@ -307,6 +307,95 @@ describe('HostServer host/pairing-* commands', () => {
       await server.stop();
     }
   });
+
+  it('allows an operator to dynamically enable and disable pairing via wire commands', async () => {
+    const runtime = new FakeRuntime();
+    const pairing = new HostDevicePairing();
+    const server = new HostServer({
+      runtime,
+      host: '127.0.0.1',
+      port: 0,
+      instanceId: 'dynamic-toggle-host',
+      devicePairing: pairing,
+      pairingEnabled: false,
+    });
+    const address = await server.start();
+    try {
+      const operator = await openHello(address.url, {
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'op-1',
+        lastSeq: 0,
+      });
+      expect(operator.hello.type).toBe('host/hello');
+
+      // 1. Initial status is disabled
+      operator.socket.send(
+        encodeHostWireMessage({
+          type: 'command',
+          requestId: 's-1',
+          command: { type: 'host/pairing-status' },
+        }),
+      );
+      const res1 = await operator.inbox.waitFor(
+        (m) => m.type === 'response' && m.requestId === 's-1',
+      );
+      expect(res1).toMatchObject({
+        response: { success: true, data: { enabled: false, canManage: true } },
+      });
+
+      // 2. Enable pairing via host/pairing-set-enabled
+      operator.socket.send(
+        encodeHostWireMessage({
+          type: 'command',
+          requestId: 's-2',
+          command: { type: 'host/pairing-set-enabled', enabled: true },
+        }),
+      );
+      const res2 = await operator.inbox.waitFor(
+        (m) => m.type === 'response' && m.requestId === 's-2',
+      );
+      expect(res2).toMatchObject({
+        response: { success: true, data: { enabled: true, canManage: true } },
+      });
+
+      // 3. Mint code now succeeds
+      operator.socket.send(
+        encodeHostWireMessage({
+          type: 'command',
+          requestId: 's-3',
+          command: { type: 'host/pairing-create-code' },
+        }),
+      );
+      const res3 = await operator.inbox.waitFor(
+        (m) => m.type === 'response' && m.requestId === 's-3',
+      );
+      expect(res3).toMatchObject({
+        response: { success: true, data: { pairingToken: expect.any(String) } },
+      });
+
+      // 4. Disable pairing
+      operator.socket.send(
+        encodeHostWireMessage({
+          type: 'command',
+          requestId: 's-4',
+          command: { type: 'host/pairing-set-enabled', enabled: false },
+        }),
+      );
+      const res4 = await operator.inbox.waitFor(
+        (m) => m.type === 'response' && m.requestId === 's-4',
+      );
+      expect(res4).toMatchObject({
+        response: { success: true, data: { enabled: false, canManage: true } },
+      });
+
+      operator.socket.close();
+    } finally {
+      await server.stop();
+    }
+  });
 });
 
 async function openHello(

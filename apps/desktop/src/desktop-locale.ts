@@ -4,6 +4,8 @@
  * This stays in the renderer because it affects presentation only; it must not
  * alter shared host configuration, model data, or transcript content.
  */
+import { MOBILE_ACCESS_COPY, type MobileAccessCopy } from './desktop-locale-mobile-access.js';
+
 export type DesktopLocale = 'zh-CN' | 'en';
 
 const DESKTOP_LOCALE_KEY = 'piwin.desktop.locale';
@@ -44,47 +46,7 @@ export type DesktopCopy = {
     connectDescription: string;
     rootLockNote: string;
   };
-  mobileAccess: {
-    title: string;
-    description: string;
-    listenLabel: string;
-    listenDescription: string;
-    advertisedLabel: string;
-    advertisedPlaceholder: string;
-    advertisedHint: string;
-    generate: string;
-    generating: string;
-    copyUri: string;
-    copied: string;
-    devices: string;
-    noDevices: string;
-    emptyDevicesHint: string;
-    revoke: string;
-    lastSeen: (at: string) => string;
-    sidecarOnly: string;
-    sidecarOnlyTitle: string;
-    sidecarOnlyDesc: string;
-    sidecarOnlyShellTitle: string;
-    sidecarOnlyShellDesc: string;
-    switchToLocal: string;
-    invalidAdvertised: string;
-    pairingExpires: (at: string) => string;
-    statusListening: string;
-    statusIdle: string;
-    statusUnavailable: string;
-    hostPairingTitle: string;
-    hostPairingDesc: string;
-    hostPairingDisabledTitle: string;
-    hostPairingDisabledDesc: string;
-    hostPairingUnsupportedTitle: string;
-    hostPairingUnsupportedDesc: string;
-    hostPairingEnvHint: string;
-    copyCode: string;
-    statusEnabled: string;
-    statusDisabled: string;
-    statusUnsupported: string;
-    readOnlyHint: string;
-  };
+  mobileAccess: MobileAccessCopy;
   backToWorkspace: string;
   configurationRoot: string;
   savedLocally: string;
@@ -674,47 +636,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       connectDescription: '先启动目标 Host，再填入地址。',
       rootLockNote: '同一数据目录只能有一个 Host 实例。',
     },
-    mobileAccess: {
-      title: '手机接入',
-      description: '让本机 sidecar 监听配对。远程 Host 不能打开这个开关；手机必须连到这个进程。',
-      listenLabel: '允许手机接入',
-      listenDescription: '绑定 127.0.0.1:8787。移动设备请使用 Tailscale 或 SSH 隧道转发该端口。',
-      advertisedLabel: '手机可达地址',
-      advertisedPlaceholder: 'ws://127.0.0.1:8787 或 wss://mac.tailnet.ts.net:8787',
-      advertisedHint: '手机连接使用的 WebSocket 地址，开启监听后不可更改',
-      generate: '生成配对码',
-      generating: '正在生成…',
-      copyUri: '复制 URI',
-      copied: '已复制',
-      devices: '已配对设备',
-      noDevices: '还没有配对设备',
-      emptyDevicesHint: '开启接入后，使用手机端扫描或输入配对码即可连接。',
-      revoke: '撤销',
-      lastSeen: (at) => `最后活跃：${at}`,
-      sidecarOnly: '手机接入只在本机 sidecar 上可用。请先点「使用本机」。',
-      sidecarOnlyTitle: '仅支持本机 Sidecar 服务',
-      sidecarOnlyDesc: '当前已连接远程 Host。手机配对需要直接连接本机运行的 Sidecar 服务。',
-      sidecarOnlyShellTitle: '薄壳模式不可用',
-      sidecarOnlyShellDesc: '当前客户端为纯前端/独立 Shell 模式，未内置本机 Sidecar。如需手机配对，请在运行 Host 的主机上配置。',
-      switchToLocal: '切换至本机 Sidecar',
-      invalidAdvertised: '请输入 ws:// 或 wss:// 地址',
-      pairingExpires: (at) => `配对码有效至 ${at}`,
-      statusListening: '监听中',
-      statusIdle: '未启用',
-      statusUnavailable: '不可用',
-      hostPairingTitle: '手机接入',
-      hostPairingDesc: '连接移动设备以同步会话与操作。由当前连接的 Host 提供配对服务。',
-      hostPairingDisabledTitle: 'Host 尚未开启手机接入',
-      hostPairingDisabledDesc: '当前连接的 Host 服务端尚未启用设备配对。如需通过手机连接此 Host，请在启动 Host 服务时设置环境变量：',
-      hostPairingUnsupportedTitle: 'Host 不支持远程配对',
-      hostPairingUnsupportedDesc: '当前连接的 Host 版本较低，未提供客户端配对管理接口。请更新 Host 服务端。',
-      hostPairingEnvHint: '提示：Host 进程需运行在手机可达的网络中（例如 Tailscale 局域网或公网）。',
-      copyCode: '复制',
-      statusEnabled: '已启用',
-      statusDisabled: '未开启',
-      statusUnsupported: '不支持',
-      readOnlyHint: '当前以配对设备身份连接，无权管理配对凭证或设备。',
-    },
+    mobileAccess: MOBILE_ACCESS_COPY['zh-CN'],
     backToWorkspace: '返回工作区',
     configurationRoot: '配置根目录',
     savedLocally: '已保存在本地',
@@ -1054,50 +976,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       connectDescription: 'Start the Host first, then enter its address.',
       rootLockNote: 'One data root can have only one live Host.',
     },
-    mobileAccess: {
-      title: 'Phone access',
-      description:
-        'Let this Mac’s sidecar listen for pairing. A remotely attached Host cannot open this switch; the phone must dial this process.',
-      listenLabel: 'Allow phone access',
-      listenDescription:
-        'Binds 127.0.0.1:8787. For a physical phone, expose that port with Tailscale or an SSH tunnel.',
-      advertisedLabel: 'Phone-reachable URL',
-      advertisedPlaceholder: 'ws://127.0.0.1:8787 or wss://mac.tailnet.ts.net:8787',
-      advertisedHint: 'WebSocket URL reached by the phone; locked once listening',
-      generate: 'Create pairing code',
-      generating: 'Creating…',
-      copyUri: 'Copy URI',
-      copied: 'Copied',
-      devices: 'Paired devices',
-      noDevices: 'No paired devices yet',
-      emptyDevicesHint: 'Once phone access is turned on, scan or enter the pairing code from your phone.',
-      revoke: 'Revoke',
-      lastSeen: (at) => `Last seen: ${at}`,
-      sidecarOnly:
-        'Phone access is only available on this Mac’s sidecar. Choose “Use this Mac” first.',
-      sidecarOnlyTitle: 'Local Sidecar Required',
-      sidecarOnlyDesc: 'Currently connected to a remote Host. Phone pairing requires connecting to a local Sidecar.',
-      sidecarOnlyShellTitle: 'Not available in shell-only mode',
-      sidecarOnlyShellDesc: 'This client is running in shell-only mode without a local Sidecar. To pair a phone, configure mobile access on the Host machine.',
-      switchToLocal: 'Switch to Local Sidecar',
-      invalidAdvertised: 'Enter a ws:// or wss:// URL',
-      pairingExpires: (at) => `Pairing code expires ${at}`,
-      statusListening: 'Listening',
-      statusIdle: 'Inactive',
-      statusUnavailable: 'Unavailable',
-      hostPairingTitle: 'Phone access',
-      hostPairingDesc: 'Connect mobile devices to observe and control sessions on the connected Host.',
-      hostPairingDisabledTitle: 'Phone access not enabled on Host',
-      hostPairingDisabledDesc: 'The connected Host server was started without device pairing. To allow mobile connections, set the environment variable when launching the Host:',
-      hostPairingUnsupportedTitle: 'Host pairing not supported',
-      hostPairingUnsupportedDesc: 'The connected Host version does not support wire pairing commands. Please update the Host service.',
-      hostPairingEnvHint: 'Note: The Host process must be reachable by your phone (e.g. over Tailscale or an SSH tunnel).',
-      copyCode: 'Copy',
-      statusEnabled: 'Enabled',
-      statusDisabled: 'Inactive',
-      statusUnsupported: 'Unsupported',
-      readOnlyHint: 'Connected as a paired device. Managing pairing credentials or devices is not permitted.',
-    },
+    mobileAccess: MOBILE_ACCESS_COPY.en,
     backToWorkspace: 'Back to workspace',
     configurationRoot: 'Configuration root',
     savedLocally: 'Saved locally',

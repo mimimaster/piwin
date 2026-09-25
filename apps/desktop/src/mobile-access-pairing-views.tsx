@@ -2,54 +2,71 @@
  * Pairing credential card and paired-device list, shared by the local sidecar
  * listener and a remote Host's pairing management.
  */
-import type { ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import type { MobileAccessPairingCodeData, PairedDeviceSummary } from '@piwin/contracts';
-import { Button, TextInput } from '@piwin/ui-kit';
-import type { DesktopCopy } from './desktop-locale.js';
-
-type MobileAccessCopy = DesktopCopy['mobileAccess'];
+import { Button, QrCode, TextInput } from '@piwin/ui-kit';
+import type { MobileAccessCopy } from './desktop-locale-mobile-access.js';
 
 export function PairingCredentialCard(props: {
   pairing: MobileAccessPairingCodeData;
   copy: MobileAccessCopy;
   locale: string;
   busy: boolean;
-  copied: boolean;
   canRegenerate: boolean;
-  onCopy: () => void;
   onRegenerate: () => void;
 }): ReactElement {
   const { pairing, copy } = props;
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    setCopied(false);
+  }, [pairing.uri]);
+  const handleCopy = async (): Promise<void> => {
+    await navigator.clipboard.writeText(pairing.uri);
+    setCopied(true);
+  };
   return (
     <div className="mobile-access-pairing-card" data-testid="mobile-access-pairing">
-      <div className="mobile-access-pairing-header">
-        <span className="mobile-access-pairing-title">
-          {props.locale === 'zh-CN' ? '配对凭证' : 'Pairing Credential'}
-        </span>
-        <span className="mobile-access-pairing-expiry">
-          {copy.pairingExpires(new Date(pairing.expiresAt).toLocaleString(props.locale))}
-        </span>
+      <div className="mobile-access-pairing-body">
+        <div className="mobile-access-qr-frame">
+          <QrCode value={pairing.uri} size={184} label={copy.qrLabel} testId="mobile-access-qr" />
+        </div>
+        <div className="mobile-access-pairing-text">
+          <span className="mobile-access-pairing-title">{copy.qrTitle}</span>
+          <p className="mobile-access-pairing-hint">{copy.qrHint}</p>
+          <code className="mobile-access-pairing-endpoint" data-testid="mobile-access-pairing-endpoint">
+            {pairing.endpoint}
+          </code>
+          <span className="mobile-access-pairing-expiry">
+            {copy.pairingExpires(new Date(pairing.expiresAt).toLocaleString(props.locale))}
+          </span>
+          <div className="mobile-access-action-row">
+            <Button
+              variant="secondary"
+              size="compact"
+              disabled={props.busy || !props.canRegenerate}
+              onClick={props.onRegenerate}
+              data-testid="mobile-access-generate"
+            >
+              {props.busy ? copy.generating : copy.generate}
+            </Button>
+          </div>
+        </div>
       </div>
+      <span className="mobile-access-pairing-uri-label">{copy.uriLabel}</span>
       <div className="mobile-access-pairing-input-row">
         <TextInput value={pairing.uri} readOnly testId="mobile-access-pairing-uri" />
         <Button
-          variant="primary"
+          variant="secondary"
           disabled={props.busy}
-          onClick={props.onCopy}
+          onClick={() => {
+            // The link stays visible in the field, so a denied clipboard only needs a log.
+            void handleCopy().catch((error: unknown) => {
+              console.warn('[mobile-access] clipboard write failed', error);
+            });
+          }}
           data-testid="mobile-access-copy-uri"
         >
-          {props.copied ? copy.copied : copy.copyUri}
-        </Button>
-      </div>
-      <div className="mobile-access-action-row">
-        <Button
-          variant="secondary"
-          size="compact"
-          disabled={props.busy || !props.canRegenerate}
-          onClick={props.onRegenerate}
-          data-testid="mobile-access-generate"
-        >
-          {props.busy ? copy.generating : copy.generate}
+          {copied ? copy.copied : copy.copyUri}
         </Button>
       </div>
     </div>
@@ -101,7 +118,7 @@ export function PairedDeviceList(props: {
               <div className="mobile-access-device-info">
                 <span className="mobile-access-device-name">
                   {device.name}
-                  {device.revoked ? ' · revoked' : ''}
+                  {device.revoked ? copy.revokedSuffix : ''}
                 </span>
                 <span className="mobile-access-device-meta">{copy.lastSeen(device.lastSeenAt)}</span>
               </div>

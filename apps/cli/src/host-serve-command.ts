@@ -110,6 +110,12 @@ export async function commandHostServe(argv: string[]): Promise<void> {
       idempotencyRegistry: authority.idempotencyRegistry,
       ...(clientToolBroker === undefined ? {} : { clientToolBroker }),
     });
+    // Phone access is on by default; reopen the LAN listener without waiting on
+    // it. resume() reports its own failures (status.lastError + stderr). Mock
+    // sidecars (tests, demos) never open a network listener on their own.
+    if (!mock) {
+      void mobileAccess.resume();
+    }
   } catch (error) {
     console.error(
       `[piwin host serve] phone-access store unavailable: ${error instanceof Error ? error.message : 'unknown error'}`,
