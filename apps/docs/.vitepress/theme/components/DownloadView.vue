@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const macDirectDmgUrl = 'https://dl.piwinwin.com/piwinwin_0.0.0_aarch64.dmg';
 const macSha256Url = 'https://dl.piwinwin.com/piwinwin_0.0.0_aarch64.dmg.sha256';
+const winDirectExeUrl = 'https://dl.piwinwin.com/piwinwin_0.0.0_x64-setup.exe';
+const winSha256Url = 'https://dl.piwinwin.com/piwinwin_0.0.0_x64-setup.exe.sha256';
 const releasesUrl = 'https://github.com/mimimaster/piwin/releases';
 </script>
 
@@ -31,7 +33,7 @@ const releasesUrl = 'https://github.com/mimimaster/piwin/releases';
           <p class="version">最低要求：Windows 10 (1809+) / Windows 11</p>
           <p class="note">64 位系统，需 Microsoft Edge WebView2 运行时</p>
         </div>
-        <a :href="releasesUrl" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+        <a :href="winDirectExeUrl" class="btn btn-primary">
           下载安装包 (.exe)
         </a>
       </div>
