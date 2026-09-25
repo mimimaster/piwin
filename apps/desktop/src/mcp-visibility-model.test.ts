@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildMcpToolCatalogEntries,
+  getMcpConnectionFailure,
   listMcpSchemaProperties,
   resolveMcpServerRuntimeUiStatus,
 } from './mcp-visibility-model.js';
@@ -95,5 +96,30 @@ describe('mcp visibility model', () => {
         },
       }),
     ).toBe('stopped');
+  });
+
+  it('reports a failed start even when the Host returned a successful response envelope', () => {
+    const health = {
+      serverId: 'cloudflare',
+      status: 'error' as const,
+      command: 'npx',
+      disabled: false,
+      toolCount: 0,
+      lastError: 'MCP connect timeout',
+    };
+    expect(getMcpConnectionFailure(health, true)).toBe('MCP connect timeout');
+    expect(
+      getMcpConnectionFailure(
+        {
+          serverId: 'cloudflare',
+          status: 'running',
+          command: 'npx',
+          disabled: false,
+          toolCount: 2,
+        },
+        true,
+      ),
+    ).toBeNull();
+    expect(getMcpConnectionFailure(undefined, true)).toBe('连接失败。');
   });
 });

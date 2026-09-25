@@ -126,6 +126,14 @@ export function mcpServerEnvKeys(server: McpServerConfig | undefined): string[] 
 
 export type McpServerRuntimeUiStatus = 'stopped' | 'starting' | 'running' | 'error';
 
+export function getMcpConnectionFailure(
+  health: McpServerHealth | undefined,
+  isChinese: boolean,
+): string | null {
+  if (health?.status === 'running' && !health.lastError) return null;
+  return health?.lastError ?? (isChinese ? '连接失败。' : 'Connection failed.');
+}
+
 export function resolveMcpServerRuntimeUiStatus(input: {
   enabled: boolean;
   health: McpServerHealth | undefined;

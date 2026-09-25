@@ -19,6 +19,7 @@ export type StudioTopbarProps = {
   searchTestId?: string | undefined;
   searchValue?: string | undefined;
   onSearchChange?: ((value: string) => void) | undefined;
+  onSearchSubmit?: (() => void) | undefined;
   filters?: ReactNode | undefined;
   actions?: ReactNode | undefined;
   primaryAction?: ReactNode | undefined;
@@ -44,8 +45,21 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
 
   const searchField =
     props.searchPlaceholder !== undefined ? (
-      <label className="vault-search">
-        <IconSearch width={14} height={14} aria-hidden="true" />
+      <div className="vault-search">
+        {props.onSearchSubmit !== undefined ? (
+          <button
+            type="button"
+            className="vault-search-submit"
+            onClick={props.onSearchSubmit}
+            aria-label={t('Search', '搜索')}
+            title={t('Search', '搜索')}
+            data-testid="vault-search-submit-btn"
+          >
+            <IconSearch width={14} height={14} aria-hidden="true" />
+          </button>
+        ) : (
+          <IconSearch width={14} height={14} aria-hidden="true" />
+        )}
         <span className="sr-only">{props.searchPlaceholder}</span>
         <input
           type="search"
@@ -53,6 +67,12 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
           placeholder={props.searchPlaceholder}
           value={props.searchValue ?? ''}
           onChange={(event) => props.onSearchChange?.(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              props.onSearchSubmit?.();
+            }
+          }}
           {...(props.searchTestId !== undefined ? { 'data-testid': props.searchTestId } : {})}
         />
         {Boolean(props.searchValue) ? (
@@ -65,7 +85,7 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
             <IconClose width={11} height={11} aria-hidden="true" />
           </button>
         ) : null}
-      </label>
+      </div>
     ) : null;
 
   const hasSubbar = searchField !== null || props.filters !== undefined;

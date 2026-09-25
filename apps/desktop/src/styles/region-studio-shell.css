@@ -243,6 +243,29 @@
   color: var(--text-4);
 }
 
+.vault-search-submit {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  border-radius: var(--r-pill);
+  transition: color var(--t-1) var(--ease-out), transform var(--t-1) var(--ease-out);
+}
+
+.vault-search-submit:hover {
+  color: var(--text-1);
+}
+
+.vault-search-submit:active {
+  transform: scale(0.92);
+}
+
 .vault-search-clear {
   display: grid;
   width: 22px;

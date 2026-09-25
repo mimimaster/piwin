@@ -69,6 +69,7 @@ export function getHostRequestTimeoutMs(
     case 'speech/transcribe':
     case 'mcp/start':
     case 'mcp/stop':
+    case 'mcp/list_tools':
     case 'skills/install':
     case 'skills/uninstall':
     case 'extensions/install':

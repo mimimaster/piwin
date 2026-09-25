@@ -305,8 +305,7 @@ describe('MarketplaceWorkspaceView', () => {
     expect(container.querySelector('[data-testid="marketplace-host-error"]')?.textContent).toContain('host offline');
   });
 
-  it('adds live Pi ecosystem results under the catalog while searching', async () => {
-    vi.useFakeTimers();
+  it('does not search ecosystem on typing alone, but adds results on Enter or search submit', async () => {
     const host = createFakeHost({
       'marketplace/search': (command) =>
         ok(command.type, {
@@ -325,17 +324,60 @@ describe('MarketplaceWorkspaceView', () => {
     });
     render(host);
     await flush();
+
+    const input = container.querySelector<HTMLInputElement>('[data-testid="marketplace-search-input"]');
     act(() => {
-      setInputValue(container.querySelector<HTMLInputElement>('[data-testid="marketplace-search-input"]'), 'lens');
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(300);
+      setInputValue(input, 'lens');
     });
     await flush();
 
+    // Local catalog is filtered immediately without network request:
     expect(container.querySelector('[data-testid="market-entry-extension:pi-lens"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="market-entry-skill:doc-coauthoring"]')).toBeNull();
+    // Ecosystem search is NOT triggered by typing alone:
+    expect(host.commands().some((c) => c.type === 'marketplace/search')).toBe(false);
+    expect(container.querySelector('[data-testid="marketplace-ecosystem"]')).toBeNull();
+
+    // Submit search via Enter key:
+    act(() => {
+      input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    await flush();
+
+    expect(host.commands().some((c) => c.type === 'marketplace/search')).toBe(true);
     expect(container.querySelector('[data-testid="marketplace-ecosystem"]')?.textContent).toContain('pi-lens-extra');
+  });
+
+  it('reports ecosystem search errors via toast and does not render in-page notice banner', async () => {
+    const host = createFakeHost({
+      'marketplace/search': (command) =>
+        ok(command.type, {
+          query: 'failing-package',
+          hits: [],
+          remoteError: 'GitHub: GitHub search failed: HTTP 403',
+        }),
+    });
+    render(host);
+    await flush();
+
+    const input = container.querySelector<HTMLInputElement>('[data-testid="marketplace-search-input"]');
+    act(() => {
+      setInputValue(input, 'failing-package');
+    });
+    await flush();
+
+    // Submit via clickable search button:
+    const submitBtn = container.querySelector<HTMLButtonElement>('[data-testid="vault-search-submit-btn"]');
+    expect(submitBtn).not.toBeNull();
+    act(() => {
+      submitBtn?.click();
+    });
+    await flush();
+
+    // In-page Notice banner must NOT be rendered:
+    expect(container.querySelector('[data-testid="marketplace-ecosystem-error"]')).toBeNull();
+    // Toast must show the error:
+    expect(document.body.textContent).toContain('GitHub: GitHub search failed: HTTP 403');
   });
   it('shows a progress bar on the card while installing, then an app toast', async () => {
     let finish: (() => void) | undefined;

@@ -26,7 +26,17 @@ const CLOUDFLARE_MANIFEST: PluginManifest = {
   mcpServers: {
     api: {
       command: 'npx',
-      args: ['-y', 'mcp-remote', 'https://mcp.cloudflare.com/mcp'],
+      args: [
+        '-y',
+        'mcp-remote',
+        'https://mcp.cloudflare.com/mcp',
+        '--protocol',
+        'auto',
+        '--auth-timeout',
+        '90',
+        '--static-oauth-client-metadata',
+        '{"scope":"user:read"}',
+      ],
     },
     docs: {
       command: 'npx',

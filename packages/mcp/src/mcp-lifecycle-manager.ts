@@ -25,6 +25,8 @@ import { toMcpToolSummary } from './tool-names.js';
 import { fingerprintMcpServerConfig } from './mcp-fingerprint.js';
 import { createMcpMetadataCatalog, type McpMetadataCatalog } from './mcp-metadata-catalog.js';
 import type { McpGenerationSnapshot } from './mcp-generation-snapshot.js';
+import { resolveMcpConnectTimeoutMs } from './mcp-connection-policy.js';
+import { waitForAbortable, withTimeout } from './mcp-operation-timeout.js';
 
 const CRASH_RESTART_BACKOFF_MS = 500;
 const DEFAULT_CONNECT_TIMEOUT_MS = 12_000;
@@ -544,7 +546,7 @@ export function createMcpLifecycleManager(
         entry.ownedProcess = ownedProcess;
         const client = await withTimeout(
           ownedProcess.ready,
-          connectTimeoutMs,
+          resolveMcpConnectTimeoutMs(entry.config, connectTimeoutMs),
           `MCP connect timeout for ${entry.serverId}`,
           () => connectAbort.abort(),
           signal,
@@ -879,71 +881,6 @@ export function createMcpLifecycleManager(
 }
 
 export const createMcpSupervisor = createMcpLifecycleManager;
-
-async function waitForAbortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) {
-    return promise;
-  }
-  if (signal.aborted) {
-    throw new Error('MCP operation aborted');
-  }
-  return new Promise<T>((resolve, reject) => {
-    const abortHandler = (): void => {
-      signal.removeEventListener('abort', abortHandler);
-      reject(new Error('MCP operation aborted'));
-    };
-    signal.addEventListener('abort', abortHandler, { once: true });
-    promise.then(
-      (value) => {
-        signal.removeEventListener('abort', abortHandler);
-        resolve(value);
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', abortHandler);
-        reject(error instanceof Error ? error : new Error(String(error)));
-      },
-    );
-  });
-}
-
-function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  message: string,
-  onTimeout: () => void,
-  signal?: AbortSignal,
-): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', abortHandler);
-      onTimeout();
-      reject(new Error(message));
-    }, timeoutMs);
-    const abortHandler = (): void => {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', abortHandler);
-      onTimeout();
-      reject(new Error('MCP operation aborted'));
-    };
-    if (signal?.aborted) {
-      abortHandler();
-      return;
-    }
-    signal?.addEventListener('abort', abortHandler, { once: true });
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        signal?.removeEventListener('abort', abortHandler);
-        resolve(value);
-      },
-      (error: unknown) => {
-        clearTimeout(timer);
-        signal?.removeEventListener('abort', abortHandler);
-        reject(error instanceof Error ? error : new Error(String(error)));
-      },
-    );
-  });
-}
 
 async function safeCloseOwnedProcess(ownedProcess: McpOwnedProcess): Promise<void> {
   try {

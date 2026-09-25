@@ -176,6 +176,12 @@ describe('installPlugin (local)', () => {
         '-y',
         'mcp-remote',
         'https://mcp.cloudflare.com/mcp',
+        '--protocol',
+        'auto',
+        '--auth-timeout',
+        '90',
+        '--static-oauth-client-metadata',
+        '{"scope":"user:read"}',
       ]);
       const installed = await loadInstalledPlugins(root);
       expect(installed[0]?.source).toEqual({ kind: 'bundled', bundledId: 'cloudflare' });

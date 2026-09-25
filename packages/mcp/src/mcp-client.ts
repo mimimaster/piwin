@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import type { McpServerConfig, McpToolSummary } from '@piwin/contracts';
 import { expandEnvMap } from './mcp-config.js';
+import { isMcpRemoteBridge } from './mcp-connection-policy.js';
 import { closeMcpProcessTree } from './mcp-process-tree.js';
 import { toMcpToolSummary } from './tool-names.js';
 import type {
@@ -303,7 +304,10 @@ export function spawnMcpStdio(
     );
     return { pid: undefined, ready, close: async () => undefined };
   }
-  const prefer = resolveClientPreference(options.prefer);
+  const requestedPreference = resolveClientPreference(options.prefer);
+  // OAuth must keep one process alive until the browser callback completes.
+  const prefer =
+    requestedPreference === 'auto' && isMcpRemoteBridge(config) ? 'official' : requestedPreference;
 
   let currentProcess: McpOwnedProcess | null = null;
   let closeRequested = false;
@@ -350,17 +354,11 @@ export function spawnMcpStdio(
         );
         currentProcess = officialProcess;
         resolveProcessCreated?.();
-        const officialReady = withTimeout(
-          officialProcess.ready,
-          8_000,
-          `official MCP connect timeout for ${serverId}`,
-          options.signal,
-        );
         if (closeRequested) {
           await officialProcess.close();
           throw new Error(`MCP connect aborted: ${serverId}`);
         }
-        return await officialReady;
+        return await officialProcess.ready;
       } catch (error) {
         officialError = error;
         await currentProcess?.close();
@@ -441,43 +439,6 @@ function resolveClientPreference(
     return fromEnv;
   }
   return 'auto';
-}
-
-function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  message: string,
-  signal?: AbortSignal,
-  onTimeout?: () => void,
-): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const abortHandler = (): void => {
-      clearTimeout(timer);
-      reject(new Error(message.replace('timeout', 'aborted')));
-    };
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', abortHandler);
-      onTimeout?.();
-      reject(new Error(message));
-    }, timeoutMs);
-    if (signal?.aborted) {
-      abortHandler();
-      return;
-    }
-    signal?.addEventListener('abort', abortHandler, { once: true });
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        signal?.removeEventListener('abort', abortHandler);
-        resolve(value);
-      },
-      (error: unknown) => {
-        clearTimeout(timer);
-        signal?.removeEventListener('abort', abortHandler);
-        reject(error);
-      },
-    );
-  });
 }
 
 export async function listToolsForServer(

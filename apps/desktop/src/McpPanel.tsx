@@ -29,6 +29,7 @@ import { McpServerEditorDialog } from './McpServerEditorDialog';
 import { McpServerDetailPanel } from './mcp-server-detail-panel.js';
 import {
   buildMcpToolCatalogEntries,
+  getMcpConnectionFailure,
   resolveMcpServerRuntimeUiStatus,
 } from './mcp-visibility-model.js';
 import { IconPin, IconChevronDown, IconChevronRight } from './shell-icons';
@@ -396,6 +397,8 @@ export function McpPanel(props: McpPanelProps) {
         const health = data.health;
         setHealthById((current) => ({ ...current, [health.serverId]: health }));
       }
+      const failure = getMcpConnectionFailure(data.health, isChinese);
+      if (failure) return { ok: false, message: failure };
       return {
         ok: true,
         message: isChinese ? `已连接到 ${serverId}` : `Connected to ${serverId}`,
@@ -426,6 +429,16 @@ export function McpPanel(props: McpPanelProps) {
         }
         const data = response.data as { health: McpServerHealth };
         setHealthById((current) => ({ ...current, [data.health.serverId]: data.health }));
+        const failure = getMcpConnectionFailure(data.health, isChinese);
+        if (failure) {
+          showUiNotification({
+            tone: 'error',
+            title: isChinese ? '启动 MCP 服务器失败' : 'Failed to start MCP server',
+            message: failure,
+            autoClose: 5000,
+          });
+          return;
+        }
         showUiNotification({
           tone: 'success',
           message: isChinese ? `已启动 ${serverId}` : `Started ${serverId}`,

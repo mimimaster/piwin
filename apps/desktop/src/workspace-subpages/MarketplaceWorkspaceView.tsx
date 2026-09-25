@@ -90,7 +90,35 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     showToast,
     onInstalled: data.refreshInventory,
   });
-  const ecosystem = useMarketplaceEcosystemSearch(tab === 'discover' ? search : '', props.request);
+  const ecosystem = useMarketplaceEcosystemSearch({
+    request: props.request,
+    onError: (err) => {
+      showToast({
+        type: 'error',
+        title: t('Could not reach ecosystem data source', '无法连接生态数据源'),
+        text: err,
+      });
+    },
+  });
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (!value.trim()) {
+      ecosystem.reset();
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    const trimmed = search.trim();
+    if (!trimmed) {
+      ecosystem.reset();
+      return;
+    }
+    if (tab !== 'discover') {
+      setTab('discover');
+    }
+    void ecosystem.search(trimmed);
+  };
 
   const query = search.trim().toLowerCase();
   const installedByEntry = useMemo(() => {
@@ -201,11 +229,6 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
           )}
         </p>
       </header>
-      {ecosystem.error ? (
-        <Notice tone="warning" testId="marketplace-ecosystem-error">
-          {t('Could not reach npm:', '无法连接 npm：')} {ecosystem.error}
-        </Notice>
-      ) : null}
       {ecosystem.loading && ecosystem.hits.length === 0 ? (
         <p className="market-ecosystem-status" data-testid="marketplace-ecosystem-loading">
           {t('Searching npm and GitHub…', '正在搜索 npm 与 GitHub…')}
@@ -239,7 +262,16 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
           ))}
         </div>
       ) : null}
+      {!ecosystem.loading && ecosystem.hits.length === 0 && ecosystem.searchedQuery ? (
+        <p className="market-ecosystem-status" data-testid="marketplace-ecosystem-empty">
+          {t('No community packages found.', '未找到相关的社区包。')}
+        </p>
+      ) : null}
     </section>
+  );
+
+  const hasSearchedEcosystem = Boolean(
+    ecosystem.searchedQuery || ecosystem.loading || ecosystem.hits.length > 0,
   );
 
   const renderDiscover = () => (
@@ -263,13 +295,20 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
           </div>
         </section>
       ))}
-      {query ? renderEcosystem() : null}
-      {!data.loading && entryGroups.length === 0 && !(query && (ecosystem.loading || ecosystem.hits.length > 0)) ? (
+      {hasSearchedEcosystem ? renderEcosystem() : null}
+      {!data.loading && entryGroups.length === 0 && !(hasSearchedEcosystem && (ecosystem.loading || ecosystem.hits.length > 0)) ? (
         <EmptyState
           visual={<IconExtension width={28} height={28} aria-hidden="true" />}
           seal={query ? '寻' : '空'}
           title={t('Nothing matches', '没有匹配的能力')}
-          description={t('Try another keyword or type filter.', '换个关键词或类型筛选试试。')}
+          description={
+            query && !hasSearchedEcosystem
+              ? t(
+                  'Press Enter or click Search to search npm & GitHub, or try another keyword.',
+                  '按回车或点击搜索可查询 npm 与 GitHub，或换个关键词试试。',
+                )
+              : t('Try another keyword or type filter.', '换个关键词或类型筛选试试。')
+          }
           action={
             <Button
               variant="secondary"
@@ -277,6 +316,7 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
               onClick={() => {
                 setSearch('');
                 setKindFilter('all');
+                ecosystem.reset();
               }}
             >
               {t('Clear filters', '清空筛选')}
@@ -332,7 +372,8 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
         searchPlaceholder={t('Search capabilities…', '搜索能力…')}
         searchTestId="marketplace-search-input"
         searchValue={search}
-        onSearchChange={setSearch}
+        onSearchChange={handleSearchChange}
+        onSearchSubmit={handleSearchSubmit}
         filters={filters}
       />
 
