@@ -42,6 +42,7 @@ export default defineConfig({
       { text: '配置指南', link: '/docs/model-config' },
       { text: '系统生态', link: '/docs/extensions' },
       { text: '视觉画廊', link: '/docs/gallery' },
+      { text: '设计原型', link: '/docs/prototype' },
       {
         text: '更多',
         items: [
@@ -96,9 +97,10 @@ export default defineConfig({
           ],
         },
         {
-          text: '视觉画廊与实景',
+          text: '设计原型与实景画廊',
           collapsed: false,
           items: [
+            { text: 'Inkstone 交互原型体验', link: '/docs/prototype' },
             { text: '实机体验与特性画廊', link: '/docs/gallery' },
           ],
         },

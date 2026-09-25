@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>piwin · Inkstone Review 报告 · proto-10</title>
+<style>
+:root {
+  --sans: Inter, -apple-system, 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
+  --serif: 'Noto Serif SC', 'Songti SC', 'STSong', 'Source Han Serif SC', Georgia, serif;
+  --mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+[data-face="paper"] {
+  color-scheme: light;
+  --void: #e6e1d7;
+  --s1: #f0ece4;
+  --s2: #f8f6f0;
+  --s3: #fffdf8;
+  --s4: #fff;
+  --t1: #1d1b17;
+  --t2: #5a554d;
+  --t3: #726b61;
+  --t4: #8f887d;
+  --l1: rgba(29, 27, 23, 0.06);
+  --l2: rgba(29, 27, 23, 0.11);
+  --l3: rgba(29, 27, 23, 0.2);
+  --zhu: #c6412a;
+  --zhu-lift: #d4553d;
+  --on-zhu: #fff7f0;
+  --zhu-wash: rgba(198, 65, 42, 0.1);
+  --lamp: #b8801f;
+  --lamp-wash: rgba(184, 128, 31, 0.14);
+  --pine: #3d7c5e;
+  --pine-wash: rgba(61, 124, 94, 0.12);
+  --azure: #3a7797;
+  --azure-wash: rgba(58, 119, 151, 0.10);
+  --crimson: #9c2e3d;
+  --code: #efece4;
+  --diff-add-bg: rgba(61, 124, 94, 0.10);
+  --diff-add-t: #2d6148;
+  --diff-del-bg: rgba(198, 65, 42, 0.10);
+  --diff-del-t: #a83420;
+  --sh1: 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2);
+  --sh2: 0 2px 8px -2px rgba(60, 45, 20, 0.12), 0 0 0 1px var(--l2);
+}
+
+[data-face="ink"] {
+  color-scheme: dark;
+  --void: #0b0a09;
+  --s1: #141210;
+  --s2: #191714;
+  --s3: #201d19;
+  --s4: #2a2621;
+  --t1: #ebe5da;
+  --t2: #a59d92;
+  --t3: #8b8378;
+  --t4: #6a6259;
+  --l1: rgba(235, 229, 218, 0.06);
+  --l2: rgba(235, 229, 218, 0.1);
+  --l3: rgba(235, 229, 218, 0.17);
+  --zhu: #e25a3d;
+  --zhu-lift: #f07054;
+  --on-zhu: #1c0b07;
+  --zhu-wash: rgba(226, 90, 61, 0.14);
+  --lamp: #e7b352;
+  --lamp-wash: rgba(231, 179, 82, 0.12);
+  --pine: #5fad85;
+  --pine-wash: rgba(95, 173, 133, 0.14);
+  --azure: #6ba4c3;
+  --azure-wash: rgba(107, 164, 195, 0.12);
+  --crimson: #d95f6e;
+  --code: #0f0e0c;
+  --diff-add-bg: rgba(95, 173, 133, 0.14);
+  --diff-add-t: #7cdbb1;
+  --diff-del-bg: rgba(226, 90, 61, 0.14);
+  --diff-del-t: #ff8c75;
+  --sh1: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(0,0,0,0.6);
+  --sh2: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(0,0,0,0.6), 0 2px 8px -2px rgba(0,0,0,0.5);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font: 13.5px/1.5 var(--sans);
+  background: var(--void);
+  color: var(--t1);
+  padding: 28px 20px 56px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Inkstone stroke icons */
+.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; display: inline-block; vertical-align: middle; }
+.s14 { width: 14px; height: 14px; }
+.s12 { width: 12px; height: 12px; }
+
+.container { max-width: 780px; margin: 0 auto; }
+
+/* ── 原型控制条（与 proto-00 一致的 .proto 结构） ────────── */
+.proto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  height: 28px;
+  font: 11px var(--mono);
+  color: var(--t3);
+  border-bottom: 1px dashed var(--l2);
+  margin-bottom: 16px;
+  white-space: nowrap;
+}
+.proto .pt { color: var(--t1); }
+.proto .pl { color: var(--t4); }
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--l2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.seg button {
+  font: 11px var(--mono);
+  padding: 3px 8px;
+  color: var(--t3);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.seg button.on {
+  background: var(--s3);
+  color: var(--t1);
+}
+
+/* ── 主报告面板 ─────────────────────────────────────────── */
+.panel {
+  background: var(--s1);
+  border-radius: 12px;
+  box-shadow: var(--sh2);
+  overflow: hidden;
+  position: relative;
+}
+/* 纸面噪点纹理 */
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px;
+}
+
+/* panel 内部都在 z-index:2 之上 */
+.panel > * { position: relative; z-index: 2; }
+
+/* ── 报告标题栏（复用 .insp-h 紧凑标题栏模式） ──────────── */
+.report-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--l2);
+}
+.report-bar h1 {
+  font: 500 14px var(--serif);
+  color: var(--t1);
+  letter-spacing: 0.01em;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.verdict-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font: 600 10.5px var(--mono);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex: none;
+}
+.verdict-pill.block {
+  background: var(--zhu-wash);
+  color: var(--zhu);
+}
+.verdict-pill .dot {
+  width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+}
+
+/* ── 报告内容区 ────────────────────────────────────────── */
+.report-body {
+  padding: 16px 16px 20px;
+}
+
+/* 元数据行 */
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font: 11.5px var(--mono);
+  color: var(--t3);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 14px;
+}
+.meta-row strong { color: var(--t1); font-weight: 500; }
+.meta-row .plus { color: var(--pine); }
+.meta-row .minus { color: var(--crimson); }
+.meta-sep { color: var(--l3); }
+
+/* 批注综述卡片（直线，复用 .gate::before 写法） */
+.summary-gate {
+  position: relative;
+  padding: 12px 14px;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  border-radius: 8px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--t2);
+  margin-bottom: 20px;
+}
+.summary-gate::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--zhu);
+}
+.summary-gate strong { color: var(--t1); }
+
+/* ── 章节分区标题（eyebrow 规范） ──────────────────────── */
+.sec-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0;
+  margin: 20px 0 8px;
+  font: 600 10.5px var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t3);
+}
+.sec-h .n {
+  font: 11px var(--mono);
+  color: var(--t4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 概览表 ────────────────────────────────────────────── */
+.ov-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--l2);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 12.5px;
+  margin-bottom: 18px;
+}
+.ov-table th {
+  background: var(--s2);
+  padding: 7px 12px;
+  text-align: left;
+  font: 600 10.5px var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t4);
+  border-bottom: 1px solid var(--l2);
+}
+.ov-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--l1);
+  background: var(--s3);
+  color: var(--t2);
+}
+.ov-table tr:last-child td { border-bottom: 0; }
+.ov-table code {
+  font: 11.5px var(--mono);
+  color: var(--t1);
+  background: var(--code);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 3px;
+  font: 600 10px var(--mono);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.pill .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.pill.p0 { background: var(--zhu-wash); color: var(--zhu); }
+.pill.p1 { background: var(--lamp-wash); color: var(--lamp); }
+.pill.ok { background: var(--pine-wash); color: var(--pine); }
+
+/* ── Finding 卡片 ──────────────────────────────────────── */
+.fc {
+  background: var(--s3);
+  border-radius: 8px;
+  box-shadow: var(--sh1);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
+}
+.fc:hover { box-shadow: var(--sh2); }
+.fc-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.fc.open .fc-h {
+  border-bottom: 1px solid var(--l1);
+}
+.sev {
+  font: 700 10px var(--mono);
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.03em;
+  flex: none;
+}
+.sev.p0 { background: var(--zhu); color: #fff; }
+.sev.p1 { background: var(--lamp); color: #fff; }
+.sev.p2 { background: var(--azure); color: #fff; }
+.fc-title {
+  font: 500 13px var(--sans);
+  color: var(--t1);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fc-loc {
+  font: 11px var(--mono);
+  color: var(--t4);
+  white-space: nowrap;
+  flex: none;
+}
+.fc-chev {
+  color: var(--t4);
+  transition: transform 0.2s ease;
+  flex: none;
+}
+.fc.open .fc-chev { transform: rotate(180deg); }
+
+.fc-body {
+  display: none;
+  padding: 14px 14px 16px;
+  font-size: 13px;
+  color: var(--t2);
+  line-height: 1.7;
+}
+.fc.open .fc-body { display: block; }
+.fc-body strong { color: var(--t1); }
+
+/* diff 块 */
+.diff {
+  background: var(--code);
+  border-radius: 6px;
+  border: 1px solid var(--l2);
+  overflow: hidden;
+  margin: 10px 0 12px;
+  font: 12px/1.6 var(--mono);
+}
+.diff-h {
+  padding: 5px 12px;
+  background: var(--s2);
+  border-bottom: 1px solid var(--l2);
+  font: 10px var(--mono);
+  color: var(--t4);
+  display: flex;
+  justify-content: space-between;
+}
+.dl { padding: 1px 12px; white-space: pre; }
+.dl.d { background: var(--diff-del-bg); color: var(--diff-del-t); }
+.dl.a { background: var(--diff-add-bg); color: var(--diff-add-t); }
+.dl.c { color: var(--t4); }
+
+/* 操作行 */
+.acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--l1);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font: 12.5px var(--sans);
+  cursor: pointer;
+  border: 0;
+  transition: all 0.12s ease;
+}
+.btn-zhu {
+  background: var(--zhu);
+  color: var(--on-zhu);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.12);
+}
+.btn-zhu:hover { background: var(--zhu-lift); }
+.btn-s {
+  background: var(--s2);
+  color: var(--t2);
+  box-shadow: var(--sh1);
+}
+.btn-s:hover { background: var(--s3); color: var(--t1); }
+.btn-g {
+  background: none;
+  color: var(--t4);
+}
+.btn-g:hover { color: var(--t2); background: var(--s2); }
+
+/* ── 检查清单 ──────────────────────────────────────────── */
+.chk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12.5px;
+  color: var(--t2);
+}
+.chk code {
+  font: 11.5px var(--mono);
+  color: var(--t1);
+  background: var(--code);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.node-chk {
+  width: 9px; height: 9px; border-radius: 50%;
+  flex: none;
+}
+.node-chk.done { background: var(--pine); border: 1.5px solid var(--pine); }
+.node-chk.wait { border-radius: 1px; background: var(--lamp); border: 1.5px solid var(--lamp); }
+
+/* ── 页脚 ──────────────────────────────────────────────── */
+.report-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 14px;
+  border-top: 1px solid var(--l1);
+  margin-top: 16px;
+}
+.foot-hint {
+  font: 11px var(--mono);
+  color: var(--t4);
+}
+.foot-acts { display: flex; gap: 6px; }
+</style>
+</head>
+<body data-face="paper">
+
+<svg width="0" height="0" style="position:absolute;display:none"><defs>
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<!-- 盘点：三条不等长横线（极简柱图意象，2 笔） -->
+<symbol id="bars" viewBox="0 0 16 16"><path d="M3 11h4M3 8h7M3 5h10"/></symbol>
+<!-- 发现：一竖一点（极简感叹号，2 笔） -->
+<symbol id="bang" viewBox="0 0 16 16"><path d="M8 3v7"/><circle cx="8" cy="13" r="0.8" fill="currentColor" stroke="none"/></symbol>
+<!-- 对勾（1 笔） -->
+<symbol id="check" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-6"/></symbol>
+<!-- 气泡：极简三角尾（2 笔） -->
+<symbol id="chat" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="8" rx="1.5"/><path d="M5 10.5L3 13.5"/></symbol>
+<!-- 闪电：单折线（1 笔） -->
+<symbol id="bolt" viewBox="0 0 16 16"><path d="M9 2L5 9h5l-3 5"/></symbol>
+<!-- 刷新：弧线+箭头（2 笔） -->
+<symbol id="refresh" viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 11.6 4.5"/><path d="M13.5 2.5v3h-3"/></symbol>
+<!-- 清单：两个短勾（2 笔） -->
+<symbol id="checks" viewBox="0 0 16 16"><path d="M3 5.5l2 2 4-4M3 10.5l2 2 4-4"/></symbol>
+<!-- 文件：折角（2 笔） -->
+<symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></symbol>
+</defs></svg>
+
+<div class="container">
+
+  <!-- 原型控制条 -->
+  <div class="proto">
+    <span class="pt">Inkstone（砚）· proto-10 · Review 报告</span>
+    <span class="pl">面</span>
+    <span class="seg">
+      <button class="on" data-set="face" data-v="paper" onclick="setFace('paper')">纸</button>
+      <button data-set="face" data-v="ink" onclick="setFace('ink')">墨</button>
+    </span>
+  </div>
+
+  <!-- 主面板 -->
+  <div class="panel">
+
+    <!-- 标题栏 -->
+    <div class="report-bar">
+      <svg class="i s14" style="color:var(--t3)"><use href="#file"/></svg>
+      <h1>代码审阅批注</h1>
+      <span class="verdict-pill block"><span class="dot"></span>需修改</span>
+    </div>
+
+    <div class="report-body">
+
+      <!-- 元数据 -->
+      <div class="meta-row">
+        <span>审阅范围 <strong>3</strong> 个文件</span>
+        <span class="meta-sep">/</span>
+        <span><span class="plus">+86</span> <span class="minus">−24</span></span>
+        <span class="meta-sep">/</span>
+        <span>置信度 <strong style="color:var(--pine)">94%</strong></span>
+        <span class="meta-sep">/</span>
+        <span>耗时 <strong>1.4s</strong></span>
+      </div>
+
+      <!-- 批注综述（直线，与 gate 一致） -->
+      <div class="summary-gate">
+        <strong>批注综述</strong> — 整体变更逻辑结构清晰，契约边界划分良好。但存在 <strong>1 处高危路径遍历隐患</strong>（允许通过相对路径越界逃逸出安全工作区），以及 <strong>1 处异步竞态无 Abort 信号</strong>的问题。修复 P0 补丁后建议合入。
+      </div>
+
+      <!-- 盘点 -->
+      <div class="sec-h">
+        <svg class="i s14"><use href="#bars"/></svg>
+        综合维度盘点
+      </div>
+      <table class="ov-table">
+        <thead>
+          <tr>
+            <th style="width:26%">维度</th>
+            <th style="width:18%">状态</th>
+            <th>重点关注</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>安全与边界</strong></td>
+            <td><span class="pill p0"><span class="dot"></span>P0 阻断</span></td>
+            <td>入参未过滤 <code>../</code>，存在路径越界写入风险</td>
+          </tr>
+          <tr>
+            <td><strong>逻辑与竞态</strong></td>
+            <td><span class="pill p1"><span class="dot"></span>P1 警告</span></td>
+            <td>快速切换 session 时旧请求覆盖新状态（缺少 signal）</td>
+          </tr>
+          <tr>
+            <td><strong>架构与依赖</strong></td>
+            <td><span class="pill ok"><span class="dot"></span>良好</span></td>
+            <td>严格遵守单向依赖原则，无循环引用</td>
+          </tr>
+          <tr>
+            <td><strong>测试覆盖</strong></td>
+            <td><span class="pill p1"><span class="dot"></span>需补充</span></td>
+            <td>核心边界校验分支缺少单元测试</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 发现 -->
+      <div class="sec-h">
+        <svg class="i s14"><use href="#bang"/></svg>
+        审查发现
+        <span class="n">3</span>
+      </div>
+
+      <!-- P0 -->
+      <div class="fc open" id="f1">
+        <div class="fc-h" onclick="toggle('f1')">
+          <span class="sev p0">P0</span>
+          <span class="fc-title">路径拼接缺少工作区防穿越校验</span>
+          <span class="fc-loc">paths.ts:45-48</span>
+          <svg class="i s12 fc-chev"><use href="#chevd"/></svg>
+        </div>
+        <div class="fc-body">
+          <strong>成因：</strong>直接调用 <code>path.resolve(root, userInput)</code>，畸形入参（<code>../../etc/passwd</code>）可逃逸出工作区沙箱。
+          <div class="diff">
+            <div class="diff-h"><span>推荐补丁</span><span>TypeScript</span></div>
+            <div class="dl c">  export function getTargetFilePath(root: string, userInput: string): string {</div>
+            <div class="dl d">-   const targetPath = path.resolve(root, userInput);</div>
+            <div class="dl a">+   const targetPath = resolveSafeRelativePath(root, userInput);</div>
+            <div class="dl a">+   if (!targetPath) throw new SecurityBoundaryError('Path traversal: ' + userInput);</div>
+            <div class="dl c">    return targetPath;</div>
+            <div class="dl c">  }</div>
+          </div>
+          <div class="acts">
+            <button class="btn btn-g" onclick="dismiss('f1')">忽略</button>
+            <button class="btn btn-s"><svg class="i s12"><use href="#chat"/></svg>讨论</button>
+            <button class="btn btn-zhu" onclick="apply('f1')"><svg class="i s12"><use href="#check"/></svg>采纳补丁</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- P1 -->
+      <div class="fc" id="f2">
+        <div class="fc-h" onclick="toggle('f2')">
+          <span class="sev p1">P1</span>
+          <span class="fc-title">异步加载未传递 AbortController 信号</span>
+          <span class="fc-loc">use-review-subagent-results.ts:32</span>
+          <svg class="i s12 fc-chev"><use href="#chevd"/></svg>
+        </div>
+        <div class="fc-body">
+          <strong>成因：</strong><code>hostClient.request</code> 未挂载 AbortSignal，高频切换 session 时慢响应覆写新状态。
+          <div class="diff">
+            <div class="diff-h"><span>推荐补丁</span><span>TypeScript</span></div>
+            <div class="dl c">  const reload = useCallback(async (): Promise&lt;void&gt; =&gt; {</div>
+            <div class="dl d">-   const response = await hostClient.request({ type: 'subagent/results', parentSessionId: sessionId });</div>
+            <div class="dl a">+   const response = await hostClient.request({ type: 'subagent/results', parentSessionId: sessionId }, { signal });</div>
+            <div class="dl c">    if (response.success) setResults(response.data.items ?? []);</div>
+            <div class="dl c">  }, [hostClient, sessionId]);</div>
+          </div>
+          <div class="acts">
+            <button class="btn btn-g" onclick="dismiss('f2')">忽略</button>
+            <button class="btn btn-s"><svg class="i s12"><use href="#chat"/></svg>讨论</button>
+            <button class="btn btn-zhu" onclick="apply('f2')"><svg class="i s12"><use href="#check"/></svg>采纳补丁</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- P2 -->
+      <div class="fc" id="f3">
+        <div class="fc-h" onclick="toggle('f3')">
+          <span class="sev p2">P2</span>
+          <span class="fc-title">硬编码颜色未对接 Inkstone Token</span>
+          <span class="fc-loc">region-inspector.css:88</span>
+          <svg class="i s12 fc-chev"><use href="#chevd"/></svg>
+        </div>
+        <div class="fc-body">
+          <strong>成因：</strong>直接写入 <code>#17161b</code>，切换墨面时无法自动反色。
+          <div class="diff">
+            <div class="diff-h"><span>推荐补丁</span><span>CSS</span></div>
+            <div class="dl c">  .inspector-summary-title {</div>
+            <div class="dl d">-   color: #17161b;</div>
+            <div class="dl a">+   color: var(--t1);</div>
+            <div class="dl c">    font-weight: 600;</div>
+            <div class="dl c">  }</div>
+          </div>
+          <div class="acts">
+            <button class="btn btn-g" onclick="dismiss('f3')">忽略</button>
+            <button class="btn btn-s"><svg class="i s12"><use href="#chat"/></svg>讨论</button>
+            <button class="btn btn-zhu" onclick="apply('f3')"><svg class="i s12"><use href="#check"/></svg>采纳补丁</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 验证清单 -->
+      <div class="sec-h">
+        <svg class="i s14"><use href="#checks"/></svg>
+        验证清单
+      </div>
+      <div class="chk"><span class="node-chk done"></span>TypeScript 类型全仓通过 (<code>pnpm typecheck</code>)</div>
+      <div class="chk"><span class="node-chk done"></span>现有单元测试无回归</div>
+      <div class="chk"><span class="node-chk wait"></span>需补写路径穿越防御单测 (<code>paths.test.ts</code>)</div>
+
+      <!-- 页脚 -->
+      <div class="report-foot">
+        <span class="foot-hint">"采纳补丁"自动应用修复到工作区</span>
+        <div class="foot-acts">
+          <button class="btn btn-s"><svg class="i s12"><use href="#refresh"/></svg>重新审阅</button>
+          <button class="btn btn-zhu"><svg class="i s12"><use href="#bolt"/></svg>一键修复 P0</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+function setFace(face) {
+  document.body.setAttribute('data-face', face);
+  document.querySelectorAll('[data-set="face"]').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === face);
+  });
+}
+function toggle(id) {
+  document.getElementById(id)?.classList.toggle('open');
+}
+function apply(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.opacity = '0.35';
+  el.style.pointerEvents = 'none';
+  setTimeout(() => { el.style.display = 'none'; }, 250);
+}
+function dismiss(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.opacity = '0.25';
+  setTimeout(() => { el.style.display = 'none'; }, 200);
+}
+</script>
+</body>
+</html>

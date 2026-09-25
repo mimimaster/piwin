@@ -1,0 +1,4701 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Inkstone（砚）· 增量 11 · 异步子代理交互全真原型</title>
+
+    
+  <style>
+/* ── shell-foundation.css ── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  background: #e6e1d7;
+  overflow: hidden;
+}
+[hidden] {
+  display: none !important;
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+u {
+  text-decoration: none;
+  cursor: pointer;
+}
+u:hover {
+  text-decoration: underline;
+}
+.i {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+.s12 {
+  width: 12px;
+  height: 12px;
+}
+.s14 {
+  width: 14px;
+  height: 14px;
+}
+.ml {
+  margin-left: auto;
+}
+.grow {
+  flex: 1;
+}
+.app {
+  --sans: Inter, 'PingFang SC', 'Noto Sans SC', -apple-system, system-ui, sans-serif;
+  --serif:
+    'Noto Serif SC', 'Songti SC', 'STSong', 'Source Han Serif SC', 'Source Serif 4', Georgia, serif;
+  --mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  height: 100dvh;
+  width: 100%;
+  display: grid;
+  grid-template-rows: 28px 36px minmax(0, 1fr);
+  background: var(--void);
+  color: var(--t1);
+  font: 13.5px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+.app[data-face='paper'] {
+  color-scheme: light;
+  --void: #e6e1d7;
+  --s1: #f0ece4;
+  --s2: #f8f6f0;
+  --s3: #fffdf8;
+  --s4: #fff;
+  --t1: #1d1b17;
+  --t2: #5a554d;
+  --t3: #726b61;
+  --t4: #8f887d;
+  --l1: rgba(29, 27, 23, 0.06);
+  --l2: rgba(29, 27, 23, 0.11);
+  --l3: rgba(29, 27, 23, 0.2);
+  --zhu: #c6412a;
+  --zhu-lift: #d4553d;
+  --on-zhu: #fff7f0;
+  --zhu-wash: rgba(198, 65, 42, 0.1);
+  --lamp: #b8801f;
+  --lamp-glow: rgba(184, 128, 31, 0.4);
+  --lamp-wash: rgba(184, 128, 31, 0.14);
+  --pine: #3d7c5e;
+  --pine-wash: rgba(61, 124, 94, 0.12);
+  --ochre: #94611a;
+  --crimson: #9c2e3d;
+  --crimson-wash: rgba(156, 46, 61, 0.1);
+  --azure: #3a7797;
+  --code: #efece4;
+  --slab: #1f1c18;
+  --slab-t: #efe9df;
+  --slab-ph: #8d857a;
+  --slab-chip: rgba(255, 255, 255, 0.07);
+  --slab-line: rgba(255, 255, 255, 0.1);
+  --sh1: 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2);
+  --sh2: 0 2px 8px -2px rgba(60, 45, 20, 0.12), 0 0 0 1px var(--l2);
+  --sh3: 0 14px 34px -12px rgba(50, 35, 15, 0.3), 0 0 0 1px var(--l3);
+}
+.app[data-face='ink'] {
+  color-scheme: dark;
+  --void: #0b0a09;
+  --s1: #141210;
+  --s2: #191714;
+  --s3: #201d19;
+  --s4: #2a2621;
+  --t1: #ebe5da;
+  --t2: #a59d92;
+  --t3: #8b8378;
+  --t4: #6a6259;
+  --l1: rgba(235, 229, 218, 0.06);
+  --l2: rgba(235, 229, 218, 0.1);
+  --l3: rgba(235, 229, 218, 0.17);
+  --zhu: #e25a3d;
+  --zhu-lift: #f07054;
+  --on-zhu: #1c0b07;
+  --zhu-wash: rgba(226, 90, 61, 0.14);
+  --lamp: #e7b352;
+  --lamp-glow: rgba(231, 179, 82, 0.35);
+  --lamp-wash: rgba(231, 179, 82, 0.12);
+  --pine: #5fad85;
+  --pine-wash: rgba(95, 173, 133, 0.14);
+  --ochre: #c88f3c;
+  --crimson: #d95f6e;
+  --crimson-wash: rgba(217, 95, 110, 0.14);
+  --azure: #6ba4c3;
+  --code: #0f0e0c;
+  --slab: #0e0d0b;
+  --slab-t: #ebe5da;
+  --slab-ph: #6f685f;
+  --slab-chip: rgba(235, 229, 218, 0.07);
+  --slab-line: rgba(235, 229, 218, 0.1);
+  --sh1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.6);
+  --sh2:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 2px 8px -2px rgba(0, 0, 0, 0.5);
+  --sh3:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.7),
+    0 14px 34px -10px rgba(0, 0, 0, 0.7);
+}
+.app[data-slab='paper'] {
+  --slab: var(--s3);
+  --slab-t: var(--t1);
+  --slab-ph: var(--t4);
+  --slab-chip: var(--s1);
+  --slab-line: var(--l2);
+}
+.proto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  font: 11px var(--mono);
+  color: var(--t3);
+  border-bottom: 1px dashed var(--l2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.proto .pt {
+  color: var(--t1);
+  margin-right: 8px;
+}
+.proto .pl {
+  color: var(--t4);
+}
+.proto .pn {
+  margin-left: auto;
+  color: var(--t4);
+}
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--l2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.seg button {
+  font: 11px var(--mono);
+  padding: 3px 8px;
+  color: var(--t3);
+}
+.seg button.on {
+  background: var(--s3);
+  color: var(--t1);
+}
+.tb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px 0 84px;
+  color: var(--t2);
+  font-size: 12.5px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--t2);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.chip:hover {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  color: var(--t1);
+}
+.ib {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--t3);
+  flex: none;
+}
+.ib:hover {
+  background: var(--s3);
+  color: var(--t1);
+}
+.ib.s20 {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+.ib.s22 {
+  width: 22px;
+  height: 22px;
+}
+.tb .title {
+  margin: 0 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 14px var(--serif);
+  color: var(--t1);
+  letter-spacing: 0.01em;
+}
+.tt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.status {
+  font: 11.5px var(--mono);
+  color: var(--t3);
+  font-variant-numeric: tabular-nums;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.app[data-state='waiting'] .status {
+  color: var(--zhu);
+}
+.app[data-state='running'] .status {
+  color: var(--lamp);
+}
+.av {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  font: 600 10.5px/18px var(--serif);
+  text-align: center;
+  color: var(--t1);
+  display: inline-block;
+  flex: none;
+}
+.lamp {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lamp);
+  box-shadow: 0 0 8px 2px var(--lamp-glow);
+  animation: breath 2.4s ease-in-out infinite;
+  flex: none;
+}
+.sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--zhu);
+  flex: none;
+}
+.deck {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr) 304px;
+  gap: 8px;
+  padding: 0 8px 8px;
+  min-height: 0;
+}
+.panel {
+  background: var(--s1);
+  border-radius: 12px;
+  box-shadow: var(--sh2);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.app[data-inspector='off'] .deck {
+  grid-template-columns: 236px minmax(0, 1fr);
+}
+.app[data-inspector='off'] .insp {
+  display: none;
+}
+.sb-top {
+  display: flex;
+  gap: 6px;
+  padding: 10px 10px 6px;
+}
+.search {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--s2);
+  box-shadow: var(--sh1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--t4);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.search kbd {
+  margin-left: auto;
+  font: 10.5px var(--mono);
+  color: var(--t4);
+}
+.new {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  display: grid;
+  place-items: center;
+  flex: none;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+}
+.new:hover {
+  background: var(--zhu-lift);
+}
+.sb-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  padding-bottom: 6px;
+}
+.sec {
+  padding: 8px 6px 0;
+}
+.sec-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  font: 600 10.5px var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t3);
+}
+.n {
+  font: 11px var(--mono);
+  color: var(--t4);
+  font-variant-numeric: tabular-nums;
+}
+.sec-h .ib {
+  opacity: 0;
+}
+.sec:hover .sec-h .ib {
+  opacity: 1;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t1);
+  position: relative;
+}
+.row:hover {
+  background: var(--s2);
+}
+.row.sel {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+}
+.row .t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row .end {
+  width: 64px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex: none;
+}
+.tm {
+  font: 11px var(--mono);
+  color: var(--t4);
+  font-variant-numeric: tabular-nums;
+}
+.row .acts {
+  display: none;
+}
+.row:hover .acts {
+  display: flex;
+}
+.row:hover .tm {
+  display: none;
+}
+.row .i.s14 {
+  color: var(--t4);
+}
+.folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  color: var(--t2);
+}
+.folder b {
+  color: var(--t1);
+  font-weight: 500;
+}
+.folder .fp {
+  margin-left: auto;
+  opacity: 0;
+}
+.folder:hover .fp {
+  opacity: 1;
+}
+.thread {
+  position: relative;
+  padding-left: 22px;
+}
+.thread::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  bottom: 8px;
+  width: 1.5px;
+  border-radius: 1px;
+  background: var(--l3);
+}
+.node {
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  margin-top: -4.5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--s2);
+  border: 1.5px solid var(--l3);
+}
+.sb .thread {
+  margin-left: 0;
+  padding-left: 22px;
+}
+.sb .thread::before {
+  left: 4px;
+}
+.sb .node {
+  left: -17.5px;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+}
+.node.done {
+  background: var(--pine);
+  border-color: var(--pine);
+}
+.node.bg {
+  background: var(--azure);
+  border-color: var(--azure);
+}
+.node.run,
+.app[data-state='running'] .row.cur .node,
+.app[data-state='running'] .tr.last .node {
+  background: var(--lamp);
+  border-color: var(--lamp);
+  box-shadow: 0 0 0 3px var(--lamp-wash);
+  animation: breath 2.4s ease-in-out infinite;
+}
+.node.wait,
+.app[data-state='waiting'] .row.cur .node {
+  border-radius: 1px;
+  background: var(--zhu);
+  border-color: var(--zhu);
+}
+.app[data-state='idle'] .tr.last .node {
+  background: var(--pine);
+  border-color: var(--pine);
+}
+.app[data-state='waiting'] .tr.last {
+  opacity: 0.5;
+}
+
+
+/* ── shell-layout.css ── */
+/* Increment 00.2: map the inherited Inkstone surfaces onto Desktop's grid. */
+.app {
+  grid-template-rows: 34px minmax(0, 1fr);
+  --sidebar: 240px;
+  --inspector: 360px;
+}
+.proto {
+  overflow: visible;
+  gap: 4px;
+  border-bottom: 0;
+  padding: 0 8px;
+  font-size: 10px;
+}
+.traffic {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 8px;
+}
+.traffic-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+.traffic-dot.close {
+  background: #ff5f57;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+}
+.traffic-dot.minimize {
+  background: #febc2e;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+}
+.traffic-dot.maximize {
+  background: #28c840;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+}
+.proto-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: var(--sidebar);
+  flex: none;
+}
+.proto-nav-spacer {
+  flex: 1;
+}
+.app[data-sidebar='off'] .proto-nav {
+  width: auto;
+}
+.proto .chip {
+  height: 24px;
+  font-size: 11px;
+}
+.proto .seg button {
+  padding: 2px 7px;
+  font-size: 10px;
+}
+.deck {
+  position: relative;
+  grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--inspector);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+.panel {
+  border-radius: 8px;
+  min-width: 0;
+}
+.sb {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+}
+.stage {
+  grid-column: 2;
+  grid-row: 1;
+  padding-top: 42px;
+}
+.insp {
+  grid-column: 3;
+  grid-row: 1;
+  container-type: inline-size;
+}
+.tb {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  height: 42px;
+  z-index: 4;
+  padding: 0 12px;
+  gap: 4px;
+  min-width: 0;
+  border-bottom: 1px solid var(--l1);
+}
+.tb .title {
+  font-size: 13px;
+  flex: 1;
+  margin: 0 8px;
+}
+.tb .chip {
+  font-size: 11px;
+  padding: 0 6px;
+}
+.tb > .chip:has(.av) {
+  display: none;
+}
+.tb .status {
+  font-size: 10px;
+}
+.scope-chip {
+  max-width: 130px;
+}
+.scope-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app[data-inspector='off'] .deck {
+  grid-template-columns: var(--sidebar) minmax(0, 1fr);
+}
+.app[data-sidebar='off'] .deck {
+  grid-template-columns: minmax(0, 1fr) var(--inspector);
+}
+.app[data-sidebar='off'] .sb {
+  display: none;
+}
+.app[data-sidebar='off'] .stage {
+  grid-column: 1;
+}
+.app[data-sidebar='off'] .insp {
+  grid-column: 2;
+}
+.app[data-sidebar='off'] .tb {
+  grid-column: 1;
+}
+.app[data-inspector='off'][data-sidebar='off'] .deck {
+  grid-template-columns: minmax(0, 1fr);
+}
+.app[data-inspector='off']:not([data-sidebar='off']) .tb {
+  grid-column: 2;
+}
+.session-context {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 18px;
+  min-height: 34px;
+  color: var(--t3);
+  font: 10px var(--mono);
+  border-bottom: 1px solid var(--l1);
+  flex: none;
+}
+#context-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-context .chip {
+  font: 11px var(--sans);
+  height: 22px;
+  padding: 0 5px;
+}
+.context-dot {
+  color: var(--t4);
+}
+.search input {
+  width: 100%;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: 0;
+  font: 12px var(--sans);
+  color: var(--t1);
+}
+.search kbd {
+  font-size: 9px;
+}
+.sec-h .ib,
+.folder .fp {
+  opacity: 1;
+}
+.folder .br {
+  font: 10.5px var(--mono);
+  color: var(--t4);
+  margin-left: 3px;
+}
+.sec-h {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.folder {
+  cursor: pointer;
+}
+.row {
+  cursor: pointer;
+  height: 31px;
+}
+.row .end {
+  width: 64px;
+}
+.sb .row.cur .node,
+.sb .row.sel .node {
+  background: var(--zhu);
+  border-color: var(--zhu);
+  box-shadow: 0 0 0 3px var(--zhu-wash);
+}
+.sb .row.cur,
+.sb .row.sel {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+}
+.sb .row.cur .t,
+.sb .row.sel .t {
+  font-weight: 500;
+  color: var(--t1);
+}
+.sb-top {
+  height: 42px;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--l1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.sec {
+  padding-top: 12px;
+}
+.thread .row {
+  font-size: 12.5px;
+}
+.shelf button {
+  font-size: 10px;
+}
+.scroll {
+  min-height: 0;
+  padding: 24px 28px 18px;
+}
+.dock {
+  flex: none;
+  padding: 10px 28px 14px;
+  background: var(--s2);
+}
+.hint {
+  gap: 12px;
+  font: 9px var(--mono);
+  margin-top: 9px;
+}
+.turn {
+  display: block;
+  max-width: 760px;
+  margin: 0 auto 24px;
+}
+.dock-in {
+  max-width: 760px;
+  padding: 0;
+}
+.stage .head {
+  display: flex;
+}
+.marg {
+  display: none;
+}
+.cap {
+  font-size: 10px;
+}
+.think {
+  font-size: 12px;
+}
+.tr {
+  font-size: 11px;
+}
+.tr .meta {
+  font-size: 10px;
+}
+.slab {
+  border-radius: 10px;
+}
+.bar {
+  flex-wrap: wrap;
+}
+.sb-chip {
+  font-size: 11px;
+  padding: 0 6px;
+}
+.refs {
+  padding-top: 9px;
+}
+.ref {
+  font-size: 10px;
+}
+.ta {
+  font-size: 13px;
+}
+.ring {
+  width: 15px;
+  height: 15px;
+  margin: 0 5px;
+}
+button:focus-visible,
+[tabindex]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--zhu);
+  outline-offset: 2px;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.general-intro {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 0 20px;
+  border-bottom: 1px solid var(--l2);
+  margin-bottom: 24px;
+  color: var(--t3);
+  font: 11px var(--mono);
+}
+.general-intro .seal {
+  margin-right: 3px;
+}
+.general-prose {
+  font: 14px/1.9 var(--sans);
+}
+.general-prose h2 {
+  font: 600 18px/1.5 var(--sans);
+  margin: 8px 0 16px;
+}
+.general-prose p {
+  margin-bottom: 15px;
+}
+.general-prose blockquote {
+  margin: 18px 0;
+  padding: 3px 0 3px 15px;
+  border-left: 2px solid var(--zhu);
+  font: 14px/1.8 var(--sans);
+  color: var(--t2);
+}
+.artifact-card {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  border-radius: 8px;
+  text-align: left;
+  margin: 16px 0;
+}
+.artifact-card > .i {
+  margin-top: 4px;
+  color: var(--zhu);
+}
+.artifact-card strong {
+  display: block;
+  font: 500 13px var(--sans);
+  margin-bottom: 6px;
+}
+.artifact-card small {
+  font: 10px var(--mono);
+  color: var(--t4);
+}
+.welcome {
+  max-width: 490px;
+  margin: clamp(20px, 10vh, 110px) auto 20px;
+}
+.welcome .seal {
+  margin-bottom: 24px;
+}
+.welcome h1 {
+  font: 500 32px/1.4 var(--serif);
+  letter-spacing: 0.03em;
+}
+.welcome p {
+  font: 13px/1.9 var(--sans);
+  color: var(--t3);
+  margin: 14px 0 28px;
+}
+.suggestions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.suggestions button {
+  padding: 8px 12px;
+  border: 1px solid var(--l3);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--t2);
+}
+.suggestions button:hover {
+  background: var(--s3);
+}
+.resize-handle {
+  position: absolute;
+  right: calc(var(--inspector) + 9px);
+  top: 8px;
+  bottom: 16px;
+  width: 5px;
+  z-index: 7;
+  cursor: col-resize;
+  border-radius: 4px;
+}
+.resize-handle:hover,
+.resize-handle:focus-visible {
+  background: var(--zhu);
+  opacity: 0.5;
+}
+.app[data-inspector='off'] .resize-handle {
+  display: none;
+}
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 12, 10, 0.2);
+  z-index: 8;
+}
+@container (max-width:325px) {
+  .tab:not(.on) .tab-label {
+    display: none;
+  }
+  .tab {
+    padding: 0 9px;
+  }
+  .tab .b {
+    display: none;
+  }
+}
+@container (max-width:570px) {
+  .bar > .sb-chip:nth-of-type(4) {
+    display: none;
+  }
+  .hint span:nth-child(n + 3) {
+    display: none;
+  }
+  .tr .meta {
+    max-width: 80px;
+    overflow: hidden;
+  }
+  .scroll {
+    padding: 20px 18px 16px;
+  }
+  .dock {
+    padding: 8px 18px 12px;
+  }
+  .cap {
+    font-size: 9px;
+  }
+  .session-context {
+    padding-inline: 14px;
+  }
+}
+@media (max-width: 1200px) and (min-width: 1024px) {
+  .app {
+    --sidebar: 198px;
+    --inspector: 320px;
+  }
+  .tb .status {
+    display: none;
+  }
+  .branch-chip {
+    display: none;
+  }
+}
+@media (max-width: 1023px) {
+  .deck,
+  .app[data-inspector='off'] .deck,
+  .app[data-sidebar='off'] .deck {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .stage {
+    grid-column: 1 !important;
+  }
+  .tb {
+    grid-column: 1 !important;
+    padding-right: 10px;
+  }
+  .sb {
+    display: none;
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 8px;
+    width: 250px;
+    z-index: 9;
+    padding-top: 8px;
+  }
+  .app[data-sidebar='on'] .sb {
+    display: flex;
+  }
+  .insp {
+    display: flex;
+    position: absolute;
+    right: 8px;
+    top: 0;
+    bottom: 8px;
+    width: min(400px, calc(100% - 24px));
+    z-index: 9;
+    grid-column: 1 !important;
+  }
+  .resize-handle {
+    display: none;
+  }
+  .app[data-inspector='off'] .insp {
+    display: none;
+  }
+  .tb .title {
+    margin-left: 6px;
+  }
+  .scroll {
+    padding-top: 22px;
+  }
+}
+@media (max-width: 600px) {
+  .prototype-caption {
+    display: none;
+  }
+  .tb .status,
+  .branch-chip,
+  .tb .title > .ib {
+    display: none;
+  }
+  .tb .chip {
+    max-width: 88px;
+  }
+  .tb .title {
+    font-size: 12px;
+  }
+  .proto {
+    padding: 0 12px;
+  }
+  .session-context {
+    font-size: 9px;
+  }
+  .welcome h1 {
+    font-size: 26px;
+  }
+  .welcome {
+    margin-top: 45px;
+  }
+  .general-prose h2 {
+    font-size: 18px;
+  }
+}
+
+.app[data-state='running'][data-draft='on'] .send .ic-send {
+  display: block;
+}
+.app[data-state='running'][data-draft='on'] .send .ic-pause {
+  display: none;
+}
+
+#context-label,
+.session-context .context-dot {
+  display: none;
+}
+.session-context .scope-chip {
+  padding: 0;
+}
+.session-context .branch-chip {
+  padding: 0 6px;
+}
+#context-detail {
+  margin-left: 4px;
+}
+.app[data-inspector='on'] .session-context > [data-open] {
+  display: none;
+}
+.slab {
+  box-shadow: var(--sh2);
+}
+.ta {
+  min-height: 52px;
+}
+
+
+/* ── shell-transcript.css ── */
+.tr {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t2);
+  white-space: nowrap;
+}
+.tr:hover {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+}
+.tr b {
+  color: var(--t1);
+  font-weight: 600;
+}
+.tr code,
+.gate code,
+.work-h code,
+.prose code {
+  font: 11.5px var(--mono);
+  color: var(--t1);
+  background: var(--code);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.tr code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tr .meta {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font: 11.5px var(--mono);
+  color: var(--t4);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.pm {
+  font: 11.5px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.plus {
+  color: var(--pine);
+}
+.minus {
+  color: var(--crimson);
+}
+.run-m {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--lamp);
+}
+.grind {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid var(--l3);
+  border-top-color: var(--lamp);
+  animation: grind 1.4s linear infinite;
+}
+.seal {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font: 600 17px/1 var(--serif);
+  display: grid;
+  place-items: center;
+  position: relative;
+  transform: rotate(-1.5deg);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+.seal::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 2px;
+}
+.seal:hover {
+  background: var(--zhu-lift);
+}
+.seal.ghost {
+  background: transparent;
+  color: var(--t2);
+  box-shadow: inset 0 0 0 1.5px var(--l3);
+  transform: none;
+}
+.seal.ghost::after {
+  display: none;
+}
+.seal.ghost:hover {
+  background: var(--s2);
+  color: var(--t1);
+}
+.seal.mini {
+  width: 17px;
+  height: 17px;
+  font-size: 9px;
+  border-radius: 2px;
+  transform: rotate(-3deg);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+.seal.mini::after {
+  inset: 2px;
+  border-radius: 1px;
+}
+.seal.stamping {
+  animation: stamp 0.16s var(--spring) both;
+}
+.tr-gate {
+  position: relative;
+  padding: 4px 0 6px;
+}
+.tr-gate .node {
+  top: 26px;
+  margin-top: 0;
+}
+.gate {
+  position: relative;
+  margin-left: 8px;
+  padding: 12px 14px;
+  background: var(--s3);
+  box-shadow: var(--sh2);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 16px;
+  align-items: center;
+}
+.gate::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--zhu);
+}
+.gate .mic {
+  font: 600 10.5px var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--zhu);
+}
+.gate .cmd {
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--t1);
+}
+.gate .facts {
+  margin-top: 5px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font: 11.5px var(--mono);
+  color: var(--t3);
+}
+.gate .seals {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.gate .gh {
+  grid-column: 1/-1;
+  font: 11px var(--mono);
+  color: var(--t4);
+}
+.gate .gh u {
+  color: var(--t3);
+  margin-left: 2px;
+}
+.stage {
+  background: var(--s2);
+  position: relative;
+  container-type: inline-size;
+}
+.stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>")
+    0 0/200px 200px;
+}
+.app[data-face='ink'] .stage::after {
+  mix-blend-mode: screen;
+  opacity: 0.02;
+}
+.scroll,
+.dock {
+  --mg: 0px;
+  --measure: 720px;
+  --rail: 0px;
+  --gut: clamp(0px, max(var(--mg), var(--rail)), calc((100% - 24rem) / 2));
+}
+.scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 26px 28px 6px;
+}
+.scroll::-webkit-scrollbar,
+.sb-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll::-webkit-scrollbar-thumb,
+.sb-scroll::-webkit-scrollbar-thumb {
+  background: var(--l2);
+  border-radius: 4px;
+}
+.turn {
+  display: grid;
+  grid-template-columns: minmax(0, var(--gut)) minmax(0, var(--measure)) minmax(0, var(--gut));
+  width: 100%;
+  max-width: calc(var(--gut) * 2 + var(--measure));
+  margin: 0 auto 22px;
+}
+.turn > div {
+  grid-column: 2;
+  min-width: 0;
+}
+.marg {
+  display: none;
+  grid-column: 1;
+  justify-self: end;
+  width: var(--mg);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 5px 18px 0 0;
+  font: 11px var(--mono);
+  color: var(--t4);
+  text-align: right;
+  position: sticky;
+  top: 0;
+  align-self: start;
+}
+.marg .av {
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+.marg .who,
+.head .who {
+  font: 500 12.5px var(--serif);
+  color: var(--t2);
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 11px var(--mono);
+  color: var(--t4);
+  margin-bottom: 8px;
+}
+.ucard {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 14.5px;
+  line-height: 1.72;
+}
+.ucard code {
+  font: 12.5px var(--mono);
+  background: var(--s1);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.att {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 3px;
+  background: var(--s1);
+  box-shadow: var(--sh1);
+  font: 11.5px var(--mono);
+  color: var(--t2);
+}
+.cap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  margin: 8px 0 0;
+  font: 11.5px var(--mono);
+  color: var(--t3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.cap i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--t4);
+  flex: none;
+}
+.work {
+  margin: 2px 0 10px;
+}
+.work-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  margin-left: -8px;
+  width: calc(100% + 16px);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t2);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.work-h:hover {
+  background: var(--s3);
+}
+.work-h b {
+  color: var(--t1);
+  font-weight: 500;
+}
+.work-h .i {
+  color: var(--t3);
+}
+.chev {
+  margin-left: auto;
+  color: var(--t4);
+}
+.think {
+  margin: 2px 0 8px 30px;
+  padding-left: 10px;
+  border-left: 1.5px solid var(--l2);
+  color: var(--t2);
+  font-size: 12.5px;
+  line-height: 1.6;
+  max-width: 600px;
+}
+.work .thread {
+  margin-left: 0;
+}
+.prose {
+  font-size: 14.5px;
+  line-height: 1.72;
+  color: var(--t1);
+}
+.prose h3 {
+  font: 600 15px/1.4 var(--sans);
+  margin: 2px 0 8px;
+}
+.prose p {
+  margin: 0 0 10px;
+}
+.prose code {
+  font-size: 12.5px;
+}
+.prose.streaming {
+  margin-top: 6px;
+  color: var(--t2);
+}
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--lamp);
+  vertical-align: -2px;
+  margin-left: 2px;
+  animation: breath 1s ease-in-out infinite;
+}
+.pc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 12px var(--mono);
+  color: var(--t1);
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  padding: 1px 6px;
+  border-radius: 3px;
+  vertical-align: -1px;
+  cursor: pointer;
+}
+.code {
+  background: var(--code);
+  border-radius: 8px;
+  box-shadow: var(--sh1);
+  margin: 8px 0 12px;
+  overflow: hidden;
+}
+.code-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--l1);
+  font: 11.5px var(--mono);
+  color: var(--t3);
+}
+.sep {
+  color: var(--t4);
+}
+.code pre {
+  padding: 10px 12px;
+  font: 12.5px/1.6 var(--mono);
+  color: var(--t1);
+  overflow: auto;
+  tab-size: 2;
+}
+.k {
+  color: var(--azure);
+}
+.s {
+  color: var(--pine);
+}
+.c {
+  color: var(--t4);
+}
+.fcb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  font-size: 12.5px;
+  color: var(--t2);
+  margin-top: 4px;
+}
+.fcb .i {
+  color: var(--t3);
+}
+.acts-f {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 8px;
+}
+.fk {
+  font: 11.5px var(--mono);
+  color: var(--t4);
+  margin-left: 6px;
+}
+
+
+/* ── shell-composer.css ── */
+.dock {
+  padding: 8px 28px 12px;
+  background: linear-gradient(to bottom, transparent, var(--s2) 40%);
+  position: relative;
+  z-index: 2;
+}
+.dock-in {
+  width: 100%;
+  max-width: calc(var(--gut) * 2 + var(--measure));
+  margin: 0 auto;
+  padding: 0 var(--gut);
+}
+.queued {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  margin: 0 12px 6px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  font-size: 12px;
+  color: var(--t2);
+}
+.queued .qm {
+  font: 11px var(--mono);
+  color: var(--t3);
+  flex: none;
+}
+.queued b {
+  color: var(--t1);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.queued .ln {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--t3);
+  flex: none;
+}
+.slab {
+  background: var(--slab);
+  color: var(--slab-t);
+  border-radius: 12px;
+  box-shadow: var(--sh3);
+  position: relative;
+  overflow: hidden;
+}
+.slab::before {
+  content: '';
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  box-sizing: border-box;
+  background: transparent;
+  z-index: 2;
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+}
+.composer-orbit-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 2;
+}
+.composer-orbit-rail {
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+}
+.composer-orbit-mask {
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  box-sizing: border-box;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+}
+.composer-orbit-beam {
+  position: absolute;
+  width: 170px;
+  height: 28px;
+  offset-path: rect(0 auto auto 0 round 10px);
+  offset-anchor: 50% 50%;
+  offset-rotate: auto;
+  animation: orbit 3.6s linear infinite;
+  animation-play-state: paused;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(234, 179, 8, 0.15) 20%,
+    #eab308 60%,
+    #fef08a 85%,
+    #fffae5 96%,
+    transparent 100%
+  );
+  filter: drop-shadow(0 0 4px rgba(234, 179, 8, 0.8));
+}
+.app[data-state='running'] .composer-orbit-rail,
+.app[data-state='running'] .composer-orbit-mask {
+  opacity: 1;
+}
+.app[data-state='running'] .slab::before {
+  opacity: 1;
+  animation: orbit 3.6s linear infinite;
+}
+.app[data-state='running'] .composer-orbit-beam {
+  animation-play-state: running;
+}
+.refs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px 0;
+  flex-wrap: wrap;
+}
+.ref {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 3px;
+  background: var(--slab-chip);
+  font: 11.5px var(--mono);
+  color: var(--slab-t);
+}
+.ta {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px 2px;
+  background: transparent;
+  border: 0;
+  color: var(--slab-t);
+  font: 14.5px/1.6 var(--sans);
+  resize: none;
+  outline: 0;
+}
+.ta::placeholder {
+  color: var(--slab-ph);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px 8px;
+}
+.sb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--slab-ph);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.sb-chip:hover {
+  background: var(--slab-chip);
+  color: var(--slab-t);
+}
+.sb-chip.on {
+  color: var(--slab-t);
+}
+.sb-chip.ic {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+.sb-chip .av {
+  background: var(--slab-chip);
+  color: var(--slab-t);
+  box-shadow: none;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  font-size: 9.5px;
+}
+.dot {
+  color: var(--slab-ph);
+}
+.ring {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  margin: 0 8px 0 4px;
+  background: conic-gradient(var(--slab-t) 37%, var(--slab-chip) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent 58%, #000 60%);
+  mask: radial-gradient(farthest-side, transparent 58%, #000 60%);
+  flex: none;
+}
+.send {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.send:hover {
+  background: var(--zhu-lift);
+}
+.send .ic-pause {
+  display: none;
+}
+.app[data-state='running'] .send {
+  background: var(--slab-chip);
+  color: var(--slab-t);
+  box-shadow: 0 0 0 2px var(--lamp);
+  animation: breath 2.4s ease-in-out infinite;
+}
+.app[data-state='running'] .send .ic-send {
+  display: none;
+}
+.app[data-state='running'] .send .ic-pause {
+  display: block;
+}
+.hint {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 8px;
+  font: 11px var(--mono);
+  color: var(--t4);
+  flex-wrap: wrap;
+}
+.insp-h {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding: 0 6px 0 8px;
+  border-bottom: 1px solid var(--l1);
+  flex: none;
+}
+.tab {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  color: var(--t3);
+  font-size: 12.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.tab:hover {
+  color: var(--t1);
+}
+.tab.on {
+  background: var(--s3);
+  color: var(--t1);
+  box-shadow: var(--sh1);
+}
+.tab .b {
+  font: 10.5px/16px var(--mono);
+  background: var(--s2);
+  color: var(--t3);
+  padding: 0 5px;
+  border-radius: 3px;
+}
+.tab.on .b {
+  background: var(--s1);
+}
+.dot-att {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--zhu);
+}
+.chg {
+  padding: 8px;
+}
+.file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font: 12px var(--mono);
+  color: var(--t1);
+  white-space: nowrap;
+}
+.file:hover,
+.file.on {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+}
+.file .m {
+  width: 12px;
+  font-weight: 600;
+  font-size: 10.5px;
+  color: var(--ochre);
+}
+.file .pm {
+  margin-left: auto;
+}
+.diff {
+  margin: 0 8px 8px;
+  border-radius: 8px;
+  background: var(--code);
+  box-shadow: var(--sh1);
+  overflow: hidden;
+  font: 11.5px/1.75 var(--mono);
+}
+.dh {
+  display: flex;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--l1);
+  color: var(--t3);
+  white-space: nowrap;
+}
+.dh .r {
+  margin-left: auto;
+  color: var(--t4);
+}
+.dl {
+  display: flex;
+  gap: 10px;
+  padding: 0 10px;
+  white-space: pre;
+  color: var(--t2);
+  overflow: hidden;
+}
+.dl.a {
+  background: var(--pine-wash);
+  color: var(--t1);
+}
+.dl.d {
+  background: var(--crimson-wash);
+}
+.dl .ln {
+  width: 22px;
+  text-align: right;
+  color: var(--t4);
+  flex: none;
+}
+@property --composer-beam-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes orbit {
+  0% {
+    --composer-beam-angle: 0deg;
+  }
+  100% {
+    --composer-beam-angle: 360deg;
+  }
+}
+@keyframes breath {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes grind {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes sheen {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes stamp {
+  0% {
+    transform: scale(0.88) rotate(-7deg);
+    opacity: 0.5;
+  }
+  60% {
+    transform: scale(1.05) rotate(-1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-1.5deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
+}
+
+.shelf {
+  margin-top: auto;
+  border-top: 1px solid var(--l1);
+  padding: 8px 8px 10px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  flex: none;
+}
+.shelf button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 0;
+  border-radius: 6px;
+  color: var(--t3);
+  font-size: 11px;
+}
+.shelf button:hover {
+  background: var(--s2);
+  color: var(--t1);
+}
+.host {
+  grid-column: 1/-1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 11px var(--mono);
+  color: var(--t4);
+  padding: 4px 6px 0;
+}
+.host i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pine);
+}
+
+
+/* ── shell-tools.css ── */
+.insp-h {
+  height: 42px;
+  padding: 0 8px;
+  gap: 4px;
+  border-bottom: 1px solid var(--l2);
+}
+#tool-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+.tab {
+  font-size: 11px;
+  padding: 0 7px;
+  height: 27px;
+  gap: 5px;
+}
+.tab .b {
+  font-size: 9px;
+  padding: 0 4px;
+}
+.tab.on {
+  box-shadow: none;
+  border: 1px solid var(--l2);
+}
+.tool-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  color: var(--t3);
+  font: 10px var(--sans);
+  border-bottom: 1px solid var(--l1);
+}
+#tool-scope {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.follow-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--pine);
+  flex: none;
+}
+.tool-context .ib {
+  width: 22px;
+  height: 22px;
+}
+#tool-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.tool-footer {
+  display: flex;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--l2);
+  font: 9px var(--mono);
+  color: var(--t4);
+  flex: none;
+}
+.tool-toolbar {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--l1);
+  flex: none;
+  font: 11px var(--mono);
+  color: var(--t3);
+}
+.tool-toolbar .chip {
+  font-size: 11px;
+}
+.tool-toolbar strong {
+  font-weight: 500;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-padding {
+  padding: 14px;
+}
+.eyebrow {
+  font: 10px var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--t4);
+}
+.tool-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--l2);
+  border-radius: 5px;
+  background: var(--s2);
+}
+.tool-search input {
+  width: 100%;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: none;
+  color: var(--t1);
+  font: 11px var(--sans);
+}
+.tree {
+  padding: 3px 10px 14px;
+  font: 11px var(--mono);
+}
+.tree details {
+  padding-left: 14px;
+}
+.tree > details {
+  padding-left: 0;
+}
+.tree summary {
+  cursor: pointer;
+  line-height: 28px;
+  color: var(--t2);
+}
+.tree-file {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 7px;
+  border-radius: 5px;
+  text-align: left;
+  font: 11px var(--mono);
+}
+.tree-file:hover {
+  background: var(--s3);
+}
+.tree-file .plus,
+.tree-file .modified {
+  margin-left: auto;
+  font-size: 9px;
+}
+.modified {
+  color: var(--ochre);
+}
+.file-note {
+  padding: 14px 5px;
+  color: var(--t4);
+  font: 10px/1.7 var(--sans);
+}
+.preview-title {
+  padding: 18px 16px 8px;
+}
+.preview-title h3 {
+  font: 500 20px var(--serif);
+  margin: 6px 0;
+}
+.preview-title p {
+  font-size: 11px;
+  color: var(--t3);
+}
+.source-view {
+  margin: 10px 12px;
+  border-radius: 6px;
+  padding: 12px;
+  background: var(--code);
+  overflow: auto;
+  font: 11px/1.9 var(--mono);
+  tab-size: 2;
+  flex: 1;
+  min-height: 100px;
+}
+.source-view code {
+  white-space: pre;
+}
+.preview-prose {
+  padding: 10px 18px;
+  font: 13px/1.9 var(--sans);
+}
+.preview-prose h3 {
+  font: 500 22px var(--serif);
+  margin: 12px 0;
+}
+.preview-prose p {
+  margin-bottom: 15px;
+}
+.preview-prose blockquote {
+  border-left: 2px solid var(--zhu);
+  padding-left: 12px;
+  color: var(--t2);
+}
+.panel-actions {
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--l1);
+  margin-top: 4px;
+}
+.primary {
+  background: var(--zhu);
+  color: var(--on-zhu);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font: 12px var(--sans);
+}
+.secondary {
+  padding: 7px 10px;
+  border: 1px solid var(--l2);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.secondary:hover {
+  background: var(--s3);
+}
+.terminal-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  align-items: center;
+}
+.terminal-tabs select {
+  flex: 1;
+  min-width: 0;
+}
+.terminal-tabs .ib {
+  border: 1px solid var(--l2);
+}
+select {
+  border: 1px solid var(--l2);
+  border-radius: 5px;
+  background: var(--s2);
+  color: var(--t1);
+  padding: 6px;
+  font: 11px var(--sans);
+}
+.terminal-screen {
+  background: var(--code);
+  margin: 0 10px 10px;
+  padding: 14px 12px;
+  border-radius: 7px;
+  flex: 1;
+  min-height: 200px;
+  overflow: auto;
+  font: 11px/1.9 var(--mono);
+  color: var(--t2);
+}
+.terminal-screen pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+.terminal-screen .prompt {
+  color: var(--pine);
+}
+.terminal-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  color: var(--pine);
+}
+.terminal-input input {
+  width: 100%;
+  background: transparent;
+  color: var(--t1);
+  border: 0;
+  outline: 0;
+  font: 11px var(--mono);
+}
+.terminal-status {
+  padding: 0 14px 10px;
+  color: var(--t4);
+  font: 10px/1.8 var(--sans);
+}
+.diff {
+  margin-top: 8px;
+  flex-shrink: 0;
+  overflow: auto;
+}
+.dl {
+  overflow: visible;
+  min-width: max-content;
+}
+.diff .dh {
+  min-width: max-content;
+}
+.chg .file {
+  width: 100%;
+  font-size: 10px;
+  gap: 6px;
+}
+.chg .sec-h {
+  padding: 4px 8px;
+  margin-bottom: 5px;
+}
+.review-summary {
+  margin: 14px 16px 2px;
+}
+.review-summary h3 {
+  font: 600 13px var(--sans);
+  margin: 0 0 8px;
+}
+.review-summary p {
+  font: 11px/1.8 var(--sans);
+  color: var(--t3);
+}
+.blank-tool {
+  margin: auto;
+  padding: 36px 24px;
+  text-align: center;
+}
+.blank-tool > .i {
+  width: 28px;
+  height: 28px;
+  color: var(--t4);
+  margin-bottom: 14px;
+}
+.blank-tool h3 {
+  font: 500 20px var(--serif);
+  margin-bottom: 10px;
+}
+.blank-tool p {
+  font: 12px/1.8 var(--sans);
+  color: var(--t3);
+  margin-bottom: 18px;
+}
+.blank-tool .primary {
+  display: inline-block;
+}
+.home-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 20px 0;
+}
+.home-grid button {
+  border: 1px solid var(--l2);
+  border-radius: 7px;
+  padding: 18px 8px;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.home-grid button:hover {
+  background: var(--s3);
+}
+.note-editor {
+  flex: 1;
+  min-height: 220px;
+  margin: 12px;
+  padding: 14px;
+  border: 1px solid var(--l2);
+  border-radius: 6px;
+  background: var(--s2);
+  color: var(--t1);
+  resize: vertical;
+  font: 13px/1.9 var(--sans);
+}
+.browser-address {
+  margin: 12px;
+  padding: 9px;
+  border: 1px solid var(--l2);
+  border-radius: 5px;
+  font: 10px var(--mono);
+  color: var(--t3);
+}
+.mini-page {
+  margin: 0 12px 12px;
+  padding: 28px 20px;
+  border: 1px solid var(--l2);
+  border-radius: 6px;
+  background: var(--s3);
+}
+.mini-page h2 {
+  font: 26px var(--serif);
+  margin: 18px 0;
+}
+.mini-page p {
+  font: 12px/1.9 var(--sans);
+  color: var(--t3);
+}
+
+.review-summary h3,
+.review-summary p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.review-summary {
+  margin: 16px 16px 8px;
+}
+.review-summary .n {
+  font: 11px var(--sans);
+  font-weight: 400;
+}
+.tool-footer {
+  display: none;
+}
+.tool-context {
+  min-height: 30px;
+}
+
+
+/* ── shell-overlays.css ── */
+.popover {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: 260px;
+  max-height: 80vh;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--l3);
+  border-radius: 10px;
+  background: var(--s3);
+  color: var(--t1);
+  box-shadow: var(--sh3);
+  font: 12px var(--sans);
+}
+.menu-label {
+  padding: 8px;
+  color: var(--t4);
+  font: 10px var(--mono);
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 8px;
+  text-align: left;
+  border-radius: 5px;
+}
+.menu-item:hover {
+  background: var(--s1);
+}
+.menu-item small {
+  margin-left: auto;
+  color: var(--t4);
+  font-size: 10px;
+}
+.menu-line {
+  height: 1px;
+  background: var(--l2);
+  margin: 6px;
+}
+.demo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+}
+.demo-copy {
+  padding: 8px;
+  color: var(--t3);
+  font: 11px/1.8 var(--sans);
+}
+.create-dialog {
+  margin: auto;
+  width: min(420px, calc(100vw - 32px));
+  border: 1px solid var(--l3);
+  border-radius: 12px;
+  padding: 24px;
+  background: var(--s2);
+  color: var(--t1);
+  box-shadow: var(--sh3);
+}
+.create-dialog::backdrop {
+  background: rgba(20, 16, 12, 0.3);
+  backdrop-filter: blur(3px);
+}
+.dialog-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.create-dialog h2 {
+  font: 500 25px var(--serif);
+  margin: 15px 0 10px;
+}
+.create-dialog p {
+  font-size: 12px;
+  color: var(--t3);
+  margin-bottom: 24px;
+}
+.create-dialog label {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  margin: 16px 0;
+}
+.create-dialog input {
+  padding: 10px;
+  border: 1px solid var(--l3);
+  border-radius: 5px;
+  background: var(--s3);
+  color: var(--t1);
+  font: 13px var(--sans);
+}
+.create-dialog select {
+  padding: 10px;
+}
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 25px;
+}
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  max-width: 80vw;
+  padding: 10px 16px;
+  background: var(--s3);
+  color: var(--t1);
+  box-shadow: var(--sh3);
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+
+
+
+/* Region: inline subagent session panel (subagent-inline-session.tsx,
+   subagent-session-transcript.tsx, embed wrappers in turn-tool-group.tsx and
+   subagent-activity-card.tsx). Owns the accordion embed geometry, panel
+   header, transcript scroll region, thinking/tool rows, live tail, and
+   worktree action bar. Compact launcher/ticker/dock motion lives in
+   run-activity.css; anchor block typography lives in region-transcript.css.
+
+   Deck rule: the expanded embed is a raised card on the transcript surface;
+   readout blocks (thinking, tool output) recess to void with inset hairlines
+   instead of stacking bordered boxes. */
+
+/* ── Accordion embed wrapper (anchor + panel) ───────────────────────── */
+.subagent-embed {
+  min-width: 0;
+  border: 0;
+  border-radius: var(--r-card);
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.subagent-embed[data-expanded='true'] {
+  margin: var(--s-3) 0;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  box-shadow:
+    var(--elev-2),
+    inset 0 0 0 1px var(--line-1);
+  overflow: hidden;
+}
+
+.subagent-embed[data-expanded='true'] > .subagent-invocation-block {
+  border-radius: calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0;
+}
+
+/* The activity card owns its border while collapsed; expanded, the embed
+   frame takes over and the card becomes the flat accordion header. */
+.subagent-embed-card[data-expanded='true'] > .subagent-activity-card {
+  border-color: transparent;
+  border-radius: calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0;
+  background: transparent;
+}
+
+.subagent-activity-card[data-expanded='true'] .subagent-activity-inspect-hint {
+  transform: translateY(-50%) rotate(90deg);
+}
+
+/* ── Anchor chevron ─────────────────────────────────────────────────── */
+.subagent-invocation-chevron {
+  align-self: center;
+  color: var(--text-4);
+  transition:
+    transform var(--t-2) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.subagent-invocation-block:hover:not(:disabled) .subagent-invocation-chevron {
+  color: var(--iris-lift);
+}
+
+.subagent-invocation-block[data-expanded='true'] .subagent-invocation-chevron {
+  transform: rotate(180deg);
+}
+
+/* ── Inline session panel ───────────────────────────────────────────── */
+.subagent-inline-session {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-top: 1px solid var(--line-1);
+  animation: deck-rise var(--t-3) var(--ease-out);
+}
+
+.subagent-inline-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4) var(--s-3) var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+  background: color-mix(in srgb, var(--surface-2) 62%, transparent);
+}
+
+.subagent-inline-header-spacer {
+  flex: 1 1 auto;
+}
+
+.subagent-session-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-shrink: 0;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-micro);
+  padding: 2px var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+}
+
+.subagent-session-state.state-failed,
+.subagent-session-state.state-cancelled {
+  background: color-mix(in srgb, var(--coral) 16%, transparent);
+  color: var(--coral);
+}
+
+.subagent-session-state.state-completed {
+  background: color-mix(in srgb, var(--mint) 16%, transparent);
+  color: var(--mint);
+}
+
+.subagent-session-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--iris-lift);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+/* ── Transcript scroll region ───────────────────────────────────────── */
+.subagent-inspector-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s-6) var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+/* Inline embeds cap their own height instead of filling a modal. */
+.subagent-inline-session .subagent-inspector-scroll {
+  flex: 0 1 auto;
+  max-height: min(52vh, 540px);
+  overscroll-behavior: contain;
+}
+
+.subagent-inspector-message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+/* Shared `.turn-work-details` is a `--chat-max` column with `margin-inline:
+   auto` for the main transcript. This message is a column flex container:
+   auto margins disable stretch, so the used width becomes shrink-to-fit or a
+   cyclic percentage (explore headers are `width: 100%` of that auto parent).
+   Leftover space is then split by the auto margins and the chrome no longer
+   shares the transcript's left edge — sometimes centered, often just shifted.
+   Drop the auto margins here so stretch applies; the main thread is unchanged. */
+.subagent-inspector-message.role-assistant .turn-work-details {
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  align-self: stretch;
+}
+
+.subagent-inspector-message.role-user {
+  padding: var(--s-4) var(--s-5);
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px var(--line-1);
+}
+
+.subagent-inspector-user-label {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-micro);
+  color: var(--text-4);
+}
+
+.subagent-inspector-user-text {
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-1);
+}
+
+.subagent-inspector-message.role-system {
+  font-size: var(--fs-chrome);
+}
+
+/* ── Thinking ───────────────────────────────────────────────────────── */
+.subagent-inspector-thinking summary {
+  cursor: pointer;
+  font-size: var(--fs-micro);
+  font-weight: 650;
+  color: var(--text-4);
+  list-style: none;
+}
+.subagent-inspector-thinking summary::-webkit-details-marker {
+  display: none;
+}
+.subagent-inspector-thinking summary::before {
+  content: '▸ ';
+  font-size: var(--fs-micro);
+}
+.subagent-inspector-thinking[open] summary::before {
+  content: '▾ ';
+}
+
+.subagent-inspector-thinking-text {
+  margin: var(--s-3) 0 0;
+  padding: var(--s-4) var(--s-4);
+  font-size: var(--fs-chrome);
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--void);
+  border-radius: var(--r-control);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  max-height: 200px;
+  overflow-y: auto;
+  color: var(--text-3);
+}
+
+/* ── Tool rows ──────────────────────────────────────────────────────── */
+.subagent-inspector-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.subagent-inspector-tool {
+  border: 0;
+  border-radius: var(--r-control);
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--fs-chrome);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.subagent-inspector-tool[data-status='running'] {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--iris-lift) 40%, transparent),
+    var(--elev-1);
+}
+
+.subagent-inspector-tool-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.subagent-inspector-tool-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.subagent-inspector-tool-status.status-running {
+  background: var(--iris-lift);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+.subagent-inspector-tool-status.status-done {
+  background: var(--mint);
+}
+
+.subagent-inspector-tool-status.status-error {
+  background: var(--coral);
+}
+
+.subagent-inspector-tool-name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  color: var(--text-1);
+}
+
+.subagent-inspector-tool-output {
+  margin: var(--s-2) 0 0;
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--fs-mono);
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--void);
+  border-radius: var(--r-chip);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  max-height: 140px;
+  overflow-y: auto;
+  color: var(--text-3);
+}
+
+/* ── Live tail ──────────────────────────────────────────────────────── */
+.subagent-inspector-live {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-2);
+  border-top: 1px dashed var(--line-2);
+}
+
+/* ── States + jump-to-latest ────────────────────────────────────────── */
+.subagent-inspector-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-8) 0;
+  font-size: var(--fs-body);
+  color: var(--text-3);
+}
+
+.subagent-inspector-state.is-error {
+  color: var(--coral);
+}
+
+.subagent-inspector-jump-latest {
+  position: sticky;
+  bottom: var(--s-4);
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-5);
+  border-radius: var(--r-pill);
+  border: 0;
+  background: var(--surface-3);
+  color: var(--iris-lift);
+  font-size: var(--fs-micro);
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: var(--elev-3);
+  flex-shrink: 0;
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.subagent-inspector-jump-latest:hover {
+  background: var(--hover);
+}
+
+/* ── Worktree action bar ────────────────────────────────────────────── */
+.subagent-worktree-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-4) var(--s-6);
+  padding: var(--s-4) var(--s-6);
+  border-top: 1px solid var(--line-1);
+  background: color-mix(in srgb, var(--iris-wash) 38%, var(--surface-2));
+}
+
+.subagent-worktree-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--fs-micro);
+}
+
+.subagent-worktree-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.subagent-worktree-feedback {
+  grid-column: 1 / -1;
+  font-size: var(--fs-micro);
+}
+
+.subagent-worktree-feedback.tone-error {
+  color: var(--coral);
+}
+
+/* ── Responsive fallback ────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .subagent-inline-header {
+    flex-wrap: wrap;
+  }
+  .subagent-worktree-actions {
+    grid-template-columns: 1fr;
+  }
+  .subagent-worktree-buttons {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subagent-embed,
+  .subagent-inline-session,
+  .subagent-invocation-chevron,
+  .subagent-session-live-dot,
+  .subagent-inspector-tool-status.status-running {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+
+/* ── 核心新增 1：工作区轻量汇总条 (Lightweight Summary Bar) ── */
+.run-subagent-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  font: 11.5px/1.4 var(--mono);
+  color: var(--t2);
+  box-shadow: var(--sh1);
+}
+.run-subagent-bar .bar-title {
+  font-weight: 600;
+  color: var(--t1);
+}
+.run-subagent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--s2);
+  border: 1px solid var(--l1);
+  color: var(--t1);
+  cursor: pointer;
+  transition: all 120ms ease;
+  font-size: 11px;
+}
+.run-subagent-chip:hover {
+  background: var(--s4);
+  border-color: var(--l3);
+  box-shadow: var(--sh1);
+}
+.run-subagent-chip .arrow {
+  font-size: 10px;
+  color: var(--t4);
+  margin-left: 1px;
+}
+.run-subagent-chip:hover .arrow {
+  color: var(--zhu);
+}
+
+/* ── 核心新增 2：piwin_subagent_wait 普通控制结果行 ── */
+.wait-control-row {
+  min-height: 36px;
+  height: auto !important;
+  padding: 6px 10px !important;
+  border: 1px solid var(--l1);
+  border-radius: 6px;
+  background: var(--s2);
+  margin: 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wait-control-row:hover {
+  background: var(--s3);
+}
+.wait-control-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+.wait-control-line-1 {
+  color: var(--t3);
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.wait-control-line-2 {
+  font-weight: 600;
+  color: var(--t1);
+}
+
+/* ── 核心新增 3：子代理详情里 4 行结果摘要区 (Result Summary Section) ── */
+.subagent-result-summary-box {
+  margin: 8px 12px 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  box-shadow: var(--sh1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.subagent-result-summary-title {
+  font: 600 11px var(--mono);
+  color: var(--t3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.summary-kv-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.summary-k {
+  width: 44px;
+  color: var(--t3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  flex: none;
+}
+.summary-v {
+  font-weight: 500;
+  color: var(--t1);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.summary-tag {
+  font: 10.5px/1 var(--mono);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.tag-done { background: var(--pine-wash); color: var(--pine); border: 1px solid rgba(61,124,94,0.3); }
+.tag-merged { background: var(--pine-wash); color: var(--pine); }
+.tag-pending { background: var(--lamp-wash); color: var(--lamp); }
+.tag-attention { background: var(--ochre-wash); color: var(--ochre); font-weight: 600; border: 1px solid rgba(148,97,26,0.3); }
+.tag-pass { background: var(--pine-wash); color: var(--pine); font-weight: 600; }
+
+/* ── 核心新增 4：单个子任务停止入口 (Single Stop Button) ── */
+.subagent-stop-btn {
+  height: 20px !important;
+  padding: 0 6px !important;
+  font-size: 11px !important;
+  font-family: var(--sans);
+  border-radius: 4px;
+  border: 1px solid rgba(156, 46, 61, 0.35);
+  color: var(--crimson) !important;
+  background: transparent;
+  transition: all 120ms ease;
+  margin-left: auto;
+  margin-right: 6px;
+}
+.subagent-stop-btn:hover {
+  background: var(--crimson-wash);
+  border-color: var(--crimson);
+}
+.subagent-stop-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--l2);
+  color: var(--t4) !important;
+}
+
+/* ── 平滑跳跃与聚焦闪烁 (Jump & Flash Animation) ── */
+@keyframes card-flash-glow {
+  0% { box-shadow: 0 0 0 3px var(--zhu), var(--sh2); transform: scale(1.006); }
+  50% { box-shadow: 0 0 0 3px var(--zhu), var(--sh2); transform: scale(1.006); }
+  100% { box-shadow: var(--sh1); transform: scale(1); }
+}
+.flash-focus {
+  animation: card-flash-glow 1.4s var(--ease) !important;
+}
+
+  </style>
+
+    
+    
+    
+    
+    
+    <style>
+      /* ── 对话卡片（Conversation Cards）纯粹展示 ── */
+      .conv-list.thread::before { display: none !important; }
+      .sb .conv-list.thread { padding-left: 0 !important; margin-left: 0 !important; display: flex; flex-direction: column; gap: 4px; }
+      .row.conv-card {
+        height: auto !important; min-height: 56px; padding: 7px 8px 8px !important;
+        display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: 3px !important;
+        border-radius: 7px; border: 1px solid transparent; background: transparent; box-shadow: none;
+        transition: background 120ms ease, box-shadow 120ms ease, border-color 120ms ease; cursor: pointer; position: relative;
+      }
+      .row.conv-card:hover { background: var(--s2); box-shadow: var(--sh1); border-color: var(--l1); }
+      .row.conv-card.sel, .row.conv-card.cur { background: var(--s3) !important; box-shadow: var(--sh1) !important; border-color: var(--l2); border-left: 3px solid var(--zhu) !important; }
+      .conv-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; min-width: 0; height: 18px; }
+      .conv-participants { display: flex; align-items: center; gap: 4.5px; min-width: 0; flex: 1; overflow: hidden; }
+      .u-tag { display: inline-flex; align-items: center; gap: 3.5px; font: 500 11px var(--sans); color: var(--t2); flex: none; }
+      .u-av { width: 15px; height: 15px; border-radius: 50%; background: var(--zhu-wash); color: var(--zhu); font: 700 9.5px/15px var(--sans); text-align: center; display: inline-block; flex: none; border: 1px solid rgba(198, 65, 42, 0.25); }
+      .client-pill { font: 10px var(--mono); padding: 0 3.5px; border-radius: 3px; background: var(--s2); color: var(--t3); border: 1px solid var(--l1); line-height: 13px; height: 14px; display: inline-flex; align-items: center; }
+      .row.conv-card .end { width: auto; flex: none; display: flex; align-items: center; justify-content: flex-end; }
+      .row.conv-card .acts { display: none; }
+      .row.conv-card:hover .acts { display: flex; gap: 2px; }
+      .row.conv-card:hover .tm { display: none; }
+      .conv-title { font: 500 12.5px/1.35 var(--sans); color: var(--t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .conv-snippet { font: 11px/1.3 var(--sans); color: var(--t3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 1px; }
+      .row.conv-card:hover .conv-snippet { color: var(--t2); }
+      .row.conv-card.sel .conv-title, .row.conv-card.cur .conv-title { font-weight: 600; }
+      .row.conv-card.sel .conv-snippet, .row.conv-card.cur .conv-snippet { color: var(--t2); }
+
+      /* ── 对话舞台与交互沟通（Stage & Interaction） ── */
+      .conv-chip { font: 600 11.5px var(--sans); background: var(--s3); color: var(--t1); border: 1px solid var(--l2); }
+      .conv-stats-desc { font: 11.5px var(--mono); color: var(--t3); }
+      .turn-model-tag { display: inline-flex; align-items: center; gap: 4px; font: 500 11px var(--mono); color: var(--t3); margin-left: 8px; padding: 1px 6px; border-radius: 3px; background: var(--s2); border: 1px solid var(--l1); }
+      .turn-colophon { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding-top: 6px; border-top: 1px dashed var(--l1); font: 11.5px var(--mono); color: var(--t3); }
+      .colo-meta { display: inline-flex; align-items: center; gap: 6px; }
+      .model-reask { display: inline-flex; align-items: center; gap: 4px; font: 11px var(--sans); cursor: pointer; padding: 0 6px; height: 22px; border-radius: 4px; background: var(--s1); border: 1px solid var(--l1); color: var(--t2); }
+      .model-reask:hover { background: var(--s3); color: var(--t1); border-color: var(--l2); }
+      .model-reask .av { width: 13px; height: 13px; font-size: 8.5px; line-height: 13px; }
+      .send.stamping { animation: stamp 160ms ease; }
+
+      /* ══════════════════════════════════════════════════════════════════
+         Inkstone 调用链（Tool Invocation Chain）核心重构体系
+         ══════════════════════════════════════════════════════════════════ */
+      .tc-chain {
+        margin: 12px 0 16px;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .tc-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 10px;
+        border-radius: 6px;
+        background: var(--s2);
+        border: 1px solid var(--l1);
+        font: 11.5px/1.4 var(--mono);
+        color: var(--t3);
+      }
+      .tc-header-summary {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .tc-header-summary .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--pine);
+        box-shadow: 0 0 0 2px var(--pine-wash);
+      }
+      .tc-view-modes {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        background: var(--s1);
+        padding: 2px;
+        border-radius: 5px;
+        border: 1px solid var(--l1);
+      }
+      .tc-mode-btn {
+        font: 500 10.5px var(--sans);
+        padding: 2px 7px;
+        border-radius: 4px;
+        color: var(--t3);
+        cursor: pointer;
+        transition: all 120ms ease;
+      }
+      .tc-mode-btn:hover { color: var(--t1); }
+      .tc-mode-btn.active {
+        background: var(--s3);
+        color: var(--t1);
+        box-shadow: var(--sh1);
+        font-weight: 600;
+      }
+
+      /* 时间线脊柱（Timeline Spine） */
+      .tc-stream {
+        position: relative;
+        padding-left: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .tc-stream::before {
+        content: "";
+        position: absolute;
+        left: 5.5px;
+        top: 14px;
+        bottom: 14px;
+        width: 1.5px;
+        background: var(--l2);
+        border-radius: 1px;
+      }
+
+      /* 单个工具容器 */
+      .tc-item {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        border-radius: 7px;
+        background: var(--s3);
+        border: 1px solid var(--l1);
+        box-shadow: var(--sh1);
+        transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+        overflow: hidden;
+      }
+      .tc-item:hover {
+        border-color: var(--l2);
+        box-shadow: var(--sh2);
+      }
+      .tc-item.expanded {
+        border-color: var(--l2);
+      }
+
+      /* 时间线墨点 */
+      .tc-node {
+        position: absolute;
+        left: -20px;
+        top: 16px;
+        margin-top: -4.5px;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--s3);
+        border: 1.5px solid var(--l3);
+        transition: all 140ms ease;
+        z-index: 1;
+      }
+      .tc-item.ok .tc-node {
+        background: var(--pine);
+        border-color: var(--pine);
+      }
+      .tc-item.fail .tc-node {
+        background: var(--crimson);
+        border-color: var(--crimson);
+      }
+      .tc-item.fail {
+        border-color: rgba(156, 46, 61, 0.3);
+      }
+      .tc-item.run .tc-node {
+        background: var(--lamp);
+        border-color: var(--lamp);
+        box-shadow: 0 0 0 3px var(--lamp-wash);
+        animation: breath 2.4s ease-in-out infinite;
+      }
+      .tc-item[data-kind="batch"] .tc-badge {
+        background: var(--s2);
+        color: var(--t1);
+        border: 1px solid var(--l2);
+      }
+      .tc-sub-stream {
+        padding-left: 12px;
+        border-left: 1.5px dashed var(--l2);
+        margin: 4px 0 4px 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .tc-sub-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font: 11px var(--mono);
+        color: var(--t2);
+      }
+      .tc-sub-node {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--pine);
+        flex: none;
+      }
+      .tc-exit-code.err {
+        background: var(--crimson-wash);
+        color: var(--crimson);
+        border-color: rgba(156, 46, 61, 0.3);
+      }
+
+      /* ── 折叠行（Collapsed Row） ── */
+      .tc-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+        padding: 5px 10px;
+        cursor: pointer;
+        user-select: none;
+        font-size: 12px;
+        color: var(--t2);
+        background: transparent;
+        transition: background 120ms ease;
+      }
+      .tc-row:hover {
+        background: var(--s2);
+      }
+
+      /* 类型徽标（各工具不同风格） */
+      .tc-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font: 600 11px/1 var(--mono);
+        padding: 3px 6px;
+        border-radius: 4px;
+        flex: none;
+      }
+      /* Bash: 终端黑岩灰 */
+      .tc-item[data-kind="bash"] .tc-badge {
+        background: rgba(29, 27, 23, 0.08);
+        color: var(--t1);
+        border: 1px solid rgba(29, 27, 23, 0.12);
+      }
+      .app[data-face="ink"] .tc-item[data-kind="bash"] .tc-badge {
+        background: rgba(255, 255, 255, 0.09);
+        color: var(--t1);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+      /* Read: 宣纸卷册 */
+      .tc-item[data-kind="read"] .tc-badge {
+        background: var(--s2);
+        color: var(--t2);
+        border: 1px solid var(--l2);
+      }
+      /* Edit: 朱砂刻刀印 */
+      .tc-item[data-kind="edit"] .tc-badge {
+        background: var(--zhu-wash);
+        color: var(--zhu);
+        border: 1px solid rgba(198, 65, 42, 0.25);
+      }
+      /* Grep: 霁蓝寻迹 */
+      .tc-item[data-kind="grep"] .tc-badge {
+        background: rgba(58, 119, 151, 0.1);
+        color: var(--azure);
+        border: 1px solid rgba(58, 119, 151, 0.22);
+      }
+      /* Memory: 忆事卷轴 */
+      .tc-item[data-kind="memory"] .tc-badge {
+        background: rgba(148, 97, 26, 0.1);
+        color: var(--ochre);
+        border: 1px solid rgba(148, 97, 26, 0.22);
+      }
+
+      /* 核心命令/目标展示 */
+      .tc-snippet {
+        font: 11.5px/1.35 var(--mono);
+        color: var(--t1);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+        flex: 1;
+      }
+      .tc-cmd-kw { color: var(--azure); font-weight: 600; }
+      .tc-cmd-path { color: var(--t2); }
+      .tc-cmd-str { color: var(--pine); }
+      .tc-cmd-op { color: var(--ochre); font-weight: 600; }
+      .tc-target-pill { font-weight: 500; color: var(--t1); }
+      .tc-range-pill {
+        font-size: 10px;
+        color: var(--t3);
+        background: var(--s1);
+        padding: 1px 4px;
+        border-radius: 3px;
+        margin-left: 4px;
+        border: 1px solid var(--l1);
+      }
+
+      /* 尾部元数据 */
+      .tc-meta {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex: none;
+        font: 11px var(--mono);
+        color: var(--t4);
+      }
+      .tc-exit-code {
+        font: 600 10px var(--mono);
+        padding: 1px 4px;
+        border-radius: 3px;
+        background: var(--pine-wash);
+        color: var(--pine);
+        border: 1px solid rgba(61, 124, 94, 0.25);
+      }
+      .tc-diff-stats {
+        display: inline-flex;
+        gap: 4px;
+        font: 600 11px var(--mono);
+      }
+      .tc-diff-add { color: var(--pine); }
+      .tc-diff-del { color: var(--crimson); }
+
+      /* 朱印「允」：精致微小公章印记 */
+      .tc-seal-stamp {
+        width: 17px;
+        height: 17px;
+        border-radius: 2px;
+        background: var(--zhu);
+        color: var(--on-zhu);
+        font: 700 9.5px/17px var(--serif);
+        text-align: center;
+        display: inline-block;
+        position: relative;
+        transform: rotate(-2deg);
+        box-shadow: 0 1px 0 rgba(0,0,0,0.18), inset 0 0 0 0.8px rgba(255,255,255,0.4);
+        flex: none;
+        cursor: help;
+      }
+      .tc-seal-stamp::after {
+        content: "";
+        position: absolute;
+        inset: 1.5px;
+        border: 0.8px solid rgba(255,255,255,0.55);
+        border-radius: 1px;
+      }
+
+      /* 展开折叠箭头 */
+      .tc-chev {
+        width: 13px;
+        height: 13px;
+        color: var(--t4);
+        transition: transform 180ms ease, color 120ms ease;
+        flex: none;
+      }
+      .tc-item.expanded .tc-chev {
+        transform: rotate(180deg);
+        color: var(--t2);
+      }
+
+      /* ── 展开态详情区（Expanded Details） ── */
+      .tc-detail {
+        display: none;
+        flex-direction: column;
+        border-top: 1px dashed var(--l2);
+        background: var(--s2);
+        padding: 9px 12px 11px;
+        gap: 8px;
+        animation: tcFadeIn 150ms ease;
+      }
+      .tc-item.expanded .tc-detail {
+        display: flex;
+      }
+      @keyframes tcFadeIn {
+        from { opacity: 0; transform: translateY(-2px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .tc-detail-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font: 11px/1.3 var(--mono);
+        color: var(--t3);
+        padding-bottom: 5px;
+        border-bottom: 1px solid var(--l1);
+      }
+      .tc-detail-path {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--t2);
+      }
+      .tc-detail-actions {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .tc-mini-btn {
+        font: 500 11px var(--sans);
+        padding: 2px 7px;
+        border-radius: 4px;
+        background: var(--s3);
+        border: 1px solid var(--l2);
+        color: var(--t2);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 120ms ease;
+      }
+      .tc-mini-btn:hover {
+        background: var(--s1);
+        color: var(--t1);
+        border-color: var(--l3);
+      }
+      .tc-mini-btn.pri {
+        background: var(--zhu);
+        color: var(--on-zhu);
+        border-color: var(--zhu);
+      }
+      .tc-mini-btn.pri:hover {
+        background: var(--zhu-lift);
+      }
+
+      /* 终端输出视窗（Terminal Window） */
+      .tc-terminal-box {
+        border-radius: 6px;
+        background: #171512;
+        color: #e3ddd3;
+        font: 11.5px/1.55 var(--mono);
+        padding: 9px 12px;
+        overflow-x: auto;
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.35);
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+      .tc-terminal-cmd {
+        color: #8bb38d;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding-bottom: 6px;
+        margin-bottom: 6px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+      .tc-terminal-cmd .prompt {
+        color: #d88939;
+      }
+      .tc-terminal-out {
+        color: #aaa296;
+        white-space: pre;
+      }
+      .tc-terminal-out .hl {
+        color: #f6c177;
+        font-weight: 600;
+        background: rgba(246, 193, 119, 0.15);
+        padding: 0 2px;
+        border-radius: 2px;
+      }
+
+      /* 代码差异视窗（Diff Viewer） */
+      .tc-diff-box {
+        border-radius: 6px;
+        background: var(--code);
+        font: 11.5px/1.55 var(--mono);
+        overflow: hidden;
+        border: 1px solid var(--l2);
+      }
+      .tc-diff-hunk-h {
+        background: var(--s1);
+        color: var(--azure);
+        font-weight: 500;
+        padding: 3px 10px;
+        border-bottom: 1px solid var(--l1);
+      }
+      .tc-diff-line {
+        display: flex;
+        padding: 1px 10px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .tc-diff-line.del {
+        background: var(--crimson-wash);
+        color: var(--crimson);
+      }
+      .tc-diff-line.add {
+        background: var(--pine-wash);
+        color: var(--pine);
+      }
+      .tc-diff-ln {
+        width: 28px;
+        flex: none;
+        color: var(--t4);
+        user-select: none;
+      }
+
+      /* 代码与记忆检阅 */
+      .tc-code-preview {
+        border-radius: 6px;
+        background: var(--code);
+        padding: 8px 11px;
+        font: 11.5px/1.55 var(--mono);
+        color: var(--t1);
+        border: 1px solid var(--l1);
+        overflow-x: auto;
+      }
+      .tc-memory-card {
+        padding: 7px 9px;
+        border-radius: 5px;
+        background: var(--s3);
+        border: 1px solid var(--l1);
+        font: 11.5px/1.5 var(--sans);
+        color: var(--t2);
+      }
+      .tc-memory-card b {
+        color: var(--t1);
+      }
+
+      /* 授权批注尾注 */
+      .tc-auth-colophon {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font: 10.5px var(--mono);
+        color: var(--t3);
+        padding-top: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute">
+      <defs>
+        <symbol id="panel" viewBox="0 0 16 16">
+          <rect x="2" y="3" width="12" height="10" rx="2" />
+          <path d="M6 3v10" />
+        </symbol>
+        <symbol id="panelr" viewBox="0 0 16 16">
+          <rect x="2" y="3" width="12" height="10" rx="2" />
+          <path d="M10 3v10" />
+        </symbol>
+        <symbol id="folder" viewBox="0 0 16 16">
+          <path
+            d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"
+          />
+        </symbol>
+        <symbol id="folderp" viewBox="0 0 16 16">
+          <path
+            d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"
+          />
+        </symbol>
+        <symbol id="branch" viewBox="0 0 16 16">
+          <circle cx="4.5" cy="3.5" r="1.5" />
+          <circle cx="4.5" cy="12.5" r="1.5" />
+          <circle cx="11.5" cy="5.5" r="1.5" />
+          <path d="M4.5 5v6M11.5 7c0 2.5-3 3-7 3.5" />
+        </symbol>
+        <symbol id="search" viewBox="0 0 16 16">
+          <circle cx="7" cy="7" r="4.5" />
+          <path d="M10.5 10.5L14 14" />
+        </symbol>
+        <symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" /></symbol>
+        <symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" /></symbol>
+        <symbol id="chevl" viewBox="0 0 16 16"><path d="M10 4l-4 4 4 4" /></symbol>
+        <symbol id="chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4" /></symbol>
+        <symbol id="more" viewBox="0 0 16 16">
+          <path d="M8 3.5v.01M8 8v.01M8 12.5v.01" stroke-width="2.2" />
+        </symbol>
+        <symbol id="pin" viewBox="0 0 16 16">
+          <path d="M8 14V9.5M4.5 9.5h7L10 5.5V3H6v2.5z" />
+        </symbol>
+        <symbol id="archive" viewBox="0 0 16 16">
+          <rect x="2" y="3" width="12" height="3" rx="1" />
+          <path d="M3 6v6.5A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6M6.5 9h3" />
+        </symbol>
+        <symbol id="copy" viewBox="0 0 16 16">
+          <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+          <path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5" />
+        </symbol>
+        <symbol id="fork" viewBox="0 0 16 16">
+          <circle cx="8" cy="3" r="1.5" />
+          <circle cx="4" cy="13" r="1.5" />
+          <circle cx="12" cy="13" r="1.5" />
+          <path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5" />
+        </symbol>
+        <symbol id="refresh" viewBox="0 0 16 16">
+          <path d="M13 8A5 5 0 1 1 11.6 4.5M13.5 2.5v3h-3" />
+        </symbol>
+        <symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3" /></symbol>
+        <symbol id="term" viewBox="0 0 16 16"><path d="M3 4l4 4-4 4M8.5 12h4.5" /></symbol>
+        <symbol id="globe" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" r="6" />
+          <path d="M2 8h12M8 2c2.5 3 2.5 9 0 12M8 2c-2.5 3-2.5 9 0 12" />
+        </symbol>
+        <symbol id="expand" viewBox="0 0 16 16">
+          <path d="M9.5 2H14v4.5M6.5 14H2V9.5M14 2L9 7M2 14l5-5" />
+        </symbol>
+        <symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" /></symbol>
+        <symbol id="mic" viewBox="0 0 16 16">
+          <rect x="6" y="2" width="4" height="8" rx="2" />
+          <path d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14" />
+        </symbol>
+        <symbol id="up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4" /></symbol>
+        <symbol id="pause" viewBox="0 0 16 16"><path d="M6 4v8M10 4v8" stroke-width="2" /></symbol>
+        <symbol id="image" viewBox="0 0 16 16">
+          <rect x="2" y="3" width="12" height="10" rx="1.5" />
+          <circle cx="6" cy="7" r="1.2" />
+          <path d="M14 11l-3.5-3.5L5 13" />
+        </symbol>
+        <symbol id="cards" viewBox="0 0 16 16">
+          <rect x="3" y="4.5" width="8.5" height="9" rx="1.5" />
+          <path d="M6 4.5V3.5A1.5 1.5 0 0 1 7.5 2h4A1.5 1.5 0 0 1 13 3.5V10" />
+        </symbol>
+        <symbol id="gear" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" r="2.2" />
+          <path
+            d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"
+          />
+        </symbol>
+        <symbol id="sliders" viewBox="0 0 16 16">
+          <path d="M2.5 5.5h11 M5.5 3.2v4.6 M2.5 10.5h11 M10.5 8.2v4.6" />
+        </symbol>
+        <symbol id="bulb" viewBox="0 0 16 16">
+          <path
+            d="M8 2.5A4.2 4.2 0 0 0 3.8 6.7c0 1.7 1 2.6 1.7 3.4.4.5.5.9.5 1.4h4c0-.5.1-.9.5-1.4.7-.8 1.7-1.7 1.7-3.4A4.2 4.2 0 0 0 8 2.5zM6.5 13.5h3"
+          />
+        </symbol>
+        <symbol id="git" viewBox="0 0 16 16">
+          <circle cx="8" cy="4" r="1.6" />
+          <circle cx="8" cy="12" r="1.6" />
+          <path d="M8 5.6v4.8" />
+        </symbol>
+        <symbol id="chat" viewBox="0 0 16 16">
+          <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v7a1.5 1.5 0 0 1-1.5 1.5H6.5L3 14.5v-2.5H3.5A1.5 1.5 0 0 1 2 10.5z" />
+        </symbol>
+        <symbol id="edit" viewBox="0 0 16 16">
+          <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L4.5 13.5l-3 1 1-3 9-9z"/>
+        </symbol>
+        <symbol id="scroll" viewBox="0 0 16 16">
+          <path d="M3 4.5A2.5 2.5 0 0 1 5.5 2H12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 11.5v-7zM3 11.5a2.5 2.5 0 0 0 2.5 2.5H12M5.5 2v9.5"/><path d="M7 6h5M7 9h3"/>
+        </symbol>
+        <symbol id="check" viewBox="0 0 16 16">
+          <path d="M3.5 8.5l3 3 6-7"/>
+        </symbol>
+      </defs>
+    </svg>
+
+    <div
+      class="app"
+      id="app"
+      data-face="paper"
+      data-state="idle"
+      data-inspector="on"
+      data-slab="ink"
+    >
+      <div class="proto">
+        <div class="proto-nav">
+          <div class="traffic" aria-label="窗口控制">
+            <span class="traffic-dot close"></span>
+            <span class="traffic-dot minimize"></span>
+            <span class="traffic-dot maximize"></span>
+          </div>
+          <button class="ib" data-action="sidebar" title="切换侧栏" aria-label="切换侧栏">
+            <svg class="i"><use href="#panel" /></svg>
+          </button>
+          <span class="proto-nav-spacer"></span>
+          <button class="ib" title="后退" aria-label="后退">
+            <svg class="i s14"><use href="#chevl" /></svg>
+          </button>
+          <button class="ib" title="前进" aria-label="前进">
+            <svg class="i s14"><use href="#chevr" /></svg>
+          </button>
+        </div>
+        
+        <span class="seg ml" aria-label="汇总条位置">
+          <button class="on" id="btn-bar-top" onclick="setBarPlacement('top')">舞台顶栏汇总</button>
+          <button id="btn-bar-composer" onclick="setBarPlacement('composer')">输入框微状态轨</button>
+        </span>
+<span class="seg" aria-label="输入石板">
+          <button class="on" data-set="slab" data-v="ink">砚</button>
+          <button data-set="slab" data-v="paper">纸</button>
+        </span>
+        <span class="seg" aria-label="外观">
+          <button class="on" data-set="face" data-v="paper">纸</button>
+          <button data-set="face" data-v="ink">墨</button>
+        </span>
+        <button class="ib" data-action="inspector" title="切换工具栏" aria-label="切换工具栏">
+          <svg class="i"><use href="#panelr" /></svg>
+        </button>
+        <button data-action="demo" hidden></button>
+      </div>
+      <div class="deck">
+        <header class="tb">
+          <div class="title">
+            <span class="lamp" data-st="running"></span><span class="sq" data-st="waiting"></span><span class="tt" id="session-title">异步子代理并发调度与生命周期汇流</span><button class="ib s22" title="会话树">
+              <svg class="i"><use href="#fork" /></svg>
+            </button>
+          </div>
+        </header>
+
+        <aside class="panel sb">
+          <div class="sb-top">
+            <label class="search"
+              ><svg class="i"><use href="#search" /></svg
+              ><input id="session-search" aria-label="搜索会话" placeholder="搜索会话…" /><kbd
+                >⌘K</kbd
+              ></label
+            ><button class="new" title="新建 Chat">
+              <svg class="i"><use href="#plus" /></svg>
+            </button>
+          </div>
+          <div class="sb-scroll">
+            <section class="sec">
+              <div class="sec-h">置顶<span class="n">2</span></div>
+              <div class="row">
+                <svg class="i s14"><use href="#pin" /></svg
+                ><span class="t">Deck → Inkstone 重设计</span
+                ><span class="end"><span class="tm">昨天</span></span>
+              </div>
+              <div class="row">
+                <svg class="i s14"><use href="#pin" /></svg><span class="t">Live 语音重连预算</span
+                ><span class="end"><span class="tm">3d</span></span>
+              </div>
+            </section>
+            <section class="sec">
+              <div class="sec-h">
+                项目<span class="n">2</span
+                ><button class="ib s20 ml" title="显示选项">
+                  <svg class="i s12"><use href="#sliders" /></svg></button
+                ><button class="ib s20" title="打开工作区文件夹…">
+                  <svg class="i s12"><use href="#folderp" /></svg>
+                </button>
+              </div>
+              <div class="folder">
+                <svg class="i s14"><use href="#folder" /></svg><b>piwin</b><span class="br">main</span
+                ><button class="ib s20 fp" title="在项目中新建 Chat">
+                  <svg class="i s12"><use href="#plus" /></svg>
+                </button>
+              </div>
+              <div class="thread">
+                <div class="row cur">
+                  <span class="node"></span><span class="t">Composer 忙会话队列</span><span class="end"><span class="tm">现在</span><span class="acts"><button class="ib s20" title="置顶"><svg class="i s12"><use href="#pin" /></svg></button><button class="ib s20" title="归档"><svg class="i s12"><use href="#archive" /></svg></button><button class="ib s20" title="更多"><svg class="i s12"><use href="#more" /></svg></button></span></span>
+                </div>
+                <div class="row">
+                  <span class="node"></span><span class="t">分支选择器 mock 修复</span
+                  ><span class="end"
+                    ><span class="tm">2h</span
+                    ><span class="acts"
+                      ><button class="ib s20" title="置顶">
+                        <svg class="i s12"><use href="#pin" /></svg></button
+                      ><button class="ib s20" title="归档">
+                        <svg class="i s12"><use href="#archive" /></svg></button
+                      ><button class="ib s20" title="更多">
+                        <svg class="i s12"><use href="#more" /></svg></button></span
+                    ></span>
+                </div>
+                <div class="row">
+                  <span class="node"></span><span class="t">Artifact 源码 Preview 切回</span
+                  ><span class="end"
+                    ><span class="tm">5h</span
+                    ><span class="acts"
+                      ><button class="ib s20" title="置顶">
+                        <svg class="i s12"><use href="#pin" /></svg></button
+                      ><button class="ib s20" title="归档">
+                        <svg class="i s12"><use href="#archive" /></svg></button
+                      ><button class="ib s20" title="更多">
+                        <svg class="i s12"><use href="#more" /></svg></button></span
+                    ></span>
+                </div>
+                <div class="row">
+                  <span class="node"></span><span class="t">侧栏项目折叠 · 子代理审查</span
+                  ><span class="end"
+                    ><span class="tm">6h</span
+                    ><span class="acts"
+                      ><button class="ib s20" title="置顶">
+                        <svg class="i s12"><use href="#pin" /></svg></button
+                      ><button class="ib s20" title="归档">
+                        <svg class="i s12"><use href="#archive" /></svg></button
+                      ><button class="ib s20" title="更多">
+                        <svg class="i s12"><use href="#more" /></svg></button></span
+                    ></span>
+                </div>
+              </div>
+              <div class="folder">
+                <svg class="i s14"><use href="#folder" /></svg><b>openwebui_m</b
+                ><span class="br">main</span>
+              </div>
+              <div class="thread" hidden>
+                <div class="row">
+                  <span class="node"></span><span class="t">Markdown 渲染整理</span
+                  ><span class="end"
+                    ><span class="tm">昨天</span
+                    ><span class="acts"
+                      ><button class="ib s20" title="置顶">
+                        <svg class="i s12"><use href="#pin" /></svg></button
+                      ><button class="ib s20" title="归档">
+                        <svg class="i s12"><use href="#archive" /></svg></button
+                      ><button class="ib s20" title="更多">
+                        <svg class="i s12"><use href="#more" /></svg></button></span
+                    ></span>
+                </div>
+              </div>
+            </section>
+            <section class="sec">
+              <div class="sec-h">
+                对话<span class="n">5</span
+                ><button class="ib s20 ml" title="新建对话">
+                  <svg class="i s12"><use href="#plus" /></svg>
+                </button>
+              </div>
+              <div class="conv-list thread">
+                <div class="row conv-card sel cur" data-user="Yorick">
+                  <div class="conv-meta">
+                    <div class="conv-participants">
+                      <span class="u-tag" title="用户: Yorick"><span class="u-av">Y</span>Yorick</span>
+                    </div>
+                    <span class="end">
+                      <span class="tm">刚刚</span>
+                      <span class="acts">
+                        <button class="ib s20" title="置顶"><svg class="i s12"><use href="#pin" /></svg></button>
+                        <button class="ib s20" title="归档"><svg class="i s12"><use href="#archive" /></svg></button>
+                        <button class="ib s20" title="更多"><svg class="i s12"><use href="#more" /></svg></button>
+                      </span>
+                    </span>
+                  </div>
+                  <span class="t conv-title">异步子代理并发调度与生命周期汇流</span>
+                  <div class="conv-snippet">“分析这个项目所有显示的UI功能…调用链长得不是很好看，给我重新设计…”</div>
+                </div>
+
+                <div class="row conv-card" data-user="Yorick" data-client="手机">
+                  <div class="conv-meta">
+                    <div class="conv-participants">
+                      <span class="u-tag" title="用户: Yorick (移动端)"><span class="u-av">Y</span>Yorick<span class="client-pill">手机</span></span>
+                    </div>
+                    <span class="end">
+                      <span class="tm">3h</span>
+                      <span class="acts">
+                        <button class="ib s20" title="置顶"><svg class="i s12"><use href="#pin" /></svg></button>
+                        <button class="ib s20" title="归档"><svg class="i s12"><use href="#archive" /></svg></button>
+                        <button class="ib s20" title="更多"><svg class="i s12"><use href="#more" /></svg></button>
+                      </span>
+                    </span>
+                  </div>
+                  <span class="t conv-title">Mobile session · 接线验证</span>
+                  <div class="conv-snippet">“你好，这是 Inkstone 接线验证。”</div>
+                </div>
+
+                <div class="row conv-card" data-user="Yorick">
+                  <div class="conv-meta">
+                    <div class="conv-participants">
+                      <span class="u-tag" title="用户: Yorick"><span class="u-av">Y</span>Yorick</span>
+                    </div>
+                    <span class="end">
+                      <span class="tm">1d</span>
+                      <span class="acts">
+                        <button class="ib s20" title="置顶"><svg class="i s12"><use href="#pin" /></svg></button>
+                        <button class="ib s20" title="归档"><svg class="i s12"><use href="#archive" /></svg></button>
+                        <button class="ib s20" title="更多"><svg class="i s12"><use href="#more" /></svg></button>
+                      </span>
+                    </span>
+                  </div>
+                  <span class="t conv-title">宋体在 CJK 排版里的字距</span>
+                  <div class="conv-snippet">“宋体放在 CJK 界面里，怎样处理字距和行高…”</div>
+                </div>
+
+                <div class="row conv-card" data-user="Yorick">
+                  <div class="conv-meta">
+                    <div class="conv-participants">
+                      <span class="u-tag" title="用户: Yorick"><span class="u-av">Y</span>Yorick</span>
+                    </div>
+                    <span class="end">
+                      <span class="tm">3d</span>
+                      <span class="acts">
+                        <button class="ib s20" title="置顶"><svg class="i s12"><use href="#pin" /></svg></button>
+                        <button class="ib s20" title="归档"><svg class="i s12"><use href="#archive" /></svg></button>
+                        <button class="ib s20" title="更多"><svg class="i s12"><use href="#more" /></svg></button>
+                      </span>
+                    </span>
+                  </div>
+                  <span class="t conv-title">测试 Markdown 流程图显示</span>
+                  <div class="conv-snippet">“测试，给我显示markdown的流程图，随便生成点…”</div>
+                </div>
+
+                <div class="row conv-card" data-user="Yorick">
+                  <div class="conv-meta">
+                    <div class="conv-participants">
+                      <span class="u-tag" title="用户: Yorick"><span class="u-av">Y</span>Yorick</span>
+                    </div>
+                    <span class="end">
+                      <span class="tm">4d</span>
+                      <span class="acts">
+                        <button class="ib s20" title="置顶"><svg class="i s12"><use href="#pin" /></svg></button>
+                        <button class="ib s20" title="归档"><svg class="i s12"><use href="#archive" /></svg></button>
+                        <button class="ib s20" title="更多"><svg class="i s12"><use href="#more" /></svg></button>
+                      </span>
+                    </span>
+                  </div>
+                  <span class="t conv-title">周报草稿</span>
+                  <div class="conv-snippet">“帮我把这周的设计工作整理成一份简洁的周报…”</div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <footer class="shelf">
+            <button>
+              <svg class="i"><use href="#image" /></svg>资料库
+            </button>
+            <button>
+              <svg class="i"><use href="#cards" /></svg>知识卡片
+            </button>
+            <button>
+              <svg class="i"><use href="#gear" /></svg>设置
+            </button>
+            <div class="host"><i></i>本机 Host · 8787</div>
+          </footer>
+        </aside>
+
+        <main class="panel stage">
+          <!-- session-context-replaced -->
+
+          
+
+            <span class="chip conv-chip"><svg class="i s14"><use href="#chat" /></svg><span id="context-label">项目会话</span></span>
+            <span class="context-dot">·</span>
+            <button class="chip scope-chip" data-action="scope" style="display:none"><svg class="i"><use href="#folder" /></svg><span id="scope-label">piwin</span></button>
+            <button class="chip branch-chip" data-action="branch" style="display:none"><svg class="i"><use href="#branch" /></svg>main<svg class="i s12"><use href="#chevd" /></svg></button>
+            <span class="u-tag"><span class="u-av">Y</span>Yorick</span>
+            <span class="context-dot">·</span>
+            <span id="context-detail" style="display:none">~/Developer/piwin</span>
+            <span class="conv-stats-desc" id="conv-stats">3 轮对谈 · 5 个工具执行 · 6.8k tokens</span>
+            <span class="grow"></span>
+            <button class="chip" id="context-model-chip" title="切换当前聚焦模型">
+              <span class="av av-c">C</span>Sonnet 4.6<svg class="i s12"><use href="#chevd" /></svg>
+            </button>
+            <button class="chip ml" data-open="files">文件</button>
+            <button class="chip" data-open="terminal">命令行</button>
+            <button class="chip" title="题跋导出 (导出为 Markdown)">题跋导出</button>
+            <button class="chip" title="清空当前墨迹">清墨</button>
+          </div>
+          
+          <div class="scroll" id="transcript">
+            <!-- 轮次 1: 用户指示 -->
+            <article class="turn">
+              <aside class="marg"><span class="who">我</span><span>15:30</span></aside>
+              <div>
+                <div class="head"><span class="u-tag"><span class="u-av">Y</span>Yorick</span><span>15:30</span></div>
+                <div class="ucard">
+                  请调研现有 subagent-batch 调度机制，同时并行在独立 worktree 编写 contracts 接口和单元测试。两项都启动后，主线程继续准备集成逻辑，完成后调用 wait 收集。
+                  <div class="hov">
+                    <button class="ib s20" title="编辑"><svg class="i s12"><use href="#file" /></svg></button>
+                    <button class="ib s20" title="复制"><svg class="i s12"><use href="#copy" /></svg></button>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <!-- 轮次 2: 助理执行与子任务并发 -->
+            <article class="turn">
+              <aside class="marg">
+                <span class="av">C</span><span>Sonnet 4.6</span><span>15:30</span>
+                <span data-st="idle">2.8k · 24s</span>
+              </aside>
+              <div>
+                <div class="head">
+                  <span class="av">C</span><span>Sonnet 4.6</span><span>15:30</span>
+                  <span data-st="idle">2.8k · 24s</span>
+                </div>
+                
+                <div class="work">
+                  <div class="work-h">
+                    <span class="grind"></span>
+                    <span><b>研墨深思</b> · 派发架构探查与接口编写两个并行子任务，主线程在前台继续准备</span>
+                  </div>
+                </div>
+
+                <!-- 真实子代理卡片 1：探 (运行中，带单个停止入口) -->
+                <div class="subagent-embed" id="embed-scout" style="margin: 10px 0;">
+                  <div class="subagent-invocation-block subagent-seal-card blk" id="card-scout" data-status="running">
+                    <span class="subagent-seal" data-status="running">探</span>
+                    <span class="subagent-invocation-copy">
+                      <span class="subagent-invocation-heading">
+                        <span class="subagent-invocation-title">子代理：架构调度机制深入调研</span>
+                        <span class="pill lamp-p"><i></i>运行中</span>
+                      </span>
+                      <span class="subagent-invocation-activity">
+                        <span class="subagent-grind-spinner"></span>
+                        <span class="subagent-activity-text" id="scout-activity-text">正在执行 ast_grep_search: "startBatch" (0:19)</span>
+                      </span>
+                      <span class="subagent-invocation-tags">
+                        <span class="subagent-identity-chips">
+                          <span class="subagent-role-chip">scout</span>
+                          <span class="subagent-role-chip">readonly</span>
+                          <span class="subagent-model-chip"><span class="av av-c" style="width:12px;height:12px;font-size:8px;line-height:12px;">C</span>Sonnet 4.6</span>
+                        </span>
+                      </span>
+                    </span>
+                    <!-- 核心新增 5: 单个子任务的停止入口 -->
+                    <button class="btn sm dan subagent-stop-btn" id="btn-stop-scout" onclick="stopSingleTask('scout', event)" title="单独停止此任务">
+                      停止任务
+                    </button>
+                    <button class="ib s20" onclick="toggleEmbed('embed-scout', event)" title="展开详情">
+                      <svg class="i s14 subagent-invocation-chevron"><use href="#chevd" /></svg>
+                    </button>
+                  </div>
+                  <!-- 可展开的 inline-session -->
+                  <section class="subagent-inline-session" id="inline-scout" style="display:none;">
+                    <header class="subagent-inline-header">
+                      <span class="subagent-session-state" style="background:var(--lamp-wash);color:var(--lamp);">
+                        <span class="subagent-session-live-dot" style="background:var(--lamp);animation:breath 2.4s infinite;"></span>
+                        运行中
+                      </span>
+                      <span class="subagent-inline-header-spacer"></span>
+                      <button class="btn sm dan" onclick="stopSingleTask('scout', event)">停止此任务</button>
+                      <button class="btn sm" onclick="toggleEmbed('embed-scout', event)">收起 ▲</button>
+                    </header>
+                    <!-- 核心新增 4: 结果摘要区 (运行中态) -->
+                    <div class="subagent-result-summary-box">
+                      <div class="subagent-result-summary-title">
+                        <span>结果摘要区 (Result Summary)</span>
+                        <span>run_scout_01</span>
+                      </div>
+                      <div class="summary-kv-row">
+                        <span class="summary-k">执行：</span>
+                        <span class="summary-v" id="scout-summary-exec"><span class="summary-tag tag-pending">运行中 (Running 0:19)</span></span>
+                      </div>
+                      <div class="summary-kv-row">
+                        <span class="summary-k">报告：</span>
+                        <span class="summary-v"><span class="summary-tag tag-pending">待收集 (Pending)</span></span>
+                      </div>
+                      <div class="summary-kv-row">
+                        <span class="summary-k">代码：</span>
+                        <span class="summary-v" style="color:var(--t3);">只读模式 (无改动)</span>
+                      </div>
+                      <div class="summary-kv-row">
+                        <span class="summary-k">验证：</span>
+                        <span class="summary-v" style="color:var(--t4);">- 未运行测试</span>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                <!-- 真实子代理卡片 2：编 (已完成态 · 展开内联详情，明确呈现 4 项结果摘要区) -->
+                <div class="subagent-embed" id="embed-coder" data-expanded="true" style="margin: 10px 0;">
+                  <div class="subagent-invocation-block subagent-seal-card blk" id="card-coder" data-status="completed" style="border-radius: 7px 7px 0 0; border-bottom: 1px solid var(--l1);">
+                    <span class="subagent-seal" data-status="completed">编</span>
+                    <span class="subagent-invocation-copy">
+                      <span class="subagent-invocation-heading">
+                        <span class="subagent-invocation-title">子代理：编写 contracts 接口与单元测试</span>
+                        <span class="pill pine-p"><i></i>已完成</span>
+                        <span class="pill ochre-p" style="background:var(--ochre-wash);color:var(--ochre);">代码待处理</span>
+                      </span>
+                      <span class="subagent-invocation-activity">
+                        <span class="subagent-activity-text">已完成 · 耗时 24s · 隔离 worktree 生成 2 个改动文件</span>
+                      </span>
+                      <span class="subagent-invocation-tags">
+                        <span class="subagent-identity-chips">
+                          <span class="subagent-role-chip">coder</span>
+                          <span class="subagent-role-chip">worktree</span>
+                          <span class="subagent-model-chip"><span class="av av-c" style="width:12px;height:12px;font-size:8px;line-height:12px;">C</span>Sonnet 4.6</span>
+                        </span>
+                      </span>
+                    </span>
+                    <button class="ib s20" onclick="toggleEmbed('embed-coder', event)" title="折叠详情">
+                      <svg class="i s14 subagent-invocation-chevron" style="transform:rotate(180deg)"><use href="#chevd" /></svg>
+                    </button>
+                  </div>
+
+                  <!-- 展开态 SubagentInlineSession -->
+                  <section class="subagent-inline-session" id="inline-coder">
+                    <header class="subagent-inline-header">
+                      <span class="subagent-session-state" style="background:var(--pine-wash);color:var(--pine);">
+                        已完成
+                      </span>
+                      <span class="chip" style="font-size:11px;">feat/contracts-async</span>
+                      <span class="subagent-inline-header-spacer"></span>
+                      <button class="btn sm" onclick="alert('已在新窗口打开完整会话')">打开完整会话 ↗</button>
+                      <button class="btn sm" onclick="toggleEmbed('embed-coder', event)">收起 ▲</button>
+                    </header>
+
+                    <!-- 核心新增 4: 结果摘要区 (明确区分 4 项: 执行/报告/代码/验证) -->
+                    <div class="subagent-result-summary-box">
+                      <div class="subagent-result-summary-title">
+                        <span>结果摘要区 (Result Summary)</span>
+                        <span style="color:var(--t4);">run_coder_02 · feat/contracts-async</span>
+                      </div>
+                      <div class="summary-kv-row">
+                        <span class="summary-k">执行：</span>
+                        <span class="summary-v"><span class="summary-tag tag-done">已完成</span></span>
+                      </div>
+                      <div class="summary-kv-row">
+                        <span class="summary-k">报告：</span>
+                        <span class="summary-v"><span class="summary-tag tag-merged">已收集 (已合入主上下文)</span></span>
+                      </div>
+                      <div class="summary-kv-row">
+                        <span class="summary-k">代码：</span>
+                        <span class="summary-v"><span class="summary-tag tag-attention">待处理 (2 个文件待合并)</span></span>
+                      </div>
+                      <div class="summary-kv-row">
+                        <span class="summary-k">验证：</span>
+                        <span class="summary-v"><span class="summary-tag tag-pass">3 项通过 (Pass)</span></span>
+                      </div>
+                    </div>
+
+                    <!-- 附带改动代码快速预览 -->
+                    <div style="padding: 0 12px 10px;">
+                      <div class="tr" style="background:var(--s3);border:1px solid var(--l1);height:26px;font-size:11px;">
+                        <svg class="i s12"><use href="#file" /></svg>
+                        <span style="color:var(--t1);font-family:var(--mono);">packages/contracts/src/subagent-tool-presentation.ts</span>
+                        <span class="meta ml"><span class="pm"><span class="plus">+54</span> <span class="minus">−0</span></span></span>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                <!-- 主线程独立工具调用记录 -->
+                <div class="tr" style="margin: 6px 0;">
+                  <span class="node ok"></span>
+                  <b>grep</b> <code>"SubagentOrchestrator"</code>
+                  <span class="meta">4 处匹配 · 14ms</span>
+                </div>
+
+                <!-- 核心新增 3：piwin_subagent_wait 普通控制结果行 -->
+                <!-- 明确要求：显示成普通的控制结果行，绝不生成一张新的子代理卡片 -->
+                <div class="wait-control-row tr" id="wait-control-line">
+                  <span class="node" style="background:var(--pine);border-color:var(--pine);"></span>
+                  <b style="font-family:var(--mono);color:var(--t1);">wait</b>
+                  <div class="wait-control-content">
+                    <div class="wait-control-line-1">
+                      <svg class="i s12" style="color:var(--pine);"><use href="#check" /></svg>
+                      <span>正在等待 2 个任务</span>
+                    </div>
+                    <div class="wait-control-line-2">
+                      已收集 2 个报告 · 其中 1 个失败 (或待处理代码)
+                    </div>
+                  </div>
+                  <span class="meta ml">0.4s · 仅控制行，无冗余卡片</span>
+                </div>
+
+                <div class="prose" style="margin-top:10px;">
+                  <p>两个子任务均已完成汇流并收集报告：</p>
+                  <p>1. <strong>调度机制探查</strong>：调度锁已排查完毕，确定无需调整持久化生命周期；<br>
+                  2. <strong>Contracts 接口</strong>：已在 <code>feat/contracts-async</code> 分支落笔并通过 3 项单元测试，改动已就绪，等待您的审查合并。</p>
+                </div>
+              </div>
+            </article>
+          </div>
+<div class="dock">
+            <div class="dock-in">
+              <div class="queued" hidden></div>
+              
+              <!-- 核心新增 1 (位置 B)：输入框上方微状态轨 -->
+              <div class="run-subagent-bar" id="composer-subagent-bar" style="display:none; margin-bottom: 6px; background:var(--s2);">
+                <span class="bar-title">后台任务 2 个</span>
+                <span class="context-dot">·</span>
+                <button class="run-subagent-chip" onclick="jumpToCard('card-scout')">
+                  <span class="lg run"></span> 运行中 1 (探) <span class="arrow">↑</span>
+                </button>
+                <span class="context-dot">·</span>
+                <button class="run-subagent-chip" onclick="jumpToCard('card-coder')">
+                  <span class="lg done"></span> 已完成 1 (编) <span class="arrow">↑</span>
+                </button>
+              </div>
+<div class="slab">
+                <div class="refs"><span class="ref">@ composer-card.tsx</span><span class="ref">@ AGENTS.md §3.3</span></div>
+                <textarea
+                  aria-label="消息"
+                  class="ta"
+                  rows="2"
+                  placeholder="在此研墨落笔，向模型继续追问… （按 ⌘K 切换模型，Enter 发送）"
+                ></textarea>
+                <div class="bar">
+                  <button class="sb-chip ic" title="插入引用文字">
+                    <svg class="i"><use href="#copy" /></svg>
+                  </button>
+                  <button class="sb-chip on" id="composer-model-btn" title="点击切换当前沟通模型">
+                    <span class="av av-d">D</span>DeepSeek V4<span class="dot">·</span>思考 中<svg class="i s12"><use href="#chevd" /></svg>
+                  </button>
+                  <button class="sb-chip on" id="composer-think-btn" title="思考深度：深思">
+                    <span class="grind s9"></span>研墨深思<svg class="i s12"><use href="#chevd" /></svg>
+                  </button>
+                  <button class="sb-chip" title="论述风格">
+                    沉着严谨<svg class="i s12"><use href="#chevd" /></svg>
+                  </button>
+                  <span class="grow"></span>
+                  <button class="send" id="send-btn" title="落笔发送 (Enter)">
+                    <span class="sq"></span><svg class="i s14"><use href="#up" /></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="hint">
+                <span>Enter 盖印落笔</span><span>⇧Enter 换行</span><span>⌘K 切换模型</span>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside class="panel insp" aria-label="会话工具">
+          <div class="insp-h">
+            <div id="tool-tabs" role="tablist" aria-label="打开的工具"></div>
+            <button class="ib" data-action="tools" aria-label="添加工具" title="添加工具">
+              <svg class="i"><use href="#plus" /></svg>
+            </button>
+          </div>
+          <div class="tool-context">
+            <span class="follow-dot"></span><span id="tool-scope">跟随当前会话</span
+            ><button
+              class="ib ml"
+              data-action="widen"
+              title="展开或还原工具栏"
+              aria-label="展开或还原工具栏"
+            >
+              <svg class="i s14"><use href="#expand" /></svg></button
+            ><button
+              class="ib"
+              data-action="close-tool"
+              title="关闭当前工具"
+              aria-label="关闭当前工具"
+            >
+              <svg class="i s14"><use href="#close" /></svg>
+            </button>
+          </div>
+          <div id="tool-content" role="tabpanel"></div>
+          <footer class="tool-footer">
+            <span id="tool-footnote">本次会话 · 2 个变更</span><span class="ml">本机</span>
+          </footer>
+        </aside>
+        <div
+          class="resize-handle"
+          role="separator"
+          tabindex="0"
+          aria-label="调整工具栏宽度"
+          aria-orientation="vertical"
+          aria-valuemin="300"
+          aria-valuemax="600"
+          aria-valuenow="360"
+        ></div>
+        <button class="scrim" data-action="dismiss-drawer" aria-label="关闭抽屉" hidden></button>
+      </div>
+      <div class="popover" id="popover" popover="auto"></div>
+      <dialog id="create-dialog" class="create-dialog">
+        <form id="create-form">
+          <div class="dialog-top">
+            <span class="eyebrow">COMPOSITION / NEW</span
+            ><button type="button" class="ib" data-action="cancel-create" aria-label="关闭新建窗口">
+              ×
+            </button>
+          </div>
+          <h2>从一个想法开始</h2>
+          <p>选择这次对话的工作范围。</p>
+          <label>名称<input id="new-name" placeholder="新对话" maxlength="80" /></label
+          ><label
+            >工作范围<select id="new-scope">
+              <option value="general">独立对话</option>
+              <option value="project">项目 · piwin</option>
+            </select></label
+          >
+          <div class="dialog-actions">
+            <button type="button" class="chip" data-action="cancel-create">取消</button
+            ><button class="primary" type="submit">创建会话 ↗</button>
+          </div>
+        </form>
+      </dialog>
+      <div id="toast" role="status" hidden></div>
+    </div>
+    <script src="shell-inspector.js"></script>
+    <script src="shell-interactions.js"></script>
+    <script>
+      /* ── 对话交互：多模型协同、砚台研墨与文人书案沟通 ── */
+      (() => {
+        const sessionContext = document.getElementById('session-context');
+        const sessionTitle = document.getElementById('session-title');
+        const composerModelBtn = document.getElementById('composer-model-btn');
+        const contextModelChip = document.getElementById('context-model-chip');
+        const ta = document.querySelector('.dock textarea');
+        const sendBtn = document.getElementById('send-btn');
+        const transcript = document.getElementById('transcript');
+
+        const models = [
+          { name: 'DeepSeek V4', av: 'D', color: 'var(--azure)' },
+          { name: 'Sonnet 4.6', av: 'C', color: 'var(--t1)' },
+          { name: 'Gemini 3.8', av: 'G', color: 'var(--lamp)' },
+          { name: 'GPT-5.3 Spark', av: 'O', color: 'var(--t1)' },
+        ];
+        let currentModelIdx = 0;
+
+        function setFocusModel(name, av) {
+          const m = models.find(x => x.name === name) || models[0];
+          currentModelIdx = models.indexOf(m);
+          if (composerModelBtn) {
+            composerModelBtn.innerHTML = `<span class="av av-${m.av.toLowerCase()}">${m.av}</span>${m.name}<span class="dot">·</span>思考 中<svg class="i s12"><use href="#chevd" /></svg>`;
+          }
+          if (contextModelChip) {
+            contextModelChip.innerHTML = `<span class="av av-${m.av.toLowerCase()}">${m.av}</span>${m.name}<svg class="i s12"><use href="#chevd" /></svg>`;
+          }
+        }
+
+        // 绑定转录流中的「换模型答复」操作
+        document.addEventListener('click', (e) => {
+          const reaskBtn = e.target.closest('.model-reask');
+          if (reaskBtn) {
+            const targetModel = reaskBtn.dataset.targetModel;
+            const targetAv = reaskBtn.dataset.targetAv;
+            if (targetModel) {
+              setFocusModel(targetModel, targetAv);
+              if (ta) {
+                ta.value = `请换用 ${targetModel} 的推演视角，对上述结论进行进一步评注与推导：`;
+                ta.focus();
+              }
+            }
+          }
+        });
+
+        // 作曲器模型切换
+        if (composerModelBtn) {
+          composerModelBtn.addEventListener('click', () => {
+            currentModelIdx = (currentModelIdx + 1) % models.length;
+            const next = models[currentModelIdx];
+            setFocusModel(next.name, next.av);
+          });
+        }
+
+        // 发送印章动效
+        if (sendBtn) {
+          sendBtn.addEventListener('click', () => {
+            sendBtn.classList.add('stamping');
+            setTimeout(() => sendBtn.classList.remove('stamping'), 220);
+          });
+        }
+
+        // ── 调用链交互：单项展开/收起、全局模式切换与复制 ──
+        document.addEventListener('click', (e) => {
+          // 单项折叠/展开点击
+          const row = e.target.closest('.tc-row');
+          if (row) {
+            const item = row.closest('.tc-item');
+            if (item) {
+              item.classList.toggle('expanded');
+            }
+            return;
+          }
+
+          // 全局模式切换按钮
+          const modeBtn = e.target.closest('.tc-mode-btn');
+          if (modeBtn) {
+            const chain = modeBtn.closest('.tc-chain');
+            if (!chain) return;
+            const mode = modeBtn.dataset.tcMode;
+            chain.querySelectorAll('.tc-mode-btn').forEach(b => b.classList.remove('active'));
+            modeBtn.classList.add('active');
+
+            const items = chain.querySelectorAll('.tc-item');
+            if (mode === 'collapsed') {
+              items.forEach(it => it.classList.remove('expanded'));
+            } else if (mode === 'expanded') {
+              items.forEach(it => it.classList.add('expanded'));
+            } else if (mode === 'mixed') {
+              items.forEach(it => {
+                const kind = it.dataset.kind;
+                // 混合态：展开落笔(edit)与核心终端(bash #2)，其余折叠
+                if (kind === 'edit' || (kind === 'bash' && it.querySelector('.tc-detail-path')?.textContent.includes('piwin-inkstone-v2'))) {
+                  it.classList.add('expanded');
+                } else {
+                  it.classList.remove('expanded');
+                }
+              });
+            }
+            return;
+          }
+
+          // 复制命令按钮
+          const copyBtn = e.target.closest('[data-tc-copy]');
+          if (copyBtn) {
+            const text = copyBtn.dataset.tcCopy;
+            if (navigator.clipboard && text) {
+              navigator.clipboard.writeText(text).catch(() => {});
+            }
+            const origHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = `<svg class="i s12"><use href="#check" /></svg>已复制`;
+            setTimeout(() => copyBtn.innerHTML = origHTML, 1600);
+            return;
+          }
+        });
+
+        // 侧栏会话切换处理
+        const defaultTranscriptHTML = transcript ? transcript.innerHTML : '';
+
+        const generalTranscripts = {
+          'Mobile session · 接线验证': {
+            user: 'Yorick',
+            client: '手机',
+            turns: `<article class="turn"><aside class="marg"><span class="who">我</span><span>10:14</span></aside><div><div class="head"><span class="u-tag"><span class="u-av">Y</span>Yorick<span class="client-pill">手机</span></span><span>10:14</span></div><div class="ucard">你好，这是移动端（iOS）接线验证，测试双向数据同步。</div><div class="cap"><i></i>移动信道直连 · 延迟 18ms</div></div></article>
+<article class="turn"><aside class="marg"><span class="av av-o">O</span><span>GPT-5.3 Spark</span><span>10:14</span><span class="mono">820 · 2s</span></aside><div><div class="head"><span class="av av-o">O</span><span>GPT-5.3 Spark</span><span>10:14</span><span class="mono">820 · 2s</span></div><div class="prose"><p>移动端信道连接畅通。会话统一持久化在本机 Host（<code>~/.piwin/sessions</code>），你在手机上发送的任何消息与批注均已同步至桌面端。</p></div><div class="turn-colophon"><span class="colo-meta">GPT-5.3 Spark · 低延迟流式响应</span><div class="acts-f"><button class="ib" title="复制"><svg class="i"><use href="#copy" /></svg></button><button class="chip model-reask" data-target-model="DeepSeek V4" data-target-av="D"><span class="av av-d">D</span>换 DeepSeek 深入分析</button></div></div></div></article>`,
+            stats: '1 轮对谈 · 移动端直连 · 820 tokens',
+            model: 'GPT-5.3 Spark',
+            av: 'O',
+          },
+          '测试 Markdown 流程图显示': {
+            user: 'Yorick',
+            turns: `<article class="turn"><aside class="marg"><span class="who">我</span><span>08:09</span></aside><div><div class="head"><span class="u-tag"><span class="u-av">Y</span>Yorick</span><span>08:09</span></div><div class="ucard">测试，给我显示markdown的流程图，随便生成点流程图。</div></div></article>
+<article class="turn"><aside class="marg"><span class="av av-g">G</span><span style="color:var(--lamp)">Gemini 3.8</span><span>08:09</span><span class="mono">1.1k · 3s</span></aside><div><div class="head"><span class="av av-g">G</span><span style="color:var(--lamp)">Gemini 3.8</span><span>08:09</span><span class="mono">1.1k · 3s</span></div><div class="prose"><p>生成 Mermaid 会话状态图谱，测试纸墨两面对比度渲染：</p><div class="code"><div class="code-h"><svg class="i s12"><use href="#git" /></svg>flow.mermaid<span class="sep">·</span>Mermaid</div><pre>graph LR
+    U[用户提问] --> H[Host 调度中心]
+    H --> M{协同模型}
+    M -->|推理| D[DeepSeek V4]
+    M -->|通识| C[Sonnet 4.6]
+    M -->|多模态| G[Gemini 3.8]
+    D --> T[书案转录呈现]
+    C --> T
+    G --> T</pre></div></div><div class="turn-colophon"><span class="colo-meta">Gemini 3.8 · 图表渲染就绪</span><div class="acts-f"><button class="ib" title="复制"><svg class="i"><use href="#copy" /></svg></button></div></div></div></article>`,
+            stats: '1 轮对谈 · 图表验证 · 1.1k tokens',
+            model: 'Gemini 3.8',
+            av: 'G',
+          },
+          '宋体在 CJK 排版里的字距': {
+            user: 'Yorick',
+            turns: `<article class="turn"><aside class="marg"><span class="who">我</span><span>昨天</span></aside><div><div class="head"><span class="u-tag"><span class="u-av">Y</span>Yorick</span><span>昨天</span></div><div class="ucard">宋体放在 CJK 界面里，怎样处理字距和行高才显温润而不散漫？</div></div></article>
+<article class="turn"><aside class="marg"><span class="av">C</span><span>Sonnet 4.6</span><span>昨天</span><span class="mono">1.5k · 5s</span></aside><div><div class="head"><span class="av">C</span><span>Sonnet 4.6</span><span>昨天</span><span class="mono">1.5k · 5s</span></div><div class="prose"><p>宋体用于界面显示时，建议仅在 <code>display</code> 级与重要标题使用（字号 ≥ 13.5px），行高控制在 1.4~1.55 之间，搭配 <code>letter-spacing: -0.01em</code> 收紧 CJK 方块字的离散感，保留雕版墨香。</p></div><div class="turn-colophon"><span class="colo-meta">Sonnet 4.6 · 排版辨析</span><div class="acts-f"><button class="ib" title="复制"><svg class="i"><use href="#copy" /></svg></button><button class="chip model-reask" data-target-model="DeepSeek V4" data-target-av="D"><span class="av av-d">D</span>换 DeepSeek 辨析</button></div></div></div></article>`,
+            stats: '1 轮对谈 · 字体排版 · 1.5k tokens',
+            model: 'Sonnet 4.6',
+            av: 'C',
+          },
+        };
+
+        function switchToConversation(title, user, client) {
+          if (sessionTitle) sessionTitle.textContent = title;
+          if (sessionContext) {
+            const data = generalTranscripts[title];
+            const stats = data ? data.stats : '3 轮对谈 · 5 个工具执行 · 6.8k tokens';
+            const mName = data ? data.model : 'Sonnet 4.6';
+            const mAv = data ? data.av : 'C';
+
+            sessionContext.innerHTML = `<span class="chip conv-chip"><svg class="i s14"><use href="#chat" /></svg><span id="context-label">项目会话</span></span><span class="context-dot">·</span><button class="chip scope-chip" data-action="scope" style="display:none"><svg class="i"><use href="#folder" /></svg><span id="scope-label">piwin</span></button><button class="chip branch-chip" data-action="branch" style="display:none"><svg class="i"><use href="#branch" /></svg>main<svg class="i s12"><use href="#chevd" /></svg></button><span class="u-tag"><span class="u-av">${user[0]}</span>${user}${client ? `<span class="client-pill">${client}</span>` : ''}</span><span class="context-dot">·</span><span id="context-detail" style="display:none">~/Developer/piwin</span><span class="conv-stats-desc" id="conv-stats">${stats}</span><span class="grow"></span><button class="chip" id="context-model-chip" title="切换当前聚焦模型"><span class="av av-${mAv.toLowerCase()}">${mAv}</span>${mName}<svg class="i s12"><use href="#chevd" /></svg></button><button class="chip ml" title="题跋导出">题跋导出</button><button class="chip" title="清空墨迹">清墨</button>`;
+            setFocusModel(mName, mAv);
+          }
+
+          if (transcript) {
+            if (title === '异步子代理并发调度与生命周期汇流' || title === '手写简单 Agent 实现引导' || !generalTranscripts[title]) {
+              transcript.innerHTML = defaultTranscriptHTML;
+            } else {
+              transcript.innerHTML = generalTranscripts[title].turns;
+            }
+          }
+        }
+
+        function switchToProject(title) {
+          if (sessionTitle) sessionTitle.textContent = title;
+          if (sessionContext) {
+            sessionContext.innerHTML = `<button class="chip scope-chip" data-action="scope"><svg class="i"><use href="#folder" /></svg><span id="scope-label">piwin</span></button><button class="chip branch-chip" data-action="branch"><svg class="i"><use href="#branch" /></svg>main<svg class="i s12"><use href="#chevd" /></svg></button><span id="context-label">项目会话</span><span class="context-dot">·</span><span id="context-detail">~/Developer/piwin</span><button class="chip ml" data-open="files">文件</button><button class="chip" data-open="terminal">命令行</button>`;
+          }
+        }
+
+        document.addEventListener('click', (event) => {
+          const row = event.target.closest('.sb .row');
+          if (!row) return;
+
+          document.querySelectorAll('.sb .row').forEach(r => r.classList.remove('sel', 'cur'));
+          row.classList.add('sel', 'cur');
+
+          const isConv = row.classList.contains('conv-card');
+          const title = row.querySelector('.t')?.textContent.trim() || '';
+
+          if (isConv) {
+            const user = row.dataset.user || 'Yorick';
+            const client = row.dataset.client;
+            switchToConversation(title, user, client);
+          } else {
+            switchToProject(title);
+          }
+        });
+      })();
+    </script>
+  
+<script>
+  function jumpToCard(cardId) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.remove('flash-focus');
+    void card.offsetWidth;
+    card.classList.add('flash-focus');
+  }
+
+  function stopSingleTask(taskId, evt) {
+    if (evt) evt.stopPropagation();
+    if (!confirm('确认单独取消此子任务吗？主 Run 和其他子任务将不受影响继续执行。')) return;
+    
+    const btn = document.getElementById('btn-stop-' + taskId);
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = '已停止';
+      btn.style.color = 'var(--t4)';
+    }
+    const card = document.getElementById('card-' + taskId);
+    if (card) {
+      card.setAttribute('data-status', 'cancelled');
+      const pill = card.querySelector('.pill');
+      if (pill) {
+        pill.className = 'pill';
+        pill.style.background = 'var(--s1)';
+        pill.style.color = 'var(--t4)';
+        pill.innerText = '已取消';
+      }
+      const act = document.getElementById('scout-activity-text');
+      if (act) act.innerText = '子任务已由用户手动停止';
+      const seal = card.querySelector('.subagent-seal');
+      if (seal) seal.setAttribute('data-status', 'cancelled');
+    }
+    const execTag = document.getElementById('scout-summary-exec');
+    if (execTag) {
+      execTag.innerHTML = '<span class="summary-tag" style="background:var(--crimson-wash);color:var(--crimson)">已取消 (Cancelled)</span>';
+    }
+  }
+
+  function stopWholeRun() {
+    if (confirm('确认停止整个父 Run 吗？这将终止主模型和所有子代理。')) {
+      alert('已触发 session/abort，级联终止整个父 Run。');
+    }
+  }
+
+  function toggleEmbed(embedId, evt) {
+    if (evt) evt.stopPropagation();
+    const embed = document.getElementById(embedId);
+    if (!embed) return;
+    const isExpanded = embed.getAttribute('data-expanded') === 'true';
+    embed.setAttribute('data-expanded', isExpanded ? 'false' : 'true');
+    const inline = embed.querySelector('.subagent-inline-session');
+    if (inline) inline.style.display = isExpanded ? 'none' : 'block';
+  }
+
+  function setBarPlacement(pos) {
+    const topBar = document.getElementById('top-subagent-bar');
+    const composerBar = document.getElementById('composer-subagent-bar');
+    const btnTop = document.getElementById('btn-bar-top');
+    const btnComp = document.getElementById('btn-bar-composer');
+
+    if (pos === 'top') {
+      topBar.style.display = 'flex';
+      composerBar.style.display = 'none';
+      btnTop.classList.add('on');
+      btnComp.classList.remove('on');
+    } else {
+      topBar.style.display = 'none';
+      composerBar.style.display = 'flex';
+      btnTop.classList.remove('on');
+      btnComp.classList.add('on');
+    }
+  }
+</script>
+
+</body>
+</html>

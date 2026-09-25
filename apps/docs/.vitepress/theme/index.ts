@@ -5,6 +5,7 @@ import './custom.css';
 import PromoShowcase from './components/PromoShowcase.vue';
 import HomeQuickNav from './components/HomeQuickNav.vue';
 import DownloadView from './components/DownloadView.vue';
+import PrototypeViewer from './components/PrototypeViewer.vue';
 
 export default {
   extends: DefaultTheme,
@@ -21,5 +22,6 @@ export default {
     app.component('PromoShowcase', PromoShowcase);
     app.component('HomeQuickNav', HomeQuickNav);
     app.component('DownloadView', DownloadView);
+    app.component('PrototypeViewer', PrototypeViewer);
   },
 } satisfies Theme;
