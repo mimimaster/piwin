@@ -8,6 +8,20 @@ import type { DropSource, GroupRect, Size, WorkspaceState } from './types.js';
 
 export const DOCK_BAND_PX = 72;
 
+/**
+ * The element whose box is the stage. The primary layout renders the
+ * workspace as `display: contents` (the stage is the ordinary workbench chat),
+ * so the root itself has no box and measures 0×0; its nearest boxed ancestor
+ * is the column the stage fills.
+ */
+export function resolveStageBoxElement(root: HTMLElement): HTMLElement {
+  let element: HTMLElement = root;
+  while (element.parentElement && getComputedStyle(element).display === 'contents') {
+    element = element.parentElement;
+  }
+  return element;
+}
+
 export function toLocalPoint(origin: HTMLElement, point: Point): Point {
   const rect = origin.getBoundingClientRect();
   return { x: point.x - rect.left, y: point.y - rect.top };
@@ -57,6 +71,11 @@ export function buildHitTestInput(args: {
   groupRects: readonly GroupRect[];
   panelElement: HTMLElement | null;
   rightPanelVisible: boolean;
+  /**
+   * Whether the dragged item may dock into the hidden right panel. The band
+   * covers the stage's right split edge, so it only exists for tools.
+   */
+  allowDockBand?: boolean;
 }): HitTestInput {
   const stage: Rect = { left: 0, top: 0, width: args.stageSize.width, height: args.stageSize.height };
   const panelRect =
@@ -76,7 +95,8 @@ export function buildHitTestInput(args: {
         args.panelElement,
       )
     : [];
-  const dockBand: Rect | null = panelRect
+  const dockBand: Rect | null =
+    panelRect || args.allowDockBand === false
     ? null
     : { left: stage.width - DOCK_BAND_PX, top: 0, width: DOCK_BAND_PX, height: stage.height };
   return {
@@ -87,6 +107,11 @@ export function buildHitTestInput(args: {
     ...(panelRect ? { rightPanel: { rect: panelRect, tabAreas: rightTabAreas } } : {}),
     ...(dockBand ? { dockBand } : {}),
   };
+}
+
+function isSessionSource(state: WorkspaceState, source: DropSource): boolean {
+  if (source.kind === 'unopened-session') return true;
+  return state.views[source.viewId]?.kind === 'session';
 }
 
 export function resolveDockDrag(args: {
@@ -110,6 +135,8 @@ export function resolveDockDrag(args: {
     groupRects: args.groupRects,
     panelElement: args.panelElement,
     rightPanelVisible: args.rightPanelVisible,
+    // Sessions never live in the right panel; near the right edge they split.
+    allowDockBand: !isSessionSource(args.state, args.source),
   });
   const zone = resolveDropZone(input);
   if (!zone) return null;

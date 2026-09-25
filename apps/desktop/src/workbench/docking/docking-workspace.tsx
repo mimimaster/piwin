@@ -25,7 +25,7 @@ import { useDockingDrag } from './use-docking-drag.js';
 import { DockingDragOverlay } from './docking-drag-overlay.js';
 import { DockingGroupView } from './docking-group-view.js';
 import { DockingSeparator } from './docking-separator.js';
-import { resolveDockDrag } from './docking-drop-resolver.js';
+import { resolveDockDrag, resolveStageBoxElement } from './docking-drop-resolver.js';
 import { useSessionDrag, type SessionDragRequest } from './docking-session-drag.js';
 import { resolveSidebarDragSource } from './session-drag-source.js';
 import { DockViewContent, type DockViewRenderContext } from './docking-surface-content.js';
@@ -90,8 +90,10 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
   );
 
   useEffect(() => {
-    const node = rootRef.current;
-    if (!node || typeof ResizeObserver === 'undefined') return;
+    const root = rootRef.current;
+    if (!root || typeof ResizeObserver === 'undefined') return;
+    // Re-resolved per layout: the primary layout measures the column it fills.
+    const node = resolveStageBoxElement(root);
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
@@ -99,7 +101,7 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [primaryLayout]);
 
   useEffect(() => {
     if (phoneSinglePane && state.displayMode !== 'focused') {
@@ -264,7 +266,7 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         state: stateRef.current,
         source,
         point,
-        root,
+        root: resolveStageBoxElement(root),
         stageSize: { width: stagePx.width, height: stagePx.height },
         groupRects: pxRects,
         panelElement: rightHost.panel,

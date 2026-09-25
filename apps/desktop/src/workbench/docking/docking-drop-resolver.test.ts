@@ -1,8 +1,18 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import { applyWorkspaceTemplate, createWorkspaceState, openSessionView } from './commands.js';
+import {
+  applyWorkspaceTemplate,
+  createWorkspaceState,
+  openSessionView,
+  openToolView,
+} from './commands.js';
 import { DOCKING_COPY } from './copy.js';
-import { collectTabAreas, resolveDockDrag, toLocalPoint } from './docking-drop-resolver.js';
+import {
+  collectTabAreas,
+  resolveDockDrag,
+  resolveStageBoxElement,
+  toLocalPoint,
+} from './docking-drop-resolver.js';
 import { createSequentialIdFactory } from './ids.js';
 import { listStageGroupIds, stageGroupCount } from './topology.js';
 import type { GroupRect, WorkspaceState } from './types.js';
@@ -71,14 +81,12 @@ describe('docking drag resolution', () => {
     expect(committed ? stageGroupCount(committed.stage) : 0).toBe(2);
   });
 
-  it('rejects a session dropped on the right dock band with product copy', () => {
+  it('splits a session dropped at the right edge while the right panel is hidden', () => {
     const { state, createId, groupRects } = seed();
     const root = document.createElement('div');
-    const viewId = Object.values(state.views).find((view) => view.sessionId === 'a')?.viewId;
-    if (!viewId) throw new Error('missing view a');
     const resolution = resolveDockDrag({
       state,
-      source: { kind: 'view', viewId },
+      source: { kind: 'unopened-session', sessionId: 'c' },
       point: { x: 1770, y: 400 },
       root,
       stageSize: STAGE,
@@ -88,9 +96,44 @@ describe('docking drag resolution', () => {
       createId,
       apply: () => undefined,
     });
-    expect(resolution?.preview.ok).toBe(false);
-    expect(resolution?.preview.message).toBe(DOCKING_COPY.sessionNotInRight);
-    expect(resolution?.preview.highlight).toEqual([]);
+    expect(resolution?.preview.ok).toBe(true);
+    expect(resolution?.preview.label).toBe(DOCKING_COPY.splitRight);
+  });
+
+  it('docks a tool dropped on the right band while the right panel is hidden', () => {
+    const seeded = seed();
+    const stageGroupId = listStageGroupIds(seeded.state.stage)[0];
+    const opened = openToolView(seeded.state, 'browser', seeded.createId, stageGroupId);
+    if (!opened.ok) throw new Error('open browser failed');
+    const state = opened.state;
+    const viewId = Object.values(state.views).find((view) => view.kind === 'browser')?.viewId;
+    if (!viewId) throw new Error('missing browser view');
+    const resolution = resolveDockDrag({
+      state,
+      source: { kind: 'view', viewId },
+      point: { x: 1770, y: 400 },
+      root: document.createElement('div'),
+      stageSize: STAGE,
+      groupRects: seeded.groupRects,
+      panelElement: null,
+      rightPanelVisible: false,
+      createId: seeded.createId,
+      apply: () => undefined,
+    });
+    expect(resolution?.preview.ok).toBe(true);
+    expect(resolution?.preview.label).toBe(DOCKING_COPY.dockRight);
+  });
+
+  it('measures the column a display-contents workspace fills', () => {
+    const column = document.createElement('div');
+    const root = document.createElement('div');
+    root.style.display = 'contents';
+    column.appendChild(root);
+    document.body.appendChild(column);
+    expect(resolveStageBoxElement(root)).toBe(column);
+    root.style.display = 'block';
+    expect(resolveStageBoxElement(root)).toBe(root);
+    column.remove();
   });
 
   it('returns null when the pointer leaves the workspace', () => {
