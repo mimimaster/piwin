@@ -17,16 +17,11 @@ const releasesUrl = 'https://github.com/mimimaster/piwin/releases';
         <h2 class="platform-name">macOS</h2>
         <div class="platform-meta">
           <p class="version">最低要求：macOS 12.0 及以上</p>
-          <p class="note warn">仅支持 Apple Silicon（M1 / M2 / M3 / M4 芯片），暂不支持 Intel 处理器</p>
+          <p class="note warn">暂时只支持 M 系列芯片</p>
         </div>
         <a :href="macDirectDmgUrl" class="btn btn-primary">
-          下载 .dmg (官方高速直链)
+          下载 .dmg
         </a>
-        <div class="sub-links">
-          <a :href="macSha256Url" target="_blank" rel="noopener noreferrer">SHA-256 校验</a>
-          <span class="sep">·</span>
-          <a :href="releasesUrl" target="_blank" rel="noopener noreferrer">GitHub 镜像</a>
-        </div>
       </div>
 
       <!-- Windows -->
@@ -39,9 +34,6 @@ const releasesUrl = 'https://github.com/mimimaster/piwin/releases';
         <a :href="releasesUrl" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
           下载安装包 (.exe)
         </a>
-        <div class="sub-links">
-          <a :href="releasesUrl" target="_blank" rel="noopener noreferrer">GitHub Releases 镜像</a>
-        </div>
       </div>
 
       <!-- iOS -->
@@ -198,30 +190,6 @@ const releasesUrl = 'https://github.com/mimimaster/piwin/releases';
   color: var(--t4);
   cursor: not-allowed;
   border: 1px solid var(--l2);
-}
-
-.sub-links {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 0.78rem;
-  color: var(--t3);
-}
-
-.sub-links a {
-  color: var(--t3);
-  text-decoration: none;
-}
-
-.sub-links a:hover {
-  color: var(--zhu);
-  text-decoration: underline;
-}
-
-.sep {
-  opacity: 0.4;
 }
 
 .download-footer {
