@@ -65,7 +65,7 @@ export async function executeSessionTurn(input: {
     // compact may be slow or fail, so it must not gate applying the requested
     // target model. The selected runtime owns its normal Pi compaction path.
     const assembly = createModelPromptAssembly();
-    const { promptInput, userMessageId } = await preparePromptInput(
+    const { promptInput, previewText, userMessageId } = await preparePromptInput(
       context,
       command,
       run,
@@ -248,7 +248,10 @@ export async function executeSessionTurn(input: {
 
     if (command.input.source !== 'resume') {
       try {
-        await context.touchSession(command.sessionId, promptInput.text || command.input.text);
+        await context.touchSession(
+          command.sessionId,
+          previewText || command.input.text,
+        );
       } catch (error) {
         const message = formatError(error);
         context.push({

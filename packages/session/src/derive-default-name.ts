@@ -1,3 +1,8 @@
+import { extractUserFacingBody } from '@piwin/contracts';
+
+// The extractor lives in contracts so every shell shares one reading of user rows.
+export { extractUserFacingBody };
+
 /**
  * Max length for a text-derived default session name. Kept titlebar-friendly:
  * the Desktop chrome shows it next to the project name in a single line.
@@ -19,19 +24,6 @@ const MIN_FIRST_SENTENCE_CHARS = 8;
  */
 const NOISE_PREFIX_PATTERN =
   /^(?:请帮我|请你帮我|请(?:你|您)?|麻烦(?:你|您)?|帮我|拜托(?:你)?|please(?:\s|,)+|plz(?:\s|,)+|could\s+(?:you|u)(?:\s|,)+|can\s+(?:you|u)(?:\s|,)+|would\s+(?:you|u)(?:\s|,)+|do\s+(?:you|u)(?:\s|,)+)\s*/i;
-
-/**
- * Host/model-facing directive wrappers that must never become a session title.
- * Desktop historically prefixed agent-mode / skill contracts into `input.text`;
- * even after that is fixed, strip them so transcripts and older clients stay safe.
- */
-const PIWIN_BRACKET_BLOCK_PATTERN =
-  /\[piwin(?:-[^\]]+| [^\]]*)\][\s\S]*?(?:\[\/piwin(?:-[^\]]+)?\]|(?=\n---\n)|(?=\nUser:)|$)/gi;
-const PIWIN_TAG_LINE_PATTERN = /\[piwin(?:-[^\]]+| [^\]]*)\][^\n]*/gi;
-const PIWIN_PROMPT_META_LINE_PATTERN = /\[piwin-prompt-meta[^\]]*\][^\n]*/gi;
-const USER_SECTION_SPLIT_PATTERN = /(?:^|\n)---\s*\n+\s*User:\s*\n?/i;
-const CURRENT_USER_MESSAGE_SPLIT_PATTERN =
-  /(?:^|\n)---\s*\n+\s*Current user message:\s*\n?/i;
 
 /** Split into sentences on CJK/Latin sentence terminators and newlines. */
 function splitSentences(text: string): string[] {
@@ -80,41 +72,6 @@ function truncateAtWordBoundary(text: string): string {
     return `${text.slice(0, limit)}…`;
   }
   return `${trimmed}…`;
-}
-
-/**
- * Pull the human-authored body out of host/model prompt wrappers.
- * Prefer the section after `---\nUser:` / `Current user message:` when present;
- * otherwise strip piwin directive blocks and keep remaining prose.
- */
-export function extractUserFacingBody(text: string): string {
-  if (typeof text !== 'string' || text.length === 0) {
-    return '';
-  }
-  const userSection = text.split(USER_SECTION_SPLIT_PATTERN);
-  if (userSection.length > 1) {
-    return (userSection[userSection.length - 1] ?? '').trim();
-  }
-  const currentMessageSection = text.split(CURRENT_USER_MESSAGE_SPLIT_PATTERN);
-  if (currentMessageSection.length > 1) {
-    return (currentMessageSection[currentMessageSection.length - 1] ?? '').trim();
-  }
-
-  // Plan execution is a user-approved action whose durable input contains
-  // only a Host directive. Preserve a readable action for old and live rows.
-  const planAction = text.match(/^\[piwin-plan-execute:(inline|verify) v\d+\] Plan: ([^\n]+)/);
-  if (planAction) {
-    return `${planAction[1] === 'verify' ? '验证计划' : '执行计划'}：${planAction[2]?.trim() ?? ''}`;
-  }
-
-  let cleaned = text;
-  cleaned = cleaned.replace(PIWIN_BRACKET_BLOCK_PATTERN, ' ');
-  cleaned = cleaned.replace(PIWIN_PROMPT_META_LINE_PATTERN, ' ');
-  cleaned = cleaned.replace(PIWIN_TAG_LINE_PATTERN, ' ');
-  // Drop residual section dividers left by mode/skill wrappers.
-  cleaned = cleaned.replace(/(?:^|\n)---\s*(?:\n|$)/g, '\n');
-  cleaned = cleaned.replace(/^(?:User|Current user message):\s*/i, '');
-  return cleaned.trim();
 }
 
 /**

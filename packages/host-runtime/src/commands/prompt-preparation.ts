@@ -16,6 +16,7 @@ import type {
   SessionTranscriptMessage,
 } from '@piwin/contracts';
 import {
+  extractUserFacingBody,
   formatError,
   isPauseContinueUtterance,
   readExplicitSkillIntent,
@@ -166,7 +167,7 @@ export async function preparePromptInput(
     desiredModel: ModelRef | undefined;
     desiredThinkingLevel: ThinkingLevel | undefined;
   },
-): Promise<{ promptInput: PromptInput; userMessageId?: string }> {
+): Promise<{ promptInput: PromptInput; previewText: string; userMessageId?: string }> {
   throwIfPromptPreparationAborted(context, run.runId);
 
   // Persist ordinary user text + attachments before path-injection rewrite.
@@ -432,7 +433,10 @@ export async function preparePromptInput(
     });
   }
   throwIfPromptPreparationAborted(context, run.runId);
-  return userMessageId === undefined ? { promptInput } : { promptInput, userMessageId };
+  const previewText = extractUserFacingBody(promptSource.text).trim() || promptSource.text.trim();
+  return userMessageId === undefined
+    ? { promptInput, previewText }
+    : { promptInput, previewText, userMessageId };
 }
 
 /**
