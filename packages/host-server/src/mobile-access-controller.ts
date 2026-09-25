@@ -6,10 +6,7 @@ import type {
   MobileAccessStatusData,
   PairedDeviceSummary,
 } from '@piwin/contracts';
-import {
-  MOBILE_ACCESS_LOOPBACK_PROFILE_ID,
-  projectPairedDeviceSummary,
-} from '@piwin/contracts';
+import { MOBILE_ACCESS_LOOPBACK_PROFILE_ID } from '@piwin/contracts';
 import { HostDevicePairing } from './device-pairing.js';
 import { HostDevicePairingFileStore } from './device-pairing-store.js';
 import {
@@ -20,10 +17,13 @@ import {
 import type { HostCommandIdempotencyRegistry } from './host-command-idempotency-registry.js';
 import type { HostEgressHub } from './host-egress-hub.js';
 import {
-  assertPairingBindIsAdvertisable,
-  createPairingQrPayload,
-  pairingQrUri,
-} from './pairing-qr.js';
+  countActivePairedDevices,
+  listPairedDevices,
+  mintPairingCode,
+  revokePairedDevice,
+  type PairingRegistry,
+} from './pairing-operations.js';
+import { assertPairingBindIsAdvertisable } from './pairing-qr.js';
 
 const DEFAULT_BIND_HOST = '127.0.0.1';
 const DEFAULT_BIND_PORT = 8787;
@@ -126,7 +126,7 @@ export class MobileAccessController {
   private statusData(): MobileAccessStatusData {
     const status: MobileAccessStatusData = {
       listening: this.listening,
-      pairedDeviceCount: this.pairing.list().filter((device) => device.revokedAt === undefined).length,
+      pairedDeviceCount: countActivePairedDevices(this.registry()),
       hostInstanceId: this.instanceId,
     };
     if (this.profileId !== undefined) {
@@ -189,42 +189,26 @@ export class MobileAccessController {
     if (!this.listening || this.bindAddress === undefined) {
       throw new Error('Enable phone access before creating a pairing code');
     }
-    const advertised = this.advertisedEndpoint?.trim();
-    if (advertised === undefined || advertised.length === 0) {
-      throw new Error('An advertised WebSocket endpoint is required to mint a pairing QR');
-    }
-    assertPairingBindIsAdvertisable(this.bindAddress.host);
-    this.pairing.invalidatePendingTokens();
-    const minted = this.pairing.mintToken();
-    await this.persist();
-    const payload = createPairingQrPayload({
-      advertisedEndpoint: advertised,
-      pairingToken: minted.token,
+    return mintPairingCode(this.registry(), {
+      advertisedEndpoint: this.advertisedEndpoint ?? '',
+      bindHost: this.bindAddress.host,
       hostInstanceId: this.instanceId,
-      expiresAt: minted.expiresAt,
     });
-    return {
-      endpoint: payload.endpoint,
-      pairingToken: payload.pairingToken,
-      hostInstanceId: payload.hostInstanceId,
-      protocolVersion: payload.protocolVersion,
-      expiresAt: payload.expiresAt,
-      uri: pairingQrUri(payload),
-    };
   }
 
   private listDevices(): PairedDeviceSummary[] {
-    return this.pairing.list().map((device) => projectPairedDeviceSummary(device));
+    return listPairedDevices(this.registry());
   }
 
   private async revokeDevice(deviceId: string): Promise<{ revoked: boolean }> {
-    const revoked = this.pairing.revoke(deviceId.trim());
-    if (revoked) {
-      this.clientToolBroker?.forgetDevice(deviceId.trim());
-      this.server?.disconnectDevice(deviceId.trim(), DEVICE_REVOKED_REASON);
-      await this.persist();
-    }
-    return { revoked };
+    return revokePairedDevice(this.registry(), deviceId, (revokedId) => {
+      this.clientToolBroker?.forgetDevice(revokedId);
+      this.server?.disconnectDevice(revokedId, DEVICE_REVOKED_REASON);
+    });
+  }
+
+  private registry(): PairingRegistry {
+    return { pairing: this.pairing, store: this.pairingStore };
   }
 
   private ensureServer(): HostServer {
