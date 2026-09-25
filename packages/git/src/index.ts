@@ -112,8 +112,17 @@ export {
 } from './workspace-listing.js';
 export type { GitWorkspaceListing } from './workspace-listing.js';
 
-export { readGitDiffSummary, parseNumstat } from './diff-summary.js';
-export type { ReadGitDiffSummaryOptions } from './diff-summary.js';
+export {
+  readGitDiffSummary,
+  parseNumstat,
+  parseNameStatus,
+  mergeDiffSummaryFiles,
+} from './diff-summary.js';
+export type {
+  ReadGitDiffSummaryOptions,
+  GitNumstatRow,
+  GitNameStatusRow,
+} from './diff-summary.js';
 
 export { readGitFileDiff, countPatchStats } from './file-diff.js';
 export type { ReadGitFileDiffOptions } from './file-diff.js';
