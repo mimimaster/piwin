@@ -52,7 +52,7 @@ Brave 提供了完全独立的全球网页索引库，注重隐私且搜索质�
 
 ---
 
-### 选项 D：SearXNG 私有化自建 <span class="tag-badge tag-local">完全私有化</span>
+### 选项 D：SearXNG 本地自建 <span class="tag-badge tag-local">完全本地化</span>
 
 如果你希望彻底避免数据外流，可以在本地或 NAS 上自建开源元搜索引擎 **SearXNG**，并在 Piwin 中填入你自建服务的 Base URL。
 

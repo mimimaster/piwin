@@ -41,13 +41,10 @@ export default defineConfig({
       { text: '配置指南', link: '/docs/model-config' },
       { text: '系统生态', link: '/docs/extensions' },
       { text: '视觉画廊', link: '/docs/gallery' },
-      { text: '背后故事', link: '/docs/about' },
       {
         text: '更多',
         items: [
-          { text: '实机体验与特性画廊', link: '/docs/gallery' },
           { text: 'GitHub 仓库', link: 'https://github.com/mimimaster/piwin' },
-          { text: '社区自荐帖', link: '/docs/community-post' },
           { text: '提示词体系', link: '/docs/prompt-system' },
           { text: '文档共建指引', link: '/docs/how-to-write-docs' },
         ],
@@ -61,11 +58,10 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: '快速起步与配置概览', link: '/docs/getting-started' },
-            { text: '为什么要做 Piwin', link: '/docs/about' },
             { text: '多端运行与开箱安装', link: '/docs/deployment' },
-            { text: '开源自荐与折腾故事', link: '/docs/community-post' },
           ],
         },
+
         {
           text: '智能体核心能力',
           collapsed: false,

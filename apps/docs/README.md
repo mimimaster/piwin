@@ -15,7 +15,7 @@ apps/docs/
 │   ├── getting-started.md         # 快速起步概览与 BYOK 体系
 │   ├── about.md                   # 架构起源与愿景
 │   ├── community-post.md          # 社区开源自荐说明
-│   ├── deployment.md              # 多端部署与私有化运行
+│   ├── deployment.md              # 多端部署与本地运行
 │   ├── model-config.md            # 模型与多模态委托配置
 │   ├── vision-models.md           # 视觉模型与免费渠道
 │   ├── oauth-login.md             # OAuth 登录与账号管理

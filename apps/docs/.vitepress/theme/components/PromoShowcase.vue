@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useData } from 'vitepress';
 
 /**
  * 宣传展台组件 (PromoShowcase)
  *
- * 素材来自 `~/Downloads/piwin-promo`：
- * 1. 场景实拍 (Scenes): 5 个实机走查场景 × 墨面/纸面双色
- * 2. 特性长图 (Features): 8 张精选架构图解与组件全景墙
+ * 采用“同行两张图片并排对照 (Side-by-side)”设计：
+ * 1. 场景实景走查：左侧「墨面」+ 右侧「纸面」同排双面走查，一览东方文人书斋审美；
+ * 2. 核心特色双屏：对齐 README 核心 7 组配对，每组展示 2 张高清实机界面（50% 宽度，Retina 超清遮瑕）；
+ * 3. 资产均使用 2400px / 3408px 本地高分原图，消除大屏模糊。
  */
 
 type ShowcaseTab = 'scenes' | 'features';
-type Face = 'ink' | 'light';
 
 interface Scene {
   id: string;
@@ -20,192 +19,152 @@ interface Scene {
   lede: string;
 }
 
-interface FeatureCard {
+interface FeatureGroup {
   id: string;
   num: string;
   title: string;
   subtitle: string;
   lede: string;
-  src: string;
+  leftTitle: string;
+  leftSrc: string;
+  rightTitle: string;
+  rightSrc: string;
   thumb: string;
 }
 
 const scenes: readonly Scene[] = [
   {
     id: 'scene-03-fanout',
-    num: '03',
-    title: '子代理并行',
+    num: '01',
+    title: '子代理并行 (Fanout)',
     lede: '三块活拆给三个子代理，各自在独立 Git Worktree 里干；进度实时汇报到计划托盘，合不合并由你拍板。',
   },
   {
     id: 'scene-01-endpoint',
-    num: '01',
-    title: '端上闭环',
+    num: '02',
+    title: '端上闭环 (Endpoint)',
     lede: '一句话让 Agent 起 Metro、编 iOS 包、在模拟器里做无障碍断言并截图，全程不抢你的前台窗口。',
   },
   {
     id: 'scene-02-research',
-    num: '02',
-    title: '理解并沉淀',
+    num: '03',
+    title: '理解并沉淀 (Research & Wiki)',
     lede: '探索、查资料、跑测试；结论带着验收证据沉淀进项目 Wiki 与记忆，不只停在聊天记录里。',
   },
   {
     id: 'scene-04-tooled',
     num: '04',
-    title: '工具家族',
-    lede: '浏览器、网页抓取、知识库、进程日志、记忆卡片、图片/视频生成，每类工具都有自己的专有卡片。',
+    title: '工具家族 (Tooled Pipeline)',
+    lede: '浏览器、网页抓取、知识库、进程日志、记忆卡片、图片/视频生成，每类工具都有专有可视化卡片。',
   },
   {
     id: 'scene-05-approval',
     num: '05',
-    title: '审批关口',
+    title: '审批关口 (Gate & Permission)',
     lede: '要写项目文档先停下：目标受阻卡讲清原因，计划执行门给出选项，权限条一键放行或拒绝。',
   },
 ];
 
-const features: readonly FeatureCard[] = [
+const featureGroups: readonly FeatureGroup[] = [
   {
-    id: '01-extensions',
+    id: 'group-extensions',
     num: '01',
-    title: 'Pi 扩展热安装',
-    subtitle: '市场 / Git / 本地一键装 · 下一轮即生效',
-    lede: '正在跑的任务不会被打断：当前 Run 结束后，下一轮对话自动挂载新扩展；会话树和聊天记录原样保留，无需重启客户端。',
-    src: '/images/readme/extensions.jpg',
+    title: '扩展生态与市场',
+    subtitle: '热插拔挂载 · 扩展市场全览',
+    lede: '正在跑的任务不会被打断：当前 Run 结束后，下一轮对话自动挂载新扩展；会话树和聊天记录原样保留，扩展市场提供兼容性透明标注。',
+    leftTitle: '1 · Pi 扩展热安装设置',
+    leftSrc: '/images/readme/extensions.jpg',
+    rightTitle: '扩展市场：内置 / Pi 原生 / 社区',
+    rightSrc: '/images/readme/marketplace.jpg',
     thumb: '/images/readme/extensions.thumb.jpg',
   },
   {
-    id: '02-orchestration',
+    id: 'group-orchestration',
     num: '02',
-    title: '子代理编排',
-    subtitle: 'Ultra Code · Fusion · Reviewed Delivery',
-    lede: '输入框一键切换：Ultra Code 派只读 Scout 探路防上下文腐烂；Fusion 用 Lead 规划 + Sidekick 机械执行；Reviewed 独立 Worktree 产出审查。',
-    src: '/images/readme/orchestration.jpg',
+    title: '子代理编排与全双工语音',
+    subtitle: 'Ultra Code · Fusion · 实时结对协作',
+    lede: '在输入框中一键切换方案：Ultra Code 派只读 Scout 探路防上下文腐烂；Fusion 用 Lead 规划 + Sidekick 机械执行；全双工语音说话面与工作面契约解耦，边聊边写。',
+    leftTitle: '2 · 子代理编排：输入框一键切换方案',
+    leftSrc: '/images/readme/orchestration.jpg',
+    rightTitle: '3 · 全双工语音：通话中 Agent 在后台工作',
+    rightSrc: '/images/readme/voice.jpg',
     thumb: '/images/readme/orchestration.thumb.jpg',
   },
   {
-    id: '03-voice',
+    id: 'group-models',
     num: '03',
-    title: '全双工实时语音',
-    subtitle: '边聊边写 · 说话面与工作面解耦',
-    lede: '说话面负责实时交流与方案探讨，随时插话打断；需要改代码跑测试时自动交接给后台 Agent 执行，做完用简短一句话汇报。',
-    src: '/images/readme/voice.jpg',
-    thumb: '/images/readme/voice.thumb.jpg',
-  },
-  {
-    id: '04-models',
-    num: '04',
-    title: '按能力类型配模型',
-    subtitle: '推理 / 视觉 / 生图 / 视频 / 语音 / Reranker 分开配',
-    lede: '按“这个模型用来干什么”细粒度配置。接入方式支持任意 OpenAI 兼容端点（BYOK）或 OAuth 官方订阅，改完下一轮自动生效。',
-    src: '/images/readme/models.jpg',
+    title: '按能力配模型与视觉委托',
+    subtitle: 'BYOK 接入 · 视觉提炼降本 70%+',
+    lede: '按“这个模型用来干什么”细粒度配置。给纯文本或昂贵推理模型挂轻量多模态模型看图，截图自动 OCR + 特征提炼，主模型只收精简文本结论。',
+    leftTitle: '4 · 按能力类型配模型',
+    leftSrc: '/images/readme/models.jpg',
+    rightTitle: '6 · 视觉委托设置',
+    rightSrc: '/images/readme/vision.jpg',
     thumb: '/images/readme/models.thumb.jpg',
   },
   {
-    id: '05-web-search',
-    num: '05',
-    title: 'Web Search 一键配置',
-    subtitle: '免 Key 起步 · 搜索源与网页抓取随时切',
-    lede: '支持 DuckDuckGo（免 Key 开箱即用）、Brave、Tavily、Devin 或本机 CLI；配合 supermarkdown、Jina、Firecrawl 抓取清洗。',
-    src: '/images/readme/web-search.jpg',
-    thumb: '/images/readme/web-search.thumb.jpg',
-  },
-  {
-    id: '06-vision',
-    num: '06',
-    title: '视觉委托',
-    subtitle: '纯文本模型也能看图 · 省 70~90% 上下文 Token',
-    lede: '给纯文本或昂贵推理模型挂轻量多模态模型：粘贴截图自动 OCR + 特征提炼，主模型只收精简文字结论，省时省钱。',
-    src: '/images/readme/vision.jpg',
-    thumb: '/images/readme/vision.thumb.jpg',
-  },
-  {
-    id: '07-code-search',
-    num: '07',
-    title: 'code_search',
-    subtitle: 'Host 内置检索工具 · 0-Token 上下文污染',
-    lede: '与 read/grep 同级的内置工具，参考 Devin Fast-Context 实现：检索在独立只读过程中完成，只把命中路径和定义回传主会话。',
-    src: '/images/readme/code-search.jpg',
+    id: 'group-search',
+    num: '04',
+    title: '代码检索与网络搜索',
+    subtitle: 'code_search · Web Search 一键配置',
+    lede: 'code_search 与 read/grep 同级的 Host 内置工具，检索在独立只读进程完成，0-Token 污染主上下文；Web Search 支持 DuckDuckGo 免 Key 开箱即用与专用清洗服务。',
+    leftTitle: '7 · code_search 设置',
+    leftSrc: '/images/readme/code-search.jpg',
+    rightTitle: '5 · Web Search 一键配置',
+    rightSrc: '/images/readme/web-search.jpg',
     thumb: '/images/readme/code-search.thumb.jpg',
   },
   {
-    id: '08-knowledge',
-    num: '08',
-    title: '知识库与重排',
-    subtitle: 'Embedding 与 Reranker 独立配置',
-    lede: '支持 LanceDB 本地向量库、文本分片、语义重排序（Rerank）与 FSRS 记忆检索，支撑专业级领域知识管理。',
-    src: '/images/readme/knowledge.jpg',
+    id: 'group-knowledge',
+    num: '05',
+    title: '知识中心与向量重排',
+    subtitle: 'LLM-Wiki 网状关联 · 记忆闪卡沉淀',
+    lede: 'LanceDB 本地向量库、Embedding / Reranker 独立配置；依据 Karpathy LLM-Wiki 模式自动萃取概念词条、构建双向网状关联，对话中随时划词提炼闪卡。',
+    leftTitle: '知识库：Embedding / Reranker 单独配置',
+    leftSrc: '/images/readme/knowledge.jpg',
+    rightTitle: '知识中心：LLM Wiki 词条与衍生闪卡',
+    rightSrc: '/images/readme/knowledge-wiki.jpg',
     thumb: '/images/readme/knowledge.thumb.jpg',
   },
   {
-    id: '09-marketplace',
-    num: '09',
-    title: '扩展市场',
-    subtitle: '内置 / Pi 原生 / 社区扩展 · 标注兼容程度',
-    lede: '浏览与搜索海量扩展，清晰标注 Agent 工具、事件 Hook 与桌面 UI 兼容状态，支持一键安装与平滑启用。',
-    src: '/images/readme/marketplace.jpg',
-    thumb: '/images/readme/marketplace.thumb.jpg',
-  },
-  {
-    id: '10-wiki',
-    num: '10',
-    title: '知识中心 LLM Wiki',
-    subtitle: '网状关联与衍生闪卡 · 知识资产沉淀',
-    lede: '依据 Karpathy LLM-Wiki 模式，自动萃取概念词条、构建双向网状关联，并在对话中随时划词提炼记忆闪卡。',
-    src: '/images/readme/knowledge-wiki.jpg',
-    thumb: '/images/readme/knowledge-wiki.thumb.jpg',
-  },
-  {
-    id: '11-library',
-    num: '11',
-    title: '多媒体资料库',
-    subtitle: '生成的图片 / 视频集中管理',
-    lede: '所有通过 image_gen 与 video_gen 工具生成的本地资产统一沉淀在 ~/.piwin/media/，完整保留提示词与来源会话。',
-    src: '/images/readme/library.jpg',
+    id: 'group-ops',
+    num: '06',
+    title: '资料库与用量统计',
+    subtitle: '多媒体本地托管 · 逐次消耗明细',
+    lede: '所有通过 image_gen 与 video_gen 生成的资产统一保存在 ~/.piwin/media/，保留提示词与溯源上下文；用量统计看板实时监控全通道消耗与前缀缓存命中率。',
+    leftTitle: '资料库：图片 / 视频集中管理',
+    leftSrc: '/images/readme/library.jpg',
+    rightTitle: '用量统计：缓存命中率与调用明细',
+    rightSrc: '/images/readme/usage.jpg',
     thumb: '/images/readme/library.thumb.jpg',
   },
   {
-    id: '12-usage',
-    num: '12',
-    title: '用量统计看板',
-    subtitle: '缓存命中率、活跃度热力图与逐次调用明细',
-    lede: '全通道模型 Token 消耗、前缀缓存（Prompt Cache）命中率与费用透明可视化，每一分钱花在哪里一清二楚。',
-    src: '/images/readme/usage.jpg',
-    thumb: '/images/readme/usage.thumb.jpg',
-  },
-  {
-    id: '13-components',
-    num: '13',
-    title: '出厂组件一览',
-    subtitle: '东方文人美学组件与工坊全景',
-    lede: '精心设计的双面主题组件墙：墨面深邃沉静、纸面温润舒目，兼具实用交互质感与典雅美学。',
-    src: '/images/readme/components.jpg',
-    thumb: '/images/readme/components.thumb.jpg',
+    id: 'group-components',
+    num: '07',
+    title: '桌面全景与出厂组件',
+    subtitle: '东方文人美学 · 双面书斋全貌',
+    lede: '沉静深邃的「墨面」与温润舒目的「纸面」，会话树、Composer 统一输入、子代理状态卡、代码差异对比与终端运行监视器开箱即用。',
+    leftTitle: '桌面工作台全景实拍',
+    leftSrc: '/images/readme/hero.jpg',
+    rightTitle: 'Piwin 出厂组件一览',
+    rightSrc: '/images/readme/components.jpg',
+    thumb: '/images/readme/hero.thumb.jpg',
   },
 ];
 
-const { isDark } = useData();
-
-// 当前模式：场景实拍 vs 特性图解
+// 当前模式：实景双面走查 vs 核心特色双屏
 const currentTab = ref<ShowcaseTab>('scenes');
-
-// 双面色彩（墨面 / 纸面）
-const override = ref<Face | null>(null);
-const effectiveFace = computed<Face>(() => override.value ?? (isDark.value ? 'ink' : 'light'));
-
-function setFace(next: Face): void {
-  override.value = next;
-}
 
 // 选中的场景
 const activeSceneId = ref<string>('scene-03-fanout');
 const expandedScene = ref(false);
 
-function sceneSrc(id: string, which: Face): string {
+function sceneSrc(id: string, which: 'ink' | 'light'): string {
   return `/images/promo/${id}${which === 'light' ? '-light' : ''}.jpg`;
 }
 
-function sceneThumb(id: string, which: Face): string {
-  return `/images/promo/${id}${which === 'light' ? '-light' : ''}.thumb.jpg`;
+function sceneThumb(id: string): string {
+  return `/images/promo/${id}.thumb.jpg`;
 }
 
 function selectScene(id: string): void {
@@ -217,17 +176,17 @@ const activeScene = computed<Scene>(
   () => scenes.find((s) => s.id === activeSceneId.value) ?? scenes[0]!,
 );
 
-// 选中的特性长图
-const activeFeatureId = ref<string>('01-orchestration');
-const expandedFeature = ref(false);
+// 选中的特性双图组
+const activeGroupId = ref<string>('group-extensions');
+const expandedGroup = ref(false);
 
-function selectFeature(id: string): void {
-  activeFeatureId.value = id;
-  expandedFeature.value = false;
+function selectGroup(id: string): void {
+  activeGroupId.value = id;
+  expandedGroup.value = false;
 }
 
-const activeFeature = computed<FeatureCard>(
-  () => features.find((f) => f.id === activeFeatureId.value) ?? features[0]!,
+const activeGroup = computed<FeatureGroup>(
+  () => featureGroups.find((g) => g.id === activeGroupId.value) ?? featureGroups[0]!,
 );
 </script>
 
@@ -241,11 +200,15 @@ const activeFeature = computed<FeatureCard>(
       rel="noreferrer"
       title="点击查看高清封面"
     >
-      <img class="promo-cover-img" src="/images/promo/cover.jpg" alt="Piwin 砚 · 私有化智能编程工作台" />
-      <span class="promo-cover-badge">桌面工作台最新实录</span>
+      <img
+        class="promo-cover-img"
+        src="/images/promo/cover.jpg"
+        alt="Piwin 砚 · 面向个人的本地 Coding Agent 工作台"
+      />
+      <span class="promo-cover-badge">桌面工作台最新实录 · 东方文人美学</span>
     </a>
 
-    <!-- 模式切换与选项条 -->
+    <!-- 模式切换选项条 -->
     <div class="promo-header-tabs">
       <div class="promo-tab-group" role="tablist">
         <button
@@ -256,9 +219,8 @@ const activeFeature = computed<FeatureCard>(
           :class="{ active: currentTab === 'scenes' }"
           @click="currentTab = 'scenes'"
         >
-          <span class="tab-icon">🖥️</span>
-          <span>实景走查</span>
-          <span class="tab-badge">5 场景</span>
+          <span>实景双面走查</span>
+          <span class="tab-badge">墨面 + 纸面同排</span>
         </button>
         <button
           type="button"
@@ -268,75 +230,76 @@ const activeFeature = computed<FeatureCard>(
           :class="{ active: currentTab === 'features' }"
           @click="currentTab = 'features'"
         >
-          <span class="tab-icon">✨</span>
-          <span>特性图解</span>
-          <span class="tab-badge">8 张长图</span>
+          <span>核心特色实录</span>
+          <span class="tab-badge">7 组双图对照</span>
         </button>
       </div>
 
-      <!-- 实景模式下的墨面/纸面切换 -->
-      <div v-if="currentTab === 'scenes'" class="promo-controls">
-        <span class="promo-controls-label">双面切换：</span>
-        <div class="promo-face" role="group" aria-label="界面双面切换">
-          <button
-            type="button"
-            :class="{ on: effectiveFace === 'ink' }"
-            @click="setFace('ink')"
-          >
-            墨面
-          </button>
-          <button
-            type="button"
-            :class="{ on: effectiveFace === 'light' }"
-            @click="setFace('light')"
-          >
-            纸面
-          </button>
-        </div>
-        <a
-          class="promo-open"
-          :href="sceneSrc(activeScene.id, effectiveFace)"
-          target="_blank"
-          rel="noreferrer"
-        >
-          查看原图 ↗
-        </a>
-      </div>
-
-      <!-- 特性图解模式下的原图直达 -->
-      <div v-else class="promo-controls">
-        <a
-          class="promo-open"
-          :href="activeFeature.src"
-          target="_blank"
-          rel="noreferrer"
-        >
-          查看全高清海报 ↗
-        </a>
+      <div class="promo-hint">
+        <span>同行双图并排展示 · 点击原图可查阅高分原画 ↗</span>
       </div>
     </div>
 
-    <!-- ================= 模式 1: 场景实拍 ================= -->
+    <!-- ================= 模式 1: 实景双面走查 (同行展示墨面与纸面) ================= -->
     <div v-if="currentTab === 'scenes'" class="promo-content">
-      <figure
-        class="promo-shot"
-        :class="{ capped: !expandedScene }"
-      >
-        <img
-          class="promo-main-img"
-          :key="`${activeScene.id}-${effectiveFace}`"
-          :src="sceneSrc(activeScene.id, effectiveFace)"
-          :alt="`${activeScene.num} ${activeScene.title} · ${effectiveFace === 'ink' ? '墨面' : '纸面'}`"
-        />
+      <div class="promo-dual-wrap" :class="{ capped: !expandedScene }">
+        <div class="promo-dual-grid">
+          <!-- 左图：墨面 -->
+          <div class="dual-card">
+            <div class="dual-header">
+              <span class="dual-tag tag-ink">墨面 · 沉静专注</span>
+              <a
+                :href="sceneSrc(activeScene.id, 'ink')"
+                target="_blank"
+                rel="noreferrer"
+                class="dual-zoom"
+              >
+                高分原图 ↗
+              </a>
+            </div>
+            <div class="dual-img-box">
+              <img
+                class="dual-img"
+                :key="`${activeScene.id}-ink`"
+                :src="sceneSrc(activeScene.id, 'ink')"
+                :alt="`${activeScene.title} · 墨面`"
+              />
+            </div>
+          </div>
+
+          <!-- 右图：纸面 -->
+          <div class="dual-card">
+            <div class="dual-header">
+              <span class="dual-tag tag-light">纸面 · 温润舒目</span>
+              <a
+                :href="sceneSrc(activeScene.id, 'light')"
+                target="_blank"
+                rel="noreferrer"
+                class="dual-zoom"
+              >
+                高分原图 ↗
+              </a>
+            </div>
+            <div class="dual-img-box">
+              <img
+                class="dual-img"
+                :key="`${activeScene.id}-light`"
+                :src="sceneSrc(activeScene.id, 'light')"
+                :alt="`${activeScene.title} · 纸面`"
+              />
+            </div>
+          </div>
+        </div>
+
         <button
           v-if="!expandedScene"
           type="button"
           class="promo-expand"
           @click="expandedScene = true"
         >
-          展开整张长图 ↓
+          展开双面完整长图 ↓
         </button>
-      </figure>
+      </div>
 
       <div class="promo-lede">
         <div class="promo-lede-title">
@@ -347,7 +310,7 @@ const activeFeature = computed<FeatureCard>(
       </div>
 
       <!-- 场景缩略图导航轨 -->
-      <div class="promo-rail promo-rail-scenes">
+      <div class="promo-rail">
         <button
           v-for="scene in scenes"
           :key="scene.id"
@@ -357,62 +320,97 @@ const activeFeature = computed<FeatureCard>(
           :title="scene.title"
           @click="selectScene(scene.id)"
         >
-          <img
-            class="promo-chip-img"
-            :src="sceneThumb(scene.id, effectiveFace)"
-            :alt="scene.title"
-          />
+          <img class="promo-chip-img" :src="sceneThumb(scene.id)" :alt="scene.title" />
           <span class="promo-chip-num">{{ scene.num }}</span>
           <span class="promo-chip-title">{{ scene.title }}</span>
         </button>
       </div>
     </div>
 
-    <!-- ================= 模式 2: 特性图解 ================= -->
+    <!-- ================= 模式 2: 核心特色双屏 (同行展示两张特性截图) ================= -->
     <div v-else class="promo-content">
-      <figure
-        class="promo-shot feature-shot"
-        :class="{ capped: !expandedFeature }"
-      >
-        <img
-          class="promo-main-img"
-          :key="activeFeature.id"
-          :src="activeFeature.src"
-          :alt="`${activeFeature.num} ${activeFeature.title}`"
-        />
+      <div class="promo-dual-wrap" :class="{ capped: !expandedGroup }">
+        <div class="promo-dual-grid">
+          <!-- 左图 -->
+          <div class="dual-card">
+            <div class="dual-header">
+              <span class="dual-tag">{{ activeGroup.leftTitle }}</span>
+              <a
+                :href="activeGroup.leftSrc"
+                target="_blank"
+                rel="noreferrer"
+                class="dual-zoom"
+              >
+                高分原图 ↗
+              </a>
+            </div>
+            <div class="dual-img-box">
+              <img
+                class="dual-img"
+                :key="activeGroup.leftSrc"
+                :src="activeGroup.leftSrc"
+                :alt="activeGroup.leftTitle"
+              />
+            </div>
+          </div>
+
+          <!-- 右图 -->
+          <div class="dual-card">
+            <div class="dual-header">
+              <span class="dual-tag">{{ activeGroup.rightTitle }}</span>
+              <a
+                :href="activeGroup.rightSrc"
+                target="_blank"
+                rel="noreferrer"
+                class="dual-zoom"
+              >
+                高分原图 ↗
+              </a>
+            </div>
+            <div class="dual-img-box">
+              <img
+                class="dual-img"
+                :key="activeGroup.rightSrc"
+                :src="activeGroup.rightSrc"
+                :alt="activeGroup.rightTitle"
+              />
+            </div>
+          </div>
+        </div>
+
         <button
-          v-if="!expandedFeature"
+          v-if="!expandedGroup"
           type="button"
           class="promo-expand"
-          @click="expandedFeature = true"
+          @click="expandedGroup = true"
         >
-          展开整张长图 ↓
+          展开双屏完整实录 ↓
         </button>
-      </figure>
+      </div>
 
       <div class="promo-lede">
         <div class="promo-lede-title">
-          <span class="num-tag">{{ activeFeature.num }}</span>
-          <b>{{ activeFeature.title }}</b>
-          <span class="promo-lede-sub">{{ activeFeature.subtitle }}</span>
+          <span class="num-tag">{{ activeGroup.num }}</span>
+          <b>{{ activeGroup.title }}</b>
+          <span class="promo-lede-sub">{{ activeGroup.subtitle }}</span>
         </div>
-        <p class="promo-lede-text">{{ activeFeature.lede }}</p>
+        <p class="promo-lede-text">{{ activeGroup.lede }}</p>
       </div>
 
-      <!-- 特性缩略图导航轨 (8 张卡片) -->
-      <div class="promo-rail promo-rail-features">
+      <!-- 特性双图缩略轨 (7 组卡片) -->
+      <div class="promo-rail">
         <button
-          v-for="feat in features"
-          :key="feat.id"
+          v-for="grp in featureGroups"
+          :key="grp.id"
           type="button"
           class="promo-chip"
-          :class="{ on: feat.id === activeFeatureId }"
-          :title="feat.title"
-          @click="selectFeature(feat.id)"
+          :class="{ on: grp.id === activeGroupId }"
+          :title="grp.title"
+          @click="selectGroup(grp.id)"
         >
-          <img class="promo-chip-img" :src="feat.thumb" :alt="feat.title" />
-          <span class="promo-chip-num">{{ feat.num }}</span>
-          <span class="promo-chip-title">{{ feat.title }}</span>
+          <img class="promo-chip-img" :src="grp.thumb" :alt="grp.title" />
+          <span class="promo-chip-num">{{ grp.num }}</span>
+          <span class="promo-chip-title">{{ grp.title }}</span>
         </button>
       </div>
     </div>
@@ -515,13 +513,9 @@ const activeFeature = computed<FeatureCard>(
   box-shadow: var(--sh1);
 }
 
-.tab-icon {
-  font-size: 0.9rem;
-}
-
 .tab-badge {
-  font-size: 0.65rem;
-  padding: 1px 6px;
+  font-size: 0.68rem;
+  padding: 1px 7px;
   border-radius: 999px;
   background: var(--l2);
   color: var(--t3);
@@ -532,90 +526,107 @@ const activeFeature = computed<FeatureCard>(
   color: var(--zhu);
 }
 
-.promo-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.promo-controls-label {
-  font-family: var(--vp-font-family-mono);
-  font-size: 0.72rem;
+.promo-hint {
+  font-size: 0.76rem;
   color: var(--t4);
-}
-
-.promo-face {
-  display: inline-flex;
-  padding: 2px;
-  gap: 2px;
-  border: 1px solid var(--l2);
-  border-radius: 6px;
-  background: var(--s1);
-}
-
-.promo-face button {
   font-family: var(--vp-font-family-mono);
-  font-size: 0.72rem;
-  padding: 3px 10px;
-  border-radius: 4px;
-  color: var(--t3);
-  cursor: pointer;
-  border: none;
-  background: transparent;
-  transition: all 0.15s ease;
 }
 
-.promo-face button.on {
-  background: var(--s3);
-  color: var(--zhu);
+/* 双图同行网格 */
+.promo-dual-wrap {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.promo-dual-wrap.capped {
+  max-height: 520px;
+  overflow: hidden;
+}
+
+.promo-dual-wrap.capped::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 120px;
+  background: linear-gradient(to bottom, transparent, var(--void));
+  pointer-events: none;
+}
+
+.promo-dual-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dual-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--l2);
+  background: var(--s1);
   box-shadow: var(--sh1);
 }
 
-.promo-open {
+.dual-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--s2);
+  border-bottom: 1px solid var(--l1);
+}
+
+.dual-tag {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--t2);
+}
+
+.tag-ink {
+  color: #d1cfc7;
+}
+
+:global(html:not(.dark)) .tag-ink {
+  color: #3f3931;
+}
+
+.tag-light {
+  color: var(--zhu);
+}
+
+.dual-zoom {
   font-family: var(--vp-font-family-mono);
-  font-size: 0.75rem;
-  color: var(--t3);
+  font-size: 0.72rem;
+  color: var(--t4);
   text-decoration: none;
   transition: color 0.15s ease;
 }
 
-.promo-open:hover {
+.dual-zoom:hover {
   color: var(--zhu);
 }
 
-/* 主展示视口 */
-.promo-shot {
-  position: relative;
-  margin: 0;
-  border-radius: 12px;
+.dual-img-box {
+  width: 100%;
   overflow: hidden;
-  border: 1px solid var(--l2);
-  box-shadow: var(--sh2);
   background: var(--void);
 }
 
-.promo-main-img {
+.dual-img {
   display: block;
   width: 100%;
   height: auto;
+  transition: transform 0.2s ease;
 }
 
-.promo-shot.capped .promo-main-img {
-  max-height: 640px;
-  object-fit: cover;
-  object-position: top center;
+.dual-card:hover .dual-img {
+  transform: scale(1.01);
 }
 
-.promo-shot.capped::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 140px;
-  background: linear-gradient(to bottom, transparent, var(--void));
-  opacity: 0.92;
-  pointer-events: none;
-}
-
+/* 展开按钮 */
 .promo-expand {
   position: absolute;
   left: 50%;
@@ -623,155 +634,140 @@ const activeFeature = computed<FeatureCard>(
   transform: translateX(-50%);
   z-index: 2;
   font-family: var(--vp-font-family-mono);
-  font-size: 0.75rem;
-  padding: 6px 18px;
+  font-size: 0.78rem;
+  padding: 8px 20px;
   border-radius: 999px;
-  border: 1px solid var(--l2);
-  background: var(--s1);
-  color: var(--t2);
+  border: 1px solid var(--l3);
+  background: var(--s2);
+  color: var(--t1);
   cursor: pointer;
-  box-shadow: var(--sh2);
+  box-shadow: var(--sh3);
   transition: all 0.15s ease;
 }
 
 .promo-expand:hover {
-  color: var(--zhu);
+  background: var(--s3);
   border-color: var(--zhu);
-  transform: translateX(-50%) translateY(-1px);
+  color: var(--zhu);
+  transform: translateX(-50%) translateY(-2px);
 }
 
-/* 说明文字 */
+/* 文本导语 */
 .promo-lede {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 16px 0 0;
+  margin: 18px 0 16px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: var(--s1);
+  border: 1px solid var(--l1);
 }
 
 .promo-lede-title {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
 .num-tag {
   font-family: var(--vp-font-family-mono);
   font-size: 0.72rem;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
   background: var(--zhu-wash);
   color: var(--zhu);
-  font-weight: 600;
+  border: 1px solid rgba(185, 56, 44, 0.25);
 }
 
 .promo-lede-title b {
-  font-family: var(--font-serif);
-  font-size: 1.15rem;
+  font-size: 1rem;
   color: var(--t1);
 }
 
 .promo-lede-sub {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--t3);
-  font-family: var(--vp-font-family-mono);
 }
 
 .promo-lede-text {
-  font-size: 0.88rem;
-  line-height: 1.65;
-  color: var(--t2);
+  font-size: 0.86rem;
+  color: var(--t3);
+  line-height: 1.6;
   margin: 0;
 }
 
 /* 缩略图横轨 */
 .promo-rail {
   display: grid;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.promo-rail-scenes {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.promo-rail-features {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .promo-chip {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: flex-start;
   padding: 6px;
   border-radius: 8px;
   border: 1px solid var(--l2);
   background: var(--s1);
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  text-align: left;
+  transition: all 0.15s ease;
 }
 
 .promo-chip:hover {
   border-color: var(--l3);
-  background: var(--s3);
-  transform: translateY(-1px);
+  background: var(--s2);
 }
 
 .promo-chip.on {
   border-color: var(--zhu);
-  background: var(--zhu-wash);
+  background: var(--s3);
+  box-shadow: var(--sh1);
 }
 
 .promo-chip-img {
-  display: block;
   width: 100%;
-  height: 60px;
+  aspect-ratio: 16 / 10;
   object-fit: cover;
-  object-position: top center;
   border-radius: 5px;
-  border: 1px solid var(--l1);
+  margin-bottom: 6px;
+  background: var(--void);
 }
 
 .promo-chip-num {
   font-family: var(--vp-font-family-mono);
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   color: var(--t4);
+  margin-bottom: 2px;
+}
+
+.promo-chip.on .promo-chip-num {
+  color: var(--zhu);
 }
 
 .promo-chip-title {
-  font-size: 0.72rem;
-  line-height: 1.25;
-  color: var(--t3);
-  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--t2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  width: 100%;
 }
 
 .promo-chip.on .promo-chip-title {
-  color: var(--zhu);
-  font-weight: 500;
+  color: var(--t1);
+  font-weight: 600;
 }
 
-@media (max-width: 960px) {
-  .promo-rail-features {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+@media (max-width: 768px) {
+  .promo-dual-grid {
+    grid-template-columns: 1fr;
   }
-}
-
-@media (max-width: 720px) {
-  .promo-header-tabs {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .promo-rail-scenes {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .promo-rail-features {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .promo-shot.capped .promo-main-img {
-    max-height: 380px;
+  .promo-rail {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 </style>

@@ -42,7 +42,7 @@ sidebar: {
       items: [
         { text: '快速起步与核心概念', link: '/docs/getting-started' },
         { text: '架构起源与愿景', link: '/docs/about' },
-        { text: '多端部署与私有化运行', link: '/docs/deployment' },
+        { text: '多端部署与本地运行', link: '/docs/deployment' },
       ],
     },
     {

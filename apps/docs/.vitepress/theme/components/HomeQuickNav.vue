@@ -1,6 +1,6 @@
 <script setup lang="ts">
 interface NavCard {
-  icon: string;
+  num: string;
   title: string;
   desc: string;
   link: string;
@@ -8,49 +8,49 @@ interface NavCard {
 
 const cards: readonly NavCard[] = [
   {
-    icon: '🔍',
+    num: '01',
     title: 'Code Search 代码检索',
     desc: 'Devin Fast-Context 逆向架构，0-Token 上下文污染拓扑梳理',
     link: '/docs/code-search',
   },
   {
-    icon: '⚡',
+    num: '02',
     title: '子代理编排 (Ultra & Fusion)',
     desc: 'Scout 只读探路，Lead 规划 + Sidekick 机械执行，Worktree 隔离合入',
     link: '/docs/subagent-orchestration',
   },
   {
-    icon: '🎙️',
+    num: '03',
     title: '全双工实时语音 Live',
     desc: '边聊边写，说话面与工作面契约解耦，像真人结对一样丝滑协作',
     link: '/docs/realtime-voice',
   },
   {
-    icon: '🎨',
+    num: '04',
     title: 'Artifact 渲染与画布',
     desc: 'Inline 行内微预览与 Canvas 大报告分屏画布，所见即所得沙箱',
     link: '/docs/artifact-rendering',
   },
   {
-    icon: '🧩',
+    num: '05',
     title: '扩展生态与 MCP 推荐',
     desc: '内置 pi-deepseek-cache 缓存提速、llm-wiki 与 goal，支持运行时热插拔',
     link: '/docs/extensions',
   },
   {
-    icon: '🛡️',
+    num: '06',
     title: '权限策略与安全拦截',
     desc: 'YOLO 极速运行 + Allowlist 规则引擎，底层硬核拦截 rm -rf 高危指令',
     link: '/docs/permissions',
   },
   {
-    icon: '📚',
+    num: '07',
     title: '知识库与多媒体资料库',
     desc: 'LLM-Wiki 知识切片、划词提炼闪卡，出图与视频资产统一本地沉淀',
     link: '/docs/knowledge-and-media',
   },
   {
-    icon: '🖼️',
+    num: '08',
     title: '实机体验与特性画廊',
     desc: '8 大特性图解长图、5 大端上走查场景与组件墙全景高清展示',
     link: '/docs/gallery',
@@ -72,11 +72,12 @@ const cards: readonly NavCard[] = [
         :href="card.link"
         class="quick-card"
       >
-        <span class="card-icon">{{ card.icon }}</span>
-        <div class="card-content">
-          <b>{{ card.title }}</b>
-          <span>{{ card.desc }}</span>
+        <div class="card-header">
+          <span class="card-num">{{ card.num }}</span>
+          <b class="card-title">{{ card.title }}</b>
+          <span class="card-arrow">↗</span>
         </div>
+        <p class="card-desc">{{ card.desc }}</p>
       </a>
     </div>
 
@@ -88,7 +89,7 @@ const cards: readonly NavCard[] = [
         </svg>
         <div class="github-bar-text">
           <b>开源代码仓库 · GitHub</b>
-          <span>纯本地私有化 Coding Agent，欢迎 Star 支持与参与共建</span>
+          <span>面向个人的本地 Coding Agent，欢迎 Star 支持与参与共建</span>
         </div>
       </div>
       <div class="github-bar-actions">
@@ -149,14 +150,14 @@ const cards: readonly NavCard[] = [
 
 .quick-card {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 10px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px;
+  border-radius: 12px;
   border: 1px solid var(--l2);
   background: var(--s1);
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .quick-card:hover {
@@ -166,38 +167,56 @@ const cards: readonly NavCard[] = [
   box-shadow: var(--sh2);
 }
 
-.card-icon {
-  font-size: 1.5rem;
-  line-height: 1;
-  padding: 8px;
-  border-radius: 8px;
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-num {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--zhu);
   background: var(--s2);
   border: 1px solid var(--l1);
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
   flex-shrink: 0;
 }
 
-.card-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.card-content b {
-  font-size: 0.95rem;
-  color: var(--t1);
+.card-title {
+  font-family: var(--font-sans);
+  font-size: 0.98rem;
   font-weight: 600;
+  color: var(--t1);
+  flex: 1;
   transition: color 0.15s ease;
 }
 
-.quick-card:hover .card-content b {
+.quick-card:hover .card-title {
   color: var(--zhu);
 }
 
-.card-content span {
-  font-size: 0.82rem;
-  color: var(--t3);
-  line-height: 1.45;
+.card-arrow {
+  font-size: 0.88rem;
+  color: var(--t4);
+  transition: transform 0.15s ease, color 0.15s ease;
 }
+
+.quick-card:hover .card-arrow {
+  color: var(--zhu);
+  transform: translate(2px, -2px);
+}
+
+.card-desc {
+  font-size: 0.84rem;
+  color: var(--t3);
+  line-height: 1.55;
+  margin: 0;
+}
+
 
 /* GitHub 官方栏目 */
 .home-github-bar {

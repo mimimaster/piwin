@@ -89,7 +89,7 @@
 
 ### 3. 双层模型配置枢纽与极速视觉委托 (BYOK & Multi-Account)
 - **通道层 (Channel) 与 套餐账号层 (OAuth) 彻底解耦**：
-  - **通道层 (BYOK)**：原生支持 OpenAI、Anthropic、Google Gemini、OpenRouter 自定义 Base URL 与 API Key，以及本地 Ollama 私有化端点；
+  - **通道层 (BYOK)**：原生支持 OpenAI、Anthropic、Google Gemini、OpenRouter 自定义 Base URL 与 API Key，以及本地 Ollama 本地模型端点；
   - **套餐账号层 (OAuth)**：一键浏览器授权登录官方订阅（**Kimi Coding**、**OpenAI Codex**、**Claude Pro/Max**、**xAI Grok**、**GitHub Copilot**），凭证由本机 Host 安全托管；
 - **毫秒级视觉委托 (Vision Delegation)**：
   - 为纯文本或昂贵的深度思考模型配备免费轻量多模态节点（Google Gemini 2.5 Flash / 硅基流动 Qwen2.5-VL / 本地 Ollama）；

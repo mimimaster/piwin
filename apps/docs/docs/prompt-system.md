@@ -197,7 +197,7 @@ export const CONVERSATION_CHAT_SYSTEM_PROMPT = [
 
 ##### 中文对照释义
 ```markdown
-你是 piwin，一个高效、精确的私有化编程智能体助手。
+你是 piwin，一个高效、精确的本地编程智能体助手。
 请直接、准确地遵循用户的指示。
 
 [系统自动拼接后续的 Artifact 策略提示词]

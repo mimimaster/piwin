@@ -52,7 +52,7 @@
 
 “吃百家饭”包含双重含义：
 
-1. **设计上博采众长**：深度体验了市面上几乎所有优秀的 Coding Agent，将好用的交互（Devin 的 Fast-Context、Codex 的 Ultra Code、Astra 的实时语音、Cursor 的多窗格切分、Pi 的扩展能力）在私有化架构中完整实现；
+1. **设计上博采众长**：深度体验了市面上几乎所有优秀的 Coding Agent，将好用的交互（Devin 的 Fast-Context、Codex 的 Ultra Code、Astra 的实时语音、Cursor 的多窗格切分、Pi 的扩展能力）在面向个人的本地架构中完整实现；
 2. **开发上千锤百炼**：项目在构建过程中充分借助了各家强模型的推理能力与代码审查，历经数百次严苛的单测与架构重构。
 
 ---

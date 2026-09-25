@@ -75,6 +75,7 @@ pnpm package:desktop
 
 ## 5. 关联文档
 
-- [关于 Piwin 与整体架构](./about.md)
 - [快速起步概览](./getting-started.md)
 - [OAuth 登录与多账号体系](./oauth-login.md)
+- [扩展、Skill 与 MCP 生态](./extensions.md)
+

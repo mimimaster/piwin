@@ -476,6 +476,31 @@ body::before {
 }
 
 /* 首页 Hero 区域与组件 */
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: var(--zhu-wash);
+  color: var(--zhu);
+  border: 1px solid rgba(198, 65, 42, 0.22);
+  margin-bottom: 1rem;
+  letter-spacing: 0.04em;
+  font-family: var(--vp-font-family-base);
+  box-shadow: 0 1px 3px rgba(198, 65, 42, 0.06);
+}
+
+.hero-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--zhu);
+}
+
 .VPHero .name {
   font-family: var(--font-serif);
   letter-spacing: -0.02em;

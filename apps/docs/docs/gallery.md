@@ -9,15 +9,10 @@
 
 Piwin 采用东方文人书斋设计美学，提供深邃沉静的「墨面」与温润舒目的「纸面」，支持全键盘交互、多代理分屏与富媒体画布。
 
-### 1.1 桌面工作台全景实拍
+| 桌面工作台全景实拍 | 出厂核心组件全览 |
+| :---: | :---: |
+| [![Piwin 桌面工作台全景预览](/images/readme/hero.jpg)](/images/readme/hero.jpg) | [![Piwin 出厂组件全览](/images/readme/components.jpg)](/images/readme/components.jpg) |
 
-![Piwin 桌面工作台全景预览](/images/readme/hero.jpg)
-
-### 1.2 出厂核心组件全景一览
-
-包含会话树、Composer 统一输入、子代理状态卡、代码差异对比、富媒体沙箱、终端与运行监控组件：
-
-![Piwin 出厂组件全览](/images/readme/components.jpg)
 
 ---
 
@@ -148,7 +143,7 @@ Kimi Coding、OpenAI Codex、Claude Pro、Copilot、Devin 官方订阅一键浏�
 
 | 墨面 (Ink) | 纸面 (Paper) |
 | :---: | :---: |
-| [![端上闭环墨面](/images/promo/scene-01-endpoint.thumb.jpg)](/images/promo/scene-01-endpoint.jpg) | [![端上闭环纸面](/images/promo/scene-01-endpoint-light.thumb.jpg)](/images/promo/scene-01-endpoint-light.jpg) |
+| [![端上闭环墨面](/images/promo/scene-01-endpoint.jpg)](/images/promo/scene-01-endpoint.jpg) | [![端上闭环纸面](/images/promo/scene-01-endpoint-light.jpg)](/images/promo/scene-01-endpoint-light.jpg) |
 
 ---
 
@@ -157,7 +152,7 @@ Kimi Coding、OpenAI Codex、Claude Pro、Copilot、Devin 官方订阅一键浏�
 
 | 墨面 (Ink) | 纸面 (Paper) |
 | :---: | :---: |
-| [![理解沉淀墨面](/images/promo/scene-02-research.thumb.jpg)](/images/promo/scene-02-research.jpg) | [![理解沉淀纸面](/images/promo/scene-02-research-light.thumb.jpg)](/images/promo/scene-02-research-light.jpg) |
+| [![理解沉淀墨面](/images/promo/scene-02-research.jpg)](/images/promo/scene-02-research.jpg) | [![理解沉淀纸面](/images/promo/scene-02-research-light.jpg)](/images/promo/scene-02-research-light.jpg) |
 
 ---
 
@@ -166,7 +161,7 @@ Kimi Coding、OpenAI Codex、Claude Pro、Copilot、Devin 官方订阅一键浏�
 
 | 墨面 (Ink) | 纸面 (Paper) |
 | :---: | :---: |
-| [![子代理并行墨面](/images/promo/scene-03-fanout.thumb.jpg)](/images/promo/scene-03-fanout.jpg) | [![子代理并行纸面](/images/promo/scene-03-fanout-light.thumb.jpg)](/images/promo/scene-03-fanout-light.jpg) |
+| [![子代理并行墨面](/images/promo/scene-03-fanout.jpg)](/images/promo/scene-03-fanout.jpg) | [![子代理并行纸面](/images/promo/scene-03-fanout-light.jpg)](/images/promo/scene-03-fanout-light.jpg) |
 
 ---
 
@@ -175,7 +170,7 @@ Kimi Coding、OpenAI Codex、Claude Pro、Copilot、Devin 官方订阅一键浏�
 
 | 墨面 (Ink) | 纸面 (Paper) |
 | :---: | :---: |
-| [![工具家族墨面](/images/promo/scene-04-tooled.thumb.jpg)](/images/promo/scene-04-tooled.jpg) | [![工具家族纸面](/images/promo/scene-04-tooled-light.thumb.jpg)](/images/promo/scene-04-tooled-light.jpg) |
+| [![工具家族墨面](/images/promo/scene-04-tooled.jpg)](/images/promo/scene-04-tooled.jpg) | [![工具家族纸面](/images/promo/scene-04-tooled-light.jpg)](/images/promo/scene-04-tooled-light.jpg) |
 
 ---
 
@@ -184,5 +179,6 @@ Kimi Coding、OpenAI Codex、Claude Pro、Copilot、Devin 官方订阅一键浏�
 
 | 墨面 (Ink) | 纸面 (Paper) |
 | :---: | :---: |
-| [![审批关口墨面](/images/promo/scene-05-approval.thumb.jpg)](/images/promo/scene-05-approval.jpg) | [![审批关口纸面](/images/promo/scene-05-approval-light.thumb.jpg)](/images/promo/scene-05-approval-light.jpg) |
+| [![审批关口墨面](/images/promo/scene-05-approval.jpg)](/images/promo/scene-05-approval.jpg) | [![审批关口纸面](/images/promo/scene-05-approval-light.jpg)](/images/promo/scene-05-approval-light.jpg) |
+
 
