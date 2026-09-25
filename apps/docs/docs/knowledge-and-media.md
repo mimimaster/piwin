@@ -12,7 +12,7 @@
 
 然而，知识库配置在当前系统中依然扮演着关键角色：**为 LLM-Wiki 知识工程提供底层的语义文本切片 (Chunking) 与知识沉淀支撑**。
 
-![知识库配置界面](https://img.yorickjue.com/file/1789928262036_image.png)
+![知识库 Embedding 与 Reranker 配置](/images/readme/knowledge.jpg)
 
 ### 1.2 核心特性：LLM-Wiki 与闪卡体系 (Flashcards)
 Piwin 深度融合了 Andrej Karpathy 所倡导的 **LLM-Wiki 概念图谱** 思想，并将**闪卡 (Flashcard)** 作为知识提炼的一等公民载体：
@@ -20,6 +20,8 @@ Piwin 深度融合了 Andrej Karpathy 所倡导的 **LLM-Wiki 概念图谱** 思
 1. **知识库自动产出闪卡**：在将长篇技术文档、API 规范或业务规则灌入知识库时，系统会自动提取核心概念与契约难点，生成原子化的记忆闪卡；
 2. **对话选区即时划词制卡**：在与智能体对话的任意气泡中，选中关键结论或核心代码，右键或调用 Skill 即可秒级提炼为概念闪卡；
 3. **沉浸式卡片管理**：在桌面端卡片抽屉中查阅、复盘、分类你的专属记忆卡库，避免调研成果淹没在历史聊天记录中。
+
+![知识中心 LLM-Wiki 词条与网状关联](/images/readme/knowledge-wiki.jpg)
 
 ---
 
@@ -32,7 +34,8 @@ Piwin 深度融合了 Andrej Karpathy 所倡导的 **LLM-Wiki 概念图谱** 思
 - **防上下文膨胀**：系统严禁在文本 Prompt 中拼接超大 Base64，而是作为原生的 `ImageContent` 契约传递给 Pi 内核；
 - **跨平台安全防护**：路径受到严格的沙箱规则防护，禁止目录遍历。
 
-![多媒体资料库界面实录](https://img.yorickjue.com/file/1789928183198_image.png)
+![多媒体资料库集中管理](/images/readme/library.jpg)
+
 
 ### 2.2 资料库能做什么？
 1. **生成资产统一沉淀**：展示由 AI 智能体根据任务要求生成的 UI 界面草图、系统插画、宣传配图与演示短视频；

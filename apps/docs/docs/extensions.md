@@ -14,7 +14,7 @@
 2. **下一轮自动生效**：在下一轮对话开始时自动挂载并激活新拓展，完整的会话历史树与聊天记录被 100% 完整保留；
 3. **扩展市场支持**：支持直接从市场搜索安装或通过 Git URL、本地路径快速加载。
 
-![Pi 扩展热安装特性海报](/images/promo/features/04-extensions.jpg)
+![Pi 扩展热安装设置](/images/readme/extensions.jpg)
 
 ---
 
@@ -22,7 +22,8 @@
 
 Piwin 开箱即用集成了一批深度调优的内置扩展，聚焦于提升交互智能与降低 Token 成本：
 
-![扩展市场实录](https://img.yorickjue.com/file/1789920107045_image.png)
+![扩展市场：内置 / Pi 原生 / 社区](/images/readme/marketplace.jpg)
+
 
 ### 2.1 `pi-deepseek-cache`（前缀缓存极速命中）
 - **痛点**：深度思考模型（如 DeepSeek-R1 / V3、Claude）在多轮对话中如果提示词前缀频繁变动，无法命中服务商的 Prompt Cache，费用高昂且响应慢；

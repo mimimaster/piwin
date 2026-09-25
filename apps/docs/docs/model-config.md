@@ -22,7 +22,10 @@ Piwin 提供了非常强大且细粒度的模型管理体系。通过灵活的�
 └─────────────────────────────────────────────────────────────┘
 ```
 
-![按能力配置模型与视觉委托](/images/promo/features/05-models.jpg)
+![按能力类型配模型设置实景](/images/readme/models.jpg)
+
+![按能力配置模型与视觉委托特性图解](/images/promo/features/05-models.jpg)
+
 
 ![一键极简配置与官方订阅授权](/images/promo/features/06-onboarding.jpg)
 

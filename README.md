@@ -8,6 +8,8 @@
 
 **基于 Pi 的面向个人的 Coding Agent Desktop**
 
+<sub><i>砚者，研墨沉淀、静水流深。集百家之所长，归于一案之间。</i></sub>
+
 <p align="center">
   <a href="https://github.com/mimimaster/piwin/releases"><img src="https://img.shields.io/github/v/release/mimimaster/piwin?color=6366f1&label=Release&logo=github" alt="Release" /></a>
   <a href="./docs/architecture.md"><img src="https://img.shields.io/badge/Architecture-Host--First-10b981?logo=diagramsdotnet" alt="Architecture" /></a>
@@ -20,33 +22,24 @@
 <p align="center">
   <a href="https://docs.piwinwin.com"><b>📖 文档</b></a> ·
   <a href="#-快速上手"><b>⚡ 快速上手</b></a> ·
-  <a href="#-功能矩阵"><b>✨ 功能矩阵</b></a> ·
+  <a href="#-核心特色"><b>✨ 核心特色</b></a> ·
   <a href="#-架构总览"><b>🏛️ 架构</b></a> ·
   <a href="./docs/adr/"><b>📐 ADR</b></a>
 </p>
 
 <p align="center">
-  <b>简体中文</b> | <a href="./docs/en/README.md">English (Coming Soon)</a>
+  <b>简体中文</b> | <a href="./README.en.md">English</a>
 </p>
 
 <br />
 
 <p align="center">
-  <img src="https://img.yorickjue.com/file/1789922562056_image.png" alt="Piwin Desktop" width="96%" style="border-radius: 12px; box-shadow: 0 16px 36px rgba(0,0,0,0.2);" />
+  <img src="./docs/marketing/readme/hero.jpg" alt="Piwin Desktop" width="96%" style="border-radius: 12px; box-shadow: 0 16px 36px rgba(0,0,0,0.2);" />
 </p>
 
 </div>
 
----
-
-## 为什么做这个
-
-现在各类coding agent层出不穷，功能也天天迭代，是否看的眼花缭乱？是否担心自己的数据被遥测？ Pi 其实是可以解决大家问题的首选 Coding Agent，自己把控功能，自己决定提示词和工具接入；
-但对于不习惯终端操作、嫌弃配置麻烦、偏好桌面端的用户，一个生态足够丰富、功能齐全的desktop也是很重要的
-
-Piwin 就是这样的桌面端应用 —— 基于 Pi SDK，客户端与 Host Runtime 分离，支持 Desktop / Web / Mobile 多端接入，所有数据留在本地。
-
-> *砚者，研墨沉淀、静水流深。集百家之所长，归于一案之间。*
+Piwin 是基于 Pi SDK 的桌面端 Coding Agent。Pi 的功能、提示词和工具接入都由你自己掌控；Piwin 在它之上补齐图形界面、一键配置和多端访问——客户端与 Host Runtime 分离，支持 Desktop / Web / Mobile 接入，所有数据留在本地。
 
 ---
 
@@ -100,45 +93,130 @@ export PIWIN_HOST_ALLOWED_ORIGINS='https://ui.example.com'
 
 ---
 
-## ✨ 功能矩阵
+## ✨ 核心特色
 
-### 核心能力
+Piwin 真正想做好的就这几件事，每一件都封装成了开箱即用的产品体验：
+
+| # | 特色 | 一句话 |
+| :-: | :--- | :--- |
+| 1 | [**Pi 扩展热安装**](#1-pi-扩展热安装) | 市场 / Git / 本地一键装，下一轮对话即生效，不重启、不丢会话 |
+| 2 | [**子代理编排**](#2-子代理编排ultra-code--fusion--reviewed-delivery) | 内置 Ultra Code、Fusion、Reviewed Delivery 三套方案，输入框里一键切换 |
+| 3 | [**全双工语音**](#3-全双工语音) | 一边语音聊，一边让 Agent 在后台干活，随时插话 |
+| 4 | [**按能力类型配模型**](#4-按能力类型配模型) | 推理、视觉、生图、视频、实时语音、Embedding、Reranker 分开配 |
+| 5 | [**Web Search 一键配置**](#5-web-search-一键配置) | 免 Key 起步，搜索源与网页抓取随时切换 |
+| 6 | [**视觉委托**](#6-视觉委托) | 纯文本模型也能看图，截图交给轻量多模态模型提炼 |
+| 7 | [**code_search**](#7-code_search) | Host 内置的代码检索工具，搜索过程不进主上下文 |
+
+<table>
+  <tr>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/extensions.jpg" alt="Pi 扩展设置" width="100%" /><br /><sub><b>1 · Pi 扩展热安装</b></sub></td>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/orchestration.jpg" alt="编排方案下拉" width="100%" /><br /><sub><b>2 · 子代理编排：输入框一键切换方案</b></sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/voice.jpg" alt="Live 语音通话中" width="100%" /><br /><sub><b>3 · 全双工语音：通话中 Agent 在后台工作</b></sub></td>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/models.jpg" alt="模型设置" width="100%" /><br /><sub><b>4 · 按能力类型配模型</b></sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/web-search.jpg" alt="Web Search 设置" width="100%" /><br /><sub><b>5 · Web Search 一键配置</b></sub></td>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/vision.jpg" alt="视觉委托设置" width="100%" /><br /><sub><b>6 · 视觉委托</b></sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/code-search.jpg" alt="code_search 设置" width="100%" /><br /><sub><b>7 · code_search</b></sub></td>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/knowledge.jpg" alt="知识库重排设置" width="100%" /><br /><sub><b>知识库：Embedding / Reranker 单独配置</b></sub></td>
+  </tr>
+</table>
+
+### 1. Pi 扩展热安装
+
+- **三种装法**：扩展市场搜索安装、Git URL / 本地路径加载，或者直接在对话里让 Agent 调 `extension_install` 帮你装。
+- **热生效**：正在跑的任务不会被打断——当前 Run 结束后，下一轮对话自动挂载新扩展；会话树和聊天记录原样保留，不用重启客户端。
+- **能力覆盖**：扩展提供的 Tools、事件 Hook、自定义 Provider、确认 / 选择 / 输入类对话框都能在桌面端直接用；纯终端 TUI 类扩展会被标记出来，不会装上就坏。
+- 扩展统一放在 `~/.piwin/extensions/`，由 Host 管理版本与启用状态。
+
+### 2. 子代理编排：Ultra Code / Fusion / Reviewed Delivery
+
+在输入框的「编排方案」里一键切换，三套内置方案都是根据公开的技术文章与产品资料实现的：
+
+| 方案 | 解决什么 | 怎么做 |
+| :--- | :--- | :--- |
+| **Ultra Code** | 主上下文腐烂 | 依据《拯救 5.6 Sol》对 Codex Ultra 的拆解实现：主代理把广搜、调研、核验派给只读 **Scout** 子代理，原始的 grep 结果、文件内容、死路都留在用完即弃的子上下文里，只有蒸馏后的结论回流；Scout 可以钉一个便宜模型，避免“子代理继承主模型”把额度烧光 |
+| **Fusion** | 降本且不掉智 | 对照 Cognition 的 Devin Fusion 实现：当前会话是 **Lead**（前沿模型），只做计划、解释歧义和终审；机械实现交给一条可复用的便宜 **Sidekick** 子会话。两边只交换 brief 与 result，**从不传完整对话历史**，各自的提示词缓存都能保住 |
+| **Reviewed Delivery** | 合入质量 | **Worker** 在独立 Git Worktree 里产出候选改动，**Reviewer** 只读审查并给出结构化裁决，通过后才合回主工程 |
+
+也可以自建方案：自定义角色（scout / coder / reviewer / tester …）、每个角色用什么模型、并发上限和主代理纪律，全部在设置里可视化编辑。
+
+### 3. 全双工语音
+
+不是把语音转成文字塞进输入框，而是**说话和干活分开**：
+
+- **说话面**负责实时对话——聊方案、纠正思路，随时插话打断；
+- 需要改代码、跑测试时，说话面把任务简报**交接给会话里的 Agent** 去执行，做完再用一句话告诉你结论。
+
+你可以一边盯着页面一边口头指挥，Agent 在后台推进。支持 **Codex Live**（ChatGPT 订阅）、**Gemini Live** 和 **OpenAI Realtime 兼容协议**。
+
+### 4. 按能力类型配模型
+
+不是按厂商堆一个模型列表，而是按“这个模型用来干什么”分开配置，每一类都有默认模型和调用测试：
+
+| 能力 | 用途 |
+| :--- | :--- |
+| 对话 / 推理 | 主力 Coding 模型，Chat 与 Agent 模式 |
+| 视觉委托 | 替纯文本模型看图（见下文） |
+| 输出委托 | 可选，用轻量模型改写最终回复 |
+| 图片生成 | `image_gen` 工具，结果落进本地资料库 |
+| 视频生成 | `video_gen` 工具，文生视频 / 图生视频 |
+| 实时语音 | Live 全双工语音通道 |
+| Embedding / Reranker | 知识库向量化与重排序 |
+| code_search 后端 | 已配置模型，或 Devin 账号 / Windsurf Token |
+
+- **接入方式**：任意 OpenAI 兼容端点（BYOK），或 OAuth 一键登录官方订阅（Kimi Coding / Codex / Claude / Grok / Copilot / Devin）。
+- **改完即生效**：设置由 Host 统一下发，正在进行的会话在下一轮自动用上新配置。
+
+### 5. Web Search 一键配置
+
+- **搜索源**：DuckDuckGo（免 Key，装完就能用）、Brave、Tavily、Devin，或者调用本机 CLI；
+- **网页抓取**：supermarkdown、Jina、Firecrawl 可选；
+- 切换搜索源不会打断会话，`web_search` / `web_fetch` 始终可用。
+
+### 6. 视觉委托
+
+给纯文本或昂贵的推理模型挂一个轻量多模态模型：粘贴截图后自动 OCR + 特征提炼，主模型只收精简后的文字结论，省下 70–90% 的上下文 Token。OpenRouter / 硅基流动 / GLM 等平台都有免费多模态模型可以直接用。
+
+### 7. code_search
+
+与 `read` / `grep` 同级的 **Host 内置工具**，参考 Devin（Windsurf）Fast-Context 实现：检索在独立的只读过程中完成，只把命中的文件路径、定义和调用关系回传给主模型——几千行无关代码不会冲进主上下文，长任务里 Agent 也不容易“变笨”。可以直接复用 Devin 账号，也可以用已经配置好的模型。
+
+---
+
+## 🧰 更多能力
+
+<table>
+  <tr>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/marketplace.jpg" alt="扩展市场" width="100%" /><br /><sub><b>扩展市场：内置 / Pi 原生 / 社区扩展，标注兼容程度</b></sub></td>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/knowledge-wiki.jpg" alt="知识中心" width="100%" /><br /><sub><b>知识中心：LLM Wiki 词条、网状关联与衍生闪卡</b></sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/library.jpg" alt="资料库" width="100%" /><br /><sub><b>资料库：生成的图片 / 视频集中管理，保留提示词与来源会话</b></sub></td>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/usage.jpg" alt="用量统计" width="100%" /><br /><sub><b>用量统计：缓存命中率、活跃度热力图与逐次调用明细</b></sub></td>
+  </tr>
+</table>
+
+<p align="center"><img src="./docs/marketing/readme/components.jpg" alt="Piwin 出厂组件一览" width="100%" /></p>
 
 | 能力 | 说明 |
 | :--- | :--- |
 | **Pi SDK 原生集成** | 遵循 Pi 设计原则（Yolo First，无 Plan 模式——落档成计划文件） |
-| **Code Search** | 参考 Devin Fast-Context 实现的代码语义检索工具，与 grep / read 同级，防止上下文腐烂，提升 Agent 决策质量 |
-| **子代理编排** | 自定义子代理派发方式，内置 **Ultra Code**（侦察兵 + 精准打击）和 **Fusion**（SOTA 规划 + 高性价比执行）两种编排，详见下文 |
 | **Artifact 渲染** | Inline 内嵌 + Canvas 独立面板双模态，iframe + CSP 安全沙箱，流式实时渲染 |
-| **BYOK 配置** | 极其自由的配置方式，覆盖文本模型、音视频模型、embedding、reranker 等各类模型的配置与委托；支持自定义端点 + OAuth 一键登录官方订阅（Kimi Coding / Codex / Claude / Grok / Copilot / Devin） |
-| **视觉委托** | 给纯文本模型挂轻量多模态节点，粘贴截图自动 OCR + 特征提炼，省 70–90% 上下文 Token（OpenRouter / 硅基流动 / GLM 等平台提供免费多模态模型可直接使用） |
-| **全双工语音** | 边聊天边 Coding 的语音托管，支持 OpenAI Realtime / Codex Live / Grok 语音通道 |
 | **权限引擎** | Deny → Ask → Allow 三层门禁，默认 Yolo 但拦截 rm 等危险操作，支持项目级命令白名单 |
-| **扩展生态** | 支持 Agent Runtime 级别的 Pi 扩展热插拔，内置扩展市场，可分级安装扩展，无需重启客户端 |
 | **内置工具集** | Terminal、浏览器、画布（Canvas）、Note 等多工具配合使用，覆盖开发全流程 |
-
-### 更多亮点
 
 - **Chat / Agent 分离** — Chat 模式更少上下文注入、只读、响应快；Agent 模式更专业
 - **会话树** — SQLite 持久化，支持分叉 / 克隆 / 截断回滚 / 断电安全
 - **Goal 模式** — `/goal` 唤起结构化任务面板，拆解步骤 + 交付验证
 - **LLM Wiki + 闪卡** — 知识库产出闪卡，对话区域划词生成，支持闪卡管理
 - **缓存扩展** — 提高提示词缓存命中率，降低 Token 消费
-- **多媒体生成** — 内置 `image_gen`（Flux / DALL-E）+ `video_gen` 工具契约
 - **灵活部署** — 客户端与 Host 分离，一体包 / 前后端分离 / 远程服务器均可，iOS Shell 开发中
 - **冷存储 / 用量统计 / Codex 宠物** — 更多细节在使用中发现
-
----
-
-### 子代理编排详解
-
-**Ultra Code（侦察兵 + 精准打击）**
-
-先派只读 Scout 子代理完成全代码库的依赖梳理与影响面分析，输出结构化蓝图；主模型在纯净上下文中精准落实修改。零上下文注意力稀释，结合 Code Search 效果更佳。
-
-**Fusion（SOTA 规划 + 高性价比执行）**
-
-参考 Devin 公开资料实现。规划与执行解耦 —— Lead 用顶尖模型把握架构，Sidekick 配高速轻量模型处理机械编码。所有写入在 Git Worktree 临时分支中并发实测与编译自愈，测试通过后原子级合入主分支，Token 成本降低 60%+。
 
 ---
 
@@ -149,8 +227,8 @@ export PIWIN_HOST_ALLOWED_ORIGINS='https://ui.example.com'
 | OAuth 官方订阅 | 设置 → OAuth 登录，一键授权 Kimi / Codex / Claude / Grok | [指南](https://docs.piwinwin.com/oauth-login.html) |
 | 模型 & 视觉委托 | DeepSeek V3 / Claude 3.7 + Gemini Flash 视觉 | [指南](https://docs.piwinwin.com/model-config.html) |
 | Code Search | Devin OAuth 登录后直接复用，或手动填入 Devin Token（免费极速） | [指引](https://docs.piwinwin.com/token-acquisition.html) |
-| Web Search | Tavily API（1000 次/月免费）/ Devin Key | [指南](https://docs.piwinwin.com/web-search.html) |
-| 实时语音 | OpenAI Codex Live / Realtime 协议 | [指南](https://docs.piwinwin.com/realtime-voice.html) |
+| Web Search | DuckDuckGo 免 Key 起步；Tavily API（1000 次/月免费）/ Devin Key | [指南](https://docs.piwinwin.com/web-search.html) |
+| 实时语音 | Codex Live / Gemini Live / OpenAI Realtime 协议 | [指南](https://docs.piwinwin.com/realtime-voice.html) |
 | 多端组网 | Tailscale 加密组网，Host 托管 NAS | [指南](https://docs.piwinwin.com/deployment.html) |
 
 ---

@@ -65,76 +65,121 @@ const scenes: readonly Scene[] = [
 
 const features: readonly FeatureCard[] = [
   {
-    id: '01-orchestration',
+    id: '01-extensions',
     num: '01',
-    title: '子代理编排',
-    subtitle: 'Ultra Code · Fusion · Reviewed Delivery',
-    lede: '解决长上下文腐烂与 Token 浪费：只读 Scout 负责侦察，SOTA Lead 把握顶层架构，便宜 Sidekick 机械实现，独立 Worktree 审查合入。',
-    src: '/images/promo/features/01-orchestration.jpg',
-    thumb: '/images/promo/features/01-orchestration.thumb.jpg',
+    title: 'Pi 扩展热安装',
+    subtitle: '市场 / Git / 本地一键装 · 下一轮即生效',
+    lede: '正在跑的任务不会被打断：当前 Run 结束后，下一轮对话自动挂载新扩展；会话树和聊天记录原样保留，无需重启客户端。',
+    src: '/images/readme/extensions.jpg',
+    thumb: '/images/readme/extensions.thumb.jpg',
   },
   {
-    id: '02-code-search',
+    id: '02-orchestration',
     num: '02',
-    title: 'Code Search',
-    subtitle: 'Fast-Context 拓扑检索 · 0-Token 污染',
-    lede: '逆向 Devin 核心机制，与 grep/read 同级的一等公民工具；只读子代理深入代码库勘探调用关系，仅回传高信噪比提炼摘要。',
-    src: '/images/promo/features/02-code-search.jpg',
-    thumb: '/images/promo/features/02-code-search.thumb.jpg',
+    title: '子代理编排',
+    subtitle: 'Ultra Code · Fusion · Reviewed Delivery',
+    lede: '输入框一键切换：Ultra Code 派只读 Scout 探路防上下文腐烂；Fusion 用 Lead 规划 + Sidekick 机械执行；Reviewed 独立 Worktree 产出审查。',
+    src: '/images/readme/orchestration.jpg',
+    thumb: '/images/readme/orchestration.thumb.jpg',
   },
   {
     id: '03-voice',
     num: '03',
     title: '全双工实时语音',
-    subtitle: '边聊边写 · 说话面与工作面契约解耦',
-    lede: '打破传统“说了就不能点、执行就不能说”的阻塞模式；像真人同事一样结对编程，声音下达需求，终端与编辑器实时同步。',
-    src: '/images/promo/features/03-voice.jpg',
-    thumb: '/images/promo/features/03-voice.thumb.jpg',
+    subtitle: '边聊边写 · 说话面与工作面解耦',
+    lede: '说话面负责实时交流与方案探讨，随时插话打断；需要改代码跑测试时自动交接给后台 Agent 执行，做完用简短一句话汇报。',
+    src: '/images/readme/voice.jpg',
+    thumb: '/images/readme/voice.thumb.jpg',
   },
   {
-    id: '04-extensions',
+    id: '04-models',
     num: '04',
-    title: 'Pi 扩展热安装',
-    subtitle: 'Agent Runtime 级别热插拔 · 内置扩展市场',
-    lede: '内置 pi-deepseek-cache 缓存提速、llm-wiki 知识沉淀与 goal 目标管理；无需重启宿主或重连会话，一键热加载与启用。',
-    src: '/images/promo/features/04-extensions.jpg',
-    thumb: '/images/promo/features/04-extensions.thumb.jpg',
+    title: '按能力类型配模型',
+    subtitle: '推理 / 视觉 / 生图 / 视频 / 语音 / Reranker 分开配',
+    lede: '按“这个模型用来干什么”细粒度配置。接入方式支持任意 OpenAI 兼容端点（BYOK）或 OAuth 官方订阅，改完下一轮自动生效。',
+    src: '/images/readme/models.jpg',
+    thumb: '/images/readme/models.thumb.jpg',
   },
   {
-    id: '05-models',
+    id: '05-web-search',
     num: '05',
-    title: '按能力配模型',
-    subtitle: '视觉委托 · 思考档位 · 通道与账户分离',
-    lede: '主思考用最顶尖 SOTA，读图委托给免费轻量多模态（Gemini/Qwen-VL），通道 Base URL 与官方订阅 OAuth 各司其职。',
-    src: '/images/promo/features/05-models.jpg',
-    thumb: '/images/promo/features/05-models.thumb.jpg',
+    title: 'Web Search 一键配置',
+    subtitle: '免 Key 起步 · 搜索源与网页抓取随时切',
+    lede: '支持 DuckDuckGo（免 Key 开箱即用）、Brave、Tavily、Devin 或本机 CLI；配合 supermarkdown、Jina、Firecrawl 抓取清洗。',
+    src: '/images/readme/web-search.jpg',
+    thumb: '/images/readme/web-search.thumb.jpg',
   },
   {
-    id: '06-onboarding',
+    id: '06-vision',
     num: '06',
-    title: '一键极简配置',
-    subtitle: '开箱即用 · 浏览器 OAuth 授权 · 本地密钥保险箱',
-    lede: '官方订阅（Kimi、Codex、Claude、Copilot、Devin）一键浏览器扫码/授权登录，凭证仅存放于 Host 本地安全目录，零配置困扰。',
-    src: '/images/promo/features/06-onboarding.jpg',
-    thumb: '/images/promo/features/06-onboarding.thumb.jpg',
+    title: '视觉委托',
+    subtitle: '纯文本模型也能看图 · 省 70~90% 上下文 Token',
+    lede: '给纯文本或昂贵推理模型挂轻量多模态模型：粘贴截图自动 OCR + 特征提炼，主模型只收精简文字结论，省时省钱。',
+    src: '/images/readme/vision.jpg',
+    thumb: '/images/readme/vision.thumb.jpg',
   },
   {
-    id: '07-components-dark',
+    id: '07-code-search',
     num: '07',
-    title: '墨面组件墙',
-    subtitle: '深邃沉静 · 东方文人书斋视觉体系',
-    lede: '黑墨深灰底衬、朱砂点缀、金石线条、终端与工具状态一目了然，长时间暗光编码专注不疲劳。',
-    src: '/images/promo/features/07-components-dark.jpg',
-    thumb: '/images/promo/features/07-components-dark.thumb.jpg',
+    title: 'code_search',
+    subtitle: 'Host 内置检索工具 · 0-Token 上下文污染',
+    lede: '与 read/grep 同级的内置工具，参考 Devin Fast-Context 实现：检索在独立只读过程中完成，只把命中路径和定义回传主会话。',
+    src: '/images/readme/code-search.jpg',
+    thumb: '/images/readme/code-search.thumb.jpg',
   },
   {
-    id: '08-components-light',
+    id: '08-knowledge',
     num: '08',
-    title: '纸面组件墙',
-    subtitle: '温润舒目 · 宣纸宋体文人雅趣',
-    lede: '米白宣纸底色、深褐松烟墨字、红印封泥；双面审美一键切换，白昼伏案更护眼。',
-    src: '/images/promo/features/08-components-light.jpg',
-    thumb: '/images/promo/features/08-components-light.thumb.jpg',
+    title: '知识库与重排',
+    subtitle: 'Embedding 与 Reranker 独立配置',
+    lede: '支持 LanceDB 本地向量库、文本分片、语义重排序（Rerank）与 FSRS 记忆检索，支撑专业级领域知识管理。',
+    src: '/images/readme/knowledge.jpg',
+    thumb: '/images/readme/knowledge.thumb.jpg',
+  },
+  {
+    id: '09-marketplace',
+    num: '09',
+    title: '扩展市场',
+    subtitle: '内置 / Pi 原生 / 社区扩展 · 标注兼容程度',
+    lede: '浏览与搜索海量扩展，清晰标注 Agent 工具、事件 Hook 与桌面 UI 兼容状态，支持一键安装与平滑启用。',
+    src: '/images/readme/marketplace.jpg',
+    thumb: '/images/readme/marketplace.thumb.jpg',
+  },
+  {
+    id: '10-wiki',
+    num: '10',
+    title: '知识中心 LLM Wiki',
+    subtitle: '网状关联与衍生闪卡 · 知识资产沉淀',
+    lede: '依据 Karpathy LLM-Wiki 模式，自动萃取概念词条、构建双向网状关联，并在对话中随时划词提炼记忆闪卡。',
+    src: '/images/readme/knowledge-wiki.jpg',
+    thumb: '/images/readme/knowledge-wiki.thumb.jpg',
+  },
+  {
+    id: '11-library',
+    num: '11',
+    title: '多媒体资料库',
+    subtitle: '生成的图片 / 视频集中管理',
+    lede: '所有通过 image_gen 与 video_gen 工具生成的本地资产统一沉淀在 ~/.piwin/media/，完整保留提示词与来源会话。',
+    src: '/images/readme/library.jpg',
+    thumb: '/images/readme/library.thumb.jpg',
+  },
+  {
+    id: '12-usage',
+    num: '12',
+    title: '用量统计看板',
+    subtitle: '缓存命中率、活跃度热力图与逐次调用明细',
+    lede: '全通道模型 Token 消耗、前缀缓存（Prompt Cache）命中率与费用透明可视化，每一分钱花在哪里一清二楚。',
+    src: '/images/readme/usage.jpg',
+    thumb: '/images/readme/usage.thumb.jpg',
+  },
+  {
+    id: '13-components',
+    num: '13',
+    title: '出厂组件一览',
+    subtitle: '东方文人美学组件与工坊全景',
+    lede: '精心设计的双面主题组件墙：墨面深邃沉静、纸面温润舒目，兼具实用交互质感与典雅美学。',
+    src: '/images/readme/components.jpg',
+    thumb: '/images/readme/components.thumb.jpg',
   },
 ];
 
@@ -184,17 +229,6 @@ function selectFeature(id: string): void {
 const activeFeature = computed<FeatureCard>(
   () => features.find((f) => f.id === activeFeatureId.value) ?? features[0]!,
 );
-
-// 全屏弹窗看大图
-const modalImage = ref<{ src: string; title: string } | null>(null);
-
-function openModal(src: string, title: string): void {
-  modalImage.value = { src, title };
-}
-
-function closeModal(): void {
-  modalImage.value = null;
-}
 </script>
 
 <template>
@@ -207,7 +241,7 @@ function closeModal(): void {
       rel="noreferrer"
       title="点击查看高清封面"
     >
-      <img src="/images/promo/cover.jpg" alt="Piwin 砚 · 私有化智能编程工作台" />
+      <img class="promo-cover-img" src="/images/promo/cover.jpg" alt="Piwin 砚 · 私有化智能编程工作台" />
       <span class="promo-cover-badge">桌面工作台最新实录</span>
     </a>
 
@@ -287,19 +321,12 @@ function closeModal(): void {
       <figure
         class="promo-shot"
         :class="{ capped: !expandedScene }"
-        :data-face="override"
       >
         <img
-          class="face-ink"
-          :src="sceneSrc(activeScene.id, 'ink')"
-          :alt="`${activeScene.num} ${activeScene.title} · 墨面`"
-          loading="lazy"
-        />
-        <img
-          class="face-light"
-          :src="sceneSrc(activeScene.id, 'light')"
-          :alt="`${activeScene.num} ${activeScene.title} · 纸面`"
-          loading="lazy"
+          class="promo-main-img"
+          :key="`${activeScene.id}-${effectiveFace}`"
+          :src="sceneSrc(activeScene.id, effectiveFace)"
+          :alt="`${activeScene.num} ${activeScene.title} · ${effectiveFace === 'ink' ? '墨面' : '纸面'}`"
         />
         <button
           v-if="!expandedScene"
@@ -327,21 +354,13 @@ function closeModal(): void {
           type="button"
           class="promo-chip"
           :class="{ on: scene.id === activeSceneId }"
-          :data-face="override"
           :title="scene.title"
           @click="selectScene(scene.id)"
         >
           <img
-            class="face-ink"
-            :src="sceneThumb(scene.id, 'ink')"
+            class="promo-chip-img"
+            :src="sceneThumb(scene.id, effectiveFace)"
             :alt="scene.title"
-            loading="lazy"
-          />
-          <img
-            class="face-light"
-            :src="sceneThumb(scene.id, 'light')"
-            :alt="scene.title"
-            loading="lazy"
           />
           <span class="promo-chip-num">{{ scene.num }}</span>
           <span class="promo-chip-title">{{ scene.title }}</span>
@@ -356,9 +375,10 @@ function closeModal(): void {
         :class="{ capped: !expandedFeature }"
       >
         <img
+          class="promo-main-img"
+          :key="activeFeature.id"
           :src="activeFeature.src"
           :alt="`${activeFeature.num} ${activeFeature.title}`"
-          loading="lazy"
         />
         <button
           v-if="!expandedFeature"
@@ -390,25 +410,10 @@ function closeModal(): void {
           :title="feat.title"
           @click="selectFeature(feat.id)"
         >
-          <img :src="feat.thumb" :alt="feat.title" loading="lazy" />
+          <img class="promo-chip-img" :src="feat.thumb" :alt="feat.title" />
           <span class="promo-chip-num">{{ feat.num }}</span>
           <span class="promo-chip-title">{{ feat.title }}</span>
         </button>
-      </div>
-    </div>
-
-    <!-- 全屏弹窗查看 -->
-    <div
-      v-if="modalImage"
-      class="promo-modal"
-      @click="closeModal"
-    >
-      <div class="promo-modal-body" @click.stop>
-        <div class="promo-modal-bar">
-          <span>{{ modalImage.title }}</span>
-          <button type="button" @click="closeModal">✕ 关闭</button>
-        </div>
-        <img :src="modalImage.src" :alt="modalImage.title" />
       </div>
     </div>
   </section>
@@ -438,7 +443,7 @@ function closeModal(): void {
   transform: translateY(-2px);
 }
 
-.promo-cover img {
+.promo-cover-img {
   display: block;
   width: 100%;
   height: auto;
@@ -589,58 +594,13 @@ function closeModal(): void {
   background: var(--void);
 }
 
-/* 双面图逻辑 */
-.promo-shot img,
-.promo-chip img {
-  display: none;
-}
-
-:global(html.dark) .promo-shot .face-ink,
-:global(html.dark) .promo-chip .face-ink {
+.promo-main-img {
   display: block;
-}
-
-:global(html:not(.dark)) .promo-shot .face-light,
-:global(html:not(.dark)) .promo-chip .face-light {
-  display: block;
-}
-
-.promo-shot[data-face='ink'] .face-ink,
-.promo-chip[data-face='ink'] .face-ink {
-  display: block !important;
-}
-
-.promo-shot[data-face='ink'] .face-light,
-.promo-chip[data-face='ink'] .face-light {
-  display: none !important;
-}
-
-.promo-shot[data-face='light'] .face-light,
-.promo-chip[data-face='light'] .face-light {
-  display: block !important;
-}
-
-.promo-shot[data-face='light'] .face-ink,
-.promo-chip[data-face='light'] .face-ink {
-  display: none !important;
-}
-
-/* 特性图解直接显示 */
-.feature-shot img {
-  display: block !important;
-}
-
-.promo-rail-features .promo-chip img {
-  display: block !important;
-}
-
-.promo-shot img {
   width: 100%;
   height: auto;
-  display: block;
 }
 
-.promo-shot.capped img {
+.promo-shot.capped .promo-main-img {
   max-height: 640px;
   object-fit: cover;
   object-position: top center;
@@ -762,7 +722,8 @@ function closeModal(): void {
   background: var(--zhu-wash);
 }
 
-.promo-chip img {
+.promo-chip-img {
+  display: block;
   width: 100%;
   height: 60px;
   object-fit: cover;
@@ -792,59 +753,6 @@ function closeModal(): void {
   font-weight: 500;
 }
 
-/* 弹窗预览 */
-.promo-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(10px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.promo-modal-body {
-  max-width: 90vw;
-  max-height: 90vh;
-  background: var(--s2);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: var(--sh3);
-  border: 1px solid var(--l3);
-  display: flex;
-  flex-direction: column;
-}
-
-.promo-modal-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--l2);
-  font-size: 0.85rem;
-  color: var(--t2);
-}
-
-.promo-modal-bar button {
-  background: none;
-  border: none;
-  color: var(--t3);
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-
-.promo-modal-bar button:hover {
-  color: var(--zhu);
-}
-
-.promo-modal-body img {
-  max-width: 100%;
-  max-height: calc(90vh - 50px);
-  object-fit: contain;
-}
-
 @media (max-width: 960px) {
   .promo-rail-features {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -862,7 +770,7 @@ function closeModal(): void {
   .promo-rail-features {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .promo-shot.capped img {
+  .promo-shot.capped .promo-main-img {
     max-height: 380px;
   }
 }

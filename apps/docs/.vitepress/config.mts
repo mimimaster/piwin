@@ -160,6 +160,10 @@ export default defineConfig({
       copyright: 'Copyright © 2024-present Piwin. All rights reserved.',
     },
 
+    socialLinks: [
+      { icon: 'github', link: 'https://github.com/mimimaster/piwin' },
+    ],
+
     darkModeSwitchLabel: '面（纸 / 墨）',
     lightModeSwitchTitle: '切换至纸面（浅色）',
     darkModeSwitchTitle: '切换至墨面（深色）',
