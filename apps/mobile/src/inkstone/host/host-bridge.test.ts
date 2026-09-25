@@ -8,10 +8,8 @@ import {
   mapActivityRows,
   mapPermissionGate,
   mapSessionGroups,
-  mapTranscriptRows,
   pickContinueSession,
   relativeTime,
-  type InkstoneChatRow,
 } from './host-bridge.js';
 import type {
   ActivitySummaryItem,
@@ -144,111 +142,19 @@ describe('inkstone host bridge', () => {
     expect(pickContinueSession([], new Set())).toBeUndefined();
   });
 
-  it('projects transcript messages onto chat rows with tool folds', () => {
-    const rows: InkstoneChatRow[] = mapTranscriptRows([
-      {
-        id: 'm1',
-        role: 'user',
-        text: '让会话拥有记忆。',
-        createdAt: '2026-09-05T09:32:00+08:00',
-        status: 'done',
-      },
-      {
-        id: 'm2',
-        role: 'assistant',
-        text: '记忆应该安静地发生。',
-        createdAt: '2026-09-05T09:34:00+08:00',
-        status: 'streaming',
-        toolCalls: [
-          {
-            id: 't1',
-            name: 'read',
-            status: 'done',
-            actionVerb: '读取',
-            summary: 'session-index.ts',
-            durationMs: 200,
-          },
-          {
-            id: 't2',
-            name: 'grep',
-            status: 'running',
-            actionVerb: '检索',
-            summary: 'restoreSession',
-          },
-        ],
-      },
-      { id: 'm3', role: 'system', text: 'internal', createdAt: iso(1), status: 'done' },
-    ]);
-    expect(rows.map((row) => row.kind)).toEqual(['user', 'tools', 'assistant']);
-    const user = rows[0];
-    if (user === undefined || user.kind !== 'user') {
-      throw new Error('expected user row');
-    }
-    expect(user.time).toBe('09:32');
-    expect(rows[1]).toMatchObject({ kind: 'tools', label: '正在调用工具' });
-    const tools = rows[1];
-    if (tools === undefined || tools.kind !== 'tools') {
-      throw new Error('expected tools row');
-    }
-    expect(tools.steps[0]?.meta).toBe('0.2s');
-    expect(tools.steps[1]?.status).toBe('running');
-    expect(rows[2]).toMatchObject({
-      kind: 'assistant',
-      streaming: true,
-      model: 'piwin',
-      time: '09:34',
-    });
-  });
-
-  it('maps streaming assistant message even when text is empty or only has thinking', () => {
-    const rows = mapTranscriptRows([
-      {
-        id: 'u1',
-        role: 'user',
-        text: '生成一张图片',
-        createdAt: '2026-09-05T09:32:00+08:00',
-        status: 'done',
-      },
-      {
-        id: 'a1',
-        role: 'assistant',
-        text: '',
-        thinking: '正在分析构图…',
-        status: 'streaming',
-        createdAt: '2026-09-05T09:32:05+08:00',
-        model: { providerId: 'custom-openai', modelId: 'grok-4.6' },
-      },
-    ]);
-    expect(rows).toHaveLength(2);
-    expect(rows[1]).toMatchObject({
-      kind: 'assistant',
-      id: 'a1',
-      text: '',
-      thinking: '正在分析构图…',
-      streaming: true,
-      model: 'Grok 4.6',
-    });
+  it('drops artifact advisory envelopes, including truncated ones', () => {
+    expect(
+      cleanSessionPreview(
+        '[piwin-artifact-host-theme]\nSending client theme: light background.\n[/piwin-artifact-host-theme]\n画一只鹈鹕',
+      ),
+    ).toBe('画一只鹈鹕');
+    expect(cleanSessionPreview('[piwin-artifact-host-theme] Sending client theme: light bac')).toBe('');
   });
 
   it('hides model-facing skill wrappers from user transcript bubbles', () => {
-    const rows = mapTranscriptRows([
-      {
-        id: 'wrapped-user',
-        role: 'user',
-        text: '[piwin-skill:writing-plans]\nFollow the installed skill.\n---\n真实请求',
-        createdAt: '2026-09-05T09:32:00+08:00',
-        status: 'done',
-      },
-    ]);
-    expect(rows).toEqual([
-      {
-        kind: 'user',
-        id: 'wrapped-user',
-        text: '真实请求',
-        attachments: [],
-        time: '09:32',
-      },
-    ]);
+    expect(
+      cleanSessionPreview('[piwin-skill:writing-plans]\nFollow the installed skill.\n---\n真实请求'),
+    ).toBe('真实请求');
   });
 
   it('formats model labels into human-readable strings', () => {

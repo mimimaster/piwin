@@ -1,0 +1,55 @@
+/* iPad / wide screens (use-wide-layout.ts). Phone layout is untouched below 768px. */
+
+/* 768–1023: still one page at a time, but keep lines at a readable measure. */
+@media (min-width: 768px) {
+  .phone .screen-scroll,
+  .phone .composer-dock,
+  .phone .topbar {
+    padding-inline: max(22px, calc((100% - 760px) / 2));
+  }
+}
+
+/* ≥1024: sessions docked left, current page on the right. */
+.tablet-shell {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  height: 100dvh;
+  background: var(--s1);
+}
+.tablet-shell > .phone {
+  height: 100dvh;
+  min-width: 0;
+}
+.tablet-nav {
+  border-right: 1px solid var(--l2);
+  background: var(--s1);
+}
+.tablet-nav .screen-scroll,
+.tablet-nav .topbar {
+  padding-inline: 16px;
+}
+/* The docked list already carries the app navigation. */
+.tablet-detail .bottom-nav {
+  display: none;
+}
+.tablet-detail .screen-scroll,
+.tablet-detail .composer-dock,
+.tablet-detail .topbar {
+  padding-inline: max(28px, calc((100% - 780px) / 2));
+}
+
+/* Current conversation in the list (also useful on phones after returning). */
+.session-item.active {
+  background: var(--zhu-wash);
+  border-radius: 8px;
+}
+.session-item.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--zhu);
+}

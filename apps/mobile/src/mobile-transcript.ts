@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type {
+  ExecutionRunRecord,
   HostPush,
   MediaAttachmentRef,
   RemoteTranscriptMessage,
@@ -61,6 +62,7 @@ export function handleRemotePush(
 
   if (push.type === 'run/terminal' && push.run.sessionId === activeSessionId) {
     setPausedCheckpointId(undefined);
+    setMessages((current) => applyRunTerminal(current, push.run));
     return;
   }
 
@@ -136,7 +138,13 @@ export function handleRemotePush(
     );
   } else if (event.type === 'message/end') {
     setMessages((current) =>
-      updateMessage(current, event.messageId, (message) => ({ ...message, status: 'done' })),
+      updateMessage(current, event.messageId, (message) => ({
+        ...message,
+        status: 'done',
+        // Live rows carry no Host timestamps until hydration; stamp the end so
+        // the turn header can show how long the work took.
+        endedAt: message.endedAt ?? new Date().toISOString(),
+      })),
     );
   } else if (event.type === 'tool/start') {
     const toolCall: MobileToolCall = withToolPresentation(
@@ -216,6 +224,50 @@ export function handleRemotePush(
       });
     });
   }
+}
+
+/**
+ * Live rows learn their outcome only at hydration; apply the Host's terminal
+ * run record now so a stopped or failed turn reads as such immediately.
+ */
+export function applyRunTerminal(
+  messages: MobileTranscriptMessage[],
+  run: ExecutionRunRecord,
+): MobileTranscriptMessage[] {
+  const outcome: MobileTranscriptMessage['outcome'] =
+    run.status === 'completed'
+      ? 'completed'
+      : run.status === 'cancelled'
+        ? 'cancelled'
+        : run.status === 'failed' || run.status === 'interrupted'
+          ? 'failed'
+          : undefined;
+  if (outcome === undefined) return messages;
+  let changed = false;
+  const next = messages.map((message): MobileTranscriptMessage => {
+    if (message.role !== 'assistant' || message.runId !== run.runId) return message;
+    changed = true;
+    const terminalMessage = run.failure?.message ?? run.error;
+    return {
+      ...message,
+      outcome,
+      status: message.status === 'streaming' ? ('done' as const) : message.status,
+      endedAt: message.endedAt ?? run.endedAt ?? new Date().toISOString(),
+      ...(outcome === 'failed' && message.terminalMessage === undefined && terminalMessage !== undefined
+        ? { terminalMessage }
+        : {}),
+      ...(message.toolCalls === undefined
+        ? {}
+        : {
+            toolCalls: message.toolCalls.map((tool) =>
+              tool.status === 'running'
+                ? { ...tool, status: 'error' as const, error: outcome === 'cancelled' ? '已停止' : '未完成' }
+                : tool,
+            ),
+          }),
+    };
+  });
+  return changed ? next : messages;
 }
 
 function resolveTargetAssistantMessageId(

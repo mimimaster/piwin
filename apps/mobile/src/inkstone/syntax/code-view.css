@@ -1,0 +1,87 @@
+/* CodeView: Shiki tokens carry both faces as --tl (paper) / --td (ink). */
+.code-view {
+  margin: 0;
+  padding: 10px 0;
+  overflow: auto;
+  max-height: 70dvh;
+  background: var(--code);
+  border-radius: 8px;
+  font: 11.5px/1.6 var(--mono);
+  color: var(--t1);
+  -webkit-overflow-scrolling: touch;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.code-view code {
+  display: block;
+  min-width: max-content;
+  background: none;
+  padding: 0;
+  font: inherit;
+}
+.code-view .code-line {
+  display: flex;
+}
+.code-view .ln {
+  position: sticky;
+  left: 0;
+  flex: none;
+  width: 3.4em;
+  padding-right: 0.9em;
+  text-align: right;
+  color: var(--t4);
+  background: var(--code);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.code-view:not(.numbered) .lc {
+  padding-left: 12px;
+}
+.code-view .lc {
+  padding-right: 14px;
+  white-space: pre;
+}
+.code-view .lc span {
+  color: var(--tl, inherit);
+}
+[data-face='ink'] .code-view .lc span {
+  color: var(--td, inherit);
+}
+
+/* Chat code fences (MobileMarkdown) in Inkstone paper / ink. */
+.inkstone-root .mobile-code-block-card {
+  margin: 10px 0;
+  border: 1px solid var(--l2);
+  border-radius: 8px;
+  background: var(--code);
+  overflow: hidden;
+  box-shadow: none;
+}
+.inkstone-root .mobile-code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  padding: 0 6px 0 12px;
+  background: transparent;
+  border-bottom: 1px solid var(--l2);
+}
+.inkstone-root .mobile-code-block-lang {
+  font: 10.5px var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--t3);
+  text-transform: lowercase;
+}
+.inkstone-root .mobile-code-copy-button {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 11px;
+  color: var(--t2);
+}
+.inkstone-root .mobile-code-block-card .code-view {
+  border-radius: 0;
+  max-height: 360px;
+}

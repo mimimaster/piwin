@@ -29,12 +29,13 @@
     "@streamdown/math": "1.0.2",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-barcode-scanner": "^2.4.5",
+    "@tauri-apps/plugin-notification": "2.4.0",
     "@tauri-apps/plugin-websocket": "^2.4.2",
     "katex": "0.16.47",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "streamdown": "2.5.0",
-    "@tauri-apps/plugin-notification": "2.4.0"
+    "shiki": "4.4.1",
+    "streamdown": "2.5.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",

@@ -1,20 +1,18 @@
 import type { ReactElement } from 'react';
+import { NeedsHost } from '../needs-host.js';
 import type { KnowledgeBaseSummary } from '@piwin/contracts';
 import { useInkstone } from '../inkstone-context.js';
-import { type InkstoneRoute } from '../demo-state.js';
+import { type InkstoneRoute } from '../inkstone-state.js';
 import { Icon } from '../icons.js';
 import {
   BottomNav,
   Chips,
-  Dot,
   IconButton,
   ListRow,
-  Pill,
   ScreenHeading,
   TabsRow,
   TopBar,
 } from '../inkstone-ui.js';
-import { getAttentionItems } from './sessions.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 import { collectPendingPermissionSessionIds } from '../host/host-bridge.js';
 import { KnowledgeBaseEmpty } from '../sheets/knowledge-sheets.js';
@@ -64,206 +62,11 @@ export const WIKI_ENTRIES: WikiEntry[] = [
 ];
 
 export function KnowledgePage(): ReactElement {
-  const { state, dispatch } = useInkstone();
   const hostCtx = useInkstoneHost();
-  if (hostCtx !== null) {
-    return <ConnectedKnowledgePage hostCtx={hostCtx} />;
+  if (hostCtx === null) {
+    return <NeedsHost />;
   }
-  const attentionItems = getAttentionItems(state);
-
-  const categories: [string, number][] = [
-    ['全部', WIKI_ENTRIES.length],
-    ['架构', 2],
-    ['交互', 1],
-    ['策略', 1],
-  ];
-
-  const filteredWiki =
-    state.wikiCategory === '全部'
-      ? WIKI_ENTRIES
-      : WIKI_ENTRIES.filter((entry) => entry.cat === state.wikiCategory);
-
-  const wikiPane = (
-    <>
-      <Chips
-        items={categories}
-        selected={state.wikiCategory}
-        onSelect={(cat) => dispatch({ type: 'set-wiki-category', category: cat })}
-      />
-      <div className="wiki-list">
-        {filteredWiki.map((item) => (
-          <button
-            className="wiki-row"
-            key={item.id}
-            onClick={() => dispatch({ type: 'open-wiki', wikiId: item.id })}
-            type="button"
-          >
-            <strong>{item.title}</strong>
-            <p>{item.text}</p>
-            <small>
-              {item.cat} · {item.date} · 引用 2 次
-            </small>
-          </button>
-        ))}
-      </div>
-      <div className="section-label">知识操作</div>
-      <ListRow
-        name="book"
-        title="从当前项目出卡"
-        subtitle="选取 docs/ 目录生成闪卡"
-        onClick={() => dispatch({ type: 'open-sheet', key: 'produce-cards' })}
-      />
-      <ListRow
-        name="plus"
-        title="录入新维基条目"
-        subtitle="将提炼的结论沉淀为词条"
-        onClick={() => dispatch({ type: 'open-sheet', key: 'wiki-new' })}
-      />
-    </>
-  );
-
-  const sources = [
-    { name: '便签库', count: '14 条便签', st: '可用', dot: 'done' as const, hint: '随手记与侧聊结论汇总' },
-    { name: '维基库', count: '8 篇词条', st: '可用', dot: 'done' as const, hint: '已建立向量索引' },
-    { name: 'piwin 文档', count: '42 个文件', st: '已挂载', dot: 'done' as const, hint: '~/Developer/piwin/docs' },
-    { name: '本地参考库', count: '128 个文件', st: '入库中 64%', dot: 'running' as const, hint: '嵌入向量构建中' },
-  ];
-
-  const sourcePane = (
-    <>
-      <div className="notice">
-        <Icon name="alert" />
-        <b>信源状态</b>
-        <span>所有文档均由 Host 构建向量索引，手机本地不跑解析。</span>
-      </div>
-      {sources.map((s) => (
-        <ListRow
-          key={s.name}
-          name="folder"
-          title={s.name}
-          subtitle={`${s.count} · ${s.hint}`}
-          onClick={() => {
-            dispatch({ type: 'open-knowledge-source', baseId: s.name });
-          }}
-          trailing={
-            <Pill variant={s.dot === 'running' ? '' : 'pine'}>
-              <Dot status={s.dot} />
-              {s.st}
-            </Pill>
-          }
-        />
-      ))}
-      <div className="section-label">挂载与同步</div>
-      <button
-        className="full-button"
-        onClick={() => dispatch({ type: 'open-sheet', key: 'mounts' })}
-        type="button"
-      >
-        管理当前会话挂载
-      </button>
-      <button
-        className="full-button secondary"
-        onClick={() => dispatch({ type: 'open-sheet', key: 'workspace-picker' })}
-        type="button"
-      >
-        添加外部文件夹
-      </button>
-    </>
-  );
-
-  const cardPane = (
-    <>
-      <div className="continue-card">
-        <div className="spread">
-          <span className="eyebrow">今日待复习</span>
-          <Pill>
-            <Dot status="running" />
-            待过 12 张
-          </Pill>
-        </div>
-        <h3>碎片时间，加深记忆</h3>
-        <p>基于 Host 上的 FSRS 记忆曲线调度，同步桌面与手机学习进度。</p>
-        <div className="button-row">
-          <button
-            className="full-button"
-            onClick={() => dispatch({ type: 'navigate', route: 'cards' })}
-            type="button"
-          >
-            开始计划复习
-          </button>
-          <button
-            className="full-button secondary"
-            onClick={() => {
-              dispatch({ type: 'study-mode', value: 'browse' });
-              dispatch({ type: 'navigate', route: 'cards' });
-            }}
-            type="button"
-          >
-            随便看看
-          </button>
-        </div>
-      </div>
-      <div className="section-label">最近掌握</div>
-      <ListRow
-        name="cards"
-        title="Host 为什么是唯一权威？"
-        subtitle="已掌握 · 下次复习 7 天后"
-        onClick={() => dispatch({ type: 'navigate', route: 'cards' })}
-      />
-      <ListRow
-        name="cards"
-        title="会话恢复幂等机制"
-        subtitle="良好 · 下次复习 3 天后"
-        onClick={() => dispatch({ type: 'navigate', route: 'cards' })}
-      />
-    </>
-  );
-
-  return (
-    <>
-      <TopBar
-        title="知识中心"
-        subtitle="维基、信源与闪卡"
-        onBack={() => dispatch({ type: 'navigate', route: 'sessions' })}
-        right={
-          <IconButton
-            name="search"
-            label="搜索知识库"
-            onClick={() => dispatch({ type: 'open-sheet', key: 'knowledge-search' })}
-          />
-        }
-      />
-      {state.offline ? (
-        <div className="banner-offline">
-          <span>连接中断 · 显示 09:38 的快照，草稿仍可写</span>
-          <button onClick={() => dispatch({ type: 'reconnect' })} type="button">
-            重新连接
-          </button>
-        </div>
-      ) : null}
-      <div className="screen-scroll">
-        <ScreenHeading
-          title="留下的，皆成学问。"
-          subtitle="在 Host 沉淀，随时在拇指下查阅"
-        />
-        <TabsRow
-          items={['维基', '信源', '闪卡']}
-          selected={state.knowledgeTab}
-          onSelect={(tab) => dispatch({ type: 'set-knowledge-tab', tab: tab as '维基' | '信源' | '闪卡' })}
-        />
-        {state.knowledgeTab === '维基'
-          ? wikiPane
-          : state.knowledgeTab === '信源'
-            ? sourcePane
-            : cardPane}
-      </div>
-      <BottomNav
-        selected="knowledge"
-        attentionCount={attentionItems.length}
-        onNavigate={(route) => dispatch({ type: 'navigate', route: route as InkstoneRoute })}
-      />
-    </>
-  );
+  return <ConnectedKnowledgePage hostCtx={hostCtx} />;
 }
 
 function baseDate(value: string | undefined): string {
@@ -322,7 +125,7 @@ function ConnectedKnowledgePage({ hostCtx }: { hostCtx: InkstoneHostContextValue
             <div className="notice"><Icon name="book" /><b>Host 信源</b><span>索引、解析与路径校验均在 Host 完成。</span></div>
             {bases.length === 0 ? <KnowledgeBaseEmpty message="Host 尚未返回知识库。" /> : null}
             {bases.map((base) => (
-              <ListRow key={base.id} name={baseIcon(base)} title={base.name} subtitle={`${base.state} · ${base.documentCount} 项 · ${baseDate(base.lastIndexedAt)}`} onClick={() => dispatch({ type: 'open-knowledge-source', baseId: base.id })} trailing={base.degraded ? '全文' : '可用'} />
+              <ListRow key={base.id} name={baseIcon(base)} title={base.name} subtitle={`${base.state} · ${base.documentCount} 项 · ${baseDate(base.lastIndexedAt)}`} onClick={() => dispatch({ type: 'open-sheet', key: 'mounts' })} trailing={base.degraded ? '全文' : '可用'} />
             ))}
             <div className="section-label">挂载与同步</div>
             <button className="full-button" onClick={() => dispatch({ type: 'open-sheet', key: 'mounts' })} type="button">管理当前会话挂载</button>

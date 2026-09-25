@@ -13,12 +13,10 @@ import {
   readArtifactEnabled,
   readPauseCheckpointId,
   readProjects,
-  readSessions,
 } from '../mobile-host-readers.js';
 import { toError } from '../mobile-host-helpers.js';
 import { readSessionMessages } from '../mobile-transcript.js';
-
-const MOBILE_SESSION_LIST_MAX_ITEMS = 80;
+import { mobileSessionListCommand, readSessionListPage } from './mobile-session-list.js';
 
 export type MobileRemoteReadModelContext = {
   clientRef: { current: HostClient | undefined };
@@ -53,12 +51,7 @@ export function createMobileRemoteReadModelRefresher(
         await Promise.all([
           client.request({ type: 'host/status' }),
           client.request({ type: 'project/list' }),
-          client.request({
-            type: 'session/list',
-            allScopes: true,
-            order: 'updated',
-            maxItems: MOBILE_SESSION_LIST_MAX_ITEMS,
-          }),
+          client.request(mobileSessionListCommand()),
           client.request({ type: 'models/configured' }),
           requestActivitySummary(client),
         ]);
@@ -67,7 +60,7 @@ export function createMobileRemoteReadModelRefresher(
       }
       applyHostStatus(statusResponse, context.setHostStatus, context.setErrorMessage);
       context.setProjects(readProjects(projectsResponse));
-      const sessionList = readSessions(sessionsResponse);
+      const sessionList = readSessionListPage(sessionsResponse);
       context.setSessions(sessionList);
       applyConfiguredModels(
         modelsResponse,

@@ -11,7 +11,7 @@ import {
   subscribeMobileNotificationAction,
 } from '../mobile-attention-os.js';
 import { readMobileAttentionPreferences } from '../mobile-attention-preferences.js';
-import type { InkstoneAction, InkstoneRoute } from '../inkstone/demo-state.js';
+import type { InkstoneAction, InkstoneRoute } from '../inkstone/inkstone-state.js';
 import type { InkstoneHost } from '../inkstone/host/inkstone-host-context.js';
 
 export type UseMobileAttentionArgs = {

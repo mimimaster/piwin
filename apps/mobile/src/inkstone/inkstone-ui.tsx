@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { Icon, type InkstoneIconName } from './icons.js';
 import { useInkstone } from './inkstone-context.js';
+import { useLiveCall } from './host/live-call-context.js';
 
 export type DotStatus = 'running' | 'done' | 'waiting' | 'background' | 'paused' | 'failed' | '';
 
@@ -59,51 +60,58 @@ export function IconButton({
   );
 }
 
+/**
+ * Floating handle for a live call while the user is elsewhere in the app.
+ * Everything it shows and does is the Host call (`useLiveCall`).
+ */
 export function LiveCapsule(): ReactElement | null {
   const { state, dispatch } = useInkstone();
-  if (!state.liveMini || state.route === 'voice') {
+  const live = useLiveCall();
+  const call = live?.call ?? null;
+  if (live === null || call === null || state.route === 'voice') {
     return null;
   }
+  const muted = live.peer.muted;
+  const activity =
+    call.activity === 'user-speaking'
+      ? '正在听你说'
+      : call.activity === 'assistant-speaking'
+        ? '正在回答'
+        : call.activity === 'agent-working'
+          ? '正在处理任务'
+          : muted
+            ? '已静音'
+            : '正在聆听';
   return (
     <div className="live-capsule" role="region" aria-label="Live 悬浮小部件">
       <button
         className="capsule-body"
-        onClick={() => dispatch({ type: 'expand-live' })}
+        onClick={() => dispatch({ type: 'navigate', route: 'voice' })}
         aria-label="返回全屏 Live"
         type="button"
       >
         <Dot status="running" />
         <span className="capsule-text">
-          <strong>Live · {state.muted ? '已静音' : '我在听'}</strong>
-          <small>
-            {state.muted ? '轻点麦克风开麦' : '“把刚才的恢复方案整理一下…”'}
-          </small>
+          <strong>Live · {activity}</strong>
+          <small>{muted ? '轻点麦克风开麦' : '可以边说边看'}</small>
         </span>
       </button>
       <div className="capsule-controls">
         <button
-          className={`capsule-btn ${state.muted ? 'is-muted' : ''}`.trim()}
-          onClick={() => dispatch({ type: 'toggle-live-mute' })}
-          aria-label={state.muted ? '取消静音' : '静音'}
+          className={`capsule-btn ${muted ? 'is-muted' : ''}`.trim()}
+          onClick={() => void live.setMuted(!muted)}
+          aria-label={muted ? '取消静音' : '静音'}
           type="button"
         >
-          <Icon name={state.muted ? 'close' : 'mic'} />
-        </button>
-        <button
-          className="capsule-btn"
-          onClick={() => dispatch({ type: 'expand-live' })}
-          aria-label="全屏 Live"
-          type="button"
-        >
-          <Icon name="expand" />
+          <Icon name={muted ? 'close' : 'mic'} />
         </button>
         <button
           className="capsule-btn capsule-hangup"
-          onClick={() => dispatch({ type: 'end-live' })}
+          onClick={() => void live.end()}
           aria-label="结束 Live"
           type="button"
         >
-          <Icon name="close" />
+          <Icon name="stop" />
         </button>
       </div>
     </div>

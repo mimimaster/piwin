@@ -16,9 +16,23 @@ function parseDiffLines(rawDiff: string): DiffLine[] {
   const result: DiffLine[] = [];
   let oldLineCounter = 1;
   let newLineCounter = 1;
+  let inHunk = false;
 
   for (const line of lines) {
+    if (line.startsWith('diff --git ')) {
+      inHunk = false;
+      continue;
+    }
+    // `diff --git`, `index`, `--- a/…`, `+++ b/…` precede the first hunk and are
+    // file metadata, not content lines.
+    if (!inHunk && !line.startsWith('@@')) {
+      continue;
+    }
+    if (line.startsWith('\\ No newline')) {
+      continue;
+    }
     if (line.startsWith('@@')) {
+      inHunk = true;
       result.push({ type: 'header', text: line });
       const match = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
       if (match && match[1] && match[2]) {

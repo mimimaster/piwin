@@ -1,0 +1,421 @@
+/* Composer follow-ups and workspace review surfaces. */
+
+/* Follow-ups waiting on the live run (queued turns / interventions). */
+.queue-stack {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 6px;
+}
+.queue-stack .queue-strip {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  font-size: 12px;
+}
+.queue-stack .queue-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--t1);
+}
+.queue-stack .queue-strip button {
+  margin-left: 0;
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+.queue-stack .queue-strip small {
+  font: 10.5px var(--mono);
+  color: var(--t3);
+  flex: none;
+}
+.composer.queued {
+  box-shadow: inset 0 1.5px 0 var(--zhu), var(--sh2);
+}
+
+/* Unified diff (MobileDiffViewer) in Inkstone ink, horizontally scrollable. */
+.inkstone-root .mobile-diff-viewer {
+  font: 11px/1.7 var(--mono);
+  background: var(--code);
+  border: 1px solid var(--l2);
+  border-radius: 8px;
+  padding: 4px 0;
+}
+.inkstone-root .mobile-diff-viewer .diff-line {
+  min-width: max-content;
+  padding: 0 10px 0 4px;
+  color: var(--t1);
+}
+.inkstone-root .mobile-diff-viewer .diff-line.header {
+  color: var(--azure);
+  background: transparent;
+  border-bottom: 0;
+  padding: 6px 10px 2px;
+  font-weight: 500;
+}
+.inkstone-root .mobile-diff-viewer .diff-line.add {
+  background: var(--pine-wash);
+  color: var(--t1);
+}
+.inkstone-root .mobile-diff-viewer .diff-line.delete {
+  background: var(--crimson-wash);
+  color: var(--t1);
+}
+.inkstone-root .mobile-diff-viewer .diff-line.add .diff-sign {
+  color: var(--pine);
+}
+.inkstone-root .mobile-diff-viewer .diff-line.delete .diff-sign {
+  color: var(--crimson);
+}
+.inkstone-root .mobile-diff-viewer .diff-num {
+  color: var(--t4);
+  width: 28px;
+}
+
+/* Workspace › 变更 */
+.change-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  margin: 8px 0 12px;
+}
+.change-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  width: 100%;
+  font-size: 13px;
+  color: var(--t1);
+}
+.change-row[aria-expanded='true'] {
+  background: var(--s3);
+}
+.change-row .status {
+  width: 18px;
+  font: 600 11px var(--mono);
+  color: var(--ochre);
+  flex: none;
+}
+.change-row .status.A,
+.change-row .status.U {
+  color: var(--pine);
+}
+.change-row .status.D {
+  color: var(--crimson);
+}
+.change-row .path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font: 12px var(--mono);
+}
+.change-row .session-mark {
+  font: 10px var(--sans);
+  color: var(--zhu);
+  flex: none;
+}
+.change-diff {
+  margin: 0 0 12px;
+  min-width: 0;
+}
+
+/* Sessions: loading placeholder while the Host list is not in yet. */
+.session-skeleton {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+.session-skeleton span {
+  height: 58px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--s2) 0%, var(--s3) 40%, var(--s2) 80%);
+  background-size: 200% 100%;
+  animation: ik-shimmer 1.4s linear infinite;
+}
+@keyframes ik-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-skeleton span {
+    animation: none;
+  }
+}
+
+/* Agent todo list above the slab (Host `todo/updated`). */
+.todo-strip {
+  margin: 0 0 6px;
+  border-radius: 8px;
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  font-size: 12px;
+}
+.todo-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  background: none;
+  border: 0;
+  color: var(--t2);
+  text-align: left;
+}
+.todo-head b {
+  color: var(--t1);
+  font-weight: 500;
+  flex: none;
+}
+.todo-head .icon {
+  width: 13px;
+  height: 13px;
+  color: var(--pine);
+  flex: none;
+}
+.todo-head .chev {
+  color: var(--t4);
+  margin-left: auto;
+}
+.todo-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 10px 8px 12px;
+  display: grid;
+  gap: 4px;
+  max-height: 180px;
+  overflow: auto;
+}
+.todo-list li {
+  display: flex;
+  gap: 8px;
+  color: var(--t1);
+  line-height: 1.5;
+}
+.todo-list li span {
+  color: var(--t3);
+  flex: none;
+}
+.todo-list li.in_progress span {
+  color: var(--lamp);
+}
+.todo-list li.done {
+  color: var(--t3);
+  text-decoration: line-through;
+}
+
+/* Artifact stage in Inkstone ink (base layout: styles/artifact-viewer.css). */
+.inkstone-root .mobile-artifact-stage {
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  border-radius: 10px;
+  box-shadow: var(--sh1);
+}
+.inkstone-root .mobile-artifact-stage-icon {
+  width: 30px;
+  height: 30px;
+  background: var(--zhu-wash);
+  color: var(--zhu);
+  border-radius: 6px;
+}
+.inkstone-root .mobile-artifact-stage-title {
+  font: 600 13.5px/1.35 var(--serif);
+  color: var(--t1);
+}
+.inkstone-root .mobile-artifact-stage-meta {
+  font: 10px var(--mono);
+  color: var(--t3);
+}
+.inkstone-root .mobile-artifact-stage-expand {
+  background: transparent;
+  color: var(--t2);
+}
+.inkstone-root .mobile-artifact-stage-expand:active {
+  background: var(--s2);
+}
+
+/* Workspace › 终端 (Host jobs, read-only). */
+.job-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  margin: 8px 0 12px;
+}
+.job-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: none;
+  border: 0;
+  text-align: left;
+}
+.job-head[aria-expanded='true'] {
+  background: var(--s3);
+}
+.job-head code {
+  flex: 1;
+  min-width: 0;
+  font: 11.5px var(--mono);
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.job-meta {
+  font: 10.5px var(--mono);
+  color: var(--t3);
+  flex: none;
+}
+.job-log {
+  margin: 2px 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--code);
+  border: 1px solid var(--l2);
+}
+.job-log pre {
+  margin: 6px 0;
+  max-height: 320px;
+  overflow: auto;
+  font: 11px/1.55 var(--mono);
+  color: var(--t1);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.job-facts {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font: 10.5px var(--mono);
+  color: var(--t3);
+}
+.job-facts span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Workspace › 浏览器 (Host browser snapshot). */
+.browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 10px;
+}
+.browser-bar input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 19px;
+  border: 1px solid var(--l2);
+  background: var(--s2);
+  color: var(--t1);
+  font: 16px var(--sans);
+}
+.browser-shot {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--l2);
+  background: var(--s3);
+  overflow: hidden;
+  color: var(--t3);
+  font-size: 12px;
+}
+.browser-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.browser-lock {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--lamp-wash);
+  font-size: 12px;
+  color: var(--t1);
+}
+
+/* Sessions: Host list window (`totalCount` / `truncated`). */
+.list-window {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0 14px;
+  font: 11px var(--mono);
+  color: var(--t3);
+}
+
+/* Workspace › 文件 preview. */
+.file-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.file-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  top: -10px;
+  z-index: 2;
+  padding: 6px 0;
+  background: var(--s2);
+}
+.file-preview-head .grow {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.file-preview-head strong {
+  font: 600 14px var(--mono);
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-preview-head small {
+  font: 10.5px var(--mono);
+  color: var(--t3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-image img {
+  display: block;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--l2);
+  background: var(--s3);
+}
+.file-markdown {
+  padding: 4px 2px;
+}

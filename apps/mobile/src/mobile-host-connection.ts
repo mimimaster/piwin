@@ -11,6 +11,7 @@ import {
 } from '@piwin/host-client';
 import { WebSocketHostTransport } from '@piwin/host-transport';
 import { isNativeTauriRuntime } from './mobile-device-credential-vault.js';
+import { mobileLocalStorage } from './mobile-local-storage.js';
 import { createTauriHostWebSocket } from './tauri-host-websocket.js';
 
 const CLIENT_ID_KEY = 'piwin.mobile.client-id';
@@ -144,7 +145,7 @@ export function isRemoteHostStatusData(value: unknown): value is RemoteHostStatu
 }
 
 function getOrCreateClientId(): string {
-  const storage = getLocalStorage();
+  const storage = mobileLocalStorage();
   const stored = storage?.getItem(CLIENT_ID_KEY);
   if (stored !== null && stored !== undefined && stored.length > 0) {
     return stored;
@@ -164,12 +165,12 @@ function getOrCreateClientId(): string {
 function createLocalStorageLastSeqStore(storageKey: string): HostClientLastSeqStore {
   return {
     read: () => {
-      const raw = getLocalStorage()?.getItem(storageKey);
+      const raw = mobileLocalStorage()?.getItem(storageKey);
       const parsed = raw === null || raw === undefined ? 0 : Number(raw);
       return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
     },
     write: (lastSeq) => {
-      getLocalStorage()?.setItem(storageKey, String(lastSeq));
+      mobileLocalStorage()?.setItem(storageKey, String(lastSeq));
     },
   };
 }
@@ -177,7 +178,7 @@ function createLocalStorageLastSeqStore(storageKey: string): HostClientLastSeqSt
 function createLocalStorageCursorStore(storageKey: string): HostClientCursorStore {
   return {
     read: () => {
-      const raw = getLocalStorage()?.getItem(storageKey);
+      const raw = mobileLocalStorage()?.getItem(storageKey);
       if (raw === null || raw === undefined) {
         return undefined;
       }
@@ -189,7 +190,7 @@ function createLocalStorageCursorStore(storageKey: string): HostClientCursorStor
       }
     },
     write: (cursor) => {
-      getLocalStorage()?.setItem(storageKey, JSON.stringify(cursor));
+      mobileLocalStorage()?.setItem(storageKey, JSON.stringify(cursor));
     },
   };
 }
@@ -205,13 +206,6 @@ function isHostClientCursor(value: unknown): value is HostClientCursor {
   return value.hostInstanceId === undefined || typeof value.hostInstanceId === 'string';
 }
 
-function getLocalStorage(): Storage | undefined {
-  try {
-    return globalThis.localStorage;
-  } catch {
-    return undefined;
-  }
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;

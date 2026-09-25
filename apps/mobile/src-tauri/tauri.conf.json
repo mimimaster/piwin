@@ -33,7 +33,7 @@
   "bundle": {
     "iOS": {
       "developmentTeam": "F47G63A8DM",
-      "bundleVersion": "1.0.0.7",
+      "bundleVersion": "1.0.0.8",
       "template": "src-tauri/ios-project.yml",
       "infoPlist": "Info.plist"
     }

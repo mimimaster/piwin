@@ -2,6 +2,8 @@ import { memo, useMemo, useState, type ComponentProps, type ReactElement } from 
 import { cjk } from '@streamdown/cjk';
 import { createMathPlugin } from '@streamdown/math';
 import { Streamdown, type Components } from 'streamdown';
+import { CodeView } from '../../inkstone/syntax/CodeView.js';
+import { fenceLanguage } from '../../inkstone/syntax/file-kind.js';
 
 type MobileMarkdownProps = {
   content: string;
@@ -56,13 +58,7 @@ export const MobileMarkdown = memo(function MobileMarkdown({
         const language = match ? match[1] : '';
         const codeText = String(children).replace(/\n$/, '');
 
-        return (
-          <MobileCodeBlock language={language ?? ''} codeText={codeText}>
-            <code className={className} {...rest}>
-              {children}
-            </code>
-          </MobileCodeBlock>
-        );
+        return <MobileCodeBlock language={language ?? ''} codeText={codeText} settled={!isStreaming} />;
       },
       table({ children, ...rest }: ComponentProps<'table'>) {
         return (
@@ -72,7 +68,7 @@ export const MobileMarkdown = memo(function MobileMarkdown({
         );
       },
     }),
-    [],
+    [isStreaming],
   );
 
   return (
@@ -92,11 +88,12 @@ export const MobileMarkdown = memo(function MobileMarkdown({
 function MobileCodeBlock({
   language,
   codeText,
-  children,
+  settled,
 }: {
   language: string;
   codeText: string;
-  children: React.ReactNode;
+  /** Highlight only once the fence stops streaming; tokenizing every delta is wasted work. */
+  settled: boolean;
 }): ReactElement {
   const [copied, setCopied] = useState(false);
   const langLower = (language || '').toLowerCase();
@@ -120,10 +117,11 @@ function MobileCodeBlock({
   if (isSvg && activeTab === 'preview') {
     return (
       <div className="mobile-artifact-inline-preview" data-testid="mobile-artifact-inline-preview">
-        <div
-          className="mobile-svg-preview-stage"
-          dangerouslySetInnerHTML={{ __html: codeText }}
-        />
+        {/* Model output is untrusted: an <img> renders SVG without ever
+            running its scripts or event handlers in the app origin. */}
+        <div className="mobile-svg-preview-stage">
+          <img src={svgDataUri(codeText)} alt="SVG 预览" />
+        </div>
         <div className="mobile-artifact-floating-actions">
           <button
             type="button"
@@ -170,7 +168,13 @@ function MobileCodeBlock({
           </button>
         </div>
       </div>
-      <pre className="mobile-code-pre">{children}</pre>
+      <CodeView code={codeText} language={fenceLanguage(language)} highlight={settled} lineNumbers={false} />
     </div>
   );
+}
+
+function svgDataUri(source: string): string {
+  const start = source.indexOf('<svg');
+  const svg = start >= 0 ? source.slice(start) : source;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

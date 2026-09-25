@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState, type ReactElement } from 'react';
-import { INITIAL_INKSTONE_STATE, inkstoneReducer, type InkstoneRoute } from './demo-state.js';
+import { INITIAL_INKSTONE_STATE, inkstoneReducer, type InkstoneRoute } from './inkstone-state.js';
 import { InkstoneContext } from './inkstone-context.js';
 import { InkstoneIconSprite, Icon } from './icons.js';
 import { SessionsPage } from './pages/sessions.js';
@@ -19,18 +19,20 @@ import { WikiDetailPage } from './pages/wiki-detail.js';
 import { VoicePage } from './pages/voice.js';
 import { SettingsDetailPage, SettingsPage } from './pages/settings.js';
 import {
-  AutomationsPage,
   ConnectPage,
   LibraryPage,
   NewSessionPage,
   WalkthroughPage,
 } from './pages/extras.js';
 import { SHEETS } from './sheets/index.js';
+import { AutomationsPage } from './pages/automations.js';
 import {
   InkstoneHostProvider,
   type InkstoneHostContextValue,
 } from './host/inkstone-host-context.js';
 import { useMobileAttention } from '../hooks/use-mobile-attention.js';
+import { LiveCallProvider } from './host/live-call-context.js';
+import { useWideLayout } from './use-wide-layout.js';
 
 const PAGES: Record<InkstoneRoute, () => ReactElement> = {
   sessions: SessionsPage,
@@ -127,6 +129,12 @@ export function InkstoneApp({
     if (dialog === null) {
       return;
     }
+    if (state.sheet !== null && SHEETS[state.sheet] === undefined) {
+      // A stale entry point must not open an empty modal.
+      console.warn('[inkstone] unknown sheet', state.sheet);
+      dispatch({ type: 'close-sheet' });
+      return;
+    }
     if (state.sheet !== null && !dialog.open) {
       dialog.showModal();
     } else if (state.sheet === null && dialog.open) {
@@ -134,7 +142,11 @@ export function InkstoneApp({
     }
   }, [state.sheet]);
 
-  const Page = PAGES[state.route];
+  const wide = useWideLayout();
+  // On a wide screen the session list is always docked, so the detail pane
+  // shows the conversation when the route is the list itself.
+  const detailRoute: InkstoneRoute = wide && state.route === 'sessions' ? 'chat' : state.route;
+  const Page = PAGES[detailRoute];
   const sheet = state.sheet !== null ? SHEETS[state.sheet] : undefined;
   const attention = useMobileAttention({
     host: hostContext?.host ?? null,
@@ -145,22 +157,28 @@ export function InkstoneApp({
   return (
     <InkstoneContext.Provider value={{ state, dispatch }}>
       <InkstoneHostProvider value={hostContext}>
+        <LiveCallProvider hostContext={hostContext}>
         <div className="inkstone-root">
           <InkstoneIconSprite />
-          <div className="phone" data-route={state.route}>
-            {attention.banner !== null ? (
-              <button
-                type="button"
-                className="list-row"
-                onClick={attention.openBannerSession}
-                aria-label="打开提醒会话"
-              >
-                <strong>{attention.banner.title}</strong>
-                <small>{attention.banner.body}</small>
-              </button>
-            ) : null}
-            <Page />
-          </div>
+          <ShellPanes
+            wide={wide}
+            route={state.route}
+            detailRoute={detailRoute}
+            page={<Page />}
+            banner={
+              attention.banner !== null ? (
+                <button
+                  type="button"
+                  className="list-row"
+                  onClick={attention.openBannerSession}
+                  aria-label="打开提醒会话"
+                >
+                  <strong>{attention.banner.title}</strong>
+                  <small>{attention.banner.body}</small>
+                </button>
+              ) : null
+            }
+          />
           <div
             className={`toast ${toastVisible ? 'show' : ''}`.trim()}
             role="status"
@@ -202,7 +220,43 @@ export function InkstoneApp({
             ) : null}
           </dialog>
         </div>
+        </LiveCallProvider>
       </InkstoneHostProvider>
     </InkstoneContext.Provider>
+  );
+}
+
+/** Phone: one page at a time. Wide (iPad landscape): sessions docked left, page right. */
+function ShellPanes({
+  wide,
+  route,
+  detailRoute,
+  page,
+  banner,
+}: {
+  wide: boolean;
+  route: InkstoneRoute;
+  detailRoute: InkstoneRoute;
+  page: ReactElement;
+  banner: ReactElement | null;
+}): ReactElement {
+  if (!wide) {
+    return (
+      <div className="phone" data-route={route}>
+        {banner}
+        {page}
+      </div>
+    );
+  }
+  return (
+    <div className="tablet-shell">
+      <nav className="phone tablet-nav" data-route="sessions" aria-label="会话">
+        <SessionsPage />
+      </nav>
+      <main className="phone tablet-detail" data-route={detailRoute}>
+        {banner}
+        {page}
+      </main>
+    </div>
   );
 }

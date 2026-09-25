@@ -1,89 +1,24 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
+import { NeedsHost } from '../needs-host.js';
+import { WorkspaceChanges } from './workspace-changes.js';
+import { WorkspaceFilePreview, type WorkspaceFile } from './workspace-file-preview.js';
+import { WorkspaceJobs } from './workspace-jobs.js';
+import { WorkspaceCanvas } from './workspace-canvas.js';
+import { WorkspaceSideChat } from './workspace-side-chat.js';
+import { WorkspaceBrowser } from './workspace-browser.js';
 import type { HostResponse, NoteRecord } from '@piwin/contracts';
 import { useInkstone } from '../inkstone-context.js';
-import { type InkstoneRoute } from '../demo-state.js';
-import { Icon } from '../icons.js';
+import { type InkstoneRoute } from '../inkstone-state.js';
 import {
-  Dot,
   FullButton,
   IconButton,
   ListRow,
-  Pill,
   ScreenHeading,
   TabsRow,
   TopBar,
 } from '../inkstone-ui.js';
-import { DiffCard } from './review.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 import { createMobileIdempotencyKey, executeMobileMutation } from '../../mobile-prompt-send.js';
-
-function FileRows(): ReactElement {
-  const { dispatch } = useInkstone();
-  const openSheet = (key: string) => () => dispatch({ type: 'open-sheet', key });
-  return (
-    <>
-      <ListRow
-        name="folder"
-        title="packages"
-        subtitle="Host 的项目文件"
-        onClick={openSheet('folder')}
-      />
-      <ListRow
-        name="folder"
-        title="apps"
-        subtitle="desktop · mobile · cli"
-        onClick={openSheet('folder')}
-      />
-      <ListRow
-        name="folder"
-        title="docs"
-        subtitle="设计、计划与架构"
-        onClick={openSheet('folder')}
-      />
-      <ListRow
-        name="file"
-        title="session-index.ts"
-        subtitle="packages/session/src · 已修改"
-        onClick={openSheet('file')}
-      />
-      <ListRow
-        name="file"
-        title="draft-store.ts"
-        subtitle="packages/session/src · 新增"
-        onClick={openSheet('file')}
-      />
-      <ListRow
-        name="file"
-        title="README.md"
-        subtitle="项目说明 · 4.2 KB"
-        onClick={() => dispatch({ type: 'open-workspace', tab: '文档' })}
-      />
-    </>
-  );
-}
-
-function NoteInspector(): ReactElement {
-  const { state, dispatch } = useInkstone();
-  const [text, setText] = useState(state.note);
-  return (
-    <>
-      <ScreenHeading title="随手记" subtitle="与当前会话关联" />
-      <label className="field">
-        移动端的三点想法
-        <textarea rows={9} value={text} onChange={(event) => setText(event.target.value)} />
-      </label>
-      <FullButton variant="secondary" onClick={() => dispatch({ type: 'save-note', value: text })}>
-        保存笔记
-      </FullButton>
-      <FullButton
-        variant="subtle"
-        onClick={() => dispatch({ type: 'add-context', value: '移动端的三点想法' })}
-      >
-        把笔记加入对话
-      </FullButton>
-    </>
-  );
-}
 
 function ConnectedNoteInspector({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
   const { host } = hostCtx;
@@ -195,205 +130,21 @@ function ConnectedNoteInspector({ hostCtx }: { hostCtx: InkstoneHostContextValue
 const WORKSPACE_TABS = ['文件', '终端', '变更', '浏览器', '画布', '文档', '笔记', '卡片', '侧聊'];
 
 export function WorkspacePage(): ReactElement {
-  const { state, dispatch } = useInkstone();
   const hostCtx = useInkstoneHost();
-  const go = (route: InkstoneRoute) => () => dispatch({ type: 'navigate', route });
-  const openSheet = (key: string) => () => dispatch({ type: 'open-sheet', key });
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo(0, 0);
-  }, [state.workspaceTab]);
-
-  if (hostCtx !== null) {
-    return <ConnectedWorkspacePage hostCtx={hostCtx} />;
+  if (hostCtx === null) {
+    return <NeedsHost />;
   }
+  return <ConnectedWorkspacePage hostCtx={hostCtx} />;
+}
 
-  return (
-    <>
-      <TopBar
-        title="工作区"
-        subtitle="piwin · 与当前会话关联"
-        onBack={go('chat')}
-        right={<IconButton name="plus" label="工作区入口" onClick={openSheet('workspace-menu')} />}
-      />
-      <TabsRow
-        items={WORKSPACE_TABS}
-        selected={state.workspaceTab}
-        onSelect={(tab) => dispatch({ type: 'workspace-tab', tab })}
-        extra="workspace-tabs"
-      />
-      <div className="screen-scroll" ref={scrollRef}>
-        {state.workspaceTab === '文件' ? (
-          <>
-            <ScreenHeading title="项目文件" subtitle="piwin / main" />
-            <FileRows />
-          </>
-        ) : state.workspaceTab === '终端' ? (
-          <>
-            <ScreenHeading title="终端输出" subtitle="Host · zsh · 只读快照" />
-            <Pill>
-              <Dot status="done" />
-              退出码 0
-            </Pill>
-            <pre className="terminal">
-              <span className="muted">~/Developer/piwin</span>
-              {'\n'}$ pnpm --filter @piwin/session test
-              {'\n\n'}
-              RUN v3.0.5
-              {'\n\n'}
-              <span className="green"> ✓ session-index.test.ts (8)</span>
-              {'\n'}
-              <span className="green"> ✓ draft-store.test.ts (6)</span>
-              {'\n\n'}
-              {' Test Files  2 passed (2)\n      Tests  14 passed (14)\n   Duration  1.42s\n\n'}
-              <span className="muted">输出快照 · 09:38:12</span>
-            </pre>
-            <FullButton variant="secondary" onClick={openSheet('terminal-command')}>
-              请 Agent 执行下一条命令
-            </FullButton>
-            <div className="quote-note">
-              手机查看 Host 上的输出。命令先回到会话，由 Agent 执行。
-            </div>
-          </>
-        ) : state.workspaceTab === '变更' ? (
-          <>
-            <ScreenHeading title="本轮变更" subtitle="3 个文件 · +48 −12" />
-            <DiffCard />
-            <FullButton variant="secondary" onClick={go('review')}>
-              打开完整审阅
-            </FullButton>
-          </>
-        ) : state.workspaceTab === '浏览器' ? (
-          <>
-            <ScreenHeading title="Host 浏览器" subtitle="当前标签页 · 预览快照" />
-            <div className="search-field">
-              <Icon name="globe" />
-              <span className="mono" style={{ fontSize: 11 }}>
-                localhost:5173
-              </span>
-            </div>
-            <div className="note-paper">
-              <span className="eyebrow">PIWIN / INKSTONE</span>
-              <h3 style={{ marginTop: 20 }}>一张纸，一块砚。</h3>
-              <p>让思路有安放的地方。</p>
-              <hr />
-              <p>会话 · 项目 · 案头</p>
-              <Pill variant="pine" style={{ marginTop: 20 }}>
-                示例页面快照
-              </Pill>
-            </div>
-            <FullButton
-              variant="secondary"
-              onClick={() => dispatch({ type: 'add-context', value: '浏览器页面快照' })}
-            >
-              把页面加入对话
-            </FullButton>
-            <ListRow
-              name="term"
-              title="控制台"
-              subtitle="0 条错误 · 查看示例输出"
-              onClick={openSheet('console')}
-            />
-          </>
-        ) : state.workspaceTab === '画布' ? (
-          <>
-            <ScreenHeading title="Artifact 画布" subtitle="阅读预览 · 按需查看源码" />
-            <div className="note-paper">
-              <span className="eyebrow">SESSION MEMORY / 01</span>
-              <h3 style={{ marginTop: 20 }}>一份安静的记忆</h3>
-              <p>
-                会话内容交给 Host，
-                <br />
-                阅读位置留在设备，
-                <br />
-                每次回来，都从这里开始。
-              </p>
-              <hr />
-              <div className="spread">
-                <Pill>Host · 会话</Pill>→<Pill>设备 · 视图</Pill>
-              </div>
-            </div>
-            <FullButton variant="secondary" onClick={openSheet('artifact-source')}>
-              查看源码
-            </FullButton>
-            <p className="muted" style={{ fontSize: 11, marginTop: 16 }}>
-              原型为静态画布。产品中的 Artifact 使用隔离预览。
-            </p>
-          </>
-        ) : state.workspaceTab === '文档' ? (
-          <>
-            <ScreenHeading title="会话记忆设计" subtitle="session-memory.md · 阅读模式" />
-            <article className="note-paper">
-              <span className="eyebrow">设计笔记 / 2026.09</span>
-              <h3 style={{ marginTop: 18 }}>
-                恢复的是思路，
-                <br />
-                也是上下文。
-              </h3>
-              <p>
-                同一个会话可以在不同的设备继续。手机带走的是观察和输入的能力，执行仍然留在 Host。
-              </p>
-              <hr />
-              <p>
-                一、先恢复历史与草稿。
-                <br />
-                二、再接上最新的活动。
-                <br />
-                三、不重复发送旧的命令。
-              </p>
-            </article>
-            <FullButton
-              variant="secondary"
-              onClick={() =>
-                dispatch({ type: 'add-context', value: 'session-memory.md · 恢复设计' })
-              }
-            >
-              引用这段到会话
-            </FullButton>
-          </>
-        ) : state.workspaceTab === '笔记' ? (
-          <NoteInspector />
-        ) : state.workspaceTab === '卡片' ? (
-          <>
-            <ScreenHeading title="本次对话的卡片" subtitle="3 张 · 架构与设计" />
-            <ListRow
-              name="cards"
-              title="Host 为什么是唯一权威？"
-              subtitle="翻面、浏览或加入计划复习"
-              onClick={go('cards')}
-            />
-            <ListRow
-              name="cards"
-              title="阅读状态由谁记录？"
-              subtitle="来自本轮会话"
-              onClick={go('cards')}
-            />
-            <FullButton variant="secondary" onClick={go('cards')}>
-              打开知识卡片
-            </FullButton>
-          </>
-        ) : (
-          <>
-            <ScreenHeading title="另起一页，问个细节。" subtitle="关联当前会话 · 不干扰主任务" />
-            <div className="quote-note">“Host 记住会话本身，设备记住你阅读的位置。”</div>
-            <div className="user-message">为什么阅读位置不也放在 Host？</div>
-            <div className="assistant-prose" style={{ marginTop: 20 }}>
-              <p>因为两台设备可能正在读不同的地方。正文共享，视图独立，就不会相互打断。</p>
-            </div>
-            <FullButton
-              variant="secondary"
-              onClick={() =>
-                dispatch({ type: 'add-context', value: '侧聊结论：正文共享，视图独立。' })
-              }
-            >
-              把这段结论带回主会话
-            </FullButton>
-          </>
-        )}
-      </div>
-    </>
-  );
+function sessionChangedPaths(messages: InkstoneHostContextValue['host']['messages']): string[] {
+  const paths = new Set<string>();
+  for (const message of messages) {
+    for (const tool of message.toolCalls ?? []) {
+      for (const path of tool.presentation?.changedPaths ?? []) paths.add(path);
+    }
+  }
+  return [...paths];
 }
 
 type WorkspaceEntry = {
@@ -442,13 +193,19 @@ function readWorkspaceDirectory(response: HostResponse): WorkspaceDirectory | un
   };
 }
 
-function readWorkspaceFile(response: HostResponse): { content: string; truncated: boolean } | undefined {
+function readWorkspaceFile(response: HostResponse): WorkspaceFile | undefined {
   if (!response.success || !isRecord(response.data) || typeof response.data.content !== 'string') {
     return undefined;
   }
+  const data = response.data;
   return {
-    content: response.data.content,
-    truncated: response.data.truncated === true,
+    relativePath: typeof data.relativePath === 'string' ? data.relativePath : '',
+    content: data.content as string,
+    byteSize: typeof data.byteSize === 'number' ? data.byteSize : (data.content as string).length,
+    truncated: data.truncated === true,
+    isBinary: data.isBinary === true,
+    ...(typeof data.previewDataUrl === 'string' ? { previewDataUrl: data.previewDataUrl } : {}),
+    ...(typeof data.previewThumbDataUrl === 'string' ? { previewThumbDataUrl: data.previewThumbDataUrl } : {}),
   };
 }
 
@@ -461,7 +218,7 @@ function ConnectedWorkspacePage({ hostCtx }: { hostCtx: InkstoneHostContextValue
   const projectLocator = project?.projectId;
   const [relativePath, setRelativePath] = useState('');
   const [directory, setDirectory] = useState<WorkspaceDirectory | undefined>();
-  const [selectedFile, setSelectedFile] = useState<{ path: string; content: string; truncated: boolean }>();
+  const [selectedFile, setSelectedFile] = useState<WorkspaceFile | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
 
@@ -537,7 +294,7 @@ function ConnectedWorkspacePage({ hostCtx }: { hostCtx: InkstoneHostContextValue
       return;
     }
     setError(undefined);
-    setSelectedFile({ path: entry.relativePath, ...file });
+    setSelectedFile({ ...file, relativePath: entry.relativePath });
   };
 
   const go = (route: InkstoneRoute) => () => dispatch({ type: 'navigate', route });
@@ -575,19 +332,6 @@ function ConnectedWorkspacePage({ hostCtx }: { hostCtx: InkstoneHostContextValue
           }}
         />
       ))}
-      {selectedFile !== undefined ? (
-        <article className="note-paper">
-          <span className="eyebrow mono">{selectedFile.path}</span>
-          <pre className="terminal">{selectedFile.content}</pre>
-          {selectedFile.truncated ? <p className="muted">内容已按 Host 上限截断。</p> : null}
-          <FullButton
-            variant="secondary"
-            onClick={() => dispatch({ type: 'add-context', value: `@${selectedFile.path}` })}
-          >
-            引用到对话
-          </FullButton>
-        </article>
-      ) : null}
     </>
   );
 
@@ -618,53 +362,42 @@ function ConnectedWorkspacePage({ hostCtx }: { hostCtx: InkstoneHostContextValue
               <p className="muted">请从 Host 项目会话进入工作区。</p>
             </>
           ) : (
-            directoryView
+            selectedFile !== undefined ? (
+              <WorkspaceFilePreview
+                file={selectedFile}
+                onBack={() => setSelectedFile(undefined)}
+                onReference={() => {
+                  const current = host.composerText.trimEnd();
+                  host.setComposerText(`${current}${current.length > 0 ? ' ' : ''}@${selectedFile.relativePath} `);
+                  dispatch({ type: 'navigate', route: 'chat' });
+                  dispatch({ type: 'toast', message: '已放进砚台，发送时由 Host 读取文件' });
+                }}
+              />
+            ) : (
+              directoryView
+            )
           )
         ) : state.workspaceTab === '终端' ? (
-          <>
-            <ScreenHeading title="Host 运行状态" subtitle="移动端只展示 Host 返回的活动摘要" />
-            {host.activityItems.length === 0 ? (
-              <p className="muted">当前没有运行中的 Host 任务或待处理权限。</p>
-            ) : (
-              host.activityItems.map((item) => (
-                <ListRow
-                  key={`${item.sessionId}-${item.runId ?? item.permissionRequestId ?? 'activity'}`}
-                  name="term"
-                  title={item.runId ? `运行 ${item.runId}` : '等待权限'}
-                  subtitle={item.phase ?? item.permissionAction ?? item.status ?? 'Host 活动'}
-                  onClick={go('activity')}
-                />
-              ))
-            )}
-            <FullButton variant="secondary" onClick={go('activity')}>
-              查看完整活动
-            </FullButton>
-          </>
+          <WorkspaceJobs
+            client={client}
+            sessionId={host.activeSessionId}
+            onToast={(message) => dispatch({ type: 'toast', message })}
+          />
         ) : state.workspaceTab === '变更' ? (
-          <>
-            <ScreenHeading title="Host 变更" subtitle="进入审阅页读取当前子任务结果" />
-            <p className="muted">此处不再显示固定 Diff；审阅页会按结果版本加载文件和补丁。</p>
-            <FullButton variant="secondary" onClick={go('review')}>
-              打开完整审阅
-            </FullButton>
-          </>
+          <WorkspaceChanges
+            client={client}
+            projectLocator={session?.projectId}
+            projectName={title}
+            sessionPaths={sessionChangedPaths(host.messages)}
+          />
         ) : state.workspaceTab === '浏览器' ? (
-          <>
-            <ScreenHeading title="Host 浏览器" subtitle="由 Host 浏览器会话提供快照" />
-            {client?.supportsCommand('browser/start') ? (
-              <p className="muted">Host 已声明浏览器能力；当前壳尚未订阅浏览器帧。</p>
-            ) : (
-              <p className="muted">当前 Host 未开放浏览器控制。</p>
-            )}
-          </>
+          <WorkspaceBrowser
+            client={client}
+            sessionId={host.activeSessionId}
+            onToast={(message) => dispatch({ type: 'toast', message })}
+          />
         ) : state.workspaceTab === '画布' ? (
-          <>
-            <ScreenHeading title="Artifact 画布" subtitle="从当前会话消息打开真实预览" />
-            <p className="muted">画布内容由 Host 消息中的 Artifact 载荷提供；当前会话没有可独立展示的画布。</p>
-            <FullButton variant="secondary" onClick={go('chat')}>
-              回到对话查看 Artifact
-            </FullButton>
-          </>
+          <WorkspaceCanvas messages={host.messages} />
         ) : state.workspaceTab === '笔记' ? (
           <ConnectedNoteInspector hostCtx={hostCtx} />
         ) : state.workspaceTab === '卡片' ? (
@@ -676,13 +409,14 @@ function ConnectedWorkspacePage({ hostCtx }: { hostCtx: InkstoneHostContextValue
             </FullButton>
           </>
         ) : (
-          <>
-            <ScreenHeading title="侧聊" subtitle="关联当前 Host 会话" />
-            <p className="muted">侧聊消息需要 Host 提供独立会话；当前壳不会伪造一段回答。</p>
-            <FullButton variant="secondary" onClick={go('chat')}>
-              回到主会话
-            </FullButton>
-          </>
+          <WorkspaceSideChat
+            client={client}
+            sessionId={host.activeSessionId}
+            onOpenSession={(sessionId) => {
+              void host.handleSelectSession(sessionId).then(() => dispatch({ type: 'navigate', route: 'chat' }));
+            }}
+            onToast={(message) => dispatch({ type: 'toast', message })}
+          />
         )}
       </div>
     </>

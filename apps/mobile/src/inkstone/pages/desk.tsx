@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
+import { NeedsHost } from '../needs-host.js';
 import { useInkstone } from '../inkstone-context.js';
-import { type InkstoneRoute } from '../demo-state.js';
+import { type InkstoneRoute } from '../inkstone-state.js';
 import { Icon, type InkstoneIconName } from '../icons.js';
 import {
   BottomNav,
@@ -10,8 +11,8 @@ import {
   ScreenHeading,
   TopBar,
 } from '../inkstone-ui.js';
-import { endpointLabel, getAttentionItems } from './sessions.js';
-import { useInkstoneHost } from '../host/inkstone-host-context.js';
+import { endpointLabel } from './sessions.js';
+import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 import { collectPendingPermissionSessionIds } from '../host/host-bridge.js';
 
 interface SettingsItem {
@@ -57,33 +58,27 @@ const SETTINGS_GROUPS: [string, SettingsItem[]][] = [
 ];
 
 export function DeskPage(): ReactElement {
-  const { state, dispatch } = useInkstone();
   const hostCtx = useInkstoneHost();
-  const attentionCount = hostCtx === null
-    ? getAttentionItems(state).length
-    : collectPendingPermissionSessionIds(hostCtx.host.activityItems).size;
+  if (hostCtx === null) {
+    return <NeedsHost what="案头" />;
+  }
+  return <ConnectedDesk hostCtx={hostCtx} />;
+}
 
-  const isConnected = hostCtx !== null && hostCtx.host.connectionState.kind === 'ready';
-  const isConnecting = hostCtx !== null && hostCtx.host.connectionState.kind === 'connecting';
-  const isOffline = state.offline || (hostCtx !== null && !isConnected && !isConnecting);
-
-  const hostTitle = hostCtx !== null && hostCtx.host.endpoint
-    ? endpointLabel(hostCtx.host.endpoint)
-    : '书房的 Mac Studio';
-
+function ConnectedDesk({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
+  const { dispatch } = useInkstone();
+  const { host } = hostCtx;
+  const attentionCount = collectPendingPermissionSessionIds(host.activityItems).size;
+  const isConnected = host.connectionState.kind === 'ready';
+  const isConnecting = host.connectionState.kind === 'connecting';
+  const isOffline = !isConnected && !isConnecting;
+  const hostTitle = host.endpoint ? endpointLabel(host.endpoint) : 'Host';
   const hostSubtitle = isConnected
-    ? `已连接 · ${hostCtx.host.sessions.length > 0 ? `${hostCtx.host.sessions.length} 个会话` : '2 台设备在线'}`
+    ? `已连接 · ${host.sessions.length} 个会话`
     : isConnecting
       ? '正在连接…'
       : '连接已断开 · 点按管理';
-
-  const onHostClick = () => {
-    if (hostCtx !== null) {
-      hostCtx.onOpenConnection();
-    } else {
-      dispatch({ type: 'open-sheet', key: 'host' });
-    }
-  };
+  const onHostClick = hostCtx.onOpenConnection;
 
   const openSettings = (section: string) => {
     dispatch({ type: 'settings-section', section });
@@ -100,19 +95,19 @@ export function DeskPage(): ReactElement {
     [
       'book',
       '知识中心',
-      hostCtx === null ? '维基 · 信源 · 闪卡' : `${hostCtx.host.knowledgeBases.length} 个 Host 信源`,
+      `${host.knowledgeBases.length} 个 Host 信源`,
       () => dispatch({ type: 'navigate', route: 'knowledge' }),
     ],
     [
       'refresh',
       '自动化',
-      hostCtx === null ? '2 条定时任务' : '查看 Host 自动化状态',
+      '查看与编辑 Host 定时任务',
       () => dispatch({ type: 'navigate', route: 'automations' }),
     ],
     [
       'chart',
       '用量统计',
-      hostCtx === null ? '最近 30 天用量' : '读取 Host 用量',
+      '读取 Host 用量',
       () => openSettings('用量统计'),
     ],
   ];
@@ -132,7 +127,7 @@ export function DeskPage(): ReactElement {
       />
       {isOffline ? (
         <div className="banner-offline">
-          <span>连接中断 · 显示快照，草稿仍可写</span>
+          <span>连接中断 · 正在自动重连</span>
           <button onClick={onHostClick} type="button">
             管理连接
           </button>

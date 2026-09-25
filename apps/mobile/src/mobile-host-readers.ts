@@ -10,6 +10,7 @@ import {
   type RemoteMediaAsset,
   type RemoteProjectSummary,
   type RemoteSessionSummary,
+  type WalkthroughArtifact,
   type WikiConceptDetail,
   type WikiOverviewResult,
 } from '@piwin/contracts';
@@ -361,4 +362,17 @@ function isWikiConceptDetail(value: unknown): value is WikiConceptDetail {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+/** `walkthrough/list` artifacts; unknown statuses are dropped, never guessed. */
+export function readWalkthroughArtifacts(response: HostResponse): WalkthroughArtifact[] {
+  if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.artifacts)) {
+    return [];
+  }
+  return response.data.artifacts.filter((artifact): artifact is WalkthroughArtifact => {
+    if (!isRecord(artifact) || typeof artifact.id !== 'string' || typeof artifact.status !== 'string') {
+      return false;
+    }
+    return artifact.status === 'generating' || artifact.status === 'ready' || artifact.status === 'error';
+  });
 }

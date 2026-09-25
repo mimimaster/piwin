@@ -4,6 +4,7 @@ import { MOBILE_THEME } from './mobile-theme.js';
 import { InkstoneApp } from './inkstone/InkstoneApp.js';
 import type { InkstoneHostContextValue } from './inkstone/host/inkstone-host-context.js';
 import { useInkstoneModelSelection } from './inkstone/host/use-inkstone-model-selection.js';
+import { useSessionDrafts, useSessionListSnapshot } from './inkstone/host/use-offline-cache.js';
 import { useKeyboardInset } from './hooks/use-keyboard-inset.js';
 import { useMobileHost } from './hooks/use-mobile-host.js';
 import { ConnectionSurface } from './surfaces/connection/ConnectionSurface.js';
@@ -32,6 +33,8 @@ export function App(): ReactElement {
   useEffect(() => subscribeMobileFlashcardsRoute(setFlashcardsRoute), []);
 
   const modelSelection = useInkstoneModelSelection(host);
+  const snapshot = useSessionListSnapshot(host);
+  useSessionDrafts(host);
 
   if (showConnectionConfig) {
     return (
@@ -81,9 +84,13 @@ export function App(): ReactElement {
   }
 
   const hostContext: InkstoneHostContextValue = {
-    host,
+    host:
+      snapshot === undefined
+        ? host
+        : { ...host, sessions: snapshot.sessions, projects: snapshot.projects },
     onOpenConnection: () => setShowConnectionConfig(true),
     modelSelection,
+    ...(snapshot !== undefined ? { offlineSnapshot: { savedAt: snapshot.savedAt } } : {}),
   };
 
   return (

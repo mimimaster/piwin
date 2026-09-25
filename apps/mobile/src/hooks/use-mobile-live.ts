@@ -165,7 +165,9 @@ export function useMobileLive(input: {
     setStatus(null);
     setError(null);
     if (input.hostClient === undefined) return;
-    void refreshStatus();
+    // The call is app-scoped and may mount before the Host handshake; the
+    // ready transition below performs the first read in that case.
+    if (input.hostClient.getState().kind === 'ready') void refreshStatus();
     const unsubscribePush = input.hostClient.subscribePush((push) => {
       if (push.type === 'voice/live-updated') {
         const current = statusRef.current;
@@ -195,7 +197,11 @@ export function useMobileLive(input: {
       }
     });
     const unsubscribeState = input.hostClient.subscribeState((state) => {
-      if (state.kind === 'ready') return;
+      if (state.kind === 'ready') {
+        setError(null);
+        void refreshStatus();
+        return;
+      }
       if (callRef.current !== null && !startingRef.current) {
         void failAndClose('live-owner-disconnected');
       }

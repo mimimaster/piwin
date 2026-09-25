@@ -1,0 +1,667 @@
+/* Transcript anatomy ported from docs/design/inkstone/mobile/surfaces.css
+   (.work / .thread / .tr / .gate / .fcb). Tokens come from inkstone-theme.css. */
+
+:root {
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+[data-face='paper'] {
+  --azure-wash: rgba(46, 94, 142, 0.08);
+}
+[data-face='ink'] {
+  --azure-wash: rgba(120, 170, 220, 0.12);
+}
+
+.turn {
+  margin: 4px 0 18px;
+}
+
+.turn .message-head {
+  margin-bottom: 2px;
+}
+
+/* Work fold ----------------------------------------------------------- */
+.work {
+  margin: 4px 0 10px;
+}
+.work-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 8px;
+  margin-left: -8px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: var(--t2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+.work-h:active {
+  background: var(--s3);
+}
+.work-h b {
+  color: var(--t1);
+  font-weight: 500;
+}
+.work-h .work-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--t3);
+}
+.work-h .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--t3);
+  flex: none;
+}
+.work-h .chev {
+  margin-left: auto;
+  width: 13px;
+  height: 13px;
+  color: var(--t4);
+  transition: transform 0.24s ease;
+}
+.work-h[aria-expanded='true'] .chev {
+  transform: rotate(180deg);
+}
+.work-h .lamp {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lamp);
+  box-shadow: 0 0 0 3px var(--lamp-wash);
+  animation: breathe 2.4s ease-in-out infinite;
+  flex: none;
+}
+.work-h .sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--zhu);
+  flex: none;
+}
+.work-h.failed b {
+  color: var(--crimson);
+}
+.work-body {
+  animation: ik-fold 0.24s ease both;
+}
+
+.think {
+  margin: 2px 0 6px;
+  padding: 4px 0 4px 10px;
+  border-left: 2px solid var(--l2);
+  color: var(--t2);
+  font: italic 12.5px/1.65 var(--serif);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.think.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.think.live {
+  /* Streaming thought: keep only the newest lines on screen. */
+  max-height: 6.6em;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column-reverse;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 2.2em);
+  mask-image: linear-gradient(to bottom, transparent, #000 2.2em);
+}
+.think-toggle {
+  display: block;
+  margin: -2px 0 6px 12px;
+  font-size: 11px;
+  color: var(--t3);
+  background: none;
+  border: 0;
+  padding: 2px 0;
+}
+.narr {
+  margin: 2px 0 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--t2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.interject {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin: 4px 0 8px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: var(--zhu-wash);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--t1);
+}
+.interject-tag {
+  flex: none;
+  font: 600 10px var(--sans);
+  letter-spacing: 0.06em;
+  color: var(--zhu);
+}
+
+/* Ink line ------------------------------------------------------------ */
+.thread {
+  position: relative;
+  padding-left: 20px;
+}
+.thread::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 8px;
+  bottom: 8px;
+  width: 1.5px;
+  border-radius: 1px;
+  background: var(--l3);
+}
+.thread > .think,
+.thread > .narr,
+.thread > .think-toggle {
+  margin-left: 0;
+}
+.node {
+  position: absolute;
+  left: -17.5px;
+  top: 14px;
+  margin-top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--s2);
+  border: 1.5px solid var(--l3);
+  box-sizing: border-box;
+}
+.node.done {
+  background: var(--pine);
+  border-color: var(--pine);
+}
+.node.run {
+  background: var(--lamp);
+  border-color: var(--lamp);
+  box-shadow: 0 0 0 3px var(--lamp-wash);
+  animation: breathe 2.4s ease-in-out infinite;
+}
+.node.wait {
+  border-radius: 1px;
+  background: var(--zhu);
+  border-color: var(--zhu);
+}
+.node.bg {
+  background: var(--azure);
+  border-color: var(--azure);
+}
+.node.ask {
+  background: var(--azure);
+  border-color: var(--azure);
+}
+.node.fail {
+  background: var(--crimson);
+  border-color: var(--crimson);
+}
+
+.tr-wrap {
+  position: relative;
+  animation: ik-draw 0.24s ease both;
+}
+.tr {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 6px;
+  margin-left: -6px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--t2);
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  box-sizing: content-box;
+}
+.tr:active,
+.tr[aria-expanded='true'] {
+  background: var(--s3);
+}
+.tr b {
+  color: var(--t1);
+  font: 600 11.5px var(--mono);
+  flex: none;
+}
+.tr code {
+  font: 11px var(--mono);
+  color: var(--t1);
+  background: var(--code);
+  padding: 1px 4px;
+  border-radius: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tr .q {
+  font-size: 12px;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tr .meta {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding-left: 6px;
+  font: 10.5px var(--mono);
+  color: var(--t4);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.tr .meta .bad {
+  color: var(--crimson);
+}
+.pm {
+  font: 11px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.plus {
+  color: var(--pine);
+}
+.minus {
+  color: var(--crimson);
+}
+.run-m {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--lamp);
+}
+.grind {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--l3);
+  border-top-color: var(--lamp);
+  animation: grind 1.4s linear infinite;
+  box-sizing: border-box;
+}
+
+.tr-body {
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 2px 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  animation: ik-fold 0.24s ease both;
+}
+.tr-body .tr-label {
+  font: 600 10px var(--sans);
+  letter-spacing: 0.08em;
+  color: var(--t3);
+}
+.tr-body pre {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  font: 11px/1.55 var(--mono);
+  color: var(--t1);
+  white-space: pre;
+  -webkit-overflow-scrolling: touch;
+}
+.tr-body pre.cmd {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.tr-body .tr-paths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tr-body .tr-paths code {
+  font: 10.5px var(--mono);
+  background: var(--code);
+  padding: 1px 5px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+.tr-body .tr-err {
+  color: var(--crimson);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.tr-body .tr-note {
+  font-size: 11px;
+  color: var(--t3);
+}
+
+/* Turn footer ---------------------------------------------------------- */
+.fcb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  box-shadow: var(--sh1);
+  font-size: 12px;
+  color: var(--t2);
+  margin-top: 10px;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+  width: 100%;
+  text-align: left;
+}
+.fcb .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--t3);
+}
+.fcb .fcb-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.fcb .fcb-toggle .chev {
+  width: 12px;
+  height: 12px;
+  color: var(--t4);
+}
+.fcb .fcb-files {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 0 4px 20px;
+}
+.fcb .fcb-files code {
+  font: 10.5px var(--mono);
+  background: var(--code);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.turn-terminal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--t2);
+  background: var(--s3);
+  border-left: 3px solid var(--l3);
+}
+.turn-terminal.failed {
+  border-left-color: var(--crimson);
+  color: var(--crimson);
+}
+.cap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 2px;
+  font: 11px var(--mono);
+  color: var(--t3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cap i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--t4);
+  flex: none;
+}
+
+/* Subagent rows */
+.tr-body .tr-task {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--t1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tr-runs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.tr-runs li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.tr-runs .grow {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.tr-runs strong {
+  font-weight: 500;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tr-runs small {
+  color: var(--t3);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tr-runs em {
+  font: normal 10.5px var(--mono);
+  color: var(--t3);
+}
+.node-inline {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--l3);
+}
+.node-inline.running,
+.node-inline.queued {
+  background: var(--lamp);
+}
+.node-inline.completed {
+  background: var(--pine);
+}
+.node-inline.failed {
+  background: var(--crimson);
+}
+
+@keyframes grind {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ik-draw {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ik-fold {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .node.run,
+  .work-h .lamp,
+  .grind {
+    animation: none;
+  }
+  .tr-wrap,
+  .tr-body,
+  .work-body {
+    animation: none;
+  }
+}
+
+
+/* A Host-issued plan handoff shown as an action, not a user bubble. */
+.plan-action {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 14px 0 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--l3);
+  font-size: 12.5px;
+  color: var(--t2);
+}
+.plan-action .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--zhu);
+  flex: none;
+}
+.plan-action b {
+  font-weight: 500;
+  color: var(--t1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan-action time {
+  margin-left: auto;
+  font: 10.5px var(--mono);
+  color: var(--t4);
+  flex: none;
+}
+.user-message {
+  white-space: pre-wrap;
+}
+
+/* 走查报告 card under a finished turn. */
+.walkthrough-card {
+  margin-top: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--l2);
+  background: var(--s3);
+  box-shadow: var(--sh1);
+}
+.walkthrough-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  background: none;
+  border: 0;
+  font-size: 12.5px;
+  color: var(--t2);
+  text-align: left;
+}
+.walkthrough-head:disabled {
+  opacity: 1;
+}
+.walkthrough-head b {
+  color: var(--t1);
+  font-weight: 500;
+}
+.walkthrough-head .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--azure);
+}
+.walkthrough-head .chev {
+  margin-left: auto;
+  color: var(--t4);
+}
+.walkthrough-state {
+  font: 10.5px var(--mono);
+  color: var(--t3);
+}
+.walkthrough-card.error .walkthrough-state,
+.walkthrough-error {
+  color: var(--crimson);
+}
+.walkthrough-error {
+  margin: 0;
+  padding: 0 12px 10px;
+  font-size: 12px;
+}
+.walkthrough-body {
+  padding: 2px 14px 12px;
+  border-top: 1px solid var(--l1);
+}
+.walkthrough-body h1,
+.walkthrough-body h2 {
+  font: 600 15px/1.45 var(--serif);
+  margin: 12px 0 6px;
+}
+.walkthrough-body h3,
+.walkthrough-body h4 {
+  font: 600 13.5px/1.45 var(--sans);
+  margin: 10px 0 4px;
+}
+
+.turn-terminal .grow {
+  flex: 1;
+  min-width: 0;
+}
+.retry-confirm {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--crimson-wash);
+  font-size: 12.5px;
+  color: var(--t1);
+}
+.retry-confirm p {
+  margin: 0 0 4px;
+  line-height: 1.55;
+}
+.chip.danger {
+  color: var(--crimson);
+  border-color: var(--crimson);
+}

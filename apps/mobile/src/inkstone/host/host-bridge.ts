@@ -1,13 +1,10 @@
+import { extractUserFacingBody } from '@piwin/contracts';
 import type {
   ActivitySummaryItem,
   RemoteProjectSummary,
   RemoteSessionSummary,
 } from '@piwin/contracts';
-import type {
-  MobileToolCall,
-  MobileTranscriptMessage,
-  RemotePermissionRequest,
-} from '../../mobile-transcript.js';
+import type { RemotePermissionRequest } from '../../mobile-transcript.js';
 
 export type InkstoneDotStatus = 'running' | 'done' | 'waiting';
 
@@ -75,49 +72,12 @@ export function relativeTime(updatedAt: string | undefined, now: number): string
  * showing them in a shell; the raw Host transcript remains available for
  * forwarding/copying outside this display projection.
  */
+/** One-line, shell-facing text for a user row or session preview (see contracts). */
 export function cleanSessionPreview(value: string | undefined): string {
   if (value === undefined) {
     return '';
   }
-  let cleaned = value;
-  // Explicit Skill activation stores a model-facing wrapper in the durable
-  // user message. Keep only the request section for shell-facing previews and
-  // transcript bubbles; the wrapper remains available in the Host record.
-  const skillRequest = cleaned.match(
-    /^\s*\[piwin-skill:[^\]]+\][\s\S]*?\n(?:## User request|---)\s*\n([\s\S]*)$/i,
-  );
-  if (skillRequest?.[1] !== undefined) {
-    cleaned = skillRequest[1];
-  }
-  const userSection = cleaned.match(/(?:^|\n)---\s*\n+\s*User:\s*\n?([\s\S]*)$/i);
-  if (userSection?.[1] !== undefined) {
-    cleaned = userSection[1];
-  } else {
-    const currentMessageSection = cleaned.match(/(?:^|\n)---\s*\n+\s*Current user message:\s*\n?([\s\S]*)$/i);
-    if (currentMessageSection?.[1] !== undefined) {
-      cleaned = currentMessageSection[1];
-    }
-  }
-  return cleaned
-    .replace(/\[piwin plan context v\d+[^\]]*\][\s\S]*?\[end plan context\]/gi, '')
-    // Search/index previews are bounded and may omit the closing marker. A
-    // plan-context prefix is transport metadata, never user-authored text;
-    // drop the remainder rather than leaking it into a session row.
-    .replace(/\[piwin plan context v\d+[^\]]*\][\s\S]*$/gi, '')
-    .replace(/\[piwin-inline-artifact-layout\][\s\S]*?\[\/piwin-inline-artifact-layout\]/gi, '')
-    // Older Host indexes truncated the preview before the closing tag.  Once
-    // this marker appears, the rest of that bounded preview is transport-only
-    // layout context, so do not surface it as if it were user text.
-    .replace(/\[piwin-inline-artifact-layout\][\s\S]*$/gi, '')
-    .replace(/<context_ref\b[^>]*>[\s\S]*?<\/context_ref>/gi, '')
-    .replace(/<startup_context>[\s\S]*?<\/startup_context>/gi, '')
-    .replace(/<side_chat_context\b[^>]*>[\s\S]*?<\/side_chat_context>/gi, '')
-    .replace(/<walkthrough-context\b[^>]*>[\s\S]*?<\/walkthrough-context>/gi, '')
-    .replace(/\[piwin-prompt-meta[^\]]*\][^\n]*/gi, '')
-    .replace(/\[piwin-mode:[^\]]*\]/gi, '')
-    .replace(/Operating contract for this turn:\s*[\s\S]*$/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return extractUserFacingBody(value).replace(/\s+/g, ' ').trim();
 }
 
 function projectDisplayName(
@@ -200,25 +160,6 @@ export function pickContinueSession(
   return visible.find((session) => runningSessionIds.has(session.sessionId)) ?? visible[0];
 }
 
-export interface InkstoneToolStep {
-  label: string;
-  meta: string;
-  status: 'done' | 'running' | 'error';
-}
-
-function mapToolStep(tool: MobileToolCall): InkstoneToolStep {
-  const target = tool.command ?? tool.summary ?? tool.targetPaths?.join(' ') ?? '';
-  const label =
-    tool.actionVerb !== undefined ? `${tool.actionVerb} ${target}`.trim() : target || tool.name;
-  const meta =
-    tool.status === 'running'
-      ? '进行中'
-      : tool.durationMs !== undefined
-        ? `${Math.round(tool.durationMs / 100) / 10}s`
-        : '';
-  return { label, meta, status: tool.status === 'error' ? 'error' : tool.status };
-}
-
 /** Clean human-readable model label for message heads. */
 export function formatModelLabel(modelId: string | undefined): string {
   if (!modelId || modelId === 'assistant' || modelId === 'piwin') {
@@ -256,68 +197,6 @@ export function formatModelLabel(modelId: string | undefined): string {
     return 'Gemini';
   }
   return clean;
-}
-
-export type InkstoneChatRow =
-  | { kind: 'user'; id: string; text: string; attachments: string[]; time: string }
-  | {
-      kind: 'assistant';
-      id: string;
-      text: string;
-      thinking?: string | undefined;
-      streaming: boolean;
-      model: string;
-      time: string;
-    }
-  | { kind: 'tools'; id: string; label: string; steps: InkstoneToolStep[] };
-
-/** Project the remote transcript onto the prototype's chat row grammar. */
-export function mapTranscriptRows(messages: MobileTranscriptMessage[]): InkstoneChatRow[] {
-  const rows: InkstoneChatRow[] = [];
-  for (const message of messages) {
-    if (message.role === 'user') {
-      const attachments = (message.attachments ?? []).map((item) => item.name ?? '图片');
-      const text = cleanSessionPreview(message.text);
-      if (text.length === 0 && attachments.length === 0) {
-        continue;
-      }
-      rows.push({
-        kind: 'user',
-        id: message.id,
-        text,
-        attachments,
-        time: formatClock(message.createdAt),
-      });
-      continue;
-    }
-    if (message.role !== 'assistant') {
-      continue;
-    }
-    if (message.toolCalls !== undefined && message.toolCalls.length > 0) {
-      const running = message.toolCalls.some((tool) => tool.status === 'running');
-      rows.push({
-        kind: 'tools',
-        id: `${message.id}:tools`,
-        label: running ? '正在调用工具' : '已完成本轮工具调用',
-        steps: message.toolCalls.map(mapToolStep),
-      });
-    }
-    const hasText = message.text.trim().length > 0;
-    const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0;
-    const isStreaming = message.status === 'streaming';
-    if (hasText || hasThinking || isStreaming) {
-      rows.push({
-        kind: 'assistant',
-        id: message.id,
-        text: message.text,
-        ...(message.thinking !== undefined ? { thinking: message.thinking } : {}),
-        streaming: isStreaming,
-        model: formatModelLabel(message.model?.modelId),
-        time: formatClock(message.createdAt),
-      });
-    }
-  }
-  return rows;
 }
 
 export interface InkstonePermissionGateView {

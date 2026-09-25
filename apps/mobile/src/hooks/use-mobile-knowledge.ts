@@ -1,3 +1,4 @@
+import { readSessionListPage } from './mobile-session-list.js';
 import { useState, type MutableRefObject, type Dispatch, type SetStateAction } from 'react';
 import type {
   KnowledgeBaseSummary,
@@ -13,7 +14,6 @@ import {
   readKnowledgeBases,
   readKnowledgeBase,
   readKnowledgeSearchResult,
-  readSessions,
   readWikiConcept,
   readWikiOverview,
 } from '../mobile-host-readers.js';
@@ -130,7 +130,7 @@ export function useMobileKnowledge({
         return false;
       }
       const sessionsResponse = await client.request(sessionListCommand());
-      if (clientRef.current === client) setSessions(readSessions(sessionsResponse));
+      if (clientRef.current === client) setSessions(readSessionListPage(sessionsResponse));
       await refreshKnowledge(client);
       setKnowledgeError(undefined);
       return true;

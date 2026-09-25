@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type {
   ActivitySummaryItem,
   ConfiguredChatModel,
-  MediaAttachmentRef,
   ModelRef,
   RemoteHostStatusData,
   RemoteProjectSummary,
@@ -57,23 +56,17 @@ import {
 import {
   createMobileVault,
   disposeClient,
-  isRecord,
-  readFileAsBase64,
   toError,
 } from '../mobile-host-helpers.js';
 import {
   readPauseCheckpointId,
-  readRemoteMediaAsset,
   readRunId,
-  readSessions,
 } from '../mobile-host-readers.js';
 import {
   createMobileIdempotencyKey,
   executeMobileMutation,
   nextMobileSendIntent,
   readMobilePromptFailure,
-  buildMobileAbortCommand,
-  buildMobilePermissionResolveCommand,
 } from '../mobile-prompt-send.js';
 import {
   ACTIVITY_SUMMARY_REFRESH_DEBOUNCE_MS,
@@ -81,6 +74,15 @@ import {
   shouldRefreshActivitySummary,
 } from '../mobile-activity-summary.js';
 import { createMobileRemoteReadModelRefresher } from './mobile-host-read-model.js';
+import { uploadMobileImage } from './mobile-media-upload.js';
+import { abortMobileRun, resolveMobilePermission } from './mobile-run-controls.js';
+import {
+  createMobileSession,
+  createSessionListSync,
+  mobileSessionListCommand,
+  readSessionListPage,
+  runSessionListMutation,
+} from './mobile-session-list.js';
 import { useMobileKnowledge } from './use-mobile-knowledge.js';
 import {
   handleRemotePush,
@@ -93,23 +95,7 @@ import {
 
 export type { MobileMediaAttachment, MobileToolCall, MobileTranscriptMessage, RemotePermissionRequest };
 
-const MAX_MOBILE_IMAGE_BYTES = 700_000;
-const MOBILE_SESSION_LIST_MAX_ITEMS = 80;
 const MOBILE_DEVICE_NAME = 'Piwin mobile';
-
-function mobileSessionListCommand(): {
-  type: 'session/list';
-  allScopes: true;
-  order: 'updated';
-  maxItems: number;
-} {
-  return {
-    type: 'session/list',
-    allScopes: true,
-    order: 'updated',
-    maxItems: MOBILE_SESSION_LIST_MAX_ITEMS,
-  };
-}
 
 export function useMobileHost() {
   const [endpoint, setEndpoint] = useState(getDefaultHostEndpoint);
@@ -120,6 +106,8 @@ export function useMobileHost() {
   const [hostStatus, setHostStatus] = useState<RemoteHostStatusData | undefined>();
   const [projects, setProjects] = useState<RemoteProjectSummary[]>([]);
   const [sessions, setSessions] = useState<RemoteSessionSummary[]>([]);
+  // Stable across renders: debounces Host-driven list refreshes.
+  const [sessionListSync] = useState(() => createSessionListSync(setSessions));
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [messages, setMessages] = useState<MobileTranscriptMessage[]>([]);
   const [composerText, setComposerText] = useState('');
@@ -431,8 +419,10 @@ export function useMobileHost() {
           setKnowledgeBases(push.bases);
           setKnowledgeError(undefined);
         }
+        sessionListSync.handlePush(client, push);
       }),
     );
+    unsubscribeRef.current.push(() => sessionListSync.dispose());
 
     try {
       await client.connect();
@@ -607,82 +597,35 @@ export function useMobileHost() {
     if (client === undefined) {
       return undefined;
     }
-    try {
-      const response = await executeMobileMutation(
-        (command, options) => client.request(command, options),
-        {
-          type: 'session/create',
-          input: {
-            sessionName: 'Mobile session',
-            ...(projectId === undefined || projectId.length === 0
-              ? { scope: { kind: 'general' as const } }
-              : { projectId }),
-          },
-        },
-        createMobileIdempotencyKey(),
-      );
-      if (
-        !response.success ||
-        !isRecord(response.data) ||
-        typeof response.data.sessionId !== 'string'
-      ) {
-        setErrorMessage(response.success ? 'Host 未返回新会话 ID。' : response.error);
-        return undefined;
-      }
-      const newSessionId = response.data.sessionId;
-      const nextSessionsResponse = await client.request(mobileSessionListCommand());
-      const nextSessions = readSessions(nextSessionsResponse);
-      setSessions(nextSessions);
-      await handleSelectSession(newSessionId);
-      return newSessionId;
-    } catch (error) {
-      setErrorMessage(toError(error, '创建会话失败。').message);
+    const created = await createMobileSession(client, projectId);
+    if (!created.ok) {
+      setErrorMessage(created.message);
       return undefined;
     }
+    setSessions(created.sessions);
+    await handleSelectSession(created.sessionId);
+    return created.sessionId;
   };
 
-  const handlePinSession = async (sessionId: string, isPinned: boolean): Promise<boolean> => {
-    const client = clientRef.current;
-    if (client === undefined) return false;
-    try {
-      const response = await client.request({
-        type: isPinned ? 'session/unpin' : 'session/pin',
-        sessionId,
-      });
-      if (!response.success) {
-        setErrorMessage(response.error);
-        return false;
-      }
-      const nextSessionsResponse = await client.request(mobileSessionListCommand());
-      setSessions(readSessions(nextSessionsResponse));
-      return true;
-    } catch (error) {
-      setErrorMessage(toError(error, '置顶操作失败。').message);
-      return false;
-    }
-  };
+  const handlePinSession = (sessionId: string, isPinned: boolean): Promise<boolean> =>
+    runSessionListMutation({
+      client: clientRef.current,
+      command: { type: isPinned ? 'session/unpin' : 'session/pin', sessionId },
+      setSessions,
+      setErrorMessage,
+      failureMessage: '置顶操作失败。',
+    });
 
-  const handleRenameSession = async (sessionId: string, newName: string): Promise<boolean> => {
-    const client = clientRef.current;
-    if (client === undefined || !newName.trim()) return false;
-    try {
-      const response = await client.request({
-        type: 'session/rename',
-        sessionId,
-        name: newName.trim(),
-      });
-      if (!response.success) {
-        setErrorMessage(response.error);
-        return false;
-      }
-      const nextSessionsResponse = await client.request(mobileSessionListCommand());
-      setSessions(readSessions(nextSessionsResponse));
-      return true;
-    } catch (error) {
-      setErrorMessage(toError(error, '重命名失败。').message);
-      return false;
-    }
-  };
+  const handleRenameSession = async (sessionId: string, newName: string): Promise<boolean> =>
+    newName.trim().length === 0
+      ? false
+      : runSessionListMutation({
+          client: clientRef.current,
+          command: { type: 'session/rename', sessionId, name: newName.trim() },
+          setSessions,
+          setErrorMessage,
+          failureMessage: '重命名失败。',
+        });
 
   const handleDeleteSession = async (sessionId: string): Promise<boolean> => {
     const client = clientRef.current;
@@ -697,7 +640,7 @@ export function useMobileHost() {
         return false;
       }
       const nextSessionsResponse = await client.request(mobileSessionListCommand());
-      const nextSessions = readSessions(nextSessionsResponse);
+      const nextSessions = readSessionListPage(nextSessionsResponse);
       setSessions(nextSessions);
       if (activeSessionId === sessionId) {
         if (nextSessions.length > 0 && nextSessions[0] !== undefined) {
@@ -887,20 +830,12 @@ export function useMobileHost() {
     if (client === undefined || sessionId === undefined || runId === undefined || !mutationsEnabled) {
       return;
     }
-    try {
-      const response = await executeMobileMutation(
-        (command, options) => client.request(command, options),
-        buildMobileAbortCommand(sessionId, runId),
-        createMobileIdempotencyKey(),
-      );
-      if (!response.success) {
-        setErrorMessage(response.error);
-        return;
-      }
-      void refreshActivitySummary(client);
-    } catch (error) {
-      setErrorMessage(toError(error, '停止运行失败。').message);
+    const error = await abortMobileRun(client, sessionId, runId);
+    if (error !== undefined) {
+      setErrorMessage(error);
+      return;
     }
+    void refreshActivitySummary(client);
   };
 
   const handleFileSelected = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
@@ -911,51 +846,15 @@ export function useMobileHost() {
     if (file === undefined || client === undefined || sessionId === undefined) {
       return;
     }
-    if (!file.type.startsWith('image/')) {
-      setErrorMessage('移动端暂时只支持图片附件。');
-      return;
-    }
-    if (file.size > MAX_MOBILE_IMAGE_BYTES) {
-      setErrorMessage('图片过大，请先压缩到 700 KB 以内。');
-      return;
-    }
     setIsUploadingMedia(true);
     setErrorMessage(undefined);
     try {
-      const base64Data = await readFileAsBase64(file);
-      const response = await client.request({
-        type: 'media/save',
-        input: {
-          sessionId,
-          mimeType: file.type,
-          source: 'file-picker',
-          base64Data,
-        },
-      });
-      if (!response.success) {
-        setErrorMessage(response.error);
-        return;
+      const result = await uploadMobileImage(client, sessionId, file);
+      if (result.ok) {
+        setAttachments((current) => [...current, result.attachment]);
+      } else {
+        setErrorMessage(result.message);
       }
-      const asset = readRemoteMediaAsset(response.data);
-      if (asset === undefined) {
-        setErrorMessage('Host 未返回可用的图片资产。');
-        return;
-      }
-      const newAttachment: MediaAttachmentRef = {
-        id: asset.id,
-        kind: 'media',
-        path: `remote-asset:${asset.id}`,
-        mimeType: asset.mimeType,
-        byteSize: asset.byteSize,
-        source: 'file-picker',
-        ...(asset.name !== undefined ? { name: asset.name } : {}),
-        ...(asset.contentKind !== undefined ? { contentKind: asset.contentKind } : {}),
-        ...(asset.width !== undefined ? { width: asset.width } : {}),
-        ...(asset.height !== undefined ? { height: asset.height } : {}),
-      };
-      setAttachments((current) => [...current, newAttachment]);
-    } catch (error) {
-      setErrorMessage(toError(error, '上传图片失败。').message);
     } finally {
       setIsUploadingMedia(false);
     }
@@ -974,13 +873,9 @@ export function useMobileHost() {
     setIsResolvingPermission(true);
     setErrorMessage(undefined);
     try {
-      const response = await executeMobileMutation(
-        (command, options) => client.request(command, options),
-        buildMobilePermissionResolveCommand(resolvedRequestId, decision, rememberScope),
-        createMobileIdempotencyKey(),
-      );
-      if (!response.success) {
-        setErrorMessage(response.error);
+      const error = await resolveMobilePermission(client, resolvedRequestId, decision, rememberScope);
+      if (error !== undefined) {
+        setErrorMessage(error);
         return false;
       }
       setPermissionRequest((current) =>
@@ -988,9 +883,6 @@ export function useMobileHost() {
       );
       void refreshActivitySummary(client);
       return true;
-    } catch (error) {
-      setErrorMessage(toError(error, '处理权限请求失败。').message);
-      return false;
     } finally {
       setIsResolvingPermission(false);
     }
@@ -1068,6 +960,9 @@ export function useMobileHost() {
     handleSetSessionKnowledgeBases,
     handleAddKnowledgeBase,
     handleDistillWiki,
+    loadMoreSessions: () => {
+      if (clientRef.current !== undefined) void sessionListSync.loadMore(clientRef.current);
+    },
     healthEnabled,
     healthAvailable: hostSupportsClientTools && healthExecutorUsable({
       nativeAvailable: healthNativeAvailable,

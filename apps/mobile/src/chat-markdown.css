@@ -95,7 +95,8 @@
   overflow: auto;
 }
 
-.mobile-artifact-inline-preview .mobile-svg-preview-stage svg {
+.mobile-artifact-inline-preview .mobile-svg-preview-stage svg,
+.mobile-artifact-inline-preview .mobile-svg-preview-stage img {
   max-width: 100%;
   max-height: 380px;
   height: auto;

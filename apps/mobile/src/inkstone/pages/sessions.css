@@ -1,0 +1,15 @@
+/* Shown while the list is the device's last copy of the Host sessions. */
+.offline-snapshot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 2px 0;
+  font-size: 11px;
+  color: var(--t3);
+}
+
+.offline-snapshot .icon {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}

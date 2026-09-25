@@ -1,5 +1,5 @@
 import { createContext, useContext, type Dispatch } from 'react';
-import { type InkstoneAction, type InkstoneState } from './demo-state.js';
+import { type InkstoneAction, type InkstoneState } from './inkstone-state.js';
 
 export interface InkstoneContextValue {
   state: InkstoneState;

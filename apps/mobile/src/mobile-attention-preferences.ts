@@ -2,6 +2,7 @@ import {
   DEFAULT_ATTENTION_PREFERENCES,
   type AttentionPreferences,
 } from '@piwin/host-client';
+import { mobileLocalStorage } from './mobile-local-storage.js';
 
 export const MOBILE_ATTENTION_PREFERENCES_KEY = 'piwin.mobile.attention.v1';
 export const MOBILE_ATTENTION_LEDGER_KEY = 'piwin.mobile.attention.ledger.v1';
@@ -15,14 +16,7 @@ export type MobileAttentionSwitches = {
 const SWITCH_KEYS = ['onNeedsInput', 'onComplete', 'onFailure'] as const;
 
 function defaultStorage(): Pick<Storage, 'getItem' | 'setItem'> | undefined {
-  try {
-    if (typeof window === 'undefined') {
-      return undefined;
-    }
-    return window.localStorage;
-  } catch {
-    return undefined;
-  }
+  return mobileLocalStorage();
 }
 
 export function mobileSwitchesFromPreferences(

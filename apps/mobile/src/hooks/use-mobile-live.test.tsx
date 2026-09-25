@@ -144,6 +144,10 @@ class FakeLiveHost {
     };
   }
 
+  getState(): HostClientState {
+    return { kind: 'ready' };
+  }
+
   subscribeState(listener: (state: HostClientState) => void): () => void {
     this.stateListeners.add(listener);
     listener({ kind: 'ready' });

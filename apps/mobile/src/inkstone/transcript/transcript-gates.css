@@ -1,0 +1,173 @@
+/* Seals and questions on the ink line (PermissionGateCard / QuestionCard). */
+
+/* Gates on the ink line ------------------------------------------------ */
+.tr-gate {
+  position: relative;
+  padding: 2px 0 6px;
+}
+.tr-gate .node {
+  top: 22px;
+}
+.tr-gate .gate {
+  position: relative;
+  border-left: 0;
+  margin: 4px 0 6px;
+  padding: 12px 12px 10px 16px;
+  background: var(--s3);
+  box-shadow: var(--sh2);
+  border-radius: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+.tr-gate .gate::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--zhu);
+}
+.tr-gate .gate.question::before {
+  background: var(--azure);
+}
+.tr-gate .gate .mic {
+  font: 600 10.5px var(--sans);
+  letter-spacing: 0.08em;
+  color: var(--zhu);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tr-gate .gate.question .mic {
+  color: var(--azure);
+}
+.tr-gate .gate h3 {
+  margin: 0;
+  font: 600 14.5px/1.45 var(--serif);
+  color: var(--t1);
+}
+.tr-gate .gate p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--t2);
+  white-space: pre-wrap;
+}
+.tr-gate .gate .cmd {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--t1);
+  word-break: break-all;
+}
+.tr-gate .gate .cmd b {
+  font: 600 12px var(--mono);
+}
+.tr-gate .gate .cmd code {
+  font: 11.5px var(--mono);
+  background: var(--code);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.tr-gate .gate .command {
+  margin: 0;
+  font: 11px/1.5 var(--mono);
+  background: var(--code);
+  padding: 6px 8px;
+  border-radius: 5px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.tr-gate .gate .facts {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font: 11px var(--mono);
+  color: var(--t3);
+}
+.option-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+}
+.option-list button {
+  text-align: left;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid var(--l2);
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--t1);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+  background: var(--s2);
+}
+.option-list button kbd {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  font: 11px var(--mono);
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--t3);
+}
+.option-list button:active {
+  border-color: var(--azure);
+  background: var(--azure-wash);
+}
+.option-list button:disabled {
+  opacity: 0.5;
+}
+.tr-gate .gate textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 64px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--l2);
+  background: var(--s2);
+  color: var(--t1);
+  font: 16px/1.5 var(--sans);
+  resize: vertical;
+}
+.gate-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 4px;
+}
+.gate-row .text-link {
+  margin-right: auto;
+}
+
+.text-link {
+  background: none;
+  border: 0;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--t3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.error-text {
+  color: var(--crimson);
+  font-size: 12px;
+}
+.tr-gate .gate .seal-button {
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+}
+.tr-gate .gate .scope-options {
+  margin-top: 2px;
+}
+

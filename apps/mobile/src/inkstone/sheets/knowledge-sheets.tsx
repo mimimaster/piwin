@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactElement } from 'react';
+import { NeedsHost } from '../needs-host.js';
 import type {
   KnowledgeBaseSummary,
   KnowledgeCitation,
@@ -77,12 +78,7 @@ export function PlanMenuSheet(): ReactElement {
   }, [host?.client, sessionId]);
 
   if (hostCtx === null) {
-    return (
-      <>
-        <p>计划是 Host 上的真实文档，执行前会再次校验版本。</p>
-        <FullButton onClick={() => dispatch({ type: 'navigate', route: 'plan' })}>查看演示计划</FullButton>
-      </>
-    );
+    return <NeedsHost />;
   }
   if (sessionId === undefined) {
     return <p>当前没有选中的 Host 会话。</p>;
@@ -122,7 +118,7 @@ export function PlanMenuSheet(): ReactElement {
 }
 
 export function MountsSheet(): ReactElement {
-  const { state, dispatch } = useInkstone();
+  const { dispatch } = useInkstone();
   const hostCtx = useInkstoneHost();
   const host = hostCtx?.host;
   const session = host?.sessions.find((item) => item.sessionId === host.activeSessionId);
@@ -134,12 +130,7 @@ export function MountsSheet(): ReactElement {
   }, [session?.sessionId, session?.knowledgeBaseIds?.join(',')]);
 
   if (hostCtx === null) {
-    return (
-      <>
-        <p>演示会话中的挂载仅用于预览。连接 Host 后这里会替换为真实知识库。</p>
-        {state.mounts.map((mount) => <ListRow key={mount} name="book" title={mount} trailing="已挂载" />)}
-      </>
-    );
+    return <NeedsHost />;
   }
   const bases = host?.knowledgeBases ?? [];
   const toggle = (id: string) =>
@@ -226,7 +217,7 @@ export function WikiNewSheet(): ReactElement {
   const [topic, setTopic] = useState('');
   const [saving, setSaving] = useState(false);
   if (hostCtx === null) {
-    return <FullButton onClick={() => dispatch({ type: 'produce-cards' })}>在演示中生成条目</FullButton>;
+    return <NeedsHost />;
   }
   const folderBases = hostCtx.host.knowledgeBases.filter((base) => base.kind === 'folder' && base.folderPath !== undefined);
   const submit = async () => {
@@ -254,25 +245,6 @@ export function WikiNewSheet(): ReactElement {
         <input value={topic} onChange={(event) => setTopic(event.target.value)} autoComplete="off" />
       </label>
       <FullButton onClick={() => void submit()} disabled={saving || baseId.length === 0}>{saving ? 'Host 提炼中…' : '让 Host 提炼并写入维基'}</FullButton>
-    </>
-  );
-}
-
-export function SourceDetailSheet(): ReactElement {
-  const { state, dispatch } = useInkstone();
-  const hostCtx = useInkstoneHost();
-  const base = hostCtx?.host.knowledgeBases.find((item) => item.id === state.knowledgeBaseId);
-  if (hostCtx === null || base === undefined) {
-    return <p>来源详情会在 Host 连接后显示真实索引状态。</p>;
-  }
-  return (
-    <>
-      <Pill>{base.kind} · {formatBaseState(base)}</Pill>
-      <h3>{base.name}</h3>
-      <p>{base.folderPath ?? 'Host 内置知识库'}</p>
-      {base.lastIndexedAt ? <p className="muted">最近索引：{new Date(base.lastIndexedAt).toLocaleString()}</p> : null}
-      {base.failedDocumentCount ? <p className="error-text">{base.failedDocumentCount} 个文件索引失败</p> : null}
-      <FullButton onClick={() => { dispatch({ type: 'set-knowledge-tab', tab: '维基' }); dispatch({ type: 'close-sheet' }); }}>返回知识中心</FullButton>
     </>
   );
 }

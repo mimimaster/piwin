@@ -8,17 +8,27 @@ remote Host slice: it connects through HostClient, reads the safe project and
 session model, streams chat, resolves permissions, and uploads small images as
 opaque Host assets. Pairing and secure credential storage are follow-up slices.
 
-## Inkstone shell (UI-first)
+## Inkstone shell
 
-The rendered shell is the Inkstone mobile UI transcribed 1:1 from
-`docs/design/inkstone/proto-08-mobile.html` (see `docs/design/inkstone/09-mobile.md`).
-It lives in `src/inkstone/` — theme tokens, phone shell, pages, bottom sheets, and a
-local demo reducer ported from the prototype's interactions. This round is
-intentionally UI-first: screens run on prototype data and make no Host calls.
+The rendered shell is the Inkstone mobile UI (visual source:
+`docs/design/inkstone/mobile/`). It is a thin Host client: every screen reads
+Host commands and pushes, and every action is a Host command. Nothing is
+executed or inferred on the phone.
 
-The previous Deck implementation (`components/`, `surfaces/`, `hooks/`, legacy CSS)
-is kept in place but not rendered; the follow-up pass wires the Inkstone screens to
-the live host connection and then removes dead code.
+- `src/inkstone/transcript/` — turn projection (one head per Host run, ink-line
+  work fold with thinking / tools / interventions), on-demand tool output
+  (`session/tool-output`), permission seals, questionnaire cards
+  (`extension/ui_request` → `extension/ui_resolve`).
+- `src/inkstone/host/` — per-session live state (context occupancy, queued
+  turns and interventions, plan / todo, change summaries).
+- `src/inkstone/settings/` — settings sections backed by `settings/get` /
+  `settings/apply` and the matching list commands.
+- `src/hooks/mobile-offline-cache.ts` — the only device-side copies: the last
+  Host session list (read-only stand-in while the Host is unreachable) and
+  per-session composer drafts, both keyed by Host endpoint. Credentials never
+  go to localStorage.
+
+Execution plan and status: `docs/plans/2026-09-25-mobile-shell-host-parity.md`.
 
 ## Web development
 

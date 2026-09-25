@@ -51,7 +51,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 1.0.0
-        CFBundleVersion: '1.0.0.7'
+        CFBundleVersion: '1.0.0.8'
         NSMicrophoneUsageDescription: '需要访问麦克风以支持语音实时转写输入'
         NSSpeechRecognitionUsageDescription: '需要语音识别权限以使用 iOS 原生语音听写功能'
         NSLocalNetworkUsageDescription: 'Piwin 需要访问局域网中的 Piwin Host，才能在手机上使用应用。'

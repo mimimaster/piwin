@@ -17,6 +17,12 @@ export interface InkstoneHostContextValue {
   /** Opens the proven connection surface (credential vault, pairing, errors). */
   onOpenConnection: () => void;
   modelSelection: InkstoneModelSelection;
+  /**
+   * Set while the Host is unreachable and `host.sessions`/`host.projects` are
+   * the device's last copy rather than live Host data. Nothing can be opened
+   * from it; it only shows what exists.
+   */
+  offlineSnapshot?: { savedAt: string };
 }
 
 export const InkstoneHostContext = createContext<InkstoneHostContextValue | null>(null);
