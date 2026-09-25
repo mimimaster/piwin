@@ -155,7 +155,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2024-present Piwin. All rights reserved.',
+      copyright: 'Copyright © 2026-present Piwin. All rights reserved.',
     },
 
     socialLinks: [
