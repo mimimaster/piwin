@@ -4,6 +4,7 @@ import type { Theme } from 'vitepress';
 import './custom.css';
 import PromoShowcase from './components/PromoShowcase.vue';
 import HomeQuickNav from './components/HomeQuickNav.vue';
+import DownloadView from './components/DownloadView.vue';
 
 export default {
   extends: DefaultTheme,
@@ -19,5 +20,6 @@ export default {
   enhanceApp({ app }) {
     app.component('PromoShowcase', PromoShowcase);
     app.component('HomeQuickNav', HomeQuickNav);
+    app.component('DownloadView', DownloadView);
   },
 } satisfies Theme;

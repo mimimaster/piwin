@@ -36,6 +36,7 @@ export default defineConfig({
 
     nav: [
       { text: '首页', link: '/' },
+      { text: '下载', link: '/download' },
       { text: '快速起步', link: '/docs/getting-started' },
       { text: '智能能力', link: '/docs/code-search' },
       { text: '配置指南', link: '/docs/model-config' },
@@ -57,6 +58,7 @@ export default defineConfig({
           text: '入门与使用',
           collapsed: false,
           items: [
+            { text: '全平台客户端下载', link: '/download' },
             { text: '快速起步与配置概览', link: '/docs/getting-started' },
             { text: '多端运行与开箱安装', link: '/docs/deployment' },
           ],

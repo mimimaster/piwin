@@ -19,9 +19,12 @@
 
 ## 2. 桌面一体包快速安装 (开箱即用)
 
+> [!TIP]
+> 现已开放专属 **[全平台客户端下载中心](/download)**，包含 macOS、Windows 最新安装包、系统版本限制明细与 iOS 移动伴侣研发动态。
+
 对于绝大多数日常使用者，直接下载安装包是最舒服的选择：
 
-1. 前往 GitHub Releases：**[最新发布包页面 (github.com/mimimaster/piwin/releases)](https://github.com/mimimaster/piwin/releases)**；
+1. 前往 **[全平台客户端下载中心](/download)** 或 **[GitHub Releases 页面](https://github.com/mimimaster/piwin/releases)**；
 2. 下载对应系统的安装包：
    - macOS 用户：下载 `piwinwin_<version>_aarch64.dmg`，双击拖入 Applications 文件夹；
    - Windows 用户：下载对应 zip 安装包解压即用。

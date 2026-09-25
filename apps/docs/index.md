@@ -9,6 +9,9 @@ hero:
     alt: Piwin 桌面端图标
   actions:
     - theme: brand
+      text: 立即下载
+      link: /download
+    - theme: alt
       text: 快速上手
       link: /docs/getting-started
     - theme: alt
