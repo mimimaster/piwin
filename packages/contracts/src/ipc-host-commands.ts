@@ -4,6 +4,7 @@ import type { KnowledgeHostCommand } from './ipc-knowledge-commands.js';
 import type { PlatformHostCommand } from './ipc-platform-commands.js';
 import type { SessionHostCommand } from './ipc-session-commands.js';
 import type { HostTurnChangeCommand } from './ipc-commands-turn-changes.js';
+import type { HostPairingCommand } from './host-pairing.js';
 
 export type { KnowledgeHostCommand, PlatformHostCommand, SessionHostCommand, HostTurnChangeCommand };
 
@@ -12,4 +13,5 @@ export type HostCommand =
   | SessionHostCommand
   | KnowledgeHostCommand
   | PlatformHostCommand
-  | HostTurnChangeCommand;
+  | HostTurnChangeCommand
+  | HostPairingCommand;

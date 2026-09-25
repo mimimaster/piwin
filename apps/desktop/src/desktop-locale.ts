@@ -72,6 +72,18 @@ export type DesktopCopy = {
     statusListening: string;
     statusIdle: string;
     statusUnavailable: string;
+    hostPairingTitle: string;
+    hostPairingDesc: string;
+    hostPairingDisabledTitle: string;
+    hostPairingDisabledDesc: string;
+    hostPairingUnsupportedTitle: string;
+    hostPairingUnsupportedDesc: string;
+    hostPairingEnvHint: string;
+    copyCode: string;
+    statusEnabled: string;
+    statusDisabled: string;
+    statusUnsupported: string;
+    readOnlyHint: string;
   };
   backToWorkspace: string;
   configurationRoot: string;
@@ -690,6 +702,18 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       statusListening: '监听中',
       statusIdle: '未启用',
       statusUnavailable: '不可用',
+      hostPairingTitle: '手机接入',
+      hostPairingDesc: '连接移动设备以同步会话与操作。由当前连接的 Host 提供配对服务。',
+      hostPairingDisabledTitle: 'Host 尚未开启手机接入',
+      hostPairingDisabledDesc: '当前连接的 Host 服务端尚未启用设备配对。如需通过手机连接此 Host，请在启动 Host 服务时设置环境变量：',
+      hostPairingUnsupportedTitle: 'Host 不支持远程配对',
+      hostPairingUnsupportedDesc: '当前连接的 Host 版本较低，未提供客户端配对管理接口。请更新 Host 服务端。',
+      hostPairingEnvHint: '提示：Host 进程需运行在手机可达的网络中（例如 Tailscale 局域网或公网）。',
+      copyCode: '复制',
+      statusEnabled: '已启用',
+      statusDisabled: '未开启',
+      statusUnsupported: '不支持',
+      readOnlyHint: '当前以配对设备身份连接，无权管理配对凭证或设备。',
     },
     backToWorkspace: '返回工作区',
     configurationRoot: '配置根目录',
@@ -1061,6 +1085,18 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       statusListening: 'Listening',
       statusIdle: 'Inactive',
       statusUnavailable: 'Unavailable',
+      hostPairingTitle: 'Phone access',
+      hostPairingDesc: 'Connect mobile devices to observe and control sessions on the connected Host.',
+      hostPairingDisabledTitle: 'Phone access not enabled on Host',
+      hostPairingDisabledDesc: 'The connected Host server was started without device pairing. To allow mobile connections, set the environment variable when launching the Host:',
+      hostPairingUnsupportedTitle: 'Host pairing not supported',
+      hostPairingUnsupportedDesc: 'The connected Host version does not support wire pairing commands. Please update the Host service.',
+      hostPairingEnvHint: 'Note: The Host process must be reachable by your phone (e.g. over Tailscale or an SSH tunnel).',
+      copyCode: 'Copy',
+      statusEnabled: 'Enabled',
+      statusDisabled: 'Inactive',
+      statusUnsupported: 'Unsupported',
+      readOnlyHint: 'Connected as a paired device. Managing pairing credentials or devices is not permitted.',
     },
     backToWorkspace: 'Back to workspace',
     configurationRoot: 'Configuration root',

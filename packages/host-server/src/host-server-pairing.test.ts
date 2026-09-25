@@ -226,6 +226,89 @@ describe('HostServer pairing admission', () => {
   });
 });
 
+describe('HostServer host/pairing-* commands', () => {
+  it('serves an operator from its own registry and refuses a paired phone', async () => {
+    const pairing = new HostDevicePairing();
+    const server = new HostServer({
+      runtime: new FakeRuntime(),
+      port: 0,
+      instanceId: 'host-pairing-commands',
+      devicePairing: pairing,
+    });
+    const address = await server.start();
+    try {
+      const operator = await openHello(address.url, {
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'desktop-shell',
+        lastSeq: 0,
+      });
+      expect(operator.hello).toMatchObject({ type: 'host/hello', authenticated: true });
+      operator.socket.send(
+        encodeHostWireMessage({
+          type: 'command',
+          requestId: 'status',
+          command: { type: 'host/pairing-status' },
+        }),
+      );
+      const status = await operator.inbox.waitFor(
+        (message) => message.type === 'response' && message.requestId === 'status',
+      );
+      expect(status).toMatchObject({
+        response: {
+          success: true,
+          data: { enabled: true, canManage: true, advertisedEndpoint: address.url },
+        },
+      });
+      operator.socket.send(
+        encodeHostWireMessage({
+          type: 'command',
+          requestId: 'code',
+          command: { type: 'host/pairing-create-code' },
+        }),
+      );
+      const code = await operator.inbox.waitFor(
+        (message) => message.type === 'response' && message.requestId === 'code',
+      );
+      if (code.type !== 'response' || !code.response.success) {
+        throw new Error('operator could not mint a pairing code');
+      }
+      const token = (code.response.data as { pairingToken: string }).pairingToken;
+      operator.socket.close();
+
+      const phone = await openHello(address.url, {
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'phone',
+        lastSeq: 0,
+        pairingToken: token,
+        deviceName: 'iPhone',
+      });
+      expect(phone.hello).toMatchObject({ type: 'host/hello', authenticated: true });
+      phone.socket.send(
+        encodeHostWireMessage({
+          type: 'command',
+          requestId: 'phone-code',
+          command: { type: 'host/pairing-create-code' },
+        }),
+      );
+      const refused = await phone.inbox.waitFor(
+        (message) => message.type === 'response' && message.requestId === 'phone-code',
+      );
+      expect(refused).toMatchObject({
+        response: { success: false, error: 'Paired devices cannot manage pairing' },
+      });
+      phone.socket.close();
+    } finally {
+      await server.stop();
+    }
+  });
+});
+
 async function openHello(
   url: string,
   hello: Extract<HostWireMessage, { type: 'client/hello' }>,

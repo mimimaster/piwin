@@ -89,6 +89,10 @@ const server = new HostServer({
   ...(webRoot === undefined ? {} : { webRoot }),
   ...(devicePairing === undefined ? {} : { devicePairing }),
   ...(devicePairingStore === undefined ? {} : { devicePairingStore }),
+  // Codes minted from a shell point phones at the same address the startup QR does.
+  ...(process.env.PIWIN_HOST_ADVERTISED_URL?.trim()
+    ? { pairingAdvertisedEndpoint: process.env.PIWIN_HOST_ADVERTISED_URL.trim() }
+    : {}),
   allowRemoteExtensionActivation,
   ...(clientToolBroker === undefined ? {} : { clientToolBroker }),
   onError: (error) => console.error(`[piwin-host] ${error.message}`),

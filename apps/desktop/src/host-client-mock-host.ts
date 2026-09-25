@@ -214,6 +214,54 @@ export async function handleMockHostCommands(
             ),
           },
         };
+      case 'host/pairing-status':
+        return {
+          id,
+          type: 'response',
+          command: 'host/pairing-status',
+          success: true,
+          data: {
+            enabled: true,
+            canManage: true,
+            pairedDeviceCount: 0,
+            hostInstanceId: 'mock-host',
+            advertisedEndpoint: 'ws://127.0.0.1:8787',
+          },
+        };
+      case 'host/pairing-create-code':
+        return {
+          id,
+          type: 'response',
+          command: 'host/pairing-create-code',
+          success: true,
+          data: {
+            pairingToken: 'mock-token',
+            uri: 'piwin://pair?endpoint=ws%3A%2F%2F127.0.0.1%3A8787&token=mock-token',
+            expiresAt: new Date(Date.now() + 600000).toISOString(),
+            endpoint: 'ws://127.0.0.1:8787',
+            hostInstanceId: 'mock-host',
+          },
+        };
+      case 'host/pairing-list-devices':
+        return {
+          id,
+          type: 'response',
+          command: 'host/pairing-list-devices',
+          success: true,
+          data: {
+            devices: [],
+          },
+        };
+      case 'host/pairing-revoke-device':
+        return {
+          id,
+          type: 'response',
+          command: 'host/pairing-revoke-device',
+          success: true,
+          data: {
+            revoked: true,
+          },
+        };
     default:
       return null;
   }

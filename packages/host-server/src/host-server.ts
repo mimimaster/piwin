@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { HostMode, HostWireMessage, RemoteCapabilitySummary } from '@piwin/contracts';
+import type {
+  HostMode,
+  HostPairingCommand,
+  HostWireMessage,
+  RemoteCapabilitySummary,
+} from '@piwin/contracts';
+import { isHostPairingCommandType } from '@piwin/contracts';
+import { handleHostPairingCommand } from './host-pairing-commands.js';
 import type { HostRuntime } from '@piwin/host-runtime';
 import { WebSocket, WebSocketServer } from 'ws';
 import {
@@ -108,6 +115,8 @@ export type HostServerOptions = {
   idempotencyRegistry?: HostCommandIdempotencyRegistry;
   /** Directory of a built Web shell. The same port serves the page and the socket. */
   webRoot?: string;
+  /** Address pairing codes point phones at; defaults to the bound URL. */
+  pairingAdvertisedEndpoint?: string;
 };
 
 export type HostServerAddress = {
@@ -152,6 +161,8 @@ export class HostServer {
   private livenessTimer: ReturnType<typeof setInterval> | undefined;
   private browserFrameDetach: (() => void) | undefined;
   private readonly mirrorLeaseReaper: DisconnectedMirrorLeaseReaper;
+  private readonly pairingAdvertisedEndpoint: string | undefined;
+  private boundUrl: string | undefined;
 
   public constructor(options: HostServerOptions) {
     if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 0)) {
@@ -171,6 +182,7 @@ export class HostServer {
     this.authToken = options.authToken;
     this.devicePairing = options.devicePairing;
     this.devicePairingStore = options.devicePairingStore;
+    this.pairingAdvertisedEndpoint = options.pairingAdvertisedEndpoint?.trim() || undefined;
     this.allowedOrigins =
       options.allowedOrigins === undefined ? undefined : new Set(options.allowedOrigins);
     this.clientToolBroker = options.clientToolBroker;
@@ -298,11 +310,8 @@ export class HostServer {
           return;
         }
         const info = address as AddressInfo;
-        resolve({
-          host: this.host,
-          port: info.port,
-          url: formatWebSocketUrl(this.host, info.port),
-        });
+        this.boundUrl = formatWebSocketUrl(this.host, info.port);
+        resolve({ host: this.host, port: info.port, url: this.boundUrl });
       });
     });
 
@@ -563,6 +572,23 @@ export class HostServer {
     connection: HostClientConnection,
     frame: Extract<HostWireMessage, { type: 'command' }>,
   ): Promise<void> {
+    if (isHostPairingCommandType(frame.command.type)) {
+      // Owned by this server's pairing registry, never by HostRuntime.
+      const response = await handleHostPairingCommand(frame.command as HostPairingCommand, {
+        pairing: this.devicePairing,
+        store: this.devicePairingStore,
+        hostInstanceId: this.instanceId,
+        bindHost: this.host,
+        advertisedEndpoint: this.pairingAdvertisedEndpoint ?? this.boundUrl,
+        callerDeviceId: connection.deviceId,
+        onRevoked: (deviceId) => {
+          this.clientToolBroker?.forgetDevice(deviceId);
+          this.disconnectDevice(deviceId, 'device revoked');
+        },
+      });
+      await this.sendResponse(connection, { type: 'response', requestId: frame.requestId, response });
+      return;
+    }
     const admission = evaluateHostCommandAdmission({
       command: frame.command,
       liveOwner: isLiveOwnerConnection({
