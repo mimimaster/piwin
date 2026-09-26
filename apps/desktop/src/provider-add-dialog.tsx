@@ -1,6 +1,5 @@
-import { Modal } from '@piwin/ui-kit';
 import type { ReactElement } from 'react';
-import { ProviderIcon } from './provider-icons.js';
+import { ProviderIcon, Modal } from '@piwin/ui-kit';
 import {
   PROVIDER_GROUP_LABELS,
   presetDesc,

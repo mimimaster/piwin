@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ProviderIcon, resolveModelBrandKey } from './provider-icons';
+import { ProviderIcon, resolveModelBrandKey } from './provider-icon';
 
 describe('ProviderIcon', () => {
   it('renders a real brand mark for known preset ids', () => {

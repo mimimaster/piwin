@@ -13,7 +13,6 @@ import {
   getSubscriptionBillingNotice,
   remoteCommandRequiresIdempotencyKey,
 } from '@piwin/contracts';
-import { Button } from '@piwin/ui-kit';
 import {
   AlertCircle,
   ChevronDown,
@@ -25,7 +24,7 @@ import {
 import { readDesktopClientPrincipalId } from './desktop-client-principal.js';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import { useDesktopLocale } from './desktop-locale-context.js';
-import { ProviderIcon } from './provider-icons.js';
+import { ProviderIcon, Button } from '@piwin/ui-kit';
 import { useSettings } from './settings/settings-context.js';
 import { useConfirmDialog } from './use-confirm-dialog.js';
 import { InlineAuthPromptForm, readAuthPromptOpenUrl, type ProviderCardMeta } from './auth-prompt-form.js';

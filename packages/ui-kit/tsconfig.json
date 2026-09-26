@@ -4,6 +4,11 @@
     "outDir": "dist",
     "rootDir": "src",
     "jsx": "react-jsx",
+    // ui-kit ships TS source to Vite-bundled shells only (never run by Node).
+    // Bundler resolution also reads deps whose .d.ts use extensionless
+    // re-exports (modelicons), which NodeNext resolves to empty modules.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
   "include": [

@@ -6,7 +6,6 @@
  */
 
 import { useMemo, useState, type ReactElement } from 'react';
-import { Button } from '@piwin/ui-kit';
 import { isModelEnabled, isProviderEnabled } from '@piwin/contracts';
 import type { ModelConfigEntry, ModelProviderConfig, ModelRouteConfig } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context.js';
@@ -21,7 +20,7 @@ import {
   type ModelConfigurationDraft,
 } from './model-configuration.js';
 import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
-import { ProviderIcon } from './provider-icons.js';
+import { ProviderIcon, Button } from '@piwin/ui-kit';
 import { useSettings } from './settings/settings-context.js';
 import { PageTitle } from './settings/page-title.js';
 

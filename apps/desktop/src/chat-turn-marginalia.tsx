@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import type { ContextUsageSnapshot, ModelRef } from '@piwin/contracts';
 import type { ChatMessageUi } from './chat-reducer';
 import { formatTimestamp } from './format-timestamp.js';
-import { ProviderIcon } from './provider-icons.js';
+import { ProviderIcon } from '@piwin/ui-kit';
 import { formatTurnModelTrail, resolveTurnModelTrail } from './turn-model-trail.js';
 
 /**

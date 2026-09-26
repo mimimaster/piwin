@@ -13,7 +13,7 @@ import {
   resolveModelDisplayName,
 } from './conversation-message-identity';
 import type { ModelOption } from './model-options';
-import { ProviderIcon } from './provider-icons';
+import { ProviderIcon } from '@piwin/ui-kit';
 
 export type ConversationUsageChipData = {
   text: string;

@@ -177,3 +177,7 @@ export type {
   CascadeRippleProps,
   AsteriskBreathProps,
 } from './animations.js';
+
+/** Model vendor brand marks (shared by Desktop and Mobile bylines). */
+export { ProviderIcon, resolveModelBrandKey } from './provider-icon.js';
+export type { ProviderIconProps } from './provider-icon.js';

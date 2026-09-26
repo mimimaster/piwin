@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Button } from '@piwin/ui-kit';
 import { isModelEnabled, isProviderEnabled } from '@piwin/contracts';
 import type { ModelRouteConfig, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 import type { DesktopLocale, DesktopTranslator } from './desktop-locale.js';
 import { buildVideoGenerationRoute } from './generation-route-defaults.js';
 import { createModelConfigurationDraft, type ModelConfigurationDraft } from './model-configuration.js';
 import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
-import { ProviderIcon } from './provider-icons.js';
+import { ProviderIcon, Button } from '@piwin/ui-kit';
 import { PageTitle } from './settings/page-title.js';
 import {
   defaultVideoGenerationApiStyle,

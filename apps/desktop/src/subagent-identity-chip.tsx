@@ -5,7 +5,7 @@
 import type { ReactElement } from 'react';
 import type { ModelRef } from '@piwin/contracts';
 import type { ModelOption } from './model-options';
-import { ProviderIcon } from './provider-icons';
+import { ProviderIcon } from '@piwin/ui-kit';
 import { resolveModelDisplayName } from './conversation-message-identity';
 
 export type SubagentIdentityChipsProps = {

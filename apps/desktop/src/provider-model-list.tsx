@@ -19,6 +19,8 @@ import {
   DropdownMenuSeparator,
   IconButton,
   Switch,
+  ProviderIcon,
+  resolveModelBrandKey,
 } from '@piwin/ui-kit';
 import { AddModelDialog } from './AddModelDialog.js';
 import { DiscoverModelsDialog } from './DiscoverModelsDialog.js';
@@ -30,7 +32,6 @@ import {
 } from './model-configuration.js';
 import { ModelEditInline } from './model-edit-inline.js';
 import { ProviderAvatar } from './provider-avatar.js';
-import { ProviderIcon, resolveModelBrandKey } from './provider-icons.js';
 import {
   IconChevronDown,
   IconDownload,

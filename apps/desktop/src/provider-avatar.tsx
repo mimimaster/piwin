@@ -11,7 +11,7 @@
  */
 
 import type { ReactElement } from 'react';
-import { ProviderIcon } from './provider-icons.js';
+import { ProviderIcon } from '@piwin/ui-kit';
 
 function monogram(name: string, id: string): string {
   const source = name.trim() || id;
