@@ -16,3 +16,15 @@ The matching browser icons are in `apps/desktop/public/` and
 `apps/docs/public/`. The NSIS sidebar art uses the same large master and is
 regenerated with
 `python3 scripts/dev/gen-nsis-art.py`.
+
+macOS 26 uses `icons/Piwin.car`, compiled from `icons/PiwinNative.icon`. The
+Icon Composer source uses the same full-size artwork on a dark native icon
+background. `icon.icns` remains the fallback for older macOS.
+Check the packaged `.app` for both `Contents/Resources/Assets.car` and
+`Contents/Resources/icon.icns`, with `CFBundleIconName` in `Contents/Info.plist`.
+Regenerate `Piwin.car` from the Icon Composer source with Xcode 26 or later
+when changing the artwork. Tauri uses the precompiled catalog because its
+current Icon Composer path renames the document before compilation, which fails
+with this version of Apple's asset compiler. Check the regenerated catalog
+with `assetutil --info` and inspect a packaged `.app` in Finder. The native
+icon should fill the system icon shape without a separate gray plate.
