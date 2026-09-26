@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Piwin 砚 · 宣传片</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="promo.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-desktop" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v4h4"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v4M15 3v4M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 8v8M18 10a6 6 0 0 1-6 6H8"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-fetch" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z" fill="currentColor"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3"/></symbol>
+  <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM17 9l5 6M22 9l-5 6"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></symbol>
+</svg>
+
+<div id="stage">
+  <canvas id="bg" width="1920" height="1080"></canvas>
+  <div id="scenes">
+
+    <!-- ① 开场：一滴墨 → ensō → 砚 -->
+    <section class="scene" id="s-intro">
+      <div class="intro-title">
+        <h1 data-in="7.5" data-dur="1.4" data-fx="blur" data-out="12.2">Piwin<span class="han">砚</span></h1>
+        <p class="intro-sub" data-in="8.6" data-dur="0.9" data-out="12.2">基于 Pi 的私人 Coding Agent</p>
+        <p class="intro-poem" data-in="9.8" data-dur="1.6" data-fx="fade" data-out="12.2">砚者，研墨沉淀、静水流深。<br>集百家之所长，归于一案之间。</p>
+      </div>
+      <div class="intro-meta" data-in="10.6" data-fx="fade" data-out="12.2">PI SDK · HOST-FIRST · LOCAL-ONLY</div>
+    </section>
+
+    <!-- ② 一处权威，多端落笔 -->
+    <section class="scene" id="s-host">
+      <header class="sc-head">
+        <div class="kicker" data-in="0.2">Host-First · 一处权威</div>
+        <h2 data-in="0.4">多端落笔，一案归心</h2>
+        <p data-in="0.8">客户端与 Host 分离：会话、配置与执行统一由 Host 掌管，所有数据留在你自己的机器上。</p>
+      </header>
+      <svg class="host-links" viewBox="0 0 1920 1080">
+        <path pathLength="1" data-in="2.0" data-fx="draw" d="M570 412 C 690 412, 690 560, 800 590"/>
+        <path pathLength="1" data-in="2.15" data-fx="draw" d="M570 552 C 680 552, 700 610, 800 615"/>
+        <path pathLength="1" data-in="2.3" data-fx="draw" d="M570 692 C 680 692, 700 650, 800 645"/>
+        <path pathLength="1" data-in="2.45" data-fx="draw" d="M570 832 C 690 832, 690 690, 800 670"/>
+        <path pathLength="1" class="hot" data-in="3.2" data-fx="draw" d="M1220 630 C 1300 630, 1330 630, 1420 630"/>
+        <g id="host-pkts"></g>
+      </svg>
+      <div class="client" style="top:360px" data-in="1.1" data-fx="left"><div class="ico"><svg class="i"><use href="#i-desktop"/></svg></div><div><b>Desktop</b><span>macOS · Tauri 2</span></div></div>
+      <div class="client" style="top:500px" data-in="1.3" data-fx="left"><div class="ico"><svg class="i"><use href="#i-globe"/></svg></div><div><b>Web</b><span>浏览器 · 同端口前后端</span></div></div>
+      <div class="client" style="top:640px" data-in="1.5" data-fx="left"><div class="ico"><svg class="i"><use href="#i-phone"/></svg></div><div><b>iPhone · iPad</b><span>Inkstone Shell</span></div></div>
+      <div class="client" style="top:780px" data-in="1.7" data-fx="left"><div class="ico"><svg class="i"><use href="#i-term"/></svg></div><div><b>CLI</b><span>同一 Host · 同一份配置</span></div></div>
+      <div class="host-card" data-in="1.2" data-fx="pop">
+        <div class="hc-top"><span class="seal">砚</span><div><b>Piwin Host</b><span>HOSTCOMMAND · HOSTPUSH</span></div></div>
+        <div class="hc-row" data-in="2.2" data-fx="right">会话树<em>SQLite · 分叉回滚</em></div>
+        <div class="hc-row" data-in="2.4" data-fx="right">权限引擎<em>Deny · Ask · Allow</em></div>
+        <div class="hc-row" data-in="2.6" data-fx="right">子代理编排<em>Git Worktree</em></div>
+        <div class="hc-row" data-in="2.8" data-fx="right">工具 · 浏览器 · 制品<em>MCP · Artifact</em></div>
+        <div class="hc-row pi" data-in="3.0" data-fx="right">Pi Kernel<em>SDK · RPC 双模</em></div>
+      </div>
+      <div class="store-card" data-in="3.4" data-fx="right">
+        <b><svg class="i"><use href="#i-folder"/></svg>~/.piwin</b>
+        <p>会话 · 媒体 · 知识库<br>扩展 · 订阅凭据</p>
+      </div>
+      <div class="lbl" style="left:1420px;top:760px" data-in="3.8" data-fx="fade">所有数据留在本地</div>
+      <div class="lbl" style="left:170px;top:910px" data-in="2.6" data-fx="fade">多个终端 · 同一份会话与配置</div>
+    </section>
+
+    <!-- ③ 特色 01 · 扩展热安装 -->
+    <section class="scene feat" id="s-f1">
+      <div class="feat-copy">
+        <div class="feat-num"><span class="seal big" data-in="0.25" data-fx="stamp">壹</span><span class="feat-idx" data-in="0.45" data-fx="fade">特色 01 / 07</span></div>
+        <h2 data-in="0.45">Pi 扩展热安装</h2>
+        <p class="feat-desc" data-in="0.75">市场、Git、本地路径一键装，<br>下一轮对话即生效。</p>
+        <ul class="feat-chips"><li data-in="1.05">不重启</li><li data-in="1.2">不丢会话</li><li data-in="1.35">Agent 也能替你装</li></ul>
+      </div>
+      <div class="feat-panel" data-in="0.3" data-fx="right">
+        <div class="ph"><span class="dots"><i></i><i></i><i></i></span>扩展市场<span class="ph-end">~/.piwin/extensions</span></div>
+        <div class="pb">
+          <div class="seg"><span class="on">市场</span><span>Git URL</span><span>本地路径</span></div>
+          <div class="ext-list">
+            <div class="ext-row" id="f1-target" data-steps="0:idle,1.55:press,1.75:busy,2.9:done">
+              <div class="ei">网</div><div class="en"><b>pi-web-tools</b><span>网页抓取 · 站点地图<span class="badge">社区</span></span></div>
+              <div class="ibtn"><span class="b-idle">安装</span><span class="b-busy"><i class="grind"></i>安装中</span><span class="b-done"><svg class="i"><use href="#i-check"/></svg>已安装</span></div>
+            </div>
+            <div class="ext-row" data-steps="0:idle">
+              <div class="ei">远</div><div class="en"><b>pi-ssh-remote</b><span>远程主机执行<span class="badge">Pi 原生</span></span></div>
+              <div class="ibtn"><span class="b-idle">安装</span></div>
+            </div>
+            <div class="ext-row" data-steps="0:done">
+              <div class="ei">审</div><div class="en"><b>review-bot</b><span>结构化代码审查<span class="badge">内置</span></span></div>
+              <div class="ibtn"><span class="b-done"><svg class="i"><use href="#i-check"/></svg>已启用</span></div>
+            </div>
+          </div>
+          <div class="cap-line" style="margin-top:22px" data-in="3.2" data-fx="fade">Tools · Hook · Provider · 对话框，桌面端直接可用</div>
+          <svg class="cursor" id="f1-cursor" viewBox="0 0 24 24"><path d="M4 3l15 7-6.5 2L10 19z" fill="#ebe5da" stroke="#0b0a09" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          <div class="run-col">
+            <h4><span class="lampdot"></span>当前会话 · Run #12</h4>
+            <div class="thread">
+              <div class="tr" data-steps="0.6:run,1.3:done"><i class="node"></i><b>read</b>auth.ts</div>
+              <div class="tr" data-steps="1.3:run,2.2:done"><i class="node"></i><b>edit</b>session.ts <span class="plus">+12</span></div>
+              <div class="tr" data-steps="2.2:run,3.4:done"><i class="node"></i><b>bash</b>pnpm test</div>
+            </div>
+            <div class="banner" data-in="3.5">本轮结束 → 自动挂载 pi-web-tools，会话树原样保留</div>
+            <div class="thread" data-in="4.3">
+              <div class="tr" data-steps="4.3:done"><i class="node"></i><b>web_fetch</b>Run #13 已可用</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ④ 特色 02 · 子代理编排 -->
+    <section class="scene feat" id="s-f2">
+      <div class="feat-copy">
+        <div class="feat-num"><span class="seal big" data-in="0.25" data-fx="stamp">贰</span><span class="feat-idx" data-in="0.45" data-fx="fade">特色 02 / 07</span></div>
+        <h2 data-in="0.45">子代理编排</h2>
+        <p class="feat-desc" data-in="0.75">三套内置方案，输入框里一键切换；<br>也能自建角色、模型与并发。</p>
+        <ul class="feat-chips"><li data-in="1.05">Scout 只读调研</li><li data-in="1.2">Lead + Sidekick</li><li data-in="1.35">Worktree 隔离审查</li></ul>
+      </div>
+      <div class="feat-panel" data-in="0.3" data-fx="right">
+        <div class="ph"><span class="dots"><i></i><i></i><i></i></span>编排方案<span class="ph-end">subagents</span></div>
+        <div class="pb">
+          <div class="orch-seg"><i class="orch-ind" id="f2-ind"></i><span data-steps="0:on,2.7:,">Ultra Code</span><span data-steps="2.7:on,4.3:">Fusion</span><span data-steps="4.3:on">Reviewed Delivery</span></div>
+          <div class="orch-graph">
+            <div class="mode" id="f2-ultra">
+              <svg viewBox="0 0 832 470">
+                <path pathLength="1" data-in="1.0" data-fx="draw" d="M416 70 C 416 170, 150 170, 150 290"/>
+                <path pathLength="1" data-in="1.1" data-fx="draw" d="M416 70 L 416 310"/>
+                <path pathLength="1" data-in="1.2" data-fx="draw" d="M416 70 C 416 170, 682 170, 682 290"/>
+              </svg>
+              <div class="gnode lead" style="left:416px;top:62px" data-in="0.7" data-fx="pop"><b>主代理</b><span>只收蒸馏后的结论</span></div>
+              <div class="gnode" style="left:150px;top:300px" data-in="1.3" data-fx="pop"><b>Scout</b><span>广搜</span></div>
+              <div class="gnode" style="left:416px;top:320px" data-in="1.4" data-fx="pop"><b>Scout</b><span>调研</span></div>
+              <div class="gnode" style="left:682px;top:300px" data-in="1.5" data-fx="pop"><b>Scout</b><span>核验</span></div>
+              <div id="f2-noise"></div>
+              <i class="carry" data-from="150,300"></i><i class="carry" data-from="416,320"></i><i class="carry" data-from="682,300"></i>
+              <div class="orch-cap" data-in="1.9" data-fx="fade">grep 结果、文件内容、死路都留在子上下文 · 只回流结论</div>
+            </div>
+            <div class="mode" id="f2-fusion">
+              <svg viewBox="0 0 832 470">
+                <path pathLength="1" data-in="2.9" data-fx="draw" d="M240 190 C 360 120, 480 120, 600 190"/>
+                <path pathLength="1" data-in="3.0" data-fx="draw" d="M600 230 C 480 300, 360 300, 240 230"/>
+              </svg>
+              <div class="gnode lead" style="left:180px;top:210px" data-in="2.8" data-fx="pop"><b>Lead</b><span>前沿模型 · 计划与终审</span></div>
+              <div class="gnode" style="left:660px;top:210px" data-in="2.9" data-fx="pop"><b>Sidekick</b><span>便宜模型 · 机械实现</span></div>
+              <span class="packet" id="f2-brief">brief →</span>
+              <span class="packet back" id="f2-result">← result</span>
+              <div class="orch-cap" data-in="3.3" data-fx="fade">只交换 brief 与 result，从不传完整历史 · 两边缓存都保住</div>
+            </div>
+            <div class="mode" id="f2-review">
+              <svg viewBox="0 0 832 470">
+                <path pathLength="1" data-in="4.6" data-fx="draw" d="M205 200 L 345 200"/>
+                <path pathLength="1" data-in="5.0" data-fx="draw" d="M495 200 L 648 200"/>
+              </svg>
+              <div class="gnode" style="left:130px;top:200px" data-in="4.4" data-fx="pop"><b>Worker</b><span>独立 worktree</span></div>
+              <div class="gnode" style="left:420px;top:200px" data-in="4.7" data-fx="pop"><b>Reviewer</b><span>只读 · 结构化裁决</span></div>
+              <div class="gnode" style="left:700px;top:200px" data-in="5.1" data-fx="pop" data-steps="5.6:done"><b>main</b><span>合回主工程</span></div>
+              <span class="seal approve" style="left:572px;top:200px" data-in="5.3" data-fx="stamp">准</span>
+              <div class="orch-cap" data-in="4.9" data-fx="fade">Worker 产出候选改动 · Reviewer 审过才合回</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑤ 特色 03 · 全双工语音 -->
+    <section class="scene feat" id="s-f3">
+      <div class="feat-copy">
+        <div class="feat-num"><span class="seal big" data-in="0.25" data-fx="stamp">叁</span><span class="feat-idx" data-in="0.45" data-fx="fade">特色 03 / 07</span></div>
+        <h2 data-in="0.45">全双工语音</h2>
+        <p class="feat-desc" data-in="0.75">说话和干活分开：一边聊方案，<br>一边让 Agent 在后台推进，随时插话。</p>
+        <ul class="feat-chips"><li data-in="1.05">Codex Live</li><li data-in="1.2">Gemini Live</li><li data-in="1.35">OpenAI Realtime</li></ul>
+      </div>
+      <div class="feat-panel" data-in="0.3" data-fx="right">
+        <div class="ph"><span class="dots"><i></i><i></i><i></i></span>Live 通话<span class="ph-end"><svg class="i"><use href="#i-mic"/></svg>00:42</span></div>
+        <div class="pb">
+          <div class="orb"><svg viewBox="-190 -190 380 380" id="f3-orb"></svg><div class="orb-label"><div>说话面<small>REALTIME</small></div></div></div>
+          <div class="captions">
+            <p data-in="0.8" data-dur="1.4" data-fx="type">你：把登录按钮改成朱红，顺手跑下测试。</p>
+            <p class="live" data-in="2.5" data-dur="0.8" data-fx="type">Live：好，已交给 Agent，你接着说。</p>
+            <p class="live" data-in="5.3" data-dur="0.8" data-fx="type">Live：改完了，42 个测试全绿。</p>
+          </div>
+          <div class="agent-card">
+            <h4><span class="lampdot"></span>会话 Agent · 后台执行</h4>
+            <div class="banner" data-in="2.8">任务简报已交接：LoginButton 改朱红 + 跑测试</div>
+            <div class="thread" data-in="3.0" data-fx="fade">
+              <div class="tr" data-in="3.0" data-steps="3.0:run,3.6:done"><i class="node"></i><b>read</b>LoginButton.tsx</div>
+              <div class="tr" data-in="3.6" data-steps="3.6:run,4.3:done"><i class="node"></i><b>edit</b>LoginButton.tsx<span class="meta"><span class="plus">+6</span><span class="minus">−2</span></span></div>
+              <div class="tr" data-in="4.3" data-steps="4.3:run,5.2:done"><i class="node"></i><b>bash</b>pnpm test<span class="meta" data-in="5.2" data-fx="fade" style="color:var(--pine)">42 passed</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑥ 特色 04 · 按能力类型配模型 -->
+    <section class="scene feat" id="s-f4">
+      <div class="feat-copy">
+        <div class="feat-num"><span class="seal big" data-in="0.25" data-fx="stamp">肆</span><span class="feat-idx" data-in="0.45" data-fx="fade">特色 04 / 07</span></div>
+        <h2 data-in="0.45">按能力类型配模型</h2>
+        <p class="feat-desc" data-in="0.75">不按厂商堆列表，而按“用来干什么”分开配，<br>每一类都有默认模型与调用测试。</p>
+        <ul class="feat-chips"><li data-in="1.05">BYOK 兼容端点</li><li data-in="1.2">OAuth 官方订阅</li><li data-in="1.35">改完下一轮生效</li></ul>
+      </div>
+      <div class="feat-panel" data-in="0.3" data-fx="right">
+        <div class="ph"><span class="dots"><i></i><i></i><i></i></span>设置 · 模型<span class="ph-end">Host 统一下发</span></div>
+        <div class="pb">
+          <div class="mtable" id="f4-table"></div>
+          <div class="mfoot" data-in="4.2" data-fx="fade"><b>OAuth</b> Kimi · Codex · Claude · Grok · Copilot · Devin　　<b>BYOK</b> 任意 OpenAI 兼容端点</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑦ 特色 05 · Web Search -->
+    <section class="scene feat" id="s-f5">
+      <div class="feat-copy">
+        <div class="feat-num"><span class="seal big" data-in="0.25" data-fx="stamp">伍</span><span class="feat-idx" data-in="0.45" data-fx="fade">特色 05 / 07</span></div>
+        <h2 data-in="0.45">Web Search<br>一键配置</h2>
+        <p class="feat-desc" data-in="0.75">免 Key 起步，搜索源与网页抓取<br>随时切换，不打断会话。</p>
+        <ul class="feat-chips"><li data-in="1.05">DuckDuckGo 免 Key</li><li data-in="1.2">Brave · Tavily · Devin</li><li data-in="1.35">Jina · Firecrawl</li></ul>
+      </div>
+      <div class="feat-panel" data-in="0.3" data-fx="right">
+        <div class="ph"><span class="dots"><i></i><i></i><i></i></span>web_search · web_fetch<span class="ph-end">始终可用</span></div>
+        <div class="pb">
+          <div class="sbox"><svg class="i"><use href="#i-search"/></svg><span data-in="0.6" data-dur="1.3" data-fx="type">iframe sandbox 与 CSP 最佳实践</span></div>
+          <div class="srcs"><span class="lab">搜索源</span>
+            <span class="chip" data-steps="0:on,3.8:">DuckDuckGo · 免 Key</span><span class="chip">Brave</span><span class="chip" data-steps="3.8:on">Tavily</span><span class="chip">Devin</span><span class="chip">本机 CLI</span>
+          </div>
+          <div class="results">
+            <div class="res" data-in="2.1"><b>Content Security Policy (CSP) — HTTP | MDN</b><span>developer.mozilla.org</span></div>
+            <div class="res" data-in="2.35"><b>Play safely in sandboxed IFrames</b><span>web.dev</span></div>
+            <div class="res" data-in="2.6"><b>CSP Level 3 · frame-src 与 sandbox</b><span>w3c.github.io/webappsec-csp</span></div>
+          </div>
+          <div class="fetch" data-in="4.3">
+            <div class="fh"><svg class="i"><use href="#i-fetch"/></svg>web_fetch → Markdown · 8.2 KB<span style="margin-left:auto;color:var(--t4)">supermarkdown · Jina · Firecrawl</span></div>
+            <div data-in="4.6" data-fx="fade"># Content Security Policy</div>
+            <div data-in="4.8" data-fx="fade">- default-src 'none' 作为兜底 …</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑧ 特色 06 · 视觉委托 -->
+    <section class="scene feat" id="s-f6">
+      <div class="feat-copy">
+        <div class="feat-num"><span class="seal big" data-in="0.25" data-fx="stamp">陆</span><span class="feat-idx" data-in="0.45" data-fx="fade">特色 06 / 07</span></div>
+        <h2 data-in="0.45">视觉委托</h2>
+        <p class="feat-desc" data-in="0.75">纯文本模型也能看图：截图交给<br>轻量多模态模型提炼成文字。</p>
+        <ul class="feat-chips"><li data-in="1.05">自动 OCR + 提炼</li><li data-in="1.2">省 70–90% Token</li><li data-in="1.35">免费多模态可用</li></ul>
+      </div>
+      <div class="feat-panel" data-in="0.3" data-fx="right">
+        <div class="ph"><span class="dots"><i></i><i></i><i></i></span>视觉委托<span class="ph-end"><svg class="i"><use href="#i-eye"/></svg>Gemini Flash</span></div>
+        <div class="pb">
+          <div class="shot" data-in="0.5" data-fx="pop"><img src="../readme/hero.jpg" alt=""><div class="scanmask" id="f6-mask"></div><div class="scanline" id="f6-scan"></div></div>
+          <div class="vlines">
+            <div class="cap-line" data-in="2.3" data-fx="fade">→ 主模型只收到：</div>
+            <div class="distill" style="position:static">
+              <p data-in="2.5" data-dur="0.6" data-fx="type">· 页面：Artifact 沙箱 CSP 结论</p>
+              <p data-in="2.95" data-dur="0.6" data-fx="type">· Diff：srcdoc.ts +14 −4</p>
+              <p data-in="3.4" data-dur="0.6" data-fx="type">· 报错：web_fetch 超时 12000ms</p>
+            </div>
+          </div>
+          <div class="tok">
+            <div class="tok-row" data-in="3.8" data-fx="fade"><span>直接发图</span><div class="tok-bar"><i style="background:var(--crimson)" data-in="3.9" data-dur="0.7" data-fx="grow"></i></div><span>≈ 1,840 tok</span></div>
+            <div class="tok-row" data-in="4.2" data-fx="fade"><span>委托提炼</span><div class="tok-bar"><i style="background:var(--pine);width:11%" data-in="4.3" data-dur="0.5" data-fx="grow"></i></div><span>≈ 210 tok</span></div>
+            <div style="margin-top:14px;display:flex;align-items:baseline;gap:16px" data-in="4.6" data-fx="pop"><span style="font:700 64px var(--mono);color:var(--pine)" data-in="4.6" data-dur="0.9" data-fx="count" data-from="0" data-to="89" data-prefix="−" data-suffix="%">−0%</span><span class="cap-line">上下文 Token · 长任务也不“变笨”</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑨ 特色 07 · code_search -->
+    <section class="scene feat" id="s-f7">
+      <div class="feat-copy">
+        <div class="feat-num"><span class="seal big" data-in="0.25" data-fx="stamp">柒</span><span class="feat-idx" data-in="0.45" data-fx="fade">特色 07 / 07</span></div>
+        <h2 data-in="0.45"><code>code_search</code></h2>
+        <p class="feat-desc" data-in="0.75">Host 内置检索工具：搜索在独立只读过程完成，<br>只把命中路径、定义与调用关系交回。</p>
+        <ul class="feat-chips"><li data-in="1.05">参考 Fast-Context</li><li data-in="1.2">不污染主上下文</li><li data-in="1.35">复用 Devin 账号</li></ul>
+      </div>
+      <div class="feat-panel" data-in="0.3" data-fx="right">
+        <div class="ph"><span class="dots"><i></i><i></i><i></i></span>code_search<span class="ph-end">与 read / grep 同级</span></div>
+        <div class="pb">
+          <div class="cs-left">
+            <h5><i class="grind"></i>独立只读检索（不进主上下文）</h5>
+            <div class="fall"><div class="fall-inner" id="f7-fall"></div></div>
+            <div class="cs-count">扫过 <span data-in="0.4" data-dur="2.2" data-fx="count" data-from="0" data-to="3412">0</span> 行 · 12 个文件</div>
+          </div>
+          <div class="cs-arrow" data-in="2.4" data-fx="left"><svg class="i"><use href="#i-arrow"/></svg></div>
+          <div class="cs-right">
+            <h5><span class="lampdot"></span>主上下文只收到</h5>
+            <div class="hitcard" data-in="2.6" data-fx="right"><b>artifact/src/srcdoc.ts:23</b><span>fn buildArtifactSrcdoc</span></div>
+            <div class="hitcard" data-in="2.9" data-fx="right"><b>artifact/src/iframe-policy.ts:8</b><span>fn buildStrictArtifactCsp</span></div>
+            <div class="hitcard" data-in="3.2" data-fx="right"><b>desktop/…/artifact-canvas-panel.tsx:112</b><span>调用 · &lt;iframe sandbox&gt;</span></div>
+          </div>
+          <div class="ctx tok">
+            <div class="tok-row" data-in="3.9" data-fx="fade"><span>grep + read 翻找</span><div class="tok-bar"><i style="background:var(--crimson)" data-in="4.0" data-dur="0.7" data-fx="grow"></i></div><span>≈ 38k tok</span></div>
+            <div class="tok-row" data-in="4.3" data-fx="fade"><span>code_search</span><div class="tok-bar"><i style="background:var(--pine);width:4%" data-in="4.4" data-dur="0.4" data-fx="grow"></i></div><span>≈ 1.2k tok</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑩ 三步上手（纸面） -->
+    <section class="scene paper" id="s-steps">
+      <header class="sc-head">
+        <div class="kicker" data-in="0.6">Get started · 三步上手</div>
+        <h2 data-in="0.8" data-out="9.0">铺纸、研墨、落笔</h2>
+      </header>
+      <div class="step" style="left:150px" data-in="1.0" data-out="9.0">
+        <div class="st-top"><span class="seal">一</span><h3>下载安装</h3></div>
+        <div class="illus"><img class="appicon" id="st-icon" src="../../../apps/desktop/public/app-icon-512.png" alt=""><div class="appsdir"><svg class="i"><use href="#i-folder"/></svg><span>Applications</span></div></div>
+        <p>Releases 下载 dmg，拖进「应用程序」。内置 Node 22 + Host，零环境门槛。</p>
+        <div class="src">或从源码：<code>pnpm dev:tauri</code></div>
+      </div>
+      <div class="step" style="left:705px" data-in="3.3" data-out="9.0">
+        <div class="st-top"><span class="seal">二</span><h3>接入模型</h3></div>
+        <div class="illus"><div class="oauth">
+          <span class="chip" data-steps="3.9:lit">Kimi</span><span class="chip" data-steps="4.1:lit">Codex</span><span class="chip" data-steps="4.3:lit">Claude</span>
+          <span class="chip" data-steps="4.5:lit">Grok</span><span class="chip" data-steps="4.7:lit">Copilot</span><span class="chip" data-steps="4.9:lit">Devin</span>
+        </div></div>
+        <p>OAuth 一键登录官方订阅，或填任意 OpenAI 兼容端点（BYOK）。</p>
+      </div>
+      <div class="step" style="left:1260px" data-in="6.0" data-out="9.0">
+        <div class="st-top"><span class="seal">三</span><h3>开口 · 落笔</h3></div>
+        <div class="illus"><div class="composer">
+          <div class="ct" data-in="6.5" data-dur="1.2" data-fx="type">给 artifact 加上 CSP 沙箱，跑下测试</div>
+          <div class="cb"><span class="cmode">Agent</span>· Claude Sonnet · 放行<span class="send" data-steps="8.0:press,8.3:"><svg class="i"><use href="#i-send"/></svg></span></div>
+        </div></div>
+        <p>Chat 快问快答，Agent 深入工程；<code style="font:17px var(--mono)">/goal</code> 拆解交付。</p>
+      </div>
+    </section>
+
+    <!-- ⑪ 一次真实的对话 -->
+    <section class="scene" id="s-demo">
+      <div class="win" data-in="0.8" data-dur="0.8" data-fx="pop">
+        <div class="win-bar"><span class="seal" style="width:26px;height:26px;font-size:13px">砚</span><span class="title">artifact 沙箱 CSP · 结论沉淀</span><span class="br"><svg class="i"><use href="#i-branch"/></svg>feat/artifact-csp</span><span class="status" id="demo-status"><span class="lampdot"></span>运行中</span></div>
+        <div class="win-body">
+          <div class="tscroll" id="demo-scroll">
+            <div data-in="1.1" class="demo-item"><div class="who"><span class="av">你</span>刚刚 · piwin</div><div class="ucard">把 artifact 的 CSP 收口到一处，补上 iframe 沙箱，再跑下测试。</div></div>
+            <div class="work-h demo-item" data-in="1.7" data-steps="1.7:run,3.2:done"><i class="grind"></i><svg class="i"><use href="#i-search"/></svg><b>探索了 2 个文件 · 4 次搜索</b><span class="done-tag">✓ 16s</span></div>
+            <div class="thread demo-thread">
+              <div class="tr demo-item" data-in="1.9" data-steps="1.9:run,2.25:done"><i class="node"></i><svg class="i"><use href="#i-search"/></svg><b>code_search</b><code>artifact csp frame sandbox</code></div>
+              <div class="tr demo-item" data-in="2.25" data-steps="2.25:run,2.55:done"><i class="node"></i><svg class="i"><use href="#i-search"/></svg><b>grep</b><code>"Content-Security-Policy"</code></div>
+              <div class="tr demo-item" data-in="2.55" data-steps="2.55:run,2.85:done"><i class="node"></i><svg class="i"><use href="#i-file"/></svg><b>read</b><code>packages/artifact/src/srcdoc.ts</code><span class="meta">1-214</span></div>
+              <div class="tr demo-item" data-in="2.85" data-steps="2.85:run,3.15:done"><i class="node"></i><svg class="i"><use href="#i-file"/></svg><b>read</b><code>iframe-policy.ts</code><span class="meta">1-96</span></div>
+              <div class="tr demo-item" data-in="3.35" data-steps="3.35:run,4.0:done"><i class="node"></i><svg class="i"><use href="#i-edit"/></svg><b>write_file</b><code>packages/artifact/src/srcdoc.ts</code><span class="meta"><span class="plus">+14</span><span class="minus">−4</span></span></div>
+              <div class="diff demo-item" data-in="3.55">
+                <div class="d-del">-  const csp = input.csp ?? DEFAULT_ARTIFACT_CSP;</div>
+                <div class="d-add">+  const csp = buildStrictArtifactCsp({ allowScripts, frameSources });</div>
+                <div class="d-add">+  // CSP 只在这里拼一次，调用方不能放宽</div>
+              </div>
+              <div class="gate demo-item" data-in="4.5" data-steps="4.5:wait,5.7:ok">
+                <div><div class="mic">需要批准 · bash</div><div class="cmd">rm -rf packages/artifact/dist &amp;&amp; pnpm build</div><div class="facts">cwd ~/piwin · 规则：rm 需确认</div></div>
+                <div class="seals"><span class="seal">准</span><span class="seal ghost">驳</span></div>
+                <div class="imprint" data-in="5.6" data-fx="stamp" data-dur="0.5">准</div>
+              </div>
+              <div class="tr demo-item" data-in="6.3" data-steps="6.3:run,7.0:done"><i class="node"></i><svg class="i"><use href="#i-term"/></svg><b>bash</b><code>pnpm test --filter artifact</code><span class="meta" data-in="7.0" data-fx="fade" style="color:var(--pine)">41 passed</span></div>
+            </div>
+            <div class="prose demo-item" data-in="7.3" data-dur="1.6" data-fx="type">CSP 现在只在 buildArtifactSrcdoc() 里拼一次：default-src 'none'，iframe 仅授予 allow-scripts，外链一律拦截。41 个测试全部通过。</div>
+          </div>
+        </div>
+      </div>
+      <div class="side-caps">
+        <div data-in="1.9"><b>工具调用，一目了然</b><span>每一步 read / grep / write 都挂在墨线上，可展开差异。</span></div>
+        <div data-in="4.7"><b>危险操作，盖印放行</b><span>权限引擎 Deny → Ask → Allow；默认放行，但 rm 这类操作先问你。</span></div>
+        <div data-in="7.1"><b>会话树，随时回滚</b><span>SQLite 持久化，支持分叉、克隆、截断回滚。</span></div>
+      </div>
+    </section>
+
+    <!-- ⑫ 更多能力 -->
+    <section class="scene" id="s-gallery">
+      <header class="sc-head" style="text-align:center;left:0;right:0;top:70px">
+        <div class="kicker" data-in="0.2" data-out="9.0">And more · 更多能力</div>
+        <h2 data-in="0.4" data-out="9.0" style="font-size:56px">还有更多，留给你慢慢研磨</h2>
+      </header>
+      <div class="gal">
+        <div class="drift" data-depth="1" style="position:absolute;left:470px;top:250px;width:980px;height:666px"><figure class="shotcard" style="width:980px;height:666px" data-in="0.6" data-dur="0.9" data-fx="pop" data-out="9.0"><img src="../readme/hero.jpg" alt=""></figure></div>
+        <div class="drift" data-depth="1.6" style="position:absolute;left:70px;top:250px;width:420px;height:300px"><figure class="shotcard" style="width:420px;height:300px" data-in="1.3" data-fx="left" data-out="9.0"><img src="../readme/marketplace.jpg" alt=""><figcaption>扩展市场</figcaption></figure></div>
+        <div class="drift" data-depth="2" style="position:absolute;left:110px;top:590px;width:400px;height:290px"><figure class="shotcard" style="width:400px;height:290px" data-in="1.6" data-fx="left" data-out="9.0"><img src="../readme/knowledge-wiki.jpg" alt=""><figcaption>LLM Wiki · 闪卡</figcaption></figure></div>
+        <div class="drift" data-depth="1.6" style="position:absolute;left:1430px;top:250px;width:420px;height:300px"><figure class="shotcard" style="width:420px;height:300px" data-in="1.9" data-fx="right" data-out="9.0"><img src="../readme/library.jpg" alt=""><figcaption>资料库 · 生图 / 视频</figcaption></figure></div>
+        <div class="drift" data-depth="2" style="position:absolute;left:1410px;top:590px;width:400px;height:290px"><figure class="shotcard" style="width:400px;height:290px" data-in="2.2" data-fx="right" data-out="9.0"><img src="../readme/usage.jpg" alt=""><figcaption>用量统计 · 缓存命中</figcaption></figure></div>
+      </div>
+      <div class="tags">
+        <span class="chip" data-in="3.0" data-fx="pop" data-out="9.0">会话树 · 分叉回滚</span>
+        <span class="chip" data-in="3.2" data-fx="pop" data-out="9.0">Goal 模式</span>
+        <span class="chip" data-in="3.4" data-fx="pop" data-out="9.0">Artifact 沙箱渲染</span>
+        <span class="chip" data-in="3.6" data-fx="pop" data-out="9.0">权限引擎</span>
+        <span class="chip" data-in="3.8" data-fx="pop" data-out="9.0">MCP</span>
+        <span class="chip" data-in="4.0" data-fx="pop" data-out="9.0">浏览器 · 终端 · 画布</span>
+        <span class="chip" data-in="4.2" data-fx="pop" data-out="9.0">缓存扩展</span>
+        <span class="chip" data-in="4.4" data-fx="pop" data-out="9.0">iOS Shell</span>
+      </div>
+    </section>
+
+    <!-- ⑬ 尾声 -->
+    <section class="scene" id="s-finale">
+      <div class="fin">
+        <h1 data-in="3.6" data-dur="1.4" data-fx="blur">Piwin 砚</h1>
+        <p class="tag" data-in="4.6" data-dur="1.0" data-fx="fade">研墨沉淀，静水流深</p>
+        <div class="links">
+          <span class="chip" data-in="5.6" data-fx="pop"><svg class="i"><use href="#i-code"/></svg>github.com/mimimaster/piwin</span>
+          <span class="chip" data-in="5.8" data-fx="pop"><svg class="i"><use href="#i-file"/></svg>docs.piwinwin.com</span>
+        </div>
+        <p class="plat" data-in="6.4" data-fx="fade">MACOS · IOS · WEB · MIT</p>
+      </div>
+    </section>
+
+    <div id="rail"></div>
+  </div>
+  <canvas id="fx" width="1920" height="1080"></canvas>
+  <div id="vignette"></div>
+  <div id="grain"></div>
+  <div id="blackout"></div>
+</div>
+
+<div id="controls" class="idle">
+  <button id="btn-play" title="播放 / 暂停（空格）"><svg class="i"><use href="#i-play"/></svg></button>
+  <button id="btn-replay" title="从头播放"><svg class="i"><use href="#i-replay"/></svg></button>
+  <div id="scrub"><div class="track"></div><div class="fill"></div><div class="tip"></div></div>
+  <span id="time">0:00 / 1:50</span>
+  <button id="btn-mute" title="静音（M）"><svg class="i"><use href="#i-sound"/></svg></button>
+  <button id="btn-full" title="全屏（F）"><svg class="i"><use href="#i-full"/></svg></button>
+</div>
+
+<div id="gatekeeper">
+  <div>
+    <img src="../../../apps/desktop/public/app-icon-512.png" alt="">
+    <h1>Piwin 砚</h1>
+    <p>宣传片 · 1 分 50 秒 · 建议开启声音</p>
+    <div class="go"><svg class="i"><use href="#i-play"/></svg>点击开始</div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
