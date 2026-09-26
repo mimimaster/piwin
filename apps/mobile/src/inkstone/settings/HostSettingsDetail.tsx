@@ -7,6 +7,7 @@ import { AgentPolicySection, PermissionsSection, SessionRuntimeSection } from '.
 import { AuthSection, ModelsSection } from './section-models.js';
 import { HooksSection, SkillsMcpSection, WebSection } from './section-capabilities.js';
 import { ArchiveSection, ColdStorageSection, UsageSection } from './section-storage.js';
+import { HealthSection } from './section-health.js';
 
 /**
  * One settings section, fully backed by Host commands. Anything the phone
@@ -76,6 +77,8 @@ export function HostSettingsDetail({
         return <UsageSection client={client} />;
       case '归档管理':
         return <ArchiveSection client={client} onToast={toast} />;
+      case 'Apple Health':
+        return <HealthSection host={host} />;
       default:
         return (
           <FullButton variant="secondary" onClick={() => dispatch({ type: 'navigate', route: 'desk' })}>
@@ -87,7 +90,7 @@ export function HostSettingsDetail({
 
   return (
     <>
-      <TopBar title={section} subtitle="设置 · Host" onBack={() => dispatch({ type: 'navigate', route: 'desk' })} />
+      <TopBar title={section} subtitle={section === 'Apple Health' ? '设置 · 本机' : '设置 · Host'} onBack={() => dispatch({ type: 'navigate', route: 'desk' })} />
       <div className="screen-scroll">
         <ScreenHeading title={section} />
         {settings.error !== undefined ? <p className="error-text">{settings.error}</p> : null}

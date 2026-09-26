@@ -26,4 +26,34 @@ describe('inkstoneReducer', () => {
   it('toggles the paper / ink face', () => {
     expect(inkstoneReducer(INITIAL_INKSTONE_STATE, { type: 'toggle-face' }).face).toBe('ink');
   });
+
+  it('opens a draft on the chat page and hands its first message to the created session', () => {
+    const draft = inkstoneReducer(
+      { ...INITIAL_INKSTONE_STATE, sheet: 'attach' },
+      { type: 'start-draft', draft: { mode: 'agent', projectId: 'p1' } },
+    );
+    expect(draft).toMatchObject({ route: 'chat', sheet: null, draft: { mode: 'agent', projectId: 'p1' } });
+
+    const moved = inkstoneReducer(draft, { type: 'set-draft-project', projectId: 'p2' });
+    expect(moved.draft?.projectId).toBe('p2');
+
+    const created = inkstoneReducer(moved, { type: 'draft-created', sessionId: 's9', text: '开始吧' });
+    expect(created.draft).toBeNull();
+    expect(created.pendingFirstSend).toEqual({ sessionId: 's9', text: '开始吧' });
+    expect(inkstoneReducer(created, { type: 'first-send-done' }).pendingFirstSend).toBeNull();
+  });
+
+  it('drops the draft when navigating anywhere', () => {
+    const draft = inkstoneReducer(INITIAL_INKSTONE_STATE, {
+      type: 'start-draft',
+      draft: { mode: 'chat', projectId: undefined },
+    });
+    expect(inkstoneReducer(draft, { type: 'navigate', route: 'chat' }).draft).toBeNull();
+  });
+
+  it('ignores a project pick when no draft is open', () => {
+    expect(inkstoneReducer(INITIAL_INKSTONE_STATE, { type: 'set-draft-project', projectId: 'p1' })).toBe(
+      INITIAL_INKSTONE_STATE,
+    );
+  });
 });

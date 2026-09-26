@@ -1,4 +1,5 @@
-import type { SubagentExecutionStatus } from '@piwin/contracts';
+import type { SubagentExecutionStatus, ToolKind } from '@piwin/contracts';
+import type { InkstoneIconName } from '../icons.js';
 import type { MobileToolCall } from '../../mobile-transcript.js';
 
 /**
@@ -13,6 +14,8 @@ export interface ToolRowView {
   status: ToolRowStatus;
   /** Mono, bold tool name — the prototype's `read` / `bash` / `write_file`. */
   verb: string;
+  /** Kind glyph before the verb, so a chain of rows scans by shape, not by reading. */
+  icon: InkstoneIconName;
   /** One argument chip: the command, a shortened path, or a readable summary. */
   arg: string | undefined;
   meta: string[];
@@ -80,6 +83,7 @@ export function projectToolRow(tool: MobileToolCall): ToolRowView {
     id: tool.id,
     status: tool.status === 'running' ? 'run' : tool.status === 'error' || failure !== undefined ? 'fail' : 'done',
     verb,
+    icon: subagent !== undefined ? 'branch' : toolRowIcon(presentation?.kind, rawVerb, changedPaths.length > 0),
     arg: question ?? resolveArgChip(command, targetPaths, presentation?.summary ?? tool.summary),
     meta: buildMeta(tool),
     failure,
@@ -90,6 +94,44 @@ export function projectToolRow(tool: MobileToolCall): ToolRowView {
     isWrite: changedPaths.length > 0,
     subagent,
   };
+}
+
+/**
+ * Same buckets as Desktop's chain icons (shell / read / edit / search / web /
+ * git / mcp / media). Host `kind` decides first; the tool name only splits the
+ * filesystem bucket and rescues `other`.
+ */
+export function toolRowIcon(kind: ToolKind | undefined, toolName: string, wroteFiles: boolean): InkstoneIconName {
+  const name = toolName.toLowerCase();
+  const searches = /(^|_)(grep|glob|find|search|ls)($|_)|code_search/.test(name);
+  switch (kind) {
+    case 'shell':
+    case 'process':
+      return 'term';
+    case 'git':
+      return 'git';
+    case 'web':
+      return 'globe';
+    case 'mcp':
+      return 'puzzle';
+    case 'image':
+    case 'video':
+      return 'image';
+    case 'subagent':
+      return 'branch';
+    case 'health':
+      return 'drop';
+    case 'filesystem':
+      if (wroteFiles || /write|edit|patch|create/.test(name)) return 'edit';
+      return searches ? 'search' : 'file';
+    default:
+      break;
+  }
+  if (name === 'bash') return 'term';
+  if (name.includes('question')) return 'chat';
+  if (searches) return 'search';
+  if (/fetch|web|browser/.test(name)) return 'globe';
+  return 'bolt';
 }
 
 function projectSubagent(tool: MobileToolCall): SubagentRowView | undefined {

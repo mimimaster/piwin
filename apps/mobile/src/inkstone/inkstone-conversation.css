@@ -22,19 +22,35 @@
   margin-bottom: 14px;
 }
 
+/* Connection is status, not content: one slim line, address then state. */
 .phone[data-route='sessions'] .host-card {
-  padding: 11px 13px;
+  padding: 8px 12px;
+  gap: 10px;
 }
 
-.phone[data-route='sessions'] .continue-card {
-  padding-top: 13px;
-  padding-bottom: 10px;
-  margin-bottom: 15px;
+.phone[data-route='sessions'] .host-card .grow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
-.phone[data-route='sessions'] .continue-meta {
-  margin-top: 10px;
-  padding-top: 7px;
+.phone[data-route='sessions'] .host-card strong {
+  font-size: 13px;
+  flex: none;
+}
+
+.phone[data-route='sessions'] .host-card small {
+  margin-top: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.phone[data-route='sessions'] .host-card > .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--t3);
 }
 
 .phone[data-route='sessions'] .tabs {
@@ -42,47 +58,48 @@
 }
 
 .continue-card {
-  padding: 17px 17px 14px;
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px 12px 16px;
   background: var(--s3);
   box-shadow: var(--sh2);
-  border-radius: 9px;
+  border-radius: 10px;
   position: relative;
-  margin: 16px 0 25px;
+  margin: 12px 0 14px;
 }
 
 .continue-card::before {
   content: '';
   position: absolute;
-  top: 17px;
-  bottom: 17px;
+  top: 14px;
+  bottom: 14px;
   left: 0;
   width: 2px;
   background: var(--lamp);
 }
 
+.continue-card .pill .icon {
+  width: 12px;
+  height: 12px;
+  margin-left: -2px;
+}
+
 .continue-card h3 {
-  font: 600 18px/1.6 var(--serif);
-  margin: 10px 0 5px;
+  font: 600 16px/1.45 var(--serif);
+  margin: 6px 0 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .continue-card p {
   color: var(--t2);
   font-size: 12px;
-  line-height: 1.8;
-}
-
-.continue-meta {
-  border-top: 1px solid var(--l1);
-  margin-top: 14px;
-  padding-top: 11px;
-  font-size: 11px;
-  color: var(--t3);
-}
-
-.continue-meta button {
-  color: var(--zhu);
-  font-size: 12px;
-  min-height: 32px;
+  line-height: 1.6;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .project-heading {
@@ -116,14 +133,14 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  min-height: 71px;
+  min-height: 64px;
   border-bottom: 1px solid var(--l1);
 }
 
 .session-item > .dot {
   position: absolute;
   left: -19px;
-  top: 28px;
+  top: 19px;
 }
 
 .session-open {
@@ -133,8 +150,15 @@
   padding: 12px 0 10px 2px;
 }
 
+.session-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
 .session-open strong {
-  display: block;
+  flex: 1;
+  min-width: 0;
   font-size: 14px;
   font-weight: 500;
   overflow: hidden;
@@ -142,13 +166,61 @@
   text-overflow: ellipsis;
 }
 
-.session-open small {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+/* Time sits on the title line and never wraps; it used to share the preview
+   line and broke into "· 13 / 小时" on narrow phones. */
+.session-line time {
+  flex: none;
   font-size: 11px;
   color: var(--t3);
+  font-variant-numeric: tabular-nums;
+}
+
+.session-open small {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--t3);
+  margin-top: 3px;
+}
+
+.session-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 5px;
+  font-size: 10.5px;
+  color: var(--t3);
+}
+
+.session-item .session-scope .icon {
+  width: 11px;
+  height: 11px;
+}
+
+.session-tree.flat {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+
+.session-tree.flat .session-item > .dot {
+  position: static;
+  align-self: flex-start;
+  margin: 19px 6px 0 2px;
+}
+
+.session-section.pinned .project-heading .icon {
+  color: var(--zhu);
+}
+
+.session-empty {
+  padding: 28px 0 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--t3);
 }
 
 .session-item .icon-button {
@@ -714,4 +786,66 @@
   border-radius: 50%;
   background: conic-gradient(var(--lamp) calc(var(--p, 0) * 1%), var(--l2) 0);
   display: inline-block;
+}
+
+/* Vendor mark in the turn byline: same brand chip Desktop uses, with a hairline
+   ring so white-tile marks (OpenAI, Grok) do not dissolve into paper. */
+.avatar-brand {
+  box-shadow: 0 0 0 1px var(--l2);
+}
+
+.message-head .model-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dock-chip.health {
+  color: var(--crimson);
+  border-color: var(--crimson-wash);
+  background: var(--crimson-wash);
+}
+
+/* A blank conversation: one question and a few starters, nothing else. */
+.draft-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 18vh 16px 24px;
+  text-align: center;
+}
+.draft-empty h2 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--t1);
+}
+.draft-suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Back to the newest message after scrolling up; sits just above the slab. */
+.jump-anchor {
+  position: relative;
+  height: 0;
+  z-index: 2;
+}
+.jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--l2);
+  background: var(--s3);
+  color: var(--t2);
+  box-shadow: var(--sh2);
+  display: grid;
+  place-items: center;
 }

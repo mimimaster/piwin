@@ -93,8 +93,10 @@ button:disabled {
 
 .inkstone-root .mono,
 .inkstone-root code,
+/* Times are mostly CJK ("9 月 21 日", "13 小时"); a monospace face gave every
+   glyph a full cell and spaced them apart. Tabular figures keep columns even. */
 .inkstone-root time {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }
 
@@ -114,9 +116,10 @@ button:disabled {
   color: var(--azure);
 }
 
+/* Eyebrows carry Chinese labels; wide tracking is for Latin caps only. */
 .eyebrow {
-  font: 11px/1.6 var(--mono);
-  letter-spacing: 0.14em;
+  font: 11px/1.6 var(--sans);
+  letter-spacing: 0.04em;
   color: var(--t3);
 }
 

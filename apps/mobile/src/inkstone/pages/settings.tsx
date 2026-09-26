@@ -5,13 +5,19 @@ import type { HostResponse } from '@piwin/contracts';
 import { useInkstone } from '../inkstone-context.js';
 import { Dot, IconButton, ListRow, ScreenHeading, TopBar } from '../inkstone-ui.js';
 import { useInkstoneHost } from '../host/inkstone-host-context.js';
+import { SETTINGS_CATALOG } from '../settings/settings-catalog.js';
 
-export const SETTINGS_GROUPS: [string, string[]][] = [
-  ['应用', ['通用与外观', '权限与安全']],
-  ['Agent', ['模型配置', 'OAuth 登录', 'Hooks', '智能体策略']],
-  ['集成', ['技能与扩展', '网络搜索与抓取', '知识库与向量']],
-  ['系统', ['会话与运行时', '冷存储', '用量统计', '归档管理']],
-];
+function healthSummary(host: import('../host/inkstone-host-context.js').InkstoneHost): string {
+  if (!host.healthAvailable) return '此设备或 Host 不支持';
+  if (!host.healthConnected) return '未连接';
+  const modes: Record<typeof host.healthUseMode, string> = {
+    off: '已连接 · 已关闭',
+    'ask-every-time': '已连接 · 读取前询问',
+    'allow-for-session': '已连接 · 本次会话已允许',
+    'always-allow-this-host': '已连接 · 始终允许',
+  };
+  return modes[host.healthUseMode];
+}
 
 export function FaceSwitch({ fullWidth = false }: { fullWidth?: boolean }): ReactElement {
   const { state, dispatch } = useInkstone();
@@ -140,6 +146,7 @@ function ConnectedSettingsPage({
     冷存储: host.client?.supportsCommand('session/pack-list') ? 'Host 归档包状态' : 'Host 未开放归档包读取',
     用量统计: host.client?.supportsCommand('usage/get-rollup') ? 'Host 用量汇总' : 'Host 未开放用量汇总',
     归档管理: `${host.sessions.filter((session) => session.archived === true).length} 个已归档会话`,
+    'Apple Health': healthSummary(host),
   };
 
   return (
@@ -162,23 +169,23 @@ function ConnectedSettingsPage({
         </button>
         {revision !== undefined ? <p className="muted">Host 设置版本 · {revision}</p> : null}
         {error !== undefined ? <p className="error-text">{error}</p> : null}
-        {SETTINGS_GROUPS.map(([group, items]) => (
+        {SETTINGS_CATALOG.map(([group, items]) => (
           <div key={group}>
             <div className="section-label">{group}</div>
-            {items.map((title) => (
+            {items.map((item) => (
               <ListRow
-                key={title}
-                name={title.includes('模型') ? 'bulb' : 'sliders'}
-                title={title}
-                subtitle={summaries[title] ?? '由 Host 提供实时状态'}
-                onClick={() => openSection(title)}
+                key={item.title}
+                name={item.icon}
+                title={item.title}
+                subtitle={summaries[item.title] ?? item.blurb}
+                onClick={() => openSection(item.title)}
               />
             ))}
           </div>
         ))}
         <div className="section-label">设备与连接</div>
         <ListRow name="globe" title="私有 Host" subtitle={connectedStateLabel(host.connectionState.kind)} onClick={onOpenConnection} />
-        <ListRow name="bulb" title="移动端通知" subtitle="通知偏好保留在本设备" onClick={() => dispatch({ type: 'open-sheet', key: 'notifications' })} />
+        <ListRow name="bell" title="移动端通知" subtitle="通知偏好保留在本设备" onClick={() => dispatch({ type: 'open-sheet', key: 'notifications' })} />
       </div>
     </>
   );

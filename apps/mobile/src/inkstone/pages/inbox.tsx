@@ -8,7 +8,6 @@ import {
   IconButton,
   ListRow,
   Pill,
-  ScreenHeading,
   TabsRow,
   TopBar,
 } from '../inkstone-ui.js';
@@ -113,7 +112,7 @@ function ConnectedInbox({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Rea
   return (
     <>
       <TopBar
-        title="待办"
+        title="动态"
         right={
           <IconButton
             name="sliders"
@@ -123,7 +122,6 @@ function ConnectedInbox({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Rea
         }
       />
       <div className="screen-scroll">
-        <ScreenHeading title="等你，一方印。" subtitle="需要决定的先来，其他的慢慢看。" />
         <TabsRow
           items={['待处理', '进行中']}
           selected={state.inboxFilter === '已完成' ? '进行中' : state.inboxFilter}
@@ -133,10 +131,7 @@ function ConnectedInbox({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Rea
           <>
             {gate !== undefined ? <RealGate gate={gate} hostCtx={hostCtx} /> : null}
             {gate === undefined && otherPending.length === 0 ? (
-              <div className="notice-strip">
-                <Dot status="done" />
-                <span>今日待办已更新。</span>
-              </div>
+              <p className="session-empty">没有等你处理的事。需要你批准或回答时会出现在这里。</p>
             ) : null}
             {otherPending.length > 0 ? (
               <>
@@ -156,10 +151,7 @@ function ConnectedInbox({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Rea
         ) : (
           <>
             {running.length === 0 ? (
-              <div className="notice-strip">
-                <Dot status="done" />
-                <span>现在没有正在运行的工作。</span>
-              </div>
+              <p className="session-empty">现在没有正在运行的工作。</p>
             ) : null}
             {running.map((row) => (
               <ListRow
@@ -174,7 +166,7 @@ function ConnectedInbox({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Rea
         )}
       </div>
       <BottomNav
-        selected="inbox"
+        selected="activity"
         inboxCount={pending.length}
         onNavigate={(route) => dispatch({ type: 'navigate', route: route as InkstoneRoute })}
       />

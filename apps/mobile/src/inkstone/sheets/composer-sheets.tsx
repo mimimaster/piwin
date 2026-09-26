@@ -7,6 +7,7 @@ import { contextPercent } from '../host/use-session-live-state.js';
 import { Dot, FullButton, ListRow, Pill, SectionLabel } from '../inkstone-ui.js';
 import { useInkstoneHost } from '../host/inkstone-host-context.js';
 import { mobileLiveCapabilities } from '../../hooks/use-mobile-live.js';
+import { AppleHealthAttachRow } from './apple-health-attach-row.js';
 
 /** Curated thinking levels shown in the prototype's 轻量 / 标准 / 深入 grammar. */
 const EFFORT_LEVELS: [string, ThinkingLevel][] = [
@@ -177,17 +178,26 @@ function RealAttachSheet({
 }: {
   hostCtx: import('../host/inkstone-host-context.js').InkstoneHostContextValue;
 }): ReactElement {
-  const { dispatch } = useInkstone();
+  const { state, dispatch } = useInkstone();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { host } = hostCtx;
+  // Uploads and file references attach to a Host session; a draft has none yet.
+  const inDraft = state.draft !== null || host.activeSessionId === undefined;
   return (
     <>
-      <input ref={inputRef} type="file" accept="image/*" hidden onChange={(event) => void host.handleFileSelected(event)} />
-      <ListRow name="image" title="照片或截图" subtitle="上传到 Host 当前会话" onClick={() => inputRef.current?.click()} />
-      <ListRow name="folder" title="@ 引用项目文件" subtitle="从 Host 项目目录选择" onClick={() => dispatch({ type: 'open-sheet', key: 'references' })} />
-      <ListRow name="cards" title="技能" subtitle="读取 Host 已安装技能" onClick={() => dispatch({ type: 'open-sheet', key: 'skills' })} />
-      <ListRow name="globe" title="MCP 工具" subtitle="工具在 Host 上执行" onClick={() => dispatch({ type: 'settings-section', section: '技能与扩展' })} />
-      <ListRow name="term" title="/ 命令" subtitle="作为文本请求发送给 Host" onClick={() => dispatch({ type: 'open-sheet', key: 'commands' })} />
+      <AppleHealthAttachRow hostCtx={hostCtx} />
+      {inDraft ? (
+        <p className="muted">照片、文件引用和技能在发出第一句后可用。</p>
+      ) : (
+        <>
+          <input ref={inputRef} type="file" accept="image/*" hidden onChange={(event) => void host.handleFileSelected(event)} />
+          <ListRow name="image" title="照片或截图" subtitle="上传到 Host 当前会话" onClick={() => inputRef.current?.click()} />
+          <ListRow name="folder" title="@ 引用项目文件" subtitle="从 Host 项目目录选择" onClick={() => dispatch({ type: 'open-sheet', key: 'references' })} />
+          <ListRow name="cards" title="技能" subtitle="读取 Host 已安装技能" onClick={() => dispatch({ type: 'open-sheet', key: 'skills' })} />
+          <ListRow name="globe" title="MCP 工具" subtitle="工具在 Host 上执行" onClick={() => dispatch({ type: 'settings-section', section: '技能与扩展' })} />
+          <ListRow name="term" title="/ 命令" subtitle="作为文本请求发送给 Host" onClick={() => dispatch({ type: 'open-sheet', key: 'commands' })} />
+        </>
+      )}
     </>
   );
 }

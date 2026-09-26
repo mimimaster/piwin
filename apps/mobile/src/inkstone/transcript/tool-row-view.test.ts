@@ -4,7 +4,27 @@ import {
   projectToolRow,
   readQuestionPrompt,
   shortenPath,
+  toolRowIcon,
 } from './tool-row-view.js';
+
+describe('toolRowIcon', () => {
+  it('buckets by Host kind first, then splits filesystem by read / write / search', () => {
+    expect(toolRowIcon('shell', 'bash', false)).toBe('term');
+    expect(toolRowIcon('filesystem', 'read', false)).toBe('file');
+    expect(toolRowIcon('filesystem', 'edit', false)).toBe('edit');
+    expect(toolRowIcon('filesystem', 'anything', true)).toBe('edit');
+    expect(toolRowIcon('filesystem', 'grep', false)).toBe('search');
+    expect(toolRowIcon('web', 'web_fetch', false)).toBe('globe');
+    expect(toolRowIcon('mcp', 'github__list_issues', false)).toBe('puzzle');
+  });
+
+  it('rescues untyped tools by name and falls back to a neutral glyph', () => {
+    expect(toolRowIcon(undefined, 'bash', false)).toBe('term');
+    expect(toolRowIcon('other', 'code_search', false)).toBe('search');
+    expect(toolRowIcon('other', 'questionnaire', false)).toBe('chat');
+    expect(toolRowIcon('other', 'flashcard_create', false)).toBe('bolt');
+  });
+});
 
 describe('projectToolRow', () => {
   it('uses the Host command as the argument chip', () => {

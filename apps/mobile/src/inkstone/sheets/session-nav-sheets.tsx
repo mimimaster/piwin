@@ -63,6 +63,33 @@ function sessionToSearchHit(session: RemoteSessionSummary): SessionSearchResult[
   };
 }
 
+/** Where a new Agent draft will run; picking only updates the draft. */
+export function DraftProjectSheet(): ReactElement {
+  const hostCtx = useInkstoneHost();
+  const { state, dispatch } = useInkstone();
+  if (hostCtx === null) {
+    return <NeedsHost />;
+  }
+  const { host } = hostCtx;
+  return (
+    <>
+      {host.projects.map((project) => (
+        <ListRow
+          key={project.projectId}
+          name="folder"
+          title={project.displayName}
+          {...(project.currentBranch === undefined ? {} : { subtitle: project.currentBranch })}
+          selected={state.draft?.projectId === project.projectId}
+          onClick={() => dispatch({ type: 'set-draft-project', projectId: project.projectId })}
+        />
+      ))}
+      {host.projects.length === 0 ? (
+        <p className="muted">Host 上还没有项目。先在桌面端添加项目；现在发送会按普通对话开始。</p>
+      ) : null}
+    </>
+  );
+}
+
 export function ProjectsSheet(): ReactElement {
   const hostCtx = useInkstoneHost();
   if (hostCtx === null) {

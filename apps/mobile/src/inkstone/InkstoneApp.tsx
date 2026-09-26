@@ -1,5 +1,12 @@
+import { HealthConsentDialog } from './sheets/health-consent-dialog.js';
 import { useEffect, useReducer, useRef, useState, type ReactElement } from 'react';
-import { INITIAL_INKSTONE_STATE, inkstoneReducer, type InkstoneRoute } from './inkstone-state.js';
+import {
+  createInitialInkstoneState,
+  inkstoneReducer,
+  type InkstoneRoute,
+  type InkstoneState,
+} from './inkstone-state.js';
+import { writeSessionMode } from './session-mode.js';
 import { InkstoneContext } from './inkstone-context.js';
 import { InkstoneIconSprite, Icon } from './icons.js';
 import { SessionsPage } from './pages/sessions.js';
@@ -18,12 +25,7 @@ import { KnowledgePage } from './pages/knowledge.js';
 import { WikiDetailPage } from './pages/wiki-detail.js';
 import { VoicePage } from './pages/voice.js';
 import { SettingsDetailPage, SettingsPage } from './pages/settings.js';
-import {
-  ConnectPage,
-  LibraryPage,
-  NewSessionPage,
-  WalkthroughPage,
-} from './pages/extras.js';
+import { ConnectPage, LibraryPage, WalkthroughPage } from './pages/extras.js';
 import { SHEETS } from './sheets/index.js';
 import { AutomationsPage } from './pages/automations.js';
 import {
@@ -53,7 +55,6 @@ const PAGES: Record<InkstoneRoute, () => ReactElement> = {
   settings: SettingsPage,
   'settings-detail': SettingsDetailPage,
   connect: ConnectPage,
-  new: NewSessionPage,
   walkthrough: WalkthroughPage,
   library: LibraryPage,
   automations: AutomationsPage,
@@ -69,7 +70,8 @@ function readHashRoute(): InkstoneRoute {
 }
 
 /** Deep links like #review must open the same scene the prototype's hash routing opens. */
-function initFromHash(state: typeof INITIAL_INKSTONE_STATE): typeof INITIAL_INKSTONE_STATE {
+function initFromHash(): InkstoneState {
+  const state = createInitialInkstoneState();
   const hash = window.location.hash.slice(1) as InkstoneRoute;
   if (ROUTES.has(hash) && hash !== 'sessions') {
     return { ...state, route: hash };
@@ -82,7 +84,7 @@ export function InkstoneApp({
 }: {
   hostContext: InkstoneHostContextValue | null;
 }): ReactElement {
-  const [state, dispatch] = useReducer(inkstoneReducer, INITIAL_INKSTONE_STATE, initFromHash);
+  const [state, dispatch] = useReducer(inkstoneReducer, undefined, initFromHash);
   const [toastVisible, setToastVisible] = useState(false);
   const dialogRef = useRef<HTMLDialogElement | null>(null);
 
@@ -99,6 +101,10 @@ export function InkstoneApp({
       window.history.pushState(null, '', `#${state.route}`);
     }
   }, [state.route]);
+
+  useEffect(() => {
+    writeSessionMode(state.sessionMode);
+  }, [state.sessionMode]);
 
   useEffect(() => {
     document.documentElement.dataset.face = state.face;
@@ -219,6 +225,7 @@ export function InkstoneApp({
               </>
             ) : null}
           </dialog>
+          <HealthConsentDialog />
         </div>
         </LiveCallProvider>
       </InkstoneHostProvider>

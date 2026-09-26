@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { SessionToolOutputData } from '@piwin/contracts';
 import type { MobileToolCall } from '../../mobile-transcript.js';
+import { Icon } from '../icons.js';
 import { projectToolRow } from './tool-row-view.js';
 
 export type ToolOutputReader = (messageId: string, toolCallId: string) => Promise<SessionToolOutputData>;
@@ -86,6 +87,7 @@ export function ToolRow({
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
+        <Icon name={row.icon} extra={`tr-icon ${nodeClass}`} />
         <b>{row.verb}</b>
         {row.question !== undefined ? (
           <span className="q">{row.question}</span>

@@ -7,10 +7,6 @@ import type {
 import { isRecord } from '../../mobile-host-helpers.js';
 import { useInkstone } from '../inkstone-context.js';
 import { Dot, FullButton, ListRow } from '../inkstone-ui.js';
-import {
-  endpointLabel,
-  hostConnectionSubtitle,
-} from '../pages/sessions.js';
 import { cleanSessionPreview, formatClock } from '../host/host-bridge.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 
@@ -89,10 +85,10 @@ function ConnectedSessionMenuSheet({
   };
   return (
     <>
+      <ListRow name="file" title="重命名" onClick={() => open('rename')} />
       <ListRow
         name="pin"
-        title={session?.pinned === true ? '取消置顶' : '置顶会话'}
-        subtitle="同步到 Host 会话索引"
+        title={session?.pinned === true ? '取消置顶' : '置顶'}
         onClick={() => {
           if (sessionId === undefined) return;
           close();
@@ -101,16 +97,9 @@ function ConnectedSessionMenuSheet({
           });
         }}
       />
-      <ListRow name="file" title="重命名" onClick={() => open('rename')} />
-      <ListRow name="fork" title="会话树与分叉" onClick={() => open('branches')} />
-      <ListRow name="folder" title="继续到项目" onClick={() => open('projects')} />
-      <ListRow name="file" title="历史刻度" subtitle="显示已同步的 Host 消息" onClick={() => open('history')} />
-      <ListRow
-        name="panel"
-        title="在桌面继续"
-        subtitle="Host 未提供跨设备接续命令"
-        onClick={() => open('handoff')}
-      />
+      <ListRow name="copy" title="导出为 Markdown" onClick={() => void handleExport()} />
+      <ListRow name="fork" title="分叉与来路" onClick={() => open('branches')} />
+      <ListRow name="clock" title="消息历史" onClick={() => open('history')} />
       {host.client?.supportsCommand('session/archive') ? (
         archivePending ? (
           <div className="notice">
@@ -150,15 +139,7 @@ function ConnectedSessionMenuSheet({
             onClick={() => setArchivePending(true)}
           />
         )
-      ) : (
-        <p className="muted">当前 Host 未开放会话归档。</p>
-      )}
-      <ListRow
-        name="copy"
-        title="导出会话"
-        subtitle="从 Host 读取当前会话内容"
-        onClick={() => void handleExport()}
-      />
+      ) : null}
     </>
   );
 }
@@ -244,37 +225,6 @@ function ConnectedHistorySheet({
         <FullButton variant="secondary" onClick={() => dispatch({ type: 'navigate', route: 'plan' })}>打开 Host 计划</FullButton>
         <FullButton variant="secondary" onClick={() => dispatch({ type: 'navigate', route: 'review' })}>打开 Host 审阅</FullButton>
       </div>
-    </>
-  );
-}
-
-export function HandoffSheet(): ReactElement {
-  const hostCtx = useInkstoneHost();
-  if (hostCtx === null) {
-    return <NeedsHost />;
-  }
-  return <ConnectedHandoffSheet hostCtx={hostCtx} />;
-}
-
-function ConnectedHandoffSheet({
-  hostCtx,
-}: {
-  hostCtx: InkstoneHostContextValue;
-}): ReactElement {
-  const { dispatch } = useInkstone();
-  const { host } = hostCtx;
-  return (
-    <>
-      <p>当前连接已经直接使用同一台 Host，会话状态会持续同步到桌面端。</p>
-      <div className="host-card">
-        <Dot status={host.connectionState.kind === 'ready' ? 'done' : 'waiting'} />
-        <span className="grow">
-          <strong>{endpointLabel(host.endpoint)}</strong>
-          <small>{hostConnectionSubtitle(host)}</small>
-        </span>
-      </div>
-      <p className="muted">Host 尚未提供额外的“定位到桌面”命令；不会在手机端伪造接续成功。</p>
-      <FullButton variant="secondary" onClick={() => dispatch({ type: 'close-sheet' })}>返回会话</FullButton>
     </>
   );
 }

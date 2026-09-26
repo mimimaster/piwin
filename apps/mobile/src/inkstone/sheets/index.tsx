@@ -11,9 +11,14 @@ import {
   SkillsSheet,
   VoiceSettingsSheet,
 } from './composer-sheets.js';
-import { HandoffSheet, HistorySheet, RenameSheet, SessionMenuSheet } from './session-sheets.js';
+import { HistorySheet, RenameSheet, SessionMenuSheet } from './session-sheets.js';
 import { BranchesSheet } from './session-branch-sheets.js';
-import { ProjectsSheet, SearchSheet,  WorkspacePickerSheet } from './session-nav-sheets.js';
+import {
+  DraftProjectSheet,
+  ProjectsSheet,
+  SearchSheet,
+  WorkspacePickerSheet,
+} from './session-nav-sheets.js';
 import { HostSheet } from './host-connection-sheets.js';
 import { NotificationsSheet } from './notifications-sheet.js';
 import { AttentionCatchUpSheet } from './attention-catch-up-sheet.js';
@@ -53,25 +58,25 @@ export const SHEETS: Record<string, SheetDefinition> = {
   model: sheet('模型与思考', ModelSheet),
   mode: sheet('运行与编排', ModeSheet),
   scheme: sheet('子代理编排', SchemeSheet),
-  attach: sheet('把上下文捎进来', AttachSheet),
+  attach: sheet('添加到这一轮', AttachSheet),
   references: sheet('引用项目文件', ReferencesSheet),
   skills: sheet('已安装的技能', SkillsSheet),
   commands: sheet('常用命令', CommandsSheet),
   context: sheet('这一轮带了什么', ContextSheet),
-  dictation: sheet('先说，再落笔', DictationSheet),
+  dictation: sheet('语音输入', DictationSheet),
   'voice-settings': sheet('语音会话', VoiceSettingsSheet),
-  'session-menu': sheet('这一段会话', SessionMenuSheet),
-  rename: sheet('给这页换个名字', RenameSheet),
-  branches: sheet('会话的来路', BranchesSheet),
-  history: sheet('历史刻度', HistorySheet),
+  'session-menu': sheet('会话', SessionMenuSheet),
+  rename: sheet('重命名', RenameSheet),
+  branches: sheet('分叉与来路', BranchesSheet),
+  history: sheet('消息历史', HistorySheet),
   projects: sheet('选择项目', ProjectsSheet),
+  'draft-project': sheet('在哪个项目里工作', DraftProjectSheet),
   'workspace-picker': sheet('Host 工作区', WorkspacePickerSheet),
-  search: sheet('找一段思路', SearchSheet),
-  handoff: sheet('在桌面接着写', HandoffSheet),
-  host: sheet('连着自己的书案', HostSheet),
-  notifications: sheet('只在需要时，来敲门', NotificationsSheet),
+  search: sheet('搜索会话', SearchSheet),
+  host: sheet('Host 连接', HostSheet),
+  notifications: sheet('通知', NotificationsSheet),
   'attention-catch-up': sheet('离开这段时间', AttentionCatchUpSheet),
-  permission: sheet('读清楚，再批准', PermissionSheet),
+  permission: sheet('批准这项操作', PermissionSheet),
   'execute-plan': sheet('让计划开始工作', ExecutePlanSheet),
   subagent: sheet('test-runner', SubagentSheet),
   'subagent-output': sheet('子代理的工作记录', SubagentOutputSheet),

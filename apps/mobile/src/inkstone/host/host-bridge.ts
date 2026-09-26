@@ -105,10 +105,8 @@ function sessionSubtitle(
   if (preview !== undefined && preview.length > 0) {
     return preview.length > 42 ? `${preview.slice(0, 42)}…` : preview;
   }
-  if ((session.messageCount ?? 0) > 0) {
-    return `${session.messageCount} 条消息`;
-  }
-  return '等待继续';
+  // "3 条消息" or "等待继续" tells the reader nothing the title does not.
+  return '';
 }
 
 export function mapSessionGroups(args: {

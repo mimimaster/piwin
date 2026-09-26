@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactElement } from 'react';
 import { NeedsHost } from '../needs-host.js';
 import { readWalkthroughArtifacts } from '../../mobile-host-readers.js';
 import {
-  toModelRef,
   type HostResponse,
   type MediaLibraryItem,
   type WalkthroughArtifact,
@@ -64,129 +63,6 @@ export function ConnectPage(): ReactElement {
     return <NeedsHost />;
   }
   return <ConnectedConnectPage hostCtx={hostCtx} />;
-}
-
-function ConnectedNewSession({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
-  const { dispatch } = useInkstone();
-  const { host } = hostCtx;
-  // Carry over whatever the user already drafted in the slab.
-  const [prompt, setPrompt] = useState(host.composerText);
-  const [projectId, setProjectId] = useState<string | undefined>();
-  const selectedModel = host.configuredModels.find(
-    (model) =>
-      model.providerId === hostCtx.modelSelection.providerId &&
-      model.modelId === hostCtx.modelSelection.modelId,
-  );
-  const start = (): void => {
-    const text = prompt.trim();
-    if (text.length === 0) {
-      dispatch({ type: 'toast', message: '先写一句你想做的事' });
-      return;
-    }
-    const start = async (): Promise<void> => {
-      // The carried-over words now belong to the new session, not to the one
-      // they were drafted in; clear them before the switch files them away.
-      host.setComposerText('');
-      const sessionId = await host.handleCreateSession(projectId);
-      if (sessionId === undefined) {
-        return;
-      }
-      dispatch({ type: 'navigate', route: 'chat' });
-      await host.handleSend({
-        text,
-        ...(selectedModel !== undefined
-          ? {
-              model: toModelRef({
-                providerId: selectedModel.providerId,
-                modelId: selectedModel.modelId,
-                ...(selectedModel.protocol !== undefined
-                  ? { protocol: selectedModel.protocol }
-                  : {}),
-                ...(selectedModel.source !== undefined ? { source: selectedModel.source } : {}),
-              }),
-            }
-          : {}),
-        ...(hostCtx.modelSelection.thinkingLevel !== undefined
-          ? { thinkingLevel: hostCtx.modelSelection.thinkingLevel }
-          : {}),
-      });
-    };
-    void start();
-  };
-  return (
-    <>
-      <TopBar
-        title="新的一页"
-        subtitle="会话将在你的 Host 上开始"
-        onBack={() => dispatch({ type: 'navigate', route: 'sessions' })}
-      />
-      <div className="screen-scroll">
-        <div className="empty-state">
-          <span className="brand-seal">砚</span>
-          <h2>今天，想做点什么？</h2>
-          <p>一句话，也可以是一个开始。</p>
-        </div>
-        <ListRow
-          name="bulb"
-          title="模型"
-          subtitle={selectedModel?.label?.trim() || selectedModel?.modelId || '使用 Host 默认'}
-          onClick={() => dispatch({ type: 'open-sheet', key: 'model' })}
-        />
-        <label className="field">
-          项目
-          <select
-            value={projectId ?? ''}
-            onChange={(event) => setProjectId(event.target.value || undefined)}
-          >
-            <option value="">一般会话</option>
-            {host.projects.map((project) => (
-              <option key={project.projectId} value={project.projectId}>
-                {project.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          写下你的想法
-          <textarea
-            placeholder="例如，帮我梳理这个项目的会话恢复逻辑…"
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-          />
-        </label>
-        <FullButton onClick={start}>开始这段会话</FullButton>
-        <FullButton
-          variant="secondary"
-          onClick={() => dispatch({ type: 'open-sheet', key: 'dictation' })}
-        >
-          先说一句
-        </FullButton>
-        <div className="section-label">也可以从这里开始</div>
-        <ListRow
-          name="git"
-          title="审阅最近的变更"
-          onClick={() => {
-            setPrompt('帮我审阅最近的变更，先给出问题和建议。');
-          }}
-        />
-        <ListRow
-          name="cards"
-          title="把一个想法写成计划"
-          onClick={() => {
-            setPrompt('帮我把移动端的离线草稿功能整理成一份计划。');
-          }}
-        />
-      </div>
-    </>
-  );
-}
-
-export function NewSessionPage(): ReactElement {
-  const hostCtx = useInkstoneHost();
-  if (hostCtx === null) {
-    return <NeedsHost />;
-  }
-  return <ConnectedNewSession hostCtx={hostCtx} />;
 }
 
 export function WalkthroughPage(): ReactElement {

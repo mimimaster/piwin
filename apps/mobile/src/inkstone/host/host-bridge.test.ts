@@ -129,7 +129,7 @@ describe('inkstone host bridge', () => {
       throw new Error('expected general group');
     }
     expect(general.project).toBe('一般会话');
-    expect(general.rows[0]).toMatchObject({ status: 'done', subtitle: '4 条消息', time: '昨天' });
+    expect(general.rows[0]).toMatchObject({ status: 'done', subtitle: '', time: '昨天' });
   });
 
   it('picks the running session for the continue card, else the most recent', () => {

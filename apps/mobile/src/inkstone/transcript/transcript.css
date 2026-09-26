@@ -95,8 +95,8 @@
   margin: 2px 0 6px;
   padding: 4px 0 4px 10px;
   border-left: 2px solid var(--l2);
-  color: var(--t2);
-  font: italic 12.5px/1.65 var(--serif);
+  color: var(--t3);
+  font: 12.5px/1.65 var(--sans);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -242,6 +242,21 @@
   color: var(--t1);
   font: 600 11.5px var(--mono);
   flex: none;
+}
+.tr .tr-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--t3);
+}
+.tr .tr-icon.run {
+  color: var(--lamp);
+}
+.tr .tr-icon.fail {
+  color: var(--crimson);
+}
+.tr .tr-icon.bg {
+  color: var(--azure);
 }
 .tr code {
   font: 11px var(--mono);
@@ -664,4 +679,63 @@
 .chip.danger {
   color: var(--crimson);
   border-color: var(--crimson);
+}
+
+/* Markdown tables inside Inkstone: the legacy shell token --surface-control
+   resolves to a near-black tile here, which hid the header text. */
+.inkstone-root .mobile-table-wrapper {
+  border-color: var(--l2);
+}
+.inkstone-root .mobile-table-wrapper th,
+.inkstone-root .mobile-table-wrapper td {
+  border-color: var(--l2);
+}
+.inkstone-root .mobile-table-wrapper th {
+  background: var(--code);
+  color: var(--t1);
+}
+
+/* Apple Health reads: visible sources on the turn, not rows in the work log. */
+.health-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.health-tool-card {
+  border-radius: 10px;
+  background: var(--crimson-wash);
+  border: 1px solid var(--l2);
+  overflow: hidden;
+}
+.health-tool-card-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--crimson);
+  font-size: 13px;
+  text-align: left;
+}
+.health-tool-card-toggle > span:first-child {
+  font-weight: 600;
+}
+.health-tool-card-toggle > span:first-child::before {
+  content: '♥ ';
+}
+.health-tool-card-toggle > span + span {
+  color: var(--t2);
+  font-size: 12px;
+}
+.health-tool-card-body {
+  padding: 0 12px 8px;
+  color: var(--t2);
+  font-size: 12px;
+}
+.health-tool-card-body p {
+  margin: 2px 0;
 }

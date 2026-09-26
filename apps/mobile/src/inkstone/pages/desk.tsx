@@ -1,3 +1,4 @@
+import { SETTINGS_CATALOG } from '../settings/settings-catalog.js';
 import type { ReactElement } from 'react';
 import { NeedsHost } from '../needs-host.js';
 import { useInkstone } from '../inkstone-context.js';
@@ -8,54 +9,11 @@ import {
   Dot,
   IconButton,
   ListRow,
-  ScreenHeading,
   TopBar,
 } from '../inkstone-ui.js';
 import { endpointLabel } from './sessions.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 import { collectPendingPermissionSessionIds } from '../host/host-bridge.js';
-
-interface SettingsItem {
-  title: string;
-  icon: InkstoneIconName;
-  subtitle: string;
-}
-
-const SETTINGS_GROUPS: [string, SettingsItem[]][] = [
-  [
-    '应用',
-    [
-      { title: '通用与外观', icon: 'gear', subtitle: '外观主题与桌面接入' },
-      { title: '权限与安全', icon: 'shield', subtitle: 'Auto / Ask / YOLO 三态规则' },
-    ],
-  ],
-  [
-    'Agent',
-    [
-      { title: '模型配置', icon: 'bulb', subtitle: 'Claude · OpenAI · 自定义 API' },
-      { title: 'OAuth 登录', icon: 'key', subtitle: 'Codex 与 Gemini 账号凭据' },
-      { title: 'Hooks', icon: 'bolt', subtitle: '会话生命周期自动化检查' },
-      { title: '智能体策略', icon: 'fork', subtitle: '子代理编排方案与沙箱' },
-    ],
-  ],
-  [
-    '集成',
-    [
-      { title: '技能与扩展', icon: 'puzzle', subtitle: 'Skills · MCP · 插件市场' },
-      { title: '网络搜索与抓取', icon: 'globe', subtitle: 'DuckDuckGo · 网页抓取' },
-      { title: '知识库与向量', icon: 'book', subtitle: '向量索引与词条库' },
-    ],
-  ],
-  [
-    '系统',
-    [
-      { title: '会话与运行时', icon: 'term', subtitle: '恢复策略与阅读断点保留' },
-      { title: '冷存储', icon: 'archive', subtitle: '2 个离线备份包与快照' },
-      { title: '用量统计', icon: 'chart', subtitle: 'Token 输入输出统计' },
-      { title: '归档管理', icon: 'folder', subtitle: '已归档历史会话恢复' },
-    ],
-  ],
-];
 
 export function DeskPage(): ReactElement {
   const hostCtx = useInkstoneHost();
@@ -134,10 +92,6 @@ function ConnectedDesk({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Reac
         </div>
       ) : null}
       <div className="screen-scroll">
-        <ScreenHeading
-          title="一方小案头。"
-          subtitle="收下成果，也留住灵感。"
-        />
         <button
           className="host-card"
           onClick={onHostClick}
@@ -165,7 +119,7 @@ function ConnectedDesk({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Reac
           ))}
         </div>
         <div className="section-label">设置分类</div>
-        {SETTINGS_GROUPS.map(([groupName, items]) => (
+        {SETTINGS_CATALOG.map(([groupName, items]) => (
           <div key={groupName}>
             <div className="group-label">
               <span>{groupName}</span>
@@ -176,7 +130,7 @@ function ConnectedDesk({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Reac
                 key={item.title}
                 name={item.icon}
                 title={item.title}
-                subtitle={item.subtitle}
+                subtitle={item.blurb}
                 onClick={() => openSettings(item.title)}
               />
             ))}

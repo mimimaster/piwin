@@ -1,5 +1,6 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import type { TurnChangeSummary, WalkthroughArtifact } from '@piwin/contracts';
+import { ProviderIcon } from '@piwin/ui-kit';
 import { Icon } from '../icons.js';
 import { IconButton } from '../inkstone-ui.js';
 import { formatClock } from '../host/host-bridge.js';
@@ -7,6 +8,8 @@ import { ToolRow, type ToolOutputReader } from './ToolRow.js';
 import { WalkthroughCard } from './WalkthroughCard.js';
 import { TurnProse } from './TurnProse.js';
 import { describeTurnState, describeWork, type TurnView, type WorkStep } from './turn-model.js';
+import { partitionHealthSteps } from './health-steps.js';
+import { HealthToolCard } from '../../health/HealthToolCard.js';
 
 const THINK_CLAMP_CHARS = 180;
 
@@ -51,14 +54,27 @@ export function TurnBlock({
   // Live work stays open so the chain is watchable; finished work folds away
   // unless the reader opened it.
   const open = userOpen ?? (running || waiting);
-  const hasWork = turn.steps.length > 0 || waiting;
-  const workSummary = describeWork(turn);
+  const { health, work } = partitionHealthSteps(turn.steps);
+  const workTurn: TurnView = health.length === 0 ? turn : { ...turn, steps: work };
+  const hasWork = workTurn.steps.length > 0 || waiting;
+  const workSummary = describeWork(workTurn);
 
   return (
     <section className="turn" aria-label="助手回合">
       <div className="message-head">
-        <span className="avatar">π</span>
-        {modelLabel}
+        {turn.model !== undefined ? (
+          <ProviderIcon
+            id={turn.model.providerId}
+            modelId={turn.model.modelId}
+            name={modelLabel}
+            size={22}
+            radius="50%"
+            className="avatar-brand"
+          />
+        ) : (
+          <span className="avatar">π</span>
+        )}
+        <span className="model-label">{modelLabel}</span>
         {turn.createdAt.length > 0 ? <time>{formatClock(turn.createdAt)}</time> : null}
       </div>
       {hasWork ? (
@@ -76,7 +92,7 @@ export function TurnBlock({
           </button>
           {open ? (
             <div className="work-body thread">
-              {turn.steps.map((step) => (
+              {workTurn.steps.map((step) => (
                 <WorkStepView key={step.id} step={step} readOutput={readOutput} onOpenSession={onOpenSession} />
               ))}
               {inlineGate}
@@ -89,6 +105,17 @@ export function TurnBlock({
             <span className="lamp" />
             <b>{describeTurnState(turn)}</b>
           </div>
+        </div>
+      ) : null}
+      {health.length > 0 ? (
+        <div className="health-sources">
+          {health.map((step) => (
+            <HealthToolCard
+              key={step.id}
+              {...(step.tool.presentation === undefined ? {} : { presentation: step.tool.presentation })}
+              toolStatus={step.tool.status}
+            />
+          ))}
         </div>
       ) : null}
       {turn.prose !== undefined ? (

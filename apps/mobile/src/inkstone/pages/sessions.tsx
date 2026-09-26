@@ -10,7 +10,7 @@ import {
   Dot,
   IconButton,
   Pill,
-  ScreenHeading,
+  Segmented,
   TabsRow,
   TopBar,
 } from '../inkstone-ui.js';
@@ -20,26 +20,33 @@ import {
   cleanSessionPreview,
   mapSessionGroups,
   pickContinueSession,
-  type InkstoneSessionRow,
 } from '../host/host-bridge.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 import { blockedByOfflineSnapshot, formatSnapshotAge } from '../host/offline-guard.js';
+import {
+  buildSessionSections,
+  isSessionListFilter,
+  type SessionSection,
+  type SessionSectionRow,
+} from './session-sections.js';
+import {
+  SESSION_MODE_LABELS,
+  filterSessionsByMode,
+  pickDefaultAgentProjectId,
+  type SessionMode,
+} from '../session-mode.js';
+
+const MODE_BY_LABEL = new Map<string, SessionMode>(
+  (Object.entries(SESSION_MODE_LABELS) as [SessionMode, string][]).map(([mode, label]) => [label, mode]),
+);
+
+const EMPTY_BY_MODE: Record<SessionMode, string> = {
+  chat: '还没有对话。点右上角的 + 直接开始。',
+  agent: '还没有 Agent 会话。点右上角的 + 在项目里开一段。',
+};
 
 export function endpointLabel(endpoint: string | undefined): string {
   return (endpoint ?? '').replace(/^wss?:\/\//, '').replace(/\/$/, '') || '私有 Host';
-}
-
-export function applySessionFilter(
-  rows: InkstoneSessionRow[],
-  filter: string,
-): InkstoneSessionRow[] {
-  if (filter === '进行中') {
-    return rows.filter((row) => row.status === 'running');
-  }
-  if (filter === '置顶') {
-    return rows.filter((row) => row.pinned);
-  }
-  return rows;
 }
 
 export function hostConnectionSubtitle(host: InkstoneHostContextValue['host']): string {
@@ -65,11 +72,11 @@ export interface PrototypeSession {
   snippet?: string;
 }
 
-function RealSessionRows({
+function SessionRows({
   rows,
   hostCtx,
 }: {
-  rows: InkstoneSessionRow[];
+  rows: SessionSectionRow[];
   hostCtx: InkstoneHostContextValue;
 }): ReactElement {
   const { dispatch } = useInkstone();
@@ -78,13 +85,6 @@ function RealSessionRows({
     await hostCtx.host.handleSelectSession(sessionId);
     dispatch({ type: 'navigate', route: 'chat' });
   };
-  if (rows.length === 0) {
-    return (
-      <p className="muted" style={{ fontSize: 12, padding: '12px 0' }}>
-        这里暂时没有会话。
-      </p>
-    );
-  }
   return (
     <>
       {rows.map((row) => (
@@ -93,16 +93,20 @@ function RealSessionRows({
           key={row.sessionId}
           aria-current={row.sessionId === hostCtx.host.activeSessionId ? 'true' : undefined}
         >
-          <Dot status={row.status} />
+          {/* Only live work earns a mark; a dot on every finished row is noise. */}
+          {row.status !== 'done' ? <Dot status={row.status} /> : null}
           <button className="session-open" onClick={() => void openSession(row.sessionId)} type="button">
-            <strong>
-              {row.title}
-              {row.pinned ? ' · 置顶' : ''}
-            </strong>
-            <small>
-              {row.subtitle}
-              {row.time !== '' ? <span>· {row.time}</span> : null}
-            </small>
+            <span className="session-line">
+              <strong>{row.title}</strong>
+              {row.time !== '' ? <time>{row.time}</time> : null}
+            </span>
+            {row.subtitle !== '' ? <small>{row.subtitle}</small> : null}
+            {row.scope !== undefined ? (
+              <span className="session-scope">
+                <Icon name="folder" />
+                {row.scope}
+              </span>
+            ) : null}
           </button>
           <IconButton
             name="more"
@@ -120,22 +124,73 @@ function RealSessionRows({
   );
 }
 
+function SessionSectionView({
+  section,
+  hostCtx,
+}: {
+  section: SessionSection;
+  hostCtx: InkstoneHostContextValue;
+}): ReactElement {
+  const flat = section.kind !== 'project';
+  return (
+    <div className={`session-section ${section.kind}`}>
+      {section.kind === 'flat' ? null : (
+        <div className="project-heading">
+          <Icon name={section.kind === 'pinned' ? 'pin' : 'folder'} />
+          <b>{section.title}</b>
+          <small>{section.rows.length}</small>
+        </div>
+      )}
+      <div className={flat ? 'session-tree flat' : 'session-tree'}>
+        <SessionRows rows={section.rows} hostCtx={hostCtx} />
+      </div>
+    </div>
+  );
+}
+
 function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
   const listWindow = useSessionListWindow();
   const wide = useWideLayout();
   const { state, dispatch } = useInkstone();
   const { host } = hostCtx;
+  const mode = state.sessionMode;
   const now = Date.now();
   const running = collectRunningSessionIds(host.activityItems);
   const pending = collectPendingPermissionSessionIds(host.activityItems);
+  const modeSessions = filterSessionsByMode(host.sessions, mode);
   const groups = mapSessionGroups({
-    sessions: host.sessions,
+    sessions: modeSessions,
     projects: host.projects,
     runningSessionIds: running,
     pendingPermissionSessionIds: pending,
     now,
-  }).map((group) => ({ ...group, rows: applySessionFilter(group.rows, state.sessionFilter) }));
-  const continueSession = pickContinueSession(host.sessions, running);
+  });
+  // Conversations are one time-ordered list; only Agent work is filtered and grouped by project.
+  const filter = mode === 'agent' && isSessionListFilter(state.sessionFilter) ? state.sessionFilter : '全部';
+  const built = buildSessionSections(groups, filter);
+  const listView =
+    mode === 'chat'
+      ? {
+          sections: built.sections.map((section) =>
+            section.kind === 'project' ? { ...section, kind: 'flat' as const } : section,
+          ),
+          emptyMessage: built.emptyMessage === undefined ? undefined : EMPTY_BY_MODE.chat,
+        }
+      : {
+          ...built,
+          emptyMessage:
+            built.emptyMessage !== undefined && filter === '全部' ? EMPTY_BY_MODE.agent : built.emptyMessage,
+        };
+  const continueSession = mode === 'agent' ? pickContinueSession(modeSessions, running) : undefined;
+  const startDraft = (): void => {
+    dispatch({
+      type: 'start-draft',
+      draft: {
+        mode,
+        projectId: mode === 'agent' ? pickDefaultAgentProjectId(host.sessions, host.projects) : undefined,
+      },
+    });
+  };
   const continueProject = host.projects.find(
     (project) => project.projectId === continueSession?.projectId,
   );
@@ -144,11 +199,6 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
     await host.handleSelectSession(sessionId);
     dispatch({ type: 'navigate', route: 'chat' });
   };
-  const sessionDay = new Intl.DateTimeFormat('zh-CN', {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  }).format(new Date());
   return (
     <>
       <TopBar
@@ -162,27 +212,41 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
             />
             <IconButton
               name="plus"
-              label="新建会话"
-              onClick={() => dispatch({ type: 'navigate', route: 'new' })}
+              label={mode === 'agent' ? '新建 Agent 会话' : '新对话'}
+              onClick={startDraft}
               extra="red-fill"
             />
           </>
         }
       />
       <div className="screen-scroll">
-        <ScreenHeading title="会话" subtitle={`${sessionDay} · 思路仍在继续`} />
-        <button
-          className="host-card"
-          onClick={() => dispatch({ type: 'open-sheet', key: 'host' })}
-          type="button"
-        >
-          <Dot status={host.connectionState.kind === 'ready' ? 'done' : 'waiting'} />
-          <span className="grow">
-            <strong>{endpointLabel(host.endpoint)}</strong>
-            <small>{hostConnectionSubtitle(host)}</small>
-          </span>
-          <Icon name="chevd" />
-        </button>
+        <Segmented
+          label="会话类型"
+          items={[
+            [SESSION_MODE_LABELS.chat, undefined],
+            [SESSION_MODE_LABELS.agent, undefined],
+          ]}
+          selected={SESSION_MODE_LABELS[mode]}
+          onSelect={(label) => {
+            const next = MODE_BY_LABEL.get(label);
+            if (next !== undefined) dispatch({ type: 'set-session-mode', mode: next });
+          }}
+        />
+        {host.connectionState.kind !== 'ready' ? (
+          // Connected is the normal state and needs no row; only trouble is shown.
+          <button
+            className="host-card"
+            onClick={() => dispatch({ type: 'open-sheet', key: 'host' })}
+            type="button"
+          >
+            <Dot status="waiting" />
+            <span className="grow">
+              <strong>{endpointLabel(host.endpoint)}</strong>
+              <small>{hostConnectionSubtitle(host)}</small>
+            </span>
+            <Icon name="chevd" />
+          </button>
+        ) : null}
         {hostCtx.offlineSnapshot !== undefined ? (
           <p className="offline-snapshot" role="status">
             <Icon name="clock" />
@@ -190,28 +254,28 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
           </p>
         ) : null}
         {continueSession !== undefined ? (
-          <div className="continue-card">
-            <div className="spread">
-              <span className="eyebrow">从桌面继续</span>
+          <button
+            className="continue-card"
+            type="button"
+            onClick={() => void openSession(continueSession.sessionId)}
+          >
+            <span className="spread">
+              <span className="eyebrow">
+                {running.has(continueSession.sessionId) ? '正在工作' : '接着上次'}
+                {continueProject !== undefined ? ` · ${continueProject.displayName}` : ''}
+              </span>
               <Pill>
                 <Dot status={running.has(continueSession.sessionId) ? 'running' : 'done'} />
-                {running.has(continueSession.sessionId) ? '工作中' : '等待继续'}
+                {running.has(continueSession.sessionId) ? '工作中' : '继续'}
+                <Icon name="chevr" />
               </Pill>
-            </div>
+            </span>
             <h3>{continueSession.name?.trim() || '未命名会话'}</h3>
             <p>
               {cleanSessionPreview(continueSession.lastPreview) || `${continueSession.messageCount ?? 0} 条消息`}
-              <br />
-              你离开后，工作仍在 Host 上继续。
             </p>
-            <div className="spread continue-meta">
-              <span className="mono">{continueProject?.displayName ?? '会话'}</span>
-              <button onClick={() => void openSession(continueSession.sessionId)} type="button">
-                接着看 <Icon name="chevr" />
-              </button>
-            </div>
-          </div>
-        ) : host.connectionState.kind !== 'ready' ? (
+          </button>
+        ) : host.connectionState.kind !== 'ready' && host.sessions.length === 0 ? (
           // Until the Host answers we do not know whether there are sessions;
           // never claim "no sessions yet" while connecting.
           <div className="session-skeleton" aria-busy="true" aria-label="正在读取 Host 会话">
@@ -219,30 +283,20 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
             <span />
             <span />
           </div>
-        ) : (
-          <div className="empty-state">
-            <span className="brand-seal">砚</span>
-            <h2>今天，想做点什么？</h2>
-            <p>在 Host 上开始第一段会话。</p>
-          </div>
-        )}
-        <TabsRow
-          items={['全部', '进行中', '置顶']}
-          selected={state.sessionFilter}
-          onSelect={(value) => dispatch({ type: 'session-filter', value })}
-        />
-        {groups.map((group) => (
-          <div key={group.projectId ?? '__general__'}>
-            <div className="project-heading">
-              <Icon name="folder" />
-              <b>{group.project}</b>
-              <small>{group.rows.length}</small>
-            </div>
-            <div className="session-tree">
-              <RealSessionRows rows={group.rows} hostCtx={hostCtx} />
-            </div>
-          </div>
+        ) : null}
+        {mode === 'agent' ? (
+          <TabsRow
+            items={['全部', '进行中', '置顶']}
+            selected={state.sessionFilter}
+            onSelect={(value) => dispatch({ type: 'session-filter', value })}
+          />
+        ) : null}
+        {listView.sections.map((section) => (
+          <SessionSectionView key={section.key} section={section} hostCtx={hostCtx} />
         ))}
+        {listView.emptyMessage !== undefined && host.connectionState.kind === 'ready' ? (
+          <p className="session-empty">{listView.emptyMessage}</p>
+        ) : null}
         {listWindow.total !== undefined && host.connectionState.kind === 'ready' ? (
           <div className="list-window">
             <span>
@@ -255,17 +309,17 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
             ) : null}
           </div>
         ) : null}
-        <button
-          className="notice-strip"
-          onClick={() => dispatch({ type: 'navigate', route: 'inbox' })}
-          type="button"
-        >
-          <Icon name="bulb" />
-          <span>
-            {pending.size > 0 ? `有 ${pending.size} 件事，等你落笔。` : '今日待办已更新。'}
-          </span>
-          <Icon name="chevr" />
-        </button>
+        {pending.size > 0 ? (
+          <button
+            className="notice-strip"
+            onClick={() => dispatch({ type: 'navigate', route: 'inbox' })}
+            type="button"
+          >
+            <Icon name="bulb" />
+            <span>有 {pending.size} 件事，等你落笔。</span>
+            <Icon name="chevr" />
+          </button>
+        ) : null}
       </div>
       <BottomNav
         selected={wide ? navTabForRoute(state.route) : 'sessions'}

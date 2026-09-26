@@ -3,14 +3,15 @@ import { NeedsHost } from '../needs-host.js';
 import { useInkstone } from '../inkstone-context.js';
 import { FullButton, ListRow } from '../inkstone-ui.js';
 import { Icon } from '../icons.js';
-import { SETTINGS_GROUPS } from '../pages/settings.js';
+import { SETTINGS_ITEMS } from '../settings/settings-catalog.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 
 export function SettingsSearchSheet(): ReactElement {
   const { dispatch } = useInkstone();
   const [query, setQuery] = useState('');
-  const matches = SETTINGS_GROUPS.flatMap(([, items]) => items).filter((title) =>
-    title.toLowerCase().includes(query.toLowerCase()),
+  const needle = query.toLowerCase();
+  const matches = SETTINGS_ITEMS.filter(
+    (item) => item.title.toLowerCase().includes(needle) || item.blurb.toLowerCase().includes(needle),
   );
   return (
     <>
@@ -25,12 +26,13 @@ export function SettingsSearchSheet(): ReactElement {
       </label>
       <div>
         {matches.length > 0 ? (
-          matches.map((title) => (
+          matches.map((item) => (
             <ListRow
-              key={title}
-              name="sliders"
-              title={title}
-              onClick={() => dispatch({ type: 'settings-section', section: title })}
+              key={item.title}
+              name={item.icon}
+              title={item.title}
+              subtitle={item.blurb}
+              onClick={() => dispatch({ type: 'settings-section', section: item.title })}
             />
           ))
         ) : (

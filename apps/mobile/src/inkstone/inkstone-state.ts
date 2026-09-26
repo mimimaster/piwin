@@ -24,12 +24,24 @@ export type InkstoneRoute =
   | 'settings'
   | 'settings-detail'
   | 'connect'
-  | 'new'
   | 'walkthrough'
   | 'library'
   | 'automations';
 
+import { readSessionMode, type SessionMode } from './session-mode.js';
+
 export type InkstoneFace = 'paper' | 'ink';
+
+/**
+ * A new conversation that exists only on the phone until its first message:
+ * the Host session is created on send, so tapping + never leaves empty
+ * sessions behind.
+ */
+export interface InkstoneDraft {
+  mode: SessionMode;
+  /** Agent drafts only; undefined starts a general conversation. */
+  projectId: string | undefined;
+}
 export type InkstoneScope = 'once' | 'session' | 'project';
 export type InkstoneKnowledgeTab = '维基' | '信源' | '闪卡';
 
@@ -48,6 +60,11 @@ export interface InkstoneState {
   /** Last chosen permission remember-scope, reused by the next approval. */
   scope: InkstoneScope;
   toast: { seq: number; message: string };
+  /** Which half of the session list is showing; remembered on the device. */
+  sessionMode: SessionMode;
+  draft: InkstoneDraft | null;
+  /** A session just created from a draft whose first message still has to go out. */
+  pendingFirstSend: { sessionId: string; text: string } | null;
 }
 
 export const INITIAL_INKSTONE_STATE: InkstoneState = {
@@ -63,7 +80,15 @@ export const INITIAL_INKSTONE_STATE: InkstoneState = {
   wiki: '',
   scope: 'once',
   toast: { seq: 0, message: '' },
+  sessionMode: 'chat',
+  draft: null,
+  pendingFirstSend: null,
 };
+
+/** Initial state with device-remembered preferences applied. */
+export function createInitialInkstoneState(): InkstoneState {
+  return { ...INITIAL_INKSTONE_STATE, sessionMode: readSessionMode() };
+}
 
 export type InkstoneAction =
   | { type: 'navigate'; route: InkstoneRoute }
@@ -80,7 +105,12 @@ export type InkstoneAction =
   | { type: 'set-knowledge-tab'; tab: InkstoneKnowledgeTab }
   | { type: 'set-wiki-category'; category: string }
   | { type: 'open-wiki'; wikiId: string }
-  | { type: 'set-scope'; scope: InkstoneScope };
+  | { type: 'set-scope'; scope: InkstoneScope }
+  | { type: 'set-session-mode'; mode: SessionMode }
+  | { type: 'start-draft'; draft: InkstoneDraft }
+  | { type: 'set-draft-project'; projectId: string | undefined }
+  | { type: 'draft-created'; sessionId: string; text: string }
+  | { type: 'first-send-done' };
 
 /** Merged destinations: the inbox lives in 动态, shelf and settings in 案头. */
 function resolveRoute(route: InkstoneRoute): InkstoneRoute {
@@ -92,7 +122,8 @@ function resolveRoute(route: InkstoneRoute): InkstoneRoute {
 export function inkstoneReducer(state: InkstoneState, action: InkstoneAction): InkstoneState {
   switch (action.type) {
     case 'navigate':
-      return { ...state, sheet: null, route: resolveRoute(action.route) };
+      // Leaving for any page, including an existing session, abandons the draft.
+      return { ...state, sheet: null, draft: null, route: resolveRoute(action.route) };
     case 'open-sheet':
       return { ...state, sheet: action.key };
     case 'close-sheet':
@@ -121,5 +152,21 @@ export function inkstoneReducer(state: InkstoneState, action: InkstoneAction): I
       return { ...state, sheet: null, wiki: action.wikiId, route: 'wiki-detail' };
     case 'set-scope':
       return { ...state, scope: action.scope };
+    case 'set-session-mode':
+      return { ...state, sessionMode: action.mode };
+    case 'start-draft':
+      return { ...state, sheet: null, route: 'chat', draft: action.draft, pendingFirstSend: null };
+    case 'set-draft-project':
+      return state.draft === null
+        ? state
+        : { ...state, sheet: null, draft: { ...state.draft, projectId: action.projectId } };
+    case 'draft-created':
+      return {
+        ...state,
+        draft: null,
+        pendingFirstSend: { sessionId: action.sessionId, text: action.text },
+      };
+    case 'first-send-done':
+      return { ...state, pendingFirstSend: null };
   }
 }
