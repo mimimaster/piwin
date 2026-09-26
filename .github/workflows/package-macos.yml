@@ -3,7 +3,8 @@ name: package-macos
 # macOS all-in-one Desktop (shell + Host sidecar + bundled Node).
 # Do not use tauri-action as the builder: it would skip bundle:host,
 # fetch:node-runtime, and sign:host-macho. Command authority is
-# `pnpm package:desktop`. See docs/guides/package-macos-ci.md.
+# `pnpm package:desktop`. Manual verification only; releases use locally built installers.
+# See docs/guides/package-macos-ci.md.
 
 on:
   workflow_dispatch:
@@ -16,29 +17,26 @@ on:
           - self-hosted
         default: macos-14
       desktop_version:
-        description: Optional tauri.conf.json version (e.g. 0.1.0). Tags use the tag. Leave empty to keep 0.0.0.
+        description: Optional tauri.conf.json version (e.g. 0.1.0). Leave empty to keep 0.0.0.
         required: false
         type: string
         default: ''
       require_developer_id:
-        description: Fail if the .app is not Developer ID signed. Tag builds always require this.
+        description: Fail if the .app is not Developer ID signed.
         type: boolean
         default: false
-  push:
-    tags:
-      - 'v*'
 
 concurrency:
   group: package-macos-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   package:
     name: All-in-one Desktop (macOS arm64)
-    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'self-hosted') && fromJSON('["self-hosted","macOS","ARM64"]') || 'macos-14' }}
+    runs-on: ${{ inputs.runner == 'self-hosted' && fromJSON('["self-hosted","macOS","ARM64"]') || 'macos-14' }}
     timeout-minutes: 90
     env:
       CI: 'true'
@@ -46,7 +44,7 @@ jobs:
       CARGO_TERM_COLOR: always
       npm_config_fetch_timeout: '600000'
       npm_config_fetch_retries: '5'
-      PIWIN_REQUIRE_DEVELOPER_ID: ${{ github.ref_type == 'tag' && '1' || (inputs.require_developer_id && '1' || '0') }}
+      PIWIN_REQUIRE_DEVELOPER_ID: ${{ inputs.require_developer_id && '1' || '0' }}
 
     steps:
       - name: Checkout
@@ -104,7 +102,7 @@ jobs:
 
       - name: Apply desktop version
         env:
-          DESKTOP_VERSION_INPUT: ${{ github.ref_type == 'tag' && github.ref_name || inputs.desktop_version }}
+          DESKTOP_VERSION_INPUT: ${{ inputs.desktop_version }}
         run: |
           if [ -n "${DESKTOP_VERSION_INPUT}" ]; then
             node scripts/apply-desktop-version.mjs "${DESKTOP_VERSION_INPUT}"
@@ -164,26 +162,12 @@ jobs:
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: piwinwin-macos-aarch64-${{ github.sha }}
+          name: piwin-macos-aarch64-${{ github.sha }}
           path: |
             dist-ci/*.dmg
             dist-ci/*.sha256
           if-no-files-found: error
           retention-days: 14
-
-      - name: Draft GitHub Release
-        if: github.ref_type == 'tag'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" dist-ci/*.dmg dist-ci/*.sha256 --clobber
-          else
-            gh release create "${GITHUB_REF_NAME}" dist-ci/*.dmg dist-ci/*.sha256 \
-              --draft \
-              --title "${GITHUB_REF_NAME}" \
-              --notes "macOS all-in-one Desktop (aarch64). Built by pnpm package:desktop. Notarized when App Store Connect API secrets are present. Clean-machine smoke (ADR 0017 S5) is still required before treating this as public-ready."
-          fi
 
       - name: Remove temporary signing keychain
         if: always() && runner.environment == 'github-hosted' && env.PIWIN_SIGNING_KEYCHAIN == '1'

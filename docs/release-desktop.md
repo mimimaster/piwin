@@ -164,7 +164,7 @@ and Desktop restore-first settings. Operator recovery lives in
 ## CI note
 
 Default CI (`.github/workflows/ci.yml`) stays on Ubuntu: typecheck, tests, host
-smoke. macOS all-in-one packaging is a **separate** workflow,
-[`.github/workflows/package-macos.yml`](../.github/workflows/package-macos.yml),
-triggered by `workflow_dispatch` or `v*` tags — not by every pull request.
+smoke. macOS all-in-one packaging is a **separate**, manually triggered
+verification workflow, [`.github/workflows/package-macos.yml`](../.github/workflows/package-macos.yml).
+Local release installers are uploaded separately to GitHub Releases and R2.
 Details: [`guides/package-macos-ci.md`](./guides/package-macos-ci.md).

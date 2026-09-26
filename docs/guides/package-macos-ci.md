@@ -7,7 +7,7 @@
 
 GitHub Actions workflow: [`.github/workflows/package-macos.yml`](../../.github/workflows/package-macos.yml).
 
-This is **not** the default `ci.yml` job. Linux CI stays typecheck / test / host smoke. Packaging is a separate, macOS-only pipeline that runs the same command as a local release:
+This is **not** the default `ci.yml` job. Linux CI stays typecheck / test / host smoke. Packaging is a separate, manually triggered macOS verification pipeline that runs the same command as a local release:
 
 ```bash
 pnpm package:desktop
@@ -17,7 +17,7 @@ Do not switch the builder to `tauri-apps/tauri-action`. That action calls `tauri
 
 ## What it produces
 
-One arm64 all-in-one DMG (`piwinwin_<version>_aarch64.dmg`) plus a SHA-256 sidecar. Intel Mac / universal builds are out of scope: LanceDB 0.37.1 has no `darwin-x64` prebuild.
+One arm64 all-in-one DMG (`piwin_<version>_aarch64.dmg`) plus a SHA-256 sidecar. Intel Mac / universal builds are out of scope: LanceDB 0.37.1 has no `darwin-x64` prebuild.
 
 The job:
 
@@ -25,8 +25,7 @@ The job:
 2. Runs `pnpm package:desktop`.
 3. Runs `pnpm test:bundle` (Host JSONL mock smoke, no GUI).
 4. Runs `pnpm verify:desktop-package` (sidecar, Host JS, LanceDB native, signature). Tauri deletes the `.app` after writing the DMG; verify then attaches the DMG read-only and inspects the nested bundle.
-5. Uploads the DMG as a workflow artifact (14 days).
-6. On `v*` tags, attaches the DMG to a **draft** GitHub Release.
+5. Uploads the DMG as a workflow artifact (14 days). This workflow does not publish a GitHub Release.
 
 If `APPLE_API_KEY` / `APPLE_API_ISSUER` / `APPLE_API_KEY_P8` are set, the job
 submits the DMG to Apple notary and staples the ticket. SHA-256 is hashed
@@ -38,9 +37,8 @@ submits the DMG to Apple notary and staples the ticket. SHA-256 is hashed
 | Trigger | Result |
 |---------|--------|
 | Actions → `package-macos` → Run workflow | Artifact only. Optional version / Developer ID gate. |
-| `git tag v0.1.0 && git push origin v0.1.0` | Same build; `tauri.conf.json` version becomes `0.1.0`; draft Release. |
 
-Never on pull requests. macOS minutes and a ~275 MB DMG do not belong on every push.
+Pushing commits or tags does not trigger this workflow. The release installers are built locally and uploaded separately to GitHub Releases and R2.
 
 ## Runners
 
@@ -72,7 +70,7 @@ security find-identity -v -p codesigning | grep "Developer ID Application"
 
 `sign-host-macho` runs **before** `tauri build`, so the workflow imports the p12 into a temporary keychain itself. Tauri's built-in `APPLE_CERTIFICATE` import is not enough for Host natives (`lancedb` / `sharp` / `esbuild`).
 
-Tag builds set `PIWIN_REQUIRE_DEVELOPER_ID=1` and fail if the `.app` is still ad-hoc. Manual dispatch defaults to allowing ad-hoc so the pipeline can be proven before secrets exist; tick **require_developer_id** once the cert is in place.
+Manual dispatch defaults to allowing ad-hoc so the pipeline can be proven before secrets exist; tick **require_developer_id** once the cert is in place.
 
 ### Notarization
 
@@ -114,4 +112,4 @@ If `apps/desktop/src-tauri/target` is a symlink or `CARGO_TARGET_DIR` is set, th
 4. Export the Developer ID p12 and set the three secrets.
 5. Re-run with **require_developer_id**.
 6. Set the three App Store Connect API secrets and confirm the Notarize step staples.
-7. When a numbered build is needed: `git tag v0.1.0 && git push origin v0.1.0`, then publish the draft Release after a local install smoke.
+7. For a numbered verification build, enter `desktop_version` when running the workflow. Publish the locally built installers after a clean-machine install smoke.
