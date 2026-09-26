@@ -1246,6 +1246,87 @@ describe('ChatThread render isolation (E1)', () => {
     );
   });
 
+  it('keeps a failed terminal row visible while unloading duplicated failed work', () => {
+    const userMessage = createUserMessage('u-repeated-failure', 'Implement this');
+    const terminalError = 'Stream ended without finish_reason';
+    const workMessages: ChatMessageUi[] = Array.from({ length: 39 }, (_, index) => ({
+      id: `a-repeated-failure-${index}`,
+      role: 'assistant',
+      text: 'Intermediate response.',
+      thinking: '',
+      tools: [{
+        toolCallId: `tool-repeated-failure-${index}`,
+        toolName: 'bash',
+        status: 'done',
+        output: '',
+        runId: 'run-repeated-failure',
+      }],
+      attachments: [],
+      status: 'done',
+      error: terminalError,
+      runId: 'run-repeated-failure',
+    }));
+    const terminalMessage: ChatMessageUi = {
+      id: 'a-repeated-failure-terminal',
+      role: 'assistant',
+      text: 'Partial result.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'error',
+      error: terminalError,
+      runId: 'run-repeated-failure',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThreadHarness
+            messages={[userMessage, ...workMessages, terminalMessage]}
+            runRecordsById={{
+              'run-repeated-failure': {
+                runId: 'run-repeated-failure',
+                phaseHistory: [],
+                startedAt: 1,
+                endedAt: 2,
+                outcome: 'failed',
+              },
+            }}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            workDetailsExpanded="collapsed"
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="message-bubble"]')).toHaveLength(2);
+    expect(container.querySelector('#msg-a-repeated-failure-0')).toBeNull();
+    expect(container.querySelector('#msg-a-repeated-failure-terminal .markdown')?.textContent)
+      .toContain('Partial result.');
+    expect(container.querySelector('#msg-a-repeated-failure-terminal [data-testid="turn-error-card"]'))
+      .not.toBeNull();
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]')
+        ?.click();
+    });
+    expect(container.querySelector('#msg-a-repeated-failure-0')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="message-bubble"]')).toHaveLength(41);
+  });
+
   it('suppresses duplicate thinking when intermediate message already has matching thought', () => {
     const userMessage = createUserMessage('u-dup-thinking', 'Check proxy');
     const workMessage: ChatMessageUi = {

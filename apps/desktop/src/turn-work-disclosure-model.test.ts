@@ -921,6 +921,43 @@ describe('projectTurnWorkDisclosure', () => {
     ).toBeNull();
   });
 
+  it('folds repeated terminal failure metadata without hiding the final error row', () => {
+    const terminalError = 'Stream ended without finish_reason';
+    const work = Array.from({ length: 39 }, (_, index) =>
+      message(`work-${index}`, {
+        runId: 'run-1',
+        error: terminalError,
+        text: index % 3 === 0 ? 'Intermediate response.' : '',
+        tools: [{
+          toolCallId: `tool-${index}`,
+          toolName: 'bash',
+          status: 'done',
+          output: '',
+          runId: 'run-1',
+        }],
+      }),
+    );
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      ...work,
+      message('error-1', {
+        runId: 'run-1',
+        status: 'error',
+        error: terminalError,
+        text: 'Partial result.',
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: { 'run-1': completedRun({ outcome: 'failed' }) },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
+    ).toMatchObject({ startIndex: 1, endIndex: 39, toolCount: 39, failureCount: 1 });
+  });
+
   it('does not fold a live turn while a permission gate is waiting', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),

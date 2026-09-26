@@ -185,6 +185,25 @@ function prefixHasAssistantError(
   return false;
 }
 
+/** Run finalization can copy one terminal error onto every earlier done row. */
+function prefixRepeatsTerminalError(
+  turn: TranscriptTurn,
+  startIndex: number,
+  endIndex: number,
+  terminalError: string,
+): boolean {
+  let hasDuplicate = false;
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const message = turn.items[index]?.message;
+    if (message?.role !== 'assistant') continue;
+    if (message.status === 'error') return false;
+    if (message.error === undefined) continue;
+    if (message.error !== terminalError) return false;
+    hasDuplicate = true;
+  }
+  return hasDuplicate;
+}
+
 function collectRunIds(turn: TranscriptTurn): Set<string> {
   const runIds = new Set<string>();
   for (const { message } of turn.items) {
@@ -544,7 +563,18 @@ export function projectTurnWorkDisclosure(
 
   let startIndex: number;
   let endIndex: number;
-  if (lastIsConclusion) {
+  if (lastAssistant.status === 'error' && lastAssistant.error) {
+    // Keep the actual failed row and its error card visible. Only hide earlier
+    // work when its errors are copies of this terminal failure, not distinct
+    // failures the reader needs to see in the causal stream.
+    endIndex = lastAssistantIndex - 1;
+    startIndex = findFirstAssistantIndex(input.turn, endIndex);
+    if (startIndex === -1 || endIndex < startIndex) return null;
+    if (!prefixHasWork(input.turn, startIndex, endIndex)) return null;
+    if (prefixHasUserFacingReply(input.turn, startIndex, endIndex)) return null;
+    if (!prefixRepeatsTerminalError(input.turn, startIndex, endIndex, lastAssistant.error))
+      return null;
+  } else if (lastIsConclusion) {
     endIndex = lastAssistantIndex - 1;
     startIndex = findFirstAssistantIndex(input.turn, endIndex);
     if (startIndex === -1 || endIndex < startIndex) return null;
