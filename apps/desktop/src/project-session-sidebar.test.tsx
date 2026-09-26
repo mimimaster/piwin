@@ -9,6 +9,7 @@ import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { SessionListItemUi } from './chat-reducer';
 import type { DraftSessionItemUi } from './draft-session';
 import { saveSidebarMode, type SidebarMode } from './sidebar-mode';
+import * as sidebarTreeRows from './sidebar-tree-rows';
 
 /**
  * The sidebar is two panes now (see sidebar-mode.ts). Each suite declares the
@@ -1249,6 +1250,7 @@ describe('ProjectSessionSidebar virtualization gate', () => {
     saveSidebarMode('chat');
     const sessions = createMockSessions(1_035);
     const onResume = vi.fn();
+    const rowKeySpy = vi.spyOn(sidebarTreeRows, 'sidebarTreeRowKey');
     const { container } = renderSidebar({
       filteredSessions: [],
       generalSessions: sessions,
@@ -1267,6 +1269,8 @@ describe('ProjectSessionSidebar virtualization gate', () => {
 
     const tree = container.querySelector('.sidebar-folder-tree');
     expect(tree).not.toBeNull();
+    const initialKeyCount = rowKeySpy.mock.calls.length;
+    rowKeySpy.mockClear();
     act(() => {
       if (tree) {
         Object.defineProperty(tree, 'scrollTop', {
@@ -1277,6 +1281,12 @@ describe('ProjectSessionSidebar virtualization gate', () => {
         tree.dispatchEvent(new Event('scroll'));
       }
     });
+    // A scroll may key newly mounted rows, but must not re-key the resident
+    // 1,035-row index just because the virtualizer asked React to render.
+    const scrollKeyCount = rowKeySpy.mock.calls.length;
+    rowKeySpy.mockRestore();
+    expect(initialKeyCount).toBeGreaterThan(0);
+    expect(scrollKeyCount).toBeLessThan(80);
     const far = container.querySelector<HTMLButtonElement>('[data-session-id="session-1035"]');
     expect(far).not.toBeNull();
     act(() => {

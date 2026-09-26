@@ -216,6 +216,10 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const sidebarRef = useRef<HTMLElement>(null);
   const folderTreeRef = useRef<HTMLDivElement>(null);
   const [folderTreeElement, setFolderTreeElement] = useState<HTMLDivElement | null>(null);
+  const attachFolderTree = useCallback((node: HTMLDivElement | null): void => {
+    folderTreeRef.current = node;
+    setFolderTreeElement(node);
+  }, []);
   const virtualizerRef = useRef<{ scrollToIndex: (index: number) => void } | null>(null);
   const changeSortBy = (order: SessionListOrder): void => {
     setLocalSortBy(order);
@@ -351,20 +355,31 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     () => treeRows.flatMap((row, index) => (row.kind === 'session' ? [index] : [])),
     [treeRows],
   );
+  // The virtualizer's measurement cache depends on getItemKey identity. Keep
+  // these callbacks stable across scroll-driven renders of this component.
+  const estimateTreeRowSize = useCallback(
+    (index: number) => estimateSidebarTreeRowSize(treeRows[index]),
+    [treeRows],
+  );
+  const getTreeRowKey = useCallback(
+    (index: number) => sidebarTreeRowKey(treeRows[index] ?? {
+      kind: 'section-header',
+      sectionId: 'projects',
+      key: `missing:${index}`,
+    }),
+    [treeRows],
+  );
+  const measureTreeRow = useCallback(
+    (element: Element) => Math.max(element.getBoundingClientRect().height, 1),
+    [],
+  );
 
   const virtualizer = useVirtualizer({
     count: treeRows.length,
     getScrollElement: () => folderTreeElement,
-    estimateSize: (index) => estimateSidebarTreeRowSize(treeRows[index]),
-    getItemKey: (index) =>
-      sidebarTreeRowKey(
-        treeRows[index] ?? {
-          kind: 'section-header',
-          sectionId: 'projects',
-          key: `missing:${index}`,
-        },
-      ),
-    measureElement: (element) => Math.max(element.getBoundingClientRect().height, 1),
+    estimateSize: estimateTreeRowSize,
+    getItemKey: getTreeRowKey,
+    measureElement: measureTreeRow,
     overscan: SIDEBAR_VIRTUAL_OVERSCAN,
     useFlushSync: false,
   });
@@ -741,10 +756,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       <div
         className="sidebar-folder-tree"
         data-testid="sessions-list"
-        ref={(node) => {
-          folderTreeRef.current = node;
-          setFolderTreeElement(node);
-        }}
+        ref={attachFolderTree}
       >
         {virtualizeTree ? (
           <div
