@@ -285,6 +285,10 @@ describe('ContextBar', () => {
     document.documentElement.dataset.windowChrome = 'windows-caption';
     renderContextBar(createBaseProps({ runState: createIdleRunStatus() }), root);
     expect(container.querySelector('[data-testid="windows-caption-controls"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="workspace-context-header"]')
+        ?.hasAttribute('data-tauri-drag-region'),
+    ).toBe(false);
     delete document.documentElement.dataset.windowChrome;
   });
 });

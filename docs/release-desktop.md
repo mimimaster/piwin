@@ -130,6 +130,12 @@ Silent current-user install: `piwinwin_0.0.0_x64-setup.exe /S`.
 Thin-shell product name is `piwin shell` (`app.piwinwin.desktop.shell`).
 All-in-one remains `piwinwin`.
 
+For a Windows installer smoke test, open the installed app and verify the
+three top-right controls: minimize to the taskbar and restore, maximize and
+restore, then close the app. Repeat with the right panel open. Drag the empty
+titlebar to confirm that moving the window still works without taking clicks
+from the controls.
+
 ## Signing / notarization
 
 Private v1 can ship unsigned. Prefer a stable Developer ID so TCC grants

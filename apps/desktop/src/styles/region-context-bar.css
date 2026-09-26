@@ -368,6 +368,15 @@ html[data-window-chrome='windows-caption'] .context-bar {
   padding-right: 0 !important;
 }
 
+/* WebView2 can treat a draggable ancestor as a native caption hit target and
+   consume clicks before the buttons receive them. Keep the explicit drag strip
+   draggable; blank header space still uses the guarded mousedown handler. */
+html[data-window-chrome='windows-caption'] .context-bar.context-titlebar-box,
+html[data-window-chrome='windows-caption'] .context-bar > .context-bar-leading {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 .windows-caption-controls {
   display: inline-flex;
   align-items: center;
@@ -415,4 +424,5 @@ html[data-window-chrome='windows-caption'] .context-bar {
 
 .windows-caption-btn svg {
   flex: none;
+  pointer-events: none;
 }

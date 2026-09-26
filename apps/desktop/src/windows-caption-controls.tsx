@@ -6,6 +6,17 @@ export type WindowsCaptionControlsProps = {
   className?: string;
 };
 
+function runWindowCommand(action: string, command: () => Promise<void>): void {
+  if (!isTauriRuntime()) return;
+  try {
+    void command().catch((error: unknown) => {
+      console.error(`[piwin] window ${action} failed`, error);
+    });
+  } catch (error) {
+    console.error(`[piwin] window ${action} unavailable`, error);
+  }
+}
+
 export function WindowsCaptionControls(props: WindowsCaptionControlsProps): ReactElement {
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -14,26 +25,24 @@ export function WindowsCaptionControls(props: WindowsCaptionControlsProps): Reac
     let unlisten: (() => void) | undefined;
     try {
       const win = getCurrentWindow();
-      void win.isMaximized?.().then?.((maximized) => {
-        if (typeof maximized === 'boolean') {
-          setIsMaximized(maximized);
-        }
-      }).catch?.(() => {});
+      void win.isMaximized().then(setIsMaximized).catch((error: unknown) => {
+        console.warn('[piwin] window maximize state unavailable', error);
+      });
 
       void win
-        .onResized?.(() => {
-          void win.isMaximized?.().then?.((maximized) => {
-            if (typeof maximized === 'boolean') {
-              setIsMaximized(maximized);
-            }
-          }).catch?.(() => {});
+        .onResized(() => {
+          void win.isMaximized().then(setIsMaximized).catch((error: unknown) => {
+            console.warn('[piwin] window maximize state unavailable', error);
+          });
         })
-        ?.then?.((unsub) => {
+        .then((unsub) => {
           unlisten = unsub;
         })
-        ?.catch?.(() => {});
-    } catch {
-      // Running outside Tauri or mocked environment
+        .catch((error: unknown) => {
+          console.warn('[piwin] window resize listener unavailable', error);
+        });
+    } catch (error) {
+      console.warn('[piwin] window state unavailable', error);
     }
 
     return () => {
@@ -42,35 +51,19 @@ export function WindowsCaptionControls(props: WindowsCaptionControlsProps): Reac
   }, []);
 
   const handleMinimize = () => {
-    if (!isTauriRuntime()) return;
-    try {
-      void getCurrentWindow().minimize?.()?.catch?.(() => {});
-    } catch {
-      // Ignored outside Tauri
-    }
+    runWindowCommand('minimize', () => getCurrentWindow().minimize());
   };
 
   const handleToggleMaximize = () => {
-    if (!isTauriRuntime()) return;
-    try {
-      void getCurrentWindow()
-        .toggleMaximize?.()
-        ?.then?.(() => {
-          setIsMaximized((prev) => !prev);
-        })
-        ?.catch?.(() => {});
-    } catch {
-      // Ignored outside Tauri
-    }
+    runWindowCommand('toggle maximize', async () => {
+      const win = getCurrentWindow();
+      await win.toggleMaximize();
+      setIsMaximized(await win.isMaximized());
+    });
   };
 
   const handleClose = () => {
-    if (!isTauriRuntime()) return;
-    try {
-      void getCurrentWindow().close?.()?.catch?.(() => {});
-    } catch {
-      // Ignored outside Tauri
-    }
+    runWindowCommand('close', () => getCurrentWindow().close());
   };
 
   return (
@@ -84,6 +77,8 @@ export function WindowsCaptionControls(props: WindowsCaptionControlsProps): Reac
       data-no-window-drag
       role="group"
       aria-label="窗口控制"
+      onMouseDown={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
     >
       <button
         type="button"

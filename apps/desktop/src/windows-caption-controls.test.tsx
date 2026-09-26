@@ -8,9 +8,9 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-const mockMinimize = vi.fn();
+const mockMinimize = vi.fn().mockResolvedValue(undefined);
 const mockToggleMaximize = vi.fn().mockResolvedValue(undefined);
-const mockClose = vi.fn();
+const mockClose = vi.fn().mockResolvedValue(undefined);
 const mockIsMaximized = vi.fn().mockResolvedValue(false);
 const mockOnResized = vi.fn().mockResolvedValue(() => {});
 
@@ -33,9 +33,11 @@ describe('WindowsCaptionControls', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    mockMinimize.mockClear();
-    mockToggleMaximize.mockClear();
-    mockClose.mockClear();
+    mockMinimize.mockReset().mockResolvedValue(undefined);
+    mockToggleMaximize.mockReset().mockResolvedValue(undefined);
+    mockClose.mockReset().mockResolvedValue(undefined);
+    mockIsMaximized.mockReset().mockResolvedValue(false);
+    mockOnResized.mockReset().mockResolvedValue(() => {});
   });
 
   afterEach(() => {
@@ -82,5 +84,46 @@ describe('WindowsCaptionControls', () => {
       closeBtn?.click();
     });
     expect(mockClose).toHaveBeenCalled();
+  });
+
+  it('keeps button mouse events out of the parent drag region', () => {
+    const parentMouseDown = vi.fn();
+    const parentDoubleClick = vi.fn();
+    act(() => {
+      root?.render(
+        <div onMouseDown={parentMouseDown} onDoubleClick={parentDoubleClick}>
+          <WindowsCaptionControls />
+        </div>,
+      );
+    });
+
+    const minimizeIcon = container?.querySelector('[data-testid="windows-caption-minimize"] svg');
+    act(() => {
+      minimizeIcon?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+      minimizeIcon?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, button: 0 }));
+    });
+
+    expect(parentMouseDown).not.toHaveBeenCalled();
+    expect(parentDoubleClick).not.toHaveBeenCalled();
+  });
+
+  it('reports a rejected native window action', async () => {
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+    const error = new Error('permission denied');
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockMinimize.mockRejectedValueOnce(error);
+    try {
+      act(() => {
+        root?.render(<WindowsCaptionControls />);
+      });
+      await act(async () => {
+        container
+          ?.querySelector<HTMLButtonElement>('[data-testid="windows-caption-minimize"]')
+          ?.click();
+      });
+      expect(errorLog).toHaveBeenCalledWith('[piwin] window minimize failed', error);
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 });

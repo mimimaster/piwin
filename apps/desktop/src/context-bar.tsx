@@ -171,7 +171,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       data-testid="workspace-context-header"
       data-kind={runState.kind}
       data-state={shellState}
-      data-tauri-drag-region
+      data-tauri-drag-region={isWindowsCaption ? undefined : ''}
       onMouseDown={handleNativeWindowDragMouseDown}
       onDoubleClick={(event) => {
         if (!isWindowsCaption) return;
