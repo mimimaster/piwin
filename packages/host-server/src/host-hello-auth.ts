@@ -69,6 +69,7 @@ export async function authenticateHostHello(
         const completion = context.devicePairing.completePairing(
           message.pairingToken ?? '',
           message.deviceName ?? message.clientId,
+          message.clientId,
         );
         await context.persistEnrollment(context.devicePairing);
         return {
@@ -88,7 +89,10 @@ export async function authenticateHostHello(
     if (!isTrustedDeviceCredential(message.deviceCredential)) {
       return { ok: false, message: 'Device credential is invalid or revoked' };
     }
-    const device = context.devicePairing.authenticate(message.deviceCredential as TrustedDeviceCredential);
+    const device = context.devicePairing.authenticate(
+      message.deviceCredential as TrustedDeviceCredential,
+      message.clientId,
+    );
     if (device === undefined) {
       return { ok: false, message: 'Device credential is invalid or revoked' };
     }

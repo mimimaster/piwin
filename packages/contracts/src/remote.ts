@@ -96,6 +96,11 @@ export type TrustedDevicePublic = {
   createdAt: string;
   lastSeenAt: string;
   revokedAt?: string;
+  /**
+   * The installation's hello `clientId`. A later pairing from the same
+   * installation replaces this record instead of listing the device twice.
+   */
+  clientId?: string;
 };
 
 /**

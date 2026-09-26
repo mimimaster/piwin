@@ -36,6 +36,32 @@ describe('authenticateHostHello', () => {
     expect(pairing.completePairing(token.token, 'iPhone').device.name).toBe('iPhone');
   });
 
+  it('keeps one device record when the same phone re-pairs', async () => {
+    const pairing = new HostDevicePairing();
+    const context = {
+      authToken: undefined,
+      devicePairing: pairing,
+      allowAnonymousHello: false,
+      persistEnrollment: async () => undefined,
+      tokensEqual,
+    };
+    const hello = {
+      type: 'client/hello',
+      protocolVersion: 1,
+      clientType: 'mobile',
+      clientVersion: 'test',
+      clientId: 'phone-install',
+      lastSeq: 0,
+      deviceName: 'Piwin mobile',
+    } as const;
+    const first = await authenticateHostHello({ ...hello, pairingToken: pairing.mintToken().token }, context);
+    const second = await authenticateHostHello({ ...hello, pairingToken: pairing.mintToken().token }, context);
+
+    expect(first.ok && second.ok).toBe(true);
+    expect(pairing.list()).toHaveLength(1);
+    expect(pairing.list()[0]).toMatchObject({ clientId: 'phone-install', name: 'Piwin mobile' });
+  });
+
   it('rejects pairing plus door token together', async () => {
     const pairing = new HostDevicePairing();
     const token = pairing.mintToken();

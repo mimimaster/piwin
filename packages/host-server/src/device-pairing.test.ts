@@ -59,6 +59,37 @@ describe('HostDevicePairing', () => {
     expect(pairing.authenticate(completion.credential)?.id).toBe(completion.device.id);
   });
 
+  it('replaces the earlier enrollment when the same installation pairs again', () => {
+    const { pairing } = createDeterministicPairing();
+    const other = pairing.completePairing(pairing.mintToken().token, 'iPad', 'client-ipad');
+    const first = pairing.completePairing(pairing.mintToken().token, 'iPhone', 'client-phone');
+    // Capacity is 2: re-pairing must not trip it by counting the stale record.
+    const second = pairing.completePairing(pairing.mintToken().token, 'iPhone', 'client-phone');
+
+    expect(pairing.list().map((device) => device.id)).toEqual([other.device.id, second.device.id]);
+    expect(second.device.clientId).toBe('client-phone');
+    expect(pairing.authenticate(first.credential)).toBeUndefined();
+    expect(pairing.authenticate(second.credential)?.id).toBe(second.device.id);
+    expect(pairing.authenticate(other.credential)?.id).toBe(other.device.id);
+  });
+
+  it('backfills the installation on authenticate so a legacy record is replaced later', () => {
+    const { pairing } = createDeterministicPairing();
+    const legacy = pairing.completePairing(pairing.mintToken().token, 'iPhone');
+    expect(legacy.device.clientId).toBeUndefined();
+    expect(pairing.authenticate(legacy.credential, 'client-phone')?.clientId).toBe('client-phone');
+
+    const repaired = pairing.completePairing(pairing.mintToken().token, 'iPhone', 'client-phone');
+    expect(pairing.list().map((device) => device.id)).toEqual([repaired.device.id]);
+  });
+
+  it('keeps distinct records for pairings without an installation id', () => {
+    const { pairing } = createDeterministicPairing();
+    pairing.completePairing(pairing.mintToken().token, 'iPhone');
+    pairing.completePairing(pairing.mintToken().token, 'iPhone', '  ');
+    expect(pairing.list()).toHaveLength(2);
+  });
+
   it('bounds pending tokens and paired devices', () => {
     const { pairing } = createDeterministicPairing();
     const first = pairing.mintToken();

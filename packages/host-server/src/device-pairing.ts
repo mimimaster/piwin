@@ -36,6 +36,7 @@ const DEFAULT_MAX_DEVICES = 32;
 const DEVICE_SECRET_BYTES = 32;
 const PAIRING_TOKEN_BYTES = 24;
 const MAX_DEVICE_NAME_LENGTH = 128;
+const MAX_CLIENT_ID_LENGTH = 128;
 
 /**
  * Host-owned, bounded enrollment store. Raw device secrets only exist in the
@@ -75,7 +76,12 @@ export class HostDevicePairing {
     return { token, expiresAt };
   }
 
-  public completePairing(token: string, deviceName?: string): PairingCompletion {
+  /**
+   * Consume a one-time token. A `clientId` identifies the installation: its
+   * earlier enrollments are dropped so re-pairing the same phone (for example
+   * after it lost its credential) keeps one device record.
+   */
+  public completePairing(token: string, deviceName?: string, clientId?: string): PairingCompletion {
     this.pruneExpiredTokens();
     const normalizedToken = token.trim();
     const tokenHash = hashSecret(normalizedToken);
@@ -83,6 +89,12 @@ export class HostDevicePairing {
     if (pending === undefined || pending.expiresAt <= this.now()) {
       this.pending.delete(tokenHash);
       throw new Error('Pairing token is invalid or expired');
+    }
+    const normalizedClientId = normalizeClientId(clientId);
+    if (normalizedClientId !== undefined) {
+      for (const [existingId, existing] of this.devices) {
+        if (existing.clientId === normalizedClientId) this.devices.delete(existingId);
+      }
     }
     this.ensureDeviceCapacity();
     this.pending.delete(tokenHash);
@@ -96,6 +108,7 @@ export class HostDevicePairing {
       secretHash: hashSecret(deviceSecret),
       createdAt,
       lastSeenAt: createdAt,
+      ...(normalizedClientId === undefined ? {} : { clientId: normalizedClientId }),
     };
     this.devices.set(deviceId, device);
 
@@ -105,7 +118,14 @@ export class HostDevicePairing {
     };
   }
 
-  public authenticate(credential: TrustedDeviceCredential): TrustedDevicePublic | undefined {
+  /**
+   * `clientId` backfills enrollments made before installations were recorded,
+   * so their next re-pair also replaces them.
+   */
+  public authenticate(
+    credential: TrustedDeviceCredential,
+    clientId?: string,
+  ): TrustedDevicePublic | undefined {
     const device = this.devices.get(credential.deviceId);
     if (device === undefined || device.revokedAt !== undefined) return undefined;
     const expected = Buffer.from(device.secretHash, 'utf8');
@@ -114,6 +134,10 @@ export class HostDevicePairing {
       return undefined;
     }
     device.lastSeenAt = new Date(this.now()).toISOString();
+    const normalizedClientId = normalizeClientId(clientId);
+    if (device.clientId === undefined && normalizedClientId !== undefined) {
+      device.clientId = normalizedClientId;
+    }
     return publicDevice(device);
   }
 
@@ -188,6 +212,11 @@ function normalizeDeviceName(value: string | undefined): string {
   return normalized === undefined || normalized.length === 0 ? 'Piwin mobile' : normalized;
 }
 
+function normalizeClientId(value: string | undefined): string | undefined {
+  const normalized = value?.trim().slice(0, MAX_CLIENT_ID_LENGTH);
+  return normalized === undefined || normalized.length === 0 ? undefined : normalized;
+}
+
 function publicDevice(device: StoredDevice): TrustedDevicePublic {
   return {
     id: device.id,
@@ -196,6 +225,7 @@ function publicDevice(device: StoredDevice): TrustedDevicePublic {
     createdAt: device.createdAt,
     lastSeenAt: device.lastSeenAt,
     ...(device.revokedAt === undefined ? {} : { revokedAt: device.revokedAt }),
+    ...(device.clientId === undefined ? {} : { clientId: device.clientId }),
   };
 }
 
@@ -248,6 +278,7 @@ function parsePairingState(
     const createdAt = candidate.createdAt;
     const lastSeenAt = candidate.lastSeenAt;
     const revokedAt = candidate.revokedAt;
+    const clientId = candidate.clientId;
     if (
       typeof id !== 'string' ||
       id.length === 0 ||
@@ -260,7 +291,8 @@ function parsePairingState(
       createdAt.length === 0 ||
       typeof lastSeenAt !== 'string' ||
       lastSeenAt.length === 0 ||
-      (revokedAt !== undefined && (typeof revokedAt !== 'string' || revokedAt.length === 0))
+      (revokedAt !== undefined && (typeof revokedAt !== 'string' || revokedAt.length === 0)) ||
+      (clientId !== undefined && (typeof clientId !== 'string' || clientId.length === 0))
     ) {
       throw new Error('Invalid paired-device entry');
     }
@@ -272,6 +304,7 @@ function parsePairingState(
       createdAt,
       lastSeenAt,
       ...(revokedAt === undefined ? {} : { revokedAt }),
+      ...(clientId === undefined ? {} : { clientId }),
     });
   }
   return { version: 1, pending, devices };

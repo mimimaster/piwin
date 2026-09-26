@@ -34,6 +34,8 @@ These commands belong to `HostCommand` and are part of the wire protocol. Pairin
 
 `HostServer` in `@piwin/host-server` intercepts `isHostPairingCommandType(command.type)` before passing commands to `HostRuntime`. Pairing state is owned by `HostDevicePairing` and `HostDevicePairingFileStore` at the server level, keeping `HostRuntime` free of connection authentication concerns.
 
+A paired device records the installation's hello `clientId` (at enrollment, or backfilled on its next credential hello). Re-pairing from the same installation replaces its earlier record instead of adding a second one, so one phone lists as one device. On the phone, the last Host endpoint that completed a handshake is remembered locally so a cold launch redials it with the Keychain credential rather than asking to pair again.
+
 Shared pairing operations (`mintPairingCode`, `listPairedDevices`, `revokePairedDevice`, `countActivePairedDevices`) live in `packages/host-server/src/pairing-operations.ts`.
 
 ### 3. Role-based authorization

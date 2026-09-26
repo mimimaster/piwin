@@ -24,7 +24,7 @@ describe('HostDevicePairingFileStore', () => {
     const filePath = await createStorePath();
     const pairing = new HostDevicePairing();
     const token = pairing.mintToken();
-    const completion = pairing.completePairing(token.token, 'iPhone');
+    const completion = pairing.completePairing(token.token, 'iPhone', 'client-phone');
     const pendingToken = pairing.mintToken();
     const store = new HostDevicePairingFileStore(filePath);
 
@@ -40,6 +40,7 @@ describe('HostDevicePairingFileStore', () => {
     expect(restored.authenticate(completion.credential)).toMatchObject({
       id: completion.device.id,
       name: 'iPhone',
+      clientId: 'client-phone',
     });
     const pendingCompletion = restored.completePairing(pendingToken.token, 'Second iPhone');
     expect(restored.authenticate(pendingCompletion.credential)).toMatchObject({
