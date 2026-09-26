@@ -66,3 +66,9 @@
 
 - **在线文档站**：[https://docs.piwinwin.com](https://docs.piwinwin.com)
 - **开源仓库**：[https://github.com/mimimaster/piwin](https://github.com/mimimaster/piwin)
+
+---
+
+## 5. 特别鸣谢
+
+本项目特别鸣谢 **[LINUX DO (linux.do)](https://linux.do)** 社区 —— 新的理想型社区。感谢社区广大热心开发者与佬友们在架构思考、模型方案探讨与实际使用测试中给予的真诚反馈与极客支持！

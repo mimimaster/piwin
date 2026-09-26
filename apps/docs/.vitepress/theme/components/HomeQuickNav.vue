@@ -112,6 +112,28 @@ const cards: readonly NavCard[] = [
         </a>
       </div>
     </div>
+
+    <!-- LINUX DO 社区特别致谢 -->
+    <div class="home-community-bar">
+      <div class="community-bar-left">
+        <span class="community-badge">特别致谢</span>
+        <div class="community-bar-text">
+          <b>LINUX DO 社区 · 新的理想型社区</b>
+          <span>衷心感谢 LINUX DO (linux.do) 社区伙伴们在早期探索、架构讨论与 Agent 实战中的真诚反馈与极客支持</span>
+        </div>
+      </div>
+      <div class="community-bar-actions">
+        <a
+          href="https://linux.do"
+          target="_blank"
+          rel="noreferrer"
+          class="community-btn-primary"
+        >
+          <span>访问 linux.do</span>
+          <span class="btn-arrow">↗</span>
+        </a>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -305,15 +327,96 @@ const cards: readonly NavCard[] = [
   color: var(--zhu);
 }
 
+/* LINUX DO 社区致谢栏目 */
+.home-community-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--l2);
+  background: var(--s2);
+  box-shadow: var(--sh1);
+}
+
+.community-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.community-badge {
+  font-family: var(--font-serif);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #c6412a;
+  background: rgba(198, 65, 42, 0.08);
+  border: 1px solid rgba(198, 65, 42, 0.2);
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.community-bar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.community-bar-text b {
+  font-size: 0.95rem;
+  color: var(--t1);
+}
+
+.community-bar-text span {
+  font-size: 0.8rem;
+  color: var(--t3);
+  line-height: 1.45;
+}
+
+.community-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.community-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--l2);
+  background: var(--s1);
+  color: var(--t2);
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.community-btn-primary:hover {
+  border-color: #c6412a;
+  color: #c6412a;
+  transform: translateY(-1px);
+}
+
 @media (max-width: 720px) {
   .quick-cards {
     grid-template-columns: 1fr;
   }
-  .home-github-bar {
+  .home-github-bar,
+  .home-community-bar {
     flex-direction: column;
     align-items: flex-start;
   }
-  .github-bar-actions {
+  .github-bar-actions,
+  .community-bar-actions {
     width: 100%;
     justify-content: flex-start;
   }

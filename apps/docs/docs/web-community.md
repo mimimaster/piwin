@@ -21,10 +21,22 @@ Piwin 全面兼容 **Model Context Protocol (MCP)** 标准与 Pi 扩展协议：
 
 ---
 
-## 2. 开发者交流与社区渠道
+## 2. 社区交流与特别致谢
+
+### 2.1 特别致谢：LINUX DO 社区 (linux.do)
+
+> **“真诚、友善、团结、专业 —— 新的理想型社区。”**
+
+衷心感谢 **[LINUX DO (linux.do)](https://linux.do)** 以及社区内广大的极客开发者伙伴！
+
+在 Piwin 的构思、内测与开源历程中，LINUX DO 社区提供了海量的高质量技术讨论、架构灵感以及前沿 Agent 工具的实战反馈。无论是探讨大模型路由与 Token 优化，还是测试子代理协同与本地工作流，社区热烈纯粹的开源技术氛围都是推动 Piwin 持续打磨的核心动力。
+
+- **社区主站**：[https://linux.do](https://linux.do)
+- **交流主题**：欢迎在 LINUX DO 社区交流 Coding Agent 最佳实践、提示词工程与模型配置心得。
+
+### 2.2 开发者开源渠道
 
 - **开源仓库**：访问 [GitHub Repository (github.com/mimimaster/piwin)](https://github.com/mimimaster/piwin) 提交 Issue、提出 Feature Request 或参与代码贡献；
-- **LINUX DO 社区**：访问 LINUX DO 开源专区，与更多热衷于折腾 AI Agent、模型路由与自动化编程的开发者交流心得；
 - **技术文档站**：[https://docs.piwinwin.com](https://docs.piwinwin.com)。
 
 ---

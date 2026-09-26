@@ -47,6 +47,7 @@ export default defineConfig({
         text: '更多',
         items: [
           { text: 'GitHub 仓库', link: 'https://github.com/mimimaster/piwin' },
+          { text: 'LINUX DO 社区', link: 'https://linux.do' },
           { text: '提示词体系', link: '/docs/prompt-system' },
           { text: '文档共建指引', link: '/docs/how-to-write-docs' },
         ],
@@ -156,7 +157,7 @@ export default defineConfig({
     },
 
     footer: {
-      message: 'Released under the MIT License.',
+      message: 'Released under the MIT License. · 特别致谢 LINUX DO 社区',
       copyright: 'Copyright © 2026-present Piwin. All rights reserved.',
     },
 
