@@ -143,7 +143,7 @@ export async function handleCommandWithTranscriptLease(
         const { findGitBash } = await import('./tools/windows-bash-shell.js');
         return ok(requestId, 'host/shell-environment', {
           platform: process.platform,
-          gitBashInstalled: process.platform === 'win32' && findGitBash() !== undefined,
+          gitBashInstalled: process.platform === 'win32' && findGitBash(deps.options.piwinRoot) !== undefined,
         });
       }
       case 'host/list-dir':

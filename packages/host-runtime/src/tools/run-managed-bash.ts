@@ -13,6 +13,7 @@ export type ManagedBashInput = {
   signal: AbortSignal;
   runId: string;
   sessionId: string;
+  piwinRoot?: string;
 };
 
 async function readManagedBashOutput(controller: JobController, jobId: string): Promise<string> {
@@ -37,7 +38,7 @@ export async function runManagedBash(input: ManagedBashInput): Promise<ToolResul
     return { ok: false, code: 'aborted', message: 'tool execution aborted' };
   }
 
-  const invocation = resolveAgentShell(input.command);
+  const invocation = resolveAgentShell(input.command, input.piwinRoot);
   let job;
   try {
     job = await input.controller.start({

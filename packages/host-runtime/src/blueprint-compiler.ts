@@ -374,7 +374,7 @@ async function compileAgentCapabilityPlan(
   });
   const appendSystemPromptParts = [
     DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
-    windowsShellPrompt(),
+    windowsShellPrompt(options.piwinRoot),
     artifactAppendPrompt,
     mcpAppendPrompt,
     knowledgeAppendPrompt,

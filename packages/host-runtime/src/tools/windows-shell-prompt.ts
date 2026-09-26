@@ -2,7 +2,7 @@ import { resolveWindowsShellKind } from './windows-bash-shell.js';
 
 /**
  * The bash tool is named `bash` on every platform, but on Windows it runs
- * PowerShell whenever Git Bash is absent or was declined. Saying so is the
+ * PowerShell whenever no verified Git Bash is available. Saying so is the
  * difference between a working command and a `&&` syntax error.
  */
 const WINDOWS_POWERSHELL_SHELL_NOTE = [
@@ -15,12 +15,11 @@ const WINDOWS_POWERSHELL_SHELL_NOTE = [
 
 /**
  * Note for the shell the bash tool actually resolves to, so the model is never
- * handed bash syntax while PowerShell runs it. Reads the same detection as the
- * invocation, so the note cannot describe a different shell than the one that
- * runs. Silent on Unix and on a Windows host whose bash tool is Git Bash.
+ * handed bash syntax while PowerShell runs it. Reads the same Host discovery
+ * as execution. Silent on Unix and when the Windows Host has Git Bash.
  */
-export function windowsShellPrompt(): string | undefined {
+export function windowsShellPrompt(piwinRoot?: string): string | undefined {
   if (process.platform !== 'win32') return undefined;
-  if (resolveWindowsShellKind() !== 'powershell') return undefined;
+  if (resolveWindowsShellKind(piwinRoot) !== 'powershell') return undefined;
   return WINDOWS_POWERSHELL_SHELL_NOTE;
 }

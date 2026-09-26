@@ -37,6 +37,7 @@ const utf8 = new TextEncoder();
 export type BuildHostFilesystemToolsOptions = {
   /** Session working directory (project root or general workspace). */
   cwd: string;
+  piwinRoot?: string;
   /** Host-owned Job authority for shell process-tree lifecycle. */
   jobController?: JobController;
   turnChange?: {
@@ -65,7 +66,7 @@ export type BuildHostFilesystemToolsOptions = {
 export function buildHostFilesystemTools(
   options: BuildHostFilesystemToolsOptions,
 ): HostToolRegistration[] {
-  const { cwd, jobController, turnChange, workspaceWrite } = options;
+  const { cwd, jobController, turnChange, workspaceWrite, piwinRoot } = options;
 
   function resolvePath(path: string): string {
     return isAbsolute(path) ? resolve(path) : resolve(cwd, path);
@@ -301,9 +302,10 @@ export function buildHostFilesystemTools(
               signal,
               runId: context.runId,
               sessionId: context.sessionId,
+              ...(piwinRoot ? { piwinRoot } : {}),
             });
           }
-          const invocation = resolveAgentShell(command);
+          const invocation = resolveAgentShell(command, piwinRoot);
           const { stdout, stderr } = await execFileAsync(invocation.command, invocation.argv, {
             cwd,
             timeout,
@@ -361,9 +363,10 @@ export function buildHostFilesystemTools(
               signal,
               runId: context.runId,
               sessionId: context.sessionId,
+              ...(piwinRoot ? { piwinRoot } : {}),
             });
           }
-          const invocation = resolveAgentShell(command);
+          const invocation = resolveAgentShell(command, piwinRoot);
           const { stdout, stderr } = await execFileAsync(invocation.command, invocation.argv, {
             cwd,
             timeout,
