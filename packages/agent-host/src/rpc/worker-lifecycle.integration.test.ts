@@ -7,7 +7,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolve as resolvePath } from 'node:path';
 import { RpcSdkWorkerClient } from '../rpc-sdk-worker-client.js';
-import type { WorkerHelloFrame } from '../rpc-sdk-worker-protocol.js';
 
 function createWorkerClient(): RpcSdkWorkerClient {
   const workerScript = resolvePath(new URL('../rpc-sdk-worker-entry.ts', import.meta.url).pathname);
@@ -21,30 +20,16 @@ function createWorkerClient(): RpcSdkWorkerClient {
 describe('worker process lifecycle (integration)', () => {
   it('emits hello on startup with protocol version 1', async () => {
     const client = createWorkerClient();
-    const helloPromise = new Promise<WorkerHelloFrame>((resolve) => {
-      client.once('event', () => {
-        // events are not hello; hello is handled internally
-      });
-    });
-
-    // The client doesn't expose hello directly; we listen via a workaround.
-    // Instead, we just start the client and verify it can create a session.
-    client.start();
-
-    // Wait briefly for the worker to start and emit hello.
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await client.start();
 
     expect(client.isRunning).toBe(true);
 
-    // Clean up.
     await client.close();
-    void helloPromise; // suppress unused warning
   }, 10_000);
 
   it('reports worker exit on close', async () => {
     const client = createWorkerClient();
-    client.start();
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await client.start();
 
     const exitPromise = new Promise<number | null>((resolve) => {
       client.once('exit', (code) => resolve(code));
