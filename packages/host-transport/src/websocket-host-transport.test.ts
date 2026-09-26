@@ -494,6 +494,143 @@ describe('WebSocketHostTransport', () => {
       vi.useRealTimers();
     }
   });
+
+  it('wake probes an open socket and declares it dead fast when the ping goes unanswered', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const states: string[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      autoReconnect: true,
+      autoReconnectBeforeHandshake: false,
+      reconnectMinDelayMs: 50,
+      reconnectMaxDelayMs: 50,
+      heartbeatIntervalMs: 30_000,
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'client-wake-probe',
+        lastSeq,
+      }),
+      webSocketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+    });
+    transport.subscribeState((state) => states.push(state.kind));
+    try {
+      const connection = transport.connect();
+      sockets[0]?.emitOpen();
+      sockets[0]?.emitMessage(createHostHello('host-1'));
+      await connection;
+
+      // Suspended socket: still reads OPEN, but nothing will ever answer.
+      expect(transport.wake()).toBe(true);
+      expect(sockets[0]?.sent.filter((frame) => frame.includes('host/ping'))).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(3_999);
+      expect(states).not.toContain('error');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(states).toContain('error');
+      await vi.advanceTimersByTimeAsync(50);
+      expect(sockets).toHaveLength(2);
+    } finally {
+      await transport.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it('wake keeps a live socket when the probe is answered', async () => {
+    vi.useFakeTimers();
+    const socket = new FakeSocket();
+    const states: string[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      heartbeatIntervalMs: 30_000,
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'client-wake-alive',
+        lastSeq,
+      }),
+      webSocketFactory: () => socket,
+    });
+    transport.subscribeState((state) => states.push(state.kind));
+    try {
+      const connection = transport.connect();
+      socket.emitOpen();
+      socket.emitMessage(createHostHello('host-1'));
+      await connection;
+      transport.wake();
+      const ping = JSON.parse(socket.sent.at(-1) ?? '{}') as { requestId?: string };
+      socket.emitMessage({
+        type: 'response',
+        requestId: ping.requestId ?? '',
+        response: { type: 'response', command: 'host/ping', success: true },
+      });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(socket.readyState).toBe(1);
+      expect(states).not.toContain('error');
+    } finally {
+      await transport.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it('wake skips the grown backoff and redials immediately', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      autoReconnect: true,
+      autoReconnectBeforeHandshake: false,
+      reconnectMinDelayMs: 10_000,
+      reconnectMaxDelayMs: 10_000,
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'client-wake-redial',
+        lastSeq,
+      }),
+      webSocketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+    });
+    try {
+      const connection = transport.connect();
+      sockets[0]?.emitOpen();
+      sockets[0]?.emitMessage(createHostHello('host-1'));
+      await connection;
+      sockets[0]?.emitClose(1006, 'suspended');
+      expect(sockets).toHaveLength(1);
+
+      expect(transport.wake()).toBe(true);
+      expect(sockets).toHaveLength(2);
+      // The skipped timer must not dial a third socket later.
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(sockets).toHaveLength(2);
+    } finally {
+      await transport.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it('wake reports false once the transport is closed for good', async () => {
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      webSocketFactory: () => new FakeSocket(),
+    });
+    await transport.close();
+    expect(transport.wake()).toBe(false);
+  });
 });
 
 function createHostHello(hostInstanceId: string): HostHello {

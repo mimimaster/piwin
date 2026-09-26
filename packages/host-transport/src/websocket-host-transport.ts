@@ -44,6 +44,8 @@ const DEFAULT_RECONNECT_MIN_DELAY_MS = 500;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 10_000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 const HEARTBEAT_TIMEOUT_MS = 10_000;
+/** A wake probe answers "did the OS kill this socket while we were suspended?" — fail fast. */
+const WAKE_PROBE_TIMEOUT_MS = 4_000;
 /** Close codes that mean "do not auto-reconnect" (auth / protocol / origin). */
 const FATAL_CLOSE_CODES = new Set([4002, 4003, 4004, 4009]);
 
@@ -174,6 +176,35 @@ export class WebSocketHostTransport implements HostTransport {
     this.stateListeners.add(listener);
     listener(this.state);
     return () => this.stateListeners.delete(listener);
+  }
+
+  public wake(): boolean {
+    if (this.closing) {
+      return false;
+    }
+    const socket = this.socket;
+    if (socket === undefined) {
+      // Backoff grows while the app is suspended; a foreground or network
+      // change is new information, so redial now instead of waiting it out.
+      if (this.reconnectTimer === undefined || !this.canAutoReconnect()) {
+        return false;
+      }
+      this.cancelReconnect();
+      this.reconnectAttempt = 0;
+      this.redial();
+      return true;
+    }
+    if (socket.readyState !== OPEN_READY_STATE || this.hostHello === undefined) {
+      // Dial or handshake in flight: its own timeout settles it.
+      return true;
+    }
+    // A suspended socket often still reads OPEN after resume; only a round
+    // trip tells. The regular heartbeat would take up to interval + timeout.
+    // Stamp the tick so the first post-resume interval does not read the
+    // suspension gap as "reset ping state" and cancel this probe.
+    this.lastHeartbeatTickAt = Date.now();
+    this.sendHeartbeat(socket, WAKE_PROBE_TIMEOUT_MS);
+    return true;
   }
 
   public async close(): Promise<void> {
@@ -438,17 +469,21 @@ export class WebSocketHostTransport implements HostTransport {
     this.reconnectAttempt += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined;
-      if (this.closing || this.socket !== undefined) {
-        return;
-      }
-      this.publishState({ kind: 'connecting' });
-      if (this.helloPromise !== undefined) {
-        this.openSocket(true);
-        return;
-      }
-      const handshake = this.openSocket(true);
-      void handshake.catch(() => undefined);
+      this.redial();
     }, delay);
+  }
+
+  private redial(): void {
+    if (this.closing || this.socket !== undefined) {
+      return;
+    }
+    this.publishState({ kind: 'connecting' });
+    if (this.helloPromise !== undefined) {
+      this.openSocket(true);
+      return;
+    }
+    const handshake = this.openSocket(true);
+    void handshake.catch(() => undefined);
   }
 
   private canAutoReconnect(): boolean {
@@ -498,22 +533,26 @@ export class WebSocketHostTransport implements HostTransport {
         // close a live socket.
         return;
       }
-      const requestId = `heartbeat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-      this.heartbeatRequestId = requestId;
-      try {
-        socket.send(
-          encodeHostWireMessage({
-            type: 'command',
-            requestId,
-            command: { type: 'host/ping', id: requestId },
-          }),
-        );
-        this.armHeartbeatTimeout(socket, requestId);
-      } catch (error) {
-        this.heartbeatRequestId = undefined;
-        this.handleSocketError(socket, toError(error, 'Unable to send Host heartbeat').message);
-      }
+      this.sendHeartbeat(socket, HEARTBEAT_TIMEOUT_MS);
     }, this.heartbeatIntervalMs);
+  }
+
+  private sendHeartbeat(socket: WebSocketLike, timeoutMs: number): void {
+    const requestId = `heartbeat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    this.heartbeatRequestId = requestId;
+    try {
+      socket.send(
+        encodeHostWireMessage({
+          type: 'command',
+          requestId,
+          command: { type: 'host/ping', id: requestId },
+        }),
+      );
+      this.armHeartbeatTimeout(socket, requestId, timeoutMs);
+    } catch (error) {
+      this.heartbeatRequestId = undefined;
+      this.handleSocketError(socket, toError(error, 'Unable to send Host heartbeat').message);
+    }
   }
 
   private noteInboundLiveness(): void {
@@ -524,7 +563,7 @@ export class WebSocketHostTransport implements HostTransport {
     }
   }
 
-  private armHeartbeatTimeout(socket: WebSocketLike, requestId: string): void {
+  private armHeartbeatTimeout(socket: WebSocketLike, requestId: string, timeoutMs: number): void {
     if (this.heartbeatTimeoutTimer !== undefined) {
       clearTimeout(this.heartbeatTimeoutTimer);
     }
@@ -533,7 +572,7 @@ export class WebSocketHostTransport implements HostTransport {
         return;
       }
       this.handleSocketError(socket, 'Host heartbeat timed out');
-    }, HEARTBEAT_TIMEOUT_MS);
+    }, timeoutMs);
   }
 
   private clearHeartbeat(): void {

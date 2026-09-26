@@ -415,6 +415,14 @@ export class HostClient {
     });
   }
 
+  /** Foreground / network-change hint for the transport; see `HostTransport.wake`. */
+  public wake(): boolean {
+    if (this.disposed) {
+      return false;
+    }
+    return this.transport.wake?.() ?? false;
+  }
+
   public requestReplay(): void {
     this.assertNotDisposed();
     this.sendReplayRequest();

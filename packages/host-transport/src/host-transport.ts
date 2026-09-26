@@ -31,6 +31,14 @@ export type HostTransport = {
    * without a binary channel simply never call the listener.
    */
   subscribeBinary?(listener: HostTransportBinaryListener): () => void;
+  /**
+   * The shell has a reason to believe the link changed (app back in the
+   * foreground, network came back). Probe an open link now, or skip the
+   * pending backoff and redial. Returns false when there was nothing to wake
+   * (closed for good, dial already in flight) so the shell can decide to
+   * build a fresh connection. Optional: transports without a socket omit it.
+   */
+  wake?(): boolean;
   close(): Promise<void>;
 };
 
