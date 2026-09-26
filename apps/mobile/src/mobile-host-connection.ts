@@ -11,6 +11,7 @@ import {
 } from '@piwin/host-client';
 import { WebSocketHostTransport } from '@piwin/host-transport';
 import { isNativeTauriRuntime } from './mobile-device-credential-vault.js';
+import { readLastMobileHostEndpoint } from './mobile-last-host-endpoint.js';
 import { mobileLocalStorage } from './mobile-local-storage.js';
 import { createTauriHostWebSocket } from './tauri-host-websocket.js';
 
@@ -71,6 +72,10 @@ export function createMobileHostClient(
 }
 
 export function getDefaultHostEndpoint(): string {
+  const remembered = readLastMobileHostEndpoint();
+  if (remembered !== undefined) {
+    return remembered;
+  }
   const configured = import.meta.env.VITE_PIWIN_HOST_URL;
   return typeof configured === 'string' && configured.trim().length > 0
     ? configured

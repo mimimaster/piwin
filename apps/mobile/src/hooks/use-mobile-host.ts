@@ -25,6 +25,11 @@ import {
   type ClientToolPreferenceStore,
 } from '../client-tools/client-tool-preferences.js';
 import type { MobileClientToolConsentDecision } from '../client-tools/mobile-client-tool-runtime.js';
+import { useHostWake } from './use-host-wake.js';
+import {
+  clearLastMobileHostEndpoint,
+  writeLastMobileHostEndpoint,
+} from '../mobile-last-host-endpoint.js';
 import { MobileClientToolRuntime } from '../client-tools/mobile-client-tool-runtime.js';
 import {
   advertiseMobileHealthRuntime,
@@ -193,6 +198,8 @@ export function useMobileHost() {
     setSessions,
     sessionListCommand: mobileSessionListCommand,
   });
+
+  useHostWake(clientRef, () => void handleConnect());
 
   useEffect(() => {
     let active = true;
@@ -429,6 +436,7 @@ export function useMobileHost() {
       if (attemptId !== connectAttemptRef.current || clientRef.current !== client) {
         return false;
       }
+      writeLastMobileHostEndpoint(normalizedEndpoint);
       if (pairing.length > 0) {
         setPairingToken('');
       }
@@ -497,6 +505,7 @@ export function useMobileHost() {
     } catch {
       // Clearing the local vault must not block disconnect.
     }
+    clearLastMobileHostEndpoint();
     deviceCredentialRef.current = undefined;
     deviceCredentialEndpointRef.current = undefined;
     connectAttemptRef.current += 1;
