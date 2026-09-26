@@ -12,6 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/mimimaster/piwin/releases"><img src="https://img.shields.io/github/v/release/mimimaster/piwin?color=6366f1&label=Release&logo=github" alt="Release" /></a>
+  <a href="https://github.com/earendil-works/pi"><img src="https://img.shields.io/badge/Pi%20SDK-v0.84.2-6366f1" alt="Pi SDK" /></a>
   <a href="./docs/architecture.md"><img src="https://img.shields.io/badge/Architecture-Host--First-10b981?logo=diagramsdotnet" alt="Architecture" /></a>
   <a href="https://docs.piwinwin.com"><img src="https://img.shields.io/badge/Docs-docs.piwinwin.com-6366f1?logo=gitbook" alt="Docs" /></a>
   <img src="https://img.shields.io/badge/Platforms-macOS%20%7C%20Windows%20%7C%20Web-0ea5e9" alt="Platforms" />
@@ -39,7 +40,7 @@
 
 </div>
 
-Piwin is a desktop Coding Agent built on the Pi SDK. With Pi you stay in control of features, prompts and tool integrations; Piwin adds the GUI, one-click configuration and multi-device access on top — the client is separate from the Host Runtime, Desktop / Web / Mobile can all connect, and every byte of data stays on your machine.
+Piwin is a desktop Coding Agent built on the Pi SDK (v0.84.2). With Pi you stay in control of features, prompts and tool integrations; Piwin adds the GUI, one-click configuration and multi-device access on top — the client is separate from the Host Runtime, Desktop / Web / Mobile can all connect, and every byte of data stays on your machine.
 
 > The screenshots below show the Simplified Chinese UI.
 
@@ -207,7 +208,7 @@ A **Host built-in tool** on the same level as `read` / `grep`, modeled on Devin 
 
 | Capability | Details |
 | :--- | :--- |
-| **Native Pi SDK integration** | Follows Pi's design principles (Yolo first, no Plan mode — plans are written to files) |
+| **Native Pi SDK integration** | Built on Pi SDK v0.84.2, follows Pi's design principles (Yolo first, no Plan mode — plans are written to files) |
 | **Artifact rendering** | Inline in the chat or in a separate Canvas panel; iframe + CSP sandbox; renders live while streaming |
 | **Permission engine** | Three gates — Deny → Ask → Allow; Yolo by default while still blocking dangerous commands such as `rm`; per-project command allow-lists |
 | **Built-in tools** | Terminal, browser, Canvas, Notes and more, covering the whole development loop |
@@ -335,6 +336,14 @@ Every change must follow [`AGENTS.md`](./AGENTS.md). The core rules:
 - **Docs**: [docs.piwinwin.com](https://docs.piwinwin.com)
 - **Repository**: [github.com/mimimaster/piwin](https://github.com/mimimaster/piwin)
 - **Feedback & PRs**: [GitHub Issues](https://github.com/mimimaster/piwin/issues)
+
+---
+
+## 友情链接 / Links
+
+[Linux.Do](https://linux.do) — 新的理想型社区
+
+---
 
 ### License
 

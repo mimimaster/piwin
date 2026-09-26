@@ -12,6 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/mimimaster/piwin/releases"><img src="https://img.shields.io/github/v/release/mimimaster/piwin?color=6366f1&label=Release&logo=github" alt="Release" /></a>
+  <a href="https://github.com/earendil-works/pi"><img src="https://img.shields.io/badge/Pi%20SDK-v0.84.2-6366f1" alt="Pi SDK" /></a>
   <a href="./docs/architecture.md"><img src="https://img.shields.io/badge/Architecture-Host--First-10b981?logo=diagramsdotnet" alt="Architecture" /></a>
   <a href="https://docs.piwinwin.com"><img src="https://img.shields.io/badge/Docs-docs.piwinwin.com-6366f1?logo=gitbook" alt="Docs" /></a>
   <img src="https://img.shields.io/badge/Platforms-macOS%20%7C%20Windows%20%7C%20Web-0ea5e9" alt="Platforms" />
@@ -39,7 +40,7 @@
 
 </div>
 
-Piwin 是基于 Pi SDK 的桌面端 Coding Agent。Pi 的功能、提示词和工具接入都由你自己掌控；Piwin 在它之上补齐图形界面、一键配置和多端访问——客户端与 Host Runtime 分离，支持 Desktop / Web / Mobile 接入，所有数据留在本地。
+Piwin 是基于 Pi SDK（v0.84.2）的桌面端 Coding Agent。Pi 的功能、提示词和工具接入都由你自己掌控；Piwin 在它之上补齐图形界面、一键配置和多端访问——客户端与 Host Runtime 分离，支持 Desktop / Web / Mobile 接入，所有数据留在本地。
 
 ---
 
@@ -205,7 +206,7 @@ Piwin 真正想做好的就这几件事，每一件都封装成了开箱即用�
 
 | 能力 | 说明 |
 | :--- | :--- |
-| **Pi SDK 原生集成** | 遵循 Pi 设计原则（Yolo First，无 Plan 模式——落档成计划文件） |
+| **Pi SDK 原生集成** | 基于 Pi SDK v0.84.2，遵循 Pi 设计原则（Yolo First，无 Plan 模式——落档成计划文件） |
 | **Artifact 渲染** | Inline 内嵌 + Canvas 独立面板双模态，iframe + CSP 安全沙箱，流式实时渲染 |
 | **权限引擎** | Deny → Ask → Allow 三层门禁，默认 Yolo 但拦截 rm 等危险操作，支持项目级命令白名单 |
 | **内置工具集** | Terminal、浏览器、画布（Canvas）、Note 等多工具配合使用，覆盖开发全流程 |
@@ -333,6 +334,14 @@ piwin/
 - **文档站**：[docs.piwinwin.com](https://docs.piwinwin.com)
 - **代码仓库**：[github.com/mimimaster/piwin](https://github.com/mimimaster/piwin)
 - **反馈 & PR**：[GitHub Issues](https://github.com/mimimaster/piwin/issues)
+
+---
+
+## 友情链接
+
+[Linux.Do](https://linux.do) — 新的理想型社区
+
+---
 
 ### License
 
