@@ -465,6 +465,9 @@ export function createWorkerPiSessionFactory(
         input.productSessionId,
         {
           request: (request) => extensionUiPort.request(request, new AbortController().signal),
+          ...(extensionUiPort.publish
+            ? { publish: (update) => extensionUiPort.publish?.(update) }
+            : {}),
         },
         () => createWorkerRequestId(),
       );

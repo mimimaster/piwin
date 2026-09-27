@@ -15,6 +15,7 @@
 import type {
   AgentEvent,
   BackendRunInterventionEvent,
+  ExtensionUiSurfaceUpdate,
   SessionCompactionSeed,
   SessionSeedMessage,
   ToolResult,
@@ -143,6 +144,16 @@ export type WorkerExtensionUiRequestFrame = {
   placeholder?: string;
 };
 
+/**
+ * Worker → parent: fire-and-forget extension surface update (ADR 0078):
+ * status, text widget, notice, working message. No response frame.
+ */
+export type WorkerExtensionUiPublishFrame = {
+  type: 'extension-ui-publish';
+  context: WorkerFrameContext;
+  update: ExtensionUiSurfaceUpdate;
+};
+
 /** Parent → worker: extension UI response. */
 export type WorkerExtensionUiResponseFrame = {
   type: 'extension-ui-response';
@@ -211,6 +222,7 @@ export type WorkerFrame =
   | WorkerHelloFrame
   | WorkerShutdownFrame
   | WorkerExtensionUiRequestFrame
+  | WorkerExtensionUiPublishFrame
   | WorkerInterventionClaimFrame
   | WorkerInterventionEventFrame
   | WorkerResourceResponseFrame;
@@ -327,6 +339,15 @@ export function parseWorkerFrame(line: string): WorkerFrame | undefined {
         (parsed.kind === 'confirm' || parsed.kind === 'select' || parsed.kind === 'input')
       ) {
         return parsed as WorkerExtensionUiRequestFrame;
+      }
+      if (
+        parsed.type === 'extension-ui-publish' &&
+        isFrameContext(parsed.context) &&
+        parsed.update !== null &&
+        typeof parsed.update === 'object' &&
+        typeof (parsed.update as { kind?: unknown }).kind === 'string'
+      ) {
+        return parsed as WorkerExtensionUiPublishFrame;
       }
       if (
         parsed.type === 'intervention-claim' &&

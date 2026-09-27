@@ -61,4 +61,46 @@ describe('extension-ui-bridge', () => {
   it('bindExtensionUiToPiSession returns false without bindExtensions', async () => {
     await expect(bindExtensionUiToPiSession({}, {})).resolves.toBe(false);
   });
+
+  it('publishes notices, statuses, text widgets and working messages without terminal escapes', () => {
+    const publish = vi.fn();
+    const ui = createExtensionUiContext(
+      'sess-1',
+      { request: async () => ({ kind: 'confirm', confirmed: false }), publish },
+      () => 'req-surface',
+    ) as Record<string, (...args: unknown[]) => unknown>;
+    const theme = ui.theme as unknown as Record<string, (...args: unknown[]) => string>;
+
+    ui.notify?.('saved', 'warning');
+    ui.setStatus?.('git', theme.fg?.('accent', '\u001b[32mmain\u001b[0m'));
+    ui.setStatus?.('git', undefined);
+    ui.setWidget?.('todo', ['- [ ] one', '\u001b[1m- [x] two\u001b[22m'], { placement: 'belowEditor' });
+    ui.setWidget?.('tui-only', () => ({ render: () => [] }));
+    ui.setWidget?.('todo', undefined);
+    ui.setWorkingMessage?.('indexing…');
+
+    expect(publish.mock.calls.map(([update]) => update)).toEqual([
+      { kind: 'notify', message: 'saved', level: 'warning' },
+      { kind: 'status', key: 'git', text: 'main' },
+      { kind: 'status', key: 'git' },
+      { kind: 'widget', key: 'todo', placement: 'belowEditor', lines: ['- [ ] one', '- [x] two'] },
+      { kind: 'widget', key: 'todo', placement: 'aboveEditor' },
+      { kind: 'working-message', message: 'indexing…' },
+    ]);
+  });
+
+  it('keeps the extension running when publishing throws', () => {
+    const ui = createExtensionUiContext(
+      'sess-1',
+      {
+        request: async () => ({ kind: 'confirm', confirmed: false }),
+        publish: () => {
+          throw new Error('transport closed');
+        },
+      },
+      () => 'req-throw',
+    ) as Record<string, (...args: unknown[]) => unknown>;
+    expect(() => ui.setStatus?.('k', 'v')).not.toThrow();
+  });
 });
+
