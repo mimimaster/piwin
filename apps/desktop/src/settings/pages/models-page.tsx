@@ -1,5 +1,5 @@
 /** Settings → unified model configuration workspace. */
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useState, type ReactElement, type ReactNode } from 'react';
 import { Tabs, TabsContent } from '@piwin/ui-kit';
 import { ModelCatalogSyncControl } from '../model-catalog-sync-control';
 import { ProviderSettings } from '../../ProviderSettings';
@@ -62,6 +62,13 @@ export function ModelsPage(): ReactElement {
   const [activeTab, setActiveTab] = useState<ModelTab>('text');
   // Kept here so switching capability tabs does not reset the provider rail.
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const searchCatalog = useCallback(
+    async (query: string) => {
+      const result = await searchModelCatalog({ query, limit: 12 });
+      return result.entries;
+    },
+    [searchModelCatalog],
+  );
 
   if (!config) {
     return (
@@ -196,10 +203,7 @@ export function ModelsPage(): ReactElement {
                 onLoadSecret={loadProviderSecret}
                 selectedProviderId={selectedProviderId}
                 onSelectProvider={setSelectedProviderId}
-                searchCatalog={async (query) => {
-                  const result = await searchModelCatalog({ query, limit: 12 });
-                  return result.entries;
-                }}
+                searchCatalog={searchCatalog}
               />
             </div>
           </TabsContent>

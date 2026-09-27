@@ -294,6 +294,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     handleSessionListOrderChange,
     handleSettingsOpenSubagentSession,
     recentProjects,
+    worktrees,
     handleRemoveProjectFromSidebar,
     effectiveRunMode,
     handleSettingsSaved,
@@ -459,6 +460,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
         recentProjects={recentProjects}
         request={requestGit}
         onOpenProject={(path) => void handleOpenProject(path)}
+        onOpenWorktreeProject={(path) => handleOpenProject(path, { switchSession: true })}
         projectSwitchLocked={state.messages.length > 0 || state.awaitingTranscript}
         disabled={state.streaming}
       />
@@ -539,6 +541,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       hostClient={hostClient}
                       hostStatus={hostStatus}
                       recentProjects={recentProjects}
+                      worktrees={worktrees}
                       filteredSessions={filteredSessions}
                       filteredGeneralSessions={filteredGeneralSessions}
                       sessionGroups={sessionGroups}
@@ -559,6 +562,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenMarketplace={openMarketplace}
                       onOpenWorkspace={handleOpenWorkspaceClick}
                       onOpenProject={handleOpenProject}
+                      onOpenWorktreeProject={(path) => handleOpenProject(path, { switchSession: true })}
                       onRemoveProject={handleRemoveProjectFromSidebar}
                       onNewSession={(options) => {
                         setActiveSubPage(null);

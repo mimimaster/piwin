@@ -117,6 +117,30 @@ async function openOccupiedBranchItem(container: HTMLElement): Promise<void> {
 }
 
 describe('BranchChip', () => {
+  it('refreshes the current branch when the window regains focus', async () => {
+    let currentBranch = 'main';
+    const request = vi.fn(async (): Promise<HostResponse> => ({
+      id: 'status', type: 'response', command: 'git/status', success: true,
+      data: { snapshot: {
+        repository: { rootPath: '/repo', isRepository: true },
+        branch: { currentBranch, isDetached: false, headCommit: 'abc1234',
+          upstreamBranch: null, ahead: 0, behind: 0, dirty: false },
+        changedFiles: [], truncated: false, totalChangedFiles: 0,
+      } },
+    }));
+    const rendered = renderChip(<BranchChip projectPath="/repo" request={request} />);
+    root = rendered.root;
+    container = rendered.container;
+    await act(async () => { await Promise.resolve(); });
+    expect(container.querySelector('[data-testid="composer-branch-chip"]')?.textContent).toContain('main');
+    currentBranch = 'feat/x';
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="composer-branch-chip"]')?.textContent).toContain('feat/x');
+  });
+
   let root: Root | null = null;
   let container: HTMLElement | null = null;
 

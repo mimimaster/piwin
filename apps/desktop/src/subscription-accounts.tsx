@@ -10,6 +10,7 @@ import type {
 } from '@piwin/contracts';
 import {
   CLAUDE_CODE_OAUTH_PROVIDER_ID,
+  describeSubscriptionLoginFailure,
   getSubscriptionBillingNotice,
   remoteCommandRequiresIdempotencyKey,
 } from '@piwin/contracts';
@@ -311,11 +312,19 @@ export function SubscriptionAccountsPanel(): ReactElement {
               setInfo?.(notice.afterLogin, 'warning');
             }
           }
+        } else {
+          // Pi renders the browser success page before it exchanges the code, so
+          // a failure here is the only place the user can learn the sign-in did
+          // not finish.
+          setError?.(
+            describeSubscriptionLoginFailure(message.result.errorCode, isChinese ? 'zh-CN' : 'en')
+              .message,
+          );
         }
         void refresh();
       }
     });
-  }, [hostClient, isChinese, ownerDeviceId, refresh, setInfo]);
+  }, [hostClient, isChinese, ownerDeviceId, refresh, setError, setInfo]);
 
   const send = useCallback(
     async (command: HostCommand): Promise<boolean> => {
@@ -339,6 +348,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
   );
 
   async function startLogin(providerId: OauthCardId, collidingChannelId?: string): Promise<void> {
+    setError?.(null);
     if (collidingChannelId) {
       const ok = await confirmDialog.confirm({
         title: isChinese ? '通道冲突' : 'Channel Conflict',

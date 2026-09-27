@@ -16,6 +16,7 @@ import type { DesktopCopy, DesktopLocale } from './desktop-locale';
 import type { SessionRowRunPhase } from './session-row-working';
 import { NO_REPO_SIDEBAR_KEY, type SidebarTreeRow } from './sidebar-tree-rows';
 import { projectDisplayName } from './project-display-name';
+import { SidebarUnregisteredWorktreeRow } from './sidebar-unregistered-worktree-row';
 import { SessionRowItem } from './session-row-item';
 import {
   ContextMenu,
@@ -54,10 +55,13 @@ export type SidebarTreeRowViewProps = {
   onToggleProjectsSection: () => void;
   recentProjectsCount: number;
   recentProjects: ProjectRecord[];
+  onOpenWorktree?: ((path: string) => void) | undefined;
   projectPath: string | null;
   filteredSessions: SessionListItemUi[];
   projectSessionsByPath?: Record<string, SessionListItemUi[]> | undefined;
   collapsedProjects: Record<string, boolean>;
+  onToggleRepositoryCollapsed: (repositoryId: string, collapsed: boolean) => void;
+  onToggleUnavailableGroup: () => void;
   onToggleProjectCollapsed: (projectPath: string, nextCollapsed: boolean) => void;
   onRemoveProject?: ((path: string) => void) | undefined;
   onOpenGeneral: () => void;
@@ -255,6 +259,12 @@ function SidebarDisplayMenu(props: SidebarDisplayMenuProps) {
   );
 }
 
+function SidebarGroupChevron(props: { collapsed: boolean }): ReactElement {
+  return props.collapsed
+    ? <IconChevronRight width={12} height={12} />
+    : <IconChevronDown width={12} height={12} />;
+}
+
 export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement | null {
   const { row, sidebarCopy } = props;
 
@@ -442,13 +452,45 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
   if (row.kind === 'repo-group') {
     const groupLabel = sidebarCopy.repoWorktreeGroup(row.title, row.memberCount);
     return (
-      <div
-        className="tree-repo-group"
+      <button
+        type="button"
+        className="tree-repo-group tree-repo-group-toggle"
         data-testid="sidebar-repo-group"
         title={groupLabel}
+        aria-expanded={!row.collapsed}
+        onClick={() => props.onToggleRepositoryCollapsed(row.gitRepositoryId, row.collapsed)}
       >
+        <SidebarGroupChevron collapsed={row.collapsed} />
         <span className="tree-repo-group-title">{groupLabel}</span>
-      </div>
+      </button>
+    );
+  }
+
+  if (row.kind === 'unavailable-group') {
+    return (
+      <button
+        type="button"
+        className="tree-repo-group tree-repo-group-toggle"
+        data-testid="sidebar-unavailable-group"
+        aria-expanded={!row.collapsed}
+        onClick={props.onToggleUnavailableGroup}
+      >
+        <SidebarGroupChevron collapsed={row.collapsed} />
+        <span className="tree-repo-group-title">
+          {props.locale === 'en' ? 'Unavailable workspaces' : '不可用的工作区'}
+        </span>
+      </button>
+    );
+  }
+
+  if (row.kind === 'unregistered-worktree') {
+    return (
+      <SidebarUnregisteredWorktreeRow
+        path={row.worktreePath}
+        branch={row.branch}
+        locale={props.locale}
+        onOpen={props.onOpenWorktree}
+      />
     );
   }
 
@@ -478,6 +520,7 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
   if (row.kind === 'project-folder') {
     const project = props.recentProjects.find((item) => item.path === row.projectPath);
     const displayName = project?.displayName ?? projectDisplayName(row.projectPath);
+    const unavailableLabel = props.locale === 'en' ? 'Unavailable' : '不可用';
     const isActiveProject = row.projectPath === props.projectPath;
     const projectScope: SessionScope = { kind: 'project', projectPath: row.projectPath };
     const folderIcon = row.collapsed ? (
@@ -521,29 +564,34 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
             data-project-path={row.projectPath}
             aria-expanded={!row.collapsed}
             onClick={() => props.onToggleProjectCollapsed(row.projectPath, row.collapsed)}
-            title={row.projectPath}
+            title={row.unavailable ? `${row.projectPath} · ${unavailableLabel}` : row.projectPath}
           >
             <span className="tree-folder-title">
               <span>{displayName}</span>
-              {row.currentBranch ? (
-                <span className="tree-folder-branch" title={row.currentBranch}>
-                  {row.currentBranch}
+              {row.unavailable || row.currentBranch ? (
+                <span
+                  className="tree-folder-branch"
+                  title={row.unavailable ? undefined : row.currentBranch ?? undefined}
+                >
+                  {row.unavailable ? unavailableLabel : row.currentBranch}
                 </span>
               ) : null}
             </span>
           </button>
-          <IconButton
-            className="sidebar-icon-btn tree-folder-add-btn"
-            size="xs"
-            label={sidebarCopy.newConversationInProject(displayName)}
-            title={sidebarCopy.newConversationInProject(displayName)}
-            onClick={(event) => {
-              event.stopPropagation();
-              props.onNewSession({ scope: projectScope });
-            }}
-          >
-            <IconPlus width={12} height={12} />
-          </IconButton>
+          {!row.unavailable ? (
+            <IconButton
+              className="sidebar-icon-btn tree-folder-add-btn"
+              size="xs"
+              label={sidebarCopy.newConversationInProject(displayName)}
+              title={sidebarCopy.newConversationInProject(displayName)}
+              onClick={(event) => {
+                event.stopPropagation();
+                props.onNewSession({ scope: projectScope });
+              }}
+            >
+              <IconPlus width={12} height={12} />
+            </IconButton>
+          ) : null}
         </div>
       </ContextMenu>
     );

@@ -303,6 +303,20 @@
   letter-spacing: var(--tracking-micro);
 }
 
+.tree-repo-group-toggle {
+  width: 100%;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tree-repo-group-toggle svg {
+  flex: none;
+}
+
 .tree-repo-group-title {
   min-width: 0;
   overflow: hidden;

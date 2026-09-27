@@ -508,6 +508,55 @@ describe('project commands', () => {
     expect(await realpath(linked?.gitRootPath ?? '')).toBe(await realpath(linkedPath));
   });
 
+  it('lists unopened user worktrees and marks removed project paths without deleting their records', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-sidebar-'));
+    const projectPath = join(rootDir, 'repo');
+    const linkedPath = join(rootDir, 'linked');
+    const slotPath = join(rootDir, 'worktrees', 'slot-0');
+    const missingPath = join(rootDir, 'old-worker');
+    await mkdir(projectPath);
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
+    await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], { cwd: projectPath });
+    await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'base\n');
+    await execFileAsync('git', ['add', '--all'], { cwd: projectPath });
+    await execFileAsync('git', ['commit', '-m', 'base'], { cwd: projectPath });
+    await execFileAsync('git', ['worktree', 'add', '-b', 'feat/x', linkedPath], { cwd: projectPath });
+    await mkdir(join(rootDir, 'worktrees'));
+    await execFileAsync('git', ['worktree', 'add', '-b', 'piwin/subagent/slot-0', slotPath], { cwd: projectPath });
+    await mkdir(missingPath);
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open', rootDir);
+    await handleProjectCommand({ type: 'project/open', path: missingPath }, 'old', rootDir);
+    await rm(missingPath, { recursive: true });
+
+    const response = await handleProjectCommand({ type: 'project/list' }, 'list', rootDir);
+    expect(response?.success).toBe(true);
+    if (!response?.success) throw new Error('project/list failed');
+    const data = response.data as {
+      projects: ProjectRecord[];
+      worktrees: { path: string; branch: string | null }[];
+    };
+    expect(await realpath(data.worktrees.find((worktree) => worktree.branch === 'main')?.path ?? ''))
+      .toBe(await realpath(projectPath));
+    expect(await realpath(data.worktrees.find((worktree) => worktree.branch === 'feat/x')?.path ?? ''))
+      .toBe(await realpath(linkedPath));
+    expect(data.worktrees.some((worktree) => worktree.branch === 'piwin/subagent/slot-0')).toBe(false);
+    expect(data.projects.find((project) => project.path === missingPath)?.workspaceAvailability)
+      .toBe('missing');
+
+    await handleProjectCommand({ type: 'project/open', path: linkedPath }, 'linked', rootDir);
+    await rm(linkedPath, { recursive: true });
+    const removedLinked = await handleProjectCommand({ type: 'project/list' }, 'list-removed', rootDir);
+    expect(removedLinked?.success).toBe(true);
+    if (!removedLinked?.success) throw new Error('project/list failed');
+    const removedProjects = (removedLinked.data as { projects: ProjectRecord[] }).projects;
+    const linked = removedProjects.find((project) => project.path === linkedPath);
+    const main = removedProjects.find((project) => project.path === projectPath);
+    expect(linked?.workspaceAvailability).toBe('missing');
+    expect(linked?.gitRepositoryId).toBe(main?.gitRepositoryId);
+    await rm(rootDir, { recursive: true, force: true });
+  });
+
   it('reuses a registered checkout instead of remembering a subdirectory', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-open-nested-'));
     const projectPath = join(rootDir, 'workspace');

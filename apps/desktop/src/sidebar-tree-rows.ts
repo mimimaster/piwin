@@ -1,4 +1,4 @@
-import type { SessionListOrder, SessionScope } from '@piwin/contracts';
+import type { ProjectWorktreeListing, SessionListOrder, SessionScope } from '@piwin/contracts';
 import type { SessionListItemUi } from './chat-reducer';
 import type { DraftSessionItemUi } from './draft-session';
 import { draftSessionMatchesQuery, sortDraftSessions } from './draft-session';
@@ -20,11 +20,13 @@ export type { SidebarProjectRef } from './sidebar-repo-groups';
 export type SidebarTreeRow =
   | { kind: 'no-repo-folder'; key: string; collapsed: boolean }
   | { kind: 'section-header'; sectionId: 'pinned' | 'projects' | 'conversations'; key: string }
+  | { kind: 'unavailable-group'; key: string; collapsed: boolean }
   | {
       kind: 'repo-group';
       gitRepositoryId: string;
       title: string;
       memberCount: number;
+      collapsed: boolean;
       key: string;
     }
   | {
@@ -39,6 +41,13 @@ export type SidebarTreeRow =
       collapsed: boolean;
       grouped: boolean;
       currentBranch: string | null;
+      unavailable?: boolean;
+      key: string;
+    }
+  | {
+      kind: 'unregistered-worktree';
+      worktreePath: string;
+      branch: string | null;
       key: string;
     }
   | {
@@ -76,6 +85,7 @@ export const NO_REPO_SIDEBAR_KEY = 'no-repo';
 
 export type SidebarTreeRowsInput = {
   recentProjects: readonly SidebarProjectRef[];
+  worktrees?: readonly ProjectWorktreeListing[];
   /** Built-in No Repo key: Host workspace path, or the opaque remote locator. */
   noRepoProjectPath?: string;
   projectSessionsByPath: Record<string, SessionListItemUi[]>;
@@ -87,6 +97,8 @@ export type SidebarTreeRowsInput = {
   projectsSectionExpanded: boolean;
   conversationsSectionExpanded: boolean;
   collapsedProjects: Record<string, boolean>;
+  collapsedRepositories?: Readonly<Record<string, boolean>>;
+  unavailableGroupCollapsed?: boolean;
   projectSessionVisibleCounts?: Readonly<Record<string, number>>;
   sessionListScopes: SessionListScopeState;
   activeProjectPath?: string | null;
@@ -108,6 +120,9 @@ export function sidebarTreeRowKey(row: SidebarTreeRow): string {
 export function sidebarTreeRowInWorktreeCluster(row: SidebarTreeRow): boolean {
   if (row.kind === 'project-folder') {
     return row.grouped;
+  }
+  if (row.kind === 'unregistered-worktree') {
+    return true;
   }
   return row.kind === 'session' ||
     row.kind === 'project-show-more' ||
@@ -242,24 +257,57 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   const listedProjects = noRepoPath
     ? input.recentProjects.filter((project) => project.path !== noRepoPath)
     : input.recentProjects;
+  const availableRepositoryIds = new Set(listedProjects
+    .filter((project) => project.workspaceAvailability !== 'missing')
+    .map((project) => project.gitRepositoryId)
+    .filter((id): id is string => typeof id === 'string'));
+  const unavailableWithoutActiveRepository = listedProjects.filter(
+    (project) => project.workspaceAvailability === 'missing' &&
+      (!project.gitRepositoryId || !availableRepositoryIds.has(project.gitRepositoryId)),
+  );
+  const unanchoredPaths = new Set(unavailableWithoutActiveRepository.map((project) => project.path));
+  const availableOrGrouped = listedProjects.filter(
+    (project) => !unanchoredPaths.has(project.path),
+  );
 
   if (showProjects) {
     appendNoRepoFolderRows(rows, input, drafts, searching);
-    for (const cluster of clusterProjectsByRepository(listedProjects)) {
+    for (const cluster of clusterProjectsByRepository(availableOrGrouped, input.worktrees)) {
       if (cluster.kind === 'group') {
+        const collapsed = !searching &&
+          input.collapsedRepositories?.[cluster.gitRepositoryId] === true;
         rows.push({
           kind: 'repo-group',
           gitRepositoryId: cluster.gitRepositoryId,
           title: cluster.title,
-          memberCount: cluster.members.length,
+          memberCount: cluster.members.length + (cluster.unregistered?.length ?? 0),
+          collapsed,
           key: `repo:${cluster.gitRepositoryId}`,
         });
+        if (collapsed) continue;
         for (const project of cluster.members) {
           appendProjectFolderRows(rows, input, project, drafts, searching, true);
+        }
+        for (const worktree of cluster.unregistered ?? []) {
+          rows.push({
+            kind: 'unregistered-worktree',
+            worktreePath: worktree.path,
+            branch: worktree.branch,
+            key: `worktree:${worktree.path}`,
+          });
         }
         continue;
       }
       appendProjectFolderRows(rows, input, cluster.project, drafts, searching, false);
+    }
+    if (unavailableWithoutActiveRepository.length > 0) {
+      const collapsed = !searching && input.unavailableGroupCollapsed === true;
+      rows.push({ kind: 'unavailable-group', key: 'unavailable-workspaces', collapsed });
+      if (!collapsed) {
+        for (const project of unavailableWithoutActiveRepository) {
+          appendProjectFolderRows(rows, input, project, drafts, searching, true);
+        }
+      }
     }
   }
 
@@ -612,6 +660,7 @@ function appendProjectFolderRows(
     collapsed,
     grouped,
     currentBranch: project.currentBranch ?? null,
+    ...(project.workspaceAvailability === 'missing' ? { unavailable: true } : {}),
     key: `project:${project.path}`,
   });
   if (collapsed) {

@@ -1,19 +1,11 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { navTabForRoute, useWideLayout } from '../use-wide-layout.js';
 import { NeedsHost } from '../needs-host.js';
 import { useSessionListWindow } from '../../hooks/mobile-session-list.js';
 import { useInkstone } from '../inkstone-context.js';
 import { type InkstoneRoute } from '../inkstone-state.js';
 import { Icon } from '../icons.js';
-import {
-  BottomNav,
-  Dot,
-  IconButton,
-  Pill,
-  Segmented,
-  TabsRow,
-  TopBar,
-} from '../inkstone-ui.js';
+import { BottomNav, Dot, IconButton, Pill, Segmented, TabsRow, TopBar } from '../inkstone-ui.js';
 import {
   collectPendingPermissionSessionIds,
   collectRunningSessionIds,
@@ -29,6 +21,8 @@ import {
   type SessionSection,
   type SessionSectionRow,
 } from './session-sections.js';
+import { SwipeRow, type SwipeAction } from '../swipe-row.js';
+import type { InkstoneAction } from '../inkstone-state.js';
 import {
   SESSION_MODE_LABELS,
   filterSessionsByMode,
@@ -37,7 +31,10 @@ import {
 } from '../session-mode.js';
 
 const MODE_BY_LABEL = new Map<string, SessionMode>(
-  (Object.entries(SESSION_MODE_LABELS) as [SessionMode, string][]).map(([mode, label]) => [label, mode]),
+  (Object.entries(SESSION_MODE_LABELS) as [SessionMode, string][]).map(([mode, label]) => [
+    label,
+    mode,
+  ]),
 );
 
 const EMPTY_BY_MODE: Record<SessionMode, string> = {
@@ -72,12 +69,68 @@ export interface PrototypeSession {
   snippet?: string;
 }
 
+/** Which row is slid open; opening one closes the rest, as in iOS lists. */
+interface SwipeState {
+  openId: string | undefined;
+  setOpenId: (sessionId: string | undefined) => void;
+}
+
+function sessionSwipeActions(
+  row: SessionSectionRow,
+  hostCtx: InkstoneHostContextValue,
+  dispatch: (action: InkstoneAction) => void,
+): SwipeAction[] {
+  const { host } = hostCtx;
+  const guarded = (run: () => void) => () => {
+    if (blockedByOfflineSnapshot(hostCtx, dispatch)) return;
+    run();
+  };
+  const actions: SwipeAction[] = [
+    {
+      key: 'more',
+      label: '更多',
+      tone: 'neutral',
+      onPress: guarded(() => {
+        void host.handleSelectSession(row.sessionId).then(() => {
+          dispatch({ type: 'open-sheet', key: 'session-menu' });
+        });
+      }),
+    },
+    {
+      key: 'pin',
+      label: row.pinned ? '取消置顶' : '置顶',
+      tone: 'lamp',
+      onPress: guarded(() => {
+        void host.handlePinSession(row.sessionId, row.pinned).then((ok) => {
+          if (ok) dispatch({ type: 'toast', message: row.pinned ? '已取消置顶' : '已置顶' });
+        });
+      }),
+    },
+  ];
+  if (host.client?.supportsCommand('session/archive') === true) {
+    // Archive is recoverable from the Host's archive, so like Mail it needs no confirm.
+    actions.push({
+      key: 'archive',
+      label: '归档',
+      tone: 'danger',
+      onPress: guarded(() => {
+        void host.handleDeleteSession(row.sessionId).then((ok) => {
+          if (ok) dispatch({ type: 'toast', message: `已归档「${row.title}」` });
+        });
+      }),
+    });
+  }
+  return actions;
+}
+
 function SessionRows({
   rows,
   hostCtx,
+  swipe,
 }: {
   rows: SessionSectionRow[];
   hostCtx: InkstoneHostContextValue;
+  swipe: SwipeState;
 }): ReactElement {
   const { dispatch } = useInkstone();
   const openSession = async (sessionId: string): Promise<void> => {
@@ -95,29 +148,32 @@ function SessionRows({
         >
           {/* Only live work earns a mark; a dot on every finished row is noise. */}
           {row.status !== 'done' ? <Dot status={row.status} /> : null}
-          <button className="session-open" onClick={() => void openSession(row.sessionId)} type="button">
-            <span className="session-line">
-              <strong>{row.title}</strong>
-              {row.time !== '' ? <time>{row.time}</time> : null}
-            </span>
-            {row.subtitle !== '' ? <small>{row.subtitle}</small> : null}
-            {row.scope !== undefined ? (
-              <span className="session-scope">
-                <Icon name="folder" />
-                {row.scope}
-              </span>
-            ) : null}
-          </button>
-          <IconButton
-            name="more"
-            label={`${row.title}的更多操作`}
-            onClick={() => {
-              if (blockedByOfflineSnapshot(hostCtx, dispatch)) return;
-              void hostCtx.host.handleSelectSession(row.sessionId).then(() => {
-                dispatch({ type: 'open-sheet', key: 'session-menu' });
-              });
+          <SwipeRow
+            actions={sessionSwipeActions(row, hostCtx, dispatch)}
+            open={swipe.openId === row.sessionId}
+            onOpenChange={(open) => {
+              if (open) swipe.setOpenId(row.sessionId);
+              else if (swipe.openId === row.sessionId) swipe.setOpenId(undefined);
             }}
-          />
+          >
+            <button
+              className="session-open"
+              onClick={() => void openSession(row.sessionId)}
+              type="button"
+            >
+              <span className="session-line">
+                <strong>{row.title}</strong>
+                {row.time !== '' ? <time>{row.time}</time> : null}
+              </span>
+              {row.subtitle !== '' ? <small>{row.subtitle}</small> : null}
+              {row.scope !== undefined ? (
+                <span className="session-scope">
+                  <Icon name="folder" />
+                  {row.scope}
+                </span>
+              ) : null}
+            </button>
+          </SwipeRow>
         </div>
       ))}
     </>
@@ -127,9 +183,11 @@ function SessionRows({
 function SessionSectionView({
   section,
   hostCtx,
+  swipe,
 }: {
   section: SessionSection;
   hostCtx: InkstoneHostContextValue;
+  swipe: SwipeState;
 }): ReactElement {
   const flat = section.kind !== 'project';
   return (
@@ -142,7 +200,7 @@ function SessionSectionView({
         </div>
       )}
       <div className={flat ? 'session-tree flat' : 'session-tree'}>
-        <SessionRows rows={section.rows} hostCtx={hostCtx} />
+        <SessionRows rows={section.rows} hostCtx={hostCtx} swipe={swipe} />
       </div>
     </div>
   );
@@ -154,6 +212,8 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
   const { state, dispatch } = useInkstone();
   const { host } = hostCtx;
   const mode = state.sessionMode;
+  const [openSwipeId, setOpenSwipeId] = useState<string | undefined>();
+  const swipe: SwipeState = { openId: openSwipeId, setOpenId: setOpenSwipeId };
   const now = Date.now();
   const running = collectRunningSessionIds(host.activityItems);
   const pending = collectPendingPermissionSessionIds(host.activityItems);
@@ -166,7 +226,8 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
     now,
   });
   // Conversations are one time-ordered list; only Agent work is filtered and grouped by project.
-  const filter = mode === 'agent' && isSessionListFilter(state.sessionFilter) ? state.sessionFilter : '全部';
+  const filter =
+    mode === 'agent' && isSessionListFilter(state.sessionFilter) ? state.sessionFilter : '全部';
   const built = buildSessionSections(groups, filter);
   const listView =
     mode === 'chat'
@@ -179,7 +240,9 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
       : {
           ...built,
           emptyMessage:
-            built.emptyMessage !== undefined && filter === '全部' ? EMPTY_BY_MODE.agent : built.emptyMessage,
+            built.emptyMessage !== undefined && filter === '全部'
+              ? EMPTY_BY_MODE.agent
+              : built.emptyMessage,
         };
   const continueSession = mode === 'agent' ? pickContinueSession(modeSessions, running) : undefined;
   const startDraft = (): void => {
@@ -187,7 +250,8 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
       type: 'start-draft',
       draft: {
         mode,
-        projectId: mode === 'agent' ? pickDefaultAgentProjectId(host.sessions, host.projects) : undefined,
+        projectId:
+          mode === 'agent' ? pickDefaultAgentProjectId(host.sessions, host.projects) : undefined,
       },
     });
   };
@@ -272,7 +336,8 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
             </span>
             <h3>{continueSession.name?.trim() || '未命名会话'}</h3>
             <p>
-              {cleanSessionPreview(continueSession.lastPreview) || `${continueSession.messageCount ?? 0} 条消息`}
+              {cleanSessionPreview(continueSession.lastPreview) ||
+                `${continueSession.messageCount ?? 0} 条消息`}
             </p>
           </button>
         ) : host.connectionState.kind !== 'ready' && host.sessions.length === 0 ? (
@@ -292,7 +357,7 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
           />
         ) : null}
         {listView.sections.map((section) => (
-          <SessionSectionView key={section.key} section={section} hostCtx={hostCtx} />
+          <SessionSectionView key={section.key} section={section} hostCtx={hostCtx} swipe={swipe} />
         ))}
         {listView.emptyMessage !== undefined && host.connectionState.kind === 'ready' ? (
           <p className="session-empty">{listView.emptyMessage}</p>

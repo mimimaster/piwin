@@ -25,6 +25,20 @@ import {
 } from './model-configuration.js';
 import { getDefaultThinkingLevelsForProtocol } from './model-thinking-policy.js';
 
+function draftsMatchForPersist(
+  left: ModelConfigurationDraft,
+  right: ModelConfigurationDraft,
+): boolean {
+  return (
+    left.supportsImageGeneration === right.supportsImageGeneration &&
+    left.supportsVideoGeneration === right.supportsVideoGeneration &&
+    left.supportsRealtimeAudio === right.supportsRealtimeAudio &&
+    left.supportsNativeWebSearch === right.supportsNativeWebSearch &&
+    left.supportsImage === right.supportsImage &&
+    left.reasoning === right.reasoning
+  );
+}
+
 export type ModelEditInlineProps = {
   model: ModelConfigEntry;
   providerProtocol: ModelProviderConfig['protocol'];
@@ -43,9 +57,21 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const dirtyRef = useRef(false);
+  const pendingSavedDraftRef = useRef<ModelConfigurationDraft | null>(null);
   const savedFlashTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    const pending = pendingSavedDraftRef.current;
+    if (pending) {
+      const persisted = createModelConfigurationDraft(model, undefined, props.providerProtocol);
+      if (draftsMatchForPersist(persisted, pending)) {
+        pendingSavedDraftRef.current = null;
+      } else {
+        // Config has not caught up yet (async save / parent re-render). Keep
+        // the just-saved draft so capability checkboxes do not bounce.
+        return;
+      }
+    }
     if (!dirtyRef.current) {
       setLocalDraft(createModelConfigurationDraft(model, undefined, props.providerProtocol));
       setError(null);
@@ -56,14 +82,12 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
     async function hydrate(): Promise<void> {
       try {
         const results = await search(model.id);
-        if (cancelled) return;
-        if (!dirtyRef.current) {
-          const exact = results.find(
-            (entry) => entry.modelId.toLowerCase() === model.id.toLowerCase(),
-          );
-          if (exact) {
-            setLocalDraft(createModelConfigurationDraft(model, exact, props.providerProtocol));
-          }
+        if (cancelled || dirtyRef.current || pendingSavedDraftRef.current) return;
+        const exact = results.find(
+          (entry) => entry.modelId.toLowerCase() === model.id.toLowerCase(),
+        );
+        if (exact) {
+          setLocalDraft(createModelConfigurationDraft(model, exact, props.providerProtocol));
         }
       } catch (err) {
         console.warn('[ModelEditInline] catalog defaults unavailable', err);
@@ -125,6 +149,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
     }
     setError(null);
     dirtyRef.current = false;
+    pendingSavedDraftRef.current = draftToSave;
     onSave(draftToSave);
     flashSaved();
   }

@@ -1,5 +1,6 @@
 export {
   listProjects,
+  rememberProjectCheckoutIdentities,
   loadProjectStore,
   openOrCreateProject,
   removeProject,

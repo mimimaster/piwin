@@ -319,6 +319,7 @@ export type RemoteProjectSummary = {
   currentBranch?: string;
   /** Git checkout root on the Host. Same for a subdirectory of one checkout. */
   gitRootPath?: string;
+  workspaceAvailability?: 'missing';
 };
 
 export type RemoteSessionScopeKind = 'general' | 'project' | 'unknown';

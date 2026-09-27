@@ -6,6 +6,7 @@ import PromoShowcase from './components/PromoShowcase.vue';
 import HomeQuickNav from './components/HomeQuickNav.vue';
 import DownloadView from './components/DownloadView.vue';
 import PrototypeViewer from './components/PrototypeViewer.vue';
+import HeroMark from './components/HeroMark.vue';
 
 export default {
   extends: DefaultTheme,
@@ -16,6 +17,7 @@ export default {
           h('span', { class: 'hero-badge-dot' }),
           '桌面端编码智能体',
         ]),
+      'home-hero-image': () => h(HeroMark),
     });
   },
   enhanceApp({ app }) {

@@ -17,23 +17,53 @@ describe('assertCodexCallbackPortFree', () => {
     });
   });
 
-  it('fails when 1455 is bound and resolves after it is released', async () => {
+  async function bindPort(host: string): Promise<boolean> {
     occupied = createServer();
+    const server = occupied;
     const bound = await new Promise<boolean>((resolve) => {
-      occupied?.once('error', () => resolve(false));
-      occupied?.listen(CODEX_OAUTH_CALLBACK_PORT, '127.0.0.1', () => resolve(true));
+      server.once('error', () => resolve(false));
+      server.listen(CODEX_OAUTH_CALLBACK_PORT, host, () => resolve(true));
     });
+    if (!bound) {
+      occupied = undefined;
+    }
+    return bound;
+  }
+
+  async function closeOccupied(): Promise<void> {
+    const server = occupied;
+    occupied = undefined;
+    if (!server) {
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+  }
+
+  it('fails when 1455 is bound on IPv4 and resolves after it is released', async () => {
+    const bound = await bindPort('127.0.0.1');
     await expect(assertCodexCallbackPortFree()).rejects.toMatchObject({
       code: 'oauth-callback-port-busy',
     });
     if (!bound) {
-      occupied = undefined;
       return;
     }
-    await new Promise<void>((resolve) => {
-      occupied?.close(() => resolve());
+    await closeOccupied();
+    await assertCodexCallbackPortFree();
+  });
+
+  it('fails when 1455 is bound on IPv6 only', async () => {
+    const bound = await bindPort('::1');
+    if (!bound) {
+      // No IPv6 loopback on this machine; the IPv4 case above covers the check.
+      return;
+    }
+    // `localhost` prefers ::1, so an IPv6-only holder swallows the callback.
+    await expect(assertCodexCallbackPortFree()).rejects.toMatchObject({
+      code: 'oauth-callback-port-busy',
     });
-    occupied = undefined;
+    await closeOccupied();
     await assertCodexCallbackPortFree();
   });
 });

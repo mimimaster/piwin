@@ -23,6 +23,7 @@ import {
   listProjects,
   listRememberedPermissions,
   loadProjectStore,
+  rememberProjectCheckoutIdentities,
   openOrCreateProject,
   removeProject,
   findRegisteredProjectRoot,
@@ -45,6 +46,7 @@ import { bindProjectLocator } from '../project-locator.js';
 import { IGNORED_DIR_NAMES } from '../project-browse-ignore.js';
 import { normalizeProjectFileQuery, searchProjectFiles } from './project-file-search.js';
 import { createRemoteProjectId, isRemoteProjectId } from '../remote-project-id.js';
+import { listProjectSidebarWorktrees } from './project-sidebar-worktrees.js';
 
 const PROJECT_TYPES = new Set<HostCommand['type']>([
   'project/list',
@@ -78,7 +80,13 @@ export async function handleProjectCommand(
     case 'project/list': {
       const projects = await listProjects(projectsPath);
       const listed = await enrichProjectsWithGitWorkspace(projects);
-      return ok(requestId, 'project/list', listed);
+      await rememberProjectCheckoutIdentities(projectsPath, listed.projects);
+      const sidebar = await listProjectSidebarWorktrees(listed.projects, rootDir);
+      return ok(requestId, 'project/list', {
+        projects: sidebar.projects,
+        worktrees: sidebar.worktrees,
+        ...(listed.gitWorkspacePending || sidebar.pending ? { gitWorkspacePending: true } : {}),
+      });
     }
     case 'project/open': {
       const openPath = bindProjectLocator(
@@ -104,6 +112,11 @@ export async function handleProjectCommand(
         project = inheritedFrom
           ? await openOrCreateProject(projectsPath, targetPath, { trust: 'trusted' })
           : await openOrCreateProject(projectsPath, targetPath);
+      }
+      const workspace = await readGitWorkspaceListing(project.path);
+      if (workspace) {
+        project = applyGitWorkspaceListing(project, workspace);
+        await rememberProjectCheckoutIdentities(projectsPath, [project]);
       }
       return ok(requestId, 'project/open', {
         path: project.path,

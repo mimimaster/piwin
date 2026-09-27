@@ -1,8 +1,4 @@
-import {
-  isLikelyImageGenerationModel,
-  isLikelyVideoGenerationModel,
-  modelSupportsCapability,
-} from '@piwin/contracts';
+import { isLikelyVideoGenerationModel, modelSupportsCapability } from '@piwin/contracts';
 import type { ModelConfigEntry } from '@piwin/contracts';
 
 export type ModelCapKey = 'chat' | 'vision' | 'reason' | 'image' | 'video' | 'native-web-search';
@@ -15,15 +11,13 @@ export function modelCaps(
   model: ModelConfigEntry,
   isChinese: boolean,
 ): ModelCapChip[] {
-  const likelyImage =
-    model.capabilities?.includes('image-generation') === true ||
-    isLikelyImageGenerationModel(model.id, model.label, model.capabilities);
+  const likelyImage = model.capabilities?.includes('image-generation') === true;
   const likelyVideo =
     model.capabilities?.includes('video-generation') === true ||
     isLikelyVideoGenerationModel(model.id, model.label, model.capabilities);
-  const showChat =
-    model.capabilities?.includes('chat') === true ||
-    (modelSupportsCapability(model, 'chat') && !likelyImage && !likelyVideo);
+  // Image chips follow stored capabilities so unchecking 生图 actually sticks.
+  // Video still uses the name heuristic (unchanged this round).
+  const showChat = modelSupportsCapability(model, 'chat') && !likelyVideo;
   const caps: ModelCapChip[] = [];
   if (showChat) {
     caps.push({

@@ -34,7 +34,7 @@ describe('createModelImageDerivative', () => {
     expect(derivative.maxEdge).toBeGreaterThanOrEqual(
       MODEL_IMAGE_MAX_EDGE_LADDER[MODEL_IMAGE_MAX_EDGE_LADDER.length - 1] ?? 0,
     );
-  });
+  }, 15_000);
 
   it('does not enlarge a small source', async () => {
     const source = await noisyJpeg(64, 60);

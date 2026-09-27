@@ -318,8 +318,9 @@ export type DiscoveredModel = {
   contextWindow?: number;
   maxOutputTokens?: number;
   /**
-   * Capabilities inferred by the host during discovery, e.g.
-   * `['image-generation']` when the model id matches Pi's image catalog.
+   * Capabilities inferred by the host during discovery.
+   * Image-only registry rows get `['image-generation']`; chat+image hybrids
+   * (Gemini image, heuristic gateway ids) also include `chat`.
    */
   capabilities?: ModelCapability[];
   /**

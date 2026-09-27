@@ -34,6 +34,8 @@ function kinds(rows: SidebarTreeRow[]): string[] {
   return rows.filter((row) => row.kind !== 'no-repo-folder').map((row) => {
     if (row.kind === 'section-header') return `header:${row.sectionId}`;
     if (row.kind === 'repo-group') return `repo:${row.title}`;
+    if (row.kind === 'unavailable-group') return 'unavailable-group';
+    if (row.kind === 'unregistered-worktree') return `worktree:${row.worktreePath}`;
     if (row.kind === 'project-folder') return `folder:${row.projectPath}:${row.collapsed}`;
     if (row.kind === 'session') return `session:${row.session.id}`;
     if (row.kind === 'project-show-more') return `show-more:${row.projectPath}:${row.batchSize}`;
@@ -721,6 +723,117 @@ describe('buildSidebarTreeRows', () => {
         row.kind === 'project-folder' && row.projectPath === '/notes',
     );
     expect(notes?.grouped).toBe(false);
+  });
+
+  it('collapses one repository without hiding other projects and reveals it during search', () => {
+    const input = {
+      recentProjects: [
+        { path: '/repo', gitRepositoryId: 'repo1', isPrimaryWorktree: true },
+        { path: '/linked', gitRepositoryId: 'repo1' },
+        { path: '/notes' },
+      ],
+      worktrees: [
+        { gitRepositoryId: 'repo1', path: '/new-worktree', branch: 'feature', isPrimary: false },
+      ],
+      projectSessionsByPath: { '/repo': [session('repo-session', 'Find me')] },
+      generalSessions: [],
+      sessionListOrder: 'updated' as const,
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/repo': false, '/linked': true, '/notes': true },
+      collapsedRepositories: { repo1: true },
+      sessionListScopes: createSessionListScopeState(),
+    };
+    const collapsed = buildSidebarTreeRows({ ...input, sessionSearch: '' });
+    expect(collapsed.find((row) => row.kind === 'repo-group')).toMatchObject({ collapsed: true });
+    expect(kinds(collapsed)).not.toContain('folder:/repo:false');
+    expect(kinds(collapsed)).not.toContain('folder:/linked:true');
+    expect(kinds(collapsed)).not.toContain('worktree:/new-worktree');
+    expect(kinds(collapsed)).toContain('folder:/notes:true');
+
+    const searching = buildSidebarTreeRows({ ...input, sessionSearch: 'Find me' });
+    expect(searching.find((row) => row.kind === 'repo-group')).toMatchObject({ collapsed: false });
+    expect(kinds(searching)).toContain('folder:/repo:false');
+    expect(kinds(searching)).toContain('worktree:/new-worktree');
+    expect(kinds(searching)).toContain('session:repo-session');
+  });
+
+  it('shows discovered worktrees and keeps missing project sessions under an unavailable heading', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [
+        { path: '/repo', gitRepositoryId: 'repo1', gitRootPath: '/repo', currentBranch: 'main' },
+        { path: '/old-worker', workspaceAvailability: 'missing' },
+      ],
+      worktrees: [
+        { gitRepositoryId: 'repo1', path: '/repo', branch: 'main', isPrimary: true },
+        { gitRepositoryId: 'repo1', path: '/linked', branch: 'feat/x', isPrimary: false },
+      ],
+      projectSessionsByPath: { '/old-worker': [session('old-session', 'Old session')] },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/repo': true, '/old-worker': false },
+      sessionListScopes: createSessionListScopeState(),
+    });
+    expect(kinds(rows)).toContain('repo:repo');
+    expect(kinds(rows)).toContain('worktree:/linked');
+    expect(kinds(rows)).toContain('unavailable-group');
+    expect(kinds(rows)).toContain('session:old-session');
+    expect(rows.find((row) => row.kind === 'project-folder' && row.projectPath === '/old-worker'))
+      .toMatchObject({ unavailable: true });
+  });
+
+  it('collapses unavailable workspaces but reveals search matches', () => {
+    const input = {
+      recentProjects: [
+        { path: '/repo' },
+        { path: '/removed', workspaceAvailability: 'missing' as const },
+      ],
+      projectSessionsByPath: { '/removed': [session('history', 'Find history')] },
+      generalSessions: [],
+      sessionListOrder: 'updated' as const,
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/repo': true, '/removed': false },
+      unavailableGroupCollapsed: true,
+      sessionListScopes: createSessionListScopeState(),
+    };
+    const collapsed = buildSidebarTreeRows({ ...input, sessionSearch: '' });
+    expect(collapsed.find((row) => row.kind === 'unavailable-group'))
+      .toMatchObject({ collapsed: true });
+    expect(kinds(collapsed)).not.toContain('folder:/removed:false');
+    expect(kinds(collapsed)).toContain('folder:/repo:true');
+
+    const searching = buildSidebarTreeRows({ ...input, sessionSearch: 'Find history' });
+    expect(searching.find((row) => row.kind === 'unavailable-group'))
+      .toMatchObject({ collapsed: false });
+    expect(kinds(searching)).toContain('folder:/removed:false');
+    expect(kinds(searching)).toContain('session:history');
+  });
+
+  it('keeps a removed registered worktree inside its remembered repository group', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [
+        { path: '/repo', gitRepositoryId: 'repo1', gitRootPath: '/repo',
+          isPrimaryWorktree: true, currentBranch: 'main' },
+        { path: '/removed', gitRepositoryId: 'repo1', gitRootPath: '/removed',
+          workspaceAvailability: 'missing' },
+      ],
+      projectSessionsByPath: { '/removed': [session('history', 'History')] },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/repo': true, '/removed': false },
+      sessionListScopes: createSessionListScopeState(),
+    });
+    expect(kinds(rows)).toEqual(expect.arrayContaining([
+      'repo:repo', 'folder:/removed:false', 'session:history',
+    ]));
+    expect(kinds(rows)).not.toContain('unavailable-group');
   });
 
   it('nests a subdirectory project under its parent instead of a sibling worktree group', () => {

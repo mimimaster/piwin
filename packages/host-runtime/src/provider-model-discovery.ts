@@ -15,6 +15,7 @@ import {
   isLikelyImageGenerationModel,
   isLikelyRealtimeAudioModel,
   isLikelyVideoGenerationModel,
+  lookupImageGenerationRegistry,
   lookupVideoGenerationRegistry,
   matchImageCatalog,
 } from '@piwin/contracts';
@@ -279,24 +280,27 @@ function enrichDiscoveredModelFromCatalog(
 }
 
 /**
- * Auto-tag discovered models whose id matches a Pi image-catalog entry as
- * image-generation capable, so the Image Generation settings page can list
- * them without the user ticking the capability checkbox manually.
+ * Auto-tag discovered image models so Image settings can list them.
+ * Registry rows default to image-only; `chatSurface: true` and name/catalog
+ * heuristics also keep `chat` so hybrid gateway models stay in the picker.
  */
 function enrichImageGenerationCapability(model: DiscoveredModel): DiscoveredModel {
   if (isLikelyVideoGenerationModel(model.id, model.label, model.capabilities)) {
     return model;
   }
+  const registryHit = lookupImageGenerationRegistry(model.id);
   const imageEntries = searchPiImagesCatalog().entries;
-  const matched = matchImageCatalog(imageEntries, [model.id]);
-  const looksLikeImage =
-    matched.matched.length > 0 ||
-    isLikelyImageGenerationModel(model.id, model.label, model.capabilities);
-  if (!looksLikeImage) {
+  const catalogMatched = matchImageCatalog(imageEntries, [model.id]).matched.length > 0;
+  const heuristic = isLikelyImageGenerationModel(model.id, model.label, model.capabilities);
+  if (!registryHit && !catalogMatched && !heuristic) {
     return model;
   }
   const capabilities = new Set<ModelCapability>(model.capabilities ?? []);
   capabilities.add('image-generation');
+  const keepChat = registryHit ? registryHit.entry.chatSurface === true : true;
+  if (keepChat) {
+    capabilities.add('chat');
+  }
   return { ...model, capabilities: [...capabilities] };
 }
 

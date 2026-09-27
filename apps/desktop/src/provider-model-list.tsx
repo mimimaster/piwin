@@ -3,7 +3,7 @@
  * and the inline parameter editor. Every change here persists immediately.
  */
 
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { isModelEnabled, isProviderEnabled, isSubscriptionProvider } from '@piwin/contracts';
 import type {
   DiscoveredModel,
@@ -147,14 +147,23 @@ export function ProviderModelList({
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [discovered, setDiscovered] = useState<DiscoveredModel[]>([]);
   const [discovering, setDiscovering] = useState(false);
+  const [optimisticModels, setOptimisticModels] = useState<ModelConfigEntry[] | null>(null);
+
+  useEffect(() => {
+    if (!optimisticModels) return;
+    if (optimisticModelsCaughtUp(provider.models, optimisticModels)) {
+      setOptimisticModels(null);
+    }
+  }, [provider.models, optimisticModels]);
 
   const t = modelListCopy(isChinese);
   const subscription = isSubscriptionProvider(provider);
   const providerLive = isProviderEnabled(provider);
-  const anyEnabled = provider.models.some(isModelEnabled);
+  const models = overlayOptimisticCapabilities(provider.models, optimisticModels);
+  const anyEnabled = models.some(isModelEnabled);
   // Display only: enabled models stay ahead of disabled ones. Config order is
   // unchanged within each group, and persistence still uses provider.models.
-  const displayedModels = [...provider.models].sort(
+  const displayedModels = [...models].sort(
     (left, right) => Number(isModelEnabled(right)) - Number(isModelEnabled(left)),
   );
 
@@ -182,8 +191,10 @@ export function ProviderModelList({
 
   function handleApplyEdit(draft: ModelConfigurationDraft): void {
     if (!editingModelId) return;
-    const next = applyModelConfigurationDraft(provider.models, editingModelId, draft);
-    if (next) onUpdateModels(next);
+    const next = applyModelConfigurationDraft(models, editingModelId, draft);
+    if (!next) return;
+    setOptimisticModels(next);
+    onUpdateModels(next);
   }
 
   function toggleEditor(modelId: string): void {
@@ -446,4 +457,43 @@ export function ProviderModelList({
       />
     </section>
   );
+}
+
+function capabilitySignature(model: ModelConfigEntry): string {
+  return (model.capabilities ?? []).join(',');
+}
+
+function overlayOptimisticCapabilities(
+  persisted: readonly ModelConfigEntry[],
+  optimistic: readonly ModelConfigEntry[] | null,
+): ModelConfigEntry[] {
+  if (!optimistic) return [...persisted];
+  const pendingById = new Map(optimistic.map((model) => [model.id, model]));
+  return persisted.map((model) => {
+    const pending = pendingById.get(model.id);
+    if (!pending) return model;
+    if (capabilitySignature(pending) === capabilitySignature(model)) return model;
+    const next: ModelConfigEntry = { ...model };
+    if (pending.capabilities && pending.capabilities.length > 0) {
+      next.capabilities = pending.capabilities;
+    } else {
+      delete next.capabilities;
+    }
+    if (pending.routes && Object.keys(pending.routes).length > 0) {
+      next.routes = pending.routes;
+    } else {
+      delete next.routes;
+    }
+    return next;
+  });
+}
+
+function optimisticModelsCaughtUp(
+  persisted: readonly ModelConfigEntry[],
+  optimistic: readonly ModelConfigEntry[],
+): boolean {
+  return optimistic.every((pending) => {
+    const saved = persisted.find((model) => model.id === pending.id);
+    return saved !== undefined && capabilitySignature(saved) === capabilitySignature(pending);
+  });
 }

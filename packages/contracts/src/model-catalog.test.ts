@@ -250,7 +250,7 @@ describe('image generation registry', () => {
     expect(
       lookupImageGenerationRegistry('gemini-3.1-flash-image', 'openai-compatible'),
     ).toMatchObject({
-      entry: { apiStyle: 'gemini' },
+      entry: { apiStyle: 'gemini', chatSurface: true },
     });
   });
 

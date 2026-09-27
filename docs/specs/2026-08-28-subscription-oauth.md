@@ -399,10 +399,17 @@ Picker + send for logged-in v1 accounts. No login UI. Ignore `auth/prompt`.
 | `auth/login` unknown (e.g. antigravity) | `unsupported-subscription-provider` |
 | Sync after commit | `credential-sync-failed` |
 | Busy / not owner / stale prompt | `auth-busy` / `auth-not-owner` / `ticket-consumed` |
-| Loopback port in use (CPA Codex login on 1455) | `oauth-callback-port-busy` — 请先结束 CPA/其他工具的 Codex 登录 |
+| Loopback port in use (CPA Codex login on 1455) | `oauth-callback-port-busy` — 请先结束 CPA/其他工具的 Codex 登录。Probe covers 127.0.0.1 **and** `::1`: Pi listens on `127.0.0.1` while its redirect is `http://localhost:1455/auth/callback`, and `localhost` prefers `::1` |
 | Auth store unreadable | `auth-store-unreadable` |
 | Copilot model not enabled | mapped from Pi; copy: 在 VS Code Copilot 中启用该模型 |
 | Cancel / timeout | `ok: false`; no transcript error |
+
+Pi renders the browser "authorization complete" page from the loopback callback
+**before** exchanging the code, so a success page is not proof of sign-in. Every
+`auth/login-finished` with `ok: false` must therefore reach the shell: Desktop
+and CLI render it through `describeSubscriptionLoginFailure` (contracts), never
+as a bare code. Host-side, `runLogin` never throws — it always clears the
+`active` login gate and always pushes `auth/login-finished`.
 
 ---
 
@@ -504,6 +511,7 @@ No live OAuth in CI.
 Local CPA `docker-compose` binds `127.0.0.1:1455` (Codex) and `54545` (Claude). Pi Codex browser login also uses `http://localhost:1455/auth/callback`.
 
 - piwin **local** Codex browser login while CPA Codex login is listening → bind fail → `oauth-callback-port-busy`.
+- CPA binding `127.0.0.1` is detected; a **IPv6-only** holder (`[::1]:1455`, e.g. a Codex CLI that bound only `::1`) is detected too — otherwise the browser callback would land on that process and show its own success page while Pi never receives the code.
 - Claude port 54545 is CPA’s Claude login, not Pi Anthropic OAuth. Pi Anthropic login does not bind 54545.
 - xAI / Copilot use device code; no 1455.
 - Running CPA as an **API gateway** on 8317 does **not** take 1455 unless someone is in CPA’s oauth login. Normal 8317 use + piwin Codex login can coexist.

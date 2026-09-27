@@ -849,3 +849,48 @@
   display: grid;
   place-items: center;
 }
+
+/* Swipe-to-reveal session rows. The content layer is opaque so it hides the
+   actions until slid; vertical pans stay native scrolling. */
+.swipe-row {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+}
+.swipe-action {
+  flex: 1;
+  border: 0;
+  color: var(--on-zhu);
+  font-size: 13px;
+  font-weight: 500;
+}
+.swipe-action.neutral {
+  background: var(--t3);
+}
+.swipe-action.lamp {
+  background: var(--lamp);
+}
+.swipe-action.danger {
+  background: var(--zhu);
+}
+.swipe-content {
+  position: relative;
+  display: flex;
+  background: var(--s2);
+  touch-action: pan-y;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.swipe-content.dragging {
+  transition: none;
+}
+.session-item.active .swipe-content {
+  background: color-mix(in srgb, var(--zhu) 10%, var(--s2));
+}

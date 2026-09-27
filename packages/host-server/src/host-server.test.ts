@@ -811,6 +811,7 @@ describe('HostServer', () => {
           displayName: 'example',
         }),
       ],
+      worktrees: [],
     });
     expect(response.response.data).toMatchObject({
       projects: [

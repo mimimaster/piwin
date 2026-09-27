@@ -200,7 +200,7 @@ describe('discoverProviderModels', () => {
 
     expect(result.models.map((model) => model.id).sort()).toEqual(['deepseek-chat', 'gpt-image-1']);
     const imageModel = result.models.find((model) => model.id === 'gpt-image-1');
-    expect(imageModel?.capabilities).toContain('image-generation');
+    expect(imageModel?.capabilities).toEqual(['image-generation']);
     const chatModel = result.models.find((model) => model.id === 'deepseek-chat');
     expect(chatModel?.capabilities).toBeUndefined();
   });
@@ -263,7 +263,7 @@ describe('discoverProviderModels', () => {
     ]);
   });
 
-  it('auto-tags gemini image models by split-name match', async () => {
+  it('auto-tags gemini image models as chat + image-generation hybrids', async () => {
     const result = await discoverProviderModels(
       createProvider({
         protocol: 'google-gemini',
@@ -279,7 +279,21 @@ describe('discoverProviderModels', () => {
     );
 
     const imageModel = result.models.find((model) => model.id === 'gemini-3-pro-image');
-    expect(imageModel?.capabilities).toContain('image-generation');
+    expect(imageModel?.capabilities).toEqual(['image-generation', 'chat']);
+  });
+
+  it('keeps chat on heuristic image ids that are not in the image registry', async () => {
+    const result = await discoverProviderModels(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () => createJsonResponse({ data: [{ id: 'gpt-4o-image' }] }),
+    });
+
+    expect(result.models).toEqual([
+      expect.objectContaining({
+        id: 'gpt-4o-image',
+        capabilities: ['image-generation', 'chat'],
+      }),
+    ]);
   });
 
   it('suggests Sora with curated registry metadata', async () => {

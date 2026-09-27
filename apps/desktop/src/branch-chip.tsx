@@ -23,6 +23,7 @@ import { useConfirmDialog } from './use-confirm-dialog';
 import { useDesktopLocale } from './desktop-locale-context';
 import { getDesktopCopy } from './desktop-locale';
 import { IconChevronDown, IconGit } from './shell-icons';
+import { PROJECT_SIDEBAR_GIT_CHANGED } from './project-sidebar-events';
 import {
   localizeCheckoutError,
   reportBranchChipError,
@@ -83,6 +84,7 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const statusRequestSequence = useRef(0);
 
   const projectPath = props.projectPath?.trim() || null;
   const disabled = props.disabled === true || switching;
@@ -94,12 +96,16 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
   );
 
   const reloadStatus = useCallback(async (): Promise<void> => {
+    const sequence = ++statusRequestSequence.current;
     if (!projectPath) {
       setStatus(null);
       setError(null);
       return;
     }
     const response = await request({ type: 'git/status', projectPath });
+    if (sequence !== statusRequestSequence.current) {
+      return;
+    }
     if (!response.success) {
       setStatus(null);
       setError(response.error);
@@ -112,6 +118,13 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
 
   useEffect(() => {
     void reloadStatus();
+    const refresh = (): void => { void reloadStatus(); };
+    window.addEventListener('focus', refresh);
+    window.addEventListener(PROJECT_SIDEBAR_GIT_CHANGED, refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener(PROJECT_SIDEBAR_GIT_CHANGED, refresh);
+    };
   }, [reloadStatus]);
 
   const loadBranches = useCallback(async (): Promise<void> => {
@@ -233,7 +246,7 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
         return;
       }
       setMenuOpen(false);
-      await reloadStatus();
+      window.dispatchEvent(new Event(PROJECT_SIDEBAR_GIT_CHANGED));
     },
     [
       branches,
@@ -244,7 +257,6 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
       props.onError,
       props.onOpenWorktreeProject,
       request,
-      reloadStatus,
       status,
     ],
   );

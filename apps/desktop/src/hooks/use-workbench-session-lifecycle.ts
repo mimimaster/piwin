@@ -11,15 +11,17 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import type { PiwinConfig, ProjectRecord, SessionListOrder, SessionScope } from '@piwin/contracts';
+import type { PiwinConfig, ProjectRecord, ProjectWorktreeListing, SessionListOrder, SessionScope } from '@piwin/contracts';
 import type { ChatUiAction } from '../chat-reducer';
 import type { HostClient } from '../host-client';
 import { pushError, type NotificationAction } from '../notification-queue';
 import {
   isRemoteDesktopTransport,
   mapListedProjects,
+  mapListedWorktrees,
   mergeRecentProjects,
 } from '../remote-session-hydrate';
+import { PROJECT_SIDEBAR_GIT_CHANGED } from '../project-sidebar-events';
 import {
   mapWithConcurrency,
   planLastSessionRestore,
@@ -67,6 +69,7 @@ export type UseWorkbenchSessionLifecycleArgs = {
 
 export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleArgs): {
   recentProjects: ProjectRecord[];
+  worktrees: ProjectWorktreeListing[];
   setRecentProjects: Dispatch<SetStateAction<ProjectRecord[]>>;
   handleRemoveProjectFromSidebar: (projectPath: string) => Promise<void>;
 } {
@@ -88,6 +91,7 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
   } = args;
 
   const [recentProjects, setRecentProjects] = useState<ProjectRecord[]>([]);
+  const [worktrees, setWorktrees] = useState<ProjectWorktreeListing[]>([]);
   const hasHydratedInitialGeneralSessions = useRef(false);
   const hasRestoredDesktopSession = useRef(false);
   const hydratedProjectKeyRef = useRef('');
@@ -105,9 +109,12 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let retriesSoFar = 0;
+    let requestGeneration = 0;
     async function loadRecentProjects(): Promise<void> {
+      clearTimeout(retryTimer);
+      const generation = ++requestGeneration;
       const response = await hostClient.request({ type: 'project/list' });
-      if (cancelled) {
+      if (cancelled || generation !== requestGeneration) {
         return;
       }
       let outcome: 'failed' | 'git-pending' | 'complete';
@@ -116,6 +123,7 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
         setRecentProjects((prev) =>
           mergeRecentProjects(prev, fetched, projectPath ? [projectPath] : []),
         );
+        setWorktrees(mapListedWorktrees(response.data));
         const data = response.data as { gitWorkspacePending?: unknown } | undefined;
         outcome = data?.gitWorkspacePending === true ? 'git-pending' : 'complete';
       } else {
@@ -131,6 +139,7 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
         );
       }
       if (delayMs === null) {
+        if (outcome === 'complete') retriesSoFar = 0;
         return;
       }
       retriesSoFar += 1;
@@ -139,9 +148,17 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
       }, delayMs);
     }
     void loadRecentProjects();
+    const refresh = (): void => {
+      retriesSoFar = 0;
+      void loadRecentProjects();
+    };
+    window.addEventListener('focus', refresh);
+    window.addEventListener(PROJECT_SIDEBAR_GIT_CHANGED, refresh);
     return () => {
       cancelled = true;
       clearTimeout(retryTimer);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener(PROJECT_SIDEBAR_GIT_CHANGED, refresh);
     };
   }, [hostClient, hostReady, projectPath]);
 
@@ -310,5 +327,5 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
     ],
   );
 
-  return { recentProjects, setRecentProjects, handleRemoveProjectFromSidebar };
+  return { recentProjects, worktrees, setRecentProjects, handleRemoveProjectFromSidebar };
 }

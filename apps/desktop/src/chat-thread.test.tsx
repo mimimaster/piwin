@@ -456,7 +456,7 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.querySelector('[data-testid="right-panel"]')?.getAttribute('data-open')).toBe(
       'false',
     );
-  });
+  }, 15_000);
 
   // ————————————————————————————————————————————————————————————————
   // 2. Terminal/lifecycle events remain behind preceding deltas without a

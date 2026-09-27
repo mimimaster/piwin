@@ -501,6 +501,10 @@ body::before {
   background: var(--zhu);
 }
 
+.hero-mark {
+  color: var(--t1);
+}
+
 .VPHero .name {
   font-family: var(--font-serif);
   letter-spacing: -0.02em;

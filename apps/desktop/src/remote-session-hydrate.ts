@@ -13,6 +13,7 @@ import type {
   HostResponse,
   ModelRef,
   ProjectRecord,
+  ProjectWorktreeListing,
   SessionListOrder,
   SessionScope,
   ThinkingLevel,
@@ -105,8 +106,8 @@ export type ProjectActivationResult =
   | { ok: false; error: string };
 
 /**
- * Local sidecar opens folders with `project/open`. Remote shells only see opaque
- * projectIds from `project/list` — `project/open` is intentionally blocked.
+ * A remembered remote project uses its opaque id. A discovered Host worktree
+ * opens by Host path and receives an opaque id before session commands run.
  */
 export async function activateProjectOnHost(
   request: (command: HostCommand) => Promise<HostResponse>,
@@ -370,7 +371,8 @@ export function mergeRecentProjects(
         project.gitRepositoryId === previous[index]?.gitRepositoryId &&
         project.currentBranch === previous[index]?.currentBranch &&
         project.isPrimaryWorktree === previous[index]?.isPrimaryWorktree &&
-        project.gitRootPath === previous[index]?.gitRootPath,
+        project.gitRootPath === previous[index]?.gitRootPath &&
+        project.workspaceAvailability === previous[index]?.workspaceAvailability,
     )
   ) {
     return previous;
@@ -411,6 +413,23 @@ export function mapListedProjects(data: unknown): ProjectRecord[] {
     }
   }
   return projects;
+}
+
+export function mapListedWorktrees(data: unknown): ProjectWorktreeListing[] {
+  const record = isRecord(data) ? data : undefined;
+  const raw = Array.isArray(record?.worktrees) ? record.worktrees : [];
+  return raw.flatMap((value): ProjectWorktreeListing[] => {
+    if (!isRecord(value) || typeof value.gitRepositoryId !== 'string' ||
+        typeof value.path !== 'string' || value.path.trim().length === 0) {
+      return [];
+    }
+    return [{
+      gitRepositoryId: value.gitRepositoryId,
+      path: value.path,
+      branch: typeof value.branch === 'string' ? value.branch : null,
+      isPrimary: value.isPrimary === true,
+    }];
+  });
 }
 
 export function sessionUpdateFromIndexPush(
@@ -562,11 +581,11 @@ function mapListedProject(value: unknown): ProjectRecord | undefined {
 
 function readListedGitWorkspaceFields(value: Record<string, unknown>): Pick<
   ProjectRecord,
-  'gitRepositoryId' | 'isPrimaryWorktree' | 'currentBranch' | 'gitRootPath'
+  'gitRepositoryId' | 'isPrimaryWorktree' | 'currentBranch' | 'gitRootPath' | 'workspaceAvailability'
 > {
   const fields: Pick<
     ProjectRecord,
-    'gitRepositoryId' | 'isPrimaryWorktree' | 'currentBranch' | 'gitRootPath'
+    'gitRepositoryId' | 'isPrimaryWorktree' | 'currentBranch' | 'gitRootPath' | 'workspaceAvailability'
   > = {};
   if (typeof value.gitRepositoryId === 'string' && value.gitRepositoryId.trim().length > 0) {
     fields.gitRepositoryId = value.gitRepositoryId.trim();
@@ -579,6 +598,9 @@ function readListedGitWorkspaceFields(value: Record<string, unknown>): Pick<
   }
   if (typeof value.gitRootPath === 'string' && value.gitRootPath.trim().length > 0) {
     fields.gitRootPath = value.gitRootPath.trim();
+  }
+  if (value.workspaceAvailability === 'missing') {
+    fields.workspaceAvailability = 'missing';
   }
   return fields;
 }

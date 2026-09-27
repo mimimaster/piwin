@@ -23,19 +23,29 @@ export type ProjectRecord = {
   fileWriteAllowlist?: string[];
   /**
    * Opaque id of the shared git dir. Same for every worktree of one repo.
-   * Host-only listing enrichment — not a filesystem path.
+   * Remembered checkout identity, retained if the directory disappears.
    */
   gitRepositoryId?: string;
   /** True when this path is the primary (non-linked) worktree. */
   isPrimaryWorktree?: boolean;
-  /** Current branch, or a detached HEAD short label. */
+  /** Live listing status: current branch, or a detached HEAD short label. */
   currentBranch?: string;
   /**
    * Git checkout root (`rev-parse --show-toplevel`). Same for a remembered
    * subdirectory of one checkout; different for linked worktrees.
-   * Host-only listing enrichment.
+   * Remembered checkout identity; the Host refreshes it while the path exists.
    */
   gitRootPath?: string;
+  /** Host listing state; missing paths retain their session history in the sidebar. */
+  workspaceAvailability?: 'missing';
+};
+
+/** A Git checkout discovered from a registered repository, opened or not. */
+export type ProjectWorktreeListing = {
+  gitRepositoryId: string;
+  path: string;
+  branch: string | null;
+  isPrimary: boolean;
 };
 
 export type ProjectStoreDocument = {
@@ -46,9 +56,11 @@ export type ProjectStoreDocument = {
 /** Response for `project/list`; ordered by most recently opened first. */
 export type ProjectListData = {
   projects: ProjectRecord[];
+  /** Existing user worktrees in repositories containing a registered project. */
+  worktrees?: ProjectWorktreeListing[];
   /**
-   * Some projects missed the Host's git budget and are listed without git
-   * enrichment; list again shortly to pick it up.
+   * A checkout probe or worktree inventory missed the Host's budget; list
+   * again shortly to complete the sidebar snapshot.
    */
   gitWorkspacePending?: true;
 };

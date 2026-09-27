@@ -559,79 +559,116 @@ export class SubscriptionAuthService {
     return this.port?.getChatCatalog(catalogId) ?? [];
   }
 
+  /**
+   * Never throws. `active` is the login gate (`auth-busy`), so every exit path
+   * must clear it and push `auth/login-finished`: a throw from port creation or
+   * post-login bookkeeping used to leave the account stuck on "logging-in"
+   * until the Host was restarted.
+   *
+   * Pi renders the browser success page before exchanging the code, so a failed
+   * outcome here is the only signal that the sign-in did not actually finish —
+   * it must always reach the shell.
+   */
   private async runLogin(providerId: string, signal: AbortSignal): Promise<void> {
     const loginId = this.active?.loginId;
     if (!loginId) {
       return;
     }
-    const port = await this.ensurePort();
-    const authPath = this.authPath;
-    const claudeCode = isClaudeCodeOauthProviderId(providerId);
-    const piLoginId = piOauthLoginProviderId(providerId);
-    const hadPlainAnthropic =
-      claudeCode && authPath ? await hasOauthCredential(authPath, 'anthropic') : false;
+    const newChannelId = this.active?.newChannelId;
+    let failureCode: string | undefined;
+    let followUp: AuthLoginFinishedData['followUp'];
+    let credentialStored = false;
+    try {
+      const port = await this.ensurePort();
+      const authPath = this.authPath;
+      const claudeCode = isClaudeCodeOauthProviderId(providerId);
+      const piLoginId = piOauthLoginProviderId(providerId);
+      const hadPlainAnthropic =
+        claudeCode && authPath ? await hasOauthCredential(authPath, 'anthropic') : false;
 
-    let outcome: Awaited<ReturnType<typeof port.login>>;
-    if (claudeCode && authPath && (await hasOauthCredential(authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID))) {
-      outcome = { kind: 'ok' };
-    } else if (claudeCode && authPath && hadPlainAnthropic) {
-      // Independent card: clone existing anthropic OAuth into anthropic-claude-code.
-      const copied = await materializeClaudeCodeCredentialFromAnthropic(
-        authPath,
-        CLAUDE_CODE_OAUTH_PROVIDER_ID,
+      let outcome: Awaited<ReturnType<typeof port.login>>;
+      if (claudeCode && authPath && (await hasOauthCredential(authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID))) {
+        outcome = { kind: 'ok' };
+      } else if (claudeCode && authPath && hadPlainAnthropic) {
+        // Independent card: clone existing anthropic OAuth into anthropic-claude-code.
+        const copied = await materializeClaudeCodeCredentialFromAnthropic(
+          authPath,
+          CLAUDE_CODE_OAUTH_PROVIDER_ID,
+        );
+        outcome = copied
+          ? { kind: 'ok' }
+          : { kind: 'failed', message: 'Failed to materialize Claude Code credentials' };
+      } else {
+        outcome = await port.login(piLoginId, {
+          signal,
+          prompt: (prompt) => this.handlePrompt(prompt),
+          notify: (event) => this.handleNotify(event),
+        });
+        if (outcome.kind === 'ok' && claudeCode && authPath) {
+          await materializeClaudeCodeCredentialFromAnthropic(authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID);
+          // Keep bottom Claude card independent: drop plain anthropic if it was not logged in before.
+          if (!hadPlainAnthropic) {
+            await deleteOauthCredential(authPath, 'anthropic');
+          }
+        }
+      }
+
+      credentialStored = outcome.kind === 'ok';
+      if (outcome.kind === 'failed') {
+        failureCode = ('code' in outcome && outcome.code) || 'provider-authentication';
+      }
+      if (outcome.kind === 'sync-error') {
+        this.syncErrorProviderIds.add(providerId);
+      } else if (outcome.kind === 'ok') {
+        this.syncErrorProviderIds.delete(providerId);
+        this.needsReauthProviderIds.delete(providerId);
+        // Plan-quota login deletes the temporary `anthropic` key. Refreshing it
+        // would fail and mark this card sync-error even though auth succeeded.
+        if (!(claudeCode && !hadPlainAnthropic)) {
+          try {
+            await port.refreshProvider(piLoginId);
+          } catch {
+            this.syncErrorProviderIds.add(providerId);
+          }
+        }
+        const seeded = await this.ensureProviderForAccount(providerId);
+        followUp = seeded.followUp;
+        await this.evictSiblingClaudeAuth(providerId);
+        await this.maybeSeedDefault(providerId);
+        this.startWatch();
+      }
+    } catch (error) {
+      // Outside the port's own error mapping: Pi/disk/bookkeeping blew up.
+      console.error(
+        `[piwin-host] auth/login error provider=${providerId} loginId=${loginId}`,
+        error,
       );
-      outcome = copied
-        ? { kind: 'ok' }
-        : { kind: 'failed', message: 'Failed to materialize Claude Code credentials' };
-    } else {
-      outcome = await port.login(piLoginId, {
-        signal,
-        prompt: (prompt) => this.handlePrompt(prompt),
-        notify: (event) => this.handleNotify(event),
+      if (credentialStored) {
+        // The credential is on disk; only the Host-side follow-up failed.
+        this.syncErrorProviderIds.add(providerId);
+      } else {
+        failureCode = 'provider-authentication';
+      }
+    } finally {
+      this.active = undefined;
+      this.push?.({
+        type: 'auth/login-finished',
+        result: {
+          loginId,
+          providerId,
+          ok: failureCode === undefined,
+          ...(failureCode !== undefined ? { errorCode: failureCode } : {}),
+          ...(newChannelId !== undefined ? { newChannelId } : {}),
+          ...(followUp !== undefined ? { followUp } : {}),
+        },
       });
-      if (outcome.kind === 'ok' && claudeCode && authPath) {
-        await materializeClaudeCodeCredentialFromAnthropic(authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID);
-        // Keep bottom Claude card independent: drop plain anthropic if it was not logged in before.
-        if (!hadPlainAnthropic) {
-          await deleteOauthCredential(authPath, 'anthropic');
-        }
+      if (failureCode !== undefined) {
+        console.warn(
+          `[piwin-host] auth/login failed provider=${providerId} loginId=${loginId} code=${failureCode}`,
+        );
       }
+      this.emitUpdated();
     }
-
-    const finished: AuthLoginFinishedData = {
-      loginId,
-      providerId,
-      ok: outcome.kind !== 'failed',
-      ...(outcome.kind === 'failed' && 'code' in outcome && outcome.code
-        ? { errorCode: outcome.code }
-        : {}),
-      ...(outcome.kind === 'failed'
-        ? { errorCode: ('code' in outcome && outcome.code) || 'provider-authentication' }
-        : {}),
-      ...(this.active?.newChannelId !== undefined ? { newChannelId: this.active.newChannelId } : {}),
-    };
-    if (outcome.kind === 'sync-error') {
-      this.syncErrorProviderIds.add(providerId);
-    } else if (outcome.kind === 'ok') {
-      this.syncErrorProviderIds.delete(providerId);
-      this.needsReauthProviderIds.delete(providerId);
-      // Plan-quota login deletes the temporary `anthropic` key. Refreshing it
-      // would fail and mark this card sync-error even though auth succeeded.
-      if (!(claudeCode && !hadPlainAnthropic)) {
-        try {
-          await port.refreshProvider(piLoginId);
-        } catch {
-          this.syncErrorProviderIds.add(providerId);
-        }
-      }
-      Object.assign(finished, await this.ensureProviderForAccount(providerId));
-      await this.evictSiblingClaudeAuth(providerId);
-      await this.maybeSeedDefault(providerId);
-      this.startWatch();
-    }
-    this.active = undefined;
-    this.push?.({ type: 'auth/login-finished', result: finished });
-    this.emitUpdated();
   }
 
   private async handlePrompt(prompt: HostAuthPrompt): Promise<string> {
@@ -747,7 +784,15 @@ export class SubscriptionAuthService {
   }
 
   private async emitUpdatedIfChanged(): Promise<void> {
-    const accounts = await this.readAccounts();
+    let accounts: SubscriptionAccount[];
+    try {
+      accounts = await this.readAccounts();
+    } catch (error) {
+      // Fire-and-forget from the auth.json watcher: an unreadable store must not
+      // become an unhandled rejection (shells re-read on `auth/status`).
+      console.warn('[piwin-host] auth/updated skipped: account read failed', error);
+      return;
+    }
     const fingerprint = accounts
       .map((account) => `${account.providerId}:${account.state}:${account.collidingChannelId ?? ''}`)
       .join('|');
@@ -769,14 +814,23 @@ export class SubscriptionAuthService {
   }
 
   private emitUpdated(accounts?: SubscriptionAccount[]): void {
-    void (async () => {
-      const next = accounts ?? (await this.readAccounts());
-      this.lastFingerprint = next
-        .map((account) => `${account.providerId}:${account.state}:${account.collidingChannelId ?? ''}`)
-        .join('|');
-      this.lastOauthProviderIds = oauthProviderIds(next);
-      this.push?.({ type: 'auth/updated', accounts: next });
-    })();
+    void this.pushUpdated(accounts);
+  }
+
+  /** Never rejects: one failed read must not take the Host down. */
+  private async pushUpdated(accounts?: SubscriptionAccount[]): Promise<void> {
+    let next: SubscriptionAccount[];
+    try {
+      next = accounts ?? (await this.readAccounts());
+    } catch (error) {
+      console.warn('[piwin-host] auth/updated skipped: account read failed', error);
+      return;
+    }
+    this.lastFingerprint = next
+      .map((account) => `${account.providerId}:${account.state}:${account.collidingChannelId ?? ''}`)
+      .join('|');
+    this.lastOauthProviderIds = oauthProviderIds(next);
+    this.push?.({ type: 'auth/updated', accounts: next });
   }
 
   private toActiveLoginStatus(): ActiveLoginStatus {

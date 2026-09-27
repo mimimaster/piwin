@@ -238,6 +238,77 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     expect(setInfo).toHaveBeenCalledWith(expect.stringContaining('extra usage'), 'warning');
   });
 
+  it('toasts a failed Codex sign-in instead of closing silently', async () => {
+    let push:
+      | ((message: {
+          type: string;
+          result?: { loginId: string; providerId: string; ok: boolean; errorCode?: string };
+        }) => void)
+      | undefined;
+    const setError = vi.fn();
+    const mockRequest = vi.fn(async (command) => {
+      const ext = extensionListOk(command);
+      if (ext) return ext;
+      if (command.type === 'auth/status') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: {
+            accounts: [{ providerId: 'openai-codex', surface: 'v1', state: 'logged-out' }],
+          },
+        };
+      }
+      return { type: 'response' as const, command: command.type, success: true as const, data: {} };
+    });
+    const hostClient = {
+      request: mockRequest,
+      subscribe: vi.fn((handler) => {
+        push = handler;
+        return () => {};
+      }),
+      getTransport: () => 'local',
+    };
+    const contextValue = {
+      config: baseConfig(),
+      hostClient,
+      setError,
+      setInfo: vi.fn(),
+    } as unknown as SettingsContextValue;
+
+    await act(async () => {
+      root!.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+            <SettingsProvider value={contextValue}>
+              <OauthPage />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>,
+      );
+    });
+
+    await act(async () => {
+      push?.({
+        type: 'auth/login-finished',
+        result: {
+          loginId: 'login-1',
+          providerId: 'openai-codex',
+          ok: false,
+          errorCode: 'provider-authentication',
+        },
+      });
+    });
+
+    // Pi shows the browser success page before exchanging the code, so the panel
+    // must say why the account stayed logged-out.
+    const shown = setError.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(shown).toContain('登录未完成');
+    expect(shown).not.toContain('provider-authentication');
+    const state = container!.querySelector('[data-testid="subscription-account-state-openai-codex"]');
+    expect(state?.textContent).toContain('未连接');
+  });
+
   it('sends auth/login with a caller-owned idempotency key', async () => {
     const mockRequest = vi.fn(async (command) => {
       const ext = extensionListOk(command);

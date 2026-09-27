@@ -1,5 +1,4 @@
 import os from 'node:os';
-import path from 'node:path';
 import type {
   DocumentPathResolveData,
   HostCommand,
@@ -9,7 +8,6 @@ import type {
   RemoteCapabilitySummary,
   RemoteHostStatusData,
   RemoteMediaSaveData,
-  RemoteProjectSummary,
   QueuedTurnRecord,
 } from '@piwin/contracts';
 import {
@@ -19,8 +17,8 @@ import {
   readActivitySummaryData,
   REDACTED_STORED_SECRET,
 } from '@piwin/contracts';
-import { createRemoteProjectId, isRemoteProjectId } from '@piwin/host-runtime';
 import { projectConfiguredChatModelsResponse } from './remote-configured-models.js';
+import { isGitWorkspacePending, projectProjectMutation, projectProjects, projectWorktrees } from './remote-project-projection.js';
 import { redactRemoteHostPaths } from './remote-redact.js';
 import { projectRemoteLiveResponse } from './remote-live-projection.js';
 import {
@@ -90,6 +88,7 @@ export function projectRemoteResponse(
       ...response,
       data: {
         projects: projectProjects(response.data),
+        worktrees: projectWorktrees(response.data),
         ...(isGitWorkspacePending(response.data) ? { gitWorkspacePending: true } : {}),
       },
     };
@@ -489,78 +488,6 @@ function projectRemoteMediaListData(data: unknown): {
   }
   return projected;
 }
-
-function projectProjectMutation(data: unknown): {
-  projectId: string;
-  path?: string;
-  trusted: boolean;
-  trust: 'trusted' | 'untrusted';
-} {
-  const record = asRecord(data);
-  const issuedId = typeof record?.projectId === 'string' ? record.projectId : '';
-  const hostPath = typeof record?.path === 'string' ? record.path : '';
-  const projectId = isRemoteProjectId(issuedId)
-    ? issuedId
-    : hostPath
-      ? createRemoteProjectId(hostPath)
-      : '';
-  const trusted = record?.trusted === true || record?.trust === 'trusted';
-  return {
-    projectId,
-    ...(hostPath.length > 0 && !isRemoteProjectId(hostPath) ? { path: hostPath } : {}),
-    trusted,
-    trust: trusted ? 'trusted' : 'untrusted',
-  };
-}
-
-function isGitWorkspacePending(data: unknown): boolean {
-  return asRecord(data)?.gitWorkspacePending === true;
-}
-
-function projectProjects(data: unknown): RemoteProjectSummary[] {
-  const projects = asRecord(data)?.projects;
-  if (!Array.isArray(projects)) {
-    return [];
-  }
-
-  const projected: RemoteProjectSummary[] = [];
-  for (const project of projects) {
-    const record = asRecord(project);
-    if (record === undefined || typeof record.path !== 'string') {
-      continue;
-    }
-    const displayName =
-      typeof record.displayName === 'string' && record.displayName.trim().length > 0
-        ? record.displayName
-        : path.basename(record.path) || 'Project';
-    const trust =
-      record.trust === 'trusted' || record.trust === 'untrusted' ? record.trust : 'unknown';
-    const summary: RemoteProjectSummary = {
-      projectId: createRemoteProjectId(record.path),
-      displayName,
-      path: record.path,
-      trust,
-    };
-    if (typeof record.lastOpenedAt === 'string') {
-      summary.lastOpenedAt = record.lastOpenedAt;
-    }
-    if (typeof record.gitRepositoryId === 'string' && record.gitRepositoryId.length > 0) {
-      summary.gitRepositoryId = record.gitRepositoryId;
-    }
-    if (record.isPrimaryWorktree === true || record.isPrimaryWorktree === false) {
-      summary.isPrimaryWorktree = record.isPrimaryWorktree;
-    }
-    if (typeof record.currentBranch === 'string' && record.currentBranch.length > 0) {
-      summary.currentBranch = record.currentBranch;
-    }
-    if (typeof record.gitRootPath === 'string' && record.gitRootPath.length > 0) {
-      summary.gitRootPath = record.gitRootPath;
-    }
-    projected.push(summary);
-  }
-  return projected;
-}
-
 
 const REMOTE_PATH_KEYS = new Set([
   'absolutePath',

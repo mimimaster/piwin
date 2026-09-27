@@ -2,6 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { clusterProjectsByRepository } from './sidebar-repo-groups';
 
 describe('clusterProjectsByRepository', () => {
+  it('groups a registered checkout with a discovered worktree without registering it', () => {
+    const clusters = clusterProjectsByRepository(
+      [{ path: '/repo', gitRepositoryId: 'repo1', gitRootPath: '/repo', currentBranch: 'main' }],
+      [
+        { gitRepositoryId: 'repo1', path: '/repo', branch: 'main', isPrimary: true },
+        { gitRepositoryId: 'repo1', path: '/worktrees/feature', branch: 'feat/x', isPrimary: false },
+      ],
+    );
+    expect(clusters).toMatchObject([{
+      kind: 'group',
+      members: [{ path: '/repo' }],
+      unregistered: [{ path: '/worktrees/feature', branch: 'feat/x' }],
+    }]);
+  });
+
+  it('uses the discovered primary checkout name when only a linked worktree is registered', () => {
+    const clusters = clusterProjectsByRepository(
+      [{ path: '/worktrees/feature', gitRepositoryId: 'repo1',
+        gitRootPath: '/worktrees/feature' }],
+      [{ gitRepositoryId: 'repo1', path: '/repo', branch: 'main', isPrimary: true }],
+    );
+    expect(clusters[0]).toMatchObject({ kind: 'group', title: 'repo' });
+  });
+
   it('nests a repo subdirectory under the containing project instead of a worktree group', () => {
     const clusters = clusterProjectsByRepository([
       {

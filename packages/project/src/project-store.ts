@@ -117,6 +117,32 @@ export async function listProjects(filePath: string): Promise<ProjectRecord[]> {
   );
 }
 
+/** Keep stable checkout identities so removed worktrees retain their repository group. */
+export async function rememberProjectCheckoutIdentities(
+  filePath: string,
+  listedProjects: readonly ProjectRecord[],
+): Promise<void> {
+  const document = await loadProjectStore(filePath);
+  const listedByPath = new Map(listedProjects.map((project) => [project.path, project]));
+  let changed = false;
+  for (const project of document.projects) {
+    const listed = listedByPath.get(project.path);
+    if (!listed?.gitRepositoryId || !listed.gitRootPath) continue;
+    if (
+      project.gitRepositoryId === listed.gitRepositoryId &&
+      project.gitRootPath === listed.gitRootPath &&
+      project.isPrimaryWorktree === listed.isPrimaryWorktree
+    ) continue;
+    project.gitRepositoryId = listed.gitRepositoryId;
+    project.gitRootPath = listed.gitRootPath;
+    if (listed.isPrimaryWorktree !== undefined) {
+      project.isPrimaryWorktree = listed.isPrimaryWorktree;
+    }
+    changed = true;
+  }
+  if (changed) await saveProjectStore(filePath, document);
+}
+
 /** Remove a remembered project from the sidebar without touching its files or sessions. */
 export async function removeProject(
   filePath: string,

@@ -84,8 +84,9 @@ export function createModelConfigurationDraft(
   protocol?: ModelProviderConfig['protocol'],
 ): ModelConfigurationDraft {
   const effective = mergeModelCatalogDefaults(model, catalog);
+  const taggedImage = effective.capabilities?.includes('image-generation') === true;
   const likelyImage =
-    effective.capabilities?.includes('image-generation') === true ||
+    taggedImage ||
     isLikelyImageGenerationModel(effective.id, effective.label, effective.capabilities);
   const likelyVideo =
     effective.capabilities?.includes('video-generation') === true ||
@@ -120,7 +121,7 @@ export function createModelConfigurationDraft(
     thinkingLevel: defaultThinkingLevel,
     thinkingLevels,
     supportsImage: effective.input?.includes('image') ?? false,
-    supportsImageGeneration: likelyImage,
+    supportsImageGeneration: taggedImage,
     supportsVideoGeneration: likelyVideo,
     supportsSpeechToText: effective.capabilities?.includes('speech-to-text') ?? false,
     supportsTextToSpeech: effective.capabilities?.includes('text-to-speech') ?? false,
@@ -306,6 +307,18 @@ export function applyModelConfigurationDraft(
   if (draft.supportsTextToSpeech) editedCapabilities.add('text-to-speech');
   if (draft.supportsRealtimeAudio) editedCapabilities.add('realtime-audio');
   if (draft.supportsNativeWebSearch) editedCapabilities.add('native-web-search');
+  // Checking 生图/视频 must not wipe the implied chat surface. An omitted
+  // capabilities list means chat; writing only the auxiliary tag would hide
+  // the 对话 chip until the user unchecks generation again.
+  const originalCapabilities = original.capabilities ?? [];
+  const originalWasChatModel =
+    originalCapabilities.length === 0 || originalCapabilities.includes('chat');
+  if (
+    (draft.supportsImageGeneration || draft.supportsVideoGeneration) &&
+    originalWasChatModel
+  ) {
+    editedCapabilities.add('chat');
+  }
   if (editedCapabilities.size > 0) {
     updated.capabilities = [...editedCapabilities];
   } else {

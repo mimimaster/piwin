@@ -171,4 +171,134 @@ describe('ProviderModelList', () => {
     ]);
   });
 
+  it('drops the image chip as soon as image generation is saved off', () => {
+    const onUpdateModels = vi.fn();
+    const provider: ModelProviderConfig = {
+      id: 'custom-openai',
+      name: 'OpenAI compatible',
+      protocol: 'openai-compatible',
+      baseUrl: 'http://127.0.0.1:8317/v1',
+      models: [
+        {
+          id: 'gemini-3.1-pro-low',
+          capabilities: ['chat', 'image-generation'],
+          reasoning: true,
+        },
+      ],
+    };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ProviderModelList
+            provider={provider}
+            defaultModelId={null}
+            isChinese={true}
+            disabled={false}
+            modelTestStatus={{}}
+            testingModelId={null}
+            onUpdateModels={onUpdateModels}
+            onTestModel={vi.fn()}
+            onSetDefaultModel={vi.fn()}
+            onToggleModel={vi.fn()}
+            onDiscoverModels={vi.fn(async () => ({
+              providerId: provider.id,
+              protocol: provider.protocol,
+              models: [],
+            }))}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const chipLabels = () =>
+      [...container.querySelectorAll('.pmodel-cap')].map((node) => node.textContent);
+    expect(chipLabels()).toContain('生图');
+
+    act(() => {
+      container.querySelector<HTMLElement>('[data-testid="provider-model-row"]')?.click();
+    });
+    const imageCheckbox = container.querySelector<HTMLInputElement>(
+      '[data-testid="model-edit-image-generation"]',
+    );
+    expect(imageCheckbox?.checked).toBe(true);
+    act(() => {
+      imageCheckbox?.click();
+    });
+    expect(imageCheckbox?.checked).toBe(false);
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="model-edit-save"]')?.click();
+    });
+
+    expect(onUpdateModels).toHaveBeenCalled();
+    expect(chipLabels()).not.toContain('生图');
+    expect(chipLabels()).toContain('推理');
+    expect(chipLabels()).toContain('对话');
+  });
+
+  it('keeps the chat chip when image generation is saved on', () => {
+    const onUpdateModels = vi.fn();
+    const provider: ModelProviderConfig = {
+      id: 'custom-openai',
+      name: 'OpenAI compatible',
+      protocol: 'openai-compatible',
+      baseUrl: 'http://127.0.0.1:8317/v1',
+      models: [{ id: 'gemini-3.1-pro-low', reasoning: true }],
+    };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ProviderModelList
+            provider={provider}
+            defaultModelId={null}
+            isChinese={true}
+            disabled={false}
+            modelTestStatus={{}}
+            testingModelId={null}
+            onUpdateModels={onUpdateModels}
+            onTestModel={vi.fn()}
+            onSetDefaultModel={vi.fn()}
+            onToggleModel={vi.fn()}
+            onDiscoverModels={vi.fn(async () => ({
+              providerId: provider.id,
+              protocol: provider.protocol,
+              models: [],
+            }))}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const chipLabels = () =>
+      [...container.querySelectorAll('.pmodel-cap')].map((node) => node.textContent);
+    expect(chipLabels()).toContain('对话');
+    expect(chipLabels()).not.toContain('生图');
+
+    act(() => {
+      container.querySelector<HTMLElement>('[data-testid="provider-model-row"]')?.click();
+    });
+    const imageCheckbox = container.querySelector<HTMLInputElement>(
+      '[data-testid="model-edit-image-generation"]',
+    );
+    expect(imageCheckbox?.checked).toBe(false);
+    act(() => {
+      imageCheckbox?.click();
+    });
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="model-edit-save"]')?.click();
+    });
+
+    expect(chipLabels()).toContain('对话');
+    expect(chipLabels()).toContain('生图');
+    expect(onUpdateModels.mock.calls[0]?.[0]?.[0]?.capabilities).toEqual([
+      'image-generation',
+      'chat',
+    ]);
+  });
+
 });

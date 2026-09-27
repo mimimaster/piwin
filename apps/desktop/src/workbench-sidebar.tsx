@@ -4,7 +4,7 @@
  * new-general-session sequencing, and capability-gated ProjectSessionSidebar props.
  */
 import { useMemo, type Dispatch, type ReactElement, type SetStateAction } from 'react';
-import type { HostStatusData, ProjectRecord, SessionListOrder } from '@piwin/contracts';
+import type { HostStatusData, ProjectRecord, ProjectWorktreeListing, SessionListOrder } from '@piwin/contracts';
 import type { SidebarMode } from './sidebar-mode';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from './chat-reducer';
 import { prefetchSettingsPanel } from './deferred-desktop-surfaces';
@@ -51,6 +51,7 @@ export type WorkbenchSidebarProps = {
   hostClient: HostClient;
   hostStatus: HostStatusData | null;
   recentProjects: ProjectRecord[];
+  worktrees?: ProjectWorktreeListing[];
   filteredSessions: SessionListItemUi[];
   filteredGeneralSessions: SessionListItemUi[];
   sessionGroups: SessionTimeGroup<SessionListItemUi>[];
@@ -80,6 +81,7 @@ export type WorkbenchSidebarProps = {
   onOpenMarketplace?: () => void;
   onOpenWorkspace: () => void | Promise<void>;
   onOpenProject: (path: string) => void | Promise<void>;
+  onOpenWorktreeProject?: (path: string) => void | Promise<void>;
   onRemoveProject: (path: string) => void | Promise<void>;
   onNewSession: (options?: {
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
@@ -109,6 +111,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
     hostClient,
     hostStatus,
     recentProjects,
+    worktrees,
     filteredSessions,
     filteredGeneralSessions,
     sessionGroups,
@@ -122,6 +125,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
     settingsOpen,
     onOpenWorkspace,
     onOpenProject,
+    onOpenWorktreeProject,
     onRemoveProject,
     onNewSession,
     onResumeSession,
@@ -166,6 +170,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       transportLabel={hostClient.getTransport()}
       hostStatus={hostStatus}
       recentProjects={recentProjects}
+      worktrees={worktrees ?? []}
       sessions={state.sessions}
       filteredSessions={filteredSessions}
       generalSessions={filteredGeneralSessions}
@@ -204,6 +209,9 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
         ? { onOpenWorkspace: () => void onOpenWorkspace() }
         : {})}
       onOpenProject={(path) => void onOpenProject(path)}
+      {...(onOpenWorktreeProject
+        ? { onOpenWorktreeProject: (path: string) => void onOpenWorktreeProject(path) }
+        : {})}
       sidebarMode={sidebarMode}
       onSidebarModeChange={onSidebarModeChange}
       onOpenGeneral={() => {

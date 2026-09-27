@@ -1,4 +1,5 @@
 import { projectDisplayName } from './project-display-name';
+import type { ProjectWorktreeListing } from '@piwin/contracts';
 
 export type SidebarProjectRef = {
   path: string;
@@ -8,6 +9,7 @@ export type SidebarProjectRef = {
   currentBranch?: string;
   /** Git checkout root; same for a subdirectory of one worktree. */
   gitRootPath?: string;
+  workspaceAvailability?: 'missing';
   /** Path-nested remembered projects that live inside this folder. */
   nested?: SidebarProjectRef[];
 };
@@ -19,6 +21,7 @@ export type SidebarProjectCluster =
       gitRepositoryId: string;
       title: string;
       members: SidebarProjectRef[];
+      unregistered?: ProjectWorktreeListing[];
     };
 
 export function normalizeSidebarProjectPath(projectPath: string): string {
@@ -125,6 +128,7 @@ export function attachNestedProjects(
  */
 export function clusterProjectsByRepository(
   projects: readonly SidebarProjectRef[],
+  worktrees: readonly ProjectWorktreeListing[] = [],
 ): SidebarProjectCluster[] {
   const rooted = attachNestedProjects(projects);
   const membersByRepo = new Map<string, SidebarProjectRef[]>();
@@ -140,24 +144,35 @@ export function clusterProjectsByRepository(
 
   const emitted = new Set<string>();
   const clusters: SidebarProjectCluster[] = [];
+  const registeredCheckouts = new Set(
+    rooted.map((project) => checkoutKey(project)),
+  );
   for (const project of rooted) {
     if (emitted.has(project.path)) {
       continue;
     }
     const repoId = project.gitRepositoryId;
     const members = repoId ? (membersByRepo.get(repoId) ?? [project]) : [project];
-    if (!repoId || members.length < 2 || !hasDistinctGitCheckouts(members)) {
+    const unregistered = repoId
+      ? worktrees.filter((worktree) => worktree.gitRepositoryId === repoId &&
+          !registeredCheckouts.has(normalizeSidebarProjectPath(worktree.path)))
+      : [];
+    if (!repoId || !hasDistinctGitCheckouts(members, unregistered)) {
       clusters.push({ kind: 'solo', project });
       emitted.add(project.path);
       continue;
     }
     const ordered = orderRepoMembers(members);
-    const titleSource = ordered.find((item) => item.isPrimaryWorktree === true) ?? ordered[0];
+    const primaryProject = ordered.find((item) => item.isPrimaryWorktree === true);
+    const primaryWorktree = unregistered.find((item) => item.isPrimary);
+    const titleSource = primaryProject ?? ordered[0];
     clusters.push({
       kind: 'group',
       gitRepositoryId: repoId,
-      title: titleSource?.displayName?.trim() || projectDisplayName(titleSource?.path ?? ''),
+      title: primaryProject?.displayName?.trim() ||
+        projectDisplayName(primaryProject?.path ?? primaryWorktree?.path ?? titleSource?.path ?? ''),
       members: ordered,
+      ...(unregistered.length > 0 ? { unregistered } : {}),
     });
     for (const member of members) {
       emitted.add(member.path);
@@ -177,7 +192,13 @@ function checkoutKey(project: SidebarProjectRef): string {
 }
 
 /** Linked worktrees have different checkout roots; a subdirectory does not. */
-function hasDistinctGitCheckouts(members: readonly SidebarProjectRef[]): boolean {
-  const keys = new Set(members.map((member) => checkoutKey(member)));
+function hasDistinctGitCheckouts(
+  members: readonly SidebarProjectRef[],
+  unregistered: readonly ProjectWorktreeListing[],
+): boolean {
+  const keys = new Set([
+    ...members.map((member) => checkoutKey(member)),
+    ...unregistered.map((worktree) => normalizeSidebarProjectPath(worktree.path)),
+  ]);
   return keys.size >= 2;
 }

@@ -18,13 +18,13 @@
 
 | 原型模块 | 核心交互与设计考量 | 独立访问直链 |
 | :--- | :--- | :--- |
-| **桌面端旗舰主工作台** | 完整工作台：纸/墨双面一键切换、会话阅读流、右侧审查器 Inspector、模型选择器 | [在新标签页打开 ↗](/inkstone/proto-00-shell.html) |
-| **随身砚移动端独立原型 v3** | iPhone / iPad 8px 基线触控优化、抽屉式菜单、长任务状态流与审批交互 | [在新标签页打开 ↗](/inkstone/inkstone-mobile-shell-v3.html) |
-| **异步多子代理调度** | 多子代理并行任务卡片、Worktree 独立分支推进与主计划托盘 | [在新标签页打开 ↗](/inkstone/proto-11-async-subagents.html) |
-| **会话排版与阅读流** | 消息气泡、工具执行折叠墨线、代码高亮与 Markdown 信息层次 | [在新标签页打开 ↗](/inkstone/proto-01-transcript.html) |
-| **设置与权限管控面板** | 模型渠道切换、权限规则引擎（自动/询问/旁路）与配置面板 | [在新标签页打开 ↗](/inkstone/proto-05-settings.html) |
-| **原子级 UI 组件墙** | 按钮、标签、浮层、通知条与书口线设计规范 | [在新标签页打开 ↗](/inkstone/proto-07-components.html) |
-| **会话验收评审报告卡片** | 交付物审查报告、验收清单与执行证据折叠卡片 | [在新标签页打开 ↗](/inkstone/proto-10-review-report.html) |
+| **桌面端旗舰主工作台** | 完整工作台：纸/墨双面一键切换、会话阅读流、右侧审查器 Inspector、模型选择器 | <a href="/inkstone/proto-00-shell.html" target="_blank" rel="noopener noreferrer">在新标签页打开 ↗</a> |
+| **随身砚移动端独立原型 v3** | iPhone / iPad 8px 基线触控优化、抽屉式菜单、长任务状态流与审批交互 | <a href="/inkstone/inkstone-mobile-shell-v3.html" target="_blank" rel="noopener noreferrer">在新标签页打开 ↗</a> |
+| **异步多子代理调度** | 多子代理并行任务卡片、Worktree 独立分支推进与主计划托盘 | <a href="/inkstone/proto-11-async-subagents.html" target="_blank" rel="noopener noreferrer">在新标签页打开 ↗</a> |
+| **会话排版与阅读流** | 消息气泡、工具执行折叠墨线、代码高亮与 Markdown 信息层次 | <a href="/inkstone/proto-01-transcript.html" target="_blank" rel="noopener noreferrer">在新标签页打开 ↗</a> |
+| **设置与权限管控面板** | 模型渠道切换、权限规则引擎（自动/询问/旁路）与配置面板 | <a href="/inkstone/proto-05-settings.html" target="_blank" rel="noopener noreferrer">在新标签页打开 ↗</a> |
+| **原子级 UI 组件墙** | 按钮、标签、浮层、通知条与书口线设计规范 | <a href="/inkstone/proto-07-components.html" target="_blank" rel="noopener noreferrer">在新标签页打开 ↗</a> |
+| **会话验收评审报告卡片** | 交付物审查报告、验收清单与执行证据折叠卡片 | <a href="/inkstone/proto-10-review-report.html" target="_blank" rel="noopener noreferrer">在新标签页打开 ↗</a> |
 
 ---
 

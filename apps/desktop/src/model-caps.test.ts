@@ -16,11 +16,29 @@ describe('modelCaps', () => {
     expect(modelCaps(model, true).some((cap) => cap.key === 'chat')).toBe(false);
   });
 
-  it('does not label untagged Grok Imagine image/video ids as chat', () => {
+  it('does not infer an image chip from the model id alone', () => {
     expect(modelCaps({ id: 'grok-imagine-image-lite' }, true).map((cap) => cap.key)).toEqual([
-      'image',
+      'chat',
     ]);
     expect(modelCaps({ id: 'grok-imagine-video' }, true).map((cap) => cap.key)).toEqual(['video']);
+  });
+
+  it('shows chat and image together on hybrid models', () => {
+    expect(
+      modelCaps(
+        {
+          id: 'gemini-2.5-flash-image',
+          capabilities: ['chat', 'image-generation'],
+        },
+        true,
+      ).map((cap) => cap.key),
+    ).toEqual(['chat', 'image']);
+  });
+
+  it('drops the image chip once image-generation is removed from config', () => {
+    expect(modelCaps({ id: 'gemini-2.5-flash-image', capabilities: ['chat'] }, true).map((cap) => cap.key)).toEqual(
+      ['chat'],
+    );
   });
 
   it('does not treat image/video generators as chat vision', () => {

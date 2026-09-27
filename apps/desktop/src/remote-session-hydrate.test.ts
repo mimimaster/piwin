@@ -7,6 +7,7 @@ import {
   isOpaqueRemoteProjectId,
   isRemoteDesktopTransport,
   mapListedProjects,
+  mapListedWorktrees,
   mapListedSessionItems,
   mergeRecentProjects,
   remoteProjectFilesystemRoot,
@@ -168,6 +169,15 @@ describe('mapListedSessionItems', () => {
 });
 
 describe('mapListedProjects', () => {
+  it('maps discovered worktrees separately from remembered projects', () => {
+    expect(mapListedWorktrees({ worktrees: [
+      { gitRepositoryId: 'repo1', path: '/linked', branch: 'feat/x', isPrimary: false },
+      { path: '/invalid' },
+    ] })).toEqual([
+      { gitRepositoryId: 'repo1', path: '/linked', branch: 'feat/x', isPrimary: false },
+    ]);
+  });
+
   it('maps remote projectId + displayName onto a synthetic path key', () => {
     expect(
       mapListedProjects({

@@ -13,6 +13,7 @@ import {
   listProjects,
   listRememberedPermissions,
   openOrCreateProject,
+  rememberProjectCheckoutIdentities,
   removeProject,
   revokeRememberedPermission,
   saveProjectStore,
@@ -20,6 +21,25 @@ import {
 } from './project-store.js';
 
 describe('project-store', () => {
+  it('remembers checkout identity without freezing the current branch', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-project-checkout-'));
+    const filePath = join(dir, 'projects.json');
+    const project = await openOrCreateProject(filePath, '/tmp/checkout-project');
+    await rememberProjectCheckoutIdentities(filePath, [{
+      ...project,
+      gitRepositoryId: 'repo1',
+      gitRootPath: '/tmp/checkout-project',
+      isPrimaryWorktree: false,
+      currentBranch: 'feat/x',
+    }]);
+    expect((await listProjects(filePath))[0]).toMatchObject({
+      gitRepositoryId: 'repo1',
+      gitRootPath: '/tmp/checkout-project',
+      isPrimaryWorktree: false,
+    });
+    expect((await listProjects(filePath))[0]?.currentBranch).toBeUndefined();
+  });
+
   it('opens, trusts, and lists projects', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-project-'));
     const filePath = join(dir, 'projects.json');

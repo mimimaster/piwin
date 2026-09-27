@@ -17,6 +17,9 @@ Only **compatible** packages (tools / hooks / dialogs / notify / status) are
 enabled by default. Mixed TUI packages are **degraded** and TUI-only packages
 are **incompatible**: they stay in the list as 仅 Pi 终端 and are not loaded.
 
+For a verified end-to-end install walkthrough, see
+[安装 Pi 扩展：以 cc-safety-net 为例](./install-pi-extension.md).
+
 ## What works
 
 - Extra tools the model can call (`pi.registerTool`)

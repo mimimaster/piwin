@@ -68,9 +68,13 @@ describe('inkstone host bridge', () => {
     expect(relativeTime(undefined, NOW)).toBe('');
   });
 
-  it('formats message clocks as HH:MM', () => {
-    expect(formatClock('2026-09-05T09:32:00+08:00')).toBe('09:32');
+  it('formats message clocks as local HH:MM', () => {
+    // formatClock renders the device wall clock, so build the instants from local parts:
+    // a literal offset (e.g. +08:00) only round-trips on a machine in that timezone.
+    expect(formatClock(new Date(2026, 8, 5, 9, 5, 0).toISOString())).toBe('09:05');
+    expect(formatClock(new Date(2026, 8, 5, 21, 42, 0).toISOString())).toBe('21:42');
     expect(formatClock(undefined)).toBe('');
+    expect(formatClock('not-a-date')).toBe('');
   });
 
   it('groups sessions by project with status dots and pinned first', () => {

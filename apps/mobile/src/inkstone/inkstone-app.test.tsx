@@ -111,6 +111,26 @@ describe('InkstoneApp with a Host', () => {
     expect(document.querySelector('.host-card')).toBeNull();
   });
 
+  it('slides a session row left to reveal actions instead of a ⋮ button', () => {
+    const pinned: Array<[string, boolean]> = [];
+    const host = fakeHost({
+      handlePinSession: async (sessionId: string, isPinned: boolean) => {
+        pinned.push([sessionId, isPinned]);
+        return true;
+      },
+    });
+    rendered = renderInkstone(fakeHostContext(host));
+    expect(document.querySelector('[aria-label$="的更多操作"]')).toBeNull();
+    const content = document.querySelector('.swipe-content');
+    if (content === null) throw new Error('swipe row missing');
+    swipe(content, -160);
+    expect(content.closest('.swipe-row')?.querySelector('.swipe-actions')?.getAttribute('aria-hidden')).toBe('false');
+
+    click([...document.querySelectorAll('.swipe-action')].find((node) => node.textContent === '置顶'));
+    expect(pinned).toEqual([['s2', false]]);
+    expect(document.querySelector('.swipe-actions')?.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('shows no Live capsule when there is no Host call', () => {
     rendered = renderInkstone(fakeHostContext(), 'chat');
     expect(document.querySelector('.live-capsule')).toBeNull();
@@ -154,5 +174,18 @@ function typeMessage(text: string): void {
   act(() => {
     setter?.call(textarea, text);
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+function swipe(element: Element, dx: number): void {
+  const fire = (type: string, clientX: number, timeStamp: number) =>
+    element.dispatchEvent(
+      new PointerEvent(type, { bubbles: true, pointerId: 1, pointerType: 'touch', clientX, clientY: 100, timeStamp } as PointerEventInit),
+    );
+  act(() => {
+    fire('pointerdown', 300, 0);
+    fire('pointermove', 290, 16);
+    fire('pointermove', 300 + dx, 120);
+    fire('pointerup', 300 + dx, 140);
   });
 }

@@ -10,6 +10,7 @@ import type {
 } from '@piwin/contracts';
 import {
   AUTH_CLI_PROVIDER_IDS,
+  describeSubscriptionLoginFailure,
   getSubscriptionBillingNotice,
   isV1SubscriptionProviderId,
 } from '@piwin/contracts';
@@ -19,6 +20,15 @@ import { createWalkthroughHostClient } from './cli-host-clients.js';
 function authCliLocale(): 'zh-CN' | 'en' {
   const lang = process.env.LANG ?? process.env.LC_ALL ?? '';
   return /^zh/i.test(lang) ? 'zh-CN' : 'en';
+}
+
+/**
+ * Pi prints the browser success page before it exchanges the code, so the code
+ * is the only trustworthy signal; keep it in the message for reports.
+ */
+function formatAuthLoginFailure(errorCode: string | undefined): string {
+  const copy = describeSubscriptionLoginFailure(errorCode, authCliLocale());
+  return `${copy.message} (${copy.code})`;
 }
 
 function printSubscriptionBillingNotice(providerId: string): void {
@@ -98,7 +108,7 @@ async function loginInteractive(client: AuthHostClient, providerId: string): Pro
         if (message.result.ok) {
           resolve();
         } else {
-          reject(new Error(message.result.errorCode ?? 'login failed'));
+          reject(new Error(formatAuthLoginFailure(message.result.errorCode)));
         }
       }
     });

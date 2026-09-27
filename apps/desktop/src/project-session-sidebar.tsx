@@ -7,6 +7,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type {
   HostStatusData,
   ProjectRecord,
+  ProjectWorktreeListing,
   SessionListOrder,
   SessionScope,
 } from '@piwin/contracts';
@@ -63,9 +64,11 @@ function estimateSidebarTreeRowSize(row: SidebarTreeRow | undefined): number {
     case 'section-header':
       return SIDEBAR_SECTION_ROW_ESTIMATE_PX;
     case 'repo-group':
+    case 'unavailable-group':
     case 'time-group':
       return SIDEBAR_HINT_ROW_ESTIMATE_PX;
     case 'project-folder':
+    case 'unregistered-worktree':
     case 'no-repo-folder':
       return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
     case 'session':
@@ -98,6 +101,7 @@ export type ProjectSessionSidebarProps = {
   transportLabel: string;
   hostStatus: HostStatusData | null;
   recentProjects: ProjectRecord[];
+  worktrees?: ProjectWorktreeListing[];
   sessions: SessionListItemUi[];
   filteredSessions: SessionListItemUi[];
   /** General-scope sessions for the Conversations section (always visible). */
@@ -123,6 +127,7 @@ export type ProjectSessionSidebarProps = {
   settingsOpen: boolean;
   onOpenWorkspace?: () => void;
   onOpenProject: (path: string) => void;
+  onOpenWorktreeProject?: (path: string) => void;
   onOpenGeneral: () => void;
   /** Controlled pane: chat = Conversations, code = projects + No Repo. */
   sidebarMode?: SidebarMode;
@@ -210,6 +215,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const [projectsSectionExpanded, setProjectsSectionExpanded] = useState(true);
   const [conversationsSectionExpanded, setConversationsSectionExpanded] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
+  const [collapsedRepositories, setCollapsedRepositories] = useState<Record<string, boolean>>({});
+  const [unavailableGroupCollapsed, setUnavailableGroupCollapsed] = useState(false);
   const [projectSessionVisibleCounts, setProjectSessionVisibleCounts] = useState<
     Record<string, number>
   >({});
@@ -286,6 +293,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     () =>
       buildSidebarTreeRows({
         recentProjects: props.recentProjects,
+        ...(props.worktrees ? { worktrees: props.worktrees } : {}),
         ...(noRepoWorkspaceKey ? { noRepoProjectPath: noRepoWorkspaceKey } : {}),
         projectSessionsByPath: props.projectSessionsByPath ?? {},
         generalSessions: props.generalSessions,
@@ -296,6 +304,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         projectsSectionExpanded,
         conversationsSectionExpanded,
         collapsedProjects,
+        collapsedRepositories,
+        unavailableGroupCollapsed,
         projectSessionVisibleCounts,
         sessionListScopes: props.sessionListScopes ?? createSessionListScopeState(),
         activeProjectPath: props.projectPath,
@@ -314,6 +324,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       }),
     [
       collapsedProjects,
+      collapsedRepositories,
+      unavailableGroupCollapsed,
       conversationsSectionExpanded,
       groupBy,
       pinnedSectionExpanded,
@@ -327,6 +339,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       props.projectPath,
       props.projectSessionsByPath,
       props.recentProjects,
+      props.worktrees,
       props.backendServiceSessionIds,
       props.runPhase,
       props.sessionListScopes,
@@ -502,10 +515,15 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         onToggleProjectsSection={() => setProjectsSectionExpanded((expanded) => !expanded)}
         recentProjectsCount={props.recentProjects.length + 1}
         recentProjects={props.recentProjects}
+        onOpenWorktree={props.onOpenWorktreeProject ?? props.onOpenProject}
         projectPath={props.projectPath}
         filteredSessions={props.filteredSessions}
         projectSessionsByPath={props.projectSessionsByPath}
         collapsedProjects={collapsedProjects}
+        onToggleRepositoryCollapsed={(repositoryId, collapsed) => {
+          setCollapsedRepositories((previous) => ({ ...previous, [repositoryId]: !collapsed }));
+        }}
+        onToggleUnavailableGroup={() => setUnavailableGroupCollapsed((collapsed) => !collapsed)}
         onToggleProjectCollapsed={(projectPath, collapsed) => {
           if (!collapsed) {
             setProjectSessionVisibleCounts((previous) => {

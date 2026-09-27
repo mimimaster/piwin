@@ -359,6 +359,11 @@ export type ImageGenerationRegistryEntry = {
   label?: string;
   apiStyle: ImageGenerationApiStyle;
   path?: string;
+  /**
+   * When true, discovery also tags `chat` so the model stays in the session
+   * picker. Omit for auxiliary-only image models (DALL·E, FLUX, gpt-image).
+   */
+  chatSurface?: boolean;
 };
 
 /**
@@ -483,6 +488,7 @@ export const IMAGE_GENERATION_MODEL_REGISTRY: readonly ImageGenerationRegistryEn
     ],
     label: 'Gemini Image',
     apiStyle: 'gemini',
+    chatSurface: true,
   },
   {
     modelId: 'FLUX.1-schnell',

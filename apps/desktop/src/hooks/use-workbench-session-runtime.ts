@@ -184,7 +184,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     state.userMessageIndexEpoch,
   ]);
 
-  const { recentProjects, handleRemoveProjectFromSidebar } = useWorkbenchSessionLifecycle({
+  const { recentProjects, worktrees, handleRemoveProjectFromSidebar } = useWorkbenchSessionLifecycle({
     hostClient,
     hostReady: state.hostReady,
     projectPath: state.projectPath,
@@ -272,6 +272,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     handleSessionListOrderChange,
     handleSettingsOpenSubagentSession,
     recentProjects,
+    worktrees,
     handleRemoveProjectFromSidebar,
     saveSettingsInOrder,
     effectiveRunMode,

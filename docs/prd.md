@@ -112,6 +112,15 @@ creates an independent complete copy. Neither operation waits for AW-05 Pi
 native JSONL tree support. See
 [`session-fork-product-adaptation.md`](./specs/session-fork-product-adaptation.md).
 
+**Sidebar worktree navigation (2026-09-27):** Project conversations remain bound
+to their working directory. The Desktop groups real user worktrees by repository,
+shows each checkout's current Git branch as mutable status, and retains an
+unavailable workspace entry for sessions whose directory was removed. Opening
+an unregistered worktree registers that directory before starting or resuming
+its own sessions; it does not move sessions from another checkout. Repository
+groups and the unavailable-workspace group can be collapsed independently;
+search expands them to show matches.
+
 ### 4.1.1 Conversation multi-pane workspace (P1)
 
 | ID | Requirement | Priority |

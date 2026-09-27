@@ -480,8 +480,10 @@ describe('remote session/list projection', () => {
               isPrimaryWorktree: true,
               currentBranch: 'main',
               gitRootPath: '/home/host/work/app',
+              workspaceAvailability: 'missing',
             },
           ],
+          worktrees: [{ gitRepositoryId: 'abcd1234abcd1234', path: '/home/host/linked', branch: 'feature', isPrimary: false }],
         },
       },
       {
@@ -503,9 +505,18 @@ describe('remote session/list projection', () => {
           isPrimaryWorktree: true,
           currentBranch: 'main',
           gitRootPath: '/home/host/work/app',
+          workspaceAvailability: 'missing',
         },
       ],
     });
+    expect((projected.data as { worktrees?: unknown }).worktrees).toEqual([
+      {
+        gitRepositoryId: 'abcd1234abcd1234',
+        path: '/home/host/linked',
+        branch: 'feature',
+        isPrimary: false,
+      },
+    ]);
   });
 });
 

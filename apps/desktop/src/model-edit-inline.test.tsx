@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { ModelCatalogEntry } from '@piwin/contracts';
+import type { ModelCatalogEntry, ModelConfigEntry } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ModelEditInline } from './model-edit-inline.js';
 
@@ -189,7 +189,7 @@ describe('ModelEditInline', () => {
     );
   });
 
-  it('pre-checks image generation instead of reasoning for Grok Imagine image ids', () => {
+  it('does not pre-check image generation from the model id alone', () => {
     render(
       <ModelEditInline
         model={{ id: 'grok-imagine-image-lite' }}
@@ -201,13 +201,81 @@ describe('ModelEditInline', () => {
       />,
     );
 
-    expect(input('model-edit-image-generation').checked).toBe(true);
+    expect(input('model-edit-image-generation').checked).toBe(false);
     expect(input('model-edit-reasoning').checked).toBe(false);
     expect(input('model-edit-video-generation').checked).toBe(false);
-    expect(query<HTMLSelectElement>('[data-testid="model-edit-image-api-style"]')?.value).toBe(
-      'openai',
+  });
+
+  it('keeps the image-generation checkbox off after it was saved off', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{
+          id: 'gemini-2.5-flash-image',
+          capabilities: ['chat'],
+        }}
+        providerProtocol="openai-compatible"
+        disabled={false}
+        isChinese
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
     );
-    expect(input('model-edit-image-path').value).toBe('/images/generations');
+
+    expect(input('model-edit-image-generation').checked).toBe(false);
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        supportsImageGeneration: false,
+      }),
+    );
+  });
+
+  it('does not bounce image generation back on after save while config is catching up', () => {
+    const onSave = vi.fn();
+    const model: ModelConfigEntry = {
+      id: 'gemini-3.8-flash-high',
+      capabilities: ['chat', 'image-generation'],
+      reasoning: true,
+    };
+    const { root } = render(
+      <ModelEditInline
+        model={model}
+        providerProtocol="openai-compatible"
+        disabled={false}
+        isChinese
+        searchCatalog={async () => []}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(input('model-edit-image-generation').checked).toBe(true);
+    click('[data-testid="model-edit-image-generation"]');
+    expect(input('model-edit-image-generation').checked).toBe(false);
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        supportsImageGeneration: false,
+      }),
+    );
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ModelEditInline
+            model={model}
+            providerProtocol="openai-compatible"
+            disabled={false}
+            isChinese
+            searchCatalog={async () => []}
+            onSave={onSave}
+            onCancel={vi.fn()}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(input('model-edit-image-generation').checked).toBe(false);
   });
 
   it('fills xGrok video protocol for grok-imagine-video on an Anthropic channel', () => {

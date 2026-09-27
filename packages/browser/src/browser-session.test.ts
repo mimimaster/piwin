@@ -143,7 +143,7 @@ describe('lazy launch', () => {
 
   it('launches headless once and reuses the page across operations', async () => {
     const { page } = installWorkingBrowser();
-    const session = createBrowserSession();
+    const session = createBrowserSession({ deviceScaleFactor: 2 });
 
     await session.navigate('https://example.com');
     await session.click('e5'); // aria ref -> aria-ref locator

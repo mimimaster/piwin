@@ -1347,6 +1347,70 @@ describe('ProjectSessionSidebar settings prefetch', () => {
 });
 
 describe('ProjectSessionSidebar repo grouping', () => {
+  it('opens a discovered worktree using the existing folder row design', () => {
+    const onOpenProject = vi.fn();
+    const now = new Date().toISOString();
+    const { container } = renderSidebar({
+      projectPath: '/repo',
+      recentProjects: [{
+        path: '/repo', trust: 'trusted', lastOpenedAt: now, createdAt: now,
+        gitRepositoryId: 'repo1', gitRootPath: '/repo', currentBranch: 'main',
+      }],
+      worktrees: [
+        { gitRepositoryId: 'repo1', path: '/repo', branch: 'main', isPrimary: true },
+        { gitRepositoryId: 'repo1', path: '/linked', branch: 'feat/x', isPrimary: false },
+      ],
+      onOpenProject,
+    });
+    const row = container.querySelector<HTMLButtonElement>('[data-testid="unregistered-worktree-item"]');
+    expect(row?.textContent).toContain('feat/x');
+    act(() => row?.click());
+    expect(onOpenProject).toHaveBeenCalledWith('/linked');
+  });
+
+  it('labels a missing worktree while keeping its session row', () => {
+    const now = new Date().toISOString();
+    const { container } = renderSidebar({
+      projectPath: '/repo',
+      recentProjects: [
+        { path: '/repo', trust: 'trusted', lastOpenedAt: now, createdAt: now },
+        { path: '/old-worker', trust: 'trusted', lastOpenedAt: now, createdAt: now,
+          workspaceAvailability: 'missing' },
+      ],
+      projectSessionsByPath: {
+        '/old-worker': [{ id: 'old-session', name: 'Old session', updatedAt: now,
+          isPinned: false, isArchived: false }],
+      },
+      activeSessionId: 'old-session',
+    });
+    expect(container.querySelector('[data-testid="sidebar-unavailable-group"]')).not.toBeNull();
+    expect(container.querySelector('[data-project-path="/old-worker"]')?.textContent).toContain('Unavailable');
+    expect(container.querySelector('[data-session-id="old-session"]')).not.toBeNull();
+  });
+
+  it('toggles the unavailable workspace group', () => {
+    const now = new Date().toISOString();
+    const { container } = renderSidebar({
+      projectPath: '/repo',
+      recentProjects: [
+        { path: '/repo', trust: 'trusted', lastOpenedAt: now, createdAt: now },
+        { path: '/removed', trust: 'trusted', lastOpenedAt: now, createdAt: now,
+          workspaceAvailability: 'missing' },
+      ],
+    });
+    const group = container.querySelector<HTMLButtonElement>('[data-testid="sidebar-unavailable-group"]');
+    expect(group?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-project-path="/removed"]')).not.toBeNull();
+
+    act(() => group?.click());
+    expect(group?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-project-path="/removed"]')).toBeNull();
+
+    act(() => group?.click());
+    expect(group?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-project-path="/removed"]')).not.toBeNull();
+  });
+
   it('renders a repo group label and branch names for linked worktrees', () => {
     const now = new Date().toISOString();
     const { container } = renderSidebar({
@@ -1381,6 +1445,31 @@ describe('ProjectSessionSidebar repo grouping', () => {
     );
     expect(names.some((text) => text?.includes('piwin') && text.includes('main'))).toBe(true);
     expect(names.some((text) => text?.includes('piwin-cc') && text.includes('plan/x'))).toBe(true);
+  });
+
+  it('toggles a repository group while keeping its label visible', () => {
+    const now = new Date().toISOString();
+    const { container } = renderSidebar({
+      projectPath: '/repo',
+      recentProjects: [
+        { path: '/repo', trust: 'trusted', lastOpenedAt: now, createdAt: now,
+          gitRepositoryId: 'repo1', isPrimaryWorktree: true, currentBranch: 'main' },
+        { path: '/linked', trust: 'trusted', lastOpenedAt: now, createdAt: now,
+          gitRepositoryId: 'repo1', currentBranch: 'feature' },
+      ],
+    });
+    const group = container.querySelector<HTMLButtonElement>('[data-testid="sidebar-repo-group"]');
+    expect(group?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-project-path="/linked"]')).not.toBeNull();
+
+    act(() => group?.click());
+    expect(group?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-project-path="/linked"]')).toBeNull();
+    expect(group?.textContent).toContain('repo');
+
+    act(() => group?.click());
+    expect(group?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-project-path="/linked"]')).not.toBeNull();
   });
 
   it('does not nest unrelated projects under a worktree group', () => {

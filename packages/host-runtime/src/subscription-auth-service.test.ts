@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CLAUDE_CODE_OAUTH_PROVIDER_ID, type HostPush, type PiwinConfig } from '@piwin/contracts';
 import type { SubscriptionAuthPort } from '@piwin/agent-host';
 import { createDefaultPiwinConfig } from './config-store.js';
@@ -66,6 +66,16 @@ function grokSubscriptionProvider(
     ],
     ...overrides,
   };
+}
+
+/** Login bookkeeping runs off the command; poll instead of racing a fixed sleep. */
+async function waitForPush(pushes: readonly HostPush[], type: HostPush['type']): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (pushes.some((message) => message.type === type)) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }
 
 describe('SubscriptionAuthService', () => {
@@ -517,5 +527,77 @@ describe('SubscriptionAuthService', () => {
     expect(result).toEqual(expect.objectContaining({ loginId: expect.any(String) }));
     expect(config.providers.map((provider) => provider.id)).toEqual(['openai-codex-api']);
     expect(config.providers[0]?.name).toBe('Codex Key（API Key）');
+  });
+
+  it('clears the login gate and reports a failure when the auth port cannot be created', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const pushes: HostPush[] = [];
+      const config: PiwinConfig = createDefaultPiwinConfig();
+      const service = new SubscriptionAuthService(
+        {},
+        {
+          createPort: async () => {
+            throw new Error('pi runtime unavailable');
+          },
+          loadConfig: async () => config,
+          saveConfig: async () => undefined,
+        },
+      );
+      service.bindPush((message) => {
+        pushes.push(message);
+      });
+      await expect(
+        service.login({ providerId: 'xai', ownerDeviceId: 'desktop-1' }),
+      ).resolves.toEqual(expect.objectContaining({ loginId: expect.any(String) }));
+      await waitForPush(pushes, 'auth/login-finished');
+      expect(
+        pushes.find((message) => message.type === 'auth/login-finished'),
+      ).toMatchObject({
+        result: { providerId: 'xai', ok: false, errorCode: 'provider-authentication' },
+      });
+      // The gate must be open again, otherwise every later attempt is auth-busy.
+      await expect(
+        service.login({ providerId: 'xai', ownerDeviceId: 'desktop-1' }),
+      ).resolves.toEqual(expect.objectContaining({ loginId: expect.any(String) }));
+    } finally {
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('keeps a stored credential usable when post-login bookkeeping throws', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const pushes: HostPush[] = [];
+      const config: PiwinConfig = createDefaultPiwinConfig();
+      const service = new SubscriptionAuthService(
+        { port: loggedInXaiPort() },
+        {
+          loadConfig: async () => config,
+          saveConfig: async () => {
+            throw new Error('config write failed');
+          },
+        },
+      );
+      service.bindPush((message) => {
+        pushes.push(message);
+      });
+      await service.login({ providerId: 'xai', ownerDeviceId: 'desktop-1' });
+      await waitForPush(pushes, 'auth/login-finished');
+      expect(
+        pushes.find((message) => message.type === 'auth/login-finished'),
+      ).toMatchObject({ result: { providerId: 'xai', ok: true } });
+      // Credential is on disk: the account must not read as logged-out.
+      const status = await service.status();
+      expect(status.accounts.find((account) => account.providerId === 'xai')?.state).toBe(
+        'sync-error',
+      );
+    } finally {
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
   });
 });

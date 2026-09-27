@@ -170,7 +170,7 @@ describe('model configuration', () => {
         reasoning: true,
         thinkingLevels: ['off', 'low', 'medium', 'high', 'max'],
         thinkingLevel: 'max',
-        capabilities: ['image-generation'],
+        capabilities: ['image-generation', 'chat'],
         routes: {
           'image-generation': {
             apiStyle: 'openai',
@@ -209,6 +209,18 @@ describe('model configuration', () => {
     );
 
     expect(next?.[0]?.capabilities).toEqual(['image-generation', 'video-generation']);
+  });
+
+  it('keeps chat when image generation is added to a chat model', () => {
+    const next = applyModelConfigurationDraft(
+      [{ id: 'gemini-3.1-pro-low' }],
+      'gemini-3.1-pro-low',
+      {
+        ...createModelConfigurationDraft({ id: 'gemini-3.1-pro-low' }),
+        supportsImageGeneration: true,
+      },
+    );
+    expect(next?.[0]?.capabilities).toEqual(['image-generation', 'chat']);
   });
 
   it('removes video-generation when the capability is unchecked', () => {
@@ -395,12 +407,25 @@ describe('model configuration', () => {
       undefined,
       'anthropic-compatible',
     );
-    expect(draft.supportsImageGeneration).toBe(true);
+    expect(draft.supportsImageGeneration).toBe(false);
     expect(draft.supportsVideoGeneration).toBe(false);
     expect(draft.reasoning).toBe(false);
     expect(draft.thinkingLevels).toEqual([]);
     expect(draft.imageApiStyle).toBe('openai');
     expect(draft.imagePath).toBe('/images/generations');
+  });
+
+  it('does not re-check image generation from the model id after it was turned off', () => {
+    const original: ModelConfigEntry = {
+      id: 'gemini-2.5-flash-image',
+      capabilities: ['chat', 'image-generation'],
+    };
+    const next = applyModelConfigurationDraft([original], original.id, {
+      ...createModelConfigurationDraft(original),
+      supportsImageGeneration: false,
+    });
+    expect(next?.[0]?.capabilities).toEqual(['chat']);
+    expect(createModelConfigurationDraft(next![0]!).supportsImageGeneration).toBe(false);
   });
 
   it('prefers explicit thinkingLevels over protocol defaults in the draft', () => {
