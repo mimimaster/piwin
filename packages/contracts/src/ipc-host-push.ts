@@ -7,7 +7,11 @@ import type {
   PermissionDecision,
   SessionSummary,
 } from './host.js';
-import type { ExtensionUiKind } from './extension-ui.js';
+import type {
+  ExtensionUiKind,
+  ExtensionUiNoticeLevel,
+  ExtensionUiSurfaceSnapshot,
+} from './extension-ui.js';
 import type {
   BrowserControllerPush,
   BrowserFramePush,
@@ -179,6 +183,15 @@ export type HostPushVariant =
       message?: string;
       options?: string[];
       placeholder?: string;
+    }
+  /** ADR 0078: full extension surface of one session; idempotent for every client. */
+  | { type: 'extension/ui_surface'; snapshot: ExtensionUiSurfaceSnapshot }
+  /** ADR 0078: one-shot `ctx.ui.notify` from an extension. Not state. */
+  | {
+      type: 'extension/ui_notice';
+      sessionId: string;
+      message: string;
+      level: ExtensionUiNoticeLevel;
     }
   | { type: 'pet/state'; pet: PetRuntimeSnapshot }
   // width/height are CSS viewport px (screencast deviceWidth/Height or

@@ -1,6 +1,19 @@
-/** Live marketplace search: npm `pi-package` plus GitHub `topic:pi-package`. */
+/**
+ * Live marketplace search: the piwin extension registry (ADR 0077), npm
+ * `pi-package`, and GitHub `topic:pi-package`.
+ */
 
-export type MarketplaceSearchSource = 'npm-pi-package' | 'github';
+export type MarketplaceSearchSource = 'piwin-registry' | 'npm-pi-package' | 'github';
+
+/** Registry facts a client needs to label and install a `piwin-registry` hit. */
+export type MarketplaceRegistryHitInfo = {
+  /** `<owner>/<name>`; install with `extensions/install` `{ kind: 'registry', id, version }`. */
+  id: string;
+  owners: string[];
+  commit: string;
+  license: string;
+  forkOf?: { id: string; version: string };
+};
 
 /** Installable Pi package sources returned by the live ecosystem search. */
 export type MarketplacePiPackageSource =
@@ -20,6 +33,8 @@ export type MarketplaceSearchHit = {
   homepage?: string;
   publisher?: string;
   monthlyDownloads?: number;
+  /** Present exactly when `source === 'piwin-registry'`. */
+  registry?: MarketplaceRegistryHitInfo;
 };
 
 export type MarketplaceSearchResult = {

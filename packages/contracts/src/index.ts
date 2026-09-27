@@ -58,6 +58,7 @@ export * from './session-cold-storage.js';
 export * from './session-pause.js';
 export * from './extensions.js';
 export * from './extension-compatibility.js';
+export * from './extension-registry.js';
 export * from './pi-environment.js';
 export * from './prompts.js';
 export * from './mcp.js';

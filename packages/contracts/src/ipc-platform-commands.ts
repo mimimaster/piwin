@@ -19,6 +19,7 @@ import type {
 } from './preview.js';
 import type { SpeechTranscribeInput } from './speech.js';
 import type { InstallSource } from './mcp.js';
+import type { ExtensionInstallSource } from './extension-registry.js';
 import type {
   GitBranchCreateInput,
   GitCheckoutInput,
@@ -264,7 +265,8 @@ export type PlatformHostCommand =
   | {
       id?: string;
       type: 'extensions/install';
-      source: InstallSource;
+      /** `registry` resolves through the extension registry index (ADR 0077). */
+      source: ExtensionInstallSource;
       name?: string;
     }
   | { id?: string; type: 'prompts/list'; projectPath?: string }
@@ -554,6 +556,8 @@ export type PlatformHostCommand =
       value?: string;
       cancelled?: boolean;
     }
+  /** ADR 0078: current extension status/widget snapshot for a late-attaching client. */
+  | { id?: string; type: 'extension/ui_surface_get'; sessionId: string }
   | { id?: string; type: 'browser/start'; leaseId?: string }
   | { id?: string; type: 'browser/navigate'; url: string }
   | { id?: string; type: 'browser/pick-at'; x: number; y: number; target?: BrowserTargetIdentity }

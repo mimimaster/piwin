@@ -309,6 +309,8 @@ export type ExtensionsInstallData = {
   contentRevision?: string;
   registryRevision?: string;
   configuredEnabled?: boolean;
+  /** Registry installs (ADR 0077): the exact version and commit staged. */
+  registry?: { id: string; version: string; commit: string };
 };
 
 export type ExtensionsApplyData = {
