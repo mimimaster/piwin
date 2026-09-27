@@ -1,11 +1,14 @@
 import { EXTENSION_COMPAT_NOTE } from './extension-compat-note.js';
 import {
+  createExtensionRevisionStore,
   ensureBundledExtensionsInstalled,
   getPiwinRoot,
   installExtension,
+  installExtensionFromSource,
   loadDiscoveredResources,
   loadPiwinConfig,
 } from '@piwin/host-runtime';
+import { parseRegistryReference } from '@piwin/marketplace';
 import { resolve } from 'node:path';
 import { parseProject, readOption } from './cli-args.js';
 
@@ -58,6 +61,20 @@ export async function commandExtension(argv: string[]): Promise<void> {
     const name = readOption(argv, '--name');
     const subdir = readOption(argv, '--subdir');
     const ref = readOption(argv, '--ref');
+    const registryReference = readOption(argv, '--registry');
+    if (registryReference) {
+      const result = await installExtensionFromSource({
+        piwinRoot: root,
+        source: { kind: 'registry', ...parseRegistryReference(registryReference) },
+        ...(name ? { name } : {}),
+      });
+      console.log(EXTENSION_COMPAT_NOTE);
+      console.log(
+        `installed extension ${result.extensionId} (${result.registry?.id}@${result.registry?.version}, commit ${result.registry?.commit}) -> ${result.targetPath}`,
+      );
+      console.log(`installed extensions start disabled; run: piwin extension enable ${result.extensionId}`);
+      return;
+    }
     if (localPath) {
       const installOptions: Parameters<typeof installExtension>[0] = {
         piwinRoot: root,
@@ -86,13 +103,34 @@ export async function commandExtension(argv: string[]): Promise<void> {
       return;
     }
     console.error(
-      'Usage: piwin extension install --local <file|dir> | --git <url> [--subdir <path>] [--ref <branch|tag>] [--name <id>]',
+      'Usage: piwin extension install --registry <owner>/<name>[@version] | --local <file|dir> | --git <url> [--subdir <path>] [--ref <branch|tag>] [--name <id>]',
     );
     process.exitCode = 1;
     return;
   }
 
+  if (sub === 'enable' || sub === 'disable') {
+    const extensionId = argv[2];
+    if (!extensionId) {
+      console.error(`Usage: piwin extension ${sub} <extension-id>`);
+      process.exitCode = 1;
+      return;
+    }
+    const store = createExtensionRevisionStore(root);
+    if (!(await store.getRecord(extensionId))) {
+      console.error(
+        `${extensionId} is not a managed extension; toggle Pi-native or bundled extensions in Settings → Extensions`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    // Enabling runs third-party code with this user's OS privileges (ADR 0047).
+    await store.setEnabled(extensionId, sub === 'enable');
+    console.log(`${sub}d ${extensionId}; new sessions pick it up`);
+    return;
+  }
+
   console.error(`Unknown extension subcommand: ${sub}`);
-  console.error('Usage: piwin extension list | ensure-bundled | install');
+  console.error('Usage: piwin extension list | ensure-bundled | install | enable | disable');
   process.exitCode = 1;
 }
