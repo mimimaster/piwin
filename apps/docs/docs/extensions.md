@@ -70,8 +70,14 @@ Piwin 原生兼容主流 MCP 服务：
 | **事件 Hook (Event Hooks)** | 完全支持 | `session_before_compact`、消息拦截、状态监听等 Hook 完整生效。 |
 | **Provider 自定义扩展** | 完全支持 | 支持接入第三方模型或服务的 Provider 扩展。 |
 | **交互对话框 (Dialogs)** | 完全支持 | 基础的确认（Confirm）、选择（Select）、输入（Input）与通知（Notify）弹窗正常由桌面端原生渲染。 |
+| **状态与文本面板** | 完全支持 | `setStatus` 显示为输入框下方的状态标签，文本形式的 `setWidget` 显示在输入框上方或下方。 |
+| **斜杠命令** | 完全支持 | `registerCommand` 注册的命令出现在输入框 `/` 菜单的「扩展」分组。 |
 | **混合界面扩展** | 部分可用 | 若扩展主要提供 Agent 工具但附带少量终端界面代码，Piwin 会标记为“部分可用”：工具能力正常工作，终端 TUI 界面被安全忽略。 |
 | **纯终端 TUI 扩展** | 不支持 | 仅修改 Pi 终端 TUI、终端主题、终端快捷键、字符编辑器的扩展无法在 Desktop 中启用。 |
+
+::: tip 想把 Pi 终端扩展改造成 piwin 可用？
+看 [Pi 扩展开发与 piwin 适配指南](/docs/extension-development)：能力对照表、逐项替换方法、完整改造示例，以及打包、调试、一键发布到扩展仓库。
+:::
 
 ::: warning 关于重载方法的注意
 扩展代码中自带的 `ctx.reload()` 并不会直接硬重启当前 Desktop 运行时；在桌面端中，请在扩展管理卡片上点击 **「应用到当前 Agent」** 进行平滑热生效。

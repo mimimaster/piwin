@@ -92,6 +92,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: '扩展、Skill 与 MCP 生态', link: '/docs/extensions' },
+            { text: 'Pi 扩展开发与 piwin 适配', link: '/docs/extension-development' },
             { text: '权限管控与安全拦截', link: '/docs/permissions' },
             { text: '知识库与多媒体资料库', link: '/docs/knowledge-and-media' },
             { text: '会话管理、归档与用量统计', link: '/docs/session-and-stats' },

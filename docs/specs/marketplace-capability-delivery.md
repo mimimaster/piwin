@@ -23,7 +23,7 @@
 
 ## 2. 非目标
 
-- 不建设 piwin 公共托管市场、作者后台、评分、支付或分成。
+- ~~不建设 piwin 公共托管市场、作者后台、评分、支付或分成。~~ 2026-09-27 起由 [ADR 0077](../adr/0077-github-extension-registry.md) 取代：扩展（仅扩展）通过 GitHub 仓库 `piwin-extensions` 提 PR 上架，不建托管服务、账号体系、评分或支付。
 - 不自动收录整个 Pi、npm、GitHub 或 MCP 生态。
 - 不为 Plugin 创建新的执行环境；Plugin 仍是 Skill、MCP 和密钥声明的组合包。
 - 不把 Pi TUI 扩展自动改写成 Desktop 组件。
