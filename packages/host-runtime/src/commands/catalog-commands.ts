@@ -25,7 +25,8 @@ import {
 } from '../settings/settings-service.js';
 import { isSubscriptionProvider, isV1SubscriptionProviderId } from '@piwin/contracts';
 import { createMediaService } from '@piwin/media';
-import { createExtensionRevisionStore, installExtension } from '@piwin/extensions';
+import { createExtensionRevisionStore } from '@piwin/extensions';
+import { installExtensionFromSource } from '../marketplace/extension-registry-install.js';
 import {
   ensureBundledSkillsInstalled,
   installSkill,
@@ -428,14 +429,12 @@ export async function handleCatalogCommand(
     }
     case 'extensions/install': {
       const rootDir = getPiwinRoot(context.piwinRoot);
-      const installOptions: Parameters<typeof installExtension>[0] = {
+      const name = typeof command.name === 'string' ? command.name.trim() : '';
+      const result = await installExtensionFromSource({
         piwinRoot: rootDir,
         source: command.source,
-      };
-      if (typeof command.name === 'string' && command.name.trim()) {
-        installOptions.name = command.name.trim();
-      }
-      const result = await installExtension(installOptions);
+        ...(name ? { name } : {}),
+      });
       await pushExtensionCatalog(context, rootDir, result.registryRevision);
       return ok(requestId, 'extensions/install', {
         extensionId: result.extensionId,
@@ -444,6 +443,7 @@ export async function handleCatalogCommand(
         contentRevision: result.contentRevision,
         registryRevision: result.registryRevision,
         configuredEnabled: result.configuredEnabled,
+        ...(result.registry ? { registry: result.registry } : {}),
       });
     }
     case 'prompts/list': {

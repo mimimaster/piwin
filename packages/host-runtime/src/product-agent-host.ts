@@ -16,6 +16,7 @@ import type {
   SessionToolFamily,
   ExtensionUiRequest,
   ExtensionUiResponse,
+  ExtensionUiSurfaceUpdate,
 } from '@piwin/contracts';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 import {
@@ -115,6 +116,10 @@ type ProductAgentHostCommonOptions = {
   requestExtensionUi?: (
     input: ExtensionUiRequest & { sessionId: string },
   ) => Promise<ExtensionUiResponse>;
+  /** ADR 0078: extension status/widget/notice updates, keyed by product session. */
+  publishExtensionUi?: (sessionId: string, update: ExtensionUiSurfaceUpdate) => void;
+  /** ADR 0078: a new runtime generation starts with an empty extension surface. */
+  resetExtensionUi?: (sessionId: string) => void;
   /** Explicit timing fixture used by HostRuntime tests, never production. */
   testFixture?: HostRuntimeTestFixture;
 };
@@ -361,6 +366,7 @@ export class ProductAgentHost implements AgentHost {
     }
     const hostToolExecution = this.options.hostToolExecution;
     const requestExtensionUi = this.options.requestExtensionUi;
+    const publishExtensionUi = this.options.publishExtensionUi;
     if (!hostToolExecution) {
       throw new Error(
         'ProductAgentHost requires a parent-owned HostToolExecutionPort in non-mock mode',
@@ -453,6 +459,7 @@ export class ProductAgentHost implements AgentHost {
         compiled.sessionBlueprint.capabilitySnapshot.tools.enabledFamilies.includes('mcp'),
       );
 
+      this.options.resetExtensionUi?.(sessionId);
       const backendHandle = await this.backend.createSession({
         blueprint: compiled.sessionBlueprint.backendBlueprint,
         providers: compiled.providers,
@@ -463,6 +470,12 @@ export class ProductAgentHost implements AgentHost {
               extensionUi: {
                 request: (request: ExtensionUiRequest) =>
                   requestExtensionUi({ ...request, sessionId }),
+                ...(publishExtensionUi
+                  ? {
+                      publish: (update: ExtensionUiSurfaceUpdate) =>
+                        publishExtensionUi(sessionId, update),
+                    }
+                  : {}),
               },
             }
           : {}),

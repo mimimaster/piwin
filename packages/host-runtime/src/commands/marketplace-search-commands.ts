@@ -1,5 +1,6 @@
 /** Host IPC: search, install and remove npm/GitHub Pi packages. */
 import type {
+  ExtensionRegistryIndex,
   HostCommand,
   HostResponse,
   MarketplacePackageRemoveData,
@@ -8,6 +9,7 @@ import type {
 import { formatError } from '@piwin/contracts';
 import { installPiPackage, removePiPackage } from '@piwin/agent-host';
 import { searchMarketplaceSources } from '@piwin/marketplace';
+import { getSharedExtensionRegistryLoader } from '../marketplace/extension-registry-install.js';
 import { resolvePiPackageSource } from '../marketplace/pi-package-source.js';
 import { fail, ok } from '../response-helpers.js';
 import { getPiAgentDir, getPiwinRoot } from '../paths.js';
@@ -23,6 +25,8 @@ export type MarketplaceSearchCommandDeps = {
   piwinRoot?: string;
   agentDir?: string;
   installPackage?: typeof installPiPackage;
+  /** Registry index source; defaults to the shared cached loader. */
+  loadRegistryIndex?: (signal?: AbortSignal) => Promise<ExtensionRegistryIndex>;
   removePackage?: typeof removePiPackage;
 };
 
@@ -77,6 +81,8 @@ export async function handleMarketplaceSearchCommand(
       ...(command.limit !== undefined ? { limit: command.limit } : {}),
       ...(deps.fetch ? { fetch: deps.fetch } : {}),
       ...(githubToken ? { githubToken } : {}),
+      loadRegistryIndex:
+        deps.loadRegistryIndex ?? ((signal) => getSharedExtensionRegistryLoader().load(signal)),
     });
     return ok(requestId, 'marketplace/search', result);
   } catch (error) {

@@ -17,6 +17,7 @@ import type {
 } from '@piwin/contracts';
 import { type ExtensionUiKind, type ExtensionUiResponse, AgentWorkerSupervisor } from '@piwin/agent-host';
 import { createEventEnvelopeGenerator } from './host-event-envelope.js';
+import { ExtensionUiSurfaceStore } from './extension-ui-surface-store.js';
 import { FetchCache } from '@piwin/tools-web';
 import {
   DEFAULT_SUBAGENT_MAX_CONCURRENCY,
@@ -231,6 +232,8 @@ export class HostRuntimeFields {
       sessionId: string;
     }
   >();
+  /** ADR 0078: extension status/widget state per session, pushed as snapshots. */
+  extensionUiSurfaces = new ExtensionUiSurfaceStore({ push: (push) => this.push(push) });
   transcriptRecorders = new Map<string, TranscriptRecorder>();
   transcriptStores = undefined as unknown as SessionTranscriptStoreRegistry;
   mcpManager: McpLifecycleManager | null = null;

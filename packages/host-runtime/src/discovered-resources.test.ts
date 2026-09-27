@@ -45,7 +45,7 @@ async function seedPiwinAndPi(): Promise<{ piwinRoot: string; agentDir: string }
   );
   await writeFile(
     join(agentDir, 'extensions', 'mixed-agent.ts'),
-    "pi.registerTool({ name: 'agent_tool' });\nctx.ui.setStatus('mixed', 'ready');\n",
+    "pi.registerTool({ name: 'agent_tool' });\nctx.ui.setFooter(() => footer);\n",
     'utf8',
   );
   return { piwinRoot, agentDir };

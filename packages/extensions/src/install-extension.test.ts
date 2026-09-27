@@ -116,3 +116,44 @@ describe('installExtension git errors', () => {
     expect(await readFile(join(result.targetPath, 'index.ts'), 'utf8')).toContain('export default');
   });
 });
+
+describe('installExtension pinned commit', () => {
+  it('stages exactly the pinned commit, not the branch head, without git metadata', async () => {
+    const repo = await makeGitRepo({ 'index.ts': 'export const release = "v1";\n' });
+    const { stdout } = await run('git', ['rev-parse', 'HEAD'], { cwd: repo });
+    const pinned = stdout.trim();
+    await writeFile(join(repo, 'index.ts'), 'export const release = "v2";\n', 'utf8');
+    await run('git', ['commit', '-q', '-am', 'v2'], { cwd: repo });
+
+    const root = await mkdtemp(join(tmpdir(), 'piwin-ext-pinned-'));
+    const result = await installExtension({
+      piwinRoot: root,
+      source: { kind: 'git', url: repo },
+      pinnedCommit: pinned,
+      name: 'alice-pinned',
+      version: '1.0.0',
+      sourceLocator: `registry:alice/pinned@1.0.0 git:${repo}@${pinned}`,
+    });
+    expect(result.extensionId).toBe('alice-pinned');
+    expect(await readFile(join(result.packageRoot, 'index.ts'), 'utf8')).toContain('"v1"');
+    await expect(readFile(join(result.packageRoot, '.git', 'HEAD'), 'utf8')).rejects.toThrow();
+  });
+
+  it('refuses short SHAs and ref + commit combinations', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-ext-pinned-bad-'));
+    await expect(
+      installExtension({
+        piwinRoot: root,
+        source: { kind: 'git', url: 'https://github.com/a/b' },
+        pinnedCommit: 'abc123',
+      }),
+    ).rejects.toThrow(/full 40-hex SHA/);
+    await expect(
+      installExtension({
+        piwinRoot: root,
+        source: { kind: 'git', url: 'https://github.com/a/b', ref: 'main' },
+        pinnedCommit: 'a'.repeat(40),
+      }),
+    ).rejects.toThrow(/cannot be combined with a ref/);
+  });
+});

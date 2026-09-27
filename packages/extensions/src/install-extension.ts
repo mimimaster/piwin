@@ -25,7 +25,18 @@ export type InstallExtensionOptions = {
   source: InstallSource;
   /** Override display/directory name in the managed registry. */
   name?: string;
+  /**
+   * Git only: fetch exactly this full commit SHA instead of the default branch
+   * or `ref`, and fail unless the checkout matches it (ADR 0077).
+   */
+  pinnedCommit?: string;
+  /** Recorded on the revision; defaults to the package.json version. */
+  version?: string;
+  /** Recorded provenance; defaults to `git:<url>@<commit>`. */
+  sourceLocator?: string;
 };
+
+const FULL_COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 
 /**
  * Acquire a Pi extension into the Host-owned immutable revision store.
@@ -68,20 +79,14 @@ async function installExtensionFromGit(
   },
 ): Promise<InstallExtensionResult> {
   const clonePath = await mkdtemp(`${tmpdir()}/piwin-extension-git-`);
-  const args = ['clone', '--depth', '1'];
-  if (options.source.ref) {
-    args.push('--branch', options.source.ref);
-  }
-  // `--` keeps a URL that begins with `-` from being read as a git option.
-  args.push('--', options.source.url, clonePath);
   try {
-    await execFileAsync('git', args, { timeout: 120_000 });
+    const resolvedCommit = await acquireGitTree(clonePath, options.source, options.pinnedCommit);
     const contentRoot = resolve(clonePath, normalizeRepositorySubdir(options.source.subdir));
-    const resolvedCommit = await readGitCommit(clonePath);
-    const sourceLocator = `git:${options.source.url}@${resolvedCommit}`;
+    const sourceLocator = options.sourceLocator ?? `git:${options.source.url}@${resolvedCommit}`;
     const staged = await store.stage({
       sourcePath: contentRoot,
       ...(options.name ? { name: options.name } : {}),
+      ...(options.version ? { version: options.version } : {}),
       source: 'user',
       sourceLocator,
     });
@@ -107,6 +112,50 @@ async function installExtensionFromGit(
   } finally {
     await rm(clonePath, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+/**
+ * Materialize the repository tree at `clonePath` and return its commit. Git
+ * metadata is removed afterwards so it never enters the content revision.
+ */
+async function acquireGitTree(
+  clonePath: string,
+  source: Extract<InstallSource, { kind: 'git' }>,
+  pinnedCommit: string | undefined,
+): Promise<string> {
+  if (pinnedCommit === undefined) {
+    const args = ['clone', '--depth', '1'];
+    if (source.ref) {
+      args.push('--branch', source.ref);
+    }
+    // `--` keeps a URL that begins with `-` from being read as a git option.
+    args.push('--', source.url, clonePath);
+    await execFileAsync('git', args, { timeout: 120_000 });
+  } else {
+    const commit = pinnedCommit.toLowerCase();
+    if (!FULL_COMMIT_PATTERN.test(commit)) {
+      throw new Error(`pinned commit must be a full 40-hex SHA: ${pinnedCommit}`);
+    }
+    if (source.ref) {
+      throw new Error('a pinned commit cannot be combined with a ref');
+    }
+    // `git clone` cannot check out a bare SHA, so fetch the one commit.
+    await execFileAsync('git', ['init', '-q', clonePath], { timeout: 15_000 });
+    await execFileAsync('git', ['fetch', '-q', '--depth', '1', '--', source.url, commit], {
+      cwd: clonePath,
+      timeout: 120_000,
+    });
+    await execFileAsync('git', ['checkout', '-q', '--detach', 'FETCH_HEAD'], {
+      cwd: clonePath,
+      timeout: 60_000,
+    });
+  }
+  const resolvedCommit = await readGitCommit(clonePath);
+  if (pinnedCommit !== undefined && resolvedCommit !== pinnedCommit.toLowerCase()) {
+    throw new Error(`fetched commit ${resolvedCommit} does not match pinned ${pinnedCommit}`);
+  }
+  await rm(join(clonePath, '.git'), { recursive: true, force: true });
+  return resolvedCommit;
 }
 
 /**

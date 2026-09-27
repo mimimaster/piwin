@@ -71,7 +71,15 @@ export {
   loadPiwinConfig,
   savePiwinConfig,
 } from './config-store.js';
-export { installExtension } from '@piwin/extensions';
+export { createExtensionRevisionStore, installExtension } from '@piwin/extensions';
+export {
+  getExtensionRegistryIndexUrl,
+  installExtensionFromSource,
+} from './marketplace/extension-registry-install.js';
+export type {
+  InstallExtensionFromSourceOptions,
+  InstallExtensionFromSourceResult,
+} from './marketplace/extension-registry-install.js';
 export type { InstallExtensionOptions, InstallExtensionResult } from '@piwin/extensions';
 export { installSkill, gitFetchCommands } from '@piwin/skills';
 export type { InstallSkillOptions, InstallSkillResult } from '@piwin/skills';

@@ -87,6 +87,7 @@ export async function buildDomainContext(
     runCronJob: (job) => deps.runCronJob(job),
     pendingPermissions: deps.pendingPermissions,
     pendingExtensionUi: deps.pendingExtensionUi,
+    getExtensionUiSurface: (sessionId) => deps.extensionUiSurfaces.snapshot(sessionId),
     rememberProjectPermission: (sessionId, action, detail, scope, projectPath) =>
       deps.rememberProjectPermission(sessionId, action, detail, scope, projectPath),
     rememberSessionPermission: (sessionId, action, detail, grant) =>

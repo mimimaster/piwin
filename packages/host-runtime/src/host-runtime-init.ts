@@ -14,6 +14,7 @@ import {
   DEFAULT_MAX_CONCURRENT_RUNS,
   createDefaultSubagentConfig,
   type ExtensionUiRequest,
+  type ExtensionUiSurfaceUpdate,
 } from '@piwin/contracts';
 import { createExtensionRevisionStore } from '@piwin/extensions';
 import { createMcpLifecycleManager } from '@piwin/mcp';
@@ -512,6 +513,9 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       // so the backend's own AbortSignal is not needed here.
       requestExtensionUi: (input: ExtensionUiRequest & { sessionId: string }) =>
         deps.requestExtensionUi(input),
+      publishExtensionUi: (sessionId: string, update: ExtensionUiSurfaceUpdate) =>
+        deps.extensionUiSurfaces.apply(sessionId, update),
+      resetExtensionUi: (sessionId: string) => deps.extensionUiSurfaces.reset(sessionId),
       ...(options.testFixture !== undefined ? { testFixture: options.testFixture } : {}),
       getSubscriptionCompileContext: async () => {
         const accounts = (await deps.subscriptionAuth?.chatResolveInput()) ?? { accounts: [] };
