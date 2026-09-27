@@ -7,18 +7,21 @@
 import { useRef, useState } from 'react';
 import type {
   ExtensionsUninstallData,
-  HostCommand,
-  HostResponse,
   MarketplaceCatalogEntry,
   MarketplaceInstalledItem,
   McpServerHealth,
 } from '@piwin/contracts';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import { localizedText } from './marketplace-copy.js';
+import {
+  installAndEnableManagedExtension,
+  sendMarketplaceCommand as send,
+  type MarketplaceRequest,
+} from './marketplace-managed-install.js';
 import { applyExtensionsToSession, describeExtensionChange } from './marketplace-session-apply.js';
 import type { MarketOperation, MarketplaceToast } from './marketplace-types.js';
 
-type Request = (command: HostCommand) => Promise<HostResponse>;
+type Request = MarketplaceRequest;
 
 export type MarketplaceActions = {
   operations: Readonly<Record<string, MarketOperation>>;
@@ -27,15 +30,6 @@ export type MarketplaceActions = {
   toggle: (item: MarketplaceInstalledItem) => Promise<void>;
 };
 
-class MarketplaceRequestError extends Error {
-  override readonly name = 'MarketplaceRequestError';
-}
-
-async function send(request: Request, command: HostCommand): Promise<unknown> {
-  const response = await request(command);
-  if (!response.success) throw new MarketplaceRequestError(response.error);
-  return response.data;
-}
 
 export function useMarketplaceActions(options: {
   locale?: DesktopLocale | undefined;
@@ -89,15 +83,10 @@ export function useMarketplaceActions(options: {
           return describeExtensionChange(name, 'installed', await applyExtensionsToSession(request, sessionId), locale);
         }
         case 'managed-extension': {
-          const installed = (await send(request, {
-            type: 'extensions/install',
-            source: descriptor.source,
+          await installAndEnableManagedExtension(request, descriptor.source, {
             ...(descriptor.name ? { name: descriptor.name } : {}),
-          })) as { extensionId: string; configuredEnabled?: boolean };
-          if (installed.configuredEnabled !== true) {
-            phase('enabling');
-            await send(request, { type: 'extensions/set_enabled', extensionId: installed.extensionId, enabled: true });
-          }
+            onEnabling: () => phase('enabling'),
+          });
           phase('applying');
           return describeExtensionChange(name, 'installed', await applyExtensionsToSession(request, sessionId), locale);
         }

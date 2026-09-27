@@ -7,6 +7,7 @@ const KIND_RANK: Record<SlashItemKind, number> = {
   command: 0,
   mode: 1,
   skill: 2,
+  extension: 3,
 };
 
 export const SLASH_MENU_MAX_ITEMS = 24;

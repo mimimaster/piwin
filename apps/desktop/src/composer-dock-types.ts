@@ -1,5 +1,10 @@
 import type { ClipboardEvent, DragEvent } from 'react';
-import type { ContextUsageSnapshot, HostStatusData, ProjectRecord } from '@piwin/contracts';
+import type {
+  ContextUsageSnapshot,
+  ExtensionUiSurfaceSnapshot,
+  HostStatusData,
+  ProjectRecord,
+} from '@piwin/contracts';
 import type { LiveCallView, LiveReadyMissing } from '@piwin/contracts';
 import type {
   ComposerMcpOption,
@@ -17,6 +22,7 @@ import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 import type { BranchChipRequest } from './branch-chip';
 import type { AtWorkspaceEntry } from './at/at-file-index';
 import type { SteerQueueMessage } from './steer-queue';
+import type { SlashExtensionCommandInput } from './slash';
 
 export type ComposerModelOption = {
   providerId: string;
@@ -96,6 +102,10 @@ export type ComposerDockProps = {
    */
   visionDelegationEnabled?: boolean;
   menuSkills: ComposerSkillOption[];
+  /** Commands registered by enabled Pi extensions (ADR 0078). */
+  menuExtensionCommands?: SlashExtensionCommandInput[];
+  /** Extension status chips and text widgets of the active session (ADR 0078). */
+  extensionSurface?: ExtensionUiSurfaceSnapshot | null;
   menuMcp: ComposerMcpOption[];
   /** Session-level MCP switches for the plus menu's Connectors flyout. */
   menuMcpSwitches?: ComposerPlusMenuProps['mcpSwitches'];

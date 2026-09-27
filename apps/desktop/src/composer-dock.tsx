@@ -11,6 +11,7 @@ import { SteerQueue } from './steer-queue';
 import { ComposerActivityPill } from './composer-activity-pill';
 import { ComposerCard } from './composer-card';
 import { ComposerContextRail } from './composer-context-rail';
+import { ExtensionSurfaceStrip } from './extension-surface-strip';
 import type { ComposerDockProps } from './composer-dock-types';
 
 export type { ComposerDockProps, ComposerModelOption } from './composer-dock-types';
@@ -90,7 +91,9 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
           onCancelEdit={props.onQueuedEditCancel}
         />
       ) : null}
+      <ExtensionSurfaceStrip surface={props.extensionSurface} placement="aboveEditor" />
       <ComposerCard {...props} />
+      <ExtensionSurfaceStrip surface={props.extensionSurface} placement="belowEditor" />
     </footer>
   );
 }

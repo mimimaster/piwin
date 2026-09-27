@@ -1,10 +1,12 @@
 /**
- * Install a live-search Pi package (npm / GitHub) after the user accepts the
- * community-code risk. Shares the session-apply outcome with curated installs.
+ * Install a live-search hit (extension registry / npm / GitHub) after the user
+ * accepts the community-code risk. Shares the session-apply outcome with
+ * curated installs.
  */
 import { useRef, useState } from 'react';
 import type { HostCommand, HostResponse, MarketplaceSearchHit } from '@piwin/contracts';
 import type { DesktopLocale } from '../../desktop-locale.js';
+import { installAndEnableManagedExtension, type MarketplaceRequest } from './marketplace-managed-install.js';
 import { applyExtensionsToSession, describeExtensionChange } from './marketplace-session-apply.js';
 import type { MarketplaceToast } from './marketplace-types.js';
 
@@ -36,6 +38,14 @@ export function useMarketplacePackageInstall(options: {
     setTarget(null);
     setStates((current) => ({ ...current, [hit.entryId]: 'installing' }));
     try {
+      if (hit.source === 'piwin-registry') {
+        await installRegistryHit(request, hit);
+        setStates((current) => ({ ...current, [hit.entryId]: 'installed' }));
+        showToast(
+          describeExtensionChange(hit.name, 'installed', await applyExtensionsToSession(request, sessionId), locale),
+        );
+        return;
+      }
       const source =
         hit.source === 'github'
           ? hit.repositoryUrl
@@ -73,4 +83,14 @@ export function useMarketplacePackageInstall(options: {
     cancel: () => setTarget(null),
     confirm,
   };
+}
+
+/** Registry hits install as managed revisions pinned to the shown version (ADR 0077). */
+async function installRegistryHit(request: MarketplaceRequest, hit: MarketplaceSearchHit): Promise<void> {
+  if (!hit.registry) throw new Error('registry hit is missing its registry id');
+  await installAndEnableManagedExtension(request, {
+    kind: 'registry',
+    id: hit.registry.id,
+    version: hit.version,
+  });
 }

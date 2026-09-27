@@ -11,6 +11,7 @@ const GROUP_LABEL_ZH: Record<string, string> = {
   Command: '命令',
   Mode: '模式',
   Skill: '技能',
+  Extension: '扩展',
 };
 
 function localizeGroupLabel(label: string, isZh: boolean): string {

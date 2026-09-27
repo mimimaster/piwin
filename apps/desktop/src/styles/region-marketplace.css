@@ -266,7 +266,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--ochre);
 }
 
-.market-source-pill.is-native {
+.market-source-pill.is-native,
+.market-source-pill.is-registry {
   background: var(--azure-wash);
   color: var(--azure);
 }

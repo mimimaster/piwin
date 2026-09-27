@@ -153,3 +153,41 @@ describe('buildSlashCatalog — Conversation chat', () => {
     expect(goal?.unavailableReason).toMatch(/Settings → Extensions/);
   });
 });
+
+describe('buildSlashCatalog — extension commands', () => {
+  it('lists extension commands after skills and lets skills and reserved names win', () => {
+    const catalog = buildSlashCatalog({
+      skills,
+      extensionCommands: [
+        { name: 'cache-stats', extensionName: 'pi-deepseek-cache' },
+        { name: 'create-skill', extensionName: 'shadowed-by-skill' },
+        { name: 'compact', extensionName: 'shadowed-by-command' },
+      ],
+      hasActiveSession: true,
+      projectTrusted: true,
+    });
+    const extensionItems = catalog.filter((item) => item.kind === 'extension');
+    expect(extensionItems.map((item) => item.name)).toEqual(['cache-stats']);
+    expect(extensionItems[0]).toMatchObject({
+      groupLabel: 'Extension',
+      acceptsArgs: true,
+      available: true,
+      description: 'From extension pi-deepseek-cache',
+    });
+    expect(filterSlashItems(catalog, 'cache').map((item) => item.id)).toContain('extension:cache-stats');
+  });
+
+  it('requires project trust like skills do', () => {
+    const catalog = buildSlashCatalog({
+      skills: [],
+      extensionCommands: [{ name: 'cache-stats', extensionName: 'cache' }],
+      hasActiveSession: true,
+      projectTrusted: false,
+      requireProjectTrust: true,
+    });
+    expect(catalog.find((item) => item.kind === 'extension')).toMatchObject({
+      available: false,
+      unavailableReason: 'Trust the project first',
+    });
+  });
+});

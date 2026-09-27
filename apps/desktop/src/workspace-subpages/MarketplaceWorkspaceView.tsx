@@ -224,8 +224,8 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
         </div>
         <p className="market-ecosystem-sub">
           {t(
-            'Live, unreviewed results: npm packages tagged pi-package and GitHub repos with topic:pi-package.',
-            '实时搜索、未经审核：npm 上的 pi-package 与 GitHub 上带 topic:pi-package 的仓库。',
+            'Live results: the piwin extension registry first (CI-checked, pinned commits), then unreviewed npm pi-package packages and GitHub topic:pi-package repos.',
+            '实时搜索：先列 piwin 扩展仓库（CI 检查、固定 commit），再列未经审核的 npm pi-package 与 GitHub topic:pi-package 仓库。',
           )}
         </p>
       </header>

@@ -13,7 +13,6 @@ import type { AgentModeId } from './agent-mode';
 import { isFailedMediaAttachment } from './media-utils';
 import { ComposerAttachmentShelf } from './composer-attachment-shelf';
 import {
-  buildSlashCatalog,
   detectActiveSlashToken,
   filterSlashItems,
   isReservedComposerSlashCommand,
@@ -22,6 +21,7 @@ import {
   SlashMenu,
   type SlashItem,
 } from './slash';
+import { useComposerSlashCatalog } from './slash/use-composer-slash-catalog';
 import {
   buildAtCatalog,
   contextRefFromAtItem,
@@ -216,41 +216,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     element.setSelectionRange(element.value.length, element.value.length);
   }, [props.queuedEdit?.messageId]);
 
-  const isGoalEnabled = props.goalExtensionEnabled !== false;
-
-  // Catalog: Slash Menu items
-  const slashCatalog = useMemo(
-    () =>
-      buildSlashCatalog({
-        skills: props.menuSkills.map((skill) => ({
-          id: skill.id,
-          name: skill.name,
-          enabled: skill.enabled,
-          ...(skill.source ? { source: skill.source } : {}),
-        })),
-        compactionSupported: props.compactionSupported !== false,
-        streaming: isStreamingRun,
-        compacting: props.compacting,
-        hasActiveSession: Boolean(props.activeSessionId),
-        projectTrusted: props.projectTrusted,
-        requireProjectTrust: Boolean(props.projectPath),
-        agentMode: props.agentMode,
-        goalExtensionEnabled: isGoalEnabled,
-        conversationChat: props.isConversationSession === true,
-      }),
-    [
-      props.menuSkills,
-      props.compactionSupported,
-      isStreamingRun,
-      props.compacting,
-      props.activeSessionId,
-      props.projectTrusted,
-      props.projectPath,
-      props.agentMode,
-      isGoalEnabled,
-      props.isConversationSession,
-    ],
-  );
+  const slashCatalog = useComposerSlashCatalog(props, isStreamingRun);
 
   const activeSlashToken = useMemo(
     () => detectActiveSlashToken(props.composer, caretIndex),
