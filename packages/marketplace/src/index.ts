@@ -21,6 +21,23 @@ export { piGitInstallCommand, searchPiGithubRepos } from './search-pi-github.js'
 export type { SearchPiGithubOptions } from './search-pi-github.js';
 export { searchMarketplaceSources } from './search-marketplace.js';
 export type { SearchMarketplaceOptions } from './search-marketplace.js';
+export { parseRegistryIndex } from './registry/parse-registry-index.js';
+export type { ParsedRegistryIndex } from './registry/parse-registry-index.js';
+export { createRegistryIndexLoader } from './registry/registry-index-loader.js';
+export type {
+  RegistryIndexLoader,
+  RegistryIndexLoaderOptions,
+} from './registry/registry-index-loader.js';
+export {
+  latestInstallableVersion,
+  registryInstallCommand,
+  searchRegistryIndex,
+} from './registry/search-registry.js';
+export {
+  parseRegistryReference,
+  resolveRegistryInstall,
+} from './registry/resolve-registry-install.js';
+export type { ResolvedRegistryInstall } from './registry/resolve-registry-install.js';
 
 export {
   listStaticMcpRegistry,

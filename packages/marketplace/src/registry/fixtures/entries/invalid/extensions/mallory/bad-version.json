@@ -1,0 +1,15 @@
+{
+  "name": "Example",
+  "description": "Fixture entry.",
+  "owners": [
+    "mallory"
+  ],
+  "repository": "https://github.com/mallory/example",
+  "license": "MIT",
+  "versions": [
+    {
+      "version": "1.0 beta",
+      "commit": "1111111111111111111111111111111111111111"
+    }
+  ]
+}

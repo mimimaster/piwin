@@ -1,0 +1,20 @@
+{
+  "name": "Git Autopilot (中文提交信息)",
+  "description": "改装版：提交信息用中文。",
+  "owners": [
+    "yorick"
+  ],
+  "repository": "https://github.com/yorick/git-autopilot",
+  "subdir": "extension",
+  "license": "MIT",
+  "forkOf": {
+    "id": "alice/git-autopilot",
+    "version": "1.1.0"
+  },
+  "versions": [
+    {
+      "version": "1.1.0-zh.1",
+      "commit": "3333333333333333333333333333333333333333"
+    }
+  ]
+}

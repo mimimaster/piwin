@@ -1,0 +1,30 @@
+{
+  "name": "Git Autopilot",
+  "description": "Stages changes and writes commit messages.",
+  "owners": [
+    "alice"
+  ],
+  "repository": "https://github.com/alice/git-autopilot",
+  "subdir": "extension",
+  "license": "MIT",
+  "keywords": [
+    "git",
+    "commit"
+  ],
+  "homepage": "https://alice.dev/git-autopilot",
+  "versions": [
+    {
+      "version": "1.2.0",
+      "commit": "2222222222222222222222222222222222222222",
+      "publishedAt": "2026-09-20T00:00:00Z",
+      "yanked": {
+        "reason": "breaks rebase"
+      }
+    },
+    {
+      "version": "1.1.0",
+      "commit": "1111111111111111111111111111111111111111",
+      "publishedAt": "2026-09-01T00:00:00Z"
+    }
+  ]
+}

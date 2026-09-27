@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-27T04:45:50.239Z",
+  "extensions": [
+    {
+      "id": "acme/minimal",
+      "name": "Minimal",
+      "owners": [
+        "bob"
+      ],
+      "repository": "https://github.com/acme/minimal",
+      "license": "Apache-2.0",
+      "versions": [
+        {
+          "version": "0.1.0",
+          "commit": "1111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "alice/git-autopilot",
+      "name": "Git Autopilot",
+      "description": "Stages changes and writes commit messages.",
+      "owners": [
+        "alice"
+      ],
+      "repository": "https://github.com/alice/git-autopilot",
+      "subdir": "extension",
+      "license": "MIT",
+      "keywords": [
+        "git",
+        "commit"
+      ],
+      "homepage": "https://alice.dev/git-autopilot",
+      "versions": [
+        {
+          "version": "1.2.0",
+          "commit": "2222222222222222222222222222222222222222",
+          "publishedAt": "2026-09-20T00:00:00Z",
+          "yanked": {
+            "reason": "breaks rebase"
+          }
+        },
+        {
+          "version": "1.1.0",
+          "commit": "1111111111111111111111111111111111111111",
+          "publishedAt": "2026-09-01T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "yorick/git-autopilot",
+      "name": "Git Autopilot (中文提交信息)",
+      "description": "改装版：提交信息用中文。",
+      "owners": [
+        "yorick"
+      ],
+      "repository": "https://github.com/yorick/git-autopilot",
+      "subdir": "extension",
+      "license": "MIT",
+      "forkOf": {
+        "id": "alice/git-autopilot",
+        "version": "1.1.0"
+      },
+      "versions": [
+        {
+          "version": "1.1.0-zh.1",
+          "commit": "3333333333333333333333333333333333333333"
+        }
+      ]
+    }
+  ]
+}

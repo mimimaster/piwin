@@ -1,4 +1,9 @@
-import type { MarketplaceSearchHit, MarketplaceSearchResult } from '@piwin/contracts';
+import type {
+  ExtensionRegistryIndex,
+  MarketplaceSearchHit,
+  MarketplaceSearchResult,
+} from '@piwin/contracts';
+import { searchRegistryIndex } from './registry/search-registry.js';
 import { searchPiGithubRepos } from './search-pi-github.js';
 import { normalizeRepositoryUrl, searchPiNpmPackages } from './search-pi-packages.js';
 
@@ -8,6 +13,8 @@ export type SearchMarketplaceOptions = {
   fetch?: typeof fetch;
   signal?: AbortSignal;
   githubToken?: string;
+  /** Extension registry (ADR 0077). Omitted: the registry is not searched. */
+  loadRegistryIndex?: (signal?: AbortSignal) => Promise<ExtensionRegistryIndex>;
 };
 
 function repoKey(url: string | undefined): string | undefined {
@@ -16,29 +23,29 @@ function repoKey(url: string | undefined): string | undefined {
   return normalized.replace(/\.git$/i, '').replace(/\/+$/, '').toLowerCase();
 }
 
-function mergeHits(
-  npmHits: MarketplaceSearchHit[],
-  githubHits: MarketplaceSearchHit[],
-): MarketplaceSearchHit[] {
+/**
+ * Registry hits first, then npm, then GitHub. A later source never repeats a
+ * repository an earlier one already listed.
+ */
+function mergeHits(...sources: MarketplaceSearchHit[][]): MarketplaceSearchHit[] {
   const seenRepos = new Set<string>();
   const merged: MarketplaceSearchHit[] = [];
-  for (const hit of npmHits) {
-    merged.push(hit);
-    const key = repoKey(hit.repositoryUrl);
-    if (key) seenRepos.add(key);
-  }
-  for (const hit of githubHits) {
-    const key = repoKey(hit.repositoryUrl);
-    if (key && seenRepos.has(key)) continue;
-    if (key) seenRepos.add(key);
-    merged.push(hit);
+  for (const hits of sources) {
+    const sourceRepos: string[] = [];
+    for (const hit of hits) {
+      const key = repoKey(hit.repositoryUrl);
+      if (key && seenRepos.has(key)) continue;
+      if (key) sourceRepos.push(key);
+      merged.push(hit);
+    }
+    for (const key of sourceRepos) seenRepos.add(key);
   }
   return merged;
 }
 
 /**
- * One marketplace query: npm `pi-package` first, then GitHub `topic:pi-package`
- * repos that are not already linked from an npm hit.
+ * One marketplace query: extension registry first, then npm `pi-package`, then
+ * GitHub `topic:pi-package` repos not already listed by an earlier source.
  */
 export async function searchMarketplaceSources(
   options: SearchMarketplaceOptions,
@@ -53,7 +60,13 @@ export async function searchMarketplaceSources(
     ...(options.fetch ? { fetch: options.fetch } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
   };
-  const [npmOutcome, githubOutcome] = await Promise.allSettled([
+  const loadRegistryIndex = options.loadRegistryIndex;
+  const [registryOutcome, npmOutcome, githubOutcome] = await Promise.allSettled([
+    loadRegistryIndex
+      ? loadRegistryIndex(options.signal).then((index) =>
+          searchRegistryIndex(index, query, options.limit),
+        )
+      : Promise.resolve([]),
     searchPiNpmPackages(shared),
     searchPiGithubRepos({
       ...shared,
@@ -61,26 +74,30 @@ export async function searchMarketplaceSources(
     }),
   ]);
 
+  const registryHits = registryOutcome.status === 'fulfilled' ? registryOutcome.value : [];
   const npmHits = npmOutcome.status === 'fulfilled' ? npmOutcome.value : [];
   const githubHits = githubOutcome.status === 'fulfilled' ? githubOutcome.value : [];
   const errors: string[] = [];
+  if (registryOutcome.status === 'rejected') {
+    errors.push(`registry: ${formatReason(registryOutcome.reason)}`);
+  }
   if (npmOutcome.status === 'rejected') {
-    errors.push(
-      `npm: ${npmOutcome.reason instanceof Error ? npmOutcome.reason.message : String(npmOutcome.reason)}`,
-    );
+    errors.push(`npm: ${formatReason(npmOutcome.reason)}`);
   }
   if (githubOutcome.status === 'rejected') {
-    errors.push(
-      `GitHub: ${githubOutcome.reason instanceof Error ? githubOutcome.reason.message : String(githubOutcome.reason)}`,
-    );
+    errors.push(`GitHub: ${formatReason(githubOutcome.reason)}`);
   }
 
   const result: MarketplaceSearchResult = {
     query,
-    hits: mergeHits(npmHits, githubHits),
+    hits: mergeHits(registryHits, npmHits, githubHits),
   };
   if (errors.length > 0) {
     result.remoteError = errors.join('; ');
   }
   return result;
+}
+
+function formatReason(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason);
 }
