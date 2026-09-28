@@ -24,6 +24,10 @@ import {
 } from './session-context-merge.js';
 import { repairPersistedCrossLeafKnownPollution } from './session-context-persisted-repair.js';
 import { createSessionContextPublisher, type SessionContextPublisher } from './session-context-publish.js';
+import {
+  inheritActivationCompactionBoundary,
+  type GenerationActivationBoundary,
+} from './session-context-generation-boundary.js';
 
 export type SessionContextCoordinatorDeps = {
   now: () => number;
@@ -97,6 +101,7 @@ type SessionEntry = {
   barrierEpoch: number;
   compacting: boolean;
   publisher: SessionContextPublisher;
+  activation?: GenerationActivationBoundary;
 };
 
 export function projectSnapshotToLegacyUsage(
@@ -266,7 +271,8 @@ export function createSessionContextCoordinator(
       if (input.measurement.sampleSequence <= entry.lastSampleSequence) {
         return;
       }
-      const applied = applyMeasurement(entry.snapshot, input.measurement, {
+      const measurement = inheritActivationCompactionBoundary(input.measurement, entry.activation);
+      const applied = applyMeasurement(entry.snapshot, measurement, {
         nowIso: deps.nowIso(),
         ...(boundGenerationId !== undefined ? { boundGenerationId } : {}),
       });
@@ -466,6 +472,12 @@ export function createSessionContextCoordinator(
       if (!matched) {
         bumpBarrier(entry);
       }
+      entry.activation = {
+        runtimeGenerationId: input.runtimeGenerationId,
+        ...(contextBoundary.compactionBoundary !== undefined
+          ? { compactionBoundary: contextBoundary.compactionBoundary }
+          : {}),
+      };
       const snapshot = applyActivationRevalidate(entry.snapshot, {
         nowIso: deps.nowIso(),
         runtimeGenerationId: input.runtimeGenerationId,

@@ -480,6 +480,72 @@ describe('session context coordinator', () => {
     store.close();
   });
 
+  it('accepts samples from a generation activated after a durable compaction', async () => {
+    const harness = await createHarness('rebind-after-compact');
+    const { coordinator, sessionId, store } = harness;
+    await coordinator.noteResponseEvidence({ sessionId, messageId: 'leaf-1' });
+    await coordinator.noteCompactionEnd(sessionId, {
+      ok: true,
+      tokensBefore: 345_610,
+      tokensAfter: 15_869,
+    });
+
+    // Cold rebind onto a new leaf: the new sampler never saw compaction/end,
+    // so its samples carry no compaction axis.
+    coordinator.disposeSession(sessionId);
+    await coordinator.revalidateAfterActivation(sessionId, {
+      runtimeGenerationId: 'gen-2',
+      contextBoundary: { activeLeafMessageId: 'user-2' },
+    });
+    await coordinator.noteRunStarted({ sessionId, runId: 'run-2', runtimeGenerationId: 'gen-2' });
+    await coordinator.noteResponseEvidence({ sessionId, runId: 'run-2', messageId: 'msg-2' });
+    await coordinator.ingestMeasurement({
+      sessionId,
+      boundGenerationId: 'gen-2',
+      measurement: measurement(sessionId, {
+        sampleSequence: 1,
+        runtimeGenerationId: 'gen-2',
+        messageId: 'msg-2',
+        occupancy: knownOccupancy(133_872, '2026-08-30T00:00:01.000Z'),
+      }),
+    });
+    await coordinator.flush(sessionId);
+    const snapshot = await coordinator.getSnapshot(sessionId);
+    expect(snapshot.occupancy).toMatchObject({ kind: 'known', tokensUsed: 133_872 });
+    expect(snapshot.contextBoundary.compactionBoundary).toBe('compact:345610:15869');
+    store.close();
+  });
+
+  it('keeps rejecting pre-compaction samples after the activated generation compacts', async () => {
+    const harness = await createHarness('rebind-then-compact');
+    const { coordinator, sessionId, store } = harness;
+    await coordinator.noteResponseEvidence({ sessionId, messageId: 'leaf-1' });
+    await coordinator.revalidateAfterActivation(sessionId, {
+      runtimeGenerationId: 'gen-2',
+      contextBoundary: { activeLeafMessageId: 'leaf-1' },
+    });
+    await coordinator.noteCompactionStart(sessionId);
+    await coordinator.noteCompactionEnd(sessionId, {
+      ok: true,
+      tokensBefore: 80_000,
+      tokensAfter: 5_000,
+    });
+    await coordinator.ingestMeasurement({
+      sessionId,
+      boundGenerationId: 'gen-2',
+      measurement: measurement(sessionId, {
+        sampleSequence: 1,
+        runtimeGenerationId: 'gen-2',
+        messageId: 'leaf-1',
+        occupancy: knownOccupancy(80_000, '2026-08-30T00:00:01.000Z'),
+      }),
+    });
+    await coordinator.flush(sessionId);
+    const snapshot = await coordinator.getSnapshot(sessionId);
+    expect(snapshot.occupancy).not.toMatchObject({ tokensUsed: 80_000 });
+    store.close();
+  });
+
   it('T19: truncate-to-empty hides occupancy and rejects pre-barrier samples', async () => {
     const harness = await createHarness('t19');
     const { coordinator, sessionId, store, pushes } = harness;
