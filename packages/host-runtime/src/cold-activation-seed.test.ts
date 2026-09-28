@@ -106,4 +106,27 @@ describe('buildColdActivationSeedOptions', () => {
     expect(options?.seedMessages?.map((seed) => seed.text)).toEqual(['follow-up question', 'follow-up answer']);
     store.close();
   });
+
+  it('anchors a tail window that opens mid tool loop to its owning user row', async () => {
+    const store = await openStore('mid-turn-tail');
+    await appendRow(store, 'u1', 'user', 'investigate the usage page');
+    // One long tool loop: more assistant steps than the cold tail keeps.
+    for (let step = 0; step < 120; step += 1) {
+      const id = `a${step}`;
+      await appendRow(store, id, 'assistant', '');
+      await store.appendNativeEntries(id, [
+        {
+          ordinal: 0,
+          entry: { format: 'pi-message-v1', payload: '{"role":"assistant"}', byteLength: 20 },
+        },
+      ]);
+    }
+
+    const options = await buildColdActivationSeedOptions(store);
+    const seeds = options?.seedMessages ?? [];
+    expect(seeds[0]).toMatchObject({ role: 'user', text: 'investigate the usage page' });
+    expect(seeds[0]?.native).toBeUndefined();
+    expect(seeds.slice(1).every((seed) => seed.native !== undefined)).toBe(true);
+    store.close();
+  });
 });

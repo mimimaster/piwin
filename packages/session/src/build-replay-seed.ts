@@ -5,7 +5,8 @@
  * Budget fills newest-to-oldest. A row is atomic: either all of its native
  * entries are usable (present, none truncated, within budget) and it seeds
  * natively, or the whole row falls back to bounded text. Rows beyond the
- * budget are dropped, mirroring the bounded text-injection path.
+ * budget are dropped, mirroring the bounded text-injection path, except that
+ * the window is re-anchored to the user row owning its first turn.
  */
 
 import type {
@@ -30,6 +31,7 @@ export function buildReplaySeedMessages(
   const selected: SessionSeedMessage[] = [];
   let usedChars = 0;
   let nativeRowCount = 0;
+  let firstSelectedIndex = rows.length;
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     const source = rows[index];
     if (source === undefined) continue;
@@ -40,8 +42,37 @@ export function buildReplaySeedMessages(
     usedChars += cost;
     if (seed.native !== undefined) nativeRowCount += 1;
     selected.unshift(seed);
+    firstSelectedIndex = index;
   }
+  const anchor = findTurnAnchor(rows, selected, firstSelectedIndex);
+  if (anchor !== undefined) selected.unshift(anchor);
   return { seedMessages: selected, nativeRowCount };
+}
+
+/**
+ * Invariant: a replayed context never opens mid-turn. When the budget cut
+ * lands inside a tool loop, the window would start with an assistant /
+ * toolResult message and lose the user request that owns it. Providers that
+ * require a leading user message (Kiro strips every leading non-user entry)
+ * then send the model no history at all, and it loops asking what the task
+ * is. Re-attach the nearest dropped user row as a bounded text seed; this may
+ * exceed `maxChars` by at most one text-capped message.
+ */
+function findTurnAnchor(
+  rows: readonly ReplaySeedSourceRow[],
+  selected: readonly SessionSeedMessage[],
+  firstSelectedIndex: number,
+): SessionSeedMessage | undefined {
+  const first = selected[0];
+  if (first === undefined || first.role === 'user') return undefined;
+  for (let index = firstSelectedIndex - 1; index >= 0; index -= 1) {
+    const message = rows[index]?.message;
+    if (message?.role !== 'user') continue;
+    const text = message.text.slice(0, MAX_TEXT_CHARS_PER_MESSAGE);
+    if (text.trim().length === 0) continue;
+    return { role: 'user', text, timestamp: Date.parse(message.createdAt) || Date.now() };
+  }
+  return undefined;
 }
 
 function buildRowSeed(source: ReplaySeedSourceRow): SessionSeedMessage | undefined {

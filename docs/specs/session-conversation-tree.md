@@ -156,6 +156,13 @@ CREATE TABLE IF NOT EXISTS native_entry(
 > - 预算为字符预算 `DEFAULT_REPLAY_SEED_MAX_CHARS = 400_000`（非
 >   contextWindow 50% token），预算外旧行**直接丢弃**、不做文本摘要合并
 >   （与现行文本注入的有界语义一致；摘要合并留待需要时再引入）。
+> - **重放窗口不从回合中间开始**：预算截断或 100 行 tail 落在工具循环内部时，
+>   窗口首条会是 assistant/toolResult，丢掉发起该回合的用户请求。Kiro 等
+>   provider 会剥掉所有前导非 user 条目，结果整段历史（含当前 toolResult）
+>   都不发，模型每步都"没有上下文"而死循环。因此无 compaction 时，
+>   `findOwningUserRow`（冷激活）与 `findTurnAnchor`（`buildReplaySeedMessages`）
+>   把最近的上游用户行作为有界文本 seed 补到窗口首位；最多超出预算一条
+>   4000 字符的文本。有 compaction 时摘要本身以 user 角色开头，不补锚点。
 > - 冷激活在 `doActivateSessionRuntime` 内完成 seed 组装，并以
 >   `excludeSeedMessageId` 排除本次 prompt 已先行落库的用户行；
 >   `nativeRowCount === 0` 时保持 `coldStartHistoryBySession` 文本注入

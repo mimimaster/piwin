@@ -26,6 +26,14 @@ export async function buildColdActivationSeedOptions(
       ? await listMessagesAfterAnchor(store, compaction.anchorMessageId)
       : await store.listTail(COLD_ACTIVATION_TAIL_LIMIT);
   const rows: ReplaySeedSourceRow[] = [];
+  if (compaction === undefined) {
+    // The tail window can open inside a long tool loop. Carry the user row
+    // that owns it so the replay seed can anchor the turn (see
+    // buildReplaySeedMessages). A compaction summary already opens the
+    // context as user-role text, so that path needs no anchor.
+    const owner = await findOwningUserRow(store, tail[0]);
+    if (owner !== undefined) rows.push({ message: owner, native: [] });
+  }
   for (const message of tail) {
     if (excludeMessageId !== undefined && message.id === excludeMessageId) {
       continue;
@@ -50,6 +58,24 @@ export async function buildColdActivationSeedOptions(
         }
       : {}),
   };
+}
+
+/**
+ * Nearest active-path user row before `first`, when `first` is not itself a
+ * user row. Walks the active path once; only reached when a cold replay would
+ * otherwise start mid-turn.
+ */
+async function findOwningUserRow(
+  store: SessionTranscriptStore,
+  first: SessionTranscriptMessage | undefined,
+): Promise<SessionTranscriptMessage | undefined> {
+  if (first === undefined || first.role === 'user') return undefined;
+  let owner: SessionTranscriptMessage | undefined;
+  for await (const message of store.iterateActivePath()) {
+    if (message.id === first.id) return owner;
+    if (message.role === 'user' && message.text.trim().length > 0) owner = message;
+  }
+  return undefined;
 }
 
 /**
