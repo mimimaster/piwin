@@ -40,6 +40,7 @@ export const TRANSCRIPT_STORE_LEASED_COMMANDS = new Set<HostCommand['type']>([
   'session/fork',
   'walkthrough/list',
   'walkthrough/generate',
+  'run/idle-loop-dismiss',
 ]);
 
 export type ExtensionApplyCommand = Extract<HostCommand, { type: 'extensions/apply' }> & {

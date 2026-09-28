@@ -21,6 +21,7 @@ import type {
   ExecutionRunKind,
   ExecutionRunRecord,
   ExecutionRunStatus,
+  RunIdleLoopNotice,
   RunTerminalCode,
   SessionRunPhase,
 } from '@piwin/contracts';
@@ -59,6 +60,7 @@ interface RunNode {
 export type TerminateRunRecordOptions = {
   agentStopReason?: AgentPromptOutcome['stopReason'];
   failure?: AgentFailure;
+  idleLoop?: RunIdleLoopNotice;
 };
 
 /** Options for creating a run. */
@@ -477,6 +479,13 @@ export class RunRegistry {
     return this.nodes.get(runId)?.pauseRequested === true;
   }
 
+  /** Publish the detection-only idle-loop notice of a non-terminal run. */
+  setIdleLoop(runId: string, notice: RunIdleLoopNotice): ExecutionRunRecord | undefined {
+    const node = this.nodes.get(runId);
+    if (!node || isRunTerminal(node.record.status)) return undefined;
+    node.record.idleLoop = notice;
+    return this.publishUpdated(node);
+  }
   /** Attach a durable checkpoint reference to a non-terminal run. */
   attachResumeCheckpoint(runId: string, checkpointId: string): ExecutionRunRecord | undefined {
     const node = this.nodes.get(runId);
@@ -527,6 +536,9 @@ export class RunRegistry {
     }
     if (extras?.failure !== undefined) {
       node.record.failure = extras.failure;
+    }
+    if (extras?.idleLoop !== undefined) {
+      node.record.idleLoop = extras.idleLoop;
     }
 
     const snapshot = this.publishUpdated(node);

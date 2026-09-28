@@ -42,6 +42,7 @@ import { createSessionStorageCoordinator } from './session-storage-coordinator.j
 import { SessionAllowlist } from './session-allowlist.js';
 import { RunRegistry } from './run-registry.js';
 import { ToolLoopProgressTracker } from './tools/tool-loop-progress.js';
+import { RunIdleLoopMonitor } from './tools/run-idle-loop-monitor.js';
 import { PromptAdmissionGate } from './commands/session-prompt-admission.js';
 import { QueuedTurnController } from './queued-turn-controller.js';
 import { SessionRuntimeController } from './sessions/session-runtime-controller.js';
@@ -179,6 +180,12 @@ export class HostRuntimeFields {
    * Host admission, so this watches AgentEvents when a limit is set.
    */
   toolLoopProgress = new ToolLoopProgressTracker();
+  /** Detection-only idle-loop notice per Run; never stops a Run. */
+  runIdleLoopMonitor = new RunIdleLoopMonitor({
+    publish: (runId, notice) => {
+      this.runRegistry.setIdleLoop(runId, notice);
+    },
+  });
   /** Optional override used by router tests; production leaves this unset. */
   stopRunForToolLoopStall:
     | ((sessionId: string, runId: string, message: string) => void)

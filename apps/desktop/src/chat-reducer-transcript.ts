@@ -11,6 +11,7 @@ import { createTranscriptCacheMetadata, retainBoundedTranscriptWindow } from './
 import type { ChatMessageUi, ChatUiState, RunRecordUi, ToolCardUi } from './chat-ui-types';
 import { createBoundedToolOutput, projectBoundedToolPresentation } from './chat-reducer-tools';
 import { withNewerInstructionDelivery } from './instruction-delivery-order';
+import { mergeIdleLoop } from './run-idle-loop-merge';
 
 export const MAX_LIVE_ASSISTANT_TEXT_BYTES = 500_000;
 export const MAX_LIVE_THINKING_BYTES = 200_000;
@@ -479,6 +480,7 @@ export function buildRunRecordsFromTranscriptMessages(
         : existingRecord?.agentStopReason !== undefined
           ? { agentStopReason: existingRecord.agentStopReason }
           : {}),
+      ...mergeIdleLoop(message.idleLoop, existingRecord?.idleLoop),
     };
   }
   return records;

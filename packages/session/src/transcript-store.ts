@@ -103,6 +103,7 @@ export type TranscriptStoreMessageInput = {
     terminalMessage?: string;
     failure?: SessionTranscriptMessage['failure'];
     agentStopReason?: SessionTranscriptMessage['agentStopReason'];
+    idleLoop?: SessionTranscriptMessage['idleLoop'];
     subagentActivity?: SessionTranscriptMessage['subagentActivity'];
     searchEvidence?: SessionTranscriptMessage['searchEvidence'];
     instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
@@ -247,7 +248,13 @@ export type SessionTranscriptStore = {
     terminalMessage?: string;
     failure?: SessionTranscriptMessage['failure'];
     agentStopReason?: SessionTranscriptMessage['agentStopReason'];
+    idleLoop?: SessionTranscriptMessage['idleLoop'];
   }): Promise<SessionTranscriptMessage[]>;
+  /**
+   * Mark this Run's persisted idle-loop notice dismissed. Returns the number
+   * of rows updated (0 when the Run has not been stamped yet).
+   */
+  dismissRunIdleLoop(runId: string): Promise<number>;
   /**
    * Guarantee a failed session-turn has an assistant row on this run.
    * Patches the latest same-run assistant when one exists; otherwise inserts

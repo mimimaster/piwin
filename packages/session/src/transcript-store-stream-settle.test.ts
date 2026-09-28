@@ -294,3 +294,61 @@ describe('SessionTranscriptStore.settleStreamingMessages', () => {
     store.close();
   });
 });
+
+describe('SessionTranscriptStore run idle-loop notice', () => {
+  const notice = {
+    state: 'looping' as const,
+    repeatedCalls: 14,
+    calls: [{ toolName: 'bash', preview: 'pwd; ls', count: 9 }],
+    firstToolIndex: 3,
+    lastToolIndex: 16,
+    detectedAt: '2026-09-28T13:12:40.000Z',
+    updatedAt: '2026-09-28T13:13:20.000Z',
+  };
+
+  async function storeWithRun(label: string) {
+    const store = await openStore(label);
+    for (const [index, status] of (['done', 'streaming'] as const).entries()) {
+      await store.appendMessage({
+        id: `assistant-${index}`,
+        runtimeGenerationId: 'gen-1',
+        backendMessageId: `a${index}`,
+        role: 'assistant',
+        text: '',
+        status,
+        runId: 'run-loop',
+        createdAt: `2026-09-28T13:12:0${index}.000Z`,
+      });
+    }
+    return store;
+  }
+
+  it('stamps the notice on every row of the Run at terminalization', async () => {
+    const store = await storeWithRun('idle-stamp');
+    await store.settleStreamingMessages({
+      runId: 'run-loop',
+      updatedAt: '2026-09-28T13:14:00.000Z',
+      outcome: 'cancelled',
+      idleLoop: notice,
+    });
+    expect((await store.getMessage('assistant-0'))?.idleLoop).toEqual(notice);
+    expect((await store.getMessage('assistant-1'))?.idleLoop).toEqual(notice);
+    store.close();
+  });
+
+  it('persists a dismissal and keeps it across a later stamp', async () => {
+    const store = await storeWithRun('idle-dismiss');
+    expect(await store.dismissRunIdleLoop('run-loop')).toBe(0);
+    await store.settleStreamingMessages({
+      runId: 'run-loop',
+      updatedAt: '2026-09-28T13:14:00.000Z',
+      outcome: 'completed',
+      idleLoop: notice,
+    });
+    expect(await store.dismissRunIdleLoop('run-loop')).toBe(2);
+    expect(await store.dismissRunIdleLoop('run-loop')).toBe(0);
+    expect((await store.getMessage('assistant-1'))?.idleLoop?.dismissed).toBe(true);
+    expect((await store.getMessage('assistant-1'))?.idleLoop?.repeatedCalls).toBe(14);
+    store.close();
+  });
+});

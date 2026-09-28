@@ -36,9 +36,11 @@
 @import './styles/transcript-empty-stage.css';
 @import './styles/transcript-history-ticks.css';
 @import './styles/transcript-message.css';
+@import './styles/run-idle-loop-card.css';
 @import './styles/transcript-files-changed.css';
 @import './styles/transcript-walkthrough.css';
 @import './styles/transcript-tool-card.css';
+@import './styles/transcript-web-search.css';
 @import './styles/transcript-tool-file-pill.css';
 @import './styles/transcript-tool-chain.css';
 @import './styles/transcript-markdown.css';

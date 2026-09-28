@@ -101,6 +101,9 @@ export function cloneTranscriptMessage(
   if (message.terminalMessage !== undefined) next.terminalMessage = message.terminalMessage;
   if (message.failure !== undefined) next.failure = message.failure;
   if (message.agentStopReason !== undefined) next.agentStopReason = message.agentStopReason;
+  if (message.idleLoop !== undefined) {
+    next.idleLoop = { ...message.idleLoop, calls: message.idleLoop.calls.map((call) => ({ ...call })) };
+  }
   if (message.searchEvidence !== undefined) {
     next.searchEvidence = {
       ...(message.searchEvidence.query !== undefined

@@ -2,6 +2,7 @@ import type {
   AgentFailure,
   AgentPromptStopReason,
   RunInterventionRecord,
+  RunIdleLoopNotice,
   RunInterventionTerminalReason,
   SessionRunOutcome,
   SessionTranscriptMessage,
@@ -20,6 +21,7 @@ export async function settleStreamingMessages(
     terminalMessage?: string;
     failure?: AgentFailure | null;
     agentStopReason?: AgentPromptStopReason;
+    idleLoop?: RunIdleLoopNotice;
     updatedAt?: string;
   },
 ): Promise<SessionTranscriptMessage[]> {
@@ -30,6 +32,7 @@ export async function settleStreamingMessages(
     ...(input.terminalMessage !== undefined ? { terminalMessage: input.terminalMessage } : {}),
     ...(input.failure !== undefined ? { failure: input.failure } : {}),
     ...(input.agentStopReason !== undefined ? { agentStopReason: input.agentStopReason } : {}),
+    ...(input.idleLoop !== undefined ? { idleLoop: input.idleLoop } : {}),
   });
 }
 
@@ -51,6 +54,7 @@ export async function finalizeRunTranscriptArtifacts(
     terminalMessage?: string;
     failure?: AgentFailure | null;
     agentStopReason?: AgentPromptStopReason;
+    idleLoop?: RunIdleLoopNotice;
   },
 ): Promise<{ settled: SessionTranscriptMessage[]; expired: RunInterventionRecord[] }> {
   const fallbackFailureMessage =
@@ -69,6 +73,7 @@ export async function finalizeRunTranscriptArtifacts(
         ? { failure: input.failure }
         : {}),
     ...(input.agentStopReason !== undefined ? { agentStopReason: input.agentStopReason } : {}),
+    ...(input.idleLoop !== undefined ? { idleLoop: input.idleLoop } : {}),
   });
   const expired = await store.expirePendingRunInterventions(
     input.runId,

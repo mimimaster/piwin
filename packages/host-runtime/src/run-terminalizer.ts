@@ -121,6 +121,8 @@ export async function terminateHostRun(
   });
   const effectiveMessage = cleanupFailed ? (message ?? 'job cleanup failed') : message;
   const terminalStatus = effectiveOutcome === 'paused' ? 'interrupted' : effectiveOutcome;
+  // Final idle-loop counts, including any not yet published by the throttle.
+  const idleLoop = deps.runIdleLoopMonitor?.snapshot(runId);
   const checkpointId = run.resumeCheckpointId;
   if (checkpointId !== undefined) {
     try {
@@ -177,6 +179,7 @@ export async function terminateHostRun(
         ...(options?.agentStopReason === undefined
           ? {}
           : { agentStopReason: options.agentStopReason }),
+        ...(idleLoop === undefined ? {} : { idleLoop }),
       }),
     );
     for (const intervention of finalized.expired) {
@@ -199,6 +202,7 @@ export async function terminateHostRun(
         ? {}
         : { agentStopReason: options.agentStopReason }),
       ...(options?.failure === undefined ? {} : { failure: options.failure }),
+      ...(idleLoop === undefined ? {} : { idleLoop }),
     },
   );
   if (!terminal) return false;

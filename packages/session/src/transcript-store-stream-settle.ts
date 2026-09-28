@@ -15,11 +15,15 @@ export type SettleStreamingMessagesInput = {
   terminalMessage?: string;
   failure?: SessionTranscriptMessage['failure'];
   agentStopReason?: SessionTranscriptMessage['agentStopReason'];
+  idleLoop?: SessionTranscriptMessage['idleLoop'];
 };
 
 export function createTranscriptStreamSettleOps(
   core: TranscriptStoreCore,
-): Pick<SessionTranscriptStore, 'settleStreamingMessages' | 'ensureFailedRunAssistant'> {
+): Pick<
+  SessionTranscriptStore,
+  'settleStreamingMessages' | 'ensureFailedRunAssistant' | 'dismissRunIdleLoop'
+> {
   const { db, ensureOpen, bumpRevision, insertMessageRow } = core;
 
   return {
@@ -162,6 +166,22 @@ export function createTranscriptStreamSettleOps(
         throw error;
       }
     },
+    async dismissRunIdleLoop(runId) {
+      ensureOpen();
+      const result = db
+        .prepare(
+          `UPDATE transcript_message
+           SET metadata_json = json_set(metadata_json, '$.idleLoop.dismissed', json('true'))
+           WHERE role = 'assistant'
+             AND run_id = ?
+             AND json_extract(metadata_json, '$.idleLoop') IS NOT NULL
+             AND coalesce(json_extract(metadata_json, '$.idleLoop.dismissed'), 0) = 0`,
+        )
+        .run(runId);
+      const changed = Number(result.changes);
+      if (changed > 0) bumpRevision(changed);
+      return changed;
+    },
   };
 }
 
@@ -182,6 +202,11 @@ function mergeSettledMetadata(
   };
   if (input.agentStopReason !== undefined) {
     next.agentStopReason = input.agentStopReason;
+  }
+  if (input.idleLoop !== undefined) {
+    // A dismissal persisted before this stamp must survive it.
+    next.idleLoop =
+      previous.idleLoop?.dismissed === true ? { ...input.idleLoop, dismissed: true } : input.idleLoop;
   }
   if (input.outcome === 'failed') {
     if (input.terminalMessage !== undefined) {

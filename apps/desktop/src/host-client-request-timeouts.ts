@@ -51,6 +51,7 @@ export function getHostRequestTimeoutMs(
     case 'run/intervention-submit':
     case 'run/intervention-edit':
     case 'run/intervention-cancel':
+    case 'run/idle-loop-dismiss':
     case 'session/queued-turn-submit':
     case 'session/queued-turn-edit':
     case 'session/queued-turn-cancel':

@@ -16,6 +16,7 @@ import {
   parseEventTime,
 } from './chat-reducer-transcript';
 import { settleStreamingAssistants } from './chat-reducer-tools';
+import { mergeIdleLoop } from './run-idle-loop-merge';
 import {
   dropPermissionPromptsForRun,
   permissionQueueFields,
@@ -129,6 +130,7 @@ export function applyRunRecord(
       : previousRecord?.agentStopReason !== undefined
         ? { agentStopReason: previousRecord.agentStopReason }
         : {}),
+    ...mergeIdleLoop(run.idleLoop, previousRecord?.idleLoop),
   };
   const records = { ...state.runRecordsById, [run.runId]: nextRecord };
 

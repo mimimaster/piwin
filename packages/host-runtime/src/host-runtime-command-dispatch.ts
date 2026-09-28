@@ -18,6 +18,7 @@ import { dispatchDomainCommands } from './commands/domain-command-dispatch.js';
 import { inventoryKindsChangedBy, pushInventoryUpdated } from './marketplace/inventory-reader.js';
 import { handleSessionLiveCommand } from './commands/session-live-commands.js';
 import { handleWalkthroughCancel } from './commands/walkthrough-commands.js';
+import { handleRunIdleLoopDismiss } from './commands/run-idle-loop-commands.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { applySettingsRuntimeImpact } from './apply-settings-runtime-impact.js';
@@ -107,6 +108,9 @@ export async function handleCommandWithTranscriptLease(
     const queuedTurn = await deps.queuedTurnController.handleCommand(command, requestId);
     if (queuedTurn) {
       return queuedTurn;
+    }
+    if (command.type === 'run/idle-loop-dismiss') {
+      return handleRunIdleLoopDismiss(deps, command, requestId);
     }
     const domain = await dispatchDomainCommands(command, requestId, ctx);
     if (domain) {

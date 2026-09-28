@@ -1,0 +1,96 @@
+/* Idle-loop notice (docs/plans/2026-09-28-run-idle-loop-notice.md).
+   Reuses the turn-error-card frame; only the accent differs: a warning tone
+   while looping, muted ink once recovered.
+
+   The Inkstone skin (inkstone/delivery-cards.css) repaints every
+   turn-error-card crimson under html:is([data-theme-id=…]). The accent
+   selectors below carry one more class than that skin so a warning never
+   renders as an error in either theme family. */
+
+.run-idle-loop-card {
+  --idle-loop-accent: var(--amber);
+}
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .run-idle-loop-card {
+  --idle-loop-accent: var(--ochre);
+}
+html .run-idle-loop-card.is-recovered,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .run-idle-loop-card.is-recovered {
+  --idle-loop-accent: var(--text-3, var(--t3));
+}
+
+html .run-idle-loop-card .turn-error-card-inner::before,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .run-idle-loop-card
+  .turn-error-card-inner::before {
+  background: var(--idle-loop-accent);
+}
+html .run-idle-loop-card .run-idle-loop-badge,
+html .run-idle-loop-card .run-idle-loop-tag,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .run-idle-loop-card
+  :is(.run-idle-loop-badge, .run-idle-loop-tag) {
+  background: color-mix(in srgb, var(--idle-loop-accent) 15%, transparent);
+  color: var(--idle-loop-accent);
+}
+.run-idle-loop-card .run-idle-loop-tag {
+  text-transform: none;
+}
+.run-idle-loop-card.is-recovered .turn-error-title {
+  color: var(--text-2, var(--t2));
+}
+
+.run-idle-loop-dismiss {
+  margin-left: auto;
+  color: var(--text-3, var(--t3));
+}
+.run-idle-loop-dismiss:hover,
+.run-idle-loop-dismiss:focus-visible {
+  color: var(--text-1, var(--t1));
+}
+
+.run-idle-loop-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2, var(--t2));
+}
+
+.run-idle-loop-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+}
+.run-idle-loop-call {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+.run-idle-loop-call-tool {
+  flex: 0 0 auto;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3, var(--t3));
+}
+.run-idle-loop-call-args {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.run-idle-loop-call-count {
+  flex: 0 0 auto;
+  color: var(--idle-loop-accent);
+}
+
+.run-idle-loop-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3, var(--t3));
+  overflow-wrap: break-word;
+}

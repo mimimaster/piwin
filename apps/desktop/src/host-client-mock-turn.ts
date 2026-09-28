@@ -635,6 +635,14 @@ export async function handleMockTurnCommands(
         };
       }
 
+      case 'run/idle-loop-dismiss':
+        return {
+          id,
+          type: 'response',
+          command: command.type,
+          success: true,
+          data: { live: false, persistedRows: 0 },
+        };
       case 'run/intervention-cancel': {
         const current = host.mockRunInterventions.get(command.interventionId);
         if (

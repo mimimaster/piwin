@@ -261,6 +261,8 @@ export type SessionHostCommand =
       interventionId: string;
       expectedRevision: number;
     }
+  /** Close a Run's idle-loop notice for good (live record + transcript). */
+  | { id?: string; type: 'run/idle-loop-dismiss'; sessionId: string; runId: string }
   | {
       id?: string;
       type: 'session/follow_up';

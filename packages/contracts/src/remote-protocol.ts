@@ -141,6 +141,7 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'run/intervention-submit',
   'run/intervention-edit',
   'run/intervention-cancel',
+  'run/idle-loop-dismiss',
   'session/runtime-status',
   'session/pin',
   'session/unpin',

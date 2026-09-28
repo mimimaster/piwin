@@ -1,6 +1,7 @@
 import type { SessionRunPhase } from './host.js';
 import type { AgentFailure } from './agent-failure.js';
 import type { AgentPromptOutcome } from './agent-prompt-outcome.js';
+import type { RunIdleLoopNotice } from './run-idle-loop.js';
 
 /**
  * CE-RUN: structured concurrency run contracts (runtime-refactor Phase 2).
@@ -51,6 +52,8 @@ export type ExecutionRunRecord = {
   agentStopReason?: AgentPromptOutcome['stopReason'];
   /** Structured Agent failure when the Run ended from a failed prompt outcome. */
   failure?: AgentFailure;
+  /** Detection-only idle-loop notice; never implies the Run was stopped. */
+  idleLoop?: RunIdleLoopNotice;
 };
 
 /** Run push variants for HostPush. */

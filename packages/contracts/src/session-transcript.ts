@@ -16,6 +16,7 @@ import type { ReplyWriterAttribution } from './reply-writer.js';
 import type { AgentFailure } from './agent-failure.js';
 import type { AgentPromptStopReason } from './agent-prompt-outcome.js';
 import type { ExecutionRunRecord } from './run.js';
+import type { RunIdleLoopNotice } from './run-idle-loop.js';
 
 /**
  * Reserved generation namespace for legacy transcript rows (ADR 0040 §9).
@@ -75,6 +76,8 @@ export type SessionTranscriptMessage = {
   failure?: AgentFailure | null;
   /** Native Agent stop reason stamped at Run terminalization. */
   agentStopReason?: AgentPromptStopReason;
+  /** Run idle-loop notice stamped at Run terminalization (detection only). */
+  idleLoop?: RunIdleLoopNotice;
   thinking?: string;
   tools?: SessionToolCardView[];
   /** Native/external citations plus bounded native diagnostic metadata. */

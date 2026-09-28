@@ -319,12 +319,8 @@ function observeToolLoopProgress(
   runId: string,
   event: AgentEvent,
 ): void {
-  const tracker = deps.toolLoopProgress;
-  if (tracker === undefined) {
-    return;
-  }
   if (event.type === 'tool/start') {
-    tracker.observeTool(runId, {
+    const observation = {
       toolName: event.toolName,
       ...(event.presentation?.targetPaths !== undefined
         ? { targetPaths: event.presentation.targetPaths }
@@ -335,7 +331,14 @@ function observeToolLoopProgress(
       ...(event.presentation?.command !== undefined
         ? { command: event.presentation.command }
         : {}),
-    });
+    };
+    // Detection-only notice: independent of the (default-off) breaker below.
+    deps.runIdleLoopMonitor?.observeTool(runId, observation);
+    deps.toolLoopProgress?.observeTool(runId, observation);
+    return;
+  }
+  const tracker = deps.toolLoopProgress;
+  if (tracker === undefined) {
     return;
   }
   if (event.type !== 'message/end') {

@@ -426,6 +426,13 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
         Number.isSafeInteger(command.expectedRevision) &&
         command.expectedRevision > 0
       );
+    case 'run/idle-loop-dismiss':
+      return (
+        command.sessionId.length > 0 &&
+        command.sessionId.length <= 256 &&
+        command.runId.length > 0 &&
+        command.runId.length <= 256
+      );
     case 'preview/resolve-path':
       // ADR 0052 §6: the Host interprets the raw path for any client, but the
       // answer is a logical target — a host-absolute `local-file` target is

@@ -41,6 +41,7 @@ import { useDesktopContextMenu, type ContextMenuTarget } from './context-menu';
 import { MessageEditCard } from './chat-message-edit-card';
 import { TurnErrorCard } from './turn-error-card';
 import { TurnTruncationCard } from './turn-truncation-card';
+import { RunIdleLoopCard } from './run-idle-loop-card';
 import { MessageBubbleContextMenu } from './message-bubble-context-menu';
 import { resolveTurnErrorMessage } from './turn-error-presentation';
 import { turnAttemptHasRetainedWork } from './turn-attempt-work';
@@ -514,6 +515,18 @@ const ChatMessageRowContent = memo(
           <TurnTruncationCard
             {...(props.locale ? { locale: props.locale } : {})}
             {...(props.onContinueTurn ? { onContinue: props.onContinueTurn } : {})}
+          />
+        ) : null}
+        {message.role === 'assistant' &&
+        props.isLastAssistantInTurn === true &&
+        message.runId !== undefined &&
+        props.runRecord?.idleLoop !== undefined ? (
+          <RunIdleLoopCard
+            runId={message.runId}
+            notice={props.runRecord.idleLoop}
+            runEnded={props.runRecord.outcome !== undefined}
+            model={message.model}
+            locale={props.locale}
           />
         ) : null}
         {message.role === 'assistant' && errorMessage !== null ? (

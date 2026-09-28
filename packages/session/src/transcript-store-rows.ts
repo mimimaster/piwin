@@ -136,6 +136,7 @@ export type QueuedTurnRow = {
       if (metadata.agentStopReason !== undefined) {
         message.agentStopReason = metadata.agentStopReason;
       }
+      if (metadata.idleLoop !== undefined) message.idleLoop = metadata.idleLoop;
       if (metadata.subagentActivity !== undefined) {
         message.subagentActivity = metadata.subagentActivity;
       }

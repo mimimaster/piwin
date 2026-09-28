@@ -4,10 +4,11 @@ import { canLoadOlderTranscript, canLoadNewerTranscript } from './transcript-his
  * Host commands stay with App; this file owns transcript, permission, and
  * composer-dock chrome.
  */
-import { useMemo, type ReactElement } from 'react';
+import { useCallback, useMemo, type ReactElement } from 'react';
 import type {
   ContextSummaryPush,
   FlashcardReviewCard,
+  HostCommand,
   PermissionDecision,
   PermissionRememberScope,
   PiwinConfig,
@@ -43,6 +44,7 @@ import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { DocumentOpenInput } from './tool-call-card';
 import { TranscriptViewport, type TranscriptViewportProps } from './transcript-viewport';
 import { ToolOutputReaderContext, createHostToolOutputReader } from './tool-output-reader.js';
+import { RunIdleLoopProvider } from './run-idle-loop-context.js';
 import type { DesktopPreferences } from './ui-preferences';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 import { isConversationSessionChrome } from './is-conversation-session';
@@ -197,8 +199,17 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         : null,
     [activeSessionId, canReadToolOutput, hostClient],
   );
+  const idleLoopRequest = useCallback(
+    (command: HostCommand) => hostClient.request(command),
+    [hostClient],
+  );
 
   return (
+    <RunIdleLoopProvider
+      sessionId={activeSessionId}
+      request={idleLoopRequest}
+      locale={locale}
+    >
     <ToolOutputReaderContext.Provider value={toolOutputReader}>
       {shouldShowHostReconnectBanner({
         transport: hostClient.getTransport(),
@@ -346,6 +357,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         </TranscriptViewport>
       </div>
     </ToolOutputReaderContext.Provider>
+    </RunIdleLoopProvider>
   );
 }
 

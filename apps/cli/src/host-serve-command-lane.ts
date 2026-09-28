@@ -16,6 +16,7 @@ const CONTROL_COMMAND_TYPES = new Set<HostCommand['type']>([
   'run/intervention-submit',
   'run/intervention-edit',
   'run/intervention-cancel',
+  'run/idle-loop-dismiss',
   'permission/resolve',
   'extension/ui_resolve',
   'host/ping',

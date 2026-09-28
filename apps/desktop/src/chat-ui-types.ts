@@ -219,6 +219,8 @@ export type RunRecordUi = {
   outcome?: SessionRunOutcome;
   terminalMessage?: string;
   agentStopReason?: ExecutionRunRecord['agentStopReason'];
+  /** Detection-only idle-loop notice (Host live record or transcript stamp). */
+  idleLoop?: ExecutionRunRecord['idleLoop'];
 };
 
 export type PermissionPromptUi = {

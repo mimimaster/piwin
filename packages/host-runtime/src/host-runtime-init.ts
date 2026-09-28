@@ -234,6 +234,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         });
         deps.runAssistantReply.delete(run.runId);
         deps.toolLoopProgress.release(run.runId);
+        deps.runIdleLoopMonitor.release(run.runId);
       },
     });
     deps.queuedTurnController = new QueuedTurnController({
