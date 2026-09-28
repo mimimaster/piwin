@@ -169,6 +169,30 @@ describe('search providers', () => {
     ).rejects.toThrow(/202|blocked|rate limiting/);
   });
 
+  it('queries DuckDuckGo HTML with GET because scripted POSTs are bot-blocked', async () => {
+    const htmlRequests: Array<{ url: string; method: string | undefined }> = [];
+    vi.stubGlobal('fetch', (async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('api.duckduckgo.com')) {
+        return new Response('{"Results":[],"RelatedTopics":[]}', { status: 200 });
+      }
+      htmlRequests.push({ url, method: init?.method });
+      return new Response(
+        '<div class="result results_links"><a class="result__a" href="https://example.com/a">' +
+          'Example</a><a class="result__snippet">snippet</a></div>',
+        { status: 200 },
+      );
+    }) as typeof fetch);
+    const result = await webSearch('weather tomorrow', {
+      searchProvider: 'duckduckgo',
+      searchTimeoutMs: 1000,
+    });
+    expect(htmlRequests).toHaveLength(1);
+    expect(htmlRequests[0]?.method ?? 'GET').toBe('GET');
+    expect(new URL(htmlRequests[0]?.url ?? '').searchParams.get('q')).toBe('weather tomorrow');
+    expect(result.hits.map((hit) => hit.url)).toContain('https://example.com/a');
+  });
+
   it('adds a warning when the provider returns zero hits', async () => {
     vi.stubGlobal('fetch', (async (input: unknown) => {
       const url = String(input);

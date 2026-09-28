@@ -442,20 +442,22 @@ function createDuckDuckGoProvider(sourceId: string): SearchProvider {
       }
 
       try {
-        const body = new URLSearchParams({ q: query });
+        // GET, not a form POST: DuckDuckGo's bot protection answers scripted
+        // POSTs to /html/ with HTTP 202 and no results, while the same query
+        // as GET succeeds. Keep the honest UA — a spoofed browser UA over a
+        // Node TLS fingerprint gets challenged sooner, not later.
+        const htmlUrl = new URL('https://html.duckduckgo.com/html/');
+        htmlUrl.searchParams.set('q', query);
         const requestInit: RequestInit = {
-          method: 'POST',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
             Accept: 'text/html',
             'User-Agent': 'piwin-web-search/0.1',
           },
-          body: body.toString(),
         };
         if (options.signal) {
           requestInit.signal = options.signal;
         }
-        const response = await fetch('https://html.duckduckgo.com/html/', requestInit);
+        const response = await fetch(htmlUrl, requestInit);
         if (response.status === 202) {
           throw new Error(
             'DuckDuckGo blocked this search request (HTTP 202, likely bot protection or rate limiting). ' +
