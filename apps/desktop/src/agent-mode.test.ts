@@ -10,7 +10,6 @@ describe('agent-mode', () => {
     const out = applyAgentModeToPrompt('agent', 'hello');
     expect(out).toContain('[piwin-mode:agent]');
     expect(out).toContain('Operating contract for this turn:');
-    expect(out).toContain('Tool-loop silence');
     expect(out).toContain('User:\nhello');
   });
 

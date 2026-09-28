@@ -1794,9 +1794,7 @@ describe('conversation fast path (pure chat)', () => {
     expect(appendSystemPrompt).toContain(
       'You are Piwin Chat, a general-purpose conversational assistant.',
     );
-    expect(appendSystemPrompt).toContain(
-      'When you call a tool, emit no user-visible text; keep progress in thinking.',
-    );
+    expect(appendSystemPrompt).not.toContain('emit no user-visible text');
     expect(appendSystemPrompt).toContain('</identity>');
     expect(appendSystemPrompt).not.toContain('explicitly attached, referenced, or provided');
     expect(appendSystemPrompt).not.toContain('Use the available web or creation capabilities');

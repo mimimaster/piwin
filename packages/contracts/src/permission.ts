@@ -59,7 +59,6 @@ const DEFAULT_AGENT_MODE_RULES = [
   '- **Empirical Verification**: Never claim done, fixed, or passing without running checks/tests in this environment.',
   '- **Permission & Safety**: Host enforces permissions; adhere strictly to tool denials rather than restating policy.',
   '- **Evidence-First**: Favor concrete outcomes and test evidence over verbose process narration.',
-  '- **Tool-loop silence**: When requesting tools, emit no user-visible text; put progress in thinking only. User-visible text is only for the final message of the turn, or a blocking question with no tool calls.',
 ] as const;
 
 /**
@@ -68,7 +67,7 @@ const DEFAULT_AGENT_MODE_RULES = [
  * drop long-lived system constraints still see them next to the latest user text.
  */
 export const DEFAULT_AGENT_MODE_SYSTEM_PROMPT = [
-  '[piwin-prompt-meta kind="mode:agent-default" version="5" applies="generation"]',
+  '[piwin-prompt-meta kind="mode:agent-default" version="6" applies="generation"]',
   '<agent_contract>',
   '## Operating Contract',
   ...DEFAULT_AGENT_MODE_RULES,
@@ -82,7 +81,7 @@ export const DEFAULT_AGENT_MODE_SYSTEM_PROMPT = [
  */
 export const AGENT_MODE_SYSTEM_PREAMBLES: Readonly<Record<AgentModeId, string>> = {
   agent: [
-    '[piwin-prompt-meta kind="mode:agent" version="4" applies="every-turn"]',
+    '[piwin-prompt-meta kind="mode:agent" version="5" applies="every-turn"]',
     'Operating contract for this turn:',
     ...DEFAULT_AGENT_MODE_RULES,
   ].join('\n'),

@@ -169,14 +169,11 @@ describe('mergeRuleSets', () => {
 });
 
 describe('agent operating contract', () => {
-  it('tells the model not to emit user-visible text while requesting tools', () => {
-    expect(DEFAULT_AGENT_MODE_SYSTEM_PROMPT).toContain('version="5"');
-    expect(DEFAULT_AGENT_MODE_SYSTEM_PROMPT).toContain('Tool-loop silence');
-    expect(DEFAULT_AGENT_MODE_SYSTEM_PROMPT).toContain(
-      'When requesting tools, emit no user-visible text',
-    );
-    expect(AGENT_MODE_SYSTEM_PREAMBLES.agent).toContain('Tool-loop silence');
-    expect(AGENT_MODE_SYSTEM_PREAMBLES.agent).toContain('version="4"');
+  it('does not forbid user-visible progress text between tool calls', () => {
+    expect(DEFAULT_AGENT_MODE_SYSTEM_PROMPT).toContain('version="6"');
+    expect(DEFAULT_AGENT_MODE_SYSTEM_PROMPT).not.toContain('Tool-loop silence');
+    expect(AGENT_MODE_SYSTEM_PREAMBLES.agent).not.toContain('Tool-loop silence');
+    expect(AGENT_MODE_SYSTEM_PREAMBLES.agent).toContain('version="5"');
   });
 });
 
@@ -185,7 +182,6 @@ describe('mergeAgentModeIntoPrompt', () => {
     const out = mergeAgentModeIntoPrompt('agent', 'hello');
     expect(out.startsWith('[piwin-mode:agent]\n')).toBe(true);
     expect(out).toContain(AGENT_MODE_SYSTEM_PREAMBLES.agent);
-    expect(out).toContain('Tool-loop silence');
     expect(out).toContain('User:\nhello');
   });
 

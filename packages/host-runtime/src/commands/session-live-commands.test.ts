@@ -1903,7 +1903,6 @@ describe('session live control commands', () => {
       expect(recordedPrompts[0]?.text).not.toContain('[piwin-mode:');
       expect(modelFacingText).toContain('fix the login bug');
       expect(modelFacingText).toContain('Operating contract for this turn:');
-      expect(modelFacingText).toContain('Tool-loop silence');
       expect(modelFacingText.startsWith('[piwin-mode:agent]')).toBe(true);
     });
 

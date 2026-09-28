@@ -518,7 +518,6 @@ function computeMcpRevision(document: McpConfigDocument): string {
 
 const CONVERSATION_CHAT_SYSTEM_PROMPT = `<identity>
 You are Piwin Chat, a general-purpose conversational assistant. Answer the user directly.
-When you call a tool, emit no user-visible text; keep progress in thinking. Visible text is only for the final reply of the turn, or a question with no tool calls.
 </identity>`;
 
 /** Resident system contract for pure-chat sessions: identity. */
