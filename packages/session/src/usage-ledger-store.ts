@@ -16,6 +16,7 @@ import type {
   UsageRollup,
 } from '@piwin/contracts';
 import { shouldAcceptContextUsage } from '@piwin/contracts';
+import { addToUsageBucket, createUsageBucket } from './usage-bucket.js';
 
 export type UsageRollupOptions = {
   scope?: SessionScope;
@@ -351,21 +352,21 @@ export function computeUsageRollup(
     return true;
   });
 
-  const totals = accumulateBucket();
+  const totals = createUsageBucket();
   const byModel: Record<string, UsageBucket> = {};
   const byModelKey = new Map<string, UsageModelKeyTotal>();
   const byDay: Record<string, UsageBucket> = {};
   const bySession = new Map<string, UsageBucket & { firstAt: string; lastAt: string }>();
 
   for (const record of filtered) {
-    addToBucket(totals, record);
+    addToUsageBucket(totals, record);
     if (record.modelId) {
       let modelBucket = byModel[record.modelId];
       if (!modelBucket) {
-        modelBucket = createBucket();
+        modelBucket = createUsageBucket();
         byModel[record.modelId] = modelBucket;
       }
-      addToBucket(modelBucket, record);
+      addToUsageBucket(modelBucket, record);
 
       const providerId = normalizeProviderId(record.providerId);
       const modelKey = JSON.stringify([providerId, record.modelId]);
@@ -374,20 +375,20 @@ export function computeUsageRollup(
         modelKeyBucket = {
           providerId,
           modelId: record.modelId,
-          ...createBucket(),
+          ...createUsageBucket(),
         };
         byModelKey.set(modelKey, modelKeyBucket);
       }
-      addToBucket(modelKeyBucket, record);
+      addToUsageBucket(modelKeyBucket, record);
     }
     const day = dayKeyOf(record.recordedAt);
     if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
       let dayBucket = byDay[day];
       if (!dayBucket) {
-        dayBucket = createBucket();
+        dayBucket = createUsageBucket();
         byDay[day] = dayBucket;
       }
-      addToBucket(dayBucket, record);
+      addToUsageBucket(dayBucket, record);
     }
     const sessionTotal = bySession.get(record.sessionId) ?? {
       promptTokens: 0,
@@ -455,43 +456,6 @@ function resolveScope(
     return { kind: 'project', projectPath };
   }
   return { kind: 'global' };
-}
-
-function createBucket(): UsageBucket {
-  return {
-    promptTokens: 0,
-    completionTokens: 0,
-    cacheReadTokens: 0,
-    cacheWriteTokens: 0,
-    totalTokens: 0,
-    entryCount: 0,
-  };
-}
-
-function accumulateBucket(): UsageBucket {
-  return createBucket();
-}
-
-function addToBucket(bucket: UsageBucket, record: UsageRecord): void {
-  bucket.promptTokens += record.promptTokens ?? 0;
-  bucket.completionTokens += record.completionTokens ?? 0;
-  bucket.cacheReadTokens += record.cacheReadTokens ?? 0;
-  bucket.cacheWriteTokens += record.cacheWriteTokens ?? 0;
-  bucket.totalTokens += record.totalTokens;
-  bucket.entryCount += 1;
-  if (typeof record.durationMs === 'number' && Number.isFinite(record.durationMs)) {
-    bucket.durationMs = (bucket.durationMs ?? 0) + record.durationMs;
-    bucket.durationMsCompletionTokens =
-      (bucket.durationMsCompletionTokens ?? 0) + (record.completionTokens ?? 0);
-  }
-  if (typeof record.firstTokenMs === 'number' && Number.isFinite(record.firstTokenMs)) {
-    const prevCount = bucket.firstTokenMs !== undefined ? bucket.entryCount - 1 : 0;
-    const prevSum = (bucket.firstTokenMs ?? 0) * prevCount;
-    bucket.firstTokenMs = (prevSum + record.firstTokenMs) / bucket.entryCount;
-  }
-  if (record.success !== false) {
-    bucket.successCount = (bucket.successCount ?? 0) + 1;
-  }
 }
 
 function usageRecordToContextSnapshot(record: UsageRecord): ContextUsageSnapshot {
