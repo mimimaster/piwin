@@ -75,7 +75,7 @@ pnpm check          # typecheck + architecture rules + unit tests
 pnpm dev:tauri      # start the desktop app in dev mode
 ```
 
-**Requirements**: Node ≥ 22 · pnpm ≥ 9 · Rust ≥ 1.75 (for the desktop build)
+**Requirements**: Node ≥ 22.19.0 · pnpm ≥ 9 · Rust ≥ 1.75 (for the desktop build)
 
 ### Web deployment
 

@@ -5,7 +5,7 @@
   "description": "Private coding agent shell on Pi (UI + CLI)",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "build": "pnpm --workspace-concurrency=4 -r run build",

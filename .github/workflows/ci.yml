@@ -24,6 +24,8 @@ jobs:
         run: pnpm typecheck
       - name: Test
         run: pnpm test
+      - name: Architecture boundaries
+        run: pnpm test:architecture
       - name: Host e2e smoke
         run: pnpm e2e:smoke
       - name: Prod audit (report-only)

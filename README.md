@@ -73,7 +73,7 @@ pnpm check          # 类型检查 + 架构红线 + 单测
 pnpm dev:tauri      # 启动桌面端开发
 ```
 
-**环境要求**：Node ≥ 22 · pnpm ≥ 9 · Rust ≥ 1.75（桌面端编译）
+**环境要求**：Node ≥ 22.19.0 · pnpm ≥ 9 · Rust ≥ 1.75（桌面端编译）
 
 ### Web 部署
 
