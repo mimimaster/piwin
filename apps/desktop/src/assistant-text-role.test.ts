@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { assistantTextIsProcess, assistantTextRole } from './assistant-text-role.js';
+import {
+  assistantHasUserFacingGeneration,
+  assistantTextIsProcess,
+  assistantTextRole,
+} from './assistant-text-role.js';
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer.js';
 
 function tool(
@@ -138,6 +142,38 @@ describe('assistantTextRole', () => {
         }),
       ),
     ).toBe('process');
+  });
+
+  it('does not treat a work-tool screenshot as a user-facing deliverable', () => {
+    const media = {
+      id: 'shot-1',
+      kind: 'media' as const,
+      path: '/media/shot-1.jpg',
+      mimeType: 'image/jpeg',
+      byteSize: 10,
+      source: 'generated' as const,
+    };
+    expect(
+      assistantHasUserFacingGeneration(
+        assistant({
+          id: 'screenshot',
+          attachments: [media],
+          tools: [tool({ toolCallId: 's1', toolName: 'browser_screenshot' })],
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      assistantHasUserFacingGeneration(
+        assistant({
+          id: 'image',
+          attachments: [media],
+          tools: [tool({ toolCallId: 'g1', toolName: 'image_gen' })],
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      assistantHasUserFacingGeneration(assistant({ id: 'bare-media', attachments: [media] })),
+    ).toBe(true);
   });
 
   it('does not inspect tool output to decide the role', () => {

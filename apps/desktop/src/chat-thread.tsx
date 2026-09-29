@@ -32,6 +32,11 @@ import { resolveConversationTurnChrome } from './conversation-turn-chrome';
 import { resolveHiddenLifecyclePlaceholderIds } from './lifecycle-placeholder.js';
 import { projectTurnWorkDisclosure } from './turn-work-disclosure-model.js';
 import { TurnWorkDisclosure } from './turn-work-disclosure.js';
+import {
+  resolveWorkDisclosureOpen,
+  toggleWorkDisclosureOverride,
+  type WorkDisclosureOverride,
+} from './turn-work-disclosure-open-state.js';
 import { TurnWorkDetails } from './turn-work-details.js';
 import { isDuplicateThinking } from './thinking-dedup.js';
 import { CompactionActivity } from './compaction-activity.js';
@@ -148,7 +153,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
 
   const turnGroups = useMemo(() => groupTranscriptTurns(chatMessages), [chatMessages]);
   const [workDisclosureOpenByTurnId, setWorkDisclosureOpenByTurnId] = useState<
-    Record<string, boolean>
+    Record<string, WorkDisclosureOverride>
   >({});
   // Cursor-style explore flow: consecutive read/search/thought-only assistant
   // steps collapse into one "Explored N files" capsule anchored at the first
@@ -328,8 +333,12 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
             props.toolDensity === 'detailed' ||
             (workDisclosureProjection?.live === true &&
               workDisclosureProjection.failureCount > 0);
-          const workDisclosureOpen =
-            workDisclosureOpenByTurnId[workDisclosureKey] ?? workDisclosureDefaultOpen;
+          const workDisclosureOpen = resolveWorkDisclosureOpen(
+            workDisclosureOpenByTurnId[workDisclosureKey],
+            workDisclosureProjection,
+            turnRunKey,
+            workDisclosureDefaultOpen,
+          );
           const identityItemIndex = conversationChrome?.identityMessageId
             ? turn.items.findIndex(
                 (item) => item.message.id === conversationChrome.identityMessageId,
@@ -395,8 +404,11 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   onToggle={() =>
                     setWorkDisclosureOpenByTurnId((current) => ({
                       ...current,
-                      [workDisclosureKey]: !(
-                        current[workDisclosureKey] ?? workDisclosureDefaultOpen
+                      [workDisclosureKey]: toggleWorkDisclosureOverride(
+                        current[workDisclosureKey],
+                        workDisclosureProjection,
+                        turnRunKey,
+                        workDisclosureDefaultOpen,
                       ),
                     }))
                   }

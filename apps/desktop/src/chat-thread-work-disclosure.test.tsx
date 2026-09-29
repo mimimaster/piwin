@@ -848,4 +848,104 @@ describe('ChatThread completed work disclosure', () => {
     expect(container.querySelector('#msg-work-1')).toBeNull();
     expect(container.querySelector('#msg-work-2')).toBeNull();
   });
+
+  it('folds into 已工作 once at settle even if the user expanded the live chain', () => {
+    const liveMessages = [
+      message('user-1', { role: 'user', text: 'Implement it.' }),
+      message('work-1', {
+        runId: 'run-1',
+        tools: [
+          { toolCallId: 'read-1', toolName: 'read', status: 'done', output: '', runId: 'run-1' },
+        ],
+      }),
+      message('work-2', {
+        runId: 'run-1',
+        status: 'streaming',
+        tools: [
+          { toolCallId: 'bash-1', toolName: 'bash', status: 'running', output: '', runId: 'run-1' },
+        ],
+      }),
+    ];
+    act(() =>
+      root.render(
+        renderThread(liveMessages, {
+          streaming: true,
+          activeRunId: 'run-1',
+          runRecordsById: {
+            'run-1': { runId: 'run-1', phaseHistory: [], startedAt: 1_000, endedAt: null },
+          },
+        }),
+      ),
+    );
+    const trigger = (): HTMLButtonElement | null =>
+      container.querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]');
+    act(() => trigger()?.click());
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('#msg-work-1')).not.toBeNull();
+
+    const settledMessages = [
+      ...liveMessages.slice(0, 2),
+      message('work-2', {
+        runId: 'run-1',
+        tools: [
+          { toolCallId: 'bash-1', toolName: 'bash', status: 'done', output: '', runId: 'run-1' },
+        ],
+      }),
+      message('answer-1', { runId: 'run-1', text: 'Done.' }),
+    ];
+    act(() => root.render(renderThread(settledMessages)));
+
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('false');
+    expect(trigger()?.textContent).toContain('Worked for');
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-answer-1')?.textContent).toContain('Done.');
+
+    // After settle the reader's own toggle sticks.
+    act(() => trigger()?.click());
+    act(() => root.render(renderThread(settledMessages)));
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('folds a settled browser-driving turn whose screenshots attach media', () => {
+    const screenshot = {
+      id: 'shot-1',
+      kind: 'media' as const,
+      path: '/media/shot-1.jpg',
+      mimeType: 'image/jpeg',
+      byteSize: 10,
+      source: 'generated' as const,
+    };
+    const messages = [
+      message('user-1', { role: 'user', text: 'Check the page.' }),
+      message('work-1', {
+        runId: 'run-1',
+        text: 'Taking a screenshot.',
+        attachments: [screenshot],
+        tools: [
+          {
+            toolCallId: 'shot',
+            toolName: 'browser_screenshot',
+            status: 'done',
+            output: '',
+            runId: 'run-1',
+          },
+        ],
+      }),
+      message('work-2', {
+        runId: 'run-1',
+        tools: [
+          { toolCallId: 'bash-1', toolName: 'bash', status: 'done', output: '', runId: 'run-1' },
+        ],
+      }),
+      message('answer-1', { runId: 'run-1', text: 'Looks right.' }),
+    ];
+    act(() => root.render(renderThread(messages)));
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-answer-1')?.textContent).toContain('Looks right.');
+  });
 });

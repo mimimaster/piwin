@@ -1200,5 +1200,59 @@ describe('projectTurnWorkDisclosure', () => {
       });
       expect(projection).toMatchObject({ startIndex: 1, endIndex: 3, elapsedMs: 14_000 });
     });
+
+    it('ignores the paused-checkpoint note so the resumed chain still folds', () => {
+      const pausedNote = 'Run paused; a resumable checkpoint was saved.';
+      const rowsWithNote = [
+        ...pausedRows.slice(0, 2),
+        message('w2', { runId: 'run-1', error: pausedNote, tools: [tool('t2', 'run-1')] }),
+      ];
+      const live = projectTurnWorkDisclosure({
+        turn: turn([
+          ...rowsWithNote,
+          message('r1', { runId: 'run-2', status: 'streaming', tools: [tool('t3', 'run-2', 'running')] }),
+        ]),
+        runRecordsById: {
+          'run-1': pausedRun,
+          'run-2': { runId: 'run-2', phaseHistory: [], startedAt: 600_000, endedAt: null },
+        },
+        activeRunId: 'run-2',
+        currentTurnStreaming: true,
+      });
+      expect(live).toMatchObject({ startIndex: 1, endIndex: 3, live: true, failureCount: 0 });
+
+      const settled = projectTurnWorkDisclosure({
+        turn: turn([
+          ...rowsWithNote,
+          message('r1', { runId: 'run-2', tools: [tool('t3', 'run-2')] }),
+          message('answer', { runId: 'run-2', text: 'Done.' }),
+        ]),
+        runRecordsById: {
+          'run-1': pausedRun,
+          'run-2': completedRun({ runId: 'run-2', startedAt: 600_000, endedAt: 610_000 }),
+        },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      });
+      expect(settled).toMatchObject({ startIndex: 1, endIndex: 3, failureCount: 0 });
+    });
+
+    it('still blocks the fold on a real error from a run that did not pause', () => {
+      expect(
+        projectTurnWorkDisclosure({
+          turn: turn([
+            ...pausedRows.slice(0, 2),
+            message('w2', { runId: 'run-1', error: 'boom', tools: [tool('t2', 'run-1')] }),
+            message('r1', { runId: 'run-2', status: 'streaming', tools: [tool('t3', 'run-2', 'running')] }),
+          ]),
+          runRecordsById: {
+            'run-1': completedRun({ outcome: 'failed' }),
+            'run-2': { runId: 'run-2', phaseHistory: [], startedAt: 600_000, endedAt: null },
+          },
+          activeRunId: 'run-2',
+          currentTurnStreaming: true,
+        }),
+      ).toBeNull();
+    });
   });
 });

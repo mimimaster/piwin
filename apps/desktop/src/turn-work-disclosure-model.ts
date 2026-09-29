@@ -527,6 +527,29 @@ function projectLiveRange(
 }
 
 /**
+ * A paused run stamps its resumable-checkpoint note onto its last row as
+ * `error`. That is lifecycle, not a failure: the error card already ignores it
+ * (only a failed outcome draws one), and the fold must too, or a resumed run's
+ * chain is treated as blocked by an error and never folds.
+ */
+function dropPausedRunNotes(
+  turn: TranscriptTurn,
+  runRecordsById: Readonly<Record<string, RunRecordUi>>,
+): TranscriptTurn {
+  let changed = false;
+  const items = turn.items.map((item) => {
+    const { message } = item;
+    if (message.error === undefined || message.status === 'error' || !message.runId) return item;
+    if (runRecordsById[message.runId]?.outcome !== 'paused') return item;
+    changed = true;
+    const withoutNote: ChatMessageUi = { ...message };
+    delete withoutNote.error;
+    return { ...item, message: withoutNote };
+  });
+  return changed ? { ...turn, items } : turn;
+}
+
+/**
  * Wrap intermediate Agent work. A live turn folds behind a running header; a
  * settled turn folds behind its summary. Returning `null` keeps the original
  * causal stream fully mounted.
@@ -537,8 +560,12 @@ function projectLiveRange(
  * (tools, no reply) folds the whole work span.
  */
 export function projectTurnWorkDisclosure(
-  input: ProjectTurnWorkDisclosureInput,
+  rawInput: ProjectTurnWorkDisclosureInput,
 ): TurnWorkDisclosureProjection | null {
+  const input = {
+    ...rawInput,
+    turn: dropPausedRunNotes(rawInput.turn, rawInput.runRecordsById),
+  };
   const lastAssistantIndex = findLastAssistantIndex(input.turn);
   if (lastAssistantIndex < 0) return null;
   const lastAssistant = input.turn.items[lastAssistantIndex]?.message;
