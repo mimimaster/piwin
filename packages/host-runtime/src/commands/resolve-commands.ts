@@ -4,6 +4,9 @@
 import type { HostCommand, HostResponse, PermissionDecision } from '@piwin/contracts';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
+import { GrokBackendService } from '../grok/grok-backend-service.js';
+
+const validateBackendPermissionOption = GrokBackendService.validateBackendOption;
 
 const TYPES = new Set<HostCommand['type']>([
   'permission/resolve',
@@ -37,6 +40,24 @@ export async function handleResolveCommand(
             data: { requestId: command.requestId },
           },
         );
+      }
+      // ADR 0082: external agent requests carry their own options. Validate
+      // the chosen id and hand it back verbatim; piwin remembered scopes are
+      // never applied to another agent's permission model.
+      if (pending.context?.backendOptions !== undefined || command.backendOptionId !== undefined) {
+        const problem = validateBackendPermissionOption(pending, command.decision, command.backendOptionId);
+        if (problem !== undefined) {
+          return fail(requestId, 'permission/resolve', problem, { code: problem });
+        }
+        if (command.backendOptionId !== undefined) {
+          (pending as { backendOptionId?: string }).backendOptionId = command.backendOptionId;
+        }
+        pending.resolve(command.decision);
+        context.pendingPermissions.delete(command.requestId);
+        return ok(requestId, 'permission/resolve', {
+          requestId: command.requestId,
+          decision: command.decision,
+        });
       }
       if (command.decision === 'allow' && command.rememberScope === 'project') {
         // General sessions have no project remembered permissions.

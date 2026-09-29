@@ -21,6 +21,12 @@ export {
   SessionIndexCorruptError,
 } from './session-index-store.js';
 export { writeTextFileAtomic } from './atomic-text-file.js';
+export { syncExternalSessionCatalog } from './external-session-catalog.js';
+export type {
+  ExternalCatalogEntry,
+  ExternalCatalogSyncInput,
+  ExternalCatalogSyncResult,
+} from './external-session-catalog.js';
 export type {
   ConditionalSessionArchiveResult,
   ListSessionsForProjectOptions,

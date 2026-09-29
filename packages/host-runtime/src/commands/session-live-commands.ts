@@ -65,6 +65,7 @@ import {
   clearSessionPlan,
   createSessionRecord,
   createSubagentRunStore,
+  deleteSessionRecord,
   streamTranscriptExport,
   getSessionRecord,
   listChildSessions,
@@ -286,6 +287,27 @@ export async function handleSessionLiveCommand(
       if (command.input.model) {
         context.sessionModels.set(sessionId, command.input.model);
       }
+      // ADR 0082: bind an external agent before the first prompt. A failure
+      // here removes the half-created record so no ghost Pi session remains.
+      const requestedAgentId = command.input.agentId?.trim();
+      if (requestedAgentId !== undefined && requestedAgentId !== '' && requestedAgentId !== 'pi') {
+        if (requestedAgentId !== 'grok' || context.bindExternalAgentSession === undefined) {
+          await deleteSessionRecord(indexPath, sessionId).catch(() => undefined);
+          return fail(requestId, 'session/create', `unknown-agent: ${requestedAgentId}`);
+        }
+        try {
+          const bound = await context.bindExternalAgentSession(sessionId, {
+            ...(command.input.backendModelId !== undefined ? { modelId: command.input.backendModelId } : {}),
+            ...(command.input.backendEffortId !== undefined ? { effortId: command.input.backendEffortId } : {}),
+          });
+          if (bound !== undefined) {
+            createdRecord = bound;
+          }
+        } catch (error) {
+          await deleteSessionRecord(indexPath, sessionId).catch(() => undefined);
+          return fail(requestId, 'session/create', formatError(error));
+        }
+      }
       context.pushStatus();
       context.push(
         sessionIndexUpdatedPush({
@@ -444,6 +466,15 @@ export async function handleSessionLiveCommand(
       }
       if (existing.thinkingLevel) {
         data.thinkingLevel = existing.thinkingLevel;
+      }
+      if (context.describeExternalBackend !== undefined && existing.backend !== undefined) {
+        const described = context.describeExternalBackend(existing);
+        if (described !== undefined) {
+          data.backendCapabilities = described.capabilities;
+          if (described.options !== undefined) {
+            data.backendOptions = described.options;
+          }
+        }
       }
       if (restoredUsage) {
         data.contextUsage = restoredUsage;

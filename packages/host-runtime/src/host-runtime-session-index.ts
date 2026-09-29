@@ -226,6 +226,10 @@ export async function maybeTriggerAutoName(
   if (!record) {
     return;
   }
+  // ADR 0082: external agents name their own sessions (session_info_update).
+  if (record.backend !== undefined && record.backend.agentId !== 'pi') {
+    return;
+  }
   // messageCount counts completed runs (touchSession += 1 per run), so a
   // value >= 1 means at least one exchange is finished. We attempt naming on
   // every completed exchange; a failure leaves nameSource as 'default', so

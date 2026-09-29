@@ -10,6 +10,7 @@ import type {
 } from '@piwin/contracts';
 import {
   formatError,
+  isExternalBackendBinding,
   resolveOrchestrationScheme,
   OrchestrationSchemeError,
 } from '@piwin/contracts';
@@ -33,6 +34,7 @@ import {
 } from './session-prompt-admission.js';
 import { listKnownChatModelKeys } from './prompt-preparation.js';
 import { executeSessionTurn } from './session-turn-executor.js';
+import { executeExternalAgentTurn } from './external-agent-turn-executor.js';
 import { requestedTurnPolicy } from './pause-turn-policy.js';
 import { rebaseForPromptTree } from './session-prompt-rebase.js';
 import { resolveSessionTurnProfile } from './session-turn-profile.js';
@@ -65,9 +67,17 @@ export async function handleSessionPromptCommand(
       // CHT-301: durable, Host-owned conversation classification. The client
       // cannot opt a pure-chat Conversation into agent semantics by sending
       // stale agent-only fields — they are ignored, not honored.
+      // ADR 0082: external agents (Grok) own prompt semantics; Pi-only
+      // conversation/plan/skill/orchestration preparation never applies.
+      const externalAgent = isExternalBackendBinding(promptRecord?.backend);
+      if (externalAgent && hasImageAttachment(command.input)) {
+        return fail(requestId, 'session/prompt', 'backend-operation-unsupported: Grok does not accept images yet', {
+          code: 'backend-operation-unsupported',
+        });
+      }
       const conversationChat =
-        (await context.resolveIsConversationChat?.(command.sessionId)) === true;
-      const persistedPlanIntent = conversationChat
+        !externalAgent && (await context.resolveIsConversationChat?.(command.sessionId)) === true;
+      const persistedPlanIntent = conversationChat || externalAgent
         ? null
         : command.input.skillId === 'writing-plans'
           ? ('writing-plans-skill' as const)
@@ -136,7 +146,7 @@ export async function handleSessionPromptCommand(
       // CHT-302: conversations ignore the field entirely — a stale id must
       // neither widen capabilities nor fail the prompt.
       const orchId = command.input.orchestrationSchemeId?.trim();
-      if (!conversationChat && orchId && orchId !== 'off') {
+      if (!conversationChat && !externalAgent && orchId && orchId !== 'off') {
         try {
           const config = await context.loadConfig();
           const knownProfileIds = await context.listKnownSubagentProfileIds();
@@ -173,9 +183,9 @@ export async function handleSessionPromptCommand(
       // Desired = input.model ?? index record ?? last-applied. Voice-delegation
       // omits input.model; Host still applies the desired composer profile.
       const turnProfile = resolveSessionTurnProfile({
-        input: command.input,
-        record: promptRecord,
-        appliedModel: context.sessionModels.get(command.sessionId),
+        input: externalAgent ? {} : command.input,
+        record: externalAgent ? undefined : promptRecord,
+        appliedModel: externalAgent ? undefined : context.sessionModels.get(command.sessionId),
         hasLiveHandle: context.sessions.has(command.sessionId),
       });
       const { previousModel, desiredModel, desiredThinkingLevel } = turnProfile;
@@ -183,12 +193,13 @@ export async function handleSessionPromptCommand(
       // rebuilt generation can pick up — same detached replacement path as a
       // cross-Provider model switch.
       const requiresModelRuntimeReplacement =
-        turnProfile.requiresModelRuntimeReplacement ||
-        (context.sessions.has(command.sessionId) &&
-          context.sessionMcpOverrideChanged?.(
-            command.sessionId,
-            promptRecord?.disabledMcpServerIds,
-          ) === true);
+        !externalAgent &&
+        (turnProfile.requiresModelRuntimeReplacement ||
+          (context.sessions.has(command.sessionId) &&
+            context.sessionMcpOverrideChanged?.(
+              command.sessionId,
+              promptRecord?.disabledMcpServerIds,
+            ) === true));
       const explicitForeground = command.foreground;
       let reservedAdmission = false;
       if (explicitForeground !== undefined) {
@@ -294,6 +305,10 @@ export async function handleSessionPromptCommand(
       // request path. runWithContext owns the async context, while the
       // executor owns the run's single terminal transition.
       context.runWithContext(run.runId, async () => {
+        if (externalAgent) {
+          await executeExternalAgentTurn({ context, command, run, supersededRun });
+          return;
+        }
         await executeSessionTurn({
           context,
           command,
@@ -343,4 +358,15 @@ export async function handleSessionPromptCommand(
     default:
       return null;
   }
+}
+
+function hasImageAttachment(input: { attachments?: ReadonlyArray<{ kind: string; mimeType?: string; contentKind?: string }> }): boolean {
+  return (
+    input.attachments?.some(
+      (item) =>
+        item.kind === 'media' &&
+        (item.contentKind === 'image' ||
+          (item.contentKind === undefined && item.mimeType?.toLowerCase().startsWith('image/') === true)),
+    ) === true
+  );
 }

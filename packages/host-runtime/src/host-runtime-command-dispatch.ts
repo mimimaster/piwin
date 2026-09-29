@@ -27,6 +27,7 @@ import {
   TRANSCRIPT_STORE_LEASED_COMMANDS,
 } from './host-runtime-types.js';
 import { PiwinRootLeaseCompromisedError } from './piwin-root-lease.js';
+import { handleExternalAgentCommand } from './grok/grok-host-commands.js';
 
 const ROOT_LEASE_UNAVAILABLE_ERROR =
   'This Host lost its data directory lock. Restart the Host.';
@@ -105,6 +106,10 @@ export async function handleCommandWithTranscriptLease(
       }
     }
     const ctx = await deps.buildDomainContext();
+    const externalAgent = await handleExternalAgentCommand(deps, command, requestId);
+    if (externalAgent) {
+      return externalAgent;
+    }
     const queuedTurn = await deps.queuedTurnController.handleCommand(command, requestId);
     if (queuedTurn) {
       return queuedTurn;

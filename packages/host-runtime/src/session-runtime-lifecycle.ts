@@ -13,6 +13,7 @@ import { ProductAgentHost, createRuntimeGenerationId } from './product-agent-hos
 import { hasForeignLiveSessionRuntime, withSessionOperationLock } from './session-runtime-lease.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { ok } from './response-helpers.js';
+import { activateGrokSession, isGrokRecord } from './grok/grok-session-router.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 
@@ -192,6 +193,32 @@ export async function doActivateSessionRuntime(
       throw memoryError;
     }
     throw new Error(`activation aborted: ${admission.message}`);
+  }
+  // ADR 0082: external agent sessions bypass Pi blueprint compilation and
+  // native replay seeds; the agent owns its own conversation state.
+  if (isGrokRecord(record)) {
+    try {
+      const grokHandle = await activateGrokSession(
+        deps,
+        record,
+        runtimeGenerationId,
+        runId,
+        excludeSeedMessageId,
+      );
+      deps.residencyController.commitActivation(sessionId, runtimeGenerationId);
+      if (runId !== undefined) {
+        deps.residencyController.markBusy(sessionId, runtimeGenerationId);
+      }
+      return grokHandle;
+    } catch (error) {
+      deps.residencyController.abortActivation(sessionId, runtimeGenerationId);
+      deps.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `grok session activation failed for ${sessionId}: ${formatError(error)}`,
+      });
+      throw error;
+    }
   }
   // Native replay seed (spec: session-conversation-tree §4.4): when the
   // durable transcript owns native context copies, reconstruct the model

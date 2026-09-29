@@ -150,6 +150,18 @@ export type SessionLiveContext = {
    * real HostRuntime always provides it.
    */
   resolveIsConversationChat?: (sessionId: string) => Promise<boolean>;
+  /** ADR 0082: bind a just-created session to an external agent (Grok). */
+  bindExternalAgentSession?: (
+    sessionId: string,
+    input: { modelId?: string; effortId?: string },
+  ) => Promise<import('@piwin/contracts').SessionIndexRecord | undefined>;
+  /** ADR 0082: capabilities + options for an external-agent session record. */
+  describeExternalBackend?: (record: import('@piwin/contracts').SessionIndexRecord) =>
+    | {
+        capabilities: import('@piwin/contracts').SessionBackendCapabilities;
+        options?: import('@piwin/contracts').SessionBackendOptions;
+      }
+    | undefined;
   /** ORCH: read scheme for the active/parent run (soft-generic spawn). */
   getRunOrchestrationScheme: (runId: string) => ResolvedOrchestrationScheme | undefined;
   /** Builtin + settings profile ids for scheme resolve validation. */

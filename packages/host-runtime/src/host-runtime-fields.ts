@@ -72,6 +72,7 @@ import type { LiveCallCoordinator } from './voice/live-call-coordinator.js';
 import type { LiveIntendedSessionGate } from './voice/live-intended-session-gate.js';
 import type { LiveSettingsService } from './voice/live-settings-service.js';
 import type { SessionContextCoordinator } from './session-context-coordinator.js';
+import type { GrokBackendService } from './grok/grok-backend-service.js';
 
 /** Mutable HostRuntime instance fields. HostRuntime remains the composition root. */
 export class HostRuntimeFields {
@@ -81,6 +82,10 @@ export class HostRuntimeFields {
   rootLease: PiwinRootLease | null = null;
   hostInstanceId = '';
   host = undefined as unknown as ProductAgentHost;
+  /** ADR 0082: Grok Build backend (null when this Host runs mock/Pi-only). */
+  grokBackend: GrokBackendService | undefined = undefined;
+  /** Last Grok catalog change per backend session (drives replay on stale projection). */
+  grokCatalogChanges = new Map<string, number>();
   sessions = new Map<string, SessionHandle>();
   /**
    * ADR 0040 §2/§7: deduplicates concurrent cold-activation attempts per

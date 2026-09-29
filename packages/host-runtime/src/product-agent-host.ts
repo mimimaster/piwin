@@ -167,6 +167,8 @@ export class ProductAgentHost implements AgentHost {
   private readonly backend: PiSessionBackend | null;
   private readonly ownedWorkerSupervisor: AgentWorkerSupervisor | null;
   private readonly sessions = new Map<string, SessionHandle>();
+  /** External agent handles (ADR 0082); never passed to the Pi backend. */
+  private readonly externalSessions = new Map<string, SessionHandle>();
 
   constructor(options: ProductAgentHostOptions) {
     if (!options.mock && !options.hostToolExecution) {
@@ -272,11 +274,21 @@ export class ProductAgentHost implements AgentHost {
     this.sessions.set(sessionId, session);
   }
 
+  /** Register a live external agent handle so drop/dispose release its process. */
+  registerExternalSession(sessionId: string, session: SessionHandle): void {
+    this.externalSessions.set(sessionId, session);
+  }
+
   /**
    * Forget exactly the stuck handle held by HostRuntime without waiting for
    * its abort promise. Generation cleanup remains exact and asynchronous.
    */
   detachSessionHandle(sessionId: string, expected: SessionHandle): boolean {
+    if (this.externalSessions.get(sessionId) === expected) {
+      this.externalSessions.delete(sessionId);
+      void expected.release?.().catch(() => undefined);
+      return true;
+    }
     if (this.sessions.get(sessionId) !== expected) {
       return false;
     }
@@ -551,6 +563,15 @@ export class ProductAgentHost implements AgentHost {
   }
 
   async dropSession(sessionId: string): Promise<void> {
+    // ADR 0082: external agent handles (Grok) own a process; release it on
+    // every drop path (dispose, suspend, quarantine) through this one seam.
+    const external = this.externalSessions.get(sessionId);
+    if (external !== undefined) {
+      this.externalSessions.delete(sessionId);
+      await this.options.onGenerationDetached?.(sessionId);
+      await external.release?.();
+      return;
+    }
     const session = this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     const cleanupErrors: unknown[] = [];
@@ -577,6 +598,11 @@ export class ProductAgentHost implements AgentHost {
   }
 
   async dispose(): Promise<void> {
+    for (const [sessionId, external] of this.externalSessions) {
+      await this.options.onGenerationDetached?.(sessionId);
+      await external.release?.().catch(() => undefined);
+    }
+    this.externalSessions.clear();
     for (const sessionId of this.sessions.keys()) {
       await this.options.onGenerationDetached?.(sessionId);
     }

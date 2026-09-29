@@ -44,6 +44,7 @@ export function indexRecordToSummary(
     | 'knowledgeBaseIds'
     | 'disabledMcpServerIds'
     | 'storage'
+    | 'backend'
   >,
 ): SessionSummary {
   const scope: SessionScope = scopeFromIndexRecord(record);
@@ -111,6 +112,11 @@ export function indexRecordToSummary(
   }
   if (record.storage && record.storage.state !== 'local') {
     summary.storage = record.storage;
+  }
+  // ADR 0082: only the agent id reaches clients; the native session id and
+  // observed version stay Host-side.
+  if (record.backend !== undefined && record.backend.agentId !== 'pi') {
+    summary.backend = { agentId: record.backend.agentId };
   }
   return summary;
 }

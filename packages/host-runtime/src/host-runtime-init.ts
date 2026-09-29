@@ -22,6 +22,7 @@ import { createFileRecordStore, createJobRegistry, type JobRegistryEvent } from 
 import { listProjects } from '@piwin/project';
 
 import { getSessionRecord } from '@piwin/session';
+import { composeGrokBackend } from './grok/grok-compose.js';
 import { ensureLoginShellPath } from './login-shell-path.js';
 import { createSessionTranscriptStoreRegistry } from './session-transcript-store-registry.js';
 import { ProductAgentHost } from './product-agent-host.js';
@@ -671,6 +672,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       deps.composeSubagentOrchestrator();
     }
     composeHostLive(deps);
+    composeGrokBackend(deps, options);
     deps.subscriptionAuth?.bindCancelRuns((providerId) =>
       cancelRunsForSubscriptionProvider(deps, providerId),
     );

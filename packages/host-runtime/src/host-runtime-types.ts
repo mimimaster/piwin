@@ -126,6 +126,17 @@ export type HostRuntimeOptions = {
    */
   testFixture?: HostRuntimeTestFixture;
   /**
+   * ADR 0082: Grok Build backend. `false` disables it (default in mock
+   * mode). A transport factory replaces the real `grok` process in tests.
+   */
+  grok?:
+    | false
+    | {
+        createTransport?: (binaryPath: string, cwd: string) => import('@piwin/acp-agent').AcpLineTransport;
+        detect?: () => Promise<import('@piwin/contracts').ExternalAgentStatus>;
+        env?: NodeJS.ProcessEnv;
+      };
+  /**
    * Session-level permission mode override (ADR 0019 §3). Takes precedence
    * over `config.permissions.mode` without persisting to disk.
    */

@@ -11,6 +11,8 @@ import { loadPiwinConfig } from './config-store.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { resolveTurnChangeWorkspaceRoot } from './turn-changes/runtime-wiring.js';
 import { isConversationIndexRecord } from './session-scope.js';
+import { bindNewGrokSession, isGrokRecord } from './grok/grok-session-router.js';
+import { createGrokSessionCapabilities } from './grok/grok-capabilities.js';
 import { sessionMcpOverrideKey } from './session-mcp-overrides.js';
 import { type SessionLiveContext } from './commands/session-live-commands.js';
 
@@ -86,6 +88,17 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
         sessionId,
       );
       return record !== undefined && isConversationIndexRecord(record);
+    },
+    bindExternalAgentSession: (sessionId, input) => bindNewGrokSession(deps, sessionId, input),
+    describeExternalBackend: (record) => {
+      if (!isGrokRecord(record)) {
+        return undefined;
+      }
+      const options = deps.grokBackend?.getSessionOptions(record.id);
+      return {
+        capabilities: createGrokSessionCapabilities(),
+        ...(options !== undefined ? { options } : {}),
+      };
     },
     stopProcessesForSession: (sessionId) => deps.stopProcessesForSession(sessionId),
     recordUserPrompt: (sessionId, input) => deps.recordUserPrompt(sessionId, input),
