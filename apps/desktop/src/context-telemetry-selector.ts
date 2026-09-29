@@ -40,6 +40,8 @@ export type ContextRingLastRequest = {
   completionTokens?: number;
   totalTokens?: number;
   durationMs?: number;
+  /** Time to first token; generation speed excludes it. */
+  firstTokenMs?: number;
 };
 
 export type ContextRingViewModel = {
@@ -502,5 +504,6 @@ function projectLastRequest(
       : {}),
     ...(typeof usage.totalTokens === 'number' ? { totalTokens: usage.totalTokens } : {}),
     ...(typeof usage.durationMs === 'number' ? { durationMs: usage.durationMs } : {}),
+    ...(typeof usage.firstTokenMs === 'number' ? { firstTokenMs: usage.firstTokenMs } : {}),
   };
 }

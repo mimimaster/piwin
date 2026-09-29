@@ -4,6 +4,7 @@ import type {
   ExtensionUiSurfaceSnapshot,
   HostStatusData,
   ProjectRecord,
+  SessionUsageTotals,
 } from '@piwin/contracts';
 import type { LiveCallView, LiveReadyMissing } from '@piwin/contracts';
 import type {
@@ -106,6 +107,8 @@ export type ComposerDockProps = {
   menuExtensionCommands?: SlashExtensionCommandInput[];
   /** Extension status chips and text widgets of the active session (ADR 0080). */
   extensionSurface?: ExtensionUiSurfaceSnapshot | null;
+  /** Cumulative usage of the active session for the composer stats line. */
+  sessionUsageTotals?: SessionUsageTotals | null;
   menuMcp: ComposerMcpOption[];
   /** Session-level MCP switches for the plus menu's Connectors flyout. */
   menuMcpSwitches?: ComposerPlusMenuProps['mcpSwitches'];

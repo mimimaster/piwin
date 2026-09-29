@@ -128,6 +128,28 @@ export type UsageBucket = {
   successCount?: number;
 };
 
+/**
+ * One session's cumulative model usage for the composer stats line: every
+ * finalized request of the session (all branches, since all were billed),
+ * plus the user turns on the displayed active path.
+ */
+export type SessionUsageTotals = UsageBucket & {
+  sessionId: string;
+  userTurnCount: number;
+  /**
+   * Output and timing of the most recently recorded request, for the stats
+   * line's tok/s. Read with the totals so both refresh on the same push.
+   */
+  latestRequest?: SessionLatestRequestTiming;
+};
+
+export type SessionLatestRequestTiming = {
+  messageId: string;
+  completionTokens?: number;
+  durationMs?: number;
+  firstTokenMs?: number;
+};
+
 /** Per-session total for the rollup session breakdown. */
 export type UsageSessionTotal = UsageBucket & {
   sessionId: string;

@@ -199,6 +199,25 @@ export async function handleMockHostCommands(
           success: true,
           data: { rollup: createMockUsageRollup(command.projectPath) },
         };
+      case 'usage/get-session':
+        return {
+          id,
+          type: 'response',
+          command: 'usage/get-session',
+          success: true,
+          data: {
+            totals: {
+              sessionId: command.sessionId,
+              userTurnCount: 1,
+              promptTokens: 120,
+              completionTokens: 561,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+              totalTokens: 681,
+              entryCount: 1,
+            },
+          },
+        };
       case 'usage/list-recent':
         return {
           id,

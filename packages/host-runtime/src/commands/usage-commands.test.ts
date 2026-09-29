@@ -120,4 +120,30 @@ describe('usage commands', () => {
     expect(log.totalInWindow).toBe(3);
     expect(log.entries.map((entry) => entry.sessionId)).toEqual(['a']);
   });
+
+  it('returns one session\'s totals from the session store', async () => {
+    const totals = {
+      sessionId: 's1',
+      userTurnCount: 3,
+      promptTokens: 10,
+      completionTokens: 5,
+      cacheReadTokens: 30,
+      cacheWriteTokens: 0,
+      totalTokens: 45,
+      entryCount: 4,
+    };
+    const ctx = {
+      getSessionUsageTotals: async (sessionId: string) => ({ ...totals, sessionId }),
+    } as unknown as HostCommandContext;
+    expect(isUsageCommand({ type: 'usage/get-session', sessionId: 's1' })).toBe(true);
+    const response = await handleUsageCommand({ type: 'usage/get-session', sessionId: 's1' }, 'r1', ctx);
+    expect(okData<{ totals: typeof totals }>(response).totals).toEqual(totals);
+
+    const unavailable = await handleUsageCommand(
+      { type: 'usage/get-session', sessionId: 's1' },
+      'r2',
+      {} as HostCommandContext,
+    );
+    expect(unavailable?.success).toBe(false);
+  });
 });

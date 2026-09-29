@@ -1,0 +1,42 @@
+/* Composer stats line — one muted, centered row under the composer card:
+   session stats first, then extension status (ADR 0080). */
+
+.composer-stats-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  column-gap: var(--s-8);
+  row-gap: var(--s-1);
+  margin-block-start: var(--s-3);
+  padding-inline: var(--s-4);
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+
+.composer-stats-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-stats-item svg {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.composer-stats-item.is-extension {
+  color: var(--text-2);
+}
+
+.composer-stats-item.is-working {
+  font-style: italic;
+}

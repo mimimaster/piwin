@@ -1,6 +1,6 @@
-/* Composer: Pi extension surface (ADR 0080) — text widgets and status chips
-   that extensions publish. Plain text only; the strip sits outside the card
-   so it never competes with the input. */
+/* Composer: Pi extension text widgets (ADR 0080). Plain text only; the strip
+   sits outside the card so it never competes with the input. Extension status
+   items render in the composer stats line (composer-stats-line.css). */
 
 .extension-surface-strip {
   box-sizing: border-box;
@@ -31,31 +31,4 @@
   overflow-wrap: anywhere;
   max-height: 12em;
   overflow-y: auto;
-}
-
-.extension-surface-status-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  min-width: 0;
-}
-
-.extension-surface-chip {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  padding: 1px var(--s-2);
-  border-radius: 4px;
-  border: 1px solid var(--line-1);
-  color: var(--text-3);
-  font-size: 11px;
-  line-height: 1.5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.extension-surface-chip.is-working {
-  color: var(--text-2);
-  font-style: italic;
 }

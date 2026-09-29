@@ -179,6 +179,53 @@ describe('session context state store', () => {
     store.close();
   });
 
+  it('readSessionUsageTotals sums every finalized request and counts active-path user turns', async () => {
+    const { store, sessionId } = await openStore('usage-totals');
+    const message = (id: string, role: 'user' | 'assistant', parentMessageId?: string) => ({
+      id,
+      runtimeGenerationId: role === 'user' ? 'user-authored' : 'gen-1',
+      backendMessageId: id,
+      role,
+      text: role === 'user' ? 'question' : 'answer',
+      status: 'done' as const,
+      createdAt: '2026-08-30T00:00:00.000Z',
+      ...(parentMessageId ? { parentMessageId } : {}),
+    });
+    await store.appendMessage(message('u1', 'user'));
+    await store.appendMessage(message('a1', 'assistant', 'u1'));
+    await store.appendMessage(message('u2', 'user', 'a1'));
+    await store.appendMessage(message('a2', 'assistant', 'u2'));
+    const usage = (messageId: string, extra: Partial<AssistantUsageMeasurement>): AssistantUsageMeasurement => ({
+      measurementId: `${sessionId}:gen-1:${messageId}`,
+      sessionId,
+      messageId,
+      totalTokens: 0,
+      recordedAt: '2026-08-30T00:00:01.000Z',
+      ...extra,
+    });
+    await store.putAssistantUsageMeasurement(
+      usage('a1', { promptTokens: 100, cacheReadTokens: 0, completionTokens: 50, totalTokens: 150, durationMs: 1000 }),
+    );
+    await store.putAssistantUsageMeasurement(
+      usage('a2', { promptTokens: 20, cacheReadTokens: 80, completionTokens: 30, totalTokens: 130 }),
+    );
+
+    expect(await store.readSessionUsageTotals()).toMatchObject({
+      sessionId,
+      userTurnCount: 2,
+      entryCount: 2,
+      promptTokens: 120,
+      cacheReadTokens: 80,
+      completionTokens: 80,
+      totalTokens: 280,
+      // Same recordedAt: measurement id breaks the tie, so a2 is the latest.
+      latestRequest: { messageId: 'a2' },
+      durationMs: 1000,
+      durationMsCompletionTokens: 50,
+    });
+    store.close();
+  });
+
   it('derived sessions rewrite context state without copying live runId or revision', async () => {
     const source = await openStore('derive-src');
     const target = await openStore('derive-dst');

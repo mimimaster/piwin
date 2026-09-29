@@ -88,6 +88,8 @@ export async function buildDomainContext(
     pendingPermissions: deps.pendingPermissions,
     pendingExtensionUi: deps.pendingExtensionUi,
     getExtensionUiSurface: (sessionId) => deps.extensionUiSurfaces.snapshot(sessionId),
+    getSessionUsageTotals: async (sessionId) =>
+      (await deps.getTranscriptStore(sessionId)).readSessionUsageTotals(),
     rememberProjectPermission: (sessionId, action, detail, scope, projectPath) =>
       deps.rememberProjectPermission(sessionId, action, detail, scope, projectPath),
     rememberSessionPermission: (sessionId, action, detail, grant) =>

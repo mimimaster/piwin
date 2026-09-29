@@ -40,7 +40,7 @@ const surface: ExtensionUiSurfaceSnapshot = {
 };
 
 describe('ExtensionSurfaceStrip', () => {
-  it('renders above-editor widgets without the status row', () => {
+  it('renders above-editor widgets as plain text', () => {
     const view = render(<ExtensionSurfaceStrip surface={surface} placement="aboveEditor" />);
     expect(view.querySelector('[data-widget-key="todo"]')?.textContent).toBe(
       '- [ ] write docs\n- [x] ship',
@@ -48,13 +48,20 @@ describe('ExtensionSurfaceStrip', () => {
     expect(view.querySelector('[role="status"]')).toBeNull();
   });
 
-  it('renders below-editor widgets as text and statuses as chips', () => {
+  it('renders below-editor widgets as plain text and leaves statuses to the stats line', () => {
     const view = render(<ExtensionSurfaceStrip surface={surface} placement="belowEditor" />);
     const log = view.querySelector('[data-widget-key="log"]');
     expect(log?.textContent).toBe('<b>not html</b>');
     expect(log?.querySelector('b')).toBeNull();
-    const chips = [...view.querySelectorAll('.extension-surface-chip')].map((chip) => chip.textContent);
-    expect(chips).toEqual(['Indexing…', 'main · 3 staged']);
+    expect(view.querySelector('[role="status"]')).toBeNull();
+    expect(view.textContent).not.toContain('main · 3 staged');
+  });
+
+  it('renders nothing when an extension only publishes statuses', () => {
+    const statusOnly = { sessionId: 's1', statuses: [{ key: 'cache', text: 'Cache 80%' }], widgets: [] };
+    expect(
+      render(<ExtensionSurfaceStrip surface={statusOnly} placement="belowEditor" />).innerHTML,
+    ).toBe('');
   });
 
   it('renders nothing for an empty or missing surface', () => {

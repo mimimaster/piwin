@@ -16,6 +16,7 @@ import {
 import { rollback } from './sqlite-errors.js';
 import { stableSerialize } from './stable-serialize.js';
 import { withActivePath } from './transcript-store-path.js';
+import { readSessionUsageTotals } from './session-usage-totals.js';
 import type { SessionTranscriptStore, TranscriptStoreCore } from './transcript-store.js';
 
 const CONTEXT_SCHEMA_VERSION = CONTEXT_TELEMETRY_VERSION;
@@ -71,6 +72,7 @@ export function createSessionContextStateOps(
   | 'replaceContextState'
   | 'invalidateContextState'
   | 'readLatestAssistantUsageForActivePath'
+  | 'readSessionUsageTotals'
   | 'putAssistantUsageMeasurement'
 > {
   const { db, options, ensureOpen } = core;
@@ -184,6 +186,11 @@ export function createSessionContextStateOps(
       } catch {
         return null;
       }
+    },
+
+    async readSessionUsageTotals() {
+      ensureOpen();
+      return readSessionUsageTotals(db, options.sessionId);
     },
 
     async putAssistantUsageMeasurement(measurement) {

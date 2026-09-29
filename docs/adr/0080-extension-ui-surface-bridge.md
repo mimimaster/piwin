@@ -43,9 +43,13 @@ a client.
    every client. `notify` is not state; it pushes `extension/ui_notice` once.
    `extension/ui_surface_get` returns the snapshot for a client that attaches
    late.
-4. **Desktop** renders statuses as chips and widgets as text blocks above or
-   below the composer, and notices as toasts. **CLI** prints notices and
-   status changes as log lines. **Mobile** ignores both pushes for now.
+4. **Desktop** renders widgets as text blocks above or below the composer and
+   notices as toasts. Statuses and the working message join the built-in
+   composer stats line under the card (turns · steps · tok/s, session tokens ·
+   cache hit rate, read via `usage/get-session`), so extension status looks like
+   the product's own stats instead of a separate chip row. **CLI** prints
+   notices and status changes as log lines. **Mobile** ignores both pushes for
+   now.
 5. **Slash commands.** Commands found by the static scan
    (`compatibility.capabilities.commands`) of enabled extensions are listed in
    the composer `/` menu under “Extension”. Selecting one sends `/<name> args`

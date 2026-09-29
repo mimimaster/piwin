@@ -5,10 +5,14 @@
 import type { HostCommand, HostResponse } from '@piwin/contracts';
 import { readUsageCallLog, readUsageRollup } from '@piwin/session';
 import { getPiwinRoot, getPiwinUsageLedgerPath } from '../paths.js';
-import { ok } from '../response-helpers.js';
+import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
 
-const TYPES = new Set<HostCommand['type']>(['usage/get-rollup', 'usage/list-recent']);
+const TYPES = new Set<HostCommand['type']>([
+  'usage/get-rollup',
+  'usage/get-session',
+  'usage/list-recent',
+]);
 
 export function isUsageCommand(command: HostCommand): boolean {
   return TYPES.has(command.type);
@@ -34,6 +38,16 @@ export async function handleUsageCommand(
         ...(command.timeZone !== undefined ? { timeZone: command.timeZone } : {}),
       });
       return ok(requestId, 'usage/get-rollup', { rollup });
+    }
+    case 'usage/get-session': {
+      // The session's own measurements, not the global ledger: cheap enough
+      // to refresh after every finalized request.
+      if (!context.getSessionUsageTotals) {
+        return fail(requestId, 'usage/get-session', 'session usage is unavailable on this host');
+      }
+      return ok(requestId, 'usage/get-session', {
+        totals: await context.getSessionUsageTotals(command.sessionId),
+      });
     }
     case 'usage/list-recent': {
       const rootDir = getPiwinRoot(context.piwinRoot);

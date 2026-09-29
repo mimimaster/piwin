@@ -547,6 +547,8 @@ export type PlatformHostCommand =
        */
       timeZone?: string;
     }
+  /** One session's cumulative usage for the composer stats line. */
+  | { id?: string; type: 'usage/get-session'; sessionId: string }
   /** CE-OBS: rolling log of recent model calls (default last 60 minutes). */
   | {
       id?: string;

@@ -51,6 +51,7 @@ import {
   type QueuedTurnStatus,
   type QueuedTurnTerminalReason,
   type AssistantUsageMeasurement,
+  type SessionUsageTotals,
   type ContextBoundary,
   type SessionContextSnapshot,
 } from '@piwin/contracts';
@@ -451,6 +452,8 @@ export type SessionTranscriptStore = {
     updatedAt: string;
   }): Promise<SessionContextSnapshot>;
   readLatestAssistantUsageForActivePath(): Promise<AssistantUsageMeasurement | null>;
+  /** Cumulative usage of every finalized request, plus active-path user turns. */
+  readSessionUsageTotals(): Promise<SessionUsageTotals>;
   putAssistantUsageMeasurement(measurement: AssistantUsageMeasurement): Promise<'inserted' | 'duplicate'>;
   /** Select this initialized Store as the product transcript authority. */
   markAuthoritative(): Promise<void>;

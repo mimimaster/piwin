@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 import { useComposerDockProps } from './use-composer-dock-props';
 import { useExtensionSlashCommands } from './use-extension-slash-commands';
 import { useExtensionUiSurface } from './use-extension-ui-surface';
+import { useSessionUsageTotals } from './use-session-usage-totals';
 import type { WorkbenchComposerRuntime } from './use-workbench-composer-runtime';
 import type { WorkbenchHostRuntime } from './use-workbench-host-runtime';
 import type { WorkbenchSessionRuntime } from './use-workbench-session-runtime';
@@ -73,6 +74,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
   } = plusMenu;
 
   const extensionSurface = useExtensionUiSurface(hostClient, state.activeSessionId);
+  const sessionUsageTotals = useSessionUsageTotals(hostClient, state.activeSessionId);
   const menuExtensionCommands = useExtensionSlashCommands(hostClient, state.hostReady);
 
   const dock = useComposerDockProps({
@@ -166,8 +168,8 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
   // Extension surface and commands are merged here so the large dock-props
   // assembly does not grow another dependency list.
   const composerCard = useMemo(
-    () => ({ ...dock.composerCard, extensionSurface, menuExtensionCommands }),
-    [dock.composerCard, extensionSurface, menuExtensionCommands],
+    () => ({ ...dock.composerCard, extensionSurface, menuExtensionCommands, sessionUsageTotals }),
+    [dock.composerCard, extensionSurface, menuExtensionCommands, sessionUsageTotals],
   );
   return { ...dock, composerCard };
 }

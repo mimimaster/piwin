@@ -12,12 +12,15 @@ import { ComposerActivityPill } from './composer-activity-pill';
 import { ComposerCard } from './composer-card';
 import { ComposerContextRail } from './composer-context-rail';
 import { ExtensionSurfaceStrip } from './extension-surface-strip';
+import { ComposerStatsLine } from './composer-stats-line';
+import { useDesktopLocale } from './desktop-locale-context';
 import type { ComposerDockProps } from './composer-dock-types';
 
 export type { ComposerDockProps, ComposerModelOption } from './composer-dock-types';
 export { ComposerCard } from './composer-card';
 
 export function ComposerDock(props: ComposerDockProps): ReactElement {
+  const { locale } = useDesktopLocale();
   const isStreamingRun =
     props.streaming ||
     props.runPhase === 'streaming' ||
@@ -94,6 +97,12 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
       <ExtensionSurfaceStrip surface={props.extensionSurface} placement="aboveEditor" />
       <ComposerCard {...props} />
       <ExtensionSurfaceStrip surface={props.extensionSurface} placement="belowEditor" />
+      <ComposerStatsLine
+        totals={props.sessionUsageTotals ?? null}
+        lastRequest={props.contextRingView?.lastRequest}
+        extensionSurface={props.extensionSurface}
+        locale={locale}
+      />
     </footer>
   );
 }

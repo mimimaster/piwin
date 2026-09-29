@@ -5,6 +5,7 @@
 import type {
   AgentModeId,
   ExtensionUiSurfaceSnapshot,
+  SessionUsageTotals,
   HostPush,
   PermissionDecision,
   PermissionMode,
@@ -112,6 +113,8 @@ export type HostCommandContext = {
   >;
   /** ADR 0080: current extension surface snapshot of a session. */
   getExtensionUiSurface?: (sessionId: string) => ExtensionUiSurfaceSnapshot;
+  /** Per-session transcript store (composer usage stats). */
+  getSessionUsageTotals?: (sessionId: string) => Promise<SessionUsageTotals>;
   rememberProjectPermission: (
     sessionId: string,
     action: string,
