@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "description": "Private coding agent shell on Pi (UI + CLI)",
+  "license": "MIT",
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=22.19.0"

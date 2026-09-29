@@ -19,7 +19,7 @@ notarization is **optional** (residual **D-ENG-03b** when certs unavailable).
 
 ### Build machine
 
-- Node `>= 20`, pnpm `9.x`
+- Node `>= 22.19.0`, pnpm `9.x`
 - Rust toolchain (`rustup`, `cargo`) for Tauri
 - Platform deps for Tauri 2 (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))
 - Network access once to download the pinned Node LTS used by
