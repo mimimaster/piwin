@@ -39,6 +39,8 @@ export function listStaticMcpRegistry(query?: string): McpRegistryCard[] {
 export async function listMcpRegistryCards(options?: {
   query?: string;
   includeOfficial?: boolean;
+  /** Injected transport so callers/tests never reach the network by accident. */
+  fetch?: typeof fetch;
 }): Promise<McpRegistryCard[]> {
   const staticCards = listStaticMcpRegistry(options?.query);
   if (!options?.includeOfficial) {
@@ -46,7 +48,7 @@ export async function listMcpRegistryCards(options?: {
   }
   try {
     const url = 'https://registry.modelcontextprotocol.io/v0/servers?limit=30';
-    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const response = await (options.fetch ?? fetch)(url, { signal: AbortSignal.timeout(8000) });
     if (!response.ok) return staticCards;
     const payload = (await response.json()) as {
       servers?: Array<{ name?: string; description?: string; packages?: unknown[] }>;
