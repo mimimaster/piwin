@@ -245,6 +245,14 @@ export type HostPushVariant =
   | RunHostPush
   | { type: 'run/intervention-updated'; intervention: RunInterventionRecord }
   | { type: 'session/queued-turn-updated'; queuedTurn: QueuedTurnRecord }
+  /** ADR 0082: backend-owned session options changed (models, mode, commands). */
+  | {
+      type: 'session/backend-updated';
+      sessionId: string;
+      options: import('./agent-backend-capabilities.js').SessionBackendOptions;
+    }
+  /** ADR 0082: external agent availability changed. */
+  | { type: 'agents/status-updated'; status: import('./external-agent-status.js').ExternalAgentStatus }
   | { type: 'doccards/index-progress'; job: IngestionJob }
   | { type: 'doccards/index-terminal'; job: IngestionJob }
   | { type: 'doccards/generation-progress'; job: GenerationJob }

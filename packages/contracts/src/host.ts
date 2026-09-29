@@ -99,6 +99,14 @@ export type PermissionRequestContext = {
   outsideWorkspace?: boolean;
   /** Structured MCP tool-call target (never parse detail strings in UI). */
   mcpTool?: McpToolCallTarget;
+  /**
+   * External agent choices (ADR 0082). When present the client renders these
+   * buttons verbatim and resolves with `optionId`; piwin remembered-permission
+   * scopes do not apply.
+   */
+  backendOptions?: import('./agent-backend-capabilities.js').BackendPermissionOption[];
+  /** Agent that owns this request when it is not Pi. */
+  backendAgentId?: string;
 };
 
 export type McpToolRisk =
@@ -279,8 +287,17 @@ export type CreateSessionInput = {
   knowledgeBaseIds?: string[];
   /** MCP servers switched off for this session before its first prompt. */
   disabledMcpServerIds?: string[];
+  /**
+   * External agent backend (ADR 0082). Absent or `pi` creates a Pi session.
+   * Other ids require the agent to be ready; `model`/`thinkingLevel` are then
+   * ignored in favour of `backendModelId` / `backendEffortId`.
+   */
+  agentId?: string;
+  /** Initial backend model id (from `SessionBackendOptions.models`). */
+  backendModelId?: string;
+  /** Initial backend effort id. */
+  backendEffortId?: string;
 };
-
 export type SessionPresentation = {
   kind: 'doccard-sequence';
   sequenceId: string;
@@ -399,6 +416,17 @@ export type SessionSummary = {
    * Offloaded / missing-pack stubs stay listable but must not be resumed.
    */
   storage?: import('./session-storage.js').SessionStorageInfo;
+  /**
+   * External agent backend (ADR 0082). Absent means Pi. Clients read this to
+   * show the backend badge; capabilities come from the session snapshot.
+   */
+  backend?: {
+    agentId: string;
+    /** Agent-reported activity (`idle`, `working`, ...) when known. */
+    activity?: string;
+    /** The agent session runs in a git worktree. */
+    isWorktree?: boolean;
+  };
 };
 
 export type AgentMessageRole = 'user' | 'assistant' | 'system' | 'tool';

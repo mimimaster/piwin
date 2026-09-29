@@ -5,6 +5,7 @@ import type { SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { SubagentLifecycleState } from './subagent-lifecycle.js';
 import type { ProductSessionOrigin } from './session-origin.js';
 import type { SessionStorageInfo } from './session-storage.js';
+import type { SessionBackendBinding } from './agent-backend.js';
 
 export type SubagentStatus = 'running' | 'done' | 'failed' | 'cancelled';
 
@@ -112,6 +113,8 @@ export type SessionIndexRecord = {
    * persisted here.
    */
   storage?: SessionStorageInfo;
+  /** External agent backend binding (ADR 0082). Absent means Pi. */
+  backend?: SessionBackendBinding;
 };
 
 /**

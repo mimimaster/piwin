@@ -466,8 +466,16 @@ export type PlatformHostCommand =
       decision: PermissionDecision;
       /** When decision is allow, optionally remember for this project (network tools). */
       rememberScope?: PermissionRememberScope;
+      /**
+       * External agent option id (ADR 0082). Required when the request carried
+       * `context.backendOptions`; must be one of those ids. `decision` must match
+       * the option's allow/reject kind.
+       */
+      backendOptionId?: string;
     }
   | { id?: string; type: 'permission/pending-list' }
+  | { id?: string; type: 'agents/status'; agentId?: string; refresh?: boolean }
+  | { id?: string; type: 'agents/mcp-status'; agentId: string }
   | { id?: string; type: 'pty/open'; input: PtyOpenInput }
   | { id?: string; type: 'pty/write'; ptyId: string; data: string }
   | { id?: string; type: 'pty/resize'; ptyId: string; cols: number; rows: number }

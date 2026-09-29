@@ -23,6 +23,7 @@
     { "path": "packages/marketplace" },
     { "path": "packages/ui-kit" },
     { "path": "packages/browser" },
+    { "path": "packages/acp-agent" },
     { "path": "packages/host-runtime" },
     { "path": "packages/host-transport" },
     { "path": "packages/host-client" },

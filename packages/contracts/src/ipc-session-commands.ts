@@ -118,6 +118,19 @@ export type SessionHostCommand =
   | { id?: string; type: 'subagent/worktree-gc-preview' }
   | { id?: string; type: 'subagent/worktree-gc' }
   | { id?: string; type: 'session/resume'; sessionId: string }
+  /** ADR 0082: backend capabilities + backend-owned options for one session. */
+  | { id?: string; type: 'session/backend-get'; sessionId: string }
+  | {
+      id?: string;
+      type: 'session/backend-set';
+      sessionId: string;
+      /** Exactly one field per call. */
+      modelId?: string;
+      effortId?: string;
+      modeId?: string;
+    }
+  /** ADR 0082: merge the external agent's session catalog into the session index. */
+  | { id?: string; type: 'agents/sessions-sync'; agentId: string }
   | {
       id?: string;
       /** ADR 0040 §9: bounded outline page for older outline data. */

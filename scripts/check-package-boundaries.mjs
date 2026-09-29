@@ -11,6 +11,7 @@ const packagesRoot = join(repositoryRoot, 'packages');
 const applicationPackageNames = new Set([
   '@piwin/automation',
   '@piwin/artifact',
+  '@piwin/acp-agent',
   '@piwin/browser',
   '@piwin/doc-rag',
   '@piwin/flashcards',
