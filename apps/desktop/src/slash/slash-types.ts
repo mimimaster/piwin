@@ -1,12 +1,13 @@
 /**
- * Composer slash menu item shapes (commands · modes · skills).
+ * Composer slash menu item shapes (commands · modes · skills · extension commands).
  */
 
 import type { AgentModeId } from '../agent-mode';
 
-export type SlashItemKind = 'command' | 'mode' | 'skill';
+/** `extension`: a command a Pi extension registered; sent verbatim for Pi to run. */
+export type SlashItemKind = 'command' | 'mode' | 'skill' | 'extension';
 
-export type SlashGroupLabel = 'Command' | 'Mode' | 'Skill';
+export type SlashGroupLabel = 'Command' | 'Mode' | 'Skill' | 'Extension';
 
 export type SlashItem = {
   id: string;

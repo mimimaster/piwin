@@ -10,18 +10,21 @@ import type {
   ExtensionUiKind,
   ExtensionUiRequest,
   ExtensionUiResponse,
+  ExtensionUiSurfaceUpdate,
 } from '@piwin/contracts';
 
 export type { ExtensionUiKind, ExtensionUiRequest, ExtensionUiResponse } from '@piwin/contracts';
 
 export type ExtensionUiBridge = {
   request: (request: ExtensionUiRequest) => Promise<ExtensionUiResponse>;
-  notify?: (message: string, level: 'info' | 'warning' | 'error') => void;
+  /** Surface updates (ADR 0080); absent means they stay no-ops. */
+  publish?: (update: ExtensionUiSurfaceUpdate) => void;
 };
 
 /**
  * Minimal ExtensionUIContext-compatible object for Pi bindExtensions.
- * Dialog methods route through the host; TUI-only methods are no-ops.
+ * Dialogs route through the host; notify/status/text widgets/working message
+ * publish surface updates; TUI component APIs are no-ops.
  */
 export function createExtensionUiContext(
   sessionId: string,
@@ -81,12 +84,54 @@ export function createExtensionUiContext(
     return response.value;
   };
 
-  const notify = (
-    message: string,
-    type?: 'info' | 'warning' | 'error',
-  ): void => {
+  // A surface update must never break the extension that sent it.
+  const publish = (update: ExtensionUiSurfaceUpdate): void => {
+    try {
+      bridge.publish?.(update);
+    } catch {
+      // Delivery failures belong to the Host; the extension keeps running.
+    }
+  };
+
+  const notify = (message: string, type?: 'info' | 'warning' | 'error'): void => {
     const level = type === 'warning' || type === 'error' ? type : 'info';
-    bridge.notify?.(message, level);
+    publish({ kind: 'notify', message: stripTerminalStyling(String(message)), level });
+  };
+
+  const setStatus = (key: string, text: string | undefined): void => {
+    publish(
+      text === undefined
+        ? { kind: 'status', key: String(key) }
+        : { kind: 'status', key: String(key), text: stripTerminalStyling(String(text)) },
+    );
+  };
+
+  const setWidget = (
+    key: string,
+    content: unknown,
+    options?: { placement?: 'aboveEditor' | 'belowEditor' },
+  ): void => {
+    const placement = options?.placement === 'belowEditor' ? 'belowEditor' : 'aboveEditor';
+    if (content === undefined) {
+      publish({ kind: 'widget', key: String(key), placement });
+      return;
+    }
+    // Component factories render TUI components; only text lines cross over.
+    if (!Array.isArray(content)) return;
+    publish({
+      kind: 'widget',
+      key: String(key),
+      placement,
+      lines: content.map((line) => stripTerminalStyling(String(line))),
+    });
+  };
+
+  const setWorkingMessage = (message?: string): void => {
+    publish(
+      message === undefined
+        ? { kind: 'working-message' }
+        : { kind: 'working-message', message: stripTerminalStyling(String(message)) },
+    );
   };
 
   return {
@@ -95,12 +140,12 @@ export function createExtensionUiContext(
     input,
     notify,
     onTerminalInput: () => () => {},
-    setStatus: () => {},
-    setWorkingMessage: () => {},
+    setStatus,
+    setWorkingMessage,
     setWorkingVisible: () => {},
     setWorkingIndicator: () => {},
     setHiddenThinkingLabel: () => {},
-    setWidget: () => {},
+    setWidget,
     setFooter: () => {},
     setHeader: () => {},
     setTitle: () => {},
@@ -123,12 +168,32 @@ export function createExtensionUiContext(
   };
 }
 
+/**
+ * Pi Theme is large. Extensions mostly call its text-styling helpers before
+ * `setStatus`/`setWidget`; in piwin those return the text unchanged so the
+ * call succeeds and no terminal escapes reach clients.
+ */
 function createStubTheme(): Record<string, unknown> {
-  // Pi Theme is large; extensions rarely need full styling in host mode.
+  const passthrough = (...args: unknown[]): string => String(args[args.length - 1] ?? '');
   return {
     name: 'piwin-host',
     mode: 'dark',
+    fg: passthrough,
+    bg: passthrough,
+    bold: passthrough,
+    italic: passthrough,
+    underline: passthrough,
+    strikethrough: passthrough,
+    dim: passthrough,
+    inverse: passthrough,
   };
+}
+
+// CSI/OSC escape sequences; extensions style text for a terminal.
+const TERMINAL_ESCAPE_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g;
+
+export function stripTerminalStyling(text: string): string {
+  return text.replace(TERMINAL_ESCAPE_PATTERN, '');
 }
 
 export async function bindExtensionUiToPiSession(

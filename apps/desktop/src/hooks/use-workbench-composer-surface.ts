@@ -5,7 +5,10 @@ import type { ChatUiState } from '../chat-reducer';
 import type { ExtensionUiResolvePayload } from '../extension-ui-prompt';
 import type { HostClient } from '../host-client';
 import type { ShellSettingsSection } from '../shell-navigation';
+import { useMemo } from 'react';
 import { useComposerDockProps } from './use-composer-dock-props';
+import { useExtensionSlashCommands } from './use-extension-slash-commands';
+import { useExtensionUiSurface } from './use-extension-ui-surface';
 import type { WorkbenchComposerRuntime } from './use-workbench-composer-runtime';
 import type { WorkbenchHostRuntime } from './use-workbench-host-runtime';
 import type { WorkbenchSessionRuntime } from './use-workbench-session-runtime';
@@ -69,7 +72,10 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     refreshComposerMenus,
   } = plusMenu;
 
-  return useComposerDockProps({
+  const extensionSurface = useExtensionUiSurface(hostClient, state.activeSessionId);
+  const menuExtensionCommands = useExtensionSlashCommands(hostClient, state.hostReady);
+
+  const dock = useComposerDockProps({
     hostClient,
     hostStatus: host.hostStatus,
     config: host.config,
@@ -157,4 +163,11 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     liveSessionId,
     sidebarMode,
   });
+  // Extension surface and commands are merged here so the large dock-props
+  // assembly does not grow another dependency list.
+  const composerCard = useMemo(
+    () => ({ ...dock.composerCard, extensionSurface, menuExtensionCommands }),
+    [dock.composerCard, extensionSurface, menuExtensionCommands],
+  );
+  return { ...dock, composerCard };
 }

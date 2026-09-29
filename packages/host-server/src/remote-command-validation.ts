@@ -376,6 +376,8 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
         isSafeRemoteId(command.messageId) &&
         (command.generationId === undefined || isSafeRemoteId(command.generationId))
       );
+    case 'extension/ui_surface_get':
+      return isSafeRemoteId(command.sessionId);
     case 'extension/ui_resolve':
       return (
         isSafeRemoteId(command.requestId) &&

@@ -9,6 +9,7 @@ const TYPES = new Set<HostCommand['type']>([
   'permission/resolve',
   'permission/pending-list',
   'extension/ui_resolve',
+  'extension/ui_surface_get',
 ]);
 
 export function isResolveCommand(command: HostCommand): boolean {
@@ -136,6 +137,16 @@ export async function handleResolveCommand(
         ok: true,
       });
     }
+    case 'extension/ui_surface_get':
+      return ok(
+        requestId,
+        'extension/ui_surface_get',
+        context.getExtensionUiSurface?.(command.sessionId) ?? {
+          sessionId: command.sessionId,
+          statuses: [],
+          widgets: [],
+        },
+      );
     default:
       return null;
   }

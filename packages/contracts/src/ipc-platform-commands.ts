@@ -570,6 +570,8 @@ export type PlatformHostCommand =
       value?: string;
       cancelled?: boolean;
     }
+  /** ADR 0080: current extension status/widget snapshot for a late-attaching client. */
+  | { id?: string; type: 'extension/ui_surface_get'; sessionId: string }
   | { id?: string; type: 'browser/start'; leaseId?: string }
   | { id?: string; type: 'browser/navigate'; url: string }
   | { id?: string; type: 'browser/pick-at'; x: number; y: number; target?: BrowserTargetIdentity }

@@ -1,0 +1,61 @@
+/* Composer: Pi extension surface (ADR 0080) — text widgets and status chips
+   that extensions publish. Plain text only; the strip sits outside the card
+   so it never competes with the input. */
+
+.extension-surface-strip {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-inline: var(--s-2);
+}
+
+.extension-surface-strip.is-above {
+  margin-block-end: var(--s-2);
+}
+
+.extension-surface-strip.is-below {
+  margin-block-start: var(--s-2);
+}
+
+.extension-surface-widget {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-panel);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 12em;
+  overflow-y: auto;
+}
+
+.extension-surface-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.extension-surface-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 1px var(--s-2);
+  border-radius: 4px;
+  border: 1px solid var(--line-1);
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.extension-surface-chip.is-working {
+  color: var(--text-2);
+  font-style: italic;
+}

@@ -33,6 +33,7 @@ import type {
   WorkerResponse,
   WorkerToolCallFrame,
   WorkerToolResultFrame,
+  WorkerExtensionUiPublishFrame,
   WorkerExtensionUiRequestFrame,
   WorkerExtensionUiResponseFrame,
   WorkerInterventionPermitFrame,
@@ -40,6 +41,7 @@ import type {
   WorkerInterventionEventFrame,
 } from '../rpc-sdk-worker-protocol.js';
 import { buildWorkerProxyTools } from './worker-proxy-tool-factory.js';
+import { WorkerExtensionUiChannel } from './worker-extension-ui-channel.js';
 import {
   assertWorkerSafeProviderRuntimes,
   isSerializableBlueprint,
@@ -118,6 +120,7 @@ export type WorkerSessionRuntimeOptions = {
       | WorkerEvent
       | WorkerToolCallFrame
       | WorkerExtensionUiRequestFrame
+      | WorkerExtensionUiPublishFrame
       | WorkerInterventionClaimFrame
       | WorkerInterventionEventFrame,
   ) => void;
@@ -155,20 +158,22 @@ type PendingToolCall = {
   reject: (error: Error) => void;
 };
 
-type PendingExtensionUiRequest = {
-  sessionId: string;
-  context: WorkerFrameContext;
-  resolve: (response: NonNullable<WorkerExtensionUiResponseFrame['result']>) => void;
-  reject: (error: Error) => void;
-};
-
 export class WorkerSessionRuntime {
   private readonly sessions = new Map<string, RuntimeSession>();
   private readonly options: WorkerSessionRuntimeOptions;
   private readonly eventMapper: PiSessionEventMapper;
   private readonly pendingToolCalls = new Map<string, PendingToolCall>();
   private readonly sessionToolCallControllers = new Map<string, Set<AbortController>>();
-  private readonly pendingExtensionUiRequests = new Map<string, PendingExtensionUiRequest>();
+  private readonly extensionUi = new WorkerExtensionUiChannel({
+    sendFrame: (frame) => this.options.sendFrame(frame),
+    resolveContext: (sessionId) => {
+      const session = this.requireSession(sessionId);
+      return {
+        ...session.context,
+        ...(session.activeRunId !== undefined ? { runId: session.activeRunId } : {}),
+      };
+    },
+  });
   private readonly requestContexts = new Map<string, WorkerFrameContext>();
   private readonly pendingInterventionClaims = new Map<
     string,
@@ -288,7 +293,7 @@ export class WorkerSessionRuntime {
       ...(payload.seedMessages ? { seedMessages: payload.seedMessages } : {}),
       ...(payload.seedMode ? { seedMode: payload.seedMode } : {}),
       ...(payload.compactionSeed ? { compactionSeed: payload.compactionSeed } : {}),
-      extensionUi: this.createExtensionUiPort(payload.productSessionId),
+      extensionUi: this.extensionUi.createPort(payload.productSessionId),
       ...(proxyTools.length > 0 ? { proxyTools } : {}),
     });
     this.attachSession(
@@ -641,69 +646,7 @@ export class WorkerSessionRuntime {
   }
 
   handleExtensionUiResponse(frame: WorkerExtensionUiResponseFrame): void {
-    const pendingRequest = this.pendingExtensionUiRequests.get(frame.id);
-    if (!pendingRequest) {
-      return;
-    }
-    this.pendingExtensionUiRequests.delete(frame.id);
-    if (frame.ok && frame.result) {
-      pendingRequest.resolve(frame.result);
-      return;
-    }
-    pendingRequest.reject(new Error(frame.error ?? 'extension UI request failed'));
-  }
-
-  private createExtensionUiPort(sessionId: string): ExtensionUiPort {
-    return {
-      request: (input, signal) => {
-        const requestId = `${sessionId}|ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-        const extensionContext: WorkerFrameContext = {
-          ...this.requireSession(sessionId).context,
-        };
-        const activeRunId = this.requireSession(sessionId).activeRunId;
-        if (activeRunId !== undefined) extensionContext.runId = activeRunId;
-        const frame: WorkerExtensionUiRequestFrame = {
-          type: 'extension-ui-request',
-          id: requestId,
-          context: extensionContext,
-          kind: input.kind,
-          title: input.title,
-          ...(input.message ? { message: input.message } : {}),
-          ...(input.options ? { options: input.options } : {}),
-          ...(input.placeholder ? { placeholder: input.placeholder } : {}),
-        };
-        return new Promise((resolve, reject) => {
-          this.pendingExtensionUiRequests.set(requestId, {
-            sessionId,
-            context: frame.context,
-            resolve,
-            reject,
-          });
-          if (signal.aborted) {
-            this.pendingExtensionUiRequests.delete(requestId);
-            reject(new Error('extension UI request aborted'));
-            return;
-          }
-          signal.addEventListener(
-            'abort',
-            () => {
-              const pendingRequest = this.pendingExtensionUiRequests.get(requestId);
-              if (pendingRequest) {
-                this.pendingExtensionUiRequests.delete(requestId);
-                pendingRequest.reject(new Error('extension UI request aborted'));
-              }
-            },
-            { once: true },
-          );
-          try {
-            this.options.sendFrame(frame);
-          } catch (error) {
-            this.pendingExtensionUiRequests.delete(requestId);
-            reject(error instanceof Error ? error : new Error(String(error)));
-          }
-        });
-      },
-    };
+    this.extensionUi.handleResponse(frame);
   }
 
   private attachSession(
@@ -853,11 +796,7 @@ export class WorkerSessionRuntime {
     }
     this.sessionToolCallControllers.delete(session.productSessionId);
 
-    for (const [requestId, pending] of this.pendingExtensionUiRequests) {
-      if (pending.sessionId !== session.productSessionId) continue;
-      this.pendingExtensionUiRequests.delete(requestId);
-      pending.reject(droppedSessionError);
-    }
+    this.extensionUi.rejectSession(session.productSessionId, droppedSessionError);
 
     for (const [claimId, pending] of this.pendingInterventionClaims) {
       if (pending.context.sessionId !== session.productSessionId) continue;

@@ -60,6 +60,7 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'transcript/append':
     case 'reply-writer/updated':
     case 'todo/updated':
+    case 'extension/ui_notice':
     case 'walkthrough/updated':
     case 'session/branch-updated':
     case 'agent/context-summary':
@@ -83,6 +84,8 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
       return session(push.status.sessionId);
     case 'session/context-updated':
       return session(push.sessionId);
+    case 'extension/ui_surface':
+      return session(push.snapshot.sessionId);
     case 'run/updated':
     case 'run/terminal':
       // Foreground turn lifecycle also drives background sidebar status.

@@ -1,5 +1,6 @@
 /**
- * Build slash catalog from static commands, agent modes, and skills list.
+ * Build slash catalog from static commands, agent modes, skills, and
+ * commands registered by enabled Pi extensions.
  */
 import type { SkillSource } from '@piwin/contracts';
 import { AGENT_MODES, type AgentModeId } from '../agent-mode';
@@ -23,8 +24,15 @@ export function isConversationSlashSkillSource(source: SkillSource | undefined):
   return source !== 'project';
 }
 
+/** A command a Pi extension registered (ADR 0080); Pi runs it from the prompt. */
+export type SlashExtensionCommandInput = {
+  name: string;
+  extensionName: string;
+};
+
 export type BuildSlashCatalogOptions = {
   skills: SlashSkillInput[];
+  extensionCommands?: SlashExtensionCommandInput[];
   /** Host capabilities.compaction when known; default true for mock/sdk. */
   compactionSupported?: boolean;
   streaming?: boolean;
@@ -264,6 +272,31 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       }
     }
     items.push(skillItem);
+  }
+
+  // --- Extension commands: a skill with the same token wins, because the
+  // composer turns `/<skill>` into a skill activation before Pi sees it. ---
+  const takenTokens = new Set(
+    items.flatMap((item) => [item.name, ...(item.aliases ?? [])]).map((name) => name.toLowerCase()),
+  );
+  for (const command of options.extensionCommands ?? []) {
+    const lower = command.name.toLowerCase();
+    if (RESERVED_SLASH_COMMAND_NAMES.has(lower) || takenTokens.has(lower)) {
+      continue;
+    }
+    takenTokens.add(lower);
+    items.push({
+      id: `extension:${command.name}`,
+      kind: 'extension',
+      name: command.name,
+      label: command.name,
+      description: `From extension ${command.extensionName}`,
+      keywords: [command.name, command.extensionName],
+      groupLabel: 'Extension',
+      acceptsArgs: true,
+      available: skillsReady,
+      ...(!skillsReady ? { unavailableReason: 'Trust the project first' } : {}),
+    });
   }
 
   return items;

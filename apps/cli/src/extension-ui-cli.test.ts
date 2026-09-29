@@ -1,6 +1,8 @@
 import { Readable, Writable } from 'node:stream';
+import type { HostPush } from '@piwin/contracts';
 import { describe, expect, it } from 'vitest';
 import {
+  createCliExtensionSurfacePrinter,
   createCliExtensionUiPushResponder,
   createCliExtensionUiRequestHandler,
   toExtensionUiResolveCommand,
@@ -274,6 +276,46 @@ describe('createCliExtensionUiPushResponder', () => {
 
     expect(resolved).toEqual([
       { type: 'extension/ui_resolve', requestId: 'q1', cancelled: true },
+    ]);
+  });
+});
+
+describe('createCliExtensionSurfacePrinter', () => {
+  it('prints notices once and statuses/widgets only when their text changes', () => {
+    const lines: string[] = [];
+    const print = createCliExtensionSurfacePrinter((line) => lines.push(line));
+    const surface = (
+      statuses: Array<{ key: string; text: string }>,
+      widgets: string[][] = [],
+    ): HostPush => ({
+      type: 'extension/ui_surface',
+      snapshot: {
+        sessionId: 's1',
+        statuses,
+        widgets: widgets.map((widgetLines, index) => ({
+          key: `w${index}`,
+          lines: widgetLines,
+          placement: 'aboveEditor',
+        })),
+      },
+    });
+
+    expect(print({ type: 'host/log', level: 'info', message: 'x' })).toBe(false);
+    expect(
+      print({ type: 'extension/ui_notice', sessionId: 's1', message: 'Indexed', level: 'warning' }),
+    ).toBe(true);
+    print(surface([{ key: 'git', text: 'main' }], [['- a']]));
+    print(surface([{ key: 'git', text: 'main' }], [['- a']]));
+    print(surface([{ key: 'git', text: 'dev' }]));
+    print(surface([]));
+    print(surface([{ key: 'git', text: 'dev' }]));
+
+    expect(lines).toEqual([
+      '[extension warning] Indexed\n',
+      '[git] main\n',
+      '[w0]\n- a\n',
+      '[git] dev\n',
+      '[git] dev\n',
     ]);
   });
 });

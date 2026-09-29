@@ -25,6 +25,7 @@ import {
   type HostToolExecutionResult,
 } from '@piwin/contracts';
 import type { WorkerToolCallFrame } from './rpc-sdk-worker-protocol.js';
+import type { WorkerExtensionUiRequestHandler } from './rpc/parent-extension-ui-relay.js';
 import type {
   SerializableBlueprint,
   SerializableWorkerProviderRuntime,
@@ -95,19 +96,7 @@ export type AgentWorkerSupervisorOptions = {
     code: number | null;
   }) => void;
   /** Extension UI request handler. */
-  onExtensionUiRequest?: (request: {
-    sessionId: string;
-    runtimeGenerationId: string;
-    kind: 'confirm' | 'select' | 'input';
-    title: string;
-    message?: string;
-    options?: string[];
-    placeholder?: string;
-  }) => Promise<
-    | { kind: 'confirm'; confirmed: boolean }
-    | { kind: 'select'; value?: string; cancelled?: boolean }
-    | { kind: 'input'; value?: string; cancelled?: boolean }
-  >;
+  onExtensionUiRequest?: WorkerExtensionUiRequestHandler;
 };
 
 /** Status of the worker supervisor. */

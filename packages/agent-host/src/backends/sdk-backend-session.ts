@@ -194,6 +194,9 @@ export async function createBackendSdkSession(
       input.blueprint.sessionId,
       {
         request: (request) => extensionUiPort.request(request, new AbortController().signal),
+        ...(extensionUiPort.publish
+          ? { publish: (update) => extensionUiPort.publish?.(update) }
+          : {}),
       },
       createRequestId,
     );

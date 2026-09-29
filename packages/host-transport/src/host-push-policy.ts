@@ -107,6 +107,11 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return control([deliveryKey('automation', 'cron', push.jobId)]);
     case 'extension/ui_request':
       return control([deliveryKey('session', push.sessionId, 'extension', push.requestId)]);
+    case 'extension/ui_surface':
+      // Full snapshot per session: the latest one replaces older ones.
+      return projection(deliveryKey('session', push.snapshot.sessionId, 'extension-surface'));
+    case 'extension/ui_notice':
+      return append(deliveryKey('session', push.sessionId, 'extension-notice'));
     case 'extension/catalog-updated':
       return projection(deliveryKey('extensions', 'catalog'));
     case 'marketplace/inventory-updated':

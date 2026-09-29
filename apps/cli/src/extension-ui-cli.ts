@@ -232,3 +232,47 @@ export function createCliExtensionUiPushResponder(
     return answered;
   };
 }
+
+type ExtensionSurfacePush = Extract<
+  HostPush,
+  { type: 'extension/ui_surface' | 'extension/ui_notice' }
+>;
+
+/**
+ * CLI projection of extension surface pushes (ADR 0080): notices print once,
+ * statuses and text widgets print only when their text changes. Returns
+ * whether the push was an extension surface push.
+ */
+export function createCliExtensionSurfacePrinter(
+  write: (line: string) => void = (line) => process.stderr.write(line),
+): (push: HostPush) => boolean {
+  const printed = new Map<string, string>();
+  return (push) => {
+    if (!isExtensionSurfacePush(push)) return false;
+    if (push.type === 'extension/ui_notice') {
+      const tag = push.level === 'info' ? 'extension' : `extension ${push.level}`;
+      write(`[${tag}] ${push.message}\n`);
+      return true;
+    }
+    const { sessionId, statuses, widgets } = push.snapshot;
+    const current = new Map<string, string>();
+    for (const status of statuses) current.set(`status:${status.key}`, status.text);
+    for (const widget of widgets) current.set(`widget:${widget.key}`, widget.lines.join('\n'));
+    for (const [key, text] of current) {
+      const printedKey = `${sessionId}\u0000${key}`;
+      if (printed.get(printedKey) === text) continue;
+      printed.set(printedKey, text);
+      const label = key.slice(key.indexOf(':') + 1);
+      write(key.startsWith('status:') ? `[${label}] ${text}\n` : `[${label}]\n${text}\n`);
+    }
+    for (const printedKey of [...printed.keys()]) {
+      const [owner, key] = printedKey.split('\u0000');
+      if (owner === sessionId && key !== undefined && !current.has(key)) printed.delete(printedKey);
+    }
+    return true;
+  };
+}
+
+function isExtensionSurfacePush(push: HostPush): push is ExtensionSurfacePush {
+  return push.type === 'extension/ui_surface' || push.type === 'extension/ui_notice';
+}

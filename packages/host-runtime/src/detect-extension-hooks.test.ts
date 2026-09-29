@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   classifyExtensionSource,
+  detectExtensionCommands,
   detectExtensionHookEvents,
   readExtensionCompatibility,
   readExtensionHookEvents,
@@ -114,9 +115,12 @@ describe('readExtensionCompatibility', () => {
       "pi.registerTool({ name: 'x' });\nctx.reload();\n",
       'utf8',
     );
-    expect(await readExtensionCompatibility(compatiblePath)).toEqual({ tier: 'compatible' });
+    expect(await readExtensionCompatibility(compatiblePath)).toEqual({
+      tier: 'compatible',
+      capabilities: { tools: ['ok'], hooks: ['tool_call'] },
+    });
     expect(await readExtensionCompatibility(tuiPath)).toEqual({ tier: 'incompatible' });
-    expect(await readExtensionCompatibility(mixedDir)).toEqual({ tier: 'degraded' });
+    expect((await readExtensionCompatibility(mixedDir)).tier).toBe('degraded');
     expect(await readExtensionCompatibility(join(rootDir, 'missing.ts'))).toEqual({
       tier: 'unverified',
     });
@@ -136,3 +140,38 @@ describe('readExtensionHookEvents', () => {
     expect(await readExtensionHookEvents(packDir)).toEqual(['agent_end']);
   });
 });
+
+describe('detectExtensionCommands', () => {
+  it('finds commands in both registerCommand forms and exposes them as capabilities', () => {
+    const source = `
+      export default function (pi) {
+        pi.registerCommand("cache-stats", { description: "Show cache", handler() {} });
+        pi.registerCommand({ name: 'wiki:distill', handler() {} });
+        pi.registerTool({ name: 'lookup', execute() {} });
+        pi.on('session_start', (_event, ctx) => ctx.ui.setStatus('cache', 'warm'));
+      }
+    `;
+    expect(detectExtensionCommands(source)).toEqual(['cache-stats', 'wiki:distill']);
+    expect(classifyExtensionSource(source)).toEqual({
+      tier: 'compatible',
+      capabilities: {
+        tools: ['lookup'],
+        hooks: ['session_start'],
+        commands: ['cache-stats', 'wiki:distill'],
+      },
+    });
+  });
+});
+
+describe('setWidget classification', () => {
+  it('treats text-line widgets as bridged and component factories as TUI', () => {
+    const tools = "pi.registerTool({ name: 'x' });\n";
+    expect(classifyExtensionSource(`${tools}ctx.ui.setWidget('todos', lines, { placement: 'belowEditor' });`).tier).toBe('compatible');
+    expect(classifyExtensionSource(`${tools}ctx.ui.setWidget('todos', ['a', 'b']);`).tier).toBe('compatible');
+    expect(classifyExtensionSource(`${tools}ctx.ui.setWidget('todos', undefined);`).tier).toBe('compatible');
+    expect(classifyExtensionSource(`${tools}ctx.ui.setWidget('todos', (tui, theme) => new Panel(theme));`).tier).toBe('degraded');
+    expect(classifyExtensionSource(`${tools}ctx.ui.setWidget("todos", function (tui) { return x; });`).tier).toBe('degraded');
+    expect(classifyExtensionSource(`${tools}ctx.ui.setWidget('todos', new Panel());`).tier).toBe('degraded');
+  });
+});
+

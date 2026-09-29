@@ -23,6 +23,10 @@ import {
 import { AgentWorkerSupervisor } from '../agent-worker-supervisor.js';
 import type { WorkerClientOptions, RpcSdkWorkerClient } from '../rpc-sdk-worker-client.js';
 import type {
+  WorkerExtensionUiDialogRequest,
+  WorkerExtensionUiDialogResult,
+} from '../rpc/parent-extension-ui-relay.js';
+import type {
   WorkerInterventionClaimFrame,
   WorkerToolCallFrame,
 } from '../rpc-sdk-worker-protocol.js';
@@ -83,6 +87,12 @@ export class WorkerSessionBackend implements PiSessionBackend {
         ...(input.providerSecrets ? { bootstrapSecrets: input.providerSecrets } : {}),
         onToolCall: (frame, signal) => this.executeHostTool(frame, signal),
         onExtensionUiRequest: (request) => this.requestExtensionUi(request),
+        onExtensionUiPublish: (publication) => {
+          this.findActiveSession(
+            publication.sessionId,
+            publication.runtimeGenerationId,
+          )?.extensionUi?.publish?.(publication.update);
+        },
       },
     );
     const serializableBlueprint = projectBackendBlueprintForWorker(input.blueprint);
@@ -305,19 +315,9 @@ export class WorkerSessionBackend implements PiSessionBackend {
     return undefined;
   }
 
-  private async requestExtensionUi(request: {
-    sessionId: string;
-    runtimeGenerationId: string;
-    kind: 'confirm' | 'select' | 'input';
-    title: string;
-    message?: string;
-    options?: string[];
-    placeholder?: string;
-  }): Promise<
-    | { kind: 'confirm'; confirmed: boolean }
-    | { kind: 'select'; value?: string; cancelled?: boolean }
-    | { kind: 'input'; value?: string; cancelled?: boolean }
-  > {
+  private async requestExtensionUi(
+    request: WorkerExtensionUiDialogRequest,
+  ): Promise<WorkerExtensionUiDialogResult> {
     const extensionUi = this.findActiveSession(
       request.sessionId,
       request.runtimeGenerationId,

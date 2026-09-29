@@ -3,7 +3,10 @@ import { formatError } from '@piwin/contracts';
 import { connectCliAttachedHost, readCliHostAttachTarget } from './attach-existing-host.js';
 import { resolveCliChatPrompt } from './chat-prompt.js';
 import { formatCliAgentErrorEvent } from './cli-agent-error.js';
-import { createCliExtensionUiPushResponder } from './extension-ui-cli.js';
+import {
+  createCliExtensionSurfacePrinter,
+  createCliExtensionUiPushResponder,
+} from './extension-ui-cli.js';
 import { saveAttachedCliImageAttachment, saveLocalCliImageAttachment } from './cli-prompt-image.js';
 import { buildCliContextRefs, collectRefArgs } from './context-ref-args.js';
 import { formatCliFlashcardToolResult } from './flashcard-tool-result.js';
@@ -224,11 +227,13 @@ export async function commandChat(argv: string[]): Promise<void> {
     const answerAttachedExtensionUi = createCliExtensionUiPushResponder((command) =>
       client.request(command),
     );
+    const printAttachedExtensionSurface = createCliExtensionSurfacePrinter();
     const unsubscribe = client.subscribePush((push) => {
       if (push.type === 'run/terminal') {
         resolveAttachedCompletion?.();
         return;
       }
+      if (printAttachedExtensionSurface(push)) return;
       if (push.type === 'extension/ui_request') {
         answerAttachedExtensionUi(push).catch((error: unknown) => {
           console.error(`[extension-ui] ${formatError(error)}`);
@@ -330,6 +335,7 @@ export async function commandChat(argv: string[]): Promise<void> {
   const answerLocalExtensionUi = createCliExtensionUiPushResponder((command) =>
     runtime.handleCommand(command),
   );
+  const printLocalExtensionSurface = createCliExtensionSurfacePrinter();
   const runtime: HostRuntime = new HostRuntime({
     mode,
     mock,
@@ -338,6 +344,7 @@ export async function commandChat(argv: string[]): Promise<void> {
         resolvePromptCompletion?.();
         return;
       }
+      if (printLocalExtensionSurface(push)) return;
       if (push.type === 'extension/ui_request') {
         answerLocalExtensionUi(push).catch((error: unknown) => {
           console.error(`[extension-ui] ${formatError(error)}`);

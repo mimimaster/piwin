@@ -466,6 +466,14 @@ export async function handleMockCatalogCommands(
           success: true,
           data: { requestId: command.requestId, ok: true },
         };
+      case 'extension/ui_surface_get':
+        return {
+          id,
+          type: 'response',
+          command: 'extension/ui_surface_get',
+          success: true,
+          data: { sessionId: command.sessionId, statuses: [], widgets: [] },
+        };
       case 'prompts/set_enabled': {
         if (command.enabled) {
           host.mockDisabledPromptIds.delete(command.promptId);
@@ -785,6 +793,23 @@ export async function handleMockCatalogCommands(
         const hits =
           query.includes('subagent') || query.includes('pi-subagents')
             ? [
+                {
+                  entryId: 'registry:yorick/pi-subagents',
+                  name: 'Subagents (zh prompts)',
+                  version: '0.67.0-zh.1',
+                  description: 'Registry mock: a modified pi-subagents with Chinese delegation prompts.',
+                  source: 'piwin-registry' as const,
+                  installCommand: 'piwin extension install --registry yorick/pi-subagents@0.67.0-zh.1',
+                  repositoryUrl: 'https://github.com/yorick/pi-subagents',
+                  publisher: 'yorick',
+                  registry: {
+                    id: 'yorick/pi-subagents',
+                    owners: ['yorick'],
+                    commit: '3f8c35825e0b1d2a7c4f9e6b8a1d0c2e4f6a8b0c',
+                    license: 'MIT',
+                    forkOf: { id: 'nicobailon/pi-subagents', version: '0.67.0' },
+                  },
+                },
                 {
                   entryId: 'npm:pi-subagents',
                   name: 'pi-subagents',

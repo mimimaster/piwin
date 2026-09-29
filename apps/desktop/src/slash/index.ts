@@ -10,7 +10,11 @@ export {
   isConversationSlashSkillSource,
   RESERVED_SLASH_COMMAND_NAMES,
 } from './slash-catalog';
-export type { BuildSlashCatalogOptions, SlashSkillInput } from './slash-catalog';
+export type {
+  BuildSlashCatalogOptions,
+  SlashExtensionCommandInput,
+  SlashSkillInput,
+} from './slash-catalog';
 export { filterSlashItems, groupSlashItems, SLASH_MENU_MAX_ITEMS } from './slash-match';
 export {
   applySkillToPrompt,
