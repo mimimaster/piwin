@@ -1465,6 +1465,25 @@ describe('JobRegistry', () => {
       await expect(waitPromise).rejects.toThrow(/aborted/);
     });
 
+    it('rejects immediately when the signal is already aborted', async () => {
+      const { registry, trustedDir } = await createFixture();
+      const started = await registry.start({
+        kind: 'command',
+        lifetime: 'host',
+        command: 'node',
+        argv: [],
+        cwd: trustedDir,
+      });
+
+      const controller = new AbortController();
+      controller.abort();
+      // An abort listener on an already-aborted signal never fires: without
+      // the pre-check this wait would hang until the full timeout.
+      await expect(
+        registry.wait({ jobId: started.jobId, timeoutMs: 120_000 }, controller.signal),
+      ).rejects.toThrow(/aborted/);
+    });
+
     it('throws for a non-existent job', async () => {
       const { registry } = await createFixture();
       const controller = new AbortController();

@@ -783,6 +783,13 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
         reject(new Error('wait aborted'));
       };
 
+      if (signal.aborted) {
+        // An abort listener on an already-aborted signal never fires; settle
+        // immediately instead of hanging until the wait timeout.
+        clearTimeout(timer);
+        reject(new Error('wait aborted'));
+        return;
+      }
       signal.addEventListener('abort', onAbort, { once: true });
       entry.waitResolvers.push(resolver);
     });

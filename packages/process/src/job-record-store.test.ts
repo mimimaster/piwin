@@ -1,13 +1,38 @@
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { JobRecord } from '@piwin/contracts';
 
 import {
   createFileRecordStore,
   createMemoryRecordStore,
 } from './job-record-store.js';
+
+// Gate the first rename() so a test can park a flush mid-write and verify
+// that a save landing during the write still reaches disk afterwards.
+const renameGate = vi.hoisted(() => ({
+  gateNext: false,
+  gated: false,
+  release: (): void => {},
+}));
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    rename: (from: string, to: string) => {
+      if (renameGate.gateNext) {
+        renameGate.gateNext = false;
+        renameGate.gated = true;
+        return new Promise<void>((resolve) => {
+          renameGate.release = () => resolve();
+        }).then(() => actual.rename(from, to));
+      }
+      return actual.rename(from, to);
+    },
+  };
+});
 
 function makeRecord(overrides?: Partial<JobRecord>): JobRecord {
   return {
@@ -167,5 +192,40 @@ describe('createFileRecordStore', () => {
     const raw = await readFile(filePath, 'utf8');
     const parsed = JSON.parse(raw) as Record<string, JobRecord>;
     expect(Object.keys(parsed).sort()).toEqual(['job-a', 'job-b']);
+  });
+
+  it('does not drop a save that lands while a flush write is in flight', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-record-store-'));
+    const filePath = join(dir, 'records.json');
+    renameGate.gateNext = true;
+    let store: ReturnType<typeof createFileRecordStore> | undefined;
+    try {
+      store = createFileRecordStore(filePath, { flushDebounceMs: 5 });
+      store.save(makeRecord({ jobId: 'job-a' }));
+
+      // Park flush #1 at its rename step.
+      const deadline = Date.now() + 5_000;
+      while (!renameGate.gated) {
+        if (Date.now() > deadline) throw new Error('flush never reached rename');
+        await new Promise((resolve) => setTimeout(resolve, 2));
+      }
+
+      // A second save lands while flush #1 is still writing the old snapshot.
+      store.save(makeRecord({ jobId: 'job-b' }));
+      // Let the debounced flush #2 run while flush #1 stays parked.
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      renameGate.release();
+
+      // flush #2 must write the newer snapshot on its own; returning after
+      // awaiting the in-flight write would drop job-b forever.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const raw = await readFile(filePath, 'utf8');
+      const parsed = JSON.parse(raw) as Record<string, JobRecord>;
+      expect(Object.keys(parsed).sort()).toEqual(['job-a', 'job-b']);
+    } finally {
+      renameGate.gateNext = false;
+      renameGate.gated = false;
+      await store?.dispose();
+    }
   });
 });

@@ -115,9 +115,11 @@ export function createFileRecordStore(
 
   async function flushNow(force = false): Promise<void> {
     if (disposed && !force) return;
-    if (flushInFlight) {
+    // Wait out any in-flight write instead of returning: a save that lands
+    // while the previous snapshot is being written would otherwise never
+    // reach disk, because nothing schedules a later flush for it.
+    while (flushInFlight) {
       await flushInFlight;
-      return;
     }
     const snapshot: Record<string, JobRecord> = {};
     for (const [id, record] of records) {
