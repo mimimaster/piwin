@@ -36,6 +36,8 @@ export type SubagentProviderEnvelope = {
     readonly reasoning?: boolean;
     readonly contextWindow?: number;
     readonly maxOutputTokens?: number;
+    /** ADR 0082: Host-resolved system prompt role; omitted = backend default. */
+    readonly supportsDeveloperRole?: boolean;
   }>;
   readonly auth: WorkerProviderAuthDescriptor;
 };

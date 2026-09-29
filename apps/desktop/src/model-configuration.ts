@@ -18,6 +18,7 @@ import type {
   ModelRouteConfig,
   NativeSearchAdapterKind,
   NativeSearchAdapterOptions,
+  SystemPromptRoleMode,
   ThinkingLevel,
   VideoGenerationApiStyle,
 } from '@piwin/contracts';
@@ -62,6 +63,8 @@ export type ModelConfigurationDraft = {
   reasoning: boolean;
   /** Maps to `protocol` (ADR 0079); omitted or '' = inherit the provider protocol. */
   protocol?: ModelProviderConfig['protocol'] | '';
+  /** Maps to `systemPromptRole` (ADR 0082); omitted or '' = inherit the provider. */
+  systemPromptRole?: SystemPromptRoleMode | '';
   imageApiStyle: ImageGenerationApiStyle | '';
   imagePath: string;
   imageTimeoutSeconds: string;
@@ -142,6 +145,7 @@ export function createModelConfigurationDraft(
     ...(effective.nativeSearchOptions ? { nativeSearchOptions: effective.nativeSearchOptions } : {}),
     reasoning: generationOnly ? effective.reasoning === true : (effective.reasoning ?? true),
     ...(effective.protocol ? { protocol: effective.protocol } : {}),
+    ...(effective.systemPromptRole ? { systemPromptRole: effective.systemPromptRole } : {}),
     ...hydrateGenerationRouteDraft(
       effective.id,
       protocol,
@@ -196,6 +200,9 @@ export function createModelConfigurationEntry(
   model.reasoning = draft.reasoning;
   if (draft.protocol) {
     model.protocol = draft.protocol;
+  }
+  if (draft.systemPromptRole) {
+    model.systemPromptRole = draft.systemPromptRole;
   }
   const capabilities: ModelCapability[] = [];
   if (draft.supportsImageGeneration) {
@@ -338,6 +345,7 @@ export function applyModelConfigurationDraft(
   if (!draft.label.trim() || draft.label.trim() === updated.id) delete updated.label;
   if (!draft.tooltipMarkdown.trim()) delete updated.tooltipMarkdown;
   if (!draft.protocol) delete updated.protocol;
+  if (!draft.systemPromptRole) delete updated.systemPromptRole;
   // Preserve capability tags that this editor does not expose while replacing
   // the generation, speech, and native-search flags it owns.
   const preservedCapabilities = (original.capabilities ?? []).filter(

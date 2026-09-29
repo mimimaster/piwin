@@ -83,6 +83,11 @@ export type SerializableProviderRuntime = {
      */
     protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
     baseUrl?: string;
+    /**
+     * ADR 0082: Host-resolved `developer` vs `system` role for the system
+     * prompt. Omitted = setting does not apply; the worker keeps Pi's default.
+     */
+    supportsDeveloperRole?: boolean;
   }>;
   auth: ProviderAuthDescriptor;
 };

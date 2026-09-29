@@ -323,6 +323,30 @@ describe('buildWorkerProviderRegistration', () => {
     });
   });
 
+  it('applies the Host-resolved system prompt role on top of model-id compat (ADR 0082)', () => {
+    const provider: SerializableWorkerProviderRuntime = {
+      providerId: 'qwen',
+      protocol: 'openai-compatible',
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      models: [
+        { id: 'qwen3.8-max', supportsDeveloperRole: false },
+        { id: 'deepseek-v4-flash', supportsDeveloperRole: true },
+        { id: 'legacy-envelope' },
+      ],
+      auth: { kind: 'none' },
+    };
+
+    const registration = buildWorkerProviderRegistration(provider, undefined);
+
+    expect(registration.models[0]?.compat).toEqual({ supportsDeveloperRole: false });
+    expect(registration.models[1]?.compat).toMatchObject({
+      supportsDeveloperRole: true,
+      thinkingFormat: 'deepseek',
+    });
+    // Older Host envelopes omit the field: keep Pi's own default.
+    expect(registration.models[2]).not.toHaveProperty('compat');
+  });
+
   it('maps the serializable envelope to a Pi provider registration', () => {
     const provider: SerializableProviderRuntime = {
       providerId: 'prov-1',

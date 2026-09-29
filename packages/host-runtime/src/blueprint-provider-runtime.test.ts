@@ -39,3 +39,49 @@ describe('provider envelope per-model protocol (ADR 0079)', () => {
     expect(registration.streamSimple).toBeTypeOf('function');
   });
 });
+
+describe('provider envelope system prompt role (ADR 0082)', () => {
+  it('carries only an opted-in role per model to the worker registration', async () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'qwen',
+        name: 'Qwen',
+        protocol: 'openai-compatible',
+        baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        systemPromptRole: 'system',
+        models: [{ id: 'qwen3.8-max' }, { id: 'qwen-plus', systemPromptRole: 'developer' }],
+      },
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        protocol: 'openai-compatible',
+        baseUrl: 'https://api.openai.com/v1',
+        models: [{ id: 'gpt-5.6' }],
+      },
+      {
+        id: 'claude',
+        name: 'Claude',
+        protocol: 'anthropic-compatible',
+        baseUrl: 'https://api.anthropic.com',
+        models: [{ id: 'claude-opus-5', systemPromptRole: 'system' }],
+      },
+    ];
+    const { providers } = await buildProviderEnvelope(config, {
+      allowInlineProviderSecrets: false,
+      allowWorkerProviderSecretBootstrap: false,
+    });
+    const byId = new Map(providers.map((provider) => [provider.providerId, provider]));
+    expect(byId.get('qwen')?.models).toEqual([
+      expect.objectContaining({ id: 'qwen3.8-max', supportsDeveloperRole: false }),
+      expect.objectContaining({ id: 'qwen-plus', supportsDeveloperRole: true }),
+    ]);
+    expect(byId.get('openai')?.models[0]).not.toHaveProperty('supportsDeveloperRole');
+    expect(byId.get('claude')?.models[0]).not.toHaveProperty('supportsDeveloperRole');
+
+    const qwen = byId.get('qwen');
+    if (!qwen) throw new Error('qwen envelope missing');
+    const registration = buildWorkerProviderRegistration(qwen, undefined);
+    expect(registration.models[0]?.compat).toEqual({ supportsDeveloperRole: false });
+  });
+});

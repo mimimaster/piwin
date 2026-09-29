@@ -8,6 +8,7 @@ import {
   isV1SubscriptionProviderId,
   modelSupportsCapability,
   resolveModelEndpoint,
+  resolveSupportsDeveloperRole,
 } from '@piwin/contracts';
 import type { SerializableProviderRuntime } from '@piwin/agent-host';
 import { getEnabledProviders } from './provider-helpers.js';
@@ -281,6 +282,7 @@ function buildProviderRuntime(
       .filter((model) => modelSupportsCapability(model, 'chat'))
       .map((model) => {
         const endpoint = resolveModelEndpoint(provider, model);
+        const supportsDeveloperRole = resolveSupportsDeveloperRole(provider, model);
         return {
           id: model.id,
           ...(model.label ? { label: model.label } : {}),
@@ -292,6 +294,7 @@ function buildProviderRuntime(
           ...(endpoint !== provider
             ? { protocol: endpoint.protocol, baseUrl: endpoint.baseUrl }
             : {}),
+          ...(supportsDeveloperRole !== undefined ? { supportsDeveloperRole } : {}),
         };
       }),
     auth,

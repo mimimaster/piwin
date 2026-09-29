@@ -224,6 +224,34 @@ describe('ModelEditInline', () => {
     expect(onSave.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ protocol: 'google-gemini' }));
   });
 
+  it('sets a per-model system prompt role on an OpenAI wire only (ADR 0082)', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{ id: 'model-b' }}
+        providerProtocol="openai-compatible"
+        providerBaseUrl="http://127.0.0.1:8317/v1"
+        providerSystemPromptRole="system"
+        disabled={false}
+        isChinese
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    const picker = query<HTMLSelectElement>('[data-testid="model-edit-system-prompt-role"]');
+    expect(picker?.value).toBe('');
+    expect(picker?.options[0]?.textContent).toBe('跟随服务商（system）');
+    select('[data-testid="model-edit-system-prompt-role"]', 'developer');
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ systemPromptRole: 'developer' }),
+    );
+
+    // A model routed to Gemini leaves the OpenAI wire; the role no longer applies.
+    select('[data-testid="model-edit-protocol"]', 'google-gemini');
+    expect(query('[data-testid="model-edit-system-prompt-role"]')).toBeNull();
+  });
+
   it('offers a one-step switch to Gemini for a Gemini model on an OpenAI gateway row', () => {
     const onSave = vi.fn();
     render(

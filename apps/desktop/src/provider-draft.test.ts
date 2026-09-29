@@ -120,6 +120,29 @@ describe('provider-draft', () => {
     ).toBe(false);
   });
 
+  it('persists only the opted-in system role; developer is the default (ADR 0082)', () => {
+    const forced = makeProvider({ id: 's', systemPromptRole: 'system' });
+    const draft = providerToDraft(forced);
+    expect(draft.systemPromptRole).toBe('system');
+    expect(draftToProvider(draft)).toMatchObject({ systemPromptRole: 'system' });
+    expect(isConnectionDirty(draft, forced)).toBe(false);
+    const { systemPromptRole: _role, ...unchecked } = draft;
+    expect(isConnectionDirty(unchecked, forced)).toBe(true);
+
+    const legacy = makeProvider({ id: 'l' });
+    expect(draftToProvider(providerToDraft(legacy))).not.toHaveProperty('systemPromptRole');
+    const explicitDeveloper = { ...providerToDraft(legacy), systemPromptRole: 'developer' as const };
+    expect(draftToProvider(explicitDeveloper)).not.toHaveProperty('systemPromptRole');
+    expect(isConnectionDirty(explicitDeveloper, legacy)).toBe(false);
+
+    const anthropic = {
+      ...providerToDraft(legacy),
+      protocol: 'anthropic-compatible' as const,
+      systemPromptRole: 'system' as const,
+    };
+    expect(draftToProvider(anthropic)).not.toHaveProperty('systemPromptRole');
+  });
+
   it('drops a chatApi an OpenAI row cannot use', () => {
     const draft = { ...providerToDraft(makeProvider({ id: 'x' })), chatApi: 'anthropic-messages' as const };
     expect(draftToProvider(draft)).not.toHaveProperty('chatApi');

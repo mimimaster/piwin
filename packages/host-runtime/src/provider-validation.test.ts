@@ -37,6 +37,32 @@ describe('validateProviders', () => {
     expect(issues.some((issue) => issue.path.includes('apiKeyEnv'))).toBe(true);
   });
 
+  it('accepts known systemPromptRole values and rejects unknown ones (ADR 0082)', () => {
+    expect(
+      validateProviders([sampleProvider({ systemPromptRole: 'auto' } as never)]).length,
+    ).toBeGreaterThan(0);
+    expect(
+      validateProviders([
+        sampleProvider({
+          systemPromptRole: 'system',
+          models: [{ id: 'm', systemPromptRole: 'developer' }],
+        } as never),
+      ]),
+    ).toEqual([]);
+    const issues = validateProviders([
+      sampleProvider({
+        systemPromptRole: 'user',
+        models: [{ id: 'm', systemPromptRole: 'assistant' }],
+      } as never),
+    ]);
+    expect(issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/\.systemPromptRole$/),
+        expect.stringMatching(/models\[0\]\.systemPromptRole$/),
+      ]),
+    );
+  });
+
   it('rejects duplicate or out-of-list thinking defaults', () => {
     const issues = validateProviders([
       {

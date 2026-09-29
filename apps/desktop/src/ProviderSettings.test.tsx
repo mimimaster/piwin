@@ -530,6 +530,29 @@ describe('ProviderSettings', () => {
     expect(saved.providers.find((item) => item.id === 'openai')?.chatApi).toBe('openai-responses');
   });
 
+  it('saves system only after the Advanced checkbox is ticked (ADR 0082)', async () => {
+    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
+    const container = mount(makeProps(onSave));
+    openConnection(container);
+    act(() => {
+      byTestId<HTMLButtonElement>(container, 'provider-advanced-toggle')?.click();
+    });
+    const checkbox = byTestId<HTMLInputElement>(container, 'provider-system-prompt-role');
+    expect(checkbox?.type).toBe('checkbox');
+    expect(checkbox?.checked).toBe(false);
+    act(() => {
+      checkbox?.click();
+    });
+    await act(async () => {
+      byTestId<HTMLButtonElement>(container, 'provider-save-btn')?.click();
+    });
+    await flush();
+    const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
+    expect(saved.providers.find((item) => item.id === 'openai')).toMatchObject({
+      systemPromptRole: 'system',
+    });
+  });
+
   it('reports a Host-side failure to run the test as an error', async () => {
     const onTestConnection = vi.fn(async () => {
       throw new Error('secret unavailable');

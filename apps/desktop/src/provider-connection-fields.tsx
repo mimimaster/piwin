@@ -5,7 +5,7 @@
  */
 
 import { useId, useState, type ReactElement, type ReactNode } from 'react';
-import { Button, IconButton, SegmentedControl, TextInput } from '@piwin/ui-kit';
+import { Button, FieldCheckbox, IconButton, SegmentedControl, TextInput } from '@piwin/ui-kit';
 import {
   chatApiChoicesForProtocol,
   createHeaderRow,
@@ -258,6 +258,25 @@ export function ProviderConnectionFields({
                 ]}
               />
             </FieldRow>
+          ) : null}
+          {draft.protocol === 'openai-compatible' ? (
+            <FieldCheckbox
+              testId="provider-system-prompt-role"
+              label={
+                isChinese ? '系统提示使用 system 角色' : 'Send system prompt as the system role'
+              }
+              description={
+                isChinese
+                  ? '默认发 developer。接口报「developer is not one of …」时勾选。'
+                  : 'Default is developer. Turn on if the provider rejects "developer".'
+              }
+              checked={draft.systemPromptRole === 'system'}
+              disabled={saving}
+              onCheckedChange={(checked) => {
+                const { systemPromptRole: _previous, ...rest } = draft;
+                onDraftChange(checked ? { ...rest, systemPromptRole: 'system' } : rest);
+              }}
+            />
           ) : null}
           <FieldRow
             label={copy.apiKeyEnvironment}
