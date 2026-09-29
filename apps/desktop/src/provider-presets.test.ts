@@ -58,13 +58,8 @@ describe('provider-presets', () => {
     expect(volcengine?.models.length).toBeGreaterThan(0);
     expect(presetDesc(volcengine!, true)).toBe('火山方舟豆包系列');
 
-    // Agent Plan: its own endpoint, models shipped (no usable /models there).
-    const agentPlan = getProviderPreset('volcengine-agent-plan');
-    expect(agentPlan?.protocol).toBe('openai-compatible');
-    expect(agentPlan?.baseUrl).toBe('https://ark.cn-beijing.volces.com/api/plan/v3');
-    expect(agentPlan?.models.map((model) => model.id)).toContain('glm-5.2');
-    expect(presetDesc(agentPlan!, true)).toContain('Agent Plan');
-    expect(getProviderPreset('ark-plan')?.presetId).toBe('volcengine-agent-plan');
+    expect(getProviderPreset('volcengine-agent-plan')).toBeUndefined();
+    expect(getProviderPreset('ark-plan')).toBeUndefined();
   });
 
   it('resolves vendor preset aliases', () => {

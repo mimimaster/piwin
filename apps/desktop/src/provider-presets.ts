@@ -196,33 +196,6 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     docsHint: '火山方舟推理接入点 (ep-xxx) 或模型名称',
   },
   {
-    // Agent Plan is a separate subscription pool: its key is rejected by the
-    // pay-as-you-go `/api/v3` and Coding Plan `/api/coding/v3` endpoints, and
-    // `/api/plan/v3` exposes no usable `/models` — so models ship here and
-    // "Test connection" chats with the first one instead of listing models.
-    // IDs follow the Agent Plan model table (docs/82379/2522860) as mirrored
-    // by the community pi-volcengine-agent-plan extension, which verified all
-    // of them on Chat Completions.
-    presetId: 'volcengine-agent-plan',
-    id: 'volcengine-agent-plan',
-    name: 'Volcengine Ark Agent Plan (火山方舟 Agent Plan)',
-    protocol: 'openai-compatible',
-    baseUrl: 'https://ark.cn-beijing.volces.com/api/plan/v3',
-    apiKeyEnv: 'ARK_AGENT_PLAN_API_KEY',
-    models: [
-      { id: 'doubao-seed-2.0-pro', label: 'Doubao Seed 2.0 Pro' },
-      { id: 'doubao-seed-2.0-code', label: 'Doubao Seed 2.0 Code' },
-      { id: 'glm-5.2', label: 'GLM 5.2' },
-      { id: 'kimi-k2.6', label: 'Kimi K2.6' },
-      { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
-      { id: 'minimax-m2.7', label: 'MiniMax M2.7' },
-    ],
-    badge: 'AP',
-    desc: 'Agent Plan subscription · Doubao · GLM · Kimi · DeepSeek · MiniMax',
-    group: 'cloud',
-    docsHint: 'Agent Plan 专用 Key 与地址，和按量 /api/v3、Coding Plan /api/coding/v3 不通用',
-  },
-  {
     presetId: 'opencode-go',
     id: 'opencode-go',
     name: 'OpenCode Go',
@@ -370,9 +343,6 @@ export function getProviderPreset(presetId: string): ProviderPreset | undefined 
   ) {
     return PROVIDER_PRESETS.find((preset) => preset.presetId === 'volcengine');
   }
-  if (lower === 'ark-plan' || lower === 'agent-plan' || lower === 'volcengine-plan') {
-    return PROVIDER_PRESETS.find((preset) => preset.presetId === 'volcengine-agent-plan');
-  }
   return undefined;
 }
 
@@ -430,7 +400,6 @@ export function presetDesc(preset: ProviderPreset, isChinese: boolean): string {
     stepfun: '阶跃星辰 Step 系列',
     mimo: '小米 MiMo 系列',
     volcengine: '火山方舟豆包系列',
-    'volcengine-agent-plan': '火山方舟 Agent Plan 套餐 · 豆包 · GLM · Kimi · DeepSeek · MiniMax',
     'opencode-go': 'OpenCode 编程模型订阅',
     groq: '高速推理',
     openrouter: '聚合多家模型',

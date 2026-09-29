@@ -83,13 +83,10 @@ errors still fail the command.
 
 ### Presets
 
-- New `volcengine-agent-plan` preset: `/api/plan/v3`, with models shipped
-  (Doubao Seed 2.0 Pro/Code, GLM 5.2, Kimi K2.6, DeepSeek V4 Pro, MiniMax M2.7).
-  Agent Plan keys are rejected by `/api/v3` and `/api/coding/v3`.
-- The community `pi-volcengine-agent-plan` extension verified all Agent Plan
-  models on Chat Completions, so the preset keeps the default transport.
-- Model IDs follow the official Agent Plan model table and may drift. Users edit
-  them in the model list.
+- Volcengine Ark pay-as-you-go remains a vendor preset (`/api/v3`). Agent Plan
+  (`/api/plan/v3`) is not a product preset: users add it as a custom
+  OpenAI-compatible endpoint and type model IDs by hand. Catalog-less 404s are
+  handled by the generic discovery rule above, not a shipped model table.
 
 ### Test isolation
 
