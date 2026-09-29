@@ -50,6 +50,7 @@ import {
 import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { resolvePiRuntimeAgentDir } from '../pi-runtime-agent-dir.js';
 import { mergeSkillAwareReadTool } from '../skill-aware-read-tool.js';
+import { mergeCwdAnchoredGrepTool } from '../cwd-anchored-grep-tool.js';
 import { registerClaudeCodeOauthProvider } from '../anthropic-oauth/register-claude-code-provider.js';
 import { registerDevinOauthProvider } from '../devin/register-devin-provider.js';
 import {
@@ -461,11 +462,15 @@ export function createWorkerPiSessionFactory(
     // import tool executors — proxy tools call back to the parent.
     // Skill-aware `read` also runs here: it only remaps SKILL.md paths, then
     // uses the same local filesystem the native Pi read already used.
-    const customTools = await mergeSkillAwareReadTool(input.proxyTools, {
-      cwd: blueprint.workingDirectory,
-      skills: blueprint.resourceManifest.skills,
-      piModule: piModule as Record<string, unknown>,
-    });
+    // Path-prefixed grep globs must not depend on the worker process cwd.
+    const customTools = mergeCwdAnchoredGrepTool(
+      await mergeSkillAwareReadTool(input.proxyTools, {
+        cwd: blueprint.workingDirectory,
+        skills: blueprint.resourceManifest.skills,
+        piModule: piModule as Record<string, unknown>,
+      }),
+      { cwd: blueprint.workingDirectory, piModule: piModule as Record<string, unknown> },
+    );
     if (customTools && customTools.length > 0) {
       sessionOptions.customTools = customTools;
     }

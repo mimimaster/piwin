@@ -22,6 +22,7 @@ import { mapThinkingLevelToPi } from '../map-thinking-level.js';
 import { toPiImageContents, type PiImageContent } from '../pi-image-content.js';
 import { toPiBackendCustomTools } from './pi-backend-tool-adapter.js';
 import { mergeSkillAwareReadTool } from '../skill-aware-read-tool.js';
+import { mergeCwdAnchoredGrepTool } from '../cwd-anchored-grep-tool.js';
 import type { PiModelRuntime } from '../pi-model-runtime.js';
 import {
   createSeededPiSessionManager,
@@ -115,11 +116,14 @@ export async function createBackendSdkSession(
       getRunId: () => activeRunId,
     },
   );
-  const customToolsWithSkillRead = await mergeSkillAwareReadTool(customTools, {
-    cwd: capabilitySnapshot.workingDirectory,
-    skills: capabilitySnapshot.resourceManifest.skills,
-    piModule: piModule as Record<string, unknown>,
-  });
+  const customToolsWithSkillRead = mergeCwdAnchoredGrepTool(
+    await mergeSkillAwareReadTool(customTools, {
+      cwd: capabilitySnapshot.workingDirectory,
+      skills: capabilitySnapshot.resourceManifest.skills,
+      piModule: piModule as Record<string, unknown>,
+    }),
+    { cwd: capabilitySnapshot.workingDirectory, piModule: piModule as Record<string, unknown> },
+  );
   let settingsManager = createPiwinSettingsManager(
     piModule,
     capabilitySnapshot.workingDirectory,
