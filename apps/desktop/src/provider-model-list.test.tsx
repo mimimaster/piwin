@@ -301,4 +301,51 @@ describe('ProviderModelList', () => {
     ]);
   });
 
+  it('shows an inline warning instead of an empty picker when the catalog is unavailable', async () => {
+    const onDiscoverModels = vi.fn(async () => ({
+      providerId: customProvider.id,
+      protocol: customProvider.protocol,
+      models: [],
+      catalogUnavailable: { httpStatus: 404 },
+    }));
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ProviderModelList
+            provider={customProvider}
+            defaultModelId={null}
+            isChinese={true}
+            disabled={false}
+            modelTestStatus={{}}
+            testingModelId={null}
+            onUpdateModels={vi.fn()}
+            onTestModel={vi.fn()}
+            onSetDefaultModel={vi.fn()}
+            onToggleModel={vi.fn()}
+            onDiscoverModels={onDiscoverModels}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        `[data-testid="provider-discover-models-${customProvider.id}"]`,
+      )?.click();
+      await Promise.resolve();
+    });
+
+    const notice = container.querySelector(
+      `[data-testid="provider-catalog-unavailable-${customProvider.id}"]`,
+    );
+    expect(notice).not.toBeNull();
+    expect(notice?.textContent).toContain('此接口不提供模型列表');
+    expect(notice?.textContent).toContain('HTTP 404');
+    expect(document.body.querySelector('[data-testid="discover-models-list"]')).toBeNull();
+    expect(onDiscoverModels).toHaveBeenCalledTimes(1);
+  });
+
 });

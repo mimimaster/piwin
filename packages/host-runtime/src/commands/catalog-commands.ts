@@ -57,7 +57,7 @@ import {
 import { loadPiwinConfig, savePiwinConfig } from '../config-store.js';
 import { ensureBundledExtensionsInstalled } from '../ensure-bundled-extensions.js';
 import { ensureBundledPromptsInstalled } from '../ensure-bundled-prompts.js';
-import { discoverProviderModels } from '../provider-model-discovery.js';
+import { discoverProviderCatalog } from '../provider-model-discovery.js';
 import { mergeProviderSecretSource } from '../provider-discovery-auth.js';
 import { handleModelCatalogCommand } from './model-catalog-commands.js';
 import { testProviderModel } from '../provider-model-test.js';
@@ -664,7 +664,7 @@ export async function handleCatalogCommand(
           provider: command.provider,
           apiKey: command.apiKey,
         });
-        const result = await discoverProviderModels(probe.provider, {
+        const result = await discoverProviderCatalog(probe.provider, {
           resolveSecret: probe.resolveSecret,
         });
         return ok(requestId, 'models/discover', result);

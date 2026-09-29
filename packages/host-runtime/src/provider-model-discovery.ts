@@ -65,6 +65,47 @@ export class ProviderModelDiscoveryError extends Error {
   }
 }
 
+/**
+ * True when discovery reached the provider but got no usable catalog.
+ * Narrower than the connection-test rule: 404/405 or a non-list body only.
+ * 401/403 stay auth failures; 5xx/429/timeout/network stay real errors.
+ */
+export function isCatalogUnavailableError(error: unknown): error is ProviderModelDiscoveryError {
+  if (!(error instanceof ProviderModelDiscoveryError)) {
+    return false;
+  }
+  if (error.failureKind === 'invalid-response') {
+    return true;
+  }
+  return error.failureKind === 'http' && (error.httpStatus === 404 || error.httpStatus === 405);
+}
+
+/**
+ * "Fetch models" import path. A catalog-less endpoint is a valid answer
+ * (empty list + `catalogUnavailable`), not a command failure.
+ */
+export async function discoverProviderCatalog(
+  provider: ModelProviderConfig,
+  dependencies: ProviderModelDiscoveryDependencies,
+): Promise<ModelDiscoveryResult> {
+  try {
+    return await discoverProviderModels(provider, dependencies);
+  } catch (error) {
+    if (!isCatalogUnavailableError(error)) {
+      throw error;
+    }
+    return {
+      providerId: provider.id,
+      protocol: provider.protocol,
+      models: [],
+      catalogUnavailable:
+        error.httpStatus === 404 || error.httpStatus === 405
+          ? { httpStatus: error.httpStatus }
+          : {},
+    };
+  }
+}
+
 export async function discoverProviderModels(
   provider: ModelProviderConfig,
   dependencies: ProviderModelDiscoveryDependencies,

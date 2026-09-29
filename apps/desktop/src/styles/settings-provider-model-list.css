@@ -266,6 +266,10 @@
   opacity: 1;
 }
 
+.pmodel-catalog-notice .ui-notice {
+  margin: 0 0 var(--s-6);
+}
+
 .pmodel-empty {
   margin: 0;
   padding: var(--s-9) var(--s-6);

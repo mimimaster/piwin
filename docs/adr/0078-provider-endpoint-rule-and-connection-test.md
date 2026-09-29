@@ -65,7 +65,11 @@ fallback.
   They never parse error strings.
 
 The "fetch models" action in the model list still calls `models/discover`. A
-failure there only means the import found nothing.
+catalog-less answer (404/405 or a non-list body) is no longer a command
+failure: the Host returns `models: []` plus `catalogUnavailable`, and Desktop
+shows an amber notice near the list ("no model list, chat unaffected, add IDs
+manually") instead of a red error. Auth (401/403), 5xx, timeout and network
+errors still fail the command.
 
 ### `chatApi` is honoured end to end
 

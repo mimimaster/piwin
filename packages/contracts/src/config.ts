@@ -413,6 +413,14 @@ export type ModelDiscoveryResult = {
   providerId: string;
   protocol: ModelProviderConfig['protocol'];
   models: DiscoveredModel[];
+  /**
+   * Present when the provider answered but exposes no usable `/models`
+   * (404/405 or a non-list body). Not a connection failure — chat may still
+   * work. Auth, 5xx, timeout and network errors stay thrown.
+   */
+  catalogUnavailable?: {
+    httpStatus?: number;
+  };
 };
 
 /** Product-level compaction defaults (applied when a live session is ready). */

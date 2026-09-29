@@ -23,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   IconButton,
+  Notice,
   Switch,
   ModelFallbackIcon,
   ProviderIcon,
@@ -119,6 +120,14 @@ function modelListCopy(isChinese: boolean) {
       };
 }
 
+function catalogUnavailableMessage(isChinese: boolean, httpStatus: number | undefined): string {
+  const status =
+    httpStatus === undefined ? '' : isChinese ? `（HTTP ${httpStatus}）` : ` (HTTP ${httpStatus})`;
+  return isChinese
+    ? `此接口不提供模型列表${status}，但不影响对话。需要新模型时手动添加模型 ID，再用「测试连接」确认。`
+    : `This endpoint does not expose a model list${status}. Chat is unaffected. Add a model ID by hand, then use Test connection.`;
+}
+
 /** Compact token counts for the row, e.g. 128000 → "128K". */
 function formatTokens(count: number): string {
   if (count >= 1_000_000) return `${Math.round(count / 100_000) / 10}M`;
@@ -154,6 +163,10 @@ export function ProviderModelList({
   const [discovered, setDiscovered] = useState<DiscoveredModel[]>([]);
   const [discovering, setDiscovering] = useState(false);
   const [optimisticModels, setOptimisticModels] = useState<ModelConfigEntry[] | null>(null);
+  const [catalogNotice, setCatalogNotice] = useState<{
+    providerId: string;
+    httpStatus?: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!optimisticModels) return;
@@ -185,8 +198,18 @@ export function ProviderModelList({
 
   async function handleDiscover(): Promise<void> {
     setDiscovering(true);
+    setCatalogNotice(null);
     try {
       const result = await onDiscoverModels(provider);
+      if (result.catalogUnavailable) {
+        setCatalogNotice({
+          providerId: provider.id,
+          ...(result.catalogUnavailable.httpStatus === undefined
+            ? {}
+            : { httpStatus: result.catalogUnavailable.httpStatus }),
+        });
+        return;
+      }
       setDiscovered(result.models);
       setDiscoverOpen(true);
     } catch {
@@ -263,6 +286,14 @@ export function ProviderModelList({
           </Button>
         </div>
       </header>
+
+      {catalogNotice && catalogNotice.providerId === provider.id ? (
+        <div className="pmodel-catalog-notice">
+          <Notice tone="warning" testId={`provider-catalog-unavailable-${provider.id}`}>
+            {catalogUnavailableMessage(isChinese, catalogNotice.httpStatus)}
+          </Notice>
+        </div>
+      ) : null}
 
       <div className="pmodel-list" data-testid="provider-model-list">
         {provider.models.length === 0 ? (

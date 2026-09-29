@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelProviderConfig } from '@piwin/contracts';
-import { discoverProviderModels } from './provider-model-discovery.js';
+import { discoverProviderCatalog, discoverProviderModels } from './provider-model-discovery.js';
 
 function createProvider(overrides: Partial<ModelProviderConfig> = {}): ModelProviderConfig {
   return {
@@ -428,3 +428,98 @@ describe('discoverProviderModels', () => {
     // in video-gen-tool.test.ts to avoid a host-runtime self-import here.
   });
 });
+
+describe('discoverProviderCatalog', () => {
+  it('treats a 404 catalog as unavailable instead of throwing', async () => {
+    const result = await discoverProviderCatalog(
+      createProvider({ baseUrl: 'https://ark.cn-beijing.volces.com/api/plan/v3' }),
+      {
+        resolveSecret: async () => 'test-secret',
+        fetch: async () =>
+          new Response('', { status: 404, statusText: 'Not Found' }),
+      },
+    );
+
+    expect(result.models).toEqual([]);
+    expect(result.catalogUnavailable).toEqual({ httpStatus: 404 });
+  });
+
+  it('treats a 405 catalog as unavailable', async () => {
+    const result = await discoverProviderCatalog(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () => new Response('', { status: 405, statusText: 'Method Not Allowed' }),
+    });
+
+    expect(result.catalogUnavailable).toEqual({ httpStatus: 405 });
+    expect(result.models).toEqual([]);
+  });
+
+  it('treats a 200 body without a model list as unavailable', async () => {
+    const result = await discoverProviderCatalog(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () =>
+        new Response(JSON.stringify({ object: 'list' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    });
+
+    expect(result.models).toEqual([]);
+    expect(result.catalogUnavailable).toEqual({});
+  });
+
+  it('still throws on 401', async () => {
+    await expect(
+      discoverProviderCatalog(createProvider(), {
+        resolveSecret: async () => 'test-secret',
+        fetch: async () =>
+          new Response(JSON.stringify({ error: { message: "The API key doesn't exist" } }), {
+            status: 401,
+            statusText: 'Unauthorized',
+            headers: { 'content-type': 'application/json' },
+          }),
+      }),
+    ).rejects.toThrow(/401/);
+  });
+
+  it('still throws on 500', async () => {
+    await expect(
+      discoverProviderCatalog(createProvider(), {
+        resolveSecret: async () => 'test-secret',
+        fetch: async () => new Response('upstream', { status: 500, statusText: 'Internal Server Error' }),
+      }),
+    ).rejects.toThrow(/500/);
+  });
+
+  it('passes a successful catalog through unchanged', async () => {
+    const result = await discoverProviderCatalog(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () => createJsonResponse({ data: [{ id: 'deepseek-chat' }] }),
+    });
+
+    expect(result.catalogUnavailable).toBeUndefined();
+    expect(result.models).toEqual([expect.objectContaining({ id: 'deepseek-chat' })]);
+  });
+
+  it('auto-tags official OpenAI chat models with native search', async () => {
+    const result = await discoverProviderCatalog(
+      createProvider({ baseUrl: 'https://api.openai.com/v1' }),
+      {
+        resolveSecret: async () => 'test-secret',
+        fetch: async () =>
+          createJsonResponse({
+            data: [{ id: 'gpt-4o' }, { id: 'text-embedding-3-small' }],
+          }),
+      },
+    );
+    expect(result.models.find((model) => model.id === 'gpt-4o')).toMatchObject({
+      id: 'gpt-4o',
+      capabilities: expect.arrayContaining(['chat', 'native-web-search']),
+      nativeSearchAdapter: 'openai-responses-tool',
+    });
+    expect(result.models.find((model) => model.id === 'text-embedding-3-small')?.capabilities).not.toEqual(
+      expect.arrayContaining(['native-web-search']),
+    );
+  });
+});
+
