@@ -311,4 +311,20 @@ piwin extension enable <id>                      # 启用扩展
 
 PR 合并后数分钟内，所有 piwin 用户即可在桌面客户端扩展市场中搜索并安装该扩展（CLI 暂不支持市场浏览）。
 
-仓库索引由 Host 读取；桌面客户端 **扩展市场 → piwin 扩展** 展示已上架条目。参考示例：[Command Code for piwin](https://github.com/mimimaster/piwin-commandcode-provider/tree/main/piwin)——其 `piwin.json` 声明 `authProvider: "commandcode"`，启用后在 OAuth 设置中显示连接入口，授权完成后模型进入模型管理。当前该 Host 授权桥接仅支持 Command Code；普通扩展无需且不能通过此机制声明任意 OAuth 提供商。
+仓库索引由 Host 读取；桌面客户端 **扩展市场 → piwin 扩展** 展示已上架条目。
+
+### 9.1 订阅 / OAuth 提供商扩展
+
+如果扩展通过 `pi.registerProvider` 提供需要登录的模型（OAuth 或 API Key），可以在扩展目录的 `piwin.json` 中声明一个订阅提供商，让它出现在 piwin 的 OAuth 设置页：
+
+```json
+{ "authProvider": "acme-cloud", "authProviderName": "Acme Cloud" }
+```
+
+- `authProvider` 必须等于扩展 `registerProvider` 注册的提供商 id，格式为小写 slug（`[a-z0-9][a-z0-9-]{0,63}`）。不能占用 piwin 内置的订阅 id（`kimi-coding`、`openai-codex`、`anthropic`、`xai`、`github-copilot`、`devin`、`anthropic-claude-code`）；非法或保留的声明会被忽略并在 Host 日志中警告。两个已启用扩展声明同一 id 视为错误。
+- `authProviderName` 可选，是 OAuth 卡片上的名称；省略时依次回退到 `registerProvider` 传入的 `name`、再到 id。
+- 每个扩展只能声明一个提供商，Host 也只注册这一个 id，扩展无法借此注入其他提供商。
+- 启用扩展后，OAuth 设置页出现连接卡片；授权完成后模型进入模型管理。凭证保存在 Host 的 `~/.piwin/pi-agent/auth.json`，扩展自选 `oauth` 或 `api_key` 凭证形态均视为已登录。停用或卸载扩展后，卡片和模型会在下次状态同步时消失，已存凭证保留到用户退出登录。
+- 这类扩展在 OAuth 页加载时同样以 Host 用户的系统权限运行。
+
+参考示例：[Command Code for piwin](https://github.com/mimimaster/piwin-commandcode-provider/tree/main/piwin)，其 `piwin.json` 声明 `authProvider: "commandcode"`。
