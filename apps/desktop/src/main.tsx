@@ -10,6 +10,8 @@ import { installMemoryParking } from './memory-parking';
 import { installMemoryPressureBridge } from './memory-pressure';
 import { installPetOverlayStateRelay } from './pet-overlay-state-bridge';
 import { installPetOverlayRestore } from './pet-overlay-visibility';
+import { installExternalLinkGuard } from './external-link-guard';
+import { isTauriRuntime } from './tauri-pty';
 import 'katex/dist/katex.min.css';
 import './styles.css';
 
@@ -30,6 +32,11 @@ installMemoryParking();
 installArtifactMemoryBridge();
 void installPetOverlayStateRelay();
 installPetOverlayRestore();
+// Before first render: an external link click must never navigate the Tauri
+// webview itself (blank window, app state lost).
+if (isTauriRuntime()) {
+  installExternalLinkGuard(document);
+}
 
 // Install before createRoot/render. React development instrumentation can
 // produce more entries within one task than an interval-based cleanup can
