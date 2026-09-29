@@ -339,22 +339,8 @@ export class AgentWorkerSupervisor {
     // Unregister before awaiting so the slot is free even if close() stalls.
     this.workers.delete(workerId);
     this.bySessionGeneration.delete(key);
-    try {
-      // Race graceful shutdown against a force-kill timeout, mirroring
-      // dispose(): a hung worker must not pin releaseWorker (and the
-      // caller's teardown) forever.
-      await Promise.race([
-        managed.client.close(),
-        new Promise<void>((resolve) => setTimeout(resolve, this.settings.shutdownTimeoutMs)),
-      ]);
-    } catch {
-      // best-effort close
-    }
-    try {
-      managed.client.forceKill();
-    } catch {
-      // Ignore
-    }
+    // A hung worker must not pin releaseWorker (and the caller's teardown).
+    await closeWorkerWithin(managed.client, this.settings.shutdownTimeoutMs);
   }
 
   /** Release every worker belonging to one runtime generation. */
@@ -444,22 +430,35 @@ export class AgentWorkerSupervisor {
     await Promise.all(
       workers.map(async (worker) => {
         worker.disposed = true;
-        try {
-          // Race graceful shutdown against a force-kill timeout
-          await Promise.race([
-            worker.client.close(),
-            new Promise<void>((resolve) => setTimeout(resolve, this.settings.shutdownTimeoutMs)),
-          ]);
-        } catch {
-          // Ignore graceful shutdown errors
-        }
-        // Force-kill the process if still alive
-        try {
-          worker.client.forceKill();
-        } catch {
-          // Ignore
-        }
+        await closeWorkerWithin(worker.client, this.settings.shutdownTimeoutMs);
       }),
     );
+  }
+}
+
+/**
+ * Graceful close raced against a deadline, then SIGKILL if still alive.
+ * The deadline timer is cleared on settle so fast releases leave no pending
+ * timers behind. Close/kill failures are best-effort: the process is either
+ * already gone or will be reaped by the force-kill.
+ */
+async function closeWorkerWithin(client: RpcSdkWorkerClient, timeoutMs: number): Promise<void> {
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      client.close(),
+      new Promise<void>((resolve) => {
+        deadline = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } catch {
+    // Graceful close failed; fall through to the force-kill below.
+  } finally {
+    if (deadline !== undefined) clearTimeout(deadline);
+  }
+  try {
+    client.forceKill();
+  } catch {
+    // Process already exited; nothing left to kill.
   }
 }
