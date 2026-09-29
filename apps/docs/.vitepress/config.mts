@@ -160,7 +160,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2026-present Piwin. All rights reserved. · 特别致谢 LINUX DO 社区',
+      copyright: 'Copyright © 2026-present Piwin. All rights reserved.',
     },
 
     socialLinks: [
