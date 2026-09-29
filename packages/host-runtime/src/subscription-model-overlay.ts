@@ -53,6 +53,7 @@ export function mergeSubscriptionCatalogModels(
       existing.add(key);
       const next: Record<string, unknown> = {
         providerId: account.providerId,
+        providerName: provider?.name?.trim() || account.providerId,
         modelId: model.id,
         label: model.name,
         source: 'subscription',

@@ -52,6 +52,7 @@ describe('projectConfiguredChatModels', () => {
       models: [
         {
           providerId: 'custom-anthropic',
+          providerName: 'Custom Anthropic',
           protocol: 'openai-compatible',
           modelId: 'deepseek-v4-flash',
           label: 'DeepSeek V4 Flash',
@@ -96,6 +97,7 @@ describe('projectConfiguredChatModels', () => {
     expect(projected.models).toEqual([
       {
         providerId: 'xai',
+        providerName: 'xAI',
         protocol: 'openai-compatible',
         modelId: 'grok-4.6',
         label: 'Grok 4.6',
@@ -105,6 +107,44 @@ describe('projectConfiguredChatModels', () => {
         group: 'channel',
       },
     ]);
+  });
+
+  it('carries the provider display name and trims it', () => {
+    const projected = projectConfiguredChatModels(
+      config({
+        providers: [
+          {
+            id: 'kimi-coding',
+            name: '  Kimi Code  ',
+            protocol: 'openai-compatible',
+            baseUrl: 'oauth://kimi-coding',
+            source: 'subscription',
+            models: [{ id: 'kimi-k2', label: 'Kimi K2' }],
+          },
+        ],
+      }),
+    );
+    expect(projected.models[0]).toMatchObject({
+      providerId: 'kimi-coding',
+      providerName: 'Kimi Code',
+    });
+  });
+
+  it('omits the provider name when the config has a blank one', () => {
+    const projected = projectConfiguredChatModels(
+      config({
+        providers: [
+          {
+            id: 'p-blank',
+            name: '   ',
+            protocol: 'openai-compatible',
+            baseUrl: 'http://example.invalid',
+            models: [{ id: 'm1' }],
+          },
+        ],
+      }),
+    );
+    expect(projected.models[0]).not.toHaveProperty('providerName');
   });
 
   it('projects a seeded OAuth provider as subscription rows without a BYOK protocol', () => {
@@ -132,6 +172,7 @@ describe('projectConfiguredChatModels', () => {
     expect(projected.models).toEqual([
       {
         providerId: 'openai-codex',
+        providerName: 'ChatGPT Codex',
         modelId: 'gpt-5.4-codex',
         label: 'GPT-5.4 Codex',
         contextWindow: 500_000,
@@ -144,6 +185,27 @@ describe('projectConfiguredChatModels', () => {
 });
 
 describe('readConfiguredChatModelsData', () => {
+  it('reads a trimmed provider display name and ignores a blank one', () => {
+    const data = readConfiguredChatModelsData({
+      models: [
+        {
+          providerId: 'kimi-coding',
+          providerName: ' Kimi Code ',
+          modelId: 'kimi-k2',
+          source: 'subscription',
+        },
+        {
+          providerId: 'xai',
+          providerName: '   ',
+          modelId: 'grok-4.6',
+          protocol: 'openai-compatible',
+        },
+      ],
+    });
+    expect(data.models[0]).toMatchObject({ providerName: 'Kimi Code' });
+    expect(data.models[1]).not.toHaveProperty('providerName');
+  });
+
   it('keeps subscription contextWindow, input, and capabilities from the Host payload', () => {
     expect(
       readConfiguredChatModelsData({

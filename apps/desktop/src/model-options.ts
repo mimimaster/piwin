@@ -31,6 +31,8 @@ export { readConfiguredChatModelsData };
 
 export type ModelOption = {
   providerId: string;
+  /** Provider display name; the picker badge prefers it over the raw id. */
+  providerName?: string;
   protocol?: ModelProviderConfig['protocol'];
   modelId: string;
   label: string;
@@ -72,16 +74,22 @@ export function modelOptionsFromConfiguredModels(
       (model.thinkingLevels && model.thinkingLevels.length > 0
         ? (model.thinkingLevels.includes('medium') ? 'medium' : model.thinkingLevels[0])
         : undefined);
+    const providerName = model.providerName?.trim();
+    // Fall back to the previous "套餐" marker only when the Host did not send a
+    // provider name (older Host, or a provider configured without one).
+    const providerLabel =
+      providerName || (model.group === 'subscription' ? '套餐' : model.providerId);
     return {
       providerId: model.providerId,
+      ...(providerName ? { providerName } : {}),
       ...(model.protocol !== undefined ? { protocol: model.protocol } : {}),
       modelId: model.modelId,
       ...(model.source !== undefined ? { source: model.source } : {}),
       ...(model.group !== undefined ? { group: model.group } : {}),
       label:
         typeof model.label === 'string' && model.label.trim().length > 0
-          ? `${model.group === 'subscription' ? '套餐' : model.providerId} / ${model.label}`
-          : `${model.group === 'subscription' ? '套餐' : model.providerId} / ${model.modelId}`,
+          ? `${providerLabel} / ${model.label}`
+          : `${providerLabel} / ${model.modelId}`,
       ...(defaultThinking !== undefined ? { thinkingLevel: defaultThinking } : {}),
       ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
       ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
@@ -117,13 +125,15 @@ export function buildEnabledModelOptions(
         (model.thinkingLevels && model.thinkingLevels.length > 0
           ? (model.thinkingLevels.includes('medium') ? 'medium' : model.thinkingLevels[0])
           : undefined);
+      const providerName = provider.name.trim();
       options.push({
         providerId: provider.id,
+        ...(providerName ? { providerName } : {}),
         protocol: provider.protocol,
         source: 'channel',
         group: 'channel',
         modelId: model.id,
-        label: `${provider.name} / ${model.label ?? model.id}`,
+        label: `${providerName || provider.id} / ${model.label ?? model.id}`,
         ...(typeof model.contextWindow === 'number' ? { contextWindow: model.contextWindow } : {}),
         ...(typeof model.maxOutputTokens === 'number'
           ? { maxOutputTokens: model.maxOutputTokens }

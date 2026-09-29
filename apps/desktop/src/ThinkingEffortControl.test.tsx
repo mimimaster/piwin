@@ -138,6 +138,7 @@ describe('toThinkingEffortModels', () => {
           providerId: 'acme',
           modelId: 'gpt-test',
           label: 'Acme / gpt-test',
+          providerName: 'Acme',
           thinkingLevels: ['off', 'medium'],
           reasoning: true,
           supportsImage: true,
@@ -153,6 +154,7 @@ describe('toThinkingEffortModels', () => {
         key: 'acme::gpt-test',
         label: 'Acme / gpt-test',
         providerId: 'acme',
+        providerName: 'Acme',
         thinkingLevels: ['off', 'medium'],
         reasoning: true,
         supportsImage: true,
@@ -336,6 +338,37 @@ describe('ThinkingEffortControl', () => {
     });
     expect(onSelectModel).toHaveBeenCalledWith('acme:gpt-mini');
     expect(queryPopover()).toBeNull();
+  });
+
+  it('badges each model row with the provider display name, not a 套餐 marker', () => {
+    render(
+      createBaseProps({
+        modelLabel: 'Claude / Claude Sonnet 4',
+        selectedModelKey: 'claude:claude-sonnet-4',
+        models: [
+          {
+            key: 'claude:claude-sonnet-4',
+            label: 'Claude Sonnet 4',
+            providerId: 'anthropic',
+            providerName: 'Claude',
+          },
+          {
+            key: 'kimi-coding:kimi-k2',
+            // Older Host payloads carry the name only inside the label.
+            label: 'Kimi Code / Kimi K2',
+            providerId: 'kimi-coding',
+          },
+        ],
+      }),
+      root,
+    );
+    activateTrigger();
+
+    const badges = Array.from(
+      document.querySelectorAll<HTMLElement>('.thinking-effort-model-provider-badge'),
+    ).map((badge) => badge.textContent);
+    expect(badges).toEqual(['Claude', 'Kimi Code']);
+    expect(document.body.textContent).not.toContain('套餐');
   });
 
   it('selects a model on pointerdown before search-blur can dismiss the popover', () => {

@@ -78,6 +78,7 @@ describe('buildEnabledModelOptions', () => {
       'Anthropic / Claude Sonnet',
       'Anthropic / claude-opus',
     ]);
+    expect(options.map((option) => option.providerName)).toEqual(['Anthropic', 'Anthropic']);
     expect(options[0]?.protocol).toBe('anthropic-compatible');
   });
 
@@ -103,6 +104,7 @@ describe('buildEnabledModelOptions', () => {
     expect(buildEnabledModelOptions(providers)).toEqual([
       {
         providerId: 'p1',
+        providerName: 'p1',
         protocol: 'google-gemini',
         source: 'channel',
         group: 'channel',
@@ -198,11 +200,39 @@ describe('buildEnabledModelOptions', () => {
 });
 
 describe('modelOptionsFromConfiguredModels', () => {
+  it('labels a subscription row with the provider display name, not the 套餐 marker', () => {
+    const [option] = modelOptionsFromConfiguredModels([
+      {
+        providerId: 'openai-codex',
+        providerName: 'ChatGPT Codex',
+        modelId: 'gpt-5.4-codex',
+        label: 'GPT-5.4 Codex',
+        source: 'subscription',
+        group: 'subscription',
+      },
+    ]);
+    expect(option?.label).toBe('ChatGPT Codex / GPT-5.4 Codex');
+    expect(option?.providerName).toBe('ChatGPT Codex');
+  });
+
+  it('keeps the 套餐 marker for a subscription row without a provider name', () => {
+    const [option] = modelOptionsFromConfiguredModels([
+      {
+        providerId: 'xai',
+        modelId: 'grok-4.6',
+        source: 'subscription',
+        group: 'subscription',
+      },
+    ]);
+    expect(option?.label).toBe('套餐 / grok-4.6');
+  });
+
   it('maps the secret-free Host list into composer options', () => {
     expect(
       modelOptionsFromConfiguredModels([
         {
           providerId: 'custom-openai',
+          providerName: 'custom-openai',
           protocol: 'openai-compatible',
           modelId: 'deepseek-v4-flash',
           label: 'DeepSeek',
@@ -221,6 +251,7 @@ describe('modelOptionsFromConfiguredModels', () => {
     ).toEqual([
       {
         providerId: 'custom-openai',
+        providerName: 'custom-openai',
         protocol: 'openai-compatible',
         modelId: 'deepseek-v4-flash',
         label: 'custom-openai / DeepSeek',
