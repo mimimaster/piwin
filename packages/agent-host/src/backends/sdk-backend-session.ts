@@ -19,6 +19,7 @@ import {
 import { createPiSessionEventMapper } from '../event-map.js';
 import { bindExtensionUiToPiSession, createExtensionUiContext } from '../extension-ui-bridge.js';
 import { mapThinkingLevelToPi } from '../map-thinking-level.js';
+import { toPiImageContents, type PiImageContent } from '../pi-image-content.js';
 import { toPiBackendCustomTools } from './pi-backend-tool-adapter.js';
 import { mergeSkillAwareReadTool } from '../skill-aware-read-tool.js';
 import type { PiModelRuntime } from '../pi-model-runtime.js';
@@ -332,14 +333,11 @@ function wrapBackendPiSession(
         );
       }
       const promptOptions: {
-        images?: Array<{ data: string; mimeType: string }>;
+        images?: PiImageContent[];
         streamingBehavior?: 'steer' | 'followUp';
       } = {};
       if (preparedPrompt.images && preparedPrompt.images.length > 0) {
-        promptOptions.images = preparedPrompt.images.map((image) => ({
-          data: image.dataBase64,
-          mimeType: image.mimeType,
-        }));
+        promptOptions.images = toPiImageContents(preparedPrompt.images);
       }
       if (preparedPrompt.streamingBehavior) {
         promptOptions.streamingBehavior = preparedPrompt.streamingBehavior;
@@ -453,7 +451,7 @@ type PiLikeSession = {
   prompt: (
     text: string,
     options?: {
-      images?: Array<{ data: string; mimeType: string }>;
+      images?: PiImageContent[];
       streamingBehavior?: 'steer' | 'followUp';
     },
   ) => Promise<void>;

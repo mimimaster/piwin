@@ -223,7 +223,9 @@ describe('backend input conformance', () => {
       images: [{ dataBase64: 'AAAA', mimeType: 'image/png' }],
     });
     expect(moduleFixture.getPromptCalls()).toEqual([
-      ['inspect image', { images: [{ data: 'AAAA', mimeType: 'image/png' }] }],
+      // Pi pushes these parts verbatim into the user message; providers select
+      // images by `type === 'image'`, so the discriminator is load-bearing.
+      ['inspect image', { images: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }] }],
     ]);
 
     const events: import('@piwin/contracts').AgentEvent[] = [];

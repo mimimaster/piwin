@@ -395,6 +395,35 @@ describe('WorkerSessionRuntime', () => {
     });
   });
 
+  it('forwards prompt images as typed Pi ImageContent parts', async () => {
+    const session = createMockPiSession();
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: () => undefined,
+      createPiSession: async () => session,
+      eventMapper: fakeMapper(),
+    });
+    await runtime.handleRequest(createRequest());
+
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-image',
+      method: 'session/prompt',
+      context: promptContext,
+      payload: {
+        method: 'session/prompt',
+        sessionId: 'ps-1',
+        text: 'look',
+        images: [{ dataBase64: 'AAAA', mimeType: 'image/jpeg' }],
+      },
+    });
+
+    // Providers filter user content by `type === 'image'`; an untyped part is
+    // silently dropped before it reaches the model.
+    expect(session.prompt).toHaveBeenCalledWith('look', {
+      images: [{ type: 'image', data: 'AAAA', mimeType: 'image/jpeg' }],
+    });
+  });
+
   it('emits context/measurement and usage/finalized from mapped worker events', async () => {
     const frames: WorkerFrame[] = [];
     const runtime = new WorkerSessionRuntime({

@@ -72,6 +72,7 @@ import {
   createRunInterventionStager,
   type PiRunInterventionSession,
 } from '../run-intervention-stager.js';
+import type { PiImageContent } from '../pi-image-content.js';
 
 /** Input passed to the factory's `createPiSession` callback. */
 export type WorkerPiSessionFactoryInput = {
@@ -551,7 +552,7 @@ type WorkerPiSessionHandle = {
   prompt: (
     text: string,
     options?: {
-      images?: Array<{ data: string; mimeType: string }>;
+      images?: PiImageContent[];
       streamingBehavior?: 'steer' | 'followUp';
       thinkingLevel?: string;
       model?: { providerId: string; modelId: string };

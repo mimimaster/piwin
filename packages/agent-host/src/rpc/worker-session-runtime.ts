@@ -47,6 +47,7 @@ import {
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import { normalizeGenerationToolCallId } from '../generation-identity.js';
 import { runTrackedPiPrompt } from '../pi-prompt-outcome-tracker.js';
+import { toPiImageContents, type PiImageContent } from '../pi-image-content.js';
 import {
   createPiContextSampler,
   type PiCompactionTimingState,
@@ -64,7 +65,7 @@ export type WorkerPiSessionLike = {
   prompt: (
     text: string,
     options?: {
-      images?: Array<{ data: string; mimeType: string }>;
+      images?: PiImageContent[];
       streamingBehavior?: 'steer' | 'followUp';
       thinkingLevel?: string;
       model?: { providerId: string; modelId: string };
@@ -418,12 +419,7 @@ export class WorkerSessionRuntime {
     }
     const options =
       payload.images && payload.images.length > 0
-        ? {
-            images: payload.images.map((image) => ({
-              data: image.dataBase64,
-              mimeType: image.mimeType,
-            })),
-          }
+        ? { images: toPiImageContents(payload.images) }
         : undefined;
     const promptOptions = {
       ...(options ?? {}),

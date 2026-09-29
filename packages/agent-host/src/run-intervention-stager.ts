@@ -3,13 +3,11 @@ import type {
   BackendRunInterventionEvent,
   BackendRunInterventionEventResult,
 } from '@piwin/contracts';
+import { toPiImageContents, type PiImageContent } from './pi-image-content.js';
 
 type MarkedUserMessage = {
   role: 'user';
-  content: Array<
-    | { type: 'text'; text: string }
-    | { type: 'image'; data: string; mimeType: string }
-  >;
+  content: Array<{ type: 'text'; text: string } | PiImageContent>;
   timestamp: number;
   /** Backend-only identity removed by Pi's provider conversion. */
   piwinIntervention: { interventionId: string; revision: number };
@@ -288,13 +286,7 @@ function buildSteerContent(
   if (intervention.text.length > 0) {
     content.push({ type: 'text', text: intervention.text });
   }
-  for (const image of intervention.images ?? []) {
-    content.push({
-      type: 'image',
-      data: image.dataBase64,
-      mimeType: image.mimeType,
-    });
-  }
+  content.push(...toPiImageContents(intervention.images ?? []));
   if (content.length === 0) {
     content.push({ type: 'text', text: intervention.text });
   }
