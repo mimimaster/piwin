@@ -1391,8 +1391,8 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       web: {
         searchRoute: isChinese ? '搜索优先级' : 'Search route',
         searchRouteDescription: isChinese
-          ? '每次搜索仅使用一种通道，失败后不会自动切换至其他通道。'
-          : 'Each generation uses one search outlet; a completed or failed request is never silently retried through the other outlet.',
+          ? '一次 web_search 按顺序尝试：模型内置搜索、已启用搜索源、DuckDuckGo 兜底。成功即停。'
+          : 'One web_search call tries built-in search, then your sources, then DuckDuckGo. It stops at the first success.',
         // Matches DEFAULT_SEARCH_ROUTE_POLICY ('native-first') in contracts.
         nativeSearchFirst: isChinese ? '模型内置搜索优先（默认）' : 'Native search first (default)',
         externalSearchFirst: isChinese ? '外部搜索优先' : 'External search first',

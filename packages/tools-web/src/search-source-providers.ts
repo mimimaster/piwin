@@ -440,6 +440,9 @@ function createDuckDuckGoProvider(sourceId: string): SearchProvider {
       if (hits.length >= limit) {
         return hits.slice(0, limit);
       }
+      // The Instant Answer catch above also swallows a timeout/cancel; do not
+      // start the HTML request on an already-aborted signal.
+      options.signal?.throwIfAborted();
 
       try {
         // GET, not a form POST: DuckDuckGo's bot protection answers scripted

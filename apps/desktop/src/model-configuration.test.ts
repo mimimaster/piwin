@@ -60,6 +60,7 @@ describe('model configuration', () => {
         supportsTextToSpeech: false,
         supportsRealtimeAudio: false,
         supportsNativeWebSearch: false,
+        nativeSearchAdapter: '',
         reasoning: true,
         ...EMPTY_GENERATION_ROUTE_FIELDS,
       }),
@@ -104,6 +105,16 @@ describe('model configuration', () => {
     expect(next).toEqual([{ id: 'deepseek-reasoner', input: ['text'], reasoning: true }]);
   });
 
+  it('round-trips a per-model protocol and clears it when set back to the provider default', () => {
+    const gemini: ModelConfigEntry = { id: 'gemini-3.8-flash-high', protocol: 'google-gemini' };
+    const draft = createModelConfigurationDraft(gemini);
+    expect(draft.protocol).toBe('google-gemini');
+    expect(applyModelConfigurationDraft([gemini], gemini.id, draft)?.[0]?.protocol).toBe('google-gemini');
+
+    const inherited = applyModelConfigurationDraft([gemini], gemini.id, { ...draft, protocol: '' });
+    expect(inherited?.[0]).not.toHaveProperty('protocol');
+  });
+
   it('rejects drafts with a blank model id without touching the list', () => {
     const models = [{ id: 'deepseek-chat' }];
     expect(
@@ -122,6 +133,7 @@ describe('model configuration', () => {
         supportsTextToSpeech: false,
         supportsRealtimeAudio: false,
         supportsNativeWebSearch: false,
+        nativeSearchAdapter: '',
         reasoning: true,
         ...EMPTY_GENERATION_ROUTE_FIELDS,
       }),
@@ -491,6 +503,7 @@ describe('model configuration', () => {
     const models = applyModelConfigurationDraft([original], original.id, {
       ...createModelConfigurationDraft(original),
       supportsNativeWebSearch: false,
+      nativeSearchAdapter: '',
     });
     expect(models?.[0]?.capabilities).toEqual(['chat']);
     expect(createModelConfigurationDraft(models![0]!).supportsNativeWebSearch).toBe(false);
@@ -545,11 +558,40 @@ describe('model configuration', () => {
       supportsTextToSpeech: false,
       supportsRealtimeAudio: false,
       supportsNativeWebSearch: false,
+      nativeSearchAdapter: '',
       reasoning: true,
       ...EMPTY_GENERATION_ROUTE_FIELDS,
     });
 
     expect(entry?.thinkingLevel).toBe('medium');
     expect(entry?.thinkingLevels).toEqual(['low', 'medium', 'high', 'max']);
+  });
+});
+
+describe('native search adapter round-trip', () => {
+  it('round-trips adapter and options through draft → entry', () => {
+    const model = {
+      id: 'claude-x',
+      capabilities: ['chat' as const, 'native-web-search' as const],
+      nativeSearchAdapter: 'anthropic-web-search-tool' as const,
+      nativeSearchOptions: { anthropic: { toolType: 'web_search_20260209' as const, allowedCallers: ['direct'] } },
+    };
+    const draft = createModelConfigurationDraft(model, undefined, 'anthropic-compatible');
+    expect(draft.nativeSearchAdapter).toBe('anthropic-web-search-tool');
+    const entry = createModelConfigurationEntry(draft);
+    expect(entry?.nativeSearchAdapter).toBe('anthropic-web-search-tool');
+    expect(entry?.nativeSearchOptions).toEqual(model.nativeSearchOptions);
+    const edited = applyModelConfigurationDraft([model], 'claude-x', { ...draft, supportsNativeWebSearch: false });
+    expect(edited?.[0]?.nativeSearchAdapter).toBeUndefined();
+    expect(edited?.[0]?.nativeSearchOptions).toBeUndefined();
+  });
+
+  it('keeps an unknown historical adapter visible in the draft', () => {
+    const draft = createModelConfigurationDraft(
+      { id: 'm', capabilities: ['chat', 'native-web-search'], nativeSearchAdapter: 'openrouter-plugin' as never },
+      undefined,
+      'openai-compatible',
+    );
+    expect(draft.nativeSearchAdapter).toBe('openrouter-plugin');
   });
 });

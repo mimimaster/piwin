@@ -410,7 +410,7 @@ describe('buildWorkerProviderRegistration', () => {
       refresh: vi.fn(async () => undefined),
     };
 
-    registerWorkerProviders(modelRuntime, [provider], undefined, new Map([['secret-1', 'canary']]));
+    registerWorkerProviders(modelRuntime, [provider], new Map([['secret-1', 'canary']]));
 
     expect(modelRuntime.registerProvider).toHaveBeenCalledWith(
       'prov-bootstrap',
@@ -423,7 +423,6 @@ describe('buildWorkerProviderRegistration', () => {
       registerWorkerProviders(
         modelRuntime,
         [{ ...provider, auth: { kind: 'none' as const } }],
-        undefined,
         new Map([['unused', 'canary']]),
       ),
     ).toThrow(/unreferenced entry/);
@@ -437,18 +436,7 @@ describe('buildWorkerProviderRegistration', () => {
       models: [{ id: 'gemini-search', capabilities: ['chat', 'native-web-search'] }],
       auth: { kind: 'none' },
     };
-    const searchRoute: ResolvedSearchRoute = {
-      policy: 'native-first',
-      selected: 'native',
-      fallback: null,
-      readiness: {
-        native: { ready: true, reasons: [] },
-        external: { ready: false, reasons: [] },
-      },
-      issues: [],
-    };
-
-    const registration = buildWorkerProviderRegistration(provider, undefined, searchRoute);
+    const registration = buildWorkerProviderRegistration(provider, undefined);
 
     expect(registration.streamSimple).toBeTypeOf('function');
   });
@@ -712,148 +700,44 @@ describe('createWorkerPiSessionFactory', () => {
   });
 });
 
-describe('buildWorkerProviderRegistration native search streamSimple', () => {
-  function route(selected: 'native' | 'external' | null): ResolvedSearchRoute {
-    return {
-      policy: selected === 'native' ? 'native-first' : 'external-only',
-      selected,
-      fallback: null,
-      readiness: {
-        native: { ready: true, reasons: [] },
-        external: { ready: true, reasons: [] },
+describe('main-session provider registration and hosted search', () => {
+  it('passes worker and SDK payloads through untouched and identically', async () => {
+    const initial = { model: 'test-model', messages: [], tools: [{ type: 'function' }] };
+    const base: NativeSearchStreamSimple = async (model, _context, options) =>
+      (await options?.onPayload?.({ ...initial }, model)) ?? initial;
+    const worker = buildWorkerProviderRegistration(
+      {
+        providerId: 'xai-local',
+        protocol: 'openai-compatible',
+        baseUrl: 'https://api.example.test/v1',
+        models: [{ id: 'grok-4.5', capabilities: ['chat', 'native-web-search'] }],
+        auth: { kind: 'none' },
       },
-      issues: [],
-    };
-  }
-
-  function baseStreamSimple(initialPayload?: Record<string, unknown>): {
-    stream: NativeSearchStreamSimple;
-    payloads: unknown[];
-  } {
-    const payloads: unknown[] = [];
-    const stream: NativeSearchStreamSimple = async (model, _context, options) => {
-      const payload: Record<string, unknown> = initialPayload ?? {
-        model: 'test-model',
-        messages: [],
-        tools: [{ type: 'function' }, { type: 'web_search_preview' }],
-        web_search_options: { search_context_size: 'medium' },
-      };
-      const transformed = await options?.onPayload?.(payload, model);
-      if (transformed !== undefined) {
-        payloads.push(transformed);
-        return transformed;
-      }
-      return payload;
-    };
-    return { stream, payloads };
-  }
-
-  function createWorkerProvider(
-    searchRoute: ResolvedSearchRoute,
-    base: { stream: NativeSearchStreamSimple },
-  ) {
-    const provider: SerializableProviderRuntime = {
-      providerId: 'xai-local',
-      protocol: 'openai-compatible',
-      baseUrl: 'https://api.example.test/v1',
-      models: [
-        {
-          id: 'grok-4.5',
-          capabilities: ['chat', 'native-web-search'],
-        },
-      ],
-      auth: { kind: 'none' },
-    };
-    return buildWorkerProviderRegistration(provider, undefined, searchRoute, base.stream);
-  }
-
-  function createSdkProvider(
-    searchRoute: ResolvedSearchRoute,
-    base: { stream: NativeSearchStreamSimple },
-  ) {
-    const provider: ModelProviderConfig = {
-      id: 'xai-local',
-      protocol: 'openai-compatible',
-      name: 'xAI local',
-      baseUrl: 'https://api.example.test/v1',
-      apiKeyEnv: 'XAI_API_KEY',
-      models: [
-        {
-          id: 'grok-4.5',
-          capabilities: ['chat', 'native-web-search'],
-        },
-      ],
-    };
-    return buildPiProviderRegistration(provider, 'secret', {
-      searchRoute,
-      streamSimple: base.stream,
-    });
-  }
-
-  it('injects native search fields when the route is native', async () => {
-    const base = baseStreamSimple({
-      model: 'test-model',
-      messages: [],
-      tools: [{ type: 'function' }],
-    });
-    const registration = createWorkerProvider(route('native'), base);
-
-    const result = await registration.streamSimple?.(
-      { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' },
-      {},
-      {},
+      undefined,
+      base,
     );
-    expect(result).toBeDefined();
-    const record = result as Record<string, unknown>;
-    expect(record).toHaveProperty('web_search_options');
-    const tools = Array.isArray(record.tools) ? record.tools : [];
-    expect(tools).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ type: 'web_search_preview' })]),
+    const sdk = buildPiProviderRegistration(
+      {
+        id: 'xai-local',
+        protocol: 'openai-compatible',
+        name: 'xAI local',
+        baseUrl: 'https://api.example.test/v1',
+        models: [
+          {
+            id: 'grok-4.5',
+            capabilities: ['chat', 'native-web-search'],
+            nativeSearchAdapter: 'xai-web-search-tool',
+          },
+        ],
+      },
+      'secret',
+      { streamSimple: base },
     );
-  });
+    const call = { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' };
+    const workerPayload = await worker.streamSimple?.(call, {}, {});
+    const sdkPayload = await sdk.streamSimple?.(call, {}, {});
 
-  it('strips native search fields when the route is external', async () => {
-    const base = baseStreamSimple();
-    const registration = createWorkerProvider(route('external'), base);
-
-    const result = await registration.streamSimple?.(
-      { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' },
-      {},
-      {},
-    );
-    expect(result).toBeDefined();
-    const record = result as Record<string, unknown>;
-    expect(record).not.toHaveProperty('web_search_options');
-    const tools = Array.isArray(record.tools) ? record.tools : [];
-    expect(tools).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ type: 'web_search_preview' })]),
-    );
-  });
-
-  it('produces the same payload as the SDK registration for the same base stream and route', async () => {
-    const base = baseStreamSimple();
-    const searchRoute = route('native');
-    const worker = createWorkerProvider(searchRoute, base);
-    const sdk = createSdkProvider(searchRoute, base);
-
-    const workerPayload = await worker.streamSimple?.(
-      { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' },
-      {},
-      {},
-    );
-    const sdkPayload = await sdk.streamSimple?.(
-      { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' },
-      {},
-      {},
-    );
-
-    expect(sdkPayload).toEqual(workerPayload);
-    expect(sdkPayload).toHaveProperty('web_search_options');
-    const tools = Array.isArray((sdkPayload as Record<string, unknown>).tools)
-      ? (sdkPayload as Record<string, unknown>).tools
-      : [];
-    expect(tools).toEqual(
-      expect.arrayContaining([expect.objectContaining({ type: 'web_search_preview' })]),
-    );
+    expect(workerPayload).toEqual(initial);
+    expect(sdkPayload).toEqual(initial);
   });
 });

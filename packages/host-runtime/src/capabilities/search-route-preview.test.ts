@@ -11,7 +11,13 @@ function configWithModels(): PiwinConfig {
       name: 'Native Provider',
       protocol: 'openai-compatible',
       baseUrl: 'https://provider.example/v1',
-      models: [{ id: 'native-chat', capabilities: ['chat', 'native-web-search'] }],
+      models: [
+        {
+          id: 'native-chat',
+          capabilities: ['chat', 'native-web-search'],
+          nativeSearchAdapter: 'openai-web-search-options',
+        },
+      ],
     },
   ];
   config.defaultProviderId = 'native-provider';
@@ -31,7 +37,7 @@ describe('buildSearchRoutePreview', () => {
       providerId: 'native-provider',
       modelId: 'native-chat',
     });
-    expect(preview.route.selected).toBe('native');
+    expect(preview.route.chain[0]).toBe('native');
     expect(JSON.stringify(preview)).not.toContain('apiKey');
   });
 
@@ -42,10 +48,10 @@ describe('buildSearchRoutePreview', () => {
       searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }],
     });
 
-    expect(preview.route.selected).toBe('external');
+    expect(preview.route.chain[0]).toMatch(/^(sources|duckduckgo)$/);
   });
 
-  it('uses a valid draft delegate as external readiness without ordinary sources', () => {
+  it('uses a valid draft delegate as native readiness without ordinary sources', () => {
     const config = configWithModels();
     const preview = buildSearchRoutePreview(config, {
       policy: 'external-first',
@@ -57,7 +63,7 @@ describe('buildSearchRoutePreview', () => {
       },
     });
 
-    expect(preview.route.selected).toBe('external');
-    expect(preview.route.readiness.external.hasDelegateModel).toBe(true);
+    expect(preview.route.chain[0]).toBe('native');
+    expect(preview.route.readiness.native.hasDelegateModel).toBe(true);
   });
 });

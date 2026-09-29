@@ -15,6 +15,8 @@ export type ParsedToolCitations = {
   query?: string;
   providerId?: string;
   citations: CitationCard[];
+  /** Native executor only: bounded grounded brief (untrusted provider text). */
+  answer?: string;
   fetchPreview?: {
     title: string | null;
     finalUrl: string;
@@ -22,6 +24,9 @@ export type ParsedToolCitations = {
     excerpt: string;
   };
 };
+
+/** Bound on the grounded brief shown in the tool card. */
+const NATIVE_ANSWER_PREVIEW_MAX_CHARS = 4_000;
 
 export function parseToolCitations(toolName: string, output: string): ParsedToolCitations {
   if (!output.trim()) {
@@ -70,6 +75,9 @@ export function parseToolCitations(toolName: string, output: string): ParsedTool
     }
     if (typeof record.providerId === 'string') {
       result.providerId = record.providerId;
+    }
+    if (typeof record.answer === 'string' && record.answer.trim()) {
+      result.answer = record.answer.trim().slice(0, NATIVE_ANSWER_PREVIEW_MAX_CHARS);
     }
     return result;
   }

@@ -1,9 +1,9 @@
 /**
  * Pure search-route resolver (ADR 0043).
  *
- * Chooses exactly one search backend for a generation from the product policy,
- * model native-search readiness, adapter support, and external source config.
- * Does not silently retry a completed/failed prompt on the other backend.
+ * Host `web_search` is the only search outlet. The route is an ordered chain
+ * tried inside one tool call: native sub-request, configured sources, then
+ * the free DuckDuckGo floor. Never a silent whole-prompt replay.
  */
 
 import type {
@@ -11,35 +11,35 @@ import type {
   ModelProviderConfig,
   ModelRef,
   NativeSearchAdapterKind,
-  ProviderChatApi,
   PiwinConfig,
+  ProviderChatApi,
   ResolvedSearchRoute,
-  SearchBackend,
   SearchBackendReadiness,
   SearchRoutePolicy,
   SearchRouteReadiness,
   WebConfig,
 } from '@piwin/contracts';
 import {
-  defaultChatApiForProtocol,
+  buildSearchChain,
   inferSearchRoutePolicy,
   isModelEnabled,
   isProviderEnabled,
+  nativeSearchProviderBlocker,
+  nativeSearchProtocolSwitch,
+  resolveModelEndpoint,
   modelSupportsCapability,
+  resolveNativeSearchAdapter,
 } from '@piwin/contracts';
 
 /** Adapter-reported native-search support for the active host mode. */
 export type NativeSearchAdapterSupport = {
   /**
-   * Whether the adapter can shape provider-native search fields on the request
-   * (streamSimple / onPayload wrapper). Required for readiness.
+   * Whether a declared or inferred adapter can shape provider-native search
+   * fields on the Host `web_search` sub-request.
    */
   requestSupported: boolean;
-  /**
-   * Whether native citation/grounding metadata can be normalized. Optional for
-   * enabling the request, but required for "full" readiness in Settings.
-   */
-  citationSupported: boolean;
+  /** Resolved adapter when request shaping is available. */
+  adapter?: NativeSearchAdapterKind;
   /** Stable user-facing explanation when request shaping is unavailable. */
   reason?: string;
 };
@@ -47,21 +47,22 @@ export type NativeSearchAdapterSupport = {
 export type ResolveSearchRouteInput = {
   policy?: SearchRoutePolicy;
   /** Selected chat model for this generation, when known. */
-  model?: Pick<ModelConfigEntry, 'id' | 'enabled' | 'capabilities'> | null;
+  model?: Pick<ModelConfigEntry, 'id' | 'enabled' | 'capabilities' | 'nativeSearchAdapter'> | null;
+  /** Provider of `model`, used to infer an adapter when the model omits one. */
+  provider?: Pick<ModelProviderConfig, 'protocol' | 'chatApi' | 'baseUrl'> | null;
   /** External Host `web_search` config (ordinary sources or model delegate). */
   web?:
     | (Pick<WebConfig, 'searchSources'> &
         Partial<Pick<WebConfig, 'searchRoutePolicy' | 'searchDelegateModel'>>)
     | null
     | undefined;
-  /** Host validation result for the configured `web_search` delegate model. */
-  externalDelegateReady?: boolean;
+  /** Host validation result for the configured native `web_search` delegate model. */
+  delegateReady?: boolean;
   adapter: NativeSearchAdapterSupport;
 };
 
 /**
- * Resolve the single search outlet for one generation.
- * Fallback is capability availability before the request starts only.
+ * Resolve the ordered `web_search` chain for one generation.
  */
 export function resolveSearchRoute(input: ResolveSearchRouteInput): ResolvedSearchRoute {
   const policy = inferSearchRoutePolicy(
@@ -70,63 +71,58 @@ export function resolveSearchRoute(input: ResolveSearchRouteInput): ResolvedSear
   );
   const readiness = evaluateSearchReadiness(input);
   const issues: string[] = [...readiness.native.reasons, ...readiness.external.reasons];
-
+  const sources = input.web?.searchSources ?? [];
+  const hasEnabledSources = sources.some((source) => source.enabled);
+  const duckduckgoEnabled = sources.some((source) => source.kind === 'duckduckgo' && source.enabled);
   const nativeReady = readiness.native.ready;
-  const externalReady = readiness.external.ready;
+  const chain = input.web
+    ? buildSearchChain({
+        policy,
+        nativeReady,
+        hasEnabledSources,
+        duckduckgoEnabled,
+      })
+    : [];
 
-  let selected: SearchBackend | null = null;
-  let fallback: SearchBackend | null = null;
-
-  switch (policy) {
-    case 'native-first': {
-      if (nativeReady) {
-        selected = 'native';
-        fallback = externalReady ? 'external' : null;
-      } else if (externalReady) {
-        selected = 'external';
-        fallback = null;
-      }
-      break;
-    }
-    case 'external-first': {
-      if (externalReady) {
-        selected = 'external';
-        fallback = nativeReady ? 'native' : null;
-      } else if (nativeReady) {
-        selected = 'native';
-        fallback = null;
-      }
-      break;
-    }
-    case 'native-only': {
-      selected = nativeReady ? 'native' : null;
-      fallback = null;
-      if (!nativeReady) {
-        issues.push('native-only policy selected but native web search is not ready');
-      }
-      break;
-    }
-    case 'external-only': {
-      selected = externalReady ? 'external' : null;
-      fallback = null;
-      if (!externalReady) {
-        issues.push('external-only policy selected but no external web_search backend is ready');
-      }
-      break;
-    }
+  if (policy === 'native-only' && !nativeReady) {
+    issues.push('native-only policy selected but native web search is not ready');
   }
-
-  if (selected === null) {
+  if (chain.length === 0) {
     issues.push('no search backend is ready for the configured policy');
   }
 
   return {
     policy,
-    selected,
-    fallback,
+    chain,
     readiness,
     issues: dedupeIssues(issues),
   };
+}
+
+/**
+ * Resolve one generation's `web_search` chain from live config: the chat
+ * model (or the configured default), its native-search adapter support, and
+ * the configured delegate. Every compile / tool-build path goes through here
+ * so Settings, blueprint and the executed tool agree.
+ */
+export function resolveGenerationSearchRoute(input: {
+  config: Pick<PiwinConfig, 'providers' | 'defaultProviderId' | 'defaultModelId'>;
+  model?: ModelRef | null | undefined;
+  /** Live or draft Web config; its `searchDelegateModel` is the delegate checked. */
+  web: ResolveSearchRouteInput['web'];
+  policy?: SearchRoutePolicy;
+}): ResolvedSearchRoute {
+  const configured = findConfiguredModel(input.config, input.model);
+  return resolveSearchRoute({
+    model: configured?.model ?? null,
+    ...(configured?.provider ? { provider: configured.provider } : {}),
+    web: input.web,
+    adapter: resolveConfiguredNativeSearchSupport(configured),
+    delegateReady: Boolean(
+      findReadyWebSearchDelegate(input.config, input.web?.searchDelegateModel ?? undefined),
+    ),
+    ...(input.policy ? { policy: input.policy } : {}),
+  });
 }
 
 /** Evaluate native + external readiness without selecting a route. */
@@ -146,14 +142,6 @@ function evaluateNativeReadiness(input: ResolveSearchRouteInput): SearchBackendR
     isModelEnabled(model) &&
     modelSupportsCapability(model, 'native-web-search');
 
-  if (!model) {
-    reasons.push('no chat model selected for native web search');
-  } else if (!isModelEnabled(model)) {
-    reasons.push('selected chat model is disabled');
-  } else if (!modelSupportsCapability(model, 'native-web-search')) {
-    reasons.push('selected chat model is not tagged native-web-search');
-  }
-
   const adapterRequestSupported = input.adapter.requestSupported;
   if (modelTagged && !adapterRequestSupported) {
     reasons.push(
@@ -162,44 +150,43 @@ function evaluateNativeReadiness(input: ResolveSearchRouteInput): SearchBackendR
     );
   }
 
-  const adapterCitationSupported = input.adapter.citationSupported;
-  if (modelTagged && adapterRequestSupported && !adapterCitationSupported) {
-    reasons.push(
-      'native web search request shaping is available, but citation normalization is not fully supported',
-    );
+  const delegateConfigured = input.web?.searchDelegateModel !== undefined;
+  const hasDelegateModel = delegateConfigured && input.delegateReady === true;
+  if (delegateConfigured && !hasDelegateModel) {
+    reasons.push('configured web_search delegate model is unavailable');
   }
-
-  // Request enablement requires tag + adapter request support. Citation is not
-  // required to select the native outlet (ADR: lack of citation must not be
-  // reported as full readiness in UI, but request enablement still works).
-  const ready = Boolean(modelTagged && adapterRequestSupported);
+  // A configured delegate is the exclusive native executor (stale → not
+  // ready, never silently the chat model); otherwise the chat model itself
+  // needs the tag + an expressible adapter. Untagged chat models are not an
+  // issue: native simply does not exist for that generation.
+  const chatModelReady = Boolean(modelTagged && adapterRequestSupported);
+  const ready = delegateConfigured ? hasDelegateModel : chatModelReady;
 
   return {
     ready,
     modelTagged: Boolean(modelTagged),
     adapterRequestSupported,
-    adapterCitationSupported,
-    reasons,
+    hasDelegateModel,
+    reasons: hasDelegateModel ? reasons.filter(isDelegateIssue) : reasons,
   };
+}
+
+function isDelegateIssue(reason: string): boolean {
+  return reason.includes('delegate');
 }
 
 function evaluateExternalReadiness(input: ResolveSearchRouteInput): SearchBackendReadiness {
   const reasons: string[] = [];
   const sources = input.web?.searchSources ?? [];
   const hasEnabledSources = sources.some((source) => source.enabled);
-  const delegateConfigured = input.web?.searchDelegateModel !== undefined;
-  const hasDelegateModel = delegateConfigured && input.externalDelegateReady === true;
   if (!input.web) {
     reasons.push('web tools config is absent');
-  } else if (delegateConfigured && !hasDelegateModel) {
-    reasons.push('configured web_search delegate model is unavailable');
-  } else if (!delegateConfigured && !hasEnabledSources) {
-    reasons.push('no enabled external search source');
   }
   return {
-    ready: Boolean(input.web && (delegateConfigured ? hasDelegateModel : hasEnabledSources)),
+    // DuckDuckGo floor keeps sources runnable whenever web config exists,
+    // even with every user source off (except native-only, which omits the floor).
+    ready: Boolean(input.web),
     hasEnabledSources,
-    hasDelegateModel,
     reasons,
   };
 }
@@ -254,11 +241,7 @@ export function findReadyWebSearchDelegate(
     configured.provider.protocol !== modelRef.protocol ||
     !isModelEnabled(configured.model) ||
     !modelSupportsCapability(configured.model, 'native-web-search') ||
-    !resolveNativeSearchAdapterSupport(
-      configured.provider.protocol,
-      configured.model.nativeSearchAdapter,
-      configured.provider.chatApi,
-    ).requestSupported
+    !resolveConfiguredNativeSearchSupport(configured).requestSupported
   ) {
     return undefined;
   }
@@ -273,90 +256,95 @@ export function findReadyWebSearchDelegate(
 }
 
 /**
- * Resolve native-search support for a model. The model's declared request
- * shaping (nativeSearchAdapter) must actually be expressible for its
- * provider protocol; a protocol match alone is not evidence that a vendor
- * gateway accepts the generic native-search fields.
+ * Native-search support for one configured provider/model: the adapter must
+ * be expressible, and a subscription provider must expose a Host-reachable
+ * HTTPS surface (`oauth://` is a Pi-only marker the executor cannot POST to).
+ */
+export function resolveConfiguredNativeSearchSupport(
+  configured: { provider: ModelProviderConfig; model: ModelConfigEntry } | undefined,
+): NativeSearchAdapterSupport {
+  if (!configured) {
+    return resolveNativeSearchAdapterSupport(undefined);
+  }
+  const { model } = configured;
+  // ADR 0079: judge the model's own wire format, not its provider row's.
+  const provider = resolveModelEndpoint(configured.provider, model);
+  const blocker = nativeSearchProviderBlocker(provider);
+  if (blocker) {
+    return { requestSupported: false, reason: blocker };
+  }
+  return resolveNativeSearchAdapterSupport(
+    provider.protocol,
+    model.nativeSearchAdapter,
+    provider.chatApi,
+    provider.baseUrl,
+    model.id,
+  );
+}
+
+/**
+ * Resolve native-search support for a model. An explicit adapter wins when it
+ * is compatible with the provider protocol; otherwise Host infers from
+ * protocol / official vendor host / model id.
  */
 export function resolveNativeSearchAdapterSupport(
   protocol: ModelProviderConfig['protocol'] | undefined,
   nativeSearchAdapter?: NativeSearchAdapterKind,
   chatApi?: ProviderChatApi,
+  baseUrl?: string,
+  modelId?: string,
 ): NativeSearchAdapterSupport {
   if (protocol === undefined) {
     return {
       requestSupported: false,
-      citationSupported: false,
       reason: 'native web search provider protocol is unavailable',
     };
   }
-  if (nativeSearchAdapter === undefined) {
+  const adapter = resolveNativeSearchAdapter({
+    protocol,
+    chatApi,
+    baseUrl,
+    modelId,
+    nativeSearchAdapter,
+  });
+  if (!adapter) {
+    const needed = nativeSearchProtocolSwitch({ protocol, baseUrl, modelId });
     return {
       requestSupported: false,
-      citationSupported: false,
-      reason: 'nativeSearchAdapter is required for models tagged native-web-search',
+      reason: needed
+        ? `native web search for ${modelId ?? 'this model'} needs the ${needed} request protocol`
+        : nativeSearchAdapter
+          ? `nativeSearchAdapter ${nativeSearchAdapter} is incompatible with ${protocol}`
+          : 'nativeSearchAdapter is required for models tagged native-web-search',
     };
   }
-
-  const resolvedChatApi = chatApi ?? defaultChatApiForProtocol(protocol);
-  const requestSupported = isAdapterExpressibleForProtocol(
-    protocol,
-    resolvedChatApi,
-    nativeSearchAdapter,
-  );
-  return {
-    requestSupported,
-    // Pi 0.84.2 still does not preserve every provider grounding event. Step 2
-    // enables this only after the official raw-event seam is verified.
-    citationSupported: false,
-    ...(!requestSupported
-      ? {
-          reason: `nativeSearchAdapter ${nativeSearchAdapter} is incompatible with ${protocol}/${resolvedChatApi}`,
-        }
-      : {}),
-  };
+  return { requestSupported: true, adapter };
 }
 
 /**
- * Whether the request-shaping layer can express a declared native-search
- * mechanism for a provider protocol.
+ * @deprecated Use {@link resolveNativeSearchAdapterSupport}; kept for call-site
+ * compatibility while protocol/chatApi remain the public inputs.
  */
 export function isAdapterExpressibleForProtocol(
   protocol: ModelProviderConfig['protocol'] | undefined,
   chatApi: ProviderChatApi | undefined,
   nativeSearchAdapter: NativeSearchAdapterKind,
 ): boolean {
-  switch (nativeSearchAdapter) {
-    case 'openai-web-search-options':
-      return protocol === 'openai-compatible' && chatApi === 'openai-completions';
-    case 'openai-responses-tool':
-    case 'xai-web-search-tool':
-      return protocol === 'openai-compatible' && chatApi === 'openai-responses';
-    case 'anthropic-web-search-tool':
-      return protocol === 'anthropic-compatible' && chatApi === 'anthropic-messages';
-    case 'google-search-tool':
-      return protocol === 'google-gemini' && chatApi === 'google-generative-ai';
-    case 'vendor-specific':
-      return false;
-    default:
-      // Runtime config can contain values written by a newer/invalid client.
-      return false;
-  }
+  return resolveNativeSearchAdapter({
+    protocol,
+    chatApi,
+    nativeSearchAdapter,
+  }) === nativeSearchAdapter;
 }
 
-/**
- * Whether the Host external `web_search` tool should be registered for this
- * resolved route.
- */
+/** Whether Host `web_search` is registered for this generation. */
 export function shouldExposeExternalWebSearch(route: ResolvedSearchRoute): boolean {
-  return route.selected === 'external';
+  return route.chain.length > 0;
 }
 
-/**
- * Whether provider-native search should be enabled on the model request.
- */
+/** Whether Host `web_search` includes a provider-native sub-request. */
 export function shouldEnableNativeWebSearch(route: ResolvedSearchRoute): boolean {
-  return route.selected === 'native';
+  return route.chain.includes('native');
 }
 
 function dedupeIssues(issues: readonly string[]): string[] {

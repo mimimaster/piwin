@@ -1,4 +1,5 @@
 import type { ModelProviderConfig } from '@piwin/contracts';
+import { resolveModelEndpointById } from '@piwin/contracts';
 
 /** Max chars for an LLM-generated session title. */
 const MAX_TITLE_CHARS = 80;
@@ -49,7 +50,9 @@ export async function generateTitleViaProvider(input: {
   userPrompt: string;
   signal?: AbortSignal;
 }): Promise<string | null> {
-  const { provider, modelId, apiKey, userPrompt, signal } = input;
+  const { modelId, apiKey, userPrompt, signal } = input;
+  // ADR 0079: shape the request for the model's own wire format.
+  const provider = resolveModelEndpointById(input.provider, modelId);
   const systemPrompt = input.systemPrompt ?? TITLE_SYSTEM_PROMPT;
   const timeoutSignal = AbortSignal.timeout(TITLE_REQUEST_TIMEOUT_MS);
   const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;

@@ -100,14 +100,6 @@ export function WebPage(): ReactElement {
     () => Boolean(config && webDraftDirty(webDraft, config.web)),
     [config, webDraft],
   );
-  const previewInput = useMemo<SearchRoutePreviewInput>(() => {
-    const web = draftToWeb(webDraft);
-    return {
-      policy: web.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY,
-      searchSources: web.searchSources,
-      ...(web.searchDelegateModel ? { searchDelegateModel: web.searchDelegateModel } : {}),
-    };
-  }, [webDraft]);
   const searchDelegateOptions = useMemo<SearchDelegateOption[]>(() => {
     return (config?.providers ?? []).filter(isProviderEnabled).flatMap((provider) =>
       provider.models
@@ -131,6 +123,16 @@ export function WebPage(): ReactElement {
         }),
     );
   }, [config?.providers]);
+  const hasTaggedNativeSearch = searchDelegateOptions.length > 0;
+  const previewInput = useMemo<SearchRoutePreviewInput>(() => {
+    const web = draftToWeb(webDraft);
+    const policy = web.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY;
+    return {
+      policy: !hasTaggedNativeSearch && policy === 'native-only' ? 'external-first' : policy,
+      searchSources: web.searchSources,
+      ...(web.searchDelegateModel ? { searchDelegateModel: web.searchDelegateModel } : {}),
+    };
+  }, [webDraft, hasTaggedNativeSearch]);
   const fetchDelegateOptions = useMemo<SearchDelegateOption[]>(() => {
     return (config?.providers ?? []).filter(isProviderEnabled).flatMap((provider) =>
       provider.models
@@ -419,13 +421,14 @@ export function WebPage(): ReactElement {
         <div className="web-tools-tab-body">
           {webToolsTab === 'search' ? (
             <div className="web-tools-panel" data-testid="web-tools-search-panel">
+              {hasTaggedNativeSearch ? (
               <div className="settings-section settings-section-card">
                 <Field
                   label={zh ? '搜索代理模型' : 'web_search delegate model'}
                   description={
                     zh
-                      ? '可选：只显示已启用且标记“模型内置搜索”的模型。选择后，web_search 会调用该模型的内置搜索。'
-                      : 'Optional: only enabled models tagged Native search are listed. When selected, web_search uses that model’s provider-native search.'
+                      ? '可选：只显示已启用且标记“模型内置搜索”的模型。「模型内置搜索」= web_search 被调用时，用代理模型（未指定则用当前对话模型）发起一次厂商原生搜索子请求。指定一个更便宜的标记模型可避免主模型双倍费用。Gemini 会在工具卡中展示 Google Search Suggestions；Codex / WebSocket 通道可能没有结构化来源。'
+                      : 'Optional: only enabled models tagged Native search are listed. Native search = when web_search runs, the delegate (or, if none, the current chat model) makes one provider-native search sub-request. A cheaper tagged delegate avoids paying the main model twice. Gemini shows Google Search Suggestions in the tool card; Codex/WebSocket transports may return no structured sources.'
                   }
                 >
                   <Select
@@ -436,8 +439,8 @@ export function WebPage(): ReactElement {
                       {
                         value: '',
                         label: zh
-                          ? '不指定（使用下方搜索源）'
-                          : 'No delegation (use search sources below)',
+                          ? '不指定（跟随当前对话模型，否则用下方搜索源）'
+                          : 'No delegate (follow the chat model, else sources below)',
                       },
                       ...(webDraft.searchDelegateModel &&
                       !searchDelegateOptions.some(
@@ -461,11 +464,18 @@ export function WebPage(): ReactElement {
                 {webDraft.searchDelegateModel ? (
                   <Notice tone="info" testId="web-search-delegate-active">
                     {zh
-                      ? '已指定代理模型时，搜索直接由该模型完成；下方搜索源仅在未指定代理模型时生效。'
-                      : 'While delegation is enabled, web_search calls only the selected model. Ordinary sources below remain configured but are not queried.'}
+                      ? '已指定代理模型时，web_search 由该模型的原生搜索完成；仅在它失败且策略不是「仅内置搜索」时，同一次调用内回退到下方搜索源。'
+                      : 'While a delegate is set, web_search runs that model’s native search. Sources below are used only as an in-call fallback when it fails (not under native-only).'}
                   </Notice>
                 ) : null}
               </div>
+              ) : (
+                <Notice tone="info" testId="web-search-native-untagged">
+                  {zh
+                    ? '没有已启用且标记“模型内置搜索”的模型时，web_search 走搜索源，没有搜索源则用 DuckDuckGo 兜底。官方 OpenAI / Anthropic / Gemini / xAI 拉取模型会自动打标。'
+                    : 'With no enabled model tagged Native search, web_search uses your sources, then DuckDuckGo. Official OpenAI / Anthropic / Gemini / xAI discovery auto-tags eligible models.'}
+                </Notice>
+              )}
 
               <div className="settings-section settings-section-card">
                 <div className="settings-card-heading">
@@ -628,7 +638,11 @@ export function WebPage(): ReactElement {
                   className="web-search-route-field"
                 >
                   <Select
-                    value={webDraft.searchRoutePolicy}
+                    value={
+                      !hasTaggedNativeSearch && webDraft.searchRoutePolicy === 'native-only'
+                        ? 'external-first'
+                        : webDraft.searchRoutePolicy
+                    }
                     onChange={(event) =>
                       setWebDraft({
                         ...webDraft,
@@ -636,12 +650,19 @@ export function WebPage(): ReactElement {
                       })
                     }
                     testId="web-search-route-policy"
-                    data={[
-                      { value: 'native-first', label: translator.settings.web.nativeSearchFirst },
-                      { value: 'external-first', label: translator.settings.web.externalSearchFirst },
-                      { value: 'native-only', label: translator.settings.web.nativeSearchOnly },
-                      { value: 'external-only', label: translator.settings.web.externalSearchOnly },
-                    ]}
+                    data={
+                      hasTaggedNativeSearch
+                        ? [
+                            { value: 'native-first', label: translator.settings.web.nativeSearchFirst },
+                            { value: 'external-first', label: translator.settings.web.externalSearchFirst },
+                            { value: 'native-only', label: translator.settings.web.nativeSearchOnly },
+                            { value: 'external-only', label: translator.settings.web.externalSearchOnly },
+                          ]
+                        : [
+                            { value: 'external-first', label: translator.settings.web.externalSearchFirst },
+                            { value: 'external-only', label: translator.settings.web.externalSearchOnly },
+                          ]
+                    }
                   />
                 </Field>
                 <SearchRouteStatus

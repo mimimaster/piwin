@@ -2,331 +2,233 @@
 
 ## Status
 
-Accepted — four-provider native-search completion in progress (2026-09-28)
+Accepted — rewritten 2026-09-29 to describe the shipped design only: Host
+`web_search` is the single search outlet and runs one ordered chain
+(native sub-request → configured sources → DuckDuckGo floor). The superseded
+main-session injection design is summarized under [History](#history).
 
 ## Context
 
-piwin currently exposes one Host-owned `web_search` tool. It can aggregate
-multiple configured external sources, but some chat models can also perform
-provider-native web search and return grounded content directly. Advertising
-both mechanisms to one agent creates duplicate searches, inconsistent
-citations, unclear permissions, and unnecessary cost.
+Some chat models can run provider-native web search and return grounded
+content. piwin also owns a Host `web_search` tool backed by configured sources
+(Brave, Tavily, SearXNG, CLI/HTTP, Devin) and a free DuckDuckGo floor.
 
-Video generation already has a `video-generation` model capability and a
-provider-neutral settings/runtime flow (ADR 0034). Its remaining usability gap
-is discovery: users should not have to re-enter a model that the provider has
-already returned, but name-only inference can confuse video understanding with
-video generation.
+Offering both mechanisms side by side in one request produces duplicate
+searches, inconsistent citations, tool-name collisions (Anthropic hosted vs
+client `web_search`; Gemini "function + googleSearch" 400s) and grounding the
+product cannot observe: official Pi (0.84.2, 0.87.1) exposes no raw provider
+event/chunk callback, so main-session grounding metadata never reaches Host.
+
+Video generation already has a provider-neutral runtime (ADR 0034); its gap is
+discovery of models the provider already returned.
 
 ## Decision
 
-### 1. Distinguish model-native search from the external tool family
+### 1. One outlet, one chain
 
-Add `native-web-search` to `ModelCapability`. The UI label is **模型内置搜索**,
-not the ambiguous **搜索**. The existing `web-search` session tool family and
-its public `web_search` tool continue to mean piwin's external search service.
+The chat model only ever sees Host `web_search`. Main-session provider
+registrations are never wrapped for hosted search and never carry hosted
+search fields; nothing in the main session is parsed as search evidence.
 
-A capability tag is a declaration, not executable routing. Three independent
-facts determine native-search readiness:
+One `web_search` call tries an ordered chain and stops at the first success:
 
-- `ModelCapability='native-web-search'` says the model can search;
-- provider-level `chatApi` selects the real Pi transport
-  (`openai-completions`, `openai-responses`, `anthropic-messages`, or
-  `google-generative-ai`); and
-- model-level `nativeSearchAdapter` selects the provider request shape.
+| Policy (`searchRoutePolicy`) | Chain |
+|---|---|
+| `native-first` (packing default) | native → sources → DuckDuckGo |
+| `external-first` | sources → native → DuckDuckGo |
+| `native-only` | native |
+| `external-only` | sources → DuckDuckGo |
 
-A tagged model with a missing, unknown, `vendor-specific`, or transport-incompatible
-adapter fails closed with a visible readiness reason. Piwin no longer guesses a
-native-search shape from provider protocol. Legacy providers that omit `chatApi`
-retain explicit protocol defaults (`openai-completions`, `anthropic-messages`,
-`google-generative-ai`); OpenAI Responses must always be selected explicitly.
-Since ADR 0078 the Pi registration (SDK and worker), `models/test` /
-`models/test-connection`, and the Desktop provider editor (Advanced → Chat API)
-all honour `chatApi`; before that only search-route validation read it.
+- A step that is not available is skipped: no enabled source → no `sources`
+  step; no native executor → no `native` step. An untagged model is not an
+  error, it simply has no native step.
+- DuckDuckGo is a chain step, not a settings switch. It is omitted under
+  `native-only`, and not repeated when the user enabled it as a source or when
+  the `sources` step already fell back to it in the same call.
+- A saved config with enabled sources and no explicit policy keeps
+  `external-first`, so existing setups are not rewritten.
+- There is no model switch and no whole-prompt replay. Fallback only happens
+  inside the same tool call, and every step is visible in `attempts[]`.
 
-### 2. Resolve request activation separately from Host tool exposure
+`buildSearchChain` in `@piwin/contracts` is the only implementation of this
+rule. `ResolvedSearchRoute.chain` is its only product representation: Settings
+display it, the Host tool executes it, the search log records one attempt per
+step. The same inputs produce the same chain in the Host route preview, the
+blueprint, the session tool build and the tools-web executor.
 
-Add a search-route policy distinct from the existing external multi-source
-`searchStrategy`:
+### 2. What "native" means
 
-```ts
-type SearchRoutePolicy =
-  | 'native-first'
-  | 'external-first'
-  | 'native-only'
-  | 'external-only';
-```
+`native` is a provider-native **sub-request** executed behind Host
+`web_search`, not a field on the chat request.
 
-Packing default is `native-first` with no external sources enabled. A saved
-config that already has enabled external sources but omitted
-`searchRoutePolicy` keeps `external-first` so existing setup is not rewritten.
-Host Runtime resolves the selected request backend and pre-request fallback:
+Executor choice: a configured `WebConfig.searchDelegateModel` first (exclusive:
+if it is stale the native step is absent, never silently the chat model);
+otherwise the current chat model.
 
-| Policy | Native request | Host `web_search` exposure | Pre-request fallback |
-|---|---|---|---|
-| `native-first` | enabled when native is ready | also exposed when external is ready | external if native is unavailable |
-| `external-first` | enabled only when external is unavailable and native is ready | exposed when external is selected | native if external is unavailable |
-| `native-only` | enabled when native is ready | never | none |
-| `external-only` | never | exposed when external is ready | none |
+A model qualifies only when all of these hold:
 
-`fallback` records capability availability before a request starts. It never
-means silently resending a completed or failed prompt through another provider
-or model. A later bounded schema-rejection retry may use the same model and
-transport with native fields removed only when Host `web_search` was already
-ready and exposed; that is not cross-backend replay.
+- it is enabled and tagged `native-web-search` (UI: **模型内置搜索**);
+- its adapter is expressible: a declared `nativeSearchAdapter` must be
+  compatible with the provider protocol and, when the base URL identifies an
+  official vendor host (including `oauth://xai`) or, on an unidentified
+  gateway, an unambiguous model-id family (`gemini-*`, `grok-*`, `claude-*`,
+  `gpt-*`/`o<n>`), with that vendor (xAI only takes `xai-web-search-tool`,
+  OpenAI only its two shapes, Gemini only `google-search-tool`); unknown or
+  incompatible fails closed. A known vendor whose search the model's protocol
+  cannot express infers nothing and reports the protocol it needs; the editor
+  offers a one-step switch (ADR 0079). Only an unidentifiable model on an
+  unidentified gateway keeps every protocol-compatible shape. An omitted adapter is inferred from protocol /
+  official vendor host / model id. The model editor offers the same set;
+- all of the above use the model's effective wire (ADR 0079 per-model
+  protocol): a Gemini-protocol model on an OpenAI gateway row runs
+  `google-search-tool` against the rebased `/v1beta` URL;
+- the provider is Host-reachable: a subscription (`source: 'subscription'`)
+  qualifies only if it has an HTTPS chat surface
+  (`subscription-chat-surface.ts`; today Grok → `api.x.ai`). The
+  `oauth://<id>` origin is a Pi-only marker the executor cannot POST to.
 
-Native-first deliberately allows the provider-native mechanism and a ready Host
-`web_search` function to coexist. They remain distinguishable in presentation
-metadata (`native-web-search` versus Host routing), while the logical product
-tool name stays `web_search`.
+Adapters (`NativeSearchAdapterKind`):
 
-### 3. Keep the decision at product and adapter boundaries
+| Adapter | Request shape |
+|---|---|
+| `openai-responses-tool` | Responses `tools: [{type:'web_search'}]`, optional `include: ['web_search_call.action.sources']` |
+| `openai-web-search-options` | Chat Completions `web_search_options` (search-preview models) |
+| `xai-web-search-tool` | Responses `web_search` tool; `x_search` never implied |
+| `anthropic-web-search-tool` | `web_search_20250305` / `_20260209` / `_20260318`; newer versions default `allowed_callers: ['direct']`; optional beta token merged case-insensitively |
+| `google-search-tool` | `@google/genai` `config.tools[].googleSearch` |
 
-- `@piwin/contracts` owns the capability, policy, readiness, and resolved-route
-  types.
-- `@piwin/host-runtime` resolves the route while compiling the generation's
-  capability snapshot.
-- `@piwin/agent-host` applies provider-native search in both `PiSdkAdapter` and
-  `PiRpcAdapter`; no application package imports Pi.
-- Provider citation/grounding metadata is normalized into product events with
-  `native` or `external` provenance. Desktop never parses provider-native
-  payloads.
+The adapter selects the sub-request shape and is independent of the provider's
+everyday `chatApi` (a Completions channel can still run the Responses tool).
+The executor stamps the resolved adapter onto the request, so an inferred
+adapter shapes the request exactly like a declared one.
 
-The agent may receive a short capability brief describing the selected route,
-but prompt text is not the authority. The compiled route and registered tools
-are authoritative.
+Transport:
 
-### 4. Treat video discovery as enrichment with manual override
+- `pi-tee`: official Pi `streamSimple` for the provider, wrapped only for this
+  sub-request, with a `fetch` response-body tee to read provider evidence.
+- `gemini-rest`: direct non-streaming `generateContent` for Gemini API keys
+  (Pi's Google adapter rejects a custom fetch). Vertex / OAuth fail closed.
+- Subscriptions: the provider is rewritten to its HTTPS surface with the
+  `auth.json` OAuth access token as bearer plus provider shaping headers
+  (Grok: `X-XAI-Token-Auth: xai-grok-cli`). The auth path follows the Host
+  root, so a remote Host reads its own `auth.json`.
 
-Keep the existing `video-generation` tag and make the Video settings dropdown
-consume enabled models carrying that capability. Enrich discovered models in
-this order:
+A native step counts as success only when it returns hits or a grounded
+answer. An empty result (for example a WebSocket transport that exposes no
+body) is a failed step and the chain continues; hits are never guessed from
+model prose.
+
+### 3. Tagging
+
+Owner decision 2026-09-29: search-capable models are tagged by default.
+
+- A newly pulled (provider discovery) or newly added (Add Model) chat model is
+  tagged, with the inferred adapter, when its vendor exposes hosted search and
+  its effective request protocol can express it. The vendor comes from an
+  official host or, on a self-hosted gateway such as CLIProxyAPI, from the
+  model-id family (`gemini-*`, `grok-*`, `claude-*`, `gpt-*`/`o<n>`), subject
+  to each vendor's version floor.
+- Not tagged: pass-through aggregators (OpenRouter), subscription origins Host
+  cannot reach, a protocol that cannot express the vendor's search (Gemini on
+  an OpenAI row — switching the model to the Gemini protocol, ADR 0079, makes
+  it eligible), embeddings/media and unknown families.
+- Subscription catalog sync applies the same rule to newly seen models of a
+  subscription with a Host-reachable surface (Grok).
+- Existing entries are never retagged: config cannot tell "never set" from "the
+  user turned it off", so the user's choice wins. In Add Model, ticking or
+  unticking the box by hand stops the default from following later edits.
+- A tag is a declaration; readiness still requires §2.
+
+### 4. Results, citations and logs
+
+- `WebSearchResult` may carry `answer`, `searchQueries`, `citations`,
+  `searchSuggestionsHtml` and `nativeDiagnostic`. Only the model-visible part
+  reaches the model; suggestions and diagnostics ride in
+  `ToolResult.details.native`.
+- `NativeSearchDiagnostic` is bounded to provider id, adapter, transport, event
+  detection, hit count, duration and a bounded error. Never query, prompt,
+  headers, bodies or credentials.
+- Gemini Search Suggestions render unmodified in a script-free sandboxed
+  iframe; the parent intercepts clicks and opens only Google `/search` URLs in
+  the system browser (Google grounding terms).
+- When the whole chain fails, the error lists every step's reason
+  (`native:xai/grok-4.7: …; duckduckgo: …`), not just the last one.
+- `~/.piwin/logs/web-search.jsonl` records successes and failures with
+  attempts, timing and a native summary. Suggestions HTML and issued query
+  texts stay out of the log.
+- Message-level `SearchEvidence` is read-only legacy: assistant messages from
+  the retired main-session design (v0.1.0) still carry it and still render.
+  Nothing produces it anymore.
+
+### 5. Settings
+
+- Model editor and Add Model expose **模型内置搜索** plus the request
+  adapter; adapter-specific options appear only when relevant.
+- Web Settings shows **搜索优先级** (the four policies), an optional search
+  delegate model (only enabled, ready, tagged models), and a live preview of
+  the chain for the current default chat model with readiness issues.
+- The `web-search` immediate restriction clamps the live generation when a
+  configured delegate goes stale (the live executor is still bound to it) or
+  under `native-only` without a ready delegate.
+- Cost: a native step costs one extra model call; a cheaper tagged delegate
+  avoids paying the chat model twice.
+
+### 6. Video discovery
+
+Keep the `video-generation` capability and make the Video settings dropdown
+consume enabled models carrying it. Enrich discovered models in this order:
 
 1. exact provider discovery metadata, when available;
 2. an exact, versioned registry keyed by provider/protocol and model id;
 3. a model-name heuristic shown as a suggestion only;
 4. explicit user override, which always wins.
 
-A substring such as `video` must not silently enable video generation because
-it may describe a vision/video-understanding chat model. The curated registry
-may include aliases, API style, and default route metadata, allowing the Video
-page to prefill the correct adapter settings and offer the model directly in
-its default-model dropdown.
+A substring such as `video` must not silently enable video generation (it may
+describe a video-understanding chat model). Heuristic suggestions are not
+persisted until the user selects the model. Runtime execution stays governed by
+[ADR 0034](0034-video-generation.md).
 
-## Settings experience
+## Ownership
 
-- Model editor capability badges: Chat, Vision input, Image generation, Video
-  generation, Speech, and Native search as applicable.
-- Manual model creation exposes the same Native search capability as the
-  existing-model editor; users do not need an add-then-edit workaround.
-- The Native search control requires an explicit compatible adapter. Provider
-  settings expose the actual `chatApi`; adapter-specific options are shown only
-  when relevant.
-- `searchRoutePolicy` controls native request activation and Host tool exposure;
-  native-first may make both mechanisms available in one generation.
-- Web Settings adds **搜索路由** with the four policy choices and a live preview
-  for the current default chat model: selected backend, fallback, and any
-  readiness issues.
-- Video Settings lists automatically recognized models first, suggested models
-  second, and still allows manual model configuration.
+- `@piwin/contracts`: capability, policy, `buildSearchChain`,
+  `ResolvedSearchRoute`, adapter compatibility/inference, result and
+  diagnostic types.
+- `@piwin/host-runtime`: route resolution (`resolveGenerationSearchRoute`, the
+  single entry for blueprint, side chat, session tools and Settings preview),
+  executor selection, subscription surface and credentials.
+- `@piwin/tools-web`: runs the chain inside `web_search`; the native executor
+  is a narrow port (`WebSearchModelDelegate`).
+- `@piwin/agent-host`: the only Pi importer; `completeNativeModelWebSearch`
+  is the only caller that wraps a registration for hosted search.
+- Desktop renders the tool card, citations, suggestions and route preview; it
+  never parses provider-native payloads.
 
 ## Consequences
 
-- Native-first may expose both mechanisms, but their execution and provenance remain explicit.
-- Existing external search behavior remains backward compatible.
-- A model badge alone cannot make native search work; adapter support and
-  request shaping are mandatory.
-- Native and external search can have different permission and citation
-  semantics, so the selected backend must be visible in activity/evidence UI.
-- Video setup becomes mostly selection instead of duplicate entry while
-  preserving a safe manual override for new vendors.
+- One rule decides the chain, so the Settings preview, the executed tool and
+  the log agree by construction.
+- Native search costs a second model call; sources and the DuckDuckGo floor
+  keep `web_search` available when native is absent or fails.
+- Subscriptions without a Host-reachable surface cannot be native executors
+  even when tagged.
+- Legacy message-level citations remain readable; new citations live on the
+  tool card only.
 
-## Feasibility against the current Pi boundary
+## History
 
-The workspace currently uses Pi 0.84.2. Pi does not expose a ready-made
-provider-native web-search capability, but its provider registration accepts a
-custom `streamSimple` implementation and its stream options expose an
-`onPayload` request transform. `agent-host` can therefore wrap the selected
-provider stream, inject provider-native search request fields, and preserve the
-normal Pi session loop without forking Pi.
-
-Both current backends construct provider registrations inside `agent-host`, so
-the same wrapper is applied by the SDK and RPC paths. The wrapper must receive
-Pi's real protocol `streamSimple`; a test-only injected stream is not sufficient
-evidence that production registration is wired. `agent-host` resolves Pi's lazy
-OpenAI Completions, Anthropic Messages, and Google Generative AI streams and
-wraps those exact implementations.
-
-Normalized native citation metadata still requires provider-specific response
-parsing or an upstream Pi event extension. Pi 0.84.2 does not retain OpenAI
-annotations, Anthropic web-search result/citation blocks, or Google grounding
-metadata in its normalized assistant-message event shape. The product therefore
-reports `citationSupported: false` while request shaping remains available; the
-existing normalizer/persistence/UI path is ready for metadata once the adapter
-can actually receive it.
-
-## Implementation slices
-
-1. Contracts and config normalization, including migration default.
-2. Pure search-route resolver with all readiness/policy combinations tested.
-3. SDK/RPC adapter support and normalized native citation fixtures.
-4. Model capability editor plus Web policy/status UI.
-5. Curated video registry, discovery enrichment, and Video dropdown wiring.
-
-## Implementation status
-
-| Component | Files | Status |
-|---|---|---|
-| Contracts (policy, readiness, resolved route, preview, event, transcript) | `packages/contracts/src/web.ts`, `packages/contracts/src/config.ts`, `packages/contracts/src/host.ts`, `packages/contracts/src/session-transcript.ts` | Implemented |
-| Search-route resolver and Host preview | `packages/host-runtime/src/capabilities/search-route-resolver.ts`, `packages/host-runtime/src/capabilities/search-route-preview.ts` | Implemented |
-| Host tool composition and capability snapshot | `packages/host-runtime/src/blueprint-compiler.ts`, `packages/host-runtime/src/capabilities/session-capability-resolver.ts` | Implemented |
-| SDK/RPC provider registration wrappers | `packages/agent-host/src/pi-model-runtime.ts`, `packages/agent-host/src/rpc/worker-pi-session-factory.ts` | Implemented |
-| Native web-search request shaping | `packages/agent-host/src/native-web-search.ts`, `packages/agent-host/src/pi-native-search-stream.ts` | Implemented; production SDK/RPC stream composition repaired 2026-08-11 |
-| Native citation normalization | `packages/agent-host/src/native-web-search.ts` | Parser implemented; upstream Pi response metadata unavailable, blocked on an upstream provider-event seam; request shaping remains available |
-| Native search evidence events | `packages/agent-host/src/event-map.ts`, `packages/contracts/src/host.ts`, `packages/session/src/transcript-store.ts`, `packages/host-runtime/src/store-transcript-recorder.ts` | Implemented; awaits adapter-visible provider metadata |
-| Host `web_search` model delegation | `packages/agent-host/src/native-model-web-search.ts`, `packages/tools-web/src/model-search-delegate.ts`, `packages/host-runtime/src/model-web-search-delegate.ts` | Implemented 2026-08-11 |
-| Desktop native citation rendering | `apps/desktop/src/CitationCards.tsx`, `apps/desktop/src/chat-reducer.ts`, `apps/desktop/src/chat-thread.tsx` | Implemented |
-| Web Settings policy and live status | `apps/desktop/src/settings/pages/web-page.tsx`, `apps/desktop/src/settings/search-route-status.tsx`, `apps/desktop/src/settings/web-draft.ts` | Implemented |
-| Model editor/add native-search badge | `apps/desktop/src/AddModelDialog.tsx`, `apps/desktop/src/model-edit-inline.tsx`, `apps/desktop/src/model-caps.ts`, `apps/desktop/src/provider-model-list.tsx` | Implemented |
-| Video model discovery and settings | `packages/contracts/src/model-catalog.ts`, `packages/host-runtime/src/provider-model-discovery.ts`, `packages/host-runtime/src/provider-model-capabilities.ts`, `apps/desktop/src/video-model-suggest.tsx`, `apps/desktop/src/video-model-discovery.ts`, `apps/desktop/src/VideoGenerationSettings.tsx` | Implemented |
-
-Video runtime execution remains governed by [ADR 0034](0034-video-generation.md). ADR 0043 adds discovery, enrichment, and settings UI only; the `video-generation` capability, `routes['video-generation']`, and the existing `video_gen` adapter surface are unchanged.
-
-Heuristic video-generation suggestions (reason `heuristic`) are transient and are not persisted until the user explicitly selects the model and submits the form. This preserves the distinction between a provider/registry-recognized video model and a name-only match that could otherwise misidentify a video-understanding model as a video generator.
-
-## 2026-08-11 production-wiring repair
-
-The initial implementation's request-shaping unit tests injected a fake base
-`streamSimple`. Production registration passed no stream, causing the wrapper to
-return `undefined`; Host routing could hide external `web_search` without
-actually enabling provider-native search. The repair:
-
-- resolves Pi's real lazy protocol stream inside `@piwin/agent-host` for both
-  SDK and RPC registrations;
-- adds regression coverage for the production call shape without a test stream;
-- preserves Host function tools named `web_search` when removing provider-native
-  tool entries;
-- uses `web_search_options` for OpenAI Chat Completions and
-  `config.tools[].googleSearch` for the `@google/genai` request object;
-- derives request support from the selected provider protocol and does not claim
-  citation support Pi cannot currently deliver; and
-- makes Side Chat and regular sessions follow the selected search policy
-  without a model-level override.
-
-## 2026-08-11 Host `web_search` model delegation
-
-Web Settings may store an optional `WebConfig.searchDelegateModel` referring to
-one enabled configured model tagged `native-web-search`. This is distinct from
-the active chat model's native route: the active model still calls the
-Host-owned `web_search` tool, and Host delegates that tool call to the selected
-search model through provider-native request shaping.
-
-The delegated model is the exclusive external backend while configured. Saved
-DuckDuckGo, Brave, Tavily, and CLI sources remain intact but are not invoked.
-If the reference becomes stale, disabled, untagged, or unsupported, route
-resolution fails closed instead of silently spending against another source.
-The selector therefore lists only enabled, adapter-supported configured models
-carrying the capability tag and surfaces invalid saved references explicitly.
-
-Dependency ownership remains one-way:
-
-- `@piwin/contracts` owns the optional `ModelRef` and readiness shape;
-- `@piwin/tools-web` owns the narrow delegate port and strict `SearchHit[]`
-  response parser;
-- `@piwin/host-runtime` validates the configured reference, resolves the
-  Host-owned provider secret lazily, and composes the tool backend; and
-- `@piwin/agent-host` alone imports Pi and performs the provider-native model
-  completion.
-
-The implementation does not infer the capability from model names or persist
-provider credentials in Web config. A live smoke test used the configured
-`custom-openai/gemini-3.6-flash-high` endpoint with an in-memory capability tag
-and returned parseable official-source hits without mutating user config.
-
-## 2026-08-13 request-shaping adapter declaration (`nativeSearchAdapter`)
-
-The transport protocol alone is not evidence that a gateway accepts the
-protocol's canonical native-search fields: an openai-compatible vendor gateway
-may require a proprietary header/extra_body/tool shape. Models may therefore
-declare HOW native search must be expressed, separately from the
-`native-web-search` capability tag (which only declares that the model CAN):
-
-```ts
-// ModelConfigEntry.nativeSearchAdapter?: NativeSearchAdapterKind
-type NativeSearchAdapterKind =
-  | 'openai-web-search-options'   // Chat Completions web_search_options
-  | 'openai-responses-tool'       // OpenAI Responses web_search tool
-  | 'xai-web-search-tool'         // xAI Responses web_search tool
-  | 'anthropic-web-search-tool'   // versioned Anthropic web_search_* tool
-  | 'google-search-tool'          // Gemini googleSearch in config.tools
-  | 'vendor-specific';            // shape the generic adapter cannot express
-```
-
-Resolution rules (`resolveNativeSearchAdapterSupport`):
-
-- **Omitted**: a tagged model is not native-search ready. The capability remains
-  data, not permission to guess a wire shape.
-- **Declared**: the kind must be expressible for both provider protocol and
-  resolved `chatApi`. OpenAI/xAI Responses tools require `openai-responses`;
-  `web_search_options` requires `openai-completions`; Anthropic and Gemini use
-  their fixed native transports. A mismatch fails closed.
-- **`vendor-specific`**: never expressible by the generic adapter; native
-  readiness reports unsupported until a dedicated adapter exists. Under
-  `native-first` the route falls back to external `web_search`; under
-  `native-only` the generation exposes neither outlet and reports the issue.
-- `citationSupported` stays `false` independently of the declaration (Pi
-  0.80.10 does not deliver provider grounding metadata).
-
-The declaration is enforced everywhere native readiness is computed: main
-session and side-chat blueprint compilation, lazy session host-tool builds, and
-`findReadyWebSearchDelegate` for the Host `web_search` delegation backend (a
-delegate whose declared shape is not expressible is not "ready" and fails
-closed). The main-session blueprint path initially resolved by protocol only
-and was repaired on 2026-08-13 with regression coverage.
-
-## 2026-09-28 generation DuckDuckGo floor
-
-A model that is not tagged `native-web-search`, with every search source off,
-used to leave the generation with no `web_search` tool. Before route resolution
-and tool registration, that generation's in-memory web config enables
-DuckDuckGo when all of the following hold:
-
-- the chat model's native search is not ready;
-- no `searchDelegateModel` is configured;
-- no search source is enabled;
-- the generation policy is not `native-only`.
-
-The call then uses the normal DuckDuckGo source. The saved settings switch
-stays as the user left it, and the settings route preview does not apply this
-floor. A model with native search ready still follows `native-first` and does
-not receive the external tool. A source the user enabled stays the source.
-
-## 2026-09-28 four-provider completion decision
-
-OpenAI Responses uses `tools: [{type: 'web_search'}]` and optionally requests
-`web_search_call.action.sources` (default on). xAI has its own adapter but uses
-the same Responses tool name; piwin never enables `x_search` implicitly.
-Anthropic supports only `web_search_20250305`, `web_search_20260209`, and
-`web_search_20260318`; newer versions default `allowed_callers` to `['direct']`.
-An optional compatibility beta token is merged case-insensitively with existing
-`anthropic-beta` values. Gemini keeps the `@google/genai` `googleSearch` request
-shape.
-
-Provider custom headers are applied after protocol defaults. They may override
-ordinary defaults, while feature/beta headers are token-merged rather than
-replaced. OpenAI/xAI search adds no special header; Azure `api-key` and private
-gateway headers remain configuration, not core adapter policy. OpenRouter is a
-pass-through host and not a fifth native-search adapter.
-
-Native trace diagnostics are bounded to provider id, adapter, injection state,
-event detection, hit count, and duration. Queries live in tool arguments/output
-and transcript only; diagnostics never duplicate prompt, query, headers, raw
-body, or credentials.
-
-Known limitations during implementation:
-
-- Provider trace capture is blocked until an official Pi release exposes raw,
-  provider-neutral event/chunk callbacks for OpenAI, Anthropic, and Gemini.
-- Anthropic hosted/client tool name coexistence requires a protocol fixture (and
-  optional live smoke); a narrow outbound alias is permitted only if Anthropic
-  rejects duplicate `web_search` names.
+- 2026-08-11: first implementation injected hosted search into the
+  main-session chat request per resolved route and parsed grounding from Pi
+  events. Production wiring was repaired to use Pi's real protocol streams,
+  and `searchDelegateModel` was added to back Host `web_search`.
+- 2026-08-13: `nativeSearchAdapter` declared the request shape separately
+  from the capability tag.
+- 2026-09-28: DuckDuckGo became a floor for generations without native search;
+  four-provider request shapes and header merging were fixed.
+- 2026-09-29: main-session injection was retired because Pi exposes no raw
+  provider events, so grounding was unobservable and tool names collided.
+  Native search moved behind Host `web_search` as a sub-request. The
+  main-session wrapper, route plumbing into Pi registrations, main-session
+  citation guessing and the live `message/search_evidence` event were
+  removed; the chain became the only route representation (`selected` /
+  `fallback` summaries removed); subscription reachability and pull-time
+  tagging for Grok subscriptions were added.

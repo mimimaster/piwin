@@ -12,12 +12,8 @@ import {
   familyHasKnowledgeTools,
   projectModelHostTools,
 } from './blueprint-tool-capability.js';
-import { webConfigWithDuckDuckGoFloor } from './capabilities/duckduckgo-search-floor.js';
 import {
-  findConfiguredModel,
-  findReadyWebSearchDelegate,
-  resolveNativeSearchAdapterSupport,
-  resolveSearchRoute,
+  resolveGenerationSearchRoute,
   shouldExposeExternalWebSearch,
 } from './capabilities/search-route-resolver.js';
 import { resolveToolPolicyDetails } from './capabilities/tool-policy-resolver.js';
@@ -51,26 +47,10 @@ export function compileToolPolicy(
       hostToolDescriptors,
       toolNamesFromComposed,
     );
-    const configured = findConfiguredModel(config, input.model);
-    const searchAdapter = resolveNativeSearchAdapterSupport(
-      configured?.provider.protocol,
-      configured?.model.nativeSearchAdapter,
-      configured?.provider.chatApi,
-    );
-    const resolvedWeb = config.web ? resolveWebConfig(config.web) : undefined;
-    const webForRoute = resolvedWeb
-      ? webConfigWithDuckDuckGoFloor(resolvedWeb, {
-          model: configured?.model ?? null,
-          adapter: searchAdapter,
-          // Side chat follows the explicit external-only policy.
-          policy: 'external-only',
-        })
-      : undefined;
-    const searchRoute = resolveSearchRoute({
-      model: configured?.model ?? null,
-      web: webForRoute,
-      adapter: searchAdapter,
-      externalDelegateReady: Boolean(findReadyWebSearchDelegate(config)),
+    const searchRoute = resolveGenerationSearchRoute({
+      config,
+      model: input.model,
+      web: config.web ? resolveWebConfig(config.web) : undefined,
       policy: 'external-only',
     });
     const tools = shouldExposeExternalWebSearch(searchRoute)
@@ -81,26 +61,13 @@ export function compileToolPolicy(
   const capabilityCeiling = input.subagent?.capabilities;
 
   const resolvedWebConfig = config.web ? resolveWebConfig(config.web) : undefined;
-  const configuredModel = findConfiguredModel(config, input.model);
-  const searchAdapter = resolveNativeSearchAdapterSupport(
-    configuredModel?.provider.protocol,
-    configuredModel?.model.nativeSearchAdapter,
-    configuredModel?.provider.chatApi,
-  );
-  const webForRoute = resolvedWebConfig
-    ? webConfigWithDuckDuckGoFloor(resolvedWebConfig, {
-        model: configuredModel?.model ?? null,
-        adapter: searchAdapter,
-      })
-    : config.web;
-  const searchRoute = resolveSearchRoute({
-    model: configuredModel?.model ?? null,
-    web: webForRoute,
-    adapter: searchAdapter,
-    externalDelegateReady: Boolean(findReadyWebSearchDelegate(config)),
+  const searchRoute = resolveGenerationSearchRoute({
+    config,
+    model: input.model,
+    web: resolvedWebConfig ?? config.web,
   });
-  // External Host web_search is ready only when the resolved route selected it.
-  // Native-selected generations must not advertise the competing tool family.
+  // Host web_search is the only search outlet; the chain (native included)
+  // runs inside it, so it is exposed whenever the chain has any step.
   const webSearchReady = shouldExposeExternalWebSearch(searchRoute);
   const webFetchReady = resolvedWebConfig !== undefined;
 

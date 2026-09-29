@@ -101,7 +101,6 @@ export async function createBackendSdkSession(
       piModule,
       agentDir,
       input.providers,
-      input.blueprint.capabilitySnapshot.searchRoute,
     ));
   await flushExtensionProviderRegistrations(resourceLoader, modelRuntime);
   const capabilitySnapshot = input.blueprint.capabilitySnapshot;
@@ -213,7 +212,6 @@ async function createBackendModelRuntime(
   piModule: Record<string, unknown>,
   agentDir: string,
   providers: SerializableProviderRuntime[],
-  searchRoute?: import('@piwin/contracts').ResolvedSearchRoute | null,
 ): Promise<PiModelRuntime> {
   const runtimeConstructor = piModule.ModelRuntime as
     | {
@@ -246,7 +244,6 @@ async function createBackendModelRuntime(
       buildWorkerProviderRegistration(
         provider,
         resolveBackendProviderApiKey(provider),
-        searchRoute,
       ),
     );
   }

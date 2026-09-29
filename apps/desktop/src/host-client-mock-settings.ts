@@ -4,6 +4,7 @@ import type {
   HostResponse,
   SearchRoutePreviewData,
 } from '@piwin/contracts';
+import { buildSearchChain } from '@piwin/contracts';
 
 export async function handleMockSettingsCommands(
   host: MockHostBackend,
@@ -75,32 +76,42 @@ export async function handleMockSettingsCommands(
         };
       case 'web/search-route-preview': {
         const hasEnabledSources = command.input.searchSources.some((source) => source.enabled);
+        const duckduckgoEnabled = command.input.searchSources.some(
+          (source) => source.kind === 'duckduckgo' && source.enabled,
+        );
         const hasDelegateModel = command.input.searchDelegateModel !== undefined;
-        const externalReady = hasDelegateModel || hasEnabledSources;
+        const nativeReady = hasDelegateModel;
+        const policy = command.input.policy;
+        const chain = buildSearchChain({
+          policy,
+          nativeReady,
+          hasEnabledSources,
+          duckduckgoEnabled,
+        });
         const data: SearchRoutePreviewData = {
           route: {
-            policy: command.input.policy,
-            selected: externalReady ? 'external' : null,
-            fallback: null,
+            policy,
+            chain,
             readiness: {
               native: {
-                ready: false,
-                modelTagged: false,
-                adapterRequestSupported: false,
-                adapterCitationSupported: false,
-                reasons: ['mock host does not provide a selected native-search model'],
+                ready: nativeReady,
+                modelTagged: nativeReady,
+                adapterRequestSupported: nativeReady,
+                hasDelegateModel,
+                reasons: nativeReady
+                  ? []
+                  : ['mock host does not provide a selected native-search model'],
               },
               external: {
-                ready: externalReady,
+                ready: true,
                 hasEnabledSources,
-                hasDelegateModel,
-                reasons: externalReady ? [] : ['no enabled external search source'],
+                reasons: [],
               },
             },
-            issues: externalReady
+            issues: chain.length > 0
               ? []
               : [
-                  'no enabled external search source',
+                  ...(nativeReady ? [] : ['mock host does not provide a selected native-search model']),
                   'no search backend is ready for the configured policy',
                 ],
           },

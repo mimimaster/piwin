@@ -1,5 +1,4 @@
 import type { AgentEvent, PromptAttachment } from '@piwin/contracts';
-import { mergeSearchEvidence } from '@piwin/contracts';
 import {
   evictCompletedFirst,
   MAX_SUBAGENT_BATCHES,
@@ -88,11 +87,9 @@ function finishCurrentSubagentSegment(stream: SubagentStreamState): SubagentStre
     ...(stream.attachments && stream.attachments.length > 0
       ? { attachments: stream.attachments }
       : {}),
-    ...(stream.searchEvidence ? { searchEvidence: stream.searchEvidence } : {}),
   };
-  const { searchEvidence: _droppedEvidence, ...streamWithoutEvidence } = stream;
   return {
-    ...streamWithoutEvidence,
+    ...stream,
     completedSegments: [...stream.completedSegments, segment].slice(-MAX_SUBAGENT_STREAM_SEGMENTS),
     completionRevision: stream.completionRevision + 1,
     text: '',
@@ -227,9 +224,8 @@ function applySubagentStreamEvent(
       if (event.role !== 'assistant') return state;
       // Defensive: a missing message/end must not drop the previous message.
       const settled = finishCurrentSubagentSegment(existing);
-      const { searchEvidence: _previousSearchEvidence, ...streamWithoutSearchEvidence } = settled;
       const updated: SubagentStreamState = {
-        ...streamWithoutSearchEvidence,
+        ...settled,
         streaming: true,
         currentMessageId: event.messageId,
         text: '',
@@ -319,18 +315,6 @@ function applySubagentStreamEvent(
         ...settled,
         streaming: false,
         currentMessageId: null,
-      };
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
-    }
-    case 'message/search_evidence': {
-      const updated: SubagentStreamState = {
-        ...existing,
-        searchEvidence: existing.searchEvidence
-          ? mergeSearchEvidence(existing.searchEvidence, event.evidence)
-          : event.evidence,
       };
       return {
         ...state,

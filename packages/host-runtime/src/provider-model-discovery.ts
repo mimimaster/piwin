@@ -11,6 +11,7 @@ import type {
   ModelProviderConfig,
 } from '@piwin/contracts';
 import {
+  applyDiscoveredNativeSearch,
   formatError,
   isLikelyImageGenerationModel,
   isLikelyRealtimeAudioModel,
@@ -101,7 +102,7 @@ export async function discoverProviderModels(
     }
     const models = parseDiscoveredModels(provider.protocol, payload).map(
       ({ model, videoMetadata }) =>
-        enrichDiscoveredModelFromCatalog(model, provider.protocol, videoMetadata),
+        enrichDiscoveredModelFromCatalog(model, provider, videoMetadata),
     );
     return { providerId: provider.id, protocol: provider.protocol, models };
   } catch (error) {
@@ -256,16 +257,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function enrichDiscoveredModelFromCatalog(
   model: DiscoveredModel,
-  protocol: ModelProviderConfig['protocol'],
+  provider: Pick<ModelProviderConfig, 'protocol' | 'baseUrl'>,
   videoMetadata: ExplicitVideoGenerationMetadata | undefined,
 ): DiscoveredModel {
   const enriched = enrichFromCatalog(model, lookupCatalogByModelId(model.id));
-  return enrichRealtimeAudioCapability(
-    enrichVideoGenerationCapability(
-      enrichImageGenerationCapability(enriched),
-      protocol,
-      videoMetadata,
+  return applyDiscoveredNativeSearch(
+    enrichRealtimeAudioCapability(
+      enrichVideoGenerationCapability(
+        enrichImageGenerationCapability(enriched),
+        provider.protocol,
+        videoMetadata,
+      ),
     ),
+    { protocol: provider.protocol, baseUrl: provider.baseUrl },
   );
 }
 

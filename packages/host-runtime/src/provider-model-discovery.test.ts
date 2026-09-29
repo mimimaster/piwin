@@ -35,7 +35,7 @@ describe('discoverProviderModels', () => {
 
     expect(requestedUrl).toBe('https://api.example.com/v1/models');
     expect(authorization).toBe('Bearer test-secret');
-    expect(result.models).toEqual([{ id: 'deepseek-chat' }, { id: 'deepseek-reasoner' }]);
+    expect(result.models).toEqual([expect.objectContaining({ id: 'deepseek-chat' }), { id: 'deepseek-reasoner' }]);
   });
 
   it('discovers OpenAI-compatible models from a versioned base URL like Ark /api/v3', async () => {

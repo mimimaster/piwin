@@ -2,7 +2,6 @@
 
 import type {
   BackendSessionBlueprint,
-  ResolvedSearchRoute,
   ModelCapability,
   ContextManifest,
   ResourceManifest,
@@ -58,11 +57,6 @@ export type SerializableBlueprint = {
    * Used for product-level contracts (artifact decision + runtime, ADR 0029).
    */
   appendSystemPrompt?: string;
-  /**
-   * Resolved search outlet for this generation (ADR 0043).
-   * Drives provider-native search request shaping in the worker.
-   */
-  searchRoute?: ResolvedSearchRoute;
 };
 
 /** Provider runtime envelope (Phase 7 plan §6): worker must not resolve secrets itself. */
@@ -82,8 +76,13 @@ export type SerializableProviderRuntime = {
     contextWindow?: number;
     maxOutputTokens?: number;
     capabilities?: ModelCapability[];
-    /** Declared request-shaping mechanism for provider-native web search. */
-    nativeSearchAdapter?: import('@piwin/contracts').NativeSearchAdapterKind;
+    /**
+     * ADR 0079: Host-resolved wire for a model that overrides its provider
+     * protocol. Both are present together; the worker never re-derives them,
+     * and the provider `chatApi` does not apply to such a model.
+     */
+    protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+    baseUrl?: string;
   }>;
   auth: ProviderAuthDescriptor;
 };
@@ -153,9 +152,6 @@ export function projectBlueprintForWorker(
   }
   if (options?.appendSystemPrompt) {
     blueprint.appendSystemPrompt = options.appendSystemPrompt;
-  }
-  if (snapshot.searchRoute) {
-    blueprint.searchRoute = snapshot.searchRoute;
   }
   return blueprint;
 }

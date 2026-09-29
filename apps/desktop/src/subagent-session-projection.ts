@@ -48,7 +48,6 @@ export function subagentSegmentToUiMessage(
     })),
     attachments: segment.attachments ?? [],
     status,
-    ...(segment.searchEvidence ? { searchEvidence: segment.searchEvidence } : {}),
   };
 }
 
@@ -104,8 +103,7 @@ export function reconcileSubagentTranscript(input: {
     stream.text.length > 0 ||
     stream.thinking.length > 0 ||
     stream.tools.length > 0 ||
-    (stream.attachments?.length ?? 0) > 0 ||
-    stream.searchEvidence !== undefined;
+    (stream.attachments?.length ?? 0) > 0;
   const historyAlreadyHasLiveMessage =
     currentMessageId !== null && persistedIds.has(currentMessageId);
   return {

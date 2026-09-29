@@ -803,7 +803,11 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
             </div>
           ) : null}
           {webSearchDiagnostics ? (
-            <WebSearchSourceAttempts diagnostics={webSearchDiagnostics} locale={locale} />
+            <WebSearchSourceAttempts
+              diagnostics={webSearchDiagnostics}
+              locale={locale}
+              {...(citations.answer ? { answer: citations.answer } : {})}
+            />
           ) : null}
           <CitationCards parsed={citations} />
           {!isFetchStyle &&

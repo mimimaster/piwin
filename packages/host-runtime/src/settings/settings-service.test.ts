@@ -45,7 +45,14 @@ function delegateBackedConfig(
     name: 'Search',
     baseUrl: 'https://example.test/v1',
     enabled: true,
-    models: [{ id: 'search-m', enabled: true, capabilities: ['chat', 'native-web-search'] }],
+    models: [
+      {
+        id: 'search-m',
+        enabled: true,
+        capabilities: ['chat', 'native-web-search'],
+        nativeSearchAdapter: 'openai-web-search-options',
+      },
+    ],
   };
   const previous: PiwinConfig = {
     ...base,
@@ -563,6 +570,7 @@ describe('SettingsService', () => {
       label: 'Search',
       enabled: true,
       capabilities: ['chat', 'native-web-search'],
+      nativeSearchAdapter: 'openai-web-search-options',
     };
     const delegateProvider: NonNullable<PiwinConfig['providers']>[number] = {
       id: 'search-p',
@@ -603,6 +611,7 @@ describe('SettingsService', () => {
       id: 'search-m',
       enabled: true,
       capabilities: ['chat', 'native-web-search'],
+      nativeSearchAdapter: 'openai-web-search-options',
     };
     const delegateProvider: NonNullable<PiwinConfig['providers']>[number] = {
       id: 'search-p',
@@ -684,7 +693,7 @@ describe('SettingsService', () => {
     expect(impact.immediateRestrictions).toEqual([]);
   });
 
-  it('does not tighten Web search under a native-only policy where the external tool is never exposed', async () => {
+  it('tightens Web search under native-only when its native delegate disappears (ADR 0043)', async () => {
     const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
     const { previous } = delegateBackedConfig(snapshot.config, {
       searchSources: [{ id: 'cli', kind: 'cli', enabled: true }],
@@ -693,7 +702,7 @@ describe('SettingsService', () => {
     const next: PiwinConfig = { ...previous, providers: [] };
 
     const impact = classifySettingsImpact('providers', previous, next);
-    expect(impact.immediateRestrictions).toEqual([]);
+    expect(impact.immediateRestrictions).toContain('web-search');
   });
 
   it('rejects a stale expectedRevision with a typed conflict error', async () => {

@@ -155,6 +155,184 @@ describe('ModelEditInline', () => {
     expect(query('[data-testid="model-edit-native-web-search-mode"]')).toBeNull();
   });
 
+  it('filters native search adapters by transport and saves the chosen adapter', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{ id: 'grok', capabilities: ['chat', 'native-web-search'] }}
+        providerProtocol="openai-compatible"
+        providerChatApi="openai-responses"
+        disabled={false}
+        isChinese={false}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    const picker = query<HTMLSelectElement>('[data-testid="model-edit-native-search-adapter"]');
+    const values = [...(picker?.options ?? [])].map((option) => option.value);
+    expect(values).toEqual(['', 'openai-responses-tool', 'openai-web-search-options', 'xai-web-search-tool']);
+    select('[data-testid="model-edit-native-search-adapter"]', 'xai-web-search-tool');
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ nativeSearchAdapter: 'xai-web-search-tool' }),
+    );
+  });
+
+  it('offers only xAI shapes for a Grok provider and flags a saved OpenAI shape there', () => {
+    render(
+      <ModelEditInline
+        model={{
+          id: 'grok-4.6',
+          capabilities: ['chat', 'native-web-search'],
+          nativeSearchAdapter: 'openai-responses-tool',
+        }}
+        providerProtocol="openai-compatible"
+        providerBaseUrl="oauth://xai"
+        disabled={false}
+        isChinese={false}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const picker = query<HTMLSelectElement>('[data-testid="model-edit-native-search-adapter"]');
+    const values = [...(picker?.options ?? [])].map((option) => option.value);
+    // Auto, the stale saved value (flagged), then the only valid xAI shape.
+    expect(values).toEqual(['', 'openai-responses-tool', 'xai-web-search-tool']);
+    expect(picker?.selectedOptions[0]?.textContent).toContain('incompatible');
+  });
+
+  it('switches a gateway model to Gemini, showing the rebased target and Gemini search', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{ id: 'gemini-3.8-flash-high', capabilities: ['chat', 'native-web-search'] }}
+        providerProtocol="openai-compatible"
+        providerBaseUrl="http://127.0.0.1:8317/v1"
+        disabled={false}
+        isChinese={false}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    select('[data-testid="model-edit-protocol"]', 'google-gemini');
+    expect(query('[data-testid="model-edit-protocol-target"]')?.textContent).toContain(
+      'http://127.0.0.1:8317/v1beta',
+    );
+    const picker = query<HTMLSelectElement>('[data-testid="model-edit-native-search-adapter"]');
+    expect([...(picker?.options ?? [])].map((option) => option.value)).toEqual(['', 'google-search-tool']);
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ protocol: 'google-gemini' }));
+  });
+
+  it('offers a one-step switch to Gemini for a Gemini model on an OpenAI gateway row', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{ id: 'gemini-3.8-flash-high', capabilities: ['chat', 'native-web-search'] }}
+        providerProtocol="openai-compatible"
+        providerBaseUrl="http://127.0.0.1:8317/v1"
+        disabled={false}
+        isChinese={false}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    const values = (): string[] =>
+      [...(query<HTMLSelectElement>('[data-testid="model-edit-native-search-adapter"]')?.options ?? [])].map(
+        (option) => option.value,
+      );
+    // No OpenAI/xAI shapes for a Gemini model; only Auto plus the switch.
+    expect(values()).toEqual(['', '__switch-protocol__']);
+    expect(query('[data-testid="model-edit-native-search-needs-protocol"]')).not.toBeNull();
+
+    select('[data-testid="model-edit-native-search-adapter"]', '__switch-protocol__');
+    expect(query<HTMLSelectElement>('[data-testid="model-edit-protocol"]')?.value).toBe('google-gemini');
+    expect(values()).toEqual(['', 'google-search-tool']);
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ protocol: 'google-gemini', nativeSearchAdapter: '' }),
+    );
+  });
+
+  it('greys out native search on a subscription Host cannot reach and clears a stale tag on save', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{
+          id: 'gpt-5-6-luna',
+          capabilities: ['chat', 'native-web-search'],
+          nativeSearchAdapter: 'openai-responses-tool',
+        }}
+        providerProtocol="openai-compatible"
+        providerBaseUrl="oauth://kiro"
+        providerIsSubscription
+        nativeSearchBlocker="subscription provider kiro has no Host-reachable endpoint for native web search"
+        disabled={false}
+        isChinese={false}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    const box = query<HTMLInputElement>('[data-testid="model-edit-native-web-search"]');
+    expect(box?.checked).toBe(false);
+    expect(box?.disabled).toBe(true);
+    expect(box?.closest('label')?.getAttribute('title')).toContain('cannot run provider-native search');
+    expect(query('[data-testid="model-edit-native-search-blocked"]')).not.toBeNull();
+    expect(query('[data-testid="model-edit-native-search-adapter"]')).toBeNull();
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ supportsNativeWebSearch: false, nativeSearchAdapter: '' }),
+    );
+  });
+
+  it('hides the per-model protocol on subscription providers', () => {
+    render(
+      <ModelEditInline
+        model={{ id: 'grok-4.7' }}
+        providerProtocol="openai-compatible"
+        providerBaseUrl="oauth://xai"
+        providerIsSubscription
+        disabled={false}
+        isChinese={false}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(query('[data-testid="model-edit-protocol"]')).toBeNull();
+  });
+
+  it('keeps an incompatible saved adapter visible and exposes Anthropic version options', () => {
+    render(
+      <ModelEditInline
+        model={{
+          id: 'claude',
+          capabilities: ['chat', 'native-web-search'],
+          nativeSearchAdapter: 'anthropic-web-search-tool',
+        }}
+        providerProtocol="anthropic-compatible"
+        disabled={false}
+        isChinese
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(query('[data-testid="model-edit-native-search-anthropic-version"]')).not.toBeNull();
+    render(
+      <ModelEditInline
+        model={{ id: 'x', capabilities: ['chat', 'native-web-search'], nativeSearchAdapter: 'google-search-tool' }}
+        providerProtocol="openai-compatible"
+        disabled={false}
+        isChinese={false}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const pickers = document.querySelectorAll<HTMLSelectElement>('[data-testid="model-edit-native-search-adapter"]');
+    const last = pickers[pickers.length - 1];
+    expect(last?.value).toBe('google-search-tool');
+    expect(last?.selectedOptions[0]?.textContent).toContain('incompatible');
+  });
+
   it('edits the video-generation capability used by Video settings', () => {
     const onSave = vi.fn();
     render(

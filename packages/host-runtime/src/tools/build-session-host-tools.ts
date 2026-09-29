@@ -64,11 +64,10 @@ import {
   type McpLifecycleManager,
 } from '@piwin/mcp';
 import { resolveWebConfig, type FetchCache } from '@piwin/tools-web';
-import { webConfigWithDuckDuckGoFloor } from '../capabilities/duckduckgo-search-floor.js';
 import {
   findConfiguredModel,
-  resolveNativeSearchAdapterSupport,
-  resolveSearchRoute,
+  resolveGenerationSearchRoute,
+  shouldEnableNativeWebSearch,
   shouldExposeExternalWebSearch,
 } from '../capabilities/search-route-resolver.js';
 import type { BrowserSession } from '@piwin/browser';
@@ -91,6 +90,7 @@ import { buildWebDocumentExtractor } from '../model-web-document-extractor.js';
 import { createSessionFetchSpillStore } from '../fetch-spill-store.js';
 import { getWebSearchLogStore } from '../web-search-log-store.js';
 import { resolveWebRuntimeCredentials } from '../web-credentials.js';
+import { loadSubscriptionChatAuth } from '../subscription-chat-request.js';
 
 /**
  * Lazy provider for notes services. The Host owns the lifecycle; this
@@ -215,25 +215,31 @@ export async function buildSessionHostTools(
   // ADR 0043: expose external web_search only when the resolved search route
   // selected the external backend for this generation's model/policy.
   if (options.config?.web) {
-    const webSearchDelegate = options.secretResolver
-      ? buildWebSearchModelDelegate(options.config, options.secretResolver)
-      : undefined;
     const webFetchExtractDelegate = options.secretResolver
       ? buildWebFetchExtractDelegate(options.config, options.secretResolver)
       : undefined;
     const webCredentials = options.secretResolver
       ? await resolveWebRuntimeCredentials(options.config.web, options.secretResolver)
       : undefined;
-    const configuredModel = findConfiguredModel(options.config, options.model);
-    const searchAdapter = resolveNativeSearchAdapterSupport(
-      configuredModel?.provider.protocol,
-      configuredModel?.model.nativeSearchAdapter,
-      configuredModel?.provider.chatApi,
-    );
-    const webForGeneration = webConfigWithDuckDuckGoFloor(resolveWebConfig(options.config.web), {
-      model: configuredModel?.model ?? null,
-      adapter: searchAdapter,
+    const webForGeneration = resolveWebConfig(options.config.web);
+    const searchRoute = resolveGenerationSearchRoute({
+      config: options.config,
+      model: options.model,
+      web: webForGeneration,
     });
+    // ADR 0043: web_search is the only outlet; the chain runs inside that tool.
+    const webSearchDelegate =
+      shouldEnableNativeWebSearch(searchRoute) && options.secretResolver
+        ? buildWebSearchModelDelegate(
+            options.config,
+            options.secretResolver,
+            {
+              loadSubscriptionAuth: (providerId) =>
+                loadSubscriptionChatAuth(providerId, { piwinRoot: rootDir }),
+            },
+            options.model ? { chatModel: options.model } : {},
+          )
+        : undefined;
     const webRegistration = buildSessionTools({
       webConfig: webForGeneration,
       ...(webCredentials ? { webCredentials } : {}),
@@ -246,12 +252,6 @@ export async function buildSessionHostTools(
       spillStore: createSessionFetchSpillStore(getPiwinSessionDir(rootDir, options.sessionId)),
       searchLog: getWebSearchLogStore(rootDir),
       ...(options.fetchCache ? { fetchCache: options.fetchCache } : {}),
-    });
-    const searchRoute = resolveSearchRoute({
-      ...(configuredModel?.model ? { model: configuredModel.model } : {}),
-      web: webForGeneration,
-      adapter: searchAdapter,
-      externalDelegateReady: Boolean(webSearchDelegate),
     });
     const webSearchReady = shouldExposeExternalWebSearch(searchRoute);
     tools.push(

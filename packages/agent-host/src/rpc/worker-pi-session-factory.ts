@@ -33,7 +33,7 @@ import {
   type PiModelRegistration,
 } from '../pi-model-runtime.js';
 
-import { resolveProviderStreamSimple } from '../attach-provider-stream-simple.js';
+import { resolveRegistrationStreamSimple } from '../attach-provider-stream-simple.js';
 import { wrapModelRuntimeStreamTiming } from '../stream-request-timing.js';
 import type { NativeSearchStreamSimple } from '../native-web-search.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
@@ -199,7 +199,6 @@ class CompiledContextFileReadError extends Error {
 export function registerWorkerProviders(
   modelRuntime: PiModelRuntime,
   providers: SerializableWorkerProviderRuntime[],
-  searchRoute?: import('@piwin/contracts').ResolvedSearchRoute | null | undefined,
   bootstrapSecrets?: ReadonlyMap<string, string>,
 ): void {
   const referencedBootstrapIds = new Set<string>();
@@ -213,7 +212,7 @@ export function registerWorkerProviders(
     const apiKey = resolveWorkerProviderApiKey(provider, bootstrapSecrets);
     modelRuntime.registerProvider(
       provider.providerId,
-      buildWorkerProviderRegistration(provider, apiKey, searchRoute),
+      buildWorkerProviderRegistration(provider, apiKey),
     );
   }
   if (bootstrapSecrets) {
@@ -252,21 +251,25 @@ function resolveWorkerProviderApiKey(
 export function buildWorkerProviderRegistration(
   provider: SerializableProviderRuntime,
   apiKey: string | undefined,
-  searchRoute?: import('@piwin/contracts').ResolvedSearchRoute | null | undefined,
   streamSimple?: NativeSearchStreamSimple,
 ): ReturnType<typeof buildPiProviderRegistration> {
   const api = resolvePiApiForProvider(provider.protocol, provider.chatApi);
   const models = provider.models.map((model) => {
+    // ADR 0079: Host already resolved an overriding model's wire and base URL.
+    const protocol = model.protocol ?? provider.protocol;
+    const modelApi = model.protocol
+      ? resolvePiApiForProvider(model.protocol)
+      : api;
     const thinkingLevelMap =
       model.reasoning === false
         ? undefined
-        : buildThinkingLevelMap(model.thinkingLevels, provider.protocol);
-    const compat = resolvePiModelCompat(api, model.id);
+        : buildThinkingLevelMap(model.thinkingLevels, protocol);
+    const compat = resolvePiModelCompat(modelApi, model.id);
     return {
       id: model.id,
       name: model.label?.trim() || model.id,
-      api,
-      baseUrl: provider.baseUrl ?? '',
+      api: modelApi,
+      baseUrl: model.baseUrl ?? provider.baseUrl ?? '',
       reasoning: model.reasoning ?? true,
       ...(compat ? { compat } : {}),
       ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
@@ -274,8 +277,6 @@ export function buildWorkerProviderRegistration(
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       ...resolvePiModelLimits(model),
       ...(provider.headers ? { headers: provider.headers } : {}),
-      ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
-      ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
     };
   });
   const registration: ReturnType<typeof buildPiProviderRegistration> = {
@@ -291,16 +292,11 @@ export function buildWorkerProviderRegistration(
   if (provider.headers) {
     registration.headers = provider.headers;
   }
-  const nativeFlags = models.map((model) => ({
-    id: model.id,
-    ...(model.capabilities ? { capabilities: model.capabilities } : {}),
-    ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
-  }));
-  const resolvedStream = resolveProviderStreamSimple({
-    api,
-    models: nativeFlags,
+  // Main-session registration: never wrapped for hosted search (ADR 0043).
+  const resolvedStream = resolveRegistrationStreamSimple({
+    defaultApi: api,
+    models: models.map((model) => ({ id: model.id, api: model.api })),
     // Optional under exactOptionalPropertyTypes: omit rather than pass undefined.
-    ...(searchRoute === undefined ? {} : { searchRoute }),
     ...(streamSimple === undefined ? {} : { streamSimple }),
   });
   if (resolvedStream) {
@@ -409,7 +405,6 @@ export function createWorkerPiSessionFactory(
       registerWorkerProviders(
         modelRuntime,
         providers,
-        input.blueprint.searchRoute,
         input.bootstrapSecrets,
       );
       for (const provider of providers) {

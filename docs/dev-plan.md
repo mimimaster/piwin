@@ -149,18 +149,17 @@ Spec: [`docs/specs/m1-host-cli.md`](./specs/m1-host-cli.md) · M2 design: [`docs
 **Completed slice (ADR 0043):** Native model search routing and video model discovery.
 - Web Settings exposes the search route policy and a live route preview.
 - Model add/edit supports the `native-web-search` capability and badge.
-- Host Runtime resolves exactly one search backend per generation; native
-  selected omits `web_search`, external selected omits provider-native fields.
-- SDK/RPC production registrations wrap Pi's real lazy provider stream so the
-  selected native route changes the outbound request, not only the blueprint.
-- Native citation parsing, `message/search_evidence`, transcript persistence,
-  and Desktop rendering are present, but Pi 0.80.10 does not expose provider
-  grounding metadata to the adapter; Settings reports citation support as
-  unavailable instead of claiming full readiness.
-- Web Settings can select a separate configured `native-web-search` model as
-  the exclusive backend for the Host `web_search` tool. Host keeps credentials
-  private, ignores ordinary sources while delegated, and fails closed for a
-  stale or unsupported selection.
+- Host `web_search` is the only search outlet. One call runs the ordered
+  chain from `buildSearchChain` (native sub-request → configured sources →
+  DuckDuckGo floor per policy) and stops at the first success; the same chain
+  drives the Settings preview, the executed tool and the search log.
+- Native search is a provider-native sub-request on the tagged chat model or a
+  configured delegate; main-session requests never carry hosted search.
+  Citations live on the `web_search` tool card; message-level
+  `searchEvidence` is read-only legacy.
+- Grok subscriptions reach native search through `api.x.ai` with the OAuth
+  token; subscriptions without a Host-reachable surface are never native
+  executors. See ADR 0043 (rewritten 2026-09-29).
 - Video Settings discovers provider video models, separates recognized and suggested models, and prefills the route.
 - Verification: `pnpm typecheck && pnpm test && pnpm test:architecture && pnpm --filter @piwin/desktop build`.
   - Latest run (2026-08-11): typecheck, architecture boundaries, Desktop build,

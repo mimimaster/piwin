@@ -4,12 +4,7 @@ import type {
   SearchRoutePreviewData,
   SearchRoutePreviewInput,
 } from '@piwin/contracts';
-import {
-  findReadyWebSearchDelegate,
-  findConfiguredModel,
-  resolveNativeSearchAdapterSupport,
-  resolveSearchRoute,
-} from './search-route-resolver.js';
+import { findConfiguredModel, resolveGenerationSearchRoute } from './search-route-resolver.js';
 
 export function buildSearchRoutePreview(
   config: Pick<PiwinConfig, 'providers' | 'defaultProviderId' | 'defaultModelId'>,
@@ -23,19 +18,13 @@ export function buildSearchRoutePreview(
         modelId: configured.model.id,
       }
     : undefined;
-  const route = resolveSearchRoute({
-    ...(configured?.model ? { model: configured.model } : {}),
+  const route = resolveGenerationSearchRoute({
+    config,
     web: {
       searchSources: input.searchSources,
       searchRoutePolicy: input.policy,
       ...(input.searchDelegateModel ? { searchDelegateModel: input.searchDelegateModel } : {}),
     },
-    adapter: resolveNativeSearchAdapterSupport(
-      configured?.provider.protocol,
-      configured?.model.nativeSearchAdapter,
-      configured?.provider.chatApi,
-    ),
-    externalDelegateReady: Boolean(findReadyWebSearchDelegate(config, input.searchDelegateModel)),
   });
 
   return {

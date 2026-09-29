@@ -18,6 +18,7 @@ import type {
 import {
   WEB_SEARCH_ATTEMPT_ERROR_MAX_CHARS,
   WEB_SEARCH_LOG_QUERY_MAX_CHARS,
+  readWebSearchLogNativeSummary,
   readWebSearchDiagnostics,
   WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
 } from '@piwin/contracts';
@@ -162,6 +163,8 @@ function toEntry(record: WebSearchLogRecord): WebSearchLogEntry {
   if (!record.ok && record.error) {
     entry.error = record.error.slice(0, WEB_SEARCH_ATTEMPT_ERROR_MAX_CHARS);
   }
+  const native = readWebSearchLogNativeSummary(record.native);
+  if (native) entry.native = native;
   return entry;
 }
 
@@ -197,6 +200,8 @@ function parseEntry(line: string): WebSearchLogEntry | null {
     attempts: diagnostics.attempts,
   };
   if (typeof row.error === 'string' && row.error.length > 0) entry.error = row.error;
+  const native = readWebSearchLogNativeSummary(row.native);
+  if (native) entry.native = native;
   return entry;
 }
 

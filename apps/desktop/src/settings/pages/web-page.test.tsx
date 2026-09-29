@@ -73,8 +73,7 @@ function nativePreview(policy: SearchRoutePolicy): SearchRoutePreviewData {
   return {
     route: {
       policy,
-      selected: 'native',
-      fallback: 'external',
+      chain: ['native', 'sources'],
       readiness: {
         native: { ready: true, reasons: [] },
         external: { ready: true, reasons: [] },
@@ -89,8 +88,7 @@ function warningPreview(policy: SearchRoutePolicy): SearchRoutePreviewData {
   return {
     route: {
       policy,
-      selected: null,
-      fallback: null,
+      chain: [],
       readiness: {
         native: { ready: false, reasons: ['native search adapter is unavailable'] },
         external: { ready: false, reasons: ['no enabled external search source'] },
@@ -296,7 +294,7 @@ describe('WebPage search route settings', () => {
     );
     expect(policySelect?.value).toBe('native-first');
     expect(container.querySelector('[data-testid="search-route-selected"]')?.textContent).toContain(
-      'native',
+      'Built-in search',
     );
     expect(request).toHaveBeenCalledWith({
       type: 'web/search-route-preview',

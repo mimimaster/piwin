@@ -193,7 +193,6 @@ function streamToAssistantMessage(stream: SubagentStreamState): ChatMessageUi {
       thinking: stream.thinking,
       tools: [...stream.tools],
       ...(stream.attachments ? { attachments: stream.attachments } : {}),
-      ...(stream.searchEvidence ? { searchEvidence: stream.searchEvidence } : {}),
     },
     stream.streaming ? 'streaming' : 'done',
   );
@@ -265,8 +264,7 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
     (props.stream.text.length > 0 ||
       (showThinking && props.stream.thinking.length > 0) ||
       props.stream.tools.length > 0 ||
-      (props.stream.attachments?.length ?? 0) > 0 ||
-      props.stream.searchEvidence !== undefined);
+      (props.stream.attachments?.length ?? 0) > 0);
 
   const isEmpty = props.historicalMessages.length === 0 && !hasLiveContent;
   const livePermissionPrompt = props.stream?.permissionPrompt ?? null;

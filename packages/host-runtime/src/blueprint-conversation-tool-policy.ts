@@ -12,12 +12,8 @@ import {
   familyHasKnowledgeTools,
   projectModelHostTools,
 } from './blueprint-tool-capability.js';
-import { webConfigWithDuckDuckGoFloor } from './capabilities/duckduckgo-search-floor.js';
 import {
-  findConfiguredModel,
-  findReadyWebSearchDelegate,
-  resolveNativeSearchAdapterSupport,
-  resolveSearchRoute,
+  resolveGenerationSearchRoute,
   shouldExposeExternalWebSearch,
 } from './capabilities/search-route-resolver.js';
 import { resolveToolPolicyDetails } from './capabilities/tool-policy-resolver.js';
@@ -45,23 +41,10 @@ export function compileConversationToolPolicy(
   hostToolboxTargetNames: string[];
 } {
   const resolvedWebConfig = config.web ? resolveWebConfig(config.web) : undefined;
-  const configuredModel = findConfiguredModel(config, input.model);
-  const searchAdapter = resolveNativeSearchAdapterSupport(
-    configuredModel?.provider.protocol,
-    configuredModel?.model.nativeSearchAdapter,
-    configuredModel?.provider.chatApi,
-  );
-  const webForRoute = resolvedWebConfig
-    ? webConfigWithDuckDuckGoFloor(resolvedWebConfig, {
-        model: configuredModel?.model ?? null,
-        adapter: searchAdapter,
-      })
-    : config.web;
-  const searchRoute = resolveSearchRoute({
-    model: configuredModel?.model ?? null,
-    web: webForRoute,
-    adapter: searchAdapter,
-    externalDelegateReady: Boolean(findReadyWebSearchDelegate(config)),
+  const searchRoute = resolveGenerationSearchRoute({
+    config,
+    model: input.model,
+    web: resolvedWebConfig ?? config.web,
   });
   const webSearchReady = shouldExposeExternalWebSearch(searchRoute);
   const webFetchReady = resolvedWebConfig !== undefined;

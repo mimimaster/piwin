@@ -1,5 +1,4 @@
 import type { AgentEvent, AgentMessageRole } from '@piwin/contracts';
-import { normalizeNativeSearchCitations } from './native-web-search.js';
 import { mapAssistantStopReasonFailure } from './agent-failure-map.js';
 import { readAssistantToolArgProgress } from './assistant-tool-arg-progress.js';
 import { asRecord, readNestedId, readNestedRole, readRole, readString } from './pi-event-read.js';
@@ -40,10 +39,6 @@ export function mapMessageUpdateEvent(
       ...(toolArgProgress.toolName !== undefined ? { toolName: toolArgProgress.toolName } : {}),
     });
   }
-  const evidence = normalizeNativeSearchCitations(assistantEvent);
-  if (evidence) {
-    mapped.push({ type: 'message/search_evidence', messageId, evidence });
-  }
   return mapped;
 }
 
@@ -55,7 +50,6 @@ export function mapMessageEndEvent(
   const messageId =
     readString(event.messageId) ?? readNestedId(event, 'message') ?? activeMessageId ?? 'unknown';
   const messagePayload = event.message ?? event.assistantMessage ?? event;
-  const evidence = normalizeNativeSearchCitations(messagePayload);
   const endedMessageRole =
     readRole(event.role) ??
     readNestedRole(event, 'message') ??
@@ -73,9 +67,6 @@ export function mapMessageEndEvent(
       mapped.push({ type: 'message/text_snapshot', messageId, text: snapshot.text });
     }
   }
-  if (evidence) {
-    mapped.push({ type: 'message/search_evidence', messageId, evidence });
-  }
   mapped.push({ type: 'message/end', messageId });
   if (endedMessageRole === 'assistant') {
     const failure = mapAssistantStopReasonFailure(asRecord(messagePayload), event);
@@ -84,38 +75,6 @@ export function mapMessageEndEvent(
     }
   }
   return mapped;
-}
-
-export function filterDuplicateSearchEvidence(
-  event: AgentEvent,
-  citationUrlsByMessageId: Map<string, Set<string>>,
-): AgentEvent[] {
-  if (event.type !== 'message/search_evidence') {
-    return [event];
-  }
-  const seenUrls = citationUrlsByMessageId.get(event.messageId) ?? new Set<string>();
-  const citations = event.evidence.citations.filter((citation) => {
-    const key = citation.url.trim().toLowerCase();
-    if (key.length === 0 || seenUrls.has(key)) {
-      return false;
-    }
-    seenUrls.add(key);
-    return true;
-  });
-  citationUrlsByMessageId.set(event.messageId, seenUrls);
-  if (citations.length === 0) {
-    return [];
-  }
-  return [
-    {
-      ...event,
-      evidence: {
-        ...(event.evidence.query !== undefined ? { query: event.evidence.query } : {}),
-        provenance: event.evidence.provenance,
-        citations,
-      },
-    },
-  ];
 }
 
 type AssistantMessageSnapshot = {

@@ -13,7 +13,6 @@ import type { PromptAttachment } from './browser.js';
 import type { AttachmentContentKind } from './attachment.js';
 import type { AgentModeId, PermissionPreset } from './permission.js';
 import type { CreateSessionOptions, NativeContextEntry } from './session-seed.js';
-import type { SearchEvidence } from './web.js';
 import type { HealthToolCardSummary } from './apple-health.js';
 import type { AgentPromptOutcome } from './agent-prompt-outcome.js';
 import type {
@@ -600,12 +599,6 @@ export type AgentEvent =
       argumentCharCount: number;
       /** Present once the provider reveals the tool name. */
       toolName?: string;
-      runId?: string;
-    }
-  | {
-      type: 'message/search_evidence';
-      messageId: string;
-      evidence: SearchEvidence;
       runId?: string;
     }
   | { type: 'message/end'; messageId: string; runId?: string }

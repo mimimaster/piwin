@@ -115,9 +115,9 @@ export type WebSearchStrategy = {
 };
 
 /**
- * Product policy for choosing between model-native search and the Host
- * external `web_search` tool (ADR 0043). Distinct from multi-source
- * {@link WebSearchStrategy}, which only schedules external backends.
+ * Product policy for the ordered `web_search` chain (ADR 0043). Distinct from
+ * multi-source {@link WebSearchStrategy}, which only schedules the `sources`
+ * step in parallel.
  *
  * Packing default is `native-first` with no external sources enabled.
  * A saved config that already has enabled sources but omitted this field
@@ -125,13 +125,18 @@ export type WebSearchStrategy = {
  */
 export type SearchRoutePolicy = 'native-first' | 'external-first' | 'native-only' | 'external-only';
 
-/** Logical search backend selected for one generation. */
-export type SearchBackend = 'native' | 'external';
+/**
+ * One step in a single `web_search` call.
+ * - `native` — provider-native sub-request on the tagged model / delegate.
+ * - `sources` — user-enabled configured sources, merged in parallel.
+ * - `duckduckgo` — free floor, used when sources are off or after they fail.
+ */
+export type SearchChainStep = 'native' | 'sources' | 'duckduckgo';
 
 /** Provenance tag for search citations rendered in the product UI. */
 export type SearchCitationProvenance = 'native' | 'external';
 
-/** Packing default: model built-in search first, no external sources opened. */
+/** Packing default: model built-in search first, DuckDuckGo as floor. */
 export const DEFAULT_SEARCH_ROUTE_POLICY: SearchRoutePolicy = 'native-first';
 
 export function isSearchRoutePolicy(value: unknown): value is SearchRoutePolicy {
@@ -160,22 +165,56 @@ export function inferSearchRoutePolicy(
   return DEFAULT_SEARCH_ROUTE_POLICY;
 }
 
+/**
+ * Build the ordered backends for one `web_search` call.
+ * DuckDuckGo is appended as a floor unless the user already enabled it inside
+ * `sources`, or the policy is `native-only`.
+ */
+export function buildSearchChain(input: {
+  policy: SearchRoutePolicy;
+  nativeReady: boolean;
+  hasEnabledSources: boolean;
+  duckduckgoEnabled?: boolean;
+}): SearchChainStep[] {
+  const includeNative = input.nativeReady && input.policy !== 'external-only';
+  const includeSources = input.hasEnabledSources && input.policy !== 'native-only';
+  const includeDuckduckgo =
+    input.policy !== 'native-only' && (input.duckduckgoEnabled !== true || !includeSources);
+  const steps: SearchChainStep[] = [];
+  const push = (step: SearchChainStep, include: boolean): void => {
+    if (include && !steps.includes(step)) steps.push(step);
+  };
+  switch (input.policy) {
+    case 'native-first':
+    case 'native-only':
+      push('native', includeNative);
+      push('sources', includeSources);
+      push('duckduckgo', includeDuckduckgo);
+      break;
+    case 'external-first':
+    case 'external-only':
+      push('sources', includeSources);
+      push('native', includeNative);
+      push('duckduckgo', includeDuckduckgo);
+      break;
+  }
+  return steps;
+}
+
 /** Per-backend readiness facts used by the pure search-route resolver. */
 export type SearchBackendReadiness = {
   ready: boolean;
   /** Model carries the `native-web-search` capability and is enabled. */
   modelTagged?: boolean;
-  /** Active Pi adapter can shape provider-native search fields for this provider. */
+  /** Declared or inferred adapter can be expressed for this provider. */
   adapterRequestSupported?: boolean;
-  /**
-   * Whether native citation/grounding metadata can be normalized into product
-   * events. Lack of citation support does not block request enablement, but
-   * must not be reported as full native-search readiness in the UI.
-   */
-  adapterCitationSupported?: boolean;
-  /** At least one external search source is enabled. */
+  /** At least one user-enabled external search source. */
   hasEnabledSources?: boolean;
-  /** A configured native-search model is ready to back Host `web_search`. */
+  /**
+   * A configured native-search delegate model is ready to back Host
+   * `web_search`. This is native readiness: the delegate is a provider-native
+   * executor for the Host tool, not an external source.
+   */
   hasDelegateModel?: boolean;
   reasons: string[];
 };
@@ -186,20 +225,16 @@ export type SearchRouteReadiness = {
 };
 
 /**
- * Resolved single search outlet for one generation. Exactly one of
- * `selected` / neither may be set; never both backends at once.
+ * Resolved `web_search` chain for one generation. `chain` is the only source
+ * of truth: Settings display it, the Host tool executes it, the log records
+ * one attempt per step.
  */
 export type ResolvedSearchRoute = {
   policy: SearchRoutePolicy;
-  /** Backend that will run for this generation, or null when neither is ready. */
-  selected: SearchBackend | null;
-  /**
-   * Capability that would have been used if the first choice was unavailable
-   * before the request started. Not a silent post-failure retry target.
-   */
-  fallback: SearchBackend | null;
+  /** Ordered backends tried inside one `web_search` call; first success wins. */
+  chain: SearchChainStep[];
   readiness: SearchRouteReadiness;
-  /** Human-readable issues (missing sources, unavailable adapters, …). */
+  /** Human-readable issues (unavailable adapters, empty native-only, …). */
   issues: string[];
 };
 
@@ -225,7 +260,12 @@ export type SearchCitation = {
   provenance: SearchCitationProvenance;
 };
 
-/** Product-normalized search evidence attached to assistant activity. */
+/**
+ * Message-level search evidence. Read-only legacy: assistant messages from
+ * the retired main-session native search (v0.1.0) still carry it. Nothing
+ * produces it anymore; live native-search citations ride the `web_search`
+ * tool card (`WebSearchResult`).
+ */
 export type SearchEvidence = {
   query?: string;
   provenance: SearchCitationProvenance;
@@ -234,60 +274,33 @@ export type SearchEvidence = {
   nativeDiagnostic?: NativeSearchDiagnostic;
 };
 
-/** Safe provider-native search telemetry persisted with evidence/tool cards. */
+/**
+ * How a provider-native search sub-request was executed.
+ * - `pi-tee`: official Pi `streamSimple` with a response-body tee on `fetch`.
+ * - `gemini-rest`: direct non-streaming Gemini `generateContent` REST call
+ *   (Pi's Google adapter rejects custom fetch, so grounding is unobservable there).
+ */
+export type NativeSearchTransport = 'pi-tee' | 'gemini-rest';
+
+/** Bound on persisted native-search error text; full errors stay in Host logs. */
+export const NATIVE_SEARCH_ERROR_MAX_CHARS = 300;
+
+/**
+ * Safe provider-native search telemetry persisted with evidence/tool cards.
+ * Never contains query, prompt, headers, request/response bodies, or credentials.
+ */
 export type NativeSearchDiagnostic = {
   providerId: string;
   adapter: NativeSearchAdapterKind;
-  injected: boolean;
+  /** Optional for transcripts persisted before the Host-tool executor existed. */
+  transport?: NativeSearchTransport;
+  /** A provider search/grounding event was observed in the raw response. */
   eventDetected: boolean;
   hitCount: number;
   durationMs: number;
+  /** Bounded failure text ({@link NATIVE_SEARCH_ERROR_MAX_CHARS}). */
+  error?: string;
 };
-
-/**
- * Merge normalized evidence emitted by multiple stream updates. The first
- * citation for a case-insensitive URL remains authoritative so later provider
- * updates cannot replace a title, snippet, or source already shown to users.
- */
-export function mergeSearchEvidence(
-  existing: SearchEvidence | undefined,
-  incoming: SearchEvidence,
-): SearchEvidence {
-  if (existing === undefined) {
-    return {
-      ...(incoming.query !== undefined ? { query: incoming.query } : {}),
-      provenance: incoming.provenance,
-      citations: [...incoming.citations],
-      ...(incoming.nativeDiagnostic !== undefined
-        ? { nativeDiagnostic: incoming.nativeDiagnostic }
-        : {}),
-    };
-  }
-
-  const citations = [...existing.citations];
-  const seenUrls = new Set(citations.map((citation) => citation.url.trim().toLowerCase()));
-  for (const citation of incoming.citations) {
-    const key = citation.url.trim().toLowerCase();
-    if (key.length === 0 || seenUrls.has(key)) continue;
-    seenUrls.add(key);
-    citations.push(citation);
-  }
-
-  return {
-    ...(existing.query !== undefined
-      ? { query: existing.query }
-      : incoming.query !== undefined
-        ? { query: incoming.query }
-        : {}),
-    provenance: existing.provenance,
-    citations,
-    ...(existing.nativeDiagnostic !== undefined
-      ? { nativeDiagnostic: existing.nativeDiagnostic }
-      : incoming.nativeDiagnostic !== undefined
-        ? { nativeDiagnostic: incoming.nativeDiagnostic }
-        : {}),
-  };
-}
 
 /**
  * How web_fetch turns a page into readable text.
@@ -388,6 +401,14 @@ export type SearchHit = {
   source?: string;
 };
 
+/** One provider-reported citation span backing a native grounded answer. */
+export type WebSearchCitation = {
+  url: string;
+  title?: string;
+  /** Provider-supplied cited text; never synthesized from model prose. */
+  citedText?: string;
+};
+
 export type WebSearchResult = {
   query: string;
   providerId: string;
@@ -397,6 +418,20 @@ export type WebSearchResult = {
    * model does not mistake "searched, nothing found" for a silent failure.
    */
   warning?: string;
+  /** Native executors only: bounded grounded brief written by the search model. */
+  answer?: string;
+  /** Native executors only: queries the provider actually issued. */
+  searchQueries?: string[];
+  /** Native executors only: provider citation annotations/supports. */
+  citations?: WebSearchCitation[];
+  /**
+   * Gemini only: `searchEntryPoint.renderedContent`, kept verbatim because
+   * Google's grounding terms require showing Search Suggestions unmodified.
+   * Untrusted HTML — render only inside a script-free sandbox.
+   */
+  searchSuggestionsHtml?: string;
+  /** Native executors only: bounded execution telemetry. */
+  nativeDiagnostic?: NativeSearchDiagnostic;
 };
 
 /** `ToolResult.details.kind` for `web_search` diagnostics. */
@@ -428,7 +463,23 @@ export type WebSearchDiagnostics = {
   hitCount: number;
   durationMs: number;
   attempts: WebSearchSourceAttempt[];
+  /** Present when a provider-native executor ran (even if it then fell back). */
+  native?: WebSearchNativeDetails;
 };
+
+/** Native-executor facts kept out of the model-visible tool output. */
+export type WebSearchNativeDetails = {
+  diagnostic: NativeSearchDiagnostic;
+  /** Queries the provider actually issued. */
+  searchQueries?: string[];
+  /** Gemini Search Suggestions, verbatim untrusted HTML (sandbox only). */
+  searchSuggestionsHtml?: string;
+  /** True when the native attempt failed and configured sources answered instead. */
+  fellBackToSources?: boolean;
+};
+
+/** Bound on persisted Search Suggestions HTML. */
+export const WEB_SEARCH_SUGGESTIONS_MAX_CHARS = 64_000;
 
 export function readWebSearchDiagnostics(details: unknown): WebSearchDiagnostics | null {
   if (typeof details !== 'object' || details === null) {
@@ -459,17 +510,78 @@ export function readWebSearchDiagnostics(details: unknown): WebSearchDiagnostics
     }
     attempts.push(attempt);
   }
+  const native = readWebSearchNativeDetails(candidate.native);
   return {
     kind: WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
     providerId: candidate.providerId,
     hitCount: finiteNonNegative(candidate.hitCount),
     durationMs: finiteNonNegative(candidate.durationMs),
     attempts,
+    ...(native ? { native } : {}),
+  };
+}
+
+function readWebSearchNativeDetails(value: unknown): WebSearchNativeDetails | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const candidate = value as Partial<WebSearchNativeDetails>;
+  const raw = candidate.diagnostic as Partial<NativeSearchDiagnostic> | undefined;
+  if (
+    typeof raw !== 'object' ||
+    raw === null ||
+    typeof raw.providerId !== 'string' ||
+    typeof raw.adapter !== 'string'
+  ) {
+    return undefined;
+  }
+  const diagnostic: NativeSearchDiagnostic = {
+    providerId: raw.providerId,
+    adapter: raw.adapter,
+    ...(raw.transport === 'pi-tee' || raw.transport === 'gemini-rest' ? { transport: raw.transport } : {}),
+    eventDetected: raw.eventDetected === true,
+    hitCount: finiteNonNegative(raw.hitCount),
+    durationMs: finiteNonNegative(raw.durationMs),
+    ...(typeof raw.error === 'string' && raw.error.length > 0
+      ? { error: raw.error.slice(0, NATIVE_SEARCH_ERROR_MAX_CHARS) }
+      : {}),
+  };
+  const searchQueries = Array.isArray(candidate.searchQueries)
+    ? candidate.searchQueries.filter((query): query is string => typeof query === 'string').slice(0, 20)
+    : [];
+  const html =
+    typeof candidate.searchSuggestionsHtml === 'string' &&
+    candidate.searchSuggestionsHtml.length > 0 &&
+    candidate.searchSuggestionsHtml.length <= WEB_SEARCH_SUGGESTIONS_MAX_CHARS
+      ? candidate.searchSuggestionsHtml
+      : undefined;
+  return {
+    diagnostic,
+    ...(searchQueries.length > 0 ? { searchQueries } : {}),
+    ...(html ? { searchSuggestionsHtml: html } : {}),
+    ...(candidate.fellBackToSources === true ? { fellBackToSources: true } : {}),
   };
 }
 
 /** Bound on the persisted query text of one search log row. */
 export const WEB_SEARCH_LOG_QUERY_MAX_CHARS = 500;
+
+/**
+ * Provider-native facts kept on a search log row (ADR 0043). Safe telemetry
+ * only: no suggestions HTML, headers, bodies, or the issued query texts (the
+ * row already stores the user query; issued queries stay on the tool card).
+ */
+export type WebSearchLogNativeSummary = {
+  providerId: string;
+  adapter: NativeSearchAdapterKind;
+  transport?: NativeSearchTransport;
+  /** A provider search/grounding event was observed in the raw response. */
+  eventDetected: boolean;
+  /** How many queries the provider actually issued. */
+  searchQueryCount: number;
+  /** The native attempt failed and configured sources answered instead. */
+  fellBackToSources?: boolean;
+  /** Bounded native failure text. */
+  error?: string;
+};
 
 /** One `web_search` call as the Host observed it, success or failure. */
 export type WebSearchLogRecord = {
@@ -482,7 +594,44 @@ export type WebSearchLogRecord = {
   attempts: WebSearchSourceAttempt[];
   /** Top-level failure message when `ok` is false. */
   error?: string;
+  /** Present when the provider-native executor ran for this call. */
+  native?: WebSearchLogNativeSummary;
 };
+
+/** Project tool-card native details down to the loggable summary. */
+export function summarizeWebSearchNativeForLog(
+  native: WebSearchNativeDetails | undefined,
+): WebSearchLogNativeSummary | undefined {
+  if (!native) return undefined;
+  const { diagnostic } = native;
+  return {
+    providerId: diagnostic.providerId,
+    adapter: diagnostic.adapter,
+    ...(diagnostic.transport ? { transport: diagnostic.transport } : {}),
+    eventDetected: diagnostic.eventDetected,
+    searchQueryCount: native.searchQueries?.length ?? 0,
+    ...(native.fellBackToSources ? { fellBackToSources: true } : {}),
+    ...(diagnostic.error ? { error: diagnostic.error.slice(0, NATIVE_SEARCH_ERROR_MAX_CHARS) } : {}),
+  };
+}
+
+/** Validate a persisted/remote native summary; unknown shapes are dropped. */
+export function readWebSearchLogNativeSummary(value: unknown): WebSearchLogNativeSummary | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const raw = value as Partial<WebSearchLogNativeSummary>;
+  if (typeof raw.providerId !== 'string' || typeof raw.adapter !== 'string') return undefined;
+  return {
+    providerId: raw.providerId,
+    adapter: raw.adapter,
+    ...(raw.transport === 'pi-tee' || raw.transport === 'gemini-rest' ? { transport: raw.transport } : {}),
+    eventDetected: raw.eventDetected === true,
+    searchQueryCount: Math.min(20, Math.floor(finiteNonNegative(raw.searchQueryCount))),
+    ...(raw.fellBackToSources === true ? { fellBackToSources: true } : {}),
+    ...(typeof raw.error === 'string' && raw.error.length > 0
+      ? { error: raw.error.slice(0, NATIVE_SEARCH_ERROR_MAX_CHARS) }
+      : {}),
+  };
+}
 
 /** Host-injected sink for the cross-session search call log. Must not throw. */
 export type WebSearchLogSink = {
@@ -545,6 +694,9 @@ export type WebFetchResult = {
   pageCount?: number;
 };
 
+/** Default budget for one provider-native search sub-request. */
+export const DEFAULT_SEARCH_NATIVE_TIMEOUT_MS = 120_000;
+
 export type WebConfig = {
   /**
    * Legacy mirror of the multi-source list (single / aggregate / none).
@@ -557,15 +709,21 @@ export type WebConfig = {
   /** Hard timeout for the whole web_search call, in ms. Default 15000. */
   searchTimeoutMs: number;
   /**
+   * Timeout for one provider-native search sub-request, in ms. Native
+   * searches run a full model turn, so this is separate from
+   * {@link searchTimeoutMs}. Default {@link DEFAULT_SEARCH_NATIVE_TIMEOUT_MS}.
+   */
+  searchNativeTimeoutMs?: number;
+  /**
    * Multi-source list. Empty or all-disabled means web_search is off.
    * When omitted on load, host migrates from {@link searchProvider}.
    */
   searchSources: WebSearchSource[];
   /**
-   * Optional configured model used as the exclusive backend for Host
+   * Optional configured model used as the native executor for Host
    * `web_search`. The model must be enabled and tagged `native-web-search`.
-   * Ordinary search sources remain configured but are not called while this
-   * delegate is selected.
+   * Configured sources remain later steps in the same call unless the policy
+   * is `native-only`.
    */
   searchDelegateModel?: ModelRef;
   /**

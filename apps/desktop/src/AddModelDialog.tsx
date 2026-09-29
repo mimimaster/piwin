@@ -1,6 +1,12 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { Button, Field, Modal, TextInput } from '@piwin/ui-kit';
-import type { ModelCatalogEntry, ModelConfigEntry, ModelProviderConfig } from '@piwin/contracts';
+import type {
+  ModelCatalogEntry,
+  ModelConfigEntry,
+  ModelProviderConfig,
+  ProviderChatApi,
+} from '@piwin/contracts';
+import { rebaseForProtocol, suggestDiscoveredNativeSearch } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
   EMPTY_GENERATION_ROUTE_FIELDS,
@@ -12,14 +18,24 @@ import {
   type ModelConfigurationDraft,
 } from './model-configuration';
 import { ModelGenerationRouteFields } from './model-generation-route-fields';
+import { NativeSearchAdapterFields } from './native-search-adapter-fields';
+import { ModelProtocolField } from './model-protocol-field.js';
 
 export type AddModelDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   existingModelIds: readonly string[];
   onAdd: (model: ModelConfigEntry) => void;
-  /** Channel protocol; used only to suggest image/video wire defaults. */
+  /** Channel protocol; suggests image/video wire defaults and filters search adapters. */
   protocol?: ModelProviderConfig['protocol'];
+  /** Channel transport; filters native-search adapter choices. */
+  chatApi?: ProviderChatApi;
+  /** Channel base URL; an identified vendor limits native-search adapter choices. */
+  baseUrl?: string;
+  /** Subscription rows have a fixed wire; the per-model protocol is hidden. */
+  isSubscription?: boolean;
+  /** Why this provider can never run native search; the tag stays off. */
+  nativeSearchBlocker?: string;
   /** Optional catalog autocomplete (host `models/catalog/search`). */
   searchCatalog?: (query: string) => Promise<ModelCatalogEntry[]>;
 };
@@ -36,6 +52,10 @@ export function AddModelDialog({
   existingModelIds,
   onAdd,
   protocol = 'openai-compatible',
+  chatApi,
+  baseUrl,
+  isSubscription = false,
+  nativeSearchBlocker,
   searchCatalog,
 }: AddModelDialogProps): ReactElement {
   const { locale, translator } = useDesktopLocale();
@@ -55,6 +75,11 @@ export function AddModelDialog({
   const [textToSpeech, setTextToSpeech] = useState(false);
   const [realtimeAudio, setRealtimeAudio] = useState(false);
   const [nativeWebSearch, setNativeWebSearch] = useState(false);
+  // Once the user ticks/unticks it themselves, stop auto-defaulting.
+  const nativeWebSearchTouched = useRef(false);
+  const [nativeSearch, setNativeSearch] = useState<
+    Pick<ModelConfigurationDraft, 'nativeSearchAdapter' | 'nativeSearchOptions'>
+  >({ nativeSearchAdapter: '' });
   const [imageApiStyle, setImageApiStyle] = useState(EMPTY_GENERATION_ROUTE_FIELDS.imageApiStyle);
   const [imagePath, setImagePath] = useState('');
   const [imageGenTimeout, setImageGenTimeout] = useState('');
@@ -63,6 +88,7 @@ export function AddModelDialog({
   const [videoTimeoutSeconds, setVideoTimeoutSeconds] = useState('');
   const [videoPollIntervalSeconds, setVideoPollIntervalSeconds] = useState('');
   const [reasoning, setReasoning] = useState(true);
+  const [modelProtocol, setModelProtocol] = useState<ModelConfigurationDraft['protocol']>('');
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<ModelCatalogEntry[]>([]);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -87,6 +113,9 @@ export function AddModelDialog({
     setSpeechToText(false);
     setTextToSpeech(false);
     setNativeWebSearch(false);
+    nativeWebSearchTouched.current = false;
+    setNativeSearch({ nativeSearchAdapter: '' });
+    setModelProtocol('');
     setImageApiStyle(EMPTY_GENERATION_ROUTE_FIELDS.imageApiStyle);
     setImagePath('');
     setImageGenTimeout('');
@@ -102,6 +131,24 @@ export function AddModelDialog({
     setHighlightIndex(-1);
     searchSeq.current += 1;
   }, [open]);
+
+  // Default the 「模型内置搜索」 tag the same way model discovery does (ADR 0043):
+  // a search-capable family whose effective protocol can express its search.
+  useEffect(() => {
+    if (nativeWebSearchTouched.current || isSubscription) return;
+    const id = modelId.trim();
+    const effectiveProtocol = modelProtocol || protocol;
+    const effectiveBaseUrl =
+      baseUrl && effectiveProtocol !== protocol ? rebaseForProtocol(baseUrl, effectiveProtocol) : baseUrl;
+    setNativeWebSearch(
+      id.length > 0 &&
+        suggestDiscoveredNativeSearch({
+          protocol: effectiveProtocol,
+          ...(effectiveBaseUrl ? { baseUrl: effectiveBaseUrl } : {}),
+          modelId: id,
+        }) !== undefined,
+    );
+  }, [modelId, modelProtocol, protocol, baseUrl, isSubscription]);
 
   useEffect(() => {
     return () => {
@@ -233,7 +280,10 @@ export function AddModelDialog({
       supportsTextToSpeech: textToSpeech,
       supportsRealtimeAudio: realtimeAudio,
       supportsNativeWebSearch: nativeWebSearch,
+      nativeSearchAdapter: nativeSearch.nativeSearchAdapter,
+      ...(nativeSearch.nativeSearchOptions ? { nativeSearchOptions: nativeSearch.nativeSearchOptions } : {}),
       reasoning,
+      ...(modelProtocol ? { protocol: modelProtocol } : {}),
       imageApiStyle,
       imagePath,
       imageTimeoutSeconds: imageGenTimeout,
@@ -449,8 +499,12 @@ export function AddModelDialog({
             <input
               type="checkbox"
               checked={nativeWebSearch}
-              onChange={(event) => setNativeWebSearch(event.currentTarget.checked)}
+              onChange={(event) => {
+                nativeWebSearchTouched.current = true;
+                setNativeWebSearch(event.currentTarget.checked);
+              }}
               data-testid="add-model-native-web-search"
+              disabled={nativeSearchBlocker !== undefined}
             />
             {copy.nativeSearch}
           </label>
@@ -464,6 +518,32 @@ export function AddModelDialog({
             {isChinese ? '支持推理 / Thinking' : 'Supports reasoning / thinking'}
           </label>
         </div>
+        {isSubscription ? null : (
+          <ModelProtocolField
+            value={modelProtocol}
+            providerProtocol={protocol}
+            {...(baseUrl ? { providerBaseUrl: baseUrl } : {})}
+            isChinese={isChinese}
+            testId="add-model-protocol"
+            onChange={setModelProtocol}
+          />
+        )}
+        <NativeSearchAdapterFields
+          draft={toDraft()}
+          protocol={protocol}
+          {...(chatApi ? { chatApi } : {})}
+          {...(baseUrl ? { baseUrl } : {})}
+          allowProtocolSwitch={!isSubscription}
+          isChinese={isChinese}
+          onChange={(update) => {
+            const next = update(toDraft());
+            setModelProtocol(next.protocol ?? '');
+            setNativeSearch({
+              nativeSearchAdapter: next.nativeSearchAdapter,
+              ...(next.nativeSearchOptions ? { nativeSearchOptions: next.nativeSearchOptions } : {}),
+            });
+          }}
+        />
         <ModelGenerationRouteFields
           draft={toDraft()}
           isChinese={isChinese}

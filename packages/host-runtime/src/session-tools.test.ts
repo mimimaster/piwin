@@ -61,14 +61,11 @@ describe('buildSessionTools', () => {
       providerId: 'gemini',
       modelId: 'gemini-search',
     };
-    const search = vi.fn(async () => [
-      {
-        title: 'Delegated result',
-        url: 'https://example.com/delegated',
-        snippet: 'fresh',
-        source: 'model-delegate',
-      },
-    ]);
+    const search = vi.fn(async () => ({
+      query: 'latest',
+      providerId: 'gemini',
+      hits: [{ title: 'Delegated result', url: 'https://example.com/delegated', snippet: 'fresh' }],
+    }));
     const { tools } = buildSessionTools({
       webConfig: { ...createDefaultWebConfig(), searchDelegateModel: model },
       webSearchDelegate: { model, search },
@@ -79,7 +76,7 @@ describe('buildSessionTools', () => {
     const result = await tool.execute({ query: 'latest' }, new AbortController().signal, context);
 
     if (!result.ok) throw new Error(result.message);
-    expect(result.output).toContain('model-delegate:gemini/gemini-search');
+    expect(result.output).toContain('native:gemini/gemini-search');
     expect(result.output).toContain('Delegated result');
     expect(search).toHaveBeenCalledOnce();
   });
@@ -209,6 +206,8 @@ describe('buildSessionTools', () => {
 
   it('uses the shared interactive gate before the web executor', async () => {
     const requestPermission = vi.fn(async () => 'allow' as const);
+    // Missing Brave key, then the DuckDuckGo floor is bot-blocked: no network.
+    vi.stubGlobal('fetch', (async () => new Response('', { status: 202 })) as typeof fetch);
     const { tools } = buildSessionTools({
       webConfig: {
         searchProvider: 'brave',
@@ -240,6 +239,7 @@ describe('buildSessionTools', () => {
     expect(requestPermission).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'network:web_search', detail: 'hello world' }),
     );
+    vi.unstubAllGlobals();
   });
 
   it('keeps remembered project network approvals in the shared gate', async () => {

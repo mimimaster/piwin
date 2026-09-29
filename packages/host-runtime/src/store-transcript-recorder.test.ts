@@ -355,63 +355,57 @@ describe('createStoreTranscriptRecorder', () => {
     store.close();
   });
 
-  it('persists and merges native search evidence before assistant finalization', async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-search-evidence-'));
+  it('persists native web_search presentation (badge, queries, suggestions) across reopen', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-native-search-'));
+    const dbPath = join(rootDir, 'transcript.sqlite3');
     const store = await openSessionTranscriptStore({
-      dbPath: join(rootDir, 'transcript.sqlite3'),
-      sessionId: 'session-search-evidence',
+      dbPath,
+      sessionId: 'session-native-search',
       projectPath: '/project',
     });
-    const recorder = createStoreTranscriptRecorder({
-      store,
-      runtimeGenerationId: 'generation-search-evidence',
-    });
-
-    await recorder.recordEvent({
-      type: 'message/start',
-      messageId: 'assistant-search',
-      role: 'assistant',
-    });
-    await recorder.recordEvent({
-      type: 'message/search_evidence',
-      messageId: 'assistant-search',
-      evidence: {
-        query: 'piwin',
-        provenance: 'native',
-        citations: [{ title: 'First', url: 'https://example.com/a', provenance: 'native' }],
+    const recorder = createStoreTranscriptRecorder({ store, runtimeGenerationId: 'gen-native' });
+    const webSearch = {
+      kind: 'web-search-diagnostics' as const,
+      providerId: 'native:gemini/g',
+      hitCount: 1,
+      durationMs: 5,
+      attempts: [{ sourceId: 'native:gemini/g', ok: true, hitCount: 1, durationMs: 5 }],
+      native: {
+        diagnostic: {
+          providerId: 'gemini',
+          adapter: 'google-search-tool' as const,
+          transport: 'gemini-rest' as const,
+          eventDetected: true,
+          hitCount: 1,
+          durationMs: 5,
+        },
+        searchQueries: ['issued'],
+        searchSuggestionsHtml: '<div>chips</div>',
       },
-    });
+    };
+    await recorder.recordEvent({ type: 'message/start', messageId: 'a-native', role: 'assistant', runId: 'r' });
+    await recorder.recordEvent({ type: 'tool/start', toolCallId: 'ws-1', toolName: 'web_search', runId: 'r' });
     await recorder.recordEvent({
-      type: 'message/search_evidence',
-      messageId: 'assistant-search',
-      evidence: {
-        query: 'changed query',
-        provenance: 'native',
-        citations: [
-          { title: 'Changed', url: 'HTTPS://EXAMPLE.COM/a', provenance: 'native' },
-          { title: 'Second', url: 'https://example.com/b', provenance: 'native' },
-        ],
-      },
+      type: 'tool/end',
+      toolCallId: 'ws-1',
+      isError: false,
+      runId: 'r',
+      presentation: { kind: 'web', title: 'web_search', webSearch },
     });
-    await recorder.recordEvent({
-      type: 'message/end',
-      messageId: 'assistant-search',
-    });
+    await recorder.recordEvent({ type: 'message/end', messageId: 'a-native', runId: 'r' });
     await recorder.flush();
-
-    expect(await store.getMessage('assistant-search')).toMatchObject({
-      status: 'done',
-      searchEvidence: {
-        query: 'piwin',
-        provenance: 'native',
-        citations: [
-          { title: 'First', url: 'https://example.com/a', provenance: 'native' },
-          { title: 'Second', url: 'https://example.com/b', provenance: 'native' },
-        ],
-      },
-    });
     recorder.dispose();
     store.close();
+
+    const reopened = await openSessionTranscriptStore({
+      dbPath,
+      sessionId: 'session-native-search',
+      projectPath: '/project',
+    });
+    const tool = (await reopened.getMessage('a-native'))?.tools?.[0];
+    expect(tool?.presentation?.webSearch?.native?.searchSuggestionsHtml).toBe('<div>chips</div>');
+    expect(tool?.presentation?.webSearch?.native?.diagnostic.transport).toBe('gemini-rest');
+    reopened.close();
   });
 
   it('persists Pi tool events that arrive after the owning message ends', async () => {

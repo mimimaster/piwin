@@ -9,7 +9,6 @@ import type {
 } from '@piwin/contracts';
 import {
   collectWorkspaceWrites,
-  mergeSearchEvidence,
   mergeWorkspaceWrites,
   normalizeAgentFailure,
 } from '@piwin/contracts';
@@ -157,8 +156,7 @@ export function createStoreTranscriptRecorder(options: {
         message.text.trim().length === 0 &&
         (message.thinking ?? '').trim().length === 0 &&
         (message.tools?.length ?? 0) === 0 &&
-        (message.attachments?.length ?? 0) === 0 &&
-        (message.searchEvidence?.citations.length ?? 0) === 0
+        (message.attachments?.length ?? 0) === 0
       ) {
         dirtyMessageIds.delete(messageId);
         await options.store.deleteMessage(messageId);
@@ -470,19 +468,6 @@ export function createStoreTranscriptRecorder(options: {
             await flushNow();
             break;
           }
-          case 'message/search_evidence': {
-            if (quarantinedMessageIds.has(event.messageId)) break;
-            await mutateActive(
-              event.messageId,
-              (message) => ({
-                ...message,
-                searchEvidence: mergeSearchEvidence(message.searchEvidence, event.evidence),
-              }),
-              'message/search_evidence',
-            );
-            await flushNow();
-            break;
-          }
           case 'message/end': {
             if (quarantinedMessageIds.has(event.messageId)) break;
             const eventAt = new Date().toISOString();
@@ -495,8 +480,7 @@ export function createStoreTranscriptRecorder(options: {
             if (
               completed.text.trim().length === 0 &&
               (completed.thinking ?? '').trim().length === 0 &&
-              (completed.tools?.length ?? 0) === 0 &&
-              (completed.searchEvidence?.citations.length ?? 0) === 0
+              (completed.tools?.length ?? 0) === 0
             ) {
               // Pi ends the Assistant message carrying a tool call before it
               // emits tool_execution_start. Defer empty-row pruning until a
@@ -722,6 +706,7 @@ function messagePatch(message: SessionTranscriptMessage): TranscriptStoreMessage
       ...(message.subagentActivity !== undefined
         ? { subagentActivity: message.subagentActivity }
         : {}),
+      // Legacy read-only field: carry it through so rewriting an old row keeps it.
       ...(message.searchEvidence !== undefined ? { searchEvidence: message.searchEvidence } : {}),
       ...(message.workspaceWrites !== undefined
         ? { workspaceWrites: message.workspaceWrites }

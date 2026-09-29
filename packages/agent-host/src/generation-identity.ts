@@ -116,7 +116,6 @@ export function normalizeAgentEventIds(
     case 'message/text_snapshot':
     case 'message/thinking_delta':
     case 'message/tool_args_progress':
-    case 'message/search_evidence':
     case 'message/end': {
       return {
         ...event,

@@ -41,3 +41,27 @@ describe('web_search tool presentation', () => {
     expect(event.presentation?.webSearch?.attempts[0]?.timedOut).toBe(true);
   });
 });
+
+describe('native web_search presentation', () => {
+  it('carries native details (badge, queries, suggestions) into presentation', () => {
+    const nativeDetails = {
+      ...details,
+      providerId: 'native:gemini/g',
+      native: {
+        diagnostic: {
+          providerId: 'gemini',
+          adapter: 'google-search-tool' as const,
+          transport: 'gemini-rest' as const,
+          eventDetected: true,
+          hitCount: 1,
+          durationMs: 3,
+        },
+        searchQueries: ['q'],
+        searchSuggestionsHtml: '<div>chips</div>',
+      },
+    };
+    const presentation = buildToolPresentation({ toolName: 'web_search', details: nativeDetails });
+    expect(presentation.webSearch?.native?.diagnostic.transport).toBe('gemini-rest');
+    expect(presentation.webSearch?.native?.searchSuggestionsHtml).toBe('<div>chips</div>');
+  });
+});

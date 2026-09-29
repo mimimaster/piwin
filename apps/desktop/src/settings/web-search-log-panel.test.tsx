@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HostResponse, WebSearchLogEntry } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
-import { WebSearchLogPanel, type WebSearchLogPanelProps } from './web-search-log-panel';
+import { parseWebSearchSourceInfo, WebSearchLogPanel, type WebSearchLogPanelProps } from './web-search-log-panel';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -183,5 +183,52 @@ describe('WebSearchLogPanel', () => {
     await flush();
     expect(cleared).toBe(true);
     expect(container.querySelector('[data-testid="web-search-log-empty"]')).not.toBeNull();
+  });
+});
+
+describe('parseWebSearchSourceInfo', () => {
+  it('labels native executor ids as model-native search', () => {
+    expect(parseWebSearchSourceInfo('native:gemini/gemini-search', true)).toMatchObject({
+      kind: 'model',
+      label: '模型内置',
+      title: '模型内置搜索 (gemini/gemini-search)',
+    });
+    expect(parseWebSearchSourceInfo('model-delegate:gemini/gemini-search', false).kind).toBe('model');
+  });
+});
+
+describe('web search log native rows', () => {
+  it('labels native rows by vendor and marks fallback', async () => {
+    const { describeLogSource, formatNativeSummary } = await import('./web-search-log-panel.js');
+    const base = {
+      id: '1',
+      recordedAt: '2026-01-01T00:00:00Z',
+      sessionId: 's',
+      query: 'q',
+      ok: true,
+      hitCount: 1,
+      durationMs: 5,
+      attempts: [],
+    };
+    const native = {
+      providerId: 'anthropic',
+      adapter: 'anthropic-web-search-tool' as const,
+      transport: 'pi-tee' as const,
+      eventDetected: true,
+      searchQueryCount: 2,
+    };
+    expect(describeLogSource({ ...base, providerId: 'native:anthropic/claude', native }, false).label).toBe(
+      'Anthropic native',
+    );
+    const fellBack = describeLogSource(
+      { ...base, providerId: 'tavily', native: { ...native, fellBackToSources: true } },
+      true,
+    );
+    expect(fellBack.label).toBe('Anthropic 内置 → 回退');
+    expect(fellBack.title).toContain('Tavily');
+    expect(formatNativeSummary(native, false)).toBe(
+      'anthropic-web-search-tool · pi-tee · search event detected · 2 provider queries',
+    );
+    expect(describeLogSource({ ...base, providerId: 'brave' }, false).label).toBe('Brave');
   });
 });

@@ -6,6 +6,7 @@ import {
   DEFAULT_FETCH_RETURN_MAX_CHARS,
   DEFAULT_FETCH_STORE_MAX_CHARS,
   DEFAULT_SEARCH_ROUTE_POLICY,
+  DEFAULT_SEARCH_NATIVE_TIMEOUT_MS,
   type WebConfig,
 } from './web.js';
 import type { SkillsConfig } from './skills.js';
@@ -52,17 +53,16 @@ export type ModelCapability =
  * - `xai-web-search-tool`         — xAI Responses API `tools: [{type: web_search}]`.
  * - `anthropic-web-search-tool`   — Anthropic versioned `web_search_*` tool entry.
  * - `google-search-tool`          — Gemini `googleSearch` tool in `config.tools`.
- * - `vendor-specific`             — custom header/extra_body/tool shape that the
- *   generic adapter cannot express; native readiness must be reported as
- *   unsupported until a dedicated adapter exists.
+ *
+ * The adapter is the Host `web_search` sub-request wire shape. It is
+ * independent of the provider's ordinary chat transport.
  */
 export type NativeSearchAdapterKind =
   | 'openai-web-search-options'
   | 'openai-responses-tool'
   | 'xai-web-search-tool'
   | 'anthropic-web-search-tool'
-  | 'google-search-tool'
-  | 'vendor-specific';
+  | 'google-search-tool';
 
 /** Pi chat transport selected independently from provider protocol. */
 export type ProviderChatApi =
@@ -171,12 +171,15 @@ export type ModelConfigEntry = {
   /** Capabilities this model supports. Omit = ['chat'] for backward compat. */
   capabilities?: ModelCapability[];
   /**
-   * Wire mechanism the provider expects for native web search (ADR 0043).
-   * Declares how the request must be shaped, independently of the transport
-   * protocol: an openai-compatible gateway can still require a vendor header
-   * or tool shape that the generic adapter cannot express. A model tagged
-   * `native-web-search` without this field fails closed; protocol alone never
-   * selects a request shape.
+   * Request protocol for this model when it differs from its provider's
+   * (ADR 0079), e.g. a Gemini model on a multi-format gateway row. Omitted =
+   * inherit. Resolve through `resolveModelEndpoint`; ignored on subscriptions.
+   */
+  protocol?: ModelProviderConfig['protocol'];
+  /**
+   * Wire mechanism for native web search (ADR 0043). Optional: when omitted
+   * on a tagged model, Host infers from protocol / official vendor host.
+   * An explicit incompatible value fails closed.
    */
   nativeSearchAdapter?: NativeSearchAdapterKind;
   /** Adapter-specific native-search options. Ignored unless the adapter matches. */
@@ -385,6 +388,12 @@ export type DiscoveredModel = {
    * (Gemini image, heuristic gateway ids) also include `chat`.
    */
   capabilities?: ModelCapability[];
+  /**
+   * Suggested native-search wire shape from official-vendor discovery.
+   * Desktop import fills `ModelConfigEntry.nativeSearchAdapter` only when
+   * the configured row does not already have one.
+   */
+  nativeSearchAdapter?: NativeSearchAdapterKind;
   /**
    * Video-generation suggestion from explicit provider metadata, the curated
    * registry, or a name heuristic. Registry and provider matches may also set
@@ -927,6 +936,7 @@ export function createDefaultWebConfig(): WebConfig {
     searchApiKeyEnv: '',
     searchMaxResults: 10,
     searchTimeoutMs: 15000,
+    searchNativeTimeoutMs: DEFAULT_SEARCH_NATIVE_TIMEOUT_MS,
     searchSources: [],
     searchStrategy: { mode: 'parallel', perSourceTimeoutMs: 8000 },
     searchRoutePolicy: DEFAULT_SEARCH_ROUTE_POLICY,

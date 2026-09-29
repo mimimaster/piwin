@@ -236,4 +236,36 @@ describe('AddModelDialog catalog autocomplete', () => {
       }),
     );
   });
+
+  it('defaults 模型内置搜索 for search-capable models until the user touches it', () => {
+    renderDialog(
+      <AddModelDialog
+        open
+        onOpenChange={vi.fn()}
+        existingModelIds={[]}
+        onAdd={vi.fn()}
+        protocol="openai-compatible"
+        baseUrl="http://127.0.0.1:8317/v1"
+      />,
+    );
+    const scope = document.body;
+    const input = resolveInput(scope, 'add-model-id-input');
+    const searchBox = (): HTMLInputElement | null =>
+      scope.querySelector<HTMLInputElement>('[data-testid="add-model-native-web-search"]');
+
+    act(() => setInputValue(input, 'grok-4.7'));
+    expect(searchBox()?.checked).toBe(true);
+    // Gemini on an OpenAI row cannot run Gemini search: not defaulted.
+    act(() => setInputValue(input, 'gemini-3.8-flash-high'));
+    expect(searchBox()?.checked).toBe(false);
+    act(() => setInputValue(input, 'glm-4.1v'));
+    expect(searchBox()?.checked).toBe(false);
+
+    // A manual choice wins over later id edits.
+    act(() => setInputValue(input, 'grok-4.7'));
+    act(() => searchBox()?.click());
+    expect(searchBox()?.checked).toBe(false);
+    act(() => setInputValue(input, 'grok-4.6'));
+    expect(searchBox()?.checked).toBe(false);
+  });
 });

@@ -538,7 +538,7 @@ describe('compileBlueprintForWorker', () => {
     );
 
     expect(web.searchSources[0]?.enabled).toBe(false);
-    expect(result.blueprint.searchRoute?.selected).toBe('external');
+    expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.chain[0]).toMatch(/^(sources|duckduckgo)$/);
     expect(result.blueprint.tools.enabledFamilies).toContain('web-search');
     expect(result.blueprint.tools.enabledFamilies).toContain('web-fetch');
     expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain('web_search');
@@ -1326,7 +1326,7 @@ describe('compileBlueprintForWorker', () => {
   });
 
   describe('search route resolution', () => {
-    it('selects native search and hides the external web_search tool when the policy is native-first', async () => {
+    it('selects native search and still exposes web_search (its only outlet) when native-first', async () => {
       const web = createExternalSearchWebConfig('native-first');
       const webSearchDescriptor = {
         name: 'web_search',
@@ -1347,7 +1347,7 @@ describe('compileBlueprintForWorker', () => {
             name: 'xAI local',
             baseUrl: 'https://api.example.test/v1',
             apiKeyEnv: 'XAI_API_KEY',
-            models: [{ id: 'grok-4.5', capabilities: ['chat', 'native-web-search'], nativeSearchAdapter: 'openai-web-search-options' }],
+            models: [{ id: 'grok-4.5', capabilities: ['chat', 'native-web-search'], nativeSearchAdapter: 'xai-web-search-tool' }],
           },
         ],
       });
@@ -1369,14 +1369,13 @@ describe('compileBlueprintForWorker', () => {
         },
       );
 
-      expect(result.blueprint.searchRoute?.selected).toBe('native');
-      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.selected).toBe('native');
+      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.chain[0]).toBe('native');
       const blueprintHostToolNames = result.blueprint.tools.hostTools.map((tool) => tool.name);
       const snapshotHostToolNames = result.sessionBlueprint.capabilitySnapshot.tools.hostTools.map(
         (tool) => tool.name,
       );
-      expect(blueprintHostToolNames).not.toContain('web_search');
-      expect(snapshotHostToolNames).not.toContain('web_search');
+      expect(blueprintHostToolNames).toContain('web_search');
+      expect(snapshotHostToolNames).toContain('web_search');
     });
 
     it('falls back to external search when the model declares a vendor-specific native adapter (native-first)', async () => {
@@ -1404,10 +1403,9 @@ describe('compileBlueprintForWorker', () => {
               {
                 id: 'grok-4.5',
                 capabilities: ['chat', 'native-web-search'],
-                // The vendor gateway needs proprietary request shaping that the
-                // adapter cannot express; native search must not be selected or
-                // this generation would lose both search outlets.
-                nativeSearchAdapter: 'vendor-specific' as const,
+                // An unknown saved adapter fails closed; native search must not
+                // be selected or this generation would lose both search outlets.
+                nativeSearchAdapter: 'not-an-adapter' as never,
               },
             ],
           },
@@ -1431,8 +1429,8 @@ describe('compileBlueprintForWorker', () => {
         },
       );
 
-      expect(result.blueprint.searchRoute?.selected).toBe('external');
-      expect(result.blueprint.searchRoute?.readiness.native.ready).toBe(false);
+      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.chain[0]).toMatch(/^(sources|duckduckgo)$/);
+      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.readiness.native.ready).toBe(false);
       expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain('web_search');
     });
 
@@ -1484,8 +1482,7 @@ describe('compileBlueprintForWorker', () => {
         },
       );
 
-      expect(result.blueprint.searchRoute?.selected).toBe('external');
-      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.selected).toBe('external');
+      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.chain[0]).toMatch(/^(sources|duckduckgo)$/);
       const blueprintHostToolNames = result.blueprint.tools.hostTools.map((tool) => tool.name);
       const snapshotHostToolNames = result.sessionBlueprint.capabilitySnapshot.tools.hostTools.map(
         (tool) => tool.name,
@@ -1553,8 +1550,8 @@ describe('compileBlueprintForWorker', () => {
         },
       );
 
-      expect(result.blueprint.searchRoute?.selected).toBe('external');
-      expect(result.blueprint.searchRoute?.readiness.external.hasDelegateModel).toBe(true);
+      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.chain[0]).toBe('native');
+      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.readiness.native.hasDelegateModel).toBe(true);
       expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain('web_search');
     });
 
@@ -1600,7 +1597,7 @@ describe('compileBlueprintForWorker', () => {
         },
       );
 
-      expect(result.blueprint.searchRoute?.selected).toBe('external');
+      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.chain[0]).toMatch(/^(sources|duckduckgo)$/);
       expect(result.blueprint.tools.enabledFamilies).toContain('web-search');
       expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain('web_search');
     });
@@ -1960,7 +1957,7 @@ describe('conversation fast path (pure chat)', () => {
   it('keeps the web search route and its external outlet', async () => {
     const result = await compileBlueprintForWorker({ scope: generalScope }, conversationOptions);
 
-    expect(result.blueprint.searchRoute?.selected).toBe('external');
+    expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.chain[0]).toMatch(/^(sources|duckduckgo)$/);
     expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain('web_search');
   });
 

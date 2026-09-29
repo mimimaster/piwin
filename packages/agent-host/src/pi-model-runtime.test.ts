@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MODEL_MAX_OUTPUT_TOKENS } from '@piwin/contracts';
-import type { ModelProviderConfig, ResolvedSearchRoute } from '@piwin/contracts';
+import type { ModelProviderConfig } from '@piwin/contracts';
 import { lookupCatalogByModelId } from './model-catalog-reader.js';
 import { buildPiProviderRegistration, resolvePiApiForProvider } from './pi-model-runtime.js';
 import type { NativeSearchStreamSimple } from './native-web-search.js';
@@ -267,19 +267,6 @@ describe('pi-model-runtime', () => {
   });
 
   describe('native search streamSimple', () => {
-    function route(selected: 'native' | 'external' | null): ResolvedSearchRoute {
-      return {
-        policy: selected === 'native' ? 'native-first' : 'external-only',
-        selected,
-        fallback: null,
-        readiness: {
-          native: { ready: true, reasons: [] },
-          external: { ready: true, reasons: [] },
-        },
-        issues: [],
-      };
-    }
-
     function baseStreamSimple(initialPayload?: Record<string, unknown>): {
       stream: NativeSearchStreamSimple;
       payloads: unknown[];
@@ -302,7 +289,7 @@ describe('pi-model-runtime', () => {
       return { stream, payloads };
     }
 
-    it('injects native search fields when the route is native', async () => {
+    it('never injects hosted search into main-session registrations (ADR 0043)', async () => {
       const base = baseStreamSimple({
         model: 'test-model',
         messages: [],
@@ -318,12 +305,12 @@ describe('pi-model-runtime', () => {
           {
             id: 'grok-4.5',
             capabilities: ['chat', 'native-web-search'],
+            nativeSearchAdapter: 'openai-web-search-options',
           },
         ],
       };
 
       const registration = buildPiProviderRegistration(provider, 'secret', {
-        searchRoute: route('native'),
         streamSimple: base.stream,
       });
 
@@ -332,13 +319,31 @@ describe('pi-model-runtime', () => {
         {},
         {},
       );
-      expect(result).toBeDefined();
-      const record = result as Record<string, unknown>;
-      expect(record).toHaveProperty('web_search_options');
-      const tools = Array.isArray(record.tools) ? record.tools : [];
-      expect(tools).not.toEqual(
-        expect.arrayContaining([expect.objectContaining({ type: 'web_search_preview' })]),
+      // Main sessions are not wrapped: the payload reaches Pi untouched.
+      expect(result).toEqual({ model: 'test-model', messages: [], tools: [{ type: 'function' }] });
+    });
+
+    it('injects hosted search only for the explicit native executor', async () => {
+      const base = baseStreamSimple({ model: 'test-model', messages: [] });
+      const provider: ModelProviderConfig = {
+        id: 'xai-local',
+        protocol: 'openai-compatible',
+        name: 'xAI local',
+        baseUrl: 'https://api.example.test/v1',
+        models: [
+          { id: 'grok-4.5', capabilities: ['chat', 'native-web-search'], nativeSearchAdapter: 'openai-web-search-options' },
+        ],
+      };
+      const registration = buildPiProviderRegistration(provider, 'secret', {
+        streamSimple: base.stream,
+        injectNativeSearch: true,
+      });
+      const result = await registration.streamSimple?.(
+        { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' },
+        {},
+        {},
       );
+      expect(result).toHaveProperty('web_search_options');
     });
 
     it('installs a real Pi base stream when production does not inject a test stream', () => {
@@ -351,7 +356,6 @@ describe('pi-model-runtime', () => {
       };
 
       const registration = buildPiProviderRegistration(provider, undefined, {
-        searchRoute: route('native'),
       });
 
       expect(registration.streamSimple).toBeTypeOf('function');
@@ -411,10 +415,16 @@ describe('pi-model-runtime', () => {
           protocol: 'openai-compatible',
           name: 'Native provider',
           baseUrl: `http://127.0.0.1:${address.port}/v1`,
-          models: [{ id: 'search-model', capabilities: ['chat', 'native-web-search'] }],
+          models: [
+            {
+              id: 'search-model',
+              capabilities: ['chat', 'native-web-search'],
+              nativeSearchAdapter: 'openai-web-search-options',
+            },
+          ],
         };
         const registration = buildPiProviderRegistration(provider, 'test-key', {
-          searchRoute: route('native'),
+          injectNativeSearch: true,
         });
         const model = registration.models[0];
         const streamSimple = registration.streamSimple;
@@ -472,40 +482,68 @@ describe('pi-model-runtime', () => {
       expect(result.prompt_cache_key).toHaveLength(16);
       expect(payloads[0]).toMatchObject({ prompt_cache_key: result.prompt_cache_key });
     });
+  });
 
-    it('strips native search fields when the route is external', async () => {
-      const base = baseStreamSimple();
+  it('routes each model of one gateway row to its own wire (ADR 0079)', async () => {
+    const seen: Array<{ path: string; auth: string | undefined; googKey: string | undefined }> = [];
+    const server = createServer((request, response) => {
+      seen.push({
+        path: request.url ?? '',
+        auth: request.headers.authorization,
+        googKey: request.headers['x-goog-api-key'] as string | undefined,
+      });
+      request.resume();
+      response.writeHead(500, { 'content-type': 'application/json' });
+      response.end('{"error":{"message":"recorded"}}');
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('no TCP address');
       const provider: ModelProviderConfig = {
-        id: 'xai-local',
+        id: 'cpa',
         protocol: 'openai-compatible',
-        name: 'xAI local',
-        baseUrl: 'https://api.example.test/v1',
-        apiKeyEnv: 'XAI_API_KEY',
-        models: [
-          {
-            id: 'grok-4.5',
-            capabilities: ['chat', 'native-web-search'],
-          },
-        ],
+        name: 'CPA',
+        baseUrl: `http://127.0.0.1:${address.port}/v1`,
+        models: [{ id: 'grok-4.7' }, { id: 'gemini-3.8-flash-high', protocol: 'google-gemini' }],
       };
-
-      const registration = buildPiProviderRegistration(provider, 'secret', {
-        searchRoute: route('external'),
-        streamSimple: base.stream,
+      const registration = buildPiProviderRegistration(provider, 'gw-key');
+      const byId = new Map(registration.models.map((model) => [model.id, model]));
+      expect(byId.get('grok-4.7')).toMatchObject({
+        api: 'openai-completions',
+        baseUrl: `http://127.0.0.1:${address.port}/v1`,
+      });
+      expect(byId.get('gemini-3.8-flash-high')).toMatchObject({
+        api: 'google-generative-ai',
+        baseUrl: `http://127.0.0.1:${address.port}/v1beta`,
       });
 
-      const result = await registration.streamSimple?.(
-        { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' },
-        {},
-        {},
-      );
-      expect(result).toBeDefined();
-      const record = result as Record<string, unknown>;
-      expect(record).not.toHaveProperty('web_search_options');
-      const tools = Array.isArray(record.tools) ? record.tools : [];
-      expect(tools).not.toEqual(
-        expect.arrayContaining([expect.objectContaining({ type: 'web_search_preview' })]),
-      );
-    });
+      const streamSimple = registration.streamSimple;
+      if (!streamSimple) throw new Error('stream missing');
+      for (const id of ['grok-4.7', 'gemini-3.8-flash-high']) {
+        const model = byId.get(id);
+        if (!model) throw new Error(`model ${id} missing`);
+        const stream = streamSimple(
+          { ...model, provider: provider.id },
+          { messages: [{ role: 'user', content: 'hi', timestamp: 1 }] },
+          { apiKey: 'gw-key' },
+        ) as { result?: () => Promise<unknown> };
+        await stream.result?.();
+      }
+
+      expect(seen.find((entry) => entry.path.startsWith('/v1/chat/completions'))).toMatchObject({
+        auth: 'Bearer gw-key',
+      });
+      expect(
+        seen.find((entry) =>
+          entry.path.startsWith('/v1beta/models/gemini-3.8-flash-high:streamGenerateContent'),
+        ),
+      ).toMatchObject({ googKey: 'gw-key' });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

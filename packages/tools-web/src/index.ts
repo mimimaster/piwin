@@ -10,11 +10,7 @@ export { mergeSearchHitBatches, normalizeSearchHitUrl } from './search-merge.js'
 export type { SourceHitBatch } from './search-merge.js';
 export { createProviderForSource } from './search-source-providers.js';
 export { testSearchSource } from './search-source-test.js';
-export {
-  parseWebSearchModelResponse,
-  sameModelRef,
-  WebSearchModelDelegateResponseError,
-} from './model-search-delegate.js';
+export { sameModelRef } from './model-search-delegate.js';
 export type { WebSearchModelDelegate } from './model-search-delegate.js';
 export {
   createDefaultFetchConfig,

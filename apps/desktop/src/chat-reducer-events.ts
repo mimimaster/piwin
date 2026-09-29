@@ -1,5 +1,4 @@
 import type { AgentEvent } from '@piwin/contracts';
-import { mergeSearchEvidence } from '@piwin/contracts';
 import { createBoundedTextAccumulator } from './bounded-text-accumulator';
 import { ensureFailedRunAssistant, markLatestAssistantFailure } from './run-failure-message';
 import type {
@@ -220,18 +219,6 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
           },
         };
       });
-    }
-    case 'message/search_evidence': {
-      if (isStaleOptionalRunEvent(state, event.runId)) {
-        return state;
-      }
-      if (!state.messages.some((message) => message.id === event.messageId)) {
-        return state;
-      }
-      return updateMessage(state, event.messageId, (message) => ({
-        ...message,
-        searchEvidence: mergeSearchEvidence(message.searchEvidence, event.evidence),
-      }));
     }
     case 'message/end': {
       if (isStaleOptionalRunEvent(state, event.runId)) {

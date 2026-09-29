@@ -7,6 +7,7 @@ import {
   isSubscriptionProvider,
   isV1SubscriptionProviderId,
   modelSupportsCapability,
+  resolveModelEndpoint,
 } from '@piwin/contracts';
 import type { SerializableProviderRuntime } from '@piwin/agent-host';
 import { getEnabledProviders } from './provider-helpers.js';
@@ -278,16 +279,21 @@ function buildProviderRuntime(
     ...(provider.headers ? { headers: provider.headers } : {}),
     models: provider.models
       .filter((model) => modelSupportsCapability(model, 'chat'))
-      .map((model) => ({
-        id: model.id,
-        ...(model.label ? { label: model.label } : {}),
-        ...(model.input ? { input: [...model.input] } : {}),
-        ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-        ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
-        ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
-        ...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
-        ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
-      })),
+      .map((model) => {
+        const endpoint = resolveModelEndpoint(provider, model);
+        return {
+          id: model.id,
+          ...(model.label ? { label: model.label } : {}),
+          ...(model.input ? { input: [...model.input] } : {}),
+          ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+          ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
+          ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+          ...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
+          ...(endpoint !== provider
+            ? { protocol: endpoint.protocol, baseUrl: endpoint.baseUrl }
+            : {}),
+        };
+      }),
     auth,
   };
 }

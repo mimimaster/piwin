@@ -3,7 +3,7 @@
  * generation share HTTP / auth / protocol parsing through this module.
  */
 import type { ModelProviderConfig } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import { formatError, resolveModelEndpointById } from '@piwin/contracts';
 import { buildProviderRequestHeaders } from './provider-model-discovery.js';
 import { createSecretResolver } from './secret-resolver.js';
 import { StructuredCompletionError } from './structured-completion-error.js';
@@ -32,9 +32,14 @@ export type StructuredCompletionDependencies = {
 };
 
 export async function completeStructuredText(
-  request: StructuredCompletionRequest,
+  input: StructuredCompletionRequest,
   dependencies: StructuredCompletionDependencies = {},
 ): Promise<StructuredCompletionResult> {
+  // ADR 0079: shape the request for the model's own wire format.
+  const request: StructuredCompletionRequest = {
+    ...input,
+    provider: resolveModelEndpointById(input.provider, input.modelId),
+  };
   const label = completionLabel(request);
   const fetchImplementation = dependencies.fetch ?? globalThis.fetch;
   if (!fetchImplementation) {

@@ -6,7 +6,6 @@ import {
   mapPiUsageEvent,
 } from './agent-usage-map.js';
 import {
-  filterDuplicateSearchEvidence,
   mapMessageEndEvent,
   mapMessageStartEvent,
   mapMessageUpdateEvent,
@@ -44,7 +43,6 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
   const presentationSeedsByToolId = new Map<string, ToolPresentationSeed>();
   const responseMessageIdsByToolId = new Map<string, string>();
   const rawToolOutputById = new Map<string, string>();
-  const citationUrlsByMessageId = new Map<string, Set<string>>();
   const surfacedProviderErrorMessages = new Set<string>();
   const streamedThinkingMessageIds = new Set<string>();
   const toolArgProgress = createToolArgProgressAccumulator();
@@ -58,7 +56,6 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
     presentationSeedsByToolId.clear();
     responseMessageIdsByToolId.clear();
     rawToolOutputById.clear();
-    citationUrlsByMessageId.clear();
     surfacedProviderErrorMessages.clear();
     streamedThinkingMessageIds.clear();
     resetToolArgProgress(toolArgProgress);
@@ -94,7 +91,6 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
         lastAssistantMessageId,
         activeMessageRole,
       )
-        .flatMap((event) => filterDuplicateSearchEvidence(event, citationUrlsByMessageId))
         .filter((event) => {
           if (event.type !== 'error') {
             return true;
@@ -166,7 +162,6 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
         }
         if (endedMessage?.type === 'message/end' && endedMessageRole === 'assistant') {
           lastAssistantMessageId = endedMessage.messageId;
-          citationUrlsByMessageId.delete(endedMessage.messageId);
         }
         activeMessageId = null;
         activeMessageRole = null;

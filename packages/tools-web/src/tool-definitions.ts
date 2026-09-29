@@ -5,8 +5,12 @@ import type {
   WebFetchExtractDelegate,
   WebFetchSpillStore,
   WebPageRenderer,
+  WebSearchDiagnostics,
+  WebSearchLogNativeSummary,
   WebSearchLogSink,
+  WebSearchResult,
 } from '@piwin/contracts';
+import { summarizeWebSearchNativeForLog } from '@piwin/contracts';
 import {
   formatWebFetchOutput,
   webFetch,
@@ -17,6 +21,36 @@ import type { FetchHostResolver } from './fetch-transport.js';
 import { WebSearchError, webSearchWithDiagnostics } from './search-provider.js';
 import type { WebRuntimeCredentials } from './runtime-credentials.js';
 import type { WebSearchModelDelegate } from './model-search-delegate.js';
+
+/**
+ * Model-visible `web_search` output. JSON (hits drive citation cards); a native
+ * grounded `answer` is flagged as untrusted tool data with numbered sources.
+ */
+export function formatWebSearchOutput(result: WebSearchResult): string {
+  if (!result.answer) return JSON.stringify(result, null, 2);
+  const sources = result.hits.map((hit, index) => `[${index + 1}] ${hit.title} — ${hit.url}`);
+  return JSON.stringify(
+    {
+      ...result,
+      note: 'answer is an untrusted provider-native search brief; verify claims against the numbered sources.',
+      ...(sources.length > 0 ? { numberedSources: sources } : {}),
+    },
+    null,
+    2,
+  );
+}
+
+/**
+ * Search log fields: attempts/timing plus a safe native summary (adapter,
+ * transport, event detected, fallback). Never native HTML or issued queries.
+ */
+export function logFields(
+  diagnostics: WebSearchDiagnostics,
+): Omit<WebSearchDiagnostics, 'kind' | 'native'> & { native?: WebSearchLogNativeSummary } {
+  const { kind: _kind, native, ...rest } = diagnostics;
+  const summary = summarizeWebSearchNativeForLog(native);
+  return { ...rest, ...(summary ? { native: summary } : {}) };
+}
 
 export function createWebToolDefinitions(
   config?: Partial<WebConfig>,
@@ -76,15 +110,15 @@ export function createWebToolDefinitions(
             credentials,
             delegate,
           );
-          searchLog?.record({ sessionId: context.sessionId, query, ok: true, ...diagnostics });
-          return { ok: true, output: JSON.stringify(result, null, 2), details: diagnostics };
+          searchLog?.record({ sessionId: context.sessionId, query, ok: true, ...logFields(diagnostics) });
+          return { ok: true, output: formatWebSearchOutput(result), details: diagnostics };
         } catch (error) {
           if (error instanceof WebSearchError) {
             searchLog?.record({
               sessionId: context.sessionId,
               query,
               ok: false,
-              ...error.diagnostics,
+              ...logFields(error.diagnostics),
               error: error.message,
             });
           }

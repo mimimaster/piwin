@@ -1,7 +1,9 @@
 import type {
+  SearchChainStep,
   SearchHit,
   WebConfig,
   WebSearchDiagnostics,
+  WebSearchNativeDetails,
   WebSearchProvider,
   WebSearchResult,
   WebSearchSource,
@@ -10,15 +12,18 @@ import type {
 } from '@piwin/contracts';
 import {
   DEFAULT_FETCH_FALLBACK,
+  DEFAULT_SEARCH_NATIVE_TIMEOUT_MS,
+  WEB_SEARCH_SUGGESTIONS_MAX_CHARS,
   WEB_SEARCH_ATTEMPT_ERROR_MAX_CHARS,
   WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
+  buildSearchChain,
   createDefaultWebConfig,
   inferSearchRoutePolicy,
 } from '@piwin/contracts';
 import { mergeSearchHitBatches, type SourceHitBatch } from './search-merge.js';
 import { createProviderForSource, type SearchProvider } from './search-source-providers.js';
 import type { WebRuntimeCredentials } from './runtime-credentials.js';
-import { sameModelRef, type WebSearchModelDelegate } from './model-search-delegate.js';
+import type { WebSearchModelDelegate } from './model-search-delegate.js';
 
 export type { SearchProvider } from './search-source-providers.js';
 
@@ -35,6 +40,8 @@ export function resolveWebConfig(partial?: Partial<WebConfig> | undefined): WebC
     searchApiKeyEnv: partial.searchApiKeyEnv ?? defaults.searchApiKeyEnv,
     searchMaxResults: partial.searchMaxResults ?? defaults.searchMaxResults,
     searchTimeoutMs: partial.searchTimeoutMs ?? defaults.searchTimeoutMs,
+    searchNativeTimeoutMs:
+      partial.searchNativeTimeoutMs ?? defaults.searchNativeTimeoutMs ?? DEFAULT_SEARCH_NATIVE_TIMEOUT_MS,
     searchSources,
     ...(partial.searchDelegateModel ? { searchDelegateModel: partial.searchDelegateModel } : {}),
     ...(partial.fetchDelegateModel ? { fetchDelegateModel: partial.fetchDelegateModel } : {}),
@@ -64,24 +71,8 @@ export function resolveWebConfig(partial?: Partial<WebConfig> | undefined): WebC
 export function createSearchProvider(
   config: WebConfig | Partial<WebConfig>,
   credentials: WebRuntimeCredentials = {},
-  delegate?: WebSearchModelDelegate,
 ): SearchProvider {
   const resolved = resolveWebConfig(config);
-  if (resolved.searchDelegateModel) {
-    const selectedModel = resolved.searchDelegateModel;
-    const providerId = `model-delegate:${selectedModel.providerId}/${selectedModel.modelId}`;
-    return {
-      id: providerId,
-      async search(query, options): Promise<SearchHit[]> {
-        if (!delegate || !sameModelRef(delegate.model, selectedModel)) {
-          throw new Error(
-            `web search delegate is unavailable: ${selectedModel.providerId}/${selectedModel.modelId}`,
-          );
-        }
-        return delegate.search(query, options);
-      },
-    };
-  }
   const enabled = usableSearchSources(resolved.searchSources, credentials);
   if (enabled.length === 1) {
     const only = enabled[0];
@@ -122,6 +113,8 @@ function usableSearchSources(
     (source) => source.kind === 'devin' && searchSourceHasKey(source, credentials),
   );
   if (selfConfigured.length === 0 && devin.length === 0 && duckduckgo.length === 0) {
+    // Chain step `duckduckgo` injects FREE_DUCKDUCKGO via a dedicated config.
+    // createSearchProvider still uses this floor so source tests stay runnable.
     return [FREE_DUCKDUCKGO];
   }
   return [...duckduckgo, ...selfConfigured, ...devin];
@@ -185,9 +178,239 @@ export async function webSearchWithDiagnostics(
   if (!trimmed) {
     throw new Error('empty search query');
   }
+  const chain = resolveSearchExecutionChain(resolved, delegate);
+  return runSearchChain(trimmed, resolved, signal, credentials, delegate, chain);
+}
+
+/**
+ * The ordered backends for one call, from the same `buildSearchChain` rule the
+ * Host route preview uses. A native executor is present exactly when the Host
+ * route includes the `native` step.
+ */
+function resolveSearchExecutionChain(
+  resolved: WebConfig,
+  delegate: WebSearchModelDelegate | undefined,
+): SearchChainStep[] {
+  const sources = resolved.searchSources;
+  return buildSearchChain({
+    policy: resolved.searchRoutePolicy ?? inferSearchRoutePolicy(undefined, sources),
+    nativeReady: delegate !== undefined,
+    hasEnabledSources: sources.some((source) => source.enabled),
+    duckduckgoEnabled: sources.some((source) => source.kind === 'duckduckgo' && source.enabled),
+  });
+}
+
+async function runSearchChain(
+  query: string,
+  resolved: WebConfig,
+  signal: AbortSignal | undefined,
+  credentials: WebRuntimeCredentials,
+  delegate: WebSearchModelDelegate | undefined,
+  chain: readonly SearchChainStep[],
+): Promise<{ result: WebSearchResult; diagnostics: WebSearchDiagnostics }> {
+  const startedAt = Date.now();
+  const attempts: WebSearchSourceAttempt[] = [];
+  let native: WebSearchNativeDetails | undefined;
+  let lastError: unknown;
+  for (const step of chain) {
+    if (signal?.aborted) break;
+    try {
+      if (step === 'native') {
+        if (!delegate) continue;
+        const outcome = await runNativeWebSearch(query, resolved, signal, credentials, delegate);
+        attempts.push(...outcome.diagnostics.attempts);
+        native = outcome.diagnostics.native ?? native;
+        if (outcome.diagnostics.attempts.some((attempt) => attempt.ok)) {
+          return {
+            result: outcome.result,
+            diagnostics: {
+              ...outcome.diagnostics,
+              durationMs: Date.now() - startedAt,
+              attempts,
+              ...(native ? { native } : {}),
+            },
+          };
+        }
+        lastError = new Error('native web search returned no success');
+        continue;
+      }
+      if (step === 'duckduckgo' && attempts.some((attempt) => attempt.sourceId === 'duckduckgo')) {
+        // The sources step already fell back to DuckDuckGo; do not query it twice.
+        continue;
+      }
+      const sourcesConfig =
+        step === 'duckduckgo' ? webConfigForDuckDuckGoFloor(resolved) : resolved;
+      const outcome = await runSourcesWebSearch(query, sourcesConfig, signal, credentials);
+      attempts.push(...outcome.diagnostics.attempts);
+      const nativeFailed = attempts.some((attempt) => attempt.sourceId.startsWith('native:') && !attempt.ok);
+      return {
+        result: outcome.result,
+        diagnostics: {
+          ...outcome.diagnostics,
+          durationMs: Date.now() - startedAt,
+          attempts,
+          ...(native
+            ? { native: nativeFailed ? { ...native, fellBackToSources: true } : native }
+            : {}),
+        },
+      };
+    } catch (error) {
+      lastError = error;
+      if (error instanceof WebSearchError) {
+        attempts.push(...error.diagnostics.attempts);
+        native = error.diagnostics.native ?? native;
+      }
+    }
+  }
+  const durationMs = Date.now() - startedAt;
+  const message = describeChainFailure(attempts, lastError);
+  throw new WebSearchError(
+    message,
+    {
+      kind: WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
+      providerId: attempts[0]?.sourceId ?? 'unconfigured',
+      hitCount: 0,
+      durationMs,
+      attempts,
+      ...(native ? { native } : {}),
+    },
+    { cause: lastError },
+  );
+}
+
+/**
+ * A chain failure is only actionable if every backend's reason is visible:
+ * reporting just the last step (usually the DuckDuckGo floor) hides why the
+ * provider-native attempt before it failed.
+ */
+function describeChainFailure(attempts: readonly WebSearchSourceAttempt[], lastError: unknown): string {
+  const failed = attempts.filter((attempt) => !attempt.ok && attempt.error);
+  if (failed.length > 1) {
+    return `Every web_search backend failed: ${failed
+      .map((attempt) => `${attempt.sourceId}: ${attempt.error}`)
+      .join('; ')}`;
+  }
+  return lastError instanceof Error ? lastError.message : 'web search exhausted every backend in the chain';
+}
+
+function webConfigForDuckDuckGoFloor(resolved: WebConfig): WebConfig {
+  return {
+    ...resolved,
+    searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }],
+  };
+}
+
+/**
+ * Provider-native executor (ADR 0043). On failure, `native-first` /
+ * `external-first` routes run configured sources inside this same call; both
+ * outcomes stay visible in `attempts`. `native-only` rethrows.
+ */
+async function runNativeWebSearch(
+  query: string,
+  resolved: WebConfig,
+  signal: AbortSignal | undefined,
+  credentials: WebRuntimeCredentials,
+  delegate: WebSearchModelDelegate,
+): Promise<{ result: WebSearchResult; diagnostics: WebSearchDiagnostics }> {
+  const sourceId = `native:${delegate.model.providerId}/${delegate.model.modelId}`;
+  const timeoutMs = resolved.searchNativeTimeoutMs ?? DEFAULT_SEARCH_NATIVE_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const nativeSignal = signal ? anySignal([signal, controller.signal]) : controller.signal;
+  const startedAt = Date.now();
+  try {
+    const nativeResult = await delegate.search(query, {
+      limit: resolved.searchMaxResults,
+      signal: nativeSignal,
+    });
+    if (nativeResult.hits.length === 0 && !nativeResult.answer?.trim()) {
+      // Nothing usable came back: let the chain continue instead of handing
+      // the model an empty "success".
+      throw Object.assign(
+        new Error(nativeResult.warning ?? 'native web search returned no sources and no answer'),
+        { diagnostic: nativeResult.nativeDiagnostic },
+      );
+    }
+    const durationMs = Date.now() - startedAt;
+    const { searchSuggestionsHtml, nativeDiagnostic, ...modelVisible } = nativeResult;
+    const native = nativeDetails(nativeDiagnostic, nativeResult.searchQueries, searchSuggestionsHtml);
+    return {
+      result: { ...modelVisible, query, providerId: sourceId },
+      diagnostics: {
+        kind: WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
+        providerId: sourceId,
+        hitCount: nativeResult.hits.length,
+        durationMs,
+        attempts: [{ sourceId, ok: true, hitCount: nativeResult.hits.length, durationMs }],
+        ...(native ? { native } : {}),
+      },
+    };
+  } catch (error) {
+    const timedOut = nativeSignal.aborted && !signal?.aborted;
+    const message = timedOut
+      ? `native web search timed out after ${timeoutMs}ms (${sourceId})`
+      : error instanceof Error
+        ? error.message
+        : String(error);
+    const durationMs = Date.now() - startedAt;
+    const nativeAttempt: WebSearchSourceAttempt = {
+      sourceId,
+      ok: false,
+      hitCount: 0,
+      durationMs,
+      ...(timedOut ? { timedOut: true } : {}),
+      error: message.slice(0, WEB_SEARCH_ATTEMPT_ERROR_MAX_CHARS),
+    };
+    const native = nativeDetails(readErrorDiagnostic(error), undefined, undefined);
+    throw new WebSearchError(
+      message,
+      {
+        kind: WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND,
+        providerId: sourceId,
+        hitCount: 0,
+        durationMs,
+        attempts: [nativeAttempt],
+        ...(native ? { native } : {}),
+      },
+      { cause: error },
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function nativeDetails(
+  diagnostic: WebSearchResult['nativeDiagnostic'],
+  searchQueries: string[] | undefined,
+  searchSuggestionsHtml: string | undefined,
+): WebSearchNativeDetails | undefined {
+  if (!diagnostic) return undefined;
+  return {
+    diagnostic,
+    ...(searchQueries && searchQueries.length > 0 ? { searchQueries } : {}),
+    ...(searchSuggestionsHtml && searchSuggestionsHtml.length <= WEB_SEARCH_SUGGESTIONS_MAX_CHARS
+      ? { searchSuggestionsHtml }
+      : {}),
+  };
+}
+
+function readErrorDiagnostic(error: unknown): WebSearchResult['nativeDiagnostic'] {
+  if (typeof error !== 'object' || error === null || !('diagnostic' in error)) return undefined;
+  const diagnostic = (error as { diagnostic?: unknown }).diagnostic;
+  return typeof diagnostic === 'object' && diagnostic !== null
+    ? (diagnostic as WebSearchResult['nativeDiagnostic'])
+    : undefined;
+}
+
+async function runSourcesWebSearch(
+  trimmed: string,
+  resolved: WebConfig,
+  signal: AbortSignal | undefined,
+  credentials: WebRuntimeCredentials,
+): Promise<{ result: WebSearchResult; diagnostics: WebSearchDiagnostics }> {
   let provider: SearchProvider;
   try {
-    provider = createSearchProvider(resolved, credentials, delegate);
+    provider = createSearchProvider(resolved, credentials);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new WebSearchError(
@@ -225,7 +448,7 @@ export async function webSearchWithDiagnostics(
       result.warning = `No results returned by ${provider.id} for "${trimmed}". The query may be too specific, or sources may be rate-limited.`;
     }
     if (attempts.length === 0) {
-      // Single source or model delegate: the whole call is the one attempt.
+      // Single source: the whole call is the one attempt.
       attempts.push({ sourceId: provider.id, ok: true, hitCount: hits.length, durationMs });
     }
     return {

@@ -684,6 +684,72 @@ describe('ToolCallCard openable file paths', () => {
     expect(attempts[1]?.textContent).toContain('5 条');
   });
 
+  it('shows the native provider badge, issued queries, brief and Gemini suggestions', () => {
+    const nativeTool = (adapter: 'google-search-tool' | 'anthropic-web-search-tool', html?: string): ToolCardUi => ({
+      toolCallId: `native-${adapter}`,
+      toolName: 'web_search',
+      status: 'done',
+      output: JSON.stringify({
+        query: 'q',
+        providerId: 'native:p/m',
+        answer: 'Grounded brief [1].',
+        hits: [{ title: 'A', url: 'https://a.example', snippet: '' }],
+      }),
+      presentation: {
+        title: 'web_search',
+        kind: 'web',
+        actionVerb: 'Searched',
+        summary: 'q',
+        webSearch: {
+          kind: 'web-search-diagnostics',
+          providerId: 'native:p/m',
+          hitCount: 1,
+          durationMs: 900,
+          attempts: [{ sourceId: 'native:p/m', ok: true, hitCount: 1, durationMs: 900 }],
+          native: {
+            diagnostic: {
+              providerId: 'p',
+              adapter,
+              transport: adapter === 'google-search-tool' ? 'gemini-rest' : 'pi-tee',
+              eventDetected: true,
+              hitCount: 1,
+              durationMs: 900,
+            },
+            searchQueries: ['issued one', 'issued two'],
+            ...(html ? { searchSuggestionsHtml: html } : {}),
+          },
+        },
+      },
+    });
+
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={nativeTool('google-search-tool', '<div class="chips">chips</div>')}
+          density="detailed"
+          locale="en"
+          defaultExpanded
+        />,
+      );
+    });
+    expect(container.querySelector('[data-testid="tool-call-web-search-badge"]')?.textContent).toBe('Gemini native');
+    expect(container.querySelector('[data-testid="tool-call-web-search-queries"]')?.textContent).toContain('issued two');
+    expect(container.querySelector('[data-testid="tool-call-web-search-answer"]')?.textContent).toBe('Grounded brief [1].');
+    const frame = container.querySelector<HTMLIFrameElement>('[data-testid="tool-call-search-suggestions"]');
+    expect(frame?.getAttribute('sandbox')).toBe('allow-same-origin');
+    expect(frame?.getAttribute('srcdoc')).toContain('<div class="chips">chips</div>');
+    expect(frame?.getAttribute('srcdoc')).toContain("default-src 'none'");
+    expect(container.querySelector('.citation-card')).not.toBeNull();
+
+    act(() => {
+      root.render(
+        <ToolCallCard tool={nativeTool('anthropic-web-search-tool')} density="detailed" locale="en" defaultExpanded />,
+      );
+    });
+    expect(container.querySelector('[data-testid="tool-call-web-search-badge"]')?.textContent).toBe('Anthropic native');
+    expect(container.querySelector('[data-testid="tool-call-search-suggestions"]')).toBeNull();
+  });
+
   it('shows an inline diff when an edit row is expanded', async () => {
     const editTool: ToolCardUi = {
       toolCallId: 'edit-diff-1',

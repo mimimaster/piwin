@@ -4,7 +4,12 @@
  */
 
 import { useEffect, useState, type ReactElement } from 'react';
-import { isModelEnabled, isProviderEnabled, isSubscriptionProvider } from '@piwin/contracts';
+import {
+  isModelEnabled,
+  isProviderEnabled,
+  isSubscriptionProvider,
+  nativeSearchProviderBlocker,
+} from '@piwin/contracts';
 import type {
   DiscoveredModel,
   ModelCatalogEntry,
@@ -159,6 +164,7 @@ export function ProviderModelList({
 
   const t = modelListCopy(isChinese);
   const subscription = isSubscriptionProvider(provider);
+  const nativeSearchBlocker = nativeSearchProviderBlocker(provider);
   const providerLive = isProviderEnabled(provider);
   const models = overlayOptimisticCapabilities(provider.models, optimisticModels);
   const anyEnabled = models.some(isModelEnabled);
@@ -330,7 +336,7 @@ export function ProviderModelList({
                   </span>
                 </div>
                 <div className="pmodel-caps">
-                  {modelCaps(model, isChinese).map((cap) => (
+                  {modelCaps(model, isChinese, { nativeSearchBlocked: nativeSearchBlocker !== undefined }).map((cap) => (
                     <span key={cap.key} className={`pmodel-cap pmodel-cap--${cap.key}`}>
                       {cap.label}
                     </span>
@@ -427,6 +433,10 @@ export function ProviderModelList({
                 <ModelEditInline
                   model={model}
                   providerProtocol={provider.protocol}
+                  {...(provider.chatApi ? { providerChatApi: provider.chatApi } : {})}
+                  {...(provider.baseUrl ? { providerBaseUrl: provider.baseUrl } : {})}
+                  providerIsSubscription={isSubscriptionProvider(provider)}
+                  {...(nativeSearchBlocker ? { nativeSearchBlocker } : {})}
                   disabled={disabled}
                   isChinese={isChinese}
                   {...(searchCatalog ? { searchCatalog } : {})}
@@ -444,6 +454,10 @@ export function ProviderModelList({
         onOpenChange={setAddOpen}
         existingModelIds={provider.models.map((model) => model.id)}
         protocol={provider.protocol}
+        {...(provider.chatApi ? { chatApi: provider.chatApi } : {})}
+        {...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {})}
+        isSubscription={isSubscriptionProvider(provider)}
+        {...(nativeSearchBlocker ? { nativeSearchBlocker } : {})}
         onAdd={(model) => {
           onUpdateModels([...provider.models, model]);
           setAddOpen(false);

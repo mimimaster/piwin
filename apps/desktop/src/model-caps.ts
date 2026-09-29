@@ -10,6 +10,7 @@ export type ModelCapChip = { key: ModelCapKey; label: string };
 export function modelCaps(
   model: ModelConfigEntry,
   isChinese: boolean,
+  options: { nativeSearchBlocked?: boolean } = {},
 ): ModelCapChip[] {
   const likelyImage = model.capabilities?.includes('image-generation') === true;
   const likelyVideo =
@@ -49,7 +50,8 @@ export function modelCaps(
       label: isChinese ? '视频' : 'Video',
     });
   }
-  if (modelSupportsCapability(model, 'native-web-search')) {
+  // A provider that can never run native search shows no (stale) search chip.
+  if (!options.nativeSearchBlocked && modelSupportsCapability(model, 'native-web-search')) {
     caps.push({
       key: 'native-web-search',
       label: isChinese ? '模型内置搜索' : 'Native search',

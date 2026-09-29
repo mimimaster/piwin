@@ -87,13 +87,14 @@ describe('search providers', () => {
     expect(resolved.searchProvider).toBe('brave');
   });
 
-  it('brave requires api key', async () => {
+  it('brave requires api key, and the DuckDuckGo floor failure is reported alongside it', async () => {
     const previous = process.env.BRAVE_API_KEY;
     delete process.env.BRAVE_API_KEY;
+    vi.stubGlobal('fetch', (async () => ddgBlockedResponse()) as typeof fetch);
     try {
       await expect(
         webSearch('test', { searchProvider: 'brave', searchApiKeyEnv: 'BRAVE_API_KEY' }),
-      ).rejects.toThrow(/Missing API key/);
+      ).rejects.toThrow(/brave: Missing API key.*duckduckgo: .*202/);
     } finally {
       if (previous !== undefined) {
         process.env.BRAVE_API_KEY = previous;
@@ -142,6 +143,10 @@ describe('search providers', () => {
       'fetch',
       ((input, init) =>
         new Promise<Response>((_resolve, reject) => {
+          if (init?.signal?.aborted) {
+            reject(new DOMException('aborted', 'AbortError'));
+            return;
+          }
           init?.signal?.addEventListener(
             'abort',
             () => reject(new DOMException('aborted', 'AbortError')),
@@ -167,6 +172,31 @@ describe('search providers', () => {
     await expect(
       webSearch('test', { searchProvider: 'duckduckgo', searchTimeoutMs: 1000 }),
     ).rejects.toThrow(/202|blocked|rate limiting/);
+  });
+
+  it('does not query DuckDuckGo twice when the sources step already fell back to it', async () => {
+    const previous = process.env.WINDSURF_API_KEY;
+    delete process.env.WINDSURF_API_KEY;
+    const htmlCalls: string[] = [];
+    vi.stubGlobal('fetch', (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes('html.duckduckgo.com')) htmlCalls.push(url);
+      return url.includes('api.duckduckgo.com')
+        ? new Response('{"Results":[],"RelatedTopics":[]}', { status: 200 })
+        : ddgBlockedResponse();
+    }) as typeof fetch);
+    try {
+      // A keyless Devin source is not usable, so `sources` itself runs DuckDuckGo.
+      await expect(
+        webSearch('q', {
+          searchRoutePolicy: 'external-only',
+          searchSources: [{ id: 'devin', kind: 'devin', enabled: true }],
+        }),
+      ).rejects.toThrow(/202/);
+      expect(htmlCalls).toHaveLength(1);
+    } finally {
+      if (previous !== undefined) process.env.WINDSURF_API_KEY = previous;
+    }
   });
 
   it('queries DuckDuckGo HTML with GET because scripted POSTs are bot-blocked', async () => {
@@ -340,11 +370,13 @@ describe('search providers', () => {
     const sink = { record: (entry: WebSearchLogRecord) => records.push(entry) };
     const context = { sessionId: 's1', runtimeGenerationId: 'g1', runId: 'r1', toolName: 'web_search' };
     const signal = new AbortController().signal;
-    vi.stubGlobal('fetch', (async () =>
-      new Response(
-        JSON.stringify({ results: [{ title: 'T', url: 'https://t.example/', content: 'x' }] }),
-        { status: 200 },
-      )) as typeof fetch);
+    vi.stubGlobal('fetch', (async (input: unknown) =>
+      String(input).includes('duckduckgo.com')
+        ? ddgBlockedResponse()
+        : new Response(
+            JSON.stringify({ results: [{ title: 'T', url: 'https://t.example/', content: 'x' }] }),
+            { status: 200 },
+          )) as typeof fetch);
     process.env.TAVILY_API_KEY = 'tavily-test';
     try {
       const tools = createWebToolDefinitions(

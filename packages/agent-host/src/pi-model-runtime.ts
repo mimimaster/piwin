@@ -2,18 +2,21 @@ import type {
   ModelCapability,
   ModelProviderConfig,
   ProviderChatApi,
-  ResolvedSearchRoute,
 } from '@piwin/contracts';
 import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
   isModelEnabled,
+  resolveModelEndpoint,
   modelSupportsCapability,
 } from '@piwin/contracts';
 import { lookupCatalogByModelId } from './model-catalog-reader.js';
 import { buildThinkingLevelMap, type PiThinkingLevelMap } from './map-thinking-level.js';
-import { resolveProviderStreamSimple } from './attach-provider-stream-simple.js';
-import type { NativeSearchModelFlags, NativeSearchStreamSimple } from './native-web-search.js';
+import {
+  resolveRegistrationStreamSimple,
+  type RegistrationModelStreamFlags,
+} from './attach-provider-stream-simple.js';
+import type { NativeSearchStreamSimple } from './native-web-search.js';
 
 export type PiProviderApi =
   | 'openai-completions'
@@ -110,6 +113,7 @@ export type PiModelRegistration = {
   capabilities?: ModelCapability[];
   /** Declared native-search request-shaping mechanism (ADR 0043). */
   nativeSearchAdapter?: import('@piwin/contracts').NativeSearchAdapterKind;
+  nativeSearchOptions?: import('@piwin/contracts').NativeSearchAdapterOptions;
 };
 
 export type PiProviderRegistration = {
@@ -134,10 +138,13 @@ export type PiModelRuntime = {
 };
 
 export type BuildPiProviderRegistrationOptions = {
-  /** Resolved search outlet for this generation (ADR 0043). */
-  searchRoute?: ResolvedSearchRoute | null | undefined;
   /** Existing custom streamSimple to wrap. */
   streamSimple?: NativeSearchStreamSimple;
+  /**
+   * Inject hosted search into the payload. Only the Host `web_search` native
+   * executor sets this; main-session registrations must not (ADR 0043).
+   */
+  injectNativeSearch?: boolean;
 };
 
 /**
@@ -192,16 +199,19 @@ export function buildPiProviderRegistration(
   const models: PiModelRegistration[] = provider.models
     .filter((model) => isModelEnabled(model) && modelSupportsCapability(model, 'chat'))
     .map((model) => {
+      // ADR 0079: a model may speak another wire format than its provider row.
+      const endpoint = resolveModelEndpoint(provider, model);
+      const modelApi = resolvePiApiForProvider(endpoint.protocol, endpoint.chatApi);
       const thinkingLevelMap =
         model.reasoning === false
           ? undefined
-          : buildThinkingLevelMap(model.thinkingLevels, provider.protocol);
-      const compat = resolvePiModelCompat(api, model.id);
+          : buildThinkingLevelMap(model.thinkingLevels, endpoint.protocol);
+      const compat = resolvePiModelCompat(modelApi, model.id);
       const registration: PiModelRegistration = {
         id: model.id,
         name: model.label?.trim() || model.id,
-        api,
-        baseUrl: provider.baseUrl,
+        api: modelApi,
+        baseUrl: endpoint.baseUrl,
         // Omit → true: preserve legacy "all models reasoning-capable" registration.
         reasoning: model.reasoning ?? true,
         ...(compat ? { compat } : {}),
@@ -223,6 +233,9 @@ export function buildPiProviderRegistration(
       if (model.nativeSearchAdapter) {
         registration.nativeSearchAdapter = model.nativeSearchAdapter;
       }
+      if (model.nativeSearchOptions) {
+        registration.nativeSearchOptions = model.nativeSearchOptions;
+      }
       return registration;
     });
 
@@ -240,17 +253,19 @@ export function buildPiProviderRegistration(
     registration.headers = provider.headers;
   }
 
-  const nativeFlags: NativeSearchModelFlags[] = models.map((model) => ({
+  const streamFlags: RegistrationModelStreamFlags[] = models.map((model) => ({
     id: model.id,
+    api: model.api,
     ...(model.capabilities ? { capabilities: model.capabilities } : {}),
     ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
+    ...(model.nativeSearchOptions ? { nativeSearchOptions: model.nativeSearchOptions } : {}),
   }));
-  const streamSimple = resolveProviderStreamSimple({
-    api,
-    models: nativeFlags,
+  const streamSimple = resolveRegistrationStreamSimple({
+    defaultApi: api,
+    models: streamFlags,
     // Optional under exactOptionalPropertyTypes: omit rather than pass undefined.
-    ...(options.searchRoute === undefined ? {} : { searchRoute: options.searchRoute }),
     ...(options.streamSimple === undefined ? {} : { streamSimple: options.streamSimple }),
+    ...(options.injectNativeSearch ? { injectNativeSearch: true } : {}),
   });
   if (streamSimple) {
     registration.streamSimple = streamSimple;

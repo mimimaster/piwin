@@ -13,6 +13,7 @@ import type {
 } from '@piwin/contracts';
 import {
   buildSettingsDomainMutations,
+  inferSearchRoutePolicy,
   isRedactedStoredSecret,
   PIWIN_SETTINGS_SCHEMA_VERSION,
   resolveArtifactCapability,
@@ -471,27 +472,25 @@ function findImmediateRestrictions(
 }
 
 /**
- * Whether the Host external `web_search` backend is usable for a generation.
+ * Whether a config-owned Host `web_search` executor stays usable (ADR 0043).
  *
- * The `web-search` immediate restriction clamps exactly the Host `web_search`
- * tool family, so this mirrors the production external-readiness rule
- * (`evaluateSearchReadiness`): a configured delegate is the tool's exclusive
- * backend and fails closed when stale (`findReadyWebSearchDelegate`); enabled
- * ordinary sources back the tool only when no delegate is configured. Model
- * native search is per-session request shaping and cannot be revoked
- * mid-generation, so it never counts as usability here. Under `native-only`
- * the external tool is never exposed, so there is nothing to restrict.
+ * The `web-search` immediate restriction clamps the live generation's tool
+ * family before its replacement runtime exists. A configured delegate that
+ * went stale must stop at once: the live executor is still bound to it.
+ * `native-only` has no floor, so without a ready delegate it is clamped
+ * conservatively; the next generation re-resolves the chat model's own
+ * native search. Every other policy ends in the DuckDuckGo floor.
  */
 function hasUsableWebSearch(config: PiwinConfig): boolean {
   const web = config.web;
   if (!web) return false;
-  if (web.searchRoutePolicy === 'native-only') {
+  if (web.searchDelegateModel !== undefined) {
+    return findReadyWebSearchDelegate(config) !== undefined;
+  }
+  if (inferSearchRoutePolicy(web.searchRoutePolicy, web.searchSources) === 'native-only') {
     return false;
   }
-  const delegateConfigured = web.searchDelegateModel !== undefined;
-  return delegateConfigured
-    ? findReadyWebSearchDelegate(config) !== undefined
-    : (web.searchSources ?? []).some((source) => source.enabled);
+  return true;
 }
 
 function permissionModeRank(mode: 'auto' | 'ask-all' | 'bypass' | undefined): number {

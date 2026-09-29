@@ -125,3 +125,39 @@ describe('web search log store', () => {
     expect(await handleWebSearchLogCommand({ type: 'host/ping' }, 'r3', context)).toBeNull();
   });
 });
+
+describe('web search log native summary', () => {
+  it('persists a bounded native summary and drops unknown native shapes', async () => {
+    const path = await tempLogPath();
+    const store = createWebSearchLogStore(path);
+    store.record(
+      record({
+        query: 'native',
+        providerId: 'aggregate:tavily',
+        native: {
+          providerId: 'gemini',
+          adapter: 'google-search-tool',
+          transport: 'gemini-rest',
+          eventDetected: true,
+          searchQueryCount: 2,
+          fellBackToSources: true,
+          error: 'x'.repeat(900),
+        },
+      }),
+    );
+    store.record(record({ query: 'bogus', native: { nope: true } as never }));
+    await store.flush();
+    const raw = await readFile(path, 'utf8');
+    expect(raw).not.toContain('searchSuggestionsHtml');
+    const page = await createWebSearchLogStore(path).list({});
+    const [bogus, native] = page.entries;
+    expect(bogus?.native).toBeUndefined();
+    expect(native?.native).toMatchObject({
+      adapter: 'google-search-tool',
+      transport: 'gemini-rest',
+      searchQueryCount: 2,
+      fellBackToSources: true,
+    });
+    expect(native?.native?.error?.length).toBe(300);
+  });
+});

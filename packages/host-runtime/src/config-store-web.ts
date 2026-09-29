@@ -1,5 +1,5 @@
 import type { WebConfig } from '@piwin/contracts';
-import { inferSearchRoutePolicy, isWebSearchSourceKind } from '@piwin/contracts';
+import { DEFAULT_SEARCH_NATIVE_TIMEOUT_MS, inferSearchRoutePolicy, isWebSearchSourceKind } from '@piwin/contracts';
 import {
   asPositiveInteger,
   asPositiveNumber,
@@ -54,6 +54,14 @@ export function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConf
     searchApiKeyEnv,
     searchMaxResults: asPositiveNumber(record.searchMaxResults) ?? defaults.searchMaxResults,
     searchTimeoutMs: asPositiveNumber(record.searchTimeoutMs) ?? defaults.searchTimeoutMs,
+    ...(defaults.searchNativeTimeoutMs !== undefined || record.searchNativeTimeoutMs !== undefined
+      ? {
+          searchNativeTimeoutMs:
+            asPositiveNumber(record.searchNativeTimeoutMs) ??
+            defaults.searchNativeTimeoutMs ??
+            DEFAULT_SEARCH_NATIVE_TIMEOUT_MS,
+        }
+      : {}),
     searchSources,
     searchStrategy,
     searchRoutePolicy,

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { SearchRoutePreviewData } from '@piwin/contracts';
+import type { SearchChainStep, SearchRoutePreviewData } from '@piwin/contracts';
 import { StatusBadge } from '@piwin/ui-kit';
 
 export type SearchRouteStatusProps = {
@@ -9,21 +9,38 @@ export type SearchRouteStatusProps = {
 };
 
 const ISSUE_TRANSLATIONS_ZH: Record<string, string> = {
-  'selected chat model is not tagged native-web-search': '当前选择的对话模型未标记“模型内置搜索”能力',
-  'no enabled external search source': '未启用任何外部搜索源',
   'no search backend is ready for the configured policy': '当前配置的搜索优先级下无可用搜索渠道',
-  'no chat model selected for native web search': '未选择对话模型',
-  'selected chat model is disabled': '当前选择的对话模型已停用',
   'active Pi adapter cannot express provider-native web search for this model':
     '当前运行适配器不支持该模型的内置网络搜索',
-  'native web search request shaping is available, but citation normalization is not fully supported':
-    '支持内置搜索请求，但引用解析尚未完全支持',
-  'native search adapter is unavailable': '内置搜索适配器不可用',
+  'nativeSearchAdapter is required for models tagged native-web-search':
+    '标记了“模型内置搜索”的模型需要选择请求方式（nativeSearchAdapter）',
+  'configured web_search delegate model is unavailable': '已指定的搜索代理模型不可用',
+  'native-only policy selected but native web search is not ready': '已选择“仅内置搜索”，但内置搜索未就绪',
+  'web tools config is absent': '未配置网络工具',
 };
 
 function formatIssue(issue: string, zh: boolean): string {
   if (!zh) return issue;
-  return ISSUE_TRANSLATIONS_ZH[issue] ?? issue;
+  const exact = ISSUE_TRANSLATIONS_ZH[issue];
+  if (exact) return exact;
+  const needsProtocol = /^native web search for (\S+) needs the (\S+) request protocol$/u.exec(issue);
+  if (needsProtocol) {
+    return `${needsProtocol[1]} 的内置搜索需要把请求协议改为 ${needsProtocol[2]}（在该模型的编辑面板里切换）`;
+  }
+  const incompatible = /^nativeSearchAdapter (\S+) is incompatible with (\S+)$/u.exec(issue);
+  if (incompatible) return `请求方式 ${incompatible[1]} 与当前协议 ${incompatible[2]} 不兼容`;
+  return issue;
+}
+
+function chainStepLabel(step: SearchChainStep, zh: boolean): string {
+  switch (step) {
+    case 'native':
+      return zh ? '模型内置搜索' : 'Built-in search';
+    case 'sources':
+      return zh ? '搜索源' : 'Search sources';
+    case 'duckduckgo':
+      return zh ? 'DuckDuckGo 兜底' : 'DuckDuckGo floor';
+  }
 }
 
 export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement | null {
@@ -37,35 +54,20 @@ export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement |
   }
 
   const { route } = props.preview;
+  const chain = route.chain ?? [];
   const selectedLabel =
-    route.selected === 'native'
+    chain.length === 0
       ? zh
-        ? '模型内置搜索'
-        : 'Provider-native search'
-      : route.selected === 'external'
-        ? zh
-          ? '外部搜索'
-          : 'External Host search'
-        : zh
-          ? '未启用搜索'
-          : 'No search backend';
-  const fallbackLabel =
-    route.fallback === 'native'
-      ? zh
-        ? '模型内置搜索'
-        : 'native search'
-      : route.fallback === 'external'
-        ? zh
-          ? '外部搜索'
-          : 'external search'
-        : null;
-  const warning = route.issues.length > 0;
+        ? '未启用搜索'
+        : 'No search backend'
+      : chain.map((step) => chainStepLabel(step, zh)).join(zh ? ' → ' : ' → ');
+  const warning = route.issues.length > 0 || chain.length === 0;
 
   return (
     <div className="search-route-status" data-testid="search-route-status">
       <div className="search-route-status-header">
         <StatusBadge
-          tone={warning ? 'warning' : route.selected ? 'success' : 'warning'}
+          tone={warning ? 'warning' : 'success'}
           label={selectedLabel}
           testId="search-route-selected"
         />
@@ -75,9 +77,9 @@ export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement |
             (zh ? '未选择模型' : 'No model selected')}
         </div>
       </div>
-      {fallbackLabel ? (
+      {chain.length > 1 ? (
         <div className="muted search-route-fallback-label" data-testid="search-route-fallback">
-          {zh ? `不可用时回退：${fallbackLabel}` : `Fallback when unavailable: ${fallbackLabel}`}
+          {zh ? '同一次 web_search 调用内按顺序尝试' : 'Tried in order inside one web_search call'}
         </div>
       ) : null}
       {route.issues.length > 0 ? (
@@ -90,4 +92,3 @@ export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement |
     </div>
   );
 }
-

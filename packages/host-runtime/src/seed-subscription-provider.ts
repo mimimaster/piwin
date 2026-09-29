@@ -25,6 +25,8 @@ import {
   V1_SUBSCRIPTION_PROVIDER_META,
   type SubscriptionAccount,
   type V1SubscriptionProviderId,
+  subscriptionChatBaseUrl,
+  suggestDiscoveredNativeSearch,
 } from '@piwin/contracts';
 import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
 
@@ -179,10 +181,15 @@ function mergeSubscriptionProvider(
 ): ModelProviderConfig {
   const previousById = new Map((existing?.models ?? []).map((model) => [model.id, model]));
   const models: ModelConfigEntry[] = [];
+  const searchSurface = subscriptionChatBaseUrl(providerId);
   for (const catalogModel of catalog) {
     const fresh = catalogModelToConfigEntry(catalogModel);
     const previous = previousById.get(catalogModel.id);
-    models.push(previous ? mergeSubscriptionCatalogModel(fresh, previous) : fresh);
+    models.push(
+      previous
+        ? mergeSubscriptionCatalogModel(fresh, previous)
+        : withDiscoveredNativeSearch(fresh, searchSurface),
+    );
     previousById.delete(catalogModel.id);
   }
   for (const leftover of previousById.values()) {
@@ -206,6 +213,30 @@ function mergeSubscriptionProvider(
     provider.enabled = existing.enabled;
   }
   return provider;
+}
+
+/**
+ * Pull-time native-search tagging for a newly seen subscription model, the
+ * same rule as provider model discovery. Only subscriptions with a
+ * Host-reachable HTTPS surface qualify; an existing entry keeps the user's
+ * own capability choice.
+ */
+function withDiscoveredNativeSearch(
+  model: ModelConfigEntry,
+  searchSurface: string | undefined,
+): ModelConfigEntry {
+  if (searchSurface === undefined) {
+    return model;
+  }
+  const suggestion = suggestDiscoveredNativeSearch({
+    protocol: 'openai-compatible',
+    baseUrl: searchSurface,
+    modelId: model.id,
+    capabilities: model.capabilities,
+  });
+  return suggestion
+    ? { ...model, capabilities: suggestion.capabilities, nativeSearchAdapter: suggestion.adapter }
+    : model;
 }
 
 /**

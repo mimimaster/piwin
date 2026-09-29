@@ -80,7 +80,7 @@ export type SessionTranscriptMessage = {
   idleLoop?: RunIdleLoopNotice;
   thinking?: string;
   tools?: SessionToolCardView[];
-  /** Native/external citations plus bounded native diagnostic metadata. */
+  /** Legacy read-only citations from retired main-session native search; see {@link SearchEvidence}. */
   searchEvidence?: SearchEvidence;
   attachments?: MediaAttachmentRef[];
   /** When set, UI renders a SubagentActivityCard instead of plain system text. */

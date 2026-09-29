@@ -232,9 +232,6 @@ export {
 } from './gemini-openai-session-isolation.js';
 export {
   applyNativeSearchToPayload,
-  normalizeNativeSearchCitations,
-  providerNeedsNativeSearchWrapper,
-  resolveNativeSearchEnabledForModel,
   wrapStreamSimpleForNativeSearch,
 } from './native-web-search.js';
 export type {
@@ -250,6 +247,9 @@ export type {
   NativeModelWebSearchDependencies,
   NativeModelWebSearchRequest,
 } from './native-model-web-search.js';
+export { parseNativeSearchEvidence } from './native-search-evidence.js';
+export type { NativeSearchEvidence } from './native-search-evidence.js';
+export { mergeHeaderTokens } from './native-search-headers.js';
 export { completeModelText, ModelTextCompletionError } from './model-text-completion.js';
 export {
   completeModelTools,

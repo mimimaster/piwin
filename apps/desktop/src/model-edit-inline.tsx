@@ -9,6 +9,7 @@ import {
   type ModelCatalogEntry,
   type ModelConfigEntry,
   type ModelProviderConfig,
+  type ProviderChatApi,
   type ThinkingLevel,
 } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
@@ -18,6 +19,8 @@ import {
   withVideoGenerationEnabled,
 } from './generation-route-defaults.js';
 import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
+import { NativeSearchAdapterFields } from './native-search-adapter-fields.js';
+import { ModelProtocolField } from './model-protocol-field.js';
 import {
   createModelConfigurationDraft,
   validateModelConfigurationDraft,
@@ -34,6 +37,8 @@ function draftsMatchForPersist(
     left.supportsVideoGeneration === right.supportsVideoGeneration &&
     left.supportsRealtimeAudio === right.supportsRealtimeAudio &&
     left.supportsNativeWebSearch === right.supportsNativeWebSearch &&
+    left.nativeSearchAdapter === right.nativeSearchAdapter &&
+    (left.protocol ?? '') === (right.protocol ?? '') &&
     left.supportsImage === right.supportsImage &&
     left.reasoning === right.reasoning
   );
@@ -42,6 +47,17 @@ function draftsMatchForPersist(
 export type ModelEditInlineProps = {
   model: ModelConfigEntry;
   providerProtocol: ModelProviderConfig['protocol'];
+  /** Provider transport; filters native-search adapter choices. */
+  providerChatApi?: ProviderChatApi;
+  /** Provider base URL; an identified vendor limits native-search adapter choices. */
+  providerBaseUrl?: string;
+  /** Subscription rows have a fixed wire; the per-model protocol is hidden. */
+  providerIsSubscription?: boolean;
+  /**
+   * Why this provider can never run native search (e.g. Kiro, Codex
+   * subscriptions): the tag cannot be turned on and the adapter is hidden.
+   */
+  nativeSearchBlocker?: string;
   disabled: boolean;
   isChinese: boolean;
   searchCatalog?: (query: string) => Promise<ModelCatalogEntry[]>;
@@ -51,6 +67,7 @@ export type ModelEditInlineProps = {
 
 export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
   const { model, searchCatalog, onSave, onCancel, isChinese, disabled } = props;
+  const nativeSearchBlocked = props.nativeSearchBlocker !== undefined;
   const [localDraft, setLocalDraft] = useState<ModelConfigurationDraft>(() =>
     createModelConfigurationDraft(model, undefined, props.providerProtocol),
   );
@@ -141,7 +158,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
   }
 
   function submitSave(): void {
-    const draftToSave = normalizeDraftForSave(localDraft);
+    const draftToSave = normalizeDraftForSave(localDraft, nativeSearchBlocked);
     const validation = validateModelConfigurationDraft(draftToSave);
     if (validation) {
       setError(validation);
@@ -265,6 +282,18 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         </label>
       </div>
 
+      {props.providerIsSubscription ? null : (
+        <ModelProtocolField
+          value={localDraft.protocol}
+          providerProtocol={props.providerProtocol}
+          {...(props.providerBaseUrl ? { providerBaseUrl: props.providerBaseUrl } : {})}
+          disabled={disabled}
+          isChinese={isChinese}
+          testId="model-edit-protocol"
+          onChange={(protocol) => updateDraft((current) => ({ ...current, protocol }))}
+        />
+      )}
+
       <div className="model-edit-inline-caps">
         <label className="model-edit-inline-cap">
           <input
@@ -288,7 +317,11 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
                   const defaultLevels =
                     current.thinkingLevels.length > 0
                       ? current.thinkingLevels
-                      : [...getDefaultThinkingLevelsForProtocol(props.providerProtocol)];
+                      : [
+                          ...getDefaultThinkingLevelsForProtocol(
+                            current.protocol || props.providerProtocol,
+                          ),
+                        ];
                   const defaultLevel =
                     current.thinkingLevel && defaultLevels.includes(current.thinkingLevel)
                       ? current.thinkingLevel
@@ -361,10 +394,20 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
           />
           <span>{t.realtime}</span>
         </label>
-        <label className="model-edit-inline-cap">
+        <label
+          className="model-edit-inline-cap"
+          {...(nativeSearchBlocked
+            ? {
+                title: isChinese
+                  ? '该服务商无法发起厂商原生搜索'
+                  : 'This provider cannot run provider-native search',
+              }
+            : {})}
+        >
           <input
             type="checkbox"
-            checked={localDraft.supportsNativeWebSearch}
+            // A blocked provider shows the tag off and locked; save clears a stale one.
+            checked={nativeSearchBlocked ? false : localDraft.supportsNativeWebSearch}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
               updateDraft((current) => ({
                 ...current,
@@ -372,11 +415,30 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
               }))
             }
             data-testid="model-edit-native-web-search"
-            disabled={disabled}
+            disabled={disabled || nativeSearchBlocked}
           />
           <span>{t.nativeSearch}</span>
         </label>
       </div>
+
+      {props.nativeSearchBlocker ? (
+        <p className="model-edit-route-fields-hint" data-testid="model-edit-native-search-blocked">
+          {isChinese
+            ? '该服务商无法发起厂商原生搜索（Host 调不到它的搜索接口），web_search 会直接走搜索源 / DuckDuckGo。'
+            : 'This provider cannot run provider-native search (Host cannot reach its search endpoint); web_search uses sources / DuckDuckGo.'}
+        </p>
+      ) : (
+        <NativeSearchAdapterFields
+          draft={localDraft}
+          protocol={props.providerProtocol}
+          {...(props.providerChatApi ? { chatApi: props.providerChatApi } : {})}
+          {...(props.providerBaseUrl ? { baseUrl: props.providerBaseUrl } : {})}
+          allowProtocolSwitch={!props.providerIsSubscription}
+          disabled={disabled}
+          isChinese={isChinese}
+          onChange={updateDraft}
+        />
+      )}
 
       <ModelGenerationRouteFields
         draft={localDraft}
@@ -466,6 +528,14 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
 }
 
 /** Reasoning-off models must not carry thinking levels. */
-function normalizeDraftForSave(draft: ModelConfigurationDraft): ModelConfigurationDraft {
-  return draft.reasoning ? draft : { ...draft, thinkingLevel: '', thinkingLevels: [] };
+function normalizeDraftForSave(
+  draft: ModelConfigurationDraft,
+  nativeSearchBlocked: boolean,
+): ModelConfigurationDraft {
+  const withThinking: ModelConfigurationDraft = draft.reasoning
+    ? draft
+    : { ...draft, thinkingLevel: '', thinkingLevels: [] };
+  return nativeSearchBlocked
+    ? { ...withThinking, supportsNativeWebSearch: false, nativeSearchAdapter: '' }
+    : withThinking;
 }

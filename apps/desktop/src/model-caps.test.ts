@@ -79,4 +79,11 @@ describe('modelCaps', () => {
       label: '模型内置搜索',
     });
   });
+
+  it('hides a stale native search chip on a provider that cannot run it', () => {
+    const model: ModelConfigEntry = { id: 'gpt-5-6-luna', capabilities: ['chat', 'native-web-search'] };
+    expect(modelCaps(model, true, { nativeSearchBlocked: true }).map((cap) => cap.key)).not.toContain(
+      'native-web-search',
+    );
+  });
 });

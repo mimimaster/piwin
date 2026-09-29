@@ -1,36 +1,19 @@
 /**
- * HTTPS chat surface for subscription OAuth providers.
- *
- * Pi chat compiles `oauth://<id>`; code_search's model backend is a Host
- * fetch client and must POST a real URL. Grok reuses the same inference
- * host and CLI token headers as image/video (`api.x.ai`).
+ * Auth for Host-side requests on the subscription HTTPS chat surface; the
+ * surface table lives in `@piwin/contracts` (`SUBSCRIPTION_CHAT_SURFACES`).
  */
-import { isSubscriptionProvider, isV1SubscriptionProviderId } from '@piwin/contracts';
+import {
+  isSubscriptionProvider,
+  subscriptionChatBaseUrl,
+  type ModelProviderConfig,
+} from '@piwin/contracts';
 import {
   loadSubscriptionMediaAuth,
   subscriptionMediaHeaders,
   type SubscriptionMediaAuth,
 } from './subscription-media-request.js';
 
-const XAI_INFERENCE_BASE = 'https://api.x.ai/v1';
-
-const CHAT_BASE_BY_PROVIDER: Readonly<Record<string, string>> = {
-  xai: XAI_INFERENCE_BASE,
-};
-
-export function subscriptionChatBaseUrl(providerId: string): string | undefined {
-  if (!isV1SubscriptionProviderId(providerId)) {
-    return undefined;
-  }
-  return CHAT_BASE_BY_PROVIDER[providerId];
-}
-
-export function providerUsesSubscriptionChat(provider: {
-  id: string;
-  source?: string;
-}): boolean {
-  return isSubscriptionProvider(provider) && subscriptionChatBaseUrl(provider.id) !== undefined;
-}
+export { providerUsesSubscriptionChat, subscriptionChatBaseUrl } from '@piwin/contracts';
 
 export function subscriptionChatHeaders(
   providerId: string,
@@ -40,3 +23,27 @@ export function subscriptionChatHeaders(
 }
 
 export { loadSubscriptionMediaAuth as loadSubscriptionChatAuth };
+
+/**
+ * Rewrite a subscription provider into a plain HTTPS provider for Host-side
+ * requests that register their own Pi provider (native `web_search`). The
+ * OAuth access token becomes the bearer key; the CLI token header rides in
+ * provider headers. Returns undefined for providers without an HTTPS chat
+ * surface so callers keep their normal path.
+ */
+export async function resolveSubscriptionChatTarget(
+  provider: ModelProviderConfig,
+  loadAuth: (providerId: string) => Promise<SubscriptionMediaAuth> = loadSubscriptionMediaAuth,
+): Promise<{ provider: ModelProviderConfig; apiKey: string } | undefined> {
+  const baseUrl = isSubscriptionProvider(provider) ? subscriptionChatBaseUrl(provider.id) : undefined;
+  if (baseUrl === undefined) {
+    return undefined;
+  }
+  const auth = await loadAuth(provider.id);
+  // Pi sets `authorization` from apiKey; keep only the extra shaping headers.
+  const { authorization: _bearer, ...shaping } = subscriptionChatHeaders(provider.id, auth);
+  return {
+    provider: { ...provider, baseUrl, headers: { ...provider.headers, ...shaping } },
+    apiKey: auth.accessToken,
+  };
+}

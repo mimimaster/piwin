@@ -263,11 +263,6 @@ function classifyAgentEvent(scope: HostDeliveryKey, event: AgentEvent): HostPush
         deliveryKey(...scope, 'run', runPart, 'message', event.messageId, 'tool-args'),
         runId,
       );
-    case 'message/search_evidence':
-      return append(
-        deliveryKey(...scope, 'run', runPart, 'message', event.messageId, 'search-evidence'),
-        runId,
-      );
     case 'tool/update':
       return append(
         deliveryKey(...scope, 'run', runPart, 'tool', event.toolCallId, 'output'),

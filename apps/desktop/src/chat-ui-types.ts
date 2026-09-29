@@ -74,6 +74,7 @@ export type ChatMessageUi = {
     argumentCharCount: number;
     toolName?: string;
   };
+  /** Legacy read-only citations from persisted transcripts (see `SearchEvidence`). */
   searchEvidence?: SearchEvidence;
   createdAt?: string;
   /** Run that produced this assistant message when host provided run identity. */
@@ -146,7 +147,6 @@ export type SubagentStreamSegment = {
   thinking: string;
   tools: SubagentStreamTool[];
   attachments?: PromptAttachment[];
-  searchEvidence?: SearchEvidence;
   /** True when segment text/thinking was head-truncated at settle time. */
   truncated?: boolean;
 };
@@ -193,7 +193,6 @@ export type SubagentStreamState = {
   /** Tool calls attributed to the current live message. */
   tools: SubagentStreamTool[];
   attachments?: PromptAttachment[];
-  searchEvidence?: SearchEvidence;
   /** Whether the child session is currently streaming. */
   streaming: boolean;
   /** Last message id seen from the child (for delta accumulation). */

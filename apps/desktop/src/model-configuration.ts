@@ -16,6 +16,8 @@ import type {
   ModelInputModality,
   ModelProviderConfig,
   ModelRouteConfig,
+  NativeSearchAdapterKind,
+  NativeSearchAdapterOptions,
   ThinkingLevel,
   VideoGenerationApiStyle,
 } from '@piwin/contracts';
@@ -52,8 +54,14 @@ export type ModelConfigurationDraft = {
   supportsRealtimeAudio: boolean;
   /** Maps to `capabilities` including `native-web-search`. */
   supportsNativeWebSearch: boolean;
+  /** Maps to `nativeSearchAdapter`; '' = none (native readiness fails closed). */
+  nativeSearchAdapter: NativeSearchAdapterKind | '';
+  /** Maps to `nativeSearchOptions`; kept verbatim so edits round-trip. */
+  nativeSearchOptions?: NativeSearchAdapterOptions;
   /** Maps to `reasoning`. */
   reasoning: boolean;
+  /** Maps to `protocol` (ADR 0079); omitted or '' = inherit the provider protocol. */
+  protocol?: ModelProviderConfig['protocol'] | '';
   imageApiStyle: ImageGenerationApiStyle | '';
   imagePath: string;
   imageTimeoutSeconds: string;
@@ -129,7 +137,11 @@ export function createModelConfigurationDraft(
       effective.capabilities?.includes('realtime-audio') === true ||
       isLikelyRealtimeAudioModel(effective.id, effective.label, effective.capabilities),
     supportsNativeWebSearch: modelSupportsCapability(effective, 'native-web-search'),
+    // Unknown historical values are kept verbatim so readiness can report them.
+    nativeSearchAdapter: effective.nativeSearchAdapter ?? '',
+    ...(effective.nativeSearchOptions ? { nativeSearchOptions: effective.nativeSearchOptions } : {}),
     reasoning: generationOnly ? effective.reasoning === true : (effective.reasoning ?? true),
+    ...(effective.protocol ? { protocol: effective.protocol } : {}),
     ...hydrateGenerationRouteDraft(
       effective.id,
       protocol,
@@ -182,6 +194,9 @@ export function createModelConfigurationEntry(
     ? (['text', 'image'] as const satisfies readonly ModelInputModality[])
     : (['text'] as const satisfies readonly ModelInputModality[]);
   model.reasoning = draft.reasoning;
+  if (draft.protocol) {
+    model.protocol = draft.protocol;
+  }
   const capabilities: ModelCapability[] = [];
   if (draft.supportsImageGeneration) {
     capabilities.push('image-generation');
@@ -204,6 +219,7 @@ export function createModelConfigurationEntry(
   if (capabilities.length > 0) {
     model.capabilities = capabilities;
   }
+  applyNativeSearchDraft(model, draft);
   const routes: Partial<Record<ModelCapability, ModelRouteConfig>> = {};
   const imageRoute = draft.supportsImageGeneration ? buildImageGenerationRoute(draft) : undefined;
   const videoRoute = draft.supportsVideoGeneration ? buildVideoGenerationRoute(draft) : undefined;
@@ -213,6 +229,38 @@ export function createModelConfigurationEntry(
     model.routes = routes;
   }
   return model;
+}
+
+/** Write adapter + options owned by the editor; clear them when the tag is off. */
+function applyNativeSearchDraft(model: ModelConfigEntry, draft: ModelConfigurationDraft): void {
+  if (!draft.supportsNativeWebSearch) {
+    delete model.nativeSearchAdapter;
+    delete model.nativeSearchOptions;
+    return;
+  }
+  if (!draft.nativeSearchAdapter) {
+    delete model.nativeSearchAdapter;
+    delete model.nativeSearchOptions;
+    return;
+  }
+  model.nativeSearchAdapter = draft.nativeSearchAdapter;
+  const options = pruneNativeSearchOptions(draft.nativeSearchAdapter, draft.nativeSearchOptions);
+  if (options) model.nativeSearchOptions = options;
+  else delete model.nativeSearchOptions;
+}
+
+/** Keep only the option block the chosen adapter reads. */
+function pruneNativeSearchOptions(
+  adapter: NativeSearchAdapterKind,
+  options: NativeSearchAdapterOptions | undefined,
+): NativeSearchAdapterOptions | undefined {
+  if (adapter === 'openai-responses-tool' && options?.openaiResponses) {
+    return { openaiResponses: { ...options.openaiResponses } };
+  }
+  if (adapter === 'anthropic-web-search-tool' && options?.anthropic) {
+    return { anthropic: { ...options.anthropic } };
+  }
+  return undefined;
 }
 
 export function validateModelConfigurationDraft(draft: ModelConfigurationDraft): string | null {
@@ -289,6 +337,7 @@ export function applyModelConfigurationDraft(
   if (!draft.maxOutputTokens.trim()) delete updated.maxOutputTokens;
   if (!draft.label.trim() || draft.label.trim() === updated.id) delete updated.label;
   if (!draft.tooltipMarkdown.trim()) delete updated.tooltipMarkdown;
+  if (!draft.protocol) delete updated.protocol;
   // Preserve capability tags that this editor does not expose while replacing
   // the generation, speech, and native-search flags it owns.
   const preservedCapabilities = (original.capabilities ?? []).filter(
@@ -332,6 +381,7 @@ export function applyModelConfigurationDraft(
   }
   const legacyUpdated = updated as ModelConfigEntry & { nativeWebSearchMode?: unknown };
   delete legacyUpdated.nativeWebSearchMode;
+  applyNativeSearchDraft(updated, draft);
   if (draft.thinkingLevels.length === 0) {
     delete updated.thinkingLevels;
     delete updated.thinkingLevel;
@@ -404,6 +454,9 @@ function mergeDiscoveredModelEntry(
       capabilities.add(capability);
     }
     model.capabilities = [...capabilities];
+  }
+  if (!model.nativeSearchAdapter && discoveredModel.nativeSearchAdapter) {
+    model.nativeSearchAdapter = discoveredModel.nativeSearchAdapter;
   }
   if (model.input === undefined && discoveredModel.input) {
     model.input = discoveredModel.input;

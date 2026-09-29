@@ -124,6 +124,47 @@ describe('seed subscription provider', () => {
     expect(next.providers[0]?.source).toBe('subscription');
   });
 
+  it('tags newly seen Grok subscription chat models for native search, keeping saved choices', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'xai',
+        name: 'Grok',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://xai',
+        source: 'subscription',
+        // The user turned native search off on this one; a re-sync must not undo it.
+        models: [{ id: 'grok-4.6', label: 'Grok 4.6', capabilities: ['chat'] }],
+      },
+    ];
+    const next = ensureSubscriptionProviders(
+      config,
+      [
+        { providerId: 'xai', surface: 'v1', state: 'logged-in' },
+        { providerId: 'openai-codex', surface: 'v1', state: 'logged-in' },
+      ],
+      (id) =>
+        id === 'xai'
+          ? [
+              { id: 'grok-4.6', name: 'Grok 4.6' },
+              { id: 'grok-4.7', name: 'Grok 4.7' },
+              { id: 'grok-imagine-image-2.0', name: 'Imagine', capabilities: ['image-generation'] },
+            ]
+          : [{ id: 'gpt-5.4-codex', name: 'GPT-5.4 Codex' }],
+    );
+    const xai = next.providers.find((provider) => provider.id === 'xai');
+    const byId = new Map(xai?.models.map((model) => [model.id, model]));
+    expect(byId.get('grok-4.7')).toMatchObject({
+      capabilities: ['chat', 'native-web-search'],
+      nativeSearchAdapter: 'xai-web-search-tool',
+    });
+    expect(byId.get('grok-4.6')?.capabilities).toEqual(['chat']);
+    expect(byId.get('grok-imagine-image-2.0')?.capabilities).toEqual(['image-generation']);
+    // Codex has no Host-reachable HTTPS surface: never auto-tagged.
+    const codex = next.providers.find((provider) => provider.id === 'openai-codex');
+    expect(codex?.models[0]?.capabilities).toEqual(['chat']);
+  });
+
   it('drops subscription rows after logout and keeps BYOK channels', () => {
     const config = createDefaultPiwinConfig();
     config.defaultProviderId = 'openai-codex';

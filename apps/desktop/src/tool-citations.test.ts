@@ -54,3 +54,24 @@ describe('parseToolCitations', () => {
     expect(parseToolCitations('bash', 'not json').kind).toBe('none');
   });
 });
+
+describe('parseToolCitations native web_search', () => {
+  it('keeps a bounded native answer alongside hits', () => {
+    const parsed = parseToolCitations(
+      'web_search',
+      JSON.stringify({
+        query: 'q',
+        providerId: 'native:openai/gpt',
+        answer: `  ${'a'.repeat(5000)}  `,
+        hits: [{ title: 'A', url: 'https://a.example', snippet: '' }],
+      }),
+    );
+    expect(parsed.answer?.length).toBe(4000);
+    expect(parsed.citations).toHaveLength(1);
+  });
+
+  it('omits answer for ordinary sources', () => {
+    const parsed = parseToolCitations('web_search', JSON.stringify({ query: 'q', providerId: 'brave', hits: [] }));
+    expect(parsed.answer).toBeUndefined();
+  });
+});

@@ -8,7 +8,7 @@ import { Button, Select } from '@piwin/ui-kit';
 import { IconRefresh } from '../shell-icons.js';
 import { isRemoteCommandGapError } from '../remote-command-gap.js';
 import { formatToolDuration } from '../tool-call-head';
-import { WebSearchSourceAttempts } from '../web-search-diagnostics-display';
+import { nativeSearchVendorLabel, WebSearchSourceAttempts } from '../web-search-diagnostics-display';
 
 export const WEB_SEARCH_LOG_PAGE_SIZES = [20, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = 20;
@@ -180,7 +180,7 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
             const expanded = expandedId === entry.id;
             const failedSources = entry.attempts.filter((attempt) => !attempt.ok).length;
             const tone = !entry.ok ? 'is-failed' : failedSources > 0 ? 'is-partial' : 'is-ok';
-            const sourceInfo = parseWebSearchSourceInfo(entry.providerId, isZh);
+            const sourceInfo = describeLogSource(entry, isZh);
             return (
               <li key={entry.id} className={`web-search-log-row ${tone}`}>
                 <button
@@ -246,6 +246,12 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
                         ) : null}
                         <code className="web-search-log-code">{entry.providerId}</code>
                       </dd>
+                      {entry.native ? (
+                        <>
+                          <dt>{isZh ? '内置搜索' : 'Native search'}</dt>
+                          <dd data-testid="web-search-log-native">{formatNativeSummary(entry.native, isZh)}</dd>
+                        </>
+                      ) : null}
                       <dt>{isZh ? '执行状态' : 'Status'}</dt>
                       <dd>
                         {entry.ok
@@ -367,6 +373,44 @@ export function WebSearchLogPanel(props: WebSearchLogPanelProps): ReactElement {
   );
 }
 
+/**
+ * Row source tag. A native run that fell back reports the source provider as
+ * `providerId`, so the native summary decides the vendor label and marker.
+ */
+export function describeLogSource(entry: WebSearchLogEntry, isZh: boolean): WebSearchSourceInfo {
+  const native = entry.native;
+  const base = parseWebSearchSourceInfo(entry.providerId, isZh);
+  if (!native) return base;
+  const vendor = nativeSearchVendorLabel(native.adapter) ?? native.providerId;
+  const label = isZh ? `${vendor} 内置` : `${vendor} native`;
+  if (native.fellBackToSources) {
+    return {
+      label: isZh ? `${label} → 回退` : `${label} → fallback`,
+      kind: 'model',
+      title: isZh ? `内置搜索失败，已回退：${base.title}` : `Native search failed; fell back to ${base.title}`,
+    };
+  }
+  return { ...base, label, kind: 'model' };
+}
+
+/** One-line native telemetry for the detail pane (no queries, no HTML). */
+export function formatNativeSummary(native: NonNullable<WebSearchLogEntry['native']>, isZh: boolean): string {
+  const parts: string[] = [native.adapter];
+  if (native.transport) parts.push(native.transport);
+  parts.push(
+    native.eventDetected
+      ? isZh
+        ? `检测到搜索事件 · 厂商发起 ${native.searchQueryCount} 次查询`
+        : `search event detected · ${native.searchQueryCount} provider queries`
+      : isZh
+        ? '未检测到搜索事件'
+        : 'no search event detected',
+  );
+  if (native.fellBackToSources) parts.push(isZh ? '已回退到搜索源' : 'fell back to sources');
+  if (native.error) parts.push(native.error);
+  return parts.join(' · ');
+}
+
 /** Parses providerId into a structured descriptor with readable labels and tone kinds. */
 export function parseWebSearchSourceInfo(providerId: string, isZh: boolean): WebSearchSourceInfo {
   if (!providerId || providerId === 'unconfigured' || providerId === 'none') {
@@ -376,8 +420,8 @@ export function parseWebSearchSourceInfo(providerId: string, isZh: boolean): Web
       title: providerId || 'unconfigured',
     };
   }
-  if (providerId.startsWith('model-delegate:')) {
-    const model = providerId.slice('model-delegate:'.length);
+  if (providerId.startsWith('native:') || providerId.startsWith('model-delegate:')) {
+    const model = providerId.replace(/^(?:native|model-delegate):/u, '');
     return {
       label: isZh ? '模型内置' : 'Model native',
       kind: 'model',
