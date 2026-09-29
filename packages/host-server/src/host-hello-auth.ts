@@ -100,11 +100,14 @@ export async function authenticateHostHello(
   }
 
   // A presented authToken can only be validated against a configured token.
-  // When no token is configured the hello must fail closed: the anonymous
-  // path was already handled above, and silently accepting an arbitrary
-  // token would let any unpaired client take operator control.
+  // With none configured, an unverifiable token must never grant more than
+  // the anonymous path would: admit only where anonymous hello is allowed
+  // (direct loopback, e.g. a shell with a stale saved token), otherwise fail
+  // closed so an arbitrary token cannot take operator control.
   if (context.authToken === undefined) {
-    return { ok: false, message: 'Host authentication failed' };
+    return context.allowAnonymousHello
+      ? { ok: true }
+      : { ok: false, message: 'Host authentication failed' };
   }
   if (!context.tokensEqual(context.authToken, message.authToken)) {
     return { ok: false, message: 'Host authentication failed' };
