@@ -162,6 +162,8 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
   // Conversation-scoped UI memory. Session switches park/restore in
   // resetComposerTurnControls — first-send (draft → created session) must
   // keep the pill, and later turns of the same session must too.
+  // A blank composer starts freehand; a saved new-session scheme replaces
+  // this once settings load and no conversation is open.
   const [orchestrationSchemeId, setOrchestrationSchemeId] = useState<string>(
     ORCHESTRATION_SCHEME_OFF_ID,
   );

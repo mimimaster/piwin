@@ -15,6 +15,9 @@ export type OrchestrationCopy = {
   freehandModelUnavailable: string;
   schemeCount: (count: number) => string;
   roleCount: (count: number) => string;
+  schemeDefaultLabel: string;
+  schemeDefaultAria: (name: string) => string;
+  schemeDefaultHint: string;
 
   /* List */
   schemeNew: string;
@@ -117,6 +120,9 @@ const ZH: OrchestrationCopy = {
   freehandModelUnavailable: '已选模型不可用',
   schemeCount: (count) => `${count} 个方案`,
   roleCount: (count) => `${count} 个角色`,
+  schemeDefaultLabel: '设为默认编排',
+  schemeDefaultAria: (name) => `把${name}设为默认编排`,
+  schemeDefaultHint: '勾选一个方案作为默认编排。取消勾选后可以一个都不选。已有会话保持自己的选择。',
 
   schemeNew: '新建方案',
   schemeEdit: '编辑',
@@ -213,6 +219,10 @@ const EN: OrchestrationCopy = {
   freehandModelUnavailable: 'Selected model unavailable',
   schemeCount: (count) => `${count} scheme${count === 1 ? '' : 's'}`,
   roleCount: (count) => `${count} role${count === 1 ? '' : 's'}`,
+  schemeDefaultLabel: 'Set as default',
+  schemeDefaultAria: (name) => `Set ${name} as the default orchestration`,
+  schemeDefaultHint:
+    'Check one scheme as the default. Uncheck it to leave none selected. Existing chats keep their own choice.',
 
   schemeNew: 'New scheme',
   schemeEdit: 'Edit',

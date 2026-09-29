@@ -61,6 +61,9 @@ export type OrchestrationSchemeEditorProps = {
   onNotice: (message: string | null) => void;
   onPersistSchemes: (schemes: OrchestrationSchemeSettings[]) => Promise<boolean>;
   onCloneScheme: (schemeId: string) => Promise<void>;
+  /** Scheme preselected for a new conversation. Absent means freehand. */
+  defaultSchemeId: string | undefined;
+  onDefaultSchemeChange: (schemeId: string | undefined) => Promise<void>;
   /** Page copy shown above the list; hidden while a scheme is open. */
   listIntro?: ReactNode;
   /** Page-level controls shown under the list; hidden while a scheme is open. */
@@ -203,6 +206,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
           {copy.schemeNew}
         </Button>
       </div>
+      <p className="orch-default-hint">{copy.schemeDefaultHint}</p>
 
       {notice ? <Notice tone="success">{notice}</Notice> : null}
 
@@ -216,6 +220,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
             <li
               key={scheme.id}
               className="orch-scheme-card"
+              data-default={props.defaultSchemeId === scheme.id ? 'true' : 'false'}
               data-testid={`orchestration-scheme-row-${scheme.id}`}
             >
               <button
@@ -245,46 +250,63 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
                 </span>
               </button>
 
-              <div className="orch-scheme-actions">
-                <Button
-                  size="compact"
-                  variant="secondary"
-                  disabled={saving}
-                  onClick={() => startEdit(scheme)}
-                >
-                  {copy.schemeEdit}
-                </Button>
-                <Button
-                  size="compact"
-                  variant="ghost"
-                  disabled={saving}
-                  data-testid={`orchestration-scheme-clone-${scheme.id}`}
-                  onClick={() => void props.onCloneScheme(scheme.id)}
-                >
-                  {copy.schemeClone}
-                </Button>
-                {isBuiltinBase && hasOverlay ? (
+              <div className="orch-scheme-side">
+                <label className="orch-scheme-default">
+                  <input
+                    type="checkbox"
+                    checked={props.defaultSchemeId === scheme.id}
+                    disabled={saving}
+                    aria-label={copy.schemeDefaultAria(scheme.name)}
+                    data-testid={`orchestration-scheme-default-${scheme.id}`}
+                    onChange={(event) => {
+                      void props.onDefaultSchemeChange(
+                        event.currentTarget.checked ? scheme.id : undefined,
+                      );
+                    }}
+                  />
+                  <span>{copy.schemeDefaultLabel}</span>
+                </label>
+                <div className="orch-scheme-actions">
+                  <Button
+                    size="compact"
+                    variant="secondary"
+                    disabled={saving}
+                    onClick={() => startEdit(scheme)}
+                  >
+                    {copy.schemeEdit}
+                  </Button>
                   <Button
                     size="compact"
                     variant="ghost"
                     disabled={saving}
-                    data-testid={`orchestration-scheme-reset-${scheme.id}`}
-                    onClick={() => void resetBuiltin(scheme.id)}
+                    data-testid={`orchestration-scheme-clone-${scheme.id}`}
+                    onClick={() => void props.onCloneScheme(scheme.id)}
                   >
-                    {copy.schemeResetBuiltin}
+                    {copy.schemeClone}
                   </Button>
-                ) : null}
-                {!isBuiltinBase ? (
-                  <Button
-                    size="compact"
-                    variant="ghost"
-                    disabled={saving}
-                    data-testid={`orchestration-scheme-delete-${scheme.id}`}
-                    onClick={() => void deleteUserScheme(scheme.id)}
-                  >
-                    {copy.schemeDelete}
-                  </Button>
-                ) : null}
+                  {isBuiltinBase && hasOverlay ? (
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      disabled={saving}
+                      data-testid={`orchestration-scheme-reset-${scheme.id}`}
+                      onClick={() => void resetBuiltin(scheme.id)}
+                    >
+                      {copy.schemeResetBuiltin}
+                    </Button>
+                  ) : null}
+                  {!isBuiltinBase ? (
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      disabled={saving}
+                      data-testid={`orchestration-scheme-delete-${scheme.id}`}
+                      onClick={() => void deleteUserScheme(scheme.id)}
+                    >
+                      {copy.schemeDelete}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </li>
           );

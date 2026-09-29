@@ -151,8 +151,12 @@ export type SettingsContextValue = {
   remoteSettingsReadOnly?: boolean;
   setError: (message: string | null) => void;
   setInfo: (message: string | null, tone?: 'info' | 'success' | 'warning') => void;
-  /** Persist config through the host; returns false (and sets error) on failure. */
-  saveConfig: (next: PiwinConfig) => Promise<boolean>;
+  /**
+   * Persist config through the host; returns false (and sets error) on failure.
+   * `quiet` leaves the page's saving flag alone so one control can update
+   * without disabling the rest of the form.
+   */
+  saveConfig: (next: PiwinConfig, options?: { quiet?: boolean }) => Promise<boolean>;
   /** Web tools draft lives above the section so it survives nav switches. */
   webDraft: DraftWeb;
   setWebDraft: (draft: DraftWeb) => void;

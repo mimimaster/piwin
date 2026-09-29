@@ -114,6 +114,30 @@ describe('resolveComposerOrchestrationForSessionChange', () => {
     expect(result.parked.get('session-a')?.schemeId).toBe('fusion');
   });
 
+  it('opens New Agent on the configured default and does not apply that default to an existing chat', () => {
+    const opened = resolveComposerOrchestrationForSessionChange({
+      previousSessionId: 'session-a',
+      nextSessionId: null,
+      current: { schemeId: 'fusion', delegationDisabled: true },
+      parked: new Map(),
+      newSessionSchemeId: 'ultra-code',
+    });
+    expect(opened.controls).toEqual({ schemeId: 'ultra-code', delegationDisabled: false });
+    expect(opened.parked.get('session-a')).toEqual({
+      schemeId: 'fusion',
+      delegationDisabled: true,
+    });
+
+    const existing = resolveComposerOrchestrationForSessionChange({
+      previousSessionId: null,
+      nextSessionId: 'session-b',
+      current: { schemeId: 'ultra-code', delegationDisabled: false },
+      parked: new Map(),
+      newSessionSchemeId: 'ultra-code',
+    });
+    expect(existing.controls).toEqual({ schemeId: 'off', delegationDisabled: false });
+  });
+
   it('does not park a New Agent draft scheme onto an existing session click', () => {
     const result = resolveComposerOrchestrationForSessionChange({
       previousSessionId: null,

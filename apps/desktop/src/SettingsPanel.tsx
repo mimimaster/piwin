@@ -314,10 +314,13 @@ export const SettingsPanel = memo(function SettingsPanel({
     hostClient.supportsCommand?.('settings/apply') === false;
 
   const saveConfig = useCallback(
-    async (next: PiwinConfig): Promise<boolean> => {
-      setSaving(true);
-      setError(null);
-      setInfo(null);
+    async (next: PiwinConfig, options?: { quiet?: boolean }): Promise<boolean> => {
+      const quiet = options?.quiet === true;
+      if (!quiet) {
+        setSaving(true);
+        setError(null);
+        setInfo(null);
+      }
       try {
         const response = await request({ type: 'config/set', config: next });
         if (!response.success) {
@@ -353,7 +356,7 @@ export const SettingsPanel = memo(function SettingsPanel({
         onSaved?.(stored);
         return true;
       } finally {
-        setSaving(false);
+        if (!quiet) setSaving(false);
       }
     },
     [locale, onSaved, request, setError, setInfo],

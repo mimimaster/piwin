@@ -199,12 +199,55 @@
   font-weight: 600;
 }
 
+.orch-scheme-side {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.orch-scheme-default {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.orch-scheme-default:has(input:checked) {
+  color: var(--text-1);
+  font-weight: 650;
+}
+
+.orch-scheme-default input {
+  margin: 0;
+  accent-color: var(--text-1);
+}
+
+.orch-scheme-default:has(input:disabled) {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.orch-default-hint {
+  margin: 0 0 var(--s-4);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+}
+
 .orch-scheme-actions {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: var(--s-2);
-  align-self: flex-start;
 }
 
 /* ── Detail shell ─────────────────────────────────────────────────────── */
@@ -458,8 +501,16 @@
     flex-direction: column;
   }
 
+  .orch-scheme-side {
+    align-items: stretch;
+  }
+
+  .orch-scheme-default {
+    align-self: flex-start;
+  }
+
   .orch-scheme-actions {
-    align-self: stretch;
+    align-self: flex-end;
     justify-content: flex-end;
   }
 

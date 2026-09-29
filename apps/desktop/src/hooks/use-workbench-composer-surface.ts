@@ -58,7 +58,6 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     delegationDisabled,
     setDelegationDisabled,
     orchestrationSchemeId,
-    setOrchestrationSchemeId,
     sidebarMode,
     shell,
   } = chrome;
@@ -148,7 +147,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     orchestrationSchemeOptions: host.orchestrationSchemeOptions,
     delegationDisabled,
     setDelegationDisabled,
-    setOrchestrationSchemeId,
+    setOrchestrationSchemeId: composer.selectOrchestrationScheme,
     requestGit: host.requestGit,
     recentProjects: session.recentProjects,
     activeJobs: host.activeJobsForComposer,

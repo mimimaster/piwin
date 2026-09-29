@@ -5,7 +5,9 @@
  * Enhancement: docs/specs/orchestration-scheme-v2-enhancement.md (members / role)
  *
  * Schemes package main-agent spawn discipline + role roster + concurrency
- * ceilings. They never define providers. Off / omit means zero scheme work.
+ * ceilings. They never define providers. Off / omit on a send means zero
+ * scheme work. The Desktop default scheme only preselects the composer for a
+ * new conversation; it does not inject discipline by itself.
  */
 
 import type { ModelRef, ThinkingLevel } from './host.js';
@@ -447,6 +449,20 @@ export function listOrchestrationSchemes(
     }
   }
   return ordered;
+}
+
+/**
+ * Scheme id for a new conversation's composer.
+ * Unknown, deleted, and Off ids resolve to {@link ORCHESTRATION_SCHEME_OFF_ID}.
+ * Builtins count even when Settings has no overlay for them.
+ */
+export function resolveNewSessionOrchestrationSchemeId(
+  config: (OrchestrationSchemeConfigSlice & { defaultSchemeId?: string | undefined }) | undefined,
+): string {
+  const raw = config?.defaultSchemeId?.trim() ?? '';
+  if (!raw || !isValidOrchestrationSchemeId(raw)) return ORCHESTRATION_SCHEME_OFF_ID;
+  const known = listOrchestrationSchemes(config ?? {}).some((scheme) => scheme.id === raw);
+  return known ? raw : ORCHESTRATION_SCHEME_OFF_ID;
 }
 
 export type ResolveOrchestrationSchemeOptions = {

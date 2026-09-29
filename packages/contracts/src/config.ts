@@ -610,6 +610,11 @@ export type DesktopRestoreConfig = {
     sessionId: string;
     scope: SessionScope;
   };
+  /**
+   * Scheme preselected on the Desktop composer when a new conversation starts.
+   * Omitted means Off. Existing conversations keep their own choice.
+   */
+  defaultOrchestrationSchemeId?: string;
 };
 
 /** Product session behavior config under `PiwinConfig.session`. */

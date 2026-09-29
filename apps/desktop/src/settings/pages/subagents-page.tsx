@@ -12,6 +12,7 @@ import {
   createDefaultSubagentConfig,
   listOrchestrationSchemes,
   migrateSchemeMembers,
+  type DesktopRestoreConfig,
   type OrchestrationSchemeSettings,
   toModelRef,
   type ModelRef,
@@ -29,6 +30,31 @@ import { useSettings } from '../settings-context';
 import { buildOrchestrationCopy } from '../orchestration-copy';
 import { OrchestrationSchemeEditor } from '../orchestration-scheme-editor';
 import { modelSelectValue } from '../orchestration-scheme-draft';
+
+function subagentEditorSyncKey(subagents: SubagentConfig): string {
+  return JSON.stringify({
+    schemes: subagents.schemes ?? [],
+    freehandReadonlyModel: subagents.freehandReadonlyModel ?? null,
+    maxConcurrency: subagents.maxConcurrency,
+    maxTasksPerRun: subagents.maxTasksPerRun,
+    profiles: subagents.profiles,
+    defaultProfileId: subagents.defaultProfileId ?? null,
+    processIsolation: subagents.processIsolation,
+    parallelWritePolicy: subagents.parallelWritePolicy,
+    dirtyBasePolicy: subagents.dirtyBasePolicy,
+  });
+}
+
+/** Empty string clears the stored id; omitting the key would leave the previous one. */
+function desktopWithDefaultScheme(
+  desktop: DesktopRestoreConfig | undefined,
+  schemeId: string,
+): DesktopRestoreConfig {
+  return {
+    ...(desktop ?? {}),
+    defaultOrchestrationSchemeId: schemeId,
+  };
+}
 
 export function SubagentProfilesPage(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -52,6 +78,11 @@ export function SubagentProfilesPage(): ReactElement {
   );
   const [maxConcurrency, setMaxConcurrency] = useState<number>(subagents.maxConcurrency);
   const [maxTasksPerRun, setMaxTasksPerRun] = useState<number>(subagents.maxTasksPerRun);
+  const savedDefaultSchemeId = config?.desktop?.defaultOrchestrationSchemeId;
+  const [defaultSchemeId, setDefaultSchemeId] = useState<string | undefined>(
+    () => savedDefaultSchemeId,
+  );
+  const editorSyncKey = subagentEditorSyncKey(subagents);
 
   useEffect(() => {
     setSchemeDrafts(subagents.schemes ?? []);
@@ -59,8 +90,14 @@ export function SubagentProfilesPage(): ReactElement {
     setMaxConcurrency(subagents.maxConcurrency);
     setMaxTasksPerRun(subagents.maxTasksPerRun);
     setSchemeNotice(null);
+    // The key is the subagent document. A default-scheme write only changes
+    // `desktop`, and rebuilding the list from that would flash the page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config]);
+  }, [editorSyncKey]);
+
+  useEffect(() => {
+    setDefaultSchemeId(savedDefaultSchemeId);
+  }, [savedDefaultSchemeId]);
 
   const orchestrationSchemes = useMemo(
     () =>
@@ -127,7 +164,9 @@ export function SubagentProfilesPage(): ReactElement {
     return candidate;
   }
 
-  function baseSubagentPayload(schemes: OrchestrationSchemeSettings[] | undefined): SubagentConfig {
+  function baseSubagentPayload(
+    schemes: OrchestrationSchemeSettings[] | undefined,
+  ): SubagentConfig {
     const payload: SubagentConfig = {
       profiles: subagents.profiles ?? [],
       maxConcurrency,
@@ -144,6 +183,18 @@ export function SubagentProfilesPage(): ReactElement {
       payload.schemes = schemes;
     }
     return payload;
+  }
+
+  function schemeStillExists(
+    schemeId: string | undefined,
+    schemes: OrchestrationSchemeSettings[],
+  ): boolean {
+    if (!schemeId) return false;
+    return listOrchestrationSchemes({
+      schemes,
+      maxConcurrency: subagents.maxConcurrency,
+      maxTasksPerRun: subagents.maxTasksPerRun,
+    }).some((scheme) => scheme.id === schemeId);
   }
 
   async function saveFreehandModel(value: string): Promise<void> {
@@ -214,16 +265,43 @@ export function SubagentProfilesPage(): ReactElement {
 
   async function persistSchemes(nextSchemes: OrchestrationSchemeSettings[]): Promise<boolean> {
     if (!config) return false;
+    const previousDefault = defaultSchemeId;
+    const nextDefault = schemeStillExists(defaultSchemeId, nextSchemes)
+      ? defaultSchemeId
+      : undefined;
+    const clearDefault = previousDefault !== undefined && nextDefault === undefined;
     setSchemeDrafts(nextSchemes);
+    setDefaultSchemeId(nextDefault);
     const ok = await saveConfig({
       ...config,
       subagents: baseSubagentPayload(nextSchemes.length > 0 ? nextSchemes : undefined),
+      ...(clearDefault
+        ? { desktop: desktopWithDefaultScheme(config.desktop, '') }
+        : {}),
     });
     if (!ok) {
+      setDefaultSchemeId(previousDefault);
       setError(copy.saveFailed);
       return false;
     }
     return true;
+  }
+
+  async function setDefaultScheme(schemeId: string | undefined): Promise<void> {
+    if (!config) return;
+    const previous = defaultSchemeId;
+    setDefaultSchemeId(schemeId);
+    const ok = await saveConfig(
+      {
+        ...config,
+        desktop: desktopWithDefaultScheme(config.desktop, schemeId ?? ''),
+      },
+      { quiet: true },
+    );
+    if (!ok) {
+      setDefaultSchemeId(previous);
+      setError(copy.saveFailed);
+    }
   }
 
   async function saveAdvancedLimits(): Promise<void> {
@@ -265,6 +343,8 @@ export function SubagentProfilesPage(): ReactElement {
         copy={copy}
         onPersistSchemes={persistSchemes}
         onCloneScheme={handleCloneScheme}
+        defaultSchemeId={defaultSchemeId}
+        onDefaultSchemeChange={setDefaultScheme}
         listIntro={
           /* The settings shell already renders the section name as the page
              <h1>; a second heading here would say the same word twice. */

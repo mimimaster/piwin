@@ -646,6 +646,46 @@ describe('config-store', () => {
     expect((await loadPiwinConfig(rootDir)).subagents?.freehandReadonlyModel).toBeUndefined();
   });
 
+  it('round-trips the desktop default orchestration scheme and drops ids that cannot be schemes', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-default-scheme-'));
+    const config = createDefaultPiwinConfig();
+    config.desktop = { defaultOrchestrationSchemeId: 'fusion' };
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.desktop?.defaultOrchestrationSchemeId).toBe('fusion');
+    expect(loaded.subagents).not.toHaveProperty('defaultSchemeId');
+
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        ...config,
+        desktop: { defaultOrchestrationSchemeId: 'Not A Scheme' },
+        subagents: { ...config.subagents, defaultSchemeId: 'ultra-code' },
+      }),
+      'utf8',
+    );
+    const migrated = await loadPiwinConfig(rootDir);
+    expect(migrated.desktop?.defaultOrchestrationSchemeId).toBe('ultra-code');
+    expect(migrated.subagents).not.toHaveProperty('defaultSchemeId');
+
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        desktop: { defaultOrchestrationSchemeId: 'fusion' },
+        subagents: { defaultSchemeId: 'ultra-code' },
+      }),
+      'utf8',
+    );
+    expect((await loadPiwinConfig(rootDir)).desktop?.defaultOrchestrationSchemeId).toBe('fusion');
+
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({ desktop: { defaultOrchestrationSchemeId: '' } }),
+      'utf8',
+    );
+    expect((await loadPiwinConfig(rootDir)).desktop?.defaultOrchestrationSchemeId).toBeUndefined();
+  });
+
   it.each([
     null,
     ['not-a-model'],

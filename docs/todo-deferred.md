@@ -204,7 +204,7 @@
 | CE-CHAT-01..05 | Pin, search, edit-resend, modes light | W1 | same | **Partial** — pin/search/edit; modes light residual |
 | CE-OBS-01..02 | Token/context usage events + UI | W1 | same | **Partial** — usage chip + execution usage; densify residual. Cache countdown in usage popover is a client-side 5-min estimate from `updatedAt` (Pi exposes no TTL); replace with host-supplied TTL via `@piwin/contracts` if Pi adds one. |
 | CE-SUB-01..05 | Worktree sub-agent, apply policy, concurrency | W2 | [`w2-subagent-compaction-pty.md`](./specs/w2-subagent-compaction-pty.md) | **Partial 2026-07-21** — worktree spawn/apply/UI; batch concurrency deferred |
-| ORCH-01..05 | Orchestration Scheme（编排方案）Composer opt-in | after CE-SUB | [`orchestration-scheme.md`](./specs/orchestration-scheme.md) | **Queued 2026-08-07** — per-send Off/Ultra Code; no cross-session persist; contracts→host→desktop→cli |
+| ORCH-01..05 | Orchestration Scheme（编排方案）Composer opt-in | after CE-SUB | [`orchestration-scheme.md`](./specs/orchestration-scheme.md) | **Shipped** — per-send scheme; session pill is in-memory. **2026-09-29:** Settings checkbox 「设为默认编排」 stores `desktop.defaultOrchestrationSchemeId` and preselects the Desktop composer for a new chat only. Unchecking leaves none. CLI omit stays Off. |
 | CE-COMP-01..03 | Pi FileOperations surface + Files touched inject | W2 | same | **Partial 2026-07-21** — normalize/inject/banner state; Pi extract best-effort |
 | CE-PTY-01..03 | Real PTY terminal dock | W2 | same | **Partial 2026-07-21** — host pty/* + Desktop Activity/Terminal dock tabs (piped shell; node-pty later) |
 | CE-MD-01..02 | KaTeX + Mermaid | W2 | same | **Done** (soft-fail fences) |

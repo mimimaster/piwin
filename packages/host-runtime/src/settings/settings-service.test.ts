@@ -542,6 +542,30 @@ describe('SettingsService', () => {
     );
   });
 
+  it('stores a default orchestration scheme on desktop without a new runtime', async () => {
+    const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
+    const selected = applySettingsMutations(snapshot.config, [
+      {
+        kind: 'replace-domain',
+        domain: 'desktop',
+        value: { defaultOrchestrationSchemeId: 'fusion' },
+      },
+    ]);
+    expect(selected.desktop?.defaultOrchestrationSchemeId).toBe('fusion');
+    expect(classifySettingsImpact('desktop', snapshot.config, selected)).toEqual(
+      expect.objectContaining({ timing: 'immediate', runtimeSchemaChanged: false }),
+    );
+
+    const cleared = applySettingsMutations(selected, [
+      {
+        kind: 'replace-domain',
+        domain: 'desktop',
+        value: { ...selected.desktop, defaultOrchestrationSchemeId: '' },
+      },
+    ]);
+    expect(cleared.desktop?.defaultOrchestrationSchemeId).toBeUndefined();
+  });
+
   it('marks an equal-length blocked URL prefix replacement as a Web fetch tightening', async () => {
     const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
     const web = snapshot.config.web;

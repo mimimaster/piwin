@@ -2,7 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { createDefaultSubagentConfig, type PiwinConfig } from '@piwin/contracts';
+import {
+  createDefaultSubagentConfig,
+  type OrchestrationSchemeSettings,
+  type PiwinConfig,
+} from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens';
 import type { SettingsContextValue } from '../settings-context';
@@ -41,10 +45,12 @@ describe('freehand read-only subagent model settings', () => {
   let container: HTMLElement;
   let root: Root;
   let saves: PiwinConfig[];
+  let quietSaves: boolean[];
 
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     saves = [];
+    quietSaves = [];
     settings = {
       config: config(),
       saving: false,
@@ -60,8 +66,9 @@ describe('freehand read-only subagent model settings', () => {
           ],
         },
       })),
-      saveConfig: vi.fn(async (next: PiwinConfig) => {
+      saveConfig: vi.fn(async (next: PiwinConfig, options?: { quiet?: boolean }) => {
         saves.push(next);
+        quietSaves.push(options?.quiet === true);
         return true;
       }),
       setError: vi.fn(),
@@ -150,5 +157,93 @@ describe('freehand read-only subagent model settings', () => {
     expect(buildOrchestrationCopy(false).freehandModelHint).toContain(
       'writing tasks inherit the main model',
     );
+  });
+
+  function schemeBox(schemeId: string): HTMLInputElement {
+    const node = container.querySelector(
+      `[data-testid="orchestration-scheme-default-${schemeId}"]`,
+    );
+    if (!(node instanceof HTMLInputElement)) throw new Error(`missing default box ${schemeId}`);
+    return node;
+  }
+
+  async function clickBox(schemeId: string): Promise<void> {
+    const box = schemeBox(schemeId);
+    await act(async () => {
+      box.click();
+    });
+  }
+
+  it('checks one scheme as the default orchestration and can leave none checked', async () => {
+    await render();
+    expect(container.textContent).toContain('设为默认编排');
+    expect(container.textContent).toContain('取消勾选后可以一个都不选');
+    expect(schemeBox('fusion').checked).toBe(false);
+
+    await clickBox('fusion');
+    expect(saves.at(-1)?.desktop?.defaultOrchestrationSchemeId).toBe('fusion');
+    expect(saves.at(-1)?.subagents).not.toHaveProperty('defaultSchemeId');
+    expect(saves.at(-1)?.subagents?.freehandReadonlyModel).toEqual(LIGHT);
+    expect(quietSaves.at(-1)).toBe(true);
+    expect(schemeBox('fusion').checked).toBe(true);
+    expect(schemeBox('ultra-code').checked).toBe(false);
+
+    await clickBox('ultra-code');
+    expect(saves.at(-1)?.desktop?.defaultOrchestrationSchemeId).toBe('ultra-code');
+    expect(quietSaves.at(-1)).toBe(true);
+    expect(schemeBox('ultra-code').checked).toBe(true);
+    expect(schemeBox('fusion').checked).toBe(false);
+
+    await clickBox('ultra-code');
+    expect(saves.at(-1)?.desktop?.defaultOrchestrationSchemeId).toBe('');
+    expect(saves.at(-1)?.subagents).not.toHaveProperty('defaultSchemeId');
+    expect(quietSaves.at(-1)).toBe(true);
+    expect(schemeBox('ultra-code').checked).toBe(false);
+    expect(schemeBox('fusion').checked).toBe(false);
+  });
+
+  it('clears the default orchestration when that custom scheme is deleted', async () => {
+    const custom: OrchestrationSchemeSettings = {
+      id: 'my-scheme-1',
+      name: 'Temp',
+      description: 'Custom roster',
+      systemPreamble: 'Delegate to the roster.',
+      exposeSpawnMetadata: false,
+      waitPolicy: 'await-all',
+      defaultRole: 'coder',
+      members: [{ role: 'coder', description: 'Write the change', fallback: 'main' }],
+    };
+    settings = {
+      ...settings,
+      config: {
+        ...config(),
+        desktop: { defaultOrchestrationSchemeId: custom.id },
+        subagents: {
+          ...createDefaultSubagentConfig(),
+          freehandReadonlyModel: LIGHT,
+          schemes: [custom],
+        },
+      },
+    };
+    await render(true);
+    expect(schemeBox(custom.id).checked).toBe(true);
+    const remove = container.querySelector(
+      `[data-testid="orchestration-scheme-delete-${custom.id}"]`,
+    );
+    if (!(remove instanceof HTMLElement)) throw new Error('missing delete');
+    await act(async () => {
+      remove.click();
+    });
+    const confirm = document.body.querySelector('[data-testid="confirm-dialog-confirm"]');
+    if (!(confirm instanceof HTMLElement)) throw new Error('missing confirm');
+    await act(async () => {
+      confirm.click();
+    });
+    expect(saves.at(-1)?.desktop?.defaultOrchestrationSchemeId).toBe('');
+    expect(saves.at(-1)?.subagents).not.toHaveProperty('defaultSchemeId');
+    expect(
+      saves.at(-1)?.subagents?.schemes?.some((scheme) => scheme.id === custom.id) ?? false,
+    ).toBe(false);
+    expect(saves.at(-1)?.subagents?.freehandReadonlyModel).toEqual(LIGHT);
   });
 });

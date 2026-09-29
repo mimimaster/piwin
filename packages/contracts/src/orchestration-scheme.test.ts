@@ -22,6 +22,7 @@ import {
   formatOrchestrationSchemePreamble,
   listOrchestrationSchemes,
   mergeOrchestrationSchemeIntoPrompt,
+  resolveNewSessionOrchestrationSchemeId,
   migrateSchemeMembers,
   resolveOrchestrationScheme,
   resolveUnpinnedOrchestrationDefaultRole,
@@ -35,14 +36,55 @@ import type {
 function baseConfig(
   overrides?: Partial<OrchestrationSchemeConfigSlice> & {
     schemes?: OrchestrationSchemeSettings[];
+    defaultSchemeId?: string;
   },
-): OrchestrationSchemeConfigSlice {
+): OrchestrationSchemeConfigSlice & { defaultSchemeId?: string } {
   return {
     maxConcurrency: 4,
     maxTasksPerRun: 8,
     ...(overrides ?? {}),
   };
 }
+
+describe('resolveNewSessionOrchestrationSchemeId', () => {
+  it('uses a builtin or saved scheme and ignores off, blank, and unknown ids', () => {
+    expect(resolveNewSessionOrchestrationSchemeId(undefined)).toBe(ORCHESTRATION_SCHEME_OFF_ID);
+    expect(resolveNewSessionOrchestrationSchemeId(baseConfig())).toBe(ORCHESTRATION_SCHEME_OFF_ID);
+    expect(
+      resolveNewSessionOrchestrationSchemeId(baseConfig({ defaultSchemeId: 'ultra-code' })),
+    ).toBe('ultra-code');
+    expect(
+      resolveNewSessionOrchestrationSchemeId(baseConfig({ defaultSchemeId: '  fusion  ' })),
+    ).toBe('fusion');
+    expect(
+      resolveNewSessionOrchestrationSchemeId(
+        baseConfig({
+          defaultSchemeId: 'my-scheme',
+          schemes: [
+            {
+              id: 'my-scheme',
+              name: 'Mine',
+              description: 'Custom',
+              systemPreamble: 'Delegate.',
+              exposeSpawnMetadata: false,
+              waitPolicy: 'await-all',
+              members: [{ role: 'coder', description: 'Write' }],
+            },
+          ],
+        }),
+      ),
+    ).toBe('my-scheme');
+    expect(
+      resolveNewSessionOrchestrationSchemeId(baseConfig({ defaultSchemeId: 'deleted-scheme' })),
+    ).toBe(ORCHESTRATION_SCHEME_OFF_ID);
+    expect(resolveNewSessionOrchestrationSchemeId(baseConfig({ defaultSchemeId: 'off' }))).toBe(
+      ORCHESTRATION_SCHEME_OFF_ID,
+    );
+    expect(resolveNewSessionOrchestrationSchemeId(baseConfig({ defaultSchemeId: 'Bad_Id' }))).toBe(
+      ORCHESTRATION_SCHEME_OFF_ID,
+    );
+  });
+});
 
 describe('resolveOrchestrationScheme', () => {
   it('returns undefined for off / omit / empty', () => {
