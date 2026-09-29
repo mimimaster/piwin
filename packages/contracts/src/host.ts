@@ -797,6 +797,10 @@ export interface SessionHandle {
    * Continuous Pi sessions already own their native conversation context.
    */
   needsProductHistoryInjection?(): boolean;
+  /** External agent backend id (ADR 0082); absent for Pi handles. */
+  readonly backendAgentId?: string;
+  /** Release backend process resources (external agents). Idempotent. */
+  release?(): Promise<void>;
 }
 
 export interface AgentHost {

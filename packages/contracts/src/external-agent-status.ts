@@ -31,6 +31,8 @@ export type ExternalAgentStatus =
       defaultAuthMethodId?: string;
       /** Agent-global permission mode read from the agent itself, when reported. */
       permissionMode?: string;
+      /** Agent-level defaults for a new session (models, commands, modes). */
+      options?: import('./agent-backend-capabilities.js').SessionBackendOptions;
       checkedAt: string;
     };
 

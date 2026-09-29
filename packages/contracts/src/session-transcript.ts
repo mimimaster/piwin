@@ -191,6 +191,10 @@ export type SessionResumeData = {
   pauseCheckpoint?: import('./session-pause.js').SessionPauseCheckpoint;
   /** Linear message outline for jump-scroll UI (not a multi-branch Pi tree). */
   outline?: SessionOutlineNode[];
+  /** ADR 0082: capabilities of the session backend; absent means Pi (all supported). */
+  backendCapabilities?: import('./agent-backend-capabilities.js').SessionBackendCapabilities;
+  /** ADR 0082: backend-owned composer options (models, efforts, modes, commands). */
+  backendOptions?: import('./agent-backend-capabilities.js').SessionBackendOptions;
 };
 
 /** Lightweight linear outline derived from product transcript. */

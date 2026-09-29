@@ -33,6 +33,11 @@ export function evaluateColdStorageEligibility(
   if (input.record.kind !== undefined && input.record.kind !== 'main') {
     return { eligible: false, reason: 'not-main' };
   }
+  // ADR 0082: external agents (Grok) own their native history; piwin packs
+  // only a display projection, so offloading would strand the real session.
+  if (input.record.backend !== undefined && input.record.backend.agentId !== 'pi') {
+    return { eligible: false, reason: 'not-main' };
+  }
   if (input.record.isArchived !== true) {
     return { eligible: false, reason: 'not-archived' };
   }

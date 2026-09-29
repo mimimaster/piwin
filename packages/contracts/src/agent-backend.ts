@@ -30,6 +30,10 @@ export type SessionBackendBinding = {
   agentVersion?: string;
   /** Agent-side last change (epoch ms) already reflected in the transcript projection. */
   syncedChangeUnixMs?: number;
+  /** Last model / effort / mode the user chose; re-applied after resume. */
+  modelId?: string;
+  effortId?: string;
+  modeId?: string;
 };
 
 /** Effective backend id for a record; absent binding means Pi. */
@@ -64,6 +68,12 @@ export function parseSessionBackendBinding(value: unknown): SessionBackendBindin
     record.syncedChangeUnixMs >= 0
   ) {
     binding.syncedChangeUnixMs = record.syncedChangeUnixMs;
+  }
+  for (const key of ['modelId', 'effortId', 'modeId'] as const) {
+    const value = record[key];
+    if (typeof value === 'string' && value !== '') {
+      binding[key] = value;
+    }
   }
   return binding;
 }

@@ -8,6 +8,7 @@ import {
   type AcpLineTransport,
 } from '@piwin/acp-agent';
 import type { ExternalAgentStatus } from '@piwin/contracts';
+import { GrokSessionOptionsState } from '@piwin/acp-agent';
 import { createGrokProcessTransport } from './grok-process-transport.js';
 
 export const GROK_VERIFIED_VERSIONS: ReadonlySet<string> = new Set(['1.0.41', '1.0.44']);
@@ -145,6 +146,14 @@ function statusFromInitialize(
   if (defaultAuthMethodId !== undefined) {
     status.defaultAuthMethodId = defaultAuthMethodId;
   }
+  // Agent-level defaults so the new-session picker has models/commands
+  // before any Grok session exists.
+  const options = new GrokSessionOptionsState();
+  options.applyModels(meta.modelState);
+  if (Array.isArray(meta.availableCommands)) {
+    options.applyCommands(meta.availableCommands);
+  }
+  status.options = options.snapshot(AGENT_ID);
   return status;
 }
 

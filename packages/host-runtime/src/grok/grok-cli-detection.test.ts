@@ -108,9 +108,14 @@ describe('detectGrokCli', () => {
     deliverInitialize(transport, {
       protocolVersion: 1,
       authMethods: [{ id: 'cached_token' }],
-      _meta: { agentVersion: '1.0.44', defaultAuthMethodId: 'cached_token' },
+      _meta: {
+        agentVersion: '1.0.44',
+        defaultAuthMethodId: 'cached_token',
+        modelState: { currentModelId: 'grok-4.7', availableModels: [{ modelId: 'grok-4.7', name: 'Grok 4.7' }] },
+        availableCommands: [{ name: 'compact', description: 'Compact context' }],
+      },
     });
-    await expect(detection).resolves.toEqual({
+    await expect(detection).resolves.toMatchObject({
       agentId: 'grok',
       state: 'ready',
       binaryPath: '/usr/bin/grok',
@@ -118,6 +123,11 @@ describe('detectGrokCli', () => {
       supportStatus: 'verified',
       defaultAuthMethodId: 'cached_token',
       checkedAt: CHECKED_AT,
+      options: {
+        currentModelId: 'grok-4.7',
+        models: [{ id: 'grok-4.7', label: 'Grok 4.7' }],
+        commands: [{ name: 'compact', description: 'Compact context' }],
+      },
     });
     expect(GROK_VERIFIED_VERSIONS.has('1.0.44')).toBe(true);
   });
@@ -160,7 +170,7 @@ describe('detectGrokCli', () => {
       authMethods: [{ id: 'grok.com' }],
       _meta: { agentVersion: '1.0.41', defaultAuthMethodId: 'grok.com' },
     });
-    await expect(detection).resolves.toEqual({
+    await expect(detection).resolves.toMatchObject({
       agentId: 'grok',
       state: 'unauthenticated',
       binaryPath: '/usr/bin/grok',
