@@ -723,12 +723,8 @@ export default function (pi: ExtensionAPI) {
     // For Anthropic: cacheWrite holds actual writes, included in total.
     const rate = calcHitRate(cacheRead, input, cacheWrite);
 
-    if (ctx.hasUI) {
-      ctx.ui.setStatus(
-        "cache",
-        ctx.ui.theme.fg("dim", `Cache ${rate.toFixed(1)}%`),
-      );
-    }
+    // piwin patch 1: no composer status chip for the hit rate; /cache-stats
+    // still reports it on demand.
 
     // Track history on rate change
     const rateKey = rate.toFixed(2);

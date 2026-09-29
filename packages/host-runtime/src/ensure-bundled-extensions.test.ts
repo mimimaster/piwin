@@ -97,4 +97,63 @@ describe('ensureBundledExtensionsInstalled', () => {
     expect(await exists(join(extensionsDir, 'path-guard.ts'))).toBe(true);
     expect(await exists(join(extensionsDir, 'mine.ts'))).toBe(true);
   });
+
+  it('refreshes a single-file module only when a higher bundled version ships and it is still ours', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-bundled-ext-single-'));
+    const bundled = join(root, 'bundled');
+    const piwinRoot = join(root, 'piwin');
+    await mkdir(bundled, { recursive: true });
+    const shipped = join(bundled, 'goal.ts');
+    const installed = join(piwinRoot, 'extensions', 'goal.ts');
+    const withVersion = (version: number | null, body: string): string =>
+      `/**\n * @piwin-bundled-extension\n${version === null ? '' : ` * @piwin-bundled-version ${version}\n`} */\n${body}\n`;
+
+    await writeFile(shipped, withVersion(null, 'export const v = 1;'));
+    expect(await ensureBundledExtensionsInstalled(piwinRoot, bundled)).toContain('goal');
+
+    // Same (untagged) version: left alone.
+    expect(await ensureBundledExtensionsInstalled(piwinRoot, bundled)).toEqual([]);
+
+    // A tagged, higher version refreshes an untagged install.
+    await writeFile(shipped, withVersion(2, 'export const v = 2;'));
+    expect(await ensureBundledExtensionsInstalled(piwinRoot, bundled)).toContain('goal');
+    expect(await readFile(installed, 'utf8')).toContain('export const v = 2;');
+
+    // A user copy without the marker is never overwritten.
+    await writeFile(installed, 'export const mine = true;\n');
+    await writeFile(shipped, withVersion(3, 'export const v = 3;'));
+    expect(await ensureBundledExtensionsInstalled(piwinRoot, bundled)).toEqual([]);
+    expect(await readFile(installed, 'utf8')).toBe('export const mine = true;\n');
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('refreshes a vendored package when only the piwin patch number changes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-bundled-ext-patch-'));
+    const bundled = join(root, 'bundled');
+    const piwinRoot = join(root, 'piwin');
+    const pkg = join(bundled, 'pi-deepseek-cache');
+    await mkdir(pkg, { recursive: true });
+    const manifest = (patch?: number): string =>
+      JSON.stringify({
+        name: 'pi-deepseek-cache',
+        version: '1.0.4',
+        piwin: {
+          bundledFrom: 'npm:@rohaquinlop/pi-deepseek-cache',
+          npmVersion: '1.0.4',
+          ...(patch ? { patch } : {}),
+        },
+      });
+    await writeFile(join(pkg, 'index.ts'), 'export default () => "upstream";');
+    await writeFile(join(pkg, 'package.json'), manifest());
+    expect(await ensureBundledExtensionsInstalled(piwinRoot, bundled)).toContain('pi-deepseek-cache');
+
+    await writeFile(join(pkg, 'index.ts'), 'export default () => "patched";');
+    await writeFile(join(pkg, 'package.json'), manifest(1));
+    expect(await ensureBundledExtensionsInstalled(piwinRoot, bundled)).toContain('pi-deepseek-cache');
+    expect(await readFile(join(piwinRoot, 'extensions', 'pi-deepseek-cache', 'index.ts'), 'utf8')).toContain(
+      'patched',
+    );
+    expect(await ensureBundledExtensionsInstalled(piwinRoot, bundled)).toEqual([]);
+    await rm(root, { recursive: true, force: true });
+  });
 });

@@ -7,7 +7,10 @@ import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
  * Copy shipped extension modules into ~/.piwin/extensions.
  *
  * Supports:
- * - single-file modules: `path-guard.ts` (install once; never overwrite)
+ * - single-file modules: `path-guard.ts` (installed once; refreshed only when
+ *   the shipped `@piwin-bundled-version` is higher and the installed copy still
+ *   carries the `@piwin-bundled-extension` marker — remove the marker to keep
+ *   your own edits)
  * - package directories with `index.ts`: `pi-anthropic-auth/` (refresh when
  *   bundled package.json version / piwin.npmVersion differs)
  *
@@ -53,7 +56,7 @@ export async function ensureBundledExtensionsInstalled(
       }
       shippedNames.add(entryName.replace(/\.ts$/i, ''));
       const toPath = join(targetRoot, entryName);
-      if (await pathExists(toPath)) {
+      if (!(await singleFileNeedsInstall(fromPath, toPath))) {
         continue;
       }
       try {
@@ -142,6 +145,32 @@ async function removeUnshippedBundledExtensions(
   }
 }
 
+/**
+ * A missing file installs. An existing one refreshes only while it is still
+ * ours (bundled marker present) and older than what ships; a file without a
+ * version tag counts as version 0.
+ */
+async function singleFileNeedsInstall(fromPath: string, toPath: string): Promise<boolean> {
+  if (!(await pathExists(toPath))) {
+    return true;
+  }
+  if (!(await fileLooksBundled(toPath))) {
+    return false;
+  }
+  return (await readBundledVersion(fromPath)) > (await readBundledVersion(toPath));
+}
+
+const BUNDLED_VERSION_TAG = /@piwin-bundled-version\s+(\d+)/;
+
+async function readBundledVersion(path: string): Promise<number> {
+  try {
+    const match = BUNDLED_VERSION_TAG.exec(await readFile(path, 'utf8'));
+    return match?.[1] ? Number.parseInt(match[1], 10) : 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function fileLooksBundled(path: string): Promise<boolean> {
   try {
     const raw = await readFile(path, 'utf8');
@@ -186,14 +215,20 @@ async function readPackageFingerprint(dir: string): Promise<string | undefined> 
     const raw = await readFile(join(dir, 'package.json'), 'utf8');
     const parsed = JSON.parse(raw) as {
       version?: unknown;
-      piwin?: { npmVersion?: unknown; bundledFrom?: unknown };
+      piwin?: { npmVersion?: unknown; bundledFrom?: unknown; patch?: unknown };
     };
     const version = typeof parsed.version === 'string' ? parsed.version : '';
     const npmVersion =
       typeof parsed.piwin?.npmVersion === 'string' ? parsed.piwin.npmVersion : '';
     const from =
       typeof parsed.piwin?.bundledFrom === 'string' ? parsed.piwin.bundledFrom : '';
-    const fingerprint = [from, npmVersion || version].filter(Boolean).join('@');
+    // A piwin-local patch of a vendored package must refresh installs even
+    // when the upstream npm version is unchanged.
+    const patch =
+      typeof parsed.piwin?.patch === 'number' && parsed.piwin.patch > 0
+        ? `+piwin.${parsed.piwin.patch}`
+        : '';
+    const fingerprint = [from, `${npmVersion || version}${patch}`].filter(Boolean).join('@');
     return fingerprint || version || undefined;
   } catch {
     return undefined;

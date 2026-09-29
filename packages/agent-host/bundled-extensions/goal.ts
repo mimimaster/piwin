@@ -1,6 +1,7 @@
 /**
  * Autonomous goal execution loop and tracking extension (@narumitw/pi-goal).
  * @piwin-bundled-extension
+ * @piwin-bundled-version 2
  *
  * Loaded by Pi jiti as a product extension under ~/.piwin/extensions.
  * Disable via config.extensions.disabledIds: ["goal"].
@@ -59,6 +60,76 @@ export type ExtensionApi = {
   }) => void;
   on?: (event: string, handler: (...args: unknown[]) => unknown) => void;
 };
+
+/** The slice of Pi's ExtensionUIContext this extension uses (piwin ADR 0080). */
+type GoalUi = {
+  notify?: (message: string, level?: 'info' | 'warning' | 'error') => void;
+  setWorkingMessage?: (message?: string) => void;
+};
+
+/** Longest toast text; the full summary stays in the tool card. */
+const NOTICE_MAX_CHARS = 160;
+/** Upper bound of one goal_wait, as before. */
+const WAIT_MAX_MS = 30_000;
+
+/**
+ * Pi passes the extension context as the tool's fifth argument. Reading `ui`
+ * can throw once the runner is gone, and headless hosts have no UI; either way
+ * the tool still works, it just shows nothing.
+ */
+function readGoalUi(context: unknown): GoalUi | undefined {
+  try {
+    if (!context || typeof context !== 'object') return undefined;
+    const ctx = context as { hasUI?: boolean; ui?: unknown };
+    if (ctx.hasUI === false || !ctx.ui || typeof ctx.ui !== 'object') return undefined;
+    return ctx.ui as GoalUi;
+  } catch {
+    return undefined;
+  }
+}
+
+function notifyGoal(ui: GoalUi | undefined, message: string, level: 'info' | 'warning'): void {
+  try {
+    ui?.notify?.(truncate(message, NOTICE_MAX_CHARS), level);
+  } catch {
+    // Display is best-effort; the tool result is the record.
+  }
+}
+
+function setGoalWorking(ui: GoalUi | undefined, message?: string): void {
+  try {
+    ui?.setWorkingMessage?.(message);
+  } catch {
+    // Display is best-effort.
+  }
+}
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/** Sleep in one-second steps, reporting the remaining seconds; stops on abort. */
+async function waitWithCountdown(
+  totalMs: number,
+  signal: AbortSignal | undefined,
+  onTick: (remainingSeconds: number) => void,
+): Promise<void> {
+  const deadline = Date.now() + totalMs;
+  while (!signal?.aborted) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) return;
+    onTick(Math.ceil(remainingMs / 1000));
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(done, Math.min(1000, remainingMs));
+      function done(): void {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', done);
+        resolve();
+      }
+      signal?.addEventListener('abort', done, { once: true });
+    });
+  }
+}
 
 export const GOAL_COMPLETE_PARAMETERS: JsonSchema = {
   type: 'object',
@@ -121,7 +192,7 @@ export default function goalExtension(pi: ExtensionApi): void {
       description:
         'Declare that the current objective and acceptance criteria have been verified and accomplished.',
       parameters: GOAL_COMPLETE_PARAMETERS,
-      execute: async (_toolCallId, params) => {
+      execute: async (_toolCallId, params, _signal, _onUpdate, context) => {
         const input = (params && typeof params === 'object' ? params : {}) as GoalCompleteInput;
         const summary = typeof input.summary === 'string' ? input.summary.trim() : 'Goal complete';
         const verification =
@@ -129,6 +200,8 @@ export default function goalExtension(pi: ExtensionApi): void {
         const artifacts = Array.isArray(input.artifacts)
           ? input.artifacts.filter((a): a is string => typeof a === 'string')
           : [];
+
+        notifyGoal(readGoalUi(context), `🎯 ${summary}`, 'info');
 
         const lines = [`🎯 Goal Complete: ${summary}`];
         if (verification) {
@@ -156,12 +229,19 @@ export default function goalExtension(pi: ExtensionApi): void {
       description:
         'Signal that progress is blocked by an impasse, ambiguity, or missing user decision.',
       parameters: GOAL_BLOCKED_PARAMETERS,
-      execute: async (_toolCallId, params) => {
+      execute: async (_toolCallId, params, _signal, _onUpdate, context) => {
         const input = (params && typeof params === 'object' ? params : {}) as GoalBlockedInput;
         const reason =
           typeof input.reason === 'string' ? input.reason.trim() : 'Goal is blocked';
         const unblockAction =
           typeof input.unblockAction === 'string' ? input.unblockAction.trim() : '';
+
+        // Blocked means the user must act, so it is a warning, not a status.
+        notifyGoal(
+          readGoalUi(context),
+          unblockAction ? `⚠️ ${reason} → ${unblockAction}` : `⚠️ ${reason}`,
+          'warning',
+        );
 
         const lines = [`⚠️ Goal Blocked: ${reason}`];
         if (unblockAction) {
@@ -184,7 +264,7 @@ export default function goalExtension(pi: ExtensionApi): void {
       label: 'Goal Wait',
       description: 'Wait for an external condition or async process.',
       parameters: GOAL_WAIT_PARAMETERS,
-      execute: async (_toolCallId, params) => {
+      execute: async (_toolCallId, params, signal, _onUpdate, context) => {
         const input = (params && typeof params === 'object' ? params : {}) as GoalWaitInput;
         const reason = typeof input.reason === 'string' ? input.reason.trim() : 'Waiting';
         const duration =
@@ -193,7 +273,15 @@ export default function goalExtension(pi: ExtensionApi): void {
             : 0;
 
         if (duration > 0) {
-          await new Promise((resolve) => setTimeout(resolve, Math.min(duration * 1000, 30000)));
+          const ui = readGoalUi(context);
+          const label = truncate(reason, 80);
+          try {
+            await waitWithCountdown(Math.min(duration * 1000, WAIT_MAX_MS), signal, (seconds) =>
+              setGoalWorking(ui, `⏸ ${label} · ${seconds}s`),
+            );
+          } finally {
+            setGoalWorking(ui, undefined);
+          }
         }
 
         return {

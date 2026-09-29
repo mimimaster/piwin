@@ -54,4 +54,44 @@ describe('bundled goal extension (@narumitw/pi-goal)', () => {
       unblockAction: 'Provide API key in environment or .env',
     });
   });
+
+  it('notifies the user when the goal completes or is blocked', async () => {
+    const tools = getRegisteredTools();
+    const notices: Array<{ message: string; level?: string }> = [];
+    const context = { hasUI: true, ui: { notify: (message: string, level?: string) => notices.push({ message, level }) } };
+
+    await tools.find((t) => t.name === 'goal_complete')!.execute('c', { summary: 'Shipped' }, undefined, undefined, context);
+    await tools
+      .find((t) => t.name === 'goal_blocked')!
+      .execute('b', { reason: 'Need prod creds', unblockAction: 'Add the key' }, undefined, undefined, context);
+
+    expect(notices).toEqual([
+      { message: '🎯 Shipped', level: 'info' },
+      { message: '⚠️ Need prod creds → Add the key', level: 'warning' },
+    ]);
+  });
+
+  it('shows a countdown while waiting, clears it, and stops on abort', async () => {
+    const tools = getRegisteredTools();
+    const working: Array<string | undefined> = [];
+    const context = { hasUI: true, ui: { setWorkingMessage: (message?: string) => working.push(message) } };
+    const controller = new AbortController();
+    const started = Date.now();
+    const pending = tools
+      .find((t) => t.name === 'goal_wait')!
+      .execute('w', { reason: 'CI run', durationSeconds: 20 }, controller.signal, undefined, context);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    controller.abort();
+    await pending;
+
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(working[0]).toBe('⏸ CI run · 20s');
+    expect(working.at(-1)).toBeUndefined();
+  });
+
+  it('works without a UI context', async () => {
+    const tools = getRegisteredTools();
+    const result = await tools.find((t) => t.name === 'goal_complete')!.execute('c', { summary: 'Done' });
+    expect(result.details).toMatchObject({ status: 'completed' });
+  });
 });

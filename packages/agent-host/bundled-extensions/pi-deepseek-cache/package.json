@@ -4,9 +4,15 @@
   "description": "DeepSeek cache optimization: prefix cache alignment to reduce repeated token cost and first-token latency.",
   "type": "module",
   "private": true,
-  "pi": { "extensions": ["./index.ts"] },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
   "piwin": {
     "bundledFrom": "npm:@rohaquinlop/pi-deepseek-cache",
-    "npmVersion": "1.0.4"
+    "npmVersion": "1.0.4",
+    "patch": 1,
+    "patchNotes": "1: drop the composer hit-rate status chip"
   }
 }
