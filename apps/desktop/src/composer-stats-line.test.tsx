@@ -56,7 +56,7 @@ describe('buildComposerStatsSegments', () => {
     });
     expect(segments.map((segment) => segment.text)).toEqual([
       '2 轮 · 5 步 · 200 tok/s',
-      '12K tok · 缓存命中 75%',
+      '12K tok · 缓存 75%',
     ]);
   });
 
@@ -94,7 +94,7 @@ describe('buildComposerStatsSegments', () => {
       locale: 'en',
     });
     expect(segments).toEqual([
-      { kind: 'extension', key: 'working-message', text: '⏸ waiting · 12s', working: true },
+      { kind: 'extension', key: '__working__', text: '⏸ waiting · 12s', working: true },
       { kind: 'extension', key: 'kiro', text: 'Kiro 42%', working: false },
     ]);
   });
@@ -122,14 +122,23 @@ describe('ComposerStatsLine', () => {
     const view = render(
       <ComposerStatsLine
         totals={totals}
-        extensionSurface={{ sessionId: 's1', statuses: [{ key: 'kiro', text: 'Kiro 42%' }], widgets: [] }}
+        extensionSurface={{
+          sessionId: 's1',
+          statuses: [{ key: 'kiro', text: 'Kiro 42%' }],
+          widgets: [],
+          workingMessage: 'waiting · 12s',
+        }}
         locale="en"
       />,
     );
     const rows = view.querySelectorAll('[role="status"]');
     expect(rows).toHaveLength(1);
     expect(view.querySelector('[data-testid="composer-stats-activity"]')?.textContent).toBe('2 turns · 5 steps');
+    expect(view.querySelector('[data-testid="composer-stats-tokens"]')?.textContent).toBe('12K tok · cache 75%');
     expect(view.querySelector('[data-status-key="kiro"]')?.textContent).toBe('Kiro 42%');
+    expect(view.querySelector('[data-status-key="__working__"]')?.textContent).toBe('waiting · 12s');
+    expect(view.querySelector('.composer-stats-pulse-dot')).not.toBeNull();
+    expect(view.querySelector('.composer-stats-separator')?.textContent).toBe('·');
   });
 
   it('renders nothing when there is nothing to show', () => {

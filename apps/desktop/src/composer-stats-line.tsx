@@ -1,45 +1,67 @@
 /**
- * One centered line under the composer card: session stats first, then Pi
- * extension status (ADR 0080). Renders nothing when there is nothing to say,
- * so an empty session keeps the composer flush.
+ * One muted row under the composer card: Pi extension status on the left,
+ * session stats (turns · steps · tok/s · tokens · cache) on the right (ADR 0080).
+ * Renders nothing when there is nothing to say, so an empty session keeps the composer flush.
  */
-import type { ReactElement } from 'react';
-import { IconActivity, IconChartBar } from './shell-icons';
+import { Fragment, type ReactElement } from 'react';
 import {
   buildComposerStatsSegments,
   type ComposerStatsLineInput,
+  type ComposerStatsSegment,
 } from './composer-stats-line-model';
 
 export function ComposerStatsLine(props: ComposerStatsLineInput): ReactElement | null {
   const segments = buildComposerStatsSegments(props);
   if (segments.length === 0) return null;
+
+  const extensionSegments = segments.filter(
+    (segment): segment is Extract<ComposerStatsSegment, { kind: 'extension' }> =>
+      segment.kind === 'extension',
+  );
+  const metricSegments = segments.filter(
+    (segment): segment is Extract<ComposerStatsSegment, { kind: 'activity' | 'tokens' }> =>
+      segment.kind !== 'extension',
+  );
+
   return (
     <div className="composer-stats-line" role="status" data-testid="composer-stats-line">
-      {segments.map((segment) => {
-        if (segment.kind === 'extension') {
-          return (
+      {extensionSegments.length > 0 ? (
+        <div className="composer-stats-extensions" data-testid="composer-stats-extensions">
+          {extensionSegments.map((segment) => (
             <span
-              key={`ext:${segment.key}`}
-              className={`composer-stats-item is-extension${segment.working ? ' is-working' : ''}`}
+              key={segment.key}
+              className="composer-stats-item is-extension"
               data-status-key={segment.key}
             >
+              {segment.working ? (
+                <span className="composer-stats-pulse-dot" aria-hidden />
+              ) : null}
               {segment.text}
             </span>
-          );
-        }
-        const Icon = segment.kind === 'activity' ? IconActivity : IconChartBar;
-        return (
-          <span
-            key={segment.kind}
-            className="composer-stats-item"
-            title={segment.title}
-            data-testid={`composer-stats-${segment.kind}`}
-          >
-            <Icon width={12} height={12} aria-hidden />
-            {segment.text}
-          </span>
-        );
-      })}
+          ))}
+        </div>
+      ) : null}
+
+      {metricSegments.length > 0 ? (
+        <div className="composer-stats-metrics" data-testid="composer-stats-metrics">
+          {metricSegments.map((segment, index) => (
+            <Fragment key={segment.kind}>
+              {index > 0 ? (
+                <span className="composer-stats-separator" aria-hidden>
+                  ·
+                </span>
+              ) : null}
+              <span
+                className="composer-stats-item"
+                title={segment.title}
+                data-testid={`composer-stats-${segment.kind}`}
+              >
+                {segment.text}
+              </span>
+            </Fragment>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

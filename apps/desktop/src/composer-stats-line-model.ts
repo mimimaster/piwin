@@ -66,7 +66,7 @@ export function buildComposerStatsSegments(input: ComposerStatsLineInput): Compo
     const hitRate = computePromptCacheHitRate(totals);
     const tokenParts = [`${formatUsageTokenCount(totals.totalTokens)} tok`];
     if (hitRate !== null) {
-      tokenParts.push(zh ? `缓存命中 ${Math.round(hitRate * 100)}%` : `cache ${Math.round(hitRate * 100)}%`);
+      tokenParts.push(zh ? `缓存 ${Math.round(hitRate * 100)}%` : `cache ${Math.round(hitRate * 100)}%`);
     }
     segments.push({
       kind: 'tokens',
@@ -79,7 +79,7 @@ export function buildComposerStatsSegments(input: ComposerStatsLineInput): Compo
 
   const surface = input.extensionSurface;
   if (surface?.workingMessage !== undefined) {
-    segments.push({ kind: 'extension', key: 'working-message', text: surface.workingMessage, working: true });
+    segments.push({ kind: 'extension', key: '__working__', text: surface.workingMessage, working: true });
   }
   for (const status of surface?.statuses ?? []) {
     segments.push({ kind: 'extension', key: status.key, text: status.text, working: false });

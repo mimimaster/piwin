@@ -1,20 +1,32 @@
-/* Composer stats line — one muted, centered row under the composer card:
-   session stats first, then extension status (ADR 0080). */
+/* Composer stats line — one muted row under the composer card:
+   Pi extension status on the left, session stats on the right (ADR 0080). */
 
 .composer-stats-line {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  column-gap: var(--s-8);
-  row-gap: var(--s-1);
-  margin-block-start: var(--s-3);
-  padding-inline: var(--s-4);
+  gap: var(--s-3);
+  margin-block-start: var(--s-2);
+  padding-inline: calc(var(--s-4) + 1px);
   color: var(--text-3);
   font-size: 11.5px;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
   min-width: 0;
+}
+
+.composer-stats-extensions,
+.composer-stats-metrics {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.composer-stats-metrics {
+  margin-inline-start: auto;
 }
 
 .composer-stats-item {
@@ -28,15 +40,37 @@
   text-overflow: ellipsis;
 }
 
-.composer-stats-item svg {
-  flex-shrink: 0;
-  opacity: 0.8;
+.composer-stats-separator {
+  opacity: 0.45;
+  user-select: none;
 }
 
 .composer-stats-item.is-extension {
   color: var(--text-2);
 }
 
-.composer-stats-item.is-working {
-  font-style: italic;
+.composer-stats-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--iris);
+  flex-shrink: 0;
+  animation: composer-stats-pulse 1.4s var(--ease-in-out) infinite;
+}
+
+@keyframes composer-stats-pulse {
+  0%, 100% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-stats-pulse-dot {
+    animation: none;
+  }
 }
