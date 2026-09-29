@@ -8,6 +8,7 @@ import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
 import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
 import { RunStatusFooter } from './run-status-footer.js';
+import { activeSessionPermissionPrompt } from './permission-queue.js';
 
 export type ConversationPaneTranscriptProps = {
   sessionId: string;
@@ -83,7 +84,7 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
   const showRunStatusFooter =
     props.state.streaming &&
     !props.state.awaitingTranscript &&
-    !props.state.permissionPrompt &&
+    !activeSessionPermissionPrompt(props.state) &&
     !props.state.compactionActivity;
 
   const latestAssistantId = useMemo(() => {

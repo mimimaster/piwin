@@ -53,6 +53,7 @@ import { SessionSearchDialog } from './session-search-dialog';
 import type { SessionRowMenuAction } from './session-row-menu';
 import type { SettingsSectionId } from './settings/section-registry';
 import { TruncateAfterDialog } from './truncate-after-dialog';
+import { activeSessionPermissionPrompt } from './permission-queue';
 import type { DesktopPreferences } from './ui-preferences';
 
 export type WorkbenchOverlaysProps = {
@@ -226,7 +227,7 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
         onRenameSession={(sessionId, name) => {
           void props.onRenameSession(sessionId, name);
         }}
-        permissionPrompt={props.state.permissionPrompt}
+        permissionPrompt={activeSessionPermissionPrompt(props.state)}
         onPermission={(decision, scope) => {
           void props.onPermission(decision, scope);
         }}

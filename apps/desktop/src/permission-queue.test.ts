@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { PermissionPromptUi } from './chat-ui-types';
 import {
+  activeSessionPermissionPrompt,
+  activeSessionPermissionQueue,
   dequeuePermissionPrompt,
   dropPermissionPromptsForRun,
   enqueuePermissionPrompt,
@@ -129,5 +131,61 @@ describe('reconcilePermissionQueue', () => {
       cwd: '/other',
       command: 'pnpm dev',
     });
+  });
+});
+
+describe('active session permission view', () => {
+  const foreign = prompt('foreign', { sessionId: 'session-2' });
+  const own = prompt('own', { sessionId: 'session-1' });
+  const child = prompt('child', { sessionId: 'child-1' });
+  const childSummary = {
+    id: 'child-1',
+    scope: { kind: 'project' as const, projectPath: '/repo' },
+    workingDirectory: '/repo',
+    projectPath: '/repo',
+    updatedAt: '2026-09-22T00:00:00.000Z',
+    messageCount: 0,
+    parentSessionId: 'session-1',
+    kind: 'subagent' as const,
+  };
+
+  it('does not let another session head block the active session', () => {
+    const state = {
+      permissionQueue: [foreign, own],
+      activeSessionId: 'session-1',
+      subagentChildren: {},
+    };
+    expect(activeSessionPermissionPrompt(state)?.requestId).toBe('own');
+  });
+
+  it('returns no prompt when only other sessions are waiting', () => {
+    const state = {
+      permissionQueue: [foreign],
+      activeSessionId: 'session-1',
+      subagentChildren: {},
+    };
+    expect(activeSessionPermissionPrompt(state)).toBeNull();
+  });
+
+  it('includes subagent children of the active session', () => {
+    const state = {
+      permissionQueue: [foreign, child, own],
+      activeSessionId: 'session-1',
+      subagentChildren: { 'child-1': childSummary },
+    };
+    expect(activeSessionPermissionQueue(state).map((item) => item.requestId)).toEqual([
+      'child',
+      'own',
+    ]);
+  });
+
+  it('is empty without an active session', () => {
+    expect(
+      activeSessionPermissionQueue({
+        permissionQueue: [own],
+        activeSessionId: null,
+        subagentChildren: {},
+      }),
+    ).toEqual([]);
   });
 });

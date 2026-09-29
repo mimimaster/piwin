@@ -18,6 +18,7 @@ import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js'
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 import { compactFailureMessage } from './session-actions-helpers.js';
 import { reconcilePendingPermissions } from './reconcile-pending-permissions.js';
+import { activeSessionPermissionPrompt } from '../permission-queue.js';
 
 export function useSessionRunActions(input: {
   hostClient: HostClient;
@@ -339,7 +340,8 @@ export function useSessionRunActions(input: {
       decision: PermissionDecision,
       rememberScope: PermissionRememberScope = 'once',
     ): Promise<void> => {
-      const prompt = state.permissionPrompt;
+      // Resolve what the bar shows for this session, not the cross-session head.
+      const prompt = activeSessionPermissionPrompt(state);
       if (!prompt) {
         return;
       }
@@ -365,7 +367,14 @@ export function useSessionRunActions(input: {
       }
       void reconcilePendingPermissions({ hostClient, dispatch });
     },
-    [dispatch, dispatchNotification, hostClient, state.permissionPrompt],
+    [
+      dispatch,
+      dispatchNotification,
+      hostClient,
+      state.permissionQueue,
+      state.activeSessionId,
+      state.subagentChildren,
+    ],
   );
 
   return {

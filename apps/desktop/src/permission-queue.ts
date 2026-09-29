@@ -13,6 +13,30 @@ export function activePermissionPrompt(
   return queue[0] ?? null;
 }
 
+/**
+ * The global queue spans every session. Chrome and resolve actions must only
+ * see the active session's prompts (plus its subagent children); reading the
+ * global head let one session's pending approval block — and be resolved by —
+ * another session's Allow/Deny.
+ */
+export function activeSessionPermissionQueue(
+  state: Pick<ChatUiState, 'permissionQueue' | 'activeSessionId' | 'subagentChildren'>,
+): PermissionPromptUi[] {
+  const activeSessionId = state.activeSessionId;
+  if (!activeSessionId) return [];
+  return state.permissionQueue.filter(
+    (prompt) =>
+      prompt.sessionId === activeSessionId ||
+      state.subagentChildren[prompt.sessionId]?.parentSessionId === activeSessionId,
+  );
+}
+
+export function activeSessionPermissionPrompt(
+  state: Pick<ChatUiState, 'permissionQueue' | 'activeSessionId' | 'subagentChildren'>,
+): PermissionPromptUi | null {
+  return activeSessionPermissionQueue(state)[0] ?? null;
+}
+
 export function permissionQueueFields(
   queue: readonly PermissionPromptUi[],
 ): Pick<ChatUiState, 'permissionQueue' | 'permissionPrompt'> {
