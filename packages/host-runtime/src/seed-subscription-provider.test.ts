@@ -261,4 +261,58 @@ describe('seed subscription provider', () => {
       'high',
     ]);
   });
+
+  it('keeps a user-narrowed thinkingLevels subset across catalog refresh', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'xai',
+        name: 'Grok',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://xai',
+        source: 'subscription',
+        models: [
+          {
+            id: 'grok-4.5',
+            label: 'Grok 4.5',
+            thinkingLevels: ['low', 'high'],
+            thinkingLevel: 'high',
+          },
+        ],
+      },
+    ];
+    const merged = upsertSubscriptionProvider(config, 'xai', [
+      { id: 'grok-4.5', name: 'Grok 4.5', thinkingLevels: ['low', 'medium', 'high'] },
+    ]);
+    const model = merged.providers[0]?.models.find((entry) => entry.id === 'grok-4.5');
+    expect(model?.thinkingLevels).toEqual(['low', 'high']);
+    expect(model?.thinkingLevel).toBe('high');
+  });
+
+  it('drops a saved thinkingLevel that the catalog no longer supports', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'xai',
+        name: 'Grok',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://xai',
+        source: 'subscription',
+        models: [
+          {
+            id: 'grok-4.5',
+            label: 'Grok 4.5',
+            thinkingLevels: ['low', 'xhigh'],
+            thinkingLevel: 'xhigh',
+          },
+        ],
+      },
+    ];
+    const merged = upsertSubscriptionProvider(config, 'xai', [
+      { id: 'grok-4.5', name: 'Grok 4.5', thinkingLevels: ['low', 'medium', 'high'] },
+    ]);
+    const model = merged.providers[0]?.models.find((entry) => entry.id === 'grok-4.5');
+    expect(model?.thinkingLevels).toEqual(['low']);
+    expect(model?.thinkingLevel).toBeUndefined();
+  });
 });

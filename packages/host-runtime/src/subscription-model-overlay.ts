@@ -1,7 +1,7 @@
 import type { PiwinConfig, SubscriptionAccount } from '@piwin/contracts';
 import { isModelEnabled, isProviderEnabled } from '@piwin/contracts';
 import type { SubscriptionCatalogModel } from '@piwin/agent-host';
-import { overlayCatalogLimits } from './seed-subscription-provider.js';
+import { narrowCatalogThinkingLevels, overlayCatalogLimits } from './seed-subscription-provider.js';
 
 export type ConfiguredChatModels = {
   defaultProviderId?: string;
@@ -39,7 +39,13 @@ export function mergeSubscriptionCatalogModels(
             current['reasoning'] = model.reasoning;
           }
           if (Array.isArray(model.thinkingLevels) && model.thinkingLevels.length > 0) {
-            current['thinkingLevels'] = model.thinkingLevels;
+            const thinkingLevels = narrowCatalogThinkingLevels(
+              model.thinkingLevels,
+              current['thinkingLevels'],
+            );
+            if (thinkingLevels) {
+              current['thinkingLevels'] = thinkingLevels;
+            }
           }
         }
         continue;

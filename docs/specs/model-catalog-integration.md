@@ -540,6 +540,13 @@ list from the selected configured model; it does not infer levels from provider
 protocol. A missing/empty list hides the effort controls while keeping the model
 picker available.
 
+For subscription / OAuth models the Pi catalog is the capability ceiling, not
+the saved selection. A live-catalog refresh keeps the user's saved subset when
+it still intersects that ceiling, drops levels the catalog no longer supports,
+and only falls back to the full catalog list when nothing valid remains (for
+example a stale full-key dump). Enabling a level the catalog does not list is
+stripped on the next projection.
+
 Settings → Models opens an inline editor under a configured model row (click
 the row, or "Edit parameters" in its `⋯` menu). The editor reads missing
 context/output/input/reasoning values from the existing Pi catalog search

@@ -242,7 +242,9 @@ function withDiscoveredNativeSearch(
 /**
  * Keep user enable/label/selected thinking default. Take the catalog context
  * window when the saved value is missing or still the product 128K default.
- * Supported `thinkingLevels` refresh from the Pi catalog on merge.
+ * Catalog `thinkingLevels` are the capability ceiling: keep a saved subset,
+ * drop levels the catalog no longer supports, and fall back to the catalog
+ * when nothing valid remains (including a stale full-key dump).
  */
 export function mergeSubscriptionCatalogModel(
   catalog: ModelConfigEntry,
@@ -265,16 +267,48 @@ export function mergeSubscriptionCatalogModel(
   if (previous.reasoning === undefined && catalog.reasoning !== undefined) {
     merged.reasoning = catalog.reasoning;
   }
-  // Supported levels are Pi catalog capability, not a user default. Refresh
-  // them so a stale full-key dump cannot stick after the map projection fix.
   if (catalog.thinkingLevels !== undefined) {
-    merged.thinkingLevels = catalog.thinkingLevels;
+    const thinkingLevels = narrowCatalogThinkingLevels(
+      catalog.thinkingLevels,
+      previous.thinkingLevels,
+    );
+    if (thinkingLevels) {
+      merged.thinkingLevels = thinkingLevels;
+      if (merged.thinkingLevel !== undefined && !thinkingLevels.includes(merged.thinkingLevel)) {
+        delete merged.thinkingLevel;
+      }
+    }
   }
   if (previous.routes === undefined && catalog.routes !== undefined) {
     merged.routes = catalog.routes;
   }
   overlayCatalogLimits(merged, catalog);
   return merged;
+}
+
+/**
+ * Catalog thinking levels are the capability ceiling. Keep the user's saved
+ * subset when it still intersects that ceiling, so unchecking a level in
+ * Settings survives the next live-catalog refresh. Fall back to the catalog
+ * when nothing was saved, or when a stale full-key dump no longer overlaps.
+ */
+export function narrowCatalogThinkingLevels(
+  catalogLevels: readonly unknown[] | undefined,
+  configuredLevels: unknown,
+): ModelConfigEntry['thinkingLevels'] {
+  if (!Array.isArray(catalogLevels) || catalogLevels.length === 0) {
+    return undefined;
+  }
+  const catalog = catalogLevels.filter(isThinkingLevel);
+  if (catalog.length === 0) {
+    return undefined;
+  }
+  if (!Array.isArray(configuredLevels) || configuredLevels.length === 0) {
+    return catalog;
+  }
+  const allowed = new Set<string>(catalog);
+  const narrowed = configuredLevels.filter(isThinkingLevel).filter((level) => allowed.has(level));
+  return narrowed.length > 0 ? narrowed : catalog;
 }
 
 export function overlayCatalogLimits(

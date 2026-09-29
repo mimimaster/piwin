@@ -392,6 +392,90 @@ describe('SubscriptionAuthService', () => {
     ]);
   });
 
+  it('keeps a user-narrowed thinkingLevels subset when overlaying the catalog', async () => {
+    const port = loggedInXaiPort();
+    port.getChatCatalog = (providerId) =>
+      providerId === 'xai'
+        ? [
+            {
+              id: 'grok-4.5',
+              name: 'Grok 4.5',
+              reasoning: true,
+              thinkingLevels: ['low', 'medium', 'high'],
+            },
+          ]
+        : [];
+    const config: PiwinConfig = {
+      ...createDefaultPiwinConfig(),
+      providers: [grokSubscriptionProvider()],
+    };
+    const service = new SubscriptionAuthService(
+      { port },
+      { loadConfig: async () => config, saveConfig: async () => undefined },
+    );
+    const merged = await service.mergeConfiguredModels({
+      models: [
+        {
+          providerId: 'xai',
+          modelId: 'grok-4.5',
+          label: 'Grok 4.5',
+          thinkingLevels: ['low', 'high'],
+        },
+      ],
+    });
+    expect(merged.models.find((model) => model['modelId'] === 'grok-4.5')?.['thinkingLevels']).toEqual([
+      'low',
+      'high',
+    ]);
+  });
+
+  it('keeps a user-narrowed thinkingLevels subset after live catalog refresh', async () => {
+    const port = loggedInXaiPort();
+    port.getChatCatalog = (providerId) =>
+      providerId === 'xai'
+        ? [
+            {
+              id: 'grok-4.5',
+              name: 'Grok 4.5',
+              reasoning: true,
+              thinkingLevels: ['low', 'medium', 'high'],
+            },
+          ]
+        : [];
+    const config: PiwinConfig = {
+      ...createDefaultPiwinConfig(),
+      providers: [
+        grokSubscriptionProvider({
+          models: [
+            {
+              id: 'grok-4.5',
+              label: 'Grok 4.5',
+              capabilities: ['chat'],
+              thinkingLevels: ['low', 'high'],
+              thinkingLevel: 'high',
+            },
+          ],
+        }),
+      ],
+    };
+    let saved: PiwinConfig | undefined;
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => config,
+        saveConfig: async (next) => {
+          saved = next;
+        },
+      },
+    );
+    const next = await service.ensureLoggedInProviders();
+    const model = (saved ?? next).providers
+      .find((provider) => provider.id === 'xai')
+      ?.models.find((entry) => entry.id === 'grok-4.5');
+    expect(model?.thinkingLevels).toEqual(['low', 'high']);
+    expect(model?.thinkingLevel).toBe('high');
+  });
+
   it('removes subscription providers from config on logout', async () => {
     let credentials: Array<{ providerId: string; type: 'oauth' }> = [{ providerId: 'xai', type: 'oauth' }];
     const port = loggedInXaiPort();
