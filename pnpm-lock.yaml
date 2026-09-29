@@ -538,6 +538,9 @@ importers:
 
   packages/host-runtime:
     dependencies:
+      '@piwin/acp-agent':
+        specifier: workspace:*
+        version: link:../acp-agent
       '@piwin/agent-host':
         specifier: workspace:*
         version: link:../agent-host
