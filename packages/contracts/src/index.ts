@@ -125,6 +125,7 @@ export * from './client-tool.js';
 export * from './apple-health.js';
 export * from './remote-protocol.js';
 export * from './host-platform.js';
+export * from './child-process-env.js';
 export * from './remote-idempotency.js';
 export * from './host-command-request.js';
 export * from './speech.js';
