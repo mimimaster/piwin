@@ -15,8 +15,8 @@ function result(overrides: Partial<ProviderConnectionTestResult>): ProviderConne
 
 describe('describeProviderConnectionResult', () => {
   it.each([
-    ['chat-ok', 'ok', 'info'],
-    ['catalog-ok', 'ok', 'info'],
+    ['chat-ok', 'ok', 'success'],
+    ['catalog-ok', 'ok', 'success'],
     ['catalog-unavailable', 'warn', 'info'],
     ['auth-failed', 'err', 'error'],
     ['model-rejected', 'err', 'error'],

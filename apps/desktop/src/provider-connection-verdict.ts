@@ -10,7 +10,7 @@ import type { ProviderTestStatus } from './provider-status.js';
 export type ProviderConnectionVerdict = {
   status: ProviderTestStatus;
   /** Which notification channel the shell should use. */
-  notify: 'info' | 'error';
+  notify: 'success' | 'info' | 'error';
 };
 
 export function describeProviderConnectionResult(
@@ -81,7 +81,7 @@ function modelRejectedMessage(
 }
 
 function ok(message: string, durationMs: number): ProviderConnectionVerdict {
-  return { notify: 'info', status: { tone: 'ok', message, durationMs } };
+  return { notify: 'success', status: { tone: 'ok', message, durationMs } };
 }
 
 function err(message: string): ProviderConnectionVerdict {

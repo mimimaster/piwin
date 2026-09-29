@@ -53,7 +53,8 @@ export type ProviderSettingsProps = {
   saving: boolean;
   onSave: (next: PiwinConfig) => Promise<boolean>;
   onError: (message: string) => void;
-  onInfo: (message: string) => void;
+  /** `success` renders the green settings toast (e.g. a passing connection test). */
+  onInfo: (message: string, tone?: 'info' | 'success' | 'warning') => void;
   onDiscoverModels: (
     provider: ModelProviderConfig,
     options?: DiscoverModelsOptions,
@@ -246,6 +247,8 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
       setTestStatus((previous) => ({ ...previous, [id]: verdict.status }));
       if (verdict.notify === 'error') {
         onError(verdict.status.message);
+      } else if (verdict.notify === 'success') {
+        onInfo(verdict.status.message, 'success');
       } else {
         onInfo(verdict.status.message);
       }

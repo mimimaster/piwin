@@ -449,6 +449,8 @@ describe('ProviderSettings', () => {
     // Test connection no longer goes through catalog discovery.
     expect(props.onDiscoverModels).not.toHaveBeenCalled();
     expect(container.querySelector('.provider-status-pill--ok')?.textContent).toContain('gpt-4.1');
+    // A passing test uses the green success toast, not the neutral info one.
+    expect(props.onInfo).toHaveBeenCalledWith(expect.stringContaining('gpt-4.1'), 'success');
     expect(props.onStoreSecret).not.toHaveBeenCalled();
 
     await act(async () => {
