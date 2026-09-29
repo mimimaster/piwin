@@ -116,8 +116,12 @@ export function matchBashGlob(pattern: string, command: string): boolean {
  * @returns true if the pattern matches the path
  */
 export function matchPathGlob(pattern: string, absPath: string): boolean {
-  const normalizedPattern = pattern.trim();
-  const normalizedPath = absPath.trim();
+  // Windows subjects arrive from realpath.native with backslash separators,
+  // and home-expanded patterns can mix separators after string concat.
+  // Normalize both to forward slashes before splitting so bundled deny/ask
+  // rules apply identically on both platforms.
+  const normalizedPattern = pattern.trim().replace(/\\/g, '/');
+  const normalizedPath = absPath.trim().replace(/\\/g, '/');
 
   if (!normalizedPattern || !normalizedPath) {
     return false;
@@ -128,8 +132,14 @@ export function matchPathGlob(pattern: string, absPath: string): boolean {
     return true;
   }
 
-  const patternParts = normalizedPattern.split('/');
-  const pathParts = normalizedPath.split('/');
+  // Drive-letter (Windows/NTFS) paths are case-insensitive on both sides;
+  // POSIX paths keep their case-sensitive comparison.
+  const caseInsensitive =
+    /^[a-zA-Z]:\//.test(normalizedPattern) || /^[a-zA-Z]:\//.test(normalizedPath);
+  const comparablePattern = caseInsensitive ? normalizedPattern.toLowerCase() : normalizedPattern;
+  const comparablePath = caseInsensitive ? normalizedPath.toLowerCase() : normalizedPath;
+  const patternParts = comparablePattern.split('/');
+  const pathParts = comparablePath.split('/');
 
   // Helper to match a single pattern segment against a path segment
   const matchSegment = (patternSeg: string, pathSeg: string): boolean => {

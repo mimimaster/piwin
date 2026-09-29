@@ -10,6 +10,7 @@
  * - returns bounded UTF-8 content with current-resource provenance
  */
 import { readFile, realpath, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
   normalizeResourceId,
@@ -282,7 +283,7 @@ async function collectAuthorizedSkillRoots(options: ScanSkillsOptions): Promise<
   }
   for (const extra of options.skillsConfig?.extraPaths ?? []) {
     const expanded = extra.startsWith('~/')
-      ? join(process.env.HOME ?? '', extra.slice(2))
+      ? join(homedir(), extra.slice(2))
       : extra;
     await push(expanded);
   }

@@ -32,7 +32,7 @@ describe('resolvePiRuntimeAgentDir', () => {
   it('follows PIWIN_PI_AGENT_DIR then PIWIN_ROOT', () => {
     delete process.env[PIWIN_PI_AGENT_DIR_ENV];
     process.env.PIWIN_ROOT = '/tmp/piwin-test';
-    expect(resolvePiRuntimeAgentDir()).toBe('/tmp/piwin-test/pi-agent');
+    expect(resolvePiRuntimeAgentDir()).toBe(join('/tmp/piwin-test', 'pi-agent'));
     process.env[PIWIN_PI_AGENT_DIR_ENV] = '/tmp/injected-agent';
     expect(resolvePiRuntimeAgentDir()).toBe('/tmp/injected-agent');
   });

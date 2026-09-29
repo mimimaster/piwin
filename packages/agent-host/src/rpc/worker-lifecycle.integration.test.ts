@@ -6,10 +6,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import { resolve as resolvePath } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { RpcSdkWorkerClient } from '../rpc-sdk-worker-client.js';
 
 function createWorkerClient(): RpcSdkWorkerClient {
-  const workerScript = resolvePath(new URL('../rpc-sdk-worker-entry.ts', import.meta.url).pathname);
+  // fileURLToPath (not URL.pathname): on Windows pathname keeps a leading
+  // slash ("/D:/...") which is not a valid path and breaks the worker spawn.
+  const workerScript = resolvePath(fileURLToPath(new URL('../rpc-sdk-worker-entry.ts', import.meta.url)));
   return new RpcSdkWorkerClient({
     workerScript,
     nodeArgs: ['--import', 'tsx'],

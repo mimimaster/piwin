@@ -82,6 +82,17 @@ describe('matchPathGlob', () => {
     expect(matchPathGlob('~/.config/**', '~/.config/pi/config.json')).toBe(true);
     expect(matchPathGlob('~/.config/**', '/Users/test/.config/pi/config.json')).toBe(false);
   });
+
+  it('matches Windows backslash paths after separator normalization', () => {
+    expect(matchPathGlob('C:\\Users\\me\\.ssh\\**', 'C:\\Users\\me\\.ssh\\id_rsa')).toBe(true);
+    expect(matchPathGlob('**/.env', 'C:\\proj\\.env')).toBe(true);
+    expect(matchPathGlob('C:/Users/me/.ssh/**', 'C:\\Users\\me\\.ssh\\id_rsa')).toBe(true);
+  });
+
+  it('compares drive-letter paths case-insensitively and POSIX paths case-sensitively', () => {
+    expect(matchPathGlob('c:\\users\\me\\.ssh\\**', 'C:\\Users\\Me\\.ssh\\id_rsa')).toBe(true);
+    expect(matchPathGlob('/home/me/.ssh/**', '/home/Me/.ssh/id_rsa')).toBe(false);
+  });
 });
 
 describe('matchHostGlob', () => {
@@ -217,6 +228,15 @@ describe('bundled defaults (non-regression)', () => {
       path: `${homeDir}/.config/pi/config.json`,
     };
     expect(evaluateRules({ subject, rules })).toBe('ask');
+  });
+
+  it('denies secret file writes on Windows-style paths (separator normalization)', () => {
+    expect(
+      evaluateRules({ subject: { kind: 'file-write', path: 'C:\\proj\\.env' }, rules }),
+    ).toBe('deny');
+    expect(
+      evaluateRules({ subject: { kind: 'file-write', path: 'C:\\Users\\me\\.ssh\\id_rsa' }, rules }),
+    ).toBe('deny');
   });
 
   it('denies curl piped to shell with stable reason', () => {

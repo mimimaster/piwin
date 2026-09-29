@@ -5,6 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import {
   isExtensionBlueprintEligible,
@@ -333,7 +334,7 @@ function resolvePackageRoot(
 
 function resolveSettingsPath(pathValue: string, settingsDir: string): string {
   if (pathValue.startsWith('~/')) {
-    return join(process.env.HOME ?? '', pathValue.slice(2));
+    return join(homedir(), pathValue.slice(2));
   }
   if (isAbsolute(pathValue)) return pathValue;
   return resolve(settingsDir, pathValue);

@@ -1,5 +1,17 @@
 import { spawn } from 'node:child_process';
+import { homedir } from 'node:os';
 import type { HookDefinition, HookEventName } from '@piwin/contracts';
+
+/** Windows system variables a spawned child process needs to function. */
+const WINDOWS_SYSTEM_ENV_KEYS = [
+  'SystemRoot',
+  'SystemDrive',
+  'TEMP',
+  'TMP',
+  'USERPROFILE',
+  'COMSPEC',
+  'PATHEXT',
+] as const;
 
 export type HookRunContext = {
   sessionId?: string;
@@ -100,7 +112,14 @@ function runShellHook(hook: HookDefinition, context: HookRunContext): Promise<vo
       cwd,
       env: {
         PATH: process.env.PATH ?? '',
-        HOME: process.env.HOME ?? '',
+        HOME: homedir(),
+        ...(process.platform === 'win32'
+          ? Object.fromEntries(
+              WINDOWS_SYSTEM_ENV_KEYS.flatMap((key) =>
+                process.env[key] === undefined ? [] : [[key, process.env[key]!]],
+              ),
+            )
+          : {}),
         PIWIN_SESSION_ID: context.sessionId ?? '',
         PIWIN_PROJECT_PATH: context.projectPath ?? '',
         PIWIN_EVENT_JSON: payload,

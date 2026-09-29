@@ -7,6 +7,7 @@
  */
 
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type { PermissionRule, PermissionRuleSet } from '@piwin/contracts';
 import { createEmptyRuleSet } from '@piwin/contracts';
 
@@ -273,7 +274,9 @@ export const BUNDLED_ALLOW: PermissionRule[] = [
  */
 function expandHomeDir(pattern: string): string {
   if (pattern.startsWith('~/')) {
-    return homedir() + pattern.slice(1);
+    // join() uses the platform separator and avoids producing mixed
+    // "C:\Users\me/.ssh/**" patterns on Windows.
+    return join(homedir(), pattern.slice(2));
   }
   return pattern;
 }
