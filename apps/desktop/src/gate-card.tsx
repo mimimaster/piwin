@@ -6,6 +6,8 @@ import { useEffect, useState, type ReactElement } from 'react';
 import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
 import type { PermissionPromptUi } from './chat-reducer';
 import { PermissionFacts, canRememberPermissionForProject } from './permission-request-card';
+import { BackendPermissionActions, backendAgentLabel } from './backend-permission-actions';
+import { backendPermissionOptions } from './backend-permission-options';
 
 export type GateCardProps = {
   prompt: PermissionPromptUi;
@@ -20,6 +22,7 @@ export function GateCard(props: GateCardProps): ReactElement {
   const canRemember =
     canRememberPermissionForProject(context, prompt.action) && Boolean(projectPath);
   const actionLabel = context?.summary ?? prompt.action;
+  const backendOptions = backendPermissionOptions(context);
 
   useEffect(() => {
     setStamping(false);
@@ -68,6 +71,15 @@ export function GateCard(props: GateCardProps): ReactElement {
           </div>
         </div>
 
+        {backendOptions !== undefined ? (
+          <BackendPermissionActions
+            options={backendOptions}
+            agentLabel={backendAgentLabel(context?.backendAgentId)}
+            onPermission={onPermission}
+            testIdPrefix="gate"
+          />
+        ) : (
+        <>
         <div className="seals gate-actions">
           <button
             type="button"
@@ -116,6 +128,8 @@ export function GateCard(props: GateCardProps): ReactElement {
             </>
           ) : null}
         </div>
+        </>
+        )}
       </div>
     </section>
   );

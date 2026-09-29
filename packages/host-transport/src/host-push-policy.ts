@@ -81,6 +81,11 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       );
     case 'session/runtime-updated':
       return projection(deliveryKey('session', push.status.sessionId, 'runtime'));
+    case 'session/backend-updated':
+      // Full option snapshot: latest wins.
+      return projection(deliveryKey('session', push.sessionId, 'backend'));
+    case 'agents/status-updated':
+      return projection(deliveryKey('agents', 'status', push.status.agentId));
     case 'session/context-updated':
       // Occupancy projection. Compaction/branch/invalidation stay barriers
       // on their own events; live context-updated emission waits for WP3.

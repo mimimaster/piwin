@@ -7,32 +7,20 @@
  * registry, transcript recorder and permission map as Pi handles.
  */
 
-import { randomUUID } from 'node:crypto';
 import type {
-  AgentEvent,
   HostResponse,
   SessionBackendBinding,
   SessionIndexRecord,
-  SessionTranscriptMessage,
 } from '@piwin/contracts';
 import { formatError, isExternalBackendBinding } from '@piwin/contracts';
-import { listProjects } from '@piwin/project';
-import {
-  deleteSessionRecord,
-  getSessionRecord,
-  renameSessionRecord,
-  syncExternalSessionCatalog,
-  upsertSessionRecord,
-} from '@piwin/session';
+import { getSessionRecord, renameSessionRecord, upsertSessionRecord } from '@piwin/session';
 import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
-import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
-import { createProductSessionId } from '../product-agent-host.js';
+import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import { fail, ok } from '../response-helpers.js';
-import { sessionIndexUpdatedPush } from '../session-index-push.js';
-import { indexRecordToSummary } from '../session-summary-map.js';
 import { workingDirectoryFromIndexRecord } from '../session-scope.js';
 import { GROK_AGENT_ID, createGrokSessionCapabilities, GROK_UNSUPPORTED_COMMANDS } from './grok-capabilities.js';
 import type { GrokSessionHandle } from './grok-session-handle.js';
+import { rebuildTranscriptFromReplay } from './grok-transcript-replay.js';
 
 export function isGrokRecord(record: SessionIndexRecord | undefined): boolean {
   return record?.backend?.agentId === GROK_AGENT_ID;
@@ -131,114 +119,6 @@ export async function activateGrokSession(
   return opened.handle;
 }
 
-/**
- * Replace the display projection with the Grok replay. Rows are rebuilt from
- * ordered replay events because Grok messages carry no ids.
- */
-async function rebuildTranscriptFromReplay(
-  deps: HostRuntimeKernel,
-  record: SessionIndexRecord,
-  events: readonly AgentEvent[],
-  pendingUserMessageId: string | undefined,
-): Promise<void> {
-  const rows = replayEventsToRows(events);
-  if (rows.length === 0) {
-    return;
-  }
-  await deps.withTranscriptStore(
-    record.id,
-    async (store) => {
-      const pending =
-        pendingUserMessageId !== undefined ? await store.getMessage(pendingUserMessageId) : undefined;
-      const existingIds: string[] = [];
-      for await (const existing of store.iterateActivePath()) {
-        existingIds.push(existing.id);
-      }
-      for (const id of existingIds) {
-        await store.deleteMessage(id);
-      }
-      for (const row of rows) {
-        await store.appendMessage({
-          id: row.id,
-          runtimeGenerationId: 'grok-replay',
-          backendMessageId: row.id,
-          role: row.role,
-          text: row.text,
-          status: 'done',
-          createdAt: row.createdAt,
-          ...(row.tools !== undefined ? { tools: row.tools } : {}),
-        });
-      }
-      if (pending !== undefined) {
-        // The prompt that triggered this activation stays after the history.
-        await store.appendMessage({
-          id: pending.id,
-          runtimeGenerationId: 'grok-replay',
-          backendMessageId: pending.id,
-          role: pending.role,
-          text: pending.text,
-          status: pending.status,
-          createdAt: new Date().toISOString(),
-          ...(pending.contextRefs !== undefined ? { contextRefs: pending.contextRefs } : {}),
-        });
-      }
-    },
-    record.projectPath,
-  );
-}
-
-type ReplayRow = {
-  id: string;
-  role: SessionTranscriptMessage['role'];
-  text: string;
-  createdAt: string;
-  tools?: NonNullable<SessionTranscriptMessage['tools']>;
-};
-
-export function replayEventsToRows(events: readonly AgentEvent[]): ReplayRow[] {
-  const rows: ReplayRow[] = [];
-  const byId = new Map<string, ReplayRow>();
-  const base = Date.now() - events.length;
-  let ordinal = 0;
-  let lastAssistant: ReplayRow | undefined;
-  for (const event of events) {
-    ordinal += 1;
-    if (event.type === 'message/start') {
-      const row: ReplayRow = {
-        id: event.messageId,
-        role: event.role,
-        text: '',
-        createdAt: new Date(base + ordinal).toISOString(),
-      };
-      rows.push(row);
-      byId.set(event.messageId, row);
-      if (event.role === 'assistant') lastAssistant = row;
-      if (event.role === 'user') lastAssistant = undefined;
-    } else if (event.type === 'message/text_delta') {
-      const row = byId.get(event.messageId);
-      if (row !== undefined) row.text += event.delta;
-    } else if (event.type === 'tool/end') {
-      let owner = event.responseMessageId !== undefined ? byId.get(event.responseMessageId) : lastAssistant;
-      if (owner === undefined) {
-        owner = { id: `grok-replay-${randomUUID()}`, role: 'assistant', text: '', createdAt: new Date(base + ordinal).toISOString() };
-        rows.push(owner);
-        byId.set(owner.id, owner);
-        lastAssistant = owner;
-      }
-      owner.tools = [
-        ...(owner.tools ?? []),
-        {
-          toolCallId: event.toolCallId,
-          toolName: event.presentation?.title ?? 'tool',
-          status: event.isError ? 'error' : 'done',
-          output: event.presentation?.output?.text ?? '',
-          ...(event.presentation !== undefined ? { presentation: event.presentation } : {}),
-        },
-      ];
-    }
-  }
-  return rows.filter((row) => row.text !== '' || (row.tools?.length ?? 0) > 0);
-}
 
 /** Persist the backend binding on a freshly created product session. */
 export async function bindNewGrokSession(
@@ -363,77 +243,6 @@ export async function deleteGrokSessionEverywhere(
   deps.grokBackend?.forgetSession(record.id);
 }
 
-/** Merge the Grok catalog into the index and push list changes. */
-export async function syncGrokCatalog(
-  deps: HostRuntimeKernel,
-  requestId: string | undefined,
-): Promise<HostResponse> {
-  const service = deps.grokBackend;
-  if (service === undefined) {
-    return fail(requestId, 'agents/sessions-sync', 'grok-backend-unavailable');
-  }
-  try {
-    const catalog = await service.listCatalog();
-    for (const entry of catalog) {
-      if (entry.lastChangeUnixMs !== undefined) {
-        deps.grokCatalogChanges.set(entry.backendSessionId, entry.lastChangeUnixMs);
-      }
-    }
-    const projects = await listProjects(getPiwinProjectsPath(getPiwinRoot(deps.options.piwinRoot)));
-    const roots = projects.map((project) => project.path).sort((left, right) => right.length - left.length);
-    // Subagent / internal sessions are Grok-internal; only user sessions map.
-    const visible = catalog.filter((entry) => entry.originKind !== 'subagent');
-    const result = await syncExternalSessionCatalog({
-      indexPath: indexPath(deps),
-      agentId: GROK_AGENT_ID,
-      entries: visible.map((entry) => ({
-        backendSessionId: entry.backendSessionId,
-        ...(entry.title !== undefined ? { title: entry.title } : {}),
-        ...(entry.cwd !== undefined ? { cwd: entry.cwd } : {}),
-        ...(entry.lastChangeUnixMs !== undefined ? { lastChangeUnixMs: entry.lastChangeUnixMs } : {}),
-      })),
-      createProductSessionId,
-      resolveProjectPath: (cwd) =>
-        cwd === undefined
-          ? ''
-          : (roots.find((root) => cwd === root || cwd.startsWith(`${root}/`)) ?? ''),
-    });
-    for (const record of result.created) {
-      deps.push(sessionIndexUpdatedPush({ op: 'created', sessionId: record.id, session: indexRecordToSummary(record) }));
-    }
-    for (const record of result.updated) {
-      deps.push(sessionIndexUpdatedPush({ op: 'updated', sessionId: record.id, session: indexRecordToSummary(record) }));
-    }
-    for (const record of result.removed) {
-      if (deps.sessions.has(record.id)) {
-        await deps.disposeLiveSession(record.id, 'manual');
-      }
-      await deleteSessionRecord(indexPath(deps), record.id);
-      deps.push(sessionIndexUpdatedPush({ op: 'deleted', sessionId: record.id }));
-    }
-    return ok(requestId, 'agents/sessions-sync', {
-      agentId: GROK_AGENT_ID,
-      created: result.created.length,
-      updated: result.updated.length,
-      removed: result.removed.length,
-    });
-  } catch (error) {
-    return fail(requestId, 'agents/sessions-sync', formatError(error));
-  }
-}
 
-/** Grok reported a title: adopt it unless the user renamed the session. */
-export async function applyGrokTitle(
-  deps: HostRuntimeKernel,
-  sessionId: string,
-  title: string,
-): Promise<void> {
-  const record = await getSessionRecord(indexPath(deps), sessionId);
-  if (record === undefined || record.nameSource === 'user' || record.name === title) {
-    return;
-  }
-  record.name = title;
-  record.nameSource = 'llm';
-  await upsertSessionRecord(indexPath(deps), record);
-  deps.push({ type: 'session/name-updated', sessionId, name: title, nameSource: 'llm' });
-}
+export { replayEventsToRows } from './grok-transcript-replay.js';
+export { applyGrokTitle, syncGrokCatalog } from './grok-catalog-sync.js';

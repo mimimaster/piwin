@@ -18,6 +18,8 @@ import { AgentInterruptionFrame, type AgentInterruptionTone } from './agent-inte
 import { useDesktopLocale } from './desktop-locale-context';
 import { IconChevronDown } from './shell-icons';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
+import { BackendPermissionActions, backendAgentLabel } from './backend-permission-actions';
+import { backendPermissionOptions } from './backend-permission-options';
 
 export type PermissionBarProps = {
   prompt: PermissionPromptUi;
@@ -216,6 +218,15 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
         </div>
       </Collapse>
 
+      {backendPermissionOptions(context) !== undefined ? (
+        <BackendPermissionActions
+          options={backendPermissionOptions(context) ?? []}
+          agentLabel={backendAgentLabel(context?.backendAgentId)}
+          onPermission={props.onPermission}
+          testIdPrefix="permission-bar"
+        />
+      ) : (
+      <>
       <div className="permission-bar-actions">
         <Button
           variant="primary"
@@ -269,6 +280,8 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
       <p className="permission-bar-kbd-hint" aria-hidden="true">
         <kbd>Enter</kbd> {copy.allowForSession} · <kbd>Esc</kbd> {copy.deny}
       </p>
+      </>
+      )}
     </AgentInterruptionFrame>
   );
 }

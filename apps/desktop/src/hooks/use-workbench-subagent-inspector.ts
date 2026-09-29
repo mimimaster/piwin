@@ -32,6 +32,7 @@ import type {
   SubagentWorktreeAction,
 } from '../subagent-inspector-context';
 import type { SubagentInspectorSelection } from '../subagent-activity-model';
+import { backendOptionForDecision, backendPermissionOptions } from '../backend-permission-options.js';
 import type { Dispatch } from 'react';
 
 export type UseWorkbenchSubagentInspectorArgs = {
@@ -118,12 +119,21 @@ export function useWorkbenchSubagentInspector(args: UseWorkbenchSubagentInspecto
       decision: PermissionDecision,
       rememberScope?: PermissionRememberScope,
     ): Promise<void> => {
+      const backendOptions = backendPermissionOptions(prompt.context);
+      const backendOption =
+        backendOptions !== undefined
+          ? backendOptionForDecision(backendOptions, decision, rememberScope)
+          : undefined;
       const response = await hostClient.request(
         {
           type: 'permission/resolve',
           requestId: prompt.requestId,
           decision,
-          ...(decision === 'allow' && rememberScope ? { rememberScope } : {}),
+          ...(backendOption !== undefined
+            ? { backendOptionId: backendOption.optionId }
+            : decision === 'allow' && rememberScope
+              ? { rememberScope }
+              : {}),
         },
         { idempotencyKey: createGestureIdempotencyKey() },
       );

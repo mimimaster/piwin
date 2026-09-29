@@ -19,6 +19,7 @@ import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 import { compactFailureMessage } from './session-actions-helpers.js';
 import { reconcilePendingPermissions } from './reconcile-pending-permissions.js';
 import { activeSessionPermissionPrompt } from '../permission-queue.js';
+import { backendOptionForDecision, backendPermissionOptions } from '../backend-permission-options.js';
 
 export function useSessionRunActions(input: {
   hostClient: HostClient;
@@ -350,12 +351,20 @@ export function useSessionRunActions(input: {
         requestId: string;
         decision: PermissionDecision;
         rememberScope?: PermissionRememberScope;
+        backendOptionId?: string;
       } = {
         type: 'permission/resolve',
         requestId: prompt.requestId,
         decision,
       };
-      if (decision === 'allow') {
+      const backendOptions = backendPermissionOptions(prompt.context);
+      if (backendOptions !== undefined) {
+        // ADR 0082: the agent's own option id, never a piwin remember scope.
+        const option = backendOptionForDecision(backendOptions, decision, rememberScope);
+        if (option !== undefined) {
+          payload.backendOptionId = option.optionId;
+        }
+      } else if (decision === 'allow') {
         payload.rememberScope = rememberScope;
       }
       const response = await hostClient.request(payload, {

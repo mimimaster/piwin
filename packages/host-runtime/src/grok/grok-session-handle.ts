@@ -6,19 +6,16 @@
  * `session/prompt`, abort → `session/cancel` (then process kill after a
  * bound), interventions → `_x.ai/interject`. Pi-only surfaces (steer/followUp
  * queues, tree, compaction) are refused explicitly rather than faked.
+ * Notification routing lives in `grok-notification-router.ts`; result
+ * mapping in `grok-prompt-outcome.ts`.
  */
 
-import { randomUUID } from 'node:crypto';
 import {
   AcpClient,
-  classifyGrokStopReason,
   GROK_DROPPED_NOTIFICATION_METHODS,
   GrokSessionOptionsState,
-  GrokTurnProjector,
   JsonRpcConnection,
   parseGrokPermissionRequest,
-  parseGrokPromptUsage,
-  type AcpContentBlock,
   type AcpLineTransport,
   type AcpSessionSetupResult,
   type GrokPermissionPrompt,
@@ -35,8 +32,22 @@ import type {
   SessionHandle,
   SessionTreeView,
 } from '@piwin/contracts';
-import { createUnknownAgentFailure, formatError } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import { GROK_AGENT_ID } from './grok-capabilities.js';
+import { GrokNotificationRouter } from './grok-notification-router.js';
+import {
+  applyGrokInitialSelections,
+  selectGrokEffort,
+  selectGrokMode,
+  selectGrokModel,
+  type GrokSelectionTarget,
+} from './grok-session-selection.js';
+import {
+  mapGrokPromptError,
+  mapGrokPromptResult,
+  toGrokContentBlocks,
+  waitForCondition,
+} from './grok-prompt-outcome.js';
 
 const CANCEL_GRACE_MS = 5_000;
 const SESSION_SETUP_TIMEOUT_MS = 60_000;
@@ -86,17 +97,16 @@ export type GrokOpenedSession = {
 export class GrokSessionHandle implements SessionHandle {
   readonly id: string;
   readonly backendAgentId = GROK_AGENT_ID;
-  readonly backendSessionId: string;
+  backendSessionId: string;
   private readonly client: AcpClient;
   private readonly connection: JsonRpcConnection;
   private readonly ports: GrokSessionPorts;
   private readonly options = new GrokSessionOptionsState();
+  private readonly notifications: GrokNotificationRouter;
   private readonly listeners = new Set<(event: AgentEvent) => void>();
   private readonly interventionListeners = new Set<
     (event: BackendRunInterventionEvent) => Promise<BackendRunInterventionEventResult>
   >();
-  private projector: GrokTurnProjector | undefined;
-  private replayBuffer: AgentEvent[] | undefined;
   private promptAbort: AbortController | undefined;
   private userCancelled = false;
   private permissionRejected = false;
@@ -104,16 +114,23 @@ export class GrokSessionHandle implements SessionHandle {
 
   private constructor(input: {
     productSessionId: string;
-    backendSessionId: string;
     client: AcpClient;
     connection: JsonRpcConnection;
     ports: GrokSessionPorts;
   }) {
     this.id = input.productSessionId;
-    this.backendSessionId = input.backendSessionId;
+    // Bound after session/new|load|resume; notifications before that are
+    // accepted because one process serves exactly one session.
+    this.backendSessionId = '';
     this.client = input.client;
     this.connection = input.connection;
     this.ports = input.ports;
+    this.notifications = new GrokNotificationRouter(this.options, {
+      emitAll: (events) => this.emitAll(events),
+      onTitle: (title) => this.ports.onTitle(title),
+      publishOptions: () => this.publishOptions(),
+      ...(input.ports.now ? { now: input.ports.now } : {}),
+    });
   }
 
   /** Spawn Grok, initialize, and create / resume / load the native session. */
@@ -133,37 +150,28 @@ export class GrokSessionHandle implements SessionHandle {
         typeof init._meta?.agentVersion === 'string' ? init._meta.agentVersion : undefined;
       // Replay notifications arrive before `session/load` returns, so the
       // handle must be listening before the request is sent.
-      const pending = new GrokSessionHandle({
-        productSessionId: input.productSessionId,
-        backendSessionId: input.backendSessionId ?? '',
-        client,
-        connection,
-        ports,
-      });
-      pending.attach();
-      pending.options.applyModels(init._meta?.modelState);
+      const handle = new GrokSessionHandle({ productSessionId: input.productSessionId, client, connection, ports });
+      handle.attach();
+      handle.options.applyModels(init._meta?.modelState);
       const replayEvents: AgentEvent[] = [];
-      let setup: AcpSessionSetupResult;
       const mcpServers: unknown[] = [];
+      let setup: AcpSessionSetupResult;
       if (input.backendSessionId === undefined) {
         setup = await client.newSession({ cwd: input.cwd, mcpServers });
       } else if (input.replay === true) {
-        pending.beginReplay(replayEvents);
+        handle.notifications.beginReplay(replayEvents);
         try {
           setup = await client.loadSession({ sessionId: input.backendSessionId, cwd: input.cwd, mcpServers });
         } finally {
-          pending.endReplay();
+          handle.notifications.endReplay();
         }
       } else {
         setup = await client.resumeSession({ sessionId: input.backendSessionId, cwd: input.cwd, mcpServers });
       }
-      const handle =
-        setup.sessionId === pending.backendSessionId
-          ? pending
-          : pending.rebind(setup.sessionId);
+      handle.backendSessionId = setup.sessionId;
       handle.options.applyModels(setup.models);
       handle.options.applyConfigOptions(setup.configOptions);
-      await handle.applyInitialSelections(input);
+      await applyGrokInitialSelections(handle.selectionTarget(), input);
       handle.publishOptions();
       return {
         handle,
@@ -183,30 +191,15 @@ export class GrokSessionHandle implements SessionHandle {
   }
 
   async setModel(modelId: string): Promise<void> {
-    if (!this.options.hasModel(modelId)) {
-      throw new Error(`unknown-grok-model: ${modelId}`);
-    }
-    const result = await this.client.setConfigOption(this.backendSessionId, 'model', modelId);
-    this.options.applyConfigOptions(readConfigOptions(result));
-    this.options.applyConfigOptions([{ id: 'model', currentValue: modelId }]);
-    this.publishOptions();
+    await selectGrokModel(this.selectionTarget(), modelId);
   }
 
   async setEffort(effortId: string): Promise<void> {
-    const modelId = this.options.modelId;
-    if (modelId !== undefined && !this.options.modelSupportsEffort(modelId, effortId)) {
-      throw new Error(`unsupported-grok-effort: ${effortId}`);
-    }
-    const result = await this.client.setConfigOption(this.backendSessionId, 'reasoning_effort', effortId);
-    this.options.applyConfigOptions(readConfigOptions(result));
-    this.options.applyConfigOptions([{ id: 'reasoning_effort', currentValue: effortId }]);
-    this.publishOptions();
+    await selectGrokEffort(this.selectionTarget(), effortId);
   }
 
   async setMode(modeId: string): Promise<void> {
-    this.options.requestMode(modeId);
-    this.publishOptions();
-    await this.client.setMode(this.backendSessionId, modeId);
+    await selectGrokMode(this.selectionTarget(), modeId);
   }
 
   async prompt(input: PromptInput): Promise<AgentPromptOutcome> {
@@ -217,74 +210,36 @@ export class GrokSessionHandle implements SessionHandle {
       throw new Error('grok-prompt-active: Host admits one Grok prompt at a time');
     }
     const runId = this.ports.getCurrentRunId();
-    const projector = new GrokTurnProjector({
-      ...(runId !== undefined ? { runId } : {}),
-      createMessageId: () => `grok-${randomUUID()}`,
-      ...(this.ports.now ? { now: this.ports.now } : {}),
-    });
-    this.projector = projector;
+    const projector = this.notifications.beginTurn(runId);
     this.promptAbort = new AbortController();
     this.userCancelled = false;
     this.permissionRejected = false;
     try {
       const result = await this.client.prompt(
-        { sessionId: this.backendSessionId, prompt: toContentBlocks(input) },
+        { sessionId: this.backendSessionId, prompt: toGrokContentBlocks(input) },
         { signal: this.promptAbort.signal },
       );
-      const terminal = classifyGrokStopReason(result.stopReason, {
+      const mapped = mapGrokPromptResult(result, {
+        productSessionId: this.id,
+        runId,
+        lastAssistantMessageId: projector.latestAssistantMessageId,
         userCancelled: this.userCancelled,
         permissionRejected: this.permissionRejected,
+        recordedAt: this.now(),
       });
-      const lastMessageId = projector.latestAssistantMessageId;
-      this.emitAll(projector.finish(terminal.status === 'completed' ? 'completed' : terminal.status === 'aborted' ? 'aborted' : 'failed'));
-      const usage = parseGrokPromptUsage(result._meta);
-      if (usage !== undefined && lastMessageId !== undefined) {
-        this.emit({
-          type: 'usage/finalized',
-          measurement: {
-            measurementId: `${this.id}:${lastMessageId}`,
-            sessionId: this.id,
-            ...(runId !== undefined ? { runId } : {}),
-            messageId: lastMessageId,
-            ...(usage.modelId !== undefined ? { modelId: usage.modelId } : {}),
-            ...(usage.inputTokens !== undefined ? { promptTokens: usage.inputTokens } : {}),
-            ...(usage.outputTokens !== undefined ? { completionTokens: usage.outputTokens } : {}),
-            ...(usage.cacheReadTokens !== undefined ? { cacheReadTokens: usage.cacheReadTokens } : {}),
-            ...(usage.cacheWriteTokens !== undefined ? { cacheWriteTokens: usage.cacheWriteTokens } : {}),
-            totalTokens: usage.totalTokens,
-            ...(usage.durationMs !== undefined ? { durationMs: usage.durationMs } : {}),
-            stopReason: result.stopReason,
-            recordedAt: this.now(),
-          },
-        });
+      this.emitAll(projector.finish(mapped.finish));
+      if (mapped.usageEvent !== undefined) {
+        this.emit(mapped.usageEvent);
       }
-      switch (terminal.status) {
-        case 'completed':
-          return { status: 'completed', stopReason: terminal.stopReason };
-        case 'aborted':
-          return terminal.reason === 'permission-rejected'
-            ? { status: 'completed', stopReason: 'handled' }
-            : { status: 'aborted', stopReason: 'aborted' };
-        case 'failed':
-          return { status: 'failed', stopReason: 'error', failure: createUnknownAgentFailure(terminal.message) };
-      }
+      return mapped.outcome;
     } catch (error) {
       this.emitAll(projector.finish(this.userCancelled ? 'aborted' : 'failed'));
-      if (this.userCancelled) {
-        return { status: 'aborted', stopReason: 'aborted' };
-      }
-      return {
-        status: 'failed',
-        stopReason: 'error',
-        failure: {
-          code: this.connection.closed ? 'backend-worker-crash' : 'backend-protocol-error',
-          origin: 'protocol',
-          message: `Grok: ${formatError(error)}`.slice(0, 500),
-          retriable: false,
-        },
-      };
+      return mapGrokPromptError(error, {
+        userCancelled: this.userCancelled,
+        connectionClosed: this.connection.closed,
+      });
     } finally {
-      this.projector = undefined;
+      this.notifications.endTurn();
       this.promptAbort = undefined;
     }
   }
@@ -304,7 +259,7 @@ export class GrokSessionHandle implements SessionHandle {
     }
     // Grok answers `cancelled` in ~1s; past the grace window the process is
     // treated as wedged and killed so the Run can terminalize.
-    const settled = await waitFor(() => this.promptAbort !== active, CANCEL_GRACE_MS);
+    const settled = await waitForCondition(() => this.promptAbort !== active, CANCEL_GRACE_MS);
     if (!settled) {
       active.abort(new Error('grok-cancel-timeout'));
       await this.release();
@@ -387,7 +342,7 @@ export class GrokSessionHandle implements SessionHandle {
 
   private attach(): void {
     this.connection.onNotification((method, params) => {
-      this.handleNotification(method, params);
+      this.notifications.handle(method, params, this.backendSessionId);
     });
     this.connection.setRequestHandler('session/request_permission', (params) =>
       this.handlePermissionRequest(params),
@@ -400,129 +355,13 @@ export class GrokSessionHandle implements SessionHandle {
     });
   }
 
-  private rebind(backendSessionId: string): GrokSessionHandle {
-    // The constructor is private; session/new returns the id only after the
-    // handle is listening, so rewrite the readonly binding once here.
-    (this as { backendSessionId: string }).backendSessionId = backendSessionId;
-    return this;
-  }
-
-  private async applyInitialSelections(input: GrokSessionOpenInput): Promise<void> {
-    if (input.modelId !== undefined && input.modelId !== this.options.modelId && this.options.hasModel(input.modelId)) {
-      await this.setModel(input.modelId);
-    }
-    if (input.effortId !== undefined) {
-      const modelId = this.options.modelId;
-      if (modelId === undefined || this.options.modelSupportsEffort(modelId, input.effortId)) {
-        await this.setEffort(input.effortId);
-      }
-    }
-    if (input.modeId !== undefined) {
-      await this.setMode(input.modeId);
-    }
-  }
-
-  private beginReplay(buffer: AgentEvent[]): void {
-    this.replayBuffer = buffer;
-    this.projector = new GrokTurnProjector({
-      createMessageId: () => `grok-replay-${randomUUID()}`,
-      ...(this.ports.now ? { now: this.ports.now } : {}),
-    });
-  }
-
-  private endReplay(): void {
-    if (this.projector !== undefined && this.replayBuffer !== undefined) {
-      this.replayBuffer.push(...this.projector.finish('completed'));
-    }
-    this.projector = undefined;
-    this.replayBuffer = undefined;
-  }
-
-  private handleNotification(method: string, params: unknown): void {
-    const record = asRecord(params);
-    if (method === '_x.ai/models/update') {
-      this.options.applyModels(params);
-      this.publishOptions();
-      return;
-    }
-    if (method !== 'session/update' || record === undefined) {
-      return;
-    }
-    // Grok pushes setup-time updates (commands, models) before `session/new`
-    // returns the id; accept them while the id is still unbound. One process
-    // serves exactly one session, so there is no cross-talk.
-    if (this.backendSessionId !== '' && record.sessionId !== this.backendSessionId) {
-      return;
-    }
-    const update = asRecord(record.update);
-    if (this.replayBuffer !== undefined && update?.sessionUpdate === 'user_message_chunk') {
-      this.replayBuffer.push(...this.replayUserMessage(update));
-      return;
-    }
-    const projector = this.projector;
-    if (projector === undefined) {
-      // Idle-time updates (commands, mode, title) still matter.
-      this.applySignals(new GrokTurnProjector({ createMessageId: () => 'unused' }).project(update).signals);
-      return;
-    }
-    const projection = projector.project(update);
-    if (this.replayBuffer !== undefined) {
-      this.replayBuffer.push(...projection.events);
-    } else {
-      this.emitAll(projection.events);
-    }
-    this.applySignals(projection.signals);
-  }
-
-  /** Replay a user row: close any open assistant text, then emit a user message. */
-  private replayUserMessage(update: Record<string, unknown>): AgentEvent[] {
-    const events: AgentEvent[] = [];
-    if (this.projector !== undefined) {
-      events.push(...this.projector.finish('completed'));
-    }
-    this.projector = new GrokTurnProjector({
-      createMessageId: () => `grok-replay-${randomUUID()}`,
-      ...(this.ports.now ? { now: this.ports.now } : {}),
-    });
-    const content = asRecord(update.content);
-    const text = typeof content?.text === 'string' ? content.text : '';
-    if (text !== '') {
-      const messageId = `grok-replay-${randomUUID()}`;
-      events.push(
-        { type: 'message/start', messageId, role: 'user' },
-        { type: 'message/text_delta', messageId, delta: text },
-        { type: 'message/end', messageId },
-      );
-    }
-    return events;
-  }
-
-  private applySignals(signals: ReturnType<GrokTurnProjector['project']>['signals']): void {
-    let optionsChanged = false;
-    for (const signal of signals) {
-      switch (signal.kind) {
-        case 'title':
-          this.ports.onTitle(signal.title);
-          break;
-        case 'mode':
-          this.options.confirmMode(signal.modeId);
-          optionsChanged = true;
-          break;
-        case 'commands':
-          this.options.applyCommands(signal.commands);
-          optionsChanged = true;
-          break;
-        case 'config-options':
-          this.options.applyConfigOptions(signal.configOptions);
-          optionsChanged = true;
-          break;
-        case 'plan':
-          break;
-      }
-    }
-    if (optionsChanged) {
-      this.publishOptions();
-    }
+  private selectionTarget(): GrokSelectionTarget {
+    return {
+      client: this.client,
+      options: this.options,
+      backendSessionId: () => this.backendSessionId,
+      publishOptions: () => this.publishOptions(),
+    };
   }
 
   private async handlePermissionRequest(params: unknown): Promise<unknown> {
@@ -573,37 +412,4 @@ export class GrokSessionHandle implements SessionHandle {
   private now(): string {
     return this.ports.now?.() ?? new Date().toISOString();
   }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function readConfigOptions(result: unknown): unknown {
-  return asRecord(result)?.configOptions;
-}
-
-/** Plain text plus `@` file references as embedded resources. */
-function toContentBlocks(input: PromptInput): AcpContentBlock[] {
-  const blocks: AcpContentBlock[] = [{ type: 'text', text: input.text }];
-  for (const ref of input.contextRefs ?? []) {
-    if (ref.kind === 'file') {
-      const path = `${ref.projectPath.replace(/\/$/, '')}/${ref.relativePath}`;
-      blocks.push({ type: 'resource_link', uri: `file://${path}`, name: ref.label });
-    }
-  }
-  return blocks;
-}
-
-async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (predicate()) {
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  return predicate();
 }

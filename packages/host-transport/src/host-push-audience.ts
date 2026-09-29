@@ -96,6 +96,10 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
       return session(push.intervention.sessionId);
     case 'session/queued-turn-updated':
       return session(push.queuedTurn.sessionId);
+    case 'session/backend-updated':
+      return session(push.sessionId);
+    case 'agents/status-updated':
+      return { kind: 'global' };
     default:
       return assertNever(push);
   }
