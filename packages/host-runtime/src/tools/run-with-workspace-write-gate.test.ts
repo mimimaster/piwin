@@ -122,6 +122,6 @@ describe('runWithWorkspaceWriteGate', () => {
     clock = 4_500;
     holder.lease.release();
     const result = await pending;
-    expect(result.details?.workspaceWrite).toEqual({ lock: 'shared', queuedMs: 3_500 });
+    expect(result.details?.workspaceWrite).toEqual({ lock: 'shared', queuedMs: 3_500, executionMs: 0 });
   });
 });

@@ -11,11 +11,13 @@
  * Not a git work tree, git missing, or a slow repo → `null`. A root that was
  * slow once is skipped for a cool-down so every shell call does not pay it.
  */
+import { realpathSync } from 'node:fs';
 import { lstat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 
 import { runGitCommand } from '@piwin/git';
 
+/** Keys are paths relative to the fingerprinted root, `/`-separated. */
 export type WorkspaceFingerprint = ReadonlyMap<string, string>;
 
 const FINGERPRINT_TIMEOUT_MS = 1_500;
@@ -126,7 +128,28 @@ export async function captureWorkspaceFingerprint(
   if (now() - startedAt > FINGERPRINT_TIMEOUT_MS) {
     slowRootsUntil.set(root, now() + SLOW_ROOT_COOLDOWN_MS);
   }
-  return new Map(paths.map((path, index) => [path, stamps[index] ?? 'missing']));
+  // Porcelain paths are relative to the repository top; callers (turn-change
+  // receipts, notes) speak in paths relative to the session root.
+  const realRoot = realRootOf(root);
+  return new Map(
+    paths.map((path, index) => [
+      rootRelative(realRoot, join(base, path)),
+      stamps[index] ?? 'missing',
+    ]),
+  );
+}
+
+function realRootOf(root: string): string {
+  try {
+    return realpathSync(root);
+  } catch {
+    return root;
+  }
+}
+
+function rootRelative(root: string, absolutePath: string): string {
+  const rel = relative(root, absolutePath);
+  return (rel === '' || isAbsolute(rel) ? absolutePath : rel).split('\\').join('/');
 }
 
 /** Paths whose dirty state or stamp differs between two fingerprints. */

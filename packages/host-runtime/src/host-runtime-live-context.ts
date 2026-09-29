@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
+import { formatError } from '@piwin/contracts';
 import { getSessionRecord } from '@piwin/session';
 import { loadPiwinConfig } from './config-store.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
@@ -316,6 +317,8 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
         return;
       }
       const child = deps.subagentSessionContexts.get(input.sessionId);
+      // Best guess at turn start; the first recorded write aligns it to the
+      // root the tool actually wrote under (see ToolCapturePort).
       const workspaceRoot = resolveTurnChangeWorkspaceRoot({
         ...(child?.workingDirectory !== undefined
           ? { childWorkingDirectory: child.workingDirectory }
@@ -332,7 +335,20 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
       });
     },
     endTurnChangeRun: (runId) => {
-      deps.turnChangeRuntime?.coordinator.endRunSegment(runId);
+      const runtime = deps.turnChangeRuntime;
+      if (!runtime) {
+        return;
+      }
+      runtime.coordinator.endRunSegment(runId);
+      // Sealing waits for this run's captures (a timed-out tool may still be
+      // writing), so it runs after the turn has already been reported ended.
+      void runtime.sealer.onRunEnded(runId).catch((error: unknown) => {
+        deps.push({
+          type: 'host/log',
+          level: 'error',
+          message: `turn-change seal failed for run ${runId}: ${formatError(error)}`,
+        });
+      });
     },
     sessionContextCoordinator: deps.sessionContextCoordinator,
   };

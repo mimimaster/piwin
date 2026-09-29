@@ -34,7 +34,10 @@ Process-local fair FIFO, two levels:
   repo formatters with `--write` / `--fix` — plus Host Git mutations and parent
   integrate: workspace exclusive, wait. The list lives in
   `host-runtime/src/tools/shell-write-policy.ts` with golden cases.
-- undo / redo: workspace exclusive, fail-fast `workspace-busy`, no queue.
+- undo / redo: workspace shared + exclusive on the turn's own files, waiting up
+  to 5 s (then `workspace-busy`). Revised 2026-09-29: workspace exclusive with
+  fail-fast made undo fail whenever any other session's command was running;
+  undo's safety is its per-file hash check before and after writing (ADR 0083).
 
 File identity is `resolveFileLockKey` in `@piwin/git` (existing ancestor
 realpath + missing suffix). Workspace exclusive conflicts when roots are equal
@@ -72,7 +75,9 @@ Correctness moves from prevention to detection:
   no note. Fingerprints are taken only while sessions overlap: a shell that
   starts while another session is live snapshots first and publishes it; a
   shell that started alone uses the first snapshot published after its start
-  (`shell-baselines.ts`). A lone session pays nothing.
+  (`shell-baselines.ts`). When the turn is recorded for undo (production),
+  every command is fingerprinted before and after anyway for its audit
+  (ADR 0083), and the note reuses those fingerprints.
 - **Write-after-write check.** `write_file` / `delete_file` remember the hash
   each session last wrote. If the bytes moved since and another session was
   active on that file or workspace meanwhile, the write is refused once

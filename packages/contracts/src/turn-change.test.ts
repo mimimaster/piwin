@@ -21,6 +21,8 @@ const BLOCK_REASONS: readonly TurnChangeBlockReason[] = [
   'needs-repair',
   'permission-denied',
   'direction-unavailable',
+  'capture-pending',
+  'no-changes',
 ];
 
 function sampleSummary(): TurnChangeSummary {

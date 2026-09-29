@@ -21,6 +21,9 @@ export type TurnChangeVersionRecord = {
   changeSetId: string;
   revision: number;
   fileCount: number;
+  additions: number | null;
+  deletions: number | null;
+  binaryFileCount: number;
   coverageComplete: boolean;
   files: readonly TurnChangeVersionFile[];
 };
@@ -31,6 +34,10 @@ export type TurnChangeVersionStore = {
     revision: number;
     files: readonly ComposedFileAction[];
     coverageComplete: boolean;
+    /** Line totals over the version's text files; null when unknown. */
+    additions?: number | null;
+    deletions?: number | null;
+    binaryFileCount?: number;
   }): TurnChangeVersionRecord;
   getChangeVersion(changeSetId: string, revision: number): TurnChangeVersionRecord | undefined;
 };
@@ -40,7 +47,7 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
     `INSERT INTO change_version(
        change_set_id, revision, file_count, additions, deletions,
        binary_file_count, coverage_complete
-     ) VALUES (?, ?, ?, NULL, NULL, 0, ?)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   const insertFile = db.prepare(
     `INSERT INTO change_file(
@@ -53,7 +60,8 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
      ON CONFLICT(sha256, ref_kind, ref_id) DO NOTHING`,
   );
   const selectVersion = db.prepare(
-    `SELECT change_set_id, revision, file_count, coverage_complete
+    `SELECT change_set_id, revision, file_count, additions, deletions, binary_file_count,
+            coverage_complete
      FROM change_version WHERE change_set_id = ? AND revision = ?`,
   );
   const selectFiles = db.prepare(
@@ -77,6 +85,9 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
           input.changeSetId,
           input.revision,
           files.length,
+          input.additions ?? null,
+          input.deletions ?? null,
+          input.binaryFileCount ?? 0,
           input.coverageComplete ? 1 : 0,
         );
         for (const file of files) {
@@ -101,6 +112,9 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
         changeSetId: input.changeSetId,
         revision: input.revision,
         fileCount: files.length,
+        additions: input.additions ?? null,
+        deletions: input.deletions ?? null,
+        binaryFileCount: input.binaryFileCount ?? 0,
         coverageComplete: input.coverageComplete,
         files,
       };
@@ -112,6 +126,9 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
             change_set_id: string;
             revision: number;
             file_count: number;
+            additions: number | null;
+            deletions: number | null;
+            binary_file_count: number;
             coverage_complete: number;
           }
         | undefined;
@@ -127,6 +144,9 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
         changeSetId: row.change_set_id,
         revision: row.revision,
         fileCount: row.file_count,
+        additions: row.additions,
+        deletions: row.deletions,
+        binaryFileCount: row.binary_file_count,
         coverageComplete: row.coverage_complete === 1,
         files: fileRows.map((file) => ({
           fileId: file.file_id,

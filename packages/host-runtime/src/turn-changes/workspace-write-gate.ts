@@ -4,7 +4,8 @@
  * Shared file writes take workspace S + file X. Ordinary shell commands take
  * workspace S with no file keys: they run beside file writes and each other,
  * and only wait for X. Git mutations, listed repo-wide shell commands,
- * integration, and undo take workspace X. Undo uses wait:false.
+ * integration take workspace X. Undo / redo take workspace S plus file X on
+ * the turn's files, with a short bounded wait (ADR 0069 revision).
  *
  * Every granted lease is also recorded in the activity log, so optimistic
  * shells and file writes can detect what other sessions did meanwhile.

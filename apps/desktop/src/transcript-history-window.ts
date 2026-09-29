@@ -91,3 +91,21 @@ export function canLoadNewerTranscript(state: ChatUiState): boolean {
       state.historyView?.messages.at(-1)?.id !== state.messages.at(-1)?.id)
   );
 }
+
+/**
+ * The view already shows every row Host has, and its last row is resident in
+ * the live tail. Whatever follows it — a streaming assistant row or a tool round
+ * Host has not persisted yet — exists only live. `canLoadNewerTranscript` stays
+ * true there (the last ids differ, and the Host has no page to give), so this
+ * is the signal that reading on should hand back to the live transcript.
+ */
+export function historyViewCaughtUpWithLive(state: ChatUiState): boolean {
+  const view = state.historyView;
+  const lastRow = view?.messages.at(-1);
+  return (
+    view !== null &&
+    lastRow !== undefined &&
+    view.window.endIndex >= view.window.totalCount &&
+    state.messages.some((message) => message.id === lastRow.id)
+  );
+}

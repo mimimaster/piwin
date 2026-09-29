@@ -23,8 +23,10 @@ import {
   type TurnChangeObjectStore,
   type TurnChangeWriteReceipt,
 } from '@piwin/git';
+import type { ShellAuditReport } from '../turn-changes/tool-capture.js';
 import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
 import { runWithWorkspaceWriteGate } from './run-with-workspace-write-gate.js';
+import { describeFileChange, withFileChange } from './file-change-details.js';
 import { buildHostEditTool } from './host-edit-tool.js';
 import { runHostShell } from './run-host-shell.js';
 import { toTurnChangeRelativePath } from './turn-change-path.js';
@@ -40,6 +42,8 @@ export type BuildHostFilesystemToolsOptions = {
     workspaceRoot: string;
     store: TurnChangeObjectStore;
     onReceipt?: (receipt: TurnChangeWriteReceipt) => void;
+    /** Records what each shell command changed, for sealing the turn. */
+    onShellAudit?: (audit: ShellAuditReport) => void;
   };
   workspaceWrite?: {
     gate: WorkspaceWriteGate;
@@ -153,7 +157,10 @@ export function buildHostFilesystemTools(
             store: turnChange.store,
           });
           turnChange.onReceipt?.(receipt);
-          return { ok: true, output: `Wrote ${filePath}` };
+          return withFileChange(
+            { ok: true, output: `Wrote ${filePath}` },
+            await describeFileChange(receipt, turnChange.store),
+          );
         },
       });
     },
@@ -210,7 +217,10 @@ export function buildHostFilesystemTools(
             store: turnChange.store,
           });
           turnChange.onReceipt?.(receipt);
-          return { ok: true, output: `Deleted ${filePath}` };
+          return withFileChange(
+            { ok: true, output: `Deleted ${filePath}` },
+            await describeFileChange(receipt, turnChange.store),
+          );
         },
       });
     },
@@ -292,6 +302,9 @@ export function buildHostFilesystemTools(
         ...(piwinRoot ? { piwinRoot } : {}),
         ...(jobController ? { jobController } : {}),
         ...(workspaceWrite ? { workspaceWrite } : {}),
+        ...(turnChange?.onShellAudit
+          ? { onShellAudit: turnChange.onShellAudit, auditRoot: turnChange.workspaceRoot }
+          : {}),
       });
     },
   };
@@ -332,6 +345,9 @@ export function buildHostFilesystemTools(
         ...(piwinRoot ? { piwinRoot } : {}),
         ...(jobController ? { jobController } : {}),
         ...(workspaceWrite ? { workspaceWrite } : {}),
+        ...(turnChange?.onShellAudit
+          ? { onShellAudit: turnChange.onShellAudit, auditRoot: turnChange.workspaceRoot }
+          : {}),
       });
     },
   };

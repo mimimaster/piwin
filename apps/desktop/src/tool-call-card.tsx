@@ -9,6 +9,7 @@ import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
 import { CitationCards } from './CitationCards';
 import { parseToolCitations } from './tool-citations';
+import { pathsReferToSameFile } from './collect-message-changed-files';
 import { DiffCard, type DiffCardRequest } from './diff-card';
 import { CollapsibleContentBlock } from './collapsible-content-block';
 import { TokenSpans, useHighlight } from './syntax-highlight';
@@ -72,6 +73,11 @@ export type ToolCallCardProps = {
   onExpandedChange?: ((expanded: boolean) => void) | undefined;
   /** Whether this card should automatically hold expanded focus while running. */
   expandWhileRunning?: boolean | undefined;
+  /**
+   * Hold the running auto-expand back this long, so a burst of short commands
+   * stays as collapsed rows instead of flashing open and shut. 0 = immediate.
+   */
+  expandWhileRunningDelayMs?: number | undefined;
   /** Collapse both successful and failed terminal calls back to a timeline row. */
   collapseWhenTerminal?: boolean | undefined;
   /** @deprecated prefer density */
@@ -150,7 +156,16 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const contextMenu = useDesktopContextMenu();
   const themeId = useThemeId();
   const density = resolveDensity(props.density, props.compact);
-  const expandWhileRunning = props.expandWhileRunning !== false;
+  const runningExpandDelayMs = props.expandWhileRunningDelayMs ?? 0;
+  const [runningExpandGraceOver, setRunningExpandGraceOver] = useState(runningExpandDelayMs <= 0);
+  useEffect(() => {
+    if (tool.status !== 'running' || runningExpandGraceOver) {
+      return;
+    }
+    const timer = setTimeout(() => setRunningExpandGraceOver(true), runningExpandDelayMs);
+    return () => clearTimeout(timer);
+  }, [tool.status, runningExpandDelayMs, runningExpandGraceOver]);
+  const expandWhileRunning = props.expandWhileRunning !== false && runningExpandGraceOver;
   const terminalMustCollapse = props.collapseWhenTerminal === true && tool.status !== 'running';
   const hasExpandableBody = toolHasExpandableBody(tool);
   const displayName = tool.presentation?.title ?? tool.toolName;
@@ -334,10 +349,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const canOpenPath = Boolean(
     primaryTargetPath && (props.onOpenDocument || props.onOpenFile || props.onOpenDiff),
   );
-  const diffStats = useToolEditDiffStats({
+  // The call's own change wins; the working-tree diff fetch is for older
+  // transcripts and counts every edit to the file, not just this call's.
+  const callChange = tool.presentation?.fileChange;
+  const fetchedDiffStats = useToolEditDiffStats({
     enabled:
       isEditTool &&
       tool.status !== 'error' &&
+      callChange === undefined &&
       Boolean(primaryOpenPath) &&
       Boolean(props.projectPath) &&
       Boolean(props.request),
@@ -346,6 +365,10 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     request: props.request,
     fallback: isEditTool && tool.status !== 'error' ? recoveredArgs.diffStats : undefined,
   });
+  const diffStats =
+    callChange && tool.status !== 'error'
+      ? { added: callChange.additions ?? 0, removed: callChange.deletions ?? 0 }
+      : fetchedDiffStats;
   const isArgsDumpSummary =
     !recoveredSummary &&
     (Boolean(inputPreview && summary === inputPreview) || looksLikeArgsDumpSummary(summary));
@@ -722,12 +745,16 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
           {canRenderDiffCard
             ? changedPaths.map((path) => {
                 const resolved = resolveToolOpenPath(path, props.projectPath);
+                const change = tool.presentation?.fileChange;
                 return (
                   <DiffCard
                     key={path}
                     projectPath={props.projectPath as string}
                     path={resolved.relativePath}
                     request={props.request as DiffCardRequest}
+                    {...(change && pathsReferToSameFile(resolved.relativePath, change.path)
+                      ? { change }
+                      : {})}
                     {...(props.onOpenFile
                       ? {
                           onOpenFile: () =>

@@ -101,6 +101,21 @@ CREATE TABLE IF NOT EXISTS idempotency (
   operation_id TEXT NOT NULL,
   PRIMARY KEY(principal, key)
 );
+CREATE TABLE IF NOT EXISTS shell_audit (
+  run_id TEXT NOT NULL,
+  tool_call_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  paths_json TEXT NOT NULL,
+  PRIMARY KEY(run_id, tool_call_id)
+);
+CREATE TABLE IF NOT EXISTS change_version_note (
+  change_set_id TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  incomplete_reason TEXT,
+  excluded_paths_json TEXT NOT NULL,
+  sealed_at TEXT NOT NULL,
+  PRIMARY KEY(change_set_id, revision)
+);
 CREATE TABLE IF NOT EXISTS object_ref (
   sha256 TEXT NOT NULL,
   ref_kind TEXT NOT NULL,

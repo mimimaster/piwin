@@ -658,6 +658,36 @@ describe('workspace write gate facts', () => {
     expect(presentation.durationMs).toBe(2000);
   });
 
+  it('fills the missing duration from gate queue + execution time', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'bash',
+      args: { command: 'git stash list' },
+      details: { workspaceWrite: { lock: 'exclusive', queuedMs: 14_000, executionMs: 40 } },
+    });
+    expect(presentation.queuedMs).toBe(14_000);
+    expect(presentation.durationMs).toBe(14_040);
+  });
+
+  it("lifts a file tool's own change", () => {
+    const fileChange = {
+      path: 'a.txt',
+      status: 'modified',
+      additions: 1,
+      deletions: 1,
+      binary: false,
+      patch: '@@ -1 +1 @@\n-alpha\n+ALPHA\n',
+    };
+    const presentation = buildToolPresentation({
+      toolName: 'edit',
+      args: { path: 'a.txt', edits: [{ oldText: 'alpha', newText: 'ALPHA' }] },
+      details: { fileChange },
+    });
+    expect(presentation.fileChange).toEqual(fileChange);
+    expect(
+      buildToolPresentation({ toolName: 'edit', details: { fileChange: { path: 'a.txt' } } }).fileChange,
+    ).toBeUndefined();
+  });
+
   it('omits queue time when the gate did not make the tool wait', () => {
     const presentation = buildToolPresentation({
       toolName: 'bash',

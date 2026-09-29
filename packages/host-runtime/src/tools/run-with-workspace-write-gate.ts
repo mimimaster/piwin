@@ -160,12 +160,14 @@ export async function runWithWorkspaceWriteGate(input: {
         }
       }
     }
+    const startedAt = now();
     const result = await input.run({
       gate,
       root: acquired.lease.root,
       grantedAtTick: acquired.lease.grantedAtTick,
       ownerId: input.ownerId,
     });
+    gateFacts.executionMs = Math.max(0, now() - startedAt);
     // An `edit` over another session's unseen change must not vouch for the
     // whole file: keep the old entry so a later whole-file overwrite is caught.
     if (result.ok && input.ownerId !== undefined && fileKey !== undefined && !unseenForeignChange) {

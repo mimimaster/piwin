@@ -9,6 +9,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { createTurnChangeObjectStore } from './object-store.js';
 import { bindTurnChangeOperationStore } from './operation-store.js';
 import type { TurnChangeOperationStore } from './operation-store.js';
+import { bindTurnChangeSealStore } from './seal-store.js';
+import type { TurnChangeSealStore } from './seal-store.js';
 import { bindTurnChangeVersionStore } from './version-store.js';
 import type { TurnChangeVersionStore } from './version-store.js';
 import {
@@ -115,7 +117,7 @@ export type TurnChangeStore = {
   getRunSegment(runId: string): TurnChangeRunSegmentRecord | undefined;
   getWorkspace(workspaceId: string): { workspaceId: string; rootPath: string } | undefined;
   close(): void;
-} & TurnChangeOperationStore & TurnChangeVersionStore;
+} & TurnChangeOperationStore & TurnChangeVersionStore & TurnChangeSealStore;
 
 export function openTurnChangeStore(options: { rootDir: string }): TurnChangeStore {
   mkdirSync(options.rootDir, { recursive: true });
@@ -186,6 +188,7 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
   );
   const operations = bindTurnChangeOperationStore(db);
   const versions = bindTurnChangeVersionStore(db);
+  const seals = bindTurnChangeSealStore(db);
   const persistFileAction = (input: TurnChangeFileActionRecord): void => {
     const existing = selectFileActionByUnique.get(
       input.runId,
@@ -366,6 +369,7 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
     },
     ...operations,
     ...versions,
+    ...seals,
   };
 }
 

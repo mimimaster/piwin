@@ -133,4 +133,31 @@ describe('optimistic workspace policy (production shape)', () => {
     ).toBe(true);
     expect(await readFile(join(root, 'a.txt'), 'utf8')).toBe('ONE\nTWO\n');
   });
+
+  it("reports each call's own change, not the file's diff against HEAD", async () => {
+    // Session A changes the first line; the file now differs from HEAD there.
+    expect((await call('a', 'edit', { path: 'a.txt', edits: [{ oldText: 'top', newText: 'TOP' }] })).ok).toBe(true);
+    const b = await call('b', 'edit', {
+      path: 'a.txt',
+      edits: [{ oldText: 'bottom', newText: 'BOTTOM' }],
+    });
+    expect(b.details?.fileChange).toMatchObject({
+      path: 'a.txt',
+      status: 'modified',
+      additions: 1,
+      deletions: 1,
+      binary: false,
+    });
+    const patch = b.details?.fileChange?.patch ?? '';
+    expect(patch).toContain('-bottom');
+    expect(patch).toContain('+BOTTOM');
+    // A's change is context at most, never one of B's added lines.
+    expect(patch).not.toContain('+TOP');
+
+    const created = await call('b', 'write_file', { path: 'new.md', content: 'x\ny\n' });
+    expect(created.details?.fileChange).toMatchObject({ path: 'new.md', status: 'added', additions: 2, deletions: 0 });
+    const removed = await call('b', 'delete_file', { path: 'new.md' });
+    expect(removed.details?.fileChange).toMatchObject({ status: 'deleted', additions: 0, deletions: 2 });
+    expect(b.details?.workspaceWrite?.executionMs).toBeGreaterThanOrEqual(0);
+  });
 });

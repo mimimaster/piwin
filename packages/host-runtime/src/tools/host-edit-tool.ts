@@ -10,8 +10,9 @@
  */
 import { readFile, writeFile } from 'node:fs/promises';
 
-import type { HostToolRegistration } from '@piwin/contracts';
+import type { HostToolRegistration, ToolResult } from '@piwin/contracts';
 import { writeTurnChangeFile } from '@piwin/git';
+import { describeFileChange, withFileChange } from './file-change-details.js';
 import type { BuildHostFilesystemToolsOptions } from './host-filesystem-tools.js';
 import { runWithWorkspaceWriteGate } from './run-with-workspace-write-gate.js';
 import { applyTextEditsToFileText, normalizeEditArguments, TextEditError } from './text-edits.js';
@@ -120,19 +121,22 @@ export function buildHostEditTool(options: {
           if (signal.aborted) {
             return { ok: false, code: 'aborted', message: 'tool execution aborted' };
           }
-          if (turnChange) {
-            const receipt = await writeTurnChangeFile({
-              workspaceRoot: turnChange.workspaceRoot,
-              relativePath: toTurnChangeRelativePath(filePath, turnChange.workspaceRoot),
-              bytes: utf8.encode(next),
-              store: turnChange.store,
-            });
-            turnChange.onReceipt?.(receipt);
-          } else {
+          const done: ToolResult = {
+            ok: true,
+            output: `Successfully replaced ${normalized.edits.length} block(s) in ${filePath}.`,
+          };
+          if (!turnChange) {
             await writeFile(filePath, next, 'utf-8');
+            return done;
           }
-          const count = normalized.edits.length;
-          return { ok: true, output: `Successfully replaced ${count} block(s) in ${filePath}.` };
+          const receipt = await writeTurnChangeFile({
+            workspaceRoot: turnChange.workspaceRoot,
+            relativePath: toTurnChangeRelativePath(filePath, turnChange.workspaceRoot),
+            bytes: utf8.encode(next),
+            store: turnChange.store,
+          });
+          turnChange.onReceipt?.(receipt);
+          return withFileChange(done, await describeFileChange(receipt, turnChange.store));
         },
       });
     },

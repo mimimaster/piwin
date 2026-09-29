@@ -96,6 +96,7 @@ export function areChatMessageRowPropsEqual(
     previous.turnInProgress === next.turnInProgress &&
     previous.turnFlashcardTools === next.turnFlashcardTools &&
     previous.turnTools === next.turnTools &&
+    previous.turnRunKey === next.turnRunKey &&
     previous.isLatestAssistantResponse === next.isLatestAssistantResponse &&
     previous.assemblySummary === next.assemblySummary &&
     previous.isConversationSession === next.isConversationSession &&

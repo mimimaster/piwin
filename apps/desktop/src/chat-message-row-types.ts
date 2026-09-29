@@ -157,6 +157,8 @@ export type ChatMessageRowProps = {
   turnFlashcardTools?: readonly ToolCardUi[];
   /** All tool calls from the whole turn; summarized on the last assistant row. */
   turnTools?: readonly ToolCardUi[];
+  /** The turn's runIds (encodeTurnRunIds), to find its Host change record. */
+  turnRunKey?: string;
   livePromptModel?: ModelRef | null;
   modelOptions?: readonly ModelOption[];
   configProviders?: readonly ModelProviderConfig[];

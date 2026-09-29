@@ -1,11 +1,20 @@
 /**
  * Inline diff card for write/edit tool calls.
- * Lazily fetches a single-file patch via the `git/diff-file` host IPC and
- * renders it inline with Accept / Reject review actions.
+ *
+ * Prefers the call's own change (`change`, from the Host turn-change
+ * receipt). The fallback — lazily fetching the file's working-tree diff via
+ * `git/diff-file` — is only for older transcripts: it also shows other
+ * sessions' and earlier turns' edits to the same file.
+ *
+ * Accept / Reject appear only when a caller wires `onReview`; without it they
+ * would only restyle the card and claim a rollback that never happened.
+ * (Desktop has no turn-level undo surface yet — see D-WWG-08. The turn's
+ * 「审查」 opens the git Changes panel, whose discard restores HEAD and would
+ * also drop other sessions' edits, so the card does not point there.)
  * Visual structure mirrors the prototype diff card (ui-prototype-v7.html).
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import type { GitFileDiff, HostResponse } from '@piwin/contracts';
+import type { GitFileDiff, HostResponse, ToolFileChange } from '@piwin/contracts';
 import { parseUnifiedDiff } from './diff-view';
 import { computeDiffLineNumbers } from './diff-line-numbers';
 import {
@@ -50,26 +59,49 @@ export function diffLineStats(diff: string): { adds: number; dels: number } {
   return { adds, dels };
 }
 
+type DiffView = { patch: string; isBinary: boolean; truncated: boolean };
+
 type DiffState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; fileDiff: GitFileDiff };
+  | { kind: 'ready'; fileDiff: DiffView };
+
+function viewFromGitDiff(diff: GitFileDiff): DiffView {
+  return { patch: diff.patch, isBinary: diff.isBinary, truncated: diff.truncated };
+}
+
+function viewFromChange(change: ToolFileChange): DiffView {
+  return {
+    patch: change.patch ?? '',
+    isBinary: change.binary,
+    // Host omits oversized patches and keeps only the line counts.
+    truncated: !change.binary && change.patch === undefined,
+  };
+}
 
 export type DiffCardProps = {
   projectPath: string;
   path: string;
   request: DiffCardRequest;
+  /** This call's own change; when present no working-tree diff is fetched. */
+  change?: ToolFileChange;
   onReview?: (path: string, ok: boolean) => void;
   onOpenFile?: (path: string) => void;
   onOpenDiff?: (absolutePath: string, relativePath?: string) => void;
 };
 
 export function DiffCard(props: DiffCardProps): ReactElement {
-  const [state, setState] = useState<DiffState>({ kind: 'loading' });
+  const [fetched, setState] = useState<DiffState>({ kind: 'loading' });
+  const change = props.change;
+  const state: DiffState = change ? { kind: 'ready', fileDiff: viewFromChange(change) } : fetched;
+  const reviewable = props.onReview !== undefined;
   const [verdict, setVerdict] = useState<'accepted' | 'rejected' | null>(null);
   const contextMenu = useDesktopContextMenu();
 
   useEffect(() => {
+    if (change) {
+      return;
+    }
     let cancelled = false;
     setState({ kind: 'loading' });
     // Same call + response unpacking pattern as changes-panel.tsx:129-149.
@@ -86,7 +118,10 @@ export function DiffCard(props: DiffCardProps): ReactElement {
           setState({ kind: 'error', message: response.error });
           return;
         }
-        setState({ kind: 'ready', fileDiff: (response.data as { diff: GitFileDiff }).diff });
+        setState({
+          kind: 'ready',
+          fileDiff: viewFromGitDiff((response.data as { diff: GitFileDiff }).diff),
+        });
       })
       .catch((error: unknown) => {
         if (!cancelled) setState({ kind: 'error', message: String(error) });
@@ -94,7 +129,7 @@ export function DiffCard(props: DiffCardProps): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [props.projectPath, props.path]);
+  }, [props.projectPath, props.path, change]);
 
   const patch = state.kind === 'ready' ? state.fileDiff.patch : '';
   const lines = useMemo(() => parseUnifiedDiff(patch), [patch]);
@@ -111,7 +146,10 @@ export function DiffCard(props: DiffCardProps): ReactElement {
     [lines],
   );
   const tokenMap = useHighlightLines(contentTexts, sourceLang);
-  const stats = diffLineStats(patch);
+  const patchStats = diffLineStats(patch);
+  const stats = change
+    ? { adds: change.additions ?? 0, dels: change.deletions ?? 0 }
+    : patchStats;
 
   // Extract first hunk tag e.g. @@ 85,7 @@
   const firstHunkTag = useMemo(() => {
@@ -172,7 +210,7 @@ export function DiffCard(props: DiffCardProps): ReactElement {
               打开
             </button>
           ) : null}
-          {verdict === null ? (
+          {reviewable && verdict === null ? (
             <button
               type="button"
               className="btn sm"
@@ -254,7 +292,9 @@ export function DiffCard(props: DiffCardProps): ReactElement {
             {state.fileDiff.truncated && (
               <div className="dl hk ln ctx">
                 <span className="g old ln" />
-                <span className="ln-text dl-text">diff 过长已截断</span>
+                <span className="ln-text dl-text">
+                  {state.fileDiff.patch ? 'diff 过长已截断' : '改动过大，仅显示行数'}
+                </span>
               </div>
             )}
           </div>
@@ -267,10 +307,12 @@ export function DiffCard(props: DiffCardProps): ReactElement {
               ? `${totalChanges} 处修改 · 已接受`
               : verdict === 'rejected'
                 ? `${totalChanges} 处修改 · 已回滚此文件`
-                : `${totalChanges} 处修改 · 已写入磁盘 · 拒绝 = 回滚此文件`}
+                : reviewable
+                  ? `${totalChanges} 处修改 · 已写入磁盘 · 拒绝 = 回滚此文件`
+                  : `${totalChanges} 处修改 · 已写入磁盘`}
           </span>
           <span className="acts ml">
-            {verdict === null ? (
+            {!reviewable ? null : verdict === null ? (
               <>
                 <button
                   type="button"

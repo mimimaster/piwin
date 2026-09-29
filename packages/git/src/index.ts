@@ -51,7 +51,7 @@ export type { TurnChangeWriteReceipt } from './turn-changes/file-writer.js';
 export { planUndoRedo } from './turn-changes/operation-plan.js';
 export type { PlannedFileOp } from './turn-changes/operation-plan.js';
 
-export { runTurnChangeOperation } from './turn-changes/operation-runner.js';
+export { collectMismatchedPaths, runTurnChangeOperation } from './turn-changes/operation-runner.js';
 export type { TurnChangeOperationRunResult } from './turn-changes/operation-runner.js';
 
 export type {
@@ -59,6 +59,11 @@ export type {
   TurnChangeVersionRecord,
 } from './turn-changes/version-store.js';
 
+export type {
+  TurnChangeSealStore,
+  TurnChangeShellAudit,
+  TurnChangeVersionNote,
+} from './turn-changes/seal-store.js';
 export { recoverTurnChangeOperation } from './turn-changes/recovery.js';
 export type {
   SubagentApplyReservationRecord,

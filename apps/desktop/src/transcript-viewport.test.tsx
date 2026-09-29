@@ -81,6 +81,9 @@ describe('TranscriptViewport session scroll recovery', () => {
       scrollHeight?: number;
       canLoadOlder?: boolean;
       onLoadOlder?: () => Promise<void>;
+      canLoadNewer?: boolean;
+      historyCaughtUp?: boolean;
+      onLoadNewer?: () => Promise<void>;
       historyViewActive?: boolean;
       awaitingTranscript?: boolean;
       onReturnToLatest?: () => void;
@@ -103,7 +106,10 @@ describe('TranscriptViewport session scroll recovery', () => {
             historyViewActive={options.historyViewActive === true}
             awaitingTranscript={options.awaitingTranscript === true}
             liveTurnId={options.liveTurnId ?? null}
+            {...(options.canLoadNewer !== undefined ? { canLoadNewer: options.canLoadNewer } : {})}
+            {...(options.historyCaughtUp !== undefined ? { historyCaughtUp: options.historyCaughtUp } : {})}
             {...(options.onLoadOlder ? { onLoadOlder: options.onLoadOlder } : {})}
+            {...(options.onLoadNewer ? { onLoadNewer: options.onLoadNewer } : {})}
             {...(options.onReturnToLatest ? { onReturnToLatest: options.onReturnToLatest } : {})}
           >
             <TranscriptGeometry scrollHeight={options.scrollHeight ?? 1_000} />
@@ -427,6 +433,87 @@ describe('TranscriptViewport session scroll recovery', () => {
 
     expect(onLoadOlder).toHaveBeenCalled();
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
+  });
+
+  async function wheelDownAtBottom(): Promise<void> {
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) throw new Error('Expected transcript scroll element');
+    Object.defineProperty(scrollElement, 'clientHeight', { configurable: true, value: 200 });
+    Object.defineProperty(scrollElement, 'scrollHeight', { configurable: true, value: 1_000 });
+    scrollElement.scrollTop = 800;
+    await act(async () => {
+      scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: 40, bubbles: true }));
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  it('returns to the live tail when a caught-up history view is wheeled past its end', async () => {
+    // The view already holds every row Host has and ends inside the live tail.
+    // It is a frozen copy with run chrome suppressed: reading on must hand back
+    // to live rather than strand the reader beside a running composer. While a
+    // run streams, `canLoadNewer` stays true (an unpersisted live row differs
+    // from the view's last id), so the hand-off keys off `historyCaughtUp`.
+    const onReturnToLatest = vi.fn();
+    const onLoadNewer = vi.fn(async () => undefined);
+    await renderSession('caught-up-history-session', {
+      historyViewActive: true,
+      canLoadNewer: true,
+      historyCaughtUp: true,
+      onLoadNewer,
+      onReturnToLatest,
+      scrollHeight: 1_000,
+    });
+    await wheelDownAtBottom();
+
+    expect(onReturnToLatest).toHaveBeenCalledOnce();
+    expect(onLoadNewer).not.toHaveBeenCalled();
+  });
+
+  it('pages newer history instead of leaving a history view that still has newer rows', async () => {
+    const onReturnToLatest = vi.fn();
+    const onLoadNewer = vi.fn(async () => undefined);
+    await renderSession('partial-history-session', {
+      historyViewActive: true,
+      canLoadNewer: true,
+      historyCaughtUp: false,
+      onLoadNewer,
+      onReturnToLatest,
+      scrollHeight: 1_000,
+    });
+    await wheelDownAtBottom();
+
+    expect(onLoadNewer).toHaveBeenCalled();
+    expect(onReturnToLatest).not.toHaveBeenCalled();
+  });
+
+  it('stays in a caught-up history view until the reader actually scrolls on', async () => {
+    // Landing on a recent query via the tick rail can already fit the window
+    // to the tail. The jump itself must not bounce the reader back to live.
+    const onReturnToLatest = vi.fn();
+    await renderSession('landed-history-session', {
+      historyViewActive: true,
+      canLoadNewer: true,
+      historyCaughtUp: true,
+      onReturnToLatest,
+      scrollHeight: 1_000,
+    });
+    await finishOpening();
+
+    expect(onReturnToLatest).not.toHaveBeenCalled();
+  });
+
+  it('does not treat the live tail as a history view to leave', async () => {
+    const onReturnToLatest = vi.fn();
+    await renderSession('live-tail-session', {
+      historyViewActive: false,
+      historyCaughtUp: true,
+      onReturnToLatest,
+      scrollHeight: 1_000,
+    });
+    await finishOpening();
+    await wheelDownAtBottom();
+
+    expect(onReturnToLatest).not.toHaveBeenCalled();
   });
 
   it('never displays jump-to-latest button when messageCount is zero', async () => {

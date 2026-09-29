@@ -547,6 +547,81 @@ describe('ToolCallCard openable file paths', () => {
     );
   });
 
+  it('holds the running auto-expand back until the delay elapses', () => {
+    vi.useFakeTimers();
+    try {
+      const runningTool = createReadTool({
+        toolCallId: 'read-delayed-expand',
+        status: 'running',
+        output: 'streaming',
+      });
+      const isExpanded = (): boolean | undefined =>
+        container.querySelector('.tool-call-card')?.classList.contains('is-expanded');
+
+      act(() => {
+        root.render(
+          <ToolCallCard
+            tool={runningTool}
+            density="compact"
+            locale="en"
+            expandWhileRunningDelayMs={5000}
+          />,
+        );
+      });
+      expect(isExpanded()).toBe(false);
+
+      act(() => {
+        vi.advanceTimersByTime(4999);
+      });
+      expect(isExpanded()).toBe(false);
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(isExpanded()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never expands a call that finishes inside the delay', () => {
+    vi.useFakeTimers();
+    try {
+      const runningTool = createReadTool({ toolCallId: 'read-short-lived', status: 'running' });
+      act(() => {
+        root.render(
+          <ToolCallCard
+            tool={runningTool}
+            density="compact"
+            locale="en"
+            expandWhileRunningDelayMs={5000}
+          />,
+        );
+      });
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      act(() => {
+        root.render(
+          <ToolCallCard
+            tool={{ ...runningTool, status: 'done', output: 'ok' }}
+            density="compact"
+            locale="en"
+            expandWhileRunningDelayMs={5000}
+          />,
+        );
+      });
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(container.querySelector('.tool-call-card')?.classList.contains('is-expanded')).toBe(
+        false,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps a terminal failure visible but collapsed when owned by a call chain', () => {
     const failedTool = createReadTool({
       toolCallId: 'read-error-collapsed',
@@ -976,6 +1051,62 @@ describe('ToolCallCard openable file paths', () => {
       container.querySelector<HTMLElement>('[data-testid="diff-open-file"]')?.click();
     });
     expect(onOpenFile).toHaveBeenCalledWith('/workspace/src/foo.ts', 'src/foo.ts');
+  });
+
+  it("shows the call's own change and never fetches the file's working-tree diff", async () => {
+    const editTool: ToolCardUi = {
+      toolCallId: 'edit-own-change-1',
+      toolName: 'edit',
+      status: 'done',
+      output: '',
+      presentation: {
+        title: 'edit',
+        kind: 'filesystem',
+        actionVerb: 'Edited',
+        targetPaths: ['a.txt'],
+        changedPaths: ['a.txt'],
+        fileChange: {
+          path: 'a.txt',
+          status: 'modified',
+          additions: 1,
+          deletions: 1,
+          binary: false,
+          patch: '--- a/a.txt\n+++ b/a.txt\n@@ -3 +3 @@\n-three\n+THREE\n',
+        },
+      },
+    };
+    // The working tree differs from HEAD on three lines (other edits); the
+    // card must still report only this call's one-line change.
+    const request = vi.fn(async () => ({
+      type: 'response' as const,
+      command: 'git/diff-file',
+      success: true as const,
+      data: {
+        diff: {
+          repository: { rootPath: '/workspace', isRepository: true },
+          path: 'a.txt',
+          scope: 'combined' as const,
+          isBinary: false,
+          patch: '--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,3 @@\n-a\n-b\n-three\n+A\n+B\n+THREE\n',
+          truncated: false,
+        },
+      },
+    }));
+
+    act(() => {
+      root.render(
+        <ToolCallCard tool={editTool} projectPath="/workspace" request={request} locale="en" />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const stats = container.querySelector('[data-testid="tool-call-diff-stats"]')?.textContent ?? '';
+    expect(stats).toContain('+1');
+    expect(stats).toContain('−1');
+    expect(stats).not.toContain('+3');
+    expect(request).not.toHaveBeenCalled();
   });
 
   it('recovers a write path from inputPreview JSON so click can show a diff', async () => {

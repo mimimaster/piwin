@@ -1,9 +1,19 @@
 /** Host IPC for turn-change read and undo/redo. */
 
 import type { HostCommand, HostResponse, TurnChangeDirection } from '@piwin/contracts';
-import { planUndoRedo, runTurnChangeOperation } from '@piwin/git';
+import { join, resolve } from 'node:path';
+
+import { planUndoRedo, resolveFileLockKey, runTurnChangeOperation } from '@piwin/git';
 import { fail, ok } from '../response-helpers.js';
+import { buildTurnChangeSummary } from '../turn-changes/turn-summary.js';
 import type { HostCommandContext } from './host-command-context.js';
+import {
+  handleTurnChangeQueryCommand,
+  isTurnChangeQueryCommand,
+} from './turn-change-query-commands.js';
+
+/** How long undo/redo wait for their files before answering workspace-busy. */
+export const TURN_CHANGE_LOCK_WAIT_MS = 5_000;
 
 const TYPES = new Set<HostCommand['type']>([
   'turn-changes/get',
@@ -57,18 +67,33 @@ export async function handleTurnChangeCommand(
     });
   }
 
+  if (isTurnChangeQueryCommand(command)) {
+    return handleTurnChangeQueryCommand(command, requestId, runtime);
+  }
+
   if (command.type === 'turn-changes/undo' || command.type === 'turn-changes/redo') {
     const direction: TurnChangeDirection = command.type === 'turn-changes/undo' ? 'undo' : 'redo';
+    // Refuse what the summary already rules out (still recording, incomplete,
+    // nothing changed) before taking the workspace lock.
+    const summary = buildTurnChangeSummary(runtime.store, command.changeSetId);
+    const availability = direction === 'undo' ? summary?.undo : summary?.redo;
+    if (availability && !availability.allowed && availability.reason !== 'direction-unavailable') {
+      return fail(requestId, command.type, availability.reason, { code: availability.reason });
+    }
     const result = await runDirection(runtime, {
       changeSetId: command.changeSetId,
       expectedRevision: command.expectedRevision,
       direction,
       principal: 'host',
       idempotencyKey: requestId ?? `${command.type}:${command.changeSetId}`,
+      ...(context?.turnChangeLockWaitMs !== undefined
+        ? { lockWaitMs: context.turnChangeLockWaitMs }
+        : {}),
     });
     if (!result.ok) {
       return fail(requestId, command.type, result.message, { code: result.code });
     }
+    runtime.sealer.announce(command.changeSetId, result.data.operationId);
     return ok(requestId, command.type, result.data);
   }
 
@@ -83,9 +108,13 @@ async function runDirection(
     direction: TurnChangeDirection;
     principal: string;
     idempotencyKey: string;
+    lockWaitMs?: number;
   },
 ): Promise<
-  | { ok: true; data: { operationId: string; status: string } }
+  | {
+      ok: true;
+      data: { operationId: string; status: string; reason?: string; affectedPaths?: string[] };
+    }
   | { ok: false; code: string; message: string }
 > {
   const attempt = runtime.store.getAttempt(input.changeSetId);
@@ -101,15 +130,31 @@ async function runDirection(
     return { ok: false, code: 'stale-revision', message: 'change version not found' };
   }
 
+  // Only this turn's files are locked (workspace shared + per-file
+  // exclusive): other sessions' tests and reads keep running, Host writes to
+  // these files wait, and repo-wide operations (checkout, install) still
+  // exclude it. Undo's safety is its per-file hash check before and after
+  // writing, not the lock. A short wait instead of failing fast rides out a
+  // write in flight on the same file.
+  const fileKeys = await Promise.all(
+    version.files.map(async (file) => {
+      const absolutePath = join(workspace.rootPath, file.relativePath);
+      const key = await resolveFileLockKey(absolutePath);
+      return key.ok ? key.key : resolve(absolutePath);
+    }),
+  );
   const acquired = await runtime.gate.tryAcquire({
     workspaceId: workspace.workspaceId,
     rootPath: workspace.rootPath,
     kind: 'undo',
-    mode: 'exclusive',
-    wait: false,
+    mode: 'shared',
+    wait: true,
+    paths: fileKeys,
+    signal: AbortSignal.timeout(input.lockWaitMs ?? TURN_CHANGE_LOCK_WAIT_MS),
   });
   if (!acquired.ok) {
-    return { ok: false, code: acquired.reason, message: acquired.reason };
+    // A wait that timed out is a busy workspace, not a user cancel.
+    return { ok: false, code: 'workspace-busy', message: 'workspace-busy' };
   }
 
   try {
@@ -159,7 +204,16 @@ async function runDirection(
       expectedRevision: input.expectedRevision,
       files: planned,
     });
-    return { ok: true, data: { operationId: ran.operationId, status: ran.status } };
+    // A rejected run names the files that moved, so clients can show them.
+    return {
+      ok: true,
+      data: {
+        operationId: ran.operationId,
+        status: ran.status,
+        ...(ran.reason !== undefined ? { reason: ran.reason } : {}),
+        ...(ran.affectedPaths !== undefined ? { affectedPaths: ran.affectedPaths } : {}),
+      },
+    };
   } finally {
     acquired.lease.release();
   }

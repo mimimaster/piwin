@@ -63,6 +63,8 @@ export type PlanExecutionSeam = {
 export type HostCommandContext = {
   piwinRoot?: string;
   turnChangeRuntime?: TurnChangeRuntime | null;
+  /** Test knob: undo/redo lock wait (default TURN_CHANGE_LOCK_WAIT_MS). */
+  turnChangeLockWaitMs?: number;
   push: (message: HostPush) => void;
   requireSession: (sessionId: string) => SessionHandle;
   /**

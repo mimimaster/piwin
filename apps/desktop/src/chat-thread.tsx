@@ -49,6 +49,7 @@ import {
 import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
 import { resolveModelWaitTail } from './model-wait-tail.js';
 import { RunStatusFooter } from './run-status-footer.js';
+import { encodeTurnRunIds } from './turn-changes/turn-change-index.js';
 import { TranscriptSelectionToolbar } from './transcript-selection-toolbar.js';
 
 /** Render-only copy used to place the final answer's reasoning in Work. */
@@ -301,6 +302,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               : undefined);
           const turnFlashcardTools = collectFlashcardToolsFromMessages(turnMessages);
           const turnTools = turnMessages.flatMap((item) => item.tools);
+          const turnRunKey = encodeTurnRunIds(turnMessages.map((item) => item.runId));
           const conversationChrome = conversationSession
             ? resolveConversationTurnChrome({
                 messages: turnMessages,
@@ -571,6 +573,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     isLastAssistantInTurn={turn.lastAssistantMessageId === message.id}
                     turnInProgress={currentTurnStreaming}
                     {...(rowNeedsTurnTools ? { turnTools } : {})}
+                    {...(isLastAssistantRow && turnRunKey ? { turnRunKey } : {})}
                     {...(isLastAssistantRow && turnFlashcardTools.length > 0
                       ? { turnFlashcardTools }
                       : {})}

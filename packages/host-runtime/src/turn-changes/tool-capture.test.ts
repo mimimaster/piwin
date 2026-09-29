@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { lstat, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -13,7 +14,12 @@ import { createPermissiveToolAdmission, type HostToolAdmission } from '../tools/
 import { HostToolExecutionRouter } from '../tools/host-tool-execution-router.js';
 import { buildHostFilesystemTools } from '../tools/host-filesystem-tools.js';
 import { createExecutionTracker, type ExecutionTracker } from './execution-tracker.js';
-import { bindCaptureReceipts, createToolCapturePort, type ToolCapturePort } from './tool-capture.js';
+import {
+  bindCaptureReceipts,
+  bindCaptureShellAudit,
+  createToolCapturePort,
+  type ToolCapturePort,
+} from './tool-capture.js';
 
 const temporaryDirectories: string[] = [];
 const openStores: TurnChangeStore[] = [];
@@ -52,7 +58,7 @@ async function createHarness(
     sessionId: 'session-1',
     workspaceId: 'ws-1',
   });
-  const capture = createToolCapturePort({ store, changeSetId: 'cs-1' });
+  const capture = createToolCapturePort({ store });
   const tracker = createExecutionTracker();
   const tools = buildHostFilesystemTools({
     cwd: workspaceRoot,
@@ -245,7 +251,37 @@ describe('tool capture', () => {
     expect(result.ok).toBe(true);
     expect(await readFile(join(workspaceRoot, 'from-bash.txt'), 'utf8')).toBe('from-bash\n');
     expect(store.listFileActionsByRun('run-1')).toEqual([]);
-    expect(store.getAttempt('cs-1')?.captureState).toBe('incomplete');
+    // No recorder wired: the command's effect is unknown, recorded per call.
+    expect(store.listShellAuditsByRun('run-1')).toEqual([
+      expect.objectContaining({ status: 'unknown', paths: [] }),
+    ]);
+  });
+
+  it('audits commands in a git workspace: clean reads, changed writes', async () => {
+    const { workspaceRoot, store, capture } = await createHarness();
+    execFileSync('git', ['init', '-q'], { cwd: workspaceRoot });
+    const tools = buildHostFilesystemTools({
+      cwd: workspaceRoot,
+      turnChange: {
+        workspaceRoot,
+        store: createTurnChangeObjectStore({ rootDir: join(workspaceRoot, '..', 'audit-objects') }),
+        onReceipt: bindCaptureReceipts(capture),
+        onShellAudit: bindCaptureShellAudit(capture),
+      },
+    });
+    const router = new HostToolExecutionRouter({
+      tools,
+      admission: createPermissiveToolAdmission(),
+      capture,
+      tracker: createExecutionTracker(),
+    });
+    await writeFile(join(workspaceRoot, 'seen.txt'), 'x\n');
+    expect((await executeWrite(router, { command: 'cat seen.txt' }, 'bash')).ok).toBe(true);
+    expect((await executeWrite(router, { command: 'printf y > gen.txt' }, 'bash')).ok).toBe(true);
+    expect(store.listShellAuditsByRun('run-1')).toEqual([
+      expect.objectContaining({ status: 'clean', paths: [] }),
+      expect.objectContaining({ status: 'changed', paths: ['gen.txt'] }),
+    ]);
   });
 
   it('symlink / escape path: writer rejection, zero file_action, target unchanged', async () => {
@@ -310,5 +346,35 @@ describe('tool capture', () => {
     });
 
     expect(store.listFileActionsByRun('run-dup')).toHaveLength(1);
+  });
+});
+
+describe('waitRunSettled', () => {
+  it('resolves when the run has no open captures and waits for open ones', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-settle-'));
+    const store = openTurnChangeStore({ rootDir: dir });
+    try {
+      const capture = createToolCapturePort({ store });
+      await expect(capture.waitRunSettled('run-a', 1_000)).resolves.toBe(true);
+      const begun = capture.beginCapture({
+        runId: 'run-a',
+        toolCallId: 'c1',
+        toolName: 'bash',
+        fileEffect: { kind: 'uncontained' },
+        canonicalArgs: {},
+      });
+      if (!begun) throw new Error('expected a capture');
+      await expect(capture.waitRunSettled('run-a', 20)).resolves.toBe(false);
+      const waiting = capture.waitRunSettled('run-a', 1_000);
+      capture.recordShellAudit({ captureId: begun.captureId, audit: { status: 'clean' } });
+      await capture.finishCapture({ captureId: begun.captureId, result: { ok: true, output: '' } });
+      await expect(waiting).resolves.toBe(true);
+      expect(store.listShellAuditsByRun('run-a')).toEqual([
+        expect.objectContaining({ toolCallId: 'c1', status: 'clean' }),
+      ]);
+    } finally {
+      store.close();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

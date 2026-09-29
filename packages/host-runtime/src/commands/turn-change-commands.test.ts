@@ -94,7 +94,8 @@ describe('turn-change command handlers', () => {
       ],
       coverageComplete: true,
     });
-    runtime.store.markAttemptCaptureState('cs-1', 'ready');
+    // Sealing publishes and activates together.
+    runtime.store.activateVersion('cs-1', 1, 'ready');
 
     const held = await runtime.gate.tryAcquire({
       workspaceId: 'ws-1',
@@ -107,6 +108,7 @@ describe('turn-change command handlers', () => {
 
     const context = {
       turnChangeRuntime: runtime,
+      turnChangeLockWaitMs: 50,
       push() {},
     } as unknown as HostCommandContext;
     const busy = await handleTurnChangeCommand(

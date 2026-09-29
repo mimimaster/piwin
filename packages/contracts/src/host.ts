@@ -546,6 +546,8 @@ export type ToolPresentation = {
   durationMs?: number;
   /** Part of `durationMs` spent queued on the Host workspace write gate. */
   queuedMs?: number;
+  /** This call's own file change, lifted from the Host result details. */
+  fileChange?: import('./tool-result.js').ToolFileChange;
   exitCode?: number | null;
   changedPaths?: string[];
   output?: ToolOutputView;

@@ -115,6 +115,8 @@ export type TurnChangeOperationStore = {
   }): SubagentApplyReservationRecord | undefined;
   listSubagentApplyReservations(): SubagentApplyReservationRecord[];
   listOperationsByKind(kind: string): TurnChangeOperationRecord[];
+  /** Operations left in a status (startup recovery looks for `applying`). */
+  listOperationsByStatus(status: string): TurnChangeOperationRecord[];
 };
 
 export function bindTurnChangeOperationStore(db: DatabaseSync): TurnChangeOperationStore {
@@ -144,6 +146,9 @@ export function bindTurnChangeOperationStore(db: DatabaseSync): TurnChangeOperat
   );
   const selectOperationsByKind = db.prepare(
     `SELECT * FROM operation WHERE kind = ? ORDER BY rowid ASC`,
+  );
+  const selectOperationsByStatus = db.prepare(
+    `SELECT * FROM operation WHERE status = ? ORDER BY rowid ASC`,
   );
   const selectOperation = db.prepare(`SELECT * FROM operation WHERE operation_id = ?`);
   const updateOperationStatus = db.prepare(`UPDATE operation SET status = ? WHERE operation_id = ?`);
@@ -419,6 +424,10 @@ export function bindTurnChangeOperationStore(db: DatabaseSync): TurnChangeOperat
 
     listOperationsByKind(kind: string): TurnChangeOperationRecord[] {
       const rows = selectOperationsByKind.all(kind) as OperationRow[];
+      return rows.map(mapOperationRow);
+    },
+    listOperationsByStatus(status: string): TurnChangeOperationRecord[] {
+      const rows = selectOperationsByStatus.all(status) as OperationRow[];
       return rows.map(mapOperationRow);
     },
   };

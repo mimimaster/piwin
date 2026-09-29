@@ -17,9 +17,15 @@ type PagingOptions = {
   messages?: ChatMessageUi[];
   canLoadOlder?: boolean;
   canLoadNewer?: boolean;
+  /** A bounded history view is painted instead of the live tail. */
+  historyViewActive?: boolean;
+  /** The history view has nothing older than the live tail left to page in. */
+  historyCaughtUp?: boolean;
   historyLoading?: boolean;
   onLoadOlder?: (keepMessageId?: string) => Promise<void>;
   onLoadNewer?: (keepMessageId?: string) => Promise<void>;
+  /** Hand the viewport back to the live tail (same path as the return-to-latest button). */
+  onReturnToLive?: () => void;
   /** Set by the virtualized list; restores an anchor whose row may be unmounted. */
   readingAnchorRestorerRef?: MutableRefObject<TranscriptReadingAnchorRestorer | null>;
 };
@@ -45,6 +51,14 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
   const readingRef = useRef<{ anchor: TranscriptReadingAnchor; pageKey: string } | null>(null);
   /** A deliberate jump (history tick, return to latest) owns the next window change. */
   const skipNextRestoreRef = useRef(false);
+
+  /** Drop stale wheel/scroll intent; used by deliberate jumps and by the live handoff. */
+  const resetIntent = useCallback(() => {
+    directionRef.current = null;
+    skipNextRestoreRef.current = true;
+    lastRequestRef.current = null;
+    ignoreScrollRef.current = true;
+  }, []);
 
   const recordReading = useCallback(() => {
     const container = scroll.containerRef.current;
@@ -78,8 +92,28 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
   }, [restorerRef, scroll.beginProgrammaticScroll, scroll.containerRef, scroll.isFollowingTail]);
 
   const loadPage = useCallback(
-    async (direction: Direction) => {
+    async (direction: Direction, gesture: boolean) => {
       const container = scroll.containerRef.current;
+      // A history view that has caught up with the live tail is a frozen copy
+      // of it: run chrome (status footer, streaming caret, growing rows) is
+      // suppressed there, so a running session looks idle. Reading on past its
+      // end means the reader reached the tail — go live instead of stranding
+      // them on a stale snapshot beside a still-running composer. Only a
+      // reader's own scroll hands over; a page that merely finished loading
+      // must not swap the list under them.
+      if (
+        container &&
+        gesture &&
+        direction === 'newer' &&
+        options.historyViewActive === true &&
+        options.historyCaughtUp === true &&
+        !options.historyLoading &&
+        options.onReturnToLive
+      ) {
+        resetIntent();
+        options.onReturnToLive();
+        return;
+      }
       const canLoad = direction === 'older' ? options.canLoadOlder : options.canLoadNewer;
       const load = direction === 'older' ? options.onLoadOlder : options.onLoadNewer;
       if (!container || !canLoad || !load || options.historyLoading || inFlightRef.current) return;
@@ -100,24 +134,28 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
     [
       options.canLoadOlder,
       options.canLoadNewer,
+      options.historyViewActive,
+      options.historyCaughtUp,
       options.onLoadOlder,
       options.onLoadNewer,
+      options.onReturnToLive,
       options.historyLoading,
       pageKey,
       recordReading,
+      resetIntent,
       scroll.containerRef,
       scroll.detachFromTail,
     ],
   );
 
   const maybeLoad = useCallback(
-    (direction: Direction) => {
+    (direction: Direction, gesture = true) => {
       const container = scroll.containerRef.current;
       if (!container) return;
       const maximumTop = Math.max(0, container.scrollHeight - container.clientHeight);
       const top = Math.max(0, Math.min(container.scrollTop, maximumTop));
       if ((direction === 'older' ? top : maximumTop - top) <= EDGE_LOAD_PX)
-        void loadPage(direction);
+        void loadPage(direction, gesture);
     },
     [loadPage, scroll.containerRef],
   );
@@ -168,19 +206,13 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
     if (container) lastScrollTopRef.current = container.scrollTop;
   }, [pageKey, recordReading, restoreReading, scroll.containerRef]);
   useEffect(() => {
-    if (directionRef.current && !options.historyLoading) maybeLoad(directionRef.current);
+    if (directionRef.current && !options.historyLoading) maybeLoad(directionRef.current, false);
   }, [pageKey, options.historyLoading, maybeLoad]);
-  const resetIntent = useCallback(() => {
-    directionRef.current = null;
-    skipNextRestoreRef.current = true;
-    lastRequestRef.current = null;
-    ignoreScrollRef.current = true;
-  }, []);
   return {
     onScroll,
     resetIntent,
     loadOlder: () => {
-      void loadPage('older');
+      void loadPage('older', true);
     },
   };
 }

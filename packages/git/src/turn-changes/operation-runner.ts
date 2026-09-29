@@ -154,7 +154,11 @@ function replayResult(store: TurnChangeStore, operationId: string): TurnChangeOp
   return { operationId, status: existing.status, replayed: true };
 }
 
-async function collectMismatchedPaths(
+/**
+ * Paths whose current bytes are not what the plan expects to start from.
+ * Undo/redo refuse when any exist; `turn-changes/check` reports them first.
+ */
+export async function collectMismatchedPaths(
   workspaceRoot: string,
   files: readonly PlannedFileOp[],
 ): Promise<string[]> {

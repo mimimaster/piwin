@@ -60,6 +60,7 @@ describe('captureWorkspaceFingerprint', () => {
     await writeFile(join(root, 'outside.ts'), 'not in the session subtree');
     const after = await captureWorkspaceFingerprint(session);
     if (before === null || after === null) throw new Error('expected fingerprints');
-    expect(diffWorkspaceFingerprints(before, after)).toEqual(['pkg/x.ts']);
+    // Keys are relative to the session root, matching turn-change receipts.
+    expect(diffWorkspaceFingerprints(before, after)).toEqual(['x.ts']);
   });
 });

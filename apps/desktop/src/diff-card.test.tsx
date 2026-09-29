@@ -110,7 +110,13 @@ describe('DiffCard component (proto-01 alignment)', () => {
 
     // Header actions
     expect(head?.querySelector('[data-testid="diff-open-file"]')?.textContent).toBe('打开');
-    expect(head?.querySelector('[data-testid="diff-rollback"]')?.textContent).toBe('回滚');
+    // No review handler: no rollback button that would only pretend to revert.
+    expect(head?.querySelector('[data-testid="diff-rollback"]')).toBeNull();
+    expect(card?.querySelector('[data-verdict]')).toBeNull();
+    const footer = card?.querySelector('[data-testid="diff-footer"]')?.textContent ?? '';
+    expect(footer).toContain('已写入磁盘');
+    expect(footer).not.toContain('回滚');
+    expect(footer).not.toContain('审查');
     expect(head?.querySelector('[data-testid="diff-open-all"]')?.textContent).toContain('全部差异');
 
     // Clicking 打开 calls onOpenFile
@@ -224,5 +230,52 @@ describe('DiffCard component (proto-01 alignment)', () => {
 
     expect(onReview).toHaveBeenCalledWith('apps/desktop/src/composer-run-actions.tsx', false);
     expect(container.querySelector('.vd.no')?.textContent).toBe('已拒绝 · 已回滚');
+  });
+
+  it("renders the call's own change without fetching the working-tree diff", async () => {
+    const request = createRequest();
+    act(() => {
+      root.render(
+        <DiffCard
+          projectPath="/workspace"
+          path="a.txt"
+          request={request}
+          change={{
+            path: 'a.txt',
+            status: 'modified',
+            additions: 1,
+            deletions: 1,
+            binary: false,
+            patch: '--- a/a.txt\n+++ b/a.txt\n@@ -3 +3 @@\n-bottom\n+BOTTOM\n',
+          }}
+        />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(request).not.toHaveBeenCalled();
+    const stats = container.querySelector('[data-testid="diff-stats"]')?.textContent ?? '';
+    expect(stats).toContain('+1');
+    expect(stats).toContain('−1');
+    expect(container.textContent).toContain('BOTTOM');
+  });
+
+  it('shows counts only for a change too large to carry a patch', async () => {
+    act(() => {
+      root.render(
+        <DiffCard
+          projectPath="/workspace"
+          path="big.json"
+          request={createRequest()}
+          change={{ path: 'big.json', status: 'modified', additions: 900, deletions: 12, binary: false }}
+        />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="diff-stats"]')?.textContent).toContain('+900');
+    expect(container.textContent).toContain('改动过大，仅显示行数');
   });
 });

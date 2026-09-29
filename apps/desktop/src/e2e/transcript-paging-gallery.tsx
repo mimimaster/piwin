@@ -9,7 +9,11 @@ import { chatUiReducer, createInitialChatUiState } from '../chat-reducer.js';
 import type { HostClient } from '../host-client.js';
 import { useSessionTranscriptActions } from '../hooks/use-session-transcript-actions.js';
 import { createMockSessionTranscriptWindow } from '../mock-session-transcript-window.js';
-import { canLoadNewerTranscript, canLoadOlderTranscript } from '../transcript-history-window.js';
+import {
+  canLoadNewerTranscript,
+  canLoadOlderTranscript,
+  historyViewCaughtUpWithLive,
+} from '../transcript-history-window.js';
 import { TranscriptViewport } from '../transcript-viewport.js';
 import { TranscriptTurnList } from '../transcript-turn-list.js';
 import { groupTranscriptTurns } from '../transcript-turns.js';
@@ -127,6 +131,7 @@ export function TranscriptPagingGallery() {
           historyViewActive={state.historyView !== null}
           canLoadOlder={canLoadOlderTranscript(state)}
           canLoadNewer={canLoadNewerTranscript(state)}
+          historyCaughtUp={historyViewCaughtUpWithLive(state)}
           historyLoading={actions.transcriptHistoryLoading}
           onLoadOlder={actions.handleLoadOlderTranscript}
           onLoadNewer={actions.handleLoadNewerTranscript}

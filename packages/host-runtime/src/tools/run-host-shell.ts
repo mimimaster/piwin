@@ -7,14 +7,21 @@
  * holders. Afterwards it asks the activity log whether another session was
  * active in the workspace during the run; if so, and something actually
  * changed, the result says which files moved so the model knows a test or
- * build may have seen a mix of versions. Fingerprints are only taken when
- * sessions overlap (see shell-baselines).
+ * build may have seen a mix of versions.
+ *
+ * When the turn is being recorded for undo (`onShellAudit`), every command
+ * is fingerprinted before and after and reports which tracked files it
+ * changed — other sessions' Host writes in the window subtracted. Sealing
+ * uses that to keep undo available for turns that only read or test.
+ * Without a recorder, fingerprints are taken only while sessions overlap
+ * (see shell-baselines).
  */
 import { execFile } from 'node:child_process';
 import { isAbsolute, relative } from 'node:path';
 import { promisify } from 'node:util';
 
 import type { JobController, ToolResult, WorkspaceWriteToolDetails } from '@piwin/contracts';
+import type { ShellAuditReport } from '../turn-changes/tool-capture.js';
 import { runManagedBash } from './run-managed-bash.js';
 import {
   runWithWorkspaceWriteGate,
@@ -46,6 +53,10 @@ export type RunHostShellInput = {
   piwinRoot?: string;
   jobController?: JobController;
   workspaceWrite?: WorkspaceWriteBinding;
+  /** Turn recorder: receives what this command changed under `auditRoot`. */
+  onShellAudit?: (audit: ShellAuditReport) => void;
+  /** Root the audit fingerprints and reports paths against. */
+  auditRoot?: string;
 };
 
 export async function runHostShell(input: RunHostShellInput): Promise<ToolResult> {
@@ -60,12 +71,33 @@ export async function runHostShell(input: RunHostShellInput): Promise<ToolResult
     kind: optimistic ? 'shell' : 'tool',
     wait: true,
     run: async (held) => {
-      if (!optimistic || held === undefined) {
-        return executeShell(input);
+      const auditRoot = input.onShellAudit ? input.auditRoot : undefined;
+      let ownBaseline: WorkspaceFingerprint | null | undefined;
+      if (auditRoot !== undefined) {
+        ownBaseline = await captureWorkspaceFingerprint(auditRoot);
+        if (held && optimistic) {
+          publishShellBaseline(held.gate, held.root, held.grantedAtTick, Promise.resolve(ownBaseline));
+        }
+      } else if (optimistic && held) {
+        ownBaseline = await captureBaselineIfOverlapping(held);
       }
-      const ownBaseline = await captureBaselineIfOverlapping(held);
-      const result = await executeShell(input);
-      return annotateConcurrentChanges(result, held, ownBaseline);
+      let result: ToolResult;
+      try {
+        result = await executeShell(input);
+      } finally {
+        if (auditRoot !== undefined && input.onShellAudit) {
+          const after = ownBaseline ? await captureWorkspaceFingerprint(auditRoot) : null;
+          input.onShellAudit(
+            auditCommand({
+              held,
+              auditRoot,
+              changed:
+                ownBaseline && after ? diffWorkspaceFingerprints(ownBaseline, after) : null,
+            }),
+          );
+        }
+      }
+      return optimistic && held ? annotateConcurrentChanges(result, held, ownBaseline) : result;
     },
   });
 }
@@ -93,6 +125,34 @@ async function executeShell(input: RunHostShellInput): Promise<ToolResult> {
     maxBuffer: 1024 * 1024,
   });
   return { ok: true, output: stdout + (stderr ? `\n[stderr]\n${stderr}` : '') };
+}
+
+/**
+ * Which tracked files this command changed. Files other sessions wrote through
+ * Host in the same window are theirs, not this command's. This session's own
+ * parallel Host writes stay in: a command and a Host write touching the same
+ * file in one turn must make that file's undo unsafe, not silently partial.
+ */
+function auditCommand(input: {
+  held: HeldWorkspaceWrite | undefined;
+  auditRoot: string;
+  changed: string[] | null;
+}): ShellAuditReport {
+  if (input.changed === null) {
+    return { status: 'unknown' };
+  }
+  let paths = input.changed;
+  const held = input.held;
+  if (held) {
+    const others = held.gate.activity.othersSince({
+      root: held.root,
+      fromTick: held.grantedAtTick,
+      ...(held.ownerId !== undefined ? { ownerId: held.ownerId } : {}),
+    });
+    const theirs = new Set(others.fileWrites.map((key) => toRootRelative(held.root, key)));
+    paths = paths.filter((path) => !theirs.has(path));
+  }
+  return paths.length === 0 ? { status: 'clean' } : { status: 'changed', paths };
 }
 
 /**
