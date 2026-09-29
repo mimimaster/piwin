@@ -544,6 +544,8 @@ export type ToolPresentation = {
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;
+  /** Part of `durationMs` spent queued on the Host workspace write gate. */
+  queuedMs?: number;
   exitCode?: number | null;
   changedPaths?: string[];
   output?: ToolOutputView;

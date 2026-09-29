@@ -35,6 +35,25 @@ export type ToolResultDetails = Record<string, unknown> & {
   recovery?: import('./browser.js').BrowserRecoveryAction;
   pageStateLost?: boolean;
   nextAction?: string;
+  /** Host workspace write gate facts for gated file and shell tools. */
+  workspaceWrite?: WorkspaceWriteToolDetails;
+};
+
+/**
+ * How a gated tool met the workspace write gate. Ordinary shell commands take
+ * the shared lease and run optimistically; `concurrentChanges` reports what
+ * other sessions changed in the workspace while such a command ran.
+ */
+export type WorkspaceWriteToolDetails = {
+  lock: 'exclusive' | 'shared';
+  /** Time spent waiting for the gate before the tool body started. */
+  queuedMs: number;
+  concurrentChanges?: {
+    /** Files other sessions wrote through Host file tools (workspace-relative). */
+    otherSessionWrites: string[];
+    /** Dirty-set changes seen during the run; may include this command's own writes. */
+    changedDuringRun: string[];
+  };
 };
 
 /**

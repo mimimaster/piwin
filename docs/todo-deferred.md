@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Living execution backlog |
-| Updated | 2026-08-10 |
+| Updated | 2026-09-29 |
 | Roadmap | [`v1-completion-roadmap.md`](./specs/v1-completion-roadmap.md) |
 | Rule | This is the **only** task backlog. Specs explain design and acceptance; this file tracks execution state. |
 
@@ -151,6 +151,13 @@
 | D-ENG-03 | ~~Unsigned desktop package path~~ | **Done** — `pnpm package:desktop` + `docs/release-desktop.md` | done (unsigned) |
 | D-ENG-03b | Code signing / notarization when certs available | `pnpm notarize:desktop` + workflow Notarize step; needs App Store Connect API secrets and Developer ID p12 on GitHub-hosted | later delivery |
 | D-ENG-04 | cleanup corrupt `*.ts ***` filenames if any | eng hygiene | eng |
+| D-WWG-01 | **Read-before-write for `write_file`**: Host hashes a file when Pi `read` finishes (agent-host passes the path to a Host port) and records it in the session file ledger; a `write_file` over an existing file then refuses once if this session never read it or it changed since. Closes the remaining gap in ADR 0069 rev. 2026-09-29 (first whole-file overwrite long after a read). | Host `edit` removes most whole-file overwrites of existing files; measure how many unread overwrites remain before adding a worker→Host read pipe. Spec: docs site `workspace-concurrency` §7. | after 1–2 weeks of `edit` data |
+| D-WWG-02 | Attribute optimistic shell writes (use the fingerprint diff when no other session overlapped) instead of marking the attempt capture `incomplete`. | Attribution is ambiguous under overlap; `edit` should move most file edits out of bash first. | later |
+| D-WWG-03 | Run long tests/builds against a snapshot or scratch worktree so other sessions can edit while the result maps to a known version. | pnpm monorepo `node_modules` per worktree is costly; the mixed-version note covers the risk today. | later |
+| D-WWG-04 | Offer (or default to) a worktree when a second session starts in a workspace another session is running in. | Product/UX decision not taken yet; optimistic gate serves deliberate shared checkouts. | product |
+| D-WWG-05 | Codex-style `apply_patch` format for OpenAI/Codex models. Hashline edits evaluated and not adopted (mixed benchmark evidence, needs a new `read` format). | Ship `edit` (Pi schema) first. | later |
+| D-WWG-06 | Queue UI: name the lease holder ("waiting for session X's `pnpm test`") and offer cancel; today only `queuedMs` is shown. | Separate timing first; holder identity needs a gate query + push. | polish |
+| D-WWG-07 | Two sessions' shells writing the same file race; the later write wins and is only reported afterwards. | Accepted cost of optimistic shell (ADR 0069 rev. 2026-09-29). | never silent |
 
 ### 2.6 Theme / Pet residual
 

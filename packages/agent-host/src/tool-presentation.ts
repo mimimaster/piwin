@@ -18,6 +18,7 @@ import { attachGoalPresentation } from './goal-presentation.js';
 import { attachKnowledgePresentation } from './knowledge-presentation.js';
 import { attachWebSearchPresentation } from './web-search-presentation.js';
 import { attachPlanPresentation } from './plan-presentation.js';
+import { attachWorkspaceWritePresentation } from './workspace-write-presentation.js';
 import { attachSubagentPresentation } from './subagent-presentation.js';
 import {
   type ToolActionFamily,
@@ -373,7 +374,10 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
   const withGoal = attachGoalPresentation(withFlashcard, detailsInput);
   const withKnowledge = attachKnowledgePresentation(withGoal, detailsInput);
   const withWebSearch = attachWebSearchPresentation(withKnowledge, detailsInput);
-  const withPlan = attachPlanPresentation(withWebSearch, detailsInput);
+  const withPlan = attachWorkspaceWritePresentation(
+    attachPlanPresentation(withWebSearch, detailsInput),
+    detailsInput,
+  );
   return attachSubagentPresentation(withPlan, {
     toolName: input.toolName,
     ...(input.routedToolName !== undefined ? { routedToolName: input.routedToolName } : {}),

@@ -95,6 +95,7 @@ export default defineConfig({
             { text: 'Pi 扩展开发与 piwin 适配', link: '/docs/extension-development' },
             { text: 'Pi 扩展安装实战 (cc-safety-net)', link: '/docs/install-pi-extension' },
             { text: '权限管控与安全拦截', link: '/docs/permissions' },
+            { text: '多会话并发写入与乐观写锁', link: '/docs/workspace-concurrency' },
             { text: '知识库与多媒体资料库', link: '/docs/knowledge-and-media' },
             { text: '会话管理、归档与用量统计', link: '/docs/session-and-stats' },
           ],

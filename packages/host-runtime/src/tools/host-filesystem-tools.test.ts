@@ -3,7 +3,7 @@
  * are correctly composed with permission gates.
  */
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -65,12 +65,13 @@ function requireTool(tools: HostToolRegistration[], name: string): HostToolRegis
 }
 
 describe('buildHostFilesystemTools', () => {
-  it('returns 6 tools: read_file, write_file, delete_file, list_directory, bash, run_bash', () => {
+  it('returns 7 tools: read_file, write_file, edit, delete_file, list_directory, bash, run_bash', () => {
     const tools = buildHostFilesystemTools({ cwd: '/tmp' });
     const names = tools.map((t) => t.descriptor.name).sort();
     expect(names).toEqual([
       'bash',
       'delete_file',
+      'edit',
       'list_directory',
       'read_file',
       'run_bash',
@@ -90,6 +91,7 @@ describe('buildHostFilesystemTools', () => {
     expect('fileEffect' in writeFileTool.descriptor).toBe(false);
     expect(writeFileTool.fileEffect?.kind).toBe('exact-paths');
     expect(deleteFileTool.fileEffect?.kind).toBe('exact-paths');
+    expect(requireTool(tools, 'edit').fileEffect?.kind).toBe('exact-paths');
     expect(readFileTool.fileEffect).toEqual({ kind: 'none' });
     expect(listTool.fileEffect).toEqual({ kind: 'none' });
     expect(bashTool.fileEffect).toEqual({ kind: 'uncontained' });
@@ -369,4 +371,77 @@ describe('buildHostFilesystemTools', () => {
     expect(second.ok).toBe(true);
     await rm(cwd, { recursive: true, force: true });
   });
+
+  it('edit is admitted as a file write and replaces only the targeted text', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'piwin-fs-edit-'));
+    const file = join(cwd, 'a.ts');
+    await writeFile(file, 'const a = 1;\nconst b = 2;\n');
+    const requestPermission = vi.fn(async () => 'allow' as const);
+    const tools = buildHostFilesystemTools({ cwd });
+    const result = await executeThroughAdmission(
+      requireTool(tools, 'edit'),
+      { path: 'a.ts', edits: [{ oldText: 'const b = 2;', newText: 'const b = 20;' }] },
+      () => 'ask-all',
+      requestPermission,
+    );
+    expect(outputOf(result)).toContain('Successfully replaced 1 block(s)');
+    expect(requestPermission).toHaveBeenCalledOnce();
+    expect(await readFile(file, 'utf8')).toBe('const a = 1;\nconst b = 20;\n');
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it('edit keeps another session\'s change elsewhere and refuses a stale region', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'piwin-fs-edit-race-'));
+    const file = join(cwd, 'a.ts');
+    await writeFile(file, 'top\nmiddle\nbottom\n');
+    const gate = createWorkspaceWriteGate();
+    const tools = buildHostFilesystemTools({
+      cwd,
+      workspaceWrite: { gate, workspaceId: cwd, rootPath: cwd },
+    });
+    const edit = requireTool(tools, 'edit');
+    const asSession = (sessionId: string, args: Record<string, unknown>) =>
+      edit.execute(args, new AbortController().signal, {
+        sessionId,
+        runtimeGenerationId: 'generation-1',
+        runId: `run-${sessionId}`,
+        toolName: 'edit',
+      });
+
+    // Both sessions read the same version; B edits the bottom, A the top.
+    expect((await asSession('b', { path: file, edits: [{ oldText: 'bottom', newText: 'BOTTOM' }] })).ok).toBe(true);
+    expect((await asSession('a', { path: file, edits: [{ oldText: 'top', newText: 'TOP' }] })).ok).toBe(true);
+    expect(await readFile(file, 'utf8')).toBe('TOP\nmiddle\nBOTTOM\n');
+
+    // A edits its region again: no write-after-write refusal for targeted edits.
+    expect((await asSession('a', { path: file, edits: [{ oldText: 'TOP', newText: 'Top' }] })).ok).toBe(true);
+    expect(await readFile(file, 'utf8')).toBe('Top\nmiddle\nBOTTOM\n');
+
+    // A still believes the bottom says "bottom": the match fails instead of clobbering.
+    const stale = await asSession('a', { path: file, edits: [{ oldText: 'bottom', newText: 'end' }] });
+    expect(stale).toMatchObject({ ok: false });
+    expect(stale.ok ? '' : stale.message).toContain('read it again');
+    expect(await readFile(file, 'utf8')).toBe('Top\nmiddle\nBOTTOM\n');
+
+    // A whole-file overwrite by A would drop B's change: refused once.
+    const overwrite = await requireTool(tools, 'write_file').execute(
+      { path: file, content: 'rewritten\n' },
+      new AbortController().signal,
+      { sessionId: 'a', runtimeGenerationId: 'generation-1', runId: 'run-a', toolName: 'write_file' },
+    );
+    expect(overwrite).toMatchObject({ ok: false, details: { reason: 'file-changed-by-other-session' } });
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it('edit points a missing file at write_file', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'piwin-fs-edit-missing-'));
+    const result = await executeTool(requireTool(buildHostFilesystemTools({ cwd }), 'edit'), {
+      path: join(cwd, 'nope.ts'),
+      edits: [{ oldText: 'x', newText: 'y' }],
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect(result.ok ? '' : result.message).toContain('use write_file to create it');
+    await rm(cwd, { recursive: true, force: true });
+  });
 });
+

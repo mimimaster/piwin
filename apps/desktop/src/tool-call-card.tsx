@@ -19,7 +19,7 @@ import {
   extractCommandDescription,
   formatChainPreviewChip,
   formatPathChip,
-  formatToolDuration,
+  formatToolTimingParts,
   splitPathChipParts,
   isFetchLikeShellCommand,
   kindVerb,
@@ -661,9 +661,12 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
             if (!expanded && tool.presentation?.countTag) {
               parts.push(tool.presentation.countTag);
             }
-            if (typeof tool.presentation?.durationMs === 'number') {
-              parts.push(formatToolDuration(tool.presentation.durationMs));
-            }
+            parts.push(
+              ...formatToolTimingParts(
+                tool.presentation?.durationMs,
+                tool.presentation?.queuedMs,
+              ),
+            );
             if (parts.length > 0) {
               return (
                 <span className="tool-call-duration" data-testid="tool-call-duration">

@@ -645,3 +645,26 @@ describe('buildToolPresentation cancel', () => {
     }
   });
 });
+
+describe('workspace write gate facts', () => {
+  it('lifts queue time from the Host result details', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'bash',
+      args: { command: 'pnpm test' },
+      details: { workspaceWrite: { lock: 'exclusive', queuedMs: 1234.4 } },
+      durationMs: 2000,
+    });
+    expect(presentation.queuedMs).toBe(1234);
+    expect(presentation.durationMs).toBe(2000);
+  });
+
+  it('omits queue time when the gate did not make the tool wait', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'bash',
+      args: { command: 'ls' },
+      details: { workspaceWrite: { lock: 'shared', queuedMs: 0 } },
+    });
+    expect(presentation.queuedMs).toBeUndefined();
+  });
+});
+
