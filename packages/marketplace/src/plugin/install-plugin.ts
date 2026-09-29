@@ -270,7 +270,8 @@ async function materializeGit(
   if (source.ref) {
     args.push('--branch', source.ref);
   }
-  args.push(source.url, clonePath);
+  // `--` keeps a URL that begins with `-` from being read as a git option.
+  args.push('--', source.url, clonePath);
   try {
     await execFileAsync('git', args, { timeout: 120_000 });
   } catch (error) {

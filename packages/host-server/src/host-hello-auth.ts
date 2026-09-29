@@ -99,7 +99,14 @@ export async function authenticateHostHello(
     return { ok: true, pairedDeviceId: device.id };
   }
 
-  if (context.authToken !== undefined && !context.tokensEqual(context.authToken, message.authToken)) {
+  // A presented authToken can only be validated against a configured token.
+  // When no token is configured the hello must fail closed: the anonymous
+  // path was already handled above, and silently accepting an arbitrary
+  // token would let any unpaired client take operator control.
+  if (context.authToken === undefined) {
+    return { ok: false, message: 'Host authentication failed' };
+  }
+  if (!context.tokensEqual(context.authToken, message.authToken)) {
     return { ok: false, message: 'Host authentication failed' };
   }
 

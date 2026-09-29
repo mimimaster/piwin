@@ -345,6 +345,11 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
       );
     case 'session/cold-storage-restore':
       return isSafeRemoteId(command.sessionId) && command.packPath === undefined;
+    case 'session/cold-storage-import':
+      // Import resolves an arbitrary Host-absolute packPath. Selecting that
+      // file is a local-sidecar operation, like preview/read-local-file:
+      // remote clients must not send this command even as the operator.
+      return false;
     case 'plan/get':
       return isSafeRemoteId(command.sessionId);
     case 'plan/execute':

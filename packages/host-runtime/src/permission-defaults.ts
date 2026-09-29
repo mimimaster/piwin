@@ -19,12 +19,12 @@ import { createEmptyRuleSet } from '@piwin/contracts';
  */
 export const BUNDLED_DENY: PermissionRule[] = [
   {
-    target: { kind: 'bash', pattern: 're:curl\\s+[^\\n|]*\\|\\s*(?:ba)?sh' },
+    target: { kind: 'bash', pattern: 're:curl\\s+[^\\n]*\\|\\s*(?:ba)?sh' },
     decision: 'deny',
     reason: 'pipe-to-shell',
   },
   {
-    target: { kind: 'bash', pattern: 're:wget\\s+[^\\n|]*\\|\\s*(?:ba)?sh' },
+    target: { kind: 'bash', pattern: 're:wget\\s+[^\\n]*\\|\\s*(?:ba)?sh' },
     decision: 'deny',
     reason: 'wget-pipe-shell',
   },
@@ -42,13 +42,13 @@ export const BUNDLED_DENY: PermissionRule[] = [
     target: {
       kind: 'bash',
       pattern:
-        're:\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-rf|-fr)\\s+(\\/\\s*$|\\/\\*\\s*$|\\/~\\s*$|~\\s*$)',
+        're:\\brm\\s+(?=(?:-{1,2}[A-Za-z][A-Za-z-]*\\s+)*(?:-[A-Za-z]*r[A-Za-z]*|--recursive)(?:\\s|$))(?=(?:-{1,2}[A-Za-z][A-Za-z-]*\\s+)*(?:-[A-Za-z]*f[A-Za-z]*|--force)(?:\\s|$))(?:-{1,2}[A-Za-z][A-Za-z-]*\\s+)+(?:--\\s+)?(?:\\/\\s*$|\\/\\*\\s*$|\\/~\\s*$|~\\s*$)',
     },
     decision: 'deny',
     reason: 'rm-root',
   },
   {
-    target: { kind: 'bash', pattern: 're::\\(\\)\\s*\\{\\s*:\\|:\\s*&\\s*\\}\\s*;\\s*:' },
+    target: { kind: 'bash', pattern: 're::\\(\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&?\\s*\\}\\s*;\\s*:' },
     decision: 'deny',
     reason: 'fork-bomb',
   },
@@ -58,7 +58,7 @@ export const BUNDLED_DENY: PermissionRule[] = [
     reason: 'shutdown',
   },
   {
-    target: { kind: 'bash', pattern: 're:curl\\s+[^\\n;|&]*\\|\\s*(?:python|perl|ruby|node)\\b' },
+    target: { kind: 'bash', pattern: 're:curl\\s+[^\\n]*\\|\\s*(?:python|perl|ruby|node)\\b' },
     decision: 'deny',
     reason: 'curl-eval',
   },
@@ -125,7 +125,11 @@ export const BUNDLED_DENY: PermissionRule[] = [
  */
 export const BUNDLED_ASK_BASH: PermissionRule[] = [
   {
-    target: { kind: 'bash', pattern: 're:\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-rf|-fr)\\b' },
+    target: {
+      kind: 'bash',
+      pattern:
+        're:\\brm\\s+(?=(?:-{1,2}[A-Za-z][A-Za-z-]*\\s+)*(?:-[A-Za-z]*r[A-Za-z]*|--recursive)(?:\\s|$))(?=(?:-{1,2}[A-Za-z][A-Za-z-]*\\s+)*(?:-[A-Za-z]*f[A-Za-z]*|--force)(?:\\s|$))(?:-{1,2}[A-Za-z][A-Za-z-]*\\s*)+',
+    },
     decision: 'ask',
     reason: 'rm-recursive-force',
   },

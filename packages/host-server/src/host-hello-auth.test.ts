@@ -113,6 +113,50 @@ describe('authenticateHostHello', () => {
       pairedDeviceId: completion.credential.deviceId,
     });
   });
+
+  it('rejects an authToken when no door token is configured (fail closed)', async () => {
+    const result = await authenticateHostHello(
+      {
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'attacker',
+        lastSeq: 0,
+        authToken: 'totally-bogus',
+      },
+      {
+        authToken: undefined,
+        devicePairing: new HostDevicePairing(),
+        allowAnonymousHello: false,
+        persistEnrollment: async () => undefined,
+        tokensEqual,
+      },
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('admits a hello with the configured door token and rejects a wrong one', async () => {
+    const context = {
+      authToken: 'door',
+      devicePairing: new HostDevicePairing(),
+      allowAnonymousHello: false,
+      persistEnrollment: async () => undefined,
+      tokensEqual,
+    };
+    const hello = {
+      type: 'client/hello',
+      protocolVersion: 1,
+      clientType: 'mobile',
+      clientVersion: 'test',
+      clientId: 'phone',
+      lastSeq: 0,
+    } as const;
+    const ok = await authenticateHostHello({ ...hello, authToken: 'door' }, context);
+    const rejected = await authenticateHostHello({ ...hello, authToken: 'wrong' }, context);
+    expect(ok).toEqual({ ok: true });
+    expect(rejected).toEqual({ ok: false, message: 'Host authentication failed' });
+  });
 });
 
 describe('pairing QR', () => {
