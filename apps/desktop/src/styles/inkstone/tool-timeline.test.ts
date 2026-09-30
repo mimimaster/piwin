@@ -4,7 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const css = readFileSync(join(here, 'tool-timeline.css'), 'utf8');
+const css = [
+  'tool-timeline-work.css',
+  'tool-timeline-chain.css',
+  'tool-timeline-diff.css',
+]
+  .map((name) => readFileSync(join(here, name), 'utf8'))
+  .join('\n');
 
 describe('Inkstone tool-call timeline spine and row layout', () => {
   it('restores the vertical spine and 22px gutter on .thread and .turn-tool-sequence', () => {
