@@ -1792,6 +1792,63 @@ describe('session live control commands', () => {
       expect(boundSchemes.some((scheme) => scheme?.schemeId === 'ultra-code')).toBe(true);
     });
 
+    it('sends the full scheme block once per session, then a one-line reminder', async () => {
+      const session = createDelayedSessionHandle();
+      const { context } = createPromptContext(session);
+      const modelFacingTexts: string[] = [];
+      context.listKnownSubagentProfileIds = async () => ['explorer'];
+      context.loadConfig = async () =>
+        ({
+          subagents: {
+            profiles: [],
+            maxConcurrency: 4,
+            maxTasksPerRun: 8,
+            processIsolation: 'required',
+            parallelWritePolicy: 'worktree-only',
+            dirtyBasePolicy: 'ask',
+          },
+        }) as any;
+      const originalPrompt = session.prompt.bind(session);
+      session.prompt = async (input: PromptInput) => {
+        modelFacingTexts.push(input.text);
+        return originalPrompt(input);
+      };
+      const send = async (text: string): Promise<void> => {
+        const response = await handleSessionLiveCommand(
+          {
+            type: 'session/prompt',
+            sessionId: session.id,
+            input: { text, orchestrationSchemeId: 'ultra-code' },
+          },
+          undefined,
+          context,
+        );
+        expect(response?.success).toBe(true);
+        await vi.waitFor(() => {
+          expect(modelFacingTexts.some((entry) => entry.includes(text))).toBe(true);
+        });
+        await session.promptSettled;
+        await vi.waitFor(() => {
+          expect(context.getForegroundRun(session.id)).toBeUndefined();
+        });
+      };
+
+      await send('first question');
+      expect(modelFacingTexts[0]).toContain('[piwin-scheme-roster]');
+      expect(context.orchestrationSchemeInjectedKeys.get(session.id)).toContain(
+        '[piwin-scheme:ultra-code]',
+      );
+
+      await send('second question');
+      expect(modelFacingTexts[1]).toContain('[piwin-scheme:ultra-code active]');
+      expect(modelFacingTexts[1]).not.toContain('[piwin-scheme-roster]');
+
+      // Compaction may drop the block from history: the next send resends it.
+      context.orchestrationSchemeInjectedKeys.delete(session.id);
+      await send('third question');
+      expect(modelFacingTexts[2]).toContain('[piwin-scheme-roster]');
+    });
+
     it('marks a pinned role unavailable when its configured model is missing', async () => {
       const session = createDelayedSessionHandle();
       const { context } = createPromptContext(session);

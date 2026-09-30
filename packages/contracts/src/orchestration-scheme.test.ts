@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AUTO_SCOUT_SOURCE,
+  BUILTIN_AUTO_SCHEME,
+  BUILTIN_FUSION_SCHEME,
+  ULTRA_CODE_SCHEME_ID,
+  ULTRA_CODE_SCOUT_ROLE,
+  formatAutoRolePlaybook,
+  chooseOrchestrationSchemeInjectionForm,
+  orchestrationSchemeInjectionKey,
   BUILTIN_ULTRA_CODE_SCHEME,
   FUSION_SCHEME_ID,
   FUSION_SIDEKICK_REPORT_CONTRACT,
@@ -198,6 +206,7 @@ describe('resolveOrchestrationScheme', () => {
       'ultra-code',
       'reviewed-delivery',
       'fusion',
+      'auto',
       'my-review',
     ]);
   });
@@ -305,6 +314,21 @@ describe('preamble and roster merge', () => {
     );
     expect(contract).toContain(PIWIN_REPORT_CONTRACT_MARKER);
     expect(contract).toContain('complete | partial | blocked');
+  });
+
+  it('chooses the reminder only when the delivered key matches the resolved content', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig(), 'ultra-code', {
+      knownProfileIds: ['explorer'],
+    })!;
+    const key = orchestrationSchemeInjectionKey(resolved);
+    expect(chooseOrchestrationSchemeInjectionForm(resolved, undefined)).toBe('full');
+    expect(chooseOrchestrationSchemeInjectionForm(resolved, key)).toBe('reminder');
+    expect(chooseOrchestrationSchemeInjectionForm(resolved, `${key} changed`)).toBe('full');
+
+    const reminder = mergeOrchestrationSchemeIntoPrompt(resolved, 'next step', 'reminder');
+    expect(reminder.startsWith('[piwin-scheme:ultra-code active]')).toBe(true);
+    expect(reminder).not.toContain('[piwin-scheme-roster]');
+    expect(reminder).toContain('next step');
   });
 });
 
@@ -682,6 +706,7 @@ describe('reviewed-delivery builtin', () => {
       'ultra-code',
       'reviewed-delivery',
       'fusion',
+      'auto',
       'my-review',
     ]);
     expect(list.find((item) => item.id === 'reviewed-delivery')?.source).toBe('builtin');
@@ -816,5 +841,170 @@ describe('isSubagentReportContractMessage', () => {
     expect(isSubagentReportContractMessage('escalate\nreason')).toBe(true);
     expect(isSubagentReportContractMessage('blocked')).toBe(true);
     expect(isSubagentReportContractMessage('hello')).toBe(false);
+  });
+});
+
+describe('auto builtin', () => {
+  const known = { knownProfileIds: ['explorer', 'implementer', 'reviewer', 'tester'] };
+  const pinned = (modelId: string) => ({
+    protocol: 'openai-compatible' as const,
+    providerId: 'p',
+    modelId,
+  });
+
+  it('pins the scout source to the Ultra Code ids', () => {
+    expect(AUTO_SCOUT_SOURCE).toEqual({ schemeId: ULTRA_CODE_SCHEME_ID, role: ULTRA_CODE_SCOUT_ROLE });
+  });
+
+  it('inherits profile, thinking, isolation, and contract from the home schemes', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig(), 'auto', known)!;
+    const byRole = new Map(resolved.members.map((member) => [member.role, member]));
+    expect(byRole.get('scout')).toMatchObject({
+      profileId: 'explorer',
+      thinkingLevel: 'low',
+      isolation: 'readonly',
+      inheritedFrom: { schemeId: 'ultra-code', role: 'scout' },
+    });
+    expect(byRole.get('scout')?.reportContract).toContain('complete | partial | blocked');
+    expect(byRole.get('sidekick')).toMatchObject({
+      profileId: 'implementer',
+      isolation: 'worktree',
+      behavior: { lane: 'persistent', leadReviewLimit: { maxFiles: 5, maxChangedLines: 300 } },
+    });
+    expect(byRole.get('sidekick')?.reportContract).toContain('done | blocked | escalate');
+    expect(byRole.get('reviewer')?.reportContract).toContain('piwin_subagent_review_submit');
+    expect(byRole.get('tester')).toMatchObject({ isolation: 'worktree', behavior: { detached: true } });
+    expect(resolved.maxSubagentThinkingLevel).toBeUndefined();
+  });
+
+  it('follows models pinned in the referenced schemes, not a copy', () => {
+    const config = baseConfig({
+      schemes: [
+        {
+          ...BUILTIN_ULTRA_CODE_SCHEME,
+          members: [{ ...BUILTIN_ULTRA_CODE_SCHEME.members![0]!, model: pinned('cheap-scout') }],
+        },
+        {
+          ...BUILTIN_FUSION_SCHEME,
+          members: [{ ...BUILTIN_FUSION_SCHEME.members![0]!, model: pinned('coder') }],
+        },
+      ],
+    });
+    const resolved = resolveOrchestrationScheme(config, 'auto', known)!;
+    expect(resolved.members.find((member) => member.role === 'scout')?.model?.modelId).toBe(
+      'cheap-scout',
+    );
+    expect(resolved.members.find((member) => member.role === 'sidekick')?.model?.modelId).toBe(
+      'coder',
+    );
+  });
+
+  it('restores inheritFrom and behavior on an Auto overlay that dropped them', () => {
+    const overlay = {
+      ...BUILTIN_AUTO_SCHEME,
+      members: BUILTIN_AUTO_SCHEME.members!.map(({ inheritFrom, behavior, ...member }) => {
+        void inheritFrom;
+        void behavior;
+        return member;
+      }),
+    };
+    const resolved = resolveOrchestrationScheme(baseConfig({ schemes: [overlay] }), 'auto', known)!;
+    const sidekick = resolved.members.find((member) => member.role === 'sidekick');
+    expect(sidekick?.inheritedFrom).toEqual({ schemeId: 'fusion', role: 'sidekick' });
+    expect(sidekick?.behavior?.lane).toBe('persistent');
+  });
+
+  it('ignores behavior written by Settings on a custom scheme', () => {
+    const custom = {
+      id: 'my-lane',
+      name: 'My lane',
+      description: 'custom',
+      systemPreamble: 'custom',
+      exposeSpawnMetadata: false,
+      waitPolicy: 'await-all' as const,
+      members: [
+        { role: 'writer', description: 'writes', behavior: { detached: true } },
+      ],
+    };
+    const resolved = resolveOrchestrationScheme(baseConfig({ schemes: [custom] }), 'my-lane', known)!;
+    expect(resolved.members[0]?.behavior).toBeUndefined();
+  });
+
+  it('rejects self, unknown, and chained inheritance', () => {
+    const scheme = (inheritFrom: { schemeId: string; role: string }, id = 'my-inherit') => ({
+      id,
+      name: id,
+      description: 'x',
+      systemPreamble: 'x',
+      exposeSpawnMetadata: false,
+      waitPolicy: 'await-all' as const,
+      members: [{ role: 'helper', description: 'helps', inheritFrom }],
+    });
+    expect(() =>
+      resolveOrchestrationScheme(
+        baseConfig({ schemes: [scheme({ schemeId: 'my-inherit', role: 'helper' })] }),
+        'my-inherit',
+      ),
+    ).toThrow(/own scheme/);
+    expect(() =>
+      resolveOrchestrationScheme(
+        baseConfig({ schemes: [scheme({ schemeId: 'nope', role: 'scout' })] }),
+        'my-inherit',
+      ),
+    ).toThrow(/unknown scheme/);
+    expect(() =>
+      resolveOrchestrationScheme(
+        baseConfig({ schemes: [scheme({ schemeId: 'auto', role: 'scout' })] }),
+        'my-inherit',
+      ),
+    ).toThrow(/only one level/);
+  });
+
+  it('lets Settings tune the Lead review limit, clamped, without touching other behavior', () => {
+    const limitOf = (leadReviewLimit: Parameters<typeof baseConfig>[0] extends infer T
+      ? T extends { leadReviewLimit?: infer L } ? L : never
+      : never) =>
+      resolveOrchestrationScheme({ ...baseConfig(), leadReviewLimit }, 'auto', known)!.members.find(
+        (member) => member.role === 'sidekick',
+      )?.behavior;
+    expect(limitOf(undefined)?.leadReviewLimit).toEqual({ maxFiles: 5, maxChangedLines: 300 });
+    expect(limitOf({ maxFiles: 12, maxChangedLines: 800 })?.leadReviewLimit).toEqual({
+      maxFiles: 12,
+      maxChangedLines: 800,
+    });
+    // One field set: the other keeps the builtin default.
+    expect(limitOf({ maxFiles: 2 })?.leadReviewLimit).toEqual({ maxFiles: 2, maxChangedLines: 300 });
+    // A hand-edited config can neither switch the gate off nor make it unreachable.
+    expect(limitOf({ maxFiles: 0, maxChangedLines: -5 })?.leadReviewLimit).toEqual({
+      maxFiles: 1,
+      maxChangedLines: 10,
+    });
+    expect(limitOf({ maxFiles: 9999, maxChangedLines: 1e9 })?.leadReviewLimit).toEqual({
+      maxFiles: 50,
+      maxChangedLines: 5000,
+    });
+    expect(limitOf({ maxFiles: Number.NaN, maxChangedLines: Infinity })?.leadReviewLimit).toEqual({
+      maxFiles: 5,
+      maxChangedLines: 300,
+    });
+    expect(limitOf({ maxFiles: 7 })?.lane).toBe('persistent');
+  });
+
+  it('carries behavior into the spawn application', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig(), 'auto', known)!;
+    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'tester' }).behavior).toEqual({
+      detached: true,
+    });
+    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'scout' }).behavior).toBeUndefined();
+  });
+
+  it('serves a playbook per role and lists roles for unknown ones', () => {
+    expect(formatAutoRolePlaybook('tester')).toContain('do NOT call piwin_subagent_wait');
+    expect(formatAutoRolePlaybook('nobody')).toMatch(/Valid roles: scout, sidekick, reviewer, tester/);
+  });
+
+  it('recognizes tester contract first lines', () => {
+    expect(isSubagentReportContractMessage('pass\n- ok')).toBe(true);
+    expect(isSubagentReportContractMessage('fail\n- broke')).toBe(true);
   });
 });

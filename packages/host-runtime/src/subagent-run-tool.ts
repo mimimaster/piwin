@@ -144,6 +144,10 @@ export type SubagentRunSeam = {
     runId: string;
     invocationId: string;
   }>;
+  /** Scheme bound to a parent run (per-send). Undefined = freehand / Off. */
+  getActiveScheme?: (
+    runId: string,
+  ) => import('@piwin/contracts').ResolvedOrchestrationScheme | undefined;
   /**
    * Record the Lead's own review of a candidate whose task grants `lead`
    * authority (Fusion). Reviewer children use their scoped submit instead.

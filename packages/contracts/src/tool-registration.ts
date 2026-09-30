@@ -74,6 +74,7 @@ export const HOST_TOOL_PERMISSION_ACTIONS = [
   'planning:create',
   'planning:update',
   'subagent:run',
+  'subagent:playbook',
   'artifact:instructions',
   'toolbox:route',
   'mcp:trusted',

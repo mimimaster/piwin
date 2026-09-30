@@ -44,6 +44,7 @@ function createRouterKernel(input: {
     },
     sessionProjects: new Map(),
     sessionFilesTouched,
+    orchestrationSchemeInjectedKeys: new Map(),
     sessionModels: new Map(),
     options: {},
     transcriptRecorders: new Map(),

@@ -46,6 +46,7 @@ import {
 } from '../subagent-result-read-tool.js';
 import { createSubagentReviewSubmitTool } from '../subagent-review-submit-tool.js';
 import { createSubagentLeadReviewTool } from '../subagent-lead-review-tool.js';
+import { createSchemePlaybookTool } from '../scheme-playbook-tool.js';
 import type { SubagentReviewService } from '../subagent-review-service.js';
 import type { SubagentReviewCapabilityScope } from '../subagent-review-context.js';
 import { buildImageGenTool } from '../image-gen-tool.js';
@@ -526,6 +527,10 @@ export async function buildSessionHostTools(
     // A reviewer child registers its own scoped submit under the same name.
     if (!options.reviewScope) {
       tools.push(createSubagentLeadReviewTool({ sessionId: options.sessionId, seam }));
+    }
+    const getActiveScheme = seam.getActiveScheme;
+    if (getActiveScheme) {
+      tools.push(createSchemePlaybookTool({ getActiveScheme }));
     }
   }
 

@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
 import type { SubagentTaskSpec } from '@piwin/contracts';
-import { checkoutWorktreeTree, createWorktree, isWorktreeBaseClean, runGitCommand } from '@piwin/git';
+import {
+  checkoutWorktreeTree,
+  commitResultSnapshot,
+  createWorktree,
+  deleteResultSnapshotRef,
+  isWorktreeBaseClean,
+  runGitCommand,
+  writeWorktreeResultTree,
+} from '@piwin/git';
 import type { WriterSlotPool } from './subagent-writer-slots.js';
 
 vi.mock('@piwin/git', () => ({
@@ -9,6 +17,9 @@ vi.mock('@piwin/git', () => ({
   isWorktreeBaseClean: vi.fn(),
   runGitCommand: vi.fn(),
   checkoutWorktreeTree: vi.fn(),
+  writeWorktreeResultTree: vi.fn(),
+  commitResultSnapshot: vi.fn(),
+  deleteResultSnapshotRef: vi.fn(),
 }));
 
 /** Slot pool stand-in: the real pool owns git and file I/O, not the service. */
@@ -286,6 +297,70 @@ describe('SubagentWorkspaceService', () => {
     await service.release(second);
   });
 
+});
+
+describe('workspace snapshot worktree (detached tester)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('bases the worktree on a snapshot of the parent workspace and never takes the write lock', async () => {
+    vi.mocked(runGitCommand).mockResolvedValue({ stdout: 'head111\n', stderr: '' } as never);
+    vi.mocked(writeWorktreeResultTree).mockResolvedValue({ tree: 'tree222' });
+    vi.mocked(commitResultSnapshot).mockResolvedValue({
+      tree: 'tree222',
+      commit: 'snap333',
+      ref: 'refs/piwin/results/workspace-snapshot-task-1',
+    });
+    vi.mocked(createWorktree).mockResolvedValue({
+      worktreePath: '/tmp/wt/tester',
+      branch: 'piwin/tester',
+    } as never);
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      dirtyBasePolicy: 'ask',
+      parallelWritePolicy: 'worktree-only',
+    });
+    const first = await service.acquire(
+      makeTask({ isolationOverride: 'worktree', workspaceSnapshot: true }),
+    );
+    // A second snapshot acquire for the same project must not queue behind the first.
+    const second = await service.acquire(
+      makeTask({ id: 'task-2', isolationOverride: 'worktree', workspaceSnapshot: true }),
+    );
+
+    // Dirty parent is fine: the snapshot includes it, so no consent prompt.
+    expect(isWorktreeBaseClean).not.toHaveBeenCalled();
+    expect(writeWorktreeResultTree).toHaveBeenCalledWith({
+      worktreePath: '/tmp/project',
+      baseCommit: 'head111',
+    });
+    expect(commitResultSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ repoPath: '/tmp/project', tree: 'tree222', baseCommit: 'head111' }),
+    );
+    expect(createWorktree).toHaveBeenCalledWith(
+      expect.objectContaining({ baseRef: 'snap333', projectPath: '/tmp/project' }),
+    );
+    expect(deleteResultSnapshotRef).toHaveBeenCalled();
+    expect(first).toMatchObject({ mode: 'worktree', baseCommit: 'snap333', worktreePath: '/tmp/wt/tester' });
+    expect(second.mode).toBe('worktree');
+  });
+
+  it('drops the snapshot ref even when the worktree cannot be created', async () => {
+    vi.mocked(runGitCommand).mockResolvedValue({ stdout: 'head111\n', stderr: '' } as never);
+    vi.mocked(writeWorktreeResultTree).mockResolvedValue({ tree: 'tree222' });
+    vi.mocked(commitResultSnapshot).mockResolvedValue({ tree: 'tree222', commit: 'snap333', ref: 'r' });
+    vi.mocked(createWorktree).mockRejectedValue(new Error('disk full'));
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      dirtyBasePolicy: 'ask',
+      parallelWritePolicy: 'worktree-only',
+    });
+    await expect(
+      service.acquire(makeTask({ isolationOverride: 'worktree', workspaceSnapshot: true })),
+    ).rejects.toThrow('disk full');
+    expect(deleteResultSnapshotRef).toHaveBeenCalled();
+  });
 });
 
 describe('shared writer slot', () => {

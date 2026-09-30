@@ -8,6 +8,7 @@ import { createWorktree, removeWorktree } from '../worktree.js';
 import {
   checkoutWorktreeTree,
   commitResultSnapshot,
+  deleteResultSnapshotRef,
   resultSnapshotRefName,
   writeWorktreeResultTree,
 } from './git-snapshot.js';
@@ -49,6 +50,46 @@ async function workingTreeOf(workspaceRoot: string): Promise<string> {
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+
+describe('workspace snapshot for a detached worktree', () => {
+  it('carries staged, unstaged and untracked work into a worktree and leaves the user index alone', async () => {
+    const { projectPath, storageRoot } = await createRepository('dirty-parent');
+    const head = await git(projectPath, ['rev-parse', 'HEAD']);
+    await writeFile(join(projectPath, 'a.txt'), 'staged-a\n');
+    await git(projectPath, ['add', 'a.txt']);
+    await writeFile(join(projectPath, 'a.txt'), 'staged-a\nunstaged-a\n');
+    await writeFile(join(projectPath, 'fresh.txt'), 'untracked\n');
+    await rm(join(projectPath, 'old.txt'));
+    const statusBefore = await git(projectPath, ['status', '--porcelain']);
+    const indexBefore = await git(projectPath, ['ls-files', '--stage']);
+
+    const { tree } = await writeWorktreeResultTree({ worktreePath: projectPath, baseCommit: head });
+    const snapshot = await commitResultSnapshot({
+      repoPath: projectPath,
+      tree,
+      baseCommit: head,
+      resultId: 'workspace-snapshot-test',
+    });
+    const worktree = await createWorktree({
+      projectPath,
+      name: 'tester',
+      baseRef: snapshot.commit,
+      storageRoot,
+    });
+    await deleteResultSnapshotRef({ repoPath: projectPath, resultId: 'workspace-snapshot-test' });
+
+    expect(await readFile(join(worktree.worktreePath, 'a.txt'), 'utf8')).toBe(
+      'staged-a\nunstaged-a\n',
+    );
+    expect(await readFile(join(worktree.worktreePath, 'fresh.txt'), 'utf8')).toBe('untracked\n');
+    await expect(readFile(join(worktree.worktreePath, 'old.txt'), 'utf8')).rejects.toThrow();
+    // The user's own checkout: same status and same index as before the snapshot.
+    expect(await git(projectPath, ['status', '--porcelain'])).toBe(statusBefore);
+    expect(await git(projectPath, ['ls-files', '--stage'])).toBe(indexBefore);
+    // Ref removed, yet the branch keeps the snapshot commit reachable.
+    expect(await git(worktree.worktreePath, ['rev-parse', 'HEAD'])).toBe(snapshot.commit);
+  });
 });
 
 describe('git result snapshot', () => {

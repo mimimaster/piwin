@@ -73,6 +73,7 @@ export const BUILTIN_REVIEWED_DELIVERY_SCHEME: OrchestrationScheme = {
       profileId: 'implementer',
       isolation: 'worktree',
       fallback: 'main',
+      behavior: { deliveryLock: 'candidate-explicit' },
     },
     {
       role: REVIEWED_DELIVERY_REVIEWER_ROLE,

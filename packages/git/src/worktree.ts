@@ -64,11 +64,22 @@ export function worktreeRepositoryKey(projectPath: string): string {
   return createHash('sha256').update(resolve(projectPath)).digest('hex').slice(0, 16);
 }
 
+/**
+ * Generated branch for a worktree name. The single source of the naming rule:
+ * a reusable copy (the writer slot) must name its branch the same way as the
+ * `createWorktree` call that first made it, or the next reset moves it onto a
+ * second branch and orphans the first.
+ */
+export function subagentWorktreeBranch(name: string): string {
+  const branch = `piwin/subagent/${sanitizeWorktreeName(name)}`;
+  assertSafeBranchName(branch);
+  return branch;
+}
+
 export async function createWorktree(input: CreateWorktreeInput): Promise<CreateWorktreeResult> {
   const projectPath = resolve(input.projectPath);
   const safeName = sanitizeWorktreeName(input.name);
-  const branch = `piwin/subagent/${safeName}`;
-  assertSafeBranchName(branch);
+  const branch = subagentWorktreeBranch(safeName);
   const repositoryKey = worktreeRepositoryKey(projectPath);
   const worktreeRoot = input.storageRoot
     ? join(resolve(input.storageRoot), repositoryKey)

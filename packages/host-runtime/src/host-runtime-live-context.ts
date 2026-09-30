@@ -33,6 +33,8 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     sessionFilesTouched: deps.sessionFilesTouched,
     sessionLastPromptText: deps.sessionLastPromptText,
     sideChatSnapshotInjectedVersions: deps.sideChatSnapshotInjectedVersions,
+    orchestrationSchemeInjectedKeys: deps.orchestrationSchemeInjectedKeys,
+    detachedSubagents: deps.detachedSubagents,
     pendingBranchCalibrationBySession: deps.pendingBranchCalibrationBySession,
     compactExportOperations: deps.compactExportOperations,
     sessionModels: deps.sessionModels,

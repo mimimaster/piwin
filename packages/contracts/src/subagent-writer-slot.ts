@@ -13,6 +13,10 @@
 export const DEFAULT_WRITER_SLOT_ID = 'slot-0';
 
 const SLOT_NAME_PATTERN = /^slot-[0-9]+$/;
+/**
+ * Match prefix only — a slot's branch is `piwin/subagent/<slotId>` and the
+ * `slot-` is already part of the id, so never build a branch from this.
+ */
 export const WRITER_SLOT_BRANCH_PREFIX = 'piwin/subagent/slot-';
 
 /** Folder name of a writer slot (the last path segment). */

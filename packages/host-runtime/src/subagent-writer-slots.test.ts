@@ -26,6 +26,9 @@ type FakeGit = WriterSlotGitPort & {
   /** Tree the slot's current contents would freeze to. */
   liveTree: string;
   removeFails: boolean;
+  /** Branch each reset/remove was told to use, in call order. */
+  resetBranches: Array<string | undefined>;
+  removeBranches: Array<string | undefined>;
 };
 
 function createFakeGit(storageRoot: string, usable = true): FakeGit {
@@ -36,6 +39,8 @@ function createFakeGit(storageRoot: string, usable = true): FakeGit {
     usable,
     liveTree: 'base-tree',
     removeFails: false,
+    resetBranches: [],
+    removeBranches: [],
     async createWorktree(input) {
       calls.push(`create:${input.name}:${input.baseRef}`);
       const path = worktreePath(input.name);
@@ -44,6 +49,7 @@ function createFakeGit(storageRoot: string, usable = true): FakeGit {
     },
     async removeWorktree(input) {
       calls.push(`remove:${input.worktreePath}`);
+      fake.removeBranches.push(input.worktreeBranch);
       if (this.removeFails) throw new Error('not a working tree');
       await rm(input.worktreePath, { recursive: true, force: true });
     },
@@ -62,6 +68,7 @@ function createFakeGit(storageRoot: string, usable = true): FakeGit {
     },
     async resetWorktreeToBase(input) {
       calls.push(`reset:${input.baseCommit}`);
+      fake.resetBranches.push(input.worktreeBranch);
     },
     async isWorktreeUsable() {
       return this.usable;
@@ -119,6 +126,30 @@ describe('writer slot pool', () => {
       'create:slot-0:aaaa1111',
     ]);
     expect(git.calls).toContain('reset:bbbb2222');
+  });
+
+  it('keeps one branch across build, reuse and rebuild', async () => {
+    // Regression: reuse once derived `piwin/subagent/slot-slot-0` while the
+    // first build (via createWorktree) made `piwin/subagent/slot-0`, so every
+    // reset moved the slot onto a second branch and orphaned the first.
+    const storageRoot = await temporaryRoot();
+    const git = createFakeGit(storageRoot);
+    const pool = createWriterSlotPool({ git });
+
+    const first = await pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'aaaa1111' });
+    await pool.release({ projectPath: '/repo', storageRoot, slotId: first.slotId });
+    const reused = await pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'bbbb2222' });
+    await pool.release({ projectPath: '/repo', storageRoot, slotId: reused.slotId, dirty: true });
+    const rebuilt = await pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'cccc3333' });
+
+    expect(reused.worktreeBranch).toBe(first.worktreeBranch);
+    expect(rebuilt.worktreeBranch).toBe(first.worktreeBranch);
+    // Build reset, reuse reset, rebuild reset — all onto the one branch.
+    expect(git.resetBranches).toEqual([first.worktreeBranch, first.worktreeBranch, first.worktreeBranch]);
+    // Rebuild removes the branch it will recreate, not a differently named one.
+    expect(git.removeBranches.at(-1)).toBe(first.worktreeBranch);
+    const record = await pool.read({ projectPath: '/repo', storageRoot });
+    expect(record?.worktreeBranch).toBe(first.worktreeBranch);
   });
 
   it('rebuilds rather than reusing an unusable or dirty slot', async () => {

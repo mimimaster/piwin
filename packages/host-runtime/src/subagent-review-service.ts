@@ -28,6 +28,7 @@ import {
   checkReviewableTarget,
   collectFrozenRelativePaths,
   findReviewerBinding,
+  measureCandidateChangeSize,
   reviewerTaskResultForPublish,
 } from './subagent-review-target.js';
 
@@ -201,6 +202,22 @@ export function createSubagentReviewService(
       }
       if (!current.childChanges) {
         return reviewError('review-data-expired', 'frozen review data is unavailable');
+      }
+      if (task.leadReviewLimit) {
+        const size = await measureCandidateChangeSize(
+          options.resultService,
+          current.resultId,
+          current.childChanges.revision,
+          task.leadReviewLimit,
+        );
+        if (size.exceedsLimit) {
+          const { maxFiles, maxChangedLines } = task.leadReviewLimit;
+          return reviewError(
+            'review-target-forbidden',
+            `candidate exceeds the Lead review limit (${maxFiles} files / ${maxChangedLines} changed lines); ` +
+              `next: piwin_subagent_start role="reviewer" reviewOf={"resultId":"${input.target.resultId}","revision":${input.target.revision}}`,
+          );
+        }
       }
       const summary = checkReviewableTarget(
         options.resultService,

@@ -66,6 +66,55 @@ export function collectFrozenRelativePaths(
   return paths.length > 0 ? paths : undefined;
 }
 
+export type CandidateChangeSize = {
+  files: number;
+  changedLines: number;
+  /** True once either bound is crossed; counting stops early then. */
+  exceedsLimit: boolean;
+};
+
+/**
+ * Size a frozen candidate against a Lead review limit. File count comes from
+ * the frozen listing; changed lines are additions + deletions per file. A
+ * binary file or one whose diff is unavailable counts as over the line bound,
+ * so an unmeasurable candidate never slips past the reviewer requirement.
+ */
+export async function measureCandidateChangeSize(
+  resultService: SubagentResultService,
+  resultId: string,
+  revision: number,
+  limit: { maxFiles: number; maxChangedLines: number },
+): Promise<CandidateChangeSize> {
+  const fileIds: string[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 20; page += 1) {
+    const listed = resultService.listFiles({
+      resultId,
+      revision,
+      ...(cursor ? { cursor } : {}),
+      limit: 200,
+    });
+    for (const file of listed.files) fileIds.push(file.fileId);
+    if (!listed.nextCursor) break;
+    cursor = listed.nextCursor;
+  }
+  if (fileIds.length > limit.maxFiles) {
+    return { files: fileIds.length, changedLines: 0, exceedsLimit: true };
+  }
+  let changedLines = 0;
+  for (const fileId of fileIds) {
+    const diff = await resultService.diffFile({ resultId, revision, fileId });
+    if (!diff.ok || diff.binary || diff.additions === null || diff.deletions === null) {
+      return { files: fileIds.length, changedLines, exceedsLimit: true };
+    }
+    changedLines += diff.additions + diff.deletions;
+    if (changedLines > limit.maxChangedLines) {
+      return { files: fileIds.length, changedLines, exceedsLimit: true };
+    }
+  }
+  return { files: fileIds.length, changedLines, exceedsLimit: false };
+}
+
 export async function findReviewerBinding(
   store: SubagentRunStore,
   input: { reviewerSessionId: string; invocationId?: string },

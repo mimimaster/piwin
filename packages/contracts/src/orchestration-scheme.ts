@@ -15,6 +15,7 @@ import { isThinkingLevel } from './host.js';
 import type { SubagentIsolationMode } from './subagent.js';
 import { BUILTIN_REVIEWED_DELIVERY_SCHEME } from './orchestration-scheme-reviewed-delivery.js';
 import { BUILTIN_FUSION_SCHEME } from './orchestration-scheme-fusion.js';
+import { BUILTIN_AUTO_SCHEME } from './orchestration-scheme-auto.js';
 
 export {
   BUILTIN_REVIEWED_DELIVERY_SCHEME,
@@ -31,12 +32,63 @@ export {
   PIWIN_FUSION_BRIEF_MARKER,
   formatFusionBriefEnvelope,
 } from './orchestration-scheme-fusion.js';
+export {
+  AUTO_LEAD_REVIEW_LIMIT,
+  AUTO_REVIEWER_ROLE,
+  AUTO_ROLE_PLAYBOOKS,
+  AUTO_SCHEME_ID,
+  AUTO_SCOUT_ROLE,
+  AUTO_SCOUT_SOURCE,
+  AUTO_SIDEKICK_ROLE,
+  AUTO_TESTER_REPORT_CONTRACT,
+  AUTO_TESTER_ROLE,
+  BUILTIN_AUTO_SCHEME,
+  PIWIN_SCHEME_PLAYBOOK_TOOL_NAME,
+  formatAutoRolePlaybook,
+} from './orchestration-scheme-auto.js';
 
 /** Wait policy for orchestration schemes. */
 export type OrchestrationWaitPolicy = 'await-all' | 'fire-and-continue';
 
 /** Spawn-before unavailability handling for a scheme member. */
 export type OrchestrationMemberFallback = 'main' | 'none';
+
+/** Size bound under which the Lead may approve a candidate without a reviewer. */
+export type OrchestrationLeadReviewLimit = {
+  maxFiles: number;
+  maxChangedLines: number;
+};
+
+/**
+ * Host-owned delivery behavior of a builtin member. Taken only from builtin
+ * recipes (by scheme id + role) at resolve; Settings and models cannot set it.
+ */
+export type OrchestrationMemberBehavior = {
+  /**
+   * Persistent writer lane (Fusion sidekick semantics): brief envelope, no
+   * nested delegate, candidate + explicit apply, Lead review authority, and
+   * continuation of the same retained child.
+   */
+  lane?: 'persistent';
+  /** Candidate + explicit apply without the lane (Reviewed Delivery worker). */
+  deliveryLock?: 'candidate-explicit';
+  /**
+   * Lane candidates larger than this need an independent reviewer; the Lead
+   * review is refused. Omit = the Lead may always review (Fusion).
+   */
+  leadReviewLimit?: OrchestrationLeadReviewLimit;
+  /**
+   * Survives the parent run: not joined at settlement, not cancelled when a
+   * new user message replaces the run. Result is delivered later.
+   */
+  detached?: boolean;
+};
+
+/** Points a member at another scheme's member for model / profile / contract. */
+export type OrchestrationMemberRef = {
+  schemeId: string;
+  role: string;
+};
 
 /**
  * One callable role inside a scheme (main agent points at `role`).
@@ -60,6 +112,14 @@ export type OrchestrationSchemeMember = {
    * Empty/omit = no contract block. Ultra Code scout has a builtin default.
    */
   reportContract?: string;
+  /**
+   * Take profile / model / thinking / isolation / reportContract from another
+   * scheme's member (after its Settings overlay). Fields set here win. One
+   * level only: the target member may not inherit itself.
+   */
+  inheritFrom?: OrchestrationMemberRef;
+  /** Builtin recipes only; ignored when it comes from Settings. */
+  behavior?: OrchestrationMemberBehavior;
 };
 
 /**
@@ -115,7 +175,42 @@ export type OrchestrationSchemeConfigSlice = {
   schemes?: OrchestrationSchemeSettings[] | undefined;
   maxConcurrency?: number | undefined;
   maxTasksPerRun?: number | undefined;
+  /**
+   * Settings override of the Lead review size bound (Auto sidekick). Behavior
+   * itself stays builtin-only; this only tunes the number, and is validated
+   * with {@link normalizeLeadReviewLimit} at resolve.
+   */
+  leadReviewLimit?: Partial<OrchestrationLeadReviewLimit> | undefined;
 };
+
+/** Bounds Settings may set; the builtin default sits inside them. */
+export const LEAD_REVIEW_LIMIT_BOUNDS = {
+  maxFiles: { min: 1, max: 50 },
+  maxChangedLines: { min: 10, max: 5000 },
+} as const;
+
+function clampWholeNumber(value: unknown, bounds: { min: number; max: number }): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.min(bounds.max, Math.max(bounds.min, Math.round(value)));
+}
+
+/**
+ * Merge a Settings override onto a base limit. A field that is missing or not
+ * a finite number keeps the base value; the rest is rounded and clamped, so a
+ * hand-edited config can neither disable the gate (0 / Infinity) nor make it
+ * unreachable.
+ */
+export function normalizeLeadReviewLimit(
+  base: OrchestrationLeadReviewLimit,
+  override: Partial<OrchestrationLeadReviewLimit> | undefined,
+): OrchestrationLeadReviewLimit {
+  return {
+    maxFiles: clampWholeNumber(override?.maxFiles, LEAD_REVIEW_LIMIT_BOUNDS.maxFiles) ?? base.maxFiles,
+    maxChangedLines:
+      clampWholeNumber(override?.maxChangedLines, LEAD_REVIEW_LIMIT_BOUNDS.maxChangedLines) ??
+      base.maxChangedLines,
+  };
+}
 
 export const ORCHESTRATION_SCHEME_OFF_ID = 'off' as const;
 
@@ -127,7 +222,7 @@ export const ULTRA_CODE_SCOUT_ROLE = 'scout' as const;
 /** Pre-rename Ultra Code role; aliased to scout only on scheme id ultra-code. */
 const LEGACY_ULTRA_CODE_SCOUT_ROLE = 'searcher';
 
-/** Scheme ids are lowercase kebab tokens (builtins: ultra-code, reviewed-delivery, fusion). */
+/** Scheme ids are lowercase kebab tokens (builtins: ultra-code, reviewed-delivery, fusion, auto). */
 export const ORCHESTRATION_SCHEME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Role ids: start with a letter; lowercase alnum, hyphen, underscore. */
@@ -175,6 +270,9 @@ export type ResolvedOrchestrationMember = {
   available: boolean;
   unavailableReason?: string;
   reportContract?: string;
+  /** Member this row took its recipe from (Settings shows it read-only). */
+  inheritedFrom?: OrchestrationMemberRef;
+  behavior?: OrchestrationMemberBehavior;
 };
 
 export type ResolvedOrchestrationScheme = {
@@ -290,7 +388,7 @@ export function formatSubagentReportContractBlock(contract: string | undefined):
 
 /** True when an assistant message follows a scheme report-contract first line. */
 export function isSubagentReportContractMessage(text: string): boolean {
-  return /^(complete|partial|blocked|done|escalate)\b/i.test(text.trim());
+  return /^(complete|partial|blocked|done|escalate|pass|fail)\b/i.test(text.trim());
 }
 
 /**
@@ -328,6 +426,7 @@ const BUILTIN_SCHEMES: readonly OrchestrationScheme[] = [
   BUILTIN_ULTRA_CODE_SCHEME,
   BUILTIN_REVIEWED_DELIVERY_SCHEME,
   BUILTIN_FUSION_SCHEME,
+  BUILTIN_AUTO_SCHEME,
 ];
 
 /**
@@ -529,6 +628,14 @@ export function migrateSchemeMembers(
       ...(member.reportContract?.trim()
         ? { reportContract: member.reportContract.trim() }
         : {}),
+      ...(member.inheritFrom?.schemeId?.trim() && member.inheritFrom.role?.trim()
+        ? {
+            inheritFrom: {
+              schemeId: member.inheritFrom.schemeId.trim(),
+              role: member.inheritFrom.role.trim(),
+            },
+          }
+        : {}),
     }));
   }
 
@@ -624,6 +731,7 @@ function resolveMembers(
     if (member.reportContract?.trim()) {
       row.reportContract = member.reportContract.trim();
     }
+    if (member.inheritFrom) row.inheritedFrom = { ...member.inheritFrom };
     if (unavailableReason) row.unavailableReason = unavailableReason;
     resolved.push(row);
   }
@@ -638,23 +746,105 @@ function resolveMembers(
   return resolved;
 }
 
+function findBuiltinMemberRecipe(
+  schemeId: string,
+  role: string,
+): OrchestrationSchemeMember | undefined {
+  const builtin = BUILTIN_SCHEMES.find((scheme) => scheme.id === schemeId);
+  return builtin?.members?.find((member) => member.role === role);
+}
+
 /**
  * Overlay of a builtin replaces the whole scheme object. Recipe fields
  * (reportContract) still apply when the overlay member omitted them.
+ * Behavior always comes from the builtin recipe, never from Settings.
  */
 function applyBuiltinMemberRecipe(
   schemeId: string,
   members: ResolvedOrchestrationMember[],
+  leadReviewLimitOverride?: Partial<OrchestrationLeadReviewLimit>,
 ): ResolvedOrchestrationMember[] {
-  const builtin = BUILTIN_SCHEMES.find((scheme) => scheme.id === schemeId);
-  if (!builtin) return members;
-  const recipes = new Map((builtin.members ?? []).map((member) => [member.role, member]));
   return members.map((member) => {
-    if (member.reportContract?.trim()) return member;
-    const recipe = recipes.get(member.role);
+    const recipe = findBuiltinMemberRecipe(schemeId, member.role);
+    const { behavior: _settingsBehavior, ...rest } = member;
+    void _settingsBehavior;
+    const next: ResolvedOrchestrationMember = { ...rest };
+    if (recipe?.behavior) {
+      next.behavior = { ...recipe.behavior };
+      if (recipe.behavior.leadReviewLimit) {
+        next.behavior.leadReviewLimit = normalizeLeadReviewLimit(
+          recipe.behavior.leadReviewLimit,
+          leadReviewLimitOverride,
+        );
+      }
+    }
     const contract = recipe?.reportContract?.trim();
-    if (!contract) return member;
-    return { ...member, reportContract: contract };
+    if (!next.reportContract?.trim() && contract) next.reportContract = contract;
+    return next;
+  });
+}
+
+/**
+ * Expand `inheritFrom` members against the referenced scheme (after its
+ * Settings overlay). A builtin overlay that dropped `inheritFrom` gets it back
+ * from the builtin recipe unless the overlay pinned its own model.
+ */
+function expandInheritedMembers(
+  schemeId: string,
+  members: OrchestrationSchemeMember[],
+  schemes: readonly OrchestrationScheme[],
+): OrchestrationSchemeMember[] {
+  return members.map((member) => {
+    const recipeRef = member.model
+      ? undefined
+      : findBuiltinMemberRecipe(schemeId, member.role)?.inheritFrom;
+    const ref = member.inheritFrom ?? recipeRef;
+    if (!ref) return member;
+    if (ref.schemeId === schemeId) {
+      throw new OrchestrationSchemeError(
+        'invalid-scheme',
+        `orchestration scheme "${schemeId}" role "${member.role}" cannot inherit from its own scheme`,
+      );
+    }
+    const target = schemes.find((scheme) => scheme.id === ref.schemeId);
+    if (!target) {
+      throw new OrchestrationSchemeError(
+        'invalid-scheme',
+        `orchestration scheme "${schemeId}" role "${member.role}" inherits from unknown scheme "${ref.schemeId}"`,
+      );
+    }
+    const base = migrateSchemeMembers(target).find((candidate) => candidate.role === ref.role);
+    if (!base) {
+      throw new OrchestrationSchemeError(
+        'invalid-scheme',
+        `orchestration scheme "${schemeId}" role "${member.role}" inherits from unknown role "${ref.schemeId}/${ref.role}"`,
+      );
+    }
+    if (base.inheritFrom) {
+      throw new OrchestrationSchemeError(
+        'invalid-scheme',
+        `orchestration scheme "${schemeId}" role "${member.role}" inherits from "${ref.schemeId}/${ref.role}", which itself inherits; only one level is allowed`,
+      );
+    }
+    const baseContract =
+      base.reportContract?.trim() ||
+      findBuiltinMemberRecipe(ref.schemeId, ref.role)?.reportContract?.trim();
+    const profileId = member.profileId ?? base.profileId;
+    const model = member.model ?? base.model;
+    const thinkingLevel = member.thinkingLevel ?? base.thinkingLevel;
+    const isolation = member.isolation ?? base.isolation;
+    const reportContract = member.reportContract?.trim() || baseContract;
+    return {
+      role: member.role,
+      description: member.description,
+      ...(profileId ? { profileId } : {}),
+      ...(model ? { model } : {}),
+      ...(thinkingLevel ? { thinkingLevel } : {}),
+      ...(isolation ? { isolation } : {}),
+      fallback: member.fallback ?? base.fallback ?? 'main',
+      ...(reportContract ? { reportContract } : {}),
+      inheritFrom: { schemeId: ref.schemeId, role: ref.role },
+    };
   });
 }
 
@@ -690,10 +880,15 @@ export function resolveOrchestrationScheme(
     );
   }
 
-  const migratedMembers = migrateSchemeMembers(scheme);
+  const migratedMembers = expandInheritedMembers(
+    trimmed,
+    migrateSchemeMembers(scheme),
+    schemes,
+  );
   const members = applyBuiltinMemberRecipe(
     trimmed,
     resolveMembers(trimmed, migratedMembers, options),
+    config.leadReviewLimit,
   );
 
   const defaultRoleRaw = scheme.defaultRole?.trim();
@@ -805,12 +1000,46 @@ export function formatOrchestrationSchemePreamble(resolved: ResolvedOrchestratio
   return `[piwin-scheme:${resolved.schemeId}]\n${resolved.systemPreamble}\n\n${formatOrchestrationSchemeRoster(resolved)}`;
 }
 
-/** Inject scheme preamble + roster ahead of model-facing user text. */
+/**
+ * One-line marker used once the full preamble already sits in model history.
+ * The full block stays authoritative; this only tells the model it is still on.
+ */
+export function formatOrchestrationSchemeReminder(resolved: ResolvedOrchestrationScheme): string {
+  return `[piwin-scheme:${resolved.schemeId} active] The orchestration discipline and roster given earlier in this conversation still apply.`;
+}
+
+/**
+ * Identity of what a full injection delivered. Equal keys mean the model
+ * already saw this exact preamble + roster, so the next send may use the
+ * reminder instead. Any change to discipline, members, or models differs.
+ */
+export function orchestrationSchemeInjectionKey(resolved: ResolvedOrchestrationScheme): string {
+  return formatOrchestrationSchemePreamble(resolved);
+}
+
+export type OrchestrationSchemeInjectionForm = 'full' | 'reminder';
+
+/**
+ * Full block the first time a session sees this exact scheme content (or
+ * after compaction dropped it); reminder when the delivered key still matches.
+ */
+export function chooseOrchestrationSchemeInjectionForm(
+  resolved: ResolvedOrchestrationScheme,
+  deliveredKey: string | undefined,
+): OrchestrationSchemeInjectionForm {
+  return deliveredKey === orchestrationSchemeInjectionKey(resolved) ? 'reminder' : 'full';
+}
+
+/** Inject scheme preamble + roster (or the reminder) ahead of model-facing user text. */
 export function mergeOrchestrationSchemeIntoPrompt(
   resolved: ResolvedOrchestrationScheme,
   userFacingText: string,
+  form: OrchestrationSchemeInjectionForm = 'full',
 ): string {
-  const block = formatOrchestrationSchemePreamble(resolved);
+  const block =
+    form === 'reminder'
+      ? formatOrchestrationSchemeReminder(resolved)
+      : formatOrchestrationSchemePreamble(resolved);
   const body = userFacingText.trim();
   if (!body) return `${block}\n\n---\n`;
   return `${block}\n\n---\n${body}`;
@@ -823,6 +1052,8 @@ export type SchemeSpawnApplication = {
   thinkingLevel?: ThinkingLevel;
   isolation?: SubagentIsolationMode;
   reportContract?: string;
+  /** Builtin member delivery behavior the Host enforces for this spawn. */
+  behavior?: OrchestrationMemberBehavior;
   clearedModel: boolean;
   forcedProfile: boolean;
   /** When set, Host should not spawn — return fallback tool result instead. */
@@ -927,6 +1158,7 @@ export function applySchemeToSubagentSpawnInput(
     ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
     ...(member.isolation ? { isolation: member.isolation } : {}),
     ...(member.reportContract ? { reportContract: member.reportContract } : {}),
+    ...(member.behavior ? { behavior: member.behavior } : {}),
     clearedModel: !resolved.exposeSpawnMetadata || Boolean(member.model),
     forcedProfile: !input.profileId || input.profileId !== profileId,
   };

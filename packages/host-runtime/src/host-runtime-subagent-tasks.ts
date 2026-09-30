@@ -44,6 +44,11 @@ import {
   prepareRetainedSubagentContinuation,
 } from './subagent-continuation-prep.js';
 import { resolveFusionSidekickLane } from './fusion-sidekick-lane.js';
+import { handleSessionLiveCommand } from './commands/session-live-commands.js';
+import {
+  deliverDetachedReport,
+  formatDetachedReport,
+} from './detached-subagent-reports.js';
 import {
   applyStatusFromIntegration,
   subagentApplyIdempotencyKey,
@@ -67,6 +72,90 @@ export type {
 } from './subagent-continuation-prep.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+
+/**
+ * A detached tester finished: merge its child (the inline card and the
+ * contract Result), queue the report, and deliver it once the session is idle.
+ */
+async function settleDetachedBatch(
+  deps: HostRuntimeKernel,
+  merge: SubagentRunSeam['merge'],
+  input: {
+    sessionId: string;
+    runId: string;
+    schemeId?: string;
+    result: import('@piwin/contracts').SubagentBatchResult;
+  },
+): Promise<void> {
+  for (const task of input.result.results) {
+    let summaryPreview = task.summaryPreview;
+    if (task.childSessionId) {
+      try {
+        const merged = await merge(task.childSessionId);
+        summaryPreview = merged.summaryPreview ?? summaryPreview;
+      } catch (error) {
+        deps.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `detached subagent ${task.childSessionId} merge failed: ${formatError(error)}`,
+        });
+      }
+    }
+    // The tester's edits are never applied. Reclaim its copy now: left as a
+    // pending candidate it would sit in the leftover-worktree inventory until
+    // someone cleaned it by hand.
+    if (task.childSessionId && task.worktreePath) {
+      try {
+        await actOnSubagentWorktree(deps, task.childSessionId, 'discard');
+      } catch (error) {
+        deps.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `detached subagent ${task.childSessionId} worktree cleanup failed: ${formatError(error)}`,
+        });
+      }
+    }
+    deps.detachedSubagents.addReport(
+      input.sessionId,
+      formatDetachedReport({
+        runId: input.runId,
+        executionStatus: task.executionStatus,
+        ...(summaryPreview ? { summaryPreview } : {}),
+        ...(task.error ? { error: task.error } : {}),
+      }),
+    );
+  }
+  await deliverDetachedReport(
+    {
+      registry: deps.detachedSubagents,
+      getForegroundRunId: (sessionId) => deps.runRegistry.getForegroundRun(sessionId)?.runId,
+      joinRun: (runId) => deps.runRegistry.join(runId),
+      admitContinuation: async (sessionId, schemeId) => {
+        const response = await handleSessionLiveCommand(
+          {
+            type: 'session/prompt',
+            sessionId,
+            input: {
+              text: '',
+              source: 'continuation',
+              ...(schemeId ? { orchestrationSchemeId: schemeId } : {}),
+            },
+          },
+          undefined,
+          deps.buildSessionLiveContext(),
+        );
+        if (response?.success) return { success: true };
+        return {
+          success: false,
+          error: response && !response.success ? response.error : 'prompt was not handled',
+        };
+      },
+      push: (message) => deps.push(message),
+    },
+    input.sessionId,
+    input.schemeId,
+  );
+}
 
 export function getSubagentSeam(
   deps: HostRuntimeKernel,
@@ -138,6 +227,10 @@ export function getSubagentSeam(
       if (!deps.subagentRunStore) return undefined;
       return loadPersistedReviewObservation(deps.subagentRunStore, runId);
     },
+    detachedRegistry: deps.detachedSubagents,
+    onDetachedBatchSettled: (input) => {
+      void settleDetachedBatch(deps, merge, input);
+    },
     resolveFusionLane: (parentSessionId) =>
       resolveFusionSidekickLane(deps, parentSessionId, (laneId, error) => {
         deps.push({
@@ -150,6 +243,7 @@ export function getSubagentSeam(
   const seam = createSubagentControlSeam(controlDeps, sessionId);
   return {
     ...seam,
+    getActiveScheme: (runId: string) => deps.runOrchestrationSchemes.get(runId),
     continueReviewed: async (input) =>
       startReviewedContinuation(
         {
@@ -235,9 +329,10 @@ export function getSubagentSeam(
                   });
                   if (!acquired) return { ok: true as const };
                   if (!acquired.ok) {
+                    // A workspace waiting for an undo repair is busy for apply too.
                     return {
                       ok: false as const,
-                      code: acquired.reason === 'workspace-busy' ? 'workspace-busy' : 'aborted',
+                      code: acquired.reason === 'aborted' ? 'aborted' : 'workspace-busy',
                     };
                   }
                   acquired.lease.release();

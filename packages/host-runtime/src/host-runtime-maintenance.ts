@@ -33,6 +33,18 @@ export async function abortLiveSession(deps: HostRuntimeKernel, sessionId: strin
   await deps.stopProcessesForSession(sessionId);
 }
 
+/**
+ * A background tester outlives its run but not its session: cancel it and drop
+ * its unread report before the session is archived or deleted.
+ */
+async function stopDetachedSubagents(deps: HostRuntimeKernel, sessionId: string): Promise<void> {
+  const runId = deps.detachedSubagents.running(sessionId);
+  deps.detachedSubagents.disposeSession(sessionId);
+  if (runId && deps.subagentOrchestrator) {
+    await deps.subagentOrchestrator.cancelBatch(runId).catch(() => undefined);
+  }
+}
+
 export async function archiveSessionForMaintenance(
   deps: HostRuntimeKernel,
   sessionId: string,
@@ -48,6 +60,7 @@ export async function archiveSessionForMaintenance(
           throw new Error(`Session is active in another Host: ${sessionId}`);
         }
         return deps.transcriptStores.withMaintenanceLease(sessionId, async () => {
+          await stopDetachedSubagents(deps, sessionId);
           await deps.disposeLiveSession(sessionId, 'manual');
           return archiveSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
         });
@@ -127,6 +140,7 @@ export async function deleteSessionForMaintenance(
           throw new Error(`Session is active in another Host: ${sessionId}`);
         }
         return deps.transcriptStores.withMaintenanceLease(sessionId, async () => {
+          await stopDetachedSubagents(deps, sessionId);
           await deps.disposeLiveSession(sessionId, 'manual');
           return permanentlyDeleteSession({
             rootDir,

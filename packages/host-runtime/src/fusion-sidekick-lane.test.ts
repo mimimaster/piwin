@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AUTO_SCHEME_ID,
   FUSION_SCHEME_ID,
   PIWIN_FUSION_BRIEF_MARKER,
   resolveOrchestrationScheme,
@@ -45,6 +46,37 @@ function child(overrides: Partial<SessionIndexRecord>): SessionIndexRecord {
 }
 
 describe('fusion sidekick lane', () => {
+  it('gives the Auto sidekick the same lane, bounded by the Lead review limit', async () => {
+    const auto = resolveOrchestrationScheme(
+      { maxConcurrency: 4, maxTasksPerRun: 8 },
+      AUTO_SCHEME_ID,
+      { knownProfileIds: ['explorer', 'implementer', 'reviewer', 'tester'] },
+    );
+    expect(isFusionSidekickRole(auto, 'sidekick')).toBe(true);
+    expect(isFusionSidekickRole(auto, 'scout')).toBe(false);
+    expect(isFusionSidekickRole(auto, 'tester')).toBe(false);
+    const patch = await resolveFusionStartTaskPatch({
+      scheme: auto,
+      role: 'sidekick',
+      task: 'rename the helper',
+      parentSessionId: 'parent',
+    });
+    expect(patch).toMatchObject({
+      deliveryIntent: 'candidate',
+      applyPolicy: 'explicit',
+      reviewAuthority: 'lead',
+      leadReviewLimit: { maxFiles: 5, maxChangedLines: 300 },
+    });
+    expect(patch?.task).toContain(PIWIN_FUSION_BRIEF_MARKER);
+    const fusionPatch = await resolveFusionStartTaskPatch({
+      scheme: fusionScheme(),
+      role: 'sidekick',
+      task: 'rename the helper',
+      parentSessionId: 'parent',
+    });
+    expect(fusionPatch).not.toHaveProperty('leadReviewLimit');
+  });
+
   it('identifies fusion sidekick only', () => {
     const scheme = fusionScheme();
     expect(isFusionSidekickRole(scheme, 'sidekick')).toBe(true);

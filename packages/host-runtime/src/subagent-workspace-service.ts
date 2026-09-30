@@ -21,9 +21,12 @@ import type {
 } from '@piwin/contracts';
 import {
   checkoutWorktreeTree,
+  commitResultSnapshot,
   createWorktree,
+  deleteResultSnapshotRef,
   isWorktreeBaseClean,
   runGitCommand,
+  writeWorktreeResultTree,
 } from '@piwin/git';
 
 import type { WriterSlotPool } from './subagent-writer-slots.js';
@@ -244,6 +247,68 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
     }
   }
 
+  /**
+   * Detached tester: a private worktree whose base is the parent workspace as
+   * it is right now (uncommitted and untracked files included). It never
+   * applies, so it takes neither the project write lock nor a writer slot and
+   * cannot hold up the next writer. The user's index is never touched: the
+   * tree is written through a temporary index.
+   */
+  async function acquireSnapshotWorktree(
+    task: SubagentTaskSpec,
+    taskProjectPath: string,
+    signal: AbortSignal | undefined,
+  ): Promise<SubagentWorkspaceLease> {
+    const headResult = await runGitCommand({
+      cwd: taskProjectPath,
+      args: ['rev-parse', 'HEAD'],
+    });
+    const headCommit = headResult.stdout.trim();
+    if (!headCommit) {
+      throw new Error('could not determine the parent repository HEAD commit');
+    }
+    const { tree } = await writeWorktreeResultTree({
+      worktreePath: taskProjectPath,
+      baseCommit: headCommit,
+    });
+    const snapshotId = `workspace-snapshot-${task.id}`;
+    const snapshot = await commitResultSnapshot({
+      repoPath: taskProjectPath,
+      tree,
+      baseCommit: headCommit,
+      resultId: snapshotId,
+    });
+    let worktree: Awaited<ReturnType<typeof createWorktree>>;
+    try {
+      worktree = await createWorktree({
+        projectPath: taskProjectPath,
+        name: `tester-${task.id}-${Date.now().toString(36)}`,
+        baseRef: snapshot.commit,
+        ...(options.worktreeStorageRoot ? { storageRoot: options.worktreeStorageRoot } : {}),
+      });
+    } finally {
+      // The worktree branch keeps the snapshot reachable; the ref was only
+      // needed between commit-tree and branch creation.
+      await deleteResultSnapshotRef({ repoPath: taskProjectPath, resultId: snapshotId });
+    }
+    const dependencySetup = await prepareDependencies({
+      worktreePath: worktree.worktreePath,
+      parentRepoPath: taskProjectPath,
+      projectPath: taskProjectPath,
+      baseCommit: snapshot.commit,
+      ...(signal ? { signal } : {}),
+    });
+    return {
+      mode: 'worktree',
+      cwd: worktree.worktreePath,
+      parentRepoPath: taskProjectPath,
+      worktreePath: worktree.worktreePath,
+      worktreeBranch: worktree.branch,
+      baseCommit: snapshot.commit,
+      ...(dependencySetup ? { dependencySetup } : {}),
+    };
+  }
+
   async function acquire(
     task: SubagentTaskSpec,
     acquireOptions: { signal?: AbortSignal } = {},
@@ -281,6 +346,10 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
     // Worktree mode.
     if (parallelWritePolicy === 'disabled') {
       throw new Error('parallel writes are disabled in Settings');
+    }
+
+    if (task.workspaceSnapshot) {
+      return acquireSnapshotWorktree(task, taskProjectPath, acquireOptions.signal);
     }
 
     const unlock = await acquireProjectWriteLock(resolve(taskProjectPath), acquireOptions.signal);

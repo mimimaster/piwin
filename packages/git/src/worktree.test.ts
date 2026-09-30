@@ -10,6 +10,7 @@ import {
   isWorktreeUsable,
   removeWorktree,
   resetWorktreeToBase,
+  subagentWorktreeBranch,
 } from './worktree.js';
 
 const temporaryRepositories: string[] = [];
@@ -74,6 +75,46 @@ describe('subagent worktrees', () => {
     expect(branchCheck.exitCode).not.toBe(0);
     expect(worktree.worktreePath.startsWith(storageRoot)).toBe(true);
     expect(await isWorktreeBaseClean(projectPath)).toBe(true);
+  });
+});
+
+describe('subagent worktree branch naming', () => {
+  afterEach(async () => {
+    await Promise.all(
+      temporaryRepositories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+    );
+  });
+
+  it('names a branch the way createWorktree does, sanitising the name', async () => {
+    expect(subagentWorktreeBranch('slot-0')).toBe('piwin/subagent/slot-0');
+    expect(subagentWorktreeBranch(' Child Task/1 ')).toBe('piwin/subagent/child-task-1');
+
+    const projectPath = await createRepository();
+    const created = await createWorktree({ projectPath, name: ' Child Task/1 ' });
+    expect(created.branch).toBe(subagentWorktreeBranch(' Child Task/1 '));
+  });
+
+  it('resetting a reused slot onto its own branch leaves no second branch behind', async () => {
+    const projectPath = await createRepository();
+    const storageRoot = await mkdtemp(join(tmpdir(), 'piwin-worktree-storage-'));
+    temporaryRepositories.push(storageRoot);
+    const base = await runGit(projectPath, ['rev-parse', 'HEAD']);
+    const slot = await createWorktree({ projectPath, name: 'slot-0', baseRef: base, storageRoot });
+
+    await writeFile(join(slot.worktreePath, 'task-output.txt'), 'x\n');
+    await resetWorktreeToBase({
+      worktreePath: slot.worktreePath,
+      baseCommit: base,
+      worktreeBranch: subagentWorktreeBranch('slot-0'),
+    });
+
+    expect(await runGit(slot.worktreePath, ['branch', '--show-current'])).toBe(slot.branch);
+    const generated = await runGit(projectPath, [
+      'for-each-ref',
+      '--format=%(refname:short)',
+      'refs/heads/piwin/subagent',
+    ]);
+    expect(generated.split('\n')).toEqual([slot.branch]);
   });
 });
 

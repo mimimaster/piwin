@@ -70,6 +70,7 @@ async function setupReviewer(options?: {
   createId?: () => string;
   summary?: Partial<SubagentResultSummary>;
   workerReviewAuthority?: 'lead';
+  leadReviewLimit?: { maxFiles: number; maxChangedLines: number };
 }) {
   const dir = await mkdtemp(join(tmpdir(), 'piwin-review-service-'));
   dirs.push(dir);
@@ -90,6 +91,7 @@ async function setupReviewer(options?: {
         ...(options?.workerReviewAuthority
           ? { reviewAuthority: options.workerReviewAuthority }
           : {}),
+        ...(options?.leadReviewLimit ? { leadReviewLimit: options.leadReviewLimit } : {}),
       },
     ],
   });
@@ -411,6 +413,58 @@ describe('subagent review service', () => {
           lineageMembers: [],
         }),
       ).toMatchObject({ ok: true });
+    });
+
+    describe('Lead review limit (Auto)', () => {
+      const limit = { maxFiles: 2, maxChangedLines: 50 };
+      type DiffStub = { additions: number | null; deletions: number | null; binary: boolean };
+      async function setupSized(files: DiffStub[]) {
+        const setup = await setupReviewer({ workerReviewAuthority: 'lead', leadReviewLimit: limit });
+        setup.resultService.listFiles = () => ({
+          files: files.map((_, index) => ({
+            fileId: `file-${String(index)}`,
+            relativePath: `src/f${String(index)}.ts`,
+            kind: 'modified' as const,
+          })),
+        });
+        setup.resultService.diffFile = async ({ fileId }) => {
+          const stub = files[Number(fileId.replace('file-', ''))];
+          if (!stub) return { ok: false, code: 'not-found' };
+          return { ok: true, ...stub };
+        };
+        return setup;
+      }
+
+      it('lets the Lead review a candidate within the limit', async () => {
+        const { service } = await setupSized([
+          { additions: 10, deletions: 5, binary: false },
+          { additions: 20, deletions: 0, binary: false },
+        ]);
+        const submitted = await service.submitLead({ ...leadInput, decision: 'approved' });
+        expect(submitted).toMatchObject({ ok: true });
+      });
+
+      it('requires a reviewer when files or changed lines exceed the limit', async () => {
+        const tooManyFiles = await setupSized([
+          { additions: 1, deletions: 0, binary: false },
+          { additions: 1, deletions: 0, binary: false },
+          { additions: 1, deletions: 0, binary: false },
+        ]);
+        const byFiles = await tooManyFiles.service.submitLead({ ...leadInput, decision: 'approved' });
+        expect(byFiles).toMatchObject({ ok: false, code: 'review-target-forbidden' });
+        if (byFiles.ok) throw new Error('expected refusal');
+        expect(byFiles.message).toContain('role="reviewer" reviewOf=');
+
+        const tooManyLines = await setupSized([{ additions: 40, deletions: 20, binary: false }]);
+        const byLines = await tooManyLines.service.submitLead({ ...leadInput, decision: 'approved' });
+        expect(byLines).toMatchObject({ ok: false, code: 'review-target-forbidden' });
+      });
+
+      it('treats an unmeasurable file as over the limit', async () => {
+        const { service } = await setupSized([{ additions: null, deletions: null, binary: true }]);
+        const submitted = await service.submitLead({ ...leadInput, decision: 'approved' });
+        expect(submitted).toMatchObject({ ok: false, code: 'review-target-forbidden' });
+      });
     });
 
     it('refuses a candidate that was not admitted for Lead review', async () => {

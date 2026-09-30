@@ -167,6 +167,7 @@ export {
   diffWorktreeAgainstMain,
   worktreeDisplayName,
   worktreeRepositoryKey,
+  subagentWorktreeBranch,
   resetWorktreeToBase,
   isWorktreeUsable,
 } from './worktree.js';

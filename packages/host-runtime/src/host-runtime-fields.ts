@@ -73,6 +73,7 @@ import type { LiveCallCoordinator } from './voice/live-call-coordinator.js';
 import type { LiveIntendedSessionGate } from './voice/live-intended-session-gate.js';
 import type { LiveSettingsService } from './voice/live-settings-service.js';
 import type { SessionContextCoordinator } from './session-context-coordinator.js';
+import { DetachedSubagentRegistry } from './detached-subagent-reports.js';
 
 /** Mutable HostRuntime instance fields. HostRuntime remains the composition root. */
 export class HostRuntimeFields {
@@ -165,6 +166,10 @@ export class HostRuntimeFields {
   sessionFilesTouched = new Map<string, string>();
   /** SIDE: last injected side-chat context version per session (§7.5(5)). */
   sideChatSnapshotInjectedVersions = new Map<string, number>();
+  /** ORCH: scheme preamble key last delivered in full per session (once-per-session injection). */
+  orchestrationSchemeInjectedKeys = new Map<string, string>();
+  /** Auto tester: detached subagents per session and their pending reports. */
+  detachedSubagents = new DetachedSubagentRegistry();
   pendingBranchCalibrationBySession = new Map<string, import('@piwin/contracts').WorkspaceWrites>();
   compactExportOperations = new Map<
     string,

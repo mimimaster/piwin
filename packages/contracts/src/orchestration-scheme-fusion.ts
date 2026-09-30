@@ -97,6 +97,7 @@ export const BUILTIN_FUSION_SCHEME: OrchestrationScheme = {
       isolation: 'worktree',
       fallback: 'main',
       reportContract: FUSION_SIDEKICK_REPORT_CONTRACT,
+      behavior: { lane: 'persistent' },
     },
   ],
   systemPreamble: FUSION_PREAMBLE,

@@ -514,6 +514,11 @@ export type SubagentConfig = {
   dirtyBasePolicy: 'ask' | 'bypass';
   /** User-authored orchestration schemes (builtins merged at resolve time). */
   schemes?: OrchestrationSchemeSettings[];
+  /**
+   * Auto: a sidekick candidate above either bound needs an independent
+   * reviewer. Omitted fields use the builtin default (5 files / 300 lines).
+   */
+  leadReviewLimit?: { maxFiles?: number; maxChangedLines?: number };
 };
 
 /** Default `subagents.maxConcurrency` (user-facing parallel child ceiling). */

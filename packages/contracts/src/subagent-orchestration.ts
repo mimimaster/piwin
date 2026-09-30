@@ -193,6 +193,18 @@ export type SubagentTaskSpec = {
   reviewRef?: SubagentReviewRef;
   /** Host-only: who may approve this candidate. Absent = independent reviewer. */
   reviewAuthority?: SubagentReviewAuthority;
+  /**
+   * Host-only, with `reviewAuthority: 'lead'`: a candidate over either bound
+   * needs an independent reviewer; the Lead review is refused.
+   */
+  leadReviewLimit?: { maxFiles: number; maxChangedLines: number };
+  /**
+   * Host-only: start the worktree from a snapshot of the parent workspace
+   * (uncommitted and untracked files included) instead of HEAD, and do not
+   * take the project write lock or a writer slot. Used by the detached tester,
+   * whose changes are never applied.
+   */
+  workspaceSnapshot?: boolean;
   candidateLineageId?: string;
   candidateGeneration?: number;
   predecessorResult?: SubagentResultRef;

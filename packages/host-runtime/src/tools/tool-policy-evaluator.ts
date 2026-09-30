@@ -371,6 +371,7 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'extensions:list':
     case 'capabilities:search':
     case 'artifact:instructions':
+    case 'subagent:playbook':
     case 'toolbox:route':
     case 'mcp:trusted':
     // knowledge_* tools always set readOnly: true, so evaluateHostToolPolicy

@@ -798,6 +798,7 @@ describe('config-store', () => {
       'ultra-code',
       'reviewed-delivery',
       'fusion',
+      'auto',
       'my-review',
     ]);
     expect(listed.find((scheme) => scheme.id === 'reviewed-delivery')?.source).toBe('builtin');
@@ -843,6 +844,70 @@ describe('config-store', () => {
     expect(loaded.subagents?.schemes?.[0]?.members?.[0]?.role).toBe('scout');
     expect(loaded.subagents?.schemes?.[0]?.defaultRole).toBe('scout');
     expect(loaded.subagents?.schemes?.[0]?.members?.[0]?.reportContract).toBe('Return JSON only.');
+  });
+
+  it('keeps a member inheritFrom reference but never reads Host-owned behavior from disk', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-orch-inherit-'));
+    const config = createDefaultPiwinConfig();
+    config.subagents = {
+      profiles: [],
+      maxConcurrency: 4,
+      maxTasksPerRun: 8,
+      processIsolation: 'required',
+      parallelWritePolicy: 'worktree-only',
+      dirtyBasePolicy: 'ask',
+      schemes: [
+        {
+          id: 'my-auto',
+          name: 'My auto',
+          description: 'custom',
+          exposeSpawnMetadata: false,
+          waitPolicy: 'await-all',
+          systemPreamble: 'custom preamble',
+          members: [
+            {
+              role: 'helper',
+              description: 'reads',
+              inheritFrom: { schemeId: 'ultra-code', role: 'scout' },
+              // A hand-edited file must not grant itself a delivery lock.
+              behavior: { detached: true, lane: 'persistent' },
+            },
+          ],
+        },
+      ],
+    };
+    await savePiwinConfig(config, rootDir);
+    const member = (await loadPiwinConfig(rootDir)).subagents?.schemes?.[0]?.members?.[0];
+    expect(member?.inheritFrom).toEqual({ schemeId: 'ultra-code', role: 'scout' });
+    expect(member).not.toHaveProperty('behavior');
+  });
+
+  it('round-trips the Lead review limit and drops values the UI could not have produced', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-orch-limit-'));
+    const config = createDefaultPiwinConfig();
+    config.subagents = {
+      profiles: [],
+      maxConcurrency: 4,
+      maxTasksPerRun: 8,
+      processIsolation: 'required',
+      parallelWritePolicy: 'worktree-only',
+      dirtyBasePolicy: 'ask',
+      leadReviewLimit: { maxFiles: 8, maxChangedLines: 600 },
+    };
+    await savePiwinConfig(config, rootDir);
+    expect((await loadPiwinConfig(rootDir)).subagents?.leadReviewLimit).toEqual({
+      maxFiles: 8,
+      maxChangedLines: 600,
+    });
+
+    config.subagents.leadReviewLimit = { maxFiles: 0, maxChangedLines: Number.NaN };
+    await savePiwinConfig(config, rootDir);
+    // 0 clamps up to the minimum; NaN is dropped and falls back to the default.
+    expect((await loadPiwinConfig(rootDir)).subagents?.leadReviewLimit).toEqual({ maxFiles: 1 });
+
+    config.subagents.leadReviewLimit = {};
+    await savePiwinConfig(config, rootDir);
+    expect((await loadPiwinConfig(rootDir)).subagents?.leadReviewLimit).toBeUndefined();
   });
 
   it('round-trips scheme member subscription model without protocol', async () => {

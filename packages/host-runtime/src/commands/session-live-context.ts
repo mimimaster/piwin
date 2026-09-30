@@ -225,6 +225,18 @@ export type SessionLiveContext = {
    */
   sideChatSnapshotInjectedVersions: Map<string, number>;
   /**
+   * ORCH: key of the scheme preamble + roster last delivered in full. A send
+   * whose resolved scheme has the same key gets a one-line reminder instead.
+   * Cleared on compaction and session dispose so the full block comes back
+   * whenever model history may no longer contain it.
+   */
+  orchestrationSchemeInjectedKeys: Map<string, string>;
+  /**
+   * Detached subagents (Auto tester) and their unread reports. Prompt
+   * preparation drains the reports into the next model-facing prompt.
+   */
+  detachedSubagents?: import('../detached-subagent-reports.js').DetachedSubagentRegistry;
+  /**
    * Abandoned-branch writes to inject on the next prompt after a confirmed
    * switch. Survives runtime dispose; consumed exactly once by calibration.
    */

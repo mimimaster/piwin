@@ -75,6 +75,8 @@ export async function disposeLiveSession(
   deps.sessionLastPromptText.delete(sessionId);
   deps.sessionAutoCompactionOverrides.delete(sessionId);
   deps.sessionFilesTouched.delete(sessionId);
+  // A reloaded runtime may rebuild model history; resend the full scheme block.
+  deps.orchestrationSchemeInjectedKeys.delete(sessionId);
   await deps.host.dropSession(sessionId);
   await deps.releaseRuntimeLease(sessionId);
   // §11.3: abort in-flight walkthrough generations for the disposed session.

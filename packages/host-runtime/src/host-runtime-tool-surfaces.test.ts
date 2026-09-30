@@ -59,7 +59,7 @@ describe('HostRuntime tool surfaces', () => {
     }
   });
 
-  it('exposes exactly eight delegate tools in sdk and rpc modes', async () => {
+  it('exposes exactly nine delegate tools in sdk and rpc modes', async () => {
     const expected = [
       'piwin_subagent_run',
       'piwin_subagent_start',
@@ -70,6 +70,8 @@ describe('HostRuntime tool surfaces', () => {
       'piwin_subagent_cancel',
       // Lead review: Fusion's parent approves its own sidekick candidates.
       'piwin_subagent_review_submit',
+      // Auto's per-role loops load on demand instead of riding every prompt.
+      'piwin_scheme_playbook',
     ];
     for (const mode of ['sdk', 'rpc'] as const) {
       const piwinRoot = await mkdtemp(join(tmpdir(), `piwin-tool-surface-delegate-${mode}-`));

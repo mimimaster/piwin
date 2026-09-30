@@ -10,6 +10,7 @@ import {
   canonicalizeUltraCodeSchemeSettings,
   createDefaultSubagentConfig,
   isValidOrchestrationSchemeId,
+  normalizeLeadReviewLimit,
 } from '@piwin/contracts';
 import {
   asPositiveInteger,
@@ -67,7 +68,32 @@ export function normalizeSubagentConfig(value: unknown): SubagentConfig {
   if (schemes.length > 0) {
     config.schemes = schemes;
   }
+  const leadReviewLimit = normalizeStoredLeadReviewLimit(record.leadReviewLimit);
+  if (leadReviewLimit) config.leadReviewLimit = leadReviewLimit;
   return config;
+}
+
+/**
+ * Keep only fields that are finite numbers, clamped to the Settings bounds, so
+ * a stored value the UI could not have produced never reaches the gate. An
+ * empty result is dropped (the builtin default applies).
+ */
+function normalizeStoredLeadReviewLimit(
+  value: unknown,
+): { maxFiles?: number; maxChangedLines?: number } | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const fallback = { maxFiles: 0, maxChangedLines: 0 };
+  const limit: { maxFiles?: number; maxChangedLines?: number } = {};
+  if (typeof record.maxFiles === 'number' && Number.isFinite(record.maxFiles)) {
+    limit.maxFiles = normalizeLeadReviewLimit(fallback, { maxFiles: record.maxFiles }).maxFiles;
+  }
+  if (typeof record.maxChangedLines === 'number' && Number.isFinite(record.maxChangedLines)) {
+    limit.maxChangedLines = normalizeLeadReviewLimit(fallback, {
+      maxChangedLines: record.maxChangedLines,
+    }).maxChangedLines;
+  }
+  return limit.maxFiles !== undefined || limit.maxChangedLines !== undefined ? limit : undefined;
 }
 
 export function normalizeOrchestrationSchemeMember(
@@ -99,6 +125,14 @@ export function normalizeOrchestrationSchemeMember(
   if (typeof record.reportContract === 'string' && record.reportContract.trim()) {
     member.reportContract = record.reportContract.trim();
   }
+  const inherit = asRecord(record.inheritFrom);
+  const inheritSchemeId = typeof inherit?.schemeId === 'string' ? inherit.schemeId.trim() : '';
+  const inheritRole = typeof inherit?.role === 'string' ? inherit.role.trim() : '';
+  if (inheritSchemeId && inheritRole) {
+    member.inheritFrom = { schemeId: inheritSchemeId, role: inheritRole };
+  }
+  // `behavior` is deliberately not read: it is Host-owned and comes only from
+  // builtin recipes, so a config file cannot grant itself delivery powers.
   return member;
 }
 

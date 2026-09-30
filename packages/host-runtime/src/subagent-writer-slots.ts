@@ -27,12 +27,12 @@ import {
   removeWorktree,
   resetWorktreeToBase,
   runGitCommand,
+  subagentWorktreeBranch,
   worktreeRepositoryKey,
   writeWorktreeResultTree,
 } from '@piwin/git';
 import {
   DEFAULT_WRITER_SLOT_ID,
-  WRITER_SLOT_BRANCH_PREFIX,
   isWriterSlotBranch,
   isWriterSlotName,
   isWriterSlotWorktreePath,
@@ -213,7 +213,9 @@ export function createWriterSlotPool(
     return {
       worktreePath: join(root, input.slotId),
       recordPath: join(root, `${input.slotId}.json`),
-      worktreeBranch: `${WRITER_SLOT_BRANCH_PREFIX}${input.slotId}`,
+      // Same rule as `createWorktree`, which names the branch on first build:
+      // reuse must land on that branch, not a second one.
+      worktreeBranch: subagentWorktreeBranch(input.slotId),
     };
   }
 

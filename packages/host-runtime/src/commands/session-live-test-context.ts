@@ -125,6 +125,7 @@ export function createControlContext(
     recordCompactionBoundary: async () => undefined,
     loadSideChatSnapshot: async () => undefined,
     sideChatSnapshotInjectedVersions: new Map(),
+    orchestrationSchemeInjectedKeys: new Map(),
     pendingBranchCalibrationBySession: new Map(),
     compactExportOperations: new Map(),
     stopProcessesForSession: async (): Promise<void> => {

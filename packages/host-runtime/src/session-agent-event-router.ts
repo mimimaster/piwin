@@ -154,6 +154,10 @@ export function routeSessionAgentEvent(
       logCoordinatorFailure(deps, error);
     });
   }
+  if (eventForClients.type === 'compaction/end' && eventForClients.ok === true) {
+    // The summary may have dropped the scheme preamble; next send resends it.
+    deps.orchestrationSchemeInjectedKeys.delete(session.id);
+  }
   if (eventForClients.type === 'compaction/end') {
     void deps.sessionContextCoordinator
       ?.noteCompactionEnd(session.id, {
