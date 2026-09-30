@@ -50,4 +50,18 @@ describe('isDuplicateThinking', () => {
     expect(isDuplicateThinking(zhDuplicate, [zh1])).toBe(true);
     expect(isDuplicateThinking(zhDistinct, [zh1])).toBe(false);
   });
+
+  it('compares against only the first priorCount entries of a growing list', () => {
+    const prior = ['Check the proxy status.', 'Inspect the project.'];
+    expect(isDuplicateThinking('Inspect the project!', prior, 1)).toBe(false);
+    expect(isDuplicateThinking('Inspect the project!', prior, 2)).toBe(true);
+    expect(isDuplicateThinking('Inspect the project!', prior, 0)).toBe(false);
+  });
+
+  it('gives the same verdict on repeat calls served from the normalization cache', () => {
+    const prior = ['用户询问为什么系统代理使用了 192.168.1.100，先核对代理状态。'];
+    const current = '用户询问为什么系统代理使用了 192.168.1.100，核对代理状态。';
+    expect(isDuplicateThinking(current, prior)).toBe(true);
+    expect(isDuplicateThinking(current, prior)).toBe(true);
+  });
 });
