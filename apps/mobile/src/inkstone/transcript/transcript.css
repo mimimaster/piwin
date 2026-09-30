@@ -411,6 +411,10 @@
   height: 12px;
   color: var(--t4);
 }
+.fcb .fcb-state {
+  color: var(--t3);
+  white-space: nowrap;
+}
 .fcb .fcb-files {
   flex-basis: 100%;
   display: flex;

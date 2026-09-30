@@ -36,6 +36,12 @@ export interface SessionLiveState {
   context: SessionContextSnapshot | undefined;
   /** Latest change summary per run id, for the turn footer strip. */
   changesByRunId: ReadonlyMap<string, TurnChangeSummary>;
+  /**
+   * Ask the Host for the summaries of runs already on screen (history turns
+   * that were sealed before this client connected). Read-only: mobile shows
+   * the state but never undoes.
+   */
+  ensureTurnChanges: (runIds: readonly string[]) => void;
   readToolOutput: (messageId: string, toolCallId: string) => Promise<SessionToolOutputData>;
 }
 
@@ -51,12 +57,30 @@ export function useSessionLiveState(
     () => new Map(),
   );
   const outputCacheRef = useRef(new Map<string, Promise<SessionToolOutputData>>());
+  const requestedRunsRef = useRef(new Set<string>());
   const sessionRef = useRef(sessionId);
   sessionRef.current = sessionId;
+
+  // A summary for an older revision never replaces a newer one.
+  const mergeChanges = useCallback((summaries: readonly TurnChangeSummary[]) => {
+    if (summaries.length === 0) return;
+    setChangesByRunId((current) => {
+      const next = new Map(current);
+      for (const summary of summaries) {
+        for (const runId of summary.runIds) {
+          const existing = next.get(runId);
+          if (existing?.changeSetId === summary.changeSetId && existing.revision > summary.revision) continue;
+          next.set(runId, summary);
+        }
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     setContext(undefined);
     setChangesByRunId(new Map());
+    requestedRunsRef.current.clear();
     outputCacheRef.current.clear();
     setExtensionUi((current) => (current?.sessionId === sessionId ? current : undefined));
   }, [sessionId]);
@@ -93,21 +117,13 @@ export function useSessionLiveState(
           }
           return;
         case 'turn-changes/updated':
-          if (push.summary.sessionId === active) {
-            setChangesByRunId((current) => {
-              const next = new Map(current);
-              for (const runId of push.summary.runIds) {
-                next.set(runId, push.summary);
-              }
-              return next;
-            });
-          }
+          if (push.summary.sessionId === active) mergeChanges([push.summary]);
           return;
         default:
           return;
       }
     });
-  }, [client]);
+  }, [client, mergeChanges]);
 
   useEffect(() => {
     if (client === undefined || sessionId === undefined || !client.supportsCommand('session/context-get')) {
@@ -181,7 +197,29 @@ export function useSessionLiveState(
     [client, sessionId],
   );
 
-  return { extensionUi, resolveExtensionUi, context, changesByRunId, readToolOutput };
+  const ensureTurnChanges = useCallback(
+    (runIds: readonly string[]) => {
+      if (client === undefined || sessionId === undefined) return;
+      if (!client.supportsCommand('turn-changes/list-by-runs')) return;
+      const missing = runIds.filter((runId) => !requestedRunsRef.current.has(runId));
+      if (missing.length === 0) return;
+      for (const runId of missing) requestedRunsRef.current.add(runId);
+      void client
+        .request({ type: 'turn-changes/list-by-runs', sessionId, runIds: missing })
+        .then((response) => {
+          if (response.success && sessionRef.current === sessionId) {
+            mergeChanges((response.data as { summaries?: TurnChangeSummary[] }).summaries ?? []);
+          }
+        })
+        .catch((error: unknown) => {
+          for (const runId of missing) requestedRunsRef.current.delete(runId);
+          console.warn('[mobile] turn-changes/list-by-runs failed', error);
+        });
+    },
+    [client, mergeChanges, sessionId],
+  );
+
+  return { extensionUi, resolveExtensionUi, context, changesByRunId, ensureTurnChanges, readToolOutput };
 }
 
 /** Percent of the model window the Host measured; undefined when unknown. */
