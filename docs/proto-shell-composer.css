@@ -1,0 +1,114 @@
+/* composer */
+.composer-zone {
+  flex: none;
+  padding: 10px 20px 10px;
+}
+.composer {
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  border-radius: 12px;
+  transition:
+    border-color 200ms,
+    box-shadow 200ms;
+}
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.composer textarea {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font: 13.5px/1.6 inherit;
+  font-family: inherit;
+  padding: 11px 14px 6px;
+  min-height: 44px;
+}
+.composer textarea::placeholder {
+  color: var(--faint);
+}
+.composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 10px 9px;
+}
+.cbtn {
+  height: 26px;
+  min-width: 26px;
+  padding: 0 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+.cbtn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.cbtn.model {
+  border: 1px solid var(--line);
+  font-weight: 500;
+}
+.composer-bar .right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ring {
+  width: 17px;
+  height: 17px;
+  transform: rotate(-90deg);
+}
+.ring .bg {
+  stroke: var(--line-strong);
+  fill: none;
+  stroke-width: 2.5;
+}
+.ring .fg {
+  stroke: var(--ok);
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 42.4;
+  stroke-dashoffset: 16.1;
+}
+.send {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--accent-fg);
+  background: var(--accent);
+  transition:
+    filter 120ms,
+    transform 100ms;
+}
+.send:hover {
+  filter: brightness(1.08);
+}
+.send:active {
+  transform: scale(0.92);
+}
+.send .ic {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.1;
+}
+.composer-hint {
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--faint);
+  padding-top: 6px;
+}
+
