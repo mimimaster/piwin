@@ -1,0 +1,420 @@
+/* ── Button (Mantine Button wrapper) ─────────────────────────────── */
+
+.piwin-button {
+  min-height: var(--control-height-default);
+  font-weight: 550;
+  letter-spacing: 0;
+}
+.piwin-button--compact {
+  min-height: var(--control-height-compact);
+}
+.piwin-button--primary:not(:disabled):not([data-disabled='true']) {
+  box-shadow: none;
+  /* On-accent ink: white on blue/orange, black on Noir white accent. */
+  color: var(--accent-fg, var(--content-on-accent, #ffffff));
+}
+.piwin-button--primary:not(:disabled):not([data-disabled='true']) .mantine-Button-label {
+  color: var(--accent-fg, var(--content-on-accent, #ffffff));
+}
+.piwin-button--primary:not(:disabled):not([data-disabled='true']) svg {
+  color: var(--accent-fg, var(--content-on-accent, #ffffff));
+  stroke: currentColor;
+}
+.piwin-button:disabled,
+.piwin-button[data-disabled='true'] {
+  color: var(--text-4, var(--muted, #8e8e93)) !important;
+  cursor: not-allowed;
+}
+.piwin-button:disabled .mantine-Button-label,
+.piwin-button[data-disabled='true'] .mantine-Button-label {
+  color: var(--text-4, var(--muted, #8e8e93)) !important;
+}
+.piwin-button:disabled svg,
+.piwin-button[data-disabled='true'] svg {
+  color: var(--text-4, var(--muted, #8e8e93)) !important;
+  stroke: currentColor;
+}
+.piwin-button--secondary {
+  color: var(--text);
+  background: var(--surface-control, var(--panel2, var(--panel)));
+  border-color: var(--line, var(--border));
+}
+.piwin-button--secondary:hover:not(:disabled) {
+  background: var(--surface-control-hover, var(--surface-hover));
+  color: var(--text);
+}
+.piwin-button--ghost {
+  color: var(--muted);
+}
+.piwin-button--ghost:hover:not(:disabled) {
+  color: var(--text);
+}
+.piwin-button--danger {
+  color: var(--danger);
+}
+
+/* ── IconButton (Mantine ActionIcon wrapper) — ghost by default ──── */
+
+.piwin-icon-button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 7px;
+  transition:
+    background var(--motion-quick, 120ms) var(--motion-ease, ease),
+    color var(--motion-quick, 120ms) var(--motion-ease, ease);
+}
+
+.piwin-icon-button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--wb-hover, var(--surface-hover));
+}
+
+.piwin-icon-button.active,
+.piwin-icon-button[aria-pressed='true'] {
+  color: var(--accent);
+  background: var(--wb-accent-soft, var(--accent-soft));
+}
+
+.piwin-icon-button svg {
+  width: var(--icon-size-sm, 16px);
+  height: var(--icon-size-sm, 16px);
+  stroke-width: 1.6;
+}
+
+.piwin-icon-button:disabled,
+.piwin-icon-button:disabled:hover {
+  opacity: 0.42;
+  background: transparent;
+  cursor: default;
+}
+
+/* ── Field / FieldCheckbox ────────────────────────────────── */
+
+.ui-field {
+  margin-bottom: 10px;
+}
+.ui-field-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.ui-field-error {
+  color: var(--danger);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+/* Bare native controls only — TextInput/Select bring their own chrome. */
+.ui-field-control > input:not([class*='piwin-']),
+.ui-field-control > select:not([class*='piwin-']),
+.ui-field-control > textarea:not([class*='piwin-']) {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface-inset);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.ui-field-control .piwin-text-input,
+.ui-field-control .piwin-password-input,
+.ui-field-control .piwin-select {
+  width: 100%;
+}
+
+.ui-field-description {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+}
+
+.ui-field-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0 12px;
+  padding: 8px 0 0;
+}
+
+.ui-field-checkbox[data-disabled='true'] {
+  opacity: 0.55;
+}
+
+.ui-field-checkbox-input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.ui-field-checkbox-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.ui-field-checkbox-label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ui-field-checkbox[data-disabled='true'] .ui-field-checkbox-label {
+  cursor: not-allowed;
+}
+
+/* ── ColorInput ───────────────────────────────────────────── */
+
+.piwin-color-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 158px;
+  height: var(--control-height-default);
+  padding: 4px 10px 4px 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-control);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.piwin-color-input:focus-within {
+  border-color: var(--border-emphasis, var(--accent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.piwin-color-input-swatch {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.piwin-color-input-swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.piwin-color-input-swatch::-webkit-color-swatch {
+  border: 0;
+  border-radius: 6px;
+}
+
+.piwin-color-input-field {
+  width: 92px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Surface ───────────────────────────────────────────────── */
+
+.piwin-surface {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-surface);
+  background: var(--panel);
+}
+.piwin-surface--raised {
+  background: var(--surface-raised);
+}
+.piwin-surface--inset {
+  background: var(--surface-control);
+}
+.piwin-surface--selected {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  background: var(--surface-selected);
+}
+
+/* ── ListRow ───────────────────────────────────────────────── */
+
+.piwin-list-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--control-height-large);
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
+}
+.piwin-list-row:hover:not(:disabled) {
+  border-color: var(--line-soft);
+  background: var(--surface-hover);
+}
+.piwin-list-row.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--surface-selected);
+}
+.piwin-list-row.is-compact {
+  min-height: var(--control-height-default);
+  padding-block: 5px;
+}
+.piwin-list-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piwin-list-row {
+    transition: none;
+  }
+}
+
+/* ── StatusBadge ───────────────────────────────────────────── */
+
+.ui-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ui-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.ui-status-badge.tone-running .ui-status-dot {
+  background: var(--accent);
+}
+.ui-status-badge.tone-success .ui-status-dot {
+  background: var(--ok);
+}
+.ui-status-badge.tone-warning .ui-status-dot {
+  background: var(--state-warning);
+}
+.ui-status-badge.tone-danger .ui-status-dot {
+  background: var(--danger);
+}
+
+/* ── Notice ────────────────────────────────────────────────── */
+
+.ui-notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-surface);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: none;
+  margin: 8px 16px;
+}
+
+.ui-notice.tone-error {
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, var(--panel));
+}
+
+.ui-notice.tone-warning {
+  border-color: color-mix(in srgb, var(--state-warning) 40%, transparent);
+  background: color-mix(in srgb, var(--state-warning) 10%, var(--panel));
+}
+
+.ui-notice.tone-success {
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, var(--panel));
+}
+
+/* ── Spinner ───────────────────────────────────────────────── */
+
+.ui-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: piwin-spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+/* ── Progress Ring ─────────────────────────────────────────── */
+
+.ui-progress-ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.ui-progress-ring-svg {
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  display: block;
+}
+
+.ui-progress-ring.is-indeterminate .ui-progress-ring-svg {
+  animation: piwin-spin 1.2s linear infinite;
+}
+
+.ui-progress-ring-track {
+  stroke: var(--line-1, rgba(255, 255, 255, 0.12));
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-progress-ring-track {
+  stroke: var(--l1, rgba(0, 0, 0, 0.08));
+}
+
+.ui-progress-ring-indicator {
+  stroke: var(--pine, var(--accent, #3d7c5e));
+  transition: stroke-dashoffset 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ui-progress-ring--pine .ui-progress-ring-indicator {
+  stroke: var(--pine, #3d7c5e);
+}
+
+.ui-progress-ring--zhu .ui-progress-ring-indicator {
+  stroke: var(--zhu, #c6412a);
+}
+
+.ui-progress-ring--lamp .ui-progress-ring-indicator {
+  stroke: var(--lamp, #b8801f);
+}
+
+.ui-progress-ring--azure .ui-progress-ring-indicator {
+  stroke: var(--azure, #3a7797);
+}
+
+.ui-progress-ring--neutral .ui-progress-ring-indicator {
+  stroke: var(--text-2, currentColor);
+}
+
+.ui-progress-ring-text {
+  position: absolute;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-1, var(--t1, currentColor));
+  user-select: none;
+  line-height: 1;
+}
+
+@keyframes piwin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
