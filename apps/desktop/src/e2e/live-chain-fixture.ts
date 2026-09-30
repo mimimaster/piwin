@@ -163,6 +163,10 @@ export function seedLiveChainHost(host: MockHostBackend): void {
     transcript: buildLiveChainTranscript(),
   });
   host.pushMockRunUpdated(LIVE_CHAIN_SESSION_ID, RUN_ID, 'running', 'streaming', createdAt);
+  // foreground-run keys off this map, not mockRuns. Without it the reconcile
+  // hook reads a null snapshot and stale-clears a turn that is still streaming,
+  // which re-renders every mounted row inside a token sample.
+  host.mockActiveRunIds.set(LIVE_CHAIN_SESSION_ID, RUN_ID);
   const probe: RenderProbeStore = installRenderProbe();
   const driver = createLiveChainDriver(host);
   (

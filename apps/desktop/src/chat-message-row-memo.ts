@@ -1,4 +1,5 @@
 import type { ChatMessageRowProps } from './chat-message-row-types.js';
+import type { RunRecordUi } from './chat-ui-types.js';
 import { exploreFlowRolesEqual } from './explore-flow.js';
 
 function areFilePathListsEqual(
@@ -12,6 +13,77 @@ function areFilePathListsEqual(
     return false;
   }
   return left.every((path, index) => path === right[index]);
+}
+
+/**
+ * `phaseHistory` only ever grows by appending, so length plus payload of the
+ * last entry describes every change a row can render.
+ */
+function arePhaseHistoriesEqual(
+  left: RunRecordUi['phaseHistory'],
+  right: RunRecordUi['phaseHistory'],
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  const leftTail = left[left.length - 1];
+  const rightTail = right[right.length - 1];
+  if (leftTail === rightTail) {
+    return true;
+  }
+  if (leftTail === undefined || rightTail === undefined) {
+    return false;
+  }
+  return (
+    leftTail.phase === rightTail.phase &&
+    leftTail.at === rightTail.at &&
+    leftTail.detail === rightTail.detail
+  );
+}
+
+/**
+ * Field-level Run comparison.
+ *
+ * `applyRunRecord` rebuilds the whole record on every `run/updated`, so one run
+ * advancing a phase hands a new object to every assistant row sharing its
+ * runId — while a settled step row renders byte-identical output. Compare what
+ * a row reads instead: terminal fields for all rows, live phase chrome only for
+ * the turn's last assistant, the one row handed a non-null `activeRunId`.
+ */
+function areRunRecordsEqual(
+  previous: RunRecordUi | undefined,
+  next: RunRecordUi | undefined,
+  includeLivePhase: boolean,
+): boolean {
+  if (previous === next) {
+    return true;
+  }
+  if (previous === undefined || next === undefined) {
+    return false;
+  }
+  if (
+    previous.outcome !== next.outcome ||
+    previous.terminalMessage !== next.terminalMessage ||
+    previous.agentStopReason !== next.agentStopReason ||
+    // `mergeIdleLoop` returns the stored notice unchanged when nothing moved.
+    previous.idleLoop !== next.idleLoop
+  ) {
+    return false;
+  }
+  if (!includeLivePhase) {
+    return true;
+  }
+  return (
+    previous.status === next.status &&
+    previous.phase === next.phase &&
+    previous.phaseDetail === next.phaseDetail &&
+    previous.startedAt === next.startedAt &&
+    previous.endedAt === next.endedAt &&
+    arePhaseHistoriesEqual(previous.phaseHistory, next.phaseHistory)
+  );
 }
 
 export function areChatMessageRowPropsEqual(
@@ -60,7 +132,11 @@ export function areChatMessageRowPropsEqual(
     previous.activeTheme === next.activeTheme &&
     areFilePathListsEqual(previous.knownFilePaths, next.knownFilePaths) &&
     previous.artifactThemeKey === next.artifactThemeKey &&
-    previous.runRecord === next.runRecord &&
+    areRunRecordsEqual(
+      previous.runRecord,
+      next.runRecord,
+      previous.isLastAssistantInTurn === true || next.isLastAssistantInTurn === true,
+    ) &&
     previous.activeRunId === next.activeRunId &&
     previous.permissionPrompt === next.permissionPrompt &&
     previous.workDetailsExpanded === next.workDetailsExpanded &&
