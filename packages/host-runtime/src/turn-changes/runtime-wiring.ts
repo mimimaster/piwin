@@ -7,9 +7,11 @@ import { join } from 'node:path';
 import type { HostPush } from '@piwin/contracts';
 import {
   createTurnChangeObjectStore,
+  createTurnChangeStorageBudget,
   openTurnChangeStore,
   recoverTurnChangeOperation,
   type TurnChangeObjectStore,
+  type TurnChangeStorageBudget,
   type TurnChangeStore,
 } from '@piwin/git';
 import { getPiwinGeneralWorkspacePath, getPiwinRoot } from '../paths.js';
@@ -18,9 +20,14 @@ import {
   type TurnChangeCoordinator,
 } from './coordinator.js';
 import { createExecutionTracker, type ExecutionTracker } from './execution-tracker.js';
+import { createCommandChangeCapturer, type CommandChangeCapturer } from './command-capture.js';
 import { createToolCapturePort, type ToolCapturePort } from './tool-capture.js';
 import { createTurnChangeSealer, type TurnChangeSealer } from './turn-seal.js';
 import { createWorkspaceWriteGate, type WorkspaceWriteGate } from './workspace-write-gate.js';
+import {
+  scheduleTurnChangeRetention,
+  type TurnChangeRetentionSchedule,
+} from './retention-schedule.js';
 
 export type TurnChangeRuntime = {
   store: TurnChangeStore;
@@ -28,8 +35,14 @@ export type TurnChangeRuntime = {
   gate: WorkspaceWriteGate;
   tracker: ExecutionTracker;
   capture: ToolCapturePort;
+  /** Images the files shell commands change (before/after bytes for undo). */
+  commandCapture: CommandChangeCapturer;
   objectStore: TurnChangeObjectStore;
   sealer: TurnChangeSealer;
+  /** Present when opened with `retention`; stopped by close(). */
+  retention: TurnChangeRetentionSchedule | null;
+  /** Soft size budget for undo data (5 GiB by default). */
+  budget: TurnChangeStorageBudget;
   close(): void;
 };
 
@@ -63,6 +76,13 @@ export function openTurnChangeRuntime(options: {
   rootDir?: string;
   /** Announces sealed / undone / redone turns to clients. */
   push?: (message: HostPush) => void;
+  /**
+   * Periodic object-store cleanup (production Host only). Off by default so
+   * tests and short-lived runtimes never start timers.
+   */
+  retention?: { onError: (error: unknown) => void; initialDelayMs?: number };
+  /** Override the 5 GiB undo-data budget (tests). */
+  storageBudgetBytes?: number;
 }): TurnChangeRuntime {
   const rootDir = options.rootDir ?? resolveTurnChangeRuntimeRoot(options.piwinRoot);
   const store = openTurnChangeStore({ rootDir });
@@ -70,28 +90,51 @@ export function openTurnChangeRuntime(options: {
     store,
     hostInstanceId: options.hostInstanceId,
   });
-  const gate = createWorkspaceWriteGate();
+  const gate = createWorkspaceWriteGate({ repairGuard: store });
   const tracker = createExecutionTracker();
+  // Over budget, a sweep may free expired data; until then new turns are storage-full.
+  let retention: TurnChangeRetentionSchedule | null = null;
+  const budget = createTurnChangeStorageBudget({
+    ...(options.storageBudgetBytes !== undefined ? { limitBytes: options.storageBudgetBytes } : {}),
+    onFull: () => void retention?.runNow(),
+  });
+  const objectStore = createTurnChangeObjectStore({ rootDir, budget });
   const capture = createToolCapturePort({
     store,
     alignWorkspace: (runId, workspaceRoot) => coordinator.alignWorkspace(runId, workspaceRoot),
+    wasObjectDropped: (sha256) => budget.wasDropped(sha256),
   });
-  const objectStore = createTurnChangeObjectStore({ rootDir });
+  const commandCapture = createCommandChangeCapturer({ store: objectStore });
   const sealer = createTurnChangeSealer({
     store,
     objectStore,
     waitRunSettled: (runId, timeoutMs) => capture.waitRunSettled(runId, timeoutMs),
     ...(options.push ? { push: options.push } : {}),
   });
+  retention = options.retention
+    ? scheduleTurnChangeRetention({
+        store,
+        rootDir,
+        onResult: (result) => budget.setMeasuredBytes(result.storedBytes),
+        onError: options.retention.onError,
+        ...(options.retention.initialDelayMs !== undefined
+          ? { initialDelayMs: options.retention.initialDelayMs }
+          : {}),
+      })
+    : null;
   return {
     store,
     coordinator,
     gate,
     tracker,
     capture,
+    commandCapture,
     objectStore,
     sealer,
+    retention,
+    budget,
     close() {
+      retention?.stop();
       store.close();
     },
   };

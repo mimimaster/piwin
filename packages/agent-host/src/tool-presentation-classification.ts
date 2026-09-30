@@ -109,6 +109,8 @@ export function resolveActionFamily(toolName: string): ToolActionFamily {
     n === 'search_replace' ||
     n === 'apply_diff' ||
     n === 'multi_edit' ||
+    n === 'move_file' ||
+    n === 'move_lines' ||
     n.endsWith('_write') ||
     n.endsWith('_edit')
   ) {

@@ -82,6 +82,7 @@ export async function sealTurnChangeSet(input: {
       afterSha: action.afterSha,
       beforeExists: action.beforeExists,
       afterExists: action.afterExists,
+      ...(action.origin !== undefined ? { origin: action.origin } : {}),
     })),
   );
 
@@ -96,7 +97,9 @@ export async function sealTurnChangeSet(input: {
 
   // Most specific cause first; the summary shows one reason.
   let reason: TurnChangeIncompleteReason | null = null;
-  if (audits.some((audit) => audit.status === 'capture-failed')) {
+  if (audits.some((audit) => audit.status === 'storage-full')) {
+    reason = 'storage-full';
+  } else if (audits.some((audit) => audit.status === 'capture-failed')) {
     reason = 'capture-failed';
   } else if (input.settleTimedOut) {
     reason = 'capture-timeout';
@@ -108,7 +111,11 @@ export async function sealTurnChangeSet(input: {
     reason = 'chain-broken';
   }
 
-  const stats = await measureFiles(input.objectStore, composed.files);
+  // Storage-full turns kept no bytes to diff; line counts stay unknown.
+  const stats =
+    reason === 'storage-full'
+      ? { additions: null, deletions: null, binaryFileCount: 0 }
+      : await measureFiles(input.objectStore, composed.files);
   const revision = attempt.activeRevision + 1;
   store.publishChangeVersion({
     changeSetId: input.changeSetId,
@@ -124,6 +131,7 @@ export async function sealTurnChangeSet(input: {
     revision,
     incompleteReason: reason,
     excludedPaths: [...commandPaths].filter((path) => !writtenPaths.has(path)).sort(),
+    overlappingPaths: overlapping.sort(),
     sealedAt: (input.now ?? (() => new Date()))().toISOString(),
   });
   store.activateVersion(input.changeSetId, revision, reason === null ? 'ready' : 'incomplete');

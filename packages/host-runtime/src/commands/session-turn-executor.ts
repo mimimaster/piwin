@@ -156,6 +156,7 @@ export async function executeSessionTurn(input: {
         ),
       });
     }
+    injectTurnChangeNotice(context, command.sessionId, promptInput, assembly);
     const summary = assembly.toSummary({
       sessionId: command.sessionId,
       runId: run.runId,
@@ -300,5 +301,47 @@ export async function executeSessionTurn(input: {
     if (turnChangeBound) {
       context.endTurnChangeRun?.(run.runId);
     }
+  }
+}
+
+/**
+ * Prepend the Host note about undo/redo since this session last prompted.
+ * Marked delivered only once it is in the prompt; a failure to read it never
+ * blocks the turn.
+ */
+export function injectTurnChangeNotice(
+  context: SessionLiveContext,
+  sessionId: string,
+  promptInput: { text: string },
+  assembly: ReturnType<typeof createModelPromptAssembly>,
+): void {
+  let notice: ReturnType<NonNullable<SessionLiveContext['readTurnChangeNotice']>>;
+  try {
+    notice = context.readTurnChangeNotice?.(sessionId);
+  } catch (error) {
+    context.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `turn-change notice read failed: ${formatError(error)}`,
+    });
+    return;
+  }
+  if (!notice) return;
+  promptInput.text = `${notice.text}\n\n${promptInput.text}`;
+  assembly.add({
+    kind: 'runtime-observed',
+    label: 'Undo / redo since last prompt',
+    trustOrigin: 'piwin',
+    text: notice.text,
+  });
+  try {
+    notice.commit();
+  } catch (error) {
+    // Worst case the note repeats once on the next prompt.
+    context.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `turn-change notice commit failed: ${formatError(error)}`,
+    });
   }
 }

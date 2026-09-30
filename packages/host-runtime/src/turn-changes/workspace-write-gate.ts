@@ -23,6 +23,7 @@ import {
   type WorkspaceActivityLog,
 } from './workspace-activity-log.js';
 import { createSessionFileLedger, type SessionFileLedger } from './session-file-ledger.js';
+import { findRepairBlockForWorkspace, type RepairGuardPort } from './repair-guard.js';
 import {
   normalizeWorkspaceRoot,
   workspaceRootsOverlap,
@@ -53,13 +54,20 @@ export type WorkspaceWriteAcquireInput = {
 
 export type WorkspaceWriteAcquireResult =
   | { ok: true; lease: WorkspaceWriteLease }
-  | { ok: false; reason: 'workspace-busy' | 'aborted' };
+  | { ok: false; reason: 'workspace-busy' | 'aborted' }
+  /** A repo-wide operation over a workspace with an undo/redo awaiting repair. */
+  | { ok: false; reason: 'needs-repair'; operationId: string };
 
 export type WorkspaceWriteGate = {
   tryAcquire(input: WorkspaceWriteAcquireInput): Promise<WorkspaceWriteAcquireResult>;
   readonly activity: WorkspaceActivityLog;
   /** Per-session last-write hashes for write-after-write drift checks. */
   readonly fileLedger: SessionFileLedger;
+  /**
+   * Undo/redo stuck at needs-repair (durable). File tools and exclusive
+   * operations consult it before writing; see repair-guard.ts.
+   */
+  readonly repairGuard?: RepairGuardPort;
 };
 
 type RequestState = 'queued' | 'acquired' | 'released' | 'cancelled';
@@ -92,6 +100,7 @@ export function createWorkspaceWriteGate(
     fileLedger?: SessionFileLedger;
     sharedBypassMs?: number;
     now?: () => number;
+    repairGuard?: RepairGuardPort;
   } = {},
 ): WorkspaceWriteGate {
   const now = options.now ?? Date.now;
@@ -238,6 +247,7 @@ export function createWorkspaceWriteGate(
   return {
     activity,
     fileLedger,
+    ...(options.repairGuard ? { repairGuard: options.repairGuard } : {}),
     tryAcquire(input) {
       if (
         input.mode === 'shared' &&
@@ -269,6 +279,19 @@ export function createWorkspaceWriteGate(
 
       if (input.signal?.aborted) {
         return Promise.resolve({ ok: false, reason: 'aborted' as const });
+      }
+
+      // Checkout / integration over a half-applied undo would mix its files
+      // with the repair's; shells and single-file writes are judged elsewhere.
+      if (input.mode === 'exclusive' && (input.kind === 'git' || input.kind === 'integration')) {
+        const block = findRepairBlockForWorkspace(options.repairGuard, input.rootPath);
+        if (block) {
+          return Promise.resolve({
+            ok: false as const,
+            reason: 'needs-repair' as const,
+            operationId: block.operationId,
+          });
+        }
       }
 
       if (!input.wait) {

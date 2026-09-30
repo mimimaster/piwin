@@ -11,6 +11,10 @@ import { getSessionRecord } from '@piwin/session';
 import { loadPiwinConfig } from './config-store.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { resolveTurnChangeWorkspaceRoot } from './turn-changes/runtime-wiring.js';
+import {
+  commitTurnChangeModelNotice,
+  readTurnChangeModelNotice,
+} from './turn-changes/turn-change-model-notice.js';
 import { isConversationIndexRecord } from './session-scope.js';
 import { sessionMcpOverrideKey } from './session-mcp-overrides.js';
 import { type SessionLiveContext } from './commands/session-live-commands.js';
@@ -318,23 +322,27 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
       if (!runtime) {
         return;
       }
-      const child = deps.subagentSessionContexts.get(input.sessionId);
       // Best guess at turn start; the first recorded write aligns it to the
       // root the tool actually wrote under (see ToolCapturePort).
-      const workspaceRoot = resolveTurnChangeWorkspaceRoot({
-        ...(child?.workingDirectory !== undefined
-          ? { childWorkingDirectory: child.workingDirectory }
-          : {}),
-        projectPath: deps.sessionProjects.get(input.sessionId),
-        piwinRoot: deps.options.piwinRoot,
-      });
       runtime.coordinator.beginAttempt({
         sessionId: input.sessionId,
         userMessageId: input.userMessageId,
         runId: input.runId,
-        source: child ? 'child' : input.source,
-        workspaceRoot,
+        source: deps.subagentSessionContexts.has(input.sessionId) ? 'child' : input.source,
+        workspaceRoot: resolveSessionTurnChangeRoot(deps, input.sessionId),
       });
+    },
+    readTurnChangeNotice: (sessionId) => {
+      const runtime = deps.turnChangeRuntime;
+      if (!runtime) return undefined;
+      const notice = readTurnChangeModelNotice({
+        store: runtime.store,
+        sessionId,
+        workspaceRoot: resolveSessionTurnChangeRoot(deps, sessionId),
+      });
+      return notice
+        ? { text: notice.text, commit: () => commitTurnChangeModelNotice(runtime.store, sessionId, notice) }
+        : undefined;
     },
     endTurnChangeRun: (runId) => {
       const runtime = deps.turnChangeRuntime;
@@ -354,6 +362,16 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     },
     sessionContextCoordinator: deps.sessionContextCoordinator,
   };
+}
+
+/** The workspace root a session's turns are recorded under (child worktree first). */
+function resolveSessionTurnChangeRoot(deps: HostRuntimeKernel, sessionId: string): string {
+  const child = deps.subagentSessionContexts.get(sessionId);
+  return resolveTurnChangeWorkspaceRoot({
+    ...(child?.workingDirectory !== undefined ? { childWorkingDirectory: child.workingDirectory } : {}),
+    projectPath: deps.sessionProjects.get(sessionId),
+    piwinRoot: deps.options.piwinRoot,
+  });
 }
 
 function createParentSettlementPorts(

@@ -19,6 +19,11 @@ export async function diffTurnChangeObjects(input: {
   beforeSha: string | null;
   afterSha: string | null;
   pathLabel: string;
+  /**
+   * Bytes to use for the after side instead of `afterSha` (the file on disk
+   * now, for a conflict view). Null means the file does not exist.
+   */
+  afterBytes?: Uint8Array | null;
 }): Promise<{
   additions: number | null;
   deletions: number | null;
@@ -32,7 +37,12 @@ export async function diffTurnChangeObjects(input: {
   try {
     await mkdir(tempDir, { recursive: true });
     await writeFile(beforePath, await readSide(input.store, input.beforeSha));
-    await writeFile(afterPath, await readSide(input.store, input.afterSha));
+    await writeFile(
+      afterPath,
+      input.afterBytes !== undefined
+        ? (input.afterBytes ?? new Uint8Array())
+        : await readSide(input.store, input.afterSha),
+    );
 
     const numstat = await runGitCommand({
       cwd: tempDir,

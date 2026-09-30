@@ -170,6 +170,27 @@ export const hostToolPolicyEvaluator: ToolPolicyEvaluator = {
   evaluate: evaluateHostToolPolicy,
 };
 
+/** The strictest verdict over several paths: any deny, else any ask, else allow. */
+function evaluateFilePathsPermission(
+  paths: readonly string[],
+  input: { projectRoot: string; mode: PermissionMode; rules: PermissionRuleSet },
+): PermissionEvaluation | undefined {
+  let firstAsk: PermissionEvaluation | undefined;
+  let firstAllow: PermissionEvaluation | undefined;
+  for (const path of paths) {
+    const result = evaluateFileWritePermission({
+      absPath: path,
+      projectRoot: input.projectRoot,
+      mode: input.mode,
+      rules: input.rules,
+    });
+    if (result.decision === 'deny') return result;
+    if (result.decision === 'ask') firstAsk ??= result;
+    else firstAllow ??= result;
+  }
+  return firstAsk ?? firstAllow;
+}
+
 export function evaluateHostToolDomainPolicy(input: {
   action: HostToolPermissionAction;
   subject: PermissionSubject | undefined;
@@ -185,6 +206,13 @@ export function evaluateHostToolDomainPolicy(input: {
       return evaluateBashPermission(command, input.mode, input.rules, input.projectRoot);
     }
     case 'file-write': {
+      // A move or cut writes two files: the strictest verdict of the pair wins.
+      if (input.subject?.kind === 'file-paths' && input.subject.paths.length > 0) {
+        return evaluateFilePathsPermission(input.subject.paths, input) ?? {
+          decision: 'deny',
+          reason: 'empty-file-write',
+        };
+      }
       const path =
         input.subject?.kind === 'file-write' ? input.subject.path : String(input.args.path ?? '');
       return evaluateFileWritePermission({
@@ -317,20 +345,10 @@ export function evaluateHostToolDomainPolicy(input: {
     }
     case 'browser:upload':
       if (input.subject?.kind === 'file-paths' && input.subject.paths.length > 0) {
-        let firstAsk: PermissionEvaluation | undefined;
-        let firstAllow: PermissionEvaluation | undefined;
-        for (const path of input.subject.paths) {
-          const result = evaluateFileWritePermission({
-            absPath: path,
-            projectRoot: input.projectRoot,
-            mode: input.mode,
-            rules: input.rules,
-          });
-          if (result.decision === 'deny') return result;
-          if (result.decision === 'ask') firstAsk ??= result;
-          else firstAllow ??= result;
-        }
-        return firstAsk ?? firstAllow ?? { decision: 'deny', reason: 'empty-browser-upload' };
+        return evaluateFilePathsPermission(input.subject.paths, input) ?? {
+          decision: 'deny',
+          reason: 'empty-browser-upload',
+        };
       }
       if (input.subject?.kind === 'file-write') {
         return evaluateFileWritePermission({

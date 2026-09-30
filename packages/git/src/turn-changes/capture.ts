@@ -12,6 +12,8 @@ export function persistTurnChangeWriteReceipt(input: {
   actionOrdinal: number;
   receipt: TurnChangeWriteReceipt;
   settlement: string;
+  /** A shell command's imaged change rather than a Host tool's write. */
+  origin?: 'host' | 'command';
 }): void {
   const record: TurnChangeFileActionRecord = {
     actionId: input.actionId,
@@ -24,6 +26,7 @@ export function persistTurnChangeWriteReceipt(input: {
     beforeExists: input.receipt.beforeExists,
     afterExists: input.receipt.afterExists,
     settlement: input.settlement,
+    ...(input.origin !== undefined ? { origin: input.origin } : {}),
   };
   input.store.recordFileAction(record);
 }

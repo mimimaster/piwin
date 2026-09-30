@@ -129,4 +129,19 @@ describe('composeFileActions', () => {
       files: [file('src/a.ts', 'sha-a', 'sha-a', true, false)],
     });
   });
+
+  it('marks a path commandOnly only when every action on it was a command', () => {
+    const composed = composeFileActions([
+      { relativePath: 'made.log', beforeSha: null, afterSha: 'l1', beforeExists: false, afterExists: true, origin: 'command' },
+      { relativePath: 'made.log', beforeSha: 'l1', afterSha: 'l2', beforeExists: true, afterExists: true, origin: 'command' },
+      { relativePath: 'mixed.ts', beforeSha: 'a', afterSha: 'b', beforeExists: true, afterExists: true, origin: 'host' },
+      { relativePath: 'mixed.ts', beforeSha: 'b', afterSha: 'c', beforeExists: true, afterExists: true, origin: 'command' },
+      { relativePath: 'plain.ts', beforeSha: 'x', afterSha: 'y', beforeExists: true, afterExists: true },
+    ]);
+    expect(composed.files.map((file) => [file.relativePath, file.commandOnly ?? false])).toEqual([
+      ['made.log', true],
+      ['mixed.ts', false],
+      ['plain.ts', false],
+    ]);
+  });
 });

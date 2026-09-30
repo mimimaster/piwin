@@ -25,6 +25,10 @@ export async function describeFileChange(
       ? 'modified'
       : 'deleted';
   try {
+    // Over the undo-data budget the bytes were not kept: no diff, no warning.
+    for (const sha of [receipt.beforeSha, receipt.afterSha]) {
+      if (sha !== null && (await store.stat(sha)) === undefined) return undefined;
+    }
     const diff = await diffTurnChangeObjects({
       store,
       beforeSha: receipt.beforeSha,

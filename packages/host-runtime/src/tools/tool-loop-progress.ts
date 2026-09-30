@@ -53,6 +53,8 @@ export type ToolLoopObservation = {
   targetPaths?: readonly string[];
   inputPreview?: string;
   command?: string;
+  /** Paged read span (`L100-129`); same path + different range is not a repeat. */
+  lineRange?: string;
 };
 
 const DEFAULT_LIMITS: ToolLoopLimits = {
@@ -106,6 +108,8 @@ const PROGRESS_NAMES = new Set([
   'apply_diff',
   'multi_edit',
   'delete_file',
+  'move_file',
+  'move_lines',
   'bash',
   'shell',
   'run_bash',
@@ -154,17 +158,21 @@ export function classifyToolLoopClass(toolName: string): ToolLoopClass {
 
 export function fingerprintToolLoopCall(observation: ToolLoopObservation): string {
   const toolName = observation.toolName.trim().toLowerCase() || 'unknown';
+  // Shell: the 96-char inputPreview is a display clip. Using it as identity
+  // collapsed distinct python/sed/tsc commands that shared a long cwd prefix
+  // (session-mulfw200-k0ysmfzv, session-munjeatf-fkfl3naa).
+  const command = observation.command?.trim();
+  if (command) {
+    return `${toolName}:${command}`;
+  }
   const paths = observation.targetPaths?.filter((path) => path.trim().length > 0) ?? [];
   if (paths.length > 0) {
-    return `${toolName}:${paths.join('\0')}`;
+    const range = observation.lineRange?.trim();
+    return range ? `${toolName}:${paths.join('\0')}:${range}` : `${toolName}:${paths.join('\0')}`;
   }
   const preview = observation.inputPreview?.trim();
   if (preview) {
     return `${toolName}:${preview}`;
-  }
-  const command = observation.command?.trim();
-  if (command) {
-    return `${toolName}:${command}`;
   }
   return toolName;
 }

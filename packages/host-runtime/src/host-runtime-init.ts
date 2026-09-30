@@ -539,6 +539,15 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         hostInstanceId: deps.hostInstanceId,
         ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
         push: (message) => deps.push(message),
+        retention: {
+          onError: (error) => {
+            deps.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `turn-change retention sweep failed: ${formatError(error)}`,
+            });
+          },
+        },
       });
       void recoverTurnChangeRuntimeAtStartup(deps.turnChangeRuntime)
         .then((recovery) => {

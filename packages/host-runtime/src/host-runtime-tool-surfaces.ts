@@ -228,6 +228,7 @@ export async function composeSessionHostToolsForSession(
             store: turnChangeRuntime.objectStore,
             onReceipt: bindCaptureReceipts(turnChangeRuntime.capture, workspaceRoot),
             onShellAudit: bindCaptureShellAudit(turnChangeRuntime.capture),
+            commandCapture: turnChangeRuntime.commandCapture,
           },
           workspaceWrite: {
             gate: turnChangeRuntime.gate,

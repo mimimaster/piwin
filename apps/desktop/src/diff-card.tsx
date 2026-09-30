@@ -88,6 +88,12 @@ export type DiffCardProps = {
   onReview?: (path: string, ok: boolean) => void;
   onOpenFile?: (path: string) => void;
   onOpenDiff?: (absolutePath: string, relativePath?: string) => void;
+  /**
+   * `body` drops the header and footer for hosts that already show the file
+   * name and stats (the turn-change list), and whose "written to disk" claim
+   * would be wrong once the turn is undone.
+   */
+  chrome?: 'full' | 'body';
 };
 
 export function DiffCard(props: DiffCardProps): ReactElement {
@@ -95,6 +101,7 @@ export function DiffCard(props: DiffCardProps): ReactElement {
   const change = props.change;
   const state: DiffState = change ? { kind: 'ready', fileDiff: viewFromChange(change) } : fetched;
   const reviewable = props.onReview !== undefined;
+  const bodyOnly = props.chrome === 'body';
   const [verdict, setVerdict] = useState<'accepted' | 'rejected' | null>(null);
   const contextMenu = useDesktopContextMenu();
 
@@ -180,9 +187,10 @@ export function DiffCard(props: DiffCardProps): ReactElement {
 
   const card = (
     <div
-      className={`diff-card dc${verdict === 'accepted' ? ' accepted' : ''}`}
+      className={`diff-card dc${verdict === 'accepted' ? ' accepted' : ''}${bodyOnly ? ' body-only' : ''}`}
       data-testid="diff-card"
     >
+      {bodyOnly ? null : (
       <div className="diff-head dc-h" data-testid="diff-head">
         <span className="pc file" title={props.path}>
           <IconFile className="i s12" />
@@ -240,6 +248,7 @@ export function DiffCard(props: DiffCardProps): ReactElement {
           ) : null}
         </span>
       </div>
+      )}
       {state.kind === 'loading' && (
         <div className="tool-body">
           <span className="dim">// 加载 diff…</span>
@@ -260,6 +269,8 @@ export function DiffCard(props: DiffCardProps): ReactElement {
           <div className="diff-body dc-b">
             {lines.map((line, originalIndex) => {
               if (line.kind === 'meta') return null;
+              // A patch ends with '\n'; that trailing split is not a diff line.
+              if (line.kind === 'blank' && originalIndex === lines.length - 1) return null;
               if (line.kind === 'hunk') {
                 return (
                   <div key={originalIndex} className="dl hk">
@@ -300,7 +311,7 @@ export function DiffCard(props: DiffCardProps): ReactElement {
           </div>
         </CollapsibleContentBlock>
       )}
-      {state.kind === 'ready' && !state.fileDiff.isBinary && (
+      {state.kind === 'ready' && !state.fileDiff.isBinary && !bodyOnly && (
         <div className="diff-footer dc-f" data-testid="diff-footer">
           <span>
             {verdict === 'accepted'

@@ -51,10 +51,14 @@ import {
 
 export type MockEmit = (message: HostPush) => void;
 
+/** Fixture-owned command answers, consulted before the built-in handlers (e2e only). */
+export type MockExtraCommandHandler = (command: HostCommand, id: string) => HostResponse | null;
+
 export class MockHostBackend {
   readonly emitPush: MockEmit;
   readonly getMode: () => HostMode;
   readonly contextTelemetry = new MockContextTelemetryStore();
+  readonly extraCommandHandlers: MockExtraCommandHandler[] = [];
 
   sessions = new Map<
     string,
@@ -267,6 +271,10 @@ export class MockHostBackend {
       this.e2eCommandCounts.sessionList += 1;
     } else if (command.type === 'session/list-page') {
       this.e2eCommandCounts.sessionListPage += 1;
+    }
+    for (const extra of this.extraCommandHandlers) {
+      const answered = extra(command, id);
+      if (answered) return answered;
     }
     const mockAuth = handleMockAuthCommand(this, command, id);
     if (mockAuth) {

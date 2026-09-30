@@ -28,7 +28,6 @@ import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
 import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
 import { ChatThread } from './chat-thread';
-import { TurnChangesHostProvider } from './turn-changes/turn-changes-host-provider.js';
 import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
 import { useTranscriptComposerCard } from './transcript-composer-card';
 import type { ChatMessageUi, ChatUiState, SessionListItemUi } from './chat-reducer';
@@ -252,7 +251,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
          * Host returns a run id, and ChatThread owns the waiting
          * activity locator for that state.
          */}
-        <TurnChangesHostProvider hostClient={hostClient}>
+        <>
         {visibleMessages.length > 0 || (!historyViewActive && state.streaming) ? (
           <StableChatThread
             messages={visibleMessages}
@@ -364,7 +363,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             {...(props.runningSessionIds ? { runningSessionIds: props.runningSessionIds } : {})}
           />
         )}
-        </TurnChangesHostProvider>
+        </>
         </TranscriptViewport>
       </div>
     </ToolOutputReaderContext.Provider>

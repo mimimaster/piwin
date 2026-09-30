@@ -261,6 +261,32 @@ describe('DiffCard component (proto-01 alignment)', () => {
     expect(container.textContent).toContain('BOTTOM');
   });
 
+  it('drops header and footer in body chrome', async () => {
+    act(() => {
+      root.render(
+        <DiffCard
+          projectPath="/workspace"
+          path="a.txt"
+          request={createRequest()}
+          chrome="body"
+          change={{
+            path: 'a.txt',
+            status: 'modified',
+            additions: 1,
+            deletions: 0,
+            binary: false,
+            patch: '--- a/a.txt\n+++ b/a.txt\n@@ -1 +1,2 @@\n top\n+NEW\n',
+          }}
+        />,
+      );
+    });
+    expect(container.querySelector('[data-testid="diff-head"]')).toBeNull();
+    expect(container.querySelector('[data-testid="diff-footer"]')).toBeNull();
+    expect(container.textContent).toContain('NEW');
+    // The patch's trailing '\n' must not render as an empty numbered row.
+    expect(container.querySelectorAll('.diff-body .dl.ln')).toHaveLength(2);
+  });
+
   it('shows counts only for a change too large to carry a patch', async () => {
     act(() => {
       root.render(

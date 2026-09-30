@@ -30,7 +30,7 @@ export function buildHostEditTool(options: {
     descriptor: {
       name: 'edit',
       description:
-        'Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes. Prefer this over rewriting the file or editing it through bash.',
+        'Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes. Every change to a workspace file MUST go through this tool (or `write_file`, `move_lines`, `move_file`, `delete_file`): Host records those changes exactly so the user can undo the whole turn, and keeps other sessions\' concurrent changes intact; a change made any other way may not be restorable. To move code between files use `move_lines`, which takes line numbers instead of quoting the code. Use `bash` to run programs (build, test, search), and `read_file` to read.',
       parameters: {
         type: 'object',
         properties: {

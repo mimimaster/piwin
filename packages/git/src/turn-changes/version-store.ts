@@ -15,6 +15,11 @@ export type TurnChangeVersionFile = {
   kind: 'added' | 'modified' | 'deleted';
   beforeSha: string | null;
   afterSha: string | null;
+  /**
+   * Only shell commands touched this path. Undo may leave such a file alone
+   * when it was created by the turn and has changed since (see precheck.ts).
+   */
+  commandOnly: boolean;
 };
 
 export type TurnChangeVersionRecord = {
@@ -51,8 +56,8 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
   );
   const insertFile = db.prepare(
     `INSERT INTO change_file(
-       change_set_id, revision, file_id, relative_path, kind, before_sha, after_sha
-     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       change_set_id, revision, file_id, relative_path, kind, before_sha, after_sha, command_only
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const pin = db.prepare(
     `INSERT INTO object_ref(sha256, ref_kind, ref_id, pin_until)
@@ -65,7 +70,7 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
      FROM change_version WHERE change_set_id = ? AND revision = ?`,
   );
   const selectFiles = db.prepare(
-    `SELECT file_id, relative_path, kind, before_sha, after_sha
+    `SELECT file_id, relative_path, kind, before_sha, after_sha, command_only
      FROM change_file WHERE change_set_id = ? AND revision = ?
      ORDER BY relative_path ASC`,
   );
@@ -78,6 +83,7 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
         kind: fileKind(file),
         beforeSha: file.beforeSha,
         afterSha: file.afterSha,
+        commandOnly: file.commandOnly === true,
       }));
       db.exec('BEGIN');
       try {
@@ -99,6 +105,7 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
             file.kind,
             file.beforeSha,
             file.afterSha,
+            file.commandOnly ? 1 : 0,
           );
           if (file.beforeSha) pin.run(file.beforeSha, CHANGE_FILE_REF_KIND, file.fileId);
           if (file.afterSha) pin.run(file.afterSha, CHANGE_FILE_REF_KIND, file.fileId);
@@ -139,6 +146,7 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
         kind: string;
         before_sha: string | null;
         after_sha: string | null;
+        command_only: number;
       }>;
       return {
         changeSetId: row.change_set_id,
@@ -154,6 +162,7 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
           kind: file.kind as TurnChangeVersionFile['kind'],
           beforeSha: file.before_sha,
           afterSha: file.after_sha,
+          commandOnly: file.command_only === 1,
         })),
       };
     },

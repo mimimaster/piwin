@@ -8,6 +8,7 @@ import { bindProjectLocatorFromRoot } from '../project-locator.js';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
 import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
+import { describeRepairBlock, REPAIR_BLOCK_CODE } from '../turn-changes/repair-guard.js';
 
 
 const TYPES = new Set<HostCommand['type']>([
@@ -218,6 +219,11 @@ async function withGitWriteGate(
     wait: true,
   });
   if (!acquired.ok) {
+    if (acquired.reason === 'needs-repair') {
+      return fail(requestId, commandType, describeRepairBlock({ operationId: acquired.operationId }), {
+        code: REPAIR_BLOCK_CODE,
+      });
+    }
     return fail(requestId, commandType, acquired.reason);
   }
   try {

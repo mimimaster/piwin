@@ -335,6 +335,9 @@ function observeToolLoopProgress(
       ...(event.presentation?.command !== undefined
         ? { command: event.presentation.command }
         : {}),
+      ...(event.presentation?.lineRange !== undefined
+        ? { lineRange: event.presentation.lineRange }
+        : {}),
     };
     // Detection-only notice: independent of the (default-off) breaker below.
     deps.runIdleLoopMonitor?.observeTool(runId, observation);

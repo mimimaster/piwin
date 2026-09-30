@@ -41,6 +41,7 @@
 @import './styles/transcript-message.css';
 @import './styles/run-idle-loop-card.css';
 @import './styles/transcript-files-changed.css';
+@import './styles/turn-change-surfaces.css';
 @import './styles/transcript-walkthrough.css';
 @import './styles/transcript-tool-card.css';
 @import './styles/transcript-web-search.css';

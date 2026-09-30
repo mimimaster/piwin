@@ -3,8 +3,11 @@
  * file list, per-file diffs, a no-write pre-check, and operation status.
  *
  * Every read answers from a sealed version — never from the current files or
- * Git HEAD — so history keeps showing what that turn did.
+ * Git HEAD — so history keeps showing what that turn did. The one exception is
+ * `diff against:'current'`, the conflict view of one listed path.
  */
+import { readFile } from 'node:fs/promises';
+
 import type {
   HostCommand,
   HostResponse,
@@ -14,15 +17,18 @@ import type {
   TurnChangeFilePage,
   TurnChangeSummary,
 } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import {
-  collectMismatchedPaths,
+  assertWritableTurnChangeFile,
   diffTurnChangeObjects,
-  planUndoRedo,
+  precheckTurnChangeOperation,
   type TurnChangeVersionFile,
 } from '@piwin/git';
 import { fail, ok } from '../response-helpers.js';
+import { planTurnChangeFiles } from '../turn-changes/plan-turn-change-files.js';
 import type { TurnChangeRuntime } from '../turn-changes/runtime-wiring.js';
 import { buildTurnChangeSummary } from '../turn-changes/turn-summary.js';
+import { withPathConflicts } from '../turn-changes/turn-change-conflicts.js';
 
 const DEFAULT_FILE_PAGE_SIZE = 200;
 const MAX_FILE_PAGE_SIZE = 500;
@@ -71,6 +77,52 @@ function toFileEntry(file: TurnChangeVersionFile, diff: FileDiffResult): TurnCha
   };
 }
 
+/**
+ * The turn's result → the file on disk now (never cached: disk moves). Reads
+ * only a path the sealed version lists, through the workspace path policy, so
+ * this cannot be used to read arbitrary Host files.
+ */
+async function diffAgainstCurrent(
+  runtime: TurnChangeRuntime,
+  requestId: string | undefined,
+  command: { type: 'turn-changes/diff'; changeSetId: string; revision: number },
+  file: TurnChangeVersionFile,
+): Promise<HostResponse> {
+  const attempt = runtime.store.getAttempt(command.changeSetId);
+  const workspace = attempt ? runtime.store.getWorkspace(attempt.workspaceId) : undefined;
+  if (!workspace) {
+    return fail(requestId, command.type, 'workspace not registered', { code: 'unsupported-workspace' });
+  }
+  let current: Uint8Array | null;
+  try {
+    const resolved = await assertWritableTurnChangeFile({
+      workspaceRoot: workspace.rootPath,
+      relativePath: file.relativePath,
+    });
+    current = resolved.kind === 'missing' ? null : new Uint8Array(await readFile(resolved.absolutePath));
+  } catch (error) {
+    return fail(requestId, command.type, `current file unreadable: ${formatError(error)}`, {
+      code: 'permission-denied',
+    });
+  }
+  const diff = await diffTurnChangeObjects({
+    store: runtime.objectStore,
+    beforeSha: file.afterSha,
+    afterSha: null,
+    afterBytes: current,
+    pathLabel: file.relativePath,
+  });
+  const body: TurnChangeFileDiff = {
+    ...toFileEntry(file, diff),
+    changeSetId: command.changeSetId,
+    revision: command.revision,
+    against: 'current',
+    ...(current === null ? { currentMissing: true } : {}),
+    ...(diff.patch !== undefined && diff.patch.length <= MAX_PATCH_CHARS ? { patch: diff.patch } : {}),
+  };
+  return ok(requestId, command.type, body);
+}
+
 export async function listTurnChangesByRuns(
   runtime: TurnChangeRuntime,
   runIds: readonly string[],
@@ -117,21 +169,25 @@ export async function checkTurnChange(
   if (!version || !workspace) {
     return result({ allowed: false, reason: 'unsupported-workspace' });
   }
-  const planned = planUndoRedo({
+  const planned = planTurnChangeFiles(runtime.store, {
+    changeSetId: input.changeSetId,
+    version,
     direction: input.direction,
-    files: version.files.map((file) => ({
-      relativePath: file.relativePath,
-      beforeSha: file.beforeSha,
-      afterSha: file.afterSha,
-      beforeExists: file.beforeSha !== null,
-      afterExists: file.afterSha !== null,
-    })),
   });
-  const affectedPaths = await collectMismatchedPaths(workspace.rootPath, planned);
+  // The same pre-write check undo runs, so 重新检查 never promises what undo refuses.
+  const precheck = await precheckTurnChangeOperation({
+    workspaceRoot: workspace.rootPath,
+    files: planned,
+    objectStore: runtime.objectStore,
+  });
   return result(
-    affectedPaths.length > 0
-      ? { allowed: false, reason: 'files-changed', affectedPaths }
-      : { allowed: true },
+    precheck.ok
+      ? { allowed: true }
+      : withPathConflicts(runtime, input.changeSetId, {
+          allowed: false,
+          reason: precheck.reason,
+          affectedPaths: precheck.affectedPaths,
+        }),
   );
 }
 
@@ -142,8 +198,7 @@ type QueryCommand = Extract<
       | 'turn-changes/list-by-runs'
       | 'turn-changes/files'
       | 'turn-changes/diff'
-      | 'turn-changes/check'
-      | 'turn-changes/operation';
+      | 'turn-changes/check';
   }
 >;
 
@@ -152,8 +207,7 @@ export function isTurnChangeQueryCommand(command: HostCommand): command is Query
     command.type === 'turn-changes/list-by-runs' ||
     command.type === 'turn-changes/files' ||
     command.type === 'turn-changes/diff' ||
-    command.type === 'turn-changes/check' ||
-    command.type === 'turn-changes/operation'
+    command.type === 'turn-changes/check'
   );
 }
 
@@ -196,6 +250,9 @@ export async function handleTurnChangeQueryCommand(
       if (!file) {
         return fail(requestId, command.type, 'file not found in change version', { code: 'not-found' });
       }
+      if (command.against === 'current') {
+        return diffAgainstCurrent(runtime, requestId, command, file);
+      }
       const diff = await diffVersionFile(runtime, command.changeSetId, command.revision, file);
       const body: TurnChangeFileDiff = {
         ...toFileEntry(file, diff),
@@ -210,17 +267,6 @@ export async function handleTurnChangeQueryCommand(
       return check
         ? ok(requestId, command.type, check)
         : fail(requestId, command.type, 'change set not found', { code: 'not-found' });
-    }
-    case 'turn-changes/operation': {
-      const operation = runtime.store.getOperation(command.operationId);
-      return operation
-        ? ok(requestId, command.type, {
-            operationId: operation.operationId,
-            changeSetId: operation.changeSetId,
-            kind: operation.kind,
-            status: operation.status,
-          })
-        : fail(requestId, command.type, 'operation not found', { code: 'not-found' });
     }
   }
 }

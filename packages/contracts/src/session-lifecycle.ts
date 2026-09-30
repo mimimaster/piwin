@@ -46,3 +46,15 @@ export type SessionLifecycleApplyResult = {
   skipped: Array<{ sessionId: string; reason: SessionLifecycleApplySkipReason }>;
   failed: Array<{ sessionId: string; error: string }>;
 };
+
+/** `session/delete` success payload. */
+export type SessionDeleteResult = {
+  sessionId: string;
+  deleted: true;
+  cleanupWarning?: string;
+  /**
+   * Undo records of this session's turns that stay on the Host after the
+   * delete (they belong to the workspace and expire on their own schedule).
+   */
+  turnChangeRecordsKept?: number;
+};

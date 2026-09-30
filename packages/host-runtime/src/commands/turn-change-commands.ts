@@ -1,16 +1,31 @@
 /** Host IPC for turn-change read and undo/redo. */
 
-import type { HostCommand, HostResponse, TurnChangeDirection } from '@piwin/contracts';
+import type {
+  HostCommand,
+  HostPush,
+  HostResponse,
+  TurnChangeDirection,
+  TurnChangePathConflict,
+} from '@piwin/contracts';
+import { randomUUID } from 'node:crypto';
 import { join, resolve } from 'node:path';
 
-import { planUndoRedo, resolveFileLockKey, runTurnChangeOperation } from '@piwin/git';
+import { resolveFileLockKey, runTurnChangeOperation } from '@piwin/git';
 import { fail, ok } from '../response-helpers.js';
+import { planTurnChangeFiles } from '../turn-changes/plan-turn-change-files.js';
 import { buildTurnChangeSummary } from '../turn-changes/turn-summary.js';
+import { createProgressPusher, describePathConflicts } from '../turn-changes/turn-change-conflicts.js';
 import type { HostCommandContext } from './host-command-context.js';
 import {
   handleTurnChangeQueryCommand,
   isTurnChangeQueryCommand,
 } from './turn-change-query-commands.js';
+import {
+  announceOperation,
+  handleTurnChangeOperationCommand,
+  isTurnChangeOperationCommand,
+} from './turn-change-operation-commands.js';
+import { handleTurnChangeExportBackup } from './turn-change-export-command.js';
 
 /** How long undo/redo wait for their files before answering workspace-busy. */
 export const TURN_CHANGE_LOCK_WAIT_MS = 5_000;
@@ -29,6 +44,7 @@ const TYPES = new Set<HostCommand['type']>([
   'turn-changes/recovery-preview',
   'turn-changes/recovery-run',
   'turn-changes/recovery-verify',
+  'turn-changes/export-backup',
 ]);
 
 function unsupportedCapability(
@@ -71,6 +87,14 @@ export async function handleTurnChangeCommand(
     return handleTurnChangeQueryCommand(command, requestId, runtime);
   }
 
+  if (isTurnChangeOperationCommand(command)) {
+    return handleTurnChangeOperationCommand(command, requestId, runtime, context?.push);
+  }
+
+  if (command.type === 'turn-changes/export-backup') {
+    return handleTurnChangeExportBackup(command, requestId, runtime);
+  }
+
   if (command.type === 'turn-changes/undo' || command.type === 'turn-changes/redo') {
     const direction: TurnChangeDirection = command.type === 'turn-changes/undo' ? 'undo' : 'redo';
     // Refuse what the summary already rules out (still recording, incomplete,
@@ -85,15 +109,21 @@ export async function handleTurnChangeCommand(
       expectedRevision: command.expectedRevision,
       direction,
       principal: 'host',
-      idempotencyKey: requestId ?? `${command.type}:${command.changeSetId}`,
+      // One gesture = one operation: the caller's gesture key, else this
+      // request's id. Never a per-change-set constant, or a second undo after
+      // redo would replay the first one and write nothing.
+      idempotencyKey: context?.idempotencyKey ?? requestId ?? `${command.type}:${command.changeSetId}:${randomUUID()}`,
       ...(context?.turnChangeLockWaitMs !== undefined
         ? { lockWaitMs: context.turnChangeLockWaitMs }
         : {}),
+      // Other clients see 正在撤销… (and can cancel) as soon as it is recorded.
+      onOperationStarted: (operationId) => announceOperation(runtime, context?.push, operationId),
+      push: context?.push,
     });
     if (!result.ok) {
       return fail(requestId, command.type, result.message, { code: result.code });
     }
-    runtime.sealer.announce(command.changeSetId, result.data.operationId);
+    announceOperation(runtime, context?.push, result.data.operationId);
     return ok(requestId, command.type, result.data);
   }
 
@@ -109,11 +139,21 @@ async function runDirection(
     principal: string;
     idempotencyKey: string;
     lockWaitMs?: number;
+    onOperationStarted?: (operationId: string) => void;
+    push?: ((message: HostPush) => void) | undefined;
   },
 ): Promise<
   | {
       ok: true;
-      data: { operationId: string; status: string; reason?: string; affectedPaths?: string[] };
+      data: {
+        operationId: string;
+        status: string;
+        reason?: string;
+        affectedPaths?: string[];
+        /** Undo: command-created files that changed since the turn and were left alone. */
+        skippedPaths?: string[];
+        conflicts?: TurnChangePathConflict[];
+      };
     }
   | { ok: false; code: string; message: string }
 > {
@@ -182,15 +222,10 @@ async function runDirection(
     if (!currentVersion) {
       return { ok: false, code: 'stale-revision', message: 'change version not found' };
     }
-    const planned = planUndoRedo({
+    const planned = planTurnChangeFiles(runtime.store, {
+      changeSetId: input.changeSetId,
+      version: currentVersion,
       direction: input.direction,
-      files: currentVersion.files.map((file) => ({
-        relativePath: file.relativePath,
-        beforeSha: file.beforeSha,
-        afterSha: file.afterSha,
-        beforeExists: file.beforeSha !== null,
-        afterExists: file.afterSha !== null,
-      })),
     });
     const ran = await runTurnChangeOperation({
       workspaceRoot: workspace.rootPath,
@@ -203,8 +238,16 @@ async function runDirection(
       kind: input.direction,
       expectedRevision: input.expectedRevision,
       files: planned,
+      workspaceId: workspace.workspaceId,
+      ...(input.onOperationStarted ? { onOperationStarted: input.onOperationStarted } : {}),
+      onProgress: createProgressPusher({
+        push: input.push,
+        workspaceId: workspace.workspaceId,
+        changeSetId: input.changeSetId,
+      }),
     });
-    // A rejected run names the files that moved, so clients can show them.
+    // A rejected run names the files that moved (and who moved them), so
+    // clients can show them.
     return {
       ok: true,
       data: {
@@ -212,6 +255,10 @@ async function runDirection(
         status: ran.status,
         ...(ran.reason !== undefined ? { reason: ran.reason } : {}),
         ...(ran.affectedPaths !== undefined ? { affectedPaths: ran.affectedPaths } : {}),
+        ...(ran.skippedPaths !== undefined ? { skippedPaths: ran.skippedPaths } : {}),
+        ...(ran.reason === 'files-changed' && ran.affectedPaths
+          ? { conflicts: describePathConflicts(runtime, input.changeSetId, ran.affectedPaths) }
+          : {}),
       },
     };
   } finally {

@@ -14,6 +14,8 @@ export type ReviewPanelProps = {
   changeSetId?: string;
   /** Open a specific context; omitted keeps this-turn until the user switches. */
   context?: ReviewPanelContext;
+  /** Re-apply `context` whenever this changes, even to the same value. */
+  contextRequest?: number;
   changesCount?: number;
   locale?: 'zh-CN' | 'en';
 };
@@ -48,7 +50,7 @@ export function ReviewPanel(props: ReviewPanelProps): ReactElement {
     if (props.context !== undefined) {
       setSubTab(props.context);
     }
-  }, [props.context]);
+  }, [props.context, props.contextRequest]);
 
   const activeTab: ReviewPanelContext =
     subTab === 'result' && !showResultTab ? 'this-turn' : subTab;

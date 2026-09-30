@@ -15,6 +15,11 @@ import {
   judgeForeignFileChange,
   type ForeignFileChangeVerdict,
 } from '../turn-changes/session-file-ledger.js';
+import {
+  describeRepairBlock,
+  findRepairBlockForPath,
+  REPAIR_BLOCK_CODE,
+} from '../turn-changes/repair-guard.js';
 import type {
   WorkspaceWriteAcquireInput,
   WorkspaceWriteGate,
@@ -49,6 +54,13 @@ export async function runWithWorkspaceWriteGate(input: {
   wait: boolean;
   filePath?: string;
   /**
+   * Further files the call writes (a move's other end). They are locked with
+   * `filePath` in one acquisition, so two moves over the same pair cannot
+   * interleave, and each is checked against a repair block like the primary.
+   * The write-after-write judgement stays on `filePath` alone.
+   */
+  extraFilePaths?: readonly string[];
+  /**
    * Whole-file writes refuse a write-after-write over another session's
    * change. `edit` opts out: it matches against the bytes on disk, so a change
    * elsewhere is kept and a change to its region already fails the match.
@@ -82,6 +94,34 @@ export async function runWithWorkspaceWriteGate(input: {
       };
     }
     paths = [resolved.key];
+    const checked: Array<{ path: string; key: string }> = [{ path: filePath, key: resolved.key }];
+    for (const extraPath of input.extraFilePaths ?? []) {
+      const extra = await resolveFileLockKey(extraPath);
+      if (!extra.ok) {
+        return {
+          ok: false,
+          code: 'execution-failed',
+          message: `invalid write path: ${extra.reason}`,
+        };
+      }
+      checked.push({ path: extraPath, key: extra.key });
+      if (!paths.includes(extra.key)) {
+        paths.push(extra.key);
+      }
+    }
+    for (const entry of checked) {
+      const repairBlock =
+        findRepairBlockForPath(input.workspaceWrite.gate.repairGuard, entry.path) ??
+        findRepairBlockForPath(input.workspaceWrite.gate.repairGuard, entry.key);
+      if (repairBlock) {
+        return {
+          ok: false,
+          code: 'execution-failed',
+          message: describeRepairBlock(repairBlock),
+          details: { reason: REPAIR_BLOCK_CODE },
+        };
+      }
+    }
   }
 
   const queuedAt = now();
@@ -99,6 +139,14 @@ export async function runWithWorkspaceWriteGate(input: {
   if (!acquired.ok) {
     if (acquired.reason === 'aborted') {
       return { ok: false, code: 'aborted', message: 'tool execution aborted' };
+    }
+    if (acquired.reason === 'needs-repair') {
+      return {
+        ok: false,
+        code: 'execution-failed',
+        message: describeRepairBlock({ operationId: acquired.operationId }),
+        details: { reason: REPAIR_BLOCK_CODE },
+      };
     }
     return { ok: false, code: 'execution-failed', message: acquired.reason };
   }
@@ -123,6 +171,16 @@ export async function runWithWorkspaceWriteGate(input: {
           code: 'execution-failed',
           message: 'write path identity changed before write',
         };
+      }
+      for (const extraPath of input.extraFilePaths ?? []) {
+        const extraAgain = await resolveFileLockKey(extraPath);
+        if (!extraAgain.ok || !paths?.includes(extraAgain.key)) {
+          return {
+            ok: false,
+            code: 'execution-failed',
+            message: 'write path identity changed before write',
+          };
+        }
       }
       if (input.ownerId !== undefined) {
         const foreign = await judgeLedgerEntry({
@@ -171,10 +229,12 @@ export async function runWithWorkspaceWriteGate(input: {
     // An `edit` over another session's unseen change must not vouch for the
     // whole file: keep the old entry so a later whole-file overwrite is caught.
     if (result.ok && input.ownerId !== undefined && fileKey !== undefined && !unseenForeignChange) {
-      gate.fileLedger.record(input.ownerId, fileKey, {
-        sha: await hashFileOrNull(fileKey),
-        tick: gate.activity.now(),
-      });
+      for (const key of paths ?? [fileKey]) {
+        gate.fileLedger.record(input.ownerId, key, {
+          sha: await hashFileOrNull(key),
+          tick: gate.activity.now(),
+        });
+      }
     }
     return withGateFacts(result, gateFacts);
   } finally {

@@ -11,9 +11,10 @@ export type TurnChangeShellAudit = {
   toolCallId: string;
   /**
    * clean: nothing changed; changed: `paths` moved; unknown: could not tell;
-   * capture-failed: a Host write's receipt could not be persisted.
+   * capture-failed: a Host write's receipt could not be persisted;
+   * storage-full: the write's undo bytes were not kept (store over budget).
    */
-  status: 'clean' | 'changed' | 'unknown' | 'capture-failed';
+  status: 'clean' | 'changed' | 'unknown' | 'capture-failed' | 'storage-full';
   /** Workspace-relative paths the command changed. */
   paths: readonly string[];
 };
@@ -24,6 +25,8 @@ export type TurnChangeVersionNote = {
   incompleteReason: string | null;
   /** Paths commands changed that are not part of this version's undo. */
   excludedPaths: readonly string[];
+  /** Paths a command changed that the turn also wrote and that could not be chained. */
+  overlappingPaths: readonly string[];
   sealedAt: string;
 };
 
@@ -53,6 +56,7 @@ type VersionNoteRow = {
   revision: number;
   incomplete_reason: string | null;
   excluded_paths_json: string;
+  overlapping_paths_json: string;
   sealed_at: string;
 };
 
@@ -62,7 +66,10 @@ function parsePaths(json: string): string[] {
 }
 
 function parseAuditStatus(status: string): TurnChangeShellAudit['status'] {
-  return status === 'clean' || status === 'changed' || status === 'capture-failed'
+  return status === 'clean' ||
+    status === 'changed' ||
+    status === 'capture-failed' ||
+    status === 'storage-full'
     ? status
     : 'unknown';
 }
@@ -76,11 +83,13 @@ export function bindTurnChangeSealStore(db: DatabaseSync): TurnChangeSealStore {
   const selectAudits = db.prepare(`SELECT * FROM shell_audit WHERE run_id = ? ORDER BY rowid ASC`);
   const upsertNote = db.prepare(
     `INSERT INTO change_version_note(
-       change_set_id, revision, incomplete_reason, excluded_paths_json, sealed_at
-     ) VALUES (?, ?, ?, ?, ?)
+       change_set_id, revision, incomplete_reason, excluded_paths_json,
+       overlapping_paths_json, sealed_at
+     ) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(change_set_id, revision) DO UPDATE SET
        incomplete_reason = excluded.incomplete_reason,
        excluded_paths_json = excluded.excluded_paths_json,
+       overlapping_paths_json = excluded.overlapping_paths_json,
        sealed_at = excluded.sealed_at`,
   );
   const selectNote = db.prepare(
@@ -127,6 +136,7 @@ export function bindTurnChangeSealStore(db: DatabaseSync): TurnChangeSealStore {
         note.revision,
         note.incompleteReason,
         JSON.stringify(note.excludedPaths),
+        JSON.stringify(note.overlappingPaths),
         note.sealedAt,
       );
     },
@@ -138,6 +148,7 @@ export function bindTurnChangeSealStore(db: DatabaseSync): TurnChangeSealStore {
         revision: row.revision,
         incompleteReason: row.incomplete_reason,
         excludedPaths: parsePaths(row.excluded_paths_json),
+        overlappingPaths: parsePaths(row.overlapping_paths_json),
         sealedAt: row.sealed_at,
       };
     },

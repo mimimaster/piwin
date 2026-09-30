@@ -23,11 +23,13 @@ import {
   type TurnChangeObjectStore,
   type TurnChangeWriteReceipt,
 } from '@piwin/git';
+import type { CommandChangeCapturer } from '../turn-changes/command-capture.js';
 import type { ShellAuditReport } from '../turn-changes/tool-capture.js';
 import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
 import { runWithWorkspaceWriteGate } from './run-with-workspace-write-gate.js';
 import { describeFileChange, withFileChange } from './file-change-details.js';
 import { buildHostEditTool } from './host-edit-tool.js';
+import { buildHostMoveFileTool, buildHostMoveLinesTool } from './host-move-tools.js';
 import { runHostShell } from './run-host-shell.js';
 import { toTurnChangeRelativePath } from './turn-change-path.js';
 const utf8 = new TextEncoder();
@@ -44,6 +46,8 @@ export type BuildHostFilesystemToolsOptions = {
     onReceipt?: (receipt: TurnChangeWriteReceipt) => void;
     /** Records what each shell command changed, for sealing the turn. */
     onShellAudit?: (audit: ShellAuditReport) => void;
+    /** Images the files a shell command changed, so undo can restore them. */
+    commandCapture?: CommandChangeCapturer;
   };
   workspaceWrite?: {
     gate: WorkspaceWriteGate;
@@ -53,8 +57,9 @@ export type BuildHostFilesystemToolsOptions = {
 };
 
 /**
- * Build Host-owned filesystem tools: `read_file`, `write_file`,
- * `delete_file`, `list_directory`, and `bash` / `run_bash`.
+ * Build Host-owned filesystem tools: `read_file`, `write_file`, `edit`,
+ * `move_lines`, `move_file`, `delete_file`, `list_directory`, and
+ * `bash` / `run_bash`.
  *
  * Permission admission is performed by the Host router before execution.
  * Read-only tools still use the same router path, while executors only
@@ -106,7 +111,7 @@ export function buildHostFilesystemTools(
     descriptor: {
       name: 'write_file',
       description:
-        'Write a whole file (creates or overwrites). To change part of an existing file use `edit` instead: it keeps other sessions\' concurrent changes. Paths are relative to the session working directory. Subject to permission policy.',
+        'Write a whole file (creates or overwrites). Creating a file or replacing its whole content MUST go through this tool so Host records it for undo. To change part of an existing file use `edit` instead (it keeps other sessions\' concurrent changes); to move or rename use `move_file`. Paths are relative to the session working directory. Subject to permission policy.',
       parameters: {
         type: 'object',
         properties: {
@@ -170,7 +175,7 @@ export function buildHostFilesystemTools(
     descriptor: {
       name: 'delete_file',
       description:
-        'Delete a file. Paths are relative to the session working directory. Subject to permission policy.',
+        'Delete a file. Deleting a workspace file MUST go through this tool so Host records it for undo. Paths are relative to the session working directory. Subject to permission policy.',
       parameters: {
         type: 'object',
         properties: {
@@ -269,7 +274,7 @@ export function buildHostFilesystemTools(
     descriptor: {
       name: 'bash',
       description:
-        'Execute a bash command. Subject to permission policy (destructive commands may prompt). Output is stdout+stderr combined. Do not modify files with sed, perl or python scripts; use `edit` (or `write_file` for new files) so changes stay attributable and undoable.',
+        'Execute a bash command to run programs: build, test, search, inspect. Subject to permission policy (destructive commands may prompt). Output is stdout+stderr combined. File changes go through `edit`, `write_file`, `move_lines`, `move_file` and `delete_file`, which Host records exactly for undo.',
       parameters: {
         type: 'object',
         properties: {
@@ -303,7 +308,12 @@ export function buildHostFilesystemTools(
         ...(jobController ? { jobController } : {}),
         ...(workspaceWrite ? { workspaceWrite } : {}),
         ...(turnChange?.onShellAudit
-          ? { onShellAudit: turnChange.onShellAudit, auditRoot: turnChange.workspaceRoot }
+          ? {
+              onShellAudit: turnChange.onShellAudit,
+              auditRoot: turnChange.workspaceRoot,
+              ...(turnChange.commandCapture ? { commandCapture: turnChange.commandCapture } : {}),
+              ...(turnChange.onReceipt ? { onReceipt: turnChange.onReceipt } : {}),
+            }
           : {}),
       });
     },
@@ -346,7 +356,12 @@ export function buildHostFilesystemTools(
         ...(jobController ? { jobController } : {}),
         ...(workspaceWrite ? { workspaceWrite } : {}),
         ...(turnChange?.onShellAudit
-          ? { onShellAudit: turnChange.onShellAudit, auditRoot: turnChange.workspaceRoot }
+          ? {
+              onShellAudit: turnChange.onShellAudit,
+              auditRoot: turnChange.workspaceRoot,
+              ...(turnChange.commandCapture ? { commandCapture: turnChange.commandCapture } : {}),
+              ...(turnChange.onReceipt ? { onReceipt: turnChange.onReceipt } : {}),
+            }
           : {}),
       });
     },
@@ -358,10 +373,18 @@ export function buildHostFilesystemTools(
     ...(workspaceWrite ? { workspaceWrite } : {}),
   });
 
+  const moveOptions = {
+    resolvePath,
+    ...(turnChange ? { turnChange } : {}),
+    ...(workspaceWrite ? { workspaceWrite } : {}),
+  };
+
   return [
     readFileTool,
     writeFileTool,
     editTool,
+    buildHostMoveLinesTool(moveOptions),
+    buildHostMoveFileTool(moveOptions),
     deleteFileTool,
     listDirectoryTool,
     bashTool,

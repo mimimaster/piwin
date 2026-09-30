@@ -21,6 +21,7 @@ import {
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 import { formatTimestamp } from '../../format-timestamp';
+import { turnChangeRetentionOnDelete } from '../../turn-changes/turn-change-delete-notice.js';
 
 function getProjectDisplayName(projectPath: string | undefined): string {
   if (!projectPath) return '';
@@ -245,8 +246,8 @@ export function ArchivePage(): ReactElement {
       const confirmed = await confirm({
         title: isZh ? '彻底删除归档会话' : 'Delete Archived Session',
         description: isZh
-          ? `确定要彻底删除会话「${name}」吗？此操作不可撤销，所有对话记录将被永久删除。`
-          : `Are you sure you want to permanently delete session "${name}"? This action cannot be undone.`,
+          ? `确定要彻底删除会话「${name}」吗？此操作不可撤销，所有对话记录将被永久删除。${turnChangeRetentionOnDelete(true)}`
+          : `Are you sure you want to permanently delete session "${name}"? This action cannot be undone. ${turnChangeRetentionOnDelete(false)}`,
         confirmLabel: isZh ? '彻底删除' : 'Delete permanently',
         tone: 'danger',
         affectedObject: name,
@@ -356,8 +357,8 @@ export function ArchivePage(): ReactElement {
     const confirmed = await confirm({
       title: isZh ? '批量删除归档会话' : 'Batch Delete Archived Sessions',
       description: isZh
-        ? `确定要彻底删除选中的 ${count} 个归档会话吗？此操作不可撤销，所有对话记录将被永久删除。`
-        : `Are you sure you want to permanently delete the ${count} selected archived sessions? This action cannot be undone.`,
+        ? `确定要彻底删除选中的 ${count} 个归档会话吗？此操作不可撤销，所有对话记录将被永久删除。${turnChangeRetentionOnDelete(true)}`
+        : `Are you sure you want to permanently delete the ${count} selected archived sessions? This action cannot be undone. ${turnChangeRetentionOnDelete(false)}`,
       confirmLabel: isZh ? `彻底删除 (${count})` : `Delete (${count})`,
       tone: 'danger',
       skipKey: 'archive-delete',
@@ -428,8 +429,8 @@ export function ArchivePage(): ReactElement {
     const confirmed = await confirm({
       title: isZh ? '清空全部归档会话' : 'Empty All Archived Sessions',
       description: isZh
-        ? `确定要彻底删除全部 ${count} 个归档会话吗？此操作不可撤销，所有对话数据将被永久删除。`
-        : `Are you sure you want to permanently delete all ${count} archived sessions? This action cannot be undone.`,
+        ? `确定要彻底删除全部 ${count} 个归档会话吗？此操作不可撤销，所有对话数据将被永久删除。${turnChangeRetentionOnDelete(true)}`
+        : `Are you sure you want to permanently delete all ${count} archived sessions? This action cannot be undone. ${turnChangeRetentionOnDelete(false)}`,
       confirmLabel: isZh ? `清空全部 (${count})` : `Delete all (${count})`,
       tone: 'danger',
     });

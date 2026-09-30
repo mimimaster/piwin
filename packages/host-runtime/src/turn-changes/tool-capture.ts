@@ -5,9 +5,12 @@
  * which made nearly every turn un-undoable — almost every turn runs some
  * `cat` or test. Now a shell reports what it changed (a before/after
  * fingerprint of the workspace) and that audit is stored per call; sealing
- * decides completeness per path. An uncontained call that reports nothing
- * is stored as `unknown`, and a receipt that cannot be persisted as
- * `capture-failed`: both keep the turn from being undone automatically.
+ * decides completeness per path. Files a command changed that Host could
+ * image (command-capture.ts) arrive as receipts and are stored like a Host
+ * write; only the rest stay in the audit by path. An uncontained call that
+ * reports nothing is stored as `unknown`, and a receipt that cannot be
+ * persisted as `capture-failed`: both keep the turn from being undone
+ * automatically.
  * Audits are rows, not a capture-state flag, so a paused turn that resumes
  * does not forget them.
  */
@@ -96,6 +99,8 @@ export function createToolCapturePort(options: {
   store: TurnChangeStore;
   /** Align the run's turn to the root receipts were written under. */
   alignWorkspace?: (runId: string, workspaceRoot: string) => 'aligned' | 'conflict' | 'unbound';
+  /** Bytes the over-budget object store did not keep (their turn cannot be undone). */
+  wasObjectDropped?: (sha256: string) => boolean;
 }): ToolCapturePort {
   const sessions = new Map<string, CaptureSession>();
   const settleWaiters = new Map<string, Set<() => void>>();
@@ -118,7 +123,7 @@ export function createToolCapturePort(options: {
 
   const recordAudit = (
     session: CaptureSession,
-    status: 'clean' | 'changed' | 'unknown' | 'capture-failed',
+    status: 'clean' | 'changed' | 'unknown' | 'capture-failed' | 'storage-full',
     paths: readonly string[] = [],
   ): void => {
     options.store.recordShellAudit({
@@ -171,11 +176,6 @@ export function createToolCapturePort(options: {
       }
       sessions.delete(input.captureId);
       try {
-        if (session.fileEffect.kind === 'uncontained') {
-          const audit = session.shellAudit ?? { status: 'unknown' as const };
-          recordAudit(session, audit.status, audit.status === 'changed' ? audit.paths : []);
-          return;
-        }
         if (session.receipts.length > 0 && session.workspaceRoot && options.alignWorkspace) {
           if (options.alignWorkspace(session.runId, session.workspaceRoot) === 'conflict') {
             // Paths relative to two roots cannot share one change set.
@@ -183,7 +183,10 @@ export function createToolCapturePort(options: {
             return;
           }
         }
-        const settlement = settlementFromResult(input.result);
+        // A command's writes happened whatever its exit status was; a Host
+        // tool's outcome decides whether its write did.
+        const settlement =
+          session.fileEffect.kind === 'uncontained' ? 'applied' : settlementFromResult(input.result);
         for (const [index, receipt] of session.receipts.entries()) {
           persistTurnChangeWriteReceipt({
             store: options.store,
@@ -193,7 +196,26 @@ export function createToolCapturePort(options: {
             actionOrdinal: index,
             receipt,
             settlement,
+            origin: session.fileEffect.kind === 'uncontained' ? 'command' : 'host',
           });
+        }
+        if (session.fileEffect.kind === 'uncontained') {
+          // Files the command changed and could be imaged are receipts now; the
+          // audit names only what could not be.
+          const audit = session.shellAudit ?? { status: 'unknown' as const };
+          recordAudit(session, audit.status, audit.status === 'changed' ? audit.paths : []);
+        }
+        // The write happened; only its undo data was not kept.
+        const dropped = options.wasObjectDropped;
+        if (
+          dropped &&
+          session.receipts.some(
+            (receipt) =>
+              (receipt.beforeSha !== null && dropped(receipt.beforeSha)) ||
+              (receipt.afterSha !== null && dropped(receipt.afterSha)),
+          )
+        ) {
+          recordAudit(session, 'storage-full');
         }
       } catch (error) {
         console.warn('[host-runtime] turn-change capture failed', error);

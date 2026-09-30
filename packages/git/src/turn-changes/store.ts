@@ -9,6 +9,14 @@ import { DatabaseSync } from 'node:sqlite';
 import { createTurnChangeObjectStore } from './object-store.js';
 import { bindTurnChangeOperationStore } from './operation-store.js';
 import type { TurnChangeOperationStore } from './operation-store.js';
+import { bindTurnChangeOperationLogStore } from './operation-log-store.js';
+import type { TurnChangeOperationLogStore } from './operation-log-store.js';
+import { bindTurnChangeNoticeStore } from './notice-store.js';
+import type { TurnChangeNoticeStore } from './notice-store.js';
+import { bindTurnChangeConflictStore } from './conflict-store.js';
+import type { TurnChangeConflictStore } from './conflict-store.js';
+import { bindTurnChangeRetentionStore } from './retention-store.js';
+import type { TurnChangeRetentionStore } from './retention-store.js';
 import { bindTurnChangeSealStore } from './seal-store.js';
 import type { TurnChangeSealStore } from './seal-store.js';
 import { bindTurnChangeVersionStore } from './version-store.js';
@@ -42,6 +50,8 @@ export type TurnChangeFileActionRecord = {
   beforeExists: boolean;
   afterExists: boolean;
   settlement: string;
+  /** Who made the change: a Host tool (default) or a shell command (imaged by Host). */
+  origin?: 'host' | 'command';
 };
 
 type FileActionRow = {
@@ -55,6 +65,7 @@ type FileActionRow = {
   before_exists: number;
   after_exists: number;
   settlement: string;
+  origin: string;
 };
 
 export type TurnChangeRunSegmentRecord = {
@@ -117,7 +128,13 @@ export type TurnChangeStore = {
   getRunSegment(runId: string): TurnChangeRunSegmentRecord | undefined;
   getWorkspace(workspaceId: string): { workspaceId: string; rootPath: string } | undefined;
   close(): void;
-} & TurnChangeOperationStore & TurnChangeVersionStore & TurnChangeSealStore;
+} & TurnChangeOperationStore &
+  TurnChangeOperationLogStore &
+  TurnChangeNoticeStore &
+  TurnChangeConflictStore &
+  TurnChangeVersionStore &
+  TurnChangeSealStore &
+  TurnChangeRetentionStore;
 
 export function openTurnChangeStore(options: { rootDir: string }): TurnChangeStore {
   mkdirSync(options.rootDir, { recursive: true });
@@ -163,8 +180,8 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
   const insertFileAction = db.prepare(
     `INSERT INTO file_action(
        action_id, run_id, tool_call_id, action_ordinal, relative_path,
-       before_sha, after_sha, before_exists, after_exists, settlement
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       before_sha, after_sha, before_exists, after_exists, settlement, origin
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const selectFileActionsByRun = db.prepare(
     `SELECT * FROM file_action WHERE run_id = ? ORDER BY rowid ASC`,
@@ -187,8 +204,12 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
     `SELECT workspace_id, root_path FROM workspace WHERE workspace_id = ?`,
   );
   const operations = bindTurnChangeOperationStore(db);
+  const operationLog = bindTurnChangeOperationLogStore(db);
+  const notices = bindTurnChangeNoticeStore(db);
+  const conflicts = bindTurnChangeConflictStore(db);
   const versions = bindTurnChangeVersionStore(db);
   const seals = bindTurnChangeSealStore(db);
+  const retention = bindTurnChangeRetentionStore(db);
   const persistFileAction = (input: TurnChangeFileActionRecord): void => {
     const existing = selectFileActionByUnique.get(
       input.runId,
@@ -220,6 +241,7 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
         input.beforeExists ? 1 : 0,
         input.afterExists ? 1 : 0,
         input.settlement,
+        input.origin ?? 'host',
       );
       if (input.beforeSha) {
         upsertPin.run(input.beforeSha, FILE_ACTION_REF_KIND, input.actionId, null);
@@ -368,8 +390,12 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
       db.close();
     },
     ...operations,
+    ...operationLog,
+    ...notices,
+    ...conflicts,
     ...versions,
     ...seals,
+    ...retention,
   };
 }
 
@@ -385,5 +411,7 @@ function mapFileActionRow(row: FileActionRow): TurnChangeFileActionRecord {
     beforeExists: row.before_exists === 1,
     afterExists: row.after_exists === 1,
     settlement: row.settlement,
+    // Host writes are the default and stay implicit; only a command's image is tagged.
+    ...(row.origin === 'command' ? { origin: 'command' as const } : {}),
   };
 }

@@ -67,12 +67,19 @@ export function parsePorcelainZPaths(stdout: string): string[] {
   return paths;
 }
 
+/** The stamp of one dirty path; exported so a before-image cache can compare against it. */
+export function stampOfStats(stats: { size: number; mtimeMs: number }): string {
+  return `${stats.size}:${stats.mtimeMs}`;
+}
+
+/** Stamp of a path that is not on disk (deleted in the working tree). */
+export const MISSING_STAMP = 'missing';
+
 async function stampPath(root: string, relativePath: string): Promise<string> {
   try {
-    const stats = await lstat(join(root, relativePath));
-    return `${stats.size}:${stats.mtimeMs}`;
+    return stampOfStats(await lstat(join(root, relativePath)));
   } catch {
-    return 'missing';
+    return MISSING_STAMP;
   }
 }
 
@@ -134,7 +141,7 @@ export async function captureWorkspaceFingerprint(
   return new Map(
     paths.map((path, index) => [
       rootRelative(realRoot, join(base, path)),
-      stamps[index] ?? 'missing',
+      stamps[index] ?? MISSING_STAMP,
     ]),
   );
 }

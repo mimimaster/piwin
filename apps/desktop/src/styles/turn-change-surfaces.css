@@ -1,0 +1,249 @@
+/*
+ * Turn-change surfaces outside the transcript card: the right panel's
+ * 本轮变更 view, the 更多 menu over workspace Changes, and 代码撤销记录.
+ */
+
+.turn-change-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5);
+  min-width: 0;
+}
+
+.turn-change-panel .turn-change-bar {
+  margin: 0;
+}
+
+.turn-change-panel-workspace {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--text-3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.turn-change-panel-workspace:hover,
+.turn-change-panel-workspace:focus-visible {
+  color: var(--text-1);
+}
+
+.workspace-changes-section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.workspace-changes-more {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--s-3) var(--s-4) 0;
+}
+
+/* ── 代码撤销记录 ─────────────────────────────────────────────── */
+
+.turn-change-record {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.turn-change-record-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-card);
+}
+
+.turn-change-record-list li + li {
+  border-top: 1px solid var(--line-1);
+}
+
+.turn-change-record-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  width: 100%;
+  padding: var(--s-4) var(--s-5);
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.turn-change-record-row:hover,
+.turn-change-record-row:focus-visible {
+  background: var(--hover);
+}
+
+.turn-change-record-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.turn-change-record-row-title {
+  font-size: var(--fs-body);
+  font-weight: 500;
+}
+
+.turn-change-record-row-time {
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.turn-change-record-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.turn-change-record-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+  font-size: var(--fs-body);
+}
+
+.turn-change-record-facts dt {
+  color: var(--text-3);
+}
+
+.turn-change-record-facts dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.turn-change-record-repair {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.turn-change-record-repair-files {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  list-style: none;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-body);
+}
+
+.turn-change-record-repair-files li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-1) 0;
+}
+
+.turn-change-record-repair-files code {
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+.turn-change-record-repair-files li[data-state='foreign'] span {
+  color: var(--danger);
+}
+
+.turn-change-record-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+/* 导出备份: path field + actions on one row, wrapping on narrow dialogs. */
+.turn-change-record-export {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.turn-change-record-export-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.turn-change-record-export-row .piwin-text-input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+/* 查看冲突 in the right panel: one row per blocked path. */
+.turn-change-conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-5);
+  border-top: 1px solid var(--line-1);
+}
+
+.turn-change-conflicts-lead {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+}
+
+.turn-change-conflicts-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.turn-change-conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.turn-change-conflict > .diff-card {
+  flex-basis: 100%;
+}
+
+.turn-change-conflict-source {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.turn-change-conflict-actions,
+.turn-change-bar-foot-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+/* 定位到后续轮次: a brief outline on the card it scrolled to. */
+.turn-change-bar.turn-change-bar-revealed {
+  outline: 2px solid color-mix(in srgb, var(--iris) 55%, transparent);
+  outline-offset: 2px;
+  transition: outline-color 1.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-change-bar.turn-change-bar-revealed {
+    transition: none;
+  }
+}

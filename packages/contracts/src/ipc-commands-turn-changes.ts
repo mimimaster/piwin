@@ -1,4 +1,4 @@
-import type { TurnChangeDirection } from './turn-change.js';
+import type { TurnChangeDiffBase, TurnChangeDirection } from './turn-change.js';
 
 export type HostTurnChangeCommand =
   | { id?: string; type: 'turn-changes/get'; changeSetId: string }
@@ -11,7 +11,15 @@ export type HostTurnChangeCommand =
       cursor?: string;
       limit?: number;
     }
-  | { id?: string; type: 'turn-changes/diff'; changeSetId: string; revision: number; fileId: string }
+  | {
+      id?: string;
+      type: 'turn-changes/diff';
+      changeSetId: string;
+      revision: number;
+      fileId: string;
+      /** Default `sealed`. `current` compares the turn's result with the file on disk. */
+      against?: TurnChangeDiffBase;
+    }
   | {
       id?: string;
       type: 'turn-changes/check';
@@ -22,7 +30,15 @@ export type HostTurnChangeCommand =
   | { id?: string; type: 'turn-changes/undo'; changeSetId: string; expectedRevision: number }
   | { id?: string; type: 'turn-changes/redo'; changeSetId: string; expectedRevision: number }
   | { id?: string; type: 'turn-changes/operation'; operationId: string }
-  | { id?: string; type: 'turn-changes/operations'; workspaceId: string; cursor?: string }
+  | {
+      id?: string;
+      type: 'turn-changes/operations';
+      /** One of workspaceId or projectPath (the Host resolves a path to its workspace). */
+      workspaceId?: string;
+      projectPath?: string;
+      cursor?: string;
+      limit?: number;
+    }
   | { id?: string; type: 'turn-changes/cancel'; operationId: string }
   | {
       id?: string;
@@ -42,4 +58,11 @@ export type HostTurnChangeCommand =
       type: 'turn-changes/recovery-verify';
       operationId: string;
       expectedRevision: number;
+    }
+  | {
+      id?: string;
+      type: 'turn-changes/export-backup';
+      operationId: string;
+      /** Absolute, existing directory on the Host machine, outside the workspace. */
+      destination: string;
     };

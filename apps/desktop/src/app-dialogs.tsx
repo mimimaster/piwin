@@ -24,6 +24,7 @@ import type { DesktopLocale } from './desktop-locale';
 import { ContinueSessionInProjectDialog } from './continue-session-in-project-dialog';
 import type { SessionNamedDraft, SessionRenameDraft } from './hooks/use-session-list-chrome';
 import { HostWorkspacePicker } from './host-workspace-picker';
+import { turnChangeRetentionOnDelete } from './turn-changes/turn-change-delete-notice.js';
 
 export type AppDialogsProps = {
   projectInput: string;
@@ -302,8 +303,8 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
         title={isChinese ? '彻底删除会话' : 'Delete permanently?'}
         description={
           isChinese
-            ? `确定要彻底删除会话「${props.deleteConfirm?.sessionName ?? ''}」吗？此操作不可撤销，所有对话记录将被永久删除。`
-            : 'Transcript files will be removed. This cannot be undone.'
+            ? `确定要彻底删除会话「${props.deleteConfirm?.sessionName ?? ''}」吗？此操作不可撤销，所有对话记录将被永久删除。${turnChangeRetentionOnDelete(true)}`
+            : `Transcript files will be removed. This cannot be undone. ${turnChangeRetentionOnDelete(false)}`
         }
         {...(props.deleteConfirm?.sessionName
           ? { affectedObject: props.deleteConfirm.sessionName }

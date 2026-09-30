@@ -13,6 +13,7 @@ import {
 import { createPermissiveToolAdmission, type HostToolAdmission } from '../tools/tool-admission.js';
 import { HostToolExecutionRouter } from '../tools/host-tool-execution-router.js';
 import { buildHostFilesystemTools } from '../tools/host-filesystem-tools.js';
+import { createCommandChangeCapturer } from './command-capture.js';
 import { createExecutionTracker, type ExecutionTracker } from './execution-tracker.js';
 import {
   bindCaptureReceipts,
@@ -281,6 +282,71 @@ describe('tool capture', () => {
     expect(store.listShellAuditsByRun('run-1')).toEqual([
       expect.objectContaining({ status: 'clean', paths: [] }),
       expect.objectContaining({ status: 'changed', paths: ['gen.txt'] }),
+    ]);
+  });
+
+  it('stores the files a command changed as applied file_actions, whatever its exit status', async () => {
+    const { workspaceRoot, store, capture } = await createHarness();
+    execFileSync('git', ['init', '-q'], { cwd: workspaceRoot });
+    const objects = createTurnChangeObjectStore({ rootDir: join(workspaceRoot, '..', 'image-objects') });
+    const tools = buildHostFilesystemTools({
+      cwd: workspaceRoot,
+      turnChange: {
+        workspaceRoot,
+        store: objects,
+        onReceipt: bindCaptureReceipts(capture),
+        onShellAudit: bindCaptureShellAudit(capture),
+        commandCapture: createCommandChangeCapturer({ store: objects }),
+      },
+    });
+    const router = new HostToolExecutionRouter({
+      tools,
+      admission: createPermissiveToolAdmission(),
+      capture,
+      tracker: createExecutionTracker(),
+    });
+    const failed = await executeWrite(router, { command: 'printf y > gen.txt; exit 3' }, 'bash');
+    expect(failed.ok).toBe(false);
+    expect(store.listFileActionsByRun('run-1')).toEqual([
+      expect.objectContaining({
+        relativePath: 'gen.txt',
+        beforeExists: false,
+        beforeSha: null,
+        afterExists: true,
+        settlement: 'applied',
+      }),
+    ]);
+    // Imaged, so the audit has nothing left to name.
+    expect(store.listShellAuditsByRun('run-1')).toEqual([
+      expect.objectContaining({ status: 'clean', paths: [] }),
+    ]);
+  });
+
+  it('records a command whose imaged files sit under a different root as capture-failed', async () => {
+    const { workspaceRoot, store } = await createHarness();
+    execFileSync('git', ['init', '-q'], { cwd: workspaceRoot });
+    const objects = createTurnChangeObjectStore({ rootDir: join(workspaceRoot, '..', 'conflict-objects') });
+    const conflicting = createToolCapturePort({ store, alignWorkspace: () => 'conflict' });
+    const tools = buildHostFilesystemTools({
+      cwd: workspaceRoot,
+      turnChange: {
+        workspaceRoot,
+        store: objects,
+        onReceipt: bindCaptureReceipts(conflicting, workspaceRoot),
+        onShellAudit: bindCaptureShellAudit(conflicting),
+        commandCapture: createCommandChangeCapturer({ store: objects }),
+      },
+    });
+    const router = new HostToolExecutionRouter({
+      tools,
+      admission: createPermissiveToolAdmission(),
+      capture: conflicting,
+      tracker: createExecutionTracker(),
+    });
+    expect((await executeWrite(router, { command: 'printf y > gen.txt' }, 'bash')).ok).toBe(true);
+    expect(store.listFileActionsByRun('run-1')).toEqual([]);
+    expect(store.listShellAuditsByRun('run-1')).toEqual([
+      expect.objectContaining({ status: 'capture-failed' }),
     ]);
   });
 

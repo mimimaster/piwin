@@ -65,6 +65,8 @@ export type HostCommandContext = {
   turnChangeRuntime?: TurnChangeRuntime | null;
   /** Test knob: undo/redo lock wait (default TURN_CHANGE_LOCK_WAIT_MS). */
   turnChangeLockWaitMs?: number;
+  /** The caller's gesture key for this command (one click = one undo). */
+  idempotencyKey?: string;
   push: (message: HostPush) => void;
   requireSession: (sessionId: string) => SessionHandle;
   /**

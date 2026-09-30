@@ -46,11 +46,13 @@ describe('turn-change seal store', () => {
       revision: 1,
       incompleteReason: null,
       excludedPaths: ['gen.txt'],
+      overlappingPaths: ['a.txt'],
       sealedAt: '2026-09-29T00:00:00.000Z',
     });
     store.activateVersion('cs', 1, 'ready');
     expect(store.getChangeVersion('cs', 1)).toMatchObject({ additions: 7, deletions: 2, binaryFileCount: 1 });
     expect(store.getVersionNote('cs', 1)?.excludedPaths).toEqual(['gen.txt']);
+    expect(store.getVersionNote('cs', 1)?.overlappingPaths).toEqual(['a.txt']);
     expect(store.getAttempt('cs')).toMatchObject({ activeRevision: 1, captureState: 'ready' });
   });
 

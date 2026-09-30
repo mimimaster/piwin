@@ -433,5 +433,12 @@ export type SessionLiveContext = {
   }) => void;
   /** End the run_segment when the turn returns. */
   endTurnChangeRun?: (runId: string) => void;
+  /**
+   * Host note about undo/redo that changed this session's workspace since the
+   * model last looked. `commit` marks it delivered (durable).
+   */
+  readTurnChangeNotice?: (
+    sessionId: string,
+  ) => { text: string; commit: () => void } | undefined;
   sessionContextCoordinator?: import('../session-context-coordinator.js').SessionContextCoordinator;
 };

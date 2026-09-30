@@ -65,7 +65,7 @@ function requireTool(tools: HostToolRegistration[], name: string): HostToolRegis
 }
 
 describe('buildHostFilesystemTools', () => {
-  it('returns 7 tools: read_file, write_file, edit, delete_file, list_directory, bash, run_bash', () => {
+  it('returns 9 tools: read_file, write_file, edit, move_lines, move_file, delete_file, list_directory, bash, run_bash', () => {
     const tools = buildHostFilesystemTools({ cwd: '/tmp' });
     const names = tools.map((t) => t.descriptor.name).sort();
     expect(names).toEqual([
@@ -73,6 +73,8 @@ describe('buildHostFilesystemTools', () => {
       'delete_file',
       'edit',
       'list_directory',
+      'move_file',
+      'move_lines',
       'read_file',
       'run_bash',
       'write_file',

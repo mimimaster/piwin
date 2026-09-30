@@ -21,6 +21,8 @@ import { isAbsolute, relative } from 'node:path';
 import { promisify } from 'node:util';
 
 import type { JobController, ToolResult, WorkspaceWriteToolDetails } from '@piwin/contracts';
+import type { TurnChangeWriteReceipt } from '@piwin/git';
+import type { CommandChangeCapturer, CommandPreSnapshot } from '../turn-changes/command-capture.js';
 import type { ShellAuditReport } from '../turn-changes/tool-capture.js';
 import { runManagedBash } from './run-managed-bash.js';
 import {
@@ -57,6 +59,13 @@ export type RunHostShellInput = {
   onShellAudit?: (audit: ShellAuditReport) => void;
   /** Root the audit fingerprints and reports paths against. */
   auditRoot?: string;
+  /**
+   * Images the files this command changed (see command-capture.ts). Without
+   * it, or where it cannot image a file, that file is only reported by path.
+   */
+  commandCapture?: CommandChangeCapturer;
+  /** Receives one receipt per file `commandCapture` imaged. */
+  onReceipt?: (receipt: TurnChangeWriteReceipt) => void;
 };
 
 export async function runHostShell(input: RunHostShellInput): Promise<ToolResult> {
@@ -73,10 +82,24 @@ export async function runHostShell(input: RunHostShellInput): Promise<ToolResult
     run: async (held) => {
       const auditRoot = input.onShellAudit ? input.auditRoot : undefined;
       let ownBaseline: WorkspaceFingerprint | null | undefined;
+      let preSnapshot: CommandPreSnapshot | undefined;
       if (auditRoot !== undefined) {
         ownBaseline = await captureWorkspaceFingerprint(auditRoot);
         if (held && optimistic) {
           publishShellBaseline(held.gate, held.root, held.grantedAtTick, Promise.resolve(ownBaseline));
+        }
+        // A command that moves HEAD or the index (checkout, reset, stash…) does
+        // not edit files as the turn's author: its file changes are not imaged,
+        // so undo never replays them over a different branch.
+        if (
+          ownBaseline &&
+          input.commandCapture &&
+          !(lock.mode === 'exclusive' && lock.reason === 'git-worktree-state')
+        ) {
+          preSnapshot = await input.commandCapture.snapshotBefore({
+            root: auditRoot,
+            fingerprint: ownBaseline,
+          });
         }
       } else if (optimistic && held) {
         ownBaseline = await captureBaselineIfOverlapping(held);
@@ -87,13 +110,13 @@ export async function runHostShell(input: RunHostShellInput): Promise<ToolResult
       } finally {
         if (auditRoot !== undefined && input.onShellAudit) {
           const after = ownBaseline ? await captureWorkspaceFingerprint(auditRoot) : null;
+          const audit = auditCommand({
+            held,
+            auditRoot,
+            changed: ownBaseline && after ? diffWorkspaceFingerprints(ownBaseline, after) : null,
+          });
           input.onShellAudit(
-            auditCommand({
-              held,
-              auditRoot,
-              changed:
-                ownBaseline && after ? diffWorkspaceFingerprints(ownBaseline, after) : null,
-            }),
+            await imageChangedFiles({ audit, auditRoot, preSnapshot, input }),
           );
         }
       }
@@ -125,6 +148,33 @@ async function executeShell(input: RunHostShellInput): Promise<ToolResult> {
     maxBuffer: 1024 * 1024,
   });
   return { ok: true, output: stdout + (stderr ? `\n[stderr]\n${stderr}` : '') };
+}
+
+/**
+ * Turn the paths a command changed into before/after receipts where they can
+ * be imaged; the audit that remains names only what could not be.
+ */
+async function imageChangedFiles(context: {
+  audit: ShellAuditReport;
+  auditRoot: string;
+  preSnapshot: CommandPreSnapshot | undefined;
+  input: RunHostShellInput;
+}): Promise<ShellAuditReport> {
+  const { audit, preSnapshot, input } = context;
+  if (audit.status !== 'changed' || !preSnapshot || !input.commandCapture) {
+    return audit;
+  }
+  const captured = await input.commandCapture.captureChanges({
+    root: context.auditRoot,
+    changedPaths: audit.paths,
+    before: preSnapshot,
+  });
+  for (const receipt of captured.receipts) {
+    input.onReceipt?.(receipt);
+  }
+  return captured.uncaptured.length === 0
+    ? { status: 'clean' }
+    : { status: 'changed', paths: captured.uncaptured };
 }
 
 /**

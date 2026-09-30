@@ -9,6 +9,10 @@ export type ComposedFileAction = {
   afterSha: string | null;
   beforeExists: boolean;
   afterExists: boolean;
+  /** Input: who made this action. Output `commandOnly` is derived from it. */
+  origin?: 'host' | 'command';
+  /** Output: every action on this path was a shell command's imaged change. */
+  commandOnly?: boolean;
 };
 
 export type ComposeCoverage = 'complete' | 'incomplete';
@@ -55,6 +59,7 @@ export function composeFileActions(
       afterSha: last.afterSha,
       beforeExists: first.beforeExists,
       afterExists: last.afterExists,
+      ...(pathActions.every((action) => action.origin === 'command') ? { commandOnly: true } : {}),
     });
   }
 

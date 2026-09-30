@@ -45,14 +45,30 @@ export type {
   FileLockKeyFailure,
 } from './turn-changes/path-policy.js';
 
+export { readHeadFiles, findContentFilteredPaths } from './turn-changes/head-blob.js';
+export type { HeadFileLookup } from './turn-changes/head-blob.js';
+
 export { writeTurnChangeFile, deleteTurnChangeFile } from './turn-changes/file-writer.js';
 export type { TurnChangeWriteReceipt } from './turn-changes/file-writer.js';
 
 export { planUndoRedo } from './turn-changes/operation-plan.js';
 export type { PlannedFileOp } from './turn-changes/operation-plan.js';
 
-export { collectMismatchedPaths, runTurnChangeOperation } from './turn-changes/operation-runner.js';
+export { runTurnChangeOperation } from './turn-changes/operation-runner.js';
 export type { TurnChangeOperationRunResult } from './turn-changes/operation-runner.js';
+export { collectMismatchedPaths, precheckTurnChangeOperation } from './turn-changes/precheck.js';
+export type { TurnChangePrecheckReason, TurnChangePrecheckResult } from './turn-changes/precheck.js';
+export { findIndexBlockedPaths } from './turn-changes/git-safety.js';
+export {
+  createTurnChangeStorageBudget,
+  DEFAULT_TURN_CHANGE_STORAGE_BUDGET_BYTES,
+} from './turn-changes/storage-budget.js';
+export type { TurnChangeStorageBudget } from './turn-changes/storage-budget.js';
+export { exportTurnChangeBackup, TurnChangeBackupExportError } from './turn-changes/export-backup.js';
+export type {
+  TurnChangeBackupExportRefusal,
+  TurnChangeBackupManifest,
+} from './turn-changes/export-backup.js';
 
 export type {
   TurnChangeVersionFile,
@@ -65,6 +81,38 @@ export type {
   TurnChangeVersionNote,
 } from './turn-changes/seal-store.js';
 export { recoverTurnChangeOperation } from './turn-changes/recovery.js';
+export {
+  previewTurnChangeRepair,
+  runTurnChangeRepair,
+  verifyTurnChangeRepair,
+} from './turn-changes/operation-repair.js';
+export type {
+  TurnChangeRepairFile,
+  TurnChangeRepairPreviewResult,
+  TurnChangeRepairRunResult,
+  TurnChangeRepairState,
+} from './turn-changes/operation-repair.js';
+export type {
+  TurnChangeOperationLogRow,
+  TurnChangeOperationLogStore,
+  TurnChangeOperationNote,
+  TurnChangeStuckOperation,
+} from './turn-changes/operation-log-store.js';
+export type {
+  TurnChangeNoticeStore,
+  TurnChangePendingNotice,
+} from './turn-changes/notice-store.js';
+export type {
+  TurnChangeConflictStore,
+  TurnChangeLaterTurnRecord,
+} from './turn-changes/conflict-store.js';
+export {
+  DEFAULT_TURN_CHANGE_OBJECT_GRACE_MS,
+  DEFAULT_TURN_CHANGE_RETENTION_MS,
+  sweepTurnChangeRetention,
+} from './turn-changes/retention.js';
+export type { TurnChangeRetentionResult } from './turn-changes/retention.js';
+export type { TurnChangeRetentionStore } from './turn-changes/retention-store.js';
 export type {
   SubagentApplyReservationRecord,
   SubagentApplyReserveResult,

@@ -1,8 +1,13 @@
 /**
- * Review inspector surface: this-turn git changes, subagent result, workspace Git.
+ * Review inspector surface: this turn's recorded changes, subagent result,
+ * and workspace Git (uncommitted changes + history).
+ *
+ * 本轮变更 shows the sealed record of the turn a card opened; it never falls
+ * back to the Git working tree, which also holds other turns' and the user's
+ * edits. Git keeps its own tab, with 更多 → 代码撤销记录.
  */
-import type { ReactElement } from 'react';
-import type { SubagentResultSummary } from '@piwin/contracts';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import type { HostPush, SubagentResultSummary } from '@piwin/contracts';
 import type { ReviewResultsHost } from './use-review-subagent-results';
 import type { HostRequestAdapters } from './host-request-adapters';
 import type { DesktopLocale } from './desktop-locale';
@@ -11,15 +16,23 @@ import {
   DeferredGitPanel,
   DeferredReviewPanel,
 } from './deferred-desktop-surfaces';
+import type { ReviewPanelContext } from './review-panel';
 import { RemoteUnavailableSurface } from './remote-unavailable-surface';
 import { SubagentUnresolvedEntry } from './subagent-unresolved-entry';
 import { SubagentCandidateCard } from './subagent-candidate-card';
 import { useReviewSubagentResults } from './use-review-subagent-results';
 import { deriveSubagentReviewLoopView } from './subagent-orchestration-view';
 import { resolveSubagentReviewActionGate } from './subagent-review-summary-model';
+import { TurnChangePanel } from './turn-changes/turn-change-panel.js';
+import { useTurnChangesApi } from './turn-changes/turn-changes-context.js';
+import { WorkspaceChangesSection } from './turn-changes/workspace-changes-section.js';
 
 export type WorkbenchReviewSurfaceProps = {
-  hostClient: ReviewResultsHost;
+  hostClient: ReviewResultsHost & {
+    request: (command: import('@piwin/contracts').HostCommand, options?: { idempotencyKey?: string }) => Promise<import('@piwin/contracts').HostResponse>;
+    /** Server messages; turn-change pushes refresh the undo record. */
+    subscribe?: (listener: (message: { type: string }) => void) => () => void;
+  };
   projectPath: string | null;
   locale: DesktopLocale;
   activeSessionId: string | null;
@@ -29,31 +42,70 @@ export type WorkbenchReviewSurfaceProps = {
 export function WorkbenchReviewSurface(props: WorkbenchReviewSurfaceProps): ReactElement {
   const { hostClient, projectPath, locale, activeSessionId, requestGit } = props;
   const reviewResults = useReviewSubagentResults(hostClient, activeSessionId);
+  const turnChanges = useTurnChangesApi();
+  const focused = turnChanges?.focusedChangeSetId ?? null;
+  const focusRequest = turnChanges?.focusRequest ?? 0;
+  // Without a turn-change Host (or before any card opened a turn), the first
+  // tab keeps showing the workspace Git list, as before.
+  const [context, setContext] = useState<{ tab: ReviewPanelContext; request: number } | undefined>(
+    undefined,
+  );
+  useEffect(() => {
+    if (focused !== null) setContext({ tab: 'this-turn', request: focusRequest });
+  }, [focused, focusRequest]);
+  const subscribeHost = hostClient.subscribe;
+  const subscribeTurnChangePush = useCallback(
+    (listener: (push: HostPush) => void) =>
+      subscribeHost?.((message) => {
+        if (message.type === 'turn-changes/operation-updated' || message.type === 'turn-changes/updated') {
+          listener(message as HostPush);
+        }
+      }) ?? (() => undefined),
+    [subscribeHost],
+  );
   if (!hostClient.supportsCommand('git/status')) {
     return <RemoteUnavailableSurface feature="review" locale={locale} />;
   }
+  const uiLocale = locale === 'zh-CN' ? 'zh-CN' : 'en';
+  const workspaceChanges = (
+    <WorkspaceChangesSection
+      hostClient={hostClient}
+      subscribePush={subscribeTurnChangePush}
+      projectPath={projectPath}
+      locale={uiLocale}
+      turnChangesSupported={turnChanges !== null}
+    >
+      <DeferredChangesPanel projectPath={projectPath} request={requestGit as never} locale={locale} />
+    </WorkspaceChangesSection>
+  );
   return (
     <DeferredReviewPanel
       changesContent={
-        <DeferredChangesPanel
-          projectPath={projectPath}
-          request={requestGit as never}
-          locale={locale}
-        />
+        turnChanges !== null ? (
+          <TurnChangePanel
+            projectPath={projectPath}
+            locale={uiLocale}
+            onShowWorkspaceChanges={() =>
+              setContext((current) => ({ tab: 'git', request: (current?.request ?? 0) + 1 }))
+            }
+          />
+        ) : (
+          workspaceChanges
+        )
       }
       gitContent={
-        <DeferredGitPanel
-          projectPath={projectPath}
-          request={requestGit as never}
-          variant="embedded"
-        />
+        <>
+          {turnChanges !== null ? workspaceChanges : null}
+          <DeferredGitPanel projectPath={projectPath} request={requestGit as never} variant="embedded" />
+        </>
       }
+      {...(context !== undefined ? { context: context.tab, contextRequest: context.request } : {})}
       {...(reviewResults.results.length > 0
         ? {
             resultContent: (
               <ReviewResultList
                 results={reviewResults.results}
-                locale={locale === 'zh-CN' ? 'zh-CN' : 'en'}
+                locale={uiLocale}
                 onRequestResolution={reviewResults.requestResolution}
                 onAdopt={reviewResults.adoptCandidate}
               />
@@ -64,7 +116,7 @@ export function WorkbenchReviewSurface(props: WorkbenchReviewSurfaceProps): Reac
       {...(reviewResults.changeSetId !== undefined
         ? { changeSetId: reviewResults.changeSetId }
         : {})}
-      locale={locale === 'zh-CN' ? 'zh-CN' : 'en'}
+      locale={uiLocale}
     />
   );
 }
