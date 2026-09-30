@@ -162,4 +162,32 @@ describe('RunIdleLoopMonitor', () => {
     expect(h.published).toHaveLength(1);
     expect(h.monitor.snapshot('run-1')).toBeUndefined();
   });
+
+  it('publishes text repetition loop at once and recovers on subsequent message', () => {
+    const h = harness();
+    const sentence =
+      '`BUILTIN_SCHEMES` 和 `LEGACY_ULTRA_CODE_SCOUT_ROLE` 原来是模块私有的，barrel 不该把它们变成公开导出。\n';
+    h.monitor.observeText('run-1', { messageId: 'msg-1', text: sentence.repeat(8) });
+    expect(h.published).toHaveLength(1);
+    expect(h.published[0]).toMatchObject({
+      state: 'looping',
+      textRepeat: {
+        messageId: 'msg-1',
+        repeats: 8,
+      },
+    });
+
+    h.monitor.noteMessageEnd('run-1', 'msg-1');
+    expect(h.published).toHaveLength(1);
+
+    h.monitor.noteMessageStart('run-1', 'msg-2');
+    expect(h.published).toHaveLength(2);
+    expect(h.published[1]).toMatchObject({
+      state: 'recovered',
+      textRepeat: {
+        messageId: 'msg-1',
+        repeats: 8,
+      },
+    });
+  });
 });

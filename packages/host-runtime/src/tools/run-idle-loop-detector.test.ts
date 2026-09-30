@@ -91,4 +91,79 @@ describe('RunIdleLoopDetector', () => {
     feed(detector, ['a', 'a']);
     expect(detector.snapshot()).toMatchObject({ dismissed: true, repeatedCalls: 14 });
   });
+
+  it('flags a repeating text passage in a streaming reply', () => {
+    const detector = new RunIdleLoopDetector();
+    const sentence =
+      '`BUILTIN_SCHEMES` 和 `LEGACY_ULTRA_CODE_SCOUT_ROLE` 原来是模块私有的，barrel 不该把它们变成公开导出。\n';
+    const text = sentence.repeat(8);
+    const observation = detector.observeText({ messageId: 'msg-1', text }, NOW);
+    expect(observation).toMatchObject({ stateChanged: true, changed: true });
+    expect(detector.snapshot()).toMatchObject({
+      state: 'looping',
+      repeatedCalls: 0,
+      calls: [],
+      textRepeat: {
+        messageId: 'msg-1',
+        repeats: 8,
+        unit: sentence.trim(),
+      },
+    });
+  });
+
+  it('recovers from a text loop when a new assistant message starts', () => {
+    const detector = new RunIdleLoopDetector();
+    const sentence =
+      '`BUILTIN_SCHEMES` 和 `LEGACY_ULTRA_CODE_SCOUT_ROLE` 原来是模块私有的，barrel 不该把它们变成公开导出。\n';
+    detector.observeText({ messageId: 'msg-1', text: sentence.repeat(8) }, NOW);
+    expect(detector.snapshot()?.state).toBe('looping');
+
+    detector.noteMessageEnd('msg-1');
+    expect(detector.snapshot()?.state).toBe('looping');
+
+    const recovery = detector.noteMessageStart('msg-2', NOW);
+    expect(recovery).toMatchObject({ stateChanged: true, changed: true });
+    expect(detector.snapshot()).toMatchObject({
+      state: 'recovered',
+      textRepeat: {
+        messageId: 'msg-1',
+        repeats: 8,
+      },
+    });
+  });
+
+  it('recovers from a text loop when a tool call happens after the reply ended', () => {
+    const detector = new RunIdleLoopDetector();
+    const sentence =
+      '`BUILTIN_SCHEMES` 和 `LEGACY_ULTRA_CODE_SCOUT_ROLE` 原来是模块私有的，barrel 不该把它们变成公开导出。\n';
+    detector.observeText({ messageId: 'msg-1', text: sentence.repeat(8) }, NOW);
+    detector.noteMessageEnd('msg-1');
+
+    const recovery = detector.observe(call('tool-1'), NOW);
+    expect(recovery).toMatchObject({ stateChanged: true, changed: true });
+    expect(detector.snapshot()?.state).toBe('recovered');
+  });
+
+  it('coexists with tool loop: notice stays looping until both loops settle', () => {
+    const detector = new RunIdleLoopDetector();
+    feed(detector, ['a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c']);
+    expect(detector.snapshot()?.state).toBe('looping');
+
+    const sentence =
+      '`BUILTIN_SCHEMES` 和 `LEGACY_ULTRA_CODE_SCOUT_ROLE` 原来是模块私有的，barrel 不该把它们变成公开导出。\n';
+    const textObs = detector.observeText({ messageId: 'msg-1', text: sentence.repeat(8) }, NOW);
+    // Already looping via tool calls, so stateChanged is false, but changed is true.
+    expect(textObs).toMatchObject({ stateChanged: false, changed: true });
+    expect(detector.snapshot()?.textRepeat).toBeDefined();
+
+    // Ending the text loop message does not recover the whole notice because tool loop is still active.
+    detector.noteMessageEnd('msg-1');
+    const msg2Start = detector.noteMessageStart('msg-2', NOW);
+    expect(msg2Start.stateChanged).toBe(false);
+    expect(detector.snapshot()?.state).toBe('looping');
+
+    // Sustained new tool work settles the tool loop, leading to full recovery.
+    feed(detector, ['w1', 'w2', 'w3', 'w4']);
+    expect(detector.snapshot()?.state).toBe('recovered');
+  });
 });

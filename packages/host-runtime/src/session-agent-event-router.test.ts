@@ -429,4 +429,66 @@ describe('routeSessionAgentEvent', () => {
     });
   });
 
+  it('routes assistant text streaming events to runIdleLoopMonitor', () => {
+    const registry = new RunRegistry();
+    const run = registry.createForegroundRun('session-1');
+    const { deps } = createRouterKernel({
+      sessionId: 'session-1',
+      registry,
+    });
+    const noteMessageStart = vi.fn();
+    const observeText = vi.fn();
+    const noteMessageEnd = vi.fn();
+    deps.runIdleLoopMonitor = {
+      noteMessageStart,
+      observeText,
+      noteMessageEnd,
+    } as unknown as HostRuntimeKernel['runIdleLoopMonitor'];
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      { type: 'message/start', messageId: 'msg-1', role: 'assistant', runId: run.runId },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+    expect(noteMessageStart).toHaveBeenCalledWith(run.runId, 'msg-1');
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      { type: 'message/text_delta', messageId: 'msg-1', delta: 'Hello ', runId: run.runId },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+    expect(observeText).toHaveBeenCalledWith(run.runId, {
+      messageId: 'msg-1',
+      text: 'Hello ',
+    });
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      { type: 'message/text_delta', messageId: 'msg-1', delta: 'world!', runId: run.runId },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+    expect(observeText).toHaveBeenCalledWith(run.runId, {
+      messageId: 'msg-1',
+      text: 'Hello world!',
+    });
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      { type: 'message/end', messageId: 'msg-1', runId: run.runId },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+    expect(noteMessageEnd).toHaveBeenCalledWith(run.runId, 'msg-1');
+  });
 });
