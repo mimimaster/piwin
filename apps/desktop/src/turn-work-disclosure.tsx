@@ -1,28 +1,26 @@
 import type { ReactElement } from 'react';
 import type { TurnWorkDisclosureProjection } from './turn-work-disclosure-model.js';
 import { formatWorkDuration, resolveWorkFoldCode, WorkFoldHeader } from './work-fold-header.js';
-import { WorkChainCompactToggle } from './turn-work-segment.js';
 
 export type TurnWorkDisclosureProps = {
   projection: TurnWorkDisclosureProjection;
   open: boolean;
   locale: 'zh-CN' | 'en';
   onToggle: () => void;
-  /** 精简 switch; shown beside the open header when the fold lists segments. */
-  compact?: boolean;
-  onCompactChange?: (next: boolean) => void;
   /** Identity for the fold rail; the fold's region ends at the last segment's marker. */
   foldId?: string;
+  /** True when the turn has segmented narration folds below it. */
+  segmented?: boolean;
 };
 
 /**
  * Turn-level disclosure around the unchanged causal rows.
  *
- * While the turn runs this is the only chrome the chain gets: one header that
- * names the current action and counts up, with every intermediate row folded
- * behind it. It becomes the settled summary in place when the run finishes —
- * same element, same open/closed state, so a user reading the expanded chain
- * does not have it collapse out from under them at settle.
+ * While the turn runs the header counts up and the chain is open beneath it
+ * (segments name what is in flight); collapsed by the reader, it names the
+ * current action instead. It becomes the settled 已工作 summary in place when
+ * the run finishes, and the chain folds behind it once — the conclusion is
+ * out, so the reader's attention moves to the answer.
  */
 export function TurnWorkDisclosure(props: TurnWorkDisclosureProps): ReactElement {
   const { projection, locale } = props;
@@ -36,7 +34,7 @@ export function TurnWorkDisclosure(props: TurnWorkDisclosureProps): ReactElement
     : undefined;
   // Open with segments, the running segment's own header says what is in
   // flight; repeating the command up here would put two "live" lines on screen.
-  const segmented = props.open && props.onCompactChange !== undefined;
+  const segmented = props.open && props.segmented === true;
   const meta =
     projection.toolCount !== undefined
       ? locale === 'zh-CN'
@@ -96,13 +94,6 @@ export function TurnWorkDisclosure(props: TurnWorkDisclosureProps): ReactElement
               ...(projection.fileCount !== undefined ? { fileCount: projection.fileCount } : {}),
             })}
       />
-      {props.open && props.onCompactChange !== undefined ? (
-        <WorkChainCompactToggle
-          compact={props.compact === true}
-          locale={locale}
-          onChange={props.onCompactChange}
-        />
-      ) : null}
     </div>
   );
 }

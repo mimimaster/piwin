@@ -6,7 +6,6 @@
  */
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
-import { useWorkChainCompact } from './work-chain-compact.js';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
 import { CitationCards } from './CitationCards';
@@ -157,8 +156,6 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const contextMenu = useDesktopContextMenu();
   const themeId = useThemeId();
   const density = resolveDensity(props.density, props.compact);
-  // 精简: nothing in the chain opens on its own — not live output, not errors.
-  const chainCompact = useWorkChainCompact();
   const runningExpandDelayMs = props.expandWhileRunningDelayMs ?? 0;
   const [runningExpandGraceOver, setRunningExpandGraceOver] = useState(runningExpandDelayMs <= 0);
   useEffect(() => {
@@ -169,9 +166,9 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     return () => clearTimeout(timer);
   }, [tool.status, runningExpandDelayMs, runningExpandGraceOver]);
   const expandWhileRunning =
-    props.expandWhileRunning !== false && runningExpandGraceOver && !chainCompact;
+    props.expandWhileRunning !== false && runningExpandGraceOver;
   const terminalMustCollapse =
-    (props.collapseWhenTerminal === true && tool.status !== 'running') || chainCompact;
+    props.collapseWhenTerminal === true && tool.status !== 'running';
   const hasExpandableBody = toolHasExpandableBody(tool);
   const displayName = tool.presentation?.title ?? tool.toolName;
   const kind = tool.presentation?.kind ?? 'unknown';
@@ -227,7 +224,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     }
     if (tool.status === 'running') {
       setInternalExpanded(expandWhileRunning && toolHasExpandableBody(tool));
-    } else if (props.collapseWhenTerminal === true || chainCompact) {
+    } else if (props.collapseWhenTerminal === true) {
       setInternalExpanded(false);
     } else if (tool.status === 'error') {
       setInternalExpanded(true);
@@ -246,7 +243,6 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     props.defaultExpanded,
     props.expanded,
     expandWhileRunning,
-    chainCompact,
   ]);
 
   function toggleExpanded(): void {

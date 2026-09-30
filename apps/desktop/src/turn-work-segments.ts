@@ -17,13 +17,6 @@ import type { TranscriptTurn } from './transcript-turns.js';
 import { countFailures, countToolsAndFiles } from './turn-work-disclosure-model.js';
 import { resolveWorkFoldCode } from './work-fold-header.js';
 
-/**
- * An unnarrated stretch longer than this is cut into more segments, so one
- * silent 138-call retry loop does not become a single segment that mounts
- * everything when opened.
- */
-export const MAX_UNNARRATED_SEGMENT_TOOLS = 24;
-
 /** Narration titles are one line; the full text renders inside the segment. */
 const SEGMENT_TITLE_MAX_CHARS = 120;
 
@@ -166,7 +159,9 @@ function hasNarration(message: ChatMessageUi): boolean {
  *
  * A narrated row opens a new segment unless the open one has neither a title
  * nor tools yet (leading thought-only rows join the narration that follows
- * them). Unnarrated stretches are cut at {@link MAX_UNNARRATED_SEGMENT_TOOLS}.
+ * them). Only narration cuts: a silent stretch stays one segment however long,
+ * because a cut at an arbitrary tool count splits explore capsules (which span
+ * messages) and leaves two headers disagreeing about the same tools.
  */
 export function buildTurnWorkSegments(
   turn: TranscriptTurn,
@@ -181,10 +176,7 @@ export function buildTurnWorkSegments(
     const title = hasNarration(message) ? narrationTitle(message.text) : undefined;
     const startsSegment =
       current === null ||
-      (title !== undefined && (current.title !== undefined || current.toolCount > 0)) ||
-      (current.title === undefined &&
-        current.toolCount >= MAX_UNNARRATED_SEGMENT_TOOLS &&
-        message.tools.length > 0);
+      (title !== undefined && (current.title !== undefined || current.toolCount > 0));
     if (startsSegment || current === null) {
       current = openDraft(index, title);
       drafts.push(current);
@@ -315,16 +307,15 @@ export function indexSegmentsByItem(
 }
 
 /**
- * Default open state before the reader touches a segment. Compact shows
- * titles only. The 总是展开 / 详细 preferences open every segment. Otherwise
- * the newest settled segment and any segment with a failure open, so the fold
- * lands on where the run ended (or where it went wrong).
+ * Default open state before the reader touches a segment. The 总是展开 / 详细
+ * preferences open every segment. Otherwise the newest settled segment and any
+ * segment with a failure open, so the fold lands on where the run ended (or
+ * where it went wrong).
  */
 export function resolveSegmentDefaultOpen(
   segment: TurnWorkSegment,
-  options: { isLast: boolean; compact: boolean; expandAll: boolean },
+  options: { isLast: boolean; expandAll: boolean },
 ): boolean {
-  if (options.compact) return false;
   if (options.expandAll) return true;
   // A running segment stays folded: its header already says what it is doing
   // (rotating through the tools in flight). A failure is the exception —

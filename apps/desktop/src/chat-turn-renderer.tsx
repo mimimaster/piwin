@@ -30,7 +30,6 @@ import { planTurnWorkSegments } from './turn-work-segment-plan.js';
 import { resolveSegmentLiveActions } from './turn-work-segments.js';
 import { mountTurnWorkSegmentBlocks, TurnWorkSegmentEarlier } from './turn-work-segment.js';
 import type { TurnWorkSegmentState } from './use-turn-work-segment-state.js';
-import { setWorkChainCompact } from './work-chain-compact.js';
 import { isDuplicateThinking } from './thinking-dedup.js';
 import { CompactionActivity } from './compaction-activity.js';
 import { isCompactionRunning } from './compaction-seam-model.js';
@@ -87,7 +86,6 @@ export type ChatTurnRenderInput = {
     SetStateAction<Record<string, WorkDisclosureOverride>>
   >;
   segmentState: TurnWorkSegmentState;
-  workChainCompact: boolean;
   enteringIds: ReadonlySet<string>;
   changedFilePathsByTurnId: ReadonlyMap<string, readonly string[]>;
 };
@@ -107,7 +105,6 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
     workDisclosureOpenByTurnId,
     setWorkDisclosureOpenByTurnId,
     segmentState,
-    workChainCompact,
     enteringIds,
     changedFilePathsByTurnId,
   } = input;
@@ -164,13 +161,13 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
   const workDisclosureKey = `${props.sessionId ?? 'session'}:${turn.id}`;
   // 详细 means detailed: nothing the agent did sits behind a summary
   // the user has to click. An explicit per-turn toggle still wins.
-  // A live chain with a failed tool stays open so the failure is on
-  // screen, but the header is still there to collapse it.
+  // A live chain is open by default: it is what the reader is watching, and
+  // a failure shows up in it as it happens. It folds into 已工作 once, when
+  // the turn settles — i.e. when the conclusion is out.
   const workDisclosureDefaultOpen =
     props.workDetailsExpanded === 'always' ||
     props.toolDensity === 'detailed' ||
-    (workDisclosureProjection?.live === true &&
-      workDisclosureProjection.failureCount > 0);
+    workDisclosureProjection?.live === true;
   const workDisclosureOpen = resolveWorkDisclosureOpen(
     workDisclosureOpenByTurnId[workDisclosureKey],
     workDisclosureProjection,
@@ -183,7 +180,6 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
       ? planTurnWorkSegments({
           turn,
           projection: workDisclosureProjection,
-          compact: workChainCompact,
           expandAll:
             props.workDetailsExpanded === 'always' || props.toolDensity === 'detailed',
           windowSize: segmentState.windowSizeFor(workDisclosureKey),
@@ -277,9 +273,7 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
           projection={workDisclosureProjection}
           open={workDisclosureOpen}
           locale={props.locale ?? 'zh-CN'}
-          {...(segmentPlan !== null
-            ? { compact: workChainCompact, onCompactChange: setWorkChainCompact }
-            : {})}
+          segmented={segmentPlan !== null}
           onToggle={() =>
             setWorkDisclosureOpenByTurnId((current) => ({
               ...current,

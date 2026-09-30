@@ -59,11 +59,6 @@ test('opening a huge turn lists segments instead of mounting the chain', async (
   await page.getByTestId('turn-work-segment-header').first().click();
   await expect(page.locator('[data-testid="turn-work-segment"][data-open="true"]')).toHaveCount(2);
   expect(await page.locator('[data-testid="diff-card"]').count()).toBe(0);
-
-  // 精简 folds every segment back to its title, keeping the one opened by hand.
-  await page.getByTestId('work-chain-compact-toggle').click();
-  await expect(page.locator('[data-testid="turn-work-segment"][data-open="true"]')).toHaveCount(1);
-  await page.getByTestId('work-chain-compact-toggle').click();
 });
 
 test('huge turn totals remain complete while paging and seeking its unloaded head', async ({ page }) => {

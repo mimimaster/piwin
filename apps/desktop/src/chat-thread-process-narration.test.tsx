@@ -190,7 +190,7 @@ describe('ChatThread process narration', () => {
     ).not.toBeNull();
   });
 
-  it('folds live narration plus a finished tool until the turn settles', () => {
+  it('opens live narration plus a finished tool by default and lets the reader fold it', () => {
     const processBody = '接着核对中间轮次的操作栏。';
     render(
       [
@@ -210,17 +210,21 @@ describe('ChatThread process narration', () => {
       },
     );
 
-    expect(container.querySelector('#msg-a-live')).toBeNull();
-    expect(container.textContent).not.toContain(processBody);
+    // The chain is what the reader is watching while the turn runs, so it is
+    // open; it folds into 已工作 when the turn settles (see
+    // chat-thread-work-disclosure.test.tsx).
     const trigger = container.querySelector<HTMLButtonElement>(
       '[data-testid="turn-work-disclosure-trigger"]',
     );
     expect(trigger).not.toBeNull();
+    expect(trigger?.getAttribute('aria-expanded')).toBe('true');
     expect(trigger?.textContent).toContain('已工作');
     expect(trigger?.textContent).toContain('1 个工具');
+    expect(container.querySelector('#msg-a-live .markdown')?.textContent).toContain(processBody);
 
     act(() => trigger?.click());
-    expect(container.querySelector('#msg-a-live .markdown')?.textContent).toContain(processBody);
+    expect(container.querySelector('#msg-a-live')).toBeNull();
+    expect(container.textContent).not.toContain(processBody);
   });
 
   it('restores Project process markdown inside the expanded work disclosure', () => {

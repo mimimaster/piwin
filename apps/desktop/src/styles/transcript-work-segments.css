@@ -3,27 +3,6 @@
    The fold header is the turn fold's own `.work-h` (tool-timeline-work.css);
    only the spacing, the body's spine and the foot bar are defined here. */
 
-.turn-work-disclosure.open {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.turn-work-disclosure.open > .turn-work-disclosure-trigger {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.work-chain-compact-toggle {
-  flex: none;
-  color: var(--t3, var(--text-3));
-}
-
-.work-chain-compact-toggle.is-active {
-  color: var(--t1, var(--text-1));
-  background: var(--s3, var(--hover));
-}
-
 .turn-work-segment {
   width: 100%;
 }

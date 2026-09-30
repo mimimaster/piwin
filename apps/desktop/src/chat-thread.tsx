@@ -20,7 +20,6 @@ import {
   type WorkDisclosureOverride,
 } from './turn-work-disclosure-open-state.js';
 import { useTurnWorkSegmentState } from './use-turn-work-segment-state.js';
-import { useWorkChainCompact } from './work-chain-compact.js';
 import { CompactionActivity } from './compaction-activity.js';
 import { isCompactionRunning } from './compaction-seam-model.js';
 import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
@@ -107,7 +106,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     Record<string, WorkDisclosureOverride>
   >({});
   const segmentState = useTurnWorkSegmentState();
-  const workChainCompact = useWorkChainCompact();
   // Cursor-style explore flow: consecutive read/search/thought-only assistant
   // steps collapse into one "Explored N files" capsule anchored at the first
   // step (agent sessions only — conversation mode keeps per-reply chrome).
@@ -240,7 +238,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
             workDisclosureOpenByTurnId,
             setWorkDisclosureOpenByTurnId,
             segmentState,
-            workChainCompact,
             enteringIds,
             changedFilePathsByTurnId,
           })

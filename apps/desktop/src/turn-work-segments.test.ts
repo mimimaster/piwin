@@ -4,7 +4,6 @@ import type { TranscriptTurn } from './transcript-turns.js';
 import {
   buildTurnWorkSegments,
   indexSegmentsByItem,
-  MAX_UNNARRATED_SEGMENT_TOOLS,
   narrationTitle,
   resolveSegmentDefaultOpen,
   resolveSegmentLiveActions,
@@ -84,16 +83,16 @@ describe('buildTurnWorkSegments', () => {
     expect(segments[0]?.id).toBe('seg-think');
   });
 
-  it('cuts an unnarrated stretch so one silent loop is not one huge segment', () => {
-    const rows = Array.from({ length: MAX_UNNARRATED_SEGMENT_TOOLS * 2 + 3 }, (_, index) =>
-      assistant(`s${index}`, { tools: [tool(`t${index}`)] }),
+  it('keeps a long silent stretch in one segment: only narration cuts', () => {
+    // A tool-count cut split the cross-message explore capsule: its anchor sat in
+    // one segment and its live tail in the next, so both headers spun on the same
+    // running read and disagreed about the tool count.
+    const total = 31;
+    const rows = Array.from({ length: total }, (_, index) =>
+      assistant(`s${index}`, { tools: [readTool(`t${index}`)] }),
     );
-    const segments = buildTurnWorkSegments(turnOf(rows), 0, rows.length - 1);
-    expect(segments.map((segment) => segment.toolCount)).toEqual([
-      MAX_UNNARRATED_SEGMENT_TOOLS,
-      MAX_UNNARRATED_SEGMENT_TOOLS,
-      3,
-    ]);
+    const segments = buildTurnWorkSegments(turnOf(rows), 0, total - 1);
+    expect(segments.map((segment) => segment.toolCount)).toEqual([total]);
   });
 
   it('counts failed tools, and errored responses without one, as failures', () => {
@@ -211,13 +210,12 @@ describe('resolveSegmentDefaultOpen', () => {
     0,
   )[0];
 
-  it('opens the newest and failing segments, nothing in compact, everything in expand-all', () => {
+  it('opens the newest and failing segments, everything in expand-all', () => {
     if (!segment || !failing) throw new Error('fixture');
-    expect(resolveSegmentDefaultOpen(segment, { isLast: false, compact: false, expandAll: false })).toBe(false);
-    expect(resolveSegmentDefaultOpen(segment, { isLast: true, compact: false, expandAll: false })).toBe(true);
-    expect(resolveSegmentDefaultOpen(failing, { isLast: false, compact: false, expandAll: false })).toBe(true);
-    expect(resolveSegmentDefaultOpen(failing, { isLast: true, compact: true, expandAll: true })).toBe(false);
-    expect(resolveSegmentDefaultOpen(segment, { isLast: false, compact: false, expandAll: true })).toBe(true);
+    expect(resolveSegmentDefaultOpen(segment, { isLast: false, expandAll: false })).toBe(false);
+    expect(resolveSegmentDefaultOpen(segment, { isLast: true, expandAll: false })).toBe(true);
+    expect(resolveSegmentDefaultOpen(failing, { isLast: false, expandAll: false })).toBe(true);
+    expect(resolveSegmentDefaultOpen(segment, { isLast: false, expandAll: true })).toBe(true);
   });
 
   it('keeps a running segment folded — its header names what is in flight — unless it failed', () => {
@@ -237,9 +235,9 @@ describe('resolveSegmentDefaultOpen', () => {
       0,
     )[0];
     if (!running || !runningFailed) throw new Error('fixture');
-    expect(resolveSegmentDefaultOpen(running, { isLast: true, compact: false, expandAll: false })).toBe(false);
-    expect(resolveSegmentDefaultOpen(running, { isLast: true, compact: false, expandAll: true })).toBe(true);
-    expect(resolveSegmentDefaultOpen(runningFailed, { isLast: true, compact: false, expandAll: false })).toBe(true);
+    expect(resolveSegmentDefaultOpen(running, { isLast: true, expandAll: false })).toBe(false);
+    expect(resolveSegmentDefaultOpen(running, { isLast: true, expandAll: true })).toBe(true);
+    expect(resolveSegmentDefaultOpen(runningFailed, { isLast: true, expandAll: false })).toBe(true);
   });
 });
 
@@ -282,7 +280,6 @@ describe('planTurnWorkSegments', () => {
     const plan = planTurnWorkSegments({
       turn,
       projection,
-      compact: false,
       expandAll: false,
       windowSize: 2,
       openOverrides: {},
@@ -298,7 +295,6 @@ describe('planTurnWorkSegments', () => {
     const plan = planTurnWorkSegments({
       turn,
       projection,
-      compact: true,
       expandAll: false,
       windowSize: 40,
       openOverrides: { 'seg-n1': true, 'seg-n4': false },

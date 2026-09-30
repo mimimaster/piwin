@@ -232,29 +232,3 @@ export function TurnWorkSegmentEarlier(props: TurnWorkSegmentEarlierProps): Reac
     </Button>
   );
 }
-
-export type WorkChainCompactToggleProps = {
-  compact: boolean;
-  locale: Locale;
-  onChange: (next: boolean) => void;
-};
-
-export function WorkChainCompactToggle(props: WorkChainCompactToggleProps): ReactElement {
-  return (
-    <Button
-      variant="ghost"
-      size="compact"
-      className={`work-chain-compact-toggle${props.compact ? ' is-active' : ''}`}
-      data-testid="work-chain-compact-toggle"
-      aria-pressed={props.compact}
-      title={
-        props.locale === 'zh-CN'
-          ? '精简：只列段标题，diff 与输出不自动展开'
-          : 'Compact: segment titles only; diffs and output stay closed'
-      }
-      onClick={() => props.onChange(!props.compact)}
-    >
-      {props.locale === 'zh-CN' ? '精简' : 'Compact'}
-    </Button>
-  );
-}

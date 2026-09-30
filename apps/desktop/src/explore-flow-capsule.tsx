@@ -10,7 +10,6 @@
  * assistant messages.
  */
 import { useState, type ReactElement } from 'react';
-import { useWorkChainCompact } from './work-chain-compact.js';
 import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 import type { DiffCardRequest } from './diff-card';
 import type { ToolCallDensity } from './ui-preferences.js';
@@ -148,11 +147,10 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
   // so a finished exploration folds even if the user had the chain open, or
   // if this instance never observed a true→false edge (remount / HMR).
   const [disclosure, setDisclosure] = useState<ExploreDisclosure>('automatic');
-  const chainCompact = useWorkChainCompact();
   const expanded =
     disclosure === 'closed'
       ? false
-      : (hasError && !chainCompact) ||
+      : hasError ||
         (group.isLive ? disclosure === 'live-open' : disclosure === 'settled-open');
   const foldMeasure = useTranscriptLocalFoldMeasure(expanded);
 

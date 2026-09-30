@@ -39,7 +39,6 @@ export type TurnWorkSegmentPlan = {
 export type PlanTurnWorkSegmentsInput = {
   turn: TranscriptTurn;
   projection: TurnWorkDisclosureProjection;
-  compact: boolean;
   /** 总是展开 / 详细: every segment starts open. */
   expandAll: boolean;
   /** Headers to mount, newest first; grows with "显示更早". */
@@ -65,7 +64,6 @@ export function planTurnWorkSegments(input: PlanTurnWorkSegmentsInput): TurnWork
       input.openOverrides[segment.id] ??
       resolveSegmentDefaultOpen(segment, {
         isLast: segment.ordinal === lastOrdinal,
-        compact: input.compact,
         expandAll: input.expandAll,
       }),
     slots: new Map(),
