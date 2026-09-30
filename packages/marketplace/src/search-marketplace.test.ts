@@ -124,6 +124,16 @@ describe('searchMarketplaceSources', () => {
     expect(result.remoteError).toMatch(/GitHub/);
   });
 
+  it('uses the injected fetch for every network source, including the MCP registry', async () => {
+    const network = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('must not use live network'));
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({ objects: [], items: [], servers: [] })));
+    try {
+      await searchMarketplaceSources({ query: 'memory', fetch: fetchFn });
+      expect(fetchFn.mock.calls.some(([url]) => String(url).includes('registry.modelcontextprotocol.io'))).toBe(true);
+      expect(network).not.toHaveBeenCalled();
+    } finally { network.mockRestore(); }
+  });
+
   it('includes MCP registry servers and Skills when searching', async () => {
     const fetchFn = vi.fn(async () => ({
       ok: true,

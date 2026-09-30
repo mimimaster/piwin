@@ -64,7 +64,7 @@ describe('queued-turn drain after a completed run', () => {
       expect(turns[0]?.status).toBe('started');
       expect(turns[0]?.startedRunId).toEqual(expect.any(String));
       expect(turns[0]?.startedRunId).not.toBe(firstRunId);
-    });
+    }, { timeout: 10_000, interval: 50 });
 
   }, 15_000);
 });

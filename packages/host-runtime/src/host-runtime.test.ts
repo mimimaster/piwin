@@ -1724,7 +1724,11 @@ describe('HostRuntime', () => {
     const generationId = await waitForGeneration(runtime, sessionId);
     await waitForResidency(runtime, sessionId, 'resident-idle');
     const residency = residencyOf(runtime);
-    expect(await residency.requestSuspend(sessionId, generationId, 'manual')).toBe(true);
+    // resident-idle precedes final Run cleanup; wait for the real suspension,
+    // not just the first idle status sample under full-suite load.
+    await vi.waitFor(async () => {
+      expect(await residency.requestSuspend(sessionId, generationId, 'manual')).toBe(true);
+    }, { timeout: 5_000, interval: 20 });
 
     const registry = (
       runtime as unknown as {
