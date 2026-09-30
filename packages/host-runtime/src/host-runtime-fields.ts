@@ -67,6 +67,7 @@ import { type PiwinRootLease } from './piwin-root-lease.js';
 import type { SubagentTaskResult } from '@piwin/contracts';
 
 import type { ComposedSessionHostTools, HostRuntimeOptions } from './host-runtime-types.js';
+import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import type { SubscriptionAuthService } from './subscription-auth-service.js';
 import type { LiveCallCoordinator } from './voice/live-call-coordinator.js';
 import type { LiveIntendedSessionGate } from './voice/live-intended-session-gate.js';
@@ -387,5 +388,10 @@ export class HostRuntimeFields {
 
   getHostInstanceId(): string {
     return this.hostInstanceId;
+  }
+
+  /** Live instance view for friend modules; the constructed class is HostRuntime. */
+  asKernel(): HostRuntimeKernel {
+    return this as unknown as HostRuntimeKernel;
   }
 }
