@@ -8,10 +8,13 @@
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
+  AUTO_LEAD_REVIEW_LIMIT,
   BUILTIN_ULTRA_CODE_SCHEME,
+  LEAD_REVIEW_LIMIT_BOUNDS,
   createDefaultSubagentConfig,
   listOrchestrationSchemes,
   migrateSchemeMembers,
+  normalizeLeadReviewLimit,
   type DesktopRestoreConfig,
   type OrchestrationSchemeSettings,
   toModelRef,
@@ -37,6 +40,7 @@ function subagentEditorSyncKey(subagents: SubagentConfig): string {
     freehandReadonlyModel: subagents.freehandReadonlyModel ?? null,
     maxConcurrency: subagents.maxConcurrency,
     maxTasksPerRun: subagents.maxTasksPerRun,
+    leadReviewLimit: subagents.leadReviewLimit ?? null,
     profiles: subagents.profiles,
     defaultProfileId: subagents.defaultProfileId ?? null,
     processIsolation: subagents.processIsolation,
@@ -54,6 +58,34 @@ function desktopWithDefaultScheme(
     ...(desktop ?? {}),
     defaultOrchestrationSchemeId: schemeId,
   };
+}
+
+/** Stored number → field text; an unset limit shows the placeholder instead. */
+function leadLimitFieldText(value: number | undefined): string {
+  return value === undefined ? '' : String(value);
+}
+
+/**
+ * Field text → the stored limit. Blank or non-numeric fields are left out (the
+ * builtin default applies); numbers are clamped to the Settings bounds so what
+ * is saved is what the Host will use.
+ */
+export function parseLeadLimitFields(
+  filesText: string,
+  linesText: string,
+): SubagentConfig['leadReviewLimit'] | undefined {
+  const files = filesText.trim() === '' ? Number.NaN : Number(filesText);
+  const lines = linesText.trim() === '' ? Number.NaN : Number(linesText);
+  const limit: NonNullable<SubagentConfig['leadReviewLimit']> = {};
+  if (Number.isFinite(files)) {
+    limit.maxFiles = normalizeLeadReviewLimit(AUTO_LEAD_REVIEW_LIMIT, { maxFiles: files }).maxFiles;
+  }
+  if (Number.isFinite(lines)) {
+    limit.maxChangedLines = normalizeLeadReviewLimit(AUTO_LEAD_REVIEW_LIMIT, {
+      maxChangedLines: lines,
+    }).maxChangedLines;
+  }
+  return limit.maxFiles !== undefined || limit.maxChangedLines !== undefined ? limit : undefined;
 }
 
 export function SubagentProfilesPage(): ReactElement {
@@ -78,6 +110,13 @@ export function SubagentProfilesPage(): ReactElement {
   );
   const [maxConcurrency, setMaxConcurrency] = useState<number>(subagents.maxConcurrency);
   const [maxTasksPerRun, setMaxTasksPerRun] = useState<number>(subagents.maxTasksPerRun);
+  // Empty string = not set: the builtin default applies.
+  const [reviewFiles, setReviewFiles] = useState<string>(
+    () => leadLimitFieldText(subagents.leadReviewLimit?.maxFiles),
+  );
+  const [reviewLines, setReviewLines] = useState<string>(
+    () => leadLimitFieldText(subagents.leadReviewLimit?.maxChangedLines),
+  );
   const savedDefaultSchemeId = config?.desktop?.defaultOrchestrationSchemeId;
   const [defaultSchemeId, setDefaultSchemeId] = useState<string | undefined>(
     () => savedDefaultSchemeId,
@@ -89,6 +128,8 @@ export function SubagentProfilesPage(): ReactElement {
     setFreehandModel(subagents.freehandReadonlyModel);
     setMaxConcurrency(subagents.maxConcurrency);
     setMaxTasksPerRun(subagents.maxTasksPerRun);
+    setReviewFiles(leadLimitFieldText(subagents.leadReviewLimit?.maxFiles));
+    setReviewLines(leadLimitFieldText(subagents.leadReviewLimit?.maxChangedLines));
     setSchemeNotice(null);
     // The key is the subagent document. A default-scheme write only changes
     // `desktop`, and rebuilding the list from that would flash the page.
@@ -182,6 +223,11 @@ export function SubagentProfilesPage(): ReactElement {
     if (schemes && schemes.length > 0) {
       payload.schemes = schemes;
     }
+    // Other saves (schemes, freehand model) rebuild this object: dropping the
+    // limit here would silently reset it. Only the fields the user filled in
+    // are stored, so an emptied field returns to the builtin default.
+    const leadReviewLimit = parseLeadLimitFields(reviewFiles, reviewLines);
+    if (leadReviewLimit) payload.leadReviewLimit = leadReviewLimit;
     return payload;
   }
 
@@ -410,6 +456,30 @@ export function SubagentProfilesPage(): ReactElement {
                 onChange={(event) =>
                   setMaxTasksPerRun(Math.max(1, Number(event.target.value) || 1))
                 }
+              />
+            </FieldRow>
+            <FieldRow
+              label={copy.leadReviewFiles}
+              description={copy.leadReviewHint}
+              testId="subagents-lead-review-files-row"
+            >
+              <TextInput
+                type="number"
+                min={LEAD_REVIEW_LIMIT_BOUNDS.maxFiles.min}
+                max={LEAD_REVIEW_LIMIT_BOUNDS.maxFiles.max}
+                placeholder={String(AUTO_LEAD_REVIEW_LIMIT.maxFiles)}
+                value={reviewFiles}
+                onChange={(event) => setReviewFiles(event.target.value)}
+              />
+            </FieldRow>
+            <FieldRow label={copy.leadReviewLines} testId="subagents-lead-review-lines-row">
+              <TextInput
+                type="number"
+                min={LEAD_REVIEW_LIMIT_BOUNDS.maxChangedLines.min}
+                max={LEAD_REVIEW_LIMIT_BOUNDS.maxChangedLines.max}
+                placeholder={String(AUTO_LEAD_REVIEW_LIMIT.maxChangedLines)}
+                value={reviewLines}
+                onChange={(event) => setReviewLines(event.target.value)}
               />
             </FieldRow>
             <div className="orch-limits-actions">

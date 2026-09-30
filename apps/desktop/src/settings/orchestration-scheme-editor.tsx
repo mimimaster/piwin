@@ -7,6 +7,8 @@
  */
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import {
+  AUTO_SCHEME_ID,
+  BUILTIN_AUTO_SCHEME,
   BUILTIN_FUSION_SCHEME,
   BUILTIN_REVIEWED_DELIVERY_SCHEME,
   BUILTIN_ULTRA_CODE_SCHEME,
@@ -34,6 +36,7 @@ const BUILTIN_SCHEME_BY_ID: Readonly<Record<string, OrchestrationScheme>> = {
   [ULTRA_CODE_SCHEME_ID]: BUILTIN_ULTRA_CODE_SCHEME,
   [REVIEWED_DELIVERY_SCHEME_ID]: BUILTIN_REVIEWED_DELIVERY_SCHEME,
   [FUSION_SCHEME_ID]: BUILTIN_FUSION_SCHEME,
+  [AUTO_SCHEME_ID]: BUILTIN_AUTO_SCHEME,
 };
 
 function isBuiltinSchemeId(schemeId: string): boolean {

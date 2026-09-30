@@ -149,7 +149,7 @@ export function parseComposerSlashSubmit(
     const remainingArgs = schemeId === 'off' ? '' : args.slice(schemeId.length).trim();
     return { kind: 'scheme', schemeId, name, args: remainingArgs };
   }
-  if (name === 'ultra-code' || name === 'fusion') {
+  if (name === 'ultra-code' || name === 'fusion' || name === 'auto') {
     return { kind: 'scheme', schemeId: name, name, args };
   }
 

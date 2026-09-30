@@ -154,6 +154,27 @@ Pause checkpoints carry the paused run's `turnPolicy` (scheme id, disabled
 delegation), so a resumed turn keeps its scheme instead of running freehand.
 Spec: [`orchestration-scheme-fusion.zh.md`](../specs/orchestration-scheme-fusion.zh.md) §4.1–4.2.
 
+**Auto scheme, member behavior, detached tester (2026-09-30):** Builtin `auto`
+composes existing roles: `scout`, `sidekick` and `reviewer` resolve their
+model / profile / contract from Ultra Code, Fusion and Reviewed Delivery via
+`inheritFrom` (one level, after the target's Settings overlay). Host-enforced
+delivery is no longer keyed by scheme id: builtin members carry
+`OrchestrationMemberBehavior` (`lane: 'persistent'`, `deliveryLock`,
+`leadReviewLimit`, `detached`), read only from builtin recipes at resolve —
+Settings and config files cannot set it. A sidekick candidate over
+`leadReviewLimit` (default 5 files / 300 changed lines) is refused for Lead
+review and needs an independent reviewer. The `tester` is *detached*: started
+without a parent run link (so parent settlement, cancel and run replacement do
+not reach it), on a worktree cut from a snapshot of the parent workspace
+(uncommitted and untracked files included, user index untouched) that takes no
+write lock or writer slot; its copy is discarded once its report is captured.
+The report is delivered by the next prompt preparation or, if the session is
+idle, a Host continuation turn. At most one detached tester per session;
+`piwin_subagent_wait` on it is refused. Scheme preambles are sent in full once
+per session (reset by compaction or runtime dispose) and as a one-line reminder
+afterwards; per-role loops load through `piwin_scheme_playbook`. Spec:
+[`orchestration-scheme-auto.zh.md`](../specs/orchestration-scheme-auto.zh.md).
+
 **Write exclusivity (2026-09-18):** Concurrent worktree **writes** are forbidden.
 The scheduler admits at most one running `isolationOverride=worktree` task.
 `SubagentWorkspaceService` holds a per-parent-project worktree lease until

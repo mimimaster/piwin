@@ -13,6 +13,7 @@ export async function commandScheme(argv: string[]): Promise<void> {
     schemes: config.subagents?.schemes,
     maxConcurrency: config.subagents?.maxConcurrency,
     maxTasksPerRun: config.subagents?.maxTasksPerRun,
+    leadReviewLimit: config.subagents?.leadReviewLimit,
   };
   const schemes = listOrchestrationSchemes(slice);
 

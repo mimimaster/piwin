@@ -138,6 +138,76 @@ describe('freehand read-only subagent model settings', () => {
     expect(saves.at(-1)?.subagents?.freehandReadonlyModel).toEqual(LIGHT);
   });
 
+  function limitInput(rowTestId: string): HTMLInputElement {
+    const input = container.querySelector(`[data-testid="${rowTestId}"] input`);
+    if (!(input instanceof HTMLInputElement)) throw new Error(`missing input in ${rowTestId}`);
+    return input;
+  }
+
+  async function typeInto(input: HTMLInputElement, value: string): Promise<void> {
+    await act(async () => {
+      // React tracks the value setter; assign through the prototype so onChange fires.
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  async function saveLimits(): Promise<void> {
+    const save = container.querySelector('[data-testid="subagents-advanced-limits"] button');
+    if (!(save instanceof HTMLElement)) throw new Error('missing limits save');
+    await act(async () => {
+      save.click();
+    });
+  }
+
+  it('saves the Auto Lead review limit, shows the default as a placeholder, and blank returns to default', async () => {
+    await render();
+    const files = limitInput('subagents-lead-review-files-row');
+    const lines = limitInput('subagents-lead-review-lines-row');
+    expect(files.value).toBe('');
+    expect(files.placeholder).toBe('5');
+    expect(lines.placeholder).toBe('300');
+
+    await typeInto(files, '12');
+    await typeInto(lines, '800');
+    await saveLimits();
+    expect(saves.at(-1)?.subagents?.leadReviewLimit).toEqual({ maxFiles: 12, maxChangedLines: 800 });
+
+    // Out-of-range input is clamped to what the Host will actually use.
+    await typeInto(files, '9999');
+    await typeInto(lines, '1');
+    await saveLimits();
+    expect(saves.at(-1)?.subagents?.leadReviewLimit).toEqual({ maxFiles: 50, maxChangedLines: 10 });
+
+    await typeInto(files, '');
+    await typeInto(lines, '');
+    await saveLimits();
+    expect(saves.at(-1)?.subagents).not.toHaveProperty('leadReviewLimit');
+  });
+
+  it('shows a stored limit and keeps it when another setting is saved', async () => {
+    settings = {
+      ...settings,
+      config: {
+        ...config(),
+        subagents: {
+          ...createDefaultSubagentConfig(),
+          freehandReadonlyModel: LIGHT,
+          leadReviewLimit: { maxFiles: 9, maxChangedLines: 450 },
+        },
+      } as PiwinConfig,
+    };
+    await render();
+    expect(limitInput('subagents-lead-review-files-row').value).toBe('9');
+    expect(limitInput('subagents-lead-review-lines-row').value).toBe('450');
+    const clone = container.querySelector('[data-testid="orchestration-scheme-clone-ultra-code"]');
+    if (!(clone instanceof HTMLElement)) throw new Error('missing clone');
+    await act(async () => {
+      clone.click();
+    });
+    expect(saves.at(-1)?.subagents?.leadReviewLimit).toEqual({ maxFiles: 9, maxChangedLines: 450 });
+  });
+
   it('offers inheritance with no configured models and labels the rule in both languages', async () => {
     settings = {
       ...settings,
