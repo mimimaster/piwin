@@ -13,6 +13,7 @@ import {
   getSessionRecord,
   loadSessionPlan,
   openSessionTranscriptStore,
+  PauseCheckpointRetiredError,
   saveSessionPlan,
   type SessionTranscriptStore,
 } from '@piwin/session';
@@ -1183,6 +1184,48 @@ describe('session live control commands', () => {
       { skipJobCleanup: true },
     );
     expect(quarantineSessionRuntime).toHaveBeenCalledWith(session.id, activeRun.runId);
+    expect(registry.getForegroundRun(session.id)).toBeUndefined();
+  });
+
+  it('ends a pause as cancelled when its resume checkpoint was already retired', async () => {
+    // Incident session-muny5im0-8df7puba: a resumed run was paused after a newer prompt
+    // had cleared its checkpoint. The store rejected the reused id and the run was
+    // marked failed with "Pause could not be saved" instead of ending as the cancel it raced.
+    const session = createDelayedSessionHandle();
+    const { context, activeRun, registry } = createControlContext(session);
+    const transcriptStore = {
+      lastMessageByRole: async () => undefined,
+      getRevision: async () => 5,
+      createPauseCheckpoint: async () => {
+        throw new PauseCheckpointRetiredError('checkpoint-retired', 'cleared');
+      },
+    } as unknown as SessionTranscriptStore;
+    context.withTranscriptStore = async (_sessionId, operation) => operation(transcriptStore);
+    const terminateRun = vi.fn(context.terminateRun);
+    context.terminateRun = terminateRun;
+
+    await handleSessionLiveCommand(
+      { type: 'session/pause', sessionId: session.id, runId: activeRun.runId },
+      undefined,
+      context,
+    );
+
+    await vi.waitFor(() => {
+      expect(registry.get(activeRun.runId)).toMatchObject({
+        status: 'cancelled',
+        terminalCode: 'cancelled',
+      });
+    });
+    expect(terminateRun).toHaveBeenCalledTimes(1);
+    expect(terminateRun).toHaveBeenCalledWith(
+      session.id,
+      activeRun.runId,
+      'cancelled',
+      'cancelled',
+      expect.stringContaining('already replaced'),
+      undefined,
+    );
+    expect(registry.get(activeRun.runId)?.resumeCheckpointId).toBeUndefined();
     expect(registry.getForegroundRun(session.id)).toBeUndefined();
   });
 

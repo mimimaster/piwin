@@ -86,6 +86,7 @@ import {
   upsertSessionRecord,
   readToolOutputSnapshot,
   openModelContextStore,
+  PauseCheckpointRetiredError,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
@@ -429,6 +430,30 @@ async function finalizePausedRun(
       context.quarantineSessionRuntime(sessionId, runId);
     }
   } catch (error) {
+    if (error instanceof PauseCheckpointRetiredError) {
+      // The task this run would resume was already replaced by a newer prompt or
+      // cancelled. That is the cancel this pause raced, not a failed save.
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `pause checkpoint skipped for ${runId}: ${error.message}`,
+      });
+      const retiredMessage = 'Run stopped; the paused task it belonged to was already replaced.';
+      if (cleanupSettled) {
+        await context.terminateRun(sessionId, runId, 'cancelled', 'cancelled', retiredMessage, extras);
+      } else {
+        await context.terminateRun(
+          sessionId,
+          runId,
+          'cancelled',
+          'cancelled',
+          retiredMessage,
+          mergeTerminateOptions(extras, { skipJobCleanup: true }),
+        );
+        context.quarantineSessionRuntime(sessionId, runId);
+      }
+      return;
+    }
     const message = formatError(error);
     context.push({
       type: 'host/log',

@@ -33,6 +33,7 @@ export {
   sessionArchivePoliciesEqual,
 } from './session-lifecycle.js';
 export { createSessionIndexPage, SessionIndexCursorError } from './session-index-page.js';
+export { PauseCheckpointRetiredError } from './pause-checkpoint-retired-error.js';
 export {
   orderSessionIndexRecords,
   projectSessionIndex,
