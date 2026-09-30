@@ -7,6 +7,7 @@
 import { createHash } from 'node:crypto';
 import type {
   ExtensionDeploymentRecord,
+  AgentPluginInstallation,
   ExtensionSummary,
   InstalledExtensionRecord,
   MarketplaceAvailability,
@@ -40,6 +41,7 @@ export type InventorySessionView = {
 };
 
 export type InventoryProjectionInput = {
+  agents?: readonly AgentPluginInstallation[];
   extensions: readonly ExtensionSummary[];
   managedRecords: readonly InstalledExtensionRecord[];
   skills: readonly SkillSummary[];
@@ -225,6 +227,14 @@ export function projectMarketplaceInventory(
   const recordsById = new Map(input.managedRecords.map((record) => [record.id, record]));
   const healthById = new Map(input.mcpHealth.map((health) => [health.serverId, health]));
   const items: MarketplaceInstalledItem[] = [
+    ...(input.agents ?? []).map((plugin): MarketplaceInstalledItem => ({
+      installationKey: `agent:${plugin.agentId}`, capabilityId: plugin.agentId,
+      kind: 'agent', name: plugin.manifest.name, version: plugin.manifest.version,
+      catalogEntryId: input.matchCatalogEntry('agent', plugin.agentId)?.entryId ?? `agent:${plugin.agentId}`,
+      enabled: plugin.enabled, availability: plugin.enabled ? 'installed' : 'disabled',
+      source: plugin.source.kind, canToggle: true, removal: { command: 'agents/uninstall' },
+      message: 'Adapter installed; CLI dependency and login are checked separately in Agent Backends.',
+    })),
     ...input.extensions.map((extension) => projectExtension(extension, input, recordsById)),
     ...input.skills
       .filter((skill) => skill.hidden !== true)

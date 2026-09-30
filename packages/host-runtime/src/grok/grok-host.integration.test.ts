@@ -24,6 +24,7 @@ async function createHarness(agent: FakeGrokAgent): Promise<Harness> {
     mock: true,
     piwinRoot: rootDir,
     grok: {
+      testPlatform: 'darwin',
       createTransport: () => agent.createTransport(),
       detect: async () => ({
         agentId: 'grok',
@@ -39,6 +40,8 @@ async function createHarness(agent: FakeGrokAgent): Promise<Harness> {
   runtime.attachPushSink({ id: 'grok-test', push: (push) => pushes.push(push) });
   const harness = { runtime, agent, pushes, rootDir };
   harnesses.push(harness);
+  const installed = await runtime.handleCommand({ type: 'agents/install', source: { kind: 'bundled', agentId: 'grok' } });
+  expect(installed.success).toBe(true);
   return harness;
 }
 

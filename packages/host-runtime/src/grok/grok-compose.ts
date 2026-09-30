@@ -9,6 +9,8 @@ import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
 import type { HostRuntimeOptions } from '../host-runtime-types.js';
 import { GrokBackendService, type GrokPendingPermission } from './grok-backend-service.js';
 import { applyGrokTitle } from './grok-session-router.js';
+import { requireEnabledAgentPlugin } from './agent-plugin-inventory.js';
+import { getPiwinRoot } from '../paths.js';
 
 export function composeGrokBackend(deps: HostRuntimeKernel, options: HostRuntimeOptions): void {
   const grok = options.grok;
@@ -36,6 +38,7 @@ export function composeGrokBackend(deps: HostRuntimeKernel, options: HostRuntime
       });
     },
     createRequestId: () => randomUUID(),
+    requireEnabledPlugin: () => requireEnabledAgentPlugin(getPiwinRoot(options.piwinRoot)),
     ...(grok?.createTransport !== undefined ? { createTransport: grok.createTransport } : {}),
     ...(grok?.detect !== undefined ? { detect: grok.detect } : {}),
     ...(grok?.env !== undefined ? { env: grok.env } : {}),

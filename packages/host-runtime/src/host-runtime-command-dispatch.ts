@@ -108,6 +108,8 @@ export async function handleCommandWithTranscriptLease(
     const ctx = await deps.buildDomainContext();
     const externalAgent = await handleExternalAgentCommand(deps, command, requestId);
     if (externalAgent) {
+      const inventoryKinds = inventoryKindsChangedBy(command.type);
+      if (inventoryKinds && externalAgent.success) void pushInventoryUpdated(ctx, inventoryKinds);
       return externalAgent;
     }
     const queuedTurn = await deps.queuedTurnController.handleCommand(command, requestId);

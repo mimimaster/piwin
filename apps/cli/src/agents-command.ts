@@ -1,20 +1,18 @@
 /**
  * `piwin agents` — the CLI half of the optional agent-backend loop (ADR 0082).
  *
- * Scope note (spec §2.1): piwin only automates an install recipe that has been
- * verified for the Host platform. No ACP probe has validated an official Grok
- * distribution recipe yet, so `install` prints the official guidance and asks
- * the user to re-run `agents check` afterwards instead of running an
- * unverified remote installer. Detection and login guidance are real.
+ * Installs the reviewed declarative adapter through the Host. CLI dependency
+ * installation remains manual on unverified distributions; uninstall removes
+ * only the adapter, preserving history and the user's own runtime.
  */
-import type { ExternalAgentStatus } from '@piwin/contracts';
+import type { AgentPluginInstallation, ExternalAgentStatus, HostCommand } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { hasFlag, parseMock, parseMode, readOption } from './cli-args.js';
-import { openCliHost } from './cli-host.js';
+import { newCliGestureKey, openCliHost } from './cli-host.js';
 
 const USAGE = `Usage:
   piwin agents list [--mock]
-  piwin agents check [--agent <id>] [--mock]
+  piwin agents check [--agent <id>] [--path <absolute-host-cli>] [--mock]
   piwin agents install [--agent <id>]
   piwin agents login [--agent <id>] [--mock]
   piwin agents enable|disable|uninstall --agent <id>`;
@@ -30,21 +28,17 @@ function readAgents(data: unknown): ExternalAgentStatus[] {
 
 /** What the CLI should do for a subcommand; pure so it stays unit-testable. */
 export type AgentsSubcommandPlan =
-  | { kind: 'guide-install' }
-  | { kind: 'unsupported'; sub: string }
+  | { kind: 'mutate-host'; sub: 'install' | 'enable' | 'disable' | 'uninstall' }
   | { kind: 'query-host'; refresh: boolean }
   | { kind: 'usage' };
 
 export function planAgentsSubcommand(sub: string): AgentsSubcommandPlan {
   switch (sub) {
     case 'install':
-      // No verified official recipe for this Host → guidance, never a remote installer.
-      return { kind: 'guide-install' };
     case 'enable':
     case 'disable':
     case 'uninstall':
-      // The plugin inventory/ownership layer (plan slice 3) is not in this build.
-      return { kind: 'unsupported', sub };
+      return { kind: 'mutate-host', sub };
     case 'list':
       return { kind: 'query-host', refresh: false };
     case 'check':
@@ -73,26 +67,6 @@ export async function commandAgents(argv: string[]): Promise<void> {
   const sub = argv[1] ?? 'list';
   const plan = planAgentsSubcommand(sub);
 
-  if (plan.kind === 'guide-install') {
-    console.log('piwin does not run an unverified installer for an agent runtime.');
-    console.log('Install the agent CLI yourself, then re-check:');
-    console.log('  1. install Grok Build with its official installer for this machine');
-    console.log('  2. run: piwin agents check --agent grok');
-    console.log('  3. run: piwin agents login --agent grok');
-    return;
-  }
-
-  if (plan.kind === 'unsupported') {
-    // Refusing beats pretending the agent was toggled.
-    const agentId = agentIdOption(argv) ?? 'grok';
-    console.error(
-      `agents ${plan.sub}: the agent plugin inventory is not available in this build (agent: ${agentId}).`,
-    );
-    console.error('Nothing was changed. Session history and your agent CLI are untouched.');
-    process.exitCode = 1;
-    return;
-  }
-
   if (plan.kind === 'usage') {
     console.error(USAGE);
     process.exitCode = 1;
@@ -105,6 +79,34 @@ export async function commandAgents(argv: string[]): Promise<void> {
   });
   try {
     const requested = agentIdOption(argv);
+    if (plan.kind === 'mutate-host') {
+      const agentId = requested ?? 'grok';
+      if (agentId !== 'grok') throw new Error(`Unknown agent: ${agentId}`);
+      const command: HostCommand = plan.sub === 'install'
+        ? { type: 'agents/install', source: { kind: 'bundled', agentId: 'grok' } }
+        : plan.sub === 'uninstall'
+          ? { type: 'agents/uninstall', agentId }
+          : { type: 'agents/set-enabled', agentId, enabled: plan.sub === 'enable' };
+      const response = await runtime.handleCommand(command, newCliGestureKey());
+      if (!response.success) { console.error(formatError(response.error)); process.exitCode = 1; return; }
+      console.log(`Agent adapter ${plan.sub} succeeded on the Host. History and user-owned CLI are preserved.`);
+      if (plan.sub === 'install') console.log('Install the official Grok CLI if missing, run grok login on the Host, then: piwin agents check --agent grok');
+      return;
+    }
+    if (sub === 'list') {
+      const response = await runtime.handleCommand({ type: 'agents/list' });
+      if (!response.success) { console.error(formatError(response.error)); process.exitCode = 1; return; }
+      const plugins = (response.data as { plugins: AgentPluginInstallation[] }).plugins;
+      const selected = plugins.filter((plugin) => requested === undefined || plugin.agentId === requested);
+      for (const plugin of selected) console.log(`${plugin.agentId}\tadapter v${plugin.manifest.version}\t${plugin.enabled ? 'enabled' : 'disabled'}\truntime: ${plugin.runtime.binaryPath ?? 'not checked'}`);
+      if (selected.length === 0) console.log('(no agent adapters installed)');
+      return;
+    }
+    const binaryPath = readOption(argv, '--path');
+    if (binaryPath !== undefined) {
+      const selected = await runtime.handleCommand({ type: 'agents/select-runtime', agentId: requested ?? 'grok', binaryPath }, newCliGestureKey());
+      if (!selected.success) { console.error(formatError(selected.error)); process.exitCode = 1; return; }
+    }
     const response = await runtime.handleCommand({
       type: 'agents/status',
       ...(requested !== undefined ? { agentId: requested } : {}),

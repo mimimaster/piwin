@@ -72,6 +72,7 @@ export type GrokSessionPorts = {
   /** Current foreground run id owned by the Host. */
   getCurrentRunId: () => string | undefined;
   now?: () => string;
+  onMcpStatus?: (params: unknown) => void;
 };
 
 export type GrokSessionOpenInput = {
@@ -342,6 +343,7 @@ export class GrokSessionHandle implements SessionHandle {
 
   private attach(): void {
     this.connection.onNotification((method, params) => {
+      if (method === '_x.ai/mcp/server_status') this.ports.onMcpStatus?.(params);
       this.notifications.handle(method, params, this.backendSessionId);
     });
     this.connection.setRequestHandler('session/request_permission', (params) =>

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Accepted** — Host backend, Desktop surfaces and CLI shipped on `feat/grok-acp-backend`; one real text turn probed on grok 1.0.44 (see §9) |
+| Status | **Accepted; implementation acceptance in progress** — local feature branch is not a published release; see the completion ledger |
 | Date | 2026-09-29 |
 | Related | [ADR 0003](./0003-dual-mode-host.md), [ADR 0036](./0036-host-server-multi-client-deployment.md), [ADR 0040](./0040-host-session-runtime-residency.md), [ADR 0051](./0051-host-owned-run-interventions.md), [ADR 0077](./0077-github-extension-registry.md) |
 | Product spec | `docs/specs/2026-09-29-grok-build-feature-mapping.md` (local, git-ignored) |
@@ -143,19 +143,23 @@ The Host is the authority; clients mirror it and never invent capability.
   unregistered-worktree grouping already groups them by directory.
 - **Readiness wording.** `unauthenticated` is never presented as usable, and an
   agent session row is labelled with the agent name while Pi stays unlabelled.
-- **No unverified installer.** No ACP probe has validated an official Grok
-  distribution recipe yet, so `piwin agents install` prints the official
-  guidance and asks for a re-check instead of running a remote installer.
-  Inventory mutations (`enable`/`disable`/`uninstall`) belong to the plugin
-  inventory slice and report themselves unavailable rather than faking a
-  toggle.
+- **Separate adapter and dependency installation.** `piwin agents install`
+  installs a reviewed declarative adapter through the Host inventory, without
+  starting Grok. Official CLI dependency installation remains manual until a
+  distribution recipe is verified. `enable`/`disable`/`uninstall` persist real
+  Host-owned adapter state; uninstall preserves history and user-owned CLI.
+  Directory reads do not probe CLIs. Check and first activation do. Session
+  bindings pin the adapter revision; incompatible replacements require migration.
 
 ### 9. Outstanding
 
-Shipped: Host backend routing and lifecycle, `@piwin/acp-agent`, Desktop
-surfaces, CLI parity, and capability gating.
+Implemented locally: Host backend routing and lifecycle, `@piwin/acp-agent`,
+Desktop surfaces, CLI parity, capability gating, optional adapter inventory,
+Agent marketplace distribution parsing and safe observed MCP status. These
+are not a published release. Full acceptance is tracked in
+[the completion ledger](../plans/2026-09-30-agent-plugin-completion.md).
 
-Not yet done — do not read the code as covering these:
+Evidence and remaining boundaries:
 
 - **Real-CLI prompt smoke (2026-09-30, grok 1.0.44).** `detectGrokCli`
   reported `ready` / `cached_token` / `verified`. A throwaway `session/new`
@@ -183,10 +187,15 @@ Not yet done — do not read the code as covering these:
   `reasoningEffort`, `yolo`, `activity`, `resident`, `lastChangeUnixMs`,
   `origin`. All 19 had a cwd; 16 had a string title; every `origin.kind` was
   `local` (none were subagents). `agents install` is still unprobed.
-- **Agent plugin inventory.** Install/enable/disable/uninstall and ownership
-  records are a separate slice; the CLI and Settings report them unavailable
-  rather than faking a toggle. The marketplace agent catalog is likewise not
-  built.
+- **Agent plugin inventory.** `@piwin/agent-plugins` validates reviewed recipes
+  and stores immutable adapter revisions. Host supplies atomic locked storage.
+  Disabled/uninstalled adapters reject new Runs, including resident sessions
+  and queued drain. Current Runs can finish; native history and authentication
+  are untouched. Agent marketplace cards and independent `agents.json` are
+  separate from extension `index.json` v1. Site publication is a separate gate.
+- **MCP status.** Only observed `_x.ai/mcp/server_status` fields are projected;
+  raw error reasons are replaced, never forwarded. No observed status is shown
+  as unknown, not as an empty configured inventory.
 - **Host capability enforcement is per-operation, not generic.** The Host
   rejects images on `session/prompt`; other unsupported operations are refused
   by their own command handlers, so a new backend must wire each one.

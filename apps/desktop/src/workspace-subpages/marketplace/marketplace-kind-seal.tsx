@@ -13,6 +13,7 @@ const KIND_SEALS: Record<MarketplaceCapabilityKind, string> = {
   extension: '器',
   skill: '法',
   mcp: '通',
+  agent: '行',
 };
 
 export type MarketplaceKindSealProps = {

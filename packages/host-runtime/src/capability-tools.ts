@@ -6,6 +6,7 @@
  * permission prompt and only ever uses the catalog's pinned source.
  */
 import type {
+  AgentPluginSource,
   HostToolRegistration,
   InstallSource,
   MarketplaceCapabilityKind,
@@ -24,9 +25,11 @@ import { saveMcpServerDraft, startMcpServerWithDiscovery } from './marketplace/m
 import { resolvePiPackageSource } from './marketplace/pi-package-source.js';
 import { getPiAgentDir } from './paths.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
+import { installAgentPlugin } from './grok/agent-plugin-inventory.js';
 
 /** Install side effects, injectable so tests never clone, npm-install or spawn. */
 export type CapabilityInstallPorts = {
+  installAgent: (rootDir: string, source: AgentPluginSource) => Promise<unknown>;
   installSkill: (input: { piwinRoot: string; source: InstallSource; name?: string }) => Promise<{
     skillId: string;
   }>;
@@ -52,6 +55,7 @@ export type BuildCapabilityToolsOptions = {
 };
 
 const DEFAULT_PORTS: CapabilityInstallPorts = {
+  installAgent: installAgentPlugin,
   installSkill: (input) => installSkill(input),
   installPiPackage: (input) => installPiPackage(input),
   installManagedExtension: (input) => installExtension(input),
@@ -117,6 +121,9 @@ async function installEntry(
 ): Promise<ToolResult> {
   const install = entry.install;
   switch (install.kind) {
+    case 'agent':
+      await ports.installAgent(options.piwinRoot, install.source);
+      return { ok: true, output: 'Agent adapter installed on the Host. Check its CLI and sign in in Agent Backends; no task was started.', details: { entryId: entry.entryId } };
     case 'skill': {
       const result = await ports.installSkill({
         piwinRoot: options.piwinRoot,
@@ -201,7 +208,7 @@ export function buildCapabilityTools(options: BuildCapabilityToolsOptions): Host
       async execute(args) {
         const query = typeof args.query === 'string' ? args.query : undefined;
         if (args.kind !== undefined && !isCapabilityKind(args.kind)) {
-          return invalid('kind must be "extension", "skill" or "mcp".');
+          return invalid('kind must be "extension", "skill", "mcp" or "agent".');
         }
         const entries = listCatalogEntries({
           ...(query ? { query } : {}),

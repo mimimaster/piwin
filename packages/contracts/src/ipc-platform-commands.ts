@@ -1,6 +1,7 @@
 /** Remaining HostCommand variants (host, project, media, tools, jobs, …). */
 
 import type { PermissionDecision, PermissionRememberScope } from './host.js';
+import type { AgentPluginHostCommand } from './agent-plugin.js';
 import type { BrowserInputEvent, BrowserTargetIdentity, BrowserViewportMode } from './browser.js';
 import type { ModelProviderConfig } from './config.js';
 import type {
@@ -73,6 +74,7 @@ import type { MarketplacePiPackageSource } from './marketplace-search.js';
 import type { MarketplaceCapabilityKind, MarketplaceCategory } from './marketplace.js';
 
 export type PlatformHostCommand =
+  | AgentPluginHostCommand
   | SubscriptionAuthCommand
   | PiEnvironmentHostCommand
   | { id?: string; type: 'host/ping' }

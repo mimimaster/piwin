@@ -61,6 +61,8 @@ export type DetectGrokCliOptions = {
    * `~/.grok/config.toml` and returns undefined when the file is missing.
    */
   readPermissionMode?: (homeDir: string) => Promise<string | undefined>;
+  /** Explicit user choice must not silently fall back to another runtime. */
+  binaryPath?: string;
 };
 
 export async function detectGrokCli(options: DetectGrokCliOptions = {}): Promise<ExternalAgentStatus> {
@@ -70,7 +72,7 @@ export async function detectGrokCli(options: DetectGrokCliOptions = {}): Promise
   const fileExists = options.fileExists ?? pathExistsExecutable;
   const handshakeTimeoutMs = options.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS;
   const checkedAt = (options.now ?? isoNow)();
-  const searched = resolveGrokBinaryCandidates(env, homeDir, platform);
+  const searched = options.binaryPath !== undefined ? [options.binaryPath] : resolveGrokBinaryCandidates(env, homeDir, platform);
 
   let binaryPath: string | undefined;
   for (const candidate of searched) {

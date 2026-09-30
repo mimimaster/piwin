@@ -28,6 +28,8 @@ export type SessionBackendBinding = {
   backendSessionId?: string;
   /** Agent version observed when the binding was last used. */
   agentVersion?: string;
+  /** Immutable adapter revision; reinstalling a different revision requires migration. */
+  pluginRevision?: string;
   /** Agent-side last change (epoch ms) already reflected in the transcript projection. */
   syncedChangeUnixMs?: number;
   /** Last model / effort / mode the user chose; re-applied after resume. */
@@ -69,7 +71,7 @@ export function parseSessionBackendBinding(value: unknown): SessionBackendBindin
   ) {
     binding.syncedChangeUnixMs = record.syncedChangeUnixMs;
   }
-  for (const key of ['modelId', 'effortId', 'modeId'] as const) {
+  for (const key of ['modelId', 'effortId', 'modeId', 'pluginRevision'] as const) {
     const value = record[key];
     if (typeof value === 'string' && value !== '') {
       binding[key] = value;

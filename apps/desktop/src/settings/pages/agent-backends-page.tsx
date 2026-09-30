@@ -16,6 +16,8 @@ import { Button, Notice } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
+import { AgentPluginControls } from './agent-plugin-controls';
+import { AgentMcpStatus } from './agent-mcp-status';
 
 type LoadState =
   | { kind: 'idle' }
@@ -103,6 +105,9 @@ export function AgentBackendsPage(): ReactElement {
         {settings.hostStatus?.mock === true ? (isZh ? ' · mock' : ' · mock') : ''}
       </p>
 
+      <AgentPluginControls {...(settings.hostClient?.request ? { request: settings.hostClient.request } : {})} isZh={isZh} onChanged={() => load(false)} />
+      <AgentMcpStatus {...(settings.hostClient?.request ? { request: settings.hostClient.request } : {})} isZh={isZh} />
+
       {state.kind === 'error' ? (
         <div data-testid="agent-backends-error">
           <Notice tone="error">{state.message}</Notice>
@@ -179,11 +184,7 @@ function GrokFollowsHostNotes(props: {
           ? '。piwin 中的 Grok 会话与 Grok TUI 一致，这里不能改。'
           : '. Grok sessions in piwin follow the Grok TUI. This page cannot change it.'}
       </p>
-      <p className="muted" data-testid="agent-backend-mcp-grok">
-        {props.isZh
-          ? 'MCP：本切片不列出 Grok 的服务器。状态通知可能带有密钥，piwin 不保存、也不在这里展示。'
-          : 'MCP: this build does not list Grok servers. Status notifications can carry secrets, so piwin neither stores nor shows them here.'}
-      </p>
+
     </>
   );
 }
@@ -215,7 +216,7 @@ function stateDetail(agent: ExternalAgentStatus, isZh: boolean): string {
         ? `未找到 CLI。已查找：${agent.searched.join('、') || '默认 PATH'}`
         : `CLI not found. Searched: ${agent.searched.join(', ') || 'default PATH'}`;
     case 'unavailable':
-      return isZh
+      return agent.binaryPath === '' ? agent.reason : isZh
         ? `已找到 ${agent.binaryPath}，但握手失败：${agent.reason}`
         : `Found ${agent.binaryPath} but the handshake failed: ${agent.reason}`;
     case 'unauthenticated':

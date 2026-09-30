@@ -78,6 +78,41 @@ describe('AgentBackendsPage', () => {
     });
   }
 
+  it('installs and toggles the adapter through Host commands without probing implicitly', async () => {
+    let installed = false;
+    let enabled = true;
+    const plugin = () => ({ agentId: 'grok', enabled, manifest: { name: 'Grok Build', version: '1.0.0' }, runtime: { ownership: 'user' } });
+    const request = vi.fn(async (command: { type: string; enabled?: boolean }): Promise<HostResponse> => {
+      if (command.type === 'agents/install') installed = true;
+      if (command.type === 'agents/set-enabled') enabled = command.enabled === true;
+      return { type: 'response', command: command.type, success: true, data: command.type === 'agents/list' ? { plugins: installed ? [plugin()] : [] } : { agents: [] } };
+    });
+    render(request);
+    await settle();
+    const install = container.querySelector('[data-testid="agent-plugin-install"]') as HTMLButtonElement;
+    expect(install).not.toBeNull();
+    await act(async () => { install.click(); });
+    await settle();
+    expect(request).toHaveBeenCalledWith({ type: 'agents/install', source: { kind: 'bundled', agentId: 'grok' } });
+    expect(container.querySelector('[data-testid="agent-plugin-grok"]')?.textContent).toContain('已启用');
+    const toggle = container.querySelector('[data-testid="agent-plugin-toggle"]') as HTMLButtonElement;
+    await act(async () => { toggle.click(); });
+    await settle();
+    expect(request).toHaveBeenCalledWith({ type: 'agents/set-enabled', agentId: 'grok', enabled: false });
+    expect(container.querySelector('[data-testid="agent-plugin-grok"]')?.textContent).toContain('已停用');
+    expect(request.mock.calls.some(([command]) => 'refresh' in command)).toBe(false);
+  });
+
+  it('renders safe observed MCP status without inventing an empty configuration', async () => {
+    const request = vi.fn(async (command: { type: string }): Promise<HostResponse> => ({ type: 'response', command: command.type, success: true, data: command.type === 'agents/mcp-status' ? { observed: true, servers: [{ name: 'notes', status: 'connected', transport: 'stdio' }] } : { agents: [], plugins: [] } }));
+    render(request);
+    await settle();
+    const panel = container.querySelector('[data-testid="agent-backend-mcp-grok"]');
+    expect(panel?.textContent).toContain('notes');
+    expect(panel?.textContent).toContain('connected');
+    expect(panel?.textContent).not.toContain('尚未收到');
+  });
+
   it('lists an agent the Host reports as ready', async () => {
     render(vi.fn().mockResolvedValue({ success: true, data: { agents: [readyAgent()] } }));
     await settle();
@@ -143,7 +178,7 @@ describe('AgentBackendsPage', () => {
     await settle();
 
     // The first read is cached state, not a forced probe.
-    expect(request).toHaveBeenLastCalledWith({ type: 'agents/status' });
+    expect(request).toHaveBeenCalledWith({ type: 'agents/status' });
 
     const button = container.querySelector(
       '[data-testid="agent-backends-recheck"]',

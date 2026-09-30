@@ -15,6 +15,7 @@ import { listMarketplaceWithExtensions, matchCatalogEntry } from '@piwin/marketp
 import { loadMcpConfig } from '@piwin/mcp';
 import { getSessionRecord } from '@piwin/session';
 import { loadCatalogResources } from '../commands/catalog-resources.js';
+import { createAgentPluginInventory } from '../grok/agent-plugin-inventory.js';
 import type { HostCommandContext } from '../commands/host-command-context.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import { isConversationIndexRecord } from '../session-scope.js';
@@ -63,6 +64,7 @@ export async function readMarketplaceInventory(
     };
   }
   return projectMarketplaceInventory({
+    agents: await createAgentPluginInventory(rootDir).list(),
     extensions: resources.extensions,
     managedRecords,
     skills: resources.skills,
@@ -88,6 +90,7 @@ export async function readInstalledCatalogEntryIds(piwinRoot: string): Promise<S
     const entry = matchCatalogEntry(kind, capabilityId, catalog);
     if (entry) installed.add(entry.entryId);
   };
+  for (const agent of await createAgentPluginInventory(piwinRoot).list()) mark('agent', agent.agentId);
   for (const extension of resources.extensions) mark('extension', extension.id);
   for (const skill of resources.skills) mark('skill', skill.id);
   for (const serverId of Object.keys(mcpConfig.mcpServers)) mark('mcp', serverId);
@@ -111,6 +114,9 @@ const INVENTORY_MUTATIONS: ReadonlyMap<HostCommand['type'], MarketplaceCapabilit
   HostCommand['type'],
   MarketplaceCapabilityKind[]
 >([
+  ['agents/install', ['agent']],
+  ['agents/set-enabled', ['agent']],
+  ['agents/uninstall', ['agent']],
   ['extensions/install', ['extension']],
   ['extensions/set_enabled', ['extension']],
   ['extensions/uninstall', ['extension']],

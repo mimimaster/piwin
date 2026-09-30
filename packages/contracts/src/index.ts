@@ -1,4 +1,5 @@
 export * from './agent-failure.js';
+export * from './agent-plugin.js';
 export * from './agent-prompt-outcome.js';
 export * from './agent-event-decode.js';
 export * from './host.js';

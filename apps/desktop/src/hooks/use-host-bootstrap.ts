@@ -469,6 +469,9 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         });
         return;
       }
+      if (message.type === 'marketplace/inventory-updated' && message.changedKinds.includes('agent')) {
+        void bootstrapExternalAgents(hostClient, dispatch);
+      }
       if (message.type === 'agents/status-updated') {
         dispatch({ type: 'agents/status-updated', status: message.status });
         // A first `ready` carries the previously unknown agent-side catalog;

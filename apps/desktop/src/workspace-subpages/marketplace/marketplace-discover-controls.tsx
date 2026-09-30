@@ -11,6 +11,7 @@ const KIND_FILTERS: readonly MarketKindFilter[] = [
   'piwin-extension',
   'skill',
   'mcp',
+  'agent',
 ];
 
 export type MarketplaceDiscoverControlsProps = {

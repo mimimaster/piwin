@@ -87,6 +87,9 @@ export function useMarketplaceActions(options: {
     await run(entry.entryId, name, async (phase) => {
       phase('installing');
       switch (descriptor.kind) {
+        case 'agent':
+          await send(request, { type: 'agents/install', source: descriptor.source });
+          return { type: 'success', title: zh ? `[${name}] 适配插件已安装` : `[${name}] adapter installed`, text: zh ? '在 Agent 后端设置中检测 Host CLI 并登录。安装插件不表示 CLI 已就绪。' : 'Check the Host CLI and sign in in Agent Backends. Adapter installation does not mean the CLI is ready.' };
         case 'pi-package': {
           await send(request, { type: 'marketplace/package-install', source: descriptor.source });
           phase('applying');
@@ -176,6 +179,9 @@ export function useMarketplaceActions(options: {
     await run(entry.entryId, name, async (phase) => {
       phase('updating');
       switch (descriptor.kind) {
+        case 'agent':
+          await send(request, { type: 'agents/install', source: descriptor.source });
+          return { type: 'success', title: zh ? `[${name}] 适配插件已检查` : `[${name}] adapter checked`, text: zh ? '已有会话不会自动迁移到不同修订。' : 'Existing sessions are not silently migrated to another revision.' };
         case 'pi-package': {
           await send(request, { type: 'marketplace/package-install', source: descriptor.source });
           phase('applying');
@@ -260,6 +266,9 @@ export function useMarketplaceActions(options: {
     await run(item.installationKey, item.name, async (phase) => {
       phase('removing');
       switch (route.command) {
+        case 'agents/uninstall':
+          await send(request, { type: 'agents/uninstall', agentId: item.capabilityId });
+          return { type: 'success', title: zh ? '适配插件已卸载' : 'Adapter removed', text: zh ? '历史和用户 CLI 已保留；当前 Run 可继续至结束。' : 'History and user CLI preserved; current Runs may finish.' };
         case 'extensions/uninstall': {
           const data = (await send(request, {
             type: 'extensions/uninstall',
@@ -314,6 +323,10 @@ export function useMarketplaceActions(options: {
     const enabled = !item.enabled;
     await run(item.installationKey, item.name, async (phase) => {
       phase('toggling');
+      if (item.kind === 'agent') {
+        await send(request, { type: 'agents/set-enabled', agentId: item.capabilityId, enabled });
+        return { type: 'success', title: enabled ? (zh ? 'Agent 已启用' : 'Agent enabled') : (zh ? 'Agent 已停用' : 'Agent disabled'), text: zh ? '只影响新的 Run，当前任务不会被中断。' : 'Applies to new Runs; current work is not interrupted.' };
+      }
       if (item.kind === 'skill') {
         await send(request, { type: 'skills/set_enabled', skillId: item.capabilityId, enabled });
         return {

@@ -21,6 +21,7 @@ export {
   SessionIndexCorruptError,
 } from './session-index-store.js';
 export { writeTextFileAtomic } from './atomic-text-file.js';
+export { withFileWriteLock } from './file-write-lock.js';
 export { syncExternalSessionCatalog } from './external-session-catalog.js';
 export type {
   ExternalCatalogEntry,

@@ -1,4 +1,5 @@
 export { parseJsonRpcLine } from './json-rpc-message.js';
+export { projectGrokMcpStatus } from './grok-mcp-status.js';
 export type {
   JsonRpcFailure,
   JsonRpcId,

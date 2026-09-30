@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@piwin/acp-agent": "workspace:*",
+    "@piwin/agent-plugins": "workspace:*",
     "@piwin/agent-host": "workspace:*",
     "@piwin/artifact": "workspace:*",
     "@piwin/automation": "workspace:*",

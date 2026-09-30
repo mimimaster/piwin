@@ -11,13 +11,13 @@ function status(overrides: Partial<ExternalAgentStatus> & Pick<ExternalAgentStat
 }
 
 describe('planAgentsSubcommand', () => {
-  it('guides install instead of running an unverified installer', () => {
-    expect(planAgentsSubcommand('install')).toEqual({ kind: 'guide-install' });
+  it('installs the reviewed adapter through the same Host authority', () => {
+    expect(planAgentsSubcommand('install')).toEqual({ kind: 'mutate-host', sub: 'install' });
   });
 
-  it('refuses the inventory mutations this build does not implement', () => {
+  it('routes inventory mutations to the Host rather than faking local toggles', () => {
     for (const sub of ['enable', 'disable', 'uninstall']) {
-      expect(planAgentsSubcommand(sub)).toEqual({ kind: 'unsupported', sub });
+      expect(planAgentsSubcommand(sub)).toEqual({ kind: 'mutate-host', sub });
     }
   });
 

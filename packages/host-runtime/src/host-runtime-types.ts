@@ -134,6 +134,8 @@ export type HostRuntimeOptions = {
     | {
         createTransport?: (binaryPath: string, cwd: string) => import('@piwin/acp-agent').AcpLineTransport;
         detect?: () => Promise<import('@piwin/contracts').ExternalAgentStatus>;
+        /** Supported OS simulation in mock fixtures only, never a production override. */
+        testPlatform?: 'darwin' | 'win32' | 'linux';
         env?: NodeJS.ProcessEnv;
       };
   /**

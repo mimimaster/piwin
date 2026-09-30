@@ -1,4 +1,5 @@
 export { RECOMMENDED_SKILLS } from './skill-store.js';
+export { DEFAULT_AGENT_REGISTRY_URL, parseAgentRegistryIndex, fetchAgentRegistryIndex } from './agent-registry-index.js';
 export type { RecommendedSkill } from './skill-store.js';
 export {
   MARKETPLACE_CATALOG,

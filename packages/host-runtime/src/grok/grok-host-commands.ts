@@ -13,6 +13,7 @@ import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
 import { GROK_AGENT_ID } from './grok-capabilities.js';
+import { createAgentPluginInventory, handleAgentPluginCommand, requireEnabledAgentPlugin } from './agent-plugin-inventory.js';
 import {
   deleteGrokSessionEverywhere,
   handleSessionBackendCommand,
@@ -27,6 +28,8 @@ export async function handleExternalAgentCommand(
   command: HostCommand,
   requestId: string | undefined,
 ): Promise<HostResponse | null> {
+  const pluginResponse = await handleAgentPluginCommand(deps, command, requestId);
+  if (pluginResponse !== null) return pluginResponse;
   switch (command.type) {
     case 'agents/status': {
       if (command.agentId !== undefined && command.agentId !== GROK_AGENT_ID) {
@@ -35,13 +38,20 @@ export async function handleExternalAgentCommand(
       if (deps.grokBackend === undefined) {
         return ok(requestId, command.type, { agents: [] });
       }
-      const status = await deps.grokBackend.getStatus(command.refresh === true);
-      return ok(requestId, command.type, { agents: [status] });
+      const plugin = await createAgentPluginInventory(getPiwinRoot(deps.options.piwinRoot)).get(GROK_AGENT_ID);
+      if (plugin === undefined) return ok(requestId, command.type, { agents: [] });
+      if (!plugin.enabled) return ok(requestId, command.type, { agents: [{ agentId: plugin.agentId, state: 'unavailable', binaryPath: '', reason: 'Agent adapter disabled. Enable it before checking the CLI.', checkedAt: new Date().toISOString() }] });
+      const status = command.refresh === true
+        ? await deps.grokBackend.getStatus(true)
+        : deps.grokBackend.peekStatus();
+      return ok(requestId, command.type, { agents: [status ?? { agentId: plugin.agentId, state: 'unavailable', binaryPath: plugin.runtime.binaryPath ?? '', reason: 'CLI not checked. Choose Check again on the Host.', checkedAt: new Date().toISOString() }], installed: [plugin.agentId] });
     }
     case 'agents/mcp-status':
-      // Grok reports MCP status per session; the settings page reads it from
-      // a live session. No raw config (env/headers) is ever returned.
-      return ok(requestId, command.type, { agentId: command.agentId, servers: [] });
+      if (command.agentId !== GROK_AGENT_ID) return fail(requestId, command.type, 'unknown-agent');
+      return ok(requestId, command.type, {
+        agentId: command.agentId,
+        ...(deps.grokBackend?.getMcpStatuses() ?? { servers: [], observed: false }),
+      });
     case 'agents/sessions-sync':
       if (command.agentId !== GROK_AGENT_ID) {
         return fail(requestId, command.type, `unknown-agent: ${command.agentId}`);
@@ -101,6 +111,13 @@ export async function handleExternalAgentCommand(
       }
     }
     default: {
+      if (command.type === 'session/queued-turn-submit' || command.type === 'session/replace-run') {
+        const record = await getSessionRecord(indexPathOf(deps), command.sessionId);
+        if (isGrokRecord(record)) {
+          try { await requireEnabledAgentPlugin(getPiwinRoot(deps.options.piwinRoot)); }
+          catch (error) { return fail(requestId, command.type, formatError(error)); }
+        }
+      }
       const sessionId = 'sessionId' in command ? command.sessionId : undefined;
       return rejectUnsupportedExternalCommand(
         deps,

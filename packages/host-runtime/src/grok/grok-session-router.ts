@@ -21,6 +21,7 @@ import { workingDirectoryFromIndexRecord } from '../session-scope.js';
 import { GROK_AGENT_ID, createGrokSessionCapabilities, GROK_UNSUPPORTED_COMMANDS } from './grok-capabilities.js';
 import type { GrokSessionHandle } from './grok-session-handle.js';
 import { rebuildTranscriptFromReplay } from './grok-transcript-replay.js';
+import { requireEnabledAgentPlugin } from './agent-plugin-inventory.js';
 
 export function isGrokRecord(record: SessionIndexRecord | undefined): boolean {
   return record?.backend?.agentId === GROK_AGENT_ID;
@@ -71,6 +72,10 @@ export async function activateGrokSession(
   if (service === undefined) {
     throw new Error('grok-backend-unavailable: this Host has no Grok backend');
   }
+  const plugin = await requireEnabledAgentPlugin(getPiwinRoot(deps.options.piwinRoot));
+  if (binding.pluginRevision !== undefined && binding.pluginRevision !== plugin.revision) {
+    throw new Error('agent-update-requires-migration: this session uses a different adapter revision');
+  }
   const cwd = workingDirectoryFromIndexRecord(record, deps.options.piwinRoot);
   // Replay when the projection has never been synced from Grok (a session
   // imported from the catalog, or a lost projection) or Grok changed it since
@@ -95,6 +100,7 @@ export async function activateGrokSession(
   }
   const bindingPatch: Partial<SessionBackendBinding> = {
     backendSessionId: opened.backendSessionId,
+    pluginRevision: plugin.revision,
     ...(opened.agentVersion !== undefined ? { agentVersion: opened.agentVersion } : {}),
   };
   if (binding.syncedChangeUnixMs === undefined && !replay) {
@@ -130,6 +136,7 @@ export async function bindNewGrokSession(
   if (service === undefined) {
     throw new Error('grok-backend-unavailable: this Host has no Grok backend');
   }
+  const plugin = await requireEnabledAgentPlugin(getPiwinRoot(deps.options.piwinRoot));
   await service.requireReadyBinary();
   const record = await getSessionRecord(indexPath(deps), sessionId);
   if (record === undefined) {
@@ -137,6 +144,7 @@ export async function bindNewGrokSession(
   }
   record.backend = {
     agentId: GROK_AGENT_ID,
+    pluginRevision: plugin.revision,
     ...(input.modelId !== undefined ? { modelId: input.modelId } : {}),
     ...(input.effortId !== undefined ? { effortId: input.effortId } : {}),
   };

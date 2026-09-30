@@ -1,5 +1,6 @@
 /** Public piwin extension registry. The Host treats this index as untrusted data. */
 import type { MarketplaceCatalogEntry } from '@piwin/contracts';
+import { listRemoteAgentCatalog } from './agent-registry-index.js';
 import { listCatalogEntries, validateCatalogEntry, type ListCatalogEntriesOptions } from './catalog/catalog.js';
 
 export const DEFAULT_EXTENSION_REGISTRY_URL =
@@ -120,6 +121,7 @@ export async function listMarketplaceWithExtensions(
   options: ListCatalogEntriesOptions = {},
   fetchOptions: Parameters<typeof fetchExtensionRegistryIndex>[0] = {},
 ): Promise<MarketplaceCatalogEntry[]> {
+  const remoteAgents = Object.keys(fetchOptions).length === 0 ? listRemoteAgentCatalog() : Promise.resolve([]);
   let remote = cachedEntries;
   if (Object.keys(fetchOptions).length > 0 || Date.now() >= cacheExpiresAt) {
     pendingFetch ??= fetchExtensionRegistryIndex(fetchOptions).then((entries) => {
@@ -136,5 +138,8 @@ export async function listMarketplaceWithExtensions(
       cacheExpiresAt = Date.now() + 30_000;
     }
   }
-  return listCatalogEntries(options, [...listCatalogEntries({ includeWithdrawn: true }), ...remote]);
+  // A caller testing/overriding the extension source must not silently fetch a different source.
+  const agents = await remoteAgents;
+  const merged = new Map([...listCatalogEntries({ includeWithdrawn: true }), ...remote, ...agents].map((entry) => [entry.entryId, entry]));
+  return listCatalogEntries(options, [...merged.values()]);
 }

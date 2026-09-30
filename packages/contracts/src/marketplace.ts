@@ -9,14 +9,16 @@
 import type { ExtensionCompatibilityTier } from './extension-compatibility.js';
 import type { InstallSource, McpServerConfig } from './mcp.js';
 import type { MarketplacePiPackageSource } from './marketplace-search.js';
+import type { AgentPluginSource } from './agent-plugin.js';
 
 /** Plugin bundles stay out of the market until the owner re-scopes them (2026-09-14). */
-export type MarketplaceCapabilityKind = 'extension' | 'skill' | 'mcp';
+export type MarketplaceCapabilityKind = 'extension' | 'skill' | 'mcp' | 'agent';
 
 export const MARKETPLACE_CAPABILITY_KINDS: readonly MarketplaceCapabilityKind[] = [
   'extension',
   'skill',
   'mcp',
+  'agent',
 ];
 
 export type MarketplaceCategory =
@@ -72,7 +74,8 @@ export type MarketplaceInstallDescriptor =
   /** Host-managed immutable extension revision → `extensions/install`. */
   | { kind: 'managed-extension'; source: InstallSource; name?: string }
   | { kind: 'skill'; source: InstallSource; name?: string }
-  | { kind: 'mcp'; serverId: string; draft: McpServerConfig };
+  | { kind: 'mcp'; serverId: string; draft: McpServerConfig }
+  | { kind: 'agent'; source: AgentPluginSource };
 
 export type MarketplaceExample = {
   title: MarketplaceLocalizedText;
@@ -124,7 +127,8 @@ export type MarketplaceRemovalRoute =
   | { command: 'extensions/uninstall' }
   | { command: 'marketplace/package-remove'; packageSource: string }
   | { command: 'skills/uninstall' }
-  | { command: 'mcp/remove' };
+  | { command: 'mcp/remove' }
+  | { command: 'agents/uninstall' };
 
 export type MarketplaceInstalledItem = {
   /** `<kind>:<capabilityId>`; unique inside one inventory. */

@@ -13,6 +13,7 @@ import {
   GROK_DROPPED_NOTIFICATION_METHODS,
   JsonRpcConnection,
   projectGrokCatalogEntry,
+  projectGrokMcpStatus,
   type AcpLineTransport,
   type GrokCatalogSession,
   type GrokPermissionPrompt,
@@ -20,6 +21,7 @@ import {
 import type {
   AgentEvent,
   ExternalAgentStatus,
+  ExternalAgentMcpServerStatus,
   HostPush,
   PermissionDecision,
   PermissionRequestContext,
@@ -66,17 +68,36 @@ export type GrokBackendServiceDeps = {
   /** Test seam: replace detection. */
   detect?: () => Promise<ExternalAgentStatus>;
   createRequestId: () => string;
+  /** Called for every new activation; disabling never interrupts an accepted Run. */
+  requireEnabledPlugin?: () => Promise<{ runtime: { binaryPath?: string } }>;
 };
 
 export class GrokBackendService {
   private readonly deps: GrokBackendServiceDeps;
   private status: ExternalAgentStatus | undefined;
   private statusAt = 0;
+  private statusEpoch = 0;
   private statusPromise: Promise<ExternalAgentStatus> | undefined;
   private readonly sessionOptions = new Map<string, SessionBackendOptions>();
+  private readonly mcpStatuses = new Map<string, ExternalAgentMcpServerStatus>();
+
+  getMcpStatuses(): { servers: ExternalAgentMcpServerStatus[]; observed: boolean } {
+    return { servers: [...this.mcpStatuses.values()], observed: this.mcpStatuses.size > 0 };
+  }
 
   constructor(deps: GrokBackendServiceDeps) {
     this.deps = deps;
+  }
+
+  peekStatus(): ExternalAgentStatus | undefined {
+    return this.status;
+  }
+
+  invalidateStatus(): void {
+    this.statusEpoch++;
+    this.status = undefined;
+    this.statusAt = 0;
+    this.statusPromise = undefined;
   }
 
   /** Cached CLI status; `refresh` forces a new handshake. */
@@ -89,9 +110,11 @@ export class GrokBackendService {
     }
     const detect =
       this.deps.detect ??
-      (() =>
-        detectGrokCli({
-          ...(this.deps.env !== undefined ? { env: this.deps.env } : {}),
+      (async () => {
+        const plugin = await this.deps.requireEnabledPlugin?.();
+        return detectGrokCli({
+          env: this.deps.env ?? process.env,
+          ...(plugin?.runtime.binaryPath ? { binaryPath: plugin.runtime.binaryPath } : {}),
           homeDir: homedir(),
           ...(this.deps.createTransport !== undefined
             ? {
@@ -104,9 +127,12 @@ export class GrokBackendService {
                 },
               }
             : {}),
-        }));
+        });
+      });
+    const epoch = this.statusEpoch;
     this.statusPromise = detect()
       .then((status) => {
+        if (epoch !== this.statusEpoch) throw new Error('agent-readiness-changed: retry the check');
         const previous = this.status;
         this.status = status;
         this.statusAt = Date.now();
@@ -116,13 +142,14 @@ export class GrokBackendService {
         return status;
       })
       .finally(() => {
-        this.statusPromise = undefined;
+        if (epoch === this.statusEpoch) this.statusPromise = undefined;
       });
     return this.statusPromise;
   }
 
   /** Throws a user-facing error when Grok cannot run a session. */
   async requireReadyBinary(): Promise<string> {
+    await this.deps.requireEnabledPlugin?.();
     const status = await this.getStatus();
     switch (status.state) {
       case 'ready':
@@ -171,6 +198,10 @@ export class GrokBackendService {
         onTransportClosed: (reason) =>
           this.deps.onSessionTransportClosed(input.productSessionId, reason),
         getCurrentRunId: () => this.deps.getForegroundRunId(input.productSessionId),
+        onMcpStatus: (params) => {
+          const projected = projectGrokMcpStatus(params);
+          if (projected !== undefined && (this.mcpStatuses.size < 200 || this.mcpStatuses.has(projected.name))) this.mcpStatuses.set(projected.name, projected);
+        },
       },
     );
     this.sessionOptions.set(input.productSessionId, opened.handle.getBackendOptions());

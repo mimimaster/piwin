@@ -167,7 +167,7 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
             ),
         )
         .sort((left, right) => {
-          const kindOrder = { extension: 0, skill: 1, mcp: 2 };
+          const kindOrder = { extension: 0, skill: 1, mcp: 2, agent: 3 };
           const categoryOrder = {
             'code-development': 0,
             'design-content': 1,

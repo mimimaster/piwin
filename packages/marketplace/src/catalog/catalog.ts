@@ -14,6 +14,7 @@ import { isExactNpmVersion, isNpmPackageName } from '../search-pi-packages.js';
 import { EXTENSION_CATALOG } from './extensions.js';
 import { MCP_CATALOG } from './mcp.js';
 import { SKILL_CATALOG } from './skills.js';
+import { AGENT_CATALOG } from './agents.js';
 
 const GIT_COMMIT = /^[0-9a-f]{40}$/;
 /** `pkg@1.2.3` (npx) or `pkg==1.2.3` (uvx). */
@@ -47,6 +48,10 @@ export function validateCatalogEntry(entry: MarketplaceCatalogEntry): string[] {
     case 'pi-package':
     case 'managed-extension':
       if (entry.kind !== 'extension') issues.push(`${entry.entryId}: ${install.kind} installs an extension`);
+      break;
+    case 'agent':
+      if (entry.kind !== 'agent') issues.push(`${entry.entryId}: agent descriptor must install an agent`);
+      if (install.source.kind === 'registry' && !/^[a-f0-9]{64}$/.test(install.source.sha256)) issues.push(`${entry.entryId}: agent manifest requires a SHA-256 pin`);
       break;
     case 'skill':
     case 'mcp':
@@ -88,7 +93,7 @@ export function validateCatalogEntry(entry: MarketplaceCatalogEntry): string[] {
 }
 
 function composeCatalog(): readonly MarketplaceCatalogEntry[] {
-  const entries = [...EXTENSION_CATALOG, ...SKILL_CATALOG, ...MCP_CATALOG];
+  const entries = [...EXTENSION_CATALOG, ...SKILL_CATALOG, ...MCP_CATALOG, ...AGENT_CATALOG];
   const issues = entries.flatMap(validateCatalogEntry);
   const seen = new Set<string>();
   for (const entry of entries) {

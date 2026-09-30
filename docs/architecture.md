@@ -550,6 +550,7 @@ performed.
 | `@piwin/contracts` | Types, events, config schemas (runtime-light) |
 | `@piwin/host-runtime` | Product composition root: Settings compilation, command/push routing, runtime generations, Runs, Jobs, permissions, tools, prompt preparation. Turn execution lives in `session-turn-executor`; Run terminalization lives in `run-terminalizer`; Host egress envelopes live in `host-event-envelope`. |
 | `@piwin/agent-host` | Pi-only boundary: SDK backend, isolated worker backend, Pi event/tool adapters, worker protocol, parsed-stream guard for OpenAI-completions. Returns plain `AgentEvent[]` plus one `AgentPromptOutcome`. |
+| `@piwin/agent-plugins` | Declarative optional Agent manifests and immutable inventory transitions; Host injects serialized atomic persistence. No Pi or process execution. |
 | `@piwin/acp-agent` | Backend-agnostic ACP client: JSON-RPC line connection, ACP methods, Grok event/tool projection (ADR 0082). Pi-free and process-free — the caller injects the transport, so `host-runtime` owns spawning. |
 | `@piwin/host-client` | Transport-neutral client facade for Desktop, CLI, Windows, mobile, and Web shells (includes flashcard study controller) |
 | `@piwin/host-transport` | JSON framing and browser/Tauri WebSocket transport with connection state and cursor replay requests |
@@ -589,6 +590,7 @@ performed.
   subagent-runs/              # durable subagent batch/invocation manifests
   worktrees/                  # managed subagent worktree checkouts
   skills/
+  agents/inventory.json       # optional Agent adapter revisions, enabled state, user-owned CLI selection
   extensions/                  # immutable revisions, registry.json, deployment records
   mcp.json
   themes/

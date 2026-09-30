@@ -35,6 +35,7 @@ import {
 import { listKnownChatModelKeys } from './prompt-preparation.js';
 import { executeSessionTurn } from './session-turn-executor.js';
 import { executeExternalAgentTurn } from './external-agent-turn-executor.js';
+import { requireEnabledAgentPlugin } from '../grok/agent-plugin-inventory.js';
 import { requestedTurnPolicy } from './pause-turn-policy.js';
 import { rebaseForPromptTree } from './session-prompt-rebase.js';
 import { resolveSessionTurnProfile } from './session-turn-profile.js';
@@ -70,6 +71,14 @@ export async function handleSessionPromptCommand(
       // ADR 0082: external agents (Grok) own prompt semantics; Pi-only
       // conversation/plan/skill/orchestration preparation never applies.
       const externalAgent = isExternalBackendBinding(promptRecord?.backend);
+      if (externalAgent) {
+        if (promptRecord?.backend?.agentId !== 'grok') return fail(requestId, command.type, 'unknown-agent');
+        try {
+          const plugin = await requireEnabledAgentPlugin(getPiwinRoot(context.piwinRoot));
+          if (promptRecord.backend.pluginRevision !== undefined && promptRecord.backend.pluginRevision !== plugin.revision) return fail(requestId, command.type, 'agent-update-requires-migration');
+        }
+        catch (error) { return fail(requestId, command.type, formatError(error)); }
+      }
       if (externalAgent && hasImageAttachment(command.input)) {
         return fail(requestId, 'session/prompt', 'backend-operation-unsupported: Grok does not accept images yet', {
           code: 'backend-operation-unsupported',

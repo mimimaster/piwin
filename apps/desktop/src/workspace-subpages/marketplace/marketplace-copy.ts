@@ -31,6 +31,7 @@ const KIND_LABELS: Record<MarketplaceCapabilityKind | 'piwin-extension', Pair> =
   'piwin-extension': ['piwin extensions', 'piwin 扩展'],
   skill: ['skill', 'skill'],
   mcp: ['mcp', 'mcp'],
+  agent: ['Agent', 'Agent'],
 };
 
 export function kindLabel(
@@ -102,6 +103,8 @@ export function installRiskNotice(
   locale: DesktopLocale | undefined,
 ): string {
   switch (entry.install.kind) {
+    case 'agent':
+      return pick(locale, ['Installs a declarative adapter on the Host, not the CLI. Grok runs with Host user permissions and its own account. CLI dependency installation is manual; uninstall preserves history and user-owned runtimes.', '在 Host 安装声明式适配插件，不包含 CLI。Grok 使用 Host 用户权限和自己的账号；CLI 依赖手动安装，卸载保留历史与用户运行时。']);
     case 'pi-package':
     case 'managed-extension':
       return pick(locale, [

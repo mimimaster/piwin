@@ -366,6 +366,22 @@ importers:
         specifier: ^3.0.5
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(happy-dom@20.11.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
 
+  packages/agent-plugins:
+    dependencies:
+      '@piwin/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.20.1
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(happy-dom@20.11.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
+
   packages/artifact:
     dependencies:
       '@piwin/contracts':
@@ -544,6 +560,9 @@ importers:
       '@piwin/agent-host':
         specifier: workspace:*
         version: link:../agent-host
+      '@piwin/agent-plugins':
+        specifier: workspace:*
+        version: link:../agent-plugins
       '@piwin/artifact':
         specifier: workspace:*
         version: link:../artifact
