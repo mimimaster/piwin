@@ -4,6 +4,7 @@ import { SideChatHostClient } from './side-chat-command.js';
 import { WalkthroughHostClient } from './walkthrough-command.js';
 import { formatError } from '@piwin/contracts';
 import { commandAuth } from './auth-command.js';
+import { commandAgents } from './agents-command.js';
 import { commandCards } from './cards-command.js';
 import { commandChat } from './chat-command.js';
 import { commandConfig } from './config-command.js';
@@ -66,7 +67,7 @@ Usage:
   piwin session cold reconcile [--mock]
   piwin session lifecycle apply --plan <plan-id> [--mock]
   piwin status [--project <path>] [--mock]
-  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]
+  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--agent pi|grok] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]
   piwin scheme list [--mock]
   piwin scheme show <id> [--mock]
   piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass]
@@ -89,6 +90,10 @@ Usage:
   piwin plugin install --local <dir> | --git <url> | --registry <id> | --bundled <id> [--secret KEY=VAL...]
   piwin plugin uninstall <id>
   piwin plugin registry [--url <url>]
+  piwin agents list [--mock]
+  piwin agents check [--agent <id>] [--mock]
+  piwin agents install [--agent <id>]
+  piwin agents login [--agent <id>] [--mock]
   piwin notes add <content> --title <t> [--collection c] [--tags a,b]
   piwin notes list [--collection c]
   piwin notes search <query> [--limit n] [--tags t1,t2]
@@ -239,6 +244,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'plugin') {
     await commandPlugin(argv);
+    return;
+  }
+  if (command === 'agents') {
+    await commandAgents(argv);
     return;
   }
   if (command === 'cron') {
