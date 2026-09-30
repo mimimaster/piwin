@@ -33,22 +33,17 @@ import type {
 } from '@piwin/contracts';
 import {
   Button,
-  FileTypeIcon,
   IconButton,
   Notice,
   Spinner,
 } from '@piwin/ui-kit';
 import { IconClose, IconRefresh, IconSearch } from './shell-icons';
-import { CodePreviewView } from './code-preview-view';
 import { prewarmFileHighlight } from './syntax/file-highlight.js';
 import { completeProjectImagePreview, predecodeImage } from './project-image-preview-read.js';
-import { PreviewUnavailable } from './PreviewUnavailable';
 import { FilePanelEmptyFallback } from './file-panel-empty-fallback.js';
 import {
   classifyFileTreePreviewUnavailable,
-  FILE_TREE_IMAGE_PREVIEW_MAX_BYTES,
 } from './preview-unavailable';
-import { EnhancedMarkdownView } from './EnhancedMarkdownView';
 import {
   FILE_TREE_RAIL_DEFAULT_WIDTH_PX,
   FILE_TREE_RAIL_MAX_WIDTH_PX,
@@ -76,7 +71,13 @@ import { resolveProjectFilesystemRoot } from './remote-session-hydrate.js';
 import { PIWIN_PATH_MIME } from './workspace-path-drag';
 import type { ContextMenuDispatchers } from './context-menu';
 import { FileTreeNodeView } from './file-tree-node-view';
-import { MarkupPreviewView, markupPreviewKind } from './markup-preview-view';
+import { markupPreviewKind } from './markup-preview-view';
+import { FileTreePreviewPane } from './file-tree-preview-pane';
+import {
+  isMarkdownPreviewPath,
+  previewStateFromRead,
+  type FilePreviewState,
+} from './file-tree-preview-state.js';
 
 
 export type FileTreeRequest =
@@ -125,60 +126,6 @@ export type FileTreePanelProps = {
   /** Host filesystem style. Required when `projectPath` is an opaque remote id. */
   pathStyle?: HostPathStyle | undefined;
 };
-
-type FilePreviewState = {
-  relativePath: string;
-  absolutePath: string;
-  content: string;
-  truncated: boolean;
-  isBinary: boolean;
-  byteSize?: number;
-  mimeHint?: string;
-  previewDataUrl?: string;
-  /**
-   * `placeholder`: a downscaled WebP is showing while full-resolution slices
-   * load; `placeholder-only`: those slices failed, so it stays.
-   */
-  previewQuality?: 'placeholder' | 'placeholder-only';
-};
-
-function previewStateFromRead(
-  data: ProjectReadFileData,
-  relativePath: string,
-  absolutePath: string,
-): FilePreviewState {
-  return {
-    relativePath: data.relativePath || relativePath,
-    absolutePath: data.absolutePath || absolutePath,
-    content: data.content ?? '',
-    truncated: data.truncated === true,
-    isBinary: data.isBinary === true,
-    ...(typeof data.byteSize === 'number' ? { byteSize: data.byteSize } : {}),
-    ...(data.mimeHint ? { mimeHint: data.mimeHint } : {}),
-    ...(data.previewDataUrl ? { previewDataUrl: data.previewDataUrl } : {}),
-  };
-}
-
-/** Markdown / plaintext files render through EnhancedMarkdownView (same path as DocPreview). */
-const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown', 'mdx', 'txt', 'text']);
-
-/**
- * Only a missing file reads as "not found"; a transport or permission failure
- * used to wear the same copy and sent users looking for files that exist.
- */
-function previewErrorReason(message: string): string {
-  if (/ENOENT|no such file/i.test(message)) return 'not-found';
-  if (/not a file/i.test(message)) return 'not-a-file';
-  if (/project-root-not-registered/i.test(message)) return 'project-root-not-registered';
-  if (/project-root-missing/i.test(message)) return 'project-root-missing';
-  return 'unavailable';
-}
-
-function isMarkdownPreviewPath(path: string): boolean {
-  const extensionMatch = /\.([a-zA-Z0-9]+)$/.exec(path);
-  const extension = extensionMatch?.[1]?.toLowerCase() ?? '';
-  return extension === '' || MARKDOWN_EXTENSIONS.has(extension);
-}
 
 function entryToNode(entry: ProjectDirEntry): FileTreeNodeState {
   return {
@@ -771,118 +718,23 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       }
     >
       {isSplitOpen ? (
-        <section
-          className="file-tree-preview"
-          data-testid="file-tree-preview"
-          aria-label="File preview"
-        >
-          <header className="file-tree-preview-header">
-            <div className="file-tree-preview-title">
-              {previewFileName ? (
-                <>
-                  <FileTypeIcon filePathOrExt={previewFileName} />
-                  <strong title={preview?.relativePath ?? selectedPath ?? undefined}>
-                    {previewFileName}
-                  </strong>
-                </>
-              ) : (
-                <strong>{locale === 'zh-CN' ? '文件预览' : 'File preview'}</strong>
-              )}
-            </div>
-            <IconButton
-              title={locale === 'zh-CN' ? '关闭预览' : 'Close preview'}
-              label={locale === 'zh-CN' ? '关闭预览' : 'Close preview'}
-              data-testid="file-tree-preview-close"
-              onClick={closeFilePreview}
-            >
-              <IconClose width={14} height={14} />
-            </IconButton>
-          </header>
-          <div className="file-tree-preview-body">
-            {previewLoading && !preview ? (
-              <div className="file-tree-loading">
-                <Spinner />
-                <span className="muted">{locale === 'zh-CN' ? '加载中…' : 'Loading…'}</span>
-              </div>
-            ) : null}
-            {previewError ? (
-              <PreviewUnavailable
-                reason={previewErrorReason(previewError)}
-                locale={locale}
-                fileName={previewFileName}
-                testId="file-tree-preview-unavailable"
-              />
-            ) : null}
-            {preview && showImagePreview && preview.previewDataUrl ? (
-              <div className="file-tree-preview-image-stage" data-testid="file-tree-preview-image">
-                <img
-                  className="file-tree-preview-image"
-                  src={preview.previewDataUrl}
-                  alt={previewFileName || preview.relativePath}
-                  draggable={false}
-                />
-                {preview.previewQuality ? (
-                  <span
-                    className="file-tree-preview-image-badge"
-                    data-testid="file-tree-preview-image-badge"
-                    role="status"
-                  >
-                    {preview.previewQuality === 'placeholder'
-                      ? locale === 'zh-CN'
-                        ? '正在加载原图…'
-                        : 'Loading full resolution…'
-                      : locale === 'zh-CN'
-                        ? '原图加载失败，当前为预览图'
-                        : 'Full resolution unavailable; showing a preview'}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-            {preview && binaryUnavailableReason ? (
-              <PreviewUnavailable
-                reason={binaryUnavailableReason}
-                locale={locale}
-                fileName={previewFileName || preview.relativePath}
-                {...(preview.byteSize !== undefined ? { byteSize: preview.byteSize } : {})}
-                {...(binaryUnavailableReason === 'too-large'
-                  ? { maxBytes: FILE_TREE_IMAGE_PREVIEW_MAX_BYTES }
-                  : {})}
-                testId="file-tree-preview-binary"
-              />
-            ) : null}
-            {preview && !preview.isBinary && !showImagePreview ? (
-              <>
-                {preview.truncated ? (
-                  <div className="file-tree-preview-truncated muted">
-                    {locale === 'zh-CN' ? '内容已截断' : 'Content truncated'}
-                  </div>
-                ) : null}
-                {showMarkupPreview && markupKind ? (
-                  <MarkupPreviewView
-                    source={preview.content}
-                    kind={markupKind}
-                    locale={locale}
-                  />
-                ) : showMarkdownPreview ? (
-                  <EnhancedMarkdownView
-                    text={preview.content}
-                    docTitle={previewFileName || preview.relativePath}
-                    filePath={preview.relativePath}
-                    {...(props.projectPath ? { projectPath: props.projectPath } : {})}
-                  />
-                ) : (
-                  <CodePreviewView
-                    code={preview.content}
-                    filePath={preview.relativePath}
-                    projectPath={props.projectPath ?? undefined}
-                    contextMenuCaps={contextMenuCaps}
-                    contextMenuDispatchers={contextMenuDispatchers}
-                  />
-                )}
-              </>
-            ) : null}
-          </div>
-        </section>
+        <FileTreePreviewPane
+          locale={locale}
+          preview={preview}
+          previewLoading={previewLoading}
+          previewError={previewError}
+          previewFileName={previewFileName}
+          selectedPath={selectedPath}
+          projectPath={props.projectPath}
+          closeFilePreview={closeFilePreview}
+          contextMenuCaps={contextMenuCaps}
+          contextMenuDispatchers={contextMenuDispatchers}
+          markupKind={markupKind}
+          showMarkupPreview={showMarkupPreview}
+          showImagePreview={showImagePreview}
+          showMarkdownPreview={showMarkdownPreview}
+          binaryUnavailableReason={binaryUnavailableReason}
+        />
       ) : null}
 
       <div className="file-tree-main" data-testid="file-tree-browser">

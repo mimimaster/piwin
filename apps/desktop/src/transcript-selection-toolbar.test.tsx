@@ -10,7 +10,10 @@ import {
   type ContextMenuDispatchers,
   type DesktopContextMenuValue,
 } from './context-menu/index.js';
-import { TranscriptSelectionToolbar } from './transcript-selection-toolbar.js';
+import {
+  TranscriptSelectionToolbar,
+  type TranscriptSelectionToolbarProps,
+} from './transcript-selection-toolbar.js';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -79,7 +82,10 @@ describe('TranscriptSelectionToolbar', () => {
     vi.restoreAllMocks();
   });
 
-  function renderToolbar(customCaps?: Partial<ContextMenuCapabilities>): {
+  function renderToolbar(
+    customCaps?: Partial<ContextMenuCapabilities>,
+    toolbarProps?: Partial<TranscriptSelectionToolbarProps>,
+  ): {
     containerEl: HTMLDivElement;
     textNode: Text;
   } {
@@ -117,6 +123,7 @@ describe('TranscriptSelectionToolbar', () => {
               containerRef={containerRef}
               projectPath="/mock/project"
               locale={effectiveCaps.locale}
+              {...toolbarProps}
             />
           </DesktopContextMenuProvider>
         </PiwinUiProvider>
@@ -320,5 +327,135 @@ describe('TranscriptSelectionToolbar', () => {
     });
 
     expect(document.querySelector('[data-testid="transcript-selection-toolbar"]')).toBeNull();
+  });
+  describe('document surface actions', () => {
+    function selectAndOpen(textNode: Text): void {
+      act(() => {
+        selectText(textNode, 0, 7);
+        document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      });
+    }
+
+    function typeInto(textarea: HTMLTextAreaElement, value: string): void {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        'value',
+      )?.set;
+      act(() => {
+        setter?.call(textarea, value);
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
+
+    it('offers neither Copy nor Comment on the transcript', () => {
+      const { textNode } = renderToolbar();
+      selectAndOpen(textNode);
+      expect(document.querySelector('[data-testid="selection-toolbar-copy"]')).toBeNull();
+      expect(document.querySelector('[data-testid="selection-toolbar-comment"]')).toBeNull();
+    });
+
+    it('Copy writes the whole selection, past the Add to Chat cap', () => {
+      const long = '长'.repeat(9000);
+      const { textNode } = renderToolbar(undefined, {
+        copyable: true,
+        serializeRange: () => long,
+      });
+      selectAndOpen(textNode);
+
+      const copy = document.querySelector<HTMLButtonElement>(
+        '[data-testid="selection-toolbar-copy"]',
+      );
+      expect(copy?.textContent).toContain('复制');
+      act(() => copy?.click());
+
+      expect(dispatchers.copyText).toHaveBeenCalledWith(long);
+      expect(document.querySelector('[data-testid="transcript-selection-toolbar"]')).toBeNull();
+    });
+
+    it('Add to Chat sends the serialized Markdown, capped', () => {
+      const { textNode } = renderToolbar(undefined, {
+        copyable: true,
+        serializeRange: () => '`code` and **bold**',
+      });
+      selectAndOpen(textNode);
+      act(() =>
+        document
+          .querySelector<HTMLButtonElement>('[data-testid="selection-toolbar-add-to-chat"]')
+          ?.click(),
+      );
+      expect(dispatchers.addToChat).toHaveBeenCalledWith(
+        expect.objectContaining({ snapshotText: '`code` and **bold**' }),
+      );
+    });
+
+    it('Comment opens an inline composer and submits the quote with the note', () => {
+      const submit = vi.fn();
+      const { textNode } = renderToolbar(undefined, {
+        serializeRange: () => 'exact quote',
+        comment: { blockedReason: () => null, submit },
+      });
+      selectAndOpen(textNode);
+
+      act(() =>
+        document
+          .querySelector<HTMLButtonElement>('[data-testid="selection-toolbar-comment"]')
+          ?.click(),
+      );
+      const input = document.querySelector<HTMLTextAreaElement>(
+        '[data-testid="selection-toolbar-comment-input"]',
+      );
+      expect(input).not.toBeNull();
+      expect(document.querySelector('.selection-toolbar-quote')?.textContent).toBe('exact quote');
+
+      const submitButton = document.querySelector<HTMLButtonElement>(
+        '[data-testid="selection-toolbar-comment-submit"]',
+      );
+      expect(submitButton?.disabled).toBe(true);
+
+      typeInto(input as HTMLTextAreaElement, '  tighten this  ');
+      expect(submitButton?.disabled).toBe(false);
+      act(() => submitButton?.click());
+
+      expect(submit).toHaveBeenCalledWith(
+        expect.objectContaining({ quote: 'exact quote', commentText: 'tighten this' }),
+      );
+      expect(document.querySelector('[data-testid="transcript-selection-toolbar"]')).toBeNull();
+    });
+
+    it('keeps the composer open when arrow keys move the caret inside it', () => {
+      const { textNode } = renderToolbar(undefined, {
+        comment: { blockedReason: () => null, submit: vi.fn() },
+      });
+      selectAndOpen(textNode);
+      act(() =>
+        document
+          .querySelector<HTMLButtonElement>('[data-testid="selection-toolbar-comment"]')
+          ?.click(),
+      );
+      const input = document.querySelector<HTMLTextAreaElement>(
+        '[data-testid="selection-toolbar-comment-input"]',
+      );
+
+      act(() => {
+        window.getSelection()?.removeAllRanges();
+        input?.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', bubbles: true }));
+      });
+
+      expect(
+        document.querySelector('[data-testid="selection-toolbar-comment-input"]'),
+      ).not.toBeNull();
+    });
+
+    it('disables Comment with the reason when the block cannot take one', () => {
+      const { textNode } = renderToolbar(undefined, {
+        comment: { blockedReason: () => '这一段已有评论', submit: vi.fn() },
+      });
+      selectAndOpen(textNode);
+      const button = document.querySelector<HTMLButtonElement>(
+        '[data-testid="selection-toolbar-comment"]',
+      );
+      expect(button?.disabled).toBe(true);
+      expect(button?.title).toBe('这一段已有评论');
+    });
   });
 });

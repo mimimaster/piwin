@@ -55,9 +55,12 @@ function mermaidStateFromCache(source: string, themeMode: ThemeMode): MermaidRen
 
 export function MermaidBlock({ source }: MermaidBlockProps): ReactElement {
   return (
-    <MermaidErrorBoundary source={source}>
-      <MermaidInner source={source} />
-    </MermaidErrorBoundary>
+    // The rendered SVG cannot say what it came from; Markdown copy reads this.
+    <div className="md-mermaid-source" data-md-source={`\`\`\`mermaid\n${source}\n\`\`\``}>
+      <MermaidErrorBoundary source={source}>
+        <MermaidInner source={source} />
+      </MermaidErrorBoundary>
+    </div>
   );
 }
 

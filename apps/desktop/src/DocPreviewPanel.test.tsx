@@ -5,6 +5,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { DocPreviewPanel } from './DocPreviewPanel';
+import {
+  DesktopContextMenuProvider,
+  type ContextMenuDispatchers,
+  type DesktopContextMenuValue,
+} from './context-menu/index.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -232,5 +237,163 @@ describe('DocPreviewPanel', () => {
 
     expect(container.querySelector('[data-testid="markup-preview"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="code-preview-view"]')).toBeNull();
+  });
+  describe('selection and copy', () => {
+    const SOURCE = 'Use `a.ts` here.\n\nSecond **bold** paragraph.';
+
+    function menuValue(): { value: DesktopContextMenuValue; copyText: ReturnType<typeof vi.fn> } {
+      const copyText = vi.fn();
+      const dispatchers = {
+        addToChat: vi.fn(),
+        focusComposer: vi.fn(),
+        sendPreset: vi.fn(),
+        openPath: vi.fn(),
+        revealPath: vi.fn(),
+        copyText,
+        quoteInComposer: vi.fn(),
+        retryMessage: vi.fn(),
+        forkMessage: vi.fn(),
+        openSideChat: vi.fn(),
+        notify: vi.fn(),
+      } satisfies ContextMenuDispatchers;
+      return {
+        copyText,
+        value: {
+          caps: {
+            hasProject: true,
+            canReveal: true,
+            sideChatAvailable: false,
+            applyAvailable: false,
+            canSendPreset: true,
+            locale: 'zh-CN',
+          },
+          dispatchers,
+        },
+      };
+    }
+
+    function renderPanel(props: Partial<Parameters<typeof DocPreviewPanel>[0]> = {}) {
+      const menu = menuValue();
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <DesktopContextMenuProvider value={menu.value}>
+              <DocPreviewPanel title="notes.md" content={SOURCE} {...props} />
+            </DesktopContextMenuProvider>
+          </PiwinUiProvider>,
+        );
+      });
+      return menu;
+    }
+
+    function selectParagraph(index: number): void {
+      const paragraph = container.querySelectorAll('.enhanced-paragraph')[index] as HTMLElement;
+      const range = document.createRange();
+      range.selectNodeContents(paragraph);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      act(() => {
+        document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      });
+    }
+
+    afterEach(() => {
+      window.getSelection()?.removeAllRanges();
+    });
+
+    it('lets the rendered Markdown be selected', () => {
+      renderPanel();
+      expect(
+        container.querySelector('[data-testid="enhanced-markdown"]')?.hasAttribute('data-selectable'),
+      ).toBe(true);
+    });
+
+    it('puts Markdown source on the clipboard for a native copy', () => {
+      renderPanel();
+      selectParagraph(1);
+      const setData = vi.fn();
+      const event = new Event('copy', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'clipboardData', { value: { setData } });
+
+      act(() => {
+        container.querySelector('.doc-preview-body')?.dispatchEvent(event);
+      });
+
+      expect(setData).toHaveBeenCalledWith('text/plain', 'Second **bold** paragraph.');
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('shows Copy on the selection toolbar and copies Markdown, not visible text', () => {
+      const { copyText } = renderPanel();
+      selectParagraph(0);
+
+      const copy = document.querySelector<HTMLButtonElement>(
+        '[data-testid="selection-toolbar-copy"]',
+      );
+      expect(copy).not.toBeNull();
+      act(() => copy?.click());
+
+      expect(copyText).toHaveBeenCalledWith('Use `a.ts` here.');
+    });
+
+    it('offers no selection Comment unless the host can store comments', () => {
+      renderPanel();
+      selectParagraph(0);
+      expect(document.querySelector('[data-testid="selection-toolbar-comment"]')).toBeNull();
+    });
+
+    it('anchors a selection comment to its block and quotes the selected Markdown', () => {
+      const onAddComment = vi.fn();
+      const onCommentLine = vi.fn();
+      renderPanel({ onAddComment, onCommentLine, comments: [] });
+      selectParagraph(1);
+
+      act(() =>
+        document
+          .querySelector<HTMLButtonElement>('[data-testid="selection-toolbar-comment"]')
+          ?.click(),
+      );
+      const input = document.querySelector<HTMLTextAreaElement>(
+        '[data-testid="selection-toolbar-comment-input"]',
+      );
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      act(() => {
+        setter?.call(input, 'Say more');
+        input?.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      act(() =>
+        document
+          .querySelector<HTMLButtonElement>('[data-testid="selection-toolbar-comment-submit"]')
+          ?.click(),
+      );
+
+      expect(onAddComment).toHaveBeenCalledWith({
+        lineId: expect.stringMatching(/^paragraph-\d+-Second/),
+        lineText: 'Second **bold** paragraph.',
+        commentText: 'Say more',
+      });
+      expect(onCommentLine).toHaveBeenCalledWith('[Second **bold** paragraph.] "Say more"');
+    });
+
+    it('blocks a second comment on a block that already has one', () => {
+      renderPanel({ onAddComment: vi.fn() });
+      selectParagraph(1);
+      const lineId = container
+        .querySelectorAll('.enhanced-line-wrapper')[1]
+        ?.getAttribute('data-line-id');
+      expect(lineId).toBeTruthy();
+
+      renderPanel({
+        onAddComment: vi.fn(),
+        comments: [{ id: 'c1', lineId: lineId as string, lineText: 'x', commentText: 'y' }],
+      });
+      selectParagraph(1);
+      const button = document.querySelector<HTMLButtonElement>(
+        '[data-testid="selection-toolbar-comment"]',
+      );
+      expect(button?.disabled).toBe(true);
+      expect(button?.title).toContain('已有评论');
+    });
   });
 });

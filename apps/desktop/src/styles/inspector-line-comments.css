@@ -65,13 +65,54 @@
   box-shadow: var(--elev-3);
 }
 
+/* Copy block: the quiet sibling of the comment button. Neutral, because iris
+   is reserved for "you can act on this line" (commenting). It overlays the
+   line end instead of reserving room, so hovering never reflows text. */
+.line-copy-btn {
+  opacity: 0;
+  visibility: hidden;
+  position: absolute;
+  right: calc(var(--s-3) + var(--h-sm) + var(--s-2));
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  border: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: var(--r-control);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-4);
+  color: var(--text-3);
+  box-shadow:
+    inset 0 0 0 1px var(--line-1),
+    var(--elev-1);
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    visibility var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.line-copy-btn:hover,
+.line-copy-btn[data-copied='true'] {
+  color: var(--text-1);
+}
+
+.line-copy-btn[data-copied='true'] {
+  color: var(--iris-lift);
+}
+
 .line-comment-btn.has-comment {
   opacity: 1;
   visibility: visible;
 }
 
 .enhanced-line-wrapper:hover > .line-comment-btn,
-.enhanced-line-wrapper.popover-open > .line-comment-btn {
+.enhanced-line-wrapper.popover-open > .line-comment-btn,
+.enhanced-line-wrapper:hover > .line-copy-btn {
   opacity: 1;
   visibility: visible;
 }
@@ -79,7 +120,8 @@
 /* Nested review lines (lists inside lists, paragraphs inside quotes): only
    the deepest hovered wrapper may show its button. A descendant selector
    would light every nested icon at once. */
-.enhanced-line-wrapper:hover:has(.enhanced-line-wrapper:hover) > .line-comment-btn {
+.enhanced-line-wrapper:hover:has(.enhanced-line-wrapper:hover) > .line-comment-btn,
+.enhanced-line-wrapper:hover:has(.enhanced-line-wrapper:hover) > .line-copy-btn {
   opacity: 0;
   visibility: hidden;
 }

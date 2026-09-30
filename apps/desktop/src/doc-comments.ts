@@ -31,3 +31,12 @@ export function mergeComposerWithDocComments(
   if (!text) return block;
   return `${block}\n\n${text}`;
 }
+
+/**
+ * Streamdown's memo ignores `components`, and comments reach the line wrappers
+ * through the components' closure, so a new comment would never repaint its block.
+ * Keying the renderer on the comments' content remounts it exactly when they change.
+ */
+export function commentsRenderKey(comments: readonly LineCommentItem[]): string {
+  return comments.map((comment) => `${comment.id}:${comment.commentText}`).join('\u0000');
+}

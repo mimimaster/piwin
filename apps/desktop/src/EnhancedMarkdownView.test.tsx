@@ -140,4 +140,32 @@ describe('EnhancedMarkdownView', () => {
     expect(elem.querySelector('.enhanced-blockquote')).not.toBeNull();
     expect(elem.querySelector('blockquote')?.textContent).toContain('quoted evidence');
   });
+  it('repaints a block when a comment arrives after the first render', () => {
+    // Streamdown memoizes on its inputs but not on `components`, which is how
+    // comments reach the line wrappers; without a remount the block never lit up.
+    const elem = renderView('first paragraph');
+    const lineId = elem.querySelector('.enhanced-line-wrapper')?.getAttribute('data-line-id');
+    expect(lineId).toBeTruthy();
+    expect(elem.querySelector('.enhanced-line-wrapper.has-comment')).toBeNull();
+
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <EnhancedMarkdownView
+            text="first paragraph"
+            comments={[
+              { id: 'c1', lineId: lineId as string, lineText: 'first paragraph', commentText: 'note' },
+            ]}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(elem.querySelector('.enhanced-line-wrapper.has-comment')).not.toBeNull();
+  });
+
+  it('opts out of the shell-wide user-select: none', () => {
+    const article = renderView('hello').querySelector('[data-testid="enhanced-markdown"]');
+    expect(article?.hasAttribute('data-selectable')).toBe(true);
+  });
 });
