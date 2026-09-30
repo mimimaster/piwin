@@ -1,7 +1,7 @@
 /**
  * Scrollable assistant/user message list with edit/retry actions.
  */
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { PlanExecutionMode, TranscriptBranchPoint } from '@piwin/contracts';
 
 import { pickArtifactFenceSecurity } from './artifact-fence-security';
@@ -38,14 +38,14 @@ import {
   type WorkDisclosureOverride,
 } from './turn-work-disclosure-open-state.js';
 import { TurnWorkDetails } from './turn-work-details.js';
+import { planTurnWorkSegments, resolveTurnFoldKey } from './turn-work-segment-plan.js';
+import { mountTurnWorkSegmentBlocks, TurnWorkSegmentEarlier } from './turn-work-segment.js';
+import { useTurnWorkSegmentState } from './use-turn-work-segment-state.js';
+import { setWorkChainCompact, useWorkChainCompact } from './work-chain-compact.js';
 import { isDuplicateThinking } from './thinking-dedup.js';
 import { CompactionActivity } from './compaction-activity.js';
-import {
-  ChatTurnHead,
-  ChatTurnMarginalia,
-  hasTurnByline,
-  resolveTurnMarginalia,
-} from './chat-turn-marginalia.js';
+import { isCompactionRunning } from './compaction-seam-model.js';
+import { ChatTurnSection } from './chat-turn-section.js';
 import {
   canShowPlanExecutionGate,
   findLastSuccessfulPlanPresent,
@@ -155,6 +155,8 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   const [workDisclosureOpenByTurnId, setWorkDisclosureOpenByTurnId] = useState<
     Record<string, WorkDisclosureOverride>
   >({});
+  const segmentState = useTurnWorkSegmentState();
+  const workChainCompact = useWorkChainCompact();
   // Cursor-style explore flow: consecutive read/search/thought-only assistant
   // steps collapse into one "Explored N files" capsule anchored at the first
   // step (agent sessions only — conversation mode keeps per-reply chrome).
@@ -204,7 +206,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   const pendingRunStatusFooter =
     props.streaming === true &&
     !props.permissionPrompt &&
-    !props.compactionActivity &&
+    !isCompactionRunning(props.compactionActivity) &&
     chatMessages.length === 0;
   const changedFilePathsByTurnId = useMemo(() => {
     const pathsByTurnId = new Map<string, string[]>();
@@ -323,7 +325,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
             permissionPending: Boolean(props.permissionPrompt),
             exploreFoldedMessageIds,
           });
-          const workDisclosureKey = `${props.sessionId ?? 'session'}:${turn.id}`;
+          const workDisclosureKey = `${props.sessionId ?? 'session'}:${resolveTurnFoldKey(turn)}`;
           // 详细 means detailed: nothing the agent did sits behind a summary
           // the user has to click. An explicit per-turn toggle still wins.
           // A live chain with a failed tool stays open so the failure is on
@@ -339,6 +341,19 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
             turnRunKey,
             workDisclosureDefaultOpen,
           );
+          // An open fold lists narration segments; only open ones build rows.
+          const segmentPlan =
+            workDisclosureOpen && workDisclosureProjection !== null && !conversationSession
+              ? planTurnWorkSegments({
+                  turn,
+                  projection: workDisclosureProjection,
+                  compact: workChainCompact,
+                  expandAll:
+                    props.workDetailsExpanded === 'always' || props.toolDensity === 'detailed',
+                  windowSize: segmentState.windowSizeFor(workDisclosureKey),
+                  openOverrides: segmentState.openOverrides,
+                })
+              : null;
           const identityItemIndex = conversationChrome?.identityMessageId
             ? turn.items.findIndex(
                 (item) => item.message.id === conversationChrome.identityMessageId,
@@ -376,7 +391,30 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           const renderedUserItems: ReactElement[] = [];
           const renderedAssistantItems: ReactElement[] = [];
 
+          // The seam sits right after its anchor message so whatever the agent
+          // does next lands below it. Appending it to the end of the turn would
+          // leave every post-compaction row above the seam.
+          const turnCompaction =
+            turn.id === compactionActivityTurnId ? (props.compactionActivity ?? null) : null;
+          const compactionAnchorIndex =
+            turnCompaction === null
+              ? -1
+              : turn.items.findIndex((item) => item.message.id === turnCompaction.anchorMessageId);
+          let compactionInsertAt = -1;
+          // Every earlier assistant's reasoning, collected once per turn: a
+          // per-row slice of the turn was quadratic on a 600-step chain.
+          const priorThinkingTexts: string[] = [];
+
           turn.items.forEach(({ message, messageIndex }, itemIndex) => {
+            // Recorded before this item's early returns: a hidden placeholder
+            // right after the anchor must not push the seam past it.
+            if (compactionAnchorIndex >= 0 && itemIndex === compactionAnchorIndex + 1) {
+              compactionInsertAt = renderedAssistantItems.length;
+            }
+            const priorThinkingCount = priorThinkingTexts.length;
+            if (message.role === 'assistant' && message.thinking.trim().length > 0) {
+              priorThinkingTexts.push(message.thinking);
+            }
             const planDisplay =
               turn.lastAssistantMessageId === message.id ? turnPlanDisplay : null;
             // A placeholder still owns its row when the turn hung chrome on it:
@@ -401,6 +439,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   projection={workDisclosureProjection}
                   open={workDisclosureOpen}
                   locale={props.locale ?? 'zh-CN'}
+                  {...(segmentPlan !== null
+                    ? { compact: workChainCompact, onCompactChange: setWorkChainCompact }
+                    : {})}
                   onToggle={() =>
                     setWorkDisclosureOpenByTurnId((current) => ({
                       ...current,
@@ -453,10 +494,40 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               }
               return;
             }
-                const followingAssistantRunId = turn.items
-                  .slice(itemIndex + 1)
-                  .find((item) => item.message.role === 'assistant' && item.message.runId)
-                  ?.message.runId;
+            const segment =
+              isDisclosureWorkItem && !planDisplay && message.role !== 'user'
+                ? segmentPlan?.byItem.get(itemIndex)
+                : undefined;
+            if (segment !== undefined && segmentPlan !== null) {
+              // The fold header (and the older-segments button under it) stay
+              // put; rows go into the segment's block, and only when open.
+              for (const node of [liftedIdentityHeader, disclosureTrigger]) {
+                if (node !== null) renderedAssistantItems.push(node);
+              }
+              if (isDisclosureStart && segmentPlan.hiddenCount > 0) {
+                renderedAssistantItems.push(
+                  <TurnWorkSegmentEarlier
+                    key={`work-segment-earlier-${turn.id}`}
+                    hiddenCount={segmentPlan.hiddenCount}
+                    locale={props.locale ?? 'zh-CN'}
+                    onShowMore={() => segmentState.showEarlier(workDisclosureKey)}
+                  />,
+                );
+              }
+              if (!segmentPlan.isVisible(segment)) return;
+              if (!segmentPlan.slots.has(segment.id)) {
+                segmentPlan.slots.set(segment.id, { at: renderedAssistantItems.length, rows: [] });
+                renderedAssistantItems.push(<Fragment key={segment.id} />);
+              }
+              if (!segmentPlan.isOpen(segment)) return;
+            }
+                const followingAssistantRunId =
+                  message.role === 'user'
+                    ? turn.items
+                        .slice(itemIndex + 1)
+                        .find((item) => item.message.role === 'assistant' && item.message.runId)
+                        ?.message.runId
+                    : undefined;
                 const assemblySummary =
                   message.role === 'user'
                     ? resolveAssemblySummaryForUserMessage({
@@ -498,18 +569,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     ? () => props.onRetryTurn?.(precedingUser.id, { keepPrevious: true })
                     : undefined;
                 const exploreRole = exploreRolesByMessageId.get(message.id);
-                const priorThinking = turn.items
-                  .slice(0, itemIndex)
-                  .filter(
-                    (item) =>
-                      item.message.role === 'assistant' &&
-                      item.message.thinking.trim().length > 0,
-                  )
-                  .map((item) => item.message.thinking);
                 const isThinkingDuplicate =
                   message.role === 'assistant' &&
                   message.thinking.trim().length > 0 &&
-                  isDuplicateThinking(message.thinking, priorThinking);
+                  isDuplicateThinking(message.thinking, priorThinkingTexts, priorThinkingCount);
                 const moveFinalThinkingIntoWork =
                   !conversationSession &&
                   workDisclosureProjection !== null &&
@@ -772,6 +835,12 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 const rows = finalThinkingRow
                   ? [finalThinkingRow, containedRow]
                   : [containedRow];
+                const segmentSlot =
+                  segment !== undefined ? segmentPlan?.slots.get(segment.id) : undefined;
+                if (segmentSlot !== undefined) {
+                  segmentSlot.rows.push(...rows);
+                  return;
+                }
                 const leadingChrome = [
                   liftedIdentityHeader,
                   disclosureTrigger,
@@ -786,24 +855,33 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 }
               });
 
-              if (turn.id === compactionActivityTurnId && props.compactionActivity) {
-                const compactionNode = (
-                  <CompactionActivity
-                    key={`compaction-${turn.id}`}
-                    activity={props.compactionActivity}
-                    locale={props.locale ?? 'zh-CN'}
-                    {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
-                  />
-                );
-                renderedAssistantItems.push(compactionNode);
+              if (segmentPlan !== null) {
+                mountTurnWorkSegmentBlocks(renderedAssistantItems, segmentPlan, {
+                  locale: props.locale ?? 'zh-CN',
+                  onToggle: segmentState.toggleSegment,
+                });
               }
 
-              // One live line at the foot of the running turn. Permission gates
-              // and compaction own their chrome while they are up.
+              if (turnCompaction !== null) {
+                renderedAssistantItems.splice(
+                  compactionInsertAt >= 0 ? compactionInsertAt : renderedAssistantItems.length,
+                  0,
+                  <CompactionActivity
+                    key={`compaction-${turn.id}`}
+                    activity={turnCompaction}
+                    locale={props.locale ?? 'zh-CN'}
+                    {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
+                  />,
+                );
+              }
+
+              // One live line at the foot of the running turn. A permission gate
+              // owns the foot while it is up, and so does a compaction that is
+              // still running; a settled one must not keep the footer hidden.
               const showRunStatusFooter =
                 currentTurnStreaming &&
                 !props.permissionPrompt &&
-                !(turn.id === compactionActivityTurnId && props.compactionActivity);
+                !(turnCompaction !== null && isCompactionRunning(turnCompaction));
               if (showRunStatusFooter) {
                 renderedAssistantItems.push(
                   <RunStatusFooter
@@ -821,81 +899,26 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 );
               }
 
-              const hasAssistantActivity =
-                renderedAssistantItems.length > 0 ||
-                (currentTurnStreaming && props.activeRunId !== null);
-
-              const userMarginaliaResolved =
-                renderedUserItems.length === 0
-                  ? null
-                  : resolveTurnMarginalia(userMessages, {
-                      editingMessageId: props.editingMessageId,
-                      locale: props.locale,
-                      forceRole: 'user',
-                      isConversationSession: conversationSession,
-                    });
-              const userMarginaliaData =
-                userMarginaliaResolved !== null && hasTurnByline(userMarginaliaResolved)
-                  ? userMarginaliaResolved
-                  : null;
-
-              const assistantStatus = currentTurnStreaming
-                ? props.permissionPrompt
-                  ? props.locale === 'en'
-                    ? 'Waiting'
-                    : '等待批准'
-                  : props.locale === 'en'
-                    ? 'Running'
-                    : '运行中'
-                : null;
-
-              const assistantMarginaliaData =
-                !hasAssistantActivity
-                  ? null
-                  : resolveTurnMarginalia(
-                      assistantMessages.length > 0 ? assistantMessages : turnMessages,
-                      {
-                        locale: props.locale,
-                        forceRole: 'assistant',
-                        model: turnModel,
-                        contextUsage: props.contextUsage,
-                        status: assistantStatus,
-                        statusTone: currentTurnStreaming
-                          ? props.permissionPrompt
-                            ? 'waiting'
-                            : 'running'
-                          : null,
-                        isConversationSession: conversationSession,
-                      },
-                    );
-
               return (
-                <section
+                <ChatTurnSection
                   key={turn.id}
-                  className={`chat-turn-group${turn.id === currentResponseTurnId ? ' is-current-response' : ''}`}
-                  {...(turn.id === currentResponseTurnId
-                    ? { 'data-testid': 'current-response-turn' }
-                    : {})}
-                >
-                  {renderedUserItems.length > 0 ? (
-                    <article key="user-turn" className="turn chat-turn chat-turn-user">
-                      <div className="chat-turn-body">
-                        {userMarginaliaData !== null ? <ChatTurnHead data={userMarginaliaData} /> : null}
-                        {renderedUserItems}
-                      </div>
-                      {userMarginaliaData !== null ? <ChatTurnMarginalia data={userMarginaliaData} /> : null}
-                    </article>
-                  ) : null}
-                  {hasAssistantActivity ? (
-                    <article key="assistant-turn" className="turn chat-turn chat-turn-assistant">
-                      {assistantMarginaliaData !== null ? <ChatTurnMarginalia data={assistantMarginaliaData} /> : null}
-                      <div className="chat-turn-body">
-                        {assistantMarginaliaData !== null ? <ChatTurnHead data={assistantMarginaliaData} /> : null}
-                        {renderedAssistantItems}
-                      </div>
-                    </article>
-                  ) : null}
-                </section>
+                  turnId={turn.id}
+                  isCurrentResponse={turn.id === currentResponseTurnId}
+                  userMessages={userMessages}
+                  assistantMessages={assistantMessages}
+                  turnMessages={turnMessages}
+                  userItems={renderedUserItems}
+                  assistantItems={renderedAssistantItems}
+                  assistantPending={currentTurnStreaming && props.activeRunId !== null}
+                  liveState={
+                    currentTurnStreaming ? (props.permissionPrompt ? 'waiting' : 'running') : null
+                  }
+                  editingMessageId={props.editingMessageId}
+                  locale={props.locale}
+                  isConversationSession={conversationSession}
+                  model={turnModel}
+                  contextUsage={props.contextUsage}
+                />
               );
             }}
       />

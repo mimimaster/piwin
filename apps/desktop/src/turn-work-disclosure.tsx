@@ -1,12 +1,16 @@
 import type { ReactElement } from 'react';
 import type { TurnWorkDisclosureProjection } from './turn-work-disclosure-model.js';
 import { resolveWorkFoldCode, WorkFoldHeader } from './work-fold-header.js';
+import { WorkChainCompactToggle } from './turn-work-segment.js';
 
 export type TurnWorkDisclosureProps = {
   projection: TurnWorkDisclosureProjection;
   open: boolean;
   locale: 'zh-CN' | 'en';
   onToggle: () => void;
+  /** 精简 switch; shown beside the open header when the fold lists segments. */
+  compact?: boolean;
+  onCompactChange?: (next: boolean) => void;
 };
 
 /**
@@ -65,6 +69,13 @@ export function TurnWorkDisclosure(props: TurnWorkDisclosureProps): ReactElement
               ...(projection.fileCount !== undefined ? { fileCount: projection.fileCount } : {}),
             })}
       />
+      {props.open && props.onCompactChange !== undefined ? (
+        <WorkChainCompactToggle
+          compact={props.compact === true}
+          locale={locale}
+          onChange={props.onCompactChange}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react';
+import { useWorkChainCompact } from './work-chain-compact.js';
 import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
@@ -258,10 +259,11 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
   const summary = props.summary;
   type BatchDisclosure = 'automatic' | 'live-open' | 'settled-open' | 'closed';
   const [disclosure, setDisclosure] = useState<BatchDisclosure>('automatic');
+  const chainCompact = useWorkChainCompact();
   const expanded =
     disclosure === 'closed'
       ? false
-      : summary.hasError ||
+      : (summary.hasError && !chainCompact) ||
         (summary.hasRunning ? disclosure === 'live-open' : disclosure === 'settled-open');
   const foldMeasure = useTranscriptLocalFoldMeasure(expanded);
 

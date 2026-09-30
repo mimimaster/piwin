@@ -8,6 +8,7 @@ import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import type { ChatMessageUi, RunRecordUi } from './chat-reducer.js';
 import { ChatThread } from './chat-thread.js';
 import type { ComposerDockProps } from './composer-dock.js';
+import { setWorkChainCompact } from './work-chain-compact.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -640,10 +641,22 @@ describe('ChatThread completed work disclosure', () => {
     expect(trigger?.textContent).toContain(lastCaption);
 
     act(() => trigger?.click());
-    expect(container.querySelector('#msg-work-1')).not.toBeNull();
-    expect(container.querySelector('#msg-work-2')).not.toBeNull();
-    expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);
+    // Each caption opens a segment; the newest one is open, the earlier one
+    // lists its caption until the reader opens it.
+    const segments = container.querySelectorAll('[data-testid="turn-work-segment"]');
+    expect(segments).toHaveLength(2);
+    expect(segments[0]?.getAttribute('data-open')).toBe('false');
+    expect(segments[0]?.textContent).toContain(earlierCaption);
+    expect(container.querySelector('#msg-work-1')).toBeNull();
     expect(container.querySelector('#msg-work-2 .markdown')?.textContent).toContain(lastCaption);
+
+    act(() =>
+      segments[0]
+        ?.querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
+        ?.click(),
+    );
+    expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);
+    expect(container.querySelector('#msg-work-2')).not.toBeNull();
   });
 
   it('keeps the Conversation identity header above 已工作 after expand', () => {
@@ -947,5 +960,106 @@ describe('ChatThread completed work disclosure', () => {
     expect(trigger?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('#msg-work-1')).toBeNull();
     expect(container.querySelector('#msg-answer-1')?.textContent).toContain('Looks right.');
+  });
+});
+
+describe('ChatThread 已工作 segments', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    setWorkChainCompact(false);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    setWorkChainCompact(false);
+  });
+
+  function settledChain(steps: number): ChatMessageUi[] {
+    const work = Array.from({ length: steps }, (_, index) =>
+      message(`work-${index}`, {
+        text: `Step ${index}.`,
+        runId: 'run-1',
+        tools: [
+          {
+            toolCallId: `bash-${index}`,
+            toolName: 'bash',
+            status: 'done',
+            output: 'ok',
+            runId: 'run-1',
+            presentation: { kind: 'shell', title: 'bash', command: 'pnpm test' },
+          },
+        ],
+      }),
+    );
+    return [
+      message('user-1', { role: 'user', text: 'Fix it.' }),
+      ...work,
+      message('answer', { text: 'Done.', runId: 'run-1' }),
+    ];
+  }
+
+  function openFold(): void {
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]')
+        ?.click(),
+    );
+  }
+
+  it('lists segments and mounts rows only for the open ones', () => {
+    act(() => root.render(renderThread(settledChain(3))));
+    openFold();
+
+    const segments = container.querySelectorAll('[data-testid="turn-work-segment"]');
+    expect(Array.from(segments, (segment) => segment.getAttribute('data-open'))).toEqual([
+      'false',
+      'false',
+      'true',
+    ]);
+    expect(container.querySelector('#msg-work-0')).toBeNull();
+    expect(container.querySelector('#msg-work-2')).not.toBeNull();
+    expect(container.querySelector('#msg-answer')).not.toBeNull();
+  });
+
+  it('精简 closes every segment and keeps a segment the reader opened', () => {
+    act(() => root.render(renderThread(settledChain(3))));
+    openFold();
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
+        ?.click(),
+    );
+    expect(container.querySelector('#msg-work-0')).not.toBeNull();
+
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="work-chain-compact-toggle"]',
+    );
+    expect(toggle?.getAttribute('aria-pressed')).toBe('false');
+    act(() => toggle?.click());
+
+    expect(toggle?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('#msg-work-0')).not.toBeNull();
+    expect(container.querySelector('#msg-work-2')).toBeNull();
+  });
+
+  it('keeps older segments unmounted until asked for', () => {
+    act(() => root.render(renderThread(settledChain(45))));
+    openFold();
+
+    expect(container.querySelectorAll('[data-testid="turn-work-segment"]')).toHaveLength(40);
+    const earlier = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-segment-earlier"]',
+    );
+    expect(earlier?.textContent).toContain('5');
+    act(() => earlier?.click());
+    expect(container.querySelectorAll('[data-testid="turn-work-segment"]')).toHaveLength(45);
+    expect(container.querySelector('[data-testid="turn-work-segment-earlier"]')).toBeNull();
   });
 });

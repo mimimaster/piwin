@@ -16,6 +16,7 @@ import {
   mapTranscriptMessagesToUi,
 } from './chat-reducer-transcript';
 import { applyCompactionEndContextUsage, applyUsageUpdate } from './chat-reducer-context';
+import { resolveCompactionAnchorMessageId } from './compaction-anchor';
 import {
   isEnvelopeStale,
   isStaleByEnvelope,
@@ -467,7 +468,7 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
           operationId,
           phase: 'running',
           reason: event.reason ?? 'unknown',
-          anchorMessageId: state.messages.at(-1)?.id ?? null,
+          anchorMessageId: resolveCompactionAnchorMessageId(state.messages),
           startedAt,
           ...(runId !== undefined ? { runId } : {}),
         };
@@ -522,7 +523,8 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
         operationId,
         phase: event.aborted === true ? 'cancelled' : event.ok === false ? 'failed' : 'succeeded',
         reason: event.reason ?? previousActivity?.reason ?? 'unknown',
-        anchorMessageId: previousActivity?.anchorMessageId ?? state.messages.at(-1)?.id ?? null,
+        anchorMessageId:
+          previousActivity?.anchorMessageId ?? resolveCompactionAnchorMessageId(state.messages),
         startedAt,
         endedAt: Date.now(),
         ...(runId !== undefined ? { runId } : {}),

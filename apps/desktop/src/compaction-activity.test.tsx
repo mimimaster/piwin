@@ -35,7 +35,7 @@ function activity(
   const base: CompactionActivityProps['activity'] = {
     operationId: 'compact-test-1',
     phase,
-    reason: 'manual',
+    reason: 'overflow',
     anchorMessageId: 'assistant-1',
     startedAt: Date.now() - 1200,
   };
@@ -45,10 +45,17 @@ function activity(
   return {
     ...base,
     endedAt: Date.now(),
-    tokensBefore: 1000,
-    tokensAfter: 400,
-    durationMs: 1200,
-    ...(phase === 'succeeded' ? { message: 'Context compacted', summary: 'kept decisions' } : {}),
+    tokensBefore: 571_000,
+    tokensAfter: 21_000,
+    durationMs: 35_000,
+    ...(phase === 'succeeded'
+      ? {
+          message: 'Context compacted',
+          summary: 'kept decisions',
+          fileOps: { readFiles: ['src/a.ts'], modifiedFiles: ['src/b.ts'] },
+        }
+      : {}),
+    ...(phase === 'failed' ? { message: 'model returned an empty summary' } : {}),
   };
 }
 
@@ -62,69 +69,60 @@ afterEach(() => {
 });
 
 describe('CompactionActivity', () => {
-  it('renders a running tool-chain row as a normal non-cancellable tool row', () => {
-    const container = renderActivity({
-      activity: activity('running'),
-      locale: 'en',
-    });
+  it('shows a spinner and a shimmering label while running, with no control to click', () => {
+    const container = renderActivity({ activity: activity('running'), locale: 'zh-CN' });
     const node = container.querySelector('[data-testid="compaction-activity"]');
-    expect(node?.getAttribute('data-operation-id')).toBe('compact-test-1');
     expect(node?.getAttribute('data-phase')).toBe('running');
-    const card = node?.querySelector('[data-testid="tool-call-card"]');
-    expect(card?.getAttribute('data-tool-status')).toBe('running');
-    expect(card?.textContent).toContain('Compacting context');
-    expect(
-      Array.from(container.querySelectorAll('button')).some(
-        (button) => button.textContent === 'Cancel',
-      ),
-    ).toBe(false);
+    expect(node?.getAttribute('data-operation-id')).toBe('compact-test-1');
+    expect(container.querySelector('[data-testid="compaction-spinner"]')).not.toBeNull();
+    const label = container.querySelector('.chat-compaction-seam-label');
+    expect(label?.textContent).toBe('正在压缩上下文…');
+    expect(label?.classList.contains('behavior-generic-active')).toBe(true);
+    expect(container.querySelector('button')).toBeNull();
+    expect(container.textContent).not.toContain('整理');
   });
 
-  it('keeps the terminal state on the same tool-call id and folds the summary into the body', () => {
-    const container = renderActivity({
-      activity: activity('succeeded'),
-      locale: 'en',
-    });
+  it('collapses to the token delta once settled and unfolds the detail on demand', () => {
+    const container = renderActivity({ activity: activity('succeeded'), locale: 'zh-CN' });
+    expect(container.querySelector('[data-testid="compaction-spinner"]')).toBeNull();
+    const label = container.querySelector('.chat-compaction-seam-label');
+    expect(label?.textContent).toBe('已压缩上下文');
+    expect(label?.classList.contains('behavior-generic-active')).toBe(false);
+    expect(container.textContent).toContain('571K → 21K');
+    expect(container.textContent).toContain('−96%');
+    expect(container.querySelector('[data-testid="compaction-detail"]')).toBeNull();
+
+    const pill = container.querySelector<HTMLButtonElement>('button.chat-compaction-seam-pill');
+    expect(pill?.getAttribute('aria-expanded')).toBe('false');
+    act(() => pill?.click());
+    expect(pill?.getAttribute('aria-expanded')).toBe('true');
+    const detail = container.querySelector('[data-testid="compaction-detail"]');
+    expect(detail?.textContent).toContain('自动压缩 · 上下文超出模型窗口');
+    expect(detail?.textContent).toContain('kept decisions');
+    expect(detail?.textContent).toContain('b.ts');
+    expect(detail?.textContent).toContain('a.ts');
+    expect(pill?.getAttribute('aria-controls')).toBe(detail?.id);
+
+    act(() => pill?.click());
+    expect(container.querySelector('[data-testid="compaction-detail"]')).toBeNull();
+  });
+
+  it('surfaces the Host failure reason inline without an expander', () => {
+    const container = renderActivity({ activity: activity('failed'), locale: 'zh-CN' });
     const node = container.querySelector('[data-testid="compaction-activity"]');
-    expect(node?.getAttribute('data-phase')).toBe('succeeded');
-    const card = node?.querySelector('[data-testid="tool-call-card"]');
-    expect(card?.getAttribute('data-tool-call-id') ?? node?.getAttribute('data-operation-id')).toBe(
-      'compact-test-1',
-    );
-    expect(card?.getAttribute('data-tool-status')).toBe('done');
-    expect(card?.textContent).toContain('Compacted context');
-    // Token delta is the head's only detail; the summary stays collapsed.
-    expect(card?.textContent).toContain('1K → 400 tokens');
-    expect(card?.textContent).not.toContain('kept decisions');
-    expect(
-      Array.from(container.querySelectorAll('button')).some(
-        (button) => button.textContent === 'Cancel',
-      ),
-    ).toBe(false);
+    expect(node?.getAttribute('data-tone')).toBe('failed');
+    expect(container.textContent).toContain('上下文压缩失败');
+    expect(container.textContent).toContain('model returned an empty summary');
+    expect(container.querySelector('button')).toBeNull();
   });
 
-  it('marks a failed compaction as an error row without a cancel action', () => {
-    const container = renderActivity({
-      activity: activity('failed'),
-      locale: 'en',
-      onAbort: vi.fn(),
-    });
-    const card = container.querySelector('[data-testid="tool-call-card"]');
-    expect(card?.getAttribute('data-tool-status')).toBe('error');
-    expect(
-      Array.from(container.querySelectorAll('button')).some(
-        (button) => button.textContent === 'Cancel',
-      ),
-    ).toBe(false);
-  });
-
-  it('treats a cancelled compaction as settled, not failed', () => {
-    const container = renderActivity({
-      activity: activity('cancelled'),
-      locale: 'en',
-    });
-    const card = container.querySelector('[data-testid="tool-call-card"]');
-    expect(card?.getAttribute('data-tool-status')).toBe('done');
-    expect(card?.textContent).toContain('Compaction cancelled');
+  it('treats a cancelled compaction as settled and says the context is unchanged', () => {
+    const container = renderActivity({ activity: activity('cancelled'), locale: 'en' });
+    const node = container.querySelector('[data-testid="compaction-activity"]');
+    expect(node?.getAttribute('data-tone')).toBe('cancelled');
+    expect(container.textContent).toContain('Compaction cancelled');
+    expect(container.textContent).toContain('Context unchanged');
+    expect(container.textContent).not.toContain('571K');
+    expect(container.querySelector('button')).toBeNull();
   });
 });

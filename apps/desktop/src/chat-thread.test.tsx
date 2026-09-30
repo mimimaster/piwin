@@ -1482,7 +1482,7 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.textContent).toContain('The SVG is ready.');
   });
 
-  it('keeps an earlier tool container mounted when the next response arrives', () => {
+  it('keeps an earlier tool row, now inside its work segment, when the next response arrives', () => {
     const userMessage = createUserMessage('u-inspector-stability', 'Inspect the project');
     const firstAssistant: ChatMessageUi = {
       id: 'a-inspector-first',
@@ -1537,12 +1537,16 @@ describe('ChatThread render isolation (E1)', () => {
     };
     renderThread([userMessage, firstAssistant, nextAssistant]);
 
-    expect(container.querySelector('#msg-a-inspector-first [data-testid="tool-call-card"]')).toBe(
-      firstToolCard,
+    // The first row was the settled answer; the reply makes it work, so it
+    // moves once into its 已工作 segment block (and remounts there).
+    const movedToolCard = container.querySelector(
+      '#msg-a-inspector-first [data-testid="tool-call-card"]',
     );
+    expect(movedToolCard).not.toBeNull();
+    expect(movedToolCard?.closest('[data-testid="turn-work-segment"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="run-inspector-inline"]')).toBeNull();
     expect(
-      firstToolCard?.compareDocumentPosition(
+      movedToolCard?.compareDocumentPosition(
         container.querySelector('#msg-a-inspector-next') as Node,
       ) ?? 0,
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);

@@ -1,10 +1,12 @@
 /**
  * Collapsible tool-call card — Paper/Noir theme (proto-shell.css .tool block).
- * Write/edit tools with non-empty `changedPaths` render a DiffCard per path;
- * the original raw output is folded into a <details> below.
+ * Write/edit tools with non-empty `changedPaths` render a DiffCard per path
+ * once opened (the row shows +/− until then); the original raw output is
+ * folded into a <details> below.
  */
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
+import { useWorkChainCompact } from './work-chain-compact.js';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
 import { CitationCards } from './CitationCards';
@@ -14,7 +16,6 @@ import { DiffCard, type DiffCardRequest } from './diff-card';
 import { CollapsibleContentBlock } from './collapsible-content-block';
 import { TokenSpans, useHighlight } from './syntax-highlight';
 import { IconChevronDown, IconMore } from './shell-icons';
-import { COMPACTION_TOOL_NAME } from './compaction-tool-row.js';
 import { toolCallKindIcon } from './tool-call-kind-icon';
 import {
   extractCommandDescription,
@@ -156,6 +157,8 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const contextMenu = useDesktopContextMenu();
   const themeId = useThemeId();
   const density = resolveDensity(props.density, props.compact);
+  // 精简: nothing in the chain opens on its own — not live output, not errors.
+  const chainCompact = useWorkChainCompact();
   const runningExpandDelayMs = props.expandWhileRunningDelayMs ?? 0;
   const [runningExpandGraceOver, setRunningExpandGraceOver] = useState(runningExpandDelayMs <= 0);
   useEffect(() => {
@@ -165,8 +168,10 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     const timer = setTimeout(() => setRunningExpandGraceOver(true), runningExpandDelayMs);
     return () => clearTimeout(timer);
   }, [tool.status, runningExpandDelayMs, runningExpandGraceOver]);
-  const expandWhileRunning = props.expandWhileRunning !== false && runningExpandGraceOver;
-  const terminalMustCollapse = props.collapseWhenTerminal === true && tool.status !== 'running';
+  const expandWhileRunning =
+    props.expandWhileRunning !== false && runningExpandGraceOver && !chainCompact;
+  const terminalMustCollapse =
+    (props.collapseWhenTerminal === true && tool.status !== 'running') || chainCompact;
   const hasExpandableBody = toolHasExpandableBody(tool);
   const displayName = tool.presentation?.title ?? tool.toolName;
   const kind = tool.presentation?.kind ?? 'unknown';
@@ -200,12 +205,13 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     hasChangedPaths &&
     Boolean(props.projectPath) &&
     Boolean(props.request);
+  // Edits keep their diff closed: every one of a long chain's edits mounting a
+  // highlighted DiffCard at once was most of the cost of opening 已工作.
   const autoExpand = terminalMustCollapse
     ? false
     : (props.defaultExpanded ??
       ((tool.status === 'running' && expandWhileRunning && hasExpandableBody) ||
         tool.status === 'error' ||
-        canRenderDiffCard ||
         (density === 'detailed' && hasExpandableBody)));
   const [internalExpanded, setInternalExpanded] = useState(autoExpand);
   const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
@@ -221,11 +227,9 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     }
     if (tool.status === 'running') {
       setInternalExpanded(expandWhileRunning && toolHasExpandableBody(tool));
-    } else if (props.collapseWhenTerminal === true) {
+    } else if (props.collapseWhenTerminal === true || chainCompact) {
       setInternalExpanded(false);
     } else if (tool.status === 'error') {
-      setInternalExpanded(true);
-    } else if (canRenderDiffCard) {
       setInternalExpanded(true);
     } else if (tool.status === 'done' && (density !== 'detailed' || !toolHasExpandableBody(tool))) {
       setInternalExpanded(false);
@@ -242,7 +246,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     props.defaultExpanded,
     props.expanded,
     expandWhileRunning,
-    canRenderDiffCard,
+    chainCompact,
   ]);
 
   function toggleExpanded(): void {
@@ -285,14 +289,10 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const webSearchFailureTag = formatWebSearchFailureTag(webSearchDiagnostics, locale);
   const actionVerb = localizeBehaviorAction(behaviorId, locale, rawActionVerb);
   // Proto-01 labels the chain with tool ids (`read` / `grep` / `bash` / `write_file`),
-  // not Deck's Title-Case behavior verbs (`Read` / `Search` / `Bash`). Synthetic
-  // compaction rows must keep their localized action verb, not the internal id.
+  // not Deck's Title-Case behavior verbs (`Read` / `Search` / `Bash`).
   const inkstoneTheme = themeId.startsWith('piwin-inkstone');
-  const isCompaction = tool.toolName === COMPACTION_TOOL_NAME;
   const displayActionVerb =
-    inkstoneTheme && !tool.toolName.includes('__') && !isCompaction
-      ? tool.toolName
-      : actionVerb;
+    inkstoneTheme && !tool.toolName.includes('__') ? tool.toolName : actionVerb;
   const multiPath = targetPaths.length > 1;
   const isQueryLike =
     baseBehaviorId === 'search' ||

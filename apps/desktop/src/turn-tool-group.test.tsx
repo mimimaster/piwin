@@ -145,11 +145,16 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(container.querySelector('[data-testid="tool-batch-capsule"]')).toBeNull();
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
     expect(card).not.toBeNull();
-    expect(card?.classList.contains('is-expanded')).toBe(true);
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
 
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
     await act(async () => {
       await Promise.resolve();
     });
+    expect(card?.classList.contains('is-expanded')).toBe(true);
     expect(container.querySelector('[data-testid="diff-card"]')).not.toBeNull();
 
     act(() => {

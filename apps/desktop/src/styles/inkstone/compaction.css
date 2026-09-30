@@ -1,36 +1,10 @@
-/* Inkstone Compaction (上下文收束 / 整理) timeline presentation
- *
- * Compaction is atomic maintenance performed on the agent's context window.
- * Rather than a detached banner or a bulky card, it projects onto the normal
- * tool call sequence (.tr / .tool-call-card) directly on the timeline spine.
- */
+/* Inkstone compaction seam: only the color roles differ from the base sheet.
+ * Lamp is the "something is alive" hue, pine the settled-well hue, crimson the
+ * failure hue — the same trio the rest of the chain uses. */
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .chat-compaction-row {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  padding: 0;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .chat-compaction-row .tool-call-card {
-  flex: 1 1 auto;
-  min-width: 0;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-}
-
-/* While running: signature Inkstone grind rotation on the icon */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .tool-call-card[data-tool-name='piwin_compact'][data-tool-status='running'] .tool-call-kind-icon {
-  color: var(--lamp) !important;
-  animation: grind 1.4s linear infinite !important;
-}
-
-/* When succeeded: subtle mineral pine tint for the completed compaction icon */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .tool-call-card[data-tool-name='piwin_compact'][data-tool-status='done'] .tool-call-kind-icon {
-  color: var(--pine);
+  .chat-compaction-seam {
+  --seam-live: var(--lamp);
+  --seam-done: var(--pine);
+  --seam-fail: var(--crimson);
 }

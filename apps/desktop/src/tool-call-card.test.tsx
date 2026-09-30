@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ToolCardUi } from './chat-reducer';
 import { collectSessionTools, resolveToolOpenPath, ToolCallCard } from './tool-call-card';
+import { setWorkChainCompact } from './work-chain-compact';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -447,6 +448,29 @@ describe('ToolCallCard openable file paths', () => {
     expect(card?.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
   });
 
+  it('keeps a failed row closed in 精简 and opens it again when 精简 is off', () => {
+    const failedTool: ToolCardUi = {
+      toolCallId: 'shell-error-compact',
+      toolName: 'bash',
+      status: 'error',
+      output: 'Command failed',
+      presentation: { title: 'Bash', kind: 'shell', command: 'pnpm test' },
+    };
+    setWorkChainCompact(true);
+    try {
+      act(() => {
+        root.render(<ToolCallCard tool={failedTool} locale="zh-CN" />);
+      });
+      const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+      expect(card?.classList.contains('is-expanded')).toBe(false);
+
+      act(() => setWorkChainCompact(false));
+      expect(card?.classList.contains('is-expanded')).toBe(true);
+    } finally {
+      setWorkChainCompact(false);
+    }
+  });
+
   it('reads a heredoc by its first line and states a failed exit on the row', () => {
     const heredocTool: ToolCardUi = {
       toolCallId: 'shell-heredoc-1',
@@ -861,12 +885,19 @@ describe('ToolCallCard openable file paths', () => {
       );
     });
 
+    // The diff stays closed until asked for: a long chain's edits must not
+    // all mount highlighted diffs at once.
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
-    expect(card?.classList.contains('is-expanded')).toBe(true);
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
 
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
     await act(async () => {
       await Promise.resolve();
     });
+    expect(card?.classList.contains('is-expanded')).toBe(true);
     expect(request).toHaveBeenCalled();
     expect(container.querySelector('[data-testid="diff-card"]')).not.toBeNull();
 
@@ -1028,10 +1059,13 @@ describe('ToolCallCard openable file paths', () => {
       );
     });
 
-    // With canRenderDiffCard true, the edit tool is already auto-expanded
+    // Edits start closed; opening the row mounts the inline DiffCard.
     expect(container.querySelector('[data-testid="tool-call-card"]')?.classList.contains('is-expanded')).toBe(
-      true,
+      false,
     );
+    act(() => {
+      container.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
 
     await act(async () => {
       await Promise.resolve();
@@ -1148,7 +1182,11 @@ describe('ToolCallCard openable file paths', () => {
       'README.md',
     );
     expect(container.querySelector('[data-testid="tool-call-diff-stats"]')?.textContent).toContain('+1');
+    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
 
+    act(() => {
+      container.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
     await act(async () => {
       await Promise.resolve();
     });

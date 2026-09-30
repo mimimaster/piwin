@@ -513,6 +513,11 @@ describe('chatUiReducer session and context', () => {
     state = chatUiReducer(state, {
       type: 'event',
       sessionId: 's1',
+      event: { type: 'message/text_delta', messageId: 'assistant-1', delta: 'partial', runId: 'run-1' },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
       event: {
         type: 'compaction/start',
         operationId: 'compact-1',
@@ -551,6 +556,44 @@ describe('chatUiReducer session and context', () => {
     expect(state.compactionActivity).toBeNull();
     expect(state.lastCompactionMessage).toBeNull();
     expect(state.compacting).toBe(false);
+  });
+
+  it('anchors the compaction seam above the placeholder the post-compaction reply fills', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    for (const messageId of ['assistant-1', 'assistant-2']) {
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: { type: 'message/start', messageId, role: 'assistant', runId: 'run-1' },
+      });
+      if (messageId === 'assistant-1') {
+        state = chatUiReducer(state, {
+          type: 'event',
+          sessionId: 's1',
+          event: { type: 'message/text_delta', messageId, delta: 'first', runId: 'run-1' },
+        });
+      }
+    }
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'compaction/start', operationId: 'compact-2', reason: 'overflow', runId: 'run-1' },
+    });
+    expect(state.compactionActivity?.anchorMessageId).toBe('assistant-1');
+
+    // The reply arrives in the placeholder; the seam must stay above it.
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/text_delta', messageId: 'assistant-2', delta: 'after', runId: 'run-1' },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'compaction/end', operationId: 'compact-2', ok: true, runId: 'run-1' },
+    });
+    expect(state.compactionActivity).toMatchObject({ phase: 'succeeded', anchorMessageId: 'assistant-1' });
   });
 
   it('stores compaction detail fields without inventing tokens', () => {

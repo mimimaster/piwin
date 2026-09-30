@@ -241,26 +241,6 @@
   text-overflow: ellipsis;
 }
 
-/* Compaction is one row of the agent's tool chain, so it inherits the whole
- * tool-call treatment (head row, status dot, duration, expandable body) from
- * transcript-tool-card.css. Only the chain's own left/right rhythm belongs
- * here — no surface, no border, no bespoke phase colors. */
-.chat-compaction-row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-width: 0;
-}
-
-.chat-compaction-row .tool-call-card {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.chat-compaction-row-cancel {
-  flex: 0 0 auto;
-}
-
 .skill-activity-chip {
   display: inline-flex;
   align-items: center;
