@@ -725,6 +725,85 @@ describe('buildSidebarTreeRows', () => {
     expect(notes?.grouped).toBe(false);
   });
 
+  it('shows one folder for a symlink alias pair and lists the sessions of both paths', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [
+        { path: '/Volumes/Disk/piwin', displayName: 'piwin', gitRepositoryId: 'repo1',
+          gitRootPath: '/Users/me/piwin', isPrimaryWorktree: true, isCheckoutRoot: true,
+          currentBranch: 'main' },
+        { path: '/Users/me/piwin', displayName: 'piwin', gitRepositoryId: 'repo1',
+          gitRootPath: '/Users/me/piwin', isPrimaryWorktree: true, isCheckoutRoot: true,
+          currentBranch: 'main' },
+      ],
+      worktrees: [
+        { gitRepositoryId: 'repo1', path: '/Users/me/piwin', branch: 'main', isPrimary: true },
+        { gitRepositoryId: 'repo1', path: '/tmp/piwin-head', branch: null, isPrimary: false },
+      ],
+      projectSessionsByPath: {
+        '/Volumes/Disk/piwin': [
+          session('imported', '[import] plugin review', { updatedAt: '2026-09-01T00:00:00.000Z' }),
+        ],
+        '/Users/me/piwin': [
+          session('smoke', 'Run Smoke Test', { updatedAt: '2026-09-28T00:00:00.000Z' }),
+        ],
+      },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/Users/me/piwin': false },
+      sessionListScopes: createSessionListScopeState(),
+    });
+    const folders = rows.filter((row) => row.kind === 'project-folder');
+    expect(folders).toHaveLength(1);
+    expect(folders[0]).toMatchObject({
+      projectPath: '/Users/me/piwin',
+      aliasPaths: ['/Volumes/Disk/piwin'],
+    });
+    expect(kinds(rows)).toEqual([
+      'header:projects',
+      'repo:piwin',
+      'folder:/Users/me/piwin:false',
+      'session:smoke',
+      'session:imported',
+      'worktree:/tmp/piwin-head',
+      'header:conversations',
+      'empty:general',
+    ]);
+    const repoGroup = rows.find((row) => row.kind === 'repo-group');
+    expect(repoGroup).toMatchObject({ memberCount: 2 });
+  });
+
+  it('treats a session opened under the alias path as the folder being active', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [
+        { path: '/Volumes/Disk/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+          isCheckoutRoot: true },
+        { path: '/Users/me/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+          isCheckoutRoot: true },
+      ],
+      projectSessionsByPath: {
+        '/Volumes/Disk/piwin': [session('imported', 'Imported')],
+      },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: {},
+      activeProjectPath: '/Volumes/Disk/piwin',
+      sessionListScopes: createSessionListScopeState(),
+    });
+    expect(kinds(rows)).toEqual([
+      'header:projects',
+      'folder:/Users/me/piwin:false',
+      'session:imported',
+      'header:conversations',
+      'empty:general',
+    ]);
+  });
+
   it('collapses one repository without hiding other projects and reveals it during search', () => {
     const input = {
       recentProjects: [

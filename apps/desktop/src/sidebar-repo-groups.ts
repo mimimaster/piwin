@@ -9,9 +9,13 @@ export type SidebarProjectRef = {
   currentBranch?: string;
   /** Git checkout root; same for a subdirectory of one worktree. */
   gitRootPath?: string;
+  /** Path is the checkout root or a symlink to it (not a subdirectory of it). */
+  isCheckoutRoot?: boolean;
   workspaceAvailability?: 'missing';
   /** Path-nested remembered projects that live inside this folder. */
   nested?: SidebarProjectRef[];
+  /** Other remembered paths that are the same directory (symlink alias); their sessions show here. */
+  aliasPaths?: string[];
 };
 
 export type SidebarProjectCluster =
@@ -59,7 +63,82 @@ export function isSameCheckoutSubdirectory(
 }
 
 function isNestedSidebarProject(inner: SidebarProjectRef, outer: SidebarProjectRef): boolean {
-  return isNestedProjectPath(inner.path, outer.path) || isSameCheckoutSubdirectory(inner, outer);
+  return (
+    [outer.path, ...(outer.aliasPaths ?? [])].some((outerPath) =>
+      isNestedProjectPath(inner.path, outerPath),
+    ) || isSameCheckoutSubdirectory(inner, outer)
+  );
+}
+
+/** Every remembered path a folder stands for: its own plus folded aliases. */
+export function sidebarProjectAllPaths(project: SidebarProjectRef): string[] {
+  return [project.path, ...(project.aliasPaths ?? [])];
+}
+
+/**
+ * Fold records that are the same directory under two names (for example a
+ * symlink on another volume and its real path). They share `gitRootPath` and
+ * are both checkout roots; a subdirectory project is not one, so it never
+ * folds. The record sitting at the git root itself stays as the folder
+ * because it does not depend on the aliasing volume being mounted.
+ */
+export function foldCheckoutAliasProjects(
+  projects: readonly SidebarProjectRef[],
+): SidebarProjectRef[] {
+  const aliasGroups = new Map<string, SidebarProjectRef[]>();
+  for (const project of projects) {
+    const root = project.isCheckoutRoot === true ? gitCheckoutRoot(project) : null;
+    if (root === null) {
+      continue;
+    }
+    const group = aliasGroups.get(root) ?? [];
+    group.push(project);
+    aliasGroups.set(root, group);
+  }
+
+  const primaryByRoot = new Map<string, SidebarProjectRef>();
+  for (const [root, group] of aliasGroups) {
+    if (group.length < 2) {
+      continue;
+    }
+    const primary =
+      group.find((member) => normalizeSidebarProjectPath(member.path) === root) ?? group[0];
+    if (primary) {
+      primaryByRoot.set(root, primary);
+    }
+  }
+  if (primaryByRoot.size === 0) {
+    return [...projects];
+  }
+
+  const folded: SidebarProjectRef[] = [];
+  const emitted = new Set<string>();
+  for (const project of projects) {
+    const root = project.isCheckoutRoot === true ? gitCheckoutRoot(project) : null;
+    const primary = root === null ? undefined : primaryByRoot.get(root);
+    if (!root || !primary) {
+      folded.push(project);
+      continue;
+    }
+    if (emitted.has(root)) {
+      continue;
+    }
+    emitted.add(root);
+    const aliasPaths = (aliasGroups.get(root) ?? [])
+      .filter((member) => member.path !== primary.path)
+      .map((member) => member.path);
+    folded.push({ ...primary, aliasPaths });
+  }
+  return folded;
+}
+
+/** Remembered paths folded under `projectPath`'s sidebar folder (empty for an ordinary project). */
+export function checkoutAliasPaths(
+  projects: readonly SidebarProjectRef[],
+  projectPath: string,
+): string[] {
+  return foldCheckoutAliasProjects(projects).find((project) => project.path === projectPath)
+    ?.aliasPaths ?? [];
 }
 
 function longestContainingParent(
@@ -130,7 +209,7 @@ export function clusterProjectsByRepository(
   projects: readonly SidebarProjectRef[],
   worktrees: readonly ProjectWorktreeListing[] = [],
 ): SidebarProjectCluster[] {
-  const rooted = attachNestedProjects(projects);
+  const rooted = attachNestedProjects(foldCheckoutAliasProjects(projects));
   const membersByRepo = new Map<string, SidebarProjectRef[]>();
   for (const project of rooted) {
     const repoId = project.gitRepositoryId;

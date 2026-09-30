@@ -323,6 +323,8 @@ export type RemoteProjectSummary = {
   currentBranch?: string;
   /** Git checkout root on the Host. Same for a subdirectory of one checkout. */
   gitRootPath?: string;
+  /** Path is the checkout root or a symlink to it; same-root aliases fold in the sidebar. */
+  isCheckoutRoot?: boolean;
   workspaceAvailability?: 'missing';
 };
 

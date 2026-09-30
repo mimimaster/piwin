@@ -63,6 +63,9 @@ export function projectProjects(data: unknown): RemoteProjectSummary[] {
     if (typeof record.gitRootPath === 'string' && record.gitRootPath.length > 0) {
       summary.gitRootPath = record.gitRootPath;
     }
+    if (record.isCheckoutRoot === true || record.isCheckoutRoot === false) {
+      summary.isCheckoutRoot = record.isCheckoutRoot;
+    }
     if (record.workspaceAvailability === 'missing') summary.workspaceAvailability = 'missing';
     projected.push(summary);
   }

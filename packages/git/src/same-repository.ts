@@ -14,7 +14,7 @@ function normalizePath(projectPath: string): string {
  * True when `projectPath` is the git checkout itself (or a symlink to it),
  * not a directory inside that checkout.
  */
-async function isGitCheckoutAlias(projectPath: string, checkoutRoot: string): Promise<boolean> {
+export async function isGitCheckoutAlias(projectPath: string, checkoutRoot: string): Promise<boolean> {
   const normalized = normalizePath(projectPath);
   const root = normalizePath(checkoutRoot);
   if (normalized === root) {

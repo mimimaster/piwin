@@ -506,6 +506,8 @@ describe('project commands', () => {
     expect(main?.gitRepositoryId).toMatch(/^[a-f0-9]{16}$/);
     expect(await realpath(main?.gitRootPath ?? '')).toBe(await realpath(projectPath));
     expect(await realpath(linked?.gitRootPath ?? '')).toBe(await realpath(linkedPath));
+    expect(main?.isCheckoutRoot).toBe(true);
+    expect(linked?.isCheckoutRoot).toBe(true);
   });
 
   it('lists unopened user worktrees and marks removed project paths without deleting their records', async () => {
@@ -663,13 +665,14 @@ describe('project commands', () => {
               isPrimaryWorktree: true,
               currentBranch: 'main',
               gitRootPath: fast.path,
+              isCheckoutRoot: true,
             })
           : new Promise(() => {}),
     });
     expect(listed.gitWorkspacePending).toBe(true);
     expect(listed.projects).toEqual([
       blocked,
-      { ...fast, gitRepositoryId: 'abcdef0123456789', isPrimaryWorktree: true, currentBranch: 'main', gitRootPath: fast.path },
+      { ...fast, gitRepositoryId: 'abcdef0123456789', isPrimaryWorktree: true, currentBranch: 'main', gitRootPath: fast.path, isCheckoutRoot: true },
     ]);
   });
 

@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 import { probeGitRepository } from './repository-probe.js';
 import { runGitCommand } from './git-command-runner.js';
+import { isGitCheckoutAlias } from './same-repository.js';
 
 export type GitWorkspaceListing = {
   gitRepositoryId: string;
@@ -12,6 +13,8 @@ export type GitWorkspaceListing = {
   currentBranch: string | null;
   /** `git rev-parse --show-toplevel` for this path. */
   gitRootPath: string;
+  /** Path is the checkout root or a symlink to it, not a subdirectory of it. */
+  isCheckoutRoot: boolean;
 };
 
 export function gitRepositoryIdFromCommonDir(commonDir: string): string {
@@ -32,6 +35,7 @@ export async function readGitWorkspaceListing(
       isPrimaryWorktree: identity.isPrimaryWorktree === true,
       currentBranch,
       gitRootPath: identity.rootPath,
+      isCheckoutRoot: await isGitCheckoutAlias(projectPath, identity.rootPath),
     };
   } catch {
     return null;

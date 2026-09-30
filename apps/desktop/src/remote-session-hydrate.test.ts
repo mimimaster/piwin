@@ -257,6 +257,7 @@ describe('mapListedProjects', () => {
             isPrimaryWorktree: true,
             currentBranch: 'main',
             gitRootPath: '/Users/me/piwin',
+            isCheckoutRoot: true,
           },
         ],
       }),
@@ -267,6 +268,7 @@ describe('mapListedProjects', () => {
         isPrimaryWorktree: true,
         currentBranch: 'main',
         gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true,
       },
     ]);
   });

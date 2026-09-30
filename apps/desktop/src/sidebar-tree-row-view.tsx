@@ -521,7 +521,9 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
     const project = props.recentProjects.find((item) => item.path === row.projectPath);
     const displayName = project?.displayName ?? projectDisplayName(row.projectPath);
     const unavailableLabel = props.locale === 'en' ? 'Unavailable' : '不可用';
-    const isActiveProject = row.projectPath === props.projectPath;
+    const isActiveProject =
+      row.projectPath === props.projectPath ||
+      (props.projectPath !== null && (row.aliasPaths ?? []).includes(props.projectPath));
     const projectScope: SessionScope = { kind: 'project', projectPath: row.projectPath };
     const folderIcon = row.collapsed ? (
       <IconFolder className="tree-folder-icon" data-testid="tree-folder-icon-closed" />

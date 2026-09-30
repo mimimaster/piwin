@@ -40,6 +40,20 @@ describe('project-store', () => {
     expect((await listProjects(filePath))[0]?.currentBranch).toBeUndefined();
   });
 
+  it('remembers whether a record is the checkout root so aliases stay foldable offline', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-project-checkout-root-'));
+    const filePath = join(dir, 'projects.json');
+    const project = await openOrCreateProject(filePath, '/tmp/alias-project');
+    await rememberProjectCheckoutIdentities(filePath, [{
+      ...project,
+      gitRepositoryId: 'repo1',
+      gitRootPath: '/tmp/real-project',
+      isPrimaryWorktree: true,
+      isCheckoutRoot: true,
+    }]);
+    expect((await listProjects(filePath))[0]).toMatchObject({ isCheckoutRoot: true });
+  });
+
   it('opens, trusts, and lists projects', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-project-'));
     const filePath = join(dir, 'projects.json');

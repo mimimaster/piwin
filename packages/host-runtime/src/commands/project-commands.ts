@@ -278,6 +278,7 @@ function applyGitWorkspaceListing(
     gitRepositoryId: listing.gitRepositoryId,
     isPrimaryWorktree: listing.isPrimaryWorktree,
     gitRootPath: listing.gitRootPath,
+    isCheckoutRoot: listing.isCheckoutRoot,
   };
   if (listing.currentBranch) {
     enriched.currentBranch = listing.currentBranch;
