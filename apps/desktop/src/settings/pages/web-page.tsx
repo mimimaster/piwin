@@ -10,7 +10,6 @@ import {
   modelSupportsCapability,
   type HostListDirData,
   type ModelRef,
-  type SearchRoutePolicy,
   type SearchRoutePreviewData,
   type SearchRoutePreviewInput,
   createDefaultWebConfig,
@@ -21,20 +20,11 @@ import {
 import {
   Button,
   Dialog,
-  Field,
-  Notice,
   SegmentedControl,
-  Select,
-  Switch,
-  TextInput,
 } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
-import { FieldRow } from '../field-row';
-import { SearchRouteStatus } from '../search-route-status';
 import { WebSearchLogPanel } from '../web-search-log-panel';
 import { useSettings } from '../settings-context';
-import { WebSecretEditor } from '../web-secret-editor';
-import { WebCliSourceFields } from '../web-cli-source-fields';
 import {
   createDraftSearchSource,
   draftToWeb,
@@ -45,23 +35,12 @@ import {
 } from '../web-draft';
 import { HostWorkspacePicker } from '../../host-workspace-picker';
 import { pickLocalFile } from '../../pick-project-directory';
-import { FETCH_PROVIDER_OPTIONS, SOURCE_KIND_OPTIONS } from './web-page-options';
-import { WebDevinSourceCard } from '../web-devin-source-card';
+import { WebPageSearchTab } from './web-page-search-tab';
+import { WebPageFetchTab } from './web-page-fetch-tab';
+import { modelRefKey, type SearchDelegateOption } from './web-page-model-ref.js';
 import { useDevinAccount } from '../use-devin-account.js';
 import { useDevinLogoutSearch } from '../use-devin-logout-search.js';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
-
-type SearchDelegateOption = {
-  key: string;
-  label: string;
-  ref: ModelRef;
-};
-
-function modelRefKey(model: ModelRef | undefined): string {
-  return model
-    ? [model.protocol ?? '', model.providerId, model.modelId].map(encodeURIComponent).join('/')
-    : '';
-}
 
 export function WebPage(): ReactElement {
   const { locale, translator } = useDesktopLocale();
@@ -420,509 +399,46 @@ export function WebPage(): ReactElement {
       ) : (
         <div className="web-tools-tab-body">
           {webToolsTab === 'search' ? (
-            <div className="web-tools-panel" data-testid="web-tools-search-panel">
-              {hasTaggedNativeSearch ? (
-              <div className="settings-section settings-section-card">
-                <Field
-                  label={zh ? '搜索代理模型' : 'web_search delegate model'}
-                  description={
-                    zh
-                      ? '可选：只显示已启用且标记“模型内置搜索”的模型。「模型内置搜索」= web_search 被调用时，用代理模型（未指定则用当前对话模型）发起一次厂商原生搜索子请求。指定一个更便宜的标记模型可避免主模型双倍费用。Gemini 会在工具卡中展示 Google Search Suggestions；Codex / WebSocket 通道可能没有结构化来源。'
-                      : 'Optional: only enabled models tagged Native search are listed. Native search = when web_search runs, the delegate (or, if none, the current chat model) makes one provider-native search sub-request. A cheaper tagged delegate avoids paying the main model twice. Gemini shows Google Search Suggestions in the tool card; Codex/WebSocket transports may return no structured sources.'
-                  }
-                >
-                  <Select
-                    value={modelRefKey(webDraft.searchDelegateModel)}
-                    onChange={(event) => selectSearchDelegate(event.currentTarget.value)}
-                    testId="web-search-delegate-model"
-                    data={[
-                      {
-                        value: '',
-                        label: zh
-                          ? '不指定（跟随当前对话模型，否则用下方搜索源）'
-                          : 'No delegate (follow the chat model, else sources below)',
-                      },
-                      ...(webDraft.searchDelegateModel &&
-                      !searchDelegateOptions.some(
-                        (option) => option.key === modelRefKey(webDraft.searchDelegateModel),
-                      )
-                        ? [
-                            {
-                              value: modelRefKey(webDraft.searchDelegateModel),
-                              label: zh ? '当前代理模型不可用' : 'Current delegate is unavailable',
-                              disabled: true,
-                            },
-                          ]
-                        : []),
-                      ...searchDelegateOptions.map((option) => ({
-                        value: option.key,
-                        label: option.label,
-                      })),
-                    ]}
-                  />
-                </Field>
-                {webDraft.searchDelegateModel ? (
-                  <Notice tone="info" testId="web-search-delegate-active">
-                    {zh
-                      ? '已指定代理模型时，web_search 由该模型的原生搜索完成；仅在它失败且策略不是「仅内置搜索」时，同一次调用内回退到下方搜索源。'
-                      : 'While a delegate is set, web_search runs that model’s native search. Sources below are used only as an in-call fallback when it fails (not under native-only).'}
-                  </Notice>
-                ) : null}
-              </div>
-              ) : (
-                <Notice tone="info" testId="web-search-native-untagged">
-                  {zh
-                    ? '没有已启用且标记“模型内置搜索”的模型时，web_search 走搜索源，没有搜索源则用 DuckDuckGo 兜底。官方 OpenAI / Anthropic / Gemini / xAI 拉取模型会自动打标。'
-                    : 'With no enabled model tagged Native search, web_search uses your sources, then DuckDuckGo. Official OpenAI / Anthropic / Gemini / xAI discovery auto-tags eligible models.'}
-                </Notice>
-              )}
-
-              <div className="settings-section settings-section-card">
-                <div className="settings-card-heading">
-                  <h4>{zh ? '搜索源' : 'Search sources'}</h4>
-                  <p className="muted">
-                    {zh
-                      ? '搜索在 Host 端执行，模型统一使用 web_search 工具获取结果。'
-                      : 'Search sources execute on the Host. The model only sees one web_search tool.'}
-                  </p>
-                </div>
-                <div className="web-source-list" data-testid="web-search-sources">
-                  {SOURCE_KIND_OPTIONS.map((option) => {
-                    const selected = isKindEnabled(option.id);
-                    const source = findSource(option.id);
-                    const isExpandable = option.id !== 'duckduckgo';
-                    // A row can open before its source exists, so the chevron always answers.
-                    const isExpanded = expandedSourceIds.has(source?.id ?? option.id);
-                    return (
-                      <div
-                        key={option.id}
-                        className={selected ? 'web-source-card is-selected' : 'web-source-card'}
-                        data-testid={`web-search-source-card-${option.id}`}
-                      >
-                        <div className="web-source-card-header-row">
-                          <button
-                            type="button"
-                            className="web-source-card-header"
-                            onClick={() => {
-                              if (isExpandable) {
-                                toggleExpanded(source?.id ?? option.id);
-                              }
-                            }}
-                            aria-expanded={isExpandable ? isExpanded : undefined}
-                            data-testid={`web-search-source-${option.id}`}
-                            style={{ cursor: isExpandable ? 'pointer' : 'default' }}
-                          >
-                            <div className="web-source-card-main">
-                              <div className="web-source-card-title">{option.title}</div>
-                              <div className="web-source-card-desc muted">
-                                {zh ? option.descriptionZh : option.description}
-                              </div>
-                            </div>
-                            {isExpandable ? (
-                              <span
-                                className={
-                                  isExpanded
-                                    ? 'web-source-card-chevron is-expanded'
-                                    : 'web-source-card-chevron'
-                                }
-                                aria-hidden
-                              >
-                                ›
-                              </span>
-                            ) : null}
-                          </button>
-                          <Switch
-                            checked={selected}
-                            onCheckedChange={(enabled) => toggleKind(option.id, enabled)}
-                            aria-label={
-                              zh
-                                ? `${option.title}${selected ? '已启用' : '已停用'}`
-                                : `${option.title} ${selected ? 'enabled' : 'disabled'}`
-                            }
-                            testId={`web-search-source-toggle-${option.id}`}
-                          />
-                        </div>
-
-                        {isExpandable && isExpanded && option.id === 'devin' ? (
-                          <WebDevinSourceCard
-                            zh={zh}
-                            enabled={source !== undefined}
-                            disabled={saving || remoteSettingsReadOnly === true}
-                            onTest={() => {
-                              const id = source?.id ?? option.id;
-                              // Send the draft: an unsaved source is not in the Host config yet.
-                              return testSearchConnection(id, 'devin', {
-                                id,
-                                kind: 'devin',
-                                enabled: true,
-                                // Remote settings project apiKeyRef as
-                                // `[stored-secret]`; Devin always reuses the
-                                // Host OAuth account.
-                                apiKeyRef: 'oauth:devin',
-                              });
-                            }}
-                          />
-                        ) : null}
-                        {isExpandable && isExpanded && !source && option.id !== 'devin' ? (
-                          <div className="web-source-card-body">
-                            <p className="muted">{zh ? '打开右侧开关后在这里配置。' : 'Turn the switch on to configure this source.'}</p>
-                          </div>
-                        ) : null}
-
-                        {isExpandable &&
-                        source &&
-                        isExpanded &&
-                        (option.id === 'brave' || option.id === 'tavily') ? (
-                          <div
-                            className="web-source-card-body"
-                            onClick={(event) => event.stopPropagation()}
-                            onKeyDown={(event) => event.stopPropagation()}
-                          >
-                            <WebSecretEditor
-                              secretId={`web-${source?.id ?? option.id}`}
-                              apiKeyRef={source?.apiKeyRef ?? ''}
-                              apiKeyEnv={source?.apiKeyEnv ?? ''}
-                              defaultApiKeyEnv={
-                                option.id === 'tavily' ? 'TAVILY_API_KEY' : 'BRAVE_API_KEY'
-                              }
-                              disabled={saving || remoteSettingsReadOnly === true}
-                              zh={zh}
-                              loadSecret={loadProviderSecret}
-                              storeSecret={storeProviderSecret}
-                              testConnection={() =>
-                                testSearchConnection(source.id, option.id as 'brave' | 'tavily')
-                              }
-                              onSaved={(apiKeyRef, apiKeyEnv) =>
-                                saveSearchSecret(option.id as 'brave' | 'tavily', apiKeyRef, apiKeyEnv)
-                              }
-                              testId={`web-search-${option.id}-api-key`}
-                            />
-                          </div>
-                        ) : null}
-
-                        {isExpandable &&
-                        source &&
-                        isExpanded &&
-                        option.id === 'cli' ? (
-                          <div
-                            className="web-source-card-body"
-                            onClick={(event) => event.stopPropagation()}
-                            onKeyDown={(event) => event.stopPropagation()}
-                          >
-                            <WebCliSourceFields
-                              source={source}
-                              zh={zh}
-                              disabled={saving || remoteSettingsReadOnly === true}
-                              onChange={(patch) => updateKind('cli', patch)}
-                              onPickScript={pickCliScript}
-                              onTest={(tested) =>
-                                testSearchConnection(
-                                  tested.id,
-                                  tested.kind === 'http' ? 'http' : 'cli',
-                                  tested,
-                                )
-                              }
-                            />
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="settings-section settings-section-card">
-                <Field
-                  label={translator.settings.web.searchRoute}
-                  description={translator.settings.web.searchRouteDescription}
-                  className="web-search-route-field"
-                >
-                  <Select
-                    value={
-                      !hasTaggedNativeSearch && webDraft.searchRoutePolicy === 'native-only'
-                        ? 'external-first'
-                        : webDraft.searchRoutePolicy
-                    }
-                    onChange={(event) =>
-                      setWebDraft({
-                        ...webDraft,
-                        searchRoutePolicy: event.currentTarget.value as SearchRoutePolicy,
-                      })
-                    }
-                    testId="web-search-route-policy"
-                    data={
-                      hasTaggedNativeSearch
-                        ? [
-                            { value: 'native-first', label: translator.settings.web.nativeSearchFirst },
-                            { value: 'external-first', label: translator.settings.web.externalSearchFirst },
-                            { value: 'native-only', label: translator.settings.web.nativeSearchOnly },
-                            { value: 'external-only', label: translator.settings.web.externalSearchOnly },
-                          ]
-                        : [
-                            { value: 'external-first', label: translator.settings.web.externalSearchFirst },
-                            { value: 'external-only', label: translator.settings.web.externalSearchOnly },
-                          ]
-                    }
-                  />
-                </Field>
-                <SearchRouteStatus
-                  preview={routePreview}
-                  loading={routePreviewLoading}
-                  locale={locale}
-                />
-                {routePreviewError ? (
-                  <Notice tone="warning" testId="search-route-preview-error">
-                    {translator.settings.web.previewRequestFailed}
-                  </Notice>
-                ) : null}
-              </div>
-
-              <div className="settings-section settings-section-card">
-                <details className="web-search-advanced" data-testid="web-search-advanced">
-                  <summary>{zh ? '高级搜索设置' : 'Advanced search settings'}</summary>
-                  <div className="web-tools-options">
-                    <p className="web-search-aggregate-hint muted">
-                      {zh
-                        ? '同时启用多个搜索源时，它们会被并行调用，结果合并、去重后一起返回。'
-                        : 'When multiple sources are enabled, they are queried in parallel and results are merged, deduplicated, and returned together.'}
-                    </p>
-
-                    <FieldRow label={zh ? '结果上限' : 'Max results'}>
-                      <TextInput
-                        value={webDraft.searchMaxResults}
-                        onChange={(event) =>
-                          setWebDraft({ ...webDraft, searchMaxResults: event.currentTarget.value })
-                        }
-                        inputMode="numeric"
-                        style={{ width: 96 }}
-                        testId="web-search-max-results"
-                      />
-                    </FieldRow>
-
-                    <FieldRow label={zh ? '总超时时间 (ms)' : 'Overall timeout (ms)'}>
-                      <TextInput
-                        value={webDraft.searchTimeoutMs}
-                        onChange={(event) =>
-                          setWebDraft({ ...webDraft, searchTimeoutMs: event.currentTarget.value })
-                        }
-                        inputMode="numeric"
-                        style={{ width: 120 }}
-                        testId="web-search-timeout-ms"
-                      />
-                    </FieldRow>
-
-                    <FieldRow label={zh ? '单源超时 (ms)' : 'Per-source timeout (ms)'}>
-                      <TextInput
-                        value={webDraft.perSourceTimeoutMs}
-                        onChange={(event) =>
-                          setWebDraft({
-                            ...webDraft,
-                            perSourceTimeoutMs: event.currentTarget.value,
-                          })
-                        }
-                        inputMode="numeric"
-                        style={{ width: 120 }}
-                        testId="web-search-per-source-timeout-ms"
-                      />
-                    </FieldRow>
-                  </div>
-                </details>
-              </div>
-            </div>
+            <WebPageSearchTab
+              zh={zh}
+              locale={locale}
+              translator={translator}
+              webDraft={webDraft}
+              setWebDraft={setWebDraft}
+              saving={saving}
+              remoteSettingsReadOnly={remoteSettingsReadOnly}
+              hasTaggedNativeSearch={hasTaggedNativeSearch}
+              searchDelegateOptions={searchDelegateOptions}
+              selectSearchDelegate={selectSearchDelegate}
+              isKindEnabled={isKindEnabled}
+              findSource={findSource}
+              toggleKind={toggleKind}
+              toggleExpanded={toggleExpanded}
+              expandedSourceIds={expandedSourceIds}
+              updateKind={updateKind}
+              loadProviderSecret={loadProviderSecret}
+              storeProviderSecret={storeProviderSecret}
+              saveSearchSecret={saveSearchSecret}
+              testSearchConnection={testSearchConnection}
+              pickCliScript={pickCliScript}
+              routePreview={routePreview}
+              routePreviewLoading={routePreviewLoading}
+              routePreviewError={routePreviewError}
+            />
           ) : (
-            <div className="web-tools-panel" data-testid="web-tools-fetch-panel">
-              <div className="settings-section settings-section-card">
-                <Field
-                  label={zh ? '网页提取模型' : 'web_fetch extract model'}
-                  description={
-                    zh
-                      ? '可选：使用轻量对话模型提取与查询相关的重点内容。未配置或提取失败时回退为直接读取页面正文前段。'
-                      : 'Optional: a small chat model extracts about 4,000 characters relevant to the query. Missing or failed extraction falls back to the page head.'
-                  }
-                >
-                  <Select
-                    value={modelRefKey(webDraft.fetchDelegateModel)}
-                    onChange={(event) => selectFetchDelegate(event.currentTarget.value)}
-                    testId="web-fetch-delegate-model"
-                    data={[
-                      {
-                        value: '',
-                        label: zh ? '不提取（直接读取正文前段）' : 'No extract (return the page head)',
-                      },
-                      ...(webDraft.fetchDelegateModel &&
-                      !fetchDelegateOptions.some(
-                        (option) => option.key === modelRefKey(webDraft.fetchDelegateModel),
-                      )
-                        ? [
-                            {
-                              value: modelRefKey(webDraft.fetchDelegateModel),
-                              label: zh ? '当前提取模型不可用' : 'Current extract model is unavailable',
-                              disabled: true,
-                            },
-                          ]
-                        : []),
-                      ...fetchDelegateOptions.map((option) => ({
-                        value: option.key,
-                        label: option.label,
-                      })),
-                    ]}
-                  />
-                </Field>
-                {webDraft.fetchDelegateModel ? (
-                  <Notice tone="info" testId="web-fetch-delegate-active">
-                    {zh
-                      ? '配置提取模型后，带查询词抓取时将智能提炼重点段落；未带查询词时仍按字符上限截取。'
-                      : 'When set, web_fetch with query returns a focused excerpt. outline and offset still use the mechanical window.'}
-                  </Notice>
-                ) : fetchDelegateOptions.length === 0 ? (
-                  <Notice tone="warning" testId="web-fetch-delegate-empty">
-                    {zh
-                      ? '暂无可用于提取的聊天模型。请先在模型配置中启用至少一个带 chat 能力的模型。'
-                      : 'No chat model is available. Enable at least one chat-capable model first.'}
-                  </Notice>
-                ) : null}
-                <FieldRow label={zh ? '单次返回上限（字符）' : 'Return window (chars)'}>
-                  <TextInput
-                    value={webDraft.fetchReturnMaxChars ?? ''}
-                    onChange={(event) =>
-                      setWebDraft({ ...webDraft, fetchReturnMaxChars: event.currentTarget.value })
-                    }
-                    inputMode="numeric"
-                    style={{ width: 120 }}
-                    testId="web-fetch-return-max-chars"
-                  />
-                </FieldRow>
-                <FieldRow label={zh ? '缓存提取上限（字符）' : 'Cached extract (chars)'}>
-                  <TextInput
-                    value={webDraft.fetchStoreMaxChars ?? ''}
-                    onChange={(event) =>
-                      setWebDraft({ ...webDraft, fetchStoreMaxChars: event.currentTarget.value })
-                    }
-                    inputMode="numeric"
-                    style={{ width: 120 }}
-                    testId="web-fetch-store-max-chars"
-                  />
-                </FieldRow>
-                <FieldRow label={zh ? '缓存时间（毫秒）' : 'Cache TTL (ms)'}>
-                  <TextInput
-                    value={webDraft.fetchCacheTtlMs ?? ''}
-                    onChange={(event) =>
-                      setWebDraft({ ...webDraft, fetchCacheTtlMs: event.currentTarget.value })
-                    }
-                    inputMode="numeric"
-                    style={{ width: 120 }}
-                    testId="web-fetch-cache-ttl-ms"
-                  />
-                </FieldRow>
-              </div>
-
-              <div className="settings-section settings-section-card">
-                <Field
-                  label={zh ? 'JS 渲染页面回退' : 'JS-page fallback'}
-                  description={
-                    zh
-                      ? '当本地直接解析提取到的正文内容过少时（如单页 SPA 应用），自动调用 Jina 或本地 Chromium 重新渲染抓取。'
-                      : 'When the local extract looks empty (SPA / JS-rendered), retry once with Jina or local Chromium. The result names the provider that actually produced the text.'
-                  }
-                  className="web-search-route-field"
-                >
-                  <Select
-                    value={webDraft.fetchFallback}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setWebDraft({
-                        ...webDraft,
-                        fetchFallback:
-                          value === 'jina' || value === 'browser' ? value : 'none',
-                      });
-                    }}
-                    testId="web-fetch-fallback"
-                    data={[
-                      { value: 'none', label: zh ? '不使用备用抓取' : 'No fallback' },
-                      { value: 'jina', label: 'Jina' },
-                      {
-                        value: 'browser',
-                        label: zh ? '本地浏览器（Chromium）' : 'Local browser (Chromium)',
-                      },
-                    ]}
-                  />
-                </Field>
-                <div className="web-source-list" style={{ marginBottom: 8 }}>
-                  {FETCH_PROVIDER_OPTIONS.map((option) => {
-                    const selected = webDraft.fetchProvider === option.id;
-                    return (
-                      <div
-                        key={option.id}
-                        className={selected ? 'web-source-card is-selected' : 'web-source-card'}
-                      >
-                        <button
-                          type="button"
-                          className="web-source-card-header"
-                          onClick={() =>
-                            setWebDraft({
-                              ...webDraft,
-                              fetchProvider: option.id,
-                              fetchApiKeyEnv:
-                                option.id === 'firecrawl'
-                                  ? webDraft.fetchApiKeyEnv || 'FIRECRAWL_API_KEY'
-                                  : option.id === 'jina'
-                                    ? webDraft.fetchApiKeyEnv || 'JINA_API_KEY'
-                                    : webDraft.fetchApiKeyEnv,
-                              fetchApiKeyRef:
-                                option.id === webDraft.fetchProvider ? webDraft.fetchApiKeyRef : '',
-                            })
-                          }
-                          aria-pressed={selected}
-                          data-testid={`web-fetch-provider-${option.id}`}
-                        >
-                          <div className="web-source-card-main">
-                            <div className="web-source-card-title">{option.title}</div>
-                            <div className="web-source-card-desc muted">
-                              {zh ? option.descriptionZh : option.description}
-                            </div>
-                          </div>
-                          <span
-                            className={
-                              selected ? 'web-source-card-check is-on' : 'web-source-card-check'
-                            }
-                            aria-hidden
-                          >
-                            {selected ? '✓' : ''}
-                          </span>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div
-                  className={
-                    webDraft.fetchProvider === 'firecrawl' || webDraft.fetchProvider === 'jina'
-                      ? 'web-tools-conditional is-visible'
-                      : 'web-tools-conditional'
-                  }
-                >
-                  <div className="web-tools-options">
-                    <WebSecretEditor
-                      secretId={`web-fetch-${webDraft.fetchProvider}`}
-                      apiKeyRef={webDraft.fetchApiKeyRef}
-                      apiKeyEnv={webDraft.fetchApiKeyEnv}
-                      defaultApiKeyEnv={
-                        webDraft.fetchProvider === 'firecrawl' ? 'FIRECRAWL_API_KEY' : 'JINA_API_KEY'
-                      }
-                      disabled={saving || remoteSettingsReadOnly === true}
-                      zh={zh}
-                      loadSecret={loadProviderSecret}
-                      storeSecret={storeProviderSecret}
-                      onSaved={saveFetchSecret}
-                      testId="web-fetch-api-key"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <WebPageFetchTab
+              zh={zh}
+              webDraft={webDraft}
+              setWebDraft={setWebDraft}
+              saving={saving}
+              remoteSettingsReadOnly={remoteSettingsReadOnly}
+              fetchDelegateOptions={fetchDelegateOptions}
+              selectFetchDelegate={selectFetchDelegate}
+              loadProviderSecret={loadProviderSecret}
+              storeProviderSecret={storeProviderSecret}
+              saveFetchSecret={saveFetchSecret}
+            />
           )}
-
           {isDirty || saveStatus !== 'idle' ? (
             <div
               className={`web-tools-actions is-floating is-${saveStatus}`}
