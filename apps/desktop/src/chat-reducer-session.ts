@@ -401,7 +401,7 @@ export function reduceChatSession(
         action.preserveActiveTail === true || state.activeRunId !== null;
       const hasConfirmedActiveRun = state.activeRunId !== null;
       const refreshedMessages = preserveAssistantModelSnapshots(
-        mapTranscriptMessagesToUi(action.messages),
+        mapTranscriptMessagesToUi(action.messages, { ...(action.transcriptPage ? { page: action.transcriptPage } : {}) }),
         state.messages,
       );
       const candidateMessages = reuseUnchangedTranscriptMessages(
@@ -486,7 +486,7 @@ export function reduceChatSession(
       ) {
         return state;
       }
-      const olderMessages = mapTranscriptMessagesToUi(action.messages);
+      const olderMessages = mapTranscriptMessagesToUi(action.messages, { ...(action.transcriptPage ? { page: action.transcriptPage } : {}) });
       const merged = prependBoundedTranscriptPage(state.messages, olderMessages);
       return {
         ...state,
@@ -721,7 +721,7 @@ export function reduceChatSession(
                 );
                 return cut === -1 ? state.messages : state.messages.slice(0, cut);
               })()
-            : mapTranscriptMessagesToUi(action.messages ?? []);
+            : mapTranscriptMessagesToUi(action.messages ?? [], { ...(action.transcriptPage ? { page: action.transcriptPage } : {}) });
       return enforceBoundedTranscriptWindow({
         ...state,
         messages,

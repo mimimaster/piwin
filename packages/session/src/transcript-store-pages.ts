@@ -2,6 +2,7 @@
  * Split from transcript-store.ts — pure relocation, no behavior change.
  */
 
+import { createTranscriptTurnSummaryReader } from './transcript-store-turn-summaries.js';
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type {
@@ -381,6 +382,7 @@ export function createTranscriptPagesOps(
 > {
   const { db, options, ensureOpen, currentRevision, currentUserMessageRevision } = core;
 
+  const readTurnSummaries = createTranscriptTurnSummaryReader(db, options.sessionId);
   return {
       async transcriptPage(query) {
         ensureOpen();
@@ -467,6 +469,7 @@ export function createTranscriptPagesOps(
           startIndex,
           endIndex,
           messageBytes,
+          turnSummaries: readTurnSummaries(transcriptRevisionToken(options.sessionId, revision), startIndex, endIndex),
         };
         const resultPage: typeof page & { truncatedMessageIds?: string[]; olderCursor?: string } =
           page;
@@ -563,6 +566,7 @@ export function createTranscriptPagesOps(
           anchorMessageId: query.anchorMessageId,
           anchorOffset: selected.anchorOffset,
         };
+        page.turnSummaries = readTurnSummaries(page.revision, page.startIndex, page.endIndex);
         if (selected.truncatedMessageIds.length > 0) {
           page.truncatedMessageIds = selected.truncatedMessageIds;
         }

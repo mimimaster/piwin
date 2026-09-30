@@ -927,6 +927,37 @@ describe('projectTurnWorkDisclosure', () => {
     ).toBeNull();
   });
 
+  it('still folds a very long settled chain that had a failed step part-way', () => {
+    // A history window can cut a long turn short, and long unattended runs
+    // often stumble once or twice: 700 flat tool rows mounted ~14k DOM nodes.
+    // The header carries the failure count instead.
+    const work = Array.from({ length: 45 }, (_, index) =>
+      message(`work-${index}`, {
+        runId: 'run-1',
+        ...(index === 3 ? { status: 'error' as const, error: 'Step failed' } : {}),
+        tools: [
+          {
+            toolCallId: `t-${index}`,
+            toolName: 'read',
+            status: index === 3 ? ('error' as const) : ('done' as const),
+            output: '',
+            runId: 'run-1',
+          },
+        ],
+      }),
+    );
+    const transcriptTurn = turn([message('user-1', { role: 'user', text: 'Go.' }), ...work]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: { 'run-1': completedRun() },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
+    ).toMatchObject({ startIndex: 1, endIndex: 45, toolCount: 45, failureCount: 1 });
+  });
+
   it('folds repeated terminal failure metadata without hiding the final error row', () => {
     const terminalError = 'Stream ended without finish_reason';
     const work = Array.from({ length: 39 }, (_, index) =>

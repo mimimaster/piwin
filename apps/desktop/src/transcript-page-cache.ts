@@ -84,33 +84,46 @@ export function prependBoundedTranscriptPage(
 ): TranscriptPageCacheMerge {
   const currentIds = new Set(currentMessages.map((message) => message.id));
   const candidates = olderMessages.filter((message) => !currentIds.has(message.id));
-  let merged = [...currentMessages];
-  let acceptedOlderCount = 0;
+  // Running size: re-serialising the whole window per candidate cost O(n²) bytes per page.
+  let retainedBytes = measureTranscriptCacheBytes(currentMessages);
+  let retainedCount = currentMessages.length;
+  const accepted: ChatMessageUi[] = [];
 
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
     const candidate = candidates[index];
     if (candidate === undefined) continue;
-    const next = [candidate, ...merged];
-    if (
-      next.length > MAX_TRANSCRIPT_CACHE_MESSAGES ||
-      measureTranscriptCacheBytes(next) > MAX_TRANSCRIPT_CACHE_BYTES
-    ) {
+    const nextBytes =
+      retainedBytes + measureTranscriptMessageBytes(candidate) + (retainedCount > 0 ? 1 : 0);
+    if (retainedCount + 1 > MAX_TRANSCRIPT_CACHE_MESSAGES || nextBytes > MAX_TRANSCRIPT_CACHE_BYTES) {
       break;
     }
-    merged = next;
-    acceptedOlderCount += 1;
+    accepted.push(candidate);
+    retainedBytes = nextBytes;
+    retainedCount += 1;
   }
 
   return {
-    messages: merged,
-    retainedBytes: measureTranscriptCacheBytes(merged),
-    acceptedOlderCount,
-    cacheLimitReached: acceptedOlderCount < candidates.length,
+    messages: [...accepted.reverse(), ...currentMessages],
+    retainedBytes,
+    acceptedOlderCount: accepted.length,
+    cacheLimitReached: accepted.length < candidates.length,
   };
 }
 
+/**
+ * UTF-8 size of the serialized array: the elements plus their commas and
+ * brackets, so it equals measuring `JSON.stringify(messages)` whole. Windows
+ * are re-measured on every page and eviction step; per-message sizes are
+ * cached because state never mutates a message object in place.
+ */
 export function measureTranscriptCacheBytes(messages: readonly ChatMessageUi[]): number {
-  return new TextEncoder().encode(JSON.stringify(messages)).byteLength;
+  let bytes = 2;
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index];
+    if (message === undefined) continue;
+    bytes += measureTranscriptMessageBytes(message) + (index === 0 ? 0 : 1);
+  }
+  return bytes;
 }
 
 /** Newest-first bound for Host transcript rows (inspector / raw session/messages). */
@@ -141,8 +154,15 @@ export function retainBoundedSessionTranscript(
   return start === 0 ? newest : newest.slice(start);
 }
 
-function measureTranscriptMessageBytes(message: ChatMessageUi): number {
-  return new TextEncoder().encode(JSON.stringify(message)).byteLength;
+const messageBytesCache = new WeakMap<ChatMessageUi, number>();
+const utf8Encoder = new TextEncoder();
+
+export function measureTranscriptMessageBytes(message: ChatMessageUi): number {
+  const cached = messageBytesCache.get(message);
+  if (cached !== undefined) return cached;
+  const bytes = utf8Encoder.encode(JSON.stringify(message)).byteLength;
+  messageBytesCache.set(message, bytes);
+  return bytes;
 }
 
 /** Even a never-resumed live session must remember that it evicted history. */

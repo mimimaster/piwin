@@ -1,5 +1,7 @@
-/* Segment layer of an open 已工作 fold: one header per narration segment,
-   rows indented under the open ones. */
+/* Segment layer of an open 已工作 fold. One segment = the model's narration
+   (plain prose, always visible) + a 已执行 fold for the tools that follow it.
+   The fold header is the turn fold's own `.work-h` (tool-timeline-work.css);
+   only the spacing, the body's spine and the foot bar are defined here. */
 
 .turn-work-disclosure.open {
   display: flex;
@@ -26,75 +28,88 @@
   width: 100%;
 }
 
-.turn-work-segment-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  width: 100%;
-  height: 28px;
-  padding: 0 var(--row-pad, 8px);
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--t2, var(--text-2));
-  font: inherit;
-  font-size: 12.5px;
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  box-sizing: border-box;
+/* Proximity: a fold sits right under the prose it belongs to; only the gap
+   between one segment and the next is large. */
+.turn-work-segment + .turn-work-segment {
+  margin-top: 20px;
 }
 
-.turn-work-segment-header:hover {
-  background: var(--s3, var(--hover));
+.turn-work-segment > .turn-work-segment-header {
+  margin-top: 2px;
 }
 
-/* The chevron leads here: it is the row's only affordance, not a trailing hint. */
-.turn-work-segment-header .chev {
-  opacity: 1;
-  margin-left: 0;
+/* A running segment's live line: the current tool and its target, rotating. */
+.turn-work-segment-header .work-fold-sep {
   color: var(--t4, var(--text-4));
-  flex: none;
+  white-space: pre;
 }
 
-.turn-work-segment-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--t1, var(--text-1));
-}
-
-.turn-work-segment-title.is-derived {
+.turn-work-segment-header .work-fold-live-act {
+  flex: 0 1 auto;
   color: var(--t2, var(--text-2));
 }
 
-.turn-work-segment-stats {
-  display: inline-flex;
-  gap: 6px;
-  margin-left: auto;
-  flex: none;
-  color: var(--t4, var(--text-4));
-  font-variant-numeric: tabular-nums;
-}
-
-.turn-work-segment-stats .fail {
-  color: var(--crimson, #c93b3b);
-}
-
-.turn-work-segment.is-running .turn-work-segment-title::after {
-  content: ' ·';
-  color: var(--t3, var(--text-3));
-}
-
+/* The body's left edge is a spine the reader can click to fold the segment
+   from wherever they have scrolled to. The hit strip straddles the line and
+   sits under the rows, so it never steals a row's click. */
 .turn-work-segment-body {
+  position: relative;
   margin-left: 11px;
   padding-left: 10px;
-  border-left: 1px solid var(--line-1);
+}
+
+.turn-work-segment-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -7px;
+  width: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 0;
+}
+
+.turn-work-segment-guide::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-1);
+  transition:
+    background var(--t-1) var(--ease-out),
+    width var(--t-1) var(--ease-out);
+}
+
+.turn-work-segment-guide:hover::before,
+.turn-work-segment-guide:focus-visible::before {
+  left: 5.5px;
+  width: 2px;
+  background: var(--t3, var(--text-3));
+}
+
+.turn-work-segment-body > :not(.turn-work-segment-guide) {
+  position: relative;
+  z-index: 1;
+}
+
+.turn-work-segment-foot {
+  margin: 2px 0 4px;
+  color: var(--t4, var(--text-4));
 }
 
 .turn-work-segment-earlier {
   margin: 2px 0;
+}
+
+/* Zero-size marker: where a fold's region ends, for the fold rail. */
+.fold-end-marker {
+  display: block;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
 }

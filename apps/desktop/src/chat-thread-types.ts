@@ -37,6 +37,8 @@ import type { ModelOption } from './model-options';
 
 export type ChatThreadProps = {
   messages: ChatMessageUi[];
+  /** Bounded seek to the beginning of work omitted by the current page. */
+  onLoadEarlierWork?: (messageId: string) => Promise<void> | void;
   /** Active product session owning the rendered transcript. */
   sessionId?: string;
   /** History hydrate / resume — do not play entrance animation. */

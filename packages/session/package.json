@@ -11,6 +11,11 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./transcript-work-summary": {
+      "types": "./src/transcript-work-summary.ts",
+      "import": "./src/transcript-work-summary.ts",
+      "default": "./src/transcript-work-summary.ts"
+    },
     "./classify-plan": {
       "types": "./src/classify-plan.ts",
       "import": "./src/classify-plan.ts",

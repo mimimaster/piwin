@@ -23,6 +23,21 @@ export type SessionTranscriptPageQuery = {
   beforeCursor?: string;
 };
 
+/** Complete work totals on the active conversation branch, independent of paging. */
+export type SessionTurnSummary = {
+  turnId: string;
+  userMessageId: string | null;
+  firstMessageId: string;
+  revision: string;
+  /** Inclusive/exclusive positions in the complete active transcript. */
+  startIndex: number;
+  endIndex: number;
+  toolCount: number;
+  fileCount: number;
+  failureCount: number;
+  elapsedMs?: number;
+};
+
 export type SessionTranscriptPageInfo = {
   /** Opaque revision of the complete durable transcript projection. */
   revision: string;
@@ -33,6 +48,8 @@ export type SessionTranscriptPageInfo = {
   endIndex: number;
   /** Serialized UTF-8 bytes retained by the page's message array. */
   messageBytes: number;
+  /** Complete totals for turns intersecting this page. Absent on older Hosts. */
+  turnSummaries?: SessionTurnSummary[];
   /** Messages whose UI projection was clipped to honor the byte boundary. */
   truncatedMessageIds?: string[];
   /** Fetches the next older page when present. */

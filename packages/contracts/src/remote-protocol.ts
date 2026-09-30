@@ -423,6 +423,7 @@ export type RemoteSessionMessagesData = {
 };
 
 export type RemoteSessionTranscriptPageInfo = {
+  turnSummaries?: import('./session-transcript-page.js').SessionTurnSummary[];
   revision: string;
   totalCount: number;
   startIndex: number;

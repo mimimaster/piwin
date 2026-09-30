@@ -1,3 +1,4 @@
+import { buildSessionTurnSummaries, selectSessionTurnSummaries } from '@piwin/session/transcript-work-summary';
 import {
   SESSION_TRANSCRIPT_PAGE_MIN_BYTES,
   SESSION_TRANSCRIPT_PAGE_MAX_BYTES,
@@ -65,6 +66,7 @@ export function createMockSessionTranscriptWindow(
       startIndex,
       endIndex,
       messageBytes,
+      turnSummaries: selectSessionTurnSummaries(buildSessionTurnSummaries(messages, mockWindowRevision(messages)), startIndex, endIndex),
       anchorMessageId: query.anchorMessageId,
       anchorOffset: Math.max(0, anchorIndex - startIndex),
     },

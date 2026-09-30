@@ -486,6 +486,57 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(onReturnToLatest).not.toHaveBeenCalled();
   });
 
+  it('does not read a page landing\'s alignment drift as scrolling on to live', async () => {
+    // Real capture: three older pages merged into a history view that already
+    // contained the whole live tail, then anchor alignment nudged scrollTop a
+    // few px downward. Read as "the reader went newer" it returned to live and
+    // discarded the pages, so paging up looked locked at the newest place.
+    const onReturnToLatest = vi.fn();
+    const onLoadNewer = vi.fn(async () => undefined);
+    const options = {
+      historyViewActive: true,
+      canLoadNewer: true,
+      historyCaughtUp: true,
+      onLoadNewer,
+      onReturnToLatest,
+      scrollHeight: 1_000,
+    };
+    await renderSession('landing-drift-session', { ...options, messageCount: 160 });
+    await finishOpening();
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) throw new Error('Expected transcript scroll element');
+    Object.defineProperty(scrollElement, 'clientHeight', { configurable: true, value: 200 });
+    Object.defineProperty(scrollElement, 'scrollHeight', { configurable: true, value: 1_000 });
+    scrollElement.scrollTop = 780;
+
+    await renderSession('landing-drift-session', { ...options, messageCount: 209 });
+    scrollElement.scrollTop = 800;
+    await act(async () => {
+      scrollElement.dispatchEvent(new Event('scroll'));
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onReturnToLatest).not.toHaveBeenCalled();
+    expect(onLoadNewer).not.toHaveBeenCalled();
+  });
+
+  it('still hands back to live when the reader wheels on right after a page landed', async () => {
+    const onReturnToLatest = vi.fn();
+    const options = {
+      historyViewActive: true,
+      canLoadNewer: true,
+      historyCaughtUp: true,
+      onReturnToLatest,
+      scrollHeight: 1_000,
+    };
+    await renderSession('wheel-after-landing-session', { ...options, messageCount: 160 });
+    await finishOpening();
+    await renderSession('wheel-after-landing-session', { ...options, messageCount: 209 });
+    await wheelDownAtBottom();
+
+    expect(onReturnToLatest).toHaveBeenCalledOnce();
+  });
+
   it('stays in a caught-up history view until the reader actually scrolls on', async () => {
     // Landing on a recent query via the tick rail can already fit the window
     // to the tail. The jump itself must not bounce the reader back to live.

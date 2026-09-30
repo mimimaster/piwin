@@ -9,6 +9,14 @@ import {
 import type { useTranscriptScroll } from './use-transcript-scroll.js';
 
 const EDGE_LOAD_PX = 120;
+/**
+ * After a page lands, reading-anchor alignment and the virtualizer's measure
+ * corrections keep nudging scrollTop for a moment. Scrolls in this window, with
+ * no input from the reader since the landing, are that settling — not intent.
+ */
+const LANDING_SETTLE_MS = 500;
+/** A wheel stream's scroll events belong to it; its own direction outranks scroll deltas. */
+const WHEEL_SCROLL_WINDOW_MS = 250;
 type Direction = 'older' | 'newer';
 type PagingOptions = {
   scroll: ReturnType<typeof useTranscriptScroll>;
@@ -39,8 +47,21 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
   const ignoreScrollRef = useRef(false);
   const directionRef = useRef<Direction | null>(null);
   const lastScrollTopRef = useRef(0);
+  /**
+   * What the scroll events since the last page landing can be trusted to mean.
+   * Alignment nudging scrollTop by a few pixels, read as "the reader moved
+   * toward newer", walked a caught-up history view back to the live tail —
+   * discarding the pages just loaded, so the transcript looked locked.
+   */
+  const scrollTrustRef = useRef({
+    pointerHeld: false,
+    landedAt: -Infinity,
+    lastInputAt: -Infinity,
+    lastWheelAt: -Infinity,
+  });
   const pageKeyRef = useRef(pageKey);
   pageKeyRef.current = pageKey;
+  const landedPageKeyRef = useRef(pageKey);
   const restorerRef = options.readingAnchorRestorerRef;
   /**
    * Where the reader is, refreshed on every scroll and after every commit, so
@@ -167,7 +188,20 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
     lastScrollTopRef.current = container.scrollTop;
     if (!scroll.isFollowingTail()) recordReading();
     if (inFlightRef.current || ignoreScrollRef.current) return;
-    const direction = container.scrollTop < previousTop ? 'older' : 'newer';
+    const trust = scrollTrustRef.current;
+    const now = performance.now();
+    const wheeling = now - trust.lastWheelAt <= WHEEL_SCROLL_WINDOW_MS;
+    const settling =
+      trust.landedAt > trust.lastInputAt && now - trust.landedAt <= LANDING_SETTLE_MS;
+    if (settling && !wheeling && !trust.pointerHeld) return;
+    // A wheel says which way it is going before the scroll lands; deltas
+    // during it (an anchor settling under the reader) must not overrule it.
+    const direction =
+      wheeling && directionRef.current !== null
+        ? directionRef.current
+        : container.scrollTop < previousTop
+          ? 'older'
+          : 'newer';
     directionRef.current = direction;
     if (!scroll.isFollowingTail() || direction === 'newer') maybeLoad(direction);
   }, [maybeLoad, recordReading, scroll.containerRef, scroll.isFollowingTail]);
@@ -180,34 +214,64 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
       if (event.deltaY === 0) return;
       ignoreScrollRef.current = false;
       skipNextRestoreRef.current = false;
+      scrollTrustRef.current.lastWheelAt = performance.now();
       const direction = event.deltaY < 0 ? 'older' : 'newer';
       directionRef.current = direction;
       if (!inFlightRef.current) lastRequestRef.current = null;
       maybeLoad(direction);
     };
+    const noteInput = () => {
+      scrollTrustRef.current.lastInputAt = performance.now();
+    };
     const onManualScroll = () => {
       ignoreScrollRef.current = false;
+      noteInput();
+    };
+    const onPointerDown = () => {
+      scrollTrustRef.current.pointerHeld = true;
+      onManualScroll();
+    };
+    const onPointerRelease = () => {
+      scrollTrustRef.current.pointerHeld = false;
+      noteInput();
     };
     const shell = container.parentElement;
     container.addEventListener('wheel', onWheel, { passive: true });
-    shell?.addEventListener('pointerdown', onManualScroll);
+    shell?.addEventListener('pointerdown', onPointerDown);
     shell?.addEventListener('keydown', onManualScroll);
+    shell?.addEventListener('touchstart', onManualScroll, { passive: true });
+    shell?.addEventListener('touchmove', noteInput, { passive: true });
+    // Keys scroll the transcript from wherever focus is (often nowhere).
+    window.addEventListener('keydown', noteInput);
+    window.addEventListener('pointerup', onPointerRelease);
+    window.addEventListener('pointercancel', onPointerRelease);
     return () => {
       container.removeEventListener('wheel', onWheel);
-      shell?.removeEventListener('pointerdown', onManualScroll);
+      shell?.removeEventListener('pointerdown', onPointerDown);
       shell?.removeEventListener('keydown', onManualScroll);
+      shell?.removeEventListener('touchstart', onManualScroll);
+      shell?.removeEventListener('touchmove', noteInput);
+      window.removeEventListener('keydown', noteInput);
+      window.removeEventListener('pointerup', onPointerRelease);
+      window.removeEventListener('pointercancel', onPointerRelease);
     };
   }, [maybeLoad, scroll.containerRef]);
 
   useLayoutEffect(() => {
     restoreReading();
     recordReading();
+    // (The wheel needs no settle window: its own handler owns direction.)
+    if (landedPageKeyRef.current !== pageKey) {
+      landedPageKeyRef.current = pageKey;
+      scrollTrustRef.current.landedAt = performance.now();
+    }
     const container = scroll.containerRef.current;
     if (container) lastScrollTopRef.current = container.scrollTop;
   }, [pageKey, recordReading, restoreReading, scroll.containerRef]);
   useEffect(() => {
     if (directionRef.current && !options.historyLoading) maybeLoad(directionRef.current, false);
   }, [pageKey, options.historyLoading, maybeLoad]);
+
   return {
     onScroll,
     resetIntent,

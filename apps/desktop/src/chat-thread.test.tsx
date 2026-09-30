@@ -1324,7 +1324,9 @@ describe('ChatThread render isolation (E1)', () => {
         ?.click();
     });
     expect(container.querySelector('#msg-a-repeated-failure-0')).not.toBeNull();
-    expect(container.querySelectorAll('[data-testid="message-bubble"]')).toHaveLength(41);
+    // user + terminal, plus 39 failing steps that each open as two bubbles:
+    // the narration and the tools it ran.
+    expect(container.querySelectorAll('[data-testid="message-bubble"]')).toHaveLength(2 + 39 * 2);
   });
 
   it('suppresses duplicate thinking when intermediate message already has matching thought', () => {
@@ -1460,10 +1462,15 @@ describe('ChatThread render isolation (E1)', () => {
     const thinkingRow = container.querySelector('#msg-a-run-thinking-only');
     const writeRow = container.querySelector('#msg-a-run-write');
     const finalRow = container.querySelector('#msg-a-run-final');
-    expect(firstRow?.textContent).toContain('inspect the existing files');
+    // A step's narration and its tools are two rows: the words own the
+    // `msg-` anchor, the tool sits beside them inside the same segment.
     expect(firstRow?.querySelector('.markdown')?.textContent).toContain(
       'I will inspect the workspace.',
     );
+    expect(firstRow?.querySelector('[data-testid="tool-call-card"]')).toBeNull();
+    expect(
+      firstRow?.closest('[data-testid="turn-work-segment"]')?.textContent,
+    ).toContain('inspect the existing files');
     expect(thinkingRow?.textContent).toContain('prepare a new drawing');
     expect(writeRow?.querySelector('.markdown')?.textContent).toContain('Saving the SVG.');
     expect(finalRow?.textContent).toContain('The SVG is ready.');
@@ -1520,6 +1527,7 @@ describe('ChatThread render isolation (E1)', () => {
     };
 
     renderThread([userMessage, firstAssistant]);
+    // Alone it is the settled answer: one ordinary row, tool included.
     const firstToolCard = container.querySelector(
       '#msg-a-inspector-first [data-testid="tool-call-card"]',
     );
@@ -1540,10 +1548,16 @@ describe('ChatThread render isolation (E1)', () => {
     // The first row was the settled answer; the reply makes it work, so it
     // moves once into its 已工作 segment block (and remounts there).
     const movedToolCard = container.querySelector(
-      '#msg-a-inspector-first [data-testid="tool-call-card"]',
+      '[data-testid="turn-work-segment"] [data-testid="tool-call-card"]',
     );
     expect(movedToolCard).not.toBeNull();
     expect(movedToolCard?.closest('[data-testid="turn-work-segment"]')).not.toBeNull();
+    // Its words did not move into the fold: the narration row stays a sibling.
+    const narrationRow = container.querySelector('#msg-a-inspector-first');
+    expect(narrationRow?.querySelector('.markdown')?.textContent).toContain(
+      'I will inspect the project.',
+    );
+    expect(narrationRow?.querySelector('[data-testid="tool-call-card"]')).toBeNull();
     expect(container.querySelector('[data-testid="run-inspector-inline"]')).toBeNull();
     expect(
       movedToolCard?.compareDocumentPosition(

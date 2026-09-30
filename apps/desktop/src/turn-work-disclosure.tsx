@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import type { TurnWorkDisclosureProjection } from './turn-work-disclosure-model.js';
-import { resolveWorkFoldCode, WorkFoldHeader } from './work-fold-header.js';
+import { formatWorkDuration, resolveWorkFoldCode, WorkFoldHeader } from './work-fold-header.js';
 import { WorkChainCompactToggle } from './turn-work-segment.js';
 
 export type TurnWorkDisclosureProps = {
@@ -11,6 +11,8 @@ export type TurnWorkDisclosureProps = {
   /** 精简 switch; shown beside the open header when the fold lists segments. */
   compact?: boolean;
   onCompactChange?: (next: boolean) => void;
+  /** Identity for the fold rail; the fold's region ends at the last segment's marker. */
+  foldId?: string;
 };
 
 /**
@@ -32,6 +34,15 @@ export function TurnWorkDisclosure(props: TurnWorkDisclosureProps): ReactElement
   const runningCode = projection.runningTool
     ? resolveWorkFoldCode(projection.runningTool)
     : undefined;
+  // Open with segments, the running segment's own header says what is in
+  // flight; repeating the command up here would put two "live" lines on screen.
+  const segmented = props.open && props.onCompactChange !== undefined;
+  const meta =
+    projection.toolCount !== undefined
+      ? locale === 'zh-CN'
+        ? `${projection.toolCount} 个工具`
+        : `${projection.toolCount} tool${projection.toolCount === 1 ? '' : 's'}`
+      : '';
 
   return (
     <div
@@ -50,6 +61,22 @@ export function TurnWorkDisclosure(props: TurnWorkDisclosureProps): ReactElement
         className="turn-work-disclosure-trigger"
         testId="turn-work-disclosure-trigger"
         failureCount={projection.failureCount}
+        {...(props.foldId !== undefined
+          ? {
+              dataAttributes: {
+                'data-fold-header': props.foldId,
+                'data-fold-open': props.open ? 'true' : 'false',
+                'data-fold-level': 'turn',
+                'data-fold-title':
+                  projection.elapsedMs !== undefined
+                    ? formatWorkDuration(projection.elapsedMs, locale)
+                    : locale === 'zh-CN'
+                      ? '已工作'
+                      : 'Work',
+                'data-fold-meta': meta,
+              },
+            }
+          : {})}
         {...(running
           ? {
               ...(projection.runningSince !== undefined
@@ -58,8 +85,8 @@ export function TurnWorkDisclosure(props: TurnWorkDisclosureProps): ReactElement
               ...(projection.runningToolIndex !== undefined
                 ? { runningToolIndex: projection.runningToolIndex }
                 : {}),
-              ...(runningCode !== undefined ? { runningCode } : {}),
-              ...(projection.latestNarration !== undefined
+              ...(runningCode !== undefined && !segmented ? { runningCode } : {}),
+              ...(projection.latestNarration !== undefined && !segmented
                 ? { narration: projection.latestNarration }
                 : {}),
             }

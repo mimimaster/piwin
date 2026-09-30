@@ -14,6 +14,8 @@ import {
   type ToolClusterKind,
 } from './tool-group-clustering.js';
 import type { TranscriptTurn } from './transcript-turns.js';
+import { countFailures, countToolsAndFiles } from './turn-work-disclosure-model.js';
+import { resolveWorkFoldCode } from './work-fold-header.js';
 
 /**
  * An unnarrated stretch longer than this is cut into more segments, so one
@@ -51,6 +53,23 @@ export type TurnWorkSegment = {
   toolCount: number;
   stats: TurnWorkSegmentStats;
   running: boolean;
+  /**
+   * Turn item index of the message whose text opened the segment. Its text is the
+   * segment's prose — shown outside the fold — while its tools stay inside.
+   */
+  narrationItemIndex?: number;
+  /** Counted exactly like the turn fold header, so both levels read the same. */
+  summary: TurnWorkSegmentSummary;
+};
+
+export type TurnWorkSegmentSummary = {
+  toolCount: number;
+  fileCount: number;
+  failureCount: number;
+  /** First message start → last tool end (or the next message's start). */
+  elapsedMs?: number;
+  /** Epoch ms of the segment's first message: the running clock counts from here. */
+  startedAt?: number;
 };
 
 function emptyStats(): TurnWorkSegmentStats {
@@ -90,6 +109,7 @@ type SegmentDraft = {
   stats: TurnWorkSegmentStats;
   editedPaths: Set<string>;
   running: boolean;
+  narrationItemIndex?: number;
 };
 
 function openDraft(index: number, title: string | undefined): SegmentDraft {
@@ -97,6 +117,7 @@ function openDraft(index: number, title: string | undefined): SegmentDraft {
     startIndex: index,
     endIndex: index,
     ...(title !== undefined ? { title } : {}),
+    ...(title !== undefined ? { narrationItemIndex: index } : {}),
     toolCount: 0,
     stats: emptyStats(),
     editedPaths: new Set(),
@@ -169,6 +190,7 @@ export function buildTurnWorkSegments(
       drafts.push(current);
     } else if (title !== undefined && current.title === undefined) {
       current.title = title;
+      current.narrationItemIndex = index;
     }
     current.endIndex = index;
     if (message.status === 'streaming') current.running = true;
@@ -194,8 +216,89 @@ export function buildTurnWorkSegments(
       toolCount: draft.toolCount,
       stats: { ...draft.stats, editedFiles: draft.editedPaths.size },
       running: draft.running,
+      ...(draft.narrationItemIndex !== undefined
+        ? { narrationItemIndex: draft.narrationItemIndex }
+        : {}),
+      summary: summarizeSegment(turn, draft.startIndex, draft.endIndex),
     };
   });
+}
+
+function parseTime(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+/**
+ * Header numbers for one segment. Tool / file / failure counts reuse the turn
+ * fold's own counters (no run ids: a segment is a slice of one run, and a
+ * failed run is the turn header's business). Elapsed runs from the first
+ * message's start to the last tool's end, falling back to the next message's
+ * start; without any timestamps it is omitted rather than guessed.
+ */
+function summarizeSegment(
+  turn: TranscriptTurn,
+  startIndex: number,
+  endIndex: number,
+): TurnWorkSegmentSummary {
+  const { toolCount, fileCount } = countToolsAndFiles(turn, startIndex, endIndex);
+  const failureCount = countFailures(turn, startIndex, endIndex, new Set(), {});
+  let start: number | undefined;
+  let end: number | undefined;
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const message = turn.items[index]?.message;
+    if (!message) continue;
+    const messageStart = message.thinkingStartedAt ?? parseTime(message.createdAt);
+    if (messageStart !== undefined) start = start === undefined ? messageStart : Math.min(start, messageStart);
+    const messageEnd = Math.max(
+      message.thinkingEndedAt ?? 0,
+      parseTime(message.createdAt) ?? 0,
+      ...message.tools.map((toolCall) => parseTime(toolCall.presentation?.endedAt) ?? 0),
+    );
+    if (messageEnd > 0) end = end === undefined ? messageEnd : Math.max(end, messageEnd);
+  }
+  const nextStart = parseTime(turn.items[endIndex + 1]?.message.createdAt);
+  if (nextStart !== undefined && (end === undefined || nextStart > end)) end = nextStart;
+  const elapsedMs =
+    start !== undefined && end !== undefined && end > start ? end - start : undefined;
+  return {
+    toolCount,
+    fileCount,
+    failureCount,
+    ...(elapsedMs !== undefined ? { elapsedMs } : {}),
+    ...(start !== undefined ? { startedAt: start } : {}),
+  };
+}
+
+export type TurnWorkSegmentLiveAction = {
+  toolName: string;
+  /** Command, file name or summary — whatever the tool is acting on. */
+  target: string;
+};
+
+/**
+ * What a collapsed running segment shows: every tool still running (the header
+ * rotates through them), else the latest finished one, else nothing yet.
+ */
+export function resolveSegmentLiveActions(
+  turn: TranscriptTurn,
+  segment: Pick<TurnWorkSegment, 'startIndex' | 'endIndex'>,
+): TurnWorkSegmentLiveAction[] {
+  const running: TurnWorkSegmentLiveAction[] = [];
+  let latest: TurnWorkSegmentLiveAction | undefined;
+  for (let index = segment.startIndex; index <= segment.endIndex; index += 1) {
+    for (const toolCall of turn.items[index]?.message.tools ?? []) {
+      const action = {
+        toolName: toolCall.toolName,
+        target: resolveWorkFoldCode(toolCall) ?? '',
+      };
+      latest = action;
+      if (toolCall.status === 'running') running.push(action);
+    }
+  }
+  if (running.length > 0) return running;
+  return latest === undefined ? [] : [latest];
 }
 
 /** Index lookup: turn item index → owning segment. */
@@ -214,8 +317,8 @@ export function indexSegmentsByItem(
 /**
  * Default open state before the reader touches a segment. Compact shows
  * titles only. The 总是展开 / 详细 preferences open every segment. Otherwise
- * the newest segment and any segment with a failure open, so the fold lands
- * on where the run is (or where it went wrong).
+ * the newest settled segment and any segment with a failure open, so the fold
+ * lands on where the run ended (or where it went wrong).
  */
 export function resolveSegmentDefaultOpen(
   segment: TurnWorkSegment,
@@ -223,5 +326,9 @@ export function resolveSegmentDefaultOpen(
 ): boolean {
   if (options.compact) return false;
   if (options.expandAll) return true;
+  // A running segment stays folded: its header already says what it is doing
+  // (rotating through the tools in flight). A failure is the exception —
+  // it must be on screen.
+  if (segment.running) return segment.stats.failed > 0;
   return options.isLast || segment.stats.failed > 0;
 }

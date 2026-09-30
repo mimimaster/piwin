@@ -53,6 +53,29 @@ describe('transcript page cache', () => {
     expect(byteBound.cacheLimitReached).toBe(true);
   });
 
+  it('measures a window exactly as its whole serialization would', () => {
+    // Bytes are summed per message (cached); the sum must equal encoding the
+    // array in one go, including multi-byte text and the empty window.
+    const messages = [
+      message('a', '你好，世界 🌏'),
+      message('b', 'plain'),
+      { ...message('c', 'tool'), tools: [{ toolCallId: 't', toolName: 'read', status: 'done' as const, output: 'é'.repeat(50), runId: 'r' }] },
+    ];
+    const whole = (items: readonly ChatMessageUi[]): number =>
+      new TextEncoder().encode(JSON.stringify(items)).byteLength;
+    expect(measureTranscriptCacheBytes(messages)).toBe(whole(messages));
+    expect(measureTranscriptCacheBytes(messages.slice(1))).toBe(whole(messages.slice(1)));
+    expect(measureTranscriptCacheBytes([])).toBe(2);
+    // A second call is served from the per-message cache and still agrees.
+    expect(measureTranscriptCacheBytes(messages)).toBe(whole(messages));
+  });
+
+  it('reports the bytes of the merged window it returns', () => {
+    const current = [message('m3', 'tail'), message('m4')];
+    const merged = prependBoundedTranscriptPage(current, [message('m1', '首'), message('m2')]);
+    expect(merged.retainedBytes).toBe(measureTranscriptCacheBytes(merged.messages));
+  });
+
   it('bounds a live-grown window while retaining protected current-tail messages', () => {
     const messages = Array.from({ length: 240 }, (_, index) => message(`m-${index}`));
     const protectedIds = new Set(messages.slice(-16).map((item) => item.id));

@@ -124,6 +124,7 @@ export function areChatMessageRowPropsEqual(
     previous.sessionId === next.sessionId &&
     previous.messageIndex === next.messageIndex &&
     previous.showStreamingCaret === next.showStreamingCaret &&
+    previous.omitAnchorId === next.omitAnchorId &&
     streamingIsStable &&
     previous.activeSessionId === next.activeSessionId &&
     previous.editingMessageId === next.editingMessageId &&

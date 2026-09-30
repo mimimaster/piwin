@@ -7,8 +7,10 @@ import {
   MAX_UNNARRATED_SEGMENT_TOOLS,
   narrationTitle,
   resolveSegmentDefaultOpen,
+  resolveSegmentLiveActions,
 } from './turn-work-segments.js';
-import { resolveTurnFoldKey, planTurnWorkSegments } from './turn-work-segment-plan.js';
+import { projectTurnWorkDisclosure } from './turn-work-disclosure-model.js';
+import { planTurnWorkSegments } from './turn-work-segment-plan.js';
 
 function tool(id: string, overrides: Partial<ToolCardUi> = {}): ToolCardUi {
   return { toolCallId: id, toolName: 'bash', status: 'done', output: '', ...overrides };
@@ -105,6 +107,95 @@ describe('buildTurnWorkSegments', () => {
     expect(segments[2]?.running).toBe(true);
   });
 
+  it('remembers which message opened the segment: its words are the prose', () => {
+    const turn = turnOf([
+      assistant('quiet', { tools: [tool('a')] }),
+      assistant('n1', { text: 'Reading.', tools: [tool('b')] }),
+      assistant('more', { tools: [tool('c')] }),
+      assistant('n2', { text: 'Editing.', tools: [tool('d')] }),
+    ]);
+    const segments = buildTurnWorkSegments(turn, 0, 3);
+    // An unnarrated opening stretch has no prose; each later segment's prose
+    // is the message that carried its narration, not merely its first row.
+    expect(segments.map((segment) => segment.narrationItemIndex)).toEqual([undefined, 1, 3]);
+    expect(segments.every((segment) => segment.summary.toolCount === segment.toolCount)).toBe(true);
+  });
+
+  it('a thought-only lead-in joins the narration after it, which stays the prose', () => {
+    const turn = turnOf([
+      assistant('think', { thinking: 'hmm' }),
+      assistant('n1', { text: 'Reading.', tools: [tool('b')] }),
+    ]);
+    const [segment] = buildTurnWorkSegments(turn, 0, 1);
+    expect(segment?.startIndex).toBe(0);
+    expect(segment?.narrationItemIndex).toBe(1);
+  });
+
+  it('counts a segment exactly like the turn fold header counts its range', () => {
+    const turn = turnOf([
+      assistant('n1', {
+        text: 'Working.',
+        tools: [
+          editTool('e1', 'src/a.ts'),
+          readTool('r1'),
+          tool('f1', { status: 'error' }),
+          tool('cancelled', { status: 'error', presentation: { kind: 'shell', title: 'bash', error: { category: 'cancelled', message: 'stopped' } } }),
+        ],
+      }),
+      assistant('answer', { text: 'Done.' }),
+    ]);
+    const [segment] = buildTurnWorkSegments(turn, 0, 0);
+    const projection = projectTurnWorkDisclosure({
+      turn,
+      runRecordsById: {},
+      activeRunId: null,
+      currentTurnStreaming: false,
+    });
+    expect(segment?.summary.toolCount).toBe(projection?.toolCount);
+    expect(segment?.summary.fileCount).toBe(projection?.fileCount);
+    // A cancelled tool is not a failure, here or in the turn header.
+    expect(segment?.summary.failureCount).toBe(1);
+    expect(projection?.failureCount).toBe(1);
+  });
+
+  it('measures a segment from its first message to its last tool, else to the next message', () => {
+    const at = (iso: string): string => iso;
+    const withEnd = buildTurnWorkSegments(
+      turnOf([
+        assistant('n1', {
+          text: 'Go.',
+          createdAt: at('2026-09-30T10:00:00.000Z'),
+          tools: [
+            tool('t', {
+              presentation: {
+                kind: 'shell',
+                title: 'bash',
+                endedAt: '2026-09-30T10:02:30.000Z',
+              },
+            }),
+          ],
+        }),
+      ]),
+      0,
+      0,
+    )[0];
+    expect(withEnd?.summary.elapsedMs).toBe(150_000);
+    expect(withEnd?.summary.startedAt).toBe(Date.parse('2026-09-30T10:00:00.000Z'));
+
+    const nextStart = buildTurnWorkSegments(
+      turnOf([
+        assistant('n1', { text: 'Go.', createdAt: at('2026-09-30T10:00:00.000Z'), tools: [tool('t')] }),
+        assistant('n2', { text: 'Then.', createdAt: at('2026-09-30T10:01:00.000Z'), tools: [tool('u')] }),
+      ]),
+      0,
+      0,
+    )[0];
+    expect(nextStart?.summary.elapsedMs).toBe(60_000);
+
+    const untimed = buildTurnWorkSegments(turnOf([assistant('n1', { text: 'Go.', tools: [tool('t')] })]), 0, 0)[0];
+    expect(untimed?.summary.elapsedMs).toBeUndefined();
+  });
+
   it('indexes items back to their segment', () => {
     const turn = turnOf([assistant('a', { text: 'One.' }), assistant('b', { tools: [tool('t')] })]);
     const byItem = indexSegmentsByItem(buildTurnWorkSegments(turn, 0, 1));
@@ -127,6 +218,56 @@ describe('resolveSegmentDefaultOpen', () => {
     expect(resolveSegmentDefaultOpen(failing, { isLast: false, compact: false, expandAll: false })).toBe(true);
     expect(resolveSegmentDefaultOpen(failing, { isLast: true, compact: true, expandAll: true })).toBe(false);
     expect(resolveSegmentDefaultOpen(segment, { isLast: false, compact: false, expandAll: true })).toBe(true);
+  });
+
+  it('keeps a running segment folded — its header names what is in flight — unless it failed', () => {
+    const running = buildTurnWorkSegments(
+      turnOf([assistant('r', { text: 'x', status: 'streaming', tools: [tool('t', { status: 'running' })] })]),
+      0,
+      0,
+    )[0];
+    const runningFailed = buildTurnWorkSegments(
+      turnOf([
+        assistant('rf', {
+          text: 'x',
+          tools: [tool('bad', { status: 'error' }), tool('t', { status: 'running' })],
+        }),
+      ]),
+      0,
+      0,
+    )[0];
+    if (!running || !runningFailed) throw new Error('fixture');
+    expect(resolveSegmentDefaultOpen(running, { isLast: true, compact: false, expandAll: false })).toBe(false);
+    expect(resolveSegmentDefaultOpen(running, { isLast: true, compact: false, expandAll: true })).toBe(true);
+    expect(resolveSegmentDefaultOpen(runningFailed, { isLast: true, compact: false, expandAll: false })).toBe(true);
+  });
+});
+
+describe('resolveSegmentLiveActions', () => {
+  const bash = (id: string, command: string, status: ToolCardUi['status']): ToolCardUi =>
+    tool(id, { status, presentation: { kind: 'shell', title: 'bash', command } });
+
+  it('lists every tool still running, so the header can rotate through them', () => {
+    const turn = turnOf([
+      assistant('a', { text: 'Go.', tools: [bash('1', 'pnpm typecheck', 'done'), bash('2', 'pnpm test', 'running')] }),
+      assistant('b', { tools: [bash('3', 'pnpm build', 'running')] }),
+    ]);
+    const [segment] = buildTurnWorkSegments(turn, 0, 1);
+    expect(resolveSegmentLiveActions(turn, segment ?? { startIndex: 0, endIndex: 1 })).toEqual([
+      { toolName: 'bash', target: 'pnpm test' },
+      { toolName: 'bash', target: 'pnpm build' },
+    ]);
+  });
+
+  it('falls back to the latest finished tool, then to nothing', () => {
+    const turn = turnOf([
+      assistant('a', { text: 'Go.', tools: [bash('1', 'pnpm typecheck', 'done'), readTool('r')] }),
+    ]);
+    const [segment] = buildTurnWorkSegments(turn, 0, 0);
+    expect(resolveSegmentLiveActions(turn, segment ?? { startIndex: 0, endIndex: 0 })).toEqual([
+      { toolName: 'read', target: 'a.ts' },
+    ]);
+    expect(resolveSegmentLiveActions(turnOf([assistant('x', { text: 'Thinking.' })]), { startIndex: 0, endIndex: 0 })).toEqual([]);
   });
 });
 
@@ -163,28 +304,5 @@ describe('planTurnWorkSegments', () => {
       openOverrides: { 'seg-n1': true, 'seg-n4': false },
     });
     expect(plan.segments.filter(plan.isOpen).map((segment) => segment.id)).toEqual(['seg-n1']);
-  });
-});
-
-describe('resolveTurnFoldKey', () => {
-  it('keeps turn.id for a turn whose prompt is resident', () => {
-    const user: ChatMessageUi = {
-      id: 'u',
-      role: 'user',
-      text: 'Fix it.',
-      thinking: '',
-      tools: [],
-      attachments: [],
-      status: 'done',
-    };
-    const turn = turnOf([user, assistant('a')]);
-    expect(resolveTurnFoldKey(turn)).toBe('turn-u');
-  });
-
-  it('keys a headless turn by its run so older pages do not re-key it', () => {
-    const tail = turnOf([assistant('a50'), assistant('a51')]);
-    const paged = turnOf([assistant('a01'), assistant('a50'), assistant('a51')]);
-    expect(resolveTurnFoldKey(tail)).toBe('run:run-1');
-    expect(resolveTurnFoldKey(paged)).toBe(resolveTurnFoldKey(tail));
   });
 });

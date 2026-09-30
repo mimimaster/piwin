@@ -1,73 +1,53 @@
 /**
- * Segment layer of the 已工作 fold: one header per narration segment, with
- * the segment's rows mounted only while it is open.
+ * Segment layer of the 已工作 fold. One segment = one narration + the tools
+ * that follow it:
+ *
+ *   prose   the narration, always visible (it is the model talking, not work)
+ *   header  「已执行 52m · 74 个工具 · 18 个文件 · 2 次失败」 — the turn fold's own
+ *           header, same trailing counts, with the run glyph; while the
+ *           segment runs it reads 「执行中 · <tool> <target>」 and rotates
+ *           through the tools in flight
+ *   body    the tool rows, mounted only while open; its spine and foot bar
+ *           collapse the segment from wherever the reader has scrolled to
  */
 import type { ReactElement, ReactNode } from 'react';
+import { useRef } from 'react';
 import { Button } from '@piwin/ui-kit';
-import { IconChevronDown, IconChevronRight } from './shell-icons';
-import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
-import type { TurnWorkSegment, TurnWorkSegmentStats } from './turn-work-segments.js';
+import { ActionMarquee } from './action-marquee.js';
+import { useTranscriptScrollPort } from './transcript-scroll-port.js';
+import { collapseFoldWithAnchor } from './work-fold-anchor.js';
+import { useRotatingIndex } from './use-rotating-index.js';
+import { formatWorkDuration, WorkFoldHeader } from './work-fold-header.js';
+import type { TurnWorkSegment, TurnWorkSegmentLiveAction } from './turn-work-segments.js';
 import type { TurnWorkSegmentPlan } from './turn-work-segment-plan.js';
 
 type Locale = 'zh-CN' | 'en';
 
-type StatPart = { key: keyof TurnWorkSegmentStats; count: number; label: string; fail?: boolean };
+/** A body this long earns a collapse bar at its foot. */
+export const SEGMENT_FOOT_BAR_MIN_TOOLS = 8;
 
-function statParts(stats: TurnWorkSegmentStats, locale: Locale): StatPart[] {
-  const zh = locale === 'zh-CN';
-  const parts: StatPart[] = [
-    { key: 'explore', count: stats.explore, label: zh ? `读${stats.explore}` : `${stats.explore} read` },
-    {
-      key: 'edit',
-      count: stats.edit,
-      label: zh ? `改${stats.edit}` : `${stats.edit} edit${stats.edit === 1 ? '' : 's'}`,
-    },
-    {
-      key: 'command',
-      count: stats.command,
-      label: zh ? `命令${stats.command}` : `${stats.command} cmd`,
-    },
-    {
-      key: 'subagent',
-      count: stats.subagent,
-      label: zh ? `子代理${stats.subagent}` : `${stats.subagent} subagent`,
-    },
-    { key: 'other', count: stats.other, label: zh ? `其他${stats.other}` : `${stats.other} other` },
-    {
-      key: 'failed',
-      count: stats.failed,
-      label: zh ? `失败${stats.failed}` : `${stats.failed} failed`,
-      fail: true,
-    },
-  ];
-  return parts.filter((part) => part.count > 0);
+export function segmentFoldId(segment: Pick<TurnWorkSegment, 'id'>): string {
+  return `segment:${segment.id}`;
 }
 
-/**
- * Title for a segment the model did not narrate: its most consequential
- * action, not its most frequent one — ten reads around two edits is an edit.
- * The stat chips beside it carry the full counts.
- */
-export function fallbackSegmentTitle(segment: TurnWorkSegment, locale: Locale): string {
-  const { stats } = segment;
-  const zh = locale === 'zh-CN';
-  if (stats.edit > 0) {
-    const files = Math.max(stats.editedFiles, 1);
-    return zh ? `编辑了 ${files} 个文件` : `Edited ${files} file${files === 1 ? '' : 's'}`;
-  }
-  if (stats.command > 0) {
-    return zh ? `运行了 ${stats.command} 条命令` : `Ran ${stats.command} commands`;
-  }
-  if (stats.subagent > 0) {
-    return zh ? `委派了 ${stats.subagent} 个子代理` : `Delegated ${stats.subagent} subagents`;
-  }
-  if (stats.explore > 0) {
-    return zh ? `探索了 ${stats.explore} 项` : `Explored ${stats.explore} items`;
-  }
-  if (stats.other > 0) {
-    return zh ? `调用了 ${stats.other} 个工具` : `Called ${stats.other} tools`;
-  }
-  return zh ? `思考 · 第 ${segment.ordinal} 段` : `Thinking · part ${segment.ordinal}`;
+function RunningSegmentLabel(props: {
+  actions: readonly TurnWorkSegmentLiveAction[];
+  locale: Locale;
+}): ReactElement {
+  const index = useRotatingIndex(props.actions.length);
+  const action = props.actions[index];
+  const text = action ? [action.toolName, action.target].filter(Boolean).join(' ') : '';
+  return (
+    <>
+      <b>{props.locale === 'zh-CN' ? '执行中' : 'Executing'}</b>
+      {text ? (
+        <>
+          <span className="work-fold-sep"> · </span>
+          <ActionMarquee className="work-fold-live-act" activeText={text} />
+        </>
+      ) : null}
+    </>
+  );
 }
 
 export type TurnWorkSegmentBlockProps = {
@@ -75,51 +55,118 @@ export type TurnWorkSegmentBlockProps = {
   open: boolean;
   locale: Locale;
   onToggle: () => void;
-  /** The segment's rows. Only called for an open segment. */
+  /** Narration rows: shown whether or not the segment is open. */
+  prose?: ReactNode;
+  /** What the running segment's tools are doing right now (collapsed header). */
+  liveActions?: readonly TurnWorkSegmentLiveAction[];
+  /** The segment's tool rows. Only called for an open segment. */
   children?: ReactNode;
+  /** Set on the last segment: closes the turn fold's region for the rail. */
+  turnFoldEndId?: string;
 };
 
 export function TurnWorkSegmentBlock(props: TurnWorkSegmentBlockProps): ReactElement {
   const { segment, open, locale } = props;
-  const foldMeasure = useTranscriptLocalFoldMeasure(open);
-  // Open, a narrated segment's own text renders right below the header, so
-  // the header names what the segment did instead of repeating it.
-  const narrated = segment.title !== undefined && !open;
-  const title = narrated && segment.title !== undefined
-    ? segment.title
-    : fallbackSegmentTitle(segment, locale);
-  const Chevron = open ? IconChevronDown : IconChevronRight;
+  const zh = locale === 'zh-CN';
+  const port = useTranscriptScrollPort();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const foldId = segmentFoldId(segment);
+  const { summary } = segment;
+  const running = segment.running;
+
+  const collapse = (): void => {
+    const container = port?.scrollElementRef.current;
+    const header = rootRef.current?.querySelector<HTMLElement>('[data-fold-header]');
+    if (!container || !header) {
+      props.onToggle();
+      return;
+    }
+    collapseFoldWithAnchor(container, header, {
+      beginProgrammaticScroll: port?.beginProgrammaticScroll ?? (() => {}),
+    });
+  };
+
+  const meta = [
+    zh ? `${summary.toolCount} 个工具` : `${summary.toolCount} tool${summary.toolCount === 1 ? '' : 's'}`,
+    summary.elapsedMs !== undefined ? formatWorkDuration(summary.elapsedMs, locale, 'executed') : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <div
-      className={`turn-work-segment${open ? ' is-open' : ''}${segment.running ? ' is-running' : ''}${
-        segment.stats.failed > 0 ? ' has-failure' : ''
+      ref={rootRef}
+      className={`turn-work-segment${open ? ' is-open' : ''}${running ? ' is-running' : ''}${
+        summary.failureCount > 0 ? ' has-failure' : ''
       }`}
       data-testid="turn-work-segment"
       data-segment-id={segment.id}
       data-open={open ? 'true' : 'false'}
     >
-      <button
-        type="button"
-        className="turn-work-segment-header"
-        aria-expanded={open}
-        data-testid="turn-work-segment-header"
-        ref={foldMeasure.setRoot}
-        onClick={() => {
-          foldMeasure.onUserToggle();
-          props.onToggle();
+      {props.prose}
+      <WorkFoldHeader
+        state={running ? 'running' : 'done'}
+        locale={locale}
+        open={open}
+        onToggle={props.onToggle}
+        className="turn-work-disclosure-trigger turn-work-segment-header"
+        testId="turn-work-segment-header"
+        doneIcon="run"
+        verb="executed"
+        failureCount={summary.failureCount}
+        dataAttributes={{
+          'data-fold-header': foldId,
+          'data-fold-open': open ? 'true' : 'false',
+          'data-fold-level': 'segment',
+          'data-fold-title': segment.title ?? '',
+          'data-fold-meta': meta,
         }}
+        {...(running
+          ? summary.startedAt !== undefined
+            ? { runningSince: summary.startedAt }
+            : {}
+          : {
+              ...(summary.elapsedMs !== undefined ? { elapsedMs: summary.elapsedMs } : {}),
+              toolCount: summary.toolCount,
+              fileCount: summary.fileCount,
+            })}
       >
-        <Chevron className={`i s12 chev${open ? ' is-open' : ''}`} width={12} height={12} />
-        <span className={`turn-work-segment-title${narrated ? '' : ' is-derived'}`}>{title}</span>
-        <span className="turn-work-segment-stats">
-          {statParts(segment.stats, locale).map((part) => (
-            <span key={part.key} className={part.fail ? 'fail' : undefined}>
-              {part.label}
-            </span>
-          ))}
-        </span>
-      </button>
-      {open ? <div className="turn-work-segment-body">{props.children}</div> : null}
+        {running ? (
+          <RunningSegmentLabel actions={props.liveActions ?? []} locale={locale} />
+        ) : undefined}
+      </WorkFoldHeader>
+      {open ? (
+        <div className="turn-work-segment-body">
+          <button
+            type="button"
+            className="turn-work-segment-guide"
+            data-testid="turn-work-segment-guide"
+            aria-label={zh ? '收起这一步的工具' : 'Collapse this step'}
+            title={zh ? '收起' : 'Collapse'}
+            onClick={collapse}
+          />
+          {props.children}
+          {summary.toolCount >= SEGMENT_FOOT_BAR_MIN_TOOLS ? (
+            <Button
+              variant="ghost"
+              size="compact"
+              className="turn-work-segment-foot"
+              data-testid="turn-work-segment-foot"
+              onClick={collapse}
+            >
+              {zh ? `收起 · ${summary.toolCount} 个工具` : `Collapse · ${summary.toolCount} tools`}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      <span data-fold-end={foldId} aria-hidden="true" className="fold-end-marker" />
+      {props.turnFoldEndId !== undefined ? (
+        <span
+          data-fold-end={props.turnFoldEndId}
+          aria-hidden="true"
+          className="fold-end-marker"
+        />
+      ) : null}
     </div>
   );
 }
@@ -131,8 +178,15 @@ export function TurnWorkSegmentBlock(props: TurnWorkSegmentBlockProps): ReactEle
 export function mountTurnWorkSegmentBlocks(
   items: ReactElement[],
   plan: TurnWorkSegmentPlan,
-  options: { locale: Locale; onToggle: (segmentId: string, currentlyOpen: boolean) => void },
+  options: {
+    locale: Locale;
+    onToggle: (segmentId: string, currentlyOpen: boolean) => void;
+    liveActionsFor: (segment: TurnWorkSegment) => readonly TurnWorkSegmentLiveAction[];
+    /** Fold id of the turn-level fold whose region ends with the last segment. */
+    turnFoldEndId?: string;
+  },
 ): void {
+  const lastSegment = plan.segments[plan.segments.length - 1];
   for (const segment of plan.segments) {
     const slot = plan.slots.get(segment.id);
     if (slot === undefined) continue;
@@ -144,6 +198,11 @@ export function mountTurnWorkSegmentBlocks(
         open={open}
         locale={options.locale}
         onToggle={() => options.onToggle(segment.id, open)}
+        prose={slot.prose}
+        liveActions={segment.running ? options.liveActionsFor(segment) : []}
+        {...(segment === lastSegment && options.turnFoldEndId !== undefined
+          ? { turnFoldEndId: options.turnFoldEndId }
+          : {})}
       >
         {slot.rows}
       </TurnWorkSegmentBlock>

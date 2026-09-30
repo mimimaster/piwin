@@ -28,7 +28,7 @@ export function installMockRendererHarness(host: MockHostBackend): void {
     seedHugeTurnHost(host);
   }
   if (import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' && params.get('e2eLiveChain') === '1') {
-    seedLiveChainHost(host);
+    seedLiveChainHost(host, { runningTail: params.get('liveTail') === 'tools' });
   }
   if (import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' && params.get('e2eTurnChanges') === '1') {
     seedTurnChangesHost(host);

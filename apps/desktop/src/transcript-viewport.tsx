@@ -28,6 +28,7 @@ import { useTranscriptReveal } from './use-transcript-reveal.js';
 import { useTranscriptHistoryPaging } from './use-transcript-history-paging.js';
 import type { TranscriptReadingAnchorRestorer } from './transcript-reading-anchor.js';
 import { JumpToLatestButton } from './jump-to-latest-button';
+import { TranscriptFoldRail } from './transcript-fold-rail';
 import './styles/transcript-opening.css';
 
 export type TranscriptViewportProps = {
@@ -251,6 +252,11 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           messages={props.messages}
           historyIndex={props.historyIndex}
           onJumpToAnchor={handleJumpToHistoryAnchor}
+        />
+        <TranscriptFoldRail
+          scrollElementRef={scroll.containerRef}
+          beginProgrammaticScroll={scroll.beginProgrammaticScroll}
+          locale={locale}
         />
         <div
           className="chat-stream"

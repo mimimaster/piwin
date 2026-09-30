@@ -327,3 +327,5 @@ export {
   TOOL_SNAPSHOT_HARD_MAX_BYTES,
 } from './tool-output-snapshot.js';
 export type { ToolOutputSnapshotInput } from './tool-output-snapshot.js';
+
+export { buildSessionTurnSummaries, countTranscriptWork, selectSessionTurnSummaries, sumWorkedIntervals } from './transcript-work-summary.js';

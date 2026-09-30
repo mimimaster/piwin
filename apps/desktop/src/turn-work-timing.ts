@@ -1,3 +1,4 @@
+import { sumWorkedIntervals } from '@piwin/session/transcript-work-summary';
 import type { RunRecordUi } from './chat-reducer.js';
 import type { TranscriptTurn } from './transcript-turns.js';
 
@@ -20,20 +21,7 @@ function sumRunWorkedMs(
     if (endedBy !== undefined && record.endedAt > endedBy) continue;
     intervals.push([record.startedAt, Math.max(record.startedAt, record.endedAt)]);
   }
-  if (intervals.length === 0) return undefined;
-  intervals.sort((left, right) => left[0] - right[0]);
-  let total = 0;
-  let [spanStart, spanEnd] = intervals[0] ?? [0, 0];
-  for (const [start, end] of intervals.slice(1)) {
-    if (start > spanEnd) {
-      total += spanEnd - spanStart;
-      spanStart = start;
-      spanEnd = end;
-    } else {
-      spanEnd = Math.max(spanEnd, end);
-    }
-  }
-  return total + (spanEnd - spanStart);
+  return sumWorkedIntervals(intervals);
 }
 
 export function resolveElapsedMs(

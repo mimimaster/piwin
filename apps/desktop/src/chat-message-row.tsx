@@ -230,7 +230,7 @@ const ChatMessageRowContent = memo(
 
     const bubble = (
       <article
-        id={`msg-${message.id}`}
+        {...(props.omitAnchorId === true ? {} : { id: `msg-${message.id}` })}
         className={rowClass}
         data-testid="message-bubble"
         data-role={message.role}

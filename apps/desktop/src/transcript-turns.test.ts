@@ -3,6 +3,7 @@ import type { ChatMessageUi } from './chat-reducer';
 import {
   groupTranscriptTurns,
   indexTranscriptTurnsByMessageId,
+  registerTranscriptTurnIds,
   turnUserMessageId,
 } from './transcript-turns';
 
@@ -66,5 +67,67 @@ describe('transcript turn grouping', () => {
     }
     expect(turnUserMessageId(firstTurn)).toBe('user-1');
     expect(turnUserMessageId(secondTurn)).toBe('user-2');
+  });
+});
+
+describe('stable turn ids across history paging', () => {
+  const ids = (turns: ReturnType<typeof groupTranscriptTurns>): string[] =>
+    turns.map((turn) => turn.id);
+
+  it('keeps a headless tail turn\'s id when an older page prepends its head and prompt', () => {
+    const tail = groupTranscriptTurns([message('a50', 'assistant'), message('a51', 'assistant')]);
+    const paged = groupTranscriptTurns(
+      [
+        message('u0', 'user'),
+        message('a01', 'assistant'),
+        message('a50', 'assistant'),
+        message('a51', 'assistant'),
+      ],
+      registerTranscriptTurnIds(tail),
+    );
+    expect(ids(paged)).toEqual(ids(tail));
+    expect(paged[0]?.items).toHaveLength(4);
+  });
+
+  it('keeps the id when the head of a turn is evicted', () => {
+    const full = groupTranscriptTurns([
+      message('u1', 'user'),
+      message('a1', 'assistant'),
+      message('a2', 'assistant'),
+    ]);
+    const trimmed = groupTranscriptTurns(
+      [message('a2', 'assistant')],
+      registerTranscriptTurnIds(full),
+    );
+    expect(ids(trimmed)).toEqual(['turn-u1']);
+  });
+
+  it('gives a turn opened by a new prompt a fresh id and leaves earlier turns alone', () => {
+    const before = groupTranscriptTurns([message('u1', 'user'), message('a1', 'assistant')]);
+    const after = groupTranscriptTurns(
+      [message('u1', 'user'), message('a1', 'assistant'), message('u2', 'user')],
+      registerTranscriptTurnIds(before),
+    );
+    expect(ids(after)).toEqual(['turn-u1', 'turn-u2']);
+  });
+
+  it('never hands one id to two turns when a window split a turn', () => {
+    const merged = groupTranscriptTurns([
+      message('a1', 'assistant'),
+      message('a2', 'assistant'),
+    ]);
+    const split = groupTranscriptTurns(
+      [message('a1', 'assistant'), message('u2', 'user'), message('a2', 'assistant')],
+      registerTranscriptTurnIds(merged),
+    );
+    expect(new Set(ids(split)).size).toBe(split.length);
+    expect(split[0]?.id).toBe('turn-a1');
+  });
+
+  it('is idempotent: regrouping the same messages against its own registry changes nothing', () => {
+    const messages = [message('a1', 'assistant'), message('u1', 'user'), message('a2', 'assistant')];
+    const first = groupTranscriptTurns(messages);
+    const second = groupTranscriptTurns(messages, registerTranscriptTurnIds(first));
+    expect(ids(second)).toEqual(ids(first));
   });
 });

@@ -471,6 +471,17 @@ describe('ChatThread completed work disclosure', () => {
     expect(trigger?.textContent).toContain('tool 2');
 
     act(() => trigger?.click());
+    // Opened, the running segment stays folded: its own header says what is in
+    // flight (the turn header no longer repeats the command), and its rows
+    // mount when the reader opens it.
+    const segmentHeader = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-segment-header"]',
+    );
+    expect(segmentHeader?.textContent).toContain('Executing');
+    expect(segmentHeader?.textContent).toContain('edit');
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-live-1')).toBeNull();
+    act(() => segmentHeader?.click());
     expect(container.querySelector('#msg-work-1')).not.toBeNull();
     expect(container.querySelector('#msg-live-1')).not.toBeNull();
   });
@@ -641,22 +652,24 @@ describe('ChatThread completed work disclosure', () => {
     expect(trigger?.textContent).toContain(lastCaption);
 
     act(() => trigger?.click());
-    // Each caption opens a segment; the newest one is open, the earlier one
-    // lists its caption until the reader opens it.
+    // Each caption opens a segment. The captions are prose and show either
+    // way; the tools stay folded (the running segment by default, the settled
+    // earlier one because it is not the newest) until the reader opens them.
     const segments = container.querySelectorAll('[data-testid="turn-work-segment"]');
     expect(segments).toHaveLength(2);
     expect(segments[0]?.getAttribute('data-open')).toBe('false');
-    expect(segments[0]?.textContent).toContain(earlierCaption);
-    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(segments[1]?.getAttribute('data-open')).toBe('false');
+    expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);
     expect(container.querySelector('#msg-work-2 .markdown')?.textContent).toContain(lastCaption);
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(0);
 
     act(() =>
       segments[0]
         ?.querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
         ?.click(),
     );
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(1);
     expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);
-    expect(container.querySelector('#msg-work-2')).not.toBeNull();
   });
 
   it('keeps the Conversation identity header above 已工作 after expand', () => {
@@ -894,6 +907,11 @@ describe('ChatThread completed work disclosure', () => {
       container.querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]');
     act(() => trigger()?.click());
     expect(trigger()?.getAttribute('aria-expanded')).toBe('true');
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
+        ?.click(),
+    );
     expect(container.querySelector('#msg-work-1')).not.toBeNull();
 
     const settledMessages = [
@@ -1023,8 +1041,17 @@ describe('ChatThread 已工作 segments', () => {
       'false',
       'true',
     ]);
-    expect(container.querySelector('#msg-work-0')).toBeNull();
-    expect(container.querySelector('#msg-work-2')).not.toBeNull();
+    // Every step's narration is on screen; only the newest step's tool is mounted.
+    for (const index of [0, 1, 2]) {
+      expect(container.querySelector(`#msg-work-${index} .markdown`)?.textContent).toContain(
+        `Step ${index}.`,
+      );
+    }
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(1);
+    // The tools row owns no `msg-` anchor (the narration row does), so look
+    // inside the segment rather than for an id.
+    expect(segments[2]?.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
+    expect(segments[0]?.querySelector('[data-testid="tool-call-card"]')).toBeNull();
     expect(container.querySelector('#msg-answer')).not.toBeNull();
   });
 
@@ -1036,7 +1063,7 @@ describe('ChatThread 已工作 segments', () => {
         .querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
         ?.click(),
     );
-    expect(container.querySelector('#msg-work-0')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
 
     const toggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="work-chain-compact-toggle"]',
@@ -1045,8 +1072,82 @@ describe('ChatThread 已工作 segments', () => {
     act(() => toggle?.click());
 
     expect(toggle?.getAttribute('aria-pressed')).toBe('true');
-    expect(container.querySelector('#msg-work-0')).not.toBeNull();
-    expect(container.querySelector('#msg-work-2')).toBeNull();
+    // 精简 folds the tools of every segment but the one the reader opened; the
+    // narration stays.
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(1);
+    expect(
+      container
+        .querySelectorAll('[data-testid="turn-work-segment"]')[0]
+        ?.querySelector('[data-testid="tool-call-card"]'),
+    ).not.toBeNull();
+    expect(container.querySelector('#msg-work-2 .markdown')?.textContent).toContain('Step 2.');
+  });
+
+  it('heads each step 「Ran … · N tools」 like the turn fold, and the narration stays outside it', () => {
+    act(() => root.render(renderThread(settledChain(3))));
+    openFold();
+
+    const first = container.querySelector('[data-testid="turn-work-segment"]');
+    const header = first?.querySelector('[data-testid="turn-work-segment-header"]');
+    expect(header?.textContent).toContain('Ran');
+    expect(header?.textContent).toContain('1 tool');
+    // The header carries the run glyph, not the turn fold's bulb.
+    expect(header?.querySelector('.work-fold-run')).not.toBeNull();
+    expect(header?.querySelector('.work-fold-bulb')).toBeNull();
+    // Narration is a sibling of the fold, not part of its header.
+    expect(header?.textContent).not.toContain('Step 0.');
+    expect(first?.querySelector('#msg-work-0')).not.toBeNull();
+  });
+
+  it('collapses an open step from its spine and, past a few tools, from a foot bar', () => {
+    const many = message('work-big', {
+      text: 'Big step.',
+      runId: 'run-1',
+      tools: Array.from({ length: 9 }, (_, index) => ({
+        toolCallId: `t-${index}`,
+        toolName: 'bash',
+        status: 'done' as const,
+        output: 'ok',
+        runId: 'run-1',
+        presentation: { kind: 'shell' as const, title: 'bash', command: `echo ${index}` },
+      })),
+    });
+    act(() =>
+      root.render(
+        renderThread([
+          message('user-1', { role: 'user', text: 'Fix it.' }),
+          many,
+          message('answer', { text: 'Done.', runId: 'run-1' }),
+        ]),
+      ),
+    );
+    openFold();
+
+    const segment = (): Element | null =>
+      container.querySelector('[data-testid="turn-work-segment"]');
+    expect(segment()?.getAttribute('data-open')).toBe('true');
+    expect(segment()?.querySelector('[data-testid="turn-work-segment-foot"]')).not.toBeNull();
+    act(() =>
+      segment()
+        ?.querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-foot"]')
+        ?.click(),
+    );
+    expect(segment()?.getAttribute('data-open')).toBe('false');
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(0);
+    expect(container.querySelector('#msg-work-big .markdown')?.textContent).toContain('Big step.');
+
+    // Reopened, the spine folds it again.
+    act(() =>
+      segment()
+        ?.querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
+        ?.click(),
+    );
+    act(() =>
+      segment()
+        ?.querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-guide"]')
+        ?.click(),
+    );
+    expect(segment()?.getAttribute('data-open')).toBe('false');
   });
 
   it('keeps older segments unmounted until asked for', () => {

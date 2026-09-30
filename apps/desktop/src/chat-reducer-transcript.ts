@@ -1,5 +1,5 @@
 import { classifyCompactionNoOp, SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS } from '@piwin/contracts';
-import type { SessionTranscriptMessage } from '@piwin/contracts';
+import type { SessionTranscriptMessage, SessionTranscriptPageInfo } from '@piwin/contracts';
 import { extractUserFacingBody } from '@piwin/session/derive-default-name';
 import {
   appendBoundedText,
@@ -69,14 +69,19 @@ export function appendBoundedLiveText(
 
 export function mapTranscriptMessagesToUi(
   messages: SessionTranscriptMessage[],
-  options: { keepStreamingStatus?: boolean } = {},
+  options: { keepStreamingStatus?: boolean; page?: SessionTranscriptPageInfo } = {},
 ): ChatMessageUi[] {
-  return messages.map((message) => {
+  return messages.map((message, index) => {
     // Older Hosts persisted a harmless Pi compaction no-op as a failed
     // assistant outcome. Keep the transcript row for identity/replay, but do
     // not resurrect it as a red generation failure when reopening the session.
     const persistedCompactionNoOp = isPersistedCompactionNoOp(message);
+    const transcriptIndex = options.page === undefined ? undefined : options.page.startIndex + index;
+    const turnSummary = options.page?.turnSummaries?.find((summary) =>
+      transcriptIndex !== undefined && summary.startIndex <= transcriptIndex && summary.endIndex > transcriptIndex);
     return {
+      ...(turnSummary ? { turnSummary } : {}),
+      ...(transcriptIndex === undefined ? {} : { transcriptIndex }),
       id: message.id,
       role: message.role,
       // Legacy transcripts may still store mode/skill wrappers that were once
@@ -314,6 +319,7 @@ function transcriptRowFidelityKey(message: ChatMessageUi): string {
   const model = message.model ? `${message.model.providerId}:${message.model.modelId}` : '';
   return [
     message.id,
+    message.turnSummary ? JSON.stringify(message.turnSummary) : '',
     message.role,
     message.status,
     message.text,

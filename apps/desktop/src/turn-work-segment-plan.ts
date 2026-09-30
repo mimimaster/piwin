@@ -19,6 +19,9 @@ export const TURN_WORK_SEGMENT_WINDOW = 40;
 export type TurnWorkSegmentSlot = {
   /** Index in the turn's rendered row list reserved for the segment block. */
   at: number;
+  /** The segment's narration: rendered whether the segment is open or not. */
+  prose: ReactElement[];
+  /** The segment's tool rows: built only while it is open. */
   rows: ReactElement[];
 };
 
@@ -67,24 +70,4 @@ export function planTurnWorkSegments(input: PlanTurnWorkSegmentsInput): TurnWork
       }),
     slots: new Map(),
   };
-}
-
-/**
- * Key for a turn's fold state that survives history paging.
- *
- * A turn opened from a tail page starts at whichever assistant row the page
- * began with, so `turn.id` changes each time an older page lands and the
- * reader's open fold snapped shut mid-scroll. A turn with its prompt resident
- * keeps `turn.id`; a headless one is keyed by the run it belongs to.
- */
-export function resolveTurnFoldKey(turn: TranscriptTurn): string {
-  const first = turn.items[0]?.message;
-  if (first?.role === 'user') {
-    return turn.id;
-  }
-  for (let index = turn.items.length - 1; index >= 0; index -= 1) {
-    const runId = turn.items[index]?.message.runId;
-    if (runId !== undefined) return `run:${runId}`;
-  }
-  return turn.id;
 }

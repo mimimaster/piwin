@@ -93,6 +93,7 @@ export type WorkbenchTranscriptProps = {
   onReturnToLatest: () => void;
   /** `keepMessageId`: the message on screen, which window eviction must keep. */
   onLoadOlder: (keepMessageId?: string) => Promise<void>;
+  onLoadEarlierWork: (messageId: string) => Promise<void>;
   onLoadNewer: (keepMessageId?: string) => Promise<void>;
   onOpenReview: () => void;
   onPermission: (
@@ -163,6 +164,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onJumpToHistoryAnchor,
     onReturnToLatest,
     onLoadOlder,
+    onLoadEarlierWork,
     onLoadNewer,
     onOpenReview,
     onPermission,
@@ -255,6 +257,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         {visibleMessages.length > 0 || (!historyViewActive && state.streaming) ? (
           <StableChatThread
             messages={visibleMessages}
+            onLoadEarlierWork={onLoadEarlierWork}
             {...(activeSessionId ? { sessionId: activeSessionId } : {})}
             hydrating={state.awaitingTranscript}
             streaming={!historyViewActive && state.streaming}

@@ -248,6 +248,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     hydrateSessions,
     transcriptHistoryLoading,
     handleJumpToHistoryAnchor,
+    handleJumpToTranscriptMessage,
     handleReturnToLiveTranscript,
     handleOpenWorkspaceClick,
     handleBrowseProject,
@@ -720,6 +721,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       forkCountsByMessageId={forkCountsByMessageId}
                       branchPoints={branchPoints}
                       onJumpToHistoryAnchor={handleJumpToHistoryAnchor}
+                      onLoadEarlierWork={handleJumpToTranscriptMessage}
                       onReturnToLatest={handleReturnToLiveTranscript}
                       onLoadOlder={handleLoadOlderTranscript}
                       onLoadNewer={handleLoadNewerTranscript}

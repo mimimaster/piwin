@@ -65,3 +65,24 @@ test('opening a huge turn lists segments instead of mounting the chain', async (
   await expect(page.locator('[data-testid="turn-work-segment"][data-open="true"]')).toHaveCount(1);
   await page.getByTestId('work-chain-compact-toggle').click();
 });
+
+test('huge turn totals remain complete while paging and seeking its unloaded head', async ({ page }) => {
+  await openHugeTurn(page);
+  const trigger = page.getByTestId('turn-work-disclosure-trigger');
+  // 619 work rows, with a second tool on every third row: 825 calls in total.
+  await expect(trigger).toContainText('825 个工具');
+  const summaryBefore = await trigger.textContent();
+  const stream = page.getByTestId('chat-stream');
+  const bounds = await stream.boundingBox();
+  if (!bounds) throw new Error('expected stream');
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.wheel(0, -500);
+  await expect(trigger).toHaveText(summaryBefore ?? '');
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+  const earlier = page.getByTestId('turn-work-earlier');
+  await expect(earlier).toBeVisible();
+  await earlier.click();
+  await expect(page.locator('#msg-huge-u01')).toBeVisible();
+  await expect(trigger).toHaveText(summaryBefore ?? '');
+  await expect(earlier).toHaveCount(0);
+});

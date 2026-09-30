@@ -1,3 +1,4 @@
+import { countTranscriptWork } from '@piwin/session/transcript-work-summary';
 import { isAssistantContentEmpty } from './assistant-message-content.js';
 import {
   assistantHasUserFacingGeneration,
@@ -208,35 +209,30 @@ function collectRunIds(turn: TranscriptTurn): Set<string> {
   return runIds;
 }
 
-function countFailures(
+/** Same counting the turn fold header uses; segments reuse it so both levels agree. */
+export function countFailures(
   turn: TranscriptTurn,
   startIndex: number,
   endIndex: number,
   runIds: ReadonlySet<string>,
   runRecordsById: Readonly<Record<string, RunRecordUi>>,
 ): number {
-  let failedToolCount = 0;
-  let hasNonToolFailure = false;
+  const stats = countTranscriptWork(turn.items.slice(startIndex, endIndex + 1).map((item) => item.message));
+  if (stats.failureCount > 0) return stats.failureCount;
+  return [...runIds].some((runId) => runRecordsById[runId]?.outcome === 'failed') ? 1 : 0;
+}
 
-  for (let index = startIndex; index <= endIndex; index += 1) {
-    const message = turn.items[index]?.message;
-    if (!message) continue;
-    failedToolCount += message.tools.filter(
-      (tool) => tool.status === 'error' && tool.presentation?.error?.category !== 'cancelled',
-    ).length;
-    if (hasAssistantError(message)) {
-      hasNonToolFailure = true;
-    }
-  }
+/**
+ * A settled turn this long folds even when a step failed part-way: its failures
+ * are counted in the header and the failed segments open by default. Left flat,
+ * a 700-tool chain that a history window cut short mounted ~14k DOM nodes.
+ */
+const HEAVY_TURN_TOOL_COUNT = 40;
 
-  for (const runId of runIds) {
-    if (runRecordsById[runId]?.outcome === 'failed') {
-      hasNonToolFailure = true;
-      break;
-    }
-  }
-
-  return failedToolCount > 0 ? failedToolCount : hasNonToolFailure ? 1 : 0;
+function countTurnTools(turn: TranscriptTurn): number {
+  let count = 0;
+  for (const { message } of turn.items) count += message.tools.length;
+  return count;
 }
 
 function isTurnSettled(
@@ -249,48 +245,14 @@ function isTurnSettled(
   return true;
 }
 
-function countToolsAndFiles(
+/** Tools and distinct files touched in `[startIndex, endIndex]`; shared with the segment headers. */
+export function countToolsAndFiles(
   turn: TranscriptTurn,
   startIndex: number,
   endIndex: number,
 ): { toolCount: number; fileCount: number } {
-  let toolCount = 0;
-  const filesSeen = new Set<string>();
-
-  for (let index = startIndex; index <= endIndex; index += 1) {
-    const message = turn.items[index]?.message;
-    if (!message) continue;
-    toolCount += message.tools.length;
-    for (const tool of message.tools) {
-      const presentation = tool.presentation;
-      if (presentation?.changedPaths) {
-        for (const p of presentation.changedPaths) {
-          if (p && p.trim()) filesSeen.add(p.trim());
-        }
-      }
-      if (presentation?.targetPaths) {
-        for (const p of presentation.targetPaths) {
-          if (p && p.trim()) filesSeen.add(p.trim());
-        }
-      }
-      const legacyTargetPath = (presentation as { targetPath?: unknown } | undefined)?.targetPath;
-      if (typeof legacyTargetPath === 'string' && legacyTargetPath.trim()) {
-        filesSeen.add(legacyTargetPath.trim());
-      }
-      const input = (tool as { input?: unknown }).input;
-      if (input && typeof input === 'object') {
-        const record = input as Record<string, unknown>;
-        for (const key of ['path', 'filePath', 'targetFile', 'file']) {
-          const val = record[key];
-          if (typeof val === 'string' && val.trim().length > 0) {
-            filesSeen.add(val.trim());
-          }
-        }
-      }
-    }
-  }
-
-  return { toolCount, fileCount: filesSeen.size };
+  const { toolCount, fileCount } = countTranscriptWork(turn.items.slice(startIndex, endIndex + 1).map((item) => item.message));
+  return { toolCount, fileCount };
 }
 
 /**
@@ -600,7 +562,11 @@ export function projectTurnWorkDisclosure(
   } else {
     if (!settled) return null;
     if (prefixHasUserFacingReply(input.turn, 0, lastAssistantIndex)) return null;
-    if (prefixHasAssistantError(input.turn, 0, lastAssistantIndex)) return null;
+    if (
+      countTurnTools(input.turn) < HEAVY_TURN_TOOL_COUNT &&
+      prefixHasAssistantError(input.turn, 0, lastAssistantIndex)
+    )
+      return null;
     startIndex = findFirstAssistantIndex(input.turn, lastAssistantIndex);
     if (startIndex === -1) return null;
     if (!prefixHasWork(input.turn, startIndex, lastAssistantIndex)) return null;
@@ -608,5 +574,11 @@ export function projectTurnWorkDisclosure(
   }
 
   if (!settled) return null;
-  return projectRange(input, startIndex, endIndex, runIds);
+  const projection = projectRange(input, startIndex, endIndex, runIds);
+  const summary = input.turn.summary;
+  return summary === undefined ? projection : {
+    ...projection, toolCount: summary.toolCount, fileCount: summary.fileCount,
+    failureCount: summary.failureCount,
+    ...(summary.elapsedMs === undefined ? {} : { elapsedMs: summary.elapsedMs }),
+  };
 }

@@ -1,3 +1,4 @@
+import { projectRemoteTurnSummaries } from './remote-turn-summary-projection.js';
 import type {
   AssistantUsageMeasurement,
   ContextUsageSnapshot,
@@ -407,6 +408,7 @@ function projectSessionTranscriptPageInfo(
     endIndex: safeNonNegativeInteger(record.endIndex),
     messageBytes: safeNonNegativeInteger(record.messageBytes),
   };
+  if (Array.isArray(record.turnSummaries)) info.turnSummaries = projectRemoteTurnSummaries(record.turnSummaries);
   if (typeof record.olderCursor === 'string' && record.olderCursor.length <= 512) {
     info.olderCursor = record.olderCursor;
   }
