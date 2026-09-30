@@ -9,6 +9,7 @@ import {
 } from './extension-ui-cli.js';
 import { saveAttachedCliImageAttachment, saveLocalCliImageAttachment } from './cli-prompt-image.js';
 import { buildCliContextRefs, collectRefArgs } from './context-ref-args.js';
+import { createCliBackendPermissionResponder, parseCliAgent } from './external-agent-cli.js';
 import { formatCliFlashcardToolResult } from './flashcard-tool-result.js';
 import { HostRuntime, getPiwinRoot, loadPiwinConfig } from '@piwin/host-runtime';
 import { randomUUID } from 'node:crypto';
@@ -142,7 +143,8 @@ export async function commandChat(argv: string[]): Promise<void> {
       token === '--image' ||
       token === '--permission-mode' ||
       token === '--scheme' ||
-      token === '--ref'
+      token === '--ref' ||
+      token === '--agent'
     ) {
       index += 1;
       continue;
@@ -157,7 +159,7 @@ export async function commandChat(argv: string[]): Promise<void> {
   const imagePath = readOption(argv, '--image');
   if (!message && !imagePath) {
     console.error(
-      'Usage: piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]',
+      'Usage: piwin chat <text> [--project <path>] [--agent pi|grok] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]',
     );
     process.exitCode = 1;
     return;
@@ -190,6 +192,17 @@ export async function commandChat(argv: string[]): Promise<void> {
   const mock = parseMock(argv);
   const mode = parseMode(argv);
   const permissionModeOverride = resolvePermissionModeOverride(argv);
+  const agent = parseCliAgent(argv);
+  if (typeof agent === 'object') {
+    console.error(agent.error);
+    process.exitCode = 1;
+    return;
+  }
+  if (agent === 'grok' && imagePath) {
+    console.error('piwin chat --agent grok: Grok does not accept images yet.');
+    process.exitCode = 1;
+    return;
+  }
   if (mode === 'rpc' && !mock) {
     console.error(
       'piwin chat --mode rpc: stock Pi RPC does not support piwin custom tools ' +
@@ -228,11 +241,15 @@ export async function commandChat(argv: string[]): Promise<void> {
       client.request(command),
     );
     const printAttachedExtensionSurface = createCliExtensionSurfacePrinter();
+    const answerAttachedBackendPermission = createCliBackendPermissionResponder((command) =>
+      client.request(command),
+    );
     const unsubscribe = client.subscribePush((push) => {
       if (push.type === 'run/terminal') {
         resolveAttachedCompletion?.();
         return;
       }
+      if (answerAttachedBackendPermission(push)) return;
       if (printAttachedExtensionSurface(push)) return;
       if (push.type === 'extension/ui_request') {
         answerAttachedExtensionUi(push).catch((error: unknown) => {
@@ -253,7 +270,10 @@ export async function commandChat(argv: string[]): Promise<void> {
       const createResponse = await client.request(
         {
           type: 'session/create',
-          input: projectPath ? { projectId: projectPath } : { scope: { kind: 'general' } },
+          input: {
+            ...(projectPath ? { projectId: projectPath } : { scope: { kind: 'general' as const } }),
+            ...(agent === 'grok' ? { agentId: 'grok' } : {}),
+          },
         },
         { idempotencyKey: randomUUID() },
       );
@@ -336,6 +356,9 @@ export async function commandChat(argv: string[]): Promise<void> {
     runtime.handleCommand(command),
   );
   const printLocalExtensionSurface = createCliExtensionSurfacePrinter();
+  const answerLocalBackendPermission = createCliBackendPermissionResponder((command) =>
+    runtime.handleCommand(command),
+  );
   const runtime: HostRuntime = new HostRuntime({
     mode,
     mock,
@@ -344,6 +367,7 @@ export async function commandChat(argv: string[]): Promise<void> {
         resolvePromptCompletion?.();
         return;
       }
+      if (answerLocalBackendPermission(push)) return;
       if (printLocalExtensionSurface(push)) return;
       if (push.type === 'extension/ui_request') {
         answerLocalExtensionUi(push).catch((error: unknown) => {
@@ -366,9 +390,12 @@ export async function commandChat(argv: string[]): Promise<void> {
   try {
     const createResponse = await runtime.handleCommand({
       type: 'session/create',
-      input: projectPath
-        ? { scope: { kind: 'project', projectPath }, projectPath }
-        : { scope: { kind: 'general' } },
+      input: {
+        ...(projectPath
+          ? { scope: { kind: 'project' as const, projectPath }, projectPath }
+          : { scope: { kind: 'general' as const } }),
+        ...(agent === 'grok' ? { agentId: 'grok' } : {}),
+      },
     });
     if (!createResponse.success) {
       throw new Error(createResponse.error);
