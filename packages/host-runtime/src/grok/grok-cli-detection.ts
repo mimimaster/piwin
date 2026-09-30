@@ -1,6 +1,6 @@
-import { access, constants } from 'node:fs/promises';
+import { access, constants, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { posix, win32 } from 'node:path';
+import { join, posix, win32 } from 'node:path';
 import {
   AcpClient,
   GROK_DROPPED_NOTIFICATION_METHODS,
@@ -9,6 +9,7 @@ import {
 } from '@piwin/acp-agent';
 import type { ExternalAgentStatus } from '@piwin/contracts';
 import { GrokSessionOptionsState } from '@piwin/acp-agent';
+import { readGrokPermissionMode } from './grok-permission-mode.js';
 import { createGrokProcessTransport } from './grok-process-transport.js';
 
 export const GROK_VERIFIED_VERSIONS: ReadonlySet<string> = new Set(['1.0.41', '1.0.44']);
@@ -55,6 +56,11 @@ export type DetectGrokCliOptions = {
   createTransport?: (binaryPath: string) => AcpLineTransport & { close(): Promise<void> };
   handshakeTimeoutMs?: number;
   now?: () => string;
+  /**
+   * Global permission mode. Default reads `permission_mode` from
+   * `~/.grok/config.toml` and returns undefined when the file is missing.
+   */
+  readPermissionMode?: (homeDir: string) => Promise<string | undefined>;
 };
 
 export async function detectGrokCli(options: DetectGrokCliOptions = {}): Promise<ExternalAgentStatus> {
@@ -105,6 +111,13 @@ export async function detectGrokCli(options: DetectGrokCliOptions = {}): Promise
     if (connection !== undefined) {
       // Handshake process is discarded; a close failure cannot change the computed status.
       await connection.close().catch(() => undefined);
+    }
+  }
+  if (status.state === 'ready' || status.state === 'unauthenticated') {
+    const readPermissionMode = options.readPermissionMode ?? readPermissionModeFromConfig;
+    const permissionMode = await readPermissionMode(homeDir).catch(() => undefined);
+    if (permissionMode !== undefined && permissionMode.length > 0) {
+      status.permissionMode = permissionMode;
     }
   }
   return status;
@@ -161,6 +174,15 @@ function formatUnavailableReason(error: unknown): string {
   const text =
     error instanceof Error ? `${error.name}: ${error.message}` : `Error: ${String(error)}`;
   return text.length <= UNAVAILABLE_REASON_MAX ? text : text.slice(0, UNAVAILABLE_REASON_MAX);
+}
+
+async function readPermissionModeFromConfig(homeDir: string): Promise<string | undefined> {
+  try {
+    const toml = await readFile(join(homeDir, '.grok', 'config.toml'), 'utf8');
+    return readGrokPermissionMode(toml);
+  } catch {
+    return undefined;
+  }
 }
 
 async function pathExistsExecutable(path: string): Promise<boolean> {

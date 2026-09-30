@@ -35,13 +35,14 @@ export class AcpClient {
 
   loadSession(params: AcpSessionSetupParams): Promise<AcpSessionSetupResult> {
     return this.connection.request<unknown>('session/load', params).then((result) => {
-      return parseSessionSetupResult('session/load', result);
+      // grok 1.0.44 omits sessionId on load/resume; the request already has it.
+      return parseSessionSetupResult('session/load', result, params.sessionId);
     });
   }
 
   resumeSession(params: AcpSessionSetupParams): Promise<AcpSessionSetupResult> {
     return this.connection.request<unknown>('session/resume', params).then((result) => {
-      return parseSessionSetupResult('session/resume', result);
+      return parseSessionSetupResult('session/resume', result, params.sessionId);
     });
   }
 
@@ -145,10 +146,15 @@ function parseAuthMethods(value: unknown): AcpInitializeResult['authMethods'] {
   });
 }
 
-function parseSessionSetupResult(method: string, value: unknown): AcpSessionSetupResult {
+function parseSessionSetupResult(
+  method: string,
+  value: unknown,
+  fallbackSessionId?: string,
+): AcpSessionSetupResult {
   const object = asObject(value, method, 'result');
-  const sessionId = object.sessionId;
-  if (typeof sessionId !== 'string') {
+  const reported = object.sessionId;
+  const sessionId = typeof reported === 'string' && reported.length > 0 ? reported : fallbackSessionId;
+  if (typeof sessionId !== 'string' || sessionId.length === 0) {
     throw new AcpProtocolShapeError(method, 'sessionId must be a string');
   }
   const result: AcpSessionSetupResult = { sessionId };

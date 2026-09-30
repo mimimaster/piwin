@@ -5,6 +5,7 @@ import {
   GROK_VERIFIED_VERSIONS,
   resolveGrokBinaryCandidates,
 } from './grok-cli-detection.js';
+import { readGrokPermissionMode } from './grok-permission-mode.js';
 
 const CHECKED_AT = '2026-09-30T02:10:00.000Z';
 
@@ -43,6 +44,19 @@ function deliverInitialize(
     JSON.stringify({ jsonrpc: '2.0', id: sent.id, result }),
   );
 }
+
+describe('readGrokPermissionMode', () => {
+  it('reads a quoted assignment and ignores comments and other keys', () => {
+    expect(
+      readGrokPermissionMode('# permission_mode = "secret-looking"\npermission_mode = "always-approve"\n'),
+    ).toBe('always-approve');
+  });
+
+  it('returns undefined when the key is absent or empty', () => {
+    expect(readGrokPermissionMode('yolo = false\n')).toBeUndefined();
+    expect(readGrokPermissionMode('permission_mode = ""\n')).toBeUndefined();
+  });
+});
 
 describe('resolveGrokBinaryCandidates', () => {
   it('orders PIWIN_GROK_BIN, PATH entries, and ~/.grok/bin/grok without duplicates', () => {
@@ -130,6 +144,28 @@ describe('detectGrokCli', () => {
       },
     });
     expect(GROK_VERIFIED_VERSIONS.has('1.0.44')).toBe(true);
+  });
+
+  it('attaches the global permission mode without reading the rest of the config', async () => {
+    const transport = createFakeLineTransport();
+    const detection = detectGrokCli({
+      env: { PATH: '/usr/bin' },
+      homeDir: '/home/user',
+      platform: 'linux',
+      fileExists: async () => true,
+      createTransport: () => transport,
+      now: () => CHECKED_AT,
+      readPermissionMode: async () => 'always-approve',
+    });
+    await waitForSent(transport);
+    deliverInitialize(transport, {
+      protocolVersion: 1,
+      _meta: { agentVersion: '1.0.44', defaultAuthMethodId: 'cached_token' },
+    });
+    await expect(detection).resolves.toMatchObject({
+      state: 'ready',
+      permissionMode: 'always-approve',
+    });
   });
 
   it('marks unknown versions unverified', async () => {

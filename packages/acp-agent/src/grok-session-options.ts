@@ -29,7 +29,11 @@ export const GROK_PERMISSION_MODES: readonly BackendOption[] = [
   { id: 'plan', label: 'Plan', description: 'Plan first, no edits' },
 ];
 
-/** Modes whose switch Grok acknowledges with `current_mode_update`. */
+/**
+ * Modes an earlier note expected Grok to acknowledge with `current_mode_update`.
+ * grok 1.0.44 did not send that notification for `default` or `plan`, so this
+ * set must not be treated as confirmation. Confirmation is the notification.
+ */
 export const GROK_CONFIRMED_MODE_IDS: ReadonlySet<string> = new Set(['plan', 'ask']);
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

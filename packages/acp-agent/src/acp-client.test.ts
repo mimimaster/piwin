@@ -53,8 +53,8 @@ describe('AcpClient', () => {
       method: 'session/load',
       params: { sessionId: 'sess-1', cwd: '/tmp/work', mcpServers: [] },
     });
-    transport.deliver(JSON.stringify({ jsonrpc: '2.0', id: 3, result: { sessionId: 'sess-1' } }));
-    await loaded;
+    transport.deliver(JSON.stringify({ jsonrpc: '2.0', id: 3, result: { configOptions: [] } }));
+    await expect(loaded).resolves.toMatchObject({ sessionId: 'sess-1' });
 
     const resumed = client.resumeSession({ sessionId: 'sess-1', cwd: '/tmp/work', mcpServers: [] });
     expect(parseSent(transport.sent.at(-1))).toEqual({
@@ -63,8 +63,14 @@ describe('AcpClient', () => {
       method: 'session/resume',
       params: { sessionId: 'sess-1', cwd: '/tmp/work', mcpServers: [] },
     });
-    transport.deliver(JSON.stringify({ jsonrpc: '2.0', id: 4, result: { sessionId: 'sess-1' } }));
-    await resumed;
+    transport.deliver(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 4,
+        result: { models: {}, configOptions: [], _meta: {} },
+      }),
+    );
+    await expect(resumed).resolves.toMatchObject({ sessionId: 'sess-1', configOptions: [] });
 
     const listed = client.listSessions({ cwd: '/tmp/work' });
     expect(parseSent(transport.sent.at(-1))).toEqual({
