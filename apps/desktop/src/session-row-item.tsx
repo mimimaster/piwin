@@ -20,6 +20,7 @@ import {
   type SessionRowRunPhase,
 } from './session-row-working';
 import { sessionScopeKey } from './session-scope-key';
+import { agentDisplayName } from './agent-backend-state';
 import { useSessionDrag } from './workbench/docking/docking-session-drag.js';
 
 /** proto-03 `.i.s12` inside `.ib.s22` hit targets. */
@@ -175,6 +176,11 @@ export function SessionRowItem({
   const isPinned = 'isPinned' in session && session.isPinned === true;
   const isArchived = 'isArchived' in session && session.isArchived === true;
   const storageState = !isDraft && 'storage' in session ? session.storage?.state : undefined;
+  // ADR 0082: only a non-Pi binding earns a badge; a Pi session stays unlabelled
+  // because Pi is the product default.
+  const backendAgentId =
+    !isDraft && 'backend' in session ? session.backend?.agentId : undefined;
+  const backendBadge = backendAgentId !== undefined ? agentDisplayName(backendAgentId) : null;
   const isActive = isDraft ? session.id === activeDraftId : session.id === activeSessionId;
   const sessionDrag = useSessionDrag();
   const sessionScope = 'scope' in session ? session.scope : undefined;
@@ -317,6 +323,15 @@ export function SessionRowItem({
                 title={copy.missingPack}
               >
                 {copy.missingPack}
+              </span>
+            ) : null}
+            {backendBadge !== null ? (
+              <span
+                className="session-backend-badge"
+                data-testid="session-backend-badge"
+                title={backendBadge}
+              >
+                {backendBadge}
               </span>
             ) : null}
             {isPinned && !isPinnedSection ? (

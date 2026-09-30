@@ -265,6 +265,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
       // skipDraftSaveRef first, so the send path still clears.
       const pendingMountedIds = args.knowledgeMountsRef?.current?.mountedIds;
       const draftMcpDisabled = args.draftMcpSwitches?.disabledServerIds;
+      const draftAgentId = args.state.draftAgentId;
       const draftCreateOptions = {
         ...(pendingMountedIds && pendingMountedIds.length > 0
           ? { knowledgeBaseIds: pendingMountedIds }
@@ -272,6 +273,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
         ...(draftMcpDisabled && draftMcpDisabled.length > 0
           ? { disabledMcpServerIds: draftMcpDisabled }
           : {}),
+        ...(draftAgentId && draftAgentId !== 'pi' ? { agentId: draftAgentId } : {}),
       };
       const sessionId =
         noRepoPath !== null

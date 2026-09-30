@@ -29,6 +29,11 @@ const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[
   agent: [
     'agent', 'automation', 'cron', '定时', '自动化', '任务',
   ],
+  'agent-backends': [
+    'agent', 'agents', 'backend', 'backends', 'grok', 'build', 'acp', 'external',
+    'install', 'readiness', 'login',
+    '外部智能体', '后端', '安装', '检测', '登录',
+  ],
   artifact: [
     'artifact', 'render', 'canvas', 'inline', 'playground', 'sandbox', 'html', 'preview',
     '产物', '工件', '渲染', '实验场', '沙箱', '预览',

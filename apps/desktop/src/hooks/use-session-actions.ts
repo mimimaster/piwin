@@ -25,8 +25,8 @@ import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard'
 import { findSessionForLookup } from '../session-list-lookup';
 import {
   activateProjectOnHost,
-  sessionCreateInputForTransport,
 } from '../remote-session-hydrate';
+import { buildSessionCreateInput } from './session-create-input.js';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { findAdjacentSessionId } from '../session-navigation';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
@@ -214,6 +214,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       knowledgeBaseIds?: readonly string[];
       /** MCP servers the draft switched off, applied from the first prompt. */
       disabledMcpServerIds?: readonly string[];
+      /** External agent backend (ADR 0082). */
+      agentId?: string;
+      backendModelId?: string;
+      backendEffortId?: string;
     }): Promise<string | null> => {
       const requestedScope = options?.scope;
       const requestedProjectPath =
@@ -235,22 +239,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
       const createSession = async (): Promise<string | null> => {
         const createStartedAt = Date.now();
-        let createInput: {
-          scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
-          projectPath?: string;
-          model?: ModelRef;
-          thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-          sessionName?: string;
-          knowledgeBaseIds?: string[];
-          disabledMcpServerIds?: string[];
-        };
-
-        if (useGeneral) {
-          createInput = sessionCreateInputForTransport(hostClient.getTransport(), {
-            useGeneral: true,
-            ...(options?.sessionName !== undefined ? { sessionName: options.sessionName } : {}),
-          });
-        } else {
+        let resolvedProjectKey: string | undefined;
+        if (!useGeneral) {
           const projectPath = requestedProjectPath;
           if (!projectPath) {
             dispatchNotification(pushError('Open a project first'));
@@ -265,25 +255,29 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             dispatch({ type: 'project/trust-dialog', open: true });
             return null;
           }
-          createInput = sessionCreateInputForTransport(hostClient.getTransport(), {
-            useGeneral: false,
-            projectKey: projectPath,
-            ...(options?.sessionName !== undefined ? { sessionName: options.sessionName } : {}),
-          });
+          resolvedProjectKey = projectPath;
         }
-        const model = selectedModelRef();
-        if (model) {
-          createInput.model = model;
-        }
-        if (thinkingLevel) {
-          createInput.thinkingLevel = thinkingLevel;
-        }
-        if (options?.knowledgeBaseIds && options.knowledgeBaseIds.length > 0) {
-          createInput.knowledgeBaseIds = [...options.knowledgeBaseIds];
-        }
-        if (options?.disabledMcpServerIds && options.disabledMcpServerIds.length > 0) {
-          createInput.disabledMcpServerIds = [...options.disabledMcpServerIds];
-        }
+        const piModel = selectedModelRef();
+        const createInput = buildSessionCreateInput(hostClient.getTransport(), {
+          useGeneral,
+          ...(resolvedProjectKey !== undefined ? { projectKey: resolvedProjectKey } : {}),
+          ...(options?.sessionName !== undefined ? { sessionName: options.sessionName } : {}),
+          ...(options?.agentId !== undefined ? { agentId: options.agentId } : {}),
+          ...(options?.backendModelId !== undefined
+            ? { backendModelId: options.backendModelId }
+            : {}),
+          ...(options?.backendEffortId !== undefined
+            ? { backendEffortId: options.backendEffortId }
+            : {}),
+          ...(piModel !== undefined ? { model: piModel } : {}),
+          ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+          ...(options?.knowledgeBaseIds !== undefined
+            ? { knowledgeBaseIds: options.knowledgeBaseIds }
+            : {}),
+          ...(options?.disabledMcpServerIds !== undefined
+            ? { disabledMcpServerIds: options.disabledMcpServerIds }
+            : {}),
+        });
         const created = await hostClient.request(
           {
             type: 'session/create',

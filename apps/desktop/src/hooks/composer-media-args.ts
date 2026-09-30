@@ -34,6 +34,9 @@ export type UseComposerMediaArgs = {
     sessionName?: string;
     knowledgeBaseIds?: readonly string[];
     disabledMcpServerIds?: readonly string[];
+    agentId?: string;
+    backendModelId?: string;
+    backendEffortId?: string;
   }) => Promise<string | null>;
   /**
    * The draft's pending knowledge-base mount choice, read at send time (a

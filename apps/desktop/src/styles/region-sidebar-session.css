@@ -359,6 +359,22 @@
   background: color-mix(in srgb, var(--coral) 14%, transparent);
 }
 
+/* ADR 0082: an external agent session is tinted so a mixed list never implies
+   every row runs the same engine. Iris is the product's "agent" hue. */
+.session-backend-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-right: var(--s-3);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: var(--iris-lift);
+  background: var(--iris-wash);
+}
+
 /* ── Run and completion markers ───────────────────────────────────────
    A session that is working is the only place in the sidebar allowed to use
    ember, and it uses the shell breath so it pulses in phase with the stage. */

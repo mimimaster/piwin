@@ -15,6 +15,11 @@ import { isConversationSessionChrome } from '../is-conversation-session';
 import { useComposerContextRefs } from './use-composer-context-refs';
 import { useComposerMedia } from './use-composer-media';
 import { useComposerModelController } from './use-composer-model';
+import {
+  draftAgentOptionsFrom,
+  useBackendSessionControls,
+} from './use-backend-session-controls';
+import { useSessionCapabilities } from './use-session-capabilities';
 import type { WorkbenchHostRuntime } from './use-workbench-host-runtime';
 import type { WorkbenchSessionRuntime } from './use-workbench-session-runtime';
 import type { WorkbenchShellChrome } from './use-workbench-shell-chrome';
@@ -254,6 +259,23 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
   });
   composerSetterRef.current = setComposer;
 
+  const backendControls = useBackendSessionControls({
+    hostClient,
+    dispatch,
+    sessionId: state.activeSessionId,
+    optionsBySession: state.backendOptionsBySession,
+  });
+  const draftAgentOptions = draftAgentOptionsFrom(state.externalAgents);
+  const capabilities = useSessionCapabilities({
+    sessionId: state.activeSessionId,
+    capabilitiesBySession: state.backendCapabilitiesBySession,
+  });
+  const draftAgentId = state.draftAgentId ?? 'pi';
+  const onDraftAgentChange = useCallback(
+    (agentId: 'pi' | 'grok') => dispatch({ type: 'draft/set-agent', agentId }),
+    [dispatch],
+  );
+
   return {
     handleSelectModel,
     handleThinkingLevelChange,
@@ -293,6 +315,11 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     queuedTurnEditId,
     cancelQueuedTurnEdit,
     notePauseRequested,
+    backendControls,
+    draftAgentOptions,
+    draftAgentId,
+    onDraftAgentChange,
+    capabilities,
   };
 }
 

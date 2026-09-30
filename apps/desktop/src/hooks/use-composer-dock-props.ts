@@ -130,6 +130,15 @@ export type UseComposerDockPropsArgs = {
   setExtensionUiInput: Dispatch<SetStateAction<string>>;
   thinkingLevel: ThinkingLevel;
   onThinkingLevelChange: (level: ThinkingLevel) => void;
+  /** ADR 0082: backend-owned catalog + setters for the active agent session. */
+  backendControls: import('./use-backend-session-controls.js').BackendSessionControls;
+  /** ADR 0082: agent choices for an unsent new-session draft. */
+  draftAgentOptions: readonly import('../composer-dock-types.js').ComposerDraftAgentOption[];
+  /** ADR 0082: selected agent for the draft ('pi' unless the user switched). */
+  draftAgentId: 'pi' | 'grok';
+  onDraftAgentChange: (agentId: 'pi' | 'grok') => void;
+  /** ADR 0082: per-operation capability gate for the active session. */
+  capabilities: import('./use-session-capabilities.js').SessionCapabilityGate;
   speechConfigured: boolean;
   speechRequest: (input: SpeechTranscribeInput) => Promise<HostResponse>;
   runModePreset: PermissionPreset;
@@ -221,6 +230,11 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     setExtensionUiInput,
     thinkingLevel,
     onThinkingLevelChange,
+    backendControls,
+    draftAgentOptions,
+    draftAgentId,
+    onDraftAgentChange,
+    capabilities,
     speechConfigured,
     speechRequest,
     runModePreset,
@@ -528,10 +542,19 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onExtensionUiAbort: handleComposerExtensionUiAbort,
       thinkingLevel,
       onThinkingLevelChange,
+      backendOptions: backendControls.options,
+      onBackendModelChange: backendControls.selectModel,
+      onBackendEffortChange: backendControls.selectEffort,
+      onBackendModeChange: backendControls.selectMode,
+      draftAgentId: draftAgentId ?? 'pi',
+      draftAgentOptions,
+      onDraftAgentChange,
+      capabilities,
       ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
       onAbort: handleComposerAbort,
       onCompact: handleComposerCompact,
-      compactionSupported: hostStatus?.capabilities?.compaction !== false,
+      compactionSupported:
+        hostStatus?.capabilities?.compaction !== false && capabilities.supports('compact'),
       contextUsage: state.contextUsage,
       contextRingView: selectContextRingView({
         telemetry: state.contextTelemetry,

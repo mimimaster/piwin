@@ -38,6 +38,11 @@ export type ComposerActionSlotProps = {
   onPause: () => void;
   onResume?: () => void;
   onAbort?: () => void;
+  /**
+   * ADR 0082: a backend without a pause checkpoint (Grok) shows Stop while
+   * streaming instead of a Pause that the Host would reject.
+   */
+  pauseSupported?: boolean;
   /** Narrow columns: streaming is Stop, not Pause / queued Send. */
   embedded?: boolean;
   stopOnly?: boolean;
@@ -156,6 +161,11 @@ function renderPrimaryCircle(props: ComposerActionSlotProps): ReactElement {
     }
     if (props.hasContent) {
       return <ComposerSendButton {...props} />;
+    }
+    // A backend with no pause checkpoint can still be stopped; showing a
+    // disabled Pause would imply a capability the agent does not have.
+    if (props.pauseSupported === false) {
+      return <ComposerStopButton {...props} />;
     }
     return <ComposerPauseButton {...props} />;
   }

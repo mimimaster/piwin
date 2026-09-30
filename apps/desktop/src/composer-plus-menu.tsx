@@ -59,6 +59,11 @@ export type ComposerPlusMenuProps = {
   onAttachFile?: () => void;
   /** Optional image-only picker for quick access to screenshots. */
   onAttachImage?: () => void;
+  /**
+   * ADR 0082: the backend cannot take images. The row stays visible and
+   * disabled, with this reason, instead of disappearing.
+   */
+  attachImageDisabledReason?: string;
   /** Conversation chat keeps attachments and hides Skills / Connectors. */
   hideAgentExtras?: boolean;
 };
@@ -76,7 +81,10 @@ function connectorMeta(server: ComposerMcpOption, isZh: boolean): string | null 
 export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
-  const hasAttachments = Boolean(props.onAttachFile || props.onAttachImage);
+  const imageDisabledReason = props.attachImageDisabledReason?.trim() || undefined;
+  const hasAttachments = Boolean(
+    props.onAttachFile || props.onAttachImage || imageDisabledReason,
+  );
   const showAgentExtras = props.hideAgentExtras !== true;
   const switches = props.mcpSwitches?.supported === true ? props.mcpSwitches : null;
   const enabledConnectorCount = props.mcpServers.filter(
@@ -111,7 +119,17 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
         </DropdownMenuItem>
       ) : null}
 
-      {props.onAttachImage ? (
+      {imageDisabledReason ? (
+        <DropdownMenuItem disabled testId="plus-menu-image">
+          <span className="plus-menu-icon">
+            <IconImage width={16} height={16} />
+          </span>
+          <span className="plus-menu-label">
+            {isZh ? '添加图片' : 'Attach image'}
+            <span className="plus-menu-hint">{imageDisabledReason}</span>
+          </span>
+        </DropdownMenuItem>
+      ) : props.onAttachImage ? (
         <DropdownMenuItem onSelect={props.onAttachImage} testId="plus-menu-image">
           <span className="plus-menu-icon">
             <IconImage width={16} height={16} />

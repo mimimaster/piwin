@@ -422,6 +422,8 @@ export type DesktopTranslator = {
       prompts: string;
       automation: string;
       agents: string;
+      /** ADR 0082: optional external agent backends (discovery / readiness). */
+      agentBackends: string;
       subagents: string;
       pets: string;
       usage: string;
@@ -1382,6 +1384,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         prompts: isChinese ? 'Prompt 模板' : 'Prompt templates',
         automation: isChinese ? '自动化' : 'Automation',
         agents: isChinese ? '子代理' : 'Sub-agents',
+        agentBackends: isChinese ? 'Agent 后端' : 'Agent Backends',
         subagents: isChinese ? '子代理编排' : 'Orchestration',
         pets: isChinese ? '桌宠' : 'Companion',
         usage: isChinese ? '用量统计' : 'Usage',

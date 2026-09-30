@@ -55,6 +55,8 @@ import type { SettingsSectionId } from './settings/section-registry';
 import { TruncateAfterDialog } from './truncate-after-dialog';
 import { activeSessionPermissionPrompt } from './permission-queue';
 import type { DesktopPreferences } from './ui-preferences';
+import { backendCapabilitiesFor } from './agent-backend-state';
+import { createSessionCapabilityGate } from './hooks/use-session-capabilities';
 
 export type WorkbenchOverlaysProps = {
   state: ChatUiState;
@@ -162,6 +164,14 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
     projectSessionsByPath: props.state.projectSessionsByPath,
   });
   const hostOsFamily = props.hostClient.getRemoteCapabilities()?.platform;
+  // ADR 0082: gate session chrome on the active session's backend capabilities
+  // (the Host would reject these anyway; hiding avoids a dead menu item).
+  const activeSessionCapabilities = createSessionCapabilityGate(
+    backendCapabilitiesFor(
+      props.state.backendCapabilitiesBySession,
+      props.state.activeSessionId,
+    ),
+  );
   return (
     <>
       <AppDialogs
@@ -213,13 +223,16 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
         {...(props.hostClient.supportsCommand('session/export')
           ? {}
           : { sessionMenuCanExport: false })}
-        {...(props.hostClient.supportsCommand('session/duplicate')
+        {...(props.hostClient.supportsCommand('session/duplicate') &&
+        activeSessionCapabilities.supports('duplicate')
           ? {}
           : { sessionMenuCanDuplicate: false })}
-        {...(props.hostClient.supportsCommand('session/fork')
+        {...(props.hostClient.supportsCommand('session/fork') &&
+        activeSessionCapabilities.supports('fork')
           ? {}
           : { sessionMenuCanForkChat: false })}
-        {...(props.hostClient.supportsCommand('session/duplicate')
+        {...(props.hostClient.supportsCommand('session/duplicate') &&
+        activeSessionCapabilities.supports('duplicate')
           ? {}
           : { sessionMenuCanContinueInProject: false })}
         renameDraft={props.renameDraft}

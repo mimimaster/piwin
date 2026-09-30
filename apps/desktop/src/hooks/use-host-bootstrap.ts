@@ -26,6 +26,11 @@ import { formatError, isPrimarySessionRecord, parseSessionContextSnapshot } from
 import type { HostClient } from '../host-client';
 import { isRemoteCommandGapError } from '../remote-command-gap.js';
 import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
+import {
+  bootstrapExternalAgents,
+  syncAgentCatalog,
+  syncReadyAgentCatalogs,
+} from './external-agent-bootstrap.js';
 import type { ChatUiAction, PermissionPromptUi } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
@@ -456,6 +461,23 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         dispatch({ type: 'session/queued-turn-updated', queuedTurn: message.queuedTurn });
         return;
       }
+      if (message.type === 'session/backend-updated') {
+        dispatch({
+          type: 'session/backend-updated',
+          sessionId: message.sessionId,
+          options: message.options,
+        });
+        return;
+      }
+      if (message.type === 'agents/status-updated') {
+        dispatch({ type: 'agents/status-updated', status: message.status });
+        // A first `ready` carries the previously unknown agent-side catalog;
+        // import it so the sidebar shows the agent's existing sessions.
+        if (message.status.state === 'ready') {
+          syncAgentCatalog(hostClient, message.status.agentId);
+        }
+        return;
+      }
       if (message.type === 'session/index-updated') {
         if (message.op === 'deleted') {
           dispatch({ type: 'session/remove', sessionId: message.sessionId });
@@ -687,6 +709,9 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           dispatch({
             type: 'context-telemetry/capability',
             supported: hasContextTelemetryCapability(statusResponse.data),
+          });
+          void bootstrapExternalAgents(hostClient, dispatch).then((agents) => {
+            syncReadyAgentCatalogs(hostClient, agents);
           });
         }
         // Request path must update the shell pill; push-only left UI stuck offline after HMR.

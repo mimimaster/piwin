@@ -352,6 +352,14 @@ export function useSessionResume(input: {
           usage: data.lastRequestUsage ?? null,
         });
       }
+      if (data.backendCapabilities || data.backendOptions) {
+        dispatch({
+          type: 'session/backend-hydrated',
+          sessionId,
+          ...(data.backendCapabilities ? { capabilities: data.backendCapabilities } : {}),
+          ...(data.backendOptions ? { options: data.backendOptions } : {}),
+        });
+      }
       const messages = data.messages ?? [];
       if (messages.length === 0 && data.transcriptPage === undefined) {
         const listed = await hostClient.request({

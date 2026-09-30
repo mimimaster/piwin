@@ -8,6 +8,9 @@ const KIND_RANK: Record<SlashItemKind, number> = {
   mode: 1,
   skill: 2,
   extension: 3,
+  // Ranks last: backend commands are niche and shouldn't outrank piwin's own
+  // commands in an unfiltered menu.
+  backend: 4,
 };
 
 export const SLASH_MENU_MAX_ITEMS = 24;

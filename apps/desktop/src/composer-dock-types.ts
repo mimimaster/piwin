@@ -45,6 +45,14 @@ export type ComposerModelOption = {
   supportsImageGeneration?: boolean;
 };
 
+/** ADR 0082: one selectable agent backend for a new session draft. */
+export type ComposerDraftAgentOption = {
+  agentId: 'pi' | 'grok';
+  label: string;
+  /** False while the agent still needs install/login/dependency work. */
+  ready: boolean;
+};
+
 export type ComposerDockProps = {
   /** When true, path shows above the card and outer layout can center the dock. */
   layoutMode: 'centered' | 'docked';
@@ -179,6 +187,27 @@ export type ComposerDockProps = {
   onOpenWorktreeProject?: ((worktreePath: string) => void | Promise<void>) | undefined;
   /** True when Desktop is attached to a saved standalone Host. */
   runtimeRemoteConnected?: boolean;
+  /**
+   * ADR 0082: agent backend for an unsent New Agent draft. Absent means Pi.
+   * The picker only renders when a second ready agent exists.
+   */
+  draftAgentId?: 'pi' | 'grok';
+  /** ADR 0082: agents selectable for a new session (ready ones are sendable). */
+  draftAgentOptions?: readonly ComposerDraftAgentOption[];
+  onDraftAgentChange?: (agentId: 'pi' | 'grok') => void;
+  /**
+   * ADR 0082: backend-owned catalog for the active session. When present the
+   * Pi model/thinking controls are replaced, never merged with Pi model refs.
+   */
+  backendOptions?: import('@piwin/contracts').SessionBackendOptions | null;
+  onBackendModelChange?: (modelId: string) => void;
+  onBackendEffortChange?: (effortId: string) => void;
+  onBackendModeChange?: (modeId: string) => void;
+  /**
+   * ADR 0082: per-operation capability gate. The Host rejects unsupported
+   * commands anyway; this stops the UI from offering them at all.
+   */
+  capabilities?: import('./hooks/use-session-capabilities.js').SessionCapabilityGate;
   /** Hostname:port of the attached Host, when known. */
   runtimeRemoteHostLabel?: string;
   onSelectLocalRuntime?: () => void;

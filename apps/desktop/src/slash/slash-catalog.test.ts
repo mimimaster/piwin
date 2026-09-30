@@ -191,3 +191,92 @@ describe('buildSlashCatalog — extension commands', () => {
     });
   });
 });
+
+describe('buildSlashCatalog — backend commands (ADR 0082)', () => {
+  const backendCommands = [
+    { name: 'help', description: 'Show Grok help' },
+    { name: 'compact', description: 'Compact the Grok context' },
+    { name: 'model', description: 'Switch model', inputHint: '<name>' },
+  ];
+
+  it('lists the backend commands for a backend session', () => {
+    const catalog = buildSlashCatalog({
+      skills: [],
+      hasActiveSession: true,
+      projectTrusted: true,
+      backendSession: true,
+      backendCommands,
+    });
+    const help = catalog.find((item) => item.id === 'backend:help');
+    expect(help?.kind).toBe('backend');
+    expect(help?.groupLabel).toBe('Backend');
+    expect(help?.available).toBe(true);
+    // The argument hint is surfaced so the token is usable without docs.
+    expect(catalog.find((item) => item.id === 'backend:model')?.description).toContain('<name>');
+  });
+
+  it('drops Pi product commands and Pi modes rather than offering what cannot run', () => {
+    const catalog = buildSlashCatalog({
+      skills: [],
+      hasActiveSession: true,
+      projectTrusted: true,
+      backendSession: true,
+      backendCommands,
+    });
+    expect(catalog.find((item) => item.name === 'scheme')).toBeUndefined();
+    expect(catalog.find((item) => item.kind === 'mode')).toBeUndefined();
+    // Pi compaction is gone too; Grok's own `/compact` is listed instead.
+    expect(catalog.find((item) => item.id === 'cmd:compact')).toBeUndefined();
+    expect(catalog.find((item) => item.id === 'backend:compact')).toBeTruthy();
+  });
+
+  it('keeps Pi commands and modes for a Pi session', () => {
+    const catalog = buildSlashCatalog({
+      skills: [],
+      hasActiveSession: true,
+      projectTrusted: true,
+    });
+    expect(catalog.find((item) => item.id === 'cmd:compact')).toBeTruthy();
+    expect(catalog.find((item) => item.kind === 'mode')).toBeTruthy();
+  });
+
+  it('lets a backend token override a piwin item with the same name', () => {
+    // piwin defines `knowledge` as a local panel. If the backend claims the
+    // token, the backend's meaning wins because piwin sends it verbatim.
+    const catalog = buildSlashCatalog({
+      skills: [],
+      hasActiveSession: true,
+      projectTrusted: true,
+      backendSession: true,
+      backendCommands: [{ name: 'knowledge', description: 'Grok knowledge search' }],
+    });
+    expect(catalog.find((item) => item.id === 'cmd:knowledge')).toBeUndefined();
+    expect(catalog.find((item) => item.id === 'backend:knowledge')).toBeTruthy();
+  });
+
+  it('ranks backend commands below piwin commands so they do not crowd the menu', () => {
+    const catalog = buildSlashCatalog({
+      skills,
+      hasActiveSession: true,
+      projectTrusted: true,
+      backendSession: true,
+      backendCommands,
+    });
+    const ordered = filterSlashItems(catalog, '');
+    const firstBackendIndex = ordered.findIndex((item) => item.kind === 'backend');
+    expect(firstBackendIndex).toBeGreaterThanOrEqual(0);
+    // Backend commands form the tail: no piwin-owned item sorts after them.
+    expect(ordered.slice(firstBackendIndex).every((item) => item.kind === 'backend')).toBe(true);
+  });
+
+  it('ignores an empty backend command list', () => {
+    const catalog = buildSlashCatalog({
+      skills: [],
+      hasActiveSession: true,
+      projectTrusted: true,
+      backendCommands: [],
+    });
+    expect(catalog.some((item) => item.kind === 'backend')).toBe(false);
+    expect(catalog.find((item) => item.id === 'cmd:compact')).toBeTruthy();
+  });
+});

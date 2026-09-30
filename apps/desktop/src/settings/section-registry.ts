@@ -19,6 +19,7 @@ export type SettingsSectionId =
   | 'hooks'
   | 'subagents'
   | 'agent'
+  | 'agent-backends'
   | 'artifact'
   | 'extensions'
   | 'web'
@@ -84,6 +85,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'oauth', group: 'agent', labelKey: 'oauth' },
   { id: 'hooks', group: 'agent', labelKey: 'hooks' },
   { id: 'subagents', group: 'agent', labelKey: 'subagents' },
+  { id: 'agent-backends', group: 'agent', labelKey: 'agentBackends' },
   { id: 'agent', group: 'agent', labelKey: 'agent', hidden: true },
   { id: 'artifact', group: 'agent', labelKey: 'artifact' },
   { id: 'extensions', group: 'integrations', labelKey: 'extensions' },

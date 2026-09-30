@@ -114,6 +114,27 @@ describe('ComposerPlusMenu', () => {
     expect(document.querySelector('[data-testid="plus-menu-connectors"]')).toBeNull();
   });
 
+  it('keeps image attach visible but disabled when the backend refuses images', () => {
+    const onAttachImage = vi.fn();
+    render(
+      createBaseProps({
+        onAttachFile: vi.fn(),
+        onAttachImage,
+        attachImageDisabledReason: 'Grok does not accept images yet',
+      }),
+      root,
+    );
+
+    const item = document.querySelector<HTMLButtonElement>('[data-testid="plus-menu-image"]');
+    expect(item).not.toBeNull();
+    expect(item?.textContent).toContain('Grok does not accept images yet');
+    expect(item?.hasAttribute('data-disabled') || item?.getAttribute('aria-disabled') === 'true').toBe(
+      true,
+    );
+    clickItem('plus-menu-image');
+    expect(onAttachImage).not.toHaveBeenCalled();
+  });
+
   it('exposes separate file and image attachment actions when wired', () => {
     const onAttachFile = vi.fn();
     const onAttachImage = vi.fn();

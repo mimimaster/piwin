@@ -30,6 +30,16 @@ export type SlashExtensionCommandInput = {
   extensionName: string;
 };
 
+/**
+ * A command owned by the session backend (ADR 0082). piwin shows it so it is
+ * discoverable, then sends the token verbatim — the backend defines its meaning.
+ */
+export type SlashBackendCommandInput = {
+  name: string;
+  description?: string;
+  inputHint?: string;
+};
+
 export type BuildSlashCatalogOptions = {
   skills: SlashSkillInput[];
   extensionCommands?: SlashExtensionCommandInput[];
@@ -47,6 +57,17 @@ export type BuildSlashCatalogOptions = {
   goalExtensionEnabled?: boolean;
   /** Conversation chat hides orchestration commands. Skills stay slash-callable. */
   conversationChat?: boolean;
+  /**
+   * Commands the active session backend owns (ADR 0082). Present only for a
+   * non-Pi backend session; their presence is what turns on backend mode.
+   */
+  backendCommands?: readonly SlashBackendCommandInput[];
+  /**
+   * True when the active session runs a non-Pi backend. Pi-only product
+   * commands and Pi's own modes are then omitted rather than offered and
+   * rejected: the backend has its own equivalents (or none).
+   */
+  backendSession?: boolean;
 };
 
 /**
@@ -95,11 +116,14 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   // trust, not an active session (draft submit resolves the session).
   const skillsReady = projectTrusted || !requireProjectTrust;
   const conversationChat = options.conversationChat === true;
+  const backendSession = options.backendSession === true;
 
   const items: SlashItem[] = [];
 
   // --- Commands ---
-  {
+  // `compact` is Pi compaction. A non-Pi backend that has its own `/compact`
+  // (Grok does) would otherwise show Pi's, disabled, right next to it.
+  if (!backendSession) {
     let available = true;
     let unavailableReason: string | undefined;
     if (!interactive) {
@@ -162,7 +186,9 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   }
 
   // --- Orchestration scheme (per-send opt-in) ---
-  if (!conversationChat) {
+  // Host subagents are a Pi-only mechanism; a backend that runs its own
+  // subagents (Grok) gets no scheme commands.
+  if (!conversationChat && !backendSession) {
     let available = true;
     let unavailableReason: string | undefined;
     if (!interactive) {
@@ -210,7 +236,8 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   // --- Modes ---
   // The slash menu is the only mode entry point in either session kind: there
   // is no toolbar picker, so `/goal` has to be discoverable here.
-  for (const mode of AGENT_MODES) {
+  // A backend session selects modes from its own backend options instead.
+  for (const mode of backendSession ? [] : AGENT_MODES) {
     const isGoalDisabled = mode.id === 'goal' && options.goalExtensionEnabled === false;
     items.push({
       id: `mode:${mode.id}`,
@@ -299,5 +326,41 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
     });
   }
 
-  return items;
+  // --- Backend commands (ADR 0082) ---
+  // The backend owns these tokens and receives them verbatim, so a collision
+  // with a Pi item must resolve in the backend's favour: offering piwin's
+  // meaning for a token the backend defines would send the wrong thing.
+  const backendTokens = new Set(
+    (options.backendCommands ?? []).map((command) => command.name.trim().toLowerCase()),
+  );
+  const visible = backendTokens.size > 0
+    ? items.filter((item) => {
+        const tokens = [item.name, ...(item.aliases ?? [])].map((token) =>
+          token.trim().toLowerCase(),
+        );
+        return !tokens.some((token) => backendTokens.has(token));
+      })
+    : items;
+  visible.push(
+    ...(options.backendCommands ?? []).map((command): SlashItem => {
+      const name = command.name.trim();
+      const item: SlashItem = {
+        id: `backend:${name}`,
+        kind: 'backend',
+        name,
+        label: name,
+        description: command.description?.trim() || `Run the backend's /${name} command`,
+        keywords: [name],
+        groupLabel: 'Backend',
+        acceptsArgs: true,
+        available: true,
+      };
+      if (command.inputHint) {
+        item.description = `${item.description} · ${command.inputHint}`;
+      }
+      return item;
+    }),
+  );
+
+  return visible;
 }

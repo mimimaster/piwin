@@ -215,6 +215,13 @@ export type SessionCreateInputPayload = {
   sessionName?: string;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
+  agentId?: string;
+  backendModelId?: string;
+  backendEffortId?: string;
+  /** Knowledge bases mounted at creation, so the first prompt already sees them. */
+  knowledgeBaseIds?: string[];
+  /** MCP servers switched off for this session before its first prompt. */
+  disabledMcpServerIds?: string[];
 };
 
 /** Remote `session/create` must send `projectId`, never path-owning scope. */
@@ -226,12 +233,18 @@ export function sessionCreateInputForTransport(
     sessionName?: string;
     model?: ModelRef;
     thinkingLevel?: ThinkingLevel;
+    agentId?: string;
+    backendModelId?: string;
+    backendEffortId?: string;
   },
 ): SessionCreateInputPayload {
   const common = {
     ...(input.sessionName !== undefined ? { sessionName: input.sessionName } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingLevel !== undefined ? { thinkingLevel: input.thinkingLevel } : {}),
+    ...(input.agentId !== undefined ? { agentId: input.agentId } : {}),
+    ...(input.backendModelId !== undefined ? { backendModelId: input.backendModelId } : {}),
+    ...(input.backendEffortId !== undefined ? { backendEffortId: input.backendEffortId } : {}),
   };
   if (input.useGeneral) {
     return { ...common, scope: { kind: 'general' } };
@@ -479,6 +492,13 @@ export function mapListedSessionItem(value: unknown): SessionListItemUi | undefi
   if (isThinkingLevel(value.thinkingLevel)) item.thinkingLevel = value.thinkingLevel;
   const storage = parseSessionStorageInfo(value.storage);
   if (storage && storage.state !== 'local') item.storage = storage;
+  if (isRecord(value.backend) && typeof value.backend.agentId === 'string') {
+    item.backend = {
+      agentId: value.backend.agentId,
+      ...(typeof value.backend.activity === 'string' ? { activity: value.backend.activity } : {}),
+      ...(value.backend.isWorktree === true ? { isWorktree: true } : {}),
+    };
+  }
   return item;
 }
 

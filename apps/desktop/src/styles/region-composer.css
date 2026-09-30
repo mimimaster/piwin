@@ -402,6 +402,32 @@
   cursor: not-allowed;
 }
 
+/* ADR 0082: the agent pill leads with the agent name so an external backend is
+   never mistaken for a Pi model. */
+.backend-composer-agent {
+  flex-shrink: 0;
+  color: var(--slab-text);
+  font-weight: 600;
+  font-size: var(--fs-chrome);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* An agent that approves its own tool use is a real permission signal — the
+   spec requires it be labelled, not silently inherited from the Pi gate. */
+.backend-auto-approve-badge {
+  flex-shrink: 0;
+  align-self: center;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-pill);
+  color: var(--lamp, var(--amber));
+  background: color-mix(in srgb, var(--lamp, var(--amber)) 14%, transparent);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
 .thinking-effort-model,
 .run-mode-value,
 .orchestration-scheme-value {

@@ -13,7 +13,12 @@ import {
   type SetStateAction,
 } from 'react';
 import type { PromptAttachment, WebElementAttachmentRef } from '@piwin/contracts';
-import { ATTACHMENT_FILE_ACCEPT, formatError, toMediaAttachmentRef } from '@piwin/contracts';
+import {
+  ATTACHMENT_FILE_ACCEPT,
+  formatError,
+  sessionOperationUnsupportedReason,
+  toMediaAttachmentRef,
+} from '@piwin/contracts';
 import type { WebElementPickResult, PromptContextRef } from '@piwin/contracts';
 import {
   applyChipPreviewUrl,
@@ -33,6 +38,8 @@ import { beginComposerImagePreview } from '../media-preview-bitmap.js';
 import { MediaSaveHostRejectedError, saveMediaOverHost } from '../media-save-over-host.js';
 import type { DesktopCopy } from '../desktop-locale.js';
 import { PIWIN_PATH_MIME } from '../workspace-path-drag';
+import { backendCapabilitiesFor } from '../agent-backend-state.js';
+import { pushError } from '../notification-queue.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import { isComposerAttachmentRetained } from './composer-attachment-retention.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
@@ -372,17 +379,34 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
 
   const enqueueAttachmentFile = useCallback(
     (file: File, source: 'paste' | 'drop' | 'file-picker', existingLocalId?: string): void => {
+      // Optimistic MIME from File metadata; macOS clipboard pastes often
+      // have an empty type and are refined from magic bytes in runMediaSave.
+      const optimisticMime = resolveAttachmentMimeType(file) ?? 'application/octet-stream';
+      const optimisticContentKind =
+        resolveAttachmentContentKind(file, optimisticMime) ?? 'document';
+      if (!existingLocalId && optimisticContentKind === 'image') {
+        // ADR 0082: refuse before painting a chip the Host will reject.
+        // An empty clipboard type is not treated as an image here; the Host
+        // still rejects it on send if magic bytes say it is one.
+        const reason = sessionOperationUnsupportedReason(
+          backendCapabilitiesFor(
+            args.state.backendCapabilitiesBySession,
+            args.state.activeSessionId,
+          ),
+          'images',
+        );
+        if (reason !== undefined) {
+          args.dispatchNotification?.(pushError(reason));
+          return;
+        }
+      }
+
       const localId = existingLocalId ?? crypto.randomUUID();
       cancelledAttachmentIdsRef.current.delete(localId);
       sourceFilesRef.current.set(localId, { file, source });
       mediaSaveResultsRef.current.delete(localId);
 
       if (!existingLocalId) {
-        // Optimistic MIME from File metadata; macOS clipboard pastes often
-        // have an empty type and are refined from magic bytes in runMediaSave.
-        const optimisticMime = resolveAttachmentMimeType(file) ?? 'application/octet-stream';
-        const optimisticContentKind =
-          resolveAttachmentContentKind(file, optimisticMime) ?? 'document';
         const placeholderAttachment: PromptAttachment = {
           id: localId,
           kind: 'media',

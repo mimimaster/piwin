@@ -17,6 +17,11 @@ import {
   reconcilePermissionQueue,
 } from './permission-queue';
 import { reduceAttentionAction } from './chat-reducer-attention';
+import {
+  mergeAgentStatus,
+  setBackendCapabilities,
+  setBackendOptions,
+} from './agent-backend-state';
 
 export type {
   ChatMessageUi,
@@ -131,6 +136,10 @@ export function createInitialChatUiState(): ChatUiState {
     attentionVisibleSessionIds: {},
     attentionConversationCovered: false,
     pendingTurnModel: null,
+    backendCapabilitiesBySession: {},
+    backendOptionsBySession: {},
+    externalAgents: [],
+    draftAgentId: 'pi',
   };
 }
 
@@ -361,6 +370,44 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       delete nextWalkthroughs[action.messageId];
       return { ...state, walkthroughsByMessageId: nextWalkthroughs };
     }
+    case 'session/backend-hydrated':
+      return {
+        ...state,
+        backendCapabilitiesBySession: setBackendCapabilities(
+          state.backendCapabilitiesBySession,
+          action.sessionId,
+          action.capabilities,
+        ),
+        backendOptionsBySession: setBackendOptions(
+          state.backendOptionsBySession,
+          action.sessionId,
+          action.options,
+        ),
+      };
+    case 'session/backend-updated':
+      return {
+        ...state,
+        backendOptionsBySession: setBackendOptions(
+          state.backendOptionsBySession,
+          action.sessionId,
+          action.options,
+        ),
+      };
+    case 'agents/status-updated':
+      return {
+        ...state,
+        externalAgents: mergeAgentStatus(state.externalAgents, action.status),
+      };
+    case 'agents/set-all':
+      return {
+        ...state,
+        externalAgents: action.agents,
+      };
+    case 'draft/set-agent':
+      return {
+        ...state,
+        draftAgentId: action.agentId,
+      };
     default:
       return state;
   }

@@ -223,4 +223,37 @@ describe('ComposerActionSlot', () => {
     expect(onResume).toHaveBeenCalledTimes(1);
     expect(onSend).not.toHaveBeenCalled();
   });
+
+  // ADR 0082: a backend without a pause checkpoint must not be offered one.
+  it('shows Stop instead of Pause while streaming when pause is unsupported', () => {
+    const onAbort = vi.fn();
+    const onPause = vi.fn();
+    const node = renderSlot({
+      ...idle,
+      isStreamingRun: true,
+      runPhase: 'streaming',
+      pauseSupported: false,
+      onPause,
+      onAbort,
+    });
+
+    expect(node.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    const stop = node.querySelector('[data-testid="stop-btn"]') as HTMLButtonElement;
+    act(() => {
+      stop.click();
+    });
+    expect(onAbort).toHaveBeenCalledTimes(1);
+    expect(onPause).not.toHaveBeenCalled();
+  });
+
+  it('still shows Pause while streaming when pause is supported', () => {
+    const node = renderSlot({
+      ...idle,
+      isStreamingRun: true,
+      runPhase: 'streaming',
+      pauseSupported: true,
+    });
+    expect(node.querySelector('[data-testid="pause-btn"]')).not.toBeNull();
+    expect(node.querySelector('[data-testid="stop-btn"]')).toBeNull();
+  });
 });

@@ -23,12 +23,28 @@ export type SessionRenameDraft = {
 export type SessionNamedDraft = {
   sessionId: string;
   sessionName: string;
+  /** ADR 0082: non-Pi backend, so destructive copy can name it. */
+  agentId?: string;
 };
 
 export type SessionNameLookup = {
   id: string;
   name?: string | undefined;
+  /** Present only for a non-Pi backend session (ADR 0082). */
+  backend?: { agentId: string } | undefined;
 };
+
+/**
+ * Agent id for a session row, when it runs a non-Pi backend. Used to make
+ * destructive copy honest: deleting a Grok session also removes it from Grok.
+ */
+export function resolveSessionAgentId(
+  sessionId: string,
+  sessions: readonly SessionNameLookup[],
+): string | undefined {
+  const agentId = sessions.find((item) => item.id === sessionId)?.backend?.agentId;
+  return agentId && agentId.length > 0 && agentId !== 'pi' ? agentId : undefined;
+}
 
 export function resolveSessionDisplayName(
   sessionId: string,
@@ -43,14 +59,16 @@ export function routeSessionChromeMenuAction(input: {
   sessionId: string;
   action: SessionRowMenuAction;
   sessions: readonly SessionNameLookup[];
-  requestDelete: (sessionId: string, sessionName: string) => void;
+  requestDelete: (sessionId: string, sessionName: string, agentId?: string) => void;
   requestContinueInProject: (sessionId: string, sessionName: string) => void;
   handleHostMenuAction: (sessionId: string, action: SessionRowMenuAction) => void;
 }): void {
   if (input.action === 'delete') {
+    const agentId = resolveSessionAgentId(input.sessionId, input.sessions);
     input.requestDelete(
       input.sessionId,
       resolveSessionDisplayName(input.sessionId, input.sessions),
+      ...(agentId !== undefined ? [agentId] : []),
     );
     return;
   }
@@ -85,7 +103,7 @@ export type UseSessionListChromeResult = {
   continueInProjectBusy: boolean;
   openSessionMenu: (sessionId: string, x: number, y: number) => void;
   closeSessionMenu: () => void;
-  requestDeleteSession: (sessionId: string, sessionName: string) => void;
+  requestDeleteSession: (sessionId: string, sessionName: string, agentId?: string) => void;
   requestContinueInProject: (sessionId: string, sessionName: string) => void;
   closeDeleteConfirm: () => void;
   closeContinueInProject: () => void;
@@ -128,10 +146,17 @@ export function useSessionListChrome(): UseSessionListChromeResult {
     setSessionMenu(null);
   }, []);
 
-  const requestDeleteSession = useCallback((sessionId: string, sessionName: string): void => {
-    setDeleteConfirm({ sessionId, sessionName });
-    setSessionMenu(null);
-  }, []);
+  const requestDeleteSession = useCallback(
+    (sessionId: string, sessionName: string, agentId?: string): void => {
+      setDeleteConfirm({
+        sessionId,
+        sessionName,
+        ...(agentId !== undefined ? { agentId } : {}),
+      });
+      setSessionMenu(null);
+    },
+    [],
+  );
 
   const requestContinueInProject = useCallback((sessionId: string, sessionName: string): void => {
     setContinueInProject({ sessionId, sessionName });

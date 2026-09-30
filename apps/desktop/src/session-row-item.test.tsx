@@ -201,5 +201,34 @@ describe('SessionRowItem', () => {
     const button = container.querySelector('[data-testid="session-item"]');
     expect(button?.getAttribute('data-pinned-section')).toBe('true');
   });
+
+  it('badges a non-Pi backend session with the agent name', () => {
+    const session: SessionListItemUi = {
+      id: 'sess-grok-1',
+      name: 'Grok session',
+      backend: { agentId: 'grok' },
+      updatedAt: new Date().toISOString(),
+    };
+
+    const { container } = renderSessionRow({ session });
+    activeContainers.push(container);
+
+    const badge = container.querySelector('[data-testid="session-backend-badge"]');
+    expect(badge?.textContent).toBe('Grok Build');
+  });
+
+  it('leaves a Pi session unlabelled', () => {
+    const session: SessionListItemUi = {
+      id: 'sess-pi-1',
+      name: 'Pi session',
+      updatedAt: new Date().toISOString(),
+    };
+
+    const { container } = renderSessionRow({ session });
+    activeContainers.push(container);
+
+    // Pi is the product default, so an explicit badge would be noise.
+    expect(container.querySelector('[data-testid="session-backend-badge"]')).toBeNull();
+  });
 });
 

@@ -31,6 +31,12 @@ export function useComposerSlashCatalog(
         agentMode: props.agentMode,
         goalExtensionEnabled: isGoalEnabled,
         conversationChat: props.isConversationSession === true,
+        // ADR 0082: a non-Pi session shows the backend's own commands and
+        // drops Pi's product commands/modes, which that backend cannot run.
+        backendSession: props.capabilities?.isExternalBackend === true,
+        ...(props.backendOptions?.commands !== undefined
+          ? { backendCommands: props.backendOptions.commands }
+          : {}),
       }),
     [
       props.menuSkills,
@@ -44,6 +50,8 @@ export function useComposerSlashCatalog(
       props.agentMode,
       isGoalEnabled,
       props.isConversationSession,
+      props.capabilities,
+      props.backendOptions,
     ],
   );
 }

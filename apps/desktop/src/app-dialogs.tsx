@@ -300,11 +300,7 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
         open={Boolean(props.deleteConfirm)}
         onOpenChange={props.onDeleteOpenChange}
         title={isChinese ? '彻底删除会话' : 'Delete permanently?'}
-        description={
-          isChinese
-            ? `确定要彻底删除会话「${props.deleteConfirm?.sessionName ?? ''}」吗？此操作不可撤销，所有对话记录将被永久删除。`
-            : 'Transcript files will be removed. This cannot be undone.'
-        }
+        description={deleteDescription(props.deleteConfirm, isChinese)}
         {...(props.deleteConfirm?.sessionName
           ? { affectedObject: props.deleteConfirm.sessionName }
           : {})}
@@ -316,4 +312,27 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
       />
     </>
   );
+}
+
+/**
+ * ADR 0082: a non-Pi backend owns its own session catalog, so deleting here
+ * removes the session there too. Saying so is the difference between a user
+ * expecting a local cleanup and losing the conversation in Grok.
+ */
+export function deleteDescription(
+  draft: SessionNamedDraft | null,
+  isChinese: boolean,
+): string {
+  const name = draft?.sessionName ?? '';
+  const isExternalAgent = draft?.agentId !== undefined && draft.agentId !== 'pi';
+  if (isChinese) {
+    const base = `确定要彻底删除会话「${name}」吗？此操作不可撤销，所有对话记录将被永久删除。`;
+    return isExternalAgent
+      ? `${base}该会话同时会从 Grok 中删除。`
+      : base;
+  }
+  const base = 'Transcript files will be removed. This cannot be undone.';
+  return isExternalAgent
+    ? `${base} This session is also deleted from Grok.`
+    : base;
 }

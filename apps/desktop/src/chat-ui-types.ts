@@ -6,6 +6,7 @@ import type {
   AssistantUsageMeasurement,
   ContextUsageSnapshot,
   ExecutionRunRecord,
+  ExternalAgentStatus,
   RunInterventionRecord,
   QueuedTurnRecord,
   ModelRef,
@@ -13,6 +14,8 @@ import type {
   PromptContextRef,
   PermissionDecision,
   PermissionRequestContext,
+  SessionBackendCapabilities,
+  SessionBackendOptions,
   SessionPauseCheckpoint,
   SessionContextSnapshot,
   SessionRunOutcome,
@@ -40,6 +43,18 @@ import type { WarmSessionCache } from './session-warm-cache';
 import type { ContextTelemetryState } from './context-telemetry-reducer';
 
 export const MAX_TOOL_CARDS_PER_MESSAGE = 128;
+
+/**
+ * External agent identity shown on a session row / transcript badge
+ * (ADR 0082). Mirrors `SessionSummary['backend']`; absent means native Pi.
+ */
+export type SessionBackendBadge = {
+  agentId: string;
+  /** Agent-reported activity (`idle`, `working`, ...) when known. */
+  activity?: string;
+  /** The agent session runs in a git worktree. */
+  isWorktree?: boolean;
+};
 
 export type ToolCardUi = {
   toolCallId: string;
@@ -282,6 +297,8 @@ export type SessionListItemUi = {
   scope?: import('@piwin/contracts').SessionScope;
   /** Disk residency. Absent means local. */
   storage?: import('@piwin/contracts').SessionStorageInfo;
+  /** External agent backend (ADR 0082). Absent means native Pi. */
+  backend?: SessionBackendBadge;
   /** Knowledge bases mounted on this session. */
   knowledgeBaseIds?: string[];
   /** MCP servers switched off for this session. */
@@ -521,6 +538,14 @@ export type ChatUiState = {
    * live composer selection.
    */
   pendingTurnModel: ModelRef | null;
+  /** ADR 0082: Per-session backend capabilities reported on resume. */
+  backendCapabilitiesBySession: Record<string, SessionBackendCapabilities>;
+  /** ADR 0082: Per-session backend options reported on resume and updated live. */
+  backendOptionsBySession: Record<string, SessionBackendOptions>;
+  /** ADR 0082: Discovered external agent states (Grok Build, etc.). */
+  externalAgents: ExternalAgentStatus[];
+  /** ADR 0082: Selected agent backend for unsent New Agent draft ('pi' | 'grok'). */
+  draftAgentId?: 'pi' | 'grok';
 };
 
 export type ChatUiAction =
@@ -759,4 +784,14 @@ export type ChatUiAction =
   | { type: 'context-telemetry/host-instance'; hostInstanceId: string | null }
   | { type: 'context-telemetry/invalidate'; sessionId: string }
   | { type: 'attention/presence'; presence: 'active' | 'inactive' }
-  | { type: 'attention/visible-sessions'; sessionIds: readonly string[]; conversationCovered?: boolean };
+  | { type: 'attention/visible-sessions'; sessionIds: readonly string[]; conversationCovered?: boolean }
+  | {
+      type: 'session/backend-hydrated';
+      sessionId: string;
+      capabilities?: SessionBackendCapabilities;
+      options?: SessionBackendOptions;
+    }
+  | { type: 'session/backend-updated'; sessionId: string; options: SessionBackendOptions }
+  | { type: 'agents/status-updated'; status: ExternalAgentStatus }
+  | { type: 'agents/set-all'; agents: ExternalAgentStatus[] }
+  | { type: 'draft/set-agent'; agentId: 'pi' | 'grok' };

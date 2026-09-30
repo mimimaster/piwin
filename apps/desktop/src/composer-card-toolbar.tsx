@@ -1,6 +1,9 @@
 import type { ReactElement } from 'react';
 import { IconButton } from '@piwin/ui-kit';
 import { ComposerPlusMenu } from './composer-plus-menu';
+import { DraftAgentPicker } from './draft-agent-picker';
+import { BackendComposerControls } from './backend-composer-controls';
+import { agentDisplayName } from './agent-backend-state';
 import { GoalModeChip } from './goal';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
 import { RunModeControl } from './RunModeControl';
@@ -66,6 +69,22 @@ export function ComposerCardToolbar({
 }: ComposerCardToolbarProps): ReactElement {
   const reservedCommand = isReservedComposerSlashCommand(props.composer);
   const resumeHandler = onResumeCheckpoint ?? props.onResume;
+  // ADR 0082: an external agent owns its own model/mode catalog, so Pi's
+  // provider-backed picker is replaced rather than merged.
+  const backendOptions = props.backendOptions ?? null;
+  const showBackendControls = backendOptions !== null;
+  // ADR 0082: never offer an operation the backend cannot run.
+  const supports = props.capabilities?.supports;
+  const pauseSupported = supports ? supports('pause') : true;
+  const imagesSupported = supports ? supports('images') : true;
+  const imageDisabledReason = imagesSupported
+    ? undefined
+    : props.capabilities?.unsupportedReason('images');
+  // The draft picker only appears when a second agent actually exists;
+  // a Pi-only install keeps today's composer unchanged (spec §2).
+  const draftAgentOptions = props.draftAgentOptions ?? [];
+  const showDraftAgentPicker =
+    draftAgentOptions.length > 1 && props.activeSessionId === null && props.embedded !== true;
   return (
     <div className="bar composer-v2-toolbar">
       <div className="composer-v2-toolbar-left">
@@ -98,23 +117,44 @@ export function ComposerCardToolbar({
               {...(props.menuMcpSwitches ? { mcpSwitches: props.menuMcpSwitches } : {})}
               onOpenMcpPanel={props.onOpenMcpPanel}
               onAttachFile={props.onAttachFile}
-              onAttachImage={props.onAttachImage}
+              {...(imagesSupported ? { onAttachImage: props.onAttachImage } : {})}
+              {...(imageDisabledReason ? { attachImageDisabledReason: imageDisabledReason } : {})}
               hideAgentExtras={props.isConversationSession === true}
             />
           </div>
         )}
 
         {/* Thinking effort / Model control */}
-        <ThinkingEffortControl
-          disabled={isStreamingRun || !props.onThinkingLevelChange}
-          modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? copy.model}
-          ultraEnabled={props.ultraThinkingEnabled ?? false}
-          value={props.thinkingLevel ?? 'off'}
-          onChange={(level) => props.onThinkingLevelChange?.(level)}
-          models={thinkingModels}
-          selectedModelKey={props.selectedModelKey}
-          onSelectModel={props.onSelectModel}
-        />
+        {showBackendControls ? (
+          <BackendComposerControls
+            options={backendOptions}
+            agentLabel={agentDisplayName(backendOptions.agentId)}
+            disabled={isStreamingRun || !props.onBackendModelChange}
+            onSelectModel={(modelId) => props.onBackendModelChange?.(modelId)}
+            onSelectEffort={(effortId) => props.onBackendEffortChange?.(effortId)}
+            onSelectMode={(modeId) => props.onBackendModeChange?.(modeId)}
+          />
+        ) : (
+          <ThinkingEffortControl
+            disabled={isStreamingRun || !props.onThinkingLevelChange}
+            modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? copy.model}
+            ultraEnabled={props.ultraThinkingEnabled ?? false}
+            value={props.thinkingLevel ?? 'off'}
+            onChange={(level) => props.onThinkingLevelChange?.(level)}
+            models={thinkingModels}
+            selectedModelKey={props.selectedModelKey}
+            onSelectModel={props.onSelectModel}
+          />
+        )}
+
+        {showDraftAgentPicker ? (
+          <DraftAgentPicker
+            value={props.draftAgentId ?? 'pi'}
+            options={draftAgentOptions}
+            disabled={isStreamingRun}
+            onChange={(agentId) => props.onDraftAgentChange?.(agentId)}
+          />
+        ) : null}
 
         {props.embedded === true || props.liveSupported === false ? null : (
           <LiveComposerButton
@@ -229,6 +269,7 @@ export function ComposerCardToolbar({
           isExtensionUiActive={isExtensionUiActive}
           onSend={triggerSend}
           onPause={props.onPause}
+          pauseSupported={pauseSupported}
           {...(props.embedded === true ? { embedded: true, onAbort: props.onAbort } : {})}
           {...(props.stopOnly === true ? { stopOnly: true, onAbort: props.onAbort } : {})}
           {...(resumeHandler ? { onResume: resumeHandler } : {})}

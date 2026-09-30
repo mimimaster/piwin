@@ -26,6 +26,7 @@ export type ShellSettingsSection =
   | 'pets'
   | 'automation'
   | 'subagents'
+  | 'agent-backends'
   | 'session'
   | 'cold-storage'
   | 'runtime'

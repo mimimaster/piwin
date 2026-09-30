@@ -760,3 +760,72 @@
   white-space: pre-wrap;
 }
 
+
+/* ADR 0082: Agent Backends rows. One row per Host-reported agent; the state
+   chip is the only tinted element so a mixed list stays calm. */
+.agent-backends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-backends-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-4) 0;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.agent-backends-row:last-child {
+  border-bottom: 0;
+}
+
+.agent-backends-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.agent-backends-name {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.agent-backends-state {
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--text-4);
+  background: var(--hover);
+}
+
+.agent-backends-state--ready {
+  color: var(--pine, var(--mint));
+  background: color-mix(in srgb, var(--pine, var(--mint)) 14%, transparent);
+}
+
+.agent-backends-state--unauthenticated {
+  color: var(--lamp, var(--amber));
+  background: color-mix(in srgb, var(--lamp, var(--amber)) 14%, transparent);
+}
+
+.agent-backends-state--unavailable {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+}
+
+.agent-backends-detail,
+.agent-backends-next {
+  margin: 0;
+  font-size: var(--fs-meta);
+  overflow-wrap: break-word;
+}
+
+.agent-backends-next {
+  color: var(--text-3);
+}

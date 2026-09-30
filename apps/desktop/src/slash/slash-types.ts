@@ -5,9 +5,13 @@
 import type { AgentModeId } from '../agent-mode';
 
 /** `extension`: a command a Pi extension registered; sent verbatim for Pi to run. */
-export type SlashItemKind = 'command' | 'mode' | 'skill' | 'extension';
+/**
+ * `backend`: a command the session backend itself owns (ADR 0082, e.g. Grok).
+ * The composer sends it verbatim; piwin never interprets the token.
+ */
+export type SlashItemKind = 'command' | 'mode' | 'skill' | 'extension' | 'backend';
 
-export type SlashGroupLabel = 'Command' | 'Mode' | 'Skill' | 'Extension';
+export type SlashGroupLabel = 'Command' | 'Mode' | 'Skill' | 'Extension' | 'Backend';
 
 export type SlashItem = {
   id: string;

@@ -18,6 +18,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'oauth',
   'hooks',
   'subagents',
+  'agent-backends',
   'agent',
   'artifact',
   'extensions',
