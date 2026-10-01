@@ -24,6 +24,21 @@ const COMMIT = /^[0-9a-f]{40}$/;
 const ID = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\/[a-z0-9][a-z0-9-]{0,63}$/;
 const GITHUB_REPOSITORY = /^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
 
+const DEFAULT_COMMUNITY_EXTENSION_SUMMARIES: Record<string, { en: string; zhCN: string }> = {
+  'mimimaster/commandcode-provider': {
+    en: 'Adds Command Code login, Go/GOAT model access, dynamic model discovery, and quota commands to piwin. Adapted from patlux/pi-commandcode-provider.',
+    zhCN: '为 piwin 接入 Command Code 登录、Go/GOAT 模型访问、动态模型发现及配额查询命令。改编自 patlux/pi-commandcode-provider。',
+  },
+  'mimimaster/kiro-provider': {
+    en: 'Adds Kiro (AWS CodeWhisperer/Q) models (Claude Opus/Sonnet, DeepSeek, GPT-5.6-Luna) and native OAuth authentication to piwin. Adapted from mikeyobrien/pi-provider-kiro.',
+    zhCN: '为 piwin 接入 Kiro (AWS CodeWhisperer/Q) 模型（Claude Opus/Sonnet、DeepSeek、GPT-5.6-Luna）及原生 OAuth 登录授权。改编自 mikeyobrien/pi-provider-kiro。',
+  },
+  'mimimaster/session-importer': {
+    en: 'Import and resume coding conversations from Claude Code, Cursor, Codex, and OpenCode into piwin with interactive UI.',
+    zhCN: '提供交互式界面，支持从 Claude Code、Cursor、Codex 和 OpenCode 导入并恢复历史对话会话。',
+  },
+};
+
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -69,15 +84,20 @@ export function parseExtensionRegistryIndex(input: unknown): MarketplaceCatalogE
     const version = extension.versions.find((item) => !item.yanked);
     if (!version) continue;
     const capabilityId = `piwin-${extension.id.replace('/', '-')}`;
-    const summary = extension.description?.trim() || `${extension.name} for piwin`;
+    const rawSummary = extension.description?.trim() || `${extension.name} for piwin`;
+    const known = DEFAULT_COMMUNITY_EXTENSION_SUMMARIES[extension.id];
+    const hasChinese = /[\u4e00-\u9fa5]/.test(rawSummary);
+    const summaryZh = hasChinese ? rawSummary : (known?.zhCN ?? rawSummary);
+    const summaryEn = hasChinese ? (known?.en ?? rawSummary) : rawSummary;
+    const summary = { en: summaryEn, zhCN: summaryZh };
     const entry: MarketplaceCatalogEntry = {
       entryId: `extension:${extension.id}`,
       capabilityId,
       kind: 'extension',
       category: 'external-service',
       name: { en: extension.name, zhCN: extension.name },
-      summary: { en: summary, zhCN: summary },
-      description: { en: summary, zhCN: summary },
+      summary,
+      description: summary,
       version: version.version,
       author: extension.id.split('/')[0] ?? extension.owners[0] ?? 'unknown',
       homepage: extension.repository,

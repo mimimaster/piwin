@@ -47,4 +47,9 @@ describe('piwin extension registry index', () => {
     });
     expect(entry?.version).toBe('1.0.0');
   });
+
+  it('provides Chinese default summary for known extensions', () => {
+    const [entry] = parseExtensionRegistryIndex(valid);
+    expect(entry?.summary.zhCN).toContain('Command Code 登录');
+  });
 });
