@@ -182,6 +182,22 @@ export {
   USER_AUTHORED_GENERATION,
 } from './transcript-store.js';
 export {
+  FOREIGN_IMPORT_DEFAULT_TURNS,
+  FOREIGN_IMPORT_HARNESSES,
+  FOREIGN_IMPORT_MAX_TURNS,
+  foreignSessionTitle,
+  limitForeignTurns,
+  matchForeignImportPrompt,
+  parseForeignImportArgs,
+  parseForeignTranscript,
+} from './foreign-import.js';
+export type {
+  ForeignImportHarness,
+  ForeignImportMode,
+  ForeignImportRequest,
+  ForeignImportTurn,
+} from './foreign-import.js';
+export {
   readOrInsertUnknownContextState,
   seedDerivedSessionContextState,
 } from './session-context-state-store.js';
