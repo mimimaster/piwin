@@ -11,7 +11,7 @@ import {
   upsertSessionRecord,
 } from '@piwin/session';
 
-import { discardSubagentResult } from './host-runtime-subagent-tasks.js';
+import { discardSubagentResult } from './host-runtime-subagent-worktree-results.js';
 import { getPiwinSessionIndexPath } from './paths.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 

@@ -57,11 +57,13 @@ import {
   getSubagentSeam,
   prepareSubagentBatch,
   continueSubagentChild,
+} from './host-runtime-subagent-tasks.js';
+import {
   resolveRetainedSubagentWorktreeLease,
   resolveSubagentContinuationRestore,
   actOnSubagentWorktree,
   discardSubagentResult,
-} from './host-runtime-subagent-tasks.js';
+} from './host-runtime-subagent-worktree-results.js';
 import {
   buildSessionHostToolsForSession,
   composeSessionHostToolsForSession,
@@ -276,7 +278,7 @@ export class HostRuntimeOrchestrationSurface extends HostRuntimeCommandSurface {
     action: 'apply' | 'retain' | 'discard',
     signal?: AbortSignal,
     target?: { runId: string; taskId: string },
-  ): Promise<import('./host-runtime-subagent-tasks.js').SubagentWorktreeActionResult> {
+  ): Promise<import('./host-runtime-subagent-worktree-results.js').SubagentWorktreeActionResult> {
     return actOnSubagentWorktree(this.asKernel(), childSessionId, action, signal, target);
   }
 
@@ -285,7 +287,7 @@ export class HostRuntimeOrchestrationSurface extends HostRuntimeCommandSurface {
     childSessionId: string;
     runId: string;
     taskId: string;
-  }): Promise<import('./host-runtime-subagent-tasks.js').SubagentWorktreeActionResult> {
+  }): Promise<import('./host-runtime-subagent-worktree-results.js').SubagentWorktreeActionResult> {
     return discardSubagentResult(this.asKernel(), entry);
   }
 
