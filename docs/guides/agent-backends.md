@@ -52,6 +52,18 @@ Host records are under `~/.piwin/agents/inventory.json`, serialized with the
 existing file lock and atomically replaced. Corrupt inventory fails closed;
 it is not overwritten with a fake empty installation list.
 
+## Real-CLI probes
+
+`packages/host-runtime/scripts/grok-mcp-smoke.fixture.ts` is an explicit,
+non-paid probe of the safe MCP projection against the real Grok CLI on this
+machine: handshake, a throwaway session, a redacted status read, no model
+prompt. It is never run by tests or by readiness checks.
+
+```sh
+# cwd packages/host-runtime
+pnpm exec tsx scripts/grok-mcp-smoke.fixture.ts
+```
+
 ## MCP visibility and distribution
 
 Settings renders only safe MCP status notifications observed during Grok
@@ -75,7 +87,7 @@ and sends no real model prompts.
 ```sh
 pnpm build:web
 # terminal 1, cwd packages/host-server
-pnpm exec tsx src/agent-plugin-preview.fixture.ts
+pnpm exec tsx scripts/agent-plugin-preview.fixture.ts
 # terminal 2, cwd apps/desktop
 python3 -m http.server 8877 --bind 127.0.0.1 --directory dist
 ```

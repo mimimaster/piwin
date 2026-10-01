@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { HostRuntime } from '@piwin/host-runtime';
 import { createFakeGrokAgent } from '@piwin/host-runtime/testing';
-import { HostServer } from './host-server.js';
+import { HostServer } from '../src/host-server.js';
 
 const rootDir = await mkdtemp(join(tmpdir(), 'piwin-agent-browser-'));
 const agent = createFakeGrokAgent({ turns: [[{ kind: 'text', text: 'Fake ACP browser smoke complete.' }]] });

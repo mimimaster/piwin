@@ -5,7 +5,7 @@ import {
   bootstrapExternalAgents,
   syncReadyAgentCatalogs,
 } from './external-agent-bootstrap';
-import { notInstalledAgent, readyAgent } from '../agent-backend-state.fixtures';
+import { notInstalledAgent, readyAgent } from '../test/fixtures/agent-backend-state.fixtures';
 
 describe('bootstrapExternalAgents', () => {
   it('dispatches the discovered agents and returns them', async () => {

@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { AcpClient, GROK_DROPPED_NOTIFICATION_METHODS, JsonRpcConnection, projectGrokMcpStatus } from '@piwin/acp-agent';
 import type { ExternalAgentMcpServerStatus } from '@piwin/contracts';
-import { detectGrokCli } from './grok-cli-detection.js';
-import { createGrokProcessTransport } from './grok-process-transport.js';
+import { detectGrokCli } from '../src/grok/grok-cli-detection.js';
+import { createGrokProcessTransport } from '../src/grok/grok-process-transport.js';
 
 const status = await detectGrokCli();
 if (status.state !== 'ready') throw new Error(`Grok MCP smoke unavailable: ${status.state}`);

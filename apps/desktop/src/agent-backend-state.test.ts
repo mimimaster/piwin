@@ -8,7 +8,7 @@ import {
   setBackendCapabilities,
   setBackendOptions,
 } from './agent-backend-state';
-import { notInstalledAgent, readyAgent } from './agent-backend-state.fixtures';
+import { notInstalledAgent, readyAgent } from './test/fixtures/agent-backend-state.fixtures';
 
 describe('isAgentReady', () => {
   it('is true only for the ready state', () => {

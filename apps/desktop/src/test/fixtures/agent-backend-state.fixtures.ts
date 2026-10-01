@@ -1,6 +1,7 @@
 /**
  * Shared ExternalAgentStatus fixtures for Desktop tests (ADR 0082).
- * Kept next to the pure helpers so a contracts shape change breaks one place.
+ * Lives with the other test fixtures so it is never mistaken for app code; a
+ * contracts shape change still breaks one place.
  */
 import type { ExternalAgentStatus } from '@piwin/contracts';
 
