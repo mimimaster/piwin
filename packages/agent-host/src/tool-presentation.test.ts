@@ -38,6 +38,7 @@ describe('classifyToolKind', () => {
     expect(classifyToolKind('piwin_subagent_result_read')).toBe('other');
     expect(classifyToolKind('piwin_subagent_review_submit')).toBe('other');
     expect(classifyToolKind('piwin_subagent_result_apply')).toBe('other');
+    expect(classifyToolKind('piwin_subagent_result_discard')).toBe('other');
     expect(classifyToolKind('piwin_subagent_verification_submit')).toBe('other');
     expect(classifyToolKind('health_read_context')).toBe('health');
     expect(classifyToolKind('mystery_tool')).toBe('other');

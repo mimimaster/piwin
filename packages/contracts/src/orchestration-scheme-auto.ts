@@ -107,7 +107,7 @@ export const AUTO_ROLE_PLAYBOOKS: Readonly<Record<string, string>> = {
 3. escalate, or repeated failure of the same kind: take the work back here.
 4. Review the checks yourself. If the candidate is within the Lead review limit, piwin_subagent_review_submit on the exact result ref; if approved, piwin_subagent_result_apply with that result and the returned reviewRef as approvedBy.
 5. Over the limit, the Lead review is refused: start role="reviewer" with reviewOf set to that exact result (see the reviewer playbook).
-6. One decision per candidate. For changes, send a new brief; the same sidekick lane continues.
+6. One decision per candidate. For changes, send a new brief; the same sidekick lane continues. A candidate you will not apply (finished another way, or superseded) is closed with piwin_subagent_result_discard on that exact result.
 7. Never run more than one writer; do not use start as a map-reduce coordinator.
 </playbook>`,
   [AUTO_REVIEWER_ROLE]: `<playbook role="reviewer">

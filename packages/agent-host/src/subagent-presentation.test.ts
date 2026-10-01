@@ -243,6 +243,75 @@ describe('async subagent tool presentation', () => {
     expect(failed.summary).toBe('failed');
   });
 
+  it('maps discard to its own display and never reads a status out of the output text', () => {
+    const discarded = buildToolPresentation({
+      toolName: 'piwin_subagent_result_discard',
+      args: { result: RESULT },
+      details: { result: RESULT, integrationStatus: 'discarded', alreadySettled: false },
+      outputText: 'subagent result discarded (resultId=result-v1, status=discarded)',
+    });
+    expect(discarded.kind).toBe('other');
+    expect(discarded.subagentControl).toBeUndefined();
+    expect(discarded.subagentLoop).toEqual({
+      kind: 'result-discard',
+      result: RESULT,
+      integrationStatus: 'discarded',
+      alreadySettled: false,
+    });
+    expect(discarded.actionVerb).toBe('Discarded');
+    expect(discarded.summary).toBe('discarded');
+
+    // A repeat or an empty result changed nothing, and the card must say so.
+    const repeated = buildToolPresentation({
+      toolName: 'piwin_subagent_result_discard',
+      args: { result: RESULT },
+      details: { result: RESULT, integrationStatus: 'discarded', alreadySettled: true },
+      outputText: 'subagent result result-v1 had nothing pending (status=discarded)',
+    });
+    expect(repeated.subagentLoop).toMatchObject({ kind: 'result-discard', alreadySettled: true });
+    expect(repeated.actionVerb).toBe('Nothing to discard');
+
+    // The structured field is the only source: absent means a real discard.
+    const unflagged = buildToolPresentation({
+      toolName: 'piwin_subagent_result_discard',
+      args: { result: RESULT },
+      details: { result: RESULT, integrationStatus: 'discarded' },
+      outputText: 'nothing pending',
+    });
+    expect(unflagged.subagentLoop).toMatchObject({ alreadySettled: false });
+    expect(unflagged.actionVerb).toBe('Discarded');
+  });
+
+  it('falls back to the call args for the result and ignores a refusal', () => {
+    const fromArgs = buildToolPresentation({
+      toolName: 'piwin_subagent_result_discard',
+      args: { result: RESULT },
+      details: { integrationStatus: 'discarded' },
+      outputText: 'ok',
+    });
+    expect(fromArgs.subagentLoop).toMatchObject({ kind: 'result-discard', result: RESULT });
+
+    const refused = buildToolPresentation({
+      toolName: 'piwin_subagent_result_discard',
+      args: { result: RESULT },
+      details: { runId: 'run-1' },
+      outputText: 'result was already applied and cannot be discarded',
+      isError: true,
+    });
+    expect(refused.subagentLoop).toBeUndefined();
+    expect(refused.actionVerb).not.toBe('Discarded');
+
+    const malformed = buildToolPresentation({
+      toolName: 'piwin_subagent_result_discard',
+      args: { result: RESULT },
+      details: { result: RESULT, integrationStatus: 'bogus' },
+      outputText: 'discarded',
+    });
+    expect(malformed.kind).toBe('other');
+    expect(malformed.subagentLoop).toBeUndefined();
+    expect(malformed.actionVerb).not.toBe('Discarded');
+  });
+
   it('bounds user-facing summaries and keeps ids in the structured field', () => {
     const resultId = `result-${'a'.repeat(80)}`;
     const longTask = `Repair ${'x'.repeat(SUBAGENT_CONTROL_TASK_MAX_CHARS)}`;

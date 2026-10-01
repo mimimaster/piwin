@@ -48,6 +48,7 @@ function isSubagentLoopTool(input: AttachSubagentPresentationInput): boolean {
     matchesTool(input, 'piwin_subagent_result_read') ||
     matchesTool(input, 'piwin_subagent_review_submit') ||
     matchesTool(input, 'piwin_subagent_result_apply') ||
+    matchesTool(input, 'piwin_subagent_result_discard') ||
     matchesTool(input, 'piwin_subagent_verification_submit')
   );
 }
@@ -233,6 +234,19 @@ function parseResultApplyDisplay(
   });
 }
 
+function parseResultDiscardDisplay(
+  details: unknown,
+  args: unknown,
+): SubagentLoopControlDisplay | undefined {
+  if (!isRecord(details)) return undefined;
+  return readSubagentLoopControlDisplay({
+    kind: 'result-discard',
+    result: details.result ?? (isRecord(args) ? args.result : undefined),
+    integrationStatus: details.integrationStatus,
+    alreadySettled: details.alreadySettled,
+  });
+}
+
 function parseVerificationDisplay(
   details: unknown,
   args: unknown,
@@ -259,6 +273,9 @@ function resolveLoopControl(
   if (matchesTool(input, 'piwin_subagent_result_apply')) {
     return parseResultApplyDisplay(input.details, input.args);
   }
+  if (matchesTool(input, 'piwin_subagent_result_discard')) {
+    return parseResultDiscardDisplay(input.details, input.args);
+  }
   if (matchesTool(input, 'piwin_subagent_verification_submit')) {
     return parseVerificationDisplay(input.details, input.args);
   }
@@ -273,6 +290,8 @@ function loopActionVerb(loop: SubagentLoopControlDisplay): string {
       return 'Reviewed';
     case 'result-apply':
       return 'Applied';
+    case 'result-discard':
+      return loop.alreadySettled ? 'Nothing to discard' : 'Discarded';
     case 'verification-submit':
       return loop.status === 'failed' ? 'Verification failed' : 'Verified';
   }
@@ -285,6 +304,8 @@ function loopSummary(loop: SubagentLoopControlDisplay): string {
     case 'review-submit':
       return loop.decision === 'changes-requested' ? 'changes requested' : loop.decision;
     case 'result-apply':
+      return loop.integrationStatus;
+    case 'result-discard':
       return loop.integrationStatus;
     case 'verification-submit':
       return loop.status;
