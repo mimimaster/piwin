@@ -296,4 +296,98 @@ describe('subagent worktree GC controller', () => {
     });
     expect(branch.exitCode).not.toBe(0);
   });
+
+  describe('worktrees the product did not create', () => {
+    async function previewWith(
+      listed: Array<{ worktreePath: string; branch: string | null; isPrimary: boolean }>,
+    ) {
+      const storageRoot = await mkdtemp(join(tmpdir(), 'piwin-wt-gc-foreign-'));
+      temporaryRoots.push(storageRoot);
+      const slot = await makeWorktree(storageRoot, 'slot-0');
+      const removed: string[] = [];
+      const controller = createSubagentWorktreeGcController({
+        storageRoot,
+        listManifests: async () => [
+          manifest({ runId: 'run-1', worktreePath: slot, parentRepoPath: '/repo' }),
+        ],
+        isRunActive: () => false,
+        listPausedBatchRunIds: async () => new Set(),
+        measureBytes: async () => 1,
+        lookupGit: async () => ({
+          isPrimary: false,
+          locked: false,
+          branch: 'piwin/subagent/slot-0',
+          parentRepoPath: '/repo',
+        }),
+        listRepositoryWorktrees: async () => [
+          ...listed,
+          { worktreePath: slot, branch: 'piwin/subagent/slot-0', isPrimary: false },
+        ],
+        removeWorktree: async (input) => {
+          removed.push(input.worktreePath);
+        },
+      });
+      return { controller, removed, storageRoot };
+    }
+
+    it('lists them read-only instead of leaving them invisible', async () => {
+      const { controller } = await previewWith([
+        { worktreePath: '/repo', branch: 'main', isPrimary: true },
+        { worktreePath: '/repo/.worktrees/feature', branch: 'feat/x', isPrimary: false },
+        { worktreePath: '/private/tmp/piwin-head', branch: null, isPrimary: false },
+      ]);
+
+      const preview = await controller.preview();
+
+      expect(preview.foreign).toEqual([
+        { worktreePath: '/repo/.worktrees/feature', branch: 'feat/x', parentRepoPath: '/repo' },
+        { worktreePath: '/private/tmp/piwin-head', branch: null, parentRepoPath: '/repo' },
+      ]);
+    });
+
+    it('skips the primary checkout and the product\'s own copies', async () => {
+      const { controller } = await previewWith([
+        { worktreePath: '/repo', branch: 'main', isPrimary: true },
+        { worktreePath: '/elsewhere/copy', branch: 'piwin/subagent/task-9', isPrimary: false },
+      ]);
+
+      expect((await controller.preview()).foreign).toBeUndefined();
+    });
+
+    it('never offers them to reclaim', async () => {
+      const { controller, removed } = await previewWith([
+        { worktreePath: '/repo/.worktrees/feature', branch: 'feat/x', isPrimary: false },
+      ]);
+
+      const preview = await controller.preview();
+      await controller.reclaim({ mode: 'manual' });
+
+      expect(preview.entries.map((entry) => entry.worktreePath)).not.toContain(
+        '/repo/.worktrees/feature',
+      );
+      expect(removed).not.toContain('/repo/.worktrees/feature');
+    });
+
+    it('tolerates a repository git cannot list', async () => {
+      const storageRoot = await mkdtemp(join(tmpdir(), 'piwin-wt-gc-foreign-err-'));
+      temporaryRoots.push(storageRoot);
+      const slot = await makeWorktree(storageRoot, 'slot-0');
+      const controller = createSubagentWorktreeGcController({
+        storageRoot,
+        listManifests: async () => [
+          manifest({ runId: 'run-1', worktreePath: slot, parentRepoPath: '/gone' }),
+        ],
+        isRunActive: () => false,
+        listPausedBatchRunIds: async () => new Set(),
+        measureBytes: async () => 1,
+        lookupGit: async () => ({ isPrimary: false, locked: false, branch: null }),
+        listRepositoryWorktrees: async () => {
+          throw new Error('not a repository');
+        },
+        removeWorktree: async () => undefined,
+      });
+
+      await expect(controller.preview()).resolves.toMatchObject({ entries: expect.any(Array) });
+    });
+  });
 });

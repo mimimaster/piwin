@@ -25,6 +25,7 @@ function readPreview(response: HostResponse): SubagentWorktreeGcPreview | null {
     totalBytes: data.totalBytes,
     reclaimableBytes: data.reclaimableBytes,
     reclaimableCount: data.reclaimableCount,
+    ...(Array.isArray(data.foreign) && data.foreign.length > 0 ? { foreign: data.foreign } : {}),
   };
 }
 
@@ -78,38 +79,66 @@ export function SubagentWorktreeGcBar(props: {
     }
   }, [confirmDialog, preview, props.isChinese, request, reload]);
 
+  const foreign = preview?.foreign ?? [];
+  const foreignList =
+    foreign.length > 0 ? (
+      <div className="settings-section" data-testid="subagent-foreign-worktrees">
+        <h4 className="subagent-tasks-header">
+          {props.isChinese
+            ? `另有 ${String(foreign.length)} 个非 piwin 创建的 worktree（不会被自动清理）`
+            : `${String(foreign.length)} more worktree(s) piwin did not create (never cleaned automatically)`}
+        </h4>
+        <ul className="subagent-foreign-worktrees">
+          {foreign.map((worktree) => (
+            <li key={worktree.worktreePath} title={worktree.worktreePath}>
+              {worktree.worktreePath}
+              {worktree.branch ? ` · ${worktree.branch}` : ''}
+            </li>
+          ))}
+        </ul>
+      </div>
+    ) : null;
+
   if (!preview || preview.entries.length === 0) {
-    return confirmDialog.dialog;
+    return (
+      <>
+        {foreignList}
+        {confirmDialog.dialog}
+      </>
+    );
   }
 
   return (
-    <div className="settings-section" data-testid="subagent-worktree-gc">
-      <div className="subagent-tasks-batch-head">
-        <h4 className="subagent-tasks-header">
-          {props.isChinese
-            ? `Worktree ${formatWorktreeBytes(preview.totalBytes)} · ${String(preview.reclaimableCount)} 可清理`
-            : `Worktrees ${formatWorktreeBytes(preview.totalBytes)} · ${String(preview.reclaimableCount)} reclaimable`}
-        </h4>
-        <Button
-          size="compact"
-          variant="danger"
-          disabled={cleaning || preview.reclaimableCount === 0}
-          data-testid="subagent-worktree-gc-run"
-          onClick={() => {
-            void cleanup();
-          }}
-        >
-          {cleaning
-            ? props.isChinese
-              ? '清理中…'
-              : 'Cleaning…'
-            : props.isChinese
-              ? '清理'
-              : 'Clean up'}
-        </Button>
+    <>
+      <div className="settings-section" data-testid="subagent-worktree-gc">
+        <div className="subagent-tasks-batch-head">
+          <h4 className="subagent-tasks-header">
+            {props.isChinese
+              ? `Worktree ${formatWorktreeBytes(preview.totalBytes)} · ${String(preview.reclaimableCount)} 可清理`
+              : `Worktrees ${formatWorktreeBytes(preview.totalBytes)} · ${String(preview.reclaimableCount)} reclaimable`}
+          </h4>
+          <Button
+            size="compact"
+            variant="danger"
+            disabled={cleaning || preview.reclaimableCount === 0}
+            data-testid="subagent-worktree-gc-run"
+            onClick={() => {
+              void cleanup();
+            }}
+          >
+            {cleaning
+              ? props.isChinese
+                ? '清理中…'
+                : 'Cleaning…'
+              : props.isChinese
+                ? '清理'
+                : 'Clean up'}
+          </Button>
+        </div>
+        {confirmDialog.dialog}
       </div>
-      {confirmDialog.dialog}
-    </div>
+      {foreignList}
+    </>
   );
 }
 

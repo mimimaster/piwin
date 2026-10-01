@@ -40,11 +40,26 @@ export type SubagentWorktreeGcEntry = {
   keepReasons: SubagentWorktreeGcKeepReason[];
 };
 
+/**
+ * A linked worktree of a repository the product delegates in, created by
+ * someone else (the user, or an agent running `git worktree add`). The GC does
+ * not own it and never removes it; it is listed so leftovers do not stay
+ * invisible just because they sit outside the product's storage root.
+ */
+export type SubagentForeignWorktree = {
+  worktreePath: string;
+  /** Checked-out branch; null for a detached HEAD. */
+  branch: string | null;
+  parentRepoPath: string;
+};
+
 export type SubagentWorktreeGcPreview = {
   entries: SubagentWorktreeGcEntry[];
   totalBytes: number;
   reclaimableBytes: number;
   reclaimableCount: number;
+  /** Read-only: worktrees outside the product's storage root. */
+  foreign?: SubagentForeignWorktree[];
 };
 
 export type SubagentWorktreeGcResult = {
