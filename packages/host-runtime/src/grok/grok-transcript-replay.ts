@@ -44,6 +44,7 @@ export async function rebuildTranscriptFromReplay(
           status: 'done',
           createdAt: row.createdAt,
           ...(row.tools !== undefined ? { tools: row.tools } : {}),
+          ...(row.attachments !== undefined ? { attachments: row.attachments } : {}),
         });
       }
       if (pending !== undefined) {
@@ -70,6 +71,7 @@ type ReplayRow = {
   text: string;
   createdAt: string;
   tools?: NonNullable<SessionTranscriptMessage['tools']>;
+  attachments?: SessionTranscriptMessage['attachments'];
 };
 
 export function replayEventsToRows(events: readonly AgentEvent[]): ReplayRow[] {
@@ -106,12 +108,13 @@ export function replayEventsToRows(events: readonly AgentEvent[]): ReplayRow[] {
         ...(owner.tools ?? []),
         {
           toolCallId: event.toolCallId,
-          toolName: event.presentation?.title ?? 'tool',
+          toolName: event.presentation?.routedToolName ?? event.presentation?.title ?? 'tool',
           status: event.isError ? 'error' : 'done',
           output: event.presentation?.output?.text ?? '',
           ...(event.presentation !== undefined ? { presentation: event.presentation } : {}),
         },
       ];
+      if (event.attachments?.length) owner.attachments = [...(owner.attachments ?? []), ...event.attachments];
     }
   }
   return rows.filter((row) => row.text !== '' || (row.tools?.length ?? 0) > 0);

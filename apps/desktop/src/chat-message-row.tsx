@@ -72,6 +72,7 @@ const ChatMessageRowContent = memo(
       runTerminalMessage: props.runRecord?.terminalMessage,
       isLastAssistantInTurn: props.isLastAssistantInTurn === true,
       locale: props.locale,
+      failure: message.failure,
     });
     const imageGenerationStatus =
       message.role === 'assistant' ? getGenerationStatus(message, 'image') : null;

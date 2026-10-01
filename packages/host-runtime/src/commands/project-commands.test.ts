@@ -515,6 +515,7 @@ describe('project commands', () => {
     const projectPath = join(rootDir, 'repo');
     const linkedPath = join(rootDir, 'linked');
     const slotPath = join(rootDir, 'worktrees', 'slot-0');
+    const foreignSlotPath = join(rootDir, 'legacy-slot');
     const missingPath = join(rootDir, 'old-worker');
     await mkdir(projectPath);
     await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
@@ -526,8 +527,11 @@ describe('project commands', () => {
     await execFileAsync('git', ['worktree', 'add', '-b', 'feat/x', linkedPath], { cwd: projectPath });
     await mkdir(join(rootDir, 'worktrees'));
     await execFileAsync('git', ['worktree', 'add', '-b', 'piwin/subagent/slot-0', slotPath], { cwd: projectPath });
+    await execFileAsync('git', ['worktree', 'add', '-b', 'piwin/subagent/slot-1', foreignSlotPath], { cwd: projectPath });
     await mkdir(missingPath);
     await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open', rootDir);
+    await handleProjectCommand({ type: 'project/open', path: slotPath }, 'open-slot', rootDir);
+    await handleProjectCommand({ type: 'project/open', path: foreignSlotPath }, 'open-foreign-slot', rootDir);
     await handleProjectCommand({ type: 'project/open', path: missingPath }, 'old', rootDir);
     await rm(missingPath, { recursive: true });
 
@@ -543,6 +547,9 @@ describe('project commands', () => {
     expect(await realpath(data.worktrees.find((worktree) => worktree.branch === 'feat/x')?.path ?? ''))
       .toBe(await realpath(linkedPath));
     expect(data.worktrees.some((worktree) => worktree.branch === 'piwin/subagent/slot-0')).toBe(false);
+    expect(data.projects.some((project) => project.path === slotPath)).toBe(false);
+    expect(data.projects.some((project) => project.path === foreignSlotPath)).toBe(false);
+    expect(data.worktrees.some((worktree) => worktree.branch === 'piwin/subagent/slot-1')).toBe(false);
     expect(data.projects.find((project) => project.path === missingPath)?.workspaceAvailability)
       .toBe('missing');
 

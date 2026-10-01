@@ -144,8 +144,14 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
   const handleStartNewSession = useCallback(
     async (options?: {
       scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+      agentId?: string;
     }): Promise<void> => {
       const scope = options?.scope;
+      if (options?.agentId) {
+        dispatch({ type: 'draft/set-agent', agentId: options.agentId });
+      } else {
+        dispatch({ type: 'draft/set-agent', agentId: 'pi' });
+      }
       // Mirror Conversations +: switch scope first, then enter the draft.
       // Project-row + only passes scope; opening belongs here so it cannot
       // race bumpToDraft and cancel project/set.
@@ -169,6 +175,7 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
       await handleNewSession(options);
     },
     [
+      dispatch,
       generalWorkspacePath,
       handleNewSession,
       handleOpenProject,

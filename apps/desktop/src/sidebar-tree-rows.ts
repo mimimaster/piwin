@@ -292,22 +292,16 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   const listedProjects = noRepoPath
     ? input.recentProjects.filter((project) => project.path !== noRepoPath)
     : input.recentProjects;
-  const availableRepositoryIds = new Set(listedProjects
-    .filter((project) => project.workspaceAvailability !== 'missing')
-    .map((project) => project.gitRepositoryId)
-    .filter((id): id is string => typeof id === 'string'));
-  const unavailableWithoutActiveRepository = listedProjects.filter(
-    (project) => project.workspaceAvailability === 'missing' &&
-      (!project.gitRepositoryId || !availableRepositoryIds.has(project.gitRepositoryId)),
+  const unavailableProjects = listedProjects.filter(
+    (project) => project.workspaceAvailability === 'missing',
   );
-  const unanchoredPaths = new Set(unavailableWithoutActiveRepository.map((project) => project.path));
-  const availableOrGrouped = listedProjects.filter(
-    (project) => !unanchoredPaths.has(project.path),
+  const availableProjects = listedProjects.filter(
+    (project) => project.workspaceAvailability !== 'missing',
   );
 
   if (showProjects) {
     appendNoRepoFolderRows(rows, input, drafts, searching);
-    for (const cluster of clusterProjectsByRepository(availableOrGrouped, input.worktrees)) {
+    for (const cluster of clusterProjectsByRepository(availableProjects, input.worktrees)) {
       if (cluster.kind === 'group') {
         const collapsed = !searching &&
           input.collapsedRepositories?.[cluster.gitRepositoryId] === true;
@@ -335,11 +329,11 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
       }
       appendProjectFolderRows(rows, input, cluster.project, drafts, searching, false);
     }
-    if (unavailableWithoutActiveRepository.length > 0) {
+    if (unavailableProjects.length > 0) {
       const collapsed = !searching && input.unavailableGroupCollapsed === true;
       rows.push({ kind: 'unavailable-group', key: 'unavailable-workspaces', collapsed });
       if (!collapsed) {
-        for (const project of unavailableWithoutActiveRepository) {
+        for (const project of unavailableProjects) {
           appendProjectFolderRows(rows, input, project, drafts, searching, true);
         }
       }

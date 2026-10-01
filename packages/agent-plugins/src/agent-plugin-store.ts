@@ -1,5 +1,12 @@
-import type { AgentPluginInstallation, AgentPluginManifest, AgentPluginSource } from '@piwin/contracts';
+import { isAgentPluginId, type AgentPluginInstallation, type AgentPluginManifest, type AgentPluginSource } from '@piwin/contracts';
 import { AgentPluginError, agentManifestRevision, parseAgentPluginManifest } from './manifest.js';
+
+/**
+ * Reviewed agent ids only: a catalog cannot introduce a new executable
+ * identity. The set is a parameter so the review boundary is explicit and
+ * testable; production keeps the reviewed default.
+ */
+export const DEFAULT_REVIEWED_AGENT_IDS = ['grok'] as const;
 
 /** Host injects atomic, serialized persistence; this package never spawns a CLI. */
 export type AgentPluginStorePort = {
@@ -40,7 +47,7 @@ export function parseAgentPluginSource(value: unknown): AgentPluginSource {
   if (isObject(value) && value.kind === 'bundled' && value.agentId === 'grok') {
     return { kind: 'bundled', agentId: 'grok' };
   }
-  if (isObject(value) && value.kind === 'registry' && value.agentId === 'grok' &&
+  if (isObject(value) && value.kind === 'registry' && isAgentPluginId(value.agentId) &&
       typeof value.version === 'string' && /^\d+\.\d+\.\d+$/.test(value.version) && typeof value.url === 'string' &&
       typeof value.sha256 === 'string' && /^[a-f0-9]{64}$/.test(value.sha256)) {
     const url = new URL(value.url);
@@ -52,7 +59,10 @@ export function parseAgentPluginSource(value: unknown): AgentPluginSource {
 }
 
 export class AgentPluginStore {
-  constructor(private readonly port: AgentPluginStorePort) {}
+  constructor(
+    private readonly port: AgentPluginStorePort,
+    private readonly reviewedAgentIds: readonly string[] = DEFAULT_REVIEWED_AGENT_IDS,
+  ) {}
 
   async list(): Promise<AgentPluginInstallation[]> {
     return parseAgentPluginInstallations(await this.port.read());
@@ -62,17 +72,36 @@ export class AgentPluginStore {
     return (await this.list()).find((plugin) => plugin.agentId === agentId);
   }
 
-  install(input: { manifest: AgentPluginManifest; source: AgentPluginSource; platform: string }): Promise<AgentPluginInstallation> {
+  install(input: {
+    manifest: AgentPluginManifest;
+    source: AgentPluginSource;
+    platform: string;
+    /** Explicit operator confirmation. Never implied by a repeated install. */
+    confirmMigration?: boolean;
+  }): Promise<AgentPluginInstallation> {
     const manifest = parseAgentPluginManifest(input.manifest);
     const source = parseAgentPluginSource(input.source);
-    if (!manifest.platforms.some((platform) => platform === input.platform) || input.platform !== 'darwin') {
-      throw new AgentPluginError('agent-platform-unverified: no verified Grok recipe for this Host');
+    if (!manifest.platforms.some((platform) => platform === input.platform)) {
+      throw new AgentPluginError('agent-platform-unverified: this Host platform is not in the reviewed manifest');
     }
     return this.change((plugins) => {
       const existing = plugins.find((plugin) => plugin.agentId === manifest.id);
       const revision = agentManifestRevision(manifest);
       if (existing !== undefined && existing.revision !== revision) {
-        throw new AgentPluginError('agent-update-requires-migration: installed revision must not be replaced silently');
+        if (input.confirmMigration !== true) {
+          throw new AgentPluginError('agent-update-requires-migration: installed revision must not be replaced silently');
+        }
+        const replaced: AgentPluginInstallation = {
+          ...existing,
+          manifest,
+          revision,
+          source,
+          installedAt: new Date().toISOString(),
+        };
+        return {
+          plugins: plugins.map((plugin) => plugin.agentId === manifest.id ? replaced : plugin),
+          result: replaced,
+        };
       }
       if (existing !== undefined) return { plugins, result: existing };
       const installed: AgentPluginInstallation = {
@@ -95,9 +124,9 @@ export class AgentPluginStore {
     return this.update(agentId, (plugin) => ({ ...plugin, runtime: { ownership: 'user', binaryPath } }));
   }
 
-  /** Removes only our adapter record. No session, auth or runtime deletion port exists. */
+  /** Removes only our adapter record. No session, auth or user-runtime deletion port exists. */
   uninstall(agentId: string): Promise<void> {
-    if (agentId !== 'grok') throw new AgentPluginError('unknown-agent');
+    if (!this.reviewedAgentIds.includes(agentId)) throw new AgentPluginError('unknown-agent');
     return this.change((plugins) => ({ plugins: plugins.filter((plugin) => plugin.agentId !== agentId), result: undefined }));
   }
 

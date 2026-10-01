@@ -25,7 +25,7 @@ import { saveMcpServerDraft, startMcpServerWithDiscovery } from './marketplace/m
 import { resolvePiPackageSource } from './marketplace/pi-package-source.js';
 import { getPiAgentDir } from './paths.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
-import { installAgentPlugin } from './grok/agent-plugin-inventory.js';
+import { installAgentPlugin } from './agent-plugin-inventory.js';
 
 /** Install side effects, injectable so tests never clone, npm-install or spawn. */
 export type CapabilityInstallPorts = {
@@ -122,8 +122,11 @@ async function installEntry(
   const install = entry.install;
   switch (install.kind) {
     case 'agent':
-      await ports.installAgent(options.piwinRoot, install.source);
-      return { ok: true, output: 'Agent adapter installed on the Host. Check its CLI and sign in in Agent Backends; no task was started.', details: { entryId: entry.entryId } };
+      // A session backend installs as an extension. Writing the retired agent
+      // inventory here would be a second switch the Host no longer launches.
+      return failed(
+        'agents-inventory-retired: install this session backend as a piwin extension, then enable it in Settings → Extensions.',
+      );
     case 'skill': {
       const result = await ports.installSkill({
         piwinRoot: options.piwinRoot,

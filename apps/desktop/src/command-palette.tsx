@@ -8,10 +8,13 @@ import {
   COMMAND_GROUP_ORDER,
   commandGroupLabel,
   commandTitle,
+  commandsForEnabledBackends,
   filterDesktopCommands,
   type DesktopCommandIcon,
   type DesktopCommandId,
 } from './desktop-commands';
+import { useEnabledSessionBackends } from './hooks/use-enabled-session-backends';
+import type { HostClient } from './host-client';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
   IconBrowser,
@@ -35,11 +38,17 @@ export type CommandPaletteProps = {
   projectTrusted: boolean;
   hasActiveSession: boolean;
   onRun: (commandId: DesktopCommandId) => void;
+  hostClient?: HostClient;
+  onStartBackendSession?: (agentId: string) => void;
 };
 
 export function CommandPalette(props: CommandPaletteProps): ReactElement {
   const [query, setQuery] = useState('');
-  const commands = useMemo(() => filterDesktopCommands(query), [query]);
+  const backends = useEnabledSessionBackends(props.open ? props.hostClient : undefined);
+  const commands = useMemo(
+    () => filterDesktopCommands(query, commandsForEnabledBackends(backends)),
+    [backends, query],
+  );
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
 
@@ -91,18 +100,22 @@ export function CommandPalette(props: CommandPaletteProps): ReactElement {
                       locale,
                     );
                     return (
-                      <li key={command.id}>
+                      <li key={command.backendAgentId ?? command.id}>
                         <button
                           type="button"
                           className="command-palette-item"
-                          data-testid={`command-${command.id}`}
+                          data-testid={command.backendAgentId ? `command-backend-${command.backendAgentId}` : `command-${command.id}`}
                           disabled={!availability.available}
                           title={availability.reason}
                           onClick={() => {
                             if (!availability.available) {
                               return;
                             }
-                            props.onRun(command.id);
+                            if (command.backendAgentId !== undefined) {
+                              props.onStartBackendSession?.(command.backendAgentId);
+                            } else {
+                              props.onRun(command.id);
+                            }
                             props.onOpenChange(false);
                           }}
                         >

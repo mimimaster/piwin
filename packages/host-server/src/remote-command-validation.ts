@@ -121,10 +121,13 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
       );
     }
     case 'session/foreground-run':
+    case 'agents/workflows':
     case 'session/lineage':
     case 'session/runtime-status':
     case 'session/context-get':
       return isSafeRemoteId(command.sessionId);
+    case 'agents/workflow-report':
+      return isSafeRemoteId(command.sessionId) && typeof command.workflowId === 'string' && /^wf_[a-zA-Z0-9_-]{1,128}$/.test(command.workflowId);
     case 'session/reload-runtime':
       return (
         isSafeRemoteId(command.sessionId) &&

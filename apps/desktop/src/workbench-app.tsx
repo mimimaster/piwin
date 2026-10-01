@@ -321,6 +321,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     openRightTab,
     openSettingsSection,
     handleDesktopCommand,
+    startBackendSession,
     handleLocaleChange,
     runStatus,
     activitySignal,
@@ -352,6 +353,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     addContextRef,
     dispatchNotification,
     artifactCanvas,
+    draftAgentOptions,
+    draftAgentId,
+    onDraftAgentChange,
   } = model;
   const windowsShellOffer = useWindowsShellOffer({ hostClient, config, requestConfig });
   const openSessionFromShell = useShellSessionOpen({
@@ -367,22 +371,18 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     handleResumeSession,
   });
   const parentSessionId = state.activeSessionId;
-  const tasksActiveCount = useMemo(() => {
-    if (!parentSessionId) {
-      return 0;
-    }
-    return deriveSubagentOrchestrationView({
-      parentSessionId,
-      invocations: state.subagentInvocations,
-      children: state.subagentChildren,
-      streams: state.subagentStreams,
-    }).activeCount;
-  }, [
-    parentSessionId,
-    state.subagentInvocations,
-    state.subagentChildren,
-    state.subagentStreams,
-  ]);
+  const tasksActiveCount = useMemo(
+    () =>
+      parentSessionId
+        ? deriveSubagentOrchestrationView({
+            parentSessionId,
+            invocations: state.subagentInvocations,
+            children: state.subagentChildren,
+            streams: state.subagentStreams,
+          }).activeCount
+        : 0,
+    [parentSessionId, state.subagentInvocations, state.subagentChildren, state.subagentStreams],
+  );
   const tasksChildren = useMemo(
     () =>
       Object.values(state.subagentChildren).filter(
@@ -567,17 +567,13 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onRemoveProject={handleRemoveProjectFromSidebar}
                       onNewSession={(options) => {
                         setActiveSubPage(null);
-                        if (isOverlayPresentation) {
-                          shell.closeOverlay();
-                        }
+                        if (isOverlayPresentation) shell.closeOverlay();
                         return handleStartNewSession(options);
                       }}
                       onResumeSession={openSessionFromShell}
                       onResumeDraft={(draftId) => {
                         setActiveSubPage(null);
-                        if (isOverlayPresentation) {
-                          shell.closeOverlay();
-                        }
+                        if (isOverlayPresentation) shell.closeOverlay();
                         return handleResumeDraft(draftId);
                       }}
                       draftSessions={draftSessions}
@@ -626,22 +622,16 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       openSettingsSection={openSettingsSection}
                       onToggleAppearance={handleToggleAppearance}
                       onResumeSession={handleResumeSession}
-                      onRetryLastUser={(messageId) => {
-                        void retryTurn(messageId, { keepPrevious: false });
-                      }}
+                      onRetryLastUser={(messageId) => void retryTurn(messageId, { keepPrevious: false })}
                       onOpenSessionSearch={openSessionSearch}
                       trailing={sessionContextRow}
                       isInkstone={inkstoneStage}
                     />
                   }
-                  chatColumnClassName={
-                    [
-                      composerLayoutMode === 'centered' ? 'chat-column-empty' : '',
-                      activeTheme.visualStyle === 'ink-wash' ? 'theme-visual-ink-wash' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ') || undefined
-                  }
+                  chatColumnClassName={[
+                    composerLayoutMode === 'centered' ? 'chat-column-empty' : '',
+                    activeTheme.visualStyle === 'ink-wash' ? 'theme-visual-ink-wash' : '',
+                  ].filter(Boolean).join(' ') || undefined}
                   renderStage={(primaryPane) => (
                     <>
                     <WindowsShellOfferBanner
@@ -750,6 +740,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenSession={handleResumeSession}
                       onCompactAbort={handleCompactAbort}
                       onPlanExecute={handlePlanExecute}
+                      draftAgentOptions={draftAgentOptions}
+                      draftAgentId={draftAgentId}
+                      onSelectDraftAgent={onDraftAgentChange}
+                      onOpenAgentSettings={() => openSettingsSection('agent')}
                       {...(sessionPlan ? { sessionPlan } : {})}
                     />
                   }
@@ -905,6 +899,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   commandPaletteOpen={commandPaletteOpen}
                   setCommandPaletteOpen={shell.setCommandPaletteOpen}
                   onRunCommand={handleDesktopCommand}
+                  onStartBackendSession={startBackendSession}
                   coldRestorePrompt={coldRestorePrompt}
                   clearColdRestorePrompt={clearColdRestorePrompt}
                   confirmColdRestore={confirmColdRestore}
@@ -938,20 +933,16 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   closeSubPage();
                   openSettingsSection('knowledge');
                 }}
-                subscribePush={(listener) =>
-                  hostClient.subscribe((message) => {
-                    if (message.type === 'flashcards/study/changed') listener(message);
-                  })
-                }
+                subscribePush={(listener) => hostClient.subscribe((message) => {
+                  if (message.type === 'flashcards/study/changed') listener(message);
+                })}
                 subscribeConnected={(listener) => {
                   listener(hostClient.isReady());
                   return hostClient.subscribe((message) => {
                     if (message.type === 'host/status') listener(message.ready);
                   });
                 }}
-                hasStudyCapability={() =>
-                  hostStatus?.capabilities.flashcardStudy === true
-                }
+                hasStudyCapability={() => hostStatus?.capabilities.flashcardStudy === true}
                 flashcardsEntry={flashcardsEntry}
                 flashcardsFolderPath={flashcardsFolderPath}
                 onOpenSession={handleResumeSession}

@@ -13,7 +13,7 @@ import { ProductAgentHost, createRuntimeGenerationId } from './product-agent-hos
 import { hasForeignLiveSessionRuntime, withSessionOperationLock } from './session-runtime-lease.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { ok } from './response-helpers.js';
-import { activateGrokSession, isGrokRecord } from './grok/grok-session-router.js';
+import { activateExternalSession, isExternalRecord } from './grok/grok-session-router.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 
@@ -196,9 +196,9 @@ export async function doActivateSessionRuntime(
   }
   // ADR 0082: external agent sessions bypass Pi blueprint compilation and
   // native replay seeds; the agent owns its own conversation state.
-  if (isGrokRecord(record)) {
+  if (isExternalRecord(record)) {
     try {
-      const grokHandle = await activateGrokSession(
+      const grokHandle = await activateExternalSession(
         deps,
         record,
         runtimeGenerationId,

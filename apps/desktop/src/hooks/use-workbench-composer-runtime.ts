@@ -22,6 +22,7 @@ import {
   draftAgentOptionsFrom,
   useBackendSessionControls,
 } from './use-backend-session-controls';
+import { useEnabledSessionBackends } from './use-enabled-session-backends';
 import { useSessionCapabilities } from './use-session-capabilities';
 import type { WorkbenchHostRuntime } from './use-workbench-host-runtime';
 import type { WorkbenchSessionRuntime } from './use-workbench-session-runtime';
@@ -203,6 +204,15 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     replaceContextRefs,
   } = useComposerContextRefs();
 
+  const backendControls = useBackendSessionControls({
+    hostClient,
+    dispatch,
+    sessionId: state.activeSessionId,
+    optionsBySession: state.backendOptionsBySession,
+    draftAgentId: state.draftAgentId,
+    externalAgents: state.externalAgents,
+  });
+
   const {
     composer,
     setComposer,
@@ -261,6 +271,12 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
       disabledServerIds: plusMenu.mcpSwitches.draftDisabledServerIds,
       clearDraft: plusMenu.mcpSwitches.clearDraft,
     },
+    ...(backendControls.draftBackendModelId
+      ? { draftBackendModelId: backendControls.draftBackendModelId }
+      : {}),
+    ...(backendControls.draftBackendEffortId
+      ? { draftBackendEffortId: backendControls.draftBackendEffortId }
+      : {}),
     onNeedWorkspace: session.handleOpenWorkspaceClick,
     generalWorkspacePath: host.generalWorkspacePath ?? null,
     selectedModelKey,
@@ -306,20 +322,15 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
   });
   composerSetterRef.current = setComposer;
 
-  const backendControls = useBackendSessionControls({
-    hostClient,
-    dispatch,
-    sessionId: state.activeSessionId,
-    optionsBySession: state.backendOptionsBySession,
-  });
-  const draftAgentOptions = draftAgentOptionsFrom(state.externalAgents);
+  const enabledBackends = useEnabledSessionBackends(hostClient);
+  const draftAgentOptions = draftAgentOptionsFrom(state.externalAgents, enabledBackends);
   const capabilities = useSessionCapabilities({
     sessionId: state.activeSessionId,
     capabilitiesBySession: state.backendCapabilitiesBySession,
   });
   const draftAgentId = state.draftAgentId ?? 'pi';
   const onDraftAgentChange = useCallback(
-    (agentId: 'pi' | 'grok') => dispatch({ type: 'draft/set-agent', agentId }),
+    (agentId: string) => dispatch({ type: 'draft/set-agent', agentId }),
     [dispatch],
   );
 

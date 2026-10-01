@@ -176,6 +176,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
       <div className="orch-root" data-testid="orchestration-schemes-section">
         <OrchestrationSchemeForm
           draft={editing}
+          schemes={schemes}
           isNew={saved === undefined}
           idLocked={overlayIds.has(editing.id) && saved !== undefined}
           sourceLabel={

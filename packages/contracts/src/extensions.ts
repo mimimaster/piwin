@@ -1,5 +1,6 @@
 /** Pi Extension registry contracts (product shell; Pi loads at session create). */
 import type { ExtensionCompatibility } from './extension-compatibility.js';
+import type { ExtensionSessionBackendDeclaration } from './extension-session-backend.js';
 
 export type ExtensionRevisionState = 'installed' | 'quarantined';
 
@@ -115,6 +116,14 @@ export type ExtensionSummary = {
    * Settings do not list the product copy and `~/.pi` copy as two extensions.
    */
   bundledFrom?: string;
+  /**
+   * Present when the revision declares a `sessionBackend` in `piwin.json`.
+   *
+   * A backend extension contributes a complete session backend instead of Pi
+   * tools or hooks. It is never a Pi module, so it is never handed to Pi's
+   * resource loader; the Host resolves its adapter from the enabled revision.
+   */
+  sessionBackend?: ExtensionSessionBackendDeclaration;
   /**
    * Raw Pi user-settings package source this entry was loaded from
    * (`npm:pi-lens@4.2.1`, `git:github.com/o/r`). Present only for user-global

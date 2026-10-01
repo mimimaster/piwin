@@ -470,7 +470,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'marketplace/inventory-updated' && message.changedKinds.includes('agent')) {
-        void bootstrapExternalAgents(hostClient, dispatch);
+        void bootstrapExternalAgents(hostClient, dispatch, { refresh: true });
       }
       if (message.type === 'agents/status-updated') {
         dispatch({ type: 'agents/status-updated', status: message.status });
@@ -713,7 +713,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
             type: 'context-telemetry/capability',
             supported: hasContextTelemetryCapability(statusResponse.data),
           });
-          void bootstrapExternalAgents(hostClient, dispatch).then((agents) => {
+          void bootstrapExternalAgents(hostClient, dispatch, { refresh: true }).then((agents) => {
             syncReadyAgentCatalogs(hostClient, agents);
           });
         }

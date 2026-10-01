@@ -3,8 +3,8 @@
  *
  * Rendered in the new-session composer only when more than one agent is known.
  * Pi is always the default; an agent that still needs install/login/dependency
- * work stays visible but unselectable, so the user learns it exists without
- * being able to start a session that cannot run (spec §2).
+ * work stays visible but cannot start a session. When settings navigation is
+ * available, its setup affordance opens the Host-backed Agent settings page.
  */
 import type { ReactElement } from 'react';
 import { SegmentedControl } from '@piwin/ui-kit';
@@ -12,9 +12,10 @@ import type { ComposerDraftAgentOption } from './composer-dock-types';
 import { useDesktopLocale } from './desktop-locale-context';
 
 export type DraftAgentPickerProps = {
-  value: 'pi' | 'grok';
+  value: string;
   options: readonly ComposerDraftAgentOption[];
-  onChange: (value: 'pi' | 'grok') => void;
+  onChange: (value: string) => void;
+  onOpenSettings?: () => void;
   disabled?: boolean;
 };
 
@@ -45,9 +46,15 @@ export function DraftAgentPicker(props: DraftAgentPickerProps): ReactElement {
         onChange={(val) => {
           // Ignore anything that is not a known agent id so a stale render
           // cannot switch the draft to an unknown backend.
-          if (props.options.some((option) => option.agentId === val)) {
-            props.onChange(val as 'pi' | 'grok');
+          const option = props.options.find((candidate) => candidate.agentId === val);
+          if (option === undefined) {
+            return;
           }
+          if (!option.ready) {
+            props.onOpenSettings?.();
+            return;
+          }
+          props.onChange(val);
         }}
         {...(props.disabled !== undefined ? { disabled: props.disabled } : {})}
         data={props.options.map((option) => ({
@@ -57,7 +64,9 @@ export function DraftAgentPicker(props: DraftAgentPickerProps): ReactElement {
             : isZh
               ? `${option.label} · 完成配置`
               : `${option.label} · Setup`,
-          disabled: !option.ready,
+          // Keep the generic control safe in tests/embedded callers that do
+          // not provide navigation, while the workbench makes setup actionable.
+          disabled: !option.ready && props.onOpenSettings === undefined,
         }))}
       />
     </div>

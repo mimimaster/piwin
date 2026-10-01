@@ -1,0 +1,21 @@
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, expect, it } from 'vitest';
+import { listBackendWorkflowIds, readBackendWorkflowFile } from './backend-workflow-files.js';
+const roots: string[] = [];
+afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
+it('lists only native workflow directories and reads bounded session files', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'piwin-workflow-')); roots.push(root);
+  await mkdir(join(root, 'workflows/wf_one'), { recursive: true });
+  await writeFile(join(root, 'workflows/wf_one/state.json'), '{}');
+  expect(await listBackendWorkflowIds(root)).toEqual(['wf_one']);
+  expect(await readBackendWorkflowFile(root, 'workflows/wf_one/state.json', 10)).toBe('{}');
+  await expect(readBackendWorkflowFile(root, '../outside', 10)).rejects.toThrow(/escapes/);
+  await expect(readBackendWorkflowFile(root, 'workflows/wf_one/state.json', 1)).rejects.toThrow(/limit/);
+  expect(await readBackendWorkflowFile(root, 'missing', 10)).toBeUndefined();
+  const outside = await mkdtemp(join(tmpdir(), 'piwin-workflow-outside-')); roots.push(outside);
+  await writeFile(join(outside, 'secret'), 'secret');
+  await symlink(join(outside, 'secret'), join(root, 'linked'));
+  await expect(readBackendWorkflowFile(root, 'linked', 10)).rejects.toThrow(/symlink/);
+});

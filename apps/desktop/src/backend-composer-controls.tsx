@@ -25,6 +25,7 @@ export type BackendComposerControlsProps = {
   /** Agent display name for aria labels ("Grok Build"). */
   agentLabel: string;
   disabled: boolean;
+  hideModes?: boolean;
   onSelectModel: (modelId: string) => void;
   onSelectEffort: (effortId: string) => void;
   onSelectMode: (modeId: string) => void;
@@ -34,6 +35,7 @@ export function BackendComposerControls({
   options,
   agentLabel,
   disabled,
+  hideModes,
   onSelectModel,
   onSelectEffort,
   onSelectMode,
@@ -71,13 +73,13 @@ export function BackendComposerControls({
   }, [open]);
 
   const modelLabel = selectedModel?.label ?? options.currentModelId ?? agentLabel;
-  const showMode = options.modes.length > 0;
+  const showMode = !hideModes && options.modes.length > 0;
   const modeLabel = selectedMode?.label ?? options.currentModeId;
   const modePending = showMode && !options.modeConfirmed;
 
   return (
     <div className="thinking-effort-control backend-composer-control">
-      {options.autoApprove === true ? (
+      {!hideModes && options.autoApprove === true ? (
         <span
           className="backend-auto-approve-badge"
           data-testid="backend-auto-approve-badge"
@@ -96,7 +98,15 @@ export function BackendComposerControls({
         onOpenChange={setOpen}
         side="top"
         align="start"
-        label={isZh ? `${agentLabel} 模型与模式` : `${agentLabel} model and mode`}
+        label={
+          isZh
+            ? hideModes
+              ? `${agentLabel} 模型`
+              : `${agentLabel} 模型与模式`
+            : hideModes
+              ? `${agentLabel} model`
+              : `${agentLabel} model and mode`
+        }
         testId="backend-controls-popover"
         contentClassName="thinking-effort-popover"
         trigger={

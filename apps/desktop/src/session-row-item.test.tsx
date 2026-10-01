@@ -214,7 +214,7 @@ describe('SessionRowItem', () => {
     activeContainers.push(container);
 
     const badge = container.querySelector('[data-testid="session-backend-badge"]');
-    expect(badge?.textContent).toBe('Grok Build');
+    expect(badge?.textContent).toBe('grok');
   });
 
   it('leaves a Pi session unlabelled', () => {

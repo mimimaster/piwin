@@ -69,6 +69,7 @@ export type OrchestrationCopy = {
   schemeThinking: string;
   schemeThinkingInherit: string;
   schemeIsolation: string;
+  schemeIsolationInherit: (label: string | undefined) => string;
   schemeIsolationReadonly: string;
   schemeIsolationWorktree: string;
   schemeFallback: string;
@@ -174,6 +175,7 @@ const ZH: OrchestrationCopy = {
   schemeThinking: '思考',
   schemeThinkingInherit: '默认',
   schemeIsolation: '工作区',
+  schemeIsolationInherit: (label) => label ? `继承：${label}` : '继承来源方案',
   schemeIsolationReadonly: '只读',
   schemeIsolationWorktree: '独立工作区 (Worktree)',
   schemeFallback: '不可用时',
@@ -280,6 +282,7 @@ const EN: OrchestrationCopy = {
   schemeThinking: 'Thinking',
   schemeThinkingInherit: 'Default',
   schemeIsolation: 'Workspace',
+  schemeIsolationInherit: (label) => label ? `Inherited: ${label}` : 'Inherit source scheme',
   schemeIsolationReadonly: 'Read-only',
   schemeIsolationWorktree: 'Worktree',
   schemeFallback: 'If unavailable',

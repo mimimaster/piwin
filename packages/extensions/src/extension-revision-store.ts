@@ -31,6 +31,7 @@ import {
   parseDeployment,
   parseRegistry,
 } from './extension-registry-codec.js';
+import { readExtensionBackend } from './extension-manifest.js';
 
 const REGISTRY_FILENAME = 'registry.json';
 const REVISIONS_DIRECTORY = 'revisions';
@@ -553,13 +554,34 @@ async function inspectSource(sourcePath: string): Promise<{
   }
   if (!sourceStat.isDirectory())
     throw new Error(`Extension source must be a file or directory: ${sourcePath}`);
+  const packageMetadata = await readPackageMetadata(sourcePath);
   const indexPath = join(sourcePath, 'index.ts');
+  let hasIndexModule = false;
   try {
     await access(indexPath);
+    hasIndexModule = true;
   } catch {
-    throw new Error(`Extension directory must contain index.ts: ${sourcePath}`);
+    hasIndexModule = false;
   }
-  const packageMetadata = await readPackageMetadata(sourcePath);
+  if (!hasIndexModule) {
+    // A backend-type extension contributes a session backend, not a Pi module,
+    // so it legitimately has no `index.ts`. Everything else still needs one.
+    const backend = await readExtensionBackend(sourcePath);
+    if (backend.kind === 'invalid-backend') {
+      throw new Error(
+        `Extension sessionBackend is invalid (${backend.code}): ${backend.detail}`,
+      );
+    }
+    if (backend.kind === 'not-a-backend') {
+      throw new Error(`Extension directory must contain index.ts: ${sourcePath}`);
+    }
+    return {
+      kind: 'directory',
+      defaultName: packageMetadata.name ?? basename(sourcePath),
+      ...(packageMetadata.version ? { version: packageMetadata.version } : {}),
+      description: packageMetadata.description ?? backend.declaration.name,
+    };
+  }
   const raw = await readFile(indexPath, 'utf8');
   return {
     kind: 'directory',

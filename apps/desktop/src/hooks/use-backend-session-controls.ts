@@ -6,38 +6,117 @@
  * `session/backend-set`; the Host is the authority and answers with the
  * resulting `SessionBackendOptions`, which is what keeps `modeConfirmed` honest.
  */
-import { useCallback, useEffect, useMemo, type Dispatch } from 'react';
-import type { SessionBackendOptions } from '@piwin/contracts';
+import { useCallback, useEffect, useMemo, useState, type Dispatch } from 'react';
+import type { ExternalAgentStatus, SessionBackendOptions } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction } from '../chat-reducer';
 import { agentDisplayName, backendOptionsFor } from '../agent-backend-state';
 import type { ComposerDraftAgentOption } from '../composer-dock-types';
 
 export type BackendSessionControls = {
-  /** Non-null only for a session bound to a non-Pi backend. */
+  /** Non-null only for a session bound to a non-Pi backend, or a draft targeting one. */
   options: SessionBackendOptions | null;
   agentLabel: string | null;
   selectModel: (modelId: string) => void;
   selectEffort: (effortId: string) => void;
   selectMode: (modeId: string) => void;
+  draftBackendModelId?: string | undefined;
+  draftBackendEffortId?: string | undefined;
 };
 
-/** Pi is always offered; external agents only once the Host knows about them. */
+/**
+ * Pi is always offered. Other entries come from enabled extension declarations;
+ * a Host status can still surface a backend whose declaration is not loaded yet,
+ * labelled by its id rather than a hardcoded product name.
+ */
 export function draftAgentOptionsFrom(
   agents: readonly { agentId: string; state: string }[],
+  backends: readonly { agentId: string; name: string; description?: string }[] = [],
 ): ComposerDraftAgentOption[] {
   const options: ComposerDraftAgentOption[] = [{ agentId: 'pi', label: 'Pi', ready: true }];
-  for (const agent of agents) {
-    if (agent.agentId === 'pi') {
-      continue;
-    }
+  const seen = new Set<string>(['pi']);
+  for (const backend of backends) {
+    if (seen.has(backend.agentId)) continue;
+    seen.add(backend.agentId);
+    const status = agents.find((agent) => agent.agentId === backend.agentId);
     options.push({
-      agentId: agent.agentId as 'grok',
+      agentId: backend.agentId,
+      label: backend.name,
+      ready: status?.state === 'ready',
+      ...(status?.state ? { state: status.state } : {}),
+      ...(backend.description ? { description: backend.description } : {}),
+    });
+  }
+  for (const agent of agents) {
+    if (seen.has(agent.agentId)) continue;
+    seen.add(agent.agentId);
+    options.push({
+      agentId: agent.agentId,
       label: agentDisplayName(agent.agentId),
       ready: agent.state === 'ready',
+      state: agent.state,
     });
   }
   return options;
+}
+
+export const DEFAULT_GROK_BACKEND_OPTIONS: SessionBackendOptions = {
+  agentId: 'grok',
+  models: [
+    {
+      id: 'grok-4.7',
+      label: 'Grok 4.7',
+      efforts: ['xhigh', 'high', 'medium', 'low'],
+    },
+    {
+      id: 'grok-4.7-fast',
+      label: 'Grok 4.7 Fast',
+      efforts: ['xhigh', 'high', 'medium', 'low'],
+    },
+    {
+      id: 'grok-4.6',
+      label: 'Grok 4.6',
+      efforts: ['xhigh', 'high', 'medium', 'low'],
+    },
+    {
+      id: 'grok-4.5',
+      label: 'Grok 4.5',
+      efforts: ['xhigh', 'high', 'medium', 'low'],
+    },
+  ],
+  currentModelId: 'grok-4.7-fast',
+  currentEffortId: 'high',
+  modes: [],
+  modeConfirmed: true,
+  commands: [],
+};
+
+export function resolveDraftBackendOptions(
+  agentId: string | null | undefined,
+  optionsBySession: Readonly<Record<string, SessionBackendOptions>>,
+  externalAgents?: readonly ExternalAgentStatus[],
+): SessionBackendOptions | null {
+  if (!agentId || agentId === 'pi') {
+    return null;
+  }
+  for (const sessionOptions of Object.values(optionsBySession)) {
+    if (sessionOptions.agentId === agentId && sessionOptions.models.length > 0) {
+      return sessionOptions;
+    }
+  }
+  const agentStatus = externalAgents?.find((agent) => agent.agentId === agentId);
+  if (
+    agentStatus &&
+    'options' in agentStatus &&
+    agentStatus.options &&
+    agentStatus.options.models.length > 0
+  ) {
+    return agentStatus.options;
+  }
+  if (agentId === 'grok') {
+    return DEFAULT_GROK_BACKEND_OPTIONS;
+  }
+  return null;
 }
 
 export function useBackendSessionControls(args: {
@@ -45,12 +124,47 @@ export function useBackendSessionControls(args: {
   dispatch: Dispatch<ChatUiAction>;
   sessionId: string | null;
   optionsBySession: Readonly<Record<string, SessionBackendOptions>>;
+  draftAgentId?: string | null | undefined;
+  externalAgents?: readonly ExternalAgentStatus[] | undefined;
 }): BackendSessionControls {
-  const { hostClient, dispatch, sessionId, optionsBySession } = args;
-  const options = useMemo(
-    () => backendOptionsFor(optionsBySession, sessionId) ?? null,
-    [optionsBySession, sessionId],
+  const { hostClient, dispatch, sessionId, optionsBySession, draftAgentId, externalAgents } = args;
+
+  const [draftOverridesByAgent, setDraftOverridesByAgent] = useState<
+    Record<string, { modelId?: string; effortId?: string; modeId?: string }>
+  >({});
+
+  const isDraftExternal = sessionId === null && Boolean(draftAgentId && draftAgentId !== 'pi');
+  const baseDraftOptions = useMemo(
+    () => (isDraftExternal ? resolveDraftBackendOptions(draftAgentId, optionsBySession, externalAgents) : null),
+    [isDraftExternal, draftAgentId, optionsBySession, externalAgents],
   );
+
+  const options = useMemo(() => {
+    if (sessionId !== null) {
+      return backendOptionsFor(optionsBySession, sessionId) ?? null;
+    }
+    if (!baseDraftOptions || !draftAgentId) {
+      return null;
+    }
+    const override = draftOverridesByAgent[draftAgentId];
+    const currentModelId =
+      override?.modelId ?? baseDraftOptions.currentModelId ?? baseDraftOptions.models[0]?.id;
+    const activeModel = baseDraftOptions.models.find((model) => model.id === currentModelId);
+    const efforts = activeModel?.efforts ?? [];
+    const currentEffortId =
+      override?.effortId && efforts.includes(override.effortId)
+        ? override.effortId
+        : baseDraftOptions.currentEffortId && efforts.includes(baseDraftOptions.currentEffortId)
+          ? baseDraftOptions.currentEffortId
+          : efforts[0];
+    const currentModeId = override?.modeId ?? baseDraftOptions.currentModeId;
+    return {
+      ...baseDraftOptions,
+      ...(currentModelId !== undefined ? { currentModelId } : {}),
+      ...(currentEffortId !== undefined ? { currentEffortId } : {}),
+      ...(currentModeId !== undefined ? { currentModeId } : {}),
+    };
+  }, [sessionId, optionsBySession, baseDraftOptions, draftAgentId, draftOverridesByAgent]);
 
   // A session restored from a saved layout mounts before the Host answered its
   // snapshot; ask once when the backend catalog is still unknown.
@@ -138,27 +252,54 @@ export function useBackendSessionControls(args: {
 
   const selectModel = useCallback(
     (modelId: string) => {
+      if (sessionId === null) {
+        if (draftAgentId && draftAgentId !== 'pi') {
+          setDraftOverridesByAgent((prev) => ({
+            ...prev,
+            [draftAgentId]: { ...prev[draftAgentId], modelId },
+          }));
+        }
+        return;
+      }
       // A new model may drop the current effort; the Host answer corrects it
       // with the model's real effort list.
       send('modelId', modelId, { currentModelId: modelId });
     },
-    [send],
+    [draftAgentId, send, sessionId],
   );
 
   const selectEffort = useCallback(
     (effortId: string) => {
+      if (sessionId === null) {
+        if (draftAgentId && draftAgentId !== 'pi') {
+          setDraftOverridesByAgent((prev) => ({
+            ...prev,
+            [draftAgentId]: { ...prev[draftAgentId], effortId },
+          }));
+        }
+        return;
+      }
       send('effortId', effortId, { currentEffortId: effortId });
     },
-    [send],
+    [draftAgentId, send, sessionId],
   );
 
   const selectMode = useCallback(
     (modeId: string) => {
+      if (sessionId === null) {
+        if (draftAgentId && draftAgentId !== 'pi') {
+          setDraftOverridesByAgent((prev) => ({
+            ...prev,
+            [draftAgentId]: { ...prev[draftAgentId], modeId },
+          }));
+        }
+        return;
+      }
       // Modes are agent-side: show the request as pending until the agent
       // confirms, so the pill never claims a mode the agent did not accept.
       send('modeId', modeId, { currentModeId: modeId, modeConfirmed: false });
     },
-    [send],
+    [draftAgentId, send, sessionId],
   );
 
   return {
@@ -167,5 +308,7 @@ export function useBackendSessionControls(args: {
     selectModel,
     selectEffort,
     selectMode,
+    draftBackendModelId: sessionId === null ? options?.currentModelId : undefined,
+    draftBackendEffortId: sessionId === null ? options?.currentEffortId : undefined,
   };
 }

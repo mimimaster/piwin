@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commandAvailability, filterDesktopCommands } from './desktop-commands';
+import { commandAvailability, commandsForEnabledBackends, filterDesktopCommands } from './desktop-commands';
 
 describe('desktop-commands', () => {
   it('filters by tokens', () => {
@@ -46,5 +46,21 @@ describe('desktop-commands', () => {
     const hits = filterDesktopCommands('新建');
     expect(hits.some((item) => item.id === 'new-session')).toBe(true);
     expect(hits[0]?.group).toBe('session');
+  });
+
+  it('builds session commands from enabled extension backends, not a hardcoded vendor', () => {
+    const commands = commandsForEnabledBackends([
+      { agentId: 'example-build', name: 'Example Build' },
+    ]);
+    expect(commands).toEqual([
+      expect.objectContaining({
+        id: 'new-backend-session',
+        backendAgentId: 'example-build',
+        title: 'New Example Build session',
+      }),
+    ]);
+    expect(filterDesktopCommands('example').some((item) => item.backendAgentId === 'example-build')).toBe(false);
+    expect(filterDesktopCommands('example', commands).some((item) => item.backendAgentId === 'example-build')).toBe(true);
+    expect(filterDesktopCommands('grok').some((item) => item.id === 'new-backend-session')).toBe(false);
   });
 });

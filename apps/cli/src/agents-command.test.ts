@@ -11,14 +11,11 @@ function status(overrides: Partial<ExternalAgentStatus> & Pick<ExternalAgentStat
 }
 
 describe('planAgentsSubcommand', () => {
-  it('installs the reviewed adapter through the same Host authority', () => {
-    expect(planAgentsSubcommand('install')).toEqual({ kind: 'mutate-host', sub: 'install' });
-  });
-
-  it('routes inventory mutations to the Host rather than faking local toggles', () => {
-    for (const sub of ['enable', 'disable', 'uninstall']) {
-      expect(planAgentsSubcommand(sub)).toEqual({ kind: 'mutate-host', sub });
-    }
+  it('refuses a bundled install and routes lifecycle to the extension registry', () => {
+    expect(planAgentsSubcommand('install')).toEqual({ kind: 'extension-install' });
+    expect(planAgentsSubcommand('enable')).toEqual({ kind: 'extension-lifecycle', sub: 'enable' });
+    expect(planAgentsSubcommand('disable')).toEqual({ kind: 'extension-lifecycle', sub: 'disable' });
+    expect(planAgentsSubcommand('uninstall')).toEqual({ kind: 'extension-lifecycle', sub: 'uninstall' });
   });
 
   it('reads cached state for list but re-probes for check and login', () => {

@@ -6,6 +6,7 @@
  */
 import { useRef, useState } from 'react';
 import type {
+  AgentPluginSource,
   ExtensionsUninstallData,
   HostCommand,
   HostResponse,
@@ -37,12 +38,31 @@ async function send(request: Request, command: HostCommand): Promise<unknown> {
   return response.data;
 }
 
+/** Install or replace an adapter artifact. A revision change needs an explicit yes. */
+async function installAgentArtifact(
+  request: Request,
+  source: AgentPluginSource,
+  name: string,
+  confirmMigration: ((entryName: string) => Promise<boolean>) | undefined,
+): Promise<void> {
+  try {
+    await send(request, { type: 'agents/install', source });
+  } catch (error) {
+    if (!(error instanceof MarketplaceRequestError) || !error.message.includes('requires-migration')) throw error;
+    if (confirmMigration === undefined || !(await confirmMigration(name))) {
+      throw new MarketplaceRequestError('agent-update-requires-migration: confirmation required');
+    }
+    await send(request, { type: 'agents/install', source, confirmMigration: true });
+  }
+}
+
 export function useMarketplaceActions(options: {
   locale?: DesktopLocale | undefined;
   sessionId?: string | null | undefined;
   request: Request;
   refreshInventory: () => Promise<void>;
   showToast: (toast: MarketplaceToast) => void;
+  confirmMigration?: (entryName: string) => Promise<boolean>;
 }): MarketplaceActions {
   const zh = options.locale === 'zh-CN';
   const [operations, setOperations] = useState<Record<string, MarketOperation>>({});
@@ -88,8 +108,8 @@ export function useMarketplaceActions(options: {
       phase('installing');
       switch (descriptor.kind) {
         case 'agent':
-          await send(request, { type: 'agents/install', source: descriptor.source });
-          return { type: 'success', title: zh ? `[${name}] 适配插件已安装` : `[${name}] adapter installed`, text: zh ? '在 Agent 后端设置中检测 Host CLI 并登录。安装插件不表示 CLI 已就绪。' : 'Check the Host CLI and sign in in Agent Backends. Adapter installation does not mean the CLI is ready.' };
+          await installAgentArtifact(request, descriptor.source, name, optionsRef.current.confirmMigration);
+          return { type: 'success', title: zh ? `[${name}] 适配插件已安装` : `[${name}] adapter installed`, text: zh ? '在 Agent 后端设置中检测 Host CLI 并登录。安装插件不表示 CLI 已就绪。已有会话不会自动换修订。' : 'Check the Host CLI and sign in in Agent Backends. Adapter installation does not mean the CLI is ready. Existing sessions are not moved to another revision.' };
         case 'pi-package': {
           await send(request, { type: 'marketplace/package-install', source: descriptor.source });
           phase('applying');
@@ -180,7 +200,7 @@ export function useMarketplaceActions(options: {
       phase('updating');
       switch (descriptor.kind) {
         case 'agent':
-          await send(request, { type: 'agents/install', source: descriptor.source });
+          await installAgentArtifact(request, descriptor.source, name, optionsRef.current.confirmMigration);
           return { type: 'success', title: zh ? `[${name}] 适配插件已检查` : `[${name}] adapter checked`, text: zh ? '已有会话不会自动迁移到不同修订。' : 'Existing sessions are not silently migrated to another revision.' };
         case 'pi-package': {
           await send(request, { type: 'marketplace/package-install', source: descriptor.source });

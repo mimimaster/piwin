@@ -92,7 +92,7 @@ function isUserFacingReply(message: ChatMessageUi): boolean {
 }
 
 function hasAssistantError(message: ChatMessageUi): boolean {
-  return message.status === 'error' || message.error !== undefined;
+  return message.status === 'error' || message.error !== undefined || message.failure !== undefined;
 }
 
 /**
@@ -395,6 +395,21 @@ function resolveLiveToolProgress(
   return seen > 0 ? { runningToolIndex: seen } : {};
 }
 
+function prefixHasActiveAssistantError(
+  turn: TranscriptTurn,
+  startIndex: number,
+  endIndex: number,
+  activeRunId: string | null,
+): boolean {
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const message = turn.items[index]?.message;
+    if (!message) continue;
+    if (isEarlierRunRow(message, activeRunId)) continue;
+    if (hasAssistantError(message)) return true;
+  }
+  return false;
+}
+
 /**
  * Fold the work of a turn that is still in flight.
  *
@@ -410,9 +425,12 @@ function resolveLiveToolProgress(
  *   - Generated media deliverables (e.g. generated images/videos).
  *
  * Earlier paused runs (isEarlierRunRow) remain inside the fold. A message
- * error, an active subagent, or an open permission gate suppresses the fold
- * so that blocker stays on the causal stream. A failed tool does not: the
- * header has to stay, or the chain is stuck open with nothing to collapse.
+ * error on the active run, an active subagent, or an open permission gate
+ * suppresses the fold so that blocker stays on the causal stream. An error
+ * on an earlier completed or failed attempt does not: its failure is counted
+ * in the header and its segment opens by default. A failed tool does not
+ * suppress either: the header has to stay, or the chain is stuck open with
+ * nothing to collapse.
  */
 function projectLiveRange(
   input: ProjectTurnWorkDisclosureInput,
@@ -464,7 +482,9 @@ function projectLiveRange(
   // 「正在运行」 would, and there is no chain to fold yet. The container appears
   // with the first tool call and holds every one after it.
   if (!rangeHasTool(input.turn, startIndex, endIndex)) return null;
-  if (prefixHasAssistantError(input.turn, startIndex, endIndex)) return null;
+  if (prefixHasActiveAssistantError(input.turn, startIndex, endIndex, input.activeRunId)) {
+    return null;
+  }
   if (
     rangeIsWhollyExploreFolded(
       input.turn,
@@ -501,11 +521,18 @@ function dropPausedRunNotes(
   let changed = false;
   const items = turn.items.map((item) => {
     const { message } = item;
-    if (message.error === undefined || message.status === 'error' || !message.runId) return item;
+    if (!message.runId) return item;
     if (runRecordsById[message.runId]?.outcome !== 'paused') return item;
+    if (message.error === undefined && message.failure === undefined && message.status !== 'error') {
+      return item;
+    }
     changed = true;
     const withoutNote: ChatMessageUi = { ...message };
     delete withoutNote.error;
+    delete withoutNote.failure;
+    if (withoutNote.status === 'error') {
+      withoutNote.status = 'done';
+    }
     return { ...item, message: withoutNote };
   });
   return changed ? { ...turn, items } : turn;

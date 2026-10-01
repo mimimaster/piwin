@@ -92,7 +92,7 @@ Usage:
   piwin plugin registry [--url <url>]
   piwin agents list [--mock]
   piwin agents check [--agent <id>] [--mock]
-  piwin agents install [--agent <id>]
+  piwin agents enable|disable|uninstall --agent <id>
   piwin agents login [--agent <id>] [--mock]
   piwin notes add <content> --title <t> [--collection c] [--tags a,b]
   piwin notes list [--collection c]

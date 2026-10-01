@@ -47,10 +47,12 @@ export type ComposerModelOption = {
 
 /** ADR 0082: one selectable agent backend for a new session draft. */
 export type ComposerDraftAgentOption = {
-  agentId: 'pi' | 'grok';
+  agentId: string;
   label: string;
   /** False while the agent still needs install/login/dependency work. */
   ready: boolean;
+  state?: string | undefined;
+  description?: string | undefined;
 };
 
 export type ComposerDockProps = {
@@ -193,10 +195,17 @@ export type ComposerDockProps = {
    * ADR 0082: agent backend for an unsent New Agent draft. Absent means Pi.
    * The picker only renders when a second ready agent exists.
    */
-  draftAgentId?: 'pi' | 'grok';
+  draftAgentId?: string;
   /** ADR 0082: agents selectable for a new session (ready ones are sendable). */
   draftAgentOptions?: readonly ComposerDraftAgentOption[];
-  onDraftAgentChange?: (agentId: 'pi' | 'grok') => void;
+  onDraftAgentChange?: (agentId: string) => void;
+  /** Open Agent backend settings when a draft agent still needs setup. */
+  onOpenAgentSettings?: () => void;
+  /** Start a new session from the composer (e.g. switching agent backends). */
+  onStartNewSession?: ((options?: {
+    scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+    agentId?: string;
+  }) => void | Promise<void>) | undefined;
   /**
    * ADR 0082: backend-owned catalog for the active session. When present the
    * Pi model/thinking controls are replaced, never merged with Pi model refs.

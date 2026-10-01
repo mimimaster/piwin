@@ -27,7 +27,7 @@ function options(overrides: Partial<SessionBackendOptions> = {}): SessionBackend
 type Controls = ReturnType<typeof useBackendSessionControls>;
 
 describe('draftAgentOptionsFrom', () => {
-  it('always offers Pi first and defaults it to ready', () => {
+  it('always offers Pi first and does not invent an unreported agent', () => {
     expect(draftAgentOptionsFrom([])).toEqual([{ agentId: 'pi', label: 'Pi', ready: true }]);
   });
 
@@ -37,6 +37,19 @@ describe('draftAgentOptionsFrom', () => {
 
     const ready = draftAgentOptionsFrom([{ agentId: 'grok', state: 'ready' }]);
     expect(ready.find((option) => option.agentId === 'grok')?.ready).toBe(true);
+  });
+
+  it('names a backend from the enabled extension declaration', () => {
+    const options = draftAgentOptionsFrom(
+      [{ agentId: 'example-build', state: 'ready' }],
+      [{ agentId: 'example-build', name: 'Example Build' }],
+    );
+    expect(options.find((option) => option.agentId === 'example-build')).toEqual({
+      agentId: 'example-build',
+      label: 'Example Build',
+      ready: true,
+      state: 'ready',
+    });
   });
 
   it('ignores a duplicate pi entry from the Host', () => {
@@ -69,6 +82,8 @@ describe('useBackendSessionControls', () => {
     dispatch: (action: ChatUiAction) => void;
     sessionId: string | null;
     optionsBySession: Record<string, SessionBackendOptions>;
+    draftAgentId?: string | null;
+    externalAgents?: readonly import('@piwin/contracts').ExternalAgentStatus[];
   }): void {
     function Harness(): null {
       latest = useBackendSessionControls(args);
@@ -88,7 +103,7 @@ describe('useBackendSessionControls', () => {
     });
 
     expect(latest?.options?.agentId).toBe('grok');
-    expect(latest?.agentLabel).toBe('Grok Build');
+    expect(latest?.agentLabel).toBe('grok');
   });
 
   it('stays null for a Pi session with no backend options', () => {
@@ -214,4 +229,100 @@ describe('useBackendSessionControls', () => {
     });
     expect(request).not.toHaveBeenCalled();
   });
+
+  describe('draft session controls', () => {
+    it('resolves default grok options for clean slate draft', () => {
+      mount({
+        hostClient: { request: vi.fn() } as unknown as HostClient,
+        dispatch: vi.fn(),
+        sessionId: null,
+        optionsBySession: {},
+        draftAgentId: 'grok',
+      });
+
+      expect(latest?.options).not.toBeNull();
+      expect(latest?.options?.agentId).toBe('grok');
+      expect(latest?.options?.currentModelId).toBe('grok-4.7-fast');
+      expect(latest?.options?.currentEffortId).toBe('high');
+      expect(latest?.draftBackendModelId).toBe('grok-4.7-fast');
+      expect(latest?.draftBackendEffortId).toBe('high');
+      expect(latest?.options?.models.map((m) => m.id)).toEqual([
+        'grok-4.7',
+        'grok-4.7-fast',
+        'grok-4.6',
+        'grok-4.5',
+      ]);
+    });
+
+    it('stays null when draftAgentId is pi', () => {
+      mount({
+        hostClient: { request: vi.fn() } as unknown as HostClient,
+        dispatch: vi.fn(),
+        sessionId: null,
+        optionsBySession: {},
+        draftAgentId: 'pi',
+      });
+
+      expect(latest?.options).toBeNull();
+      expect(latest?.draftBackendModelId).toBeUndefined();
+      expect(latest?.draftBackendEffortId).toBeUndefined();
+    });
+
+    it('allows switching model on draft without calling backend-set', () => {
+      const request = vi.fn();
+      mount({
+        hostClient: { request } as unknown as HostClient,
+        dispatch: vi.fn(),
+        sessionId: null,
+        optionsBySession: {},
+        draftAgentId: 'grok',
+      });
+
+      expect(latest?.options?.currentModelId).toBe('grok-4.7-fast');
+
+      act(() => latest?.selectModel('grok-4.7'));
+
+      expect(latest?.options?.currentModelId).toBe('grok-4.7');
+      expect(latest?.draftBackendModelId).toBe('grok-4.7');
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it('allows switching effort on draft without calling backend-set', () => {
+      const request = vi.fn();
+      mount({
+        hostClient: { request } as unknown as HostClient,
+        dispatch: vi.fn(),
+        sessionId: null,
+        optionsBySession: {},
+        draftAgentId: 'grok',
+      });
+
+      expect(latest?.options?.currentEffortId).toBe('high');
+
+      act(() => latest?.selectEffort('xhigh'));
+
+      expect(latest?.options?.currentEffortId).toBe('xhigh');
+      expect(latest?.draftBackendEffortId).toBe('xhigh');
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it('adopts models from existing session when available', () => {
+      const customOptions = options({
+        agentId: 'grok',
+        models: [{ id: 'custom-grok', label: 'Custom Grok', efforts: ['low'] }],
+        currentModelId: 'custom-grok',
+      });
+      mount({
+        hostClient: { request: vi.fn() } as unknown as HostClient,
+        dispatch: vi.fn(),
+        sessionId: null,
+        optionsBySession: { 'prev-session': customOptions },
+        draftAgentId: 'grok',
+      });
+
+      expect(latest?.options?.currentModelId).toBe('custom-grok');
+      expect(latest?.options?.models[0]?.id).toBe('custom-grok');
+    });
+  });
 });
+

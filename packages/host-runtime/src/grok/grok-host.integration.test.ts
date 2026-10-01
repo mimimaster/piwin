@@ -1,12 +1,26 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+/**
+ * Host-level integration for installable Agent adapters (ADR 0082).
+ *
+ * The Host launches whatever artifact the installer verified, so these tests
+ * install a real fixture adapter through the real installer and drive the
+ * product commands. No vendor CLI and no injected transport are involved.
+ */
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createFakeGrokAgent, FAKE_GROK_SECRET, type FakeGrokAgent } from '@piwin/acp-agent/testing';
-import type { HostPush } from '@piwin/contracts';
+import type { HostPush, HostResponse } from '@piwin/contracts';
 import { HostRuntime } from '../host-runtime.js';
+import { getPiwinMediaDir, getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
+import { FIXTURE_AGENT_ID, installFixtureAgentAdapter, type FixtureManifestOverrides } from '../testing/agent-plugin-fixture.js';
 
-type Harness = { runtime: HostRuntime; agent: FakeGrokAgent; pushes: HostPush[]; rootDir: string };
+type Harness = {
+  runtime: HostRuntime;
+  pushes: HostPush[];
+  rootDir: string;
+  agentId: string;
+  extensionId: string;
+};
 
 const harnesses: Harness[] = [];
 
@@ -15,216 +29,277 @@ afterEach(async () => {
     await harness.runtime.dispose();
     await rm(harness.rootDir, { recursive: true, force: true });
   }
+  vi.restoreAllMocks();
 });
 
-async function createHarness(agent: FakeGrokAgent): Promise<Harness> {
-  const rootDir = await mkdtemp(join(tmpdir(), 'piwin-grok-host-'));
+function data(response: HostResponse): unknown {
+  if (!response.success) throw new Error(`${response.command}: ${response.error}`);
+  return response.data;
+}
+function failure(response: HostResponse): string {
+  if (response.success) throw new Error('expected a failed response');
+  return response.error;
+}
+
+async function createHarness(script: unknown = {}, agentId = FIXTURE_AGENT_ID, overrides?: FixtureManifestOverrides): Promise<Harness> {
+  const rootDir = await mkdtemp(join(tmpdir(), 'piwin-agent-host-'));
+  const installed = await installFixtureAgentAdapter(rootDir, { script, agentId, ...(overrides !== undefined ? { overrides } : {}) });
   const runtime = new HostRuntime({
     mode: 'sdk',
     mock: true,
     piwinRoot: rootDir,
-    grok: {
-      testPlatform: 'darwin',
-      createTransport: () => agent.createTransport(),
-      detect: async () => ({
-        agentId: 'grok',
-        state: 'ready',
-        binaryPath: '/fake/grok',
-        version: '1.0.44',
-        supportStatus: 'verified',
-        checkedAt: new Date().toISOString(),
-      }),
-    },
+    externalAgents: { env: installed.env },
   });
   const pushes: HostPush[] = [];
-  runtime.attachPushSink({ id: 'grok-test', push: (push) => pushes.push(push) });
-  const harness = { runtime, agent, pushes, rootDir };
+  runtime.attachPushSink({ id: 'agent-fixture-test', push: (push) => pushes.push(push) });
+  const harness = { runtime, pushes, rootDir, agentId, extensionId: installed.extensionId };
   harnesses.push(harness);
-  const installed = await runtime.handleCommand({ type: 'agents/install', source: { kind: 'bundled', agentId: 'grok' } });
-  expect(installed.success).toBe(true);
   return harness;
 }
 
-async function createGrokSession(runtime: HostRuntime): Promise<string> {
-  const created = await runtime.handleCommand({
+async function createAgentSession(harness: Harness): Promise<string> {
+  const created = await harness.runtime.handleCommand({
     type: 'session/create',
-    input: { projectPath: '/tmp/grok-project', agentId: 'grok' },
+    input: { projectPath: '/tmp/agent-project', agentId: harness.agentId },
   });
-  if (!created.success) throw new Error(created.error);
-  return (created.data as { sessionId: string }).sessionId;
+  return (data(created) as { sessionId: string }).sessionId;
 }
 
-async function waitForRunTerminal(harness: Harness, runId: string): Promise<string> {
+async function waitForRunTerminal(harness: Harness, sessionId: string): Promise<string> {
   let status = '';
   await vi.waitFor(
     () => {
-      const run = harness.pushes.find(
-        (push) => push.type === 'run/updated' && push.run.runId === runId && ['completed', 'failed', 'cancelled'].includes(push.run.status),
+      const push = harness.pushes.find(
+        (candidate) => candidate.type === 'run/updated' && candidate.run.sessionId === sessionId &&
+          ['completed', 'failed', 'cancelled'].includes(candidate.run.status),
       );
-      if (run === undefined || run.type !== 'run/updated') throw new Error('not terminal');
-      status = run.run.status;
+      if (push === undefined || push.type !== 'run/updated') throw new Error('run not terminal');
+      status = push.run.status;
     },
-    { timeout: 5000 },
+    { timeout: 15_000 },
   );
   return status;
 }
 
-describe('Grok sessions through HostRuntime', () => {
-  it('runs a turn with a tool and Grok permission options, then resumes and deletes', async () => {
-    const agent = createFakeGrokAgent({
-      turns: [
-        [
-          { kind: 'text', text: 'Editing' },
-          { kind: 'permission', toolCallId: 'call-1', title: 'Write `a.txt`', path: '/tmp/grok-project/a.txt' },
-          { kind: 'tool', toolCallId: 'call-1', name: 'write', acpKind: 'edit', title: 'Write `a.txt`', path: '/tmp/grok-project/a.txt' },
-          { kind: 'text', text: 'done' },
-        ],
-        [{ kind: 'text', text: 'second' }],
-      ],
+describe('External agent adapter integration (fixture artifact)', () => {
+  it('reports readiness from the installed adapter without the CLI being pre-checked', async () => {
+    const harness = await createHarness();
+    // Never checked yet: the Host reports why instead of guessing readiness.
+    expect(data(await harness.runtime.handleCommand({ type: 'agents/status' }))).toMatchObject({
+      agents: [{ agentId: harness.agentId, state: 'unavailable' }],
+      installed: [harness.agentId],
     });
-    const harness = await createHarness(agent);
-    const { runtime, pushes } = harness;
-    const sessionId = await createGrokSession(runtime);
-
-    const prompt = await runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'write a.txt' } });
-    if (!prompt.success) throw new Error(prompt.error);
-    const runId = (prompt.data as { runId: string }).runId;
-
-    let requestId = '';
-    await vi.waitFor(() => {
-      const request = pushes.find((push) => push.type === 'permission/request' && push.sessionId === sessionId);
-      if (request === undefined || request.type !== 'permission/request') throw new Error('no request');
-      expect(request.context?.backendOptions?.map((option) => option.optionId)).toEqual([
-        'allow-edits-session',
-        'allow-once',
-        'reject-once',
-      ]);
-      requestId = request.requestId;
-    });
-
-    const mismatch = await runtime.handleCommand({
-      type: 'permission/resolve',
-      requestId,
-      decision: 'allow',
-      backendOptionId: 'reject-once',
-    });
-    expect(mismatch).toMatchObject({ success: false, error: 'backend-option-decision-mismatch' });
-    const resolved = await runtime.handleCommand({
-      type: 'permission/resolve',
-      requestId,
-      decision: 'allow',
-      backendOptionId: 'allow-once',
-    });
-    expect(resolved.success).toBe(true);
-    expect(await waitForRunTerminal(harness, runId)).toBe('completed');
-
-    const resumed = await runtime.handleCommand({ type: 'session/resume', sessionId });
-    if (!resumed.success) throw new Error(resumed.error);
-    const data = resumed.data as {
-      messages: Array<{ role: string; text: string; tools?: Array<{ presentation?: { changedPaths?: string[] } }> }>;
-      backendCapabilities?: { agentId: string; operations: { images: { supported: boolean } } };
-      backendOptions?: { currentModelId?: string };
-    };
-    expect(data.backendCapabilities?.agentId).toBe('grok');
-    expect(data.backendCapabilities?.operations.images.supported).toBe(false);
-    expect(data.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'assistant']);
-    expect(data.messages.flatMap((message) => message.tools ?? []).at(0)?.presentation?.changedPaths).toEqual([
-      '/tmp/grok-project/a.txt',
-    ]);
-
-    // Title came from Grok, not the Pi auto-namer.
-    await vi.waitFor(() => {
-      expect(pushes.some((push) => push.type === 'session/name-updated' && push.name === 'Fake title')).toBe(true);
-    });
-
-    // Secrets from the MCP notification never reach any client push.
-    expect(JSON.stringify(pushes)).not.toContain(FAKE_GROK_SECRET);
-    expect(JSON.stringify(pushes)).not.toContain('secret-host');
-
-    // Pi-only operations are refused.
-    const pause = await runtime.handleCommand({ type: 'session/pause', sessionId });
-    expect(pause).toMatchObject({ success: false, problem: { code: 'backend-operation-unsupported' } });
-
-    // Model switch writes through and persists.
-    const setModel = await runtime.handleCommand({ type: 'session/backend-set', sessionId, modelId: 'grok-4.7' });
-    expect(setModel.success).toBe(true);
-
-    // Rename writes through to Grok.
-    const renamed = await runtime.handleCommand({ type: 'session/rename', sessionId, name: 'Renamed' });
-    expect(renamed.success).toBe(true);
-    const backendSessionId = [...agent.sessions.keys()][0];
-    expect(backendSessionId).toBeDefined();
-    expect(agent.sessions.get(backendSessionId ?? '')?.title).toBe('Renamed');
-
-    // Permanent delete removes the Grok session too.
-    const deleted = await runtime.handleCommand({ type: 'session/delete', sessionId, force: true });
-    expect(deleted).toMatchObject({ success: true, data: { deleted: true } });
-    expect(agent.sessions.size).toBe(0);
-    await vi.waitFor(() => expect(agent.liveProcesses).toBe(0));
-  }, 20_000);
-
-  it('rejecting a Grok permission ends the turn without failure', async () => {
-    const agent = createFakeGrokAgent({
-      turns: [[{ kind: 'permission', toolCallId: 'call-1', title: 'Write `a.txt`', path: '/tmp/grok-project/a.txt' }]],
-    });
-    const harness = await createHarness(agent);
-    const sessionId = await createGrokSession(harness.runtime);
-    const prompt = await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'x' } });
-    if (!prompt.success) throw new Error(prompt.error);
-    const runId = (prompt.data as { runId: string }).runId;
-    let requestId = '';
-    await vi.waitFor(() => {
-      const request = harness.pushes.find((push) => push.type === 'permission/request');
-      if (request?.type !== 'permission/request') throw new Error('none');
-      requestId = request.requestId;
-    });
-    await harness.runtime.handleCommand({ type: 'permission/resolve', requestId, decision: 'deny', backendOptionId: 'reject-once' });
-    expect(await waitForRunTerminal(harness, runId)).toBe('completed');
-  }, 20_000);
-
-  it('refuses images and unknown agents', async () => {
-    const harness = await createHarness(createFakeGrokAgent());
-    const unknown = await harness.runtime.handleCommand({
-      type: 'session/create',
-      input: { projectPath: '/tmp/grok-project', agentId: 'nope' },
-    });
-    expect(unknown).toMatchObject({ success: false, error: 'unknown-agent: nope' });
-    const sessionId = await createGrokSession(harness.runtime);
-    const withImage = await harness.runtime.handleCommand({
-      type: 'session/prompt',
-      sessionId,
-      input: {
-        text: 'look',
-        attachments: [{ kind: 'media', mediaId: 'm1', mimeType: 'image/png', path: '/tmp/x.png' } as never],
-      },
-    });
-    expect(withImage).toMatchObject({ success: false, problem: { code: 'backend-operation-unsupported' } });
+    const refreshed = await harness.runtime.handleCommand({ type: 'agents/status', refresh: true });
+    expect(data(refreshed)).toMatchObject({ agents: [{ agentId: harness.agentId, state: 'ready', version: '1.0.0' }] });
   });
 
-  it('imports TUI-created sessions from the Grok catalog and drops deleted ones', async () => {
-    const agent = createFakeGrokAgent({
-      sessions: [
-        { sessionId: 'tui-1', cwd: '/tmp/grok-project', title: 'From TUI', lastChangeUnixMs: Date.now(), history: [{ role: 'user', text: 'hello' }, { role: 'assistant', text: 'hi there' }] },
+  it('runs a prompt through the adapter and projects the assistant text', async () => {
+    const harness = await createHarness({ steps: [{ kind: 'text', text: 'hello from fixture' }] });
+    const sessionId = await createAgentSession(harness);
+    const prompt = await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'hi' } });
+    expect(prompt.success, prompt.success ? '' : prompt.error).toBe(true);
+    expect(await waitForRunTerminal(harness, sessionId)).toBe('completed');
+    const messages = data(await harness.runtime.handleCommand({ type: 'session/messages', sessionId })) as {
+      messages: Array<{ role: string; text: string }>;
+    };
+    expect(messages.messages.some((message) => message.role === 'assistant' && message.text.includes('hello from fixture'))).toBe(true);
+  });
+
+  it('delivers generated attachments live, persists them and lists the same asset in the library', async () => {
+    const harness = await createHarness({
+      steps: [
+        { kind: 'tool', media: { directoryId: 'images', directory: '.piwin-fixture/images', relativePath: 'frame.png', kind: 'image', prompt: 'fixture portrait' } },
+        { kind: 'text', text: 'generated' },
       ],
     });
-    const harness = await createHarness(agent);
-    const synced = await harness.runtime.handleCommand({ type: 'agents/sessions-sync', agentId: 'grok' });
-    expect(synced).toMatchObject({ success: true, data: { created: 1 } });
-    const created = harness.pushes.find((push) => push.type === 'session/index-updated' && push.op === 'created');
-    if (created?.type !== 'session/index-updated') throw new Error('no create push');
-    expect(created.session).toMatchObject({ name: 'From TUI', backend: { agentId: 'grok' } });
+    const sessionId = await createAgentSession(harness);
+    await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'draw' } });
+    expect(await waitForRunTerminal(harness, sessionId)).toBe('completed');
+    const completed = harness.pushes.find((push) =>
+      push.type === 'event' && push.sessionId === sessionId && push.event.type === 'tool/end',
+    );
+    if (completed?.type !== 'event' || completed.event.type !== 'tool/end') throw new Error('no completed tool');
+    expect(completed.event.attachments).toEqual([
+      expect.objectContaining({ kind: 'media', source: 'generated', mimeType: 'image/png' }),
+    ]);
+    const attachment = completed.event.attachments?.[0];
+    if (attachment === undefined) throw new Error('no generated attachment');
+    expect(attachment.path.startsWith(join(getPiwinMediaDir(getPiwinRoot(harness.rootDir)), sessionId))).toBe(true);
+    expect((await readFile(attachment.path)).byteLength).toBeGreaterThan(0);
+    expect(data(await harness.runtime.handleCommand({ type: 'session/messages', sessionId }))).toMatchObject({
+      messages: expect.arrayContaining([expect.objectContaining({ role: 'assistant', attachments: [attachment] })]),
+    });
+    expect(data(await harness.runtime.handleCommand({ type: 'media/list', input: {} }))).toMatchObject({
+      items: [expect.objectContaining({ assetId: attachment.id, kind: 'image', prompt: 'fixture portrait' })],
+    });
+  });
 
-    // First open replays Grok history into the projection.
-    const prompt = await harness.runtime.handleCommand({ type: 'session/prompt', sessionId: created.sessionId, input: { text: 'again' } });
-    if (!prompt.success) throw new Error(prompt.error);
-    await waitForRunTerminal(harness, (prompt.data as { runId: string }).runId);
-    const resumed = await harness.runtime.handleCommand({ type: 'session/resume', sessionId: created.sessionId });
-    if (!resumed.success) throw new Error(resumed.error);
-    const texts = (resumed.data as { messages: Array<{ text: string }> }).messages.map((message) => message.text);
-    expect(texts.slice(0, 2)).toEqual(['hello', 'hi there']);
+  it('bridges an adapter permission request onto the Host pending map', async () => {
+    const harness = await createHarness({ steps: [{ kind: 'permission' }, { kind: 'text', text: 'after' }] });
+    const sessionId = await createAgentSession(harness);
+    await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'act' } });
+    let requestId = '';
+    await vi.waitFor(
+      () => {
+        const push = harness.pushes.find((candidate) => candidate.type === 'permission/request' && candidate.sessionId === sessionId);
+        if (push === undefined || push.type !== 'permission/request') throw new Error('no permission request');
+        requestId = push.requestId;
+      },
+      { timeout: 15_000 },
+    );
+    const resolved = await harness.runtime.handleCommand({
+      type: 'permission/resolve',
+      requestId,
+      decision: 'allow',
+      backendOptionId: 'allow',
+    });
+    expect(resolved.success).toBe(true);
+    expect(await waitForRunTerminal(harness, sessionId)).toBe('completed');
+    const messages = data(await harness.runtime.handleCommand({ type: 'session/messages', sessionId })) as {
+      messages: Array<{ role: string; text: string }>;
+    };
+    expect(messages.messages.some((message) => message.text.includes('decision:{"optionId":"allow"}'))).toBe(true);
+  });
 
-    agent.sessions.delete('tui-1');
-    const second = await harness.runtime.handleCommand({ type: 'agents/sessions-sync', agentId: 'grok' });
-    expect(second).toMatchObject({ success: true, data: { removed: 1 } });
-  }, 20_000);
+  it('cancels a hung adapter prompt as cancelled rather than failed', async () => {
+    const harness = await createHarness({ steps: [{ kind: 'text', text: 'started' }, { kind: 'hang' }] });
+    const sessionId = await createAgentSession(harness);
+    await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'slow' } });
+    await vi.waitFor(() => {
+      const push = harness.pushes.find((candidate) => candidate.type === 'run/updated' && candidate.run.sessionId === sessionId && candidate.run.status === 'running');
+      if (push === undefined) throw new Error('run not running');
+    }, { timeout: 15_000 });
+    expect((await harness.runtime.handleCommand({ type: 'session/abort', sessionId })).success).toBe(true);
+    expect(await waitForRunTerminal(harness, sessionId)).toBe('cancelled');
+  });
+
+  it('serves workflows and MCP status through the adapter session', async () => {
+    const workflow = { workflowId: 'wf_1', sessionId: 'unknown', title: 'Fixture workflow', status: 'running', reportAvailable: true };
+    const harness = await createHarness({
+      steps: [{ kind: 'mcp', servers: [{ name: 'fixture-mcp', transport: 'stdio', status: 'connected' }] }, { kind: 'text', text: 'done' }],
+      workflows: [workflow],
+      workflowReports: { wf_1: '# report' },
+    });
+    const sessionId = await createAgentSession(harness);
+    await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'go' } });
+    expect(await waitForRunTerminal(harness, sessionId)).toBe('completed');
+    const workflows = data(await harness.runtime.handleCommand({ type: 'agents/workflows', sessionId })) as {
+      workflows: Array<{ workflowId: string }>;
+    };
+    expect(workflows.workflows.map((entry) => entry.workflowId)).toContain('wf_1');
+    const report = data(await harness.runtime.handleCommand({
+      type: 'agents/workflow-report', sessionId, workflowId: 'wf_1',
+    })) as { text: string };
+    expect(report.text).toBe('# report');
+    const mcp = data(await harness.runtime.handleCommand({ type: 'agents/mcp-status', agentId: harness.agentId })) as {
+      servers: Array<{ name: string }>;
+    };
+    expect(mcp.servers.map((server) => server.name)).toContain('fixture-mcp');
+  });
+
+  it('syncs the adapter catalog and writes rename/delete through to it', async () => {
+    const harness = await createHarness({
+      catalog: [{ backendSessionId: 'vendor-1', title: 'Vendor session', cwd: '/tmp/vendor', lastChangeUnixMs: 1 }],
+    });
+    const synced = data(await harness.runtime.handleCommand({ type: 'agents/sessions-sync', agentId: harness.agentId })) as {
+      created: number;
+    };
+    expect(synced.created).toBe(1);
+    const imported = harness.pushes.find(
+      (push) => push.type === 'session/index-updated' && push.op === 'created',
+    );
+    expect(imported).toBeDefined();
+    const sessionId = imported !== undefined && imported.type === 'session/index-updated' ? imported.sessionId : '';
+    expect((await harness.runtime.handleCommand({ type: 'session/rename', sessionId, name: 'Renamed by user' })).success).toBe(true);
+    expect((await harness.runtime.handleCommand({ type: 'session/delete', sessionId, force: true })).success).toBe(true);
+    expect(data(await harness.runtime.handleCommand({ type: 'session/list' }))).toMatchObject({ sessions: [] });
+  });
+
+  it('refuses Pi-only commands for adapter sessions with a capability reason', async () => {
+    const harness = await createHarness({
+      steps: [{ kind: 'text', text: 'activated' }],
+      capabilities: {
+        agentId: FIXTURE_AGENT_ID,
+        operations: { fork: { supported: false, reason: 'fixture cannot fork' } },
+      },
+    });
+    const sessionId = await createAgentSession(harness);
+    // Before activation the Host has no adapter declaration, so it refuses with
+    // its own agent-agnostic reason rather than guessing.
+    const beforeActivation = await harness.runtime.handleCommand({ type: 'session/fork', sessionId, workspaceStrategy: 'shared' });
+    expect(beforeActivation.success).toBe(false);
+    expect(failure(beforeActivation)).toContain('External agent sessions cannot be forked');
+    await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'hi' } });
+    expect(await waitForRunTerminal(harness, sessionId)).toBe('completed');
+    // Once the adapter declared capabilities, its own reason wins.
+    const afterActivation = await harness.runtime.handleCommand({ type: 'session/fork', sessionId, workspaceStrategy: 'shared' });
+    expect(afterActivation.success).toBe(false);
+    expect(failure(afterActivation)).toContain('fixture cannot fork');
+  });
+
+  it('blocks new Runs while disabled and preserves history on uninstall', async () => {
+    const harness = await createHarness({ steps: [{ kind: 'text', text: 'first' }] });
+    const sessionId = await createAgentSession(harness);
+    await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'one' } });
+    expect(await waitForRunTerminal(harness, sessionId)).toBe('completed');
+    expect((await harness.runtime.handleCommand({
+      type: 'extensions/set_enabled', extensionId: harness.extensionId, enabled: false,
+    })).success).toBe(true);
+    const blocked = await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'two' } });
+    expect(blocked.success).toBe(false);
+    expect(failure(blocked)).toContain('agent-plugin-disabled');
+    const queued = await harness.runtime.handleCommand({
+      type: 'session/queued-turn-submit', sessionId, queuedTurnId: 'queued-1', userMessageId: 'message-1',
+      input: { text: 'queued' },
+    });
+    expect(queued.success).toBe(false);
+    expect(failure(queued)).toContain('agent-plugin-disabled');
+    const removed = data(await harness.runtime.handleCommand({
+      type: 'extensions/uninstall', extensionId: harness.extensionId, force: true,
+    })) as { state: string };
+    expect(removed.state).toBe('removed');
+    const history = await harness.runtime.handleCommand({ type: 'session/messages', sessionId });
+    expect(history.success).toBe(true);
+    expect(data(history)).toMatchObject({ messages: expect.any(Array) });
+  });
+
+  it('migrates an old binding only after an explicit compatible confirmation', async () => {
+    const harness = await createHarness({ steps: [{ kind: 'text', text: 'kept' }] }, FIXTURE_AGENT_ID, {
+      unversionedBindingCompatible: true,
+    });
+    const sessionId = await createAgentSession(harness);
+    await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'keep me' } });
+    expect(await waitForRunTerminal(harness, sessionId)).toBe('completed');
+    const before = data(await harness.runtime.handleCommand({ type: 'session/backend-get', sessionId })) as {
+      bindingReadiness: { state: string; revision?: string; targetRevision?: string };
+    };
+    expect(before.bindingReadiness.state).toBe('ready');
+    const indexPath = getPiwinSessionIndexPath(harness.rootDir);
+    const index = JSON.parse(await readFile(indexPath, 'utf8')) as {
+      sessions: Array<{ id: string; backend?: { pluginRevision?: string; backendSessionId?: string } }>;
+    };
+    const row = index.sessions.find((session) => session.id === sessionId);
+    const nativeId = row?.backend?.backendSessionId;
+    expect(nativeId).toEqual(expect.any(String));
+    if (row?.backend) delete row.backend.pluginRevision;
+    await writeFile(indexPath, JSON.stringify(index));
+    const stale = await harness.runtime.handleCommand({
+      type: 'agents/confirm-binding-migration', sessionId, expectedRevision: 'b'.repeat(64), targetRevision: 'c'.repeat(64),
+    });
+    expect(failure(stale)).toContain('agent-migration-stale');
+    const offered = data(await harness.runtime.handleCommand({ type: 'session/backend-get', sessionId })) as {
+      bindingReadiness: { state: string; expectedRevision: string | null; targetRevision: string; compatible: boolean };
+    };
+    expect(offered.bindingReadiness).toMatchObject({ state: 'migration-required', expectedRevision: null, compatible: true });
+    const migrated = data(await harness.runtime.handleCommand({
+      type: 'agents/confirm-binding-migration',
+      sessionId,
+      expectedRevision: null,
+      targetRevision: offered.bindingReadiness.targetRevision,
+    })) as { backendSessionId?: string; pluginRevision: string };
+    expect(migrated.backendSessionId).toBe(nativeId);
+    expect(migrated.pluginRevision).toBe(offered.bindingReadiness.targetRevision);
+    const after = data(await harness.runtime.handleCommand({ type: 'session/messages', sessionId })) as { messages: unknown[] };
+    expect(after.messages.length).toBeGreaterThan(0);
+  });
 });

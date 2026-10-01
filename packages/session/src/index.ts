@@ -352,3 +352,4 @@ export {
 export type { ToolOutputSnapshotInput } from './tool-output-snapshot.js';
 
 export { buildSessionTurnSummaries, countTranscriptWork, selectSessionTurnSummaries, sumWorkedIntervals } from './transcript-work-summary.js';
+export { listBackendWorkflowIds, readBackendWorkflowFile } from './backend-workflow-files.js';

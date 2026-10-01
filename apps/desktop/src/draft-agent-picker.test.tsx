@@ -80,6 +80,25 @@ describe('DraftAgentPicker', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('opens Agent settings when setup navigation is provided', () => {
+    const onOpenSettings = vi.fn();
+    render(
+      <DraftAgentPicker
+        value="pi"
+        options={GROK_NOT_READY}
+        onChange={vi.fn()}
+        onOpenSettings={onOpenSettings}
+      />,
+    );
+
+    const grok = radio('grok');
+    expect(grok?.disabled).toBe(false);
+    act(() => {
+      grok?.click();
+    });
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
   it('localizes the not-ready affordance', () => {
     render(
       <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>

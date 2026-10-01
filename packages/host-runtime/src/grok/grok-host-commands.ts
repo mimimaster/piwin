@@ -1,10 +1,14 @@
 /**
- * HostCommand handlers for ADR 0082 external agents. Runs ahead of the
- * domain chain so Grok sessions never fall through to Pi-only handlers, and
- * rename/delete write through to the Grok catalog.
+ * HostCommand handlers for ADR 0082 external agents. Runs ahead of the domain
+ * chain so adapter-backed sessions never fall through to Pi-only handlers, and
+ * rename/delete write through to the adapter catalog.
+ *
+ * Nothing here is keyed to a specific vendor: the agent id always comes from
+ * the session record or the command, and the adapter is resolved from the
+ * installed inventory.
  */
 
-import type { HostCommand, HostResponse } from '@piwin/contracts';
+import type { ExternalAgentStatus, HostCommand, HostResponse } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { getSessionRecord } from '@piwin/session';
 import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
@@ -12,15 +16,20 @@ import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
-import { GROK_AGENT_ID } from './grok-capabilities.js';
-import { createAgentPluginInventory, handleAgentPluginCommand, requireEnabledAgentPlugin } from './agent-plugin-inventory.js';
+import { handleExternalWorkflowCommand } from './grok-workflow-commands.js';
 import {
-  deleteGrokSessionEverywhere,
+  listExtensionBackends,
+  requireEnabledExtensionBackend,
+  verifyExtensionBackendArtifact,
+} from '../extension-session-backends.js';
+import {
+  confirmExternalBindingMigration,
+  deleteExternalSessionEverywhere,
   handleSessionBackendCommand,
-  isGrokRecord,
+  isExternalRecord,
   rejectUnsupportedExternalCommand,
-  renameGrokSession,
-  syncGrokCatalog,
+  renameExternalSession,
+  syncExternalAgentCatalog,
 } from './grok-session-router.js';
 
 export async function handleExternalAgentCommand(
@@ -28,45 +37,83 @@ export async function handleExternalAgentCommand(
   command: HostCommand,
   requestId: string | undefined,
 ): Promise<HostResponse | null> {
-  const pluginResponse = await handleAgentPluginCommand(deps, command, requestId);
-  if (pluginResponse !== null) return pluginResponse;
+  if (command.type === 'agents/confirm-binding-migration') {
+    return confirmExternalBindingMigration(deps, command, requestId);
+  }
+  const retired = retiredAgentInventoryGuidance(command, requestId);
+  if (retired !== null) return retired;
   switch (command.type) {
+    case 'agents/workflows':
+    case 'agents/workflow-report':
+      return handleExternalWorkflowCommand(deps, command, requestId);
     case 'agents/status': {
-      if (command.agentId !== undefined && command.agentId !== GROK_AGENT_ID) {
+      const installed = await listExtensionBackends(getPiwinRoot(deps.options.piwinRoot));
+      const wanted = command.agentId !== undefined
+        ? installed.filter((backend) => backend.declaration.id === command.agentId)
+        : installed;
+      if (command.agentId !== undefined && wanted.length === 0) {
         return fail(requestId, command.type, `unknown-agent: ${command.agentId}`);
       }
-      if (deps.grokBackend === undefined) {
+      if (deps.externalAgents === undefined || wanted.length === 0) {
         return ok(requestId, command.type, { agents: [] });
       }
-      const plugin = await createAgentPluginInventory(getPiwinRoot(deps.options.piwinRoot)).get(GROK_AGENT_ID);
-      if (plugin === undefined) return ok(requestId, command.type, { agents: [] });
-      if (!plugin.enabled) return ok(requestId, command.type, { agents: [{ agentId: plugin.agentId, state: 'unavailable', binaryPath: '', reason: 'Agent adapter disabled. Enable it before checking the CLI.', checkedAt: new Date().toISOString() }] });
-      const status = command.refresh === true
-        ? await deps.grokBackend.getStatus(true)
-        : deps.grokBackend.peekStatus();
-      return ok(requestId, command.type, { agents: [status ?? { agentId: plugin.agentId, state: 'unavailable', binaryPath: plugin.runtime.binaryPath ?? '', reason: 'CLI not checked. Choose Check again on the Host.', checkedAt: new Date().toISOString() }], installed: [plugin.agentId] });
+      const agents: ExternalAgentStatus[] = [];
+      for (const backend of wanted) {
+        const agentId = backend.declaration.id;
+        const checkedAt = new Date().toISOString();
+        if (!backend.enabled) {
+          agents.push({ agentId, state: 'unavailable', binaryPath: '', reason: 'Agent extension disabled. Enable it before checking the CLI.', checkedAt });
+          continue;
+        }
+        try {
+          await verifyExtensionBackendArtifact(backend);
+        } catch (error) {
+          agents.push({ agentId, state: 'unavailable', binaryPath: '', reason: formatError(error), checkedAt });
+          continue;
+        }
+        const status = command.refresh === true
+          ? await deps.externalAgents.getStatus(agentId, true)
+          : deps.externalAgents.peekStatus(agentId);
+        if (command.refresh === true && status !== undefined) {
+          deps.push({ type: 'agents/status-updated', status });
+        }
+        agents.push(status ?? {
+          agentId,
+          state: 'unavailable',
+          binaryPath: '',
+          reason: 'CLI not checked. Choose Check again on the Host.',
+          checkedAt,
+        });
+      }
+      return ok(requestId, command.type, { agents, installed: wanted.map((backend) => backend.declaration.id) });
     }
-    case 'agents/mcp-status':
-      if (command.agentId !== GROK_AGENT_ID) return fail(requestId, command.type, 'unknown-agent');
+    case 'agents/mcp-status': {
+      const installed = await listExtensionBackends(getPiwinRoot(deps.options.piwinRoot));
+      if (!installed.some((backend) => backend.declaration.id === command.agentId)) {
+        return fail(requestId, command.type, 'unknown-agent');
+      }
       return ok(requestId, command.type, {
         agentId: command.agentId,
-        ...(deps.grokBackend?.getMcpStatuses() ?? { servers: [], observed: false }),
+        ...(deps.externalAgents?.getMcpStatuses({ agentId: command.agentId }) ?? { servers: [], observed: false }),
       });
-    case 'agents/sessions-sync':
-      if (command.agentId !== GROK_AGENT_ID) {
+    }
+    case 'agents/sessions-sync': {
+      const installed = await listExtensionBackends(getPiwinRoot(deps.options.piwinRoot));
+      if (!installed.some((backend) => backend.declaration.id === command.agentId)) {
         return fail(requestId, command.type, `unknown-agent: ${command.agentId}`);
       }
-      return syncGrokCatalog(deps, requestId);
+      return syncExternalAgentCatalog(deps, command.agentId, requestId);
+    }
     case 'session/backend-get':
     case 'session/backend-set':
       return handleSessionBackendCommand(deps, command, requestId);
     case 'session/rename': {
       const record = await getSessionRecord(indexPathOf(deps), command.sessionId);
-      if (!isGrokRecord(record) || record === undefined) {
+      if (record === undefined || !isExternalRecord(record)) {
         return null;
       }
       try {
-        await renameGrokSession(deps, record, command.name);
+        await renameExternalSession(deps, record, command.name);
       } catch (error) {
         return fail(requestId, command.type, formatError(error));
       }
@@ -83,7 +130,7 @@ export async function handleExternalAgentCommand(
     }
     case 'session/delete': {
       const record = await getSessionRecord(indexPathOf(deps), command.sessionId);
-      if (!isGrokRecord(record) || record === undefined) {
+      if (record === undefined || !isExternalRecord(record)) {
         return null;
       }
       const liveRun = deps.runRegistry.getForegroundRun(command.sessionId);
@@ -96,9 +143,9 @@ export async function handleExternalAgentCommand(
         if (liveRun !== undefined) {
           await deps.abortLiveSession(command.sessionId);
         }
-        // Grok is the source of truth: delete there first. A product-side
+        // The adapter is the source of truth: delete there first. A product-side
         // failure afterwards is repaired by the next catalog sync.
-        await deleteGrokSessionEverywhere(deps, record);
+        await deleteExternalSessionEverywhere(deps, record);
         const deletion = await deps.deleteSessionForMaintenance(command.sessionId);
         deps.push(sessionIndexUpdatedPush({ op: 'deleted', sessionId: command.sessionId }));
         return ok(requestId, command.type, {
@@ -113,9 +160,12 @@ export async function handleExternalAgentCommand(
     default: {
       if (command.type === 'session/queued-turn-submit' || command.type === 'session/replace-run') {
         const record = await getSessionRecord(indexPathOf(deps), command.sessionId);
-        if (isGrokRecord(record)) {
-          try { await requireEnabledAgentPlugin(getPiwinRoot(deps.options.piwinRoot)); }
-          catch (error) { return fail(requestId, command.type, formatError(error)); }
+        if (record !== undefined && isExternalRecord(record) && record.backend !== undefined) {
+          try {
+            await requireEnabledExtensionBackend(getPiwinRoot(deps.options.piwinRoot), record.backend.agentId);
+          } catch (error) {
+            return fail(requestId, command.type, formatError(error));
+          }
         }
       }
       const sessionId = 'sessionId' in command ? command.sessionId : undefined;
@@ -130,4 +180,34 @@ export async function handleExternalAgentCommand(
 
 function indexPathOf(deps: HostRuntimeKernel): string {
   return getPiwinSessionIndexPath(getPiwinRoot(deps.options.piwinRoot));
+}
+
+/**
+ * Commands of the retired per-agent inventory.
+ *
+ * A session backend now installs as an ordinary piwin extension, so these are
+ * answered with guidance instead of acting as a second install path. Reads,
+ * readiness checks and session operations keep working through the extension
+ * registry above.
+ */
+const RETIRED_AGENT_INVENTORY_COMMANDS = new Set<HostCommand['type']>([
+  'agents/list',
+  'agents/install',
+  'agents/set-enabled',
+  'agents/uninstall',
+  'agents/select-runtime',
+]);
+
+function retiredAgentInventoryGuidance(
+  command: HostCommand,
+  requestId: string | undefined,
+): HostResponse | null {
+  if (!RETIRED_AGENT_INVENTORY_COMMANDS.has(command.type)) return null;
+  return fail(
+    requestId,
+    command.type,
+    'agents-inventory-retired: a session backend installs as a piwin extension. ' +
+      'Install it from the extension marketplace, then enable it in Settings → Extensions ' +
+      '(`extensions/set_enabled`).',
+  );
 }

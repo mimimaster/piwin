@@ -9,6 +9,7 @@ import type { ReactElement } from 'react';
 import type {
   OrchestrationMemberFallback,
   OrchestrationSchemeMember,
+  SubagentIsolationMode,
   ThinkingLevel,
 } from '@piwin/contracts';
 import { Button, Select, TextArea, TextInput } from '@piwin/ui-kit';
@@ -22,6 +23,8 @@ import {
 
 export type OrchestrationMemberCardProps = {
   member: OrchestrationSchemeMember;
+  isolationInheritance: boolean;
+  inheritedIsolation: SubagentIsolationMode | undefined;
   index: number;
   copy: OrchestrationCopy;
   modelOptions: readonly SchemeModelOption[];
@@ -140,7 +143,8 @@ export function OrchestrationMemberCard(props: OrchestrationMemberCardProps): Re
         <label className="orch-field">
           <span className="orch-field-label">{copy.schemeIsolation}</span>
           <Select
-            value={member.isolation ?? 'readonly'}
+            testId={`orchestration-member-isolation-${index}`}
+            value={member.isolation ?? (props.isolationInheritance ? '' : 'readonly')}
             disabled={saving}
             onChange={(event) => {
               const value = event.target.value;
@@ -149,6 +153,17 @@ export function OrchestrationMemberCard(props: OrchestrationMemberCardProps): Re
               });
             }}
           >
+            {props.isolationInheritance ? (
+              <option value="">
+                {copy.schemeIsolationInherit(
+                  props.inheritedIsolation === 'worktree'
+                    ? copy.schemeIsolationWorktree
+                    : props.inheritedIsolation === 'readonly'
+                      ? copy.schemeIsolationReadonly
+                      : undefined,
+                )}
+              </option>
+            ) : null}
             <option value="readonly">{copy.schemeIsolationReadonly}</option>
             <option value="worktree">{copy.schemeIsolationWorktree}</option>
           </Select>

@@ -914,6 +914,47 @@ describe('auto builtin', () => {
     expect(sidekick?.behavior?.lane).toBe('persistent');
   });
 
+  it('repairs old Auto overlays with pinned models without falling back to explorer', () => {
+    const overlay = {
+      ...BUILTIN_AUTO_SCHEME,
+      members: (BUILTIN_AUTO_SCHEME.members ?? []).map(({ inheritFrom, behavior, ...member }) => {
+        void inheritFrom;
+        void behavior;
+        return { ...member, model: pinned(`${member.role}-model`) };
+      }),
+    };
+    const resolved = resolveOrchestrationScheme(baseConfig({ schemes: [overlay] }), 'auto', known);
+    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'sidekick' })).toMatchObject({
+      profileId: 'implementer',
+      isolation: 'worktree',
+      model: pinned('sidekick-model'),
+      behavior: { lane: 'persistent' },
+    });
+    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'reviewer' })).toMatchObject({
+      profileId: 'reviewer',
+      isolation: 'readonly',
+      model: pinned('reviewer-model'),
+    });
+  });
+
+  it('preserves explicit profile and isolation overrides on repaired Auto members', () => {
+    const overlay = {
+      ...BUILTIN_AUTO_SCHEME,
+      members: (BUILTIN_AUTO_SCHEME.members ?? []).map(({ inheritFrom, ...member }) => {
+        void inheritFrom;
+        return member.role === 'sidekick'
+          ? { ...member, model: pinned('readonly-writer'), profileId: 'reviewer', isolation: 'readonly' as const }
+          : member;
+      }),
+    };
+    const resolved = resolveOrchestrationScheme(baseConfig({ schemes: [overlay] }), 'auto', known);
+    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'sidekick' })).toMatchObject({
+      profileId: 'reviewer',
+      isolation: 'readonly',
+      model: pinned('readonly-writer'),
+    });
+  });
+
   it('ignores behavior written by Settings on a custom scheme', () => {
     const custom = {
       id: 'my-lane',

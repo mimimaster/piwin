@@ -206,10 +206,30 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
       });
 
       // Send the prompt and wait for completion.
-      await Promise.race([
+      const outcome = await Promise.race([
         client.prompt(workerSessionId, input.preparedPrompt.text, promptOptions),
         abortPromise,
       ]);
+
+      if (outcome?.status === 'failed') {
+        return {
+          executionStatus: 'failed',
+          summaryStatus: 'not-requested',
+          integrationStatus: 'not-requested',
+          childSessionId,
+          error: outcome.failure.message,
+        };
+      }
+
+      if (outcome?.status === 'aborted') {
+        return {
+          executionStatus: 'cancelled',
+          summaryStatus: 'not-requested',
+          integrationStatus: 'not-requested',
+          childSessionId,
+          ...(outcome.message ? { error: outcome.message } : {}),
+        };
+      }
 
       // Determine integration status based on workspace lease.
       const integrationStatus = workspaceLease.mode === 'worktree' ? 'pending' : 'not-requested';

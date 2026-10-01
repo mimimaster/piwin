@@ -16,8 +16,8 @@ import {
   readTurnChangeModelNotice,
 } from './turn-changes/turn-change-model-notice.js';
 import { isConversationIndexRecord } from './session-scope.js';
-import { bindNewGrokSession, isGrokRecord } from './grok/grok-session-router.js';
-import { createGrokSessionCapabilities } from './grok/grok-capabilities.js';
+import { bindNewExternalSession, isExternalRecord } from './grok/grok-session-router.js';
+import { listExtensionBackends } from './extension-session-backends.js';
 import { sessionMcpOverrideKey } from './session-mcp-overrides.js';
 import { type SessionLiveContext } from './commands/session-live-commands.js';
 
@@ -96,14 +96,21 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
       );
       return record !== undefined && isConversationIndexRecord(record);
     },
-    bindExternalAgentSession: (sessionId, input) => bindNewGrokSession(deps, sessionId, input),
+    bindExternalAgentSession: (sessionId, agentId, input) =>
+      bindNewExternalSession(deps, sessionId, agentId, input),
+    resolveInstalledAgentIds: async () =>
+      (await listExtensionBackends(getPiwinRoot(deps.options.piwinRoot))).map(
+        (backend) => backend.declaration.id,
+      ),
     describeExternalBackend: (record) => {
-      if (!isGrokRecord(record)) {
+      if (!isExternalRecord(record) || record.backend === undefined) {
         return undefined;
       }
-      const options = deps.grokBackend?.getSessionOptions(record.id);
+      const capabilities = deps.externalAgents?.getSessionCapabilities(record.id);
+      const options = deps.externalAgents?.getSessionOptions(record.id);
+      if (capabilities === undefined && options === undefined) return undefined;
       return {
-        capabilities: createGrokSessionCapabilities(),
+        ...(capabilities !== undefined ? { capabilities } : {}),
         ...(options !== undefined ? { options } : {}),
       };
     },

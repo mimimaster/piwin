@@ -32,7 +32,10 @@ export type UseWorkbenchCommandsArgs = {
   dispatchNotification: Dispatch<NotificationAction>;
   onThemeApplied: (theme: ThemeManifest) => void;
   shell: ShellCommands;
-  handleStartNewSession: () => void | Promise<void>;
+  handleStartNewSession: (options?: {
+    scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+    agentId?: string;
+  }) => void | Promise<void>;
   handleOpenWorkspaceClick: () => void | Promise<void>;
   handleAbort: () => void | Promise<void>;
   openSessionSearch: () => void;
@@ -151,11 +154,19 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
     [setDesktopLocale],
   );
 
+  const startBackendSession = useCallback(
+    (agentId: string): void => {
+      void handleStartNewSession({ agentId });
+    },
+    [handleStartNewSession],
+  );
+
   return {
     handleToggleAppearance,
     openRightTab,
     openSettingsSection,
     handleDesktopCommand,
     handleLocaleChange,
+    startBackendSession,
   };
 }

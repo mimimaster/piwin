@@ -892,7 +892,7 @@ describe('buildSidebarTreeRows', () => {
     expect(kinds(searching)).toContain('session:history');
   });
 
-  it('keeps a removed registered worktree inside its remembered repository group', () => {
+  it('keeps removed worktree history outside the active repository group', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [
         { path: '/repo', gitRepositoryId: 'repo1', gitRootPath: '/repo',
@@ -910,9 +910,9 @@ describe('buildSidebarTreeRows', () => {
       sessionListScopes: createSessionListScopeState(),
     });
     expect(kinds(rows)).toEqual(expect.arrayContaining([
-      'repo:repo', 'folder:/removed:false', 'session:history',
+      'folder:/repo:true', 'unavailable-group', 'folder:/removed:false', 'session:history',
     ]));
-    expect(kinds(rows)).not.toContain('unavailable-group');
+    expect(kinds(rows)).not.toContain('repo:repo');
   });
 
   it('nests a subdirectory project under its parent instead of a sibling worktree group', () => {

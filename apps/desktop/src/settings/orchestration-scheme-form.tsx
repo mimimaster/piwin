@@ -10,6 +10,10 @@ import { useState, type ReactElement } from 'react';
 import {
   DEFAULT_ORCHESTRATION_ROLE_TEMPLATES,
   ULTRA_CODE_SCHEME_ID,
+  OrchestrationSchemeError,
+  resolveOrchestrationScheme,
+  type OrchestrationScheme,
+  type ResolvedOrchestrationMember,
   type OrchestrationSchemeSettings,
   type ThinkingLevel,
 } from '@piwin/contracts';
@@ -28,6 +32,7 @@ import {
 
 export type OrchestrationSchemeFormProps = {
   draft: OrchestrationSchemeSettings;
+  schemes: readonly OrchestrationScheme[];
   /** True when this draft has no saved counterpart yet. */
   isNew: boolean;
   /** Source pill shown next to the title (bundled / modified / custom). */
@@ -49,6 +54,25 @@ export function OrchestrationSchemeForm(props: OrchestrationSchemeFormProps): Re
   const members = draft.members ?? [];
   const isBuiltinId = draft.id === ULTRA_CODE_SCHEME_ID;
   const idLocked = saving || isBuiltinId || props.idLocked;
+  let inheritedMembers: readonly ResolvedOrchestrationMember[] = [];
+  let inheritanceError: string | undefined;
+  try {
+    // Resolve only for display; never copy inherited fields into the saved draft.
+    // Clear overrides here so the inherit option describes what resetting does.
+    const inheritedDraft = {
+      ...draft,
+      members: members.map(({ isolation, ...member }) => {
+        void isolation;
+        return member;
+      }),
+    };
+    inheritedMembers = resolveOrchestrationScheme({
+      schemes: [...props.schemes.filter((scheme) => scheme.id !== draft.id), inheritedDraft],
+    }, draft.id)?.members ?? [];
+  } catch (error) {
+    if (!(error instanceof OrchestrationSchemeError)) throw error;
+    inheritanceError = error.message;
+  }
 
   function patch(next: Partial<OrchestrationSchemeSettings>): void {
     props.onChange({ ...draft, ...next });
@@ -79,7 +103,9 @@ export function OrchestrationSchemeForm(props: OrchestrationSchemeFormProps): Re
         <code className="orch-detail-id">{draft.id}</code>
       </header>
 
-      {props.error ? <Notice tone="error">{props.error}</Notice> : null}
+      {props.error || inheritanceError ? (
+        <Notice tone="error">{props.error || inheritanceError}</Notice>
+      ) : null}
       {isBuiltinId ? <Notice tone="info">{copy.schemeCheapModelHint}</Notice> : null}
 
       <div className="orch-form-section">
@@ -174,6 +200,8 @@ export function OrchestrationSchemeForm(props: OrchestrationSchemeFormProps): Re
             <OrchestrationMemberCard
               key={`member-${index}`}
               member={member}
+              isolationInheritance={Boolean(member.inheritFrom || inheritedMembers[index]?.inheritedFrom)}
+              inheritedIsolation={inheritedMembers[index]?.isolation}
               index={index}
               copy={copy}
               modelOptions={modelOptions}

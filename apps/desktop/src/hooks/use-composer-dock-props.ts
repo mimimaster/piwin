@@ -135,8 +135,12 @@ export type UseComposerDockPropsArgs = {
   /** ADR 0082: agent choices for an unsent new-session draft. */
   draftAgentOptions: readonly import('../composer-dock-types.js').ComposerDraftAgentOption[];
   /** ADR 0082: selected agent for the draft ('pi' unless the user switched). */
-  draftAgentId: 'pi' | 'grok';
-  onDraftAgentChange: (agentId: 'pi' | 'grok') => void;
+  draftAgentId: string;
+  onDraftAgentChange: (agentId: string) => void;
+  onStartNewSession?: ((options?: {
+    scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+    agentId?: string;
+  }) => void | Promise<void>) | undefined;
   /** ADR 0082: per-operation capability gate for the active session. */
   capabilities: import('./use-session-capabilities.js').SessionCapabilityGate;
   speechConfigured: boolean;
@@ -234,6 +238,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     draftAgentOptions,
     draftAgentId,
     onDraftAgentChange,
+    onStartNewSession,
     capabilities,
     speechConfigured,
     speechRequest,
@@ -549,6 +554,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       draftAgentId: draftAgentId ?? 'pi',
       draftAgentOptions,
       onDraftAgentChange,
+      onOpenAgentSettings: () => openSettingsSection('agent-backends'),
+      ...(onStartNewSession ? { onStartNewSession } : {}),
       capabilities,
       ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
       onAbort: handleComposerAbort,

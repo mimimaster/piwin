@@ -121,6 +121,15 @@ its own sessions; it does not move sessions from another checkout. Repository
 groups and the unavailable-workspace group can be collapsed independently;
 search expands them to show matches.
 
+**Sidebar cleanup (2026-10-02):** Removed workspaces live only in the separate,
+initially collapsed unavailable group; they never count as active repository
+worktrees. Host-owned subagent copies and reusable writer slots are omitted
+from both remembered project listings and discovered worktrees, including slots
+registered by older shells or stored under another Host root. Historical
+project/session records remain on disk until explicitly removed. A merged user
+worktree is cleaned up after checking its commits and unsaved changes; merging
+alone does not authorize automatic deletion of a user checkout.
+
 ### 4.1.1 Conversation multi-pane workspace (P1)
 
 | ID | Requirement | Priority |

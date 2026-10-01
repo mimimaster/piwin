@@ -829,3 +829,113 @@
 .agent-backends-next {
   color: var(--text-3);
 }
+
+.agent-backends-state--disabled {
+  color: var(--text-4);
+  background: var(--hover);
+}
+
+/* Grok Build modern settings card */
+.grok-backend-card {
+  margin-top: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  background: var(--card-bg, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-card, 8px);
+}
+
+.grok-backend-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.grok-backend-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.grok-backend-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-title, 14px);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.grok-backend-card-description {
+  margin: 0;
+  font-size: var(--fs-meta, 12px);
+  color: var(--text-3);
+}
+
+.grok-backend-card-body {
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.grok-backend-details-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  font-size: var(--fs-meta, 13px);
+  color: var(--text-2);
+}
+
+.grok-backend-field-label {
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.grok-backend-field-value {
+  color: var(--text-1);
+}
+
+.grok-backend-advanced-section {
+  margin-top: var(--s-2);
+}
+
+.grok-backend-advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-meta, 12px);
+  color: var(--text-3);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.grok-backend-advanced-toggle:hover {
+  color: var(--text-1);
+}
+
+.grok-backend-advanced-panel {
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--void);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-control, 6px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.grok-backend-path-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-2);
+}
+
+.grok-backend-path-form > div:first-child {
+  flex: 1;
+}
+

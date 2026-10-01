@@ -1,6 +1,11 @@
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import type { ProjectRecord, ProjectWorktreeListing } from '@piwin/contracts';
+import {
+  isWriterSlotBranch,
+  isWriterSlotWorktreePath,
+  type ProjectRecord,
+  type ProjectWorktreeListing,
+} from '@piwin/contracts';
 import { listGitWorktrees } from '@piwin/git';
 
 const SIDEBAR_WORKTREE_BUDGET_MS = 2_500;
@@ -39,7 +44,17 @@ export async function listProjectSidebarWorktrees(
   });
   let pending = false;
   try {
-    const availability = await Promise.all(projects.map(async (project) => {
+    // Old shells could register internal copies as projects. Omit those records
+    // from the sidebar inventory so a reusable writer slot is never offered as
+    // a user workspace, even when it lives under another Host root.
+    const visibleProjects = projects.filter((project) =>
+      !isInside(internalWorktreeRoot, path.resolve(project.path)) &&
+      !isInside(internalWorktreeRoot, path.resolve(project.gitRootPath ?? project.path)) &&
+      !isWriterSlotWorktreePath(project.path) &&
+      !isWriterSlotWorktreePath(project.gitRootPath ?? project.path) &&
+      !isWriterSlotBranch(project.currentBranch),
+    );
+    const availability = await Promise.all(visibleProjects.map(async (project) => {
       const missing = await Promise.race([isMissingProjectPath(project.path), budget]);
       if (missing === timedOut) {
         pending = true;
@@ -62,7 +77,7 @@ export async function listProjectSidebarWorktrees(
         const listed = await Promise.race([
           listGitWorktrees({ rootPath, isRepository: true })
             .then((inventory) => Promise.all(inventory.worktrees.map(async (worktree) => {
-              if (!worktree.reachable) return null;
+              if (!worktree.reachable || isWriterSlotBranch(worktree.branch)) return null;
               const worktreePath = await realpath(worktree.worktreePath)
                 .catch(() => worktree.worktreePath);
               if (isInside(internalWorktreeRoot, worktreePath)) return null;

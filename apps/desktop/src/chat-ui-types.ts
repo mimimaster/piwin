@@ -546,8 +546,8 @@ export type ChatUiState = {
   backendOptionsBySession: Record<string, SessionBackendOptions>;
   /** ADR 0082: Discovered external agent states (Grok Build, etc.). */
   externalAgents: ExternalAgentStatus[];
-  /** ADR 0082: Selected agent backend for unsent New Agent draft ('pi' | 'grok'). */
-  draftAgentId?: 'pi' | 'grok';
+  /** Selected agent backend for an unsent draft. Absent or `pi` means the built-in agent. */
+  draftAgentId?: string;
 };
 
 export type ChatUiAction =
@@ -796,4 +796,4 @@ export type ChatUiAction =
   | { type: 'session/backend-updated'; sessionId: string; options: SessionBackendOptions }
   | { type: 'agents/status-updated'; status: ExternalAgentStatus }
   | { type: 'agents/set-all'; agents: ExternalAgentStatus[] }
-  | { type: 'draft/set-agent'; agentId: 'pi' | 'grok' };
+  | { type: 'draft/set-agent'; agentId: string };

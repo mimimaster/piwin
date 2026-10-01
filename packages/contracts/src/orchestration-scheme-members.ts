@@ -237,7 +237,7 @@ export function applyBuiltinMemberRecipe(
 /**
  * Expand `inheritFrom` members against the referenced scheme (after its
  * Settings overlay). A builtin overlay that dropped `inheritFrom` gets it back
- * from the builtin recipe unless the overlay pinned its own model.
+ * from the builtin recipe. Pinning one field must not sever the other defaults.
  */
 export function expandInheritedMembers(
   schemeId: string,
@@ -245,9 +245,7 @@ export function expandInheritedMembers(
   schemes: readonly OrchestrationScheme[],
 ): OrchestrationSchemeMember[] {
   return members.map((member) => {
-    const recipeRef = member.model
-      ? undefined
-      : findBuiltinMemberRecipe(schemeId, member.role)?.inheritFrom;
+    const recipeRef = findBuiltinMemberRecipe(schemeId, member.role)?.inheritFrom;
     const ref = member.inheritFrom ?? recipeRef;
     if (!ref) return member;
     if (ref.schemeId === schemeId) {

@@ -1,31 +1,29 @@
 /**
- * CLI helpers for external agents (ADR 0082). `piwin chat --agent grok`
- * runs one turn on Grok Build through the local Host.
+ * CLI helpers for extension session backends. `piwin chat --agent <id>`
+ * starts a session on an enabled extension backend. `pi` is the built-in agent.
  *
  * Documented CLI degradation: one-shot `chat` has no interactive approval
- * surface. When Grok asks (its own permission mode decides whether it
- * does), the CLI prints Grok's options and answers with Grok's reject
- * option, so nothing is ever approved silently. Configure Grok with
- * `/always-approve on` or run interactive sessions in Desktop for approvals.
+ * surface. When a backend asks, the CLI prints its options and answers with
+ * the reject option, so nothing is ever approved silently.
  */
 
 import type { HostCommand, HostPush, HostResponse } from '@piwin/contracts';
 
-export type CliAgentId = 'pi' | 'grok';
+const AGENT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
-export function parseCliAgent(argv: readonly string[]): CliAgentId | { error: string } {
+export function parseCliAgent(argv: readonly string[]): string | { error: string } {
   const index = argv.indexOf('--agent');
   if (index === -1) {
     return 'pi';
   }
-  const value = argv[index + 1]?.trim();
-  if (value === 'pi' || value === 'grok') {
-    return value;
+  const value = argv[index + 1]?.trim() ?? '';
+  if (!AGENT_ID.test(value)) {
+    return { error: `--agent must be pi or a lowercase backend id (got ${value || 'nothing'})` };
   }
-  return { error: `--agent must be pi or grok (got ${value ?? 'nothing'})` };
+  return value;
 }
 
-/** Print a Grok permission request and settle it with Grok's reject option. */
+/** Print a backend permission request and settle it with the reject option. */
 export function createCliBackendPermissionResponder(
   request: (command: HostCommand) => Promise<HostResponse>,
   write: (line: string) => void = (line) => {

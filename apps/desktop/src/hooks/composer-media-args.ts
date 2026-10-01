@@ -54,6 +54,10 @@ export type UseComposerMediaArgs = {
     disabledServerIds: readonly string[];
     clearDraft: () => void;
   };
+  /** External agent backend model selection on draft, carried into session/create. */
+  draftBackendModelId?: string | undefined;
+  /** External agent backend reasoning effort on draft, carried into session/create. */
+  draftBackendEffortId?: string | undefined;
   /** When Send has no workspace, open the workspace picker (keep draft text). */
   onNeedWorkspace?: () => void | Promise<void>;
   /** Built-in No Repo root; first send must not require a trust dialog. */

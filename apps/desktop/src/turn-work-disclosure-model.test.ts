@@ -927,6 +927,34 @@ describe('projectTurnWorkDisclosure', () => {
     ).toBeNull();
   });
 
+  it('does not ignore an empty assistant row that carries structured failure', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Scout codebase' }),
+      message('assistant-failed', {
+        role: 'assistant',
+        text: '',
+        status: 'done',
+        runId: 'run-1',
+        failure: {
+          code: 'provider-quota',
+          origin: 'provider',
+          message: '402: Insufficient Balance',
+          retriable: false,
+          httpStatus: 402,
+        },
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
+    ).toBeNull();
+  });
+
   it('still folds a very long settled chain that had a failed step part-way', () => {
     // A history window can cut a long turn short, and long unattended runs
     // often stumble once or twice: 700 flat tool rows mounted ~14k DOM nodes.
@@ -1268,22 +1296,85 @@ describe('projectTurnWorkDisclosure', () => {
       expect(settled).toMatchObject({ startIndex: 1, endIndex: 3, failureCount: 0 });
     });
 
-    it('still blocks the fold on a real error from a run that did not pause', () => {
+    it('keeps the live fold when an earlier run failed but a new run is actively working', () => {
+      const projection = projectTurnWorkDisclosure({
+        turn: turn([
+          ...pausedRows.slice(0, 2),
+          message('w2', { runId: 'run-1', error: 'boom', tools: [tool('t2', 'run-1')] }),
+          message('r1', { runId: 'run-2', status: 'streaming', tools: [tool('t3', 'run-2', 'running')] }),
+        ]),
+        runRecordsById: {
+          'run-1': completedRun({ outcome: 'failed' }),
+          'run-2': { runId: 'run-2', phaseHistory: [], startedAt: 600_000, endedAt: null },
+        },
+        activeRunId: 'run-2',
+        currentTurnStreaming: true,
+      });
+      expect(projection).toMatchObject({
+        startIndex: 1,
+        endIndex: 3,
+        live: true,
+        failureCount: 1,
+        runningToolIndex: 3,
+      });
+    });
+
+    it('blocks the live fold when the current active run itself encounters an assistant error', () => {
       expect(
         projectTurnWorkDisclosure({
           turn: turn([
             ...pausedRows.slice(0, 2),
-            message('w2', { runId: 'run-1', error: 'boom', tools: [tool('t2', 'run-1')] }),
-            message('r1', { runId: 'run-2', status: 'streaming', tools: [tool('t3', 'run-2', 'running')] }),
+            message('r1', {
+              runId: 'run-2',
+              status: 'error',
+              error: 'provider 404',
+              tools: [tool('t3', 'run-2')],
+            }),
           ]),
           runRecordsById: {
-            'run-1': completedRun({ outcome: 'failed' }),
+            'run-1': pausedRun,
             'run-2': { runId: 'run-2', phaseHistory: [], startedAt: 600_000, endedAt: null },
           },
           activeRunId: 'run-2',
           currentTurnStreaming: true,
         }),
       ).toBeNull();
+    });
+
+    it('keeps live fold when pausing, failing an intermediate model switch attempt, and resuming with a new model', () => {
+      const projection = projectTurnWorkDisclosure({
+        turn: turn([
+          ...pausedRows, // run-1: paused
+          message('attempt-fail', {
+            runId: 'run-2-fail',
+            status: 'error',
+            error: '404: model not supported',
+            failure: {
+              code: 'provider-http-error',
+              origin: 'provider',
+              message: '404: model not supported',
+              retriable: false,
+              httpStatus: 404,
+            },
+          }),
+          message('r1', { runId: 'run-3', tools: [tool('t3', 'run-3')] }),
+          message('r2', { runId: 'run-3', status: 'streaming', tools: [tool('t4', 'run-3', 'running')] }),
+        ]),
+        runRecordsById: {
+          'run-1': pausedRun,
+          'run-2-fail': completedRun({ outcome: 'failed' }),
+          'run-3': { runId: 'run-3', phaseHistory: [], startedAt: 700_000, endedAt: null },
+        },
+        activeRunId: 'run-3',
+        currentTurnStreaming: true,
+      });
+      expect(projection).toMatchObject({
+        startIndex: 1,
+        endIndex: 5,
+        live: true,
+        failureCount: 1,
+        runningToolIndex: 4,
+      });
     });
   });
 });

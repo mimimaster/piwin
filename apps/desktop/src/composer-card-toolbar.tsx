@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react';
 import { IconButton } from '@piwin/ui-kit';
 import { ComposerPlusMenu } from './composer-plus-menu';
-import { DraftAgentPicker } from './draft-agent-picker';
 import { BackendComposerControls } from './backend-composer-controls';
 import { agentDisplayName } from './agent-backend-state';
 import { GoalModeChip } from './goal';
@@ -80,11 +79,19 @@ export function ComposerCardToolbar({
   const imageDisabledReason = imagesSupported
     ? undefined
     : props.capabilities?.unsupportedReason('images');
-  // The draft picker only appears when a second agent actually exists;
-  // a Pi-only install keeps today's composer unchanged (spec §2).
-  const draftAgentOptions = props.draftAgentOptions ?? [];
-  const showDraftAgentPicker =
-    draftAgentOptions.length > 1 && props.activeSessionId === null && props.embedded !== true;
+  // A Pi-only Host keeps today's composer. The switcher appears only after
+  // the Host reports a second agent; it is not a hardcoded Grok stub.
+  const agentOptions = props.draftAgentOptions ?? [];
+  const currentAgentId =
+    backendOptions?.agentId !== undefined && backendOptions.agentId !== 'pi'
+      ? backendOptions.agentId
+      : props.activeSessionId === null
+        ? (props.draftAgentId ?? 'pi')
+        : 'pi';
+  const isExternalActive = currentAgentId !== 'pi';
+  const externalLabel =
+    agentOptions.find((option) => option.agentId === currentAgentId)?.label ??
+    agentDisplayName(currentAgentId);
   return (
     <div className="bar composer-v2-toolbar">
       <div className="composer-v2-toolbar-left">
@@ -132,15 +139,42 @@ export function ComposerCardToolbar({
         )}
 
         {/* Thinking effort / Model control */}
-        {showBackendControls ? (
-          <BackendComposerControls
-            options={backendOptions}
-            agentLabel={agentDisplayName(backendOptions.agentId)}
-            disabled={isStreamingRun || !props.onBackendModelChange}
-            onSelectModel={(modelId) => props.onBackendModelChange?.(modelId)}
-            onSelectEffort={(effortId) => props.onBackendEffortChange?.(effortId)}
-            onSelectMode={(modeId) => props.onBackendModeChange?.(modeId)}
-          />
+        {isExternalActive ? (
+          showBackendControls ? (
+            <BackendComposerControls
+              options={backendOptions}
+              agentLabel={agentDisplayName(backendOptions.agentId)}
+              hideModes={true}
+              disabled={isStreamingRun || !props.onBackendModelChange}
+              onSelectModel={(modelId) => props.onBackendModelChange?.(modelId)}
+              onSelectEffort={(effortId) => props.onBackendEffortChange?.(effortId)}
+              onSelectMode={(modeId) => props.onBackendModeChange?.(modeId)}
+            />
+          ) : (
+            <div
+              className="thinking-effort-control backend-composer-control"
+              title={
+                locale === 'zh-CN'
+                  ? `${externalLabel} 会话（模型目录到达前使用 CLI 默认模型）`
+                  : `${externalLabel} session (CLI default model until the catalog arrives)`
+              }
+            >
+              <button
+                type="button"
+                className="thinking-effort-trigger"
+                disabled={true}
+                data-testid="backend-controls-draft-trigger"
+              >
+                <span className="backend-composer-agent">{externalLabel}</span>
+                <span className="thinking-effort-sep" aria-hidden>
+                  ·
+                </span>
+                <span className="thinking-effort-model">
+                  {locale === 'zh-CN' ? 'CLI 默认模型' : 'Default model'}
+                </span>
+              </button>
+            </div>
+          )
         ) : (
           <ThinkingEffortControl
             disabled={isStreamingRun || !props.onThinkingLevelChange}
@@ -153,15 +187,6 @@ export function ComposerCardToolbar({
             onSelectModel={props.onSelectModel}
           />
         )}
-
-        {showDraftAgentPicker ? (
-          <DraftAgentPicker
-            value={props.draftAgentId ?? 'pi'}
-            options={draftAgentOptions}
-            disabled={isStreamingRun}
-            onChange={(agentId) => props.onDraftAgentChange?.(agentId)}
-          />
-        ) : null}
 
         {props.embedded === true || props.liveSupported === false ? null : (
           <LiveComposerButton
@@ -179,8 +204,8 @@ export function ComposerCardToolbar({
       </div>
 
       <div className="composer-v2-toolbar-right">
-        {/* Run Mode pill (ADR 0024) */}
-        {props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
+        {/* Grok keeps the CLI's own permission behavior; do not offer piwin run modes. */}
+        {!isExternalActive && props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
           <RunModeControl
             disabled={isStreamingRun}
             value={props.runModePreset}
@@ -193,9 +218,9 @@ export function ComposerCardToolbar({
           />
         ) : null}
 
-        {/* Always visible: scheme is a mode picker, not a feature switch.
-              Default `off` = freehand (no injection); Ultra Code etc. inject on send. */}
-        {props.isConversationSession !== true &&
+        {/* An external backend owns its own session; Pi schemes do not apply. */}
+        {!isExternalActive &&
+        props.isConversationSession !== true &&
         props.onOrchestrationSchemeChange &&
         props.orchestrationSchemeOptions ? (
           <OrchestrationSchemeControl
@@ -277,8 +302,10 @@ export function ComposerCardToolbar({
           onSend={triggerSend}
           onPause={props.onPause}
           pauseSupported={pauseSupported}
-          {...(props.embedded === true ? { embedded: true, onAbort: props.onAbort } : {})}
-          {...(props.stopOnly === true ? { stopOnly: true, onAbort: props.onAbort } : {})}
+          // Backends without pause checkpoints use Stop in the normal layout too.
+          onAbort={props.onAbort}
+          {...(props.embedded === true ? { embedded: true } : {})}
+          {...(props.stopOnly === true ? { stopOnly: true } : {})}
           {...(resumeHandler ? { onResume: resumeHandler } : {})}
           {...(props.mutationsEnabled === undefined && !reservedCommand
             ? {}

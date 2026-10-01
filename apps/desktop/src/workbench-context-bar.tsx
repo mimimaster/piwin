@@ -96,6 +96,22 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
   } = props;
   const desktopCopy = getDesktopCopy(locale);
   const activeSessionId = state.activeSessionId;
+  const activeSession = activeSessionId
+    ? (state.sessions.find((s) => s.id === activeSessionId) ??
+       state.generalSessions.find((s) => s.id === activeSessionId))
+    : null;
+  const externalAgentId =
+    activeSession?.backend?.agentId !== undefined && activeSession.backend.agentId !== 'pi'
+      ? activeSession.backend.agentId
+      : activeSessionId === null && state.draftAgentId !== undefined && state.draftAgentId !== 'pi'
+        ? state.draftAgentId
+        : undefined;
+  const isExternalSession = externalAgentId !== undefined;
+  const scopeLabel = resolveWorkbenchScopeLabel({
+    isGeneral: state.activeScope.kind === 'general',
+    locale,
+    generalCopy: desktopCopy.general,
+  });
 
   const subPageTitle =
     shell.activeSubPage === 'library' ||
@@ -122,11 +138,7 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
               : null,
             sessionName: activeSessionName,
           }),
-        scopeLabel: resolveWorkbenchScopeLabel({
-          isGeneral: state.activeScope.kind === 'general',
-          locale,
-          generalCopy: desktopCopy.general,
-        }),
+        scopeLabel: isExternalSession ? `${externalAgentId} · ${scopeLabel}` : scopeLabel,
       }}
       {...(activeSessionId && !subPageTitle
         ? {
@@ -164,7 +176,7 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
             },
           }
         : {})}
-      permissionMode={effectiveRunMode}
+      permissionMode={isExternalSession ? null : effectiveRunMode}
       onOpenPermissions={() => openSettingsSection('permissions')}
       locale={locale}
       appearanceMode={appearanceMode}

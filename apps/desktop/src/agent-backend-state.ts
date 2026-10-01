@@ -17,14 +17,16 @@ import type {
  */
 export const AGENT_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   pi: 'Pi',
-  grok: 'Grok Build',
 };
 
-export function agentDisplayName(agentId: string | undefined | null): string {
+export function agentDisplayName(
+  agentId: string | undefined | null,
+  names?: Readonly<Record<string, string>>,
+): string {
   if (agentId === undefined || agentId === null || agentId === '') {
     return AGENT_DISPLAY_NAMES['pi'] ?? 'Pi';
   }
-  return AGENT_DISPLAY_NAMES[agentId] ?? agentId;
+  return names?.[agentId] ?? AGENT_DISPLAY_NAMES[agentId] ?? agentId;
 }
 
 /**

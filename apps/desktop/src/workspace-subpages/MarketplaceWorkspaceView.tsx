@@ -15,6 +15,7 @@ import type {
   MarketplaceInstalledItem,
 } from '@piwin/contracts';
 import { Button, ConfirmDialog, EmptyState, Notice } from '@piwin/ui-kit';
+import { useConfirmDialog } from '../use-confirm-dialog';
 import type { DesktopLocale } from '../desktop-locale.js';
 import { IconExtension } from '../shell-icons.js';
 import { StudioTopbar } from './studio/studio-chrome.js';
@@ -82,12 +83,21 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     sessionId: props.sessionId,
     subscribeHostMessages: props.subscribeHostMessages,
   });
+  const migrationConfirm = useConfirmDialog();
   const actions = useMarketplaceActions({
     locale: props.locale,
     sessionId: props.sessionId,
     request: props.request,
     refreshInventory: data.refreshInventory,
     showToast,
+    confirmMigration: (entryName) => migrationConfirm.confirm({
+      title: props.locale === 'zh-CN' ? `替换 ${entryName} 的代码修订？` : `Replace the installed revision of ${entryName}?`,
+      description: props.locale === 'zh-CN'
+        ? '已有会话保留历史和原生会话 id，在逐个确认之前不会改用新代码。'
+        : 'Existing sessions keep their history and native session id. They do not run the new code until each migration is confirmed.',
+      confirmLabel: props.locale === 'zh-CN' ? '替换修订' : 'Replace revision',
+      cancelLabel: props.locale === 'zh-CN' ? '取消' : 'Cancel',
+    }),
   });
   const packageInstall = useMarketplacePackageInstall({
     locale: props.locale,
@@ -500,6 +510,7 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
         }}
         testId="marketplace-remove-confirm"
       />
+      {migrationConfirm.dialog}
     </div>
   );
 }

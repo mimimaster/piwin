@@ -26,6 +26,7 @@ import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
 import { RunStatusFooter } from './run-status-footer.js';
 import { TranscriptSelectionToolbar } from './transcript-selection-toolbar.js';
 import { renderChatTurn } from './chat-turn-renderer.js';
+import { BackendWorkflows } from './backend-workflows.js';
 
 export type { ChatThreadProps } from './chat-thread-types.js';
 import type { ChatThreadProps } from './chat-thread-types.js';
@@ -269,6 +270,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           ) : null}
         </section>
       ) : null}
+      {props.sessionId && props.workflowRequest ? <BackendWorkflows sessionId={props.sessionId} request={props.workflowRequest} locale={props.locale ?? 'zh-CN'} /> : null}
       <TranscriptSelectionToolbar
         containerRef={threadRef}
         projectPath={props.projectPath}

@@ -22,6 +22,19 @@ export type SaveMediaInput = {
   source: 'paste' | 'drop' | 'file-picker' | 'generated';
 };
 
+/** Host-only import of a backend output; sourceRoot comes from trusted session identity. */
+export type ImportGeneratedMediaInput = {
+  sessionId: string;
+  sourcePath: string;
+  sourceRoot: string;
+  /** Stable backend/session/file identity; replay must reuse the same vault asset. */
+  importKey: string;
+  kind: 'image' | 'video';
+  createdAt?: string;
+  prompt?: string;
+  model?: string;
+};
+
 /**
  * Raw bytes per `media/save-chunk`. Base64 expands ~4/3; keep the encoded
  * command under `HOST_WIRE_HARD_FRAME_BYTES` (1 MiB) with envelope headroom.

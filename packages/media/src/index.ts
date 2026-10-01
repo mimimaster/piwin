@@ -52,6 +52,7 @@ export type {
 export { cloneSessionMedia, cleanupFailedMediaClone } from './clone-session-media.js';
 export type { CloneSessionMediaOptions, CloneSessionMediaResult } from './clone-session-media.js';
 export { listMediaLibrary, writeMediaLibraryMeta } from './media-library.js';
+export { importGeneratedMediaAsset } from './generated-media-import.js';
 export type { ListMediaLibraryOptions } from './media-library.js';
 export {
   attachLibraryThumbs,

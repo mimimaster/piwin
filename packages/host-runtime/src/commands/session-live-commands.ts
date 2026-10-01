@@ -121,7 +121,7 @@ import {
   scopeFromIndexRecord,
   workingDirectoryFromIndexRecord,
 } from '../session-scope.js';
-import { bindOrphanGeneratedMediaToStore } from '../bind-orphan-generated-media.js';
+import { bindGeneratedMediaToStore } from '../grok/grok-generated-media-transcript.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { settleOrphanStreamingMessages } from '../transcript-stream-settler.js';
 import { findEnabledModel } from '../provider-helpers.js';
@@ -291,12 +291,15 @@ export async function handleSessionLiveCommand(
       // here removes the half-created record so no ghost Pi session remains.
       const requestedAgentId = command.input.agentId?.trim();
       if (requestedAgentId !== undefined && requestedAgentId !== '' && requestedAgentId !== 'pi') {
-        if (requestedAgentId !== 'grok' || context.bindExternalAgentSession === undefined) {
+        const installedAgentIds = context.resolveInstalledAgentIds !== undefined
+          ? await context.resolveInstalledAgentIds()
+          : [];
+        if (!installedAgentIds.includes(requestedAgentId) || context.bindExternalAgentSession === undefined) {
           await deleteSessionRecord(indexPath, sessionId).catch(() => undefined);
           return fail(requestId, 'session/create', `unknown-agent: ${requestedAgentId}`);
         }
         try {
-          const bound = await context.bindExternalAgentSession(sessionId, {
+          const bound = await context.bindExternalAgentSession(sessionId, requestedAgentId, {
             ...(command.input.backendModelId !== undefined ? { modelId: command.input.backendModelId } : {}),
             ...(command.input.backendEffortId !== undefined ? { effortId: command.input.backendEffortId } : {}),
           });
@@ -436,8 +439,10 @@ export async function handleSessionLiveCommand(
         sessionId: command.sessionId,
         live,
         ...(activeRun ? { activeRun } : {}),
-        messages: await bindOrphanGeneratedMediaToStore({
+        messages: await bindGeneratedMediaToStore({
           store,
+          record: existing, push: context.push,
+          ...(context.piwinRoot ? { piwinRoot: context.piwinRoot } : {}),
           sessionMediaDir: getPiwinSessionMediaDir(rootDir, command.sessionId),
           messages: transcriptPage.messages,
         }),
@@ -470,7 +475,9 @@ export async function handleSessionLiveCommand(
       if (context.describeExternalBackend !== undefined && existing.backend !== undefined) {
         const described = context.describeExternalBackend(existing);
         if (described !== undefined) {
-          data.backendCapabilities = described.capabilities;
+          if (described.capabilities !== undefined) {
+            data.backendCapabilities = described.capabilities;
+          }
           if (described.options !== undefined) {
             data.backendOptions = described.options;
           }
@@ -685,8 +692,10 @@ export async function handleSessionLiveCommand(
       }
       return ok(requestId, 'session/messages', {
         sessionId: command.sessionId,
-        messages: await bindOrphanGeneratedMediaToStore({
+        messages: await bindGeneratedMediaToStore({
           store,
+          ...(messagesRecord ? { record: messagesRecord } : {}), push: context.push,
+          ...(context.piwinRoot ? { piwinRoot: context.piwinRoot } : {}),
           sessionMediaDir: getPiwinSessionMediaDir(
             getPiwinRoot(context.piwinRoot),
             command.sessionId,

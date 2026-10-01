@@ -280,6 +280,41 @@ describe('ComposerDock host status', () => {
     expect(handlePause).toHaveBeenCalledTimes(1);
   });
 
+  it('wires Stop through the toolbar for a backend that cannot pause', () => {
+    const handleAbort = vi.fn();
+    const handlePause = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="streaming"
+        composer=""
+        onPause={handlePause}
+        onAbort={handleAbort}
+        capabilities={{
+          supports: (operation) => operation !== 'pause',
+          unsupportedReason: () => 'not supported by this agent',
+          isExternalBackend: true,
+        }}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    const stopBtn = container.querySelector('[data-testid="stop-btn"]') as HTMLButtonElement;
+    expect(stopBtn).not.toBeNull();
+    expect(circularActionCount(container)).toBe(1);
+
+    act(() => {
+      stopBtn.click();
+    });
+    // Regression: the toolbar once passed onAbort only in embedded/stop-only
+    // layouts, so this button rendered but did nothing for a Grok session.
+    expect(handleAbort).toHaveBeenCalledTimes(1);
+    expect(handlePause).not.toHaveBeenCalled();
+  });
+
   it('greys Pause only while pause is in flight', () => {
     const handlePause = vi.fn();
     const rendered = renderDock(

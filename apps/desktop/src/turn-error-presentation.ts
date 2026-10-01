@@ -15,6 +15,7 @@ export type TurnErrorPresentationInput = {
   runTerminalMessage: string | undefined;
   isLastAssistantInTurn: boolean;
   locale: string | undefined;
+  failure?: AgentFailure | undefined;
 };
 
 export type TurnErrorCardPresentation = {
@@ -33,7 +34,7 @@ export type TurnErrorCardPresentation = {
  * run is rendered only on its last assistant response.
  */
 export function resolveTurnErrorMessage(input: TurnErrorPresentationInput): string | null {
-  if (input.runOutcome !== 'failed') {
+  if (input.runOutcome !== 'failed' && input.failure === undefined) {
     return null;
   }
   if (!input.isLastAssistantInTurn) {
@@ -41,6 +42,7 @@ export function resolveTurnErrorMessage(input: TurnErrorPresentationInput): stri
   }
   return (
     input.messageError ||
+    input.failure?.message ||
     input.runTerminalMessage ||
     (input.locale === 'zh-CN' ? '生成失败' : 'Generation failed')
   );

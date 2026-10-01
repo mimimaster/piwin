@@ -134,6 +134,10 @@ export type WorkbenchTranscriptProps = {
   onOpenAllSessions?: () => void;
   runningSessionIds?: Record<string, boolean | true>;
   sidebarMode: SidebarMode;
+  draftAgentId?: string | undefined;
+  draftAgentOptions?: readonly import('./composer-dock-types.js').ComposerDraftAgentOption[] | undefined;
+  onSelectDraftAgent?: ((agentId: string) => void) | undefined;
+  onOpenAgentSettings?: (() => void) | undefined;
 };
 
 export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactElement {
@@ -260,6 +264,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             onLoadEarlierWork={onLoadEarlierWork}
             {...(activeSessionId ? { sessionId: activeSessionId } : {})}
             hydrating={state.awaitingTranscript}
+            {...(!historyViewActive && activeSessionId && hostClient.supportsCommand('agents/workflows') ? { workflowRequest: idleLoopRequest } : {})}
             streaming={!historyViewActive && state.streaming}
             activeSessionId={activeSessionId}
             docCardRequest={requestKnowledgeCenter as never}
@@ -362,6 +367,10 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             locale={locale}
             sessions={scopeSessions}
             onResumeSession={(sessionId) => void onOpenSession(sessionId)}
+            {...(props.draftAgentId !== undefined ? { draftAgentId: props.draftAgentId } : {})}
+            {...(props.draftAgentOptions !== undefined ? { draftAgentOptions: props.draftAgentOptions } : {})}
+            {...(props.onSelectDraftAgent ? { onSelectDraftAgent: props.onSelectDraftAgent } : {})}
+            {...(props.onOpenAgentSettings ? { onOpenAgentSettings: props.onOpenAgentSettings } : {})}
             {...(props.onOpenAllSessions ? { onOpenAllSessions: props.onOpenAllSessions } : {})}
             {...(props.runningSessionIds ? { runningSessionIds: props.runningSessionIds } : {})}
           />

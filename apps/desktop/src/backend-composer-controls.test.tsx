@@ -189,4 +189,20 @@ describe('BackendComposerControls', () => {
     render(createBaseProps({ disabled: true }), root);
     expect(queryTrigger()?.disabled).toBe(true);
   });
+
+  it('hides mode, plan mode and auto-approve badge when hideModes is true', () => {
+    render(createBaseProps({ hideModes: true, options: options({ autoApprove: true }) }), root);
+    const trigger = queryTrigger();
+    expect(trigger?.textContent).toContain('Grok');
+    expect(trigger?.textContent).toContain('Grok 4');
+    expect(trigger?.textContent).not.toContain('Default');
+    expect(trigger?.textContent).not.toContain('Plan');
+    expect(queryById('backend-auto-approve-badge')).toBeNull();
+
+    openPopover();
+    expect(queryById('backend-mode-plan')).toBeNull();
+    expect(queryById('backend-mode-default')).toBeNull();
+    expect(queryById('backend-effort-low')).not.toBeNull();
+    expect(queryById('backend-model-grok-4')).not.toBeNull();
+  });
 });

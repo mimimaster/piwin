@@ -3,9 +3,31 @@ import { parseAgentRegistryIndex, fetchAgentRegistryIndex } from './agent-regist
 import { listCatalogEntries } from './catalog/catalog.js';
 
 function registry() {
-  const entry = listCatalogEntries({ kinds: ['agent'] })[0];
-  if (entry === undefined) throw new Error('missing offline agent');
-  return { schemaVersion: 1, agents: [{ ...entry, install: { kind: 'agent', source: { kind: 'registry', agentId: 'grok', version: '1.0.0', url: 'https://extension.piwinwin.com/agents/grok-1.0.0.json', sha256: 'a'.repeat(64) } } }] };
+  return {
+    schemaVersion: 1,
+    agents: [{
+      entryId: 'agent:grok',
+      capabilityId: 'grok',
+      kind: 'agent',
+      name: { en: 'Grok Build', zhCN: 'Grok Build' },
+      summary: { en: 'Remote adapter index fixture.', zhCN: '远程适配索引夹具。' },
+      description: { en: 'Not an offline catalog entry.', zhCN: '不是离线目录条目。' },
+      version: '1.0.0',
+      author: 'piwin',
+      install: {
+        kind: 'agent',
+        source: {
+          kind: 'registry',
+          agentId: 'grok',
+          version: '1.0.0',
+          url: 'https://extension.piwinwin.com/agents/grok-1.0.0.json',
+          sha256: 'a'.repeat(64),
+        },
+      },
+      requirements: [],
+      examples: [{ title: { en: 'Start', zhCN: '开始' }, prompt: { en: 'Start a session.', zhCN: '开始会话。' } }],
+    }],
+  };
 }
 
 describe('separate Agent distribution index', () => {
@@ -33,6 +55,6 @@ describe('separate Agent distribution index', () => {
   it('reports unavailable sources; the offline curated Agent remains discoverable', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 404 }));
     await expect(fetchAgentRegistryIndex({ fetchImpl })).rejects.toThrow('404');
-    expect(listCatalogEntries({ kinds: ['agent'] }).map((entry) => entry.entryId)).toContain('agent:grok');
+    expect(listCatalogEntries({ kinds: ['agent'] })).toEqual([]);
   });
 });

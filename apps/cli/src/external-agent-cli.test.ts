@@ -3,10 +3,12 @@ import type { HostCommand, HostPush } from '@piwin/contracts';
 import { createCliBackendPermissionResponder, parseCliAgent } from './external-agent-cli.js';
 
 describe('parseCliAgent', () => {
-  it('defaults to pi and accepts grok', () => {
+  it('defaults to pi and accepts any enabled-backend id', () => {
     expect(parseCliAgent(['chat', 'hi'])).toBe('pi');
-    expect(parseCliAgent(['chat', '--agent', 'grok', 'hi'])).toBe('grok');
-    expect(parseCliAgent(['chat', '--agent', 'nope'])).toEqual({ error: '--agent must be pi or grok (got nope)' });
+    expect(parseCliAgent(['chat', '--agent', 'example-build', 'hi'])).toBe('example-build');
+    expect(parseCliAgent(['chat', '--agent', '../secret'])).toEqual({
+      error: '--agent must be pi or a lowercase backend id (got ../secret)',
+    });
   });
 });
 

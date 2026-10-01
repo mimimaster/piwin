@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { BUILTIN_ULTRA_CODE_SCHEME } from '@piwin/contracts';
+import { BUILTIN_AUTO_SCHEME, BUILTIN_ULTRA_CODE_SCHEME } from '@piwin/contracts';
 import {
   cleanSchemeDraft,
   createEmptyUserScheme,
   healSchemeDefaultRole,
   modelSelectValue,
+  patchMemberAt,
   schemeToEditableDraft,
   validateSchemeDraft,
 } from './orchestration-scheme-draft';
@@ -18,6 +19,25 @@ describe('orchestration scheme editor helpers', () => {
     expect(draft.systemPreamble).toMatch(/foundational/i);
     expect(draft.systemPreamble.length).toBeGreaterThan(20);
     expect(validateSchemeDraft(draft)).toBeUndefined();
+  });
+
+  it('preserves Auto inheritance through opening, editing a model, and saving', () => {
+    const draft = schemeToEditableDraft(BUILTIN_AUTO_SCHEME);
+    const sidekick = draft.members?.find((member) => member.role === 'sidekick');
+    expect(sidekick?.inheritFrom).toEqual({ schemeId: 'fusion', role: 'sidekick' });
+    expect(sidekick?.inheritFrom).not.toBe(
+      BUILTIN_AUTO_SCHEME.members?.find((member) => member.role === 'sidekick')?.inheritFrom,
+    );
+    const index = draft.members?.findIndex((member) => member.role === 'sidekick') ?? -1;
+    const edited = patchMemberAt(draft, index, {
+      model: { providerId: 'p', modelId: 'writer' },
+    });
+    expect(edited.members?.[index]?.inheritFrom).toEqual(sidekick?.inheritFrom);
+    const saved = cleanSchemeDraft(edited).members?.[index];
+    expect(saved?.inheritFrom).toEqual({ schemeId: 'fusion', role: 'sidekick' });
+    expect(saved?.model?.modelId).toBe('writer');
+    expect(saved?.isolation).toBeUndefined();
+    expect(saved?.profileId).toBeUndefined();
   });
 
   it('creates a valid empty user scheme', () => {

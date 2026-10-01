@@ -208,4 +208,24 @@ describe('resolveTurnErrorMessage', () => {
       }),
     ).toBe('生成失败');
   });
+
+  it('resolves failure message when structured failure is present even without runRecord outcome', () => {
+    expect(
+      resolveTurnErrorMessage({
+        messageStatus: 'done',
+        messageError: undefined,
+        runOutcome: undefined,
+        runTerminalMessage: undefined,
+        isLastAssistantInTurn: true,
+        locale: 'zh-CN',
+        failure: {
+          code: 'provider-quota',
+          origin: 'provider',
+          message: '402: Insufficient Balance',
+          retriable: false,
+          httpStatus: 402,
+        },
+      }),
+    ).toBe('402: Insufficient Balance');
+  });
 });

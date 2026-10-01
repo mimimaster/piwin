@@ -1384,6 +1384,7 @@ describe('ProjectSessionSidebar repo grouping', () => {
       activeSessionId: 'old-session',
     });
     expect(container.querySelector('[data-testid="sidebar-unavailable-group"]')).not.toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="sidebar-unavailable-group"]')?.click());
     expect(container.querySelector('[data-project-path="/old-worker"]')?.textContent).toContain('Unavailable');
     expect(container.querySelector('[data-session-id="old-session"]')).not.toBeNull();
   });
@@ -1399,16 +1400,16 @@ describe('ProjectSessionSidebar repo grouping', () => {
       ],
     });
     const group = container.querySelector<HTMLButtonElement>('[data-testid="sidebar-unavailable-group"]');
-    expect(group?.getAttribute('aria-expanded')).toBe('true');
-    expect(container.querySelector('[data-project-path="/removed"]')).not.toBeNull();
-
-    act(() => group?.click());
     expect(group?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('[data-project-path="/removed"]')).toBeNull();
 
     act(() => group?.click());
     expect(group?.getAttribute('aria-expanded')).toBe('true');
     expect(container.querySelector('[data-project-path="/removed"]')).not.toBeNull();
+
+    act(() => group?.click());
+    expect(group?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-project-path="/removed"]')).toBeNull();
   });
 
   it('renders a repo group label and branch names for linked worktrees', () => {

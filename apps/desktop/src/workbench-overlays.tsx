@@ -106,6 +106,7 @@ export type WorkbenchOverlaysProps = {
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
   onRunCommand: (commandId: DesktopCommandId) => void;
+  onStartBackendSession?: (agentId: string) => void;
   coldRestorePrompt: { sessionId: string; storage: SessionStorageInfo } | null;
   clearColdRestorePrompt: () => void;
   confirmColdRestore: (packPath?: string) => void | Promise<void>;
@@ -294,6 +295,8 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
         projectTrusted={props.state.projectTrusted}
         hasActiveSession={Boolean(props.state.activeSessionId)}
         onRun={props.onRunCommand}
+        hostClient={props.hostClient}
+        {...(props.onStartBackendSession ? { onStartBackendSession: props.onStartBackendSession } : {})}
       />
 
       {props.coldRestorePrompt ? (

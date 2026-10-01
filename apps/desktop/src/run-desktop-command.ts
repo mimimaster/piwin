@@ -29,6 +29,7 @@ export type RunDesktopCommandDeps = {
 export function runDesktopCommand(commandId: DesktopCommandId, deps: RunDesktopCommandDeps): void {
   switch (commandId) {
     case 'new-session':
+    case 'new-backend-session':
       void deps.onNewSession();
       return;
     case 'search-sessions':

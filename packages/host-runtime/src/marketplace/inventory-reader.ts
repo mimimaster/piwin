@@ -15,7 +15,7 @@ import { listMarketplaceWithExtensions, matchCatalogEntry } from '@piwin/marketp
 import { loadMcpConfig } from '@piwin/mcp';
 import { getSessionRecord } from '@piwin/session';
 import { loadCatalogResources } from '../commands/catalog-resources.js';
-import { createAgentPluginInventory } from '../grok/agent-plugin-inventory.js';
+import { createAgentPluginInventory } from '../agent-plugin-inventory.js';
 import type { HostCommandContext } from '../commands/host-command-context.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import { isConversationIndexRecord } from '../session-scope.js';

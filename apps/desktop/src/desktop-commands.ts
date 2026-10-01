@@ -7,6 +7,7 @@ import type { DesktopLocale } from './desktop-locale.js';
 export type DesktopCommandId =
   | 'palette'
   | 'new-session'
+  | 'new-backend-session'
   | 'search-sessions'
   | 'focus-composer'
   | 'toggle-inspector'
@@ -48,6 +49,8 @@ export type DesktopCommand = {
   icon: DesktopCommandIcon;
   keywords: string[];
   shortcut?: string;
+  /** Set only for a command generated from an enabled extension backend. */
+  backendAgentId?: string;
 };
 
 export const COMMAND_GROUP_ORDER: DesktopCommandGroup[] = [
@@ -225,12 +228,31 @@ export type CommandAvailability = {
   reason?: string;
 };
 
-export function filterDesktopCommands(query: string): DesktopCommand[] {
+/** One palette entry per enabled extension backend. No vendor is hardcoded. */
+export function commandsForEnabledBackends(
+  backends: readonly { agentId: string; name: string }[],
+): DesktopCommand[] {
+  return backends.map((backend) => ({
+    id: 'new-backend-session' as const,
+    backendAgentId: backend.agentId,
+    title: `New ${backend.name} session`,
+    titleZh: `新建 ${backend.name} 会话`,
+    group: 'session' as const,
+    icon: 'terminal' as const,
+    keywords: ['new', 'session', 'backend', backend.agentId, backend.name, '新建', '会话'],
+  }));
+}
+
+export function filterDesktopCommands(
+  query: string,
+  extra: readonly DesktopCommand[] = [],
+): DesktopCommand[] {
+  const commands = [...DESKTOP_COMMANDS, ...extra];
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) {
-    return DESKTOP_COMMANDS;
+    return commands;
   }
-  return DESKTOP_COMMANDS.filter((command) => {
+  return commands.filter((command) => {
     const haystack = `${command.title} ${command.titleZh} ${command.keywords.join(' ')}`.toLowerCase();
     return tokens.every((token) => haystack.includes(token));
   });
@@ -246,7 +268,7 @@ export function commandAvailability(
   locale: DesktopLocale = 'en',
 ): CommandAvailability {
   const isChinese = locale === 'zh-CN';
-  if (commandId === 'new-session') {
+  if (commandId === 'new-session' || commandId === 'new-backend-session') {
     if (!context.hasProject) {
       return {
         available: false,

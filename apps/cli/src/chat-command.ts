@@ -198,11 +198,6 @@ export async function commandChat(argv: string[]): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  if (agent === 'grok' && imagePath) {
-    console.error('piwin chat --agent grok: Grok does not accept images yet.');
-    process.exitCode = 1;
-    return;
-  }
   if (mode === 'rpc' && !mock) {
     console.error(
       'piwin chat --mode rpc: stock Pi RPC does not support piwin custom tools ' +
@@ -272,7 +267,7 @@ export async function commandChat(argv: string[]): Promise<void> {
           type: 'session/create',
           input: {
             ...(projectPath ? { projectId: projectPath } : { scope: { kind: 'general' as const } }),
-            ...(agent === 'grok' ? { agentId: 'grok' } : {}),
+            ...(agent !== 'pi' ? { agentId: agent } : {}),
           },
         },
         { idempotencyKey: randomUUID() },
@@ -394,7 +389,7 @@ export async function commandChat(argv: string[]): Promise<void> {
         ...(projectPath
           ? { scope: { kind: 'project' as const, projectPath }, projectPath }
           : { scope: { kind: 'general' as const } }),
-        ...(agent === 'grok' ? { agentId: 'grok' } : {}),
+        ...(agent !== 'pi' ? { agentId: agent } : {}),
       },
     });
     if (!createResponse.success) {

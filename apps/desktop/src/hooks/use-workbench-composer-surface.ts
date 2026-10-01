@@ -30,6 +30,10 @@ export type UseWorkbenchComposerSurfaceArgs = {
   handleExtensionUiAbort: () => void | Promise<void>;
   openSettingsSection: (section: ShellSettingsSection) => void;
   liveSessionId: string | null;
+  onStartNewSession?: ((options?: {
+    scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+    agentId?: string;
+  }) => void | Promise<void>) | undefined;
 };
 
 export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArgs) {
@@ -143,6 +147,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     draftAgentOptions: composer.draftAgentOptions,
     draftAgentId: composer.draftAgentId,
     onDraftAgentChange: composer.onDraftAgentChange,
+    onStartNewSession: args.onStartNewSession,
     capabilities: composer.capabilities,
     speechConfigured: host.speechConfigured,
     speechRequest: host.speechRequest,
@@ -180,6 +185,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
       sessionUsageTotals,
       onOpenExtensionsPanel: () => openSettingsSection('extensions'),
       onOpenMarketplace: openMarketplace,
+      onOpenAgentSettings: () => openSettingsSection('agent-backends'),
     }),
     [
       dock.composerCard,

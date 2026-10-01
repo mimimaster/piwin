@@ -25,6 +25,7 @@ import {
   shouldRenderGenerationProgress,
 } from './generation-tool-kind';
 import { PermissionBar } from './permission-bar';
+import { TurnErrorCard } from './turn-error-card';
 import { SystemMessageContent } from './system-message-content';
 import type { DocumentOpenInput } from './tool-call-card';
 import type { DiffCardRequest } from './diff-card';
@@ -151,6 +152,18 @@ function SubagentInspectorAssistant({
         ) : null}
         {message.searchEvidence ? <CitationCards evidence={message.searchEvidence} /> : null}
       </TurnWorkDetails>
+      {message.failure || message.error ? (
+        <TurnErrorCard
+          messageId={message.id}
+          error={
+            message.error ??
+            message.failure?.message ??
+            (locale === 'zh-CN' ? '生成失败' : 'Generation failed')
+          }
+          {...(message.failure ? { failure: message.failure } : {})}
+          locale={locale}
+        />
+      ) : null}
       {imageGenerationStatus &&
       shouldRenderGenerationProgress(imageGenerationStatus, message.attachments) ? (
         <ImageGenerationProgress

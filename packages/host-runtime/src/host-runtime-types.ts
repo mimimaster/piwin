@@ -126,17 +126,17 @@ export type HostRuntimeOptions = {
    */
   testFixture?: HostRuntimeTestFixture;
   /**
-   * ADR 0082: Grok Build backend. `false` disables it (default in mock
-   * mode). A transport factory replaces the real `grok` process in tests.
+   * ADR 0082: external agent adapters. `false` disables them (default in mock
+   * mode). Adapters are spawned from installed plugin artifacts, so tests
+   * enable them by installing a fixture artifact rather than injecting a
+   * transport.
    */
-  grok?:
+  externalAgents?:
     | false
     | {
-        createTransport?: (binaryPath: string, cwd: string) => import('@piwin/acp-agent').AcpLineTransport;
-        detect?: () => Promise<import('@piwin/contracts').ExternalAgentStatus>;
-        /** Supported OS simulation in mock fixtures only, never a production override. */
-        testPlatform?: 'darwin' | 'win32' | 'linux';
         env?: NodeJS.ProcessEnv;
+        /** Supported-OS simulation in mock fixtures only, never a production override. */
+        testPlatform?: 'darwin' | 'win32' | 'linux';
       };
   /**
    * Session-level permission mode override (ADR 0019 §3). Takes precedence

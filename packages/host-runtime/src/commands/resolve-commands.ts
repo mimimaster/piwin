@@ -4,9 +4,9 @@
 import type { HostCommand, HostResponse, PermissionDecision } from '@piwin/contracts';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
-import { GrokBackendService } from '../grok/grok-backend-service.js';
+import { validateBackendOption } from '../external-agent-backend.js';
 
-const validateBackendPermissionOption = GrokBackendService.validateBackendOption;
+const validateBackendPermissionOption = validateBackendOption;
 
 const TYPES = new Set<HostCommand['type']>([
   'permission/resolve',

@@ -187,6 +187,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     handleExtensionUiAbort,
     openSettingsSection: commands.openSettingsSection,
     liveSessionId,
+    onStartNewSession: handleStartNewSession,
   });
   const subagent = useWorkbenchSubagentInspector({
     hostClient,

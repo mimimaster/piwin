@@ -462,4 +462,74 @@ describe('WorkerTaskRunner', () => {
     expect(release).toHaveBeenCalledTimes(1);
     expect(callOrder).toEqual(['begin', 'acquireWorker', 'releaseWorker', 'release']);
   });
+
+  it('maps prompt outcome with failed status to failed executionStatus without throwing', async () => {
+    const createSession = vi.fn().mockResolvedValue({ sessionId: 'worker-session-1' });
+    const prompt = vi.fn().mockResolvedValue({
+      status: 'failed',
+      stopReason: 'error',
+      failure: {
+        code: 'provider-quota',
+        origin: 'provider',
+        message: '402: Insufficient Balance',
+        retriable: false,
+        httpStatus: 402,
+      },
+    });
+    const abort = vi.fn().mockResolvedValue(undefined);
+    const acquireWorker = vi.fn().mockResolvedValue({ createSession, prompt, abort });
+    const releaseWorker = vi.fn().mockResolvedValue(undefined);
+    const runner = new WorkerTaskRunner({
+      supervisor: { acquireWorker, releaseWorker } as unknown as AgentWorkerSupervisor,
+    });
+
+    const previousKey = process.env.TEST_API_KEY;
+    process.env.TEST_API_KEY = 'test-secret';
+    try {
+      const result = await runner.runTask(buildValidInput(), new AbortController().signal);
+      expect(result).toMatchObject({
+        executionStatus: 'failed',
+        summaryStatus: 'not-requested',
+        integrationStatus: 'not-requested',
+        error: '402: Insufficient Balance',
+      });
+      expect(prompt).toHaveBeenCalledTimes(1);
+      expect(releaseWorker).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previousKey === undefined) delete process.env.TEST_API_KEY;
+      else process.env.TEST_API_KEY = previousKey;
+    }
+  });
+
+  it('maps prompt outcome with aborted status to cancelled executionStatus without throwing', async () => {
+    const createSession = vi.fn().mockResolvedValue({ sessionId: 'worker-session-1' });
+    const prompt = vi.fn().mockResolvedValue({
+      status: 'aborted',
+      stopReason: 'aborted',
+      message: 'operation aborted by user',
+    });
+    const abort = vi.fn().mockResolvedValue(undefined);
+    const acquireWorker = vi.fn().mockResolvedValue({ createSession, prompt, abort });
+    const releaseWorker = vi.fn().mockResolvedValue(undefined);
+    const runner = new WorkerTaskRunner({
+      supervisor: { acquireWorker, releaseWorker } as unknown as AgentWorkerSupervisor,
+    });
+
+    const previousKey = process.env.TEST_API_KEY;
+    process.env.TEST_API_KEY = 'test-secret';
+    try {
+      const result = await runner.runTask(buildValidInput(), new AbortController().signal);
+      expect(result).toMatchObject({
+        executionStatus: 'cancelled',
+        summaryStatus: 'not-requested',
+        integrationStatus: 'not-requested',
+        error: 'operation aborted by user',
+      });
+      expect(prompt).toHaveBeenCalledTimes(1);
+      expect(releaseWorker).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previousKey === undefined) delete process.env.TEST_API_KEY;
+      else process.env.TEST_API_KEY = previousKey;
+    }
+  });
 });

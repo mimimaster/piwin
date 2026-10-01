@@ -79,6 +79,11 @@ async function uninstallExtension(
     );
   }
 
+  // `force` means delete now, even if a live runtime still names the revision.
+  // Mark pending first: purge only drops records already in that state.
+  if (command.force && record.installationState !== 'pending-removal') {
+    await store.markPendingRemoval(record.id);
+  }
   if (record.installationState === 'pending-removal' || command.force) {
     await store.purgeRemoved(new Set());
     await pushExtensionCatalog(context, rootDir, 'purged');

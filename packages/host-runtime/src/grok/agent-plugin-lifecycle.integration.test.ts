@@ -1,16 +1,22 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
-import { GROK_PLUGIN_MANIFEST } from '@piwin/agent-plugins';
+/**
+ * Session-backend extension lifecycle (ADR 0082).
+ *
+ * The extension registry is the only install authority. The retired `agents/*`
+ * inventory commands answer with migration guidance and must not install,
+ * enable, or remove a backend on their own.
+ */
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createFakeGrokAgent } from '@piwin/acp-agent/testing';
-import type { HostPush, HostResponse } from '@piwin/contracts';
+import type { ExtensionSummary, HostCommand, HostPush, HostResponse } from '@piwin/contracts';
+import { createExtensionRevisionStore, installExtension } from '@piwin/extensions';
 import { HostRuntime } from '../host-runtime.js';
-import { createAgentPluginInventory } from './agent-plugin-inventory.js';
+import { installFixtureAgentAdapter } from '../testing/agent-plugin-fixture.js';
+import { listExtensionBackends } from '../extension-session-backends.js';
 
 function data(response: HostResponse): unknown {
-  if (!response.success) throw new Error(response.error);
+  if (!response.success) throw new Error(`${response.command}: ${response.error}`);
   return response.data;
 }
 function failure(response: HostResponse): string {
@@ -18,85 +24,137 @@ function failure(response: HostResponse): string {
   return response.error;
 }
 const cleanups: Array<() => Promise<void>> = [];
-afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup(); vi.restoreAllMocks(); });
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0)) await cleanup();
+  vi.restoreAllMocks();
+});
 
-async function harness(root?: string) {
-  const rootDir = root ?? await mkdtemp(join(tmpdir(), 'piwin-agent-install-'));
-  const agent = createFakeGrokAgent({ turns: [[{ kind: 'text', text: 'retained history' }]] });
-  const detect = vi.fn(async () => ({ agentId: 'grok', state: 'ready' as const, binaryPath: '/fake/grok', version: '1.0.44', supportStatus: 'verified' as const, checkedAt: new Date().toISOString() }));
-  const transport = vi.fn(() => agent.createTransport());
-  const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir, grok: { detect, createTransport: transport, testPlatform: 'darwin' } });
+async function harness(script: unknown = {}) {
+  const rootDir = await mkdtemp(join(tmpdir(), 'piwin-agent-install-'));
+  const installed = await installFixtureAgentAdapter(rootDir, { script });
+  const runtime = new HostRuntime({
+    mode: 'sdk', mock: true, piwinRoot: rootDir,
+    externalAgents: { env: installed.env },
+  });
   const pushes: HostPush[] = [];
   runtime.attachPushSink({ id: 'inventory-test', push: (message) => pushes.push(message) });
-  cleanups.push(async () => { await runtime.dispose(); if (root === undefined) await rm(rootDir, { recursive: true, force: true }); });
-  return { rootDir, runtime, detect, transport, pushes };
+  cleanups.push(async () => { await runtime.dispose(); await rm(rootDir, { recursive: true, force: true }); });
+  return { rootDir, runtime, pushes, agentId: installed.agentId, extensionId: installed.extensionId };
 }
 
-const install = { type: 'agents/install' as const, source: { kind: 'bundled' as const, agentId: 'grok' as const } };
-
-describe('Host-owned Agent plugin lifecycle', () => {
-  it('listing or installing an adapter never starts the third-party CLI', async () => {
-    const { runtime, detect, transport } = await harness();
-    expect(data(await runtime.handleCommand({ type: 'agents/list' }))).toEqual({ plugins: [] });
-    expect(data(await runtime.handleCommand({ type: 'agents/status' }))).toEqual({ agents: [] });
-    expect((await runtime.handleCommand(install)).success).toBe(true);
-    expect(detect).not.toHaveBeenCalled();
-    expect(transport).not.toHaveBeenCalled();
+describe('Session backend extension lifecycle', () => {
+  it('lists the backend from the extension registry and does not launch it for an unchecked status', async () => {
+    const { runtime, agentId, extensionId } = await harness();
+    const listed = data(await runtime.handleCommand({ type: 'extensions/list' })) as {
+      extensions: ExtensionSummary[];
+    };
+    expect(listed.extensions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: extensionId,
+          enabled: true,
+          sessionBackend: expect.objectContaining({ id: agentId }),
+        }),
+      ]),
+    );
+    expect(data(await runtime.handleCommand({ type: 'agents/status' }))).toMatchObject({
+      agents: [{ agentId, state: 'unavailable' }],
+    });
     expect((await runtime.handleCommand({ type: 'agents/status', refresh: true })).success).toBe(true);
-    expect(detect).toHaveBeenCalledTimes(1);
   });
 
-  it('disabling blocks new Runs even with a resident handle; uninstall keeps history and dependencies', async () => {
-    const { runtime, rootDir, pushes } = await harness();
-    await runtime.handleCommand(install);
-    const created = await runtime.handleCommand({ type: 'session/create', input: { agentId: 'grok', projectPath: '/tmp/grok-project' } });
-    expect(created.success).toBe(true);
-    const { sessionId } = data(created) as { sessionId: string };
-    const prompt = await runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'hello' } });
-    expect(prompt.success).toBe(true);
-    await vi.waitFor(() => expect(pushes.some((message) => message.type === 'run/updated' && message.run.sessionId === sessionId && message.run.status === 'completed')).toBe(true));
-    expect((await runtime.handleCommand({ type: 'agents/set-enabled', agentId: 'grok', enabled: false })).success).toBe(true);
-    const blocked = await runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'must not run' } });
-    expect(blocked.success).toBe(false);
-    expect(failure(blocked)).toContain('agent-plugin-disabled');
-    const userBinary = join(rootDir, 'user-owned-grok');
-    await writeFile(userBinary, 'user-owned');
-    const removed = await runtime.handleCommand({ type: 'agents/uninstall', agentId: 'grok' });
-    expect(data(removed)).toMatchObject({ removed: true, historyPreserved: true, runtimePreserved: true });
-    expect(await readFile(userBinary, 'utf8')).toBe('user-owned');
-    const history = await runtime.handleCommand({ type: 'session/resume', sessionId });
-    expect(history.success).toBe(true);
-    const stillBlocked = await runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'must not run either' } });
-    expect(failure(stillBlocked)).toContain('agent-plugin-not-installed');
-    await runtime.handleCommand(install);
-    expect((await runtime.handleCommand({ type: 'agents/set-enabled', agentId: 'grok', enabled: true })).success).toBe(true);
+  it('answers retired inventory commands with migration guidance', async () => {
+    const { runtime, agentId } = await harness();
+    const commands: HostCommand[] = [
+      { type: 'agents/list' },
+      { type: 'agents/install', source: { kind: 'bundled', agentId: 'grok' } },
+      { type: 'agents/set-enabled', agentId, enabled: false },
+      { type: 'agents/uninstall', agentId },
+      { type: 'agents/select-runtime', agentId, binaryPath: '/tmp/user-cli' },
+    ];
+    for (const command of commands) {
+      expect(failure(await runtime.handleCommand(command))).toContain('agents-inventory-retired');
+    }
   });
 
-  it('serialized stores preserve concurrent mutations and survive reopening', async () => {
-    const { rootDir, runtime } = await harness();
-    await runtime.handleCommand(install);
-    const first = createAgentPluginInventory(rootDir);
-    const second = createAgentPluginInventory(rootDir);
-    await Promise.all([first.selectRuntime('grok', '/tmp/my-grok'), second.setEnabled('grok', false)]);
-    expect(await createAgentPluginInventory(rootDir).get('grok')).toMatchObject({ enabled: false, runtime: { binaryPath: '/tmp/my-grok', ownership: 'user' } });
+  it('disables through the extension and blocks new Runs without starting the adapter', async () => {
+    const { runtime, agentId, extensionId } = await harness();
+    expect((await runtime.handleCommand({
+      type: 'extensions/set_enabled', extensionId, enabled: false,
+    })).success).toBe(true);
+    const status = data(await runtime.handleCommand({ type: 'agents/status', refresh: true })) as {
+      agents: Array<{ state: string; reason: string }>;
+    };
+    expect(status.agents[0]).toMatchObject({ state: 'unavailable' });
+    expect(status.agents[0]?.reason).toContain('disabled');
+    const created = await runtime.handleCommand({
+      type: 'session/create', input: { agentId, projectPath: '/tmp/agent-project' },
+    });
+    expect(created.success).toBe(false);
+    expect(failure(created)).toContain('agent-plugin-disabled');
   });
 
-  it('rejects wrong digest and version pins without changing inventory', async () => {
-    const { runtime } = await harness();
-    const body = JSON.stringify(GROK_PLUGIN_MANIFEST);
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(body));
-    const source = { kind: 'registry' as const, agentId: 'grok', version: '1.0.0', url: 'https://extension.piwinwin.com/agents/grok-1.0.0.json', sha256: 'a'.repeat(64) };
-    const badDigest = await runtime.handleCommand({ type: 'agents/install', source });
-    expect(failure(badDigest)).toContain('digest-mismatch');
-    const badVersion = await runtime.handleCommand({ type: 'agents/install', source: { ...source, sha256: createHash('sha256').update(body).digest('hex'), version: '9.9.9' } });
-    expect(failure(badVersion)).toContain('version-mismatch');
-    expect(data(await runtime.handleCommand({ type: 'agents/list' }))).toEqual({ plugins: [] });
+  it('uninstalls the extension and leaves session history readable', async () => {
+    const { runtime, extensionId } = await harness({ steps: [{ kind: 'text', text: 'kept' }] });
+    const created = await runtime.handleCommand({
+      type: 'session/create', input: { agentId: 'fixture', projectPath: '/tmp/agent-project' },
+    });
+    const sessionId = (data(created) as { sessionId: string }).sessionId;
+    await runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'one' } });
+    const removed = data(await runtime.handleCommand({
+      type: 'extensions/uninstall', extensionId, force: true,
+    })) as { state: string };
+    expect(removed.state).toBe('removed');
+    expect((await runtime.handleCommand({ type: 'session/messages', sessionId })).success).toBe(true);
+    const listed = data(await runtime.handleCommand({ type: 'extensions/list' })) as {
+      extensions: ExtensionSummary[];
+    };
+    expect(listed.extensions.some((extension) => extension.id === extensionId)).toBe(false);
   });
 
-  it('fails closed for unreviewed remote manifest sources', async () => {
-    const { runtime } = await harness();
-    const response = await runtime.handleCommand({ type: 'agents/install', source: { kind: 'registry', agentId: 'grok', version: '1.0.0', url: 'https://example.com/adapter.json', sha256: 'a'.repeat(64) } });
-    expect(failure(response)).toContain('source-unreviewed');
-    expect(data(await runtime.handleCommand({ type: 'agents/list' }))).toEqual({ plugins: [] });
+  it('refuses a staged artifact whose bytes no longer match the declaration', async () => {
+    const { rootDir, runtime, extensionId, agentId } = await harness();
+    const record = await createExtensionRevisionStore(rootDir).getRecord(extensionId);
+    const revision = record?.revisions.find(
+      (item) => item.contentRevision === record.selectedRevision,
+    );
+    if (!revision) throw new Error('fixture revision missing');
+    await writeFile(join(revision.packageRoot, 'dist', 'agent.mjs'), 'tampered');
+    const created = await runtime.handleCommand({
+      type: 'session/create', input: { agentId, projectPath: '/tmp/agent-project' },
+    });
+    expect(failure(created)).toContain('agent-artifact-integrity');
+  });
+
+  it('refuses two enabled extensions that claim the same backend id', async () => {
+    const { rootDir, extensionId } = await harness();
+    const record = await createExtensionRevisionStore(rootDir).getRecord(extensionId);
+    const revision = record?.revisions[0];
+    if (!revision) throw new Error('fixture revision missing');
+    const second = join(rootDir, 'second-source');
+    const { cp } = await import('node:fs/promises');
+    await cp(revision.packageRoot, second, { recursive: true });
+    await writeFile(join(second, 'marker.txt'), 'second claim');
+    const staged = await installExtension({
+      piwinRoot: rootDir,
+      source: { kind: 'local', path: second },
+      name: 'fixture-copy',
+    });
+    await createExtensionRevisionStore(rootDir).setEnabled(staged.extensionId, true);
+    await expect(listExtensionBackends(rootDir)).rejects.toThrow('agent-backend-ambiguous');
+  });
+
+  it('refuses a directory that declares neither a Pi module nor a valid session backend', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-agent-invalid-'));
+    cleanups.push(async () => { await rm(rootDir, { recursive: true, force: true }); });
+    const source = join(rootDir, 'empty-extension');
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, 'readme.txt'), 'not an extension');
+    await expect(installExtension({
+      piwinRoot: rootDir,
+      source: { kind: 'local', path: source },
+      name: 'empty',
+    })).rejects.toThrow(/must contain index\.ts/);
+    expect(await createExtensionRevisionStore(rootDir).listRecords()).toEqual([]);
   });
 });

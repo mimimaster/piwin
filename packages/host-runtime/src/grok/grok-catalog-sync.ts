@@ -1,6 +1,7 @@
 /**
- * Grok session catalog sync and title adoption (ADR 0082). The Grok catalog
- * is authoritative for which Grok sessions exist and what they are called.
+ * External agent session catalog sync and title adoption (ADR 0082). The
+ * adapter catalog is authoritative for which agent sessions exist and what
+ * they are called.
  */
 
 import type { HostResponse } from '@piwin/contracts';
@@ -18,35 +19,35 @@ import { createProductSessionId } from '../product-agent-host.js';
 import { fail, ok } from '../response-helpers.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
-import { GROK_AGENT_ID } from './grok-capabilities.js';
 
 function indexPath(deps: HostRuntimeKernel): string {
   return getPiwinSessionIndexPath(getPiwinRoot(deps.options.piwinRoot));
 }
 
-/** Merge the Grok catalog into the index and push list changes. */
-export async function syncGrokCatalog(
+/** Merge one adapter's catalog into the index and push list changes. */
+export async function syncExternalAgentCatalog(
   deps: HostRuntimeKernel,
+  agentId: string,
   requestId: string | undefined,
 ): Promise<HostResponse> {
-  const service = deps.grokBackend;
+  const service = deps.externalAgents;
   if (service === undefined) {
-    return fail(requestId, 'agents/sessions-sync', 'grok-backend-unavailable');
+    return fail(requestId, 'agents/sessions-sync', 'external-agent-backend-unavailable');
   }
   try {
-    const catalog = await service.listCatalog();
+    const catalog = await service.listCatalog(agentId);
     for (const entry of catalog) {
       if (entry.lastChangeUnixMs !== undefined) {
-        deps.grokCatalogChanges.set(entry.backendSessionId, entry.lastChangeUnixMs);
+        deps.externalCatalogChanges.set(entry.backendSessionId, entry.lastChangeUnixMs);
       }
     }
     const projects = await listProjects(getPiwinProjectsPath(getPiwinRoot(deps.options.piwinRoot)));
     const roots = projects.map((project) => project.path).sort((left, right) => right.length - left.length);
-    // Subagent / internal sessions are Grok-internal; only user sessions map.
+    // Subagent / internal sessions belong to the agent; only user sessions map.
     const visible = catalog.filter((entry) => entry.originKind !== 'subagent');
     const result = await syncExternalSessionCatalog({
       indexPath: indexPath(deps),
-      agentId: GROK_AGENT_ID,
+      agentId,
       entries: visible.map((entry) => ({
         backendSessionId: entry.backendSessionId,
         ...(entry.title !== undefined ? { title: entry.title } : {}),
@@ -73,7 +74,7 @@ export async function syncGrokCatalog(
       deps.push(sessionIndexUpdatedPush({ op: 'deleted', sessionId: record.id }));
     }
     return ok(requestId, 'agents/sessions-sync', {
-      agentId: GROK_AGENT_ID,
+      agentId,
       created: result.created.length,
       updated: result.updated.length,
       removed: result.removed.length,
@@ -83,8 +84,8 @@ export async function syncGrokCatalog(
   }
 }
 
-/** Grok reported a title: adopt it unless the user renamed the session. */
-export async function applyGrokTitle(
+/** The adapter reported a title: adopt it unless the user renamed the session. */
+export async function applyExternalAgentTitle(
   deps: HostRuntimeKernel,
   sessionId: string,
   title: string,

@@ -9,7 +9,7 @@ import {
   type ExtensionSummary,
   type ExtensionsConfig,
 } from '@piwin/contracts';
-import { createExtensionRevisionStore } from '@piwin/extensions';
+import { createExtensionRevisionStore, readExtensionBackend } from '@piwin/extensions';
 import {
   readExtensionCompatibility,
   readExtensionHookEvents,
@@ -40,6 +40,28 @@ export async function scanExtensions(options: ScanExtensionsOptions): Promise<Ex
         .sort((left, right) => right.installedAt.localeCompare(left.installedAt))[0];
     if (!selected) continue;
     managedIds.add(record.id);
+    const backendRead = await readExtensionBackend(selected.packageRoot);
+    if (backendRead.kind === 'backend') {
+      // A backend extension contributes a session backend, not a Pi module, so
+      // it has no Pi source to classify and is never handed to Pi's loader.
+      // Availability is the extension's own enabled state, not a Pi tier.
+      results.push({
+        id: record.id,
+        name: backendRead.declaration.name,
+        description: record.description,
+        source: 'user',
+        path: selected.entryPath,
+        enabled: record.configuredEnabled && selected.state === 'installed',
+        managed: true,
+        contentRevision: selected.contentRevision,
+        version: backendRead.declaration.version,
+        configuredEnabled: record.configuredEnabled,
+        ...(record.selectedRevision ? { selectedRevision: record.selectedRevision } : {}),
+        compatibility: { tier: 'compatible' },
+        sessionBackend: backendRead.declaration,
+      });
+      continue;
+    }
     const hookEvents = await readExtensionHookEvents(selected.entryPath);
     const compatibility = await readExtensionCompatibility(selected.entryPath);
     const compatible = isExtensionBlueprintEligible(compatibility);
@@ -113,6 +135,11 @@ export function collectExtensionEntryPaths(options: {
     if (!extension.enabled || (!extension.managed && disabled.has(extension.id.toLowerCase()))) {
       continue;
     }
+    if (extension.sessionBackend !== undefined) {
+      // A backend extension has no Pi entry module; passing its directory to
+      // Pi's resource loader would fail.
+      continue;
+    }
     if (!isExtensionBlueprintEligible(extension.compatibility)) {
       continue;
     }
@@ -162,15 +189,35 @@ async function scanExtensionRoot(
     }
     if (entryStat.isDirectory()) {
       const indexPath = join(entryPath, 'index.ts');
+      let hasIndexModule = false;
       try {
-        if ((await stat(indexPath)).isFile()) {
-          const parsed = await buildExtensionSummary(indexPath, entryName, source, entryPath);
-          if (parsed) {
-            extensions.push(parsed);
-          }
-        }
+        hasIndexModule = (await stat(indexPath)).isFile();
       } catch {
-        // no index.ts
+        hasIndexModule = false;
+      }
+      if (hasIndexModule) {
+        const parsed = await buildExtensionSummary(indexPath, entryName, source, entryPath);
+        if (parsed) {
+          extensions.push(parsed);
+        }
+        continue;
+      }
+      // A hand-placed backend extension has no `index.ts`; it is still a real
+      // extension and must be listed rather than silently skipped.
+      const backendRead = await readExtensionBackend(entryPath);
+      if (backendRead.kind === 'backend') {
+        extensions.push({
+          id: normalizeResourceId(entryName),
+          name: backendRead.declaration.name,
+          description: '(session backend)',
+          source,
+          path: entryPath,
+          enabled: true,
+          configuredEnabled: true,
+          version: backendRead.declaration.version,
+          compatibility: { tier: 'compatible' },
+          sessionBackend: backendRead.declaration,
+        });
       }
     }
   }

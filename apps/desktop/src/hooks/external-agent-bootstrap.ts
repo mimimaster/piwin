@@ -26,9 +26,13 @@ export function syncAgentCatalog(hostClient: HostClient, agentId: string): void 
 export async function bootstrapExternalAgents(
   hostClient: HostClient,
   dispatch: Dispatch<ChatUiAction>,
+  options?: { refresh?: boolean },
 ): Promise<ExternalAgentStatus[]> {
   try {
-    const response = await hostClient.request({ type: 'agents/status' });
+    const response = await hostClient.request({
+      type: 'agents/status',
+      ...(options?.refresh ? { refresh: true } : {}),
+    });
     if (!response.success) {
       return [];
     }

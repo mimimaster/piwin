@@ -72,6 +72,21 @@ describe('declarative agent inventory', () => {
     expect(await store.get('grok')).toEqual(installed);
   });
 
+  it('replaces a revision only after explicit confirmation and keeps the user runtime', async () => {
+    const { store, install } = fixture();
+    const installed = await install();
+    await store.selectRuntime('grok', '/Users/me/.grok/bin/grok');
+    const replaced = await store.install({
+      manifest: { ...GROK_PLUGIN_MANIFEST, version: '1.0.1' },
+      source: { kind: 'bundled', agentId: 'grok' },
+      platform: 'darwin',
+      confirmMigration: true,
+    });
+    expect(replaced.revision).not.toBe(installed.revision);
+    expect(replaced.runtime.binaryPath).toBe('/Users/me/.grok/bin/grok');
+    expect(replaced.agentId).toBe('grok');
+  });
+
   it('fails closed for corrupted inventory rather than overwriting it', async () => {
     const port: AgentPluginStorePort = {
       read: async () => ({ schemaVersion: 99 }),

@@ -19,12 +19,11 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",
     "lint": "echo \"lint ok (host-runtime)\""
   },
   "dependencies": {
-    "@piwin/acp-agent": "workspace:*",
     "@piwin/agent-plugins": "workspace:*",
     "@piwin/agent-host": "workspace:*",
     "@piwin/artifact": "workspace:*",

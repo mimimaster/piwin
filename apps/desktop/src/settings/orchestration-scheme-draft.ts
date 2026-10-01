@@ -39,6 +39,7 @@ export function cloneMember(member: OrchestrationSchemeMember): OrchestrationSch
     role: member.role,
     description: member.description,
     ...(member.profileId ? { profileId: member.profileId } : {}),
+    ...(member.inheritFrom ? { inheritFrom: { ...member.inheritFrom } } : {}),
     ...(member.model ? { model: member.model } : {}),
     ...(member.thinkingLevel ? { thinkingLevel: member.thinkingLevel } : {}),
     ...(member.isolation ? { isolation: member.isolation } : {}),
@@ -235,6 +236,7 @@ export function patchMemberAt(
     };
     // Keep profileId if present (internal seed); the UI no longer edits it.
     if (member.profileId) merged.profileId = member.profileId;
+    if (member.inheritFrom) merged.inheritFrom = { ...member.inheritFrom };
     const nextModel =
       patch.model === null ? undefined : patch.model !== undefined ? patch.model : member.model;
     if (nextModel) merged.model = nextModel;

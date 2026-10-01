@@ -43,6 +43,13 @@ describe('runDesktopCommand', () => {
     }
   });
 
+  it('does not treat a backend session command as a vendor-specific shortcut', () => {
+    const onNewSession = vi.fn();
+    const deps = createDeps({ onNewSession });
+    runDesktopCommand('new-backend-session', deps);
+    expect(onNewSession).toHaveBeenCalledOnce();
+  });
+
   it('ignores the palette command itself', () => {
     const deps = createDeps();
     runDesktopCommand('palette', deps);

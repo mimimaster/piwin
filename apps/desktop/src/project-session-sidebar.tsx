@@ -216,7 +216,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const [conversationsSectionExpanded, setConversationsSectionExpanded] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
   const [collapsedRepositories, setCollapsedRepositories] = useState<Record<string, boolean>>({});
-  const [unavailableGroupCollapsed, setUnavailableGroupCollapsed] = useState(false);
+  const [unavailableGroupCollapsed, setUnavailableGroupCollapsed] = useState(true);
   const [projectSessionVisibleCounts, setProjectSessionVisibleCounts] = useState<
     Record<string, number>
   >({});

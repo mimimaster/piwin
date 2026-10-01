@@ -478,6 +478,8 @@ export type PlatformHostCommand =
   | { id?: string; type: 'permission/pending-list' }
   | { id?: string; type: 'agents/status'; agentId?: string; refresh?: boolean }
   | { id?: string; type: 'agents/mcp-status'; agentId: string }
+  | { id?: string; type: 'agents/workflows'; sessionId: string }
+  | { id?: string; type: 'agents/workflow-report'; sessionId: string; workflowId: string }
   | { id?: string; type: 'pty/open'; input: PtyOpenInput }
   | { id?: string; type: 'pty/write'; ptyId: string; data: string }
   | { id?: string; type: 'pty/resize'; ptyId: string; cols: number; rows: number }

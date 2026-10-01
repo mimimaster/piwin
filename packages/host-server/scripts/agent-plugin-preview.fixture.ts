@@ -1,23 +1,24 @@
-/** Disposable browser smoke Host: real inventory/transport, fake ACP, no paid prompts. */
+/** Disposable browser smoke Host: real inventory + real adapter launch, fixture artifact, no paid prompts. */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { HostRuntime } from '@piwin/host-runtime';
-import { createFakeGrokAgent } from '@piwin/host-runtime/testing';
+import { installFixtureAgentAdapter } from '@piwin/host-runtime/testing';
 import { HostServer } from '../src/host-server.js';
 
 const rootDir = await mkdtemp(join(tmpdir(), 'piwin-agent-browser-'));
-const agent = createFakeGrokAgent({ turns: [[{ kind: 'text', text: 'Fake ACP browser smoke complete.' }]] });
+// The reviewed id the desktop shell already knows; the artifact is a local fixture.
+const installed = await installFixtureAgentAdapter(rootDir, {
+  agentId: 'grok',
+  script: { steps: [{ kind: 'text', text: 'Fixture adapter browser smoke complete.' }] },
+});
 const runtime = new HostRuntime({
   mode: 'sdk', mock: true, piwinRoot: rootDir,
-  grok: {
-    createTransport: () => agent.createTransport(),
-    detect: async () => ({ agentId: 'grok', state: 'ready', binaryPath: '/fixture/grok', version: '1.0.44', supportStatus: 'verified', permissionMode: 'default', checkedAt: new Date().toISOString() }),
-  },
+  externalAgents: { env: installed.env },
 });
 const server = new HostServer({ runtime, piwinRoot: rootDir, port: 8876, host: '127.0.0.1', pairingEnabled: false });
 const address = await server.start();
-console.log(`Agent browser fixture (fake ACP, disposable state): ${address.url}`);
+console.log(`Agent browser fixture (fixture adapter, disposable state): ${address.url}`);
 console.log(`Serve apps/desktop/dist separately and connect the Web shell to ${address.url}`);
 let stopping = false;
 async function stop(): Promise<void> {

@@ -209,4 +209,94 @@ describe('EmptyStageLanding', () => {
     expect(rows[0]?.querySelector('.empty-stage-landing-dot.is-running')).not.toBeNull();
     expect(rows[1]?.querySelector('.empty-stage-landing-dot.is-running')).toBeNull();
   });
+
+  it('does not render engine selector when only default pi is available', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+    act(() => {
+      root.render(
+        <EmptyStageLanding
+          locale="zh-CN"
+          sessions={[]}
+          onResumeSession={() => {}}
+          draftAgentOptions={[{ agentId: 'pi', label: 'Pi', ready: true }]}
+        />,
+      );
+    });
+    expect(container.querySelector('[data-testid="empty-stage-engines"]')).toBeNull();
+  });
+
+  it('renders engine selector cards and handles selection when multiple engines exist', () => {
+    const onSelectDraftAgent = vi.fn();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+    act(() => {
+      root.render(
+        <EmptyStageLanding
+          locale="zh-CN"
+          sessions={[]}
+          onResumeSession={() => {}}
+          draftAgentId="pi"
+          draftAgentOptions={[
+            { agentId: 'pi', label: 'Pi', ready: true },
+            { agentId: 'grok', label: 'Grok Build', ready: true },
+          ]}
+          onSelectDraftAgent={onSelectDraftAgent}
+        />,
+      );
+    });
+    const engines = container.querySelector('[data-testid="empty-stage-engines"]');
+    expect(engines).not.toBeNull();
+
+    const piCard = container.querySelector<HTMLButtonElement>('[data-testid="empty-stage-engine-pi"]');
+    const grokCard = container.querySelector<HTMLButtonElement>('[data-testid="empty-stage-engine-grok"]');
+    expect(piCard?.classList.contains('is-selected')).toBe(true);
+    expect(grokCard?.classList.contains('is-selected')).toBe(false);
+
+    expect(container.querySelector('.empty-stage-engine-icon')).toBeNull();
+    expect(piCard?.querySelector('.empty-stage-engine-desc')?.textContent).toBe('通用智能体');
+    expect(grokCard?.querySelector('.empty-stage-engine-desc')?.textContent).toBe('自主编码与构建');
+
+    act(() => {
+      grokCard?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onSelectDraftAgent).toHaveBeenCalledWith('grok');
+  });
+
+  it('renders warning badge and settings link when engine is not ready', () => {
+    const onOpenAgentSettings = vi.fn();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+    act(() => {
+      root.render(
+        <EmptyStageLanding
+          locale="zh-CN"
+          sessions={[]}
+          onResumeSession={() => {}}
+          draftAgentOptions={[
+            { agentId: 'pi', label: 'Pi', ready: true },
+            { agentId: 'grok', label: 'Grok Build', ready: false },
+          ]}
+          onOpenAgentSettings={onOpenAgentSettings}
+        />,
+      );
+    });
+
+    const grokCard = container.querySelector<HTMLButtonElement>('[data-testid="empty-stage-engine-grok"]');
+    expect(grokCard?.classList.contains('is-not-ready')).toBe(true);
+    expect(grokCard?.textContent).toContain('未安装 CLI');
+
+    const settingsLink = grokCard?.querySelector('.empty-stage-engine-settings-link');
+    expect(settingsLink).not.toBeNull();
+    act(() => {
+      settingsLink?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onOpenAgentSettings).toHaveBeenCalledOnce();
+  });
 });

@@ -41,6 +41,7 @@ export type ChatThreadProps = {
   onLoadEarlierWork?: (messageId: string) => Promise<void> | void;
   /** Active product session owning the rendered transcript. */
   sessionId?: string;
+  workflowRequest?: import('./backend-workflows.js').BackendWorkflowRequest;
   /** History hydrate / resume — do not play entrance animation. */
   hydrating?: boolean;
   streaming: boolean;

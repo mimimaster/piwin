@@ -21,6 +21,19 @@ describe('bootstrapExternalAgents', () => {
     expect(result).toEqual(agents);
   });
 
+  it('passes refresh: true when requested', async () => {
+    const agents = [readyAgent()];
+    const dispatch = vi.fn();
+    const request = vi.fn().mockResolvedValue({ success: true, data: { agents } });
+    const hostClient = { request } as unknown as HostClient;
+
+    const result = await bootstrapExternalAgents(hostClient, dispatch, { refresh: true });
+
+    expect(request).toHaveBeenCalledWith({ type: 'agents/status', refresh: true });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'agents/set-all', agents });
+    expect(result).toEqual(agents);
+  });
+
   it('is a no-op when the request fails or the payload is malformed', async () => {
     const dispatch = vi.fn();
     const failing = {
