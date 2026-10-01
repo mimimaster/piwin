@@ -199,4 +199,33 @@ describe('ComposerPlusMenu', () => {
       '未配置任何服务器',
     );
   });
+
+  it('renders extension commands and browse marketplace in extensions submenu', () => {
+    const onSelectExtensionCommand = vi.fn();
+    const onOpenMarketplace = vi.fn();
+    render(
+      createBaseProps({
+        submenu: 'extensions',
+        extensionCommands: [
+          { name: 'git-status', extensionName: 'Git Activity Guard' },
+          { name: 'todo', extensionName: 'Task Focus Checklist' },
+        ],
+        onSelectExtensionCommand,
+        onOpenMarketplace,
+      }),
+      root,
+    );
+
+    const extensionsContent = document.querySelector('[aria-label="Extensions"]');
+    expect(extensionsContent).not.toBeNull();
+    expect(extensionsContent?.textContent).toContain('/git-status');
+    expect(extensionsContent?.textContent).toContain('/todo');
+    expect(extensionsContent?.textContent).toContain('浏览扩展市场…');
+
+    clickItem('plus-menu-extension-git-status');
+    expect(onSelectExtensionCommand).toHaveBeenCalledWith('git-status');
+
+    clickItem('plus-menu-browse-marketplace');
+    expect(onOpenMarketplace).toHaveBeenCalledTimes(1);
+  });
 });
