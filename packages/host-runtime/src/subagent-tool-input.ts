@@ -69,6 +69,14 @@ export const subagentStartInputParameters = {
       type: 'string',
       description: 'Optional short name for the subagent session (shown in UI)',
     },
+    baseBranch: {
+      type: 'string',
+      description:
+        'Worktree mode only. Name of the branch you are working on when it lives in its own ' +
+        'git worktree (for example "feat/my-feature"). The child starts from that branch and ' +
+        'an applied result lands in that worktree. Omit it to start from the session working ' +
+        'checkout. The branch must already be checked out in a worktree of this project.',
+    },
     deliveryIntent: {
       type: 'string',
       enum: ['report', 'integrate', 'candidate'],
@@ -168,6 +176,7 @@ export type SubagentStartInput = {
   role?: string;
   mode?: SubagentIsolationMode;
   sessionName?: string;
+  baseBranch?: string;
   deliveryIntent?: SubagentDeliveryIntent;
   applyPolicy?: SubagentApplyPolicy;
   profileId?: string;
@@ -241,6 +250,17 @@ export function parseSubagentStartInput(
   const roleRaw = String(args.role ?? '').trim();
   const role = roleRaw || undefined;
 
+  const baseBranchArg = args.baseBranch;
+  if (baseBranchArg !== undefined && typeof baseBranchArg !== 'string') {
+    return invalidSubagentInput('baseBranch must be a branch name');
+  }
+  const baseBranchRaw = (baseBranchArg ?? '').trim();
+  // A path here would smuggle a workspace location past the Host-only rule.
+  if (/[\\/]\.\.|^\.\.|^\/|^[A-Za-z]:|\s/.test(baseBranchRaw)) {
+    return invalidSubagentInput('baseBranch must be a branch name, not a path');
+  }
+  const baseBranch = baseBranchRaw || undefined;
+
   const profileIdRaw = String(args.profileId ?? '').trim();
   const profileId = profileIdRaw || undefined;
 
@@ -305,6 +325,7 @@ export function parseSubagentStartInput(
       ...(role ? { role } : {}),
       ...(mode ? { mode } : {}),
       ...(sessionName ? { sessionName } : {}),
+      ...(baseBranch ? { baseBranch } : {}),
       ...(deliveryIntent ? { deliveryIntent } : {}),
       ...(applyPolicy ? { applyPolicy } : {}),
       ...(profileId ? { profileId } : {}),
@@ -394,6 +415,42 @@ export function parseSubagentResultApplyInput(
       approvedBy: approvedBy.value,
     },
   };
+}
+
+export const subagentResultDiscardInputParameters = {
+  type: 'object' as const,
+  properties: {
+    result: {
+      type: 'object',
+      description:
+        'Exact candidate result you decided not to apply, as returned by piwin_subagent_wait. ' +
+        'Discard it when you finished the work another way, when it is superseded, or when it ' +
+        'is not wanted. It cannot be undone, and an applied result cannot be discarded.',
+      properties: {
+        resultId: { type: 'string' },
+        revision: { type: 'number' },
+      },
+      required: ['resultId', 'revision'],
+    },
+  },
+  required: ['result'] as const,
+};
+
+export type SubagentResultDiscardToolInput = {
+  result: SubagentResultRef;
+};
+
+export function parseSubagentResultDiscardInput(
+  args: Record<string, unknown>,
+): { ok: true; value: SubagentResultDiscardToolInput } | InvalidSubagentInput {
+  for (const key of FORBIDDEN_START_FIELDS) {
+    if (args[key] !== undefined) {
+      return invalidSubagentInput(`${key} cannot be supplied by the model`);
+    }
+  }
+  const result = parseSubagentResultRef(args.result, 'result');
+  if (!result.ok) return result;
+  return { ok: true, value: { result: result.value } };
 }
 
 export const subagentVerificationSubmitInputParameters = {

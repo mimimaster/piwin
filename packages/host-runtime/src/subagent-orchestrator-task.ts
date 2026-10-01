@@ -224,7 +224,18 @@ export async function dispatchTask(
         applyPolicy === 'auto' &&
         task.deliveryIntent !== 'candidate' &&
         task.deliveryIntent !== 'report';
-      if (shouldIntegrate) {
+      if (
+        result.noChanges === true &&
+        lease.slotId !== undefined &&
+        task.retainWorktree !== true
+      ) {
+        // The shared slot is returned to the pool on release and the frozen
+        // tree equals the base, so there is nothing to apply, review or
+        // discard. Leaving it `retained` would park it as pending integration
+        // forever and keep the sidekick lane "continuable" on a stale base.
+        result = { ...result, integrationStatus: 'not-requested' };
+        worktreeHandled = true;
+      } else if (shouldIntegrate) {
         result = await integrateTask(deps, result, lease, {
           signal,
           liveCopyOwned: true,

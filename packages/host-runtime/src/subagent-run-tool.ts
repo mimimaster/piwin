@@ -50,6 +50,8 @@ export type SubagentSpawnInput = {
     applyPolicy?: SubagentApplyPolicy;
     deliveryIntent?: SubagentDeliveryIntent;
     sessionName?: string;
+    /** Branch the lead works on in its own worktree; the Host resolves the checkout. */
+    baseBranch?: string;
     /** ORCH-V2: scheme roster role (preferred when a scheme is active). */
     role?: string;
     /** CE-SUB-PROF: profile id resolved by the Host. */
@@ -172,6 +174,20 @@ export type SubagentRunSeam = {
       }
       | Extract<import('@piwin/contracts').ToolResult, { ok: false }>
   >;
+  /** Settle one undecided candidate the lead will not apply. */
+  discardResult?: (input: {
+    parentSessionId: string;
+    parentRunId: string;
+    result: SubagentResultRef;
+  }) => Promise<
+    | {
+        ok: true;
+        result: SubagentResultRef;
+        integrationStatus: SubagentIntegrationStatus;
+        alreadySettled: boolean;
+      }
+    | Extract<import('@piwin/contracts').ToolResult, { ok: false }>
+  >;
   submitVerification?: (input: {
     parentSessionId: string;
     parentRunId: string;
@@ -221,6 +237,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
         task,
         mode,
         sessionName,
+        baseBranch,
         deliveryIntent,
         applyPolicy,
         role,
@@ -250,6 +267,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           task,
           ...(mode ? { mode } : {}),
           ...(sessionName ? { sessionName } : {}),
+          ...(baseBranch ? { baseBranch } : {}),
           ...(deliveryIntent ? { deliveryIntent } : {}),
           ...(applyPolicy ? { applyPolicy } : {}),
           ...(role ? { role } : {}),

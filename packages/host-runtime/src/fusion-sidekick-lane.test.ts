@@ -10,6 +10,7 @@ import { resolveSubagentChildPrompt } from './subagent-lifecycle-service.js';
 import {
   FUSION_SIDEKICK_CAPABILITIES,
   buildFusionSidekickSpawnFields,
+  describeLaneBaseDrift,
   isFusionSidekickRole,
   resolveFusionStartTaskPatch,
   selectFusionSidekickLane,
@@ -236,5 +237,49 @@ describe('fusion sidekick lane', () => {
         reportContract: 'done | blocked | escalate',
       }),
     ).toContain(PIWIN_FUSION_BRIEF_MARKER);
+  });
+});
+
+describe('lane base drift', () => {
+  const lease = {
+    mode: 'worktree' as const,
+    cwd: '/tmp/wt',
+    parentRepoPath: '/repo',
+    worktreePath: '/tmp/wt',
+    worktreeBranch: 'piwin/subagent/slot-0',
+    baseCommit: 'aaaaaaaa11112222',
+    slotId: 'slot-0',
+  };
+
+  it('keeps a lane that is still on the lead\'s base', () => {
+    expect(
+      describeLaneBaseDrift(
+        { continuationWorkspaceLease: lease, continuationRestore: { baseCommit: 'aaaaaaaa11112222', tree: 't' } },
+        'aaaaaaaa11112222',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('drops a lane whose frozen tree sits on a base the lead has left', () => {
+    const reason = describeLaneBaseDrift(
+      { continuationWorkspaceLease: lease, continuationRestore: { baseCommit: 'aaaaaaaa11112222', tree: 't' } },
+      'bbbbbbbb33334444',
+    );
+    expect(reason).toContain('aaaaaaaa');
+    expect(reason).toContain('bbbbbbbb');
+  });
+
+  it('falls back to the lease base when no frozen state is recorded', () => {
+    expect(describeLaneBaseDrift({ continuationWorkspaceLease: lease }, 'cccccccc55556666')).toBeDefined();
+    expect(describeLaneBaseDrift({ continuationWorkspaceLease: lease }, 'aaaaaaaa11112222')).toBeUndefined();
+  });
+
+  it('never invalidates a readonly lane', () => {
+    expect(
+      describeLaneBaseDrift(
+        { continuationWorkspaceLease: { mode: 'readonly', cwd: '/repo', parentRepoPath: '/repo' } },
+        'cccccccc55556666',
+      ),
+    ).toBeUndefined();
   });
 });

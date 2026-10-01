@@ -104,17 +104,45 @@ export function isFusionLaneWorktreeRetained(
   return true;
 }
 
+/**
+ * Why a retained lane can no longer continue on the lead's current base, or
+ * `undefined` when it still can. A lane keeps its own frozen tree on the base
+ * it was started from; once the lead's checkout has moved on, continuing it
+ * hands the child a tree the lead has already left and the brief that follows
+ * (written against the new base) fails to find its own files.
+ */
+export function describeLaneBaseDrift(
+  lane: Pick<PreparedSubagentContinuation, 'continuationRestore' | 'continuationWorkspaceLease'>,
+  currentBaseCommit: string,
+): string | undefined {
+  const lease = lane.continuationWorkspaceLease;
+  const laneBase =
+    lane.continuationRestore?.baseCommit ?? (lease.mode === 'worktree' ? lease.baseCommit : undefined);
+  if (laneBase === undefined || laneBase === currentBaseCommit) return undefined;
+  return `lane base ${laneBase.slice(0, 8)} differs from the lead checkout ${currentBaseCommit.slice(0, 8)}`;
+}
+
 export async function resolveFusionSidekickLane(
   deps: SubagentContinuationPrepDeps,
   parentSessionId: string,
   onLaneUnavailable: (laneId: string, error: unknown) => void,
+  /** Tip the next child would start from; a lane on another base is not continued. */
+  currentBaseCommit?: () => Promise<string>,
 ): Promise<PreparedSubagentContinuation | undefined> {
   const indexPath = getPiwinSessionIndexPath(getPiwinRoot(deps.options.piwinRoot));
   const children = await listChildSessions(indexPath, parentSessionId);
   const lane = selectFusionSidekickLane(children);
   if (!lane) return undefined;
   try {
-    return await prepareRetainedSubagentContinuation(deps, lane.id);
+    const prepared = await prepareRetainedSubagentContinuation(deps, lane.id);
+    const drift = currentBaseCommit
+      ? describeLaneBaseDrift(prepared, await currentBaseCommit())
+      : undefined;
+    if (drift !== undefined) {
+      onLaneUnavailable(lane.id, new Error(drift));
+      return undefined;
+    }
+    return prepared;
   } catch (error) {
     // A lane that cannot continue (worktree gone, lease missing) falls back to
     // a fresh sidekick, but the fallback must be visible, not silent.
@@ -128,15 +156,17 @@ export async function resolveFusionStartTaskPatch(input: {
   role: string | undefined;
   task: string;
   parentSessionId: string;
+  baseBranch?: string | undefined;
   resolveLane?: (
     parentSessionId: string,
+    request: { baseBranch?: string | undefined },
   ) => Promise<PreparedSubagentContinuation | undefined>;
 }): Promise<FusionStartTaskPatch | undefined> {
   const member = findSchemeMember(input.scheme, input.role);
   if (member?.behavior?.lane !== 'persistent') return undefined;
   const fields = buildFusionSidekickSpawnFields(input.task, member.behavior.leadReviewLimit);
   if (!input.resolveLane) return fields;
-  const lane = await input.resolveLane(input.parentSessionId);
+  const lane = await input.resolveLane(input.parentSessionId, { baseBranch: input.baseBranch });
   if (!lane) return fields;
   return {
     ...fields,

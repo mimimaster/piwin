@@ -130,4 +130,47 @@ describe('freezeSubagentChildResult', () => {
     expect(v2.childChanges?.changeSetId).not.toBe(v1.childChanges?.changeSetId);
     store.close();
   });
+
+  it('marks a result whose tree equals its base as having no changes', async () => {
+    const worktreePath = await mkdtemp(join(tmpdir(), 'piwin-freeze-empty-'));
+    const storeRoot = await mkdtemp(join(tmpdir(), 'piwin-freeze-empty-store-'));
+    dirs.push(worktreePath, storeRoot);
+    const store = openTurnChangeStore({ rootDir: storeRoot });
+    await git(worktreePath, ['init']);
+    await git(worktreePath, ['config', 'user.email', 't@example.com']);
+    await git(worktreePath, ['config', 'user.name', 't']);
+    await writeFile(join(worktreePath, 'a.txt'), 'same\n');
+    await git(worktreePath, ['add', 'a.txt']);
+    await git(worktreePath, ['commit', '-m', 'base']);
+    const baseCommit = await git(worktreePath, ['rev-parse', 'HEAD']);
+    const lease = {
+      mode: 'worktree' as const,
+      cwd: worktreePath,
+      parentRepoPath: worktreePath,
+      worktreePath,
+      worktreeBranch: 'child',
+      baseCommit,
+    };
+    const result = {
+      runId: 'run-1',
+      taskId: 'task-1',
+      childSessionId: 'child-1',
+      executionStatus: 'completed' as const,
+      summaryStatus: 'merged' as const,
+      integrationStatus: 'pending' as const,
+      worktreePath,
+    };
+
+    const untouched = await freezeSubagentChildResult({ store, result, lease });
+    expect(untouched.noChanges).toBe(true);
+
+    await writeFile(join(worktreePath, 'a.txt'), 'edited\n');
+    const edited = await freezeSubagentChildResult({
+      store,
+      result: { ...result, taskId: 'task-2' },
+      lease,
+    });
+    expect(edited.noChanges).toBeUndefined();
+    store.close();
+  });
 });

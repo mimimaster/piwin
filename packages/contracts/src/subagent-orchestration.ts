@@ -115,8 +115,18 @@ export type SubagentWorktreeDependencySetup = {
 export type SubagentWorktreeWorkspaceLease = {
   readonly mode: 'worktree';
   readonly cwd: string;
-  /** Parent repository path (the main worktree/repo root). */
+  /**
+   * Parent repository path (the main worktree/repo root). It is the repository
+   * identity: writer-slot bucket, project write lock and snapshot refs key off
+   * it, so it never changes when a task targets a different checkout.
+   */
   readonly parentRepoPath: string;
+  /**
+   * Checkout the child was based on and that a result is applied back to, when
+   * it is a linked worktree other than the project root (the lead works on a
+   * feature branch in its own worktree). Absent: `parentRepoPath`.
+   */
+  readonly targetPath?: string;
   /** Allocated worktree path. */
   readonly worktreePath: string;
   /** Allocated worktree branch. */
@@ -205,6 +215,13 @@ export type SubagentTaskSpec = {
    * whose changes are never applied.
    */
   workspaceSnapshot?: boolean;
+  /**
+   * Branch the child starts from, and whose checkout receives the applied
+   * result. The Host resolves it to the worktree that has the branch checked
+   * out, so the model names a branch and never a path. Omitted: the parent
+   * session's own working checkout, else the project root.
+   */
+  baseBranch?: string;
   candidateLineageId?: string;
   candidateGeneration?: number;
   predecessorResult?: SubagentResultRef;
@@ -334,6 +351,12 @@ export type SubagentTaskResult = {
   model?: ModelRef;
   summaryPreview?: string;
   changedFiles?: string[];
+  /**
+   * Set at freeze when the child's tree equals its base tree: nothing to apply,
+   * review or discard. Such a result settles immediately instead of waiting in
+   * `retained` for a decision no one can usefully make.
+   */
+  noChanges?: boolean;
   verification?: string;
   error?: string;
   /** Structured, redacted failure detail (present whenever a task failed). */

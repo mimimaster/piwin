@@ -370,3 +370,21 @@ updates affect only future children.
   candidate mutex adopt UI, and full result pagination/diff Host APIs are
   **not** claimed complete by this ADR update; they remain follow-ups under
   the delivery-review spec.
+
+## Addendum 2026-10-01: lifecycle gaps found in a long delegation session
+
+Detail and rationale: `docs/specs/2026-10-01-subagent-worktree-lifecycle.md`.
+
+- A write child's base and apply target follow the lead's checkout, selected by
+  a `baseBranch` name (never a path) or the parent session's working directory.
+  `parentRepoPath` stays the repository identity; the lease gains `targetPath`.
+- A result whose frozen tree equals its base settles immediately (`noChanges`).
+- A result left undecided for 7 days is discarded at Host startup, aged by its
+  snapshot commit time, before the worktree GC runs.
+- The GC preview lists, read-only, worktrees outside its storage root.
+- Startup reconciliation no longer rewrites records that already agree, so age
+  clocks survive restarts.
+- Orphaned `piwin/subagent/slot-*` branches are pruned on slot acquire.
+- The lead has `piwin_subagent_result_discard` for a candidate it will not
+  apply: owner-only, exact revision, refused for running/applied/applying
+  results, a no-op when nothing is pending.

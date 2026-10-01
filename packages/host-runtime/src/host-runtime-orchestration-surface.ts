@@ -60,6 +60,7 @@ import {
   resolveRetainedSubagentWorktreeLease,
   resolveSubagentContinuationRestore,
   actOnSubagentWorktree,
+  discardSubagentResult,
 } from './host-runtime-subagent-tasks.js';
 import {
   buildSessionHostToolsForSession,
@@ -274,8 +275,18 @@ export class HostRuntimeOrchestrationSurface extends HostRuntimeCommandSurface {
     childSessionId: string,
     action: 'apply' | 'retain' | 'discard',
     signal?: AbortSignal,
+    target?: { runId: string; taskId: string },
   ): Promise<import('./host-runtime-subagent-tasks.js').SubagentWorktreeActionResult> {
-    return actOnSubagentWorktree(this.asKernel(), childSessionId, action, signal);
+    return actOnSubagentWorktree(this.asKernel(), childSessionId, action, signal, target);
+  }
+
+
+  async discardSubagentResult(entry: {
+    childSessionId: string;
+    runId: string;
+    taskId: string;
+  }): Promise<import('./host-runtime-subagent-tasks.js').SubagentWorktreeActionResult> {
+    return discardSubagentResult(this.asKernel(), entry);
   }
 
 

@@ -97,3 +97,47 @@ export function terminalizePersistedInvocation(
     updatedAt,
   };
 }
+
+/** Child-session status a settled task result projects to. */
+export function subagentSessionStatusForResult(
+  result: Pick<SubagentTaskResult, 'executionStatus'>,
+): NonNullable<SessionIndexRecord['subagentStatus']> {
+  if (result.executionStatus === 'completed') return 'done';
+  if (result.executionStatus === 'cancelled') return 'cancelled';
+  if (result.executionStatus === 'queued' || result.executionStatus === 'running') return 'running';
+  return 'failed';
+}
+
+/**
+ * True when startup has nothing to repair for this task: the child's record and
+ * the durable invocation already say what the stored result says. Rewriting
+ * them anyway stamps every manifest, invocation revision and child session with
+ * "now" on each Host launch, which restarts every age-based clock (the GC and
+ * the undecided-result expiry) and reorders the child sessions by recency.
+ */
+export function isPersistedSubagentStateCurrent(input: {
+  repair: { recordResult: boolean; result: SubagentTaskResult };
+  storedResult: SubagentTaskResult | undefined;
+  child: Pick<SessionIndexRecord, 'subagentStatus' | 'subagentLifecycle'>;
+  invocation: SubagentInvocation | undefined;
+}): boolean {
+  const { repair, storedResult, child, invocation } = input;
+  if (repair.recordResult) return false;
+  // A result stored before child ids were recorded still needs its backfill.
+  if (storedResult?.childSessionId !== repair.result.childSessionId) return false;
+  const lifecycle = child.subagentLifecycle;
+  if (
+    lifecycle?.executionStatus !== repair.result.executionStatus ||
+    lifecycle.summaryStatus !== repair.result.summaryStatus ||
+    lifecycle.integrationStatus !== repair.result.integrationStatus ||
+    child.subagentStatus !== subagentSessionStatusForResult(repair.result)
+  ) {
+    return false;
+  }
+  if (invocation === undefined) return true;
+  return (
+    invocation.status === invocationStatusForResult(repair.result) &&
+    invocation.activity.kind === invocationActivityForResult(repair.result).kind &&
+    invocation.childSessionId === repair.result.childSessionId
+  );
+}

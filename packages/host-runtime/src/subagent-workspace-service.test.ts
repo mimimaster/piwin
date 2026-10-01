@@ -194,6 +194,95 @@ describe('SubagentWorkspaceService', () => {
     });
   });
 
+  it('bases the child on the lead checkout and records it as the apply target', async () => {
+    vi.mocked(isWorktreeBaseClean).mockResolvedValue(true);
+    vi.mocked(runGitCommand).mockResolvedValue({ stdout: 'feedface\n', stderr: '', exitCode: 0 });
+    vi.mocked(createWorktree).mockResolvedValue({
+      worktreePath: '/tmp/piwin/worktrees/key/task-1',
+      branch: 'piwin/subagent/task-1',
+    });
+    const resolveBaseCheckout = vi.fn(async () => ({
+      targetPath: '/tmp/project/.worktrees/feature',
+      branch: 'feat/x',
+      baseCommit: 'feedface',
+    }));
+
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      worktreeStorageRoot: '/tmp/piwin/worktrees',
+      dirtyBasePolicy: 'ask',
+      parallelWritePolicy: 'worktree-only',
+      resolveBaseCheckout,
+    });
+
+    const task = makeTask({ isolationOverride: 'worktree', baseBranch: 'feat/x' });
+    const lease = await service.acquire(task);
+
+    expect(resolveBaseCheckout).toHaveBeenCalledWith(task, '/tmp/project');
+    // The dirty check and the HEAD read follow the lead's checkout...
+    expect(isWorktreeBaseClean).toHaveBeenCalledWith('/tmp/project/.worktrees/feature');
+    expect(runGitCommand).toHaveBeenCalledWith({
+      cwd: '/tmp/project/.worktrees/feature',
+      args: ['rev-parse', 'HEAD'],
+    });
+    // ...while the repository identity (slot bucket, locks, refs) stays the project.
+    expect(lease).toMatchObject({
+      parentRepoPath: '/tmp/project',
+      targetPath: '/tmp/project/.worktrees/feature',
+      baseCommit: 'feedface',
+    });
+    expect(createWorktree).toHaveBeenCalledWith(
+      expect.objectContaining({ projectPath: '/tmp/project', baseRef: 'feedface' }),
+    );
+  });
+
+  it('asks the dirty-base permission about the lead checkout, not the project root', async () => {
+    vi.mocked(isWorktreeBaseClean).mockResolvedValue(false);
+    const requestDirtyBasePermission = vi.fn(async () => 'deny' as const);
+
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      worktreeStorageRoot: '/tmp/piwin/worktrees',
+      dirtyBasePolicy: 'ask',
+      requestDirtyBasePermission,
+      parallelWritePolicy: 'worktree-only',
+      resolveBaseCheckout: async () => ({
+        targetPath: '/tmp/project/.worktrees/feature',
+        branch: 'feat/x',
+        baseCommit: 'feedface',
+      }),
+    });
+
+    await expect(
+      service.acquire(makeTask({ isolationOverride: 'worktree' })),
+    ).rejects.toThrow(/dirty-base-denied/);
+    expect(requestDirtyBasePermission).toHaveBeenCalledWith(
+      expect.anything(),
+      '/tmp/project/.worktrees/feature',
+    );
+  });
+
+  it('omits targetPath when the project root is the base', async () => {
+    vi.mocked(isWorktreeBaseClean).mockResolvedValue(true);
+    vi.mocked(runGitCommand).mockResolvedValue({ stdout: 'abc\n', stderr: '', exitCode: 0 });
+    vi.mocked(createWorktree).mockResolvedValue({
+      worktreePath: '/tmp/piwin/worktrees/key/task-1',
+      branch: 'piwin/subagent/task-1',
+    });
+
+    const service = createSubagentWorkspaceService({
+      projectPath: '/tmp/project',
+      worktreeStorageRoot: '/tmp/piwin/worktrees',
+      dirtyBasePolicy: 'ask',
+      parallelWritePolicy: 'worktree-only',
+      resolveBaseCheckout: async () => undefined,
+    });
+
+    const lease = await service.acquire(makeTask({ isolationOverride: 'worktree' }));
+
+    expect(lease).not.toHaveProperty('targetPath');
+  });
+
   it('queues a second worktree acquire for the same project until the first lease is released', async () => {
     vi.mocked(isWorktreeBaseClean).mockResolvedValue(true);
     vi.mocked(runGitCommand).mockResolvedValue({ stdout: 'abc123\n', stderr: '', exitCode: 0 });

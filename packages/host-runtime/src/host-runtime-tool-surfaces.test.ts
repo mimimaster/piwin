@@ -6,6 +6,7 @@ import { setProjectTrust } from '@piwin/project';
 import { HostRuntime } from './host-runtime.js';
 import { listModelToolSchemaDefects } from './model-tool-descriptor.js';
 import { SUBAGENT_RESULT_APPLY_TOOL_NAME } from './subagent-result-apply-tool.js';
+import { SUBAGENT_RESULT_DISCARD_TOOL_NAME } from './subagent-result-discard-tool.js';
 import { SUBAGENT_RESULT_READ_TOOL_NAME } from './subagent-result-read-tool.js';
 import { SUBAGENT_REVIEW_SUBMIT_TOOL_NAME } from './subagent-review-submit-tool.js';
 import { SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME } from './subagent-verification-submit-tool.js';
@@ -59,12 +60,14 @@ describe('HostRuntime tool surfaces', () => {
     }
   });
 
-  it('exposes exactly nine delegate tools in sdk and rpc modes', async () => {
+  it('exposes exactly ten delegate tools in sdk and rpc modes', async () => {
     const expected = [
       'piwin_subagent_run',
       'piwin_subagent_start',
       'piwin_subagent_continue',
       SUBAGENT_RESULT_APPLY_TOOL_NAME,
+      // The lead's other exit for a candidate it will not apply.
+      SUBAGENT_RESULT_DISCARD_TOOL_NAME,
       SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME,
       'piwin_subagent_wait',
       'piwin_subagent_cancel',
@@ -240,6 +243,9 @@ describe('HostRuntime tool surfaces', () => {
       expect(parentTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_APPLY_TOOL_NAME)).toBe(
         true,
       );
+      expect(parentTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_DISCARD_TOOL_NAME)).toBe(
+        true,
+      );
       expect(
         parentTools.some((tool) => tool.descriptor.name === SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME),
       ).toBe(true);
@@ -247,6 +253,10 @@ describe('HostRuntime tool surfaces', () => {
         false,
       );
       expect(childTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_APPLY_TOOL_NAME)).toBe(
+        false,
+      );
+      // A child cannot settle results: only the session that delegated owns them.
+      expect(childTools.some((tool) => tool.descriptor.name === SUBAGENT_RESULT_DISCARD_TOOL_NAME)).toBe(
         false,
       );
       expect(

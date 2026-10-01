@@ -86,6 +86,7 @@ export type SubagentControlDeps = {
   >;
   resolveFusionLane?: (
     parentSessionId: string,
+    request: { baseBranch?: string | undefined },
   ) => Promise<PreparedSubagentContinuation | undefined>;
 };
 
@@ -244,6 +245,7 @@ async function prepareAndStartSubagent(
       role: schemeSpawn.role,
       task: input.task,
       parentSessionId: sessionId,
+      baseBranch: input.baseBranch,
       ...(deps.resolveFusionLane ? { resolveLane: deps.resolveFusionLane } : {}),
     });
     const deliveryLock = resolveSchemeDeliveryLock(activeScheme, schemeSpawn.role);
@@ -298,6 +300,7 @@ async function prepareAndStartSubagent(
               ? { continuationRestore: fusionPatch.continuationRestore }
               : {}),
             ...(input.sessionName ? { sessionName: input.sessionName } : {}),
+            ...(input.baseBranch ? { baseBranch: input.baseBranch } : {}),
             ...(schemeSpawn.role ? { role: schemeSpawn.role } : {}),
             ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
             ...(schemeSpawn.reportContract ? { reportContract: schemeSpawn.reportContract } : {}),

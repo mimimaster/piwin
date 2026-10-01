@@ -44,6 +44,10 @@ import {
   prepareRetainedSubagentContinuation,
 } from './subagent-continuation-prep.js';
 import { resolveFusionSidekickLane } from './fusion-sidekick-lane.js';
+import { resolveSubagentBaseCommit } from './subagent-base-checkout.js';
+import { selectChildResult } from './subagent-child-result-select.js';
+import { discardSubagentResultForLead } from './subagent-result-discard.js';
+import { resolveSubagentParentLocation } from './subagent-parent-scope.js';
 import { handleSessionLiveCommand } from './commands/session-live-commands.js';
 import {
   deliverDetachedReport,
@@ -231,14 +235,19 @@ export function getSubagentSeam(
     onDetachedBatchSettled: (input) => {
       void settleDetachedBatch(deps, merge, input);
     },
-    resolveFusionLane: (parentSessionId) =>
-      resolveFusionSidekickLane(deps, parentSessionId, (laneId, error) => {
-        deps.push({
-          type: 'host/log',
-          level: 'warn',
-          message: `fusion sidekick ${laneId} cannot continue; starting a fresh sidekick: ${formatError(error)}`,
-        });
-      }),
+    resolveFusionLane: (parentSessionId, request) =>
+      resolveFusionSidekickLane(
+        deps,
+        parentSessionId,
+        (laneId, error) => {
+          deps.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `fusion sidekick ${laneId} cannot continue; starting a fresh sidekick: ${formatError(error)}`,
+          });
+        },
+        () => resolveParentBaseCommit(deps, parentSessionId, request.baseBranch),
+      ),
   };
   const seam = createSubagentControlSeam(controlDeps, sessionId);
   return {
@@ -352,6 +361,23 @@ export function getSubagentSeam(
         },
       );
     },
+    discardResult: async (input) => {
+      const resultService = deps.subagentResultService;
+      if (!resultService) {
+        return { ok: false, code: 'tool-not-available', message: 'subagent discard is not available' };
+      }
+      return discardSubagentResultForLead(
+        {
+          resultService,
+          applyInFlight: (resultId) =>
+            deps.turnChangeRuntime?.store.getSubagentApplyReservation({ resultId })?.status ===
+            'applying',
+          discard: (entry) => discardSubagentResult(deps, entry),
+          publish: (message) => deps.push(message),
+        },
+        { parentSessionId: sessionId, result: input.result },
+      );
+    },
     submitVerification: async (input) => {
       const resultService = deps.subagentResultService;
       const runStore = deps.subagentRunStore;
@@ -377,6 +403,33 @@ export function getSubagentSeam(
       });
     },
   };
+}
+
+/**
+ * Tip the next write child would start from for this parent session. Mirrors
+ * the workspace service's resolution so a retained lane is compared against
+ * the same base a fresh child would get.
+ */
+async function resolveParentBaseCommit(
+  deps: HostRuntimeKernel,
+  parentSessionId: string,
+  baseBranch: string | undefined,
+): Promise<string> {
+  const rootDir = getPiwinRoot(deps.options.piwinRoot);
+  const parentRecord = await getSessionRecord(getPiwinSessionIndexPath(rootDir), parentSessionId);
+  if (!parentRecord) {
+    throw new Error(`subagent parent session not found: ${parentSessionId}`);
+  }
+  const { workspacePath } = resolveSubagentParentLocation(
+    parentRecord,
+    'worktree',
+    getPiwinGeneralWorkspacePath(rootDir),
+  );
+  return resolveSubagentBaseCommit({
+    projectPath: workspacePath,
+    ...(baseBranch ? { baseBranch } : {}),
+    ...(parentRecord.workingDirectory ? { workingDirectory: parentRecord.workingDirectory } : {}),
+  });
 }
 
 export async function prepareSubagentBatch(
@@ -628,6 +681,12 @@ export async function actOnSubagentWorktree(
   childSessionId: string,
   action: 'apply' | 'retain' | 'discard',
   signal?: AbortSignal,
+  /**
+   * One specific run/task of the child. A persistent sidekick lane reuses a
+   * child across runs, so "the child's result" alone can only ever name the
+   * latest one and older undecided results could never be settled.
+   */
+  target?: { runId: string; taskId: string },
 ): Promise<SubagentWorktreeActionResult> {
   const coordinator = deps.subagentIntegrationCoordinator;
   if (!coordinator) {
@@ -650,7 +709,7 @@ export async function actOnSubagentWorktree(
   const lease = await deps.resolveRetainedSubagentWorktreeLease(child);
   const runStore = createSubagentRunStore({ runsDir: join(rootDir, 'subagent-runs') });
   const manifests = await runStore.listManifests();
-  const retainedTask = manifests
+  const childResults = manifests
     .flatMap((manifest) =>
       manifest.tasks.flatMap((task) => {
         const result = manifest.results[task.id];
@@ -662,7 +721,10 @@ export async function actOnSubagentWorktree(
           : [];
       }),
     )
-    .reverse()[0];
+    .reverse();
+  // The child's own record follows its newest result only; settling an older
+  // run must not overwrite what the newer one says.
+  const { entry: retainedTask, isLatest: isLatestResult } = selectChildResult(childResults, target);
   if (!retainedTask) {
     throw new Error('subagent worktree result is unavailable; start a new isolated task');
   }
@@ -704,8 +766,37 @@ export async function actOnSubagentWorktree(
     result = { ...retainedTask.result, integrationStatus: 'retained' };
   }
 
+  return settleRetainedTaskResult(deps, {
+    runStore,
+    retainedTask,
+    result,
+    childSessionId,
+    worktreePath: lease.worktreePath,
+    isLatestResult,
+  });
+}
+
+/** Everything that follows a decision about a retained result, shared by every way of making it. */
+async function settleRetainedTaskResult(
+  deps: HostRuntimeKernel,
+  input: {
+    runStore: ReturnType<typeof createSubagentRunStore>;
+    retainedTask: {
+      manifest: { runId: string; parentSessionId: string };
+      task: { id: string };
+    };
+    result: SubagentTaskResult;
+    childSessionId: string;
+    /** Where the copy lived, when one is still on record; absent for a record-only settle. */
+    worktreePath: string | undefined;
+    /** The child's own record follows its newest result only. */
+    isLatestResult: boolean;
+  },
+): Promise<SubagentWorktreeActionResult> {
+  const { runStore, retainedTask, result, childSessionId, worktreePath, isLatestResult } = input;
+  const indexPath = getPiwinSessionIndexPath(getPiwinRoot(deps.options.piwinRoot));
   await runStore.recordResult(retainedTask.manifest.runId, retainedTask.task.id, result);
-  await deps.persistSubagentTaskResult(child.parentSessionId, result);
+  await deps.persistSubagentTaskResult(retainedTask.manifest.parentSessionId, result);
   const refreshedManifest = await runStore.loadManifest(retainedTask.manifest.runId);
   if (refreshedManifest) {
     const results = Object.values(refreshedManifest.results);
@@ -730,20 +821,20 @@ export async function actOnSubagentWorktree(
       await runStore.recordInvocation(refreshedManifest.runId, updatedInvocation);
       deps.push({
         type: 'subagent/invocation-updated',
-        parentSessionId: child.parentSessionId,
+        parentSessionId: retainedTask.manifest.parentSessionId,
         invocation: updatedInvocation,
       });
     }
     deps.push({
       type: 'subagent/task-updated',
       runId: refreshedManifest.runId,
-      parentSessionId: child.parentSessionId,
+      parentSessionId: retainedTask.manifest.parentSessionId,
       result,
     });
     deps.push({
       type: 'subagent/batch-updated',
       runId: refreshedManifest.runId,
-      parentSessionId: child.parentSessionId,
+      parentSessionId: retainedTask.manifest.parentSessionId,
       result: {
         runId: refreshedManifest.runId,
         status: nextStatus,
@@ -752,11 +843,14 @@ export async function actOnSubagentWorktree(
     });
   }
 
-  const updated = await getSessionRecord(indexPath, childSessionId);
+  const updated = isLatestResult ? await getSessionRecord(indexPath, childSessionId) : undefined;
   if (updated) {
-    const worktreeStillExists = await access(lease.worktreePath)
-      .then(() => true)
-      .catch(() => false);
+    const worktreeStillExists =
+      worktreePath === undefined
+        ? false
+        : await access(worktreePath)
+            .then(() => true)
+            .catch(() => false);
     if (
       result.integrationStatus === 'discarded' ||
       (result.integrationStatus === 'applied' && !worktreeStillExists)
@@ -773,7 +867,7 @@ export async function actOnSubagentWorktree(
     await upsertSessionRecord(indexPath, updated);
     deps.push({
       type: 'subagent/updated',
-      parentSessionId: child.parentSessionId,
+      parentSessionId: retainedTask.manifest.parentSessionId,
       child: indexRecordToSummary(updated),
     });
   }
@@ -789,4 +883,66 @@ export async function actOnSubagentWorktree(
       ...(reservationStatus === undefined ? {} : { reservationStatus }),
     }),
   };
+}
+
+/**
+ * Discard one undecided result: the lead's `piwin_subagent_result_discard` and
+ * the expiry of results nobody decided (see subagent-result-expiry) both land here.
+ *
+ * When a copy or frozen snapshot is still there this is an ordinary discard.
+ * When neither is (the worktree was removed and the snapshot ref is gone) there
+ * is nothing on disk to release and only the record is left; refusing would
+ * leave it `retained` and re-fail on every launch.
+ */
+export async function discardSubagentResult(
+  deps: HostRuntimeKernel,
+  entry: { childSessionId: string; runId: string; taskId: string },
+): Promise<SubagentWorktreeActionResult> {
+  const rootDir = getPiwinRoot(deps.options.piwinRoot);
+  const indexPath = getPiwinSessionIndexPath(rootDir);
+  const child = await getSessionRecord(indexPath, entry.childSessionId);
+  const reachable = child
+    ? await deps.resolveRetainedSubagentWorktreeLease(child).then(
+        () => true,
+        () => false,
+      )
+    : false;
+  const target = { runId: entry.runId, taskId: entry.taskId };
+  if (reachable) {
+    return actOnSubagentWorktree(deps, entry.childSessionId, 'discard', undefined, target);
+  }
+
+  const runStore = createSubagentRunStore({ runsDir: join(rootDir, 'subagent-runs') });
+  const manifest = await runStore.loadManifest(entry.runId);
+  const task = manifest?.tasks.find((candidate) => candidate.id === entry.taskId);
+  const stored = manifest?.results[entry.taskId];
+  const lease = manifest?.leases[entry.taskId];
+  if (!manifest || !task || !stored) {
+    throw new Error(`subagent result ${entry.runId}/${entry.taskId} is no longer on record`);
+  }
+  const resultId = stored.resultRef?.resultId;
+  if (resultId !== undefined && lease?.mode === 'worktree') {
+    await deleteResultSnapshotRef({ repoPath: lease.parentRepoPath, resultId }).catch(
+      () => undefined,
+    );
+  }
+  const { worktreePath: _gone, ...withoutWorktree } = stored;
+  const latest = selectChildResult(
+    (await runStore.listManifests()).flatMap((candidate) =>
+      candidate.tasks.flatMap((candidateTask) => {
+        const candidateResult = candidate.results[candidateTask.id];
+        return candidateResult?.childSessionId === entry.childSessionId
+          ? [{ manifest: candidate, task: candidateTask, result: candidateResult }]
+          : [];
+      }),
+    ).reverse(),
+  );
+  return settleRetainedTaskResult(deps, {
+    runStore,
+    retainedTask: { manifest, task },
+    result: { ...withoutWorktree, integrationStatus: 'discarded' },
+    childSessionId: entry.childSessionId,
+    worktreePath: undefined,
+    isLatestResult: latest.entry?.manifest.runId === entry.runId && latest.entry.task.id === entry.taskId,
+  });
 }

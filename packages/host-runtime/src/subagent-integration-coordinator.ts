@@ -405,6 +405,9 @@ export function createSubagentIntegrationCoordinator(
     }
     const baseCommit = lease.baseCommit;
     const parentRepoPath = lease.parentRepoPath;
+    // Serialization, the write gate and the apply itself belong to the checkout
+    // that receives the files; the repository identity stays `parentRepoPath`.
+    const targetPath = lease.targetPath ?? parentRepoPath;
     // `undefined` stays unrestricted; an explicit empty list is deny-all.
     const allowedOutputPaths = result.allowedOutputPaths
       ? [...result.allowedOutputPaths]
@@ -416,15 +419,15 @@ export function createSubagentIntegrationCoordinator(
     let writeStarted = false;
 
     try {
-      slot = await acquireIntegrationSlot(parentRepoPath, control.signal);
+      slot = await acquireIntegrationSlot(targetPath, control.signal);
       if (control.signal?.aborted) {
         throw new IntegrationQueueCancelledError();
       }
 
       if (workspaceWriteGate) {
         const acquired = await workspaceWriteGate.tryAcquire({
-          workspaceId: parentRepoPath,
-          rootPath: parentRepoPath,
+          workspaceId: targetPath,
+          rootPath: targetPath,
           kind: 'integration',
           mode: 'exclusive',
           wait: true,
@@ -469,7 +472,7 @@ export function createSubagentIntegrationCoordinator(
         worktreePath,
         worktreeBranch,
         baseCommit,
-        parentRepoPath,
+        parentRepoPath: targetPath,
         ...(childTree !== undefined ? { childTree } : {}),
         ...(allowedOutputPaths !== undefined ? { allowedOutputPaths } : {}),
       });
