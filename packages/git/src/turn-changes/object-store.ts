@@ -3,8 +3,10 @@
  * Layout: <rootDir>/objects/<aa>/<rest-of-sha256> published via temp/<uuid>+rename.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, stat, unlink, utimes } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+
+import type { TurnChangeStorageBudget } from './storage-budget.js';
 
 export const DEFAULT_TURN_CHANGE_MAX_OBJECT_BYTES = 20 * 1024 * 1024;
 
@@ -22,9 +24,15 @@ export type TurnChangeObjectStore = {
 export function createTurnChangeObjectStore(options: {
   rootDir: string;
   maxObjectBytes?: number;
+  /**
+   * When given and over budget, new bytes are not written (their hash is
+   * still returned) and are remembered as dropped; see storage-budget.ts.
+   */
+  budget?: TurnChangeStorageBudget;
 }): TurnChangeObjectStore {
   const maxObjectBytes = options.maxObjectBytes ?? DEFAULT_TURN_CHANGE_MAX_OBJECT_BYTES;
   const rootDir = options.rootDir;
+  const budget = options.budget;
 
   return {
     rootDir,
@@ -39,7 +47,16 @@ export function createTurnChangeObjectStore(options: {
         if (sha256Hex(existing) !== sha256) {
           throw new Error('corrupt-object');
         }
+        // Reuse refreshes the object's age, so a retention sweep that found it
+        // unreferenced a moment ago skips it while the new reference lands.
+        const touchedAt = new Date();
+        await utimes(destination, touchedAt, touchedAt).catch(() => undefined);
         return { sha256, byteLength: existing.byteLength };
+      }
+      if (budget && !budget.admit(bytes.byteLength)) {
+        // Over budget: the user's write goes ahead, its undo data is not kept.
+        budget.noteDropped(sha256);
+        return { sha256, byteLength: bytes.byteLength };
       }
       await publishObject(rootDir, destination, bytes);
       return { sha256, byteLength: bytes.byteLength };

@@ -145,6 +145,9 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
             ...(model.maxOutputTokens !== undefined
               ? { maxOutputTokens: model.maxOutputTokens }
               : {}),
+            ...(model.supportsDeveloperRole !== undefined
+              ? { supportsDeveloperRole: model.supportsDeveloperRole }
+              : {}),
           })),
           auth: provider.auth,
         }),

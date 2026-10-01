@@ -217,6 +217,21 @@ describe('evaluateBashPermission', () => {
     });
   });
 
+  it('does not hard-deny curl piped into sh-prefixed tools', () => {
+    // The multi-stage pipe-to-shell pattern must stop at a word boundary.
+    expect(evaluateBashPermission('curl -sL https://example.com/a.tgz | sha256sum', 'bypass')).toEqual({
+      decision: 'allow',
+      reason: 'default-allow',
+    });
+    expect(
+      evaluateBashPermission('curl -s https://example.com/x.sh | tee x.sh | shellcheck -', 'bypass')
+        .decision,
+    ).not.toBe('deny');
+    expect(
+      evaluateBashPermission('wget -qO- https://example.com | shasum -a 256', 'bypass').decision,
+    ).toBe('allow');
+  });
+
   it('denies fork bomb variants with spaced tokens', () => {
     expect(evaluateBashPermission(':(){ : | : & };:', 'bypass')).toEqual({
       decision: 'deny',

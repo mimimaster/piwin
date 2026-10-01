@@ -9,7 +9,11 @@
  */
 
 import { RUN_IDLE_LOOP_REFRESH_MS, type RunIdleLoopNotice } from '@piwin/contracts';
-import { RunIdleLoopDetector } from './run-idle-loop-detector.js';
+import {
+  RunIdleLoopDetector,
+  type IdleLoopObservation,
+  type IdleLoopTextInput,
+} from './run-idle-loop-detector.js';
 import { fingerprintToolLoopCall, type ToolLoopObservation } from './tool-loop-progress.js';
 
 export type RunIdleLoopMonitorOptions = {
@@ -58,6 +62,33 @@ export class RunIdleLoopMonitor {
       },
       new Date(this.now()).toISOString(),
     );
+    this.handleObservationResult(runId, entry, result);
+  }
+
+  observeText(runId: string, input: IdleLoopTextInput): void {
+    const entry = this.getOrCreate(runId);
+    const result = entry.detector.observeText(input, new Date(this.now()).toISOString());
+    this.handleObservationResult(runId, entry, result);
+  }
+
+  noteMessageStart(runId: string, messageId: string): void {
+    const entry = this.runs.get(runId);
+    if (!entry) return;
+    const result = entry.detector.noteMessageStart(messageId, new Date(this.now()).toISOString());
+    this.handleObservationResult(runId, entry, result);
+  }
+
+  noteMessageEnd(runId: string, messageId: string): void {
+    const entry = this.runs.get(runId);
+    if (!entry) return;
+    entry.detector.noteMessageEnd(messageId);
+  }
+
+  private handleObservationResult(
+    runId: string,
+    entry: RunEntry,
+    result: IdleLoopObservation,
+  ): void {
     if (!result.changed) return;
     const elapsed = this.now() - entry.lastPublishedAt;
     if (result.stateChanged || elapsed >= this.refreshMs) {

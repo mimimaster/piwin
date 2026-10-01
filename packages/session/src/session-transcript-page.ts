@@ -1,3 +1,4 @@
+import { buildSessionTurnSummaries, selectSessionTurnSummaries } from './transcript-work-summary.js';
 import { createHash } from 'node:crypto';
 import {
   SESSION_TRANSCRIPT_PAGE_MAX_BYTES,
@@ -101,6 +102,7 @@ export function createSessionTranscriptPage(
     startIndex,
     endIndex,
     messageBytes,
+    turnSummaries: selectSessionTurnSummaries(buildSessionTurnSummaries(messages, revision), startIndex, endIndex),
   };
   const resultPage: typeof page & {
     truncatedMessageIds?: string[];

@@ -8,20 +8,24 @@
  */
 import { describe, expect, it } from 'vitest';
 import { deleteDescription } from './app-dialogs';
+import { turnChangeRetentionOnDelete } from './turn-changes/turn-change-delete-notice';
 
 describe('deleteDescription', () => {
   it('warns about the backend copy for a Grok session', () => {
     const text = deleteDescription({ sessionId: 's1', sessionName: 'Grok work', agentId: 'grok' }, false);
     // The English copy does not repeat the name; the dialog renders it from
-    // `affectedObject`. Only the backend warning is added here.
+    // `affectedObject`. Only the backend warning is added here, before the
+    // shared notice about code-undo records that every delete carries.
     expect(text).toBe(
-      'Transcript files will be removed. This cannot be undone. This session is also deleted from Grok.',
+      `Transcript files will be removed. This cannot be undone. This session is also deleted from Grok. ${turnChangeRetentionOnDelete(false)}`,
     );
   });
 
   it('stays generic for a Pi session', () => {
     const text = deleteDescription({ sessionId: 's1', sessionName: 'Pi work' }, false);
-    expect(text).toBe('Transcript files will be removed. This cannot be undone.');
+    expect(text).toBe(
+      `Transcript files will be removed. This cannot be undone. ${turnChangeRetentionOnDelete(false)}`,
+    );
     expect(text).not.toContain('Grok');
   });
 
@@ -34,11 +38,12 @@ describe('deleteDescription', () => {
     const text = deleteDescription({ sessionId: 's1', sessionName: 'Grok 任务', agentId: 'grok' }, true);
     expect(text).toContain('Grok 任务');
     expect(text).toContain('从 Grok 中删除');
+    expect(text).toContain(turnChangeRetentionOnDelete(true));
   });
 
   it('handles a closed dialog without throwing', () => {
     expect(deleteDescription(null, false)).toBe(
-      'Transcript files will be removed. This cannot be undone.',
+      `Transcript files will be removed. This cannot be undone. ${turnChangeRetentionOnDelete(false)}`,
     );
   });
 });

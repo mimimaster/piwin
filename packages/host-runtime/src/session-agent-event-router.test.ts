@@ -44,6 +44,7 @@ function createRouterKernel(input: {
     },
     sessionProjects: new Map(),
     sessionFilesTouched,
+    orchestrationSchemeInjectedKeys: new Map(),
     sessionModels: new Map(),
     options: {},
     transcriptRecorders: new Map(),
@@ -363,4 +364,131 @@ describe('routeSessionAgentEvent', () => {
     ).toBe(true);
   });
 
+  it('forwards shell command and read lineRange into the idle-loop monitor', () => {
+    const registry = new RunRegistry();
+    const run = registry.createForegroundRun('session-1');
+    const { deps } = createRouterKernel({
+      sessionId: 'session-1',
+      registry,
+    });
+    const observeTool = vi.fn();
+    deps.runIdleLoopMonitor = { observeTool } as unknown as HostRuntimeKernel['runIdleLoopMonitor'];
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      {
+        type: 'tool/start',
+        toolCallId: 'bash-1',
+        toolName: 'bash',
+        runId: run.runId,
+        presentation: {
+          kind: 'shell',
+          title: 'bash',
+          command: "python3 << 'PY'\nprint('split legacy')\nPY",
+          inputPreview:
+            '{"command":"python3 << \'PY\'\nfrom pathlib import Path\nsrc = Path(\'/Volumes/BigDisk/Projects/Pr…',
+        },
+      },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      {
+        type: 'tool/start',
+        toolCallId: 'read-1',
+        toolName: 'read',
+        runId: run.runId,
+        presentation: {
+          kind: 'filesystem',
+          title: 'read',
+          targetPaths: ['apps/desktop/src/EnhancedMarkdownView.tsx'],
+          lineRange: 'L100-129',
+          inputPreview: '{"path":"apps/desktop/src/EnhancedMarkdownView.tsx","o…',
+        },
+      },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+
+    expect(observeTool).toHaveBeenNthCalledWith(1, run.runId, {
+      toolName: 'bash',
+      command: "python3 << 'PY'\nprint('split legacy')\nPY",
+      inputPreview:
+        '{"command":"python3 << \'PY\'\nfrom pathlib import Path\nsrc = Path(\'/Volumes/BigDisk/Projects/Pr…',
+    });
+    expect(observeTool).toHaveBeenNthCalledWith(2, run.runId, {
+      toolName: 'read',
+      targetPaths: ['apps/desktop/src/EnhancedMarkdownView.tsx'],
+      lineRange: 'L100-129',
+      inputPreview: '{"path":"apps/desktop/src/EnhancedMarkdownView.tsx","o…',
+    });
+  });
+
+  it('routes assistant text streaming events to runIdleLoopMonitor', () => {
+    const registry = new RunRegistry();
+    const run = registry.createForegroundRun('session-1');
+    const { deps } = createRouterKernel({
+      sessionId: 'session-1',
+      registry,
+    });
+    const noteMessageStart = vi.fn();
+    const observeText = vi.fn();
+    const noteMessageEnd = vi.fn();
+    deps.runIdleLoopMonitor = {
+      noteMessageStart,
+      observeText,
+      noteMessageEnd,
+    } as unknown as HostRuntimeKernel['runIdleLoopMonitor'];
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      { type: 'message/start', messageId: 'msg-1', role: 'assistant', runId: run.runId },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+    expect(noteMessageStart).toHaveBeenCalledWith(run.runId, 'msg-1');
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      { type: 'message/text_delta', messageId: 'msg-1', delta: 'Hello ', runId: run.runId },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+    expect(observeText).toHaveBeenCalledWith(run.runId, {
+      messageId: 'msg-1',
+      text: 'Hello ',
+    });
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      { type: 'message/text_delta', messageId: 'msg-1', delta: 'world!', runId: run.runId },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+    expect(observeText).toHaveBeenCalledWith(run.runId, {
+      messageId: 'msg-1',
+      text: 'Hello world!',
+    });
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      { type: 'message/end', messageId: 'msg-1', runId: run.runId },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+    expect(noteMessageEnd).toHaveBeenCalledWith(run.runId, 'msg-1');
+  });
 });

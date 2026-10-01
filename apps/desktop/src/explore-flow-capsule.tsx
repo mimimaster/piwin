@@ -150,7 +150,8 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
   const expanded =
     disclosure === 'closed'
       ? false
-      : hasError || (group.isLive ? disclosure === 'live-open' : disclosure === 'settled-open');
+      : hasError ||
+        (group.isLive ? disclosure === 'live-open' : disclosure === 'settled-open');
   const foldMeasure = useTranscriptLocalFoldMeasure(expanded);
 
   function toggleExpanded(): void {

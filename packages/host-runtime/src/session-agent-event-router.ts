@@ -154,6 +154,10 @@ export function routeSessionAgentEvent(
       logCoordinatorFailure(deps, error);
     });
   }
+  if (eventForClients.type === 'compaction/end' && eventForClients.ok === true) {
+    // The summary may have dropped the scheme preamble; next send resends it.
+    deps.orchestrationSchemeInjectedKeys.delete(session.id);
+  }
   if (eventForClients.type === 'compaction/end') {
     void deps.sessionContextCoordinator
       ?.noteCompactionEnd(session.id, {
@@ -178,21 +182,40 @@ export function routeSessionAgentEvent(
   const replyRunId = correlatedRunId ?? activeRunId;
   if (correlatedEvent.type === 'message/start' && correlatedEvent.role === 'assistant') {
     deps.assistantTextBuffers.set(correlatedEvent.messageId, '');
+    if (replyRunId) {
+      deps.runIdleLoopMonitor?.noteMessageStart(replyRunId, correlatedEvent.messageId);
+    }
   } else if (correlatedEvent.type === 'message/text_delta') {
     const buffer = deps.assistantTextBuffers.get(correlatedEvent.messageId);
     if (buffer !== undefined) {
-      recordAssistantReply(deps, correlatedEvent.messageId, buffer + correlatedEvent.delta, replyRunId);
+      const nextText = buffer + correlatedEvent.delta;
+      recordAssistantReply(deps, correlatedEvent.messageId, nextText, replyRunId);
+      if (replyRunId) {
+        deps.runIdleLoopMonitor?.observeText(replyRunId, {
+          messageId: correlatedEvent.messageId,
+          text: nextText,
+        });
+      }
     }
   } else if (correlatedEvent.type === 'message/text_snapshot') {
     const buffer = deps.assistantTextBuffers.get(correlatedEvent.messageId);
     if (buffer !== undefined) {
       recordAssistantReply(deps, correlatedEvent.messageId, correlatedEvent.text, replyRunId);
+      if (replyRunId) {
+        deps.runIdleLoopMonitor?.observeText(replyRunId, {
+          messageId: correlatedEvent.messageId,
+          text: correlatedEvent.text,
+        });
+      }
     }
   } else if (correlatedEvent.type === 'message/end') {
     const reply = deps.assistantTextBuffers.get(correlatedEvent.messageId);
     if (reply !== undefined) {
       deps.assistantTextBuffers.delete(correlatedEvent.messageId);
-      if (replyRunId) deps.runAssistantReply.set(replyRunId, reply);
+      if (replyRunId) {
+        deps.runAssistantReply.set(replyRunId, reply);
+        deps.runIdleLoopMonitor?.noteMessageEnd(replyRunId, correlatedEvent.messageId);
+      }
     }
   }
   // CE-HOOK: arm matching hooks on normalized AgentEvent (best-effort, never fails turn).
@@ -330,6 +353,9 @@ function observeToolLoopProgress(
         : {}),
       ...(event.presentation?.command !== undefined
         ? { command: event.presentation.command }
+        : {}),
+      ...(event.presentation?.lineRange !== undefined
+        ? { lineRange: event.presentation.lineRange }
         : {}),
     };
     // Detection-only notice: independent of the (default-off) breaker below.

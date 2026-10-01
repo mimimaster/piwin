@@ -165,6 +165,7 @@ export async function handleSessionPromptCommand(
               schemes: subagents?.schemes,
               maxConcurrency: subagents?.maxConcurrency,
               maxTasksPerRun: subagents?.maxTasksPerRun,
+              leadReviewLimit: subagents?.leadReviewLimit,
             },
             orchId,
             {

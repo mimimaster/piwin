@@ -306,6 +306,8 @@ describe('HostToolExecutionRouter', () => {
         },
         finishCapture: async () => undefined,
         recordReceipt: () => undefined,
+        recordShellAudit: () => undefined,
+        waitRunSettled: async () => true,
       },
     });
     await expect(runTool(router, 'web_search', { query: 'x' })).resolves.toMatchObject({

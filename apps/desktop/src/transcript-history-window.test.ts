@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionTranscriptMessage } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState, type ChatUiState } from './chat-reducer.js';
-import { canLoadNewerTranscript, canLoadOlderTranscript } from './transcript-history-window.js';
+import {
+  canLoadNewerTranscript,
+  canLoadOlderTranscript,
+  historyViewCaughtUpWithLive,
+} from './transcript-history-window.js';
 import {
   measureTranscriptCacheBytes,
   MAX_HISTORY_VIEW_MESSAGES,
@@ -150,4 +154,46 @@ it('keeps older history reachable after a live session trims without a hydrated 
   state = chatUiReducer(state, { type: 'transcript/append', sessionId: 'long', message: next });
   expect(state.messages).toHaveLength(160);
   expect(canLoadOlderTranscript(state)).toBe(true);
+});
+
+describe('history view reaching the live tail', () => {
+  /** A live tail whose newest row is a streaming reply Host has not persisted. */
+  function withUnpersistedStreamingRow(state: ChatUiState): ChatUiState {
+    const streaming = {
+      ...state.messages[state.messages.length - 1],
+      id: 'live-streaming',
+      role: 'assistant' as const,
+      status: 'streaming' as const,
+    };
+    return { ...state, messages: [...state.messages, streaming] } as ChatUiState;
+  }
+
+  it('is caught up once the view ends at the last row Host holds, even with live rows beyond it', () => {
+    let state = withUnpersistedStreamingRow(seek(initial(), TOTAL - 50, TOTAL));
+    expect(state.historyView?.messages.at(-1)?.id).toBe(`m${TOTAL - 1}`);
+    // The trap: paging has nothing left to fetch, yet the last ids differ.
+    expect(canLoadNewerTranscript(state)).toBe(true);
+    expect(historyViewCaughtUpWithLive(state)).toBe(true);
+    state = { ...state, historyView: null };
+    expect(historyViewCaughtUpWithLive(state)).toBe(false);
+  });
+
+  it('is not caught up while Host still has newer rows than the view', () => {
+    const state = withUnpersistedStreamingRow(seek(initial(), TOTAL - 120, TOTAL - 80));
+    expect(historyViewCaughtUpWithLive(state)).toBe(false);
+  });
+
+  it('is not caught up when the view ends outside the resident live tail', () => {
+    // endIndex has reached totalCount but the view's last row was never in the
+    // live tail (a stale window): there is nothing resident to hand over to.
+    const state = seek(initial(), TOTAL - 200, TOTAL - 100);
+    const stale = {
+      ...state,
+      historyView: state.historyView && {
+        ...state.historyView,
+        window: { ...state.historyView.window, endIndex: TOTAL, totalCount: TOTAL },
+      },
+    } as ChatUiState;
+    expect(historyViewCaughtUpWithLive(stale)).toBe(false);
+  });
 });

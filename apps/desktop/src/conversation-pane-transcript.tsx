@@ -2,6 +2,7 @@ import { Fragment, useLayoutEffect, useMemo, useRef, type ReactElement } from 'r
 import type { ModelRef, ThemeManifest } from '@piwin/contracts';
 import type { ChatMessageUi, ChatUiState } from './chat-reducer.js';
 import { CompactionActivity } from './compaction-activity.js';
+import { isCompactionRunning } from './compaction-seam-model.js';
 import { ConversationResponseContent } from './conversation-response-content.js';
 import { UserMessageContent } from './conversation-user-message.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
@@ -85,7 +86,7 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
     props.state.streaming &&
     !props.state.awaitingTranscript &&
     !activeSessionPermissionPrompt(props.state) &&
-    !props.state.compactionActivity;
+    !isCompactionRunning(props.state.compactionActivity);
 
   const latestAssistantId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {

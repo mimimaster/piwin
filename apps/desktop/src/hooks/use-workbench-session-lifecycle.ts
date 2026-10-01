@@ -22,6 +22,7 @@ import {
   mergeRecentProjects,
 } from '../remote-session-hydrate';
 import { PROJECT_SIDEBAR_GIT_CHANGED } from '../project-sidebar-events';
+import { checkoutAliasPaths } from '../sidebar-repo-groups';
 import {
   mapWithConcurrency,
   planLastSessionRestore,
@@ -224,6 +225,7 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
     }
     hydratedProjectKeyRef.current = plan.nextKey;
     let cancelled = false;
+    let completed = false;
     void (async () => {
       await mapWithConcurrency(plan.projectPaths, 3, async (path) => {
         if (cancelled) return;
@@ -234,9 +236,17 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
           // A single project failing to load should not block the rest.
         });
       });
+      completed = true;
     })();
     return () => {
       cancelled = true;
+      // The project list re-renders this effect (git enrichment settles, a
+      // refresh lands) with the same paths. Keeping the key would make that
+      // rerun `retain-only` and strand every project this pass had not
+      // reached yet; clearing it lets the next run hydrate them.
+      if (!completed && hydratedProjectKeyRef.current === plan.nextKey) {
+        hydratedProjectKeyRef.current = '';
+      }
     };
     // hydrateSessions is intentionally omitted (its identity changes with UI state).
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -276,6 +286,9 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
 
   const handleRemoveProjectFromSidebar = useCallback(
     async (path: string): Promise<void> => {
+      // A folded folder stands for every alias record of that directory;
+      // removing only the visible one would make an alias pop back up.
+      const aliasPaths = checkoutAliasPaths(recentProjects, path);
       const response = await hostClient.request({
         type: 'project/remove',
         path,
@@ -284,15 +297,27 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
         dispatchNotification(pushError(response.error));
         return;
       }
+      const removedPaths = new Set([path]);
+      for (const aliasPath of aliasPaths) {
+        const aliasResponse = await hostClient.request({
+          type: 'project/remove',
+          path: aliasPath,
+        });
+        if (aliasResponse.success) {
+          removedPaths.add(aliasPath);
+        } else {
+          dispatchNotification(pushError(aliasResponse.error));
+        }
+      }
 
-      setRecentProjects((projects) => projects.filter((project) => project.path !== path));
-      if (projectPath !== path) {
+      setRecentProjects((projects) => projects.filter((project) => !removedPaths.has(project.path)));
+      if (projectPath === null || !removedPaths.has(projectPath)) {
         return;
       }
 
       if (
         config?.desktop?.lastSession?.scope.kind === 'project' &&
-        config.desktop.lastSession.scope.projectPath === path
+        removedPaths.has(config.desktop.lastSession.scope.projectPath)
       ) {
         const nextDesktop = config.desktop ? { ...config.desktop } : {};
         delete nextDesktop.lastSession;
@@ -321,6 +346,7 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
       hostClient,
       hydrateSessions,
       projectPath,
+      recentProjects,
       saveSettingsInOrder,
       setConfig,
       showArchivedSessions,

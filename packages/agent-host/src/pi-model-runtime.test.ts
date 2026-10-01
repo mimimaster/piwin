@@ -108,6 +108,97 @@ describe('pi-model-runtime', () => {
     expect(anthropicRegistration.models[0]).not.toHaveProperty('compat');
   });
 
+  describe('system prompt role (ADR 0082)', () => {
+    const qwen: ModelProviderConfig = {
+      id: 'qwen',
+      protocol: 'openai-compatible',
+      name: 'Qwen',
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      models: [{ id: 'qwen3.8-max' }, { id: 'qwen-plus', systemPromptRole: 'system' }],
+    };
+
+    it('leaves the Pi default alone unless the user opts into system', () => {
+      const registration = buildPiProviderRegistration(qwen, 'k');
+      expect(registration.models[0]).not.toHaveProperty('compat');
+      expect(registration.models[1]?.compat).toEqual({ supportsDeveloperRole: false });
+      const forced = buildPiProviderRegistration({ ...qwen, systemPromptRole: 'system' }, 'k');
+      expect(forced.models[0]?.compat).toEqual({ supportsDeveloperRole: false });
+    });
+
+    it('applies to Responses and merges with model-id compat', () => {
+      const responses = buildPiProviderRegistration(
+        { ...qwen, chatApi: 'openai-responses', systemPromptRole: 'system' },
+        'k',
+      );
+      expect(responses.models[0]).toMatchObject({
+        api: 'openai-responses',
+        compat: { supportsDeveloperRole: false },
+      });
+      const deepseek = buildPiProviderRegistration(
+        { ...qwen, systemPromptRole: 'system', models: [{ id: 'deepseek-v4-flash' }] },
+        'k',
+      );
+      expect(deepseek.models[0]?.compat).toMatchObject({
+        supportsDeveloperRole: false,
+        thinkingFormat: 'deepseek',
+        maxTokensField: 'max_tokens',
+      });
+    });
+
+    it('sends developer by default and system once opted in, on the real Pi wire', async () => {
+      const bodies: unknown[] = [];
+      const server = createServer((request, response) => {
+        const chunks: Buffer[] = [];
+        request.on('data', (chunk: Buffer) => chunks.push(chunk));
+        request.on('end', () => {
+          bodies.push(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+          response.writeHead(400, { 'content-type': 'application/json' });
+          response.end('{"error":{"message":"stop"}}');
+        });
+      });
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const firstRole = async (
+        port: number,
+        systemPromptRole: 'system' | undefined,
+      ): Promise<string | undefined> => {
+        bodies.length = 0;
+        const registration = buildPiProviderRegistration(
+          {
+            ...qwen,
+            baseUrl: `http://127.0.0.1:${port}/v1`,
+            ...(systemPromptRole ? { systemPromptRole } : {}),
+            models: [{ id: 'qwen3.8-max' }],
+          },
+          'k',
+        );
+        const model = registration.models[0];
+        const stream = registration.streamSimple;
+        if (!model || !stream) throw new Error('registration incomplete');
+        const events = stream(
+          { ...model, provider: 'qwen' },
+          {
+            systemPrompt: 'be helpful',
+            messages: [{ role: 'user', content: 'hi', timestamp: 1 }],
+          },
+          { apiKey: 'k' },
+        ) as { result?: () => Promise<unknown> };
+        if (typeof events.result !== 'function') throw new Error('Pi stream did not expose result()');
+        // The 400 ends the turn; only the captured request body matters here.
+        await events.result();
+        const sent = bodies[0] as { messages?: Array<{ role: string }> } | undefined;
+        return sent?.messages?.[0]?.role;
+      };
+      try {
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('no port');
+        expect(await firstRole(address.port, undefined)).toBe('developer');
+        expect(await firstRole(address.port, 'system')).toBe('system');
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    });
+  });
+
   it('fills omitted grok-4.6 window from the Pi catalog instead of 128K', () => {
     const catalog = lookupCatalogByModelId('grok-4.6');
     expect(catalog?.contextWindow).toBe(500_000);

@@ -13,6 +13,7 @@ import {
   getSessionRecord,
   loadSessionPlan,
   openSessionTranscriptStore,
+  PauseCheckpointRetiredError,
   saveSessionPlan,
   type SessionTranscriptStore,
 } from '@piwin/session';
@@ -1186,6 +1187,48 @@ describe('session live control commands', () => {
     expect(registry.getForegroundRun(session.id)).toBeUndefined();
   });
 
+  it('ends a pause as cancelled when its resume checkpoint was already retired', async () => {
+    // Incident session-muny5im0-8df7puba: a resumed run was paused after a newer prompt
+    // had cleared its checkpoint. The store rejected the reused id and the run was
+    // marked failed with "Pause could not be saved" instead of ending as the cancel it raced.
+    const session = createDelayedSessionHandle();
+    const { context, activeRun, registry } = createControlContext(session);
+    const transcriptStore = {
+      lastMessageByRole: async () => undefined,
+      getRevision: async () => 5,
+      createPauseCheckpoint: async () => {
+        throw new PauseCheckpointRetiredError('checkpoint-retired', 'cleared');
+      },
+    } as unknown as SessionTranscriptStore;
+    context.withTranscriptStore = async (_sessionId, operation) => operation(transcriptStore);
+    const terminateRun = vi.fn(context.terminateRun);
+    context.terminateRun = terminateRun;
+
+    await handleSessionLiveCommand(
+      { type: 'session/pause', sessionId: session.id, runId: activeRun.runId },
+      undefined,
+      context,
+    );
+
+    await vi.waitFor(() => {
+      expect(registry.get(activeRun.runId)).toMatchObject({
+        status: 'cancelled',
+        terminalCode: 'cancelled',
+      });
+    });
+    expect(terminateRun).toHaveBeenCalledTimes(1);
+    expect(terminateRun).toHaveBeenCalledWith(
+      session.id,
+      activeRun.runId,
+      'cancelled',
+      'cancelled',
+      expect.stringContaining('already replaced'),
+      undefined,
+    );
+    expect(registry.get(activeRun.runId)?.resumeCheckpointId).toBeUndefined();
+    expect(registry.getForegroundRun(session.id)).toBeUndefined();
+  });
+
   it('pauses a run waiting on subagents by cancelling its child runs', async () => {
     const session = createDelayedSessionHandle();
     const { context, activeRun, registry } = createControlContext(session);
@@ -1790,6 +1833,63 @@ describe('session live control commands', () => {
       expect(modelFacingText).toContain('find the bug');
       expect(modelFacingText.startsWith('[piwin-scheme:ultra-code]')).toBe(true);
       expect(boundSchemes.some((scheme) => scheme?.schemeId === 'ultra-code')).toBe(true);
+    });
+
+    it('sends the full scheme block once per session, then a one-line reminder', async () => {
+      const session = createDelayedSessionHandle();
+      const { context } = createPromptContext(session);
+      const modelFacingTexts: string[] = [];
+      context.listKnownSubagentProfileIds = async () => ['explorer'];
+      context.loadConfig = async () =>
+        ({
+          subagents: {
+            profiles: [],
+            maxConcurrency: 4,
+            maxTasksPerRun: 8,
+            processIsolation: 'required',
+            parallelWritePolicy: 'worktree-only',
+            dirtyBasePolicy: 'ask',
+          },
+        }) as any;
+      const originalPrompt = session.prompt.bind(session);
+      session.prompt = async (input: PromptInput) => {
+        modelFacingTexts.push(input.text);
+        return originalPrompt(input);
+      };
+      const send = async (text: string): Promise<void> => {
+        const response = await handleSessionLiveCommand(
+          {
+            type: 'session/prompt',
+            sessionId: session.id,
+            input: { text, orchestrationSchemeId: 'ultra-code' },
+          },
+          undefined,
+          context,
+        );
+        expect(response?.success).toBe(true);
+        await vi.waitFor(() => {
+          expect(modelFacingTexts.some((entry) => entry.includes(text))).toBe(true);
+        });
+        await session.promptSettled;
+        await vi.waitFor(() => {
+          expect(context.getForegroundRun(session.id)).toBeUndefined();
+        });
+      };
+
+      await send('first question');
+      expect(modelFacingTexts[0]).toContain('[piwin-scheme-roster]');
+      expect(context.orchestrationSchemeInjectedKeys.get(session.id)).toContain(
+        '[piwin-scheme:ultra-code]',
+      );
+
+      await send('second question');
+      expect(modelFacingTexts[1]).toContain('[piwin-scheme:ultra-code active]');
+      expect(modelFacingTexts[1]).not.toContain('[piwin-scheme-roster]');
+
+      // Compaction may drop the block from history: the next send resends it.
+      context.orchestrationSchemeInjectedKeys.delete(session.id);
+      await send('third question');
+      expect(modelFacingTexts[2]).toContain('[piwin-scheme-roster]');
     });
 
     it('marks a pinned role unavailable when its configured model is missing', async () => {

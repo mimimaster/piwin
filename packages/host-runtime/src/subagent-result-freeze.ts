@@ -21,6 +21,7 @@ import { formatError } from '@piwin/contracts';
 import {
   commitResultSnapshot,
   freezeWorktreeAgainstBase,
+  runGitCommand,
   writeWorktreeResultTree,
   type TurnChangeStore,
 } from '@piwin/git';
@@ -101,9 +102,18 @@ export async function freezeSubagentChildResult(input: {
       baseCommit: input.lease.baseCommit,
       resultId,
     });
+    // Exact for every entry type (symlinks, modes, oversized blobs), unlike the
+    // regular-file-only change list.
+    const baseTree = (
+      await runGitCommand({
+        cwd: input.lease.parentRepoPath,
+        args: ['rev-parse', `${input.lease.baseCommit}^{tree}`],
+      })
+    ).stdout.trim();
     return {
       ...base,
       gitSnapshot: snapshot,
+      ...(tree === baseTree ? { noChanges: true } : {}),
       // A slot lease's copy is shared and will be reset in place, so once the
       // Git snapshot exists the copy is already effectively returned. A
       // one-off copy keeps its own lifecycle, decided by integration cleanup.

@@ -170,7 +170,7 @@ function isRememberedSessionAllow(
   if (action === 'file-write' && subject?.kind === 'file-write') {
     return allowlist.hasFilePath(subject.path) || allowlist.hasWorkspacePath?.(subject.path) === true;
   }
-  if (action === 'browser:upload' && subject?.kind === 'file-paths') {
+  if ((action === 'browser:upload' || action === 'file-write') && subject?.kind === 'file-paths') {
     return subject.paths.length > 0 && subject.paths.every(
       (path) => allowlist.hasFilePath(path) || allowlist.hasWorkspacePath?.(path) === true,
     );
@@ -216,6 +216,7 @@ function buildPermissionDetail(
     return `${reason}: ${command}`;
   }
   if (action === 'file-write') {
+    if (subject?.kind === 'file-paths') return subject.paths.join('\n');
     return subject?.kind === 'file-write' ? subject.path : String(args.path ?? '');
   }
   if (action === 'process:start') {

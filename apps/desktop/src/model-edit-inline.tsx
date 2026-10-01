@@ -10,6 +10,7 @@ import {
   type ModelConfigEntry,
   type ModelProviderConfig,
   type ProviderChatApi,
+  type SystemPromptRoleMode,
   type ThinkingLevel,
 } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
@@ -21,6 +22,7 @@ import {
 import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
 import { NativeSearchAdapterFields } from './native-search-adapter-fields.js';
 import { ModelProtocolField } from './model-protocol-field.js';
+import { ModelSystemPromptRoleField } from './model-system-prompt-role-field.js';
 import {
   createModelConfigurationDraft,
   validateModelConfigurationDraft,
@@ -39,6 +41,7 @@ function draftsMatchForPersist(
     left.supportsNativeWebSearch === right.supportsNativeWebSearch &&
     left.nativeSearchAdapter === right.nativeSearchAdapter &&
     (left.protocol ?? '') === (right.protocol ?? '') &&
+    (left.systemPromptRole ?? '') === (right.systemPromptRole ?? '') &&
     left.supportsImage === right.supportsImage &&
     left.reasoning === right.reasoning
   );
@@ -53,6 +56,8 @@ export type ModelEditInlineProps = {
   providerBaseUrl?: string;
   /** Subscription rows have a fixed wire; the per-model protocol is hidden. */
   providerIsSubscription?: boolean;
+  /** Provider system prompt role (ADR 0082); omitted = `developer`. */
+  providerSystemPromptRole?: SystemPromptRoleMode;
   /**
    * Why this provider can never run native search (e.g. Kiro, Codex
    * subscriptions): the tag cannot be turned on and the adapter is hidden.
@@ -293,6 +298,20 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
           onChange={(protocol) => updateDraft((current) => ({ ...current, protocol }))}
         />
       )}
+
+      {!props.providerIsSubscription &&
+      (localDraft.protocol || props.providerProtocol) === 'openai-compatible' ? (
+        <ModelSystemPromptRoleField
+          value={localDraft.systemPromptRole}
+          providerRole={props.providerSystemPromptRole}
+          disabled={disabled}
+          isChinese={isChinese}
+          testId="model-edit-system-prompt-role"
+          onChange={(systemPromptRole) =>
+            updateDraft((current) => ({ ...current, systemPromptRole }))
+          }
+        />
+      ) : null}
 
       <div className="model-edit-inline-caps">
         <label className="model-edit-inline-cap">

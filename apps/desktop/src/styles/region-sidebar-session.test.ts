@@ -5,7 +5,13 @@ import { describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const session = readFileSync(join(here, 'region-sidebar-session.css'), 'utf8');
-const inkstoneSidebar = readFileSync(join(here, 'inkstone/sidebar.css'), 'utf8');
+const inkstoneSidebar = [
+  'sidebar-chrome.css',
+  'sidebar-tree.css',
+  'sidebar-sessions.css',
+]
+  .map((name) => readFileSync(join(here, 'inkstone', name), 'utf8'))
+  .join('\n');
 
 describe('session row status seal vs hover actions', () => {
   it('reserves clearance so archive actions never share the completed/failed seal slot', () => {

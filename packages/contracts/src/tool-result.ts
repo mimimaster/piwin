@@ -35,6 +35,46 @@ export type ToolResultDetails = Record<string, unknown> & {
   recovery?: import('./browser.js').BrowserRecoveryAction;
   pageStateLost?: boolean;
   nextAction?: string;
+  /** Host workspace write gate facts for gated file and shell tools. */
+  workspaceWrite?: WorkspaceWriteToolDetails;
+  /** What this one file-tool call changed (not the file's diff against HEAD). */
+  fileChange?: ToolFileChange;
+};
+
+/**
+ * One Host file-tool call's own change, from its turn-change receipt. Cards
+ * render this instead of the file's working-tree diff, which would also
+ * include other sessions' and earlier turns' edits to the same file.
+ */
+export type ToolFileChange = {
+  /** Workspace-relative path. */
+  path: string;
+  status: 'added' | 'modified' | 'deleted';
+  /** Null for binary content. */
+  additions: number | null;
+  deletions: number | null;
+  binary: boolean;
+  /** Unified patch, omitted for binary or oversized changes. */
+  patch?: string;
+};
+
+/**
+ * How a gated tool met the workspace write gate. Ordinary shell commands take
+ * the shared lease and run optimistically; `concurrentChanges` reports what
+ * other sessions changed in the workspace while such a command ran.
+ */
+export type WorkspaceWriteToolDetails = {
+  lock: 'exclusive' | 'shared';
+  /** Time spent waiting for the gate before the tool body started. */
+  queuedMs: number;
+  /** Time the tool body ran while holding the lease. */
+  executionMs?: number;
+  concurrentChanges?: {
+    /** Files other sessions wrote through Host file tools (workspace-relative). */
+    otherSessionWrites: string[];
+    /** Dirty-set changes seen during the run; may include this command's own writes. */
+    changedDuringRun: string[];
+  };
 };
 
 /**

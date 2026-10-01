@@ -314,4 +314,42 @@ describe('SubAgentPanel', () => {
     );
     expect(container!.querySelector('[data-testid="subagent-worktree-gc-run"]')).not.toBeNull();
   });
+
+  it('lists worktrees piwin did not create even when nothing is reclaimable', async () => {
+    const request = vi.fn(async (command: { type: string }): Promise<HostResponse> => {
+      if (command.type === 'subagent/worktree-gc-preview') {
+        return {
+          type: 'response',
+          command: 'subagent/worktree-gc-preview',
+          success: true,
+          data: {
+            entries: [],
+            totalBytes: 0,
+            reclaimableBytes: 0,
+            reclaimableCount: 0,
+            foreign: [
+              {
+                worktreePath: '/repo/.worktrees/feature',
+                branch: 'feat/x',
+                parentRepoPath: '/repo',
+              },
+              { worktreePath: '/private/tmp/piwin-head', branch: null, parentRepoPath: '/repo' },
+            ],
+          },
+        };
+      }
+      return emptyListResponse();
+    });
+
+    await act(async () => {
+      renderPanel(root!, { request, children: [childSummary('child-1')] });
+    });
+
+    const foreign = container!.querySelector('[data-testid="subagent-foreign-worktrees"]');
+    expect(foreign?.textContent).toContain('2');
+    expect(foreign?.textContent).toContain('/repo/.worktrees/feature · feat/x');
+    expect(foreign?.textContent).toContain('/private/tmp/piwin-head');
+    // Nothing the product owns, so no cleanup action is offered for them.
+    expect(container!.querySelector('[data-testid="subagent-worktree-gc-run"]')).toBeNull();
+  });
 });

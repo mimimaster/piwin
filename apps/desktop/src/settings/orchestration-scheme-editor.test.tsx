@@ -87,6 +87,8 @@ describe('OrchestrationSchemeEditor member typing', () => {
             onNotice={vi.fn()}
             onPersistSchemes={onPersistSchemes}
             onCloneScheme={vi.fn(async () => undefined)}
+            defaultSchemeId={undefined}
+            onDefaultSchemeChange={vi.fn(async () => undefined)}
           />
         </PiwinUiProvider>,
       );

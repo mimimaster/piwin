@@ -1,6 +1,4 @@
 import {
-  REVIEWED_DELIVERY_SCHEME_ID,
-  REVIEWED_DELIVERY_WORKER_ROLE,
   type ResolvedOrchestrationScheme,
   type SubagentApplyPolicy,
   type SubagentDeliveryIntent,
@@ -18,10 +16,11 @@ export type SchemeDeliveryLock = {
  * the worker's change before any reviewer saw it.
  */
 export function resolveSchemeDeliveryLock(
-  scheme: Pick<ResolvedOrchestrationScheme, 'schemeId'> | undefined,
+  scheme: Pick<ResolvedOrchestrationScheme, 'members'> | undefined,
   role: string | undefined,
 ): SchemeDeliveryLock | undefined {
-  if (scheme?.schemeId === REVIEWED_DELIVERY_SCHEME_ID && role === REVIEWED_DELIVERY_WORKER_ROLE) {
+  const member = role ? scheme?.members.find((candidate) => candidate.role === role) : undefined;
+  if (member?.behavior?.deliveryLock === 'candidate-explicit') {
     return { deliveryIntent: 'candidate', applyPolicy: 'explicit' };
   }
   return undefined;

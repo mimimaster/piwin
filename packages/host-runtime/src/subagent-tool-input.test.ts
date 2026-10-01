@@ -124,3 +124,27 @@ describe('parseSubagentResultApplyInput', () => {
     ).toMatchObject({ ok: false, code: 'invalid-input' });
   });
 });
+
+describe('parseSubagentStartInput baseBranch', () => {
+  it('passes a branch name through', () => {
+    expect(parseSubagentStartInput({ task: 'x', mode: 'worktree', baseBranch: ' feat/my-feature ' })).toMatchObject({
+      ok: true,
+      value: { baseBranch: 'feat/my-feature' },
+    });
+  });
+
+  it('leaves baseBranch out when blank', () => {
+    const parsed = parseSubagentStartInput({ task: 'x', baseBranch: '   ' });
+    expect(parsed.ok && 'baseBranch' in parsed.value).toBe(false);
+  });
+
+  it('rejects a path so the model cannot choose a workspace location', () => {
+    for (const bad of ['/Users/me/repo', '../escape', 'a/../b', 'C:\\repo', 'feat with space']) {
+      expect(parseSubagentStartInput({ task: 'x', baseBranch: bad })).toMatchObject({
+        ok: false,
+        code: 'invalid-input',
+      });
+    }
+    expect(parseSubagentStartInput({ task: 'x', baseBranch: 42 })).toMatchObject({ ok: false });
+  });
+});

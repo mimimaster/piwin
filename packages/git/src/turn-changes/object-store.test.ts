@@ -61,7 +61,7 @@ describe('createTurnChangeObjectStore', () => {
     expect(DEFAULT_TURN_CHANGE_MAX_OBJECT_BYTES).toBe(20 * 1024 * 1024);
   });
 
-  it('reuses an existing object with the same hash without rewriting', async () => {
+  it('reuses an existing object with the same hash without rewriting, refreshing its age', async () => {
     const rootDir = await createRootDir();
     const store = createTurnChangeObjectStore({ rootDir });
     const bytes = new TextEncoder().encode('reuse-me');
@@ -74,7 +74,9 @@ describe('createTurnChangeObjectStore', () => {
     expect(second).toEqual(first);
     const after = await stat(path);
     expect(after.ino).toBe(before.ino);
-    expect(after.mtimeMs).toBe(before.mtimeMs);
+    expect(after.size).toBe(before.size);
+    // Retention measures age by mtime; reuse must count as fresh (see retention.ts).
+    expect(after.mtimeMs).toBeGreaterThanOrEqual(before.mtimeMs);
   });
 
   it('does not overwrite a corrupt existing object', async () => {

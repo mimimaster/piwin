@@ -41,575 +41,43 @@ import {
   convertToLlm,
   serializeConversation,
 } from "@earendil-works/pi-coding-agent";
-import {
-  matchesKey,
-  visibleWidth,
-  type Focusable,
-} from "@earendil-works/pi-tui";
 import { createHash } from "node:crypto";
 import {
   existsSync,
-  mkdirSync,
-  readFileSync,
   readdirSync,
-  statSync,
   unlinkSync,
-  writeFileSync,
 } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   isDeepSeekModel,
   todayISO,
   calcHitRate,
-  estimateSavings,
   isDateFrozen,
   isCwdFrozen,
   applyDateFreeze,
   applyCwdFreeze,
 } from "./lib/helpers.ts";
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Constants
-// ═══════════════════════════════════════════════════════════════════════════
-
-const STATS_DIR = join(
-  homedir(),
-  ".pi",
-  "agent",
-  "extensions",
-  "deepseek-cache",
-);
-const SUMMARY_CACHE_FILE = join(STATS_DIR, "summary-cache.json");
-
-const SUMMARY_MAX_TOKENS = 8192;
-const MAX_HISTORY_POINTS = 100;
-const WRITE_DEBOUNCE_MS = 1000;
-const MAX_SESSION_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-const SUMMARY_CACHE_MAX_ENTRIES = 500;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Types
-// ═══════════════════════════════════════════════════════════════════════════
-
-interface PersistedStats {
-  cacheRead: number;
-  input: number;
-  cacheWrite: number;
-  turns: number;
-}
-
-interface HistoryPoint {
-  turn: number;
-  hitRate: number;
-  timestamp: number;
-}
-
-interface CachedMessage {
-  role: string;
-  content?: string;
-  customType?: string;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Persistence (P1) — per-session files
-// ═══════════════════════════════════════════════════════════════════════════
-
-let extensionCtx: ExtensionContext | undefined;
-let pendingStats: PersistedStats | null = null;
-let statsTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingHistory: HistoryPoint[] | null = null;
-let historyTimer: ReturnType<typeof setTimeout> | null = null;
-
-function statsPath(sessionId: string): string {
-  return join(STATS_DIR, `stats-${sessionId}.json`);
-}
-
-function historyPath(sessionId: string): string {
-  return join(STATS_DIR, `history-${sessionId}.json`);
-}
-
-function loadSummaryCache(): Map<string, string> {
-  try {
-    if (existsSync(SUMMARY_CACHE_FILE)) {
-      return new Map(
-        Object.entries(JSON.parse(readFileSync(SUMMARY_CACHE_FILE, "utf-8"))),
-      );
-    }
-  } catch {
-    // silent — summary cache is best-effort
-  }
-  return new Map();
-}
-
-function saveSummaryCacheSync(cache: Map<string, string>) {
-  try {
-    if (!existsSync(STATS_DIR)) mkdirSync(STATS_DIR, { recursive: true });
-    const obj: Record<string, string> = {};
-    for (const [k, v] of cache) obj[k] = v;
-    writeFileSync(SUMMARY_CACHE_FILE, JSON.stringify(obj, null, 2));
-  } catch {
-    // best-effort
-  }
-}
-
-function evictSummaryCacheIfNeeded(cache: Map<string, string>): void {
-  while (cache.size > SUMMARY_CACHE_MAX_ENTRIES) {
-    const firstKey = cache.keys().next().value;
-    if (firstKey) cache.delete(firstKey);
-  }
-}
-
-/**
- * Delete stats-*.json and history-*.json files older than 30 days.
- */
-function cleanupOldSessions() {
-  try {
-    if (!existsSync(STATS_DIR)) return;
-    const cutoff = Date.now() - MAX_SESSION_AGE_MS;
-    const files = readdirSync(STATS_DIR);
-    for (const file of files) {
-      if (
-        (file.startsWith("stats-") && file.endsWith(".json")) ||
-        (file.startsWith("history-") && file.endsWith(".json"))
-      ) {
-        try {
-          const filePath = join(STATS_DIR, file);
-          const st = statSync(filePath);
-          if (st.mtimeMs < cutoff) {
-            unlinkSync(filePath);
-          }
-        } catch {
-          // best-effort per file
-        }
-      }
-    }
-  } catch {
-    // best-effort
-  }
-}
-
-const CLEANUP_MARKER = ".last-cleanup";
-
-function maybeCleanupOldSessions(): void {
-  try {
-    const markerPath = join(STATS_DIR, CLEANUP_MARKER);
-    const now = Date.now();
-    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-
-    if (existsSync(markerPath)) {
-      const lastCleanup = parseInt(readFileSync(markerPath, "utf8"), 10);
-      if (now - lastCleanup < ONE_DAY_MS) return; // skip — cleaned up recently
-    }
-
-    cleanupOldSessions();
-    writeFileSync(markerPath, String(now), "utf8");
-  } catch {
-    // If marker file fails, still run cleanup (best-effort throttling)
-    cleanupOldSessions();
-  }
-}
-
-/**
- * Read all stats-*.json files in STATS_DIR and return summed PersistedStats
- * plus the count of sessions.
- */
-function aggregateAllSessions(): PersistedStats & { sessionCount: number } {
-  const agg: PersistedStats = {
-    cacheRead: 0,
-    input: 0,
-    cacheWrite: 0,
-    turns: 0,
-  };
-  let sessionCount = 0;
-  try {
-    if (!existsSync(STATS_DIR)) return { ...agg, sessionCount: 0 };
-    const files = readdirSync(STATS_DIR);
-    for (const file of files) {
-      if (file.startsWith("stats-") && file.endsWith(".json")) {
-        try {
-          const data: PersistedStats = JSON.parse(
-            readFileSync(join(STATS_DIR, file), "utf-8"),
-          );
-          agg.cacheRead += data.cacheRead ?? 0;
-          agg.input += data.input ?? 0;
-          agg.cacheWrite += data.cacheWrite ?? 0;
-          agg.turns += data.turns ?? 0;
-          sessionCount++;
-        } catch {
-          // skip corrupted files
-        }
-      }
-    }
-  } catch {
-    // best-effort
-  }
-  return { ...agg, sessionCount };
-}
-
-async function aggregateAllSessionsAsync(): Promise<PersistedStats & { sessionCount: number }> {
-  const agg: PersistedStats = {
-    cacheRead: 0,
-    input: 0,
-    cacheWrite: 0,
-    turns: 0,
-  };
-  let sessionCount = 0;
-  try {
-    if (!existsSync(STATS_DIR)) return { ...agg, sessionCount: 0 };
-    const files = readdirSync(STATS_DIR); // directory listing is fast — sync is fine
-
-    const statsFiles = files.filter(f => f.startsWith("stats-") && f.endsWith(".json"));
-
-    const results = await Promise.all(
-      statsFiles.map(async (file) => {
-        try {
-          const raw = await readFile(join(STATS_DIR, file), "utf8");
-          return JSON.parse(raw) as PersistedStats;
-        } catch {
-          return null;
-        }
-      })
-    );
-
-    const valid = results.filter((r): r is PersistedStats => r !== null);
-
-    for (const data of valid) {
-      agg.cacheRead += data.cacheRead ?? 0;
-      agg.input += data.input ?? 0;
-      agg.cacheWrite += data.cacheWrite ?? 0;
-      agg.turns += data.turns ?? 0;
-      sessionCount++;
-    }
-  } catch {
-    // best-effort
-  }
-  return { ...agg, sessionCount };
-}
-
-function scheduleSaveStats(s: PersistedStats, sid: string) {
-  if (!sid) return;
-  pendingStats = s;
-  if (statsTimer) return;
-  statsTimer = setTimeout(() => {
-    statsTimer = null;
-    const data = pendingStats;
-    pendingStats = null;
-    if (!data) return;
-    (async () => {
-      try {
-        if (!existsSync(STATS_DIR)) mkdirSync(STATS_DIR, { recursive: true });
-        await writeFile(statsPath(sid), JSON.stringify(data, null, 2));
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        extensionCtx?.ui.notify(
-          `[deepseek-cache] stats save failed: ${msg}`,
-          "error",
-        );
-      }
-    })();
-  }, WRITE_DEBOUNCE_MS);
-}
-
-function scheduleSaveHistory(h: HistoryPoint[], sid: string) {
-  if (!sid) return;
-  pendingHistory = h;
-  if (historyTimer) return;
-  historyTimer = setTimeout(() => {
-    historyTimer = null;
-    const data = pendingHistory;
-    pendingHistory = null;
-    if (!data) return;
-    (async () => {
-      try {
-        if (!existsSync(STATS_DIR)) mkdirSync(STATS_DIR, { recursive: true });
-        await writeFile(
-          historyPath(sid),
-          JSON.stringify(data.slice(-MAX_HISTORY_POINTS), null, 2),
-        );
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        extensionCtx?.ui.notify(
-          `[deepseek-cache] history save failed: ${msg}`,
-          "error",
-        );
-      }
-    })();
-  }, WRITE_DEBOUNCE_MS);
-}
-
-function flushPendingWrites(sid: string) {
-  if (statsTimer) {
-    clearTimeout(statsTimer);
-    statsTimer = null;
-  }
-  if (pendingStats && sid) {
-    try {
-      if (!existsSync(STATS_DIR)) mkdirSync(STATS_DIR, { recursive: true });
-      writeFileSync(statsPath(sid), JSON.stringify(pendingStats, null, 2));
-    } catch {
-      /* best-effort */
-    }
-    pendingStats = null;
-  }
-  if (historyTimer) {
-    clearTimeout(historyTimer);
-    historyTimer = null;
-  }
-  if (pendingHistory && sid) {
-    try {
-      if (!existsSync(STATS_DIR)) mkdirSync(STATS_DIR, { recursive: true });
-      writeFileSync(
-        historyPath(sid),
-        JSON.stringify(pendingHistory.slice(-MAX_HISTORY_POINTS), null, 2),
-      );
-    } catch {
-      /* best-effort */
-    }
-    pendingHistory = null;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TUI Overlay Components (P4)
-// ═══════════════════════════════════════════════════════════════════════════
-
-class CacheStatsOverlay implements Focusable {
-  readonly width = 58;
-  focused = false;
-  private stats: PersistedStats;
-  private aggregate?: PersistedStats & { sessionCount: number };
-  private prefixBreaks = 0;
-  private theme: any;
-  private done: () => void;
-  private modelId?: string;
-
-  constructor(
-    theme: any,
-    stats: PersistedStats,
-    done: () => void,
-    aggregate?: PersistedStats & { sessionCount: number },
-    prefixBreaks?: number,
-    modelId?: string,
-  ) {
-    this.theme = theme;
-    this.stats = stats;
-    this.done = done;
-    this.aggregate = aggregate;
-    if (prefixBreaks !== undefined) this.prefixBreaks = prefixBreaks;
-    if (modelId !== undefined) this.modelId = modelId;
-  }
-
-  handleInput(data: string): void {
-    if (matchesKey(data, "escape") || matchesKey(data, "return")) this.done();
-  }
-
-  private sectionBlock(
-    title: string,
-    s: PersistedStats,
-    turnsLabel?: string,
-  ): string[] {
-    const th = this.theme;
-    const inner = this.width - 2;
-    const { cacheRead, input, cacheWrite, turns } = s;
-    const hitRate = calcHitRate(cacheRead, input, cacheWrite).toFixed(1);
-    const { saved } = estimateSavings(cacheRead, input, 0, this.modelId);
-    const savedStr = saved >= 0.01 ? `$${saved.toFixed(2)}` : "< $0.01";
-    const pad = (s: string) =>
-      s + " ".repeat(Math.max(0, inner - visibleWidth(s)));
-    const row = (s: string) =>
-      th.fg("border", "│") + pad(s) + th.fg("border", "│");
-    const label = (k: string, v: string) =>
-      `  ${th.fg("dim", k.padEnd(18))}${th.fg("accent", v)}`;
-    const showCacheWrite = cacheWrite > 0;
-    const turnStr = turnsLabel ?? `${turns}`;
-
-    const rows: string[] = [
-      row(` ${th.fg("accent", title)}`),
-      row(""),
-      row(label("Hit rate", `${hitRate}%`)),
-      row(label("Cache hits", `${cacheRead.toLocaleString()} tokens`)),
-    ];
-
-    if (showCacheWrite) {
-      rows.push(
-        row(label("Cache writes", `${cacheWrite.toLocaleString()} tokens`)),
-      );
-    }
-
-    rows.push(
-      row(label("Cache misses", `${input.toLocaleString()} tokens`)),
-      row(label("Turns", turnStr)),
-      row(label("Est. savings", `${th.fg("accent", savedStr)}`)),
-    );
-
-    return rows;
-  }
-
-  render(_width: number): string[] {
-    const th = this.theme;
-    const inner = this.width - 2;
-    const pad = (s: string) =>
-      s + " ".repeat(Math.max(0, inner - visibleWidth(s)));
-    const row = (s: string) =>
-      th.fg("border", "│") + pad(s) + th.fg("border", "│");
-
-    const lines: string[] = [
-      th.fg("border", `╭${"─".repeat(inner)}╮`),
-      ...this.sectionBlock("⚡ This Session", this.stats),
-    ];
-
-    if (this.aggregate && this.aggregate.sessionCount > 1) {
-      lines.push(row(""));
-      lines.push(
-        row(
-          ` ${th.fg("dim", `─── All Sessions (${this.aggregate.sessionCount}) ───`)}`,
-        ),
-      );
-      lines.push(
-        ...this.sectionBlock(
-          "📊 Aggregate",
-          {
-            cacheRead: this.aggregate.cacheRead,
-            input: this.aggregate.input,
-            cacheWrite: this.aggregate.cacheWrite,
-            turns: this.aggregate.turns,
-          },
-          `${this.aggregate.turns}`,
-        ),
-      );
-    }
-
-    lines.push(row(""));
-    if (this.prefixBreaks > 0) {
-      lines.push(
-        row(
-          `  ${th.fg("dim", "Prefix breaks".padEnd(18))}${th.fg("accent", String(this.prefixBreaks))}`,
-        ),
-      );
-    }
-    lines.push(row(` ${th.fg("dim", "Esc / Enter to close")}`));
-    lines.push(th.fg("border", `╰${"─".repeat(inner)}╯`));
-
-    return lines;
-  }
-
-  invalidate(): void {}
-  dispose(): void {}
-}
-
-class CacheGraphOverlay implements Focusable {
-  readonly width = 60;
-  focused = false;
-  private history: HistoryPoint[];
-  private theme: any;
-  private done: () => void;
-
-  constructor(theme: any, history: HistoryPoint[], done: () => void) {
-    this.theme = theme;
-    this.history = history;
-    this.done = done;
-  }
-
-  handleInput(data: string): void {
-    if (matchesKey(data, "escape") || matchesKey(data, "return")) this.done();
-  }
-
-  render(_width: number): string[] {
-    const th = this.theme;
-    const inner = this.width - 2;
-    const pad = (s: string) =>
-      s + " ".repeat(Math.max(0, inner - visibleWidth(s)));
-    const row = (s: string) =>
-      th.fg("border", "│") + pad(s) + th.fg("border", "│");
-
-    if (this.history.length < 2) {
-      return [
-        th.fg("border", `╭${"─".repeat(inner)}╮`),
-        row(` ${th.fg("accent", "⚡ Cache Hit Rate Trend")}`),
-        row(""),
-        row(`  ${th.fg("dim", "Need 2+ turns with cache data for a trend")}`),
-        row(`  ${th.fg("dim", "Keep chatting and try again")}`),
-        row(""),
-        row(` ${th.fg("dim", "Esc to close")}`),
-        th.fg("border", `╰${"─".repeat(inner)}╯`),
-      ];
-    }
-
-    const rates = this.history.map((h) => h.hitRate);
-    const maxRate = Math.max(...rates, 1);
-    const minRate = Math.min(...rates, 0);
-    const range = maxRate - minRate || 1;
-    const chartH = 8;
-    const maxW = 44;
-    const step = Math.max(1, Math.floor(this.history.length / maxW));
-    const data = this.history.filter((_, i) => i % step === 0).slice(-maxW);
-    const chartW = data.length;
-
-    // Build chart rows
-    const chart: string[] = [];
-    for (let r = chartH; r >= 0; r--) {
-      const threshold = minRate + range * (r / chartH);
-      let line =
-        r === chartH
-          ? `${maxRate.toFixed(0)}%`.padStart(4)
-          : r === 0
-            ? `${minRate.toFixed(0)}%`.padStart(4)
-            : "    ";
-      for (const p of data) {
-        line += p.hitRate >= threshold ? "█" : " ";
-      }
-      chart.push(line);
-    }
-
-    // X axis
-    chart.push("    " + "─".repeat(chartW));
-
-    // X labels — first / mid / last
-    const first = String(data[0].turn);
-    const last = String(data[data.length - 1].turn);
-    const midIdx = Math.floor(data.length / 2);
-    const mid = data.length > 2 ? String(data[midIdx].turn) : "";
-    const xChars = new Array(chartW).fill(" ");
-
-    for (let i = 0; i < first.length && i < chartW; i++) xChars[i] = first[i];
-    if (mid) {
-      const start = Math.floor((chartW - mid.length) / 2);
-      for (let i = 0; i < mid.length; i++) {
-        const pos = start + i;
-        if (pos >= 0 && pos < chartW) xChars[pos] = mid[i];
-      }
-    }
-    for (let i = 0; i < last.length; i++) {
-      const pos = chartW - last.length + i;
-      if (pos >= 0 && pos < chartW) xChars[pos] = last[i];
-    }
-    chart.push("    " + xChars.join(""));
-    chart.push("    Turn →");
-
-    const lines = [
-      th.fg("border", `╭${"─".repeat(inner)}╮`),
-      row(
-        ` ${th.fg("accent", `⚡ Cache Hit Rate Trend (${this.history.length} points)`)}`,
-      ),
-      row(""),
-    ];
-    for (const c of chart) lines.push(row(`  ${c}`));
-    lines.push(row(""));
-    lines.push(row(` ${th.fg("dim", "Esc to close")}`));
-    lines.push(th.fg("border", `╰${"─".repeat(inner)}╯`));
-
-    return lines;
-  }
-
-  invalidate(): void {}
-  dispose(): void {}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Extension
-// ═══════════════════════════════════════════════════════════════════════════
+import type { CachedMessage, HistoryPoint, PersistedStats } from "./lib/types.ts";
+import {
+  STATS_DIR,
+  SUMMARY_CACHE_FILE,
+  SUMMARY_MAX_TOKENS,
+  MAX_HISTORY_POINTS,
+  loadSummaryCache,
+  saveSummaryCacheSync,
+  evictSummaryCacheIfNeeded,
+  maybeCleanupOldSessions,
+  aggregateAllSessionsAsync,
+  scheduleSaveStats,
+  scheduleSaveHistory,
+  flushPendingWrites,
+  setExtensionCtx,
+  clearPendingStats,
+  clearPendingHistory,
+  clearStatsTimer,
+  clearHistoryTimer,
+} from "./lib/persistence.ts";
+import { CacheStatsOverlay, CacheGraphOverlay } from "./lib/overlays.ts";
 
 export default function (pi: ExtensionAPI) {
   // ────── P1: Per-session runtime state (counters start at 0) ──────
@@ -636,7 +104,7 @@ export default function (pi: ExtensionAPI) {
 
   // ────── Helper: set ctx for persistence error reporting ──────
   const setCtx = (ctx: ExtensionContext) => {
-    extensionCtx = ctx;
+    setExtensionCtx(ctx);
   };
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -884,16 +352,10 @@ export default function (pi: ExtensionAPI) {
       summaryCache.clear();
 
       // Clear pending writes without flushing to disk (files get deleted below)
-      if (statsTimer) {
-        clearTimeout(statsTimer);
-        statsTimer = null;
-      }
-      pendingStats = null;
-      if (historyTimer) {
-        clearTimeout(historyTimer);
-        historyTimer = null;
-      }
-      pendingHistory = null;
+      clearStatsTimer();
+      clearPendingStats();
+      clearHistoryTimer();
+      clearPendingHistory();
 
       // Delete ALL session files
       try {

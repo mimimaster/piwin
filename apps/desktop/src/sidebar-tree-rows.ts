@@ -12,6 +12,7 @@ import {
 } from './session-row-working';
 import {
   clusterProjectsByRepository,
+  sidebarProjectAllPaths,
   type SidebarProjectRef,
 } from './sidebar-repo-groups';
 
@@ -38,6 +39,8 @@ export type SidebarTreeRow =
   | {
       kind: 'project-folder';
       projectPath: string;
+      /** Symlink aliases of the same directory folded into this folder. */
+      aliasPaths?: string[];
       collapsed: boolean;
       grouped: boolean;
       currentBranch: string | null;
@@ -215,6 +218,38 @@ export function resolveProjectFolderSessions(input: {
     return cached;
   }
   return input.activeProjectSessions;
+}
+
+/**
+ * A folder that folds symlink aliases of one directory lists the sessions
+ * remembered under every alias, once each, as if they shared one project.
+ */
+function resolveFolderSessionsAcrossAliases(
+  input: SidebarTreeRowsInput,
+  project: SidebarProjectRef,
+  searching: boolean,
+): readonly SessionListItemUi[] {
+  const seen = new Set<string>();
+  const sessions: SessionListItemUi[] = [];
+  for (const projectPath of sidebarProjectAllPaths(project)) {
+    for (const session of resolveProjectFolderSessions({
+      projectPath,
+      projectSessionsByPath: input.projectSessionsByPath,
+      ...(input.activeProjectPath !== undefined
+        ? { activeProjectPath: input.activeProjectPath }
+        : {}),
+      ...(input.activeProjectSessions !== undefined
+        ? { activeProjectSessions: input.activeProjectSessions }
+        : {}),
+      searching,
+    })) {
+      if (!seen.has(session.id)) {
+        seen.add(session.id);
+        sessions.push(session);
+      }
+    }
+  }
+  return sessions;
 }
 
 export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRow[] {
@@ -563,7 +598,7 @@ function projectTreeContainsPath(
   if (!targetPath) {
     return false;
   }
-  if (project.path === targetPath) {
+  if (sidebarProjectAllPaths(project).includes(targetPath)) {
     return true;
   }
   return (project.nested ?? []).some((child) => projectTreeContainsPath(child, targetPath));
@@ -576,17 +611,8 @@ function nestedTreeHasReveal(
   searching: boolean,
 ): boolean {
   for (const child of project.nested ?? []) {
-    const childSessions = resolveProjectFolderSessions({
-      projectPath: child.path,
-      projectSessionsByPath: input.projectSessionsByPath,
-      ...(input.activeProjectPath !== undefined
-        ? { activeProjectPath: input.activeProjectPath }
-        : {}),
-      ...(input.activeProjectSessions !== undefined
-        ? { activeProjectSessions: input.activeProjectSessions }
-        : {}),
-      searching,
-    }).filter((session) => session.isPinned !== true);
+    const childSessions = resolveFolderSessionsAcrossAliases(input, child, searching)
+      .filter((session) => session.isPinned !== true);
     const childRows = mergeScopeRows(
       { kind: 'project', projectPath: child.path },
       drafts,
@@ -617,15 +643,7 @@ function appendProjectFolderRows(
   grouped: boolean,
 ): void {
   const scope: SessionScope = { kind: 'project', projectPath: project.path };
-  const rawSessions = resolveProjectFolderSessions({
-    projectPath: project.path,
-    projectSessionsByPath: input.projectSessionsByPath,
-    ...(input.activeProjectPath !== undefined ? { activeProjectPath: input.activeProjectPath } : {}),
-    ...(input.activeProjectSessions !== undefined
-      ? { activeProjectSessions: input.activeProjectSessions }
-      : {}),
-    searching,
-  });
+  const rawSessions = resolveFolderSessionsAcrossAliases(input, project, searching);
   const hostSessions = rawSessions.filter((s) => s.isPinned !== true);
   const merged = mergeScopeRows(
     scope,
@@ -645,7 +663,11 @@ function appendProjectFolderRows(
     projectPath: project.path,
     collapsedProjects: input.collapsedProjects,
     ...(input.activeProjectPath !== undefined
-      ? { activeProjectPath: input.activeProjectPath }
+      ? {
+          activeProjectPath: (project.aliasPaths ?? []).includes(input.activeProjectPath ?? '')
+            ? project.path
+            : input.activeProjectPath,
+        }
       : {}),
     searching,
     revealInside:
@@ -657,6 +679,9 @@ function appendProjectFolderRows(
   rows.push({
     kind: 'project-folder',
     projectPath: project.path,
+    ...(project.aliasPaths && project.aliasPaths.length > 0
+      ? { aliasPaths: project.aliasPaths }
+      : {}),
     collapsed,
     grouped,
     currentBranch: project.currentBranch ?? null,

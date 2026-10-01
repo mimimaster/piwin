@@ -7,6 +7,7 @@ import {
   createDefaultWalkthroughConfig,
   isModelEnabled,
   isProviderEnabled,
+  isSystemPromptRoleMode,
   isThinkingLevel,
   validateWalkthroughConfig,
 } from '@piwin/contracts';
@@ -187,6 +188,15 @@ export function validateProviders(
             }
           }
         }
+        if (
+          model.systemPromptRole !== undefined &&
+          !isSystemPromptRoleMode(model.systemPromptRole)
+        ) {
+          issues.push({
+            path: `${base}.models[${modelIndex}].systemPromptRole`,
+            message: 'systemPromptRole must be one of: developer, system',
+          });
+        }
         if (model.tooltipMarkdown !== undefined && model.tooltipMarkdown.length > 4096) {
           issues.push({
             path: `${base}.models[${modelIndex}].tooltipMarkdown`,
@@ -194,6 +204,15 @@ export function validateProviders(
           });
         }
       });
+    }
+
+    if (provider.protocol === 'openai-compatible' && provider.systemPromptRole !== undefined) {
+      if (!isSystemPromptRoleMode(provider.systemPromptRole)) {
+        issues.push({
+          path: `${base}.systemPromptRole`,
+          message: 'systemPromptRole must be one of: developer, system',
+        });
+      }
     }
 
     if (provider.headers !== undefined) {

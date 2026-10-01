@@ -17,11 +17,7 @@ import type { HostLogEntry } from './HostLogPanel';
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import { DesktopContextMenuProvider } from './context-menu';
 import { SubagentInspectorProvider } from './subagent-inspector-context';
-import { SubagentStopProvider } from './subagent-stop-controller';
-import {
-  SubagentReviewLoopProvider,
-  useSubagentReviewLoopValue,
-} from './subagent-review-loop-context';
+import { useSubagentReviewLoopValue } from './subagent-review-loop-context';
 import { useWorkbenchShellChrome } from './hooks/use-workbench-shell-chrome';
 import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
 import { useShellSessionOpen } from './hooks/use-shell-session-open';
@@ -31,6 +27,7 @@ import { WindowsShellOfferBanner } from './windows-shell-offer-banner';
 import { installRendererSelfHeal } from './renderer-self-heal';
 import { WorkspaceShell } from './workspace-shell';
 import { WorkbenchInspector } from './workbench-inspector';
+import { WorkbenchWorkspaceProviders } from './workbench-workspace-providers';
 import { SubAgentPanel } from './SubAgentPanel';
 import { deriveSubagentOrchestrationView } from './subagent-orchestration-view';
 import { SessionContextRow } from './session-context-row';
@@ -58,8 +55,6 @@ import { findViewGroupId, isStageGroupId } from './workbench/docking/topology.js
 import { sessionScopeKey } from './session-scope-key';
 import { WorkbenchSubpageStage } from './workbench-subpage-stage';
 import { useWorkbenchKnowledge } from './hooks/use-workbench-knowledge';
-import { KnowledgeCitationActionsProvider } from './knowledge/knowledge-citation-actions';
-import { KnowledgeMountsProvider } from './knowledge/knowledge-mounts-context';
 import { isInkstoneThemeId } from './appearance-tokens';
 
 export type AppProps = {
@@ -253,6 +248,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     hydrateSessions,
     transcriptHistoryLoading,
     handleJumpToHistoryAnchor,
+    handleJumpToTranscriptMessage,
     handleReturnToLiveTranscript,
     handleOpenWorkspaceClick,
     handleBrowseProject,
@@ -417,6 +413,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const activeSessionListItem =
     state.sessions.find((session) => session.id === state.activeSessionId) ??
     state.generalSessions.find((session) => session.id === state.activeSessionId);
+  const openReviewTab = useCallback(() => openRightTab('review'), [openRightTab]);
   const reportKnowledgeError = useCallback(
     (message: string) => {
       dispatchNotification({ type: 'notify/push', notification: { level: 'error', message } });
@@ -494,11 +491,14 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               toggle={subagentInspectorToggle}
               panel={subagentInspectorPanel}
             >
-              <SubagentStopProvider value={subagentStop}>
-              {subagentStop.dialog}
-              <SubagentReviewLoopProvider value={reviewLoop}>
-              <KnowledgeMountsProvider value={knowledgeSupported ? knowledge.mounts : null}>
-              <KnowledgeCitationActionsProvider value={knowledge.citationActions}>
+              <WorkbenchWorkspaceProviders
+                hostClient={hostClient}
+                subagentStop={subagentStop}
+                reviewLoop={reviewLoop}
+                knowledgeMounts={knowledgeSupported ? knowledge.mounts : null}
+                knowledgeCitationActions={knowledge.citationActions}
+                onOpenReview={openReviewTab}
+              >
               <DockToolHostsProvider
                 value={{
                   hostClient,
@@ -506,6 +506,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   activeTheme,
                   artifactThemeKey,
                   projectPath: state.projectPath,
+                  activeSessionId: state.activeSessionId,
                   requestGit,
                   addWebElement,
                   artifactTarget: artifactCanvas.activeTarget,
@@ -720,10 +721,11 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       forkCountsByMessageId={forkCountsByMessageId}
                       branchPoints={branchPoints}
                       onJumpToHistoryAnchor={handleJumpToHistoryAnchor}
+                      onLoadEarlierWork={handleJumpToTranscriptMessage}
                       onReturnToLatest={handleReturnToLiveTranscript}
                       onLoadOlder={handleLoadOlderTranscript}
                       onLoadNewer={handleLoadNewerTranscript}
-                      onOpenReview={() => openRightTab('review')}
+                      onOpenReview={openReviewTab}
                       onPermission={handlePermission}
                       onInspectSubagent={handleInspectSubagent}
                       onEdit={setEditingMessageId}
@@ -987,10 +989,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 config={config}
               />
               </DockToolHostsProvider>
-              </KnowledgeCitationActionsProvider>
-              </KnowledgeMountsProvider>
-              </SubagentReviewLoopProvider>
-              </SubagentStopProvider>
+              </WorkbenchWorkspaceProviders>
             </SubagentInspectorProvider>
           </DesktopContextMenuProvider>
         </MediaPreviewReadProvider>

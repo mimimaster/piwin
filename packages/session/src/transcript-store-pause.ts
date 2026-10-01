@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import type { SessionPauseCheckpoint, SessionPauseTurnPolicy } from '@piwin/contracts';
 import type { TranscriptStoreCore, SessionTranscriptStore } from './transcript-store.js';
+import { PauseCheckpointRetiredError } from './pause-checkpoint-retired-error.js';
 import { isSqliteUniqueConstraint } from './sqlite-errors.js';
 import { rowToPauseCheckpoint, type PauseCheckpointRow } from './transcript-store-rows.js';
 
@@ -79,6 +80,19 @@ export function createTranscriptPauseOps(
             return (await readActivePauseCheckpoint()) ?? existing;
           }
           throw new Error(`pause-checkpoint-active: session ${options.sessionId} already has one`);
+        }
+        if (input.checkpointId !== undefined) {
+          // No active row is left, so a row under this id is a retired task. Reusing
+          // the id would hit the primary key and read as a storage failure.
+          const retired = db
+            .prepare('SELECT status FROM pause_checkpoint WHERE checkpoint_id = ? AND session_id = ?')
+            .get(input.checkpointId, options.sessionId) as { status: string } | undefined;
+          if (retired !== undefined) {
+            throw new PauseCheckpointRetiredError(
+              input.checkpointId,
+              retired.status === 'consumed' ? 'consumed' : 'cleared',
+            );
+          }
         }
         const checkpoint: SessionPauseCheckpoint = {
           checkpointId: input.checkpointId ?? randomUUID(),

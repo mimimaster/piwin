@@ -42,6 +42,7 @@ describe('TurnToolGroup causal tool sequence', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.useRealTimers();
   });
 
   function renderGroup(tools: ToolCardUi[]): void {
@@ -144,11 +145,16 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(container.querySelector('[data-testid="tool-batch-capsule"]')).toBeNull();
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
     expect(card).not.toBeNull();
-    expect(card?.classList.contains('is-expanded')).toBe(true);
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
 
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
     await act(async () => {
       await Promise.resolve();
     });
+    expect(card?.classList.contains('is-expanded')).toBe(true);
     expect(container.querySelector('[data-testid="diff-card"]')).not.toBeNull();
 
     act(() => {
@@ -159,6 +165,7 @@ describe('TurnToolGroup causal tool sequence', () => {
   });
 
   it('keeps a running tool container mounted while its output streams', () => {
+    vi.useFakeTimers();
     act(() => renderGroup([tool('tool-1', 'running')]));
     const firstCard = container.querySelector('[data-testid="tool-call-card"]');
     expect(firstCard).not.toBeNull();
@@ -174,6 +181,12 @@ describe('TurnToolGroup causal tool sequence', () => {
     act(() => renderGroup([updatedTool]));
 
     expect(container.querySelector('[data-testid="tool-call-card"]')).toBe(firstCard);
+    // A fresh command stays a collapsed row so short bursts do not flash open.
+    expect(container.textContent).not.toContain('next chunk');
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
     expect(container.textContent).toContain('next chunk');
   });
 

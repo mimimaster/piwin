@@ -104,4 +104,39 @@ describe('conversation pane transcript scrolling', () => {
     render(stateWith(8));
     expect(scroller.scrollTop).toBe(scroller.scrollHeight - scroller.clientHeight);
   });
+
+  describe('compaction seam', () => {
+    function liveStateWith(phase: 'running' | 'succeeded'): ChatUiState {
+      return {
+        ...stateWith(2),
+        streaming: true,
+        activeRunId: 'run-1',
+        compactionActivity: {
+          operationId: 'compact-1',
+          phase,
+          reason: 'threshold',
+          anchorMessageId: 'message-0',
+          startedAt: 1_000,
+        },
+      };
+    }
+
+    it('keeps the run status footer under a compaction that has settled', () => {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+      render(liveStateWith('succeeded'));
+      expect(container.querySelector('[data-testid="compaction-activity"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="run-status-footer"]')).not.toBeNull();
+    });
+
+    it('hides the footer only while the compaction is still running', () => {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+      render(liveStateWith('running'));
+      expect(container.querySelector('[data-testid="compaction-spinner"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="run-status-footer"]')).toBeNull();
+    });
+  });
 });

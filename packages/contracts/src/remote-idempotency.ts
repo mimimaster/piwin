@@ -21,6 +21,7 @@ export const REMOTE_IDEMPOTENT_MUTATION_TYPES = [
   'turn-changes/redo',
   'turn-changes/cancel',
   'turn-changes/recovery-run',
+  'turn-changes/export-backup',
   'flashcards/study/start',
   'flashcards/study/claim',
   'flashcards/study/checkpoint',

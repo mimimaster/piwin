@@ -38,6 +38,9 @@ import {
 } from './subagent-review-summary-model';
 import type { SubagentReviewLoop, SubagentReviewLoopVerificationFact } from './subagent-review-loop-view';
 
+/** Commands finishing sooner than this never expand while running (no flicker). */
+const RUNNING_COMMAND_EXPAND_DELAY_MS = 5000;
+
 export type TurnToolGroupProps = {
   tools: ToolCardUi[];
   density?: ToolCallDensity;
@@ -426,6 +429,7 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
             tool={tool}
             density={props.density ?? 'compact'}
             expandWhileRunning={resolveToolClusterKind(tool) === 'command'}
+            expandWhileRunningDelayMs={RUNNING_COMMAND_EXPAND_DELAY_MS}
             {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
             {...(props.request !== undefined ? { request: props.request } : {})}
             {...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {})}

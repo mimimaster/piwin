@@ -19,6 +19,7 @@ async function waitForHostReady(page: Page): Promise<void> {
 }
 
 async function openTrustedSession(page: Page): Promise<void> {
+  await page.getByTestId('sidebar-mode-code').click();
   await page.getByTestId('open-workspace-btn').click();
   await page.getByTestId('project-path-input').fill('/tmp/piwin-e2e-response-viewport');
   await page.getByTestId('open-project-btn').click();
@@ -80,6 +81,7 @@ test('streaming response locks to an output floor without stealing manual histor
   await page.getByTestId('send-btn').click();
   await expect(page.getByTestId('pause-btn')).toBeVisible({ timeout: 5_000 });
   await expect(page.getByTestId('current-response-turn')).toBeVisible();
+  await expect(page.getByTestId('current-response-turn').locator('[data-testid="message-bubble"][data-role="assistant"]').last()).toBeVisible();
 
   await expect
     .poll(async () => {
@@ -103,6 +105,10 @@ test('streaming response locks to an output floor without stealing manual histor
   );
   await page.mouse.wheel(0, -360);
 
+  // Wheel dispatch returns before Chromium applies the scroll. Record the
+  // detached position only after the actual input moved the viewport.
+  await expect.poll(async () => (await readResponseViewportGeometry(page)).scrollTop)
+    .toBeLessThan(followingGeometry.scrollTop - 100);
   const detachedGeometry = await readResponseViewportGeometry(page);
   await page.waitForTimeout(300);
   const detachedAfterGrowth = await readResponseViewportGeometry(page);

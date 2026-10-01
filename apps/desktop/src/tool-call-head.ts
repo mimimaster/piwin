@@ -14,6 +14,28 @@ export function formatToolDuration(ms: number): string {
   return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
 }
 
+/** Below this the write-gate wait is noise and stays folded into the duration. */
+const VISIBLE_QUEUE_MS = 1000;
+
+/**
+ * Card timing: waiting on another session's workspace lease is shown apart
+ * from running, so a 40ms command that queued for minutes reads as such.
+ */
+export function formatToolTimingParts(
+  durationMs: number | undefined,
+  queuedMs: number | undefined,
+): string[] {
+  const queued = typeof queuedMs === 'number' && queuedMs >= VISIBLE_QUEUE_MS ? queuedMs : 0;
+  const parts: string[] = [];
+  if (queued > 0) {
+    parts.push(`排队 ${formatToolDuration(queued)}`);
+  }
+  if (typeof durationMs === 'number') {
+    parts.push(formatToolDuration(Math.max(0, durationMs - queued)));
+  }
+  return parts;
+}
+
 export function toolHasExpandableBody(tool: ToolCardUi): boolean {
   const output = tool.presentation?.output?.text ?? tool.output;
   return Boolean(

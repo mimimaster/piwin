@@ -30,6 +30,7 @@ import type { ReplyWriterConfig } from './reply-writer.js';
 import type { SessionLifecycleConfig } from './session-lifecycle.js';
 import type { SessionColdStorageConfig } from './session-cold-storage.js';
 import type { ModelSource } from './subscription-oauth.js';
+import type { SystemPromptRoleMode } from './system-prompt-role.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
 export type ModelCapability =
@@ -196,6 +197,8 @@ export type ModelConfigEntry = {
    * When omitted at Pi registration time, defaults to `true` (legacy behavior).
    */
   reasoning?: boolean;
+  /** Overrides the provider `systemPromptRole` (ADR 0082). Omitted = inherit. */
+  systemPromptRole?: SystemPromptRoleMode;
   /**
    * Whether this model is available for use. Default true when omitted.
    * Disabled models remain in config but are excluded from Pi registration,
@@ -236,6 +239,8 @@ export type OpenAiCompatibleProviderConfig = {
   enabled?: boolean;
   /** Extra HTTP headers sent with discovery and (when wired) provider requests. */
   headers?: Record<string, string>;
+  /** System prompt role (ADR 0082). Omitted = Pi default (`developer` for reasoning models). */
+  systemPromptRole?: SystemPromptRoleMode;
   models: ModelConfigEntry[];
 };
 
@@ -509,6 +514,11 @@ export type SubagentConfig = {
   dirtyBasePolicy: 'ask' | 'bypass';
   /** User-authored orchestration schemes (builtins merged at resolve time). */
   schemes?: OrchestrationSchemeSettings[];
+  /**
+   * Auto: a sidekick candidate above either bound needs an independent
+   * reviewer. Omitted fields use the builtin default (5 files / 300 lines).
+   */
+  leadReviewLimit?: { maxFiles?: number; maxChangedLines?: number };
 };
 
 /** Default `subagents.maxConcurrency` (user-facing parallel child ceiling). */
@@ -605,6 +615,11 @@ export type DesktopRestoreConfig = {
     sessionId: string;
     scope: SessionScope;
   };
+  /**
+   * Scheme preselected on the Desktop composer when a new conversation starts.
+   * Omitted means Off. Existing conversations keep their own choice.
+   */
+  defaultOrchestrationSchemeId?: string;
 };
 
 /** Product session behavior config under `PiwinConfig.session`. */

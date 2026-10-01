@@ -244,6 +244,9 @@ export async function prepareSubagentTask(
           ...(model.maxOutputTokens !== undefined
             ? { maxOutputTokens: model.maxOutputTokens }
             : {}),
+          ...(model.supportsDeveloperRole !== undefined
+            ? { supportsDeveloperRole: model.supportsDeveloperRole }
+            : {}),
         })),
         auth: provider.auth,
       };

@@ -40,6 +40,12 @@ export type ChatMessageRowProps = {
   sessionId?: string;
   messageIndex: number;
   showStreamingCaret: boolean;
+  /**
+   * One message can render as two rows (its narration outside the work fold,
+   * its tools inside). Only one of them may own the `msg-<id>` anchor, or the
+   * reading anchor and message jumps would hit a duplicate id.
+   */
+  omitAnchorId?: boolean;
   /** Quiet workbench: entrance animation for messages that arrived after mount. */
   isNew: boolean;
   /** Tool-reported changed paths from the containing turn for system summaries. */
@@ -157,6 +163,8 @@ export type ChatMessageRowProps = {
   turnFlashcardTools?: readonly ToolCardUi[];
   /** All tool calls from the whole turn; summarized on the last assistant row. */
   turnTools?: readonly ToolCardUi[];
+  /** The turn's runIds (encodeTurnRunIds), to find its Host change record. */
+  turnRunKey?: string;
   livePromptModel?: ModelRef | null;
   modelOptions?: readonly ModelOption[];
   configProviders?: readonly ModelProviderConfig[];

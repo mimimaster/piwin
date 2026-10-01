@@ -24,6 +24,7 @@ import type { DesktopLocale } from './desktop-locale';
 import { ContinueSessionInProjectDialog } from './continue-session-in-project-dialog';
 import type { SessionNamedDraft, SessionRenameDraft } from './hooks/use-session-list-chrome';
 import { HostWorkspacePicker } from './host-workspace-picker';
+import { turnChangeRetentionOnDelete } from './turn-changes/turn-change-delete-notice.js';
 
 export type AppDialogsProps = {
   projectInput: string;
@@ -328,11 +329,11 @@ export function deleteDescription(
   if (isChinese) {
     const base = `确定要彻底删除会话「${name}」吗？此操作不可撤销，所有对话记录将被永久删除。`;
     return isExternalAgent
-      ? `${base}该会话同时会从 Grok 中删除。`
-      : base;
+      ? `${base}该会话同时会从 Grok 中删除。${turnChangeRetentionOnDelete(true)}`
+      : `${base}${turnChangeRetentionOnDelete(true)}`;
   }
   const base = 'Transcript files will be removed. This cannot be undone.';
   return isExternalAgent
-    ? `${base} This session is also deleted from Grok.`
-    : base;
+    ? `${base} This session is also deleted from Grok. ${turnChangeRetentionOnDelete(false)}`
+    : `${base} ${turnChangeRetentionOnDelete(false)}`;
 }

@@ -177,6 +177,38 @@ describe('compileBlueprintForWorker', () => {
     expect(result.backendBlueprint.appendSystemPrompt).toBe(appendSystemPrompt);
   });
 
+  it('gives a worktree child the worktree as its working directory, not the parent project', async () => {
+    const compile = (cwd?: string) =>
+      compileBlueprintForWorker(
+        { scope: agentProjectScope, ...(cwd ? { cwd } : {}) },
+        {
+          config: createConfig(),
+          mcpConfig: { mcpServers: {} },
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        },
+      );
+    const parentRoot = agentProjectScope.projectPath;
+
+    const child = await compile('/tmp/piwin-worktree-child');
+    // Pi reads its cwd (and the "Current working directory" line of its system
+    // prompt) from the blueprint; the parent path here sent models to the parent
+    // checkout and around the worktree isolation.
+    expect(child.sessionBlueprint.workingDirectory).toBe('/tmp/piwin-worktree-child');
+    expect(child.sessionBlueprint.capabilitySnapshot.workingDirectory).toBe(
+      '/tmp/piwin-worktree-child',
+    );
+    expect(child.backendBlueprint.capabilitySnapshot.workingDirectory).toBe(
+      '/tmp/piwin-worktree-child',
+    );
+    // Trust and scope still come from the parent project.
+    expect(child.sessionBlueprint.scope).toEqual(agentProjectScope);
+
+    // Ordinary sessions have no cwd override and keep the project root.
+    const ordinary = await compile();
+    expect(ordinary.sessionBlueprint.workingDirectory).toBe(parentRoot);
+    expect(ordinary.backendBlueprint.capabilitySnapshot.workingDirectory).toBe(parentRoot);
+  });
+
   it('does not append Artifact prompt for Agent chat under the shipped default', async () => {
     const result = await compileBlueprintForWorker(
       { scope: agentProjectScope },

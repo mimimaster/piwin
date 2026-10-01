@@ -1,4 +1,8 @@
-import { canLoadOlderTranscript, canLoadNewerTranscript } from './transcript-history-window.js';
+import {
+  canLoadOlderTranscript,
+  canLoadNewerTranscript,
+  historyViewCaughtUpWithLive,
+} from './transcript-history-window.js';
 /**
  * Conversation column of the desktop workbench (extracted from App.tsx).
  * Host commands stay with App; this file owns transcript, permission, and
@@ -25,6 +29,7 @@ import { artifactFenceSecurityProps } from './artifact-fence-security';
 import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
 import { ChatThread } from './chat-thread';
 import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
+import { useTranscriptComposerCard } from './transcript-composer-card';
 import type { ChatMessageUi, ChatUiState, SessionListItemUi } from './chat-reducer';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import type { DesktopLocale } from './desktop-locale';
@@ -88,6 +93,7 @@ export type WorkbenchTranscriptProps = {
   onReturnToLatest: () => void;
   /** `keepMessageId`: the message on screen, which window eviction must keep. */
   onLoadOlder: (keepMessageId?: string) => Promise<void>;
+  onLoadEarlierWork: (messageId: string) => Promise<void>;
   onLoadNewer: (keepMessageId?: string) => Promise<void>;
   onOpenReview: () => void;
   onPermission: (
@@ -158,6 +164,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onJumpToHistoryAnchor,
     onReturnToLatest,
     onLoadOlder,
+    onLoadEarlierWork,
     onLoadNewer,
     onOpenReview,
     onPermission,
@@ -190,6 +197,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     sidebarMode,
   } = props;
   const activeSessionId = state.activeSessionId;
+  const transcriptComposerCard = useTranscriptComposerCard(composerCard);
   const isConversationSession = isConversationSessionChrome(state.activeScope, sidebarMode);
   const canReadToolOutput = hostClient.supportsCommand('session/tool-output');
   // Historical tool rows fetch their slimmed output on expand (session-scoped cache).
@@ -231,6 +239,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         onReturnToLatest={onReturnToLatest}
         canLoadOlder={canLoadOlderTranscript(state)}
         canLoadNewer={canLoadNewerTranscript(state)}
+        historyCaughtUp={historyViewCaughtUpWithLive(state)}
         onLoadNewer={onLoadNewer}
         historyLoading={transcriptHistoryLoading}
         onLoadOlder={onLoadOlder}
@@ -244,9 +253,11 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
          * Host returns a run id, and ChatThread owns the waiting
          * activity locator for that state.
          */}
+        <>
         {visibleMessages.length > 0 || (!historyViewActive && state.streaming) ? (
           <StableChatThread
             messages={visibleMessages}
+            onLoadEarlierWork={onLoadEarlierWork}
             {...(activeSessionId ? { sessionId: activeSessionId } : {})}
             hydrating={state.awaitingTranscript}
             streaming={!historyViewActive && state.streaming}
@@ -327,7 +338,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             onOpenDiff={onOpenDiff}
             compactionActivity={state.compactionActivity}
             onCompactAbort={onCompactAbort}
-            composerCard={composerCard}
+            composerCard={transcriptComposerCard}
             walkthroughsByMessageId={state.walkthroughsByMessageId}
             walkthroughEnabled={config?.walkthrough?.enabled !== false}
             walkthroughAutoGenerate={false}
@@ -355,6 +366,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             {...(props.runningSessionIds ? { runningSessionIds: props.runningSessionIds } : {})}
           />
         )}
+        </>
         </TranscriptViewport>
       </div>
     </ToolOutputReaderContext.Provider>

@@ -1,0 +1,229 @@
+/* Compaction seam: a hairline across the transcript with one pill on it.
+ *
+ * Compaction is maintenance on the whole context window, not a tool the agent
+ * called, so it sits between the messages it separates instead of posing as a
+ * chain row. Colors come from three local roles so a theme re-points them in
+ * one place (see styles/inkstone/compaction.css). While running, the label
+ * reuses the shared `.behavior-generic-active` shimmer and the glyph is the
+ * ui-kit spinner; nothing here defines a new keyframe. */
+
+.chat-compaction-seam {
+  --seam-live: var(--amber);
+  --seam-done: var(--mint);
+  --seam-fail: var(--coral);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+  margin: var(--s-5) 0;
+}
+
+.chat-compaction-seam-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+.chat-compaction-seam-rule {
+  flex: 1 1 0;
+  min-width: var(--s-5);
+  height: 1px;
+  background: var(--line-2);
+}
+
+.chat-compaction-seam-pill {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--s-2) var(--s-5) var(--s-2) var(--s-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+button.chat-compaction-seam-pill {
+  cursor: pointer;
+  transition: background var(--t-2) var(--ease-out);
+}
+
+button.chat-compaction-seam-pill:hover {
+  background: var(--line-1);
+}
+
+.chat-compaction-seam[data-tone='live'] .chat-compaction-seam-pill {
+  border-color: color-mix(in srgb, var(--seam-live) 40%, var(--line-2));
+}
+
+.chat-compaction-seam[data-tone='failed'] .chat-compaction-seam-pill {
+  border-color: color-mix(in srgb, var(--seam-fail) 45%, var(--line-2));
+}
+
+.chat-compaction-seam-glyph {
+  flex: none;
+  color: var(--text-3);
+}
+
+.chat-compaction-seam[data-tone='done'] .chat-compaction-seam-glyph {
+  color: var(--seam-done);
+}
+
+.chat-compaction-seam[data-tone='failed'] .chat-compaction-seam-glyph {
+  color: var(--seam-fail);
+}
+
+.chat-compaction-seam-spinner {
+  display: inline-flex;
+}
+
+/* The shared spinner is 1rem with a 2px ring; the seam wants a lighter one. */
+.chat-compaction-seam-spinner .ui-spinner {
+  width: 13px;
+  height: 13px;
+  border-width: 1.5px;
+  border-top-color: var(--seam-live);
+}
+
+.chat-compaction-seam-dash {
+  width: 9px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.chat-compaction-seam-label {
+  color: var(--text-2);
+}
+
+.chat-compaction-seam[data-tone='done'] .chat-compaction-seam-label,
+.chat-compaction-seam[data-tone='failed'] .chat-compaction-seam-label {
+  color: var(--text-1);
+}
+
+.chat-compaction-seam-fact {
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+
+.chat-compaction-seam-fact[data-kind='tokens'] {
+  color: var(--text-1);
+}
+
+.chat-compaction-seam-fact[data-kind='reduction'] {
+  color: var(--seam-done);
+}
+
+.chat-compaction-seam-chevron {
+  flex: none;
+  color: var(--text-3);
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.chat-compaction-seam[data-open='true'] .chat-compaction-seam-chevron {
+  transform: rotate(180deg);
+}
+
+.chat-compaction-seam-detail {
+  display: grid;
+  gap: var(--s-5);
+  margin: 0 auto;
+  width: min(100%, 560px);
+  padding: var(--s-5) var(--s-6);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-card);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.chat-compaction-seam-section {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.chat-compaction-seam-key {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.chat-compaction-seam-compare {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3) var(--s-4);
+  font-size: 12px;
+}
+
+.chat-compaction-seam-track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line-2);
+}
+
+.chat-compaction-seam-track b {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+}
+
+.chat-compaction-seam-track .is-before {
+  background: var(--text-4);
+}
+
+.chat-compaction-seam-track .is-after {
+  background: var(--seam-done);
+}
+
+.chat-compaction-seam-figure {
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-compaction-seam-summary {
+  max-height: 9.5em;
+  margin: 0;
+  overflow-y: auto;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-compaction-seam-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-compaction-seam-files li {
+  max-width: 100%;
+  padding: 1px var(--s-4);
+  overflow: hidden;
+  border-radius: var(--r-chip);
+  background: var(--line-1);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-compaction-seam-files li[data-modified='true'] {
+  color: var(--text-1);
+}

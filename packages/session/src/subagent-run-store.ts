@@ -61,6 +61,8 @@ export type SubagentPersistedTask = {
   reviewTarget?: SubagentReviewTarget;
   reviewRef?: SubagentReviewRef;
   reviewAuthority?: SubagentReviewAuthority;
+  /** With `reviewAuthority: 'lead'`: size above which a reviewer is required. */
+  leadReviewLimit?: { maxFiles: number; maxChangedLines: number };
   review?: SubagentReviewRecord;
   latestReview?: SubagentReviewRef;
   reviewStatus?: SubagentResultReviewStatus;
@@ -151,6 +153,7 @@ export function snapshotSubagentPersistedTask(task: SubagentTaskSpec): SubagentP
     ...(task.allowedOutputPaths ? { allowedOutputPaths: [...task.allowedOutputPaths] } : {}),
     ...(task.candidateGroupId ? { candidateGroupId: task.candidateGroupId } : {}),
     ...(task.reviewAuthority ? { reviewAuthority: task.reviewAuthority } : {}),
+    ...(task.leadReviewLimit ? { leadReviewLimit: { ...task.leadReviewLimit } } : {}),
     ...pickSubagentLineageRefs(task),
   };
 }

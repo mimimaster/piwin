@@ -1,8 +1,18 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { IconBrain, IconChevronDown, IconChevronRight } from './shell-icons';
+import { ChainIconShell } from './inkstone-chain-icons.js';
 import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 
 export type WorkFoldHeaderState = 'done' | 'running' | 'waiting';
+
+/**
+ * 已工作 is the turn-level summary; 已执行 is the segment-level one — the same
+ * header with the same trailing counts, only the verb (and glyph) differ.
+ */
+export type WorkFoldVerb = 'worked' | 'executed';
+
+/** `data-*` passthrough (the fold rail reads its identity from the header). */
+export type WorkFoldDataAttributes = Record<`data-${string}`, string | undefined>;
 
 export type WorkFoldHeaderProps = {
   state: WorkFoldHeaderState;
@@ -28,7 +38,10 @@ export type WorkFoldHeaderProps = {
   testId?: string;
   ariaLabel?: string;
   /** Done-state glyph. Work disclosure keeps the proto bulb; thinking uses brain. */
-  doneIcon?: 'bulb' | 'brain';
+  doneIcon?: 'bulb' | 'brain' | 'run';
+  /** Wording of the settled label; 已工作 by default. */
+  verb?: WorkFoldVerb;
+  dataAttributes?: WorkFoldDataAttributes;
   /** Extra nodes before the label (Deck RadialBellow, kept for non-Inkstone). */
   leading?: ReactNode;
   children?: ReactNode;
@@ -65,7 +78,11 @@ export function useLiveElapsed(startedAt: number | undefined): number | undefine
   return Math.max(0, now - startedAt);
 }
 
-export function formatWorkDuration(elapsedMs: number, locale: 'zh-CN' | 'en'): string {
+export function formatWorkDuration(
+  elapsedMs: number,
+  locale: 'zh-CN' | 'en',
+  verb: WorkFoldVerb = 'worked',
+): string {
   let remainingSeconds = Math.max(1, Math.round(elapsedMs / 1_000));
   const hours = Math.floor(remainingSeconds / 3_600);
   remainingSeconds -= hours * 3_600;
@@ -78,9 +95,9 @@ export function formatWorkDuration(elapsedMs: number, locale: 'zh-CN' | 'en'): s
   if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
 
   if (locale === 'zh-CN') {
-    return `已工作 ${parts.join(' ')}`;
+    return `${verb === 'executed' ? '已执行' : '已工作'} ${parts.join(' ')}`;
   }
-  return `Worked for ${parts.join(' ')}`;
+  return `${verb === 'executed' ? 'Ran for' : 'Worked for'} ${parts.join(' ')}`;
 }
 
 export function fileNameFromDetail(detail: string): string | undefined {
@@ -143,10 +160,14 @@ function IconBulb(): ReactElement {
 
 function WorkFoldIcon(props: {
   state: WorkFoldHeaderState;
-  doneIcon: 'bulb' | 'brain';
+  doneIcon: 'bulb' | 'brain' | 'run';
 }): ReactElement {
   if (props.doneIcon === 'brain') {
     return <IconBrain className="i work-fold-brain" width={16} height={16} />;
+  }
+  if (props.doneIcon === 'run' && props.state === 'done') {
+    // The prompt glyph the call chain already uses for bash: one step of execution.
+    return <ChainIconShell className="i work-fold-run" size={16} />;
   }
   if (props.state === 'running') {
     return <span className="lamp" aria-hidden="true" />;
@@ -159,6 +180,7 @@ function WorkFoldIcon(props: {
 
 function DoneLabel(props: {
   locale: 'zh-CN' | 'en';
+  verb: WorkFoldVerb;
   elapsedMs?: number;
   toolCount?: number;
   fileCount?: number;
@@ -167,9 +189,13 @@ function DoneLabel(props: {
   const durationText =
     props.elapsedMs === undefined
       ? props.locale === 'zh-CN'
-        ? '已工作'
-        : 'Work'
-      : formatWorkDuration(props.elapsedMs, props.locale);
+        ? props.verb === 'executed'
+          ? '已执行'
+          : '已工作'
+        : props.verb === 'executed'
+          ? 'Ran'
+          : 'Work'
+      : formatWorkDuration(props.elapsedMs, props.locale, props.verb);
   const toolCount = props.toolCount ?? 0;
   const fileCount = props.fileCount ?? 0;
   const failureCount = props.failureCount ?? 0;
@@ -309,6 +335,7 @@ export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
     ) : (
       <DoneLabel
         locale={props.locale}
+        verb={props.verb ?? 'worked'}
         {...(props.elapsedMs !== undefined ? { elapsedMs: props.elapsedMs } : {})}
         {...(props.toolCount !== undefined ? { toolCount: props.toolCount } : {})}
         {...(props.fileCount !== undefined ? { fileCount: props.fileCount } : {})}
@@ -350,6 +377,7 @@ export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
         aria-expanded={open}
         {...(props.ariaLabel !== undefined ? { 'aria-label': props.ariaLabel } : {})}
         {...(props.testId !== undefined ? { 'data-testid': props.testId } : {})}
+        {...props.dataAttributes}
         onClick={() => {
           foldMeasure.onUserToggle();
           onToggle();
@@ -368,6 +396,7 @@ export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
       data-fold-state={props.state}
       style={{ cursor: 'default' }}
       {...(props.testId !== undefined ? { 'data-testid': props.testId } : {})}
+      {...props.dataAttributes}
     >
       {inner}
     </div>

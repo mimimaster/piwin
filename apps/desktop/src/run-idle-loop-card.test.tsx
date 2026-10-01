@@ -59,6 +59,36 @@ describe('presentRunIdleLoopCard', () => {
     expect(view.diagnostics).toContain('repeated calls: 23');
     expect(view.diagnostics).toContain('bash ×11: pwd; ls -la; ls plans');
   });
+
+  it('presents a text repeat idle-loop notice cleanly', () => {
+    const textNotice: RunIdleLoopNotice = {
+      state: 'looping',
+      repeatedCalls: 0,
+      calls: [],
+      firstToolIndex: 0,
+      lastToolIndex: 0,
+      detectedAt: '2026-09-30T10:00:00.000Z',
+      updatedAt: '2026-09-30T10:01:00.000Z',
+      textRepeat: {
+        unit: '重复的句子内容。',
+        repeats: 42,
+        chars: 420,
+        messageId: 'msg-1',
+      },
+    };
+    const view = presentRunIdleLoopCard({ notice: textNotice, runEnded: false, model: MODEL });
+    expect(view.variant).toBe('looping');
+    expect(view.title).toBe('疑似空转');
+    expect(view.tag).toBe('已重复 42 次');
+    expect(view.body).toContain('已重复 42 次');
+    expect(view.body).toContain('同一段文字');
+    expect(view.calls).toEqual([
+      { toolName: '文本重复', preview: '重复的句子内容。', count: 42 },
+    ]);
+    expect(view.meta).toContain('回复文本重复');
+    expect(view.diagnostics).toContain('text repeat: 42× (420 chars, message msg-1)');
+    expect(view.diagnostics).toContain('"重复的句子内容。"');
+  });
 });
 
 describe('mergeIdleLoop', () => {
@@ -158,5 +188,32 @@ describe('RunIdleLoopCard', () => {
   it('renders nothing for a persisted dismissal', () => {
     render({ ...NOTICE, dismissed: true }, vi.fn());
     expect(card()).toBeNull();
+  });
+
+  it('renders a text repeat idle-loop notice in the DOM', () => {
+    const textNotice: RunIdleLoopNotice = {
+      state: 'looping',
+      repeatedCalls: 0,
+      calls: [],
+      firstToolIndex: 0,
+      lastToolIndex: 0,
+      detectedAt: '2026-09-30T10:00:00.000Z',
+      updatedAt: '2026-09-30T10:01:00.000Z',
+      textRepeat: {
+        unit: '重复的句子内容。',
+        repeats: 42,
+        chars: 420,
+        messageId: 'msg-1',
+      },
+    };
+    render(textNotice, vi.fn());
+    expect(card()?.getAttribute('data-variant')).toBe('looping');
+    expect(container.querySelector('[data-testid="run-idle-loop-tag"]')?.textContent).toBe(
+      '已重复 42 次',
+    );
+    const callElement = container.querySelector('.run-idle-loop-call');
+    expect(callElement?.querySelector('.run-idle-loop-call-tool')?.textContent).toBe('文本重复');
+    expect(callElement?.querySelector('.run-idle-loop-call-args')?.textContent).toBe('重复的句子内容。');
+    expect(callElement?.querySelector('.run-idle-loop-call-count')?.textContent).toBe('42 次');
   });
 });

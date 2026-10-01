@@ -1,0 +1,65 @@
+/* Fold rail — viewport chrome pinned over the top of the transcript, listing
+   the open folds the reader is inside of. Sibling of `.chat-stream`, aligned
+   to the chat column by inline `left` / `width`. Rows are `.work-h` rows. */
+
+.transcript-fold-rail {
+  position: absolute;
+  top: 0;
+  z-index: 8;
+  padding: 0 var(--row-pad, 8px);
+  background: var(--s2, var(--surface-1));
+  box-shadow: 0 1px 0 var(--l2, var(--line-1));
+  border-radius: 0 0 8px 8px;
+}
+
+.transcript-fold-rail-row {
+  padding-right: var(--row-pad, 8px);
+}
+
+.transcript-fold-rail-row:hover {
+  background: var(--s3, var(--hover));
+}
+
+.transcript-fold-rail-chev {
+  flex: none;
+  margin-left: 0;
+  transform: rotate(180deg);
+  color: var(--t4, var(--text-4));
+}
+
+.transcript-fold-rail-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--t1, var(--text-1));
+  font-weight: 500;
+}
+
+.transcript-fold-rail-meta {
+  margin-left: auto;
+  flex: none;
+  color: var(--t4, var(--text-4));
+  font: 11.5px var(--mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.transcript-fold-rail-close {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 5px;
+  background: var(--l1, var(--hover));
+  color: var(--t2, var(--text-2));
+  font-size: 12px;
+}
+
+.transcript-fold-rail-row:hover .transcript-fold-rail-close {
+  background: var(--t1, var(--text-1));
+  color: var(--s2, var(--surface-1));
+}
+
+@media (max-width: 720px) {
+  .transcript-fold-rail-meta {
+    display: none;
+  }
+}

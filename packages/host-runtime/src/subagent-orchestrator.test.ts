@@ -944,6 +944,80 @@ describe('SubagentOrchestrator', () => {
     }
   });
 
+  describe('result with no changes', () => {
+    async function runExplicitCandidate(input: {
+      noChanges: boolean;
+      slotId: string | undefined;
+      retainWorktree?: boolean;
+    }) {
+      const backend = makeFakeBackend({ integrationStatus: 'pending' });
+      const { push } = makePushCollector();
+      const orchestrator = new SubagentOrchestrator({
+        taskRunner: backend.taskRunner,
+        workspaceService: {
+          ...backend.workspaceService,
+          async acquire(task: SubagentTaskSpec): Promise<SubagentWorkspaceLease> {
+            const lease = await backend.workspaceService.acquire(task);
+            return lease.mode === 'worktree' && input.slotId !== undefined
+              ? { ...lease, slotId: input.slotId }
+              : lease;
+          },
+        },
+        prepareTask: backend.prepareTask,
+        runRegistry: new RunRegistry(),
+        integrationCoordinator: makeFakeIntegrationCoordinator(),
+        freezeChildResult: async ({ result }) => ({
+          ...result,
+          resultRef: { resultId: 'result-a', revision: 1 },
+          ...(input.noChanges ? { noChanges: true } : {}),
+        }),
+        push,
+        getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+      });
+      return orchestrator.runBatch(
+        makeBatch([
+          makeTask({
+            id: 'a',
+            isolationOverride: 'worktree',
+            applyPolicy: 'explicit',
+            deliveryIntent: 'candidate',
+            ...(input.retainWorktree ? { retainWorktree: true } : {}),
+          }),
+        ]),
+      );
+    }
+
+    it('settles an unchanged slot result instead of leaving it awaiting integration', async () => {
+      const result = await runExplicitCandidate({ noChanges: true, slotId: 'slot-0' });
+
+      expect(result.results[0]?.integrationStatus).toBe('not-requested');
+      expect(result.status).toBe('completed');
+    });
+
+    it('still retains a result that changed something', async () => {
+      const result = await runExplicitCandidate({ noChanges: false, slotId: 'slot-0' });
+
+      expect(result.results[0]?.integrationStatus).toBe('retained');
+      expect(result.status).toBe('needs-integration');
+    });
+
+    it('keeps an unchanged one-off copy retained, since nothing else would remove it', async () => {
+      const result = await runExplicitCandidate({ noChanges: true, slotId: undefined });
+
+      expect(result.results[0]?.integrationStatus).toBe('retained');
+    });
+
+    it('honours an explicit request to retain the worktree', async () => {
+      const result = await runExplicitCandidate({
+        noChanges: true,
+        slotId: 'slot-0',
+        retainWorktree: true,
+      });
+
+      expect(result.results[0]?.integrationStatus).toBe('retained');
+    });
+  });
+
   it('does not complete a worktree batch when integration fails', async () => {
     const backend = makeFakeBackend({ integrationStatus: 'pending' });
     const { push } = makePushCollector();

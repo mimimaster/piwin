@@ -8,10 +8,14 @@
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
+  AUTO_LEAD_REVIEW_LIMIT,
   BUILTIN_ULTRA_CODE_SCHEME,
+  LEAD_REVIEW_LIMIT_BOUNDS,
   createDefaultSubagentConfig,
   listOrchestrationSchemes,
   migrateSchemeMembers,
+  normalizeLeadReviewLimit,
+  type DesktopRestoreConfig,
   type OrchestrationSchemeSettings,
   toModelRef,
   type ModelRef,
@@ -29,6 +33,60 @@ import { useSettings } from '../settings-context';
 import { buildOrchestrationCopy } from '../orchestration-copy';
 import { OrchestrationSchemeEditor } from '../orchestration-scheme-editor';
 import { modelSelectValue } from '../orchestration-scheme-draft';
+
+function subagentEditorSyncKey(subagents: SubagentConfig): string {
+  return JSON.stringify({
+    schemes: subagents.schemes ?? [],
+    freehandReadonlyModel: subagents.freehandReadonlyModel ?? null,
+    maxConcurrency: subagents.maxConcurrency,
+    maxTasksPerRun: subagents.maxTasksPerRun,
+    leadReviewLimit: subagents.leadReviewLimit ?? null,
+    profiles: subagents.profiles,
+    defaultProfileId: subagents.defaultProfileId ?? null,
+    processIsolation: subagents.processIsolation,
+    parallelWritePolicy: subagents.parallelWritePolicy,
+    dirtyBasePolicy: subagents.dirtyBasePolicy,
+  });
+}
+
+/** Empty string clears the stored id; omitting the key would leave the previous one. */
+function desktopWithDefaultScheme(
+  desktop: DesktopRestoreConfig | undefined,
+  schemeId: string,
+): DesktopRestoreConfig {
+  return {
+    ...(desktop ?? {}),
+    defaultOrchestrationSchemeId: schemeId,
+  };
+}
+
+/** Stored number → field text; an unset limit shows the placeholder instead. */
+function leadLimitFieldText(value: number | undefined): string {
+  return value === undefined ? '' : String(value);
+}
+
+/**
+ * Field text → the stored limit. Blank or non-numeric fields are left out (the
+ * builtin default applies); numbers are clamped to the Settings bounds so what
+ * is saved is what the Host will use.
+ */
+export function parseLeadLimitFields(
+  filesText: string,
+  linesText: string,
+): SubagentConfig['leadReviewLimit'] | undefined {
+  const files = filesText.trim() === '' ? Number.NaN : Number(filesText);
+  const lines = linesText.trim() === '' ? Number.NaN : Number(linesText);
+  const limit: NonNullable<SubagentConfig['leadReviewLimit']> = {};
+  if (Number.isFinite(files)) {
+    limit.maxFiles = normalizeLeadReviewLimit(AUTO_LEAD_REVIEW_LIMIT, { maxFiles: files }).maxFiles;
+  }
+  if (Number.isFinite(lines)) {
+    limit.maxChangedLines = normalizeLeadReviewLimit(AUTO_LEAD_REVIEW_LIMIT, {
+      maxChangedLines: lines,
+    }).maxChangedLines;
+  }
+  return limit.maxFiles !== undefined || limit.maxChangedLines !== undefined ? limit : undefined;
+}
 
 export function SubagentProfilesPage(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -52,15 +110,35 @@ export function SubagentProfilesPage(): ReactElement {
   );
   const [maxConcurrency, setMaxConcurrency] = useState<number>(subagents.maxConcurrency);
   const [maxTasksPerRun, setMaxTasksPerRun] = useState<number>(subagents.maxTasksPerRun);
+  // Empty string = not set: the builtin default applies.
+  const [reviewFiles, setReviewFiles] = useState<string>(
+    () => leadLimitFieldText(subagents.leadReviewLimit?.maxFiles),
+  );
+  const [reviewLines, setReviewLines] = useState<string>(
+    () => leadLimitFieldText(subagents.leadReviewLimit?.maxChangedLines),
+  );
+  const savedDefaultSchemeId = config?.desktop?.defaultOrchestrationSchemeId;
+  const [defaultSchemeId, setDefaultSchemeId] = useState<string | undefined>(
+    () => savedDefaultSchemeId,
+  );
+  const editorSyncKey = subagentEditorSyncKey(subagents);
 
   useEffect(() => {
     setSchemeDrafts(subagents.schemes ?? []);
     setFreehandModel(subagents.freehandReadonlyModel);
     setMaxConcurrency(subagents.maxConcurrency);
     setMaxTasksPerRun(subagents.maxTasksPerRun);
+    setReviewFiles(leadLimitFieldText(subagents.leadReviewLimit?.maxFiles));
+    setReviewLines(leadLimitFieldText(subagents.leadReviewLimit?.maxChangedLines));
     setSchemeNotice(null);
+    // The key is the subagent document. A default-scheme write only changes
+    // `desktop`, and rebuilding the list from that would flash the page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config]);
+  }, [editorSyncKey]);
+
+  useEffect(() => {
+    setDefaultSchemeId(savedDefaultSchemeId);
+  }, [savedDefaultSchemeId]);
 
   const orchestrationSchemes = useMemo(
     () =>
@@ -127,7 +205,9 @@ export function SubagentProfilesPage(): ReactElement {
     return candidate;
   }
 
-  function baseSubagentPayload(schemes: OrchestrationSchemeSettings[] | undefined): SubagentConfig {
+  function baseSubagentPayload(
+    schemes: OrchestrationSchemeSettings[] | undefined,
+  ): SubagentConfig {
     const payload: SubagentConfig = {
       profiles: subagents.profiles ?? [],
       maxConcurrency,
@@ -143,7 +223,24 @@ export function SubagentProfilesPage(): ReactElement {
     if (schemes && schemes.length > 0) {
       payload.schemes = schemes;
     }
+    // Other saves (schemes, freehand model) rebuild this object: dropping the
+    // limit here would silently reset it. Only the fields the user filled in
+    // are stored, so an emptied field returns to the builtin default.
+    const leadReviewLimit = parseLeadLimitFields(reviewFiles, reviewLines);
+    if (leadReviewLimit) payload.leadReviewLimit = leadReviewLimit;
     return payload;
+  }
+
+  function schemeStillExists(
+    schemeId: string | undefined,
+    schemes: OrchestrationSchemeSettings[],
+  ): boolean {
+    if (!schemeId) return false;
+    return listOrchestrationSchemes({
+      schemes,
+      maxConcurrency: subagents.maxConcurrency,
+      maxTasksPerRun: subagents.maxTasksPerRun,
+    }).some((scheme) => scheme.id === schemeId);
   }
 
   async function saveFreehandModel(value: string): Promise<void> {
@@ -214,16 +311,43 @@ export function SubagentProfilesPage(): ReactElement {
 
   async function persistSchemes(nextSchemes: OrchestrationSchemeSettings[]): Promise<boolean> {
     if (!config) return false;
+    const previousDefault = defaultSchemeId;
+    const nextDefault = schemeStillExists(defaultSchemeId, nextSchemes)
+      ? defaultSchemeId
+      : undefined;
+    const clearDefault = previousDefault !== undefined && nextDefault === undefined;
     setSchemeDrafts(nextSchemes);
+    setDefaultSchemeId(nextDefault);
     const ok = await saveConfig({
       ...config,
       subagents: baseSubagentPayload(nextSchemes.length > 0 ? nextSchemes : undefined),
+      ...(clearDefault
+        ? { desktop: desktopWithDefaultScheme(config.desktop, '') }
+        : {}),
     });
     if (!ok) {
+      setDefaultSchemeId(previousDefault);
       setError(copy.saveFailed);
       return false;
     }
     return true;
+  }
+
+  async function setDefaultScheme(schemeId: string | undefined): Promise<void> {
+    if (!config) return;
+    const previous = defaultSchemeId;
+    setDefaultSchemeId(schemeId);
+    const ok = await saveConfig(
+      {
+        ...config,
+        desktop: desktopWithDefaultScheme(config.desktop, schemeId ?? ''),
+      },
+      { quiet: true },
+    );
+    if (!ok) {
+      setDefaultSchemeId(previous);
+      setError(copy.saveFailed);
+    }
   }
 
   async function saveAdvancedLimits(): Promise<void> {
@@ -265,6 +389,8 @@ export function SubagentProfilesPage(): ReactElement {
         copy={copy}
         onPersistSchemes={persistSchemes}
         onCloneScheme={handleCloneScheme}
+        defaultSchemeId={defaultSchemeId}
+        onDefaultSchemeChange={setDefaultScheme}
         listIntro={
           /* The settings shell already renders the section name as the page
              <h1>; a second heading here would say the same word twice. */
@@ -330,6 +456,30 @@ export function SubagentProfilesPage(): ReactElement {
                 onChange={(event) =>
                   setMaxTasksPerRun(Math.max(1, Number(event.target.value) || 1))
                 }
+              />
+            </FieldRow>
+            <FieldRow
+              label={copy.leadReviewFiles}
+              description={copy.leadReviewHint}
+              testId="subagents-lead-review-files-row"
+            >
+              <TextInput
+                type="number"
+                min={LEAD_REVIEW_LIMIT_BOUNDS.maxFiles.min}
+                max={LEAD_REVIEW_LIMIT_BOUNDS.maxFiles.max}
+                placeholder={String(AUTO_LEAD_REVIEW_LIMIT.maxFiles)}
+                value={reviewFiles}
+                onChange={(event) => setReviewFiles(event.target.value)}
+              />
+            </FieldRow>
+            <FieldRow label={copy.leadReviewLines} testId="subagents-lead-review-lines-row">
+              <TextInput
+                type="number"
+                min={LEAD_REVIEW_LIMIT_BOUNDS.maxChangedLines.min}
+                max={LEAD_REVIEW_LIMIT_BOUNDS.maxChangedLines.max}
+                placeholder={String(AUTO_LEAD_REVIEW_LIMIT.maxChangedLines)}
+                value={reviewLines}
+                onChange={(event) => setReviewLines(event.target.value)}
               />
             </FieldRow>
             <div className="orch-limits-actions">

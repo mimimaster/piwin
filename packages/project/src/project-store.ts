@@ -131,12 +131,16 @@ export async function rememberProjectCheckoutIdentities(
     if (
       project.gitRepositoryId === listed.gitRepositoryId &&
       project.gitRootPath === listed.gitRootPath &&
-      project.isPrimaryWorktree === listed.isPrimaryWorktree
+      project.isPrimaryWorktree === listed.isPrimaryWorktree &&
+      project.isCheckoutRoot === listed.isCheckoutRoot
     ) continue;
     project.gitRepositoryId = listed.gitRepositoryId;
     project.gitRootPath = listed.gitRootPath;
     if (listed.isPrimaryWorktree !== undefined) {
       project.isPrimaryWorktree = listed.isPrimaryWorktree;
+    }
+    if (listed.isCheckoutRoot !== undefined) {
+      project.isCheckoutRoot = listed.isCheckoutRoot;
     }
     changed = true;
   }

@@ -67,6 +67,9 @@ describe('Host launch turn-change persistence', () => {
       ],
       coverageComplete: true,
     });
+    // Sealing publishes and activates in one step; a published but inactive
+    // version is still "recording" and undo refuses it.
+    store.activateVersion('cs-launch', 1, 'ready');
     store.close();
 
     const second = new HostRuntime({ mode: 'sdk', mock: false, piwinRoot });

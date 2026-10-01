@@ -1,10 +1,11 @@
-import type { ReactElement } from 'react';
+import { useMemo, useRef, type ReactElement } from 'react';
 import { DropdownMenu, DropdownMenuItem, EmptyState, FileTypeIcon, IconButton } from '@piwin/ui-kit';
 import {
   IconChat,
   IconCopy,
   IconDownload,
   IconClose,
+  IconFolder,
   IconLink,
   IconMore,
 } from './shell-icons';
@@ -20,6 +21,17 @@ import {
   isOpaqueRemoteProjectId,
   remoteProjectFilesystemRoot,
 } from './remote-session-hydrate.js';
+import { useDesktopContextMenu } from './context-menu';
+import { documentRelativePath, isAbsoluteDiskPath } from './doc-path-actions.js';
+import { lineIdForSelectionRange, selectionQuoteForComment } from './doc-line-anchor.js';
+import { copyMarkdownSelection } from './markdown-selection-copy.js';
+import { selectionRangeToMarkdown } from './selection-markdown.js';
+import { resolveLocalFileAbsolutePath } from './local-file-actions.js';
+import { canRevealInLocalFileManager } from './local-file-reveal-policy.js';
+import {
+  TranscriptSelectionToolbar,
+  type SelectionToolbarComment,
+} from './transcript-selection-toolbar.js';
 
 /** Markdown / plaintext files render through the enhanced Markdown viewer.
  *  HTML/SVG render visually. Everything else renders as code with line numbers. */
@@ -131,28 +143,69 @@ export function DocPreviewPanel({
   const showMeta = showSkillChip || showReadOnlyChip || showLoadingChip || showCommentBadge;
 
   const canCopyExport = status === 'ready' && Boolean(content);
+  const isZh = locale === 'zh-CN';
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const desktopMenu = useDesktopContextMenu();
+  const isMarkdownDoc = !markupKind && isMarkdownPath(targetPath);
+  const selectionEnabled = status === 'ready' && !markupKind;
+
+  const copiedPath = resolveCopiedDocumentPath(filePath || `${displayTitle}.md`);
+  const absolutePath = resolveLocalFileAbsolutePath(copiedPath, projectPath);
+  const relativePath = documentRelativePath(absolutePath, projectPath);
+  const canReveal =
+    desktopMenu !== null &&
+    isAbsoluteDiskPath(absolutePath) &&
+    canRevealInLocalFileManager(absolutePath);
+
+  function copyText(text: string): void {
+    if (desktopMenu) {
+      desktopMenu.dispatchers.copyText(text);
+      return;
+    }
+    navigator.clipboard.writeText(text).catch((error: unknown) => {
+      console.warn('[piwin] copy failed', error);
+    });
+  }
 
   function handleCopy(): void {
     if (!canCopyExport || !content) return;
-    void (async () => {
-      try {
-        await navigator.clipboard.writeText(content);
-      } catch {
-        /* ignore */
-      }
-    })();
+    copyText(content);
   }
 
   function handleCopyPath(): void {
-    const pathText = resolveCopiedDocumentPath(filePath || `${displayTitle}.md`);
-    void (async () => {
-      try {
-        await navigator.clipboard.writeText(pathText);
-      } catch {
-        /* ignore */
-      }
-    })();
+    copyText(copiedPath);
   }
+
+  function handleCopyRelativePath(): void {
+    if (relativePath) copyText(relativePath);
+  }
+
+  function handleReveal(): void {
+    desktopMenu?.dispatchers.revealPath(absolutePath);
+  }
+
+  // A selection comment anchors to the block it starts in and quotes the exact text.
+  const selectionComment = useMemo<SelectionToolbarComment | undefined>(() => {
+    if (!onAddComment || !isMarkdownDoc) return undefined;
+    return {
+      blockedReason: (range) => {
+        const lineId = lineIdForSelectionRange(range);
+        if (!lineId) return isZh ? '无法定位到这段内容' : 'Cannot anchor this selection';
+        return comments.some((comment) => comment.lineId === lineId)
+          ? isZh
+            ? '这一段已有评论，请从段落右侧的图标编辑'
+            : 'This block already has a comment; edit it from the icon beside the block'
+          : null;
+      },
+      submit: ({ range, quote, commentText }) => {
+        const lineId = lineIdForSelectionRange(range);
+        if (!lineId) return;
+        const lineText = selectionQuoteForComment(quote);
+        onAddComment({ lineId, lineText, commentText });
+        onCommentLine?.(`[${lineText}] "${commentText}"`);
+      },
+    };
+  }, [comments, isMarkdownDoc, isZh, onAddComment, onCommentLine]);
 
   function handleExportArtifact(): void {
     if (!canCopyExport || !content) return;
@@ -226,17 +279,31 @@ export function DocPreviewPanel({
           >
             <DropdownMenuItem onSelect={handleCopy} testId="doc-menu-copy">
               <span className="doc-menu-item-content">
-                <IconCopy width={14} height={14} /> Copy
+                <IconCopy width={14} height={14} /> {isZh ? '复制全文' : 'Copy'}
               </span>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={handleCopyPath} testId="doc-menu-copy-path">
               <span className="doc-menu-item-content">
-                <IconLink width={14} height={14} /> Copy Path
+                <IconLink width={14} height={14} /> {isZh ? '复制路径' : 'Copy Path'}
               </span>
             </DropdownMenuItem>
+            {relativePath ? (
+              <DropdownMenuItem onSelect={handleCopyRelativePath} testId="doc-menu-copy-relative-path">
+                <span className="doc-menu-item-content">
+                  <IconLink width={14} height={14} /> {isZh ? '复制相对路径' : 'Copy Relative Path'}
+                </span>
+              </DropdownMenuItem>
+            ) : null}
+            {canReveal ? (
+              <DropdownMenuItem onSelect={handleReveal} testId="doc-menu-reveal">
+                <span className="doc-menu-item-content">
+                  <IconFolder width={14} height={14} /> {isZh ? '在 Finder 中显示' : 'Show in Finder'}
+                </span>
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem onSelect={handleExportArtifact} testId="doc-menu-export">
               <span className="doc-menu-item-content">
-                <IconDownload width={14} height={14} /> Export Artifact
+                <IconDownload width={14} height={14} /> {isZh ? '导出为文件' : 'Export Artifact'}
               </span>
             </DropdownMenuItem>
           </DropdownMenu>
@@ -245,7 +312,17 @@ export function DocPreviewPanel({
 
       <div className="doc-preview-container">
 
-        <div className="doc-preview-body">
+        <div
+          className="doc-preview-body"
+          ref={bodyRef}
+          onCopy={
+            isMarkdownDoc
+              ? (event) => {
+                  copyMarkdownSelection(event, bodyRef.current);
+                }
+              : undefined
+          }
+        >
           {status === 'loading' ? (
             <div className="preview-unavailable" data-testid="doc-preview-state-loading">
               <EmptyState
@@ -296,6 +373,16 @@ export function DocPreviewPanel({
           )}
         </div>
       </div>
+      {selectionEnabled ? (
+        <TranscriptSelectionToolbar
+          containerRef={bodyRef}
+          {...(projectPath ? { projectPath } : {})}
+          locale={locale}
+          copyable
+          serializeRange={isMarkdownDoc ? selectionRangeToMarkdown : undefined}
+          comment={selectionComment}
+        />
+      ) : null}
     </div>
   );
 }

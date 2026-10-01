@@ -92,6 +92,7 @@ export function resolveActionFamily(toolName: string): ToolActionFamily {
     n === 'piwin_subagent_result_read' ||
     n === 'piwin_subagent_review_submit' ||
     n === 'piwin_subagent_result_apply' ||
+    n === 'piwin_subagent_result_discard' ||
     n === 'piwin_subagent_verification_submit'
   ) {
     return 'other';
@@ -109,6 +110,8 @@ export function resolveActionFamily(toolName: string): ToolActionFamily {
     n === 'search_replace' ||
     n === 'apply_diff' ||
     n === 'multi_edit' ||
+    n === 'move_file' ||
+    n === 'move_lines' ||
     n.endsWith('_write') ||
     n.endsWith('_edit')
   ) {

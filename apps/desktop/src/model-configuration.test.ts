@@ -105,6 +105,21 @@ describe('model configuration', () => {
     expect(next).toEqual([{ id: 'deepseek-reasoner', input: ['text'], reasoning: true }]);
   });
 
+  it('round-trips a per-model system prompt role and clears it on inherit (ADR 0082)', () => {
+    const modelB: ModelConfigEntry = { id: 'model-b', systemPromptRole: 'system' };
+    const draft = createModelConfigurationDraft(modelB);
+    expect(draft.systemPromptRole).toBe('system');
+    expect(applyModelConfigurationDraft([modelB], modelB.id, draft)?.[0]?.systemPromptRole).toBe(
+      'system',
+    );
+    const inherited = applyModelConfigurationDraft([modelB], modelB.id, {
+      ...draft,
+      systemPromptRole: '',
+    });
+    expect(inherited?.[0]).not.toHaveProperty('systemPromptRole');
+    expect(createModelConfigurationDraft({ id: 'model-a' })).not.toHaveProperty('systemPromptRole');
+  });
+
   it('round-trips a per-model protocol and clears it when set back to the provider default', () => {
     const gemini: ModelConfigEntry = { id: 'gemini-3.8-flash-high', protocol: 'google-gemini' };
     const draft = createModelConfigurationDraft(gemini);

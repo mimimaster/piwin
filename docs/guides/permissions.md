@@ -192,7 +192,10 @@ list (a full rule editor is a follow-up; for now edit `permissions.json`).
 
 ## File-write gate
 
-Every `write` and `edit` tool call is gated:
+Every `write_file`, `edit`, `delete_file`, `move_file` and `move_lines` tool call is
+gated. A move names two paths (`move_lines` without a destination, one) and is
+judged on all of them: any denied path denies the call, else any ask asks.
+The gate:
 
 - **Denied** (no prompt): secret paths — `~/.ssh/**`, `~/.piwin/**`, `**/.env`,
   `**/*.pem`, `**/id_rsa`, `**/credentials.json`, `**/secrets.*`, etc.

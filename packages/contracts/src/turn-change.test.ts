@@ -12,15 +12,15 @@ const BLOCK_REASONS: readonly TurnChangeBlockReason[] = [
   'data-expired',
   'workspace-busy',
   'workspace-restoring',
-  'foreign-host-active',
   'stale-revision',
   'files-changed',
   'staged-paths',
-  'git-baseline-changed',
   'backup-failed',
   'needs-repair',
   'permission-denied',
   'direction-unavailable',
+  'capture-pending',
+  'no-changes',
 ];
 
 function sampleSummary(): TurnChangeSummary {
@@ -76,6 +76,22 @@ describe('turn-change types', () => {
     expect('affectedPaths' in blockedWithoutPaths).toBe(false);
   });
 
+  it('carries later turns per blocked path, empty when the source is unknown', () => {
+    const blocked: TurnChangeAvailability = {
+      allowed: false,
+      reason: 'files-changed',
+      affectedPaths: ['src/a.ts', 'src/b.ts'],
+      conflicts: [
+        {
+          relativePath: 'src/a.ts',
+          laterTurns: [{ changeSetId: 'cs-2', sessionId: 's-2', runIds: ['r-2'], endedAt: null }],
+        },
+        { relativePath: 'src/b.ts', laterTurns: [] },
+      ],
+    };
+    expect(blocked.allowed === false && blocked.conflicts?.[1]?.laterTurns).toEqual([]);
+  });
+
   it('accepts every documented block reason', () => {
     const blocked: Array<Extract<TurnChangeAvailability, { allowed: false }>> = BLOCK_REASONS.map(
       (reason) => ({
@@ -99,6 +115,7 @@ describe('turn-change types', () => {
         limit: 20,
       },
       { type: 'turn-changes/diff', changeSetId: 'cs-1', revision: 2, fileId: 'file-1' },
+      { type: 'turn-changes/diff', changeSetId: 'cs-1', revision: 2, fileId: 'file-1', against: 'current' },
       { type: 'turn-changes/check', changeSetId: 'cs-1', revision: 2, direction: 'undo' },
       { type: 'turn-changes/undo', changeSetId: 'cs-1', expectedRevision: 2 },
       { type: 'turn-changes/redo', changeSetId: 'cs-1', expectedRevision: 2 },
@@ -122,12 +139,14 @@ describe('turn-change types', () => {
         operationId: 'op-1',
         expectedRevision: 2,
       },
+      { type: 'turn-changes/export-backup', operationId: 'op-1', destination: '/tmp/out' },
     ];
     expect(commands.map((command) => command.type)).toEqual([
       'turn-changes/get',
       'turn-changes/list-by-runs',
       'turn-changes/files',
       'turn-changes/files',
+      'turn-changes/diff',
       'turn-changes/diff',
       'turn-changes/check',
       'turn-changes/undo',
@@ -139,6 +158,7 @@ describe('turn-change types', () => {
       'turn-changes/recovery-preview',
       'turn-changes/recovery-run',
       'turn-changes/recovery-verify',
+      'turn-changes/export-backup',
     ]);
   });
 
@@ -156,6 +176,7 @@ describe('turn-change types', () => {
       workspaceId: 'ws-1',
       operationId: 'op-1',
       changeSetId: 'cs-1',
+      progress: { done: 1, total: 3 },
     };
     const filesUpdated: HostPush = { type: 'workspace-files-updated', workspaceId: 'ws-1' };
     expect(updated.type).toBe('turn-changes/updated');

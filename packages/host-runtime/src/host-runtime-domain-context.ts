@@ -65,8 +65,10 @@ export async function buildDomainContext(
   deps: HostRuntimeKernel,
 ): Promise<import('./commands/domain-command-dispatch.js').DomainDispatchContext> {
   const subagentOrchestrator = deps.subagentOrchestrator;
+  const gestureKey = deps.commandRequestStore.getStore()?.idempotencyKey;
   const hostContext: HostCommandContext = {
     ...(deps.options.piwinRoot !== undefined ? { piwinRoot: deps.options.piwinRoot } : {}),
+    ...(gestureKey ? { idempotencyKey: gestureKey } : {}),
     ...(deps.turnChangeRuntime
       ? {
           workspaceWriteGate: deps.turnChangeRuntime.gate,
@@ -318,7 +320,13 @@ export async function buildDomainContext(
       disposeLiveSession: (sessionId) => deps.disposeLiveSession(sessionId),
       archiveSession: (sessionId) => deps.archiveSessionForMaintenance(sessionId),
       tryArchiveLifecycleCandidate: (input) => deps.tryArchiveLifecycleCandidate(input),
-      deleteSession: (sessionId) => deps.deleteSessionForMaintenance(sessionId),
+      deleteSession: async (sessionId) => {
+        const deletion = await deps.deleteSessionForMaintenance(sessionId);
+        if (!deletion) return deletion;
+        // Undo records belong to the workspace and stay; say how many.
+        const kept = deps.turnChangeRuntime?.store.countSessionChangeSets(sessionId) ?? 0;
+        return kept > 0 ? { ...deletion, turnChangeRecordsKept: kept } : deletion;
+      },
       bindSession: (session, projectPath, sessionName, lineage) =>
         deps.bindSession(session, projectPath, sessionName, lineage),
       push: (message) => deps.push(message),

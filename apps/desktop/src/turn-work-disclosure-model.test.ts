@@ -927,6 +927,37 @@ describe('projectTurnWorkDisclosure', () => {
     ).toBeNull();
   });
 
+  it('still folds a very long settled chain that had a failed step part-way', () => {
+    // A history window can cut a long turn short, and long unattended runs
+    // often stumble once or twice: 700 flat tool rows mounted ~14k DOM nodes.
+    // The header carries the failure count instead.
+    const work = Array.from({ length: 45 }, (_, index) =>
+      message(`work-${index}`, {
+        runId: 'run-1',
+        ...(index === 3 ? { status: 'error' as const, error: 'Step failed' } : {}),
+        tools: [
+          {
+            toolCallId: `t-${index}`,
+            toolName: 'read',
+            status: index === 3 ? ('error' as const) : ('done' as const),
+            output: '',
+            runId: 'run-1',
+          },
+        ],
+      }),
+    );
+    const transcriptTurn = turn([message('user-1', { role: 'user', text: 'Go.' }), ...work]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: { 'run-1': completedRun() },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
+    ).toMatchObject({ startIndex: 1, endIndex: 45, toolCount: 45, failureCount: 1 });
+  });
+
   it('folds repeated terminal failure metadata without hiding the final error row', () => {
     const terminalError = 'Stream ended without finish_reason';
     const work = Array.from({ length: 39 }, (_, index) =>
@@ -1199,6 +1230,60 @@ describe('projectTurnWorkDisclosure', () => {
         currentTurnStreaming: false,
       });
       expect(projection).toMatchObject({ startIndex: 1, endIndex: 3, elapsedMs: 14_000 });
+    });
+
+    it('ignores the paused-checkpoint note so the resumed chain still folds', () => {
+      const pausedNote = 'Run paused; a resumable checkpoint was saved.';
+      const rowsWithNote = [
+        ...pausedRows.slice(0, 2),
+        message('w2', { runId: 'run-1', error: pausedNote, tools: [tool('t2', 'run-1')] }),
+      ];
+      const live = projectTurnWorkDisclosure({
+        turn: turn([
+          ...rowsWithNote,
+          message('r1', { runId: 'run-2', status: 'streaming', tools: [tool('t3', 'run-2', 'running')] }),
+        ]),
+        runRecordsById: {
+          'run-1': pausedRun,
+          'run-2': { runId: 'run-2', phaseHistory: [], startedAt: 600_000, endedAt: null },
+        },
+        activeRunId: 'run-2',
+        currentTurnStreaming: true,
+      });
+      expect(live).toMatchObject({ startIndex: 1, endIndex: 3, live: true, failureCount: 0 });
+
+      const settled = projectTurnWorkDisclosure({
+        turn: turn([
+          ...rowsWithNote,
+          message('r1', { runId: 'run-2', tools: [tool('t3', 'run-2')] }),
+          message('answer', { runId: 'run-2', text: 'Done.' }),
+        ]),
+        runRecordsById: {
+          'run-1': pausedRun,
+          'run-2': completedRun({ runId: 'run-2', startedAt: 600_000, endedAt: 610_000 }),
+        },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      });
+      expect(settled).toMatchObject({ startIndex: 1, endIndex: 3, failureCount: 0 });
+    });
+
+    it('still blocks the fold on a real error from a run that did not pause', () => {
+      expect(
+        projectTurnWorkDisclosure({
+          turn: turn([
+            ...pausedRows.slice(0, 2),
+            message('w2', { runId: 'run-1', error: 'boom', tools: [tool('t2', 'run-1')] }),
+            message('r1', { runId: 'run-2', status: 'streaming', tools: [tool('t3', 'run-2', 'running')] }),
+          ]),
+          runRecordsById: {
+            'run-1': completedRun({ outcome: 'failed' }),
+            'run-2': { runId: 'run-2', phaseHistory: [], startedAt: 600_000, endedAt: null },
+          },
+          activeRunId: 'run-2',
+          currentTurnStreaming: true,
+        }),
+      ).toBeNull();
     });
   });
 });

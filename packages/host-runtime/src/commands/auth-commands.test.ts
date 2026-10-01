@@ -145,6 +145,7 @@ describe('auth commands', () => {
     expect(merged.models).toEqual([
       {
         providerId: 'openai-codex',
+        providerName: 'ChatGPT Codex',
         modelId: 'gpt-5.4-codex',
         label: 'GPT-5.4 Codex',
         source: 'subscription',

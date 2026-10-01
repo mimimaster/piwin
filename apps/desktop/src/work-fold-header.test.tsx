@@ -24,6 +24,50 @@ describe('WorkFoldHeader', () => {
     container.remove();
   });
 
+  it('words the segment-level header 已执行 with the same trailing counts, the run glyph and data attributes', () => {
+    act(() => {
+      root.render(
+        <WorkFoldHeader
+          state="done"
+          locale="zh-CN"
+          verb="executed"
+          doneIcon="run"
+          elapsedMs={3_170_000}
+          toolCount={74}
+          fileCount={18}
+          failureCount={2}
+          testId="seg"
+          dataAttributes={{ 'data-fold-header': 'segment:s1', 'data-fold-open': 'false' }}
+          onToggle={() => undefined}
+        />,
+      );
+    });
+    const header = container.querySelector('[data-testid="seg"]');
+    expect(header?.textContent).toContain('已执行 52m 50s');
+    expect(header?.textContent).toContain('74 个工具');
+    expect(header?.textContent).toContain('18 个文件');
+    expect(header?.textContent).toContain('2 次失败');
+    expect(header?.textContent).not.toContain('已工作');
+    expect(header?.querySelector('.work-fold-run')).not.toBeNull();
+    expect(header?.getAttribute('data-fold-header')).toBe('segment:s1');
+    expect(header?.getAttribute('data-fold-open')).toBe('false');
+  });
+
+  it('names an unmeasured step 已执行 / Ran, never 已工作', () => {
+    act(() => {
+      root.render(
+        <>
+          <WorkFoldHeader state="done" locale="zh-CN" verb="executed" toolCount={3} testId="zh" />
+          <WorkFoldHeader state="done" locale="en" verb="executed" toolCount={1} testId="en" />
+          <WorkFoldHeader state="done" locale="zh-CN" toolCount={3} testId="turn" />
+        </>,
+      );
+    });
+    expect(container.querySelector('[data-testid="zh"]')?.textContent).toContain('已执行');
+    expect(container.querySelector('[data-testid="en"]')?.textContent).toContain('Ran');
+    expect(container.querySelector('[data-testid="turn"]')?.textContent).toContain('已工作');
+  });
+
   it('renders proto-01 running and waiting copy with code capsules', () => {
     act(() => {
       root.render(

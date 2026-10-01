@@ -116,6 +116,13 @@ export function ComposerCardToolbar({
               mcpServers={props.menuMcp}
               {...(props.menuMcpSwitches ? { mcpSwitches: props.menuMcpSwitches } : {})}
               onOpenMcpPanel={props.onOpenMcpPanel}
+              extensionCommands={props.menuExtensionCommands}
+              onSelectExtensionCommand={(name) => {
+                props.onComposerChange(`/${name} `);
+                props.onPlusMenuOpenChange(false);
+              }}
+              {...(props.onOpenExtensionsPanel ? { onOpenExtensionsPanel: props.onOpenExtensionsPanel } : {})}
+              {...(props.onOpenMarketplace ? { onOpenMarketplace: props.onOpenMarketplace } : {})}
               onAttachFile={props.onAttachFile}
               {...(imagesSupported ? { onAttachImage: props.onAttachImage } : {})}
               {...(imageDisabledReason ? { attachImageDisabledReason: imageDisabledReason } : {})}

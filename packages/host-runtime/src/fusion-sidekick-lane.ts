@@ -1,12 +1,15 @@
 /**
- * Fusion sidekick spawn policy: brief envelope, no nested delegate, candidate
- * worktree awaiting the Lead's apply, optional continuation of one child lane.
+ * Persistent-lane spawn policy (Fusion sidekick semantics): brief envelope,
+ * no nested delegate, candidate worktree awaiting the Lead's apply, optional
+ * continuation of one child lane. Any scheme member whose builtin behavior is
+ * `lane: 'persistent'` gets it (Fusion, Auto).
  */
 import {
-  FUSION_SCHEME_ID,
   FUSION_SIDEKICK_ROLE,
   SUBAGENT_CAPABILITIES,
   formatFusionBriefEnvelope,
+  type OrchestrationLeadReviewLimit,
+  type ResolvedOrchestrationMember,
   type ResolvedOrchestrationScheme,
   type SessionIndexRecord,
   type SubagentApplyPolicy,
@@ -26,11 +29,20 @@ import {
 export const FUSION_SIDEKICK_CAPABILITIES: readonly SubagentCapability[] =
   SUBAGENT_CAPABILITIES.filter((capability) => capability !== 'delegate');
 
+function findSchemeMember(
+  scheme: Pick<ResolvedOrchestrationScheme, 'members'> | undefined,
+  role: string | undefined,
+): ResolvedOrchestrationMember | undefined {
+  if (!scheme || !role) return undefined;
+  return scheme.members.find((member) => member.role === role);
+}
+
+/** True when the active scheme's member for `role` is a persistent writer lane. */
 export function isFusionSidekickRole(
-  scheme: Pick<ResolvedOrchestrationScheme, 'schemeId'> | undefined,
+  scheme: Pick<ResolvedOrchestrationScheme, 'members'> | undefined,
   role: string | undefined,
 ): boolean {
-  return scheme?.schemeId === FUSION_SCHEME_ID && role === FUSION_SIDEKICK_ROLE;
+  return findSchemeMember(scheme, role)?.behavior?.lane === 'persistent';
 }
 
 export type FusionStartTaskPatch = {
@@ -39,6 +51,8 @@ export type FusionStartTaskPatch = {
   applyPolicy: Extract<SubagentApplyPolicy, 'explicit'>;
   /** Fusion has no reviewer member: the Lead records the approving review. */
   reviewAuthority: Extract<SubagentReviewAuthority, 'lead'>;
+  /** Auto: candidates above this size need an independent reviewer instead. */
+  leadReviewLimit?: OrchestrationLeadReviewLimit;
   capabilities: SubagentCapability[];
   continuationSessionId?: string;
   continuationWorkspaceLease?: SubagentWorkspaceLease;
@@ -46,13 +60,17 @@ export type FusionStartTaskPatch = {
   continuationRestore?: { baseCommit: string; tree: string };
 };
 
-export function buildFusionSidekickSpawnFields(task: string): FusionStartTaskPatch {
+export function buildFusionSidekickSpawnFields(
+  task: string,
+  leadReviewLimit?: OrchestrationLeadReviewLimit,
+): FusionStartTaskPatch {
   return {
     task: formatFusionBriefEnvelope(task),
     deliveryIntent: 'candidate',
     applyPolicy: 'explicit',
     reviewAuthority: 'lead',
     capabilities: [...FUSION_SIDEKICK_CAPABILITIES],
+    ...(leadReviewLimit ? { leadReviewLimit: { ...leadReviewLimit } } : {}),
   };
 }
 
@@ -86,17 +104,45 @@ export function isFusionLaneWorktreeRetained(
   return true;
 }
 
+/**
+ * Why a retained lane can no longer continue on the lead's current base, or
+ * `undefined` when it still can. A lane keeps its own frozen tree on the base
+ * it was started from; once the lead's checkout has moved on, continuing it
+ * hands the child a tree the lead has already left and the brief that follows
+ * (written against the new base) fails to find its own files.
+ */
+export function describeLaneBaseDrift(
+  lane: Pick<PreparedSubagentContinuation, 'continuationRestore' | 'continuationWorkspaceLease'>,
+  currentBaseCommit: string,
+): string | undefined {
+  const lease = lane.continuationWorkspaceLease;
+  const laneBase =
+    lane.continuationRestore?.baseCommit ?? (lease.mode === 'worktree' ? lease.baseCommit : undefined);
+  if (laneBase === undefined || laneBase === currentBaseCommit) return undefined;
+  return `lane base ${laneBase.slice(0, 8)} differs from the lead checkout ${currentBaseCommit.slice(0, 8)}`;
+}
+
 export async function resolveFusionSidekickLane(
   deps: SubagentContinuationPrepDeps,
   parentSessionId: string,
   onLaneUnavailable: (laneId: string, error: unknown) => void,
+  /** Tip the next child would start from; a lane on another base is not continued. */
+  currentBaseCommit?: () => Promise<string>,
 ): Promise<PreparedSubagentContinuation | undefined> {
   const indexPath = getPiwinSessionIndexPath(getPiwinRoot(deps.options.piwinRoot));
   const children = await listChildSessions(indexPath, parentSessionId);
   const lane = selectFusionSidekickLane(children);
   if (!lane) return undefined;
   try {
-    return await prepareRetainedSubagentContinuation(deps, lane.id);
+    const prepared = await prepareRetainedSubagentContinuation(deps, lane.id);
+    const drift = currentBaseCommit
+      ? describeLaneBaseDrift(prepared, await currentBaseCommit())
+      : undefined;
+    if (drift !== undefined) {
+      onLaneUnavailable(lane.id, new Error(drift));
+      return undefined;
+    }
+    return prepared;
   } catch (error) {
     // A lane that cannot continue (worktree gone, lease missing) falls back to
     // a fresh sidekick, but the fallback must be visible, not silent.
@@ -110,14 +156,17 @@ export async function resolveFusionStartTaskPatch(input: {
   role: string | undefined;
   task: string;
   parentSessionId: string;
+  baseBranch?: string | undefined;
   resolveLane?: (
     parentSessionId: string,
+    request: { baseBranch?: string | undefined },
   ) => Promise<PreparedSubagentContinuation | undefined>;
 }): Promise<FusionStartTaskPatch | undefined> {
-  if (!isFusionSidekickRole(input.scheme, input.role)) return undefined;
-  const fields = buildFusionSidekickSpawnFields(input.task);
+  const member = findSchemeMember(input.scheme, input.role);
+  if (member?.behavior?.lane !== 'persistent') return undefined;
+  const fields = buildFusionSidekickSpawnFields(input.task, member.behavior.leadReviewLimit);
   if (!input.resolveLane) return fields;
-  const lane = await input.resolveLane(input.parentSessionId);
+  const lane = await input.resolveLane(input.parentSessionId, { baseBranch: input.baseBranch });
   if (!lane) return fields;
   return {
     ...fields,

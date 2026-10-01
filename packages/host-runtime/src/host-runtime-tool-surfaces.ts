@@ -42,7 +42,7 @@ import { loadMergedPermissionRules } from './permission-rule-loader.js';
 import { fail } from './response-helpers.js';
 import { createSubagentReviewService } from './subagent-review-service.js';
 import { buildSessionHostTools } from './tools/build-session-host-tools.js';
-import { bindCaptureReceipts } from './turn-changes/tool-capture.js';
+import { bindCaptureReceipts, bindCaptureShellAudit } from './turn-changes/tool-capture.js';
 import { resolveTurnChangeWorkspaceRoot } from './turn-changes/runtime-wiring.js';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 import { createHostToolAdmission } from './tools/tool-admission.js';
@@ -226,7 +226,9 @@ export async function composeSessionHostToolsForSession(
           turnChange: {
             workspaceRoot,
             store: turnChangeRuntime.objectStore,
-            onReceipt: bindCaptureReceipts(turnChangeRuntime.capture),
+            onReceipt: bindCaptureReceipts(turnChangeRuntime.capture, workspaceRoot),
+            onShellAudit: bindCaptureShellAudit(turnChangeRuntime.capture),
+            commandCapture: turnChangeRuntime.commandCapture,
           },
           workspaceWrite: {
             gate: turnChangeRuntime.gate,

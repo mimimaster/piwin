@@ -197,7 +197,7 @@ export async function compileBlueprintForWorker(
         agentCwd,
       });
 
-  return assembleCompiledBlueprint(input, options, { config, location, plan });
+  return assembleCompiledBlueprint(input, options, { config, location, agentCwd, plan });
 }
 
 // Session classification lives in session-scope.ts so the compile path and
@@ -332,7 +332,11 @@ async function compileAgentCapabilityPlan(
       extensionSetRevision,
     },
     scope: location.scope,
-    workingDirectory: location.workingDirectory,
+    // The agent runs where `cwd` says (a worktree child), not at the scope's
+    // project root. Pi takes its cwd and the "Current working directory" line of
+    // its system prompt from here, so a parent path would send the model to the
+    // parent checkout and around the worktree isolation.
+    workingDirectory: agentCwd,
     trust,
     resources: resourcePolicy,
     resourceManifest,
@@ -410,10 +414,11 @@ async function assembleCompiledBlueprint(
   ctx: {
     config: PiwinConfig;
     location: ResolvedSessionLocation;
+    agentCwd: string;
     plan: CapabilityCompilePlan;
   },
 ): Promise<CompiledBlueprint> {
-  const { config, location, plan } = ctx;
+  const { config, location, agentCwd, plan } = ctx;
   const settingsRevision = createSettingsSnapshot(config).runtimeRevision;
   const model = input.model
     ? { providerId: input.model.providerId, modelId: input.model.modelId }
@@ -488,7 +493,7 @@ async function assembleCompiledBlueprint(
     sessionId: productSessionId,
     runtimeGenerationId: backendBlueprint.runtimeGenerationId,
     scope: location.scope,
-    workingDirectory: location.workingDirectory,
+    workingDirectory: agentCwd,
     capabilitySnapshot: plan.snapshot,
     resourceManifest: plan.resourceManifest,
     contextManifest: plan.contextManifest,

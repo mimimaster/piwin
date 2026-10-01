@@ -107,4 +107,42 @@ describe('subagent-tool-presentation', () => {
     });
     expect(display).not.toHaveProperty('delivered');
   });
+
+  it('round-trips a discard display and never invents "nothing pending"', () => {
+    const result = { resultId: 'result-v1', revision: 1 };
+    const display = boundSubagentLoopControlDisplay({
+      kind: 'result-discard',
+      result,
+      integrationStatus: 'discarded',
+      alreadySettled: false,
+    });
+    expect(display).toEqual({
+      kind: 'result-discard',
+      result,
+      integrationStatus: 'discarded',
+      alreadySettled: false,
+    });
+    expect(readSubagentLoopControlDisplay(display)).toEqual(display);
+    // Only an explicit true says nothing was pending.
+    expect(
+      readSubagentLoopControlDisplay({ kind: 'result-discard', result, integrationStatus: 'discarded' }),
+    ).toMatchObject({ alreadySettled: false });
+    expect(
+      readSubagentLoopControlDisplay({
+        kind: 'result-discard',
+        result,
+        integrationStatus: 'discarded',
+        alreadySettled: 'yes',
+      }),
+    ).toMatchObject({ alreadySettled: false });
+  });
+
+  it('rejects a discard display with no result or an unknown status', () => {
+    const result = { resultId: 'result-v1', revision: 1 };
+    expect(readSubagentLoopControlDisplay({ kind: 'result-discard', integrationStatus: 'discarded' })).toBeUndefined();
+    expect(
+      readSubagentLoopControlDisplay({ kind: 'result-discard', result, integrationStatus: 'bogus' }),
+    ).toBeUndefined();
+    expect(readSubagentLoopControlDisplay({ kind: 'result-discard', result })).toBeUndefined();
+  });
 });

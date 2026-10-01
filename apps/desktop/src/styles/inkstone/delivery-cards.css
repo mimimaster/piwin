@@ -213,6 +213,101 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--t1);
 }
 
+/* Turn change record (turn-change-bar.tsx): same slip, taller header that
+   may wrap, one outlined action, and a status footer in the seal palette. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb.turn-change-bar .files-changed-bar-head {
+  height: auto;
+  min-height: 40px;
+  padding: 4px 7px 4px 12px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar button.files-changed-bar-row[aria-expanded='true'] {
+  background: var(--s2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-meta {
+  color: var(--t3);
+  font-size: 12px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-action {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--t1);
+  box-shadow: inset 0 0 0 1px var(--l2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-action:hover:not(:disabled) {
+  background: var(--s2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-action:focus-visible {
+  outline: 1.5px solid var(--zhu);
+  outline-offset: -1.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-action.quiet {
+  box-shadow: none;
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-pill {
+  background: color-mix(in srgb, var(--ochre) 14%, transparent);
+  color: var(--ochre);
+  font-size: 11.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-foot,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-inline-note {
+  border-top-color: var(--l1);
+  font-size: 12px;
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-inline-note {
+  color: var(--t3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-foot-glyph,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-foot-sub {
+  color: var(--t3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-foot.warn .turn-change-bar-foot-glyph {
+  color: var(--ochre);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-foot.error {
+  background: var(--crimson-wash);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-foot.error .turn-change-bar-foot-glyph {
+  color: var(--crimson);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .turn-change-bar-chip {
+  background: var(--l1);
+  color: var(--t1);
+  font: 11px var(--mono);
+}
+
 /* S5.15: Walkthrough card (.card.wt) */
 html[data-theme-id='piwin-inkstone-paper'] .card.wt,
 html[data-theme-id='piwin-inkstone-ink'] .card.wt,

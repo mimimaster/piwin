@@ -8,6 +8,7 @@ import {
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
   isModelEnabled,
   resolveModelEndpoint,
+  resolveSupportsDeveloperRole,
   modelSupportsCapability,
 } from '@piwin/contracts';
 import { lookupCatalogByModelId } from './model-catalog-reader.js';
@@ -73,11 +74,26 @@ function openaiCompatModelName(modelId: string): string {
   return slash >= 0 ? id.slice(slash + 1) : id;
 }
 
-/** Resolve the Pi wire compatibility profile hidden by local gateway URLs. */
+/**
+ * Resolve the Pi wire compatibility profile hidden by local gateway URLs.
+ *
+ * `supportsDeveloperRole` is the Host-resolved product setting (ADR 0082);
+ * when defined it wins over the model-id rule and also applies to Responses.
+ */
 export function resolvePiModelCompat(
   api: PiProviderApi,
   modelId: string,
+  supportsDeveloperRole?: boolean,
 ): PiModelCompat | undefined {
+  const base = modelIdCompat(api, modelId);
+  const isOpenAiWire = api === 'openai-completions' || api === 'openai-responses';
+  if (supportsDeveloperRole === undefined || !isOpenAiWire) {
+    return base;
+  }
+  return { ...base, supportsDeveloperRole };
+}
+
+function modelIdCompat(api: PiProviderApi, modelId: string): PiModelCompat | undefined {
   if (api !== 'openai-completions') {
     return undefined;
   }
@@ -206,7 +222,11 @@ export function buildPiProviderRegistration(
         model.reasoning === false
           ? undefined
           : buildThinkingLevelMap(model.thinkingLevels, endpoint.protocol);
-      const compat = resolvePiModelCompat(modelApi, model.id);
+      const compat = resolvePiModelCompat(
+        modelApi,
+        model.id,
+        resolveSupportsDeveloperRole(provider, model),
+      );
       const registration: PiModelRegistration = {
         id: model.id,
         name: model.label?.trim() || model.id,

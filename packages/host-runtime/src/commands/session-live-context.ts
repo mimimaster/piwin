@@ -237,6 +237,18 @@ export type SessionLiveContext = {
    */
   sideChatSnapshotInjectedVersions: Map<string, number>;
   /**
+   * ORCH: key of the scheme preamble + roster last delivered in full. A send
+   * whose resolved scheme has the same key gets a one-line reminder instead.
+   * Cleared on compaction and session dispose so the full block comes back
+   * whenever model history may no longer contain it.
+   */
+  orchestrationSchemeInjectedKeys: Map<string, string>;
+  /**
+   * Detached subagents (Auto tester) and their unread reports. Prompt
+   * preparation drains the reports into the next model-facing prompt.
+   */
+  detachedSubagents?: import('../detached-subagent-reports.js').DetachedSubagentRegistry;
+  /**
    * Abandoned-branch writes to inject on the next prompt after a confirmed
    * switch. Survives runtime dispose; consumed exactly once by calibration.
    */
@@ -433,5 +445,12 @@ export type SessionLiveContext = {
   }) => void;
   /** End the run_segment when the turn returns. */
   endTurnChangeRun?: (runId: string) => void;
+  /**
+   * Host note about undo/redo that changed this session's workspace since the
+   * model last looked. `commit` marks it delivered (durable).
+   */
+  readTurnChangeNotice?: (
+    sessionId: string,
+  ) => { text: string; commit: () => void } | undefined;
   sessionContextCoordinator?: import('../session-context-coordinator.js').SessionContextCoordinator;
 };

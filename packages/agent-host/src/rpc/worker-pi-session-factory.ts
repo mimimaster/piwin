@@ -266,7 +266,7 @@ export function buildWorkerProviderRegistration(
       model.reasoning === false
         ? undefined
         : buildThinkingLevelMap(model.thinkingLevels, protocol);
-    const compat = resolvePiModelCompat(modelApi, model.id);
+    const compat = resolvePiModelCompat(modelApi, model.id, model.supportsDeveloperRole);
     return {
       id: model.id,
       name: model.label?.trim() || model.id,

@@ -36,6 +36,12 @@ export type ProjectRecord = {
    * Remembered checkout identity; the Host refreshes it while the path exists.
    */
   gitRootPath?: string;
+  /**
+   * True when `path` is the checkout root itself or a symlink to it (not a
+   * subdirectory). Two records sharing `gitRootPath` that are both checkout
+   * roots are aliases of one directory, so the sidebar folds them.
+   */
+  isCheckoutRoot?: boolean;
   /** Host listing state; missing paths retain their session history in the sidebar. */
   workspaceAvailability?: 'missing';
 };

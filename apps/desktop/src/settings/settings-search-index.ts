@@ -24,7 +24,8 @@ const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[
   hooks: ['hook', 'hooks', 'event', 'lifecycle', '钩子', '事件', '生命周期'],
   subagents: [
     'subagent', 'subagents', 'orchestration', 'scheme', 'schemes', 'ultra',
-    '子代理', '编排', '方案',
+    'default scheme', 'set as default',
+    '子代理', '编排', '方案', '设为默认编排', '默认编排',
   ],
   agent: [
     'agent', 'automation', 'cron', '定时', '自动化', '任务',

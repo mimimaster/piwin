@@ -9,6 +9,7 @@ import { WalkthroughCard } from './WalkthroughCard.js';
 import { TurnProse } from './TurnProse.js';
 import { describeTurnState, describeWork, type TurnView, type WorkStep } from './turn-model.js';
 import { partitionHealthSteps } from './health-steps.js';
+import { describeMobileTurnChangeState } from './turn-change-status.js';
 import { HealthToolCard } from '../../health/HealthToolCard.js';
 
 const THINK_CLAMP_CHARS = 180;
@@ -231,8 +232,10 @@ function ChangeStrip({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const count = changes?.fileCount ?? paths.length;
+  // Read-only on mobile: say what state the turn is in, never offer undo here.
+  const state = describeMobileTurnChangeState(changes);
   return (
-    <div className="fcb" role="group" aria-label="本轮变更">
+    <div className="fcb" role="group" aria-label="本轮变更" data-state={changes?.disposition ?? 'unknown'}>
       <button className="fcb-toggle" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
         <Icon name="git" />
         {count} 个文件已修改
@@ -242,6 +245,7 @@ function ChangeStrip({
             <span className="minus">−{changes.deletions ?? 0}</span>
           </span>
         ) : null}
+        {state !== null ? <span className="fcb-state">· {state}</span> : null}
         <Icon name="chevd" extra="chev" />
       </button>
       <button className="chip" type="button" onClick={onOpenChanges}>

@@ -83,6 +83,7 @@ export function ProviderConnectionPanel(props: ProviderConnectionPanelProps): Re
         // new preset's placeholder env name is not.
         defaultAdvancedOpen={
           draft.chatApi === 'openai-responses' ||
+          draft.systemPromptRole === 'system' ||
           (!isNew && (draft.headerRows.length > 0 || draft.storedApiKeyEnv.trim().length > 0))
         }
         isChinese={isChinese}

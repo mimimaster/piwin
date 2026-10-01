@@ -773,6 +773,7 @@ describe('async subagent start/wait/cancel', () => {
       'piwin_subagent_start',
       'piwin_subagent_continue',
       'piwin_subagent_result_apply',
+      'piwin_subagent_result_discard',
       'piwin_subagent_verification_submit',
       'piwin_subagent_wait',
       'piwin_subagent_cancel',

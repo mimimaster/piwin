@@ -8,13 +8,11 @@ import { rejectUnavailableSessionBody } from '../session-body-guard.js';
 import type {
   CreateSessionInput,
   HostCommand,
-  HostPush,
   HostResponse,
   ProductSessionOrigin,
-  SessionHandle,
   SessionIndexRecord,
+  SessionDeleteResult,
   SessionLifecycleApplyResult,
-  SessionLifecycleApplySkipReason,
   SessionLifecyclePlan,
   SessionTranscriptMessage,
   SessionCompactionRecord,
@@ -69,53 +67,8 @@ import { resolveListFilter, resolveScopeRefToListIntent } from '../session-scope
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { createSessionMessageResponse } from '../session-message-response.js';
 
-export type SessionProductCommandContext = {
-  piwinRoot?: string;
-  /** Host-owned admission path; reserves residency before backend creation. */
-  createSession: (input: CreateSessionInput) => Promise<SessionHandle>;
-  /** Load the persisted product transcript for a session (side-chat snapshot source). */
-  loadTranscriptMessages: (sessionId: string) => Promise<SessionTranscriptMessage[]>;
-  getTranscriptStore: (sessionId: string, projectPath?: string) => Promise<SessionTranscriptStore>;
-  withTranscriptStore: <T>(
-    sessionId: string,
-    operation: (store: SessionTranscriptStore) => Promise<T>,
-    projectPath?: string,
-  ) => Promise<T>;
-  /**
-   * Abort a live handle if present (archive). Does not remove host maps.
-   */
-  abortLiveSession: (sessionId: string) => Promise<void>;
-  /**
-   * Abort + drop live maps/recorders for permanent delete.
-   */
-  disposeLiveSession: (sessionId: string) => Promise<void>;
-  archiveSession: (sessionId: string) => Promise<SessionIndexRecord | undefined>;
-  tryArchiveLifecycleCandidate: (input: {
-    sessionId: string;
-    expectedUpdatedAt: string;
-  }) => Promise<
-    { status: 'archived'; record: SessionIndexRecord } | { status: SessionLifecycleApplySkipReason }
-  >;
-  deleteSession: (
-    sessionId: string,
-  ) => Promise<{ removed: SessionIndexRecord; cleanupWarning?: string } | undefined>;
-  bindSession: (
-    session: SessionHandle,
-    projectPath?: string,
-    sessionName?: string,
-    lineage?: { kind?: 'main' | 'subagent' | 'side-chat'; depth?: number },
-  ) => Promise<void>;
-  /** Publish one-time legacy name repairs to every attached client. */
-  push?: (message: HostPush) => void;
-  pushStatus: () => void;
-  tryReserveSessionBody?: (sessionId: string) => boolean;
-  releaseSessionBody?: (sessionId: string) => void;
-  isSessionBodyReserved?: (sessionId: string) => boolean;
-  getForegroundRun?: (sessionId: string) => { runId: string } | undefined;
-  getContextSnapshot?: (
-    sessionId: string,
-  ) => Promise<import('@piwin/contracts').SessionContextSnapshot>;
-};
+import type { SessionProductCommandContext } from './session-product-command-context.js';
+export type { SessionProductCommandContext } from './session-product-command-context.js';
 
 const PRODUCT_COMMAND_TYPES = new Set<HostCommand['type']>([
   'session/list',
@@ -442,11 +395,13 @@ export async function handleSessionProductCommand(
           return fail(requestId, 'session/delete', `Unknown session: ${command.sessionId}`);
         }
         context.push?.(sessionIndexUpdatedPush({ op: 'deleted', sessionId: command.sessionId }));
-        return ok(requestId, 'session/delete', {
+        const result: SessionDeleteResult = {
           sessionId: command.sessionId,
           deleted: true,
           ...(deletion.cleanupWarning ? { cleanupWarning: deletion.cleanupWarning } : {}),
-        });
+          ...(deletion.turnChangeRecordsKept ? { turnChangeRecordsKept: deletion.turnChangeRecordsKept } : {}),
+        };
+        return ok(requestId, 'session/delete', result);
       } finally {
         context.releaseSessionBody?.(command.sessionId);
       }

@@ -59,7 +59,9 @@ async function uninstallExtension(
           unmanagedTarget = cand;
           break;
         }
-      } catch {}
+      } catch {
+        // stat miss: this candidate spelling does not exist; try the next one.
+      }
     }
     if (unmanagedTarget) {
       await rm(unmanagedTarget, { recursive: true, force: true });

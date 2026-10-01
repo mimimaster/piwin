@@ -21,11 +21,15 @@ import type {
 } from '@piwin/contracts';
 import {
   checkoutWorktreeTree,
+  commitResultSnapshot,
   createWorktree,
+  deleteResultSnapshotRef,
   isWorktreeBaseClean,
   runGitCommand,
+  writeWorktreeResultTree,
 } from '@piwin/git';
 
+import type { SubagentBaseCheckout } from './subagent-base-checkout.js';
 import type { WriterSlotPool } from './subagent-writer-slots.js';
 
 export type SubagentWorkspaceServiceOptions = {
@@ -33,6 +37,15 @@ export type SubagentWorkspaceServiceOptions = {
   projectPath: string;
   /** Resolve the parent project for each task's parent session. */
   resolveProjectPath?: (task: SubagentTaskSpec) => string | Promise<string>;
+  /**
+   * Another linked worktree of the project to base the child on and apply its
+   * result to (the lead's feature-branch checkout). `undefined` keeps the
+   * project root. Throws when an explicit request cannot be honoured.
+   */
+  resolveBaseCheckout?: (
+    task: SubagentTaskSpec,
+    projectPath: string,
+  ) => Promise<SubagentBaseCheckout | undefined>;
   /** Explicit policy for a dirty git base. */
   dirtyBasePolicy: 'ask' | 'bypass' | (() => Promise<'ask' | 'bypass'>);
   /** One-run permission flow for the `ask` policy. */
@@ -244,6 +257,71 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
     }
   }
 
+  /**
+   * Detached tester: a private worktree whose base is the parent workspace as
+   * it is right now (uncommitted and untracked files included). It never
+   * applies, so it takes neither the project write lock nor a writer slot and
+   * cannot hold up the next writer. The user's index is never touched: the
+   * tree is written through a temporary index.
+   */
+  async function acquireSnapshotWorktree(
+    task: SubagentTaskSpec,
+    taskProjectPath: string,
+    signal: AbortSignal | undefined,
+  ): Promise<SubagentWorkspaceLease> {
+    // The tester checks the lead's work, so it snapshots the lead's checkout.
+    const snapshotRoot =
+      (await options.resolveBaseCheckout?.(task, taskProjectPath))?.targetPath ?? taskProjectPath;
+    const headResult = await runGitCommand({
+      cwd: snapshotRoot,
+      args: ['rev-parse', 'HEAD'],
+    });
+    const headCommit = headResult.stdout.trim();
+    if (!headCommit) {
+      throw new Error('could not determine the parent repository HEAD commit');
+    }
+    const { tree } = await writeWorktreeResultTree({
+      worktreePath: snapshotRoot,
+      baseCommit: headCommit,
+    });
+    const snapshotId = `workspace-snapshot-${task.id}`;
+    const snapshot = await commitResultSnapshot({
+      repoPath: taskProjectPath,
+      tree,
+      baseCommit: headCommit,
+      resultId: snapshotId,
+    });
+    let worktree: Awaited<ReturnType<typeof createWorktree>>;
+    try {
+      worktree = await createWorktree({
+        projectPath: taskProjectPath,
+        name: `tester-${task.id}-${Date.now().toString(36)}`,
+        baseRef: snapshot.commit,
+        ...(options.worktreeStorageRoot ? { storageRoot: options.worktreeStorageRoot } : {}),
+      });
+    } finally {
+      // The worktree branch keeps the snapshot reachable; the ref was only
+      // needed between commit-tree and branch creation.
+      await deleteResultSnapshotRef({ repoPath: taskProjectPath, resultId: snapshotId });
+    }
+    const dependencySetup = await prepareDependencies({
+      worktreePath: worktree.worktreePath,
+      parentRepoPath: taskProjectPath,
+      projectPath: taskProjectPath,
+      baseCommit: snapshot.commit,
+      ...(signal ? { signal } : {}),
+    });
+    return {
+      mode: 'worktree',
+      cwd: worktree.worktreePath,
+      parentRepoPath: taskProjectPath,
+      worktreePath: worktree.worktreePath,
+      worktreeBranch: worktree.branch,
+      baseCommit: snapshot.commit,
+      ...(dependencySetup ? { dependencySetup } : {}),
+    };
+  }
+
   async function acquire(
     task: SubagentTaskSpec,
     acquireOptions: { signal?: AbortSignal } = {},
@@ -283,15 +361,24 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
       throw new Error('parallel writes are disabled in Settings');
     }
 
+    if (task.workspaceSnapshot) {
+      return acquireSnapshotWorktree(task, taskProjectPath, acquireOptions.signal);
+    }
+
     const unlock = await acquireProjectWriteLock(resolve(taskProjectPath), acquireOptions.signal);
     try {
-      const baseIsClean = await isWorktreeBaseClean(taskProjectPath);
+      // The lock and the slot stay keyed by the project; only the base commit,
+      // the dirty-base check and the apply target follow the lead's checkout.
+      const baseCheckout = await options.resolveBaseCheckout?.(task, taskProjectPath);
+      const baseRoot = baseCheckout?.targetPath ?? taskProjectPath;
+      const targetFields = baseCheckout ? { targetPath: baseCheckout.targetPath } : {};
+      const baseIsClean = await isWorktreeBaseClean(baseRoot);
       const dirtyBasePolicy =
         typeof options.dirtyBasePolicy === 'function'
           ? await options.dirtyBasePolicy()
           : options.dirtyBasePolicy;
       if (!baseIsClean && dirtyBasePolicy === 'ask') {
-        const decision = await options.requestDirtyBasePermission?.(task, taskProjectPath);
+        const decision = await options.requestDirtyBasePermission?.(task, baseRoot);
         if (decision !== 'allow') {
           throw new Error('dirty-base-denied: prepare or stash the repository before continuing');
         }
@@ -302,7 +389,7 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
       // Capture the exact parent tip immediately before checkout creation so the
       // lease records the commit that the child was actually based on.
       const headResult = await runGitCommand({
-        cwd: taskProjectPath,
+        cwd: baseRoot,
         args: ['rev-parse', 'HEAD'],
       });
       const baseCommit = headResult.stdout.trim();
@@ -335,6 +422,7 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
           worktreeBranch: acquired.worktreeBranch,
           baseCommit,
           slotId: acquired.slotId,
+          ...targetFields,
           ...(dependencySetup ? { dependencySetup } : {}),
         };
         leaseUnlocks.set(lease, unlock);
@@ -363,6 +451,7 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
         worktreePath: worktree.worktreePath,
         worktreeBranch: worktree.branch,
         baseCommit,
+        ...targetFields,
         ...(dependencySetup ? { dependencySetup } : {}),
       };
       leaseUnlocks.set(lease, unlock);

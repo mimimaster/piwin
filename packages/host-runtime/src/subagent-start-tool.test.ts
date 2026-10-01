@@ -10,6 +10,7 @@ import type {
   ToolResult,
 } from '@piwin/contracts';
 import {
+  AUTO_SCHEME_ID,
   FUSION_SCHEME_ID,
   REVIEWED_DELIVERY_SCHEME_ID,
   PIWIN_FUSION_BRIEF_MARKER,
@@ -23,6 +24,7 @@ import { createSubagentControlSeam } from './host-runtime-subagent-start.js';
 import { createSubagentStartTool } from './subagent-start-tool.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import { bindSubagentReviewTarget } from './subagent-review-context.js';
+import { DetachedSubagentRegistry } from './detached-subagent-reports.js';
 
 const SESSION_ID = 'parent-1';
 const PARENT_RUN_ID = 'run-1';
@@ -136,8 +138,11 @@ function createHarness(options?: {
   resolveFusionLane?: (
     parentSessionId: string,
   ) => Promise<PreparedSubagentContinuation | undefined>;
+  detachedRegistry?: DetachedSubagentRegistry;
+  onDetachedBatchSettled?: (input: { sessionId: string; runId: string; schemeId?: string }) => void;
 }) {
   const batches: SubagentBatchRequest[] = [];
+  const batchParentRunIds: Array<string | undefined> = [];
   const freehandSelections: boolean[] = [];
   const summary = options && 'summary' in options ? options.summary : makeSummary();
   const runRegistry = new RunRegistry({
@@ -232,6 +237,7 @@ function createHarness(options?: {
   const startBatch = orchestrator.startBatch.bind(orchestrator);
   orchestrator.startBatch = (request, parentRunId) => {
     batches.push(request);
+    batchParentRunIds.push(parentRunId);
     return startBatch(request, parentRunId);
   };
   const schemeAdmissionGate = new TurnScopedSchemeAdmissionGate();
@@ -257,11 +263,18 @@ function createHarness(options?: {
         }),
       merge: async () => ({}),
       ...(options?.resolveFusionLane ? { resolveFusionLane: options.resolveFusionLane } : {}),
+      ...(options?.detachedRegistry ? { detachedRegistry: options.detachedRegistry } : {}),
+      ...(options?.onDetachedBatchSettled
+        ? { onDetachedBatchSettled: options.onDetachedBatchSettled }
+        : {}),
     },
     SESSION_ID,
   );
   return {
     batches,
+    batchParentRunIds,
+    orchestrator,
+    schemeAdmissionGate,
     freehandSelections,
     seam,
     startTool: createSubagentStartTool({ sessionId: SESSION_ID, seam }),
@@ -388,5 +401,88 @@ describe('piwin_subagent_start fusion seam', () => {
     expect(task?.task).toBe('fix the flake');
     expect(task?.task).not.toContain(PIWIN_FUSION_BRIEF_MARKER);
     expect(task?.retainWorktree).toBeUndefined();
+  });
+});
+
+function autoScheme(): ResolvedOrchestrationScheme {
+  const resolved = resolveOrchestrationScheme(
+    { maxConcurrency: 4, maxTasksPerRun: 8 },
+    AUTO_SCHEME_ID,
+    { knownProfileIds: ['explorer', 'implementer', 'reviewer', 'tester'] },
+  );
+  if (!resolved) throw new Error('expected builtin auto scheme');
+  return resolved;
+}
+
+describe('piwin_subagent_start detached tester', () => {
+  it('starts the tester outside the parent run on a workspace snapshot', async () => {
+    const registry = new DetachedSubagentRegistry();
+    const settled: Array<{ runId: string; schemeId?: string }> = [];
+    const harness = createHarness({
+      getActiveScheme: autoScheme,
+      detachedRegistry: registry,
+      onDetachedBatchSettled: (input) => settled.push(input),
+    });
+    const result = await executeTool(harness.startTool, {
+      task: 'verify the login button works',
+      role: 'tester',
+    });
+    expect(result.ok).toBe(true);
+    const task = harness.batches[0]?.tasks[0];
+    expect(task).toMatchObject({
+      role: 'tester',
+      isolationOverride: 'worktree',
+      deliveryIntent: 'candidate',
+      applyPolicy: 'explicit',
+      workspaceSnapshot: true,
+    });
+    expect(harness.batchParentRunIds[0]).toBeUndefined();
+    const runId = registry.running(SESSION_ID);
+    expect(runId).toBeDefined();
+    if (!runId) throw new Error('expected a registered tester');
+    await harness.orchestrator.joinBatch(runId);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(settled).toEqual([expect.objectContaining({ runId, schemeId: 'auto' })]);
+    expect(registry.running(SESSION_ID)).toBeUndefined();
+  });
+
+  it('keeps the tester when the parent run is cancelled, and refuses to wait on it', async () => {
+    const registry = new DetachedSubagentRegistry();
+    const harness = createHarness({ getActiveScheme: autoScheme, detachedRegistry: registry });
+    await executeTool(harness.startTool, { task: 'verify', role: 'tester' });
+    const runId = registry.running(SESSION_ID);
+    if (!runId) throw new Error('expected a registered tester');
+    harness.orchestrator.cancelBatchesForParentRun(PARENT_RUN_ID);
+    expect(harness.orchestrator.isRunning(runId) || registry.running(SESSION_ID) === undefined).toBe(
+      true,
+    );
+    await expect(
+      harness.seam.wait?.({ runIds: [runId], parentSessionId: SESSION_ID, parentRunId: PARENT_RUN_ID }),
+    ).rejects.toThrow(/detached tester/);
+  });
+
+  it('lets a later turn cancel the detached tester', async () => {
+    const registry = new DetachedSubagentRegistry();
+    const harness = createHarness({ getActiveScheme: autoScheme, detachedRegistry: registry });
+    await executeTool(harness.startTool, { task: 'verify', role: 'tester' });
+    const runId = registry.running(SESSION_ID);
+    if (!runId) throw new Error('expected a registered tester');
+    // The manifest records the run that started the tester; a later run must still be allowed.
+    expect(harness.batches[0]?.tasks[0]?.parentRunId).toBe(PARENT_RUN_ID);
+    const cancelled = await harness.seam.cancel?.({
+      runIds: [runId],
+      parentSessionId: SESSION_ID,
+      parentRunId: 'a-later-run',
+    });
+    expect(cancelled?.runs[0]?.runId).toBe(runId);
+  });
+
+  it('runs scouts and the sidekick inside the parent run as before', async () => {
+    const registry = new DetachedSubagentRegistry();
+    const harness = createHarness({ getActiveScheme: autoScheme, detachedRegistry: registry });
+    await executeTool(harness.startTool, { task: 'find the handler', role: 'scout' });
+    expect(harness.batchParentRunIds[0]).toBe(PARENT_RUN_ID);
+    expect(harness.batches[0]?.tasks[0]?.workspaceSnapshot).toBeUndefined();
+    expect(registry.running(SESSION_ID)).toBeUndefined();
   });
 });

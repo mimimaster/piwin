@@ -1,7 +1,8 @@
 /**
  * Collapsible tool-call card — Paper/Noir theme (proto-shell.css .tool block).
- * Write/edit tools with non-empty `changedPaths` render a DiffCard per path;
- * the original raw output is folded into a <details> below.
+ * Write/edit tools with non-empty `changedPaths` render a DiffCard per path
+ * once opened (the row shows +/− until then); the original raw output is
+ * folded into a <details> below.
  */
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
@@ -9,17 +10,17 @@ import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
 import { CitationCards } from './CitationCards';
 import { parseToolCitations } from './tool-citations';
+import { pathsReferToSameFile } from './collect-message-changed-files';
 import { DiffCard, type DiffCardRequest } from './diff-card';
 import { CollapsibleContentBlock } from './collapsible-content-block';
 import { TokenSpans, useHighlight } from './syntax-highlight';
 import { IconChevronDown, IconMore } from './shell-icons';
-import { COMPACTION_TOOL_NAME } from './compaction-tool-row.js';
 import { toolCallKindIcon } from './tool-call-kind-icon';
 import {
   extractCommandDescription,
   formatChainPreviewChip,
   formatPathChip,
-  formatToolDuration,
+  formatToolTimingParts,
   splitPathChipParts,
   isFetchLikeShellCommand,
   kindVerb,
@@ -72,6 +73,11 @@ export type ToolCallCardProps = {
   onExpandedChange?: ((expanded: boolean) => void) | undefined;
   /** Whether this card should automatically hold expanded focus while running. */
   expandWhileRunning?: boolean | undefined;
+  /**
+   * Hold the running auto-expand back this long, so a burst of short commands
+   * stays as collapsed rows instead of flashing open and shut. 0 = immediate.
+   */
+  expandWhileRunningDelayMs?: number | undefined;
   /** Collapse both successful and failed terminal calls back to a timeline row. */
   collapseWhenTerminal?: boolean | undefined;
   /** @deprecated prefer density */
@@ -150,8 +156,19 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const contextMenu = useDesktopContextMenu();
   const themeId = useThemeId();
   const density = resolveDensity(props.density, props.compact);
-  const expandWhileRunning = props.expandWhileRunning !== false;
-  const terminalMustCollapse = props.collapseWhenTerminal === true && tool.status !== 'running';
+  const runningExpandDelayMs = props.expandWhileRunningDelayMs ?? 0;
+  const [runningExpandGraceOver, setRunningExpandGraceOver] = useState(runningExpandDelayMs <= 0);
+  useEffect(() => {
+    if (tool.status !== 'running' || runningExpandGraceOver) {
+      return;
+    }
+    const timer = setTimeout(() => setRunningExpandGraceOver(true), runningExpandDelayMs);
+    return () => clearTimeout(timer);
+  }, [tool.status, runningExpandDelayMs, runningExpandGraceOver]);
+  const expandWhileRunning =
+    props.expandWhileRunning !== false && runningExpandGraceOver;
+  const terminalMustCollapse =
+    props.collapseWhenTerminal === true && tool.status !== 'running';
   const hasExpandableBody = toolHasExpandableBody(tool);
   const displayName = tool.presentation?.title ?? tool.toolName;
   const kind = tool.presentation?.kind ?? 'unknown';
@@ -185,12 +202,13 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     hasChangedPaths &&
     Boolean(props.projectPath) &&
     Boolean(props.request);
+  // Edits keep their diff closed: every one of a long chain's edits mounting a
+  // highlighted DiffCard at once was most of the cost of opening 已工作.
   const autoExpand = terminalMustCollapse
     ? false
     : (props.defaultExpanded ??
       ((tool.status === 'running' && expandWhileRunning && hasExpandableBody) ||
         tool.status === 'error' ||
-        canRenderDiffCard ||
         (density === 'detailed' && hasExpandableBody)));
   const [internalExpanded, setInternalExpanded] = useState(autoExpand);
   const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
@@ -210,8 +228,6 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       setInternalExpanded(false);
     } else if (tool.status === 'error') {
       setInternalExpanded(true);
-    } else if (canRenderDiffCard) {
-      setInternalExpanded(true);
     } else if (tool.status === 'done' && (density !== 'detailed' || !toolHasExpandableBody(tool))) {
       setInternalExpanded(false);
     } else if (density === 'compact') {
@@ -227,7 +243,6 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     props.defaultExpanded,
     props.expanded,
     expandWhileRunning,
-    canRenderDiffCard,
   ]);
 
   function toggleExpanded(): void {
@@ -270,14 +285,10 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const webSearchFailureTag = formatWebSearchFailureTag(webSearchDiagnostics, locale);
   const actionVerb = localizeBehaviorAction(behaviorId, locale, rawActionVerb);
   // Proto-01 labels the chain with tool ids (`read` / `grep` / `bash` / `write_file`),
-  // not Deck's Title-Case behavior verbs (`Read` / `Search` / `Bash`). Synthetic
-  // compaction rows must keep their localized action verb, not the internal id.
+  // not Deck's Title-Case behavior verbs (`Read` / `Search` / `Bash`).
   const inkstoneTheme = themeId.startsWith('piwin-inkstone');
-  const isCompaction = tool.toolName === COMPACTION_TOOL_NAME;
   const displayActionVerb =
-    inkstoneTheme && !tool.toolName.includes('__') && !isCompaction
-      ? tool.toolName
-      : actionVerb;
+    inkstoneTheme && !tool.toolName.includes('__') ? tool.toolName : actionVerb;
   const multiPath = targetPaths.length > 1;
   const isQueryLike =
     baseBehaviorId === 'search' ||
@@ -334,10 +345,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const canOpenPath = Boolean(
     primaryTargetPath && (props.onOpenDocument || props.onOpenFile || props.onOpenDiff),
   );
-  const diffStats = useToolEditDiffStats({
+  // The call's own change wins; the working-tree diff fetch is for older
+  // transcripts and counts every edit to the file, not just this call's.
+  const callChange = tool.presentation?.fileChange;
+  const fetchedDiffStats = useToolEditDiffStats({
     enabled:
       isEditTool &&
       tool.status !== 'error' &&
+      callChange === undefined &&
       Boolean(primaryOpenPath) &&
       Boolean(props.projectPath) &&
       Boolean(props.request),
@@ -346,6 +361,10 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     request: props.request,
     fallback: isEditTool && tool.status !== 'error' ? recoveredArgs.diffStats : undefined,
   });
+  const diffStats =
+    callChange && tool.status !== 'error'
+      ? { added: callChange.additions ?? 0, removed: callChange.deletions ?? 0 }
+      : fetchedDiffStats;
   const isArgsDumpSummary =
     !recoveredSummary &&
     (Boolean(inputPreview && summary === inputPreview) || looksLikeArgsDumpSummary(summary));
@@ -661,9 +680,12 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
             if (!expanded && tool.presentation?.countTag) {
               parts.push(tool.presentation.countTag);
             }
-            if (typeof tool.presentation?.durationMs === 'number') {
-              parts.push(formatToolDuration(tool.presentation.durationMs));
-            }
+            parts.push(
+              ...formatToolTimingParts(
+                tool.presentation?.durationMs,
+                tool.presentation?.queuedMs,
+              ),
+            );
             if (parts.length > 0) {
               return (
                 <span className="tool-call-duration" data-testid="tool-call-duration">
@@ -719,12 +741,16 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
           {canRenderDiffCard
             ? changedPaths.map((path) => {
                 const resolved = resolveToolOpenPath(path, props.projectPath);
+                const change = tool.presentation?.fileChange;
                 return (
                   <DiffCard
                     key={path}
                     projectPath={props.projectPath as string}
                     path={resolved.relativePath}
                     request={props.request as DiffCardRequest}
+                    {...(change && pathsReferToSameFile(resolved.relativePath, change.path)
+                      ? { change }
+                      : {})}
                     {...(props.onOpenFile
                       ? {
                           onOpenFile: () =>

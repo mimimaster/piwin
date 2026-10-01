@@ -10,6 +10,7 @@ import type {
   ModelSource,
   PiwinConfig,
   ProviderChatApi,
+  SystemPromptRoleMode,
 } from '@piwin/contracts';
 import { isModelEnabled, resolveProviderChatApi } from '@piwin/contracts';
 import type { ProviderProtocol } from './provider-presets.js';
@@ -46,6 +47,11 @@ export type ProviderDraft = {
    * default (Chat Completions); only `openai-responses` is written back.
    */
   chatApi?: ProviderChatApi;
+  /**
+   * System prompt role for OpenAI-compatible rows (ADR 0082). `developer` is
+   * the default and is not written back; only an opted-in `system` is.
+   */
+  systemPromptRole?: SystemPromptRoleMode;
   models: ModelConfigEntry[];
 };
 
@@ -94,6 +100,9 @@ export function providerToDraft(provider: ModelProviderConfig): ProviderDraft {
     storedApiKeyRef: provider.apiKeyRef ?? '',
     headerRows: headersToRows(provider.headers),
     ...(provider.chatApi ? { chatApi: provider.chatApi } : {}),
+    ...(provider.protocol === 'openai-compatible' && provider.systemPromptRole
+      ? { systemPromptRole: provider.systemPromptRole }
+      : {}),
     models: provider.models,
   };
 }
@@ -120,6 +129,10 @@ export function draftToProvider(draft: ProviderDraft): ModelProviderConfig {
   const chatApi = normalizeDraftChatApi(draft);
   if (chatApi) {
     config.chatApi = chatApi;
+  }
+  const systemPromptRole = normalizeDraftSystemPromptRole(draft);
+  if (systemPromptRole && config.protocol === 'openai-compatible') {
+    config.systemPromptRole = systemPromptRole;
   }
   if (draft.storedApiKeyRef) {
     config.apiKeyRef = draft.storedApiKeyRef;
@@ -198,6 +211,12 @@ function normalizeDraftChatApi(draft: ProviderDraft): ProviderChatApi | undefine
     : undefined;
 }
 
+/** Only the opt-in `system` role is persisted; `developer` is the default. */
+function normalizeDraftSystemPromptRole(draft: ProviderDraft): SystemPromptRoleMode | undefined {
+  if (draft.protocol !== 'openai-compatible') return undefined;
+  return draft.systemPromptRole === 'system' ? 'system' : undefined;
+}
+
 function connectionSignature(provider: ModelProviderConfig): string {
   const headers = Object.entries(provider.headers ?? {}).sort(([left], [right]) =>
     left.localeCompare(right),
@@ -210,6 +229,7 @@ function connectionSignature(provider: ModelProviderConfig): string {
     headers,
     // Resolved, so an explicit default and an omitted field compare equal.
     resolveProviderChatApi(provider),
+    provider.protocol === 'openai-compatible' && provider.systemPromptRole === 'system',
   ]);
 }
 

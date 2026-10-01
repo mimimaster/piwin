@@ -1,8 +1,11 @@
 /**
  * Composer model, context chips, and media/send stack.
  */
-import { useCallback, useRef, type Dispatch, type MutableRefObject } from 'react';
-import { ORCHESTRATION_SCHEME_OFF_ID } from '@piwin/contracts';
+import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject } from 'react';
+import {
+  ORCHESTRATION_SCHEME_OFF_ID,
+  resolveNewSessionOrchestrationSchemeId,
+} from '@piwin/contracts';
 import type { AgentModeId } from '../agent-mode';
 import { resolveComposerOrchestrationForSessionChange } from '../composer-orchestration-session';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
@@ -78,12 +81,52 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
   // First-send binds the draft pill to the created session before any later
   // null gap (project/set, index remove) can park it as a different conversation.
   const boundOrchestrationSessionRef = useRef<string | null>(state.activeSessionId);
+  const activeSessionIdRef = useRef(state.activeSessionId);
+  activeSessionIdRef.current = state.activeSessionId;
+  const configReady = host.config !== null;
+  const newSessionSchemeId = configReady
+    ? resolveNewSessionOrchestrationSchemeId({
+        schemes: host.config?.subagents?.schemes,
+        maxConcurrency: host.config?.subagents?.maxConcurrency,
+        maxTasksPerRun: host.config?.subagents?.maxTasksPerRun,
+        defaultSchemeId: host.config?.desktop?.defaultOrchestrationSchemeId,
+      })
+    : ORCHESTRATION_SCHEME_OFF_ID;
+  const newSessionSchemeIdRef = useRef(newSessionSchemeId);
+  newSessionSchemeIdRef.current = newSessionSchemeId;
+  // A pick made on the blank composer before settings arrive stays put.
+  // A later change of the saved default updates that same blank composer.
+  const draftSchemeTouchedRef = useRef(false);
+  const seenNewSessionSchemeRef = useRef<string | null>(null);
+
+  const selectOrchestrationScheme = useCallback(
+    (schemeId: string) => {
+      if (activeSessionIdRef.current === null) {
+        draftSchemeTouchedRef.current = true;
+      }
+      setOrchestrationSchemeId(schemeId);
+    },
+    [setOrchestrationSchemeId],
+  );
+
+  useEffect(() => {
+    if (!configReady || state.activeSessionId !== null) return;
+    const previous = seenNewSessionSchemeRef.current;
+    seenNewSessionSchemeRef.current = newSessionSchemeId;
+    if (previous === newSessionSchemeId) return;
+    if (previous === null && draftSchemeTouchedRef.current) return;
+    draftSchemeTouchedRef.current = false;
+    setOrchestrationSchemeId((current) =>
+      current === newSessionSchemeId ? current : newSessionSchemeId,
+    );
+  }, [configReady, newSessionSchemeId, setOrchestrationSchemeId, state.activeSessionId]);
 
   const resetComposerTurnControls = useCallback(
     (change?: ComposerAgentModeSessionChange) => {
       if (!change) {
         // Another New Agent from a draft: drop the unsent draft's choice.
-        setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
+        draftSchemeTouchedRef.current = false;
+        setOrchestrationSchemeId(newSessionSchemeIdRef.current);
         setDelegationDisabled(false);
         setAgentMode('agent');
         return;
@@ -111,7 +154,11 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
         nextSessionId: change.nextSessionId,
         current: currentControls,
         parked: orchestrationBySessionRef.current,
+        newSessionSchemeId: newSessionSchemeIdRef.current,
       });
+      if (change.nextSessionId === null) {
+        draftSchemeTouchedRef.current = false;
+      }
       orchestrationBySessionRef.current = resolvedScheme.parked;
       setOrchestrationSchemeId(resolvedScheme.controls.schemeId);
       setDelegationDisabled(resolvedScheme.controls.delegationDisabled);
@@ -195,7 +242,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     agentMode,
     permissionPreset: session.effectiveRunMode,
     orchestrationSchemeId,
-    onOrchestrationSchemeChange: setOrchestrationSchemeId,
+    onOrchestrationSchemeChange: selectOrchestrationScheme,
     onComposerSessionBound: (sessionId) => {
       boundOrchestrationSessionRef.current = sessionId;
     },
@@ -320,6 +367,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     draftAgentId,
     onDraftAgentChange,
     capabilities,
+    selectOrchestrationScheme,
   };
 }
 

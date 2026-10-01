@@ -10,6 +10,7 @@ import {
   USER_AUTHORED_GENERATION,
   openSessionTranscriptStore,
 } from './transcript-store.js';
+import { PauseCheckpointRetiredError } from './pause-checkpoint-retired-error.js';
 
 async function openStore(label: string): Promise<{
   store: import('./transcript-store.js').SessionTranscriptStore;
@@ -1350,6 +1351,48 @@ describe('SessionTranscriptStore', () => {
       checkpointId: created.checkpointId,
       status: 'consumed',
     });
+    store.close();
+  });
+
+  it('refuses to reuse the id of a retired checkpoint instead of hitting the primary key', async () => {
+    // A resumed run pauses again after its checkpoint was cleared (superseded by a newer
+    // prompt or cancelled) or consumed (resume completed). The task is abandoned: no
+    // resurrection, and a typed error rather than a raw UNIQUE constraint failure.
+    const { store } = await openStore('pause-checkpoint-retired');
+    const base = {
+      sessionId: 'session-pause-checkpoint-retired',
+      createdAt: '2026-09-30T00:00:00.000Z',
+      transcriptRevision: 1,
+    };
+    const cleared = await store.createPauseCheckpoint({ ...base, sourceRunId: 'run-1' });
+    expect(await store.clearPauseCheckpoint(cleared.checkpointId)).toBe(true);
+    const clearedAttempt = store.createPauseCheckpoint({
+      ...base,
+      checkpointId: cleared.checkpointId,
+      sourceRunId: 'run-2',
+    });
+    await expect(clearedAttempt).rejects.toBeInstanceOf(PauseCheckpointRetiredError);
+    await expect(clearedAttempt).rejects.toMatchObject({
+      name: 'PauseCheckpointRetiredError',
+      checkpointId: cleared.checkpointId,
+      retiredStatus: 'cleared',
+    });
+    expect(await store.getActivePauseCheckpoint()).toBeUndefined();
+
+    const consumed = await store.createPauseCheckpoint({ ...base, sourceRunId: 'run-3' });
+    expect(await store.consumePauseCheckpoint(consumed.checkpointId)).toBe(true);
+    await expect(
+      store.createPauseCheckpoint({
+        ...base,
+        checkpointId: consumed.checkpointId,
+        sourceRunId: 'run-4',
+      }),
+    ).rejects.toMatchObject({ retiredStatus: 'consumed' });
+    expect(await store.getActivePauseCheckpoint()).toBeUndefined();
+
+    // A fresh pause with a new id is unaffected.
+    const fresh = await store.createPauseCheckpoint({ ...base, sourceRunId: 'run-5' });
+    expect(fresh.status).toBe('active');
     store.close();
   });
 

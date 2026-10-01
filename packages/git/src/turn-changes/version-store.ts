@@ -15,12 +15,20 @@ export type TurnChangeVersionFile = {
   kind: 'added' | 'modified' | 'deleted';
   beforeSha: string | null;
   afterSha: string | null;
+  /**
+   * Only shell commands touched this path. Undo may leave such a file alone
+   * when it was created by the turn and has changed since (see precheck.ts).
+   */
+  commandOnly: boolean;
 };
 
 export type TurnChangeVersionRecord = {
   changeSetId: string;
   revision: number;
   fileCount: number;
+  additions: number | null;
+  deletions: number | null;
+  binaryFileCount: number;
   coverageComplete: boolean;
   files: readonly TurnChangeVersionFile[];
 };
@@ -31,6 +39,10 @@ export type TurnChangeVersionStore = {
     revision: number;
     files: readonly ComposedFileAction[];
     coverageComplete: boolean;
+    /** Line totals over the version's text files; null when unknown. */
+    additions?: number | null;
+    deletions?: number | null;
+    binaryFileCount?: number;
   }): TurnChangeVersionRecord;
   getChangeVersion(changeSetId: string, revision: number): TurnChangeVersionRecord | undefined;
 };
@@ -40,12 +52,12 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
     `INSERT INTO change_version(
        change_set_id, revision, file_count, additions, deletions,
        binary_file_count, coverage_complete
-     ) VALUES (?, ?, ?, NULL, NULL, 0, ?)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   const insertFile = db.prepare(
     `INSERT INTO change_file(
-       change_set_id, revision, file_id, relative_path, kind, before_sha, after_sha
-     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       change_set_id, revision, file_id, relative_path, kind, before_sha, after_sha, command_only
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const pin = db.prepare(
     `INSERT INTO object_ref(sha256, ref_kind, ref_id, pin_until)
@@ -53,11 +65,12 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
      ON CONFLICT(sha256, ref_kind, ref_id) DO NOTHING`,
   );
   const selectVersion = db.prepare(
-    `SELECT change_set_id, revision, file_count, coverage_complete
+    `SELECT change_set_id, revision, file_count, additions, deletions, binary_file_count,
+            coverage_complete
      FROM change_version WHERE change_set_id = ? AND revision = ?`,
   );
   const selectFiles = db.prepare(
-    `SELECT file_id, relative_path, kind, before_sha, after_sha
+    `SELECT file_id, relative_path, kind, before_sha, after_sha, command_only
      FROM change_file WHERE change_set_id = ? AND revision = ?
      ORDER BY relative_path ASC`,
   );
@@ -70,6 +83,7 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
         kind: fileKind(file),
         beforeSha: file.beforeSha,
         afterSha: file.afterSha,
+        commandOnly: file.commandOnly === true,
       }));
       db.exec('BEGIN');
       try {
@@ -77,6 +91,9 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
           input.changeSetId,
           input.revision,
           files.length,
+          input.additions ?? null,
+          input.deletions ?? null,
+          input.binaryFileCount ?? 0,
           input.coverageComplete ? 1 : 0,
         );
         for (const file of files) {
@@ -88,6 +105,7 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
             file.kind,
             file.beforeSha,
             file.afterSha,
+            file.commandOnly ? 1 : 0,
           );
           if (file.beforeSha) pin.run(file.beforeSha, CHANGE_FILE_REF_KIND, file.fileId);
           if (file.afterSha) pin.run(file.afterSha, CHANGE_FILE_REF_KIND, file.fileId);
@@ -101,6 +119,9 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
         changeSetId: input.changeSetId,
         revision: input.revision,
         fileCount: files.length,
+        additions: input.additions ?? null,
+        deletions: input.deletions ?? null,
+        binaryFileCount: input.binaryFileCount ?? 0,
         coverageComplete: input.coverageComplete,
         files,
       };
@@ -112,6 +133,9 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
             change_set_id: string;
             revision: number;
             file_count: number;
+            additions: number | null;
+            deletions: number | null;
+            binary_file_count: number;
             coverage_complete: number;
           }
         | undefined;
@@ -122,11 +146,15 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
         kind: string;
         before_sha: string | null;
         after_sha: string | null;
+        command_only: number;
       }>;
       return {
         changeSetId: row.change_set_id,
         revision: row.revision,
         fileCount: row.file_count,
+        additions: row.additions,
+        deletions: row.deletions,
+        binaryFileCount: row.binary_file_count,
         coverageComplete: row.coverage_complete === 1,
         files: fileRows.map((file) => ({
           fileId: file.file_id,
@@ -134,6 +162,7 @@ export function bindTurnChangeVersionStore(db: DatabaseSync): TurnChangeVersionS
           kind: file.kind as TurnChangeVersionFile['kind'],
           beforeSha: file.before_sha,
           afterSha: file.after_sha,
+          commandOnly: file.command_only === 1,
         })),
       };
     },

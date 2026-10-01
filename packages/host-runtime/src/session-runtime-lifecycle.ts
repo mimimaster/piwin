@@ -463,6 +463,11 @@ export function isSessionRuntimeProtected(deps: HostRuntimeKernel, sessionId: st
   if (deps.sessionActivationPromises.has(sessionId)) {
     return true;
   }
+  // A finished background tester's report lives in memory until a prompt or
+  // a continuation turn reads it; suspending now would lose it.
+  if (deps.detachedSubagents.hasReports(sessionId)) {
+    return true;
+  }
   return false;
 }
 
@@ -594,6 +599,7 @@ export async function doSuspendSessionRuntime(
   deps.sessionAutoCompactionOverrides.delete(sessionId);
   deps.sessionFilesTouched.delete(sessionId);
   deps.sideChatSnapshotInjectedVersions.delete(sessionId);
+  deps.orchestrationSchemeInjectedKeys.delete(sessionId);
   deps.clearSessionAllowlist(sessionId);
   deps.sessionPermissionOverrides.delete(sessionId);
   deps.runtimeController.markCold(sessionId, reason);

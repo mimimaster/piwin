@@ -115,7 +115,14 @@ export async function searchMarketplaceSources(
       ...shared,
       ...(options.githubToken ? { token: options.githubToken } : {}),
     }),
-    query !== '' ? listMcpRegistryCards({ query, includeOfficial: true, ...(options.fetch ? { fetch: options.fetch } : {}), ...(options.signal ? { signal: options.signal } : {}) }) : Promise.resolve([]),
+    query !== ''
+      ? listMcpRegistryCards({
+          query,
+          includeOfficial: true,
+          ...(options.fetch ? { fetch: options.fetch } : {}),
+          ...(options.signal ? { signal: options.signal } : {}),
+        })
+      : Promise.resolve([]),
     query !== '' ? Promise.resolve(listSkillStoreEntries(query)) : Promise.resolve([]),
   ]);
 

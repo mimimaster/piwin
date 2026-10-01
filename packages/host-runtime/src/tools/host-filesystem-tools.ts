@@ -15,23 +15,23 @@
  */
 
 import { readFile, writeFile, readdir, mkdir, unlink } from 'node:fs/promises';
-import { join, resolve, isAbsolute, relative } from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { join, resolve, isAbsolute } from 'node:path';
 import type { HostToolRegistration, JobController, ToolResult } from '@piwin/contracts';
 import {
-  assertSafeRepoRelativePaths,
   deleteTurnChangeFile,
   writeTurnChangeFile,
   type TurnChangeObjectStore,
   type TurnChangeWriteReceipt,
 } from '@piwin/git';
+import type { CommandChangeCapturer } from '../turn-changes/command-capture.js';
+import type { ShellAuditReport } from '../turn-changes/tool-capture.js';
 import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
 import { runWithWorkspaceWriteGate } from './run-with-workspace-write-gate.js';
-import { runManagedBash } from './run-managed-bash.js';
-import { resolveAgentShell } from './windows-bash-shell.js';
-
-const execFileAsync = promisify(execFile);
+import { describeFileChange, withFileChange } from './file-change-details.js';
+import { buildHostEditTool } from './host-edit-tool.js';
+import { buildHostMoveFileTool, buildHostMoveLinesTool } from './host-move-tools.js';
+import { runHostShell } from './run-host-shell.js';
+import { toTurnChangeRelativePath } from './turn-change-path.js';
 const utf8 = new TextEncoder();
 
 export type BuildHostFilesystemToolsOptions = {
@@ -44,6 +44,10 @@ export type BuildHostFilesystemToolsOptions = {
     workspaceRoot: string;
     store: TurnChangeObjectStore;
     onReceipt?: (receipt: TurnChangeWriteReceipt) => void;
+    /** Records what each shell command changed, for sealing the turn. */
+    onShellAudit?: (audit: ShellAuditReport) => void;
+    /** Images the files a shell command changed, so undo can restore them. */
+    commandCapture?: CommandChangeCapturer;
   };
   workspaceWrite?: {
     gate: WorkspaceWriteGate;
@@ -53,8 +57,9 @@ export type BuildHostFilesystemToolsOptions = {
 };
 
 /**
- * Build Host-owned filesystem tools: `read_file`, `write_file`,
- * `delete_file`, `list_directory`, and `bash` / `run_bash`.
+ * Build Host-owned filesystem tools: `read_file`, `write_file`, `edit`,
+ * `move_lines`, `move_file`, `delete_file`, `list_directory`, and
+ * `bash` / `run_bash`.
  *
  * Permission admission is performed by the Host router before execution.
  * Read-only tools still use the same router path, while executors only
@@ -106,7 +111,7 @@ export function buildHostFilesystemTools(
     descriptor: {
       name: 'write_file',
       description:
-        'Write content to a file (creates or overwrites). Paths are relative to the session working directory. Subject to permission policy.',
+        'Write a whole file (creates or overwrites). Creating a file or replacing its whole content MUST go through this tool so Host records it for undo. To change part of an existing file use `edit` instead (it keeps other sessions\' concurrent changes); to move or rename use `move_file`. Paths are relative to the session working directory. Subject to permission policy.',
       parameters: {
         type: 'object',
         properties: {
@@ -137,6 +142,7 @@ export function buildHostFilesystemTools(
       return runWithWorkspaceWriteGate({
         workspaceWrite,
         runId: context.runId,
+        ownerId: context.sessionId,
         signal,
         mode: 'shared',
         wait: true,
@@ -156,7 +162,10 @@ export function buildHostFilesystemTools(
             store: turnChange.store,
           });
           turnChange.onReceipt?.(receipt);
-          return { ok: true, output: `Wrote ${filePath}` };
+          return withFileChange(
+            { ok: true, output: `Wrote ${filePath}` },
+            await describeFileChange(receipt, turnChange.store),
+          );
         },
       });
     },
@@ -166,7 +175,7 @@ export function buildHostFilesystemTools(
     descriptor: {
       name: 'delete_file',
       description:
-        'Delete a file. Paths are relative to the session working directory. Subject to permission policy.',
+        'Delete a file. Deleting a workspace file MUST go through this tool so Host records it for undo. Paths are relative to the session working directory. Subject to permission policy.',
       parameters: {
         type: 'object',
         properties: {
@@ -196,6 +205,7 @@ export function buildHostFilesystemTools(
       return runWithWorkspaceWriteGate({
         workspaceWrite,
         runId: context.runId,
+        ownerId: context.sessionId,
         signal,
         mode: 'shared',
         wait: true,
@@ -212,7 +222,10 @@ export function buildHostFilesystemTools(
             store: turnChange.store,
           });
           turnChange.onReceipt?.(receipt);
-          return { ok: true, output: `Deleted ${filePath}` };
+          return withFileChange(
+            { ok: true, output: `Deleted ${filePath}` },
+            await describeFileChange(receipt, turnChange.store),
+          );
         },
       });
     },
@@ -261,7 +274,7 @@ export function buildHostFilesystemTools(
     descriptor: {
       name: 'bash',
       description:
-        'Execute a bash command. Subject to permission policy (destructive commands may prompt). Output is stdout+stderr combined.',
+        'Execute a bash command to run programs: build, test, search, inspect. Subject to permission policy (destructive commands may prompt). Output is stdout+stderr combined. File changes go through `edit`, `write_file`, `move_lines`, `move_file` and `delete_file`, which Host records exactly for undo.',
       parameters: {
         type: 'object',
         properties: {
@@ -284,37 +297,24 @@ export function buildHostFilesystemTools(
     fileEffect: { kind: 'uncontained' },
     prepareArgs: (rawArguments, _context, signal) => prepareBashArgs(rawArguments, signal),
     async execute(args, signal, context) {
-      return runWithWorkspaceWriteGate({
-        workspaceWrite,
-        runId: context.runId,
+      return runHostShell({
+        command: String(args.command ?? ''),
+        ...(typeof args.timeout === 'number' ? { timeoutMs: args.timeout } : {}),
+        cwd,
         signal,
-        mode: 'exclusive',
-        wait: true,
-        run: async () => {
-          const command = String(args.command ?? '');
-          const timeout = typeof args.timeout === 'number' ? args.timeout : 30000;
-          if (jobController) {
-            return runManagedBash({
-              controller: jobController,
-              command,
-              cwd,
-              timeoutMs: timeout,
-              signal,
-              runId: context.runId,
-              sessionId: context.sessionId,
-              ...(piwinRoot ? { piwinRoot } : {}),
-            });
-          }
-          const invocation = resolveAgentShell(command, piwinRoot);
-          const { stdout, stderr } = await execFileAsync(invocation.command, invocation.argv, {
-            cwd,
-            timeout,
-            windowsHide: true,
-            ...(signal ? { signal } : {}),
-            maxBuffer: 1024 * 1024,
-          });
-          return { ok: true, output: stdout + (stderr ? `\n[stderr]\n${stderr}` : '') };
-        },
+        runId: context.runId,
+        sessionId: context.sessionId,
+        ...(piwinRoot ? { piwinRoot } : {}),
+        ...(jobController ? { jobController } : {}),
+        ...(workspaceWrite ? { workspaceWrite } : {}),
+        ...(turnChange?.onShellAudit
+          ? {
+              onShellAudit: turnChange.onShellAudit,
+              auditRoot: turnChange.workspaceRoot,
+              ...(turnChange.commandCapture ? { commandCapture: turnChange.commandCapture } : {}),
+              ...(turnChange.onReceipt ? { onReceipt: turnChange.onReceipt } : {}),
+            }
+          : {}),
       });
     },
   };
@@ -345,53 +345,53 @@ export function buildHostFilesystemTools(
     fileEffect: { kind: 'uncontained' },
     prepareArgs: (rawArguments, _context, signal) => prepareBashArgs(rawArguments, signal),
     async execute(args, signal, context) {
-      return runWithWorkspaceWriteGate({
-        workspaceWrite,
-        runId: context.runId,
+      return runHostShell({
+        command: String(args.command ?? ''),
+        ...(typeof args.timeout === 'number' ? { timeoutMs: args.timeout } : {}),
+        cwd,
         signal,
-        mode: 'exclusive',
-        wait: true,
-        run: async () => {
-          const command = String(args.command ?? '');
-          const timeout = typeof args.timeout === 'number' ? args.timeout : 30000;
-          if (jobController) {
-            return runManagedBash({
-              controller: jobController,
-              command,
-              cwd,
-              timeoutMs: timeout,
-              signal,
-              runId: context.runId,
-              sessionId: context.sessionId,
-              ...(piwinRoot ? { piwinRoot } : {}),
-            });
-          }
-          const invocation = resolveAgentShell(command, piwinRoot);
-          const { stdout, stderr } = await execFileAsync(invocation.command, invocation.argv, {
-            cwd,
-            timeout,
-            windowsHide: true,
-            ...(signal ? { signal } : {}),
-            maxBuffer: 1024 * 1024,
-          });
-          return { ok: true, output: stdout + (stderr ? `\n[stderr]\n${stderr}` : '') };
-        },
+        runId: context.runId,
+        sessionId: context.sessionId,
+        ...(piwinRoot ? { piwinRoot } : {}),
+        ...(jobController ? { jobController } : {}),
+        ...(workspaceWrite ? { workspaceWrite } : {}),
+        ...(turnChange?.onShellAudit
+          ? {
+              onShellAudit: turnChange.onShellAudit,
+              auditRoot: turnChange.workspaceRoot,
+              ...(turnChange.commandCapture ? { commandCapture: turnChange.commandCapture } : {}),
+              ...(turnChange.onReceipt ? { onReceipt: turnChange.onReceipt } : {}),
+            }
+          : {}),
       });
     },
   };
 
-  return [readFileTool, writeFileTool, deleteFileTool, listDirectoryTool, bashTool, runBashTool];
+  const editTool = buildHostEditTool({
+    resolvePath,
+    ...(turnChange ? { turnChange } : {}),
+    ...(workspaceWrite ? { workspaceWrite } : {}),
+  });
+
+  const moveOptions = {
+    resolvePath,
+    ...(turnChange ? { turnChange } : {}),
+    ...(workspaceWrite ? { workspaceWrite } : {}),
+  };
+
+  return [
+    readFileTool,
+    writeFileTool,
+    editTool,
+    buildHostMoveLinesTool(moveOptions),
+    buildHostMoveFileTool(moveOptions),
+    deleteFileTool,
+    listDirectoryTool,
+    bashTool,
+    runBashTool,
+  ];
 }
 
-function toTurnChangeRelativePath(absolutePath: string, workspaceRoot: string): string {
-  const rel = relative(resolve(workspaceRoot), resolve(absolutePath)).split('\\').join('/');
-  const safe = assertSafeRepoRelativePaths(workspaceRoot, [rel]);
-  const relativePath = safe[0];
-  if (relativePath === undefined) {
-    throw new Error('path escapes workspace');
-  }
-  return relativePath;
-}
 
 function prepareResolvedPath(
   rawArguments: Record<string, unknown>,

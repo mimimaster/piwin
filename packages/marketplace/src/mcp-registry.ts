@@ -39,6 +39,7 @@ export function listStaticMcpRegistry(query?: string): McpRegistryCard[] {
 export async function listMcpRegistryCards(options?: {
   query?: string;
   includeOfficial?: boolean;
+  /** Injected transport so callers/tests never reach the network by accident. */
   fetch?: typeof fetch;
   signal?: AbortSignal;
 }): Promise<McpRegistryCard[]> {

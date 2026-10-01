@@ -16,6 +16,8 @@ export type ThinkingEffortModelOption = {
   key: string;
   label: string;
   providerId?: string;
+  /** Provider display name; preferred over parsing it back out of `label`. */
+  providerName?: string;
   source?: ModelSource;
   protocol?: ModelProviderConfig['protocol'];
   thinkingLevels?: readonly ThinkingLevel[];
@@ -28,6 +30,7 @@ type ComposerLikeModel = {
   providerId: string;
   modelId: string;
   label: string;
+  providerName?: string;
   source?: ModelSource;
   protocol?: ModelProviderConfig['protocol'];
   thinkingLevels?: readonly ThinkingLevel[];
@@ -44,6 +47,7 @@ export function toThinkingEffortModels(
     key: formatComposerModelKey(model.providerId, model.modelId),
     label: model.label,
     providerId: model.providerId,
+    ...(model.providerName !== undefined ? { providerName: model.providerName } : {}),
     ...(model.source !== undefined ? { source: model.source } : {}),
     ...(model.protocol !== undefined ? { protocol: model.protocol } : {}),
     ...(model.thinkingLevels !== undefined ? { thinkingLevels: model.thinkingLevels } : {}),
@@ -90,7 +94,9 @@ export function ThinkingEffortControl({
     }
     return models.filter((model) => {
       const { provider, name } = parseModelLabel(model.label);
-      const haystack = [model.label, provider ?? '', name].join(' ').toLocaleLowerCase();
+      const haystack = [model.label, model.providerName ?? '', provider ?? '', name]
+        .join(' ')
+        .toLocaleLowerCase();
       return haystack.includes(query);
     });
   }, [models, modelSearchQuery]);
@@ -253,7 +259,8 @@ export function ThinkingEffortControl({
                     >
                       {filteredModels.map((model) => {
                         const isSelected = model.key === selectedModelKey;
-                        const { provider, name } = parseModelLabel(model.label);
+                        const { provider: parsedProvider, name } = parseModelLabel(model.label);
+                        const provider = model.providerName?.trim() || parsedProvider;
                         return (
                           <button
                             key={model.key}

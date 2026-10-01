@@ -73,6 +73,8 @@ export type ToolCardUi = {
 };
 
 export type ChatMessageUi = {
+  turnSummary?: import('@piwin/contracts').SessionTurnSummary;
+  transcriptIndex?: number;
   id: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
   text: string;

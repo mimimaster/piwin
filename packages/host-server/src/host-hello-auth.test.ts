@@ -136,6 +136,33 @@ describe('authenticateHostHello', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('treats an unverifiable authToken like anonymous hello on direct loopback', async () => {
+    // A local shell with a stale saved token must not be locked out of a
+    // tokenless loopback Host, and must gain nothing beyond anonymous admission.
+    const hello = {
+      type: 'client/hello',
+      protocolVersion: 1,
+      clientType: 'desktop',
+      clientVersion: 'test',
+      clientId: 'local-shell',
+      lastSeq: 0,
+      authToken: 'stale-saved-value',
+    } as const;
+    const base = {
+      authToken: undefined,
+      devicePairing: new HostDevicePairing(),
+      persistEnrollment: async () => undefined,
+      tokensEqual,
+    };
+    expect(await authenticateHostHello(hello, { ...base, allowAnonymousHello: true })).toEqual({
+      ok: true,
+    });
+    expect(await authenticateHostHello(hello, { ...base, allowAnonymousHello: false })).toEqual({
+      ok: false,
+      message: 'Host authentication failed',
+    });
+  });
+
   it('admits a hello with the configured door token and rejects a wrong one', async () => {
     const context = {
       authToken: 'door',

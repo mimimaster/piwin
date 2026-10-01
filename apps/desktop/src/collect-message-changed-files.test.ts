@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ToolPresentation } from '@piwin/contracts';
 import type { ToolCardUi } from './chat-reducer';
 import {
+  collectCallFileChangeStats,
   collectMessageChangedFiles,
   isWriteLikeToolName,
   matchChangedFileStats,
@@ -147,5 +148,46 @@ describe('matchChangedFileStats', () => {
     );
     expect(stats.additions).toBe(0);
     expect(stats.matchedPaths).toEqual([]);
+  });
+});
+
+describe('collectCallFileChangeStats', () => {
+  const changeTool = (path: string, additions: number, deletions: number, status = 'modified') =>
+    ({
+      toolCallId: `${path}-${additions}-${deletions}`,
+      toolName: 'edit',
+      status: 'done',
+      output: '',
+      presentation: {
+        kind: 'filesystem',
+        title: 'edit',
+        changedPaths: [path],
+        fileChange: { path, status, additions, deletions, binary: false },
+      },
+    }) as unknown as ToolCardUi;
+
+  it("sums each file's own calls and reports full coverage", () => {
+    const tools = [changeTool('a.txt', 1, 1), changeTool('a.txt', 2, 0), changeTool('b.txt', 3, 0, 'added')];
+    const files = collectMessageChangedFiles(tools);
+    const { stats, coveredAll } = collectCallFileChangeStats(tools, files);
+    expect(coveredAll).toBe(true);
+    expect(stats.additions).toBe(6);
+    expect(stats.deletions).toBe(1);
+    expect(stats.byPath['a.txt']).toEqual({ additions: 3, deletions: 1, status: 'modified' });
+    expect(stats.byPath['b.txt']).toEqual({ additions: 3, deletions: 0, status: 'added' });
+  });
+
+  it('leaves files without call data for the git fallback', () => {
+    const legacy = {
+      toolCallId: 'legacy',
+      toolName: 'write_file',
+      status: 'done',
+      output: '',
+      presentation: { kind: 'filesystem', title: 'write_file', changedPaths: ['old.txt'] },
+    } as unknown as ToolCardUi;
+    const tools = [changeTool('a.txt', 1, 0), legacy];
+    const { stats, coveredAll } = collectCallFileChangeStats(tools, collectMessageChangedFiles(tools));
+    expect(coveredAll).toBe(false);
+    expect(stats.matchedPaths).toEqual(['a.txt']);
   });
 });

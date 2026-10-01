@@ -30,7 +30,7 @@ import type {
   SubagentTaskResult,
 } from './subagent-orchestration.js';
 import type { SubagentResultSummary } from './subagent-result.js';
-import type { TurnChangeSummary } from './turn-change.js';
+import type { TurnChangeOperationProgress, TurnChangeSummary } from './turn-change.js';
 import type { SessionTodoList } from './automation.js';
 import type { GenerationJob, IngestionJob } from './doc-rag-v2.js';
 import type { PetRuntimeSnapshot } from './pet.js';
@@ -120,6 +120,8 @@ export type HostPushVariant =
       workspaceId: string;
       operationId: string;
       changeSetId: string;
+      /** While the operation writes files; absent at start and end. */
+      progress?: TurnChangeOperationProgress;
     }
   | { type: 'workspace-files-updated'; workspaceId: string }
   | {

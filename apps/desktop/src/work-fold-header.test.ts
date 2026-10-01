@@ -8,6 +8,8 @@ import {
 describe('formatWorkDuration', () => {
   it('matches proto-01 done copy', () => {
     expect(formatWorkDuration(41_000, 'zh-CN')).toBe('已工作 41s');
+    expect(formatWorkDuration(41_000, 'zh-CN', 'executed')).toBe('已执行 41s');
+    expect(formatWorkDuration(94_000, 'en', 'executed')).toBe('Ran for 1m 34s');
     expect(formatWorkDuration(94_000, 'zh-CN')).toBe('已工作 1m 34s');
   });
 });

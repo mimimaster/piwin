@@ -13,6 +13,7 @@
 @import '@piwin/ui-kit/flashcards.css';
 @import './styles/ui-foundations.css';
 @import './styles/behavior-activity.css';
+@import './styles/compaction-seam.css';
 @import './styles/region-shell.css';
 @import './styles/region-sidebar.css';
 @import './styles/region-sidebar-tree.css';
@@ -40,11 +41,14 @@
 @import './styles/transcript-message.css';
 @import './styles/run-idle-loop-card.css';
 @import './styles/transcript-files-changed.css';
+@import './styles/turn-change-surfaces.css';
 @import './styles/transcript-walkthrough.css';
 @import './styles/transcript-tool-card.css';
 @import './styles/transcript-web-search.css';
 @import './styles/transcript-tool-file-pill.css';
 @import './styles/transcript-tool-chain.css';
+@import './styles/transcript-work-segments.css';
+@import './styles/transcript-fold-rail.css';
 @import './styles/transcript-markdown.css';
 @import './styles/transcript-cards.css';
 @import './styles/transcript-selection-toolbar.css';

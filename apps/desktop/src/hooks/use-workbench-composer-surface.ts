@@ -58,9 +58,9 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     delegationDisabled,
     setDelegationDisabled,
     orchestrationSchemeId,
-    setOrchestrationSchemeId,
     sidebarMode,
     shell,
+    openMarketplace,
   } = chrome;
   const {
     plusMenuOpen,
@@ -153,7 +153,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     orchestrationSchemeOptions: host.orchestrationSchemeOptions,
     delegationDisabled,
     setDelegationDisabled,
-    setOrchestrationSchemeId,
+    setOrchestrationSchemeId: composer.selectOrchestrationScheme,
     requestGit: host.requestGit,
     recentProjects: session.recentProjects,
     activeJobs: host.activeJobsForComposer,
@@ -173,8 +173,22 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
   // Extension surface and commands are merged here so the large dock-props
   // assembly does not grow another dependency list.
   const composerCard = useMemo(
-    () => ({ ...dock.composerCard, extensionSurface, menuExtensionCommands, sessionUsageTotals }),
-    [dock.composerCard, extensionSurface, menuExtensionCommands, sessionUsageTotals],
+    () => ({
+      ...dock.composerCard,
+      extensionSurface,
+      menuExtensionCommands,
+      sessionUsageTotals,
+      onOpenExtensionsPanel: () => openSettingsSection('extensions'),
+      onOpenMarketplace: openMarketplace,
+    }),
+    [
+      dock.composerCard,
+      extensionSurface,
+      menuExtensionCommands,
+      sessionUsageTotals,
+      openSettingsSection,
+      openMarketplace,
+    ],
   );
   return { ...dock, composerCard };
 }

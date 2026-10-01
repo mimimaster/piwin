@@ -41,6 +41,7 @@ import {
 import { resolveFusionStartTaskPatch } from './fusion-sidekick-lane.js';
 import { resolveSchemeDeliveryLock } from './scheme-delivery-lock.js';
 import type { PreparedSubagentContinuation } from './subagent-continuation-prep.js';
+import type { DetachedSubagentRegistry } from './detached-subagent-reports.js';
 
 export { SubagentControlError };
 
@@ -58,6 +59,18 @@ export type SubagentControlDeps = {
   whenReady: () => Promise<void>;
   taskResults: Map<string, SubagentTaskResult>;
   merge: SubagentRunSeam['merge'];
+  /**
+   * Detached members (Auto tester): per-session registry. Absent = detached
+   * behavior is ignored and the child is an ordinary run-scoped task.
+   */
+  detachedRegistry?: DetachedSubagentRegistry;
+  /** A detached batch finished; the Host delivers its report later. */
+  onDetachedBatchSettled?: (input: {
+    sessionId: string;
+    runId: string;
+    schemeId?: string;
+    result: SubagentBatchResult;
+  }) => void;
   bindReviewTarget?: (input: {
     parentSessionId: string;
     reviewOf: SubagentResultRef;
@@ -73,12 +86,15 @@ export type SubagentControlDeps = {
   >;
   resolveFusionLane?: (
     parentSessionId: string,
+    request: { baseBranch?: string | undefined },
   ) => Promise<PreparedSubagentContinuation | undefined>;
 };
 
 type PreparedStart = {
   handle: ReturnType<SubagentOrchestrator['startBatch']>;
   releaseAdmission: () => void;
+  /** Started without a parent run: survives it, reports later. */
+  detached?: { schemeId?: string };
 };
 
 export function createSubagentControlSeam(
@@ -87,7 +103,7 @@ export function createSubagentControlSeam(
 ): SubagentRunSeam {
   return {
     spawn: async (input) => {
-      const prepared = await prepareAndStartSubagent(deps, sessionId, input);
+      const prepared = await prepareAndStartSubagent(deps, sessionId, input, { allowDetach: false });
       const cancelBatch = (): void => {
         void deps.orchestrator.cancelBatch(prepared.handle.runId).catch(() => {});
       };
@@ -108,7 +124,14 @@ export function createSubagentControlSeam(
       }
     },
     start: async (input) => {
-      const prepared = await prepareAndStartSubagent(deps, sessionId, input);
+      const prepared = await prepareAndStartSubagent(deps, sessionId, input, { allowDetach: true });
+      if (prepared.detached) {
+        await startDetached(deps, sessionId, prepared, prepared.detached, input.signal);
+        return {
+          runId: prepared.handle.runId,
+          invocationId: input.invocationId,
+        };
+      }
       observeAcceptedBatch(deps, prepared);
       await awaitAcceptedBatch(deps, prepared.handle, input.signal);
       return {
@@ -122,10 +145,55 @@ export function createSubagentControlSeam(
   };
 }
 
+/**
+ * Detached start: admission is released as soon as the child is accepted (it
+ * does not count against the parent turn), a previous detached child of this
+ * session is cancelled, and completion is handed to the Host for late
+ * delivery instead of the parent's settlement.
+ */
+async function startDetached(
+  deps: SubagentControlDeps,
+  sessionId: string,
+  prepared: PreparedStart,
+  detached: { schemeId?: string },
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  try {
+    await awaitAcceptedBatch(deps, prepared.handle, signal);
+  } finally {
+    prepared.releaseAdmission();
+  }
+  const runId = prepared.handle.runId;
+  const replaced = deps.detachedRegistry?.replace(sessionId, {
+    runId,
+    ...(detached.schemeId ? { schemeId: detached.schemeId } : {}),
+  });
+  if (replaced) {
+    void deps.orchestrator.cancelBatch(replaced).catch(() => {});
+  }
+  void prepared.handle.completion
+    .then((result) => {
+      cacheBatchResults(deps, result);
+      const entry = deps.detachedRegistry?.settle(sessionId, runId);
+      // A replaced run is cancelled on purpose; its report is noise.
+      if (!entry) return;
+      deps.onDetachedBatchSettled?.({
+        sessionId,
+        runId,
+        ...(entry.schemeId ? { schemeId: entry.schemeId } : {}),
+        result,
+      });
+    })
+    .catch(() => {
+      deps.detachedRegistry?.settle(sessionId, runId);
+    });
+}
+
 async function prepareAndStartSubagent(
   deps: SubagentControlDeps,
   sessionId: string,
   input: SubagentSpawnInput,
+  startMode: { allowDetach: boolean },
 ): Promise<PreparedStart> {
   await deps.whenReady();
   const parentRunId = deps.getParentRunId();
@@ -177,9 +245,23 @@ async function prepareAndStartSubagent(
       role: schemeSpawn.role,
       task: input.task,
       parentSessionId: sessionId,
+      baseBranch: input.baseBranch,
       ...(deps.resolveFusionLane ? { resolveLane: deps.resolveFusionLane } : {}),
     });
     const deliveryLock = resolveSchemeDeliveryLock(activeScheme, schemeSpawn.role);
+    const detached =
+      startMode.allowDetach && schemeSpawn.behavior?.detached === true && deps.detachedRegistry
+        ? true
+        : false;
+    // A detached child never applies: freeze its edits as an explicit
+    // candidate nobody approves, based on a workspace snapshot.
+    const detachedFields = detached
+      ? {
+          deliveryIntent: 'candidate' as const,
+          applyPolicy: 'explicit' as const,
+          workspaceSnapshot: true,
+        }
+      : undefined;
     const preparedRequest = await deps.prepareBatch(
       {
         parentSessionId: sessionId,
@@ -198,11 +280,15 @@ async function prepareAndStartSubagent(
                   deliveryIntent: fusionPatch.deliveryIntent,
                   reviewAuthority: fusionPatch.reviewAuthority,
                   capabilities: fusionPatch.capabilities,
+                  ...(fusionPatch.leadReviewLimit
+                    ? { leadReviewLimit: fusionPatch.leadReviewLimit }
+                    : {}),
                 }
               : {
                   ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
                   ...(input.deliveryIntent ? { deliveryIntent: input.deliveryIntent } : {}),
                   ...deliveryLock,
+                  ...detachedFields,
                 }),
             ...(fusionPatch?.continuationSessionId
               ? { continuationSessionId: fusionPatch.continuationSessionId }
@@ -214,6 +300,7 @@ async function prepareAndStartSubagent(
               ? { continuationRestore: fusionPatch.continuationRestore }
               : {}),
             ...(input.sessionName ? { sessionName: input.sessionName } : {}),
+            ...(input.baseBranch ? { baseBranch: input.baseBranch } : {}),
             ...(schemeSpawn.role ? { role: schemeSpawn.role } : {}),
             ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
             ...(schemeSpawn.reportContract ? { reportContract: schemeSpawn.reportContract } : {}),
@@ -241,17 +328,34 @@ async function prepareAndStartSubagent(
                 deliveryIntent: fusionPatch.deliveryIntent,
                 applyPolicy: fusionPatch.applyPolicy,
                 reviewAuthority: fusionPatch.reviewAuthority,
+                ...(fusionPatch.leadReviewLimit
+                  ? { leadReviewLimit: fusionPatch.leadReviewLimit }
+                  : {}),
               },
             ],
           }
-        : deliveryLock && preparedTask
-          ? { ...preparedRequest, tasks: [{ ...preparedTask, ...deliveryLock }] }
+        : (deliveryLock || detachedFields) && preparedTask
+          ? {
+              ...preparedRequest,
+              tasks: [{ ...preparedTask, ...deliveryLock, ...detachedFields }],
+            }
           : preparedRequest;
     const admittedRequest = input.reviewOf
       ? attachReviewTarget(deps, sessionId, input.reviewOf, forcedRequest)
       : forcedRequest;
-    const handle = deps.orchestrator.startBatch(admittedRequest, parentRunId);
-    return { handle, releaseAdmission };
+    // Detached: no parent run, so the parent's settlement, cancel, and
+    // replace never reach it.
+    const handle = deps.orchestrator.startBatch(
+      admittedRequest,
+      detached ? undefined : parentRunId,
+    );
+    return {
+      handle,
+      releaseAdmission,
+      ...(detached
+        ? { detached: activeScheme ? { schemeId: activeScheme.schemeId } : {} }
+        : {}),
+    };
   } catch (error) {
     releaseAdmission();
     throw error;
@@ -343,6 +447,19 @@ async function resolveValidatedOwners(
         'invalid-input',
         `subagent batch belongs to another session: ${runId}`,
       );
+    }
+    // The task manifest still records the run that started it, so identity
+    // comes from the registry, not from a missing parentRunId.
+    const detachedOwner = deps.detachedRegistry?.isDetached(sessionId, runId) === true;
+    if (mode === 'wait' && detachedOwner) {
+      throw new SubagentControlError(
+        'invalid-input',
+        `subagent run ${runId} is a detached tester: do not wait for it; its report arrives later on its own`,
+      );
+    }
+    if (mode === 'cancel' && detachedOwner) {
+      owners.push(owner);
+      continue;
     }
     if (mode === 'wait' && owner.active && owner.parentRunId !== parentRunId) {
       throw new SubagentControlError(

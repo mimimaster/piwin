@@ -25,6 +25,7 @@ export async function recoverTurnChangeOperation(input: {
   const files = input.store.listOperationFiles(input.operationId);
   if (files.length > 0 && files.every((file) => file.status === 'verified')) {
     input.store.updateOperationStatus(input.operationId, 'succeeded');
+    input.store.noteOperationUpdate(input.operationId);
     input.store.markAttemptDisposition(
       operation.changeSetId,
       operation.kind === 'undo' ? 'undone' : 'applied',
@@ -36,11 +37,21 @@ export async function recoverTurnChangeOperation(input: {
     if (file.status !== 'applied' && file.status !== 'verified') {
       continue;
     }
-    await restoreFromBackup(input.workspaceRoot, input.objectStore, file);
+    try {
+      await restoreFromBackup(input.workspaceRoot, input.objectStore, file);
+    } catch (error) {
+      // Leave the operation blocked for the repair commands rather than
+      // claim a rollback that did not happen.
+      console.warn(`[turn-changes] rollback of ${file.relativePath} failed`, error);
+      input.store.updateOperationStatus(input.operationId, 'needs-repair');
+      input.store.noteOperationUpdate(input.operationId, 'rollback-failed');
+      return { operationId: input.operationId, status: 'needs-repair' };
+    }
     input.store.updateOperationFileStatus(input.operationId, file.relativePath, 'rolled-back');
   }
 
   input.store.updateOperationStatus(input.operationId, 'rolled-back');
+  input.store.noteOperationUpdate(input.operationId);
   return { operationId: input.operationId, status: 'rolled-back' };
 }
 

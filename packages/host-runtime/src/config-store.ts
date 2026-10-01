@@ -49,7 +49,10 @@ import {
   normalizeVideoGenerationConfig,
   normalizeVisionDelegationConfig,
 } from './config-store-capabilities.js';
-import { normalizeDesktopRestoreConfig } from './config-store-desktop.js';
+import {
+  foldLegacyDefaultOrchestrationScheme,
+  normalizeDesktopRestoreConfig,
+} from './config-store-desktop.js';
 import { normalizeFlashcardsConfig, normalizeNotesConfig } from './config-store-notes.js';
 import { normalizeCompactionConfig, normalizeSessionConfig } from './config-store-session.js';
 import { normalizeSubagentConfig } from './config-store-subagent.js';
@@ -207,7 +210,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   if (thinking) {
     normalized.thinking = thinking;
   }
-  const desktop = normalizeDesktopRestoreConfig(record.desktop);
+  const desktop = foldLegacyDefaultOrchestrationScheme(
+    normalizeDesktopRestoreConfig(record.desktop),
+    record.subagents,
+  );
   if (desktop) {
     normalized.desktop = desktop;
   }

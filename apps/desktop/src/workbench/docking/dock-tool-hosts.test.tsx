@@ -31,6 +31,7 @@ function hostValues(overrides: Partial<DockToolHosts>): DockToolHosts {
     activeTheme: PIWIN_APPEARANCE_DARK,
     artifactThemeKey: 'dark',
     projectPath: '/workspace',
+    activeSessionId: null,
     requestGit: vi.fn() as unknown as DockToolHosts['requestGit'],
     addWebElement: vi.fn(),
     artifactTarget: null,

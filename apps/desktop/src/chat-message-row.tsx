@@ -230,7 +230,7 @@ const ChatMessageRowContent = memo(
 
     const bubble = (
       <article
-        id={`msg-${message.id}`}
+        {...(props.omitAnchorId === true ? {} : { id: `msg-${message.id}` })}
         className={rowClass}
         data-testid="message-bubble"
         data-role={message.role}
@@ -491,6 +491,8 @@ const ChatMessageRowContent = memo(
             {...(props.filesChangedRequest !== undefined ? { request: props.filesChangedRequest } : {})}
             {...(props.onReviewChanges !== undefined ? { onReview: props.onReviewChanges } : {})}
             {...(props.locale ? { locale: props.locale } : {})}
+            {...(props.sessionId ? { sessionId: props.sessionId } : {})}
+            {...(props.turnRunKey ? { turnRunKey: props.turnRunKey } : {})}
           />
         ) : null}
         {props.isConversationSession !== true &&

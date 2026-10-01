@@ -14,6 +14,39 @@ function normalizeThinking(text: string): string {
     .trim();
 }
 
+/**
+ * Normalized form per raw thinking string. A turn re-checks every earlier
+ * reasoning block on each render; without this a 600-step chain re-ran the
+ * Unicode regexes over hundreds of kilobytes per streamed token.
+ *
+ * Bounded by characters, not entries: a streaming block is a new, longer key
+ * on every token. The budget holds a full resident window of settled
+ * reasoning several times over (~2M chars ≈ 8MB with the normalized copy);
+ * past it the cache is dropped wholesale and refills from the next render.
+ */
+const NORMALIZED_CACHE_CHAR_BUDGET = 2_000_000;
+const normalizedCache = new Map<string, { normalized: string; tokens?: Set<string> }>();
+let normalizedCacheChars = 0;
+
+function normalizedEntry(text: string): { normalized: string; tokens?: Set<string> } {
+  const cached = normalizedCache.get(text);
+  if (cached !== undefined) return cached;
+  if (normalizedCacheChars + text.length > NORMALIZED_CACHE_CHAR_BUDGET) {
+    normalizedCache.clear();
+    normalizedCacheChars = 0;
+  }
+  const entry: { normalized: string; tokens?: Set<string> } = { normalized: normalizeThinking(text) };
+  normalizedCache.set(text, entry);
+  normalizedCacheChars += text.length;
+  return entry;
+}
+
+function cachedTokens(text: string): Set<string> {
+  const entry = normalizedEntry(text);
+  entry.tokens ??= extractTokens(entry.normalized);
+  return entry.tokens;
+}
+
 function extractTokens(text: string): Set<string> {
   const normalized = normalizeThinking(text);
   if (!normalized) return new Set();
@@ -36,31 +69,34 @@ function extractTokens(text: string): Set<string> {
 export function isDuplicateThinking(
   current: string,
   priorThinkings: readonly string[],
+  /** Compare against only the first N entries (a growing per-turn list). */
+  priorCount: number = priorThinkings.length,
 ): boolean {
   const trimmedCurrent = current.trim();
   if (trimmedCurrent.length === 0) {
     return true;
   }
-  if (priorThinkings.length === 0) {
+  const count = Math.min(priorCount, priorThinkings.length);
+  if (count === 0) {
     return false;
   }
 
-  const normCurrent = normalizeThinking(trimmedCurrent);
+  const normCurrent = normalizedEntry(trimmedCurrent).normalized;
   if (normCurrent.length === 0) {
     return true;
   }
 
-  const currentTokens = extractTokens(normCurrent);
+  const currentTokens = cachedTokens(trimmedCurrent);
 
-  for (const prior of priorThinkings) {
-    const trimmedPrior = prior.trim();
+  for (let index = 0; index < count; index += 1) {
+    const trimmedPrior = (priorThinkings[index] ?? '').trim();
     if (trimmedPrior.length === 0) continue;
 
     if (trimmedCurrent === trimmedPrior) {
       return true;
     }
 
-    const normPrior = normalizeThinking(trimmedPrior);
+    const normPrior = normalizedEntry(trimmedPrior).normalized;
     if (normCurrent === normPrior) {
       return true;
     }
@@ -76,7 +112,7 @@ export function isDuplicateThinking(
 
     // Token Jaccard overlap for short-to-medium reasoning summaries (< 500 chars)
     if (normCurrent.length < 500 && normPrior.length < 500 && currentTokens.size > 0) {
-      const priorTokens = extractTokens(normPrior);
+      const priorTokens = cachedTokens(trimmedPrior);
       if (priorTokens.size === 0) continue;
 
       let intersection = 0;

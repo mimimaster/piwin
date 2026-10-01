@@ -346,6 +346,8 @@ describe('SubscriptionAuthService', () => {
     expect(merged.models).toEqual([
       {
         providerId: 'xai',
+        // Catalog-only rows carry the provider display name for the picker badge.
+        providerName: 'Grok',
         modelId: 'grok-4.6',
         label: 'Grok 4.6',
         source: 'subscription',
@@ -558,6 +560,7 @@ describe('SubscriptionAuthService', () => {
     expect(merged.models).toEqual([
       {
         providerId: CLAUDE_CODE_OAUTH_PROVIDER_ID,
+        providerName: 'Claude Code',
         modelId: 'claude-sonnet-4',
         label: 'Claude Sonnet 4',
         source: 'subscription',

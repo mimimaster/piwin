@@ -34,7 +34,12 @@ function toolOutput(step: number, tool: number, bytes: number): string {
   return line.repeat(Math.ceil(bytes / line.length)).slice(0, bytes);
 }
 
-function bashTool(id: string, step: number, tool: number): SessionToolCardView {
+function bashTool(
+  id: string,
+  step: number,
+  tool: number,
+  status: SessionToolCardView['status'] = 'done',
+): SessionToolCardView {
   // 2–12KB per tool call. The mock transcript page strips tool output before
   // the byte budget is applied, so this never reaches the renderer; it only
   // keeps the host-side payload honestly shaped. 90KB × ~250 calls would cost
@@ -43,8 +48,8 @@ function bashTool(id: string, step: number, tool: number): SessionToolCardView {
   return {
     toolCallId: id,
     toolName: 'bash',
-    status: 'done',
-    output: toolOutput(step, tool, bytes),
+    status,
+    output: status === 'running' ? '' : toolOutput(step, tool, bytes),
     runId: RUN_ID,
     presentation: {
       kind: 'shell',
@@ -62,7 +67,16 @@ function thinkingFor(step: number): string {
   return THINKING_SAMPLE.repeat(Math.ceil(target / THINKING_SAMPLE.length)).slice(0, target);
 }
 
-export function buildLiveChainTranscript(): SessionTranscriptMessage[] {
+export type LiveChainOptions = {
+  /**
+   * Give the streaming tail step two tools that are still running (`?liveTail=tools`),
+   * so a collapsed running segment has something to name. Off by default: the
+   * benchmark shape is a tail that is only prose.
+   */
+  runningTail?: boolean;
+};
+
+export function buildLiveChainTranscript(options: LiveChainOptions = {}): SessionTranscriptMessage[] {
   const start = Date.parse('2026-09-24T10:00:00.000Z');
   const messages: SessionTranscriptMessage[] = [
     {
@@ -76,7 +90,7 @@ export function buildLiveChainTranscript(): SessionTranscriptMessage[] {
   for (let step = 0; step < LIVE_CHAIN_STEP_COUNT; step += 1) {
     const last = step === LIVE_CHAIN_STEP_COUNT - 1;
     const id = `live-a${String(step + 1).padStart(3, '0')}`;
-    const toolCount = last ? 0 : 1 + (step % 8);
+    const toolCount = last ? (options.runningTail === true ? 2 : 0) : 1 + (step % 8);
     messages.push({
       id,
       role: 'assistant',
@@ -86,7 +100,7 @@ export function buildLiveChainTranscript(): SessionTranscriptMessage[] {
       text: last ? '正在核对比较函数' : `第 ${step + 1} 步已核对`,
       thinking: thinkingFor(step),
       tools: Array.from({ length: toolCount }, (_, tool) =>
-        bashTool(`${id}-tool-${tool + 1}`, step + 1, tool + 1),
+        bashTool(`${id}-tool-${tool + 1}`, step + 1, tool + 1, last ? 'running' : 'done'),
       ),
     });
   }
@@ -143,7 +157,7 @@ export function createLiveChainDriver(host: MockHostBackend): LiveChainDriver {
   return driver;
 }
 
-export function seedLiveChainHost(host: MockHostBackend): void {
+export function seedLiveChainHost(host: MockHostBackend, options: LiveChainOptions = {}): void {
   const createdAt = '2026-09-24T10:00:00.000Z';
   host.mockProjects.set(PROJECT, {
     path: PROJECT,
@@ -160,9 +174,13 @@ export function seedLiveChainHost(host: MockHostBackend): void {
     nameSource: 'user',
     updatedAt: createdAt,
     events: [],
-    transcript: buildLiveChainTranscript(),
+    transcript: buildLiveChainTranscript(options),
   });
   host.pushMockRunUpdated(LIVE_CHAIN_SESSION_ID, RUN_ID, 'running', 'streaming', createdAt);
+  // foreground-run keys off this map, not mockRuns. Without it the reconcile
+  // hook reads a null snapshot and stale-clears a turn that is still streaming,
+  // which re-renders every mounted row inside a token sample.
+  host.mockActiveRunIds.set(LIVE_CHAIN_SESSION_ID, RUN_ID);
   const probe: RenderProbeStore = installRenderProbe();
   const driver = createLiveChainDriver(host);
   (

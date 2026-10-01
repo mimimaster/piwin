@@ -46,28 +46,13 @@ import {
   type SessionSeedMessage,
   type EphemeralProviderSecret,
 } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import { formatError, pickWindowsChildSystemEnv } from '@piwin/contracts';
 import { encodeWorkerSecretBootstrap } from './rpc/worker-secret-bootstrap.js';
 import type {
   SerializableBlueprint,
   SerializableWorkerProviderRuntime,
 } from './rpc/serializable-blueprint.js';
 
-/**
- * Windows system variables a spawned child needs to function at all.
- * Without SystemRoot Node children crash or lose DNS/tmpdir; without
- * COMSPEC/PATHEXT they cannot resolve executables. None of these are
- * secrets, so adding them keeps the worker env minimal-but-usable.
- */
-const WINDOWS_SYSTEM_ENV_KEYS = [
-  'SystemRoot',
-  'SystemDrive',
-  'TEMP',
-  'TMP',
-  'USERPROFILE',
-  'COMSPEC',
-  'PATHEXT',
-] as const;
 
 export type WorkerClientOptions = {
   /** Path to the worker entry script. Defaults to the bundled entry. */
@@ -191,12 +176,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
     const workerEnvironment: Record<string, string> = {};
     if (process.env.PATH) workerEnvironment.PATH = process.env.PATH;
     if (process.env.NODE_ENV) workerEnvironment.NODE_ENV = process.env.NODE_ENV;
-    if (process.platform === 'win32') {
-      for (const key of WINDOWS_SYSTEM_ENV_KEYS) {
-        const value = process.env[key];
-        if (value !== undefined) workerEnvironment[key] = value;
-      }
-    }
+    Object.assign(workerEnvironment, pickWindowsChildSystemEnv(process.platform, process.env));
     Object.assign(workerEnvironment, this.options.env ?? {});
     // Validate and bound the payload before allocating a child process.
     const bootstrapFrame = encodeWorkerSecretBootstrap(this.options.bootstrapSecrets ?? []);
@@ -300,17 +280,16 @@ export class RpcSdkWorkerClient extends EventEmitter {
           ? writeWorkerSecretBootstrap(bootstrap, bootstrapFrame)
           : Promise.reject(new Error('worker secret bootstrap pipe is unavailable'));
       // Windows named pipes only emit `finish` for the fd-3 end() once the
-      // worker reads the frame, so a worker that never reads would pin
-      // startup forever (end() has no deadline of its own). Bound the wait
-      // to the same hello deadline; afterwards the write is best-effort.
-      bootstrapPromise.catch(() => {});
-      await Promise.all([
-        Promise.race([
-          bootstrapPromise,
-          new Promise<void>((resolve) => setTimeout(resolve, helloTimeout)),
-        ]),
-        helloPromise,
-      ]);
+      // worker has read the frame, and end() has no deadline of its own. The
+      // worker reads the whole frame before it writes hello, so hello (bounded
+      // by helloTimeout) is the completion signal: a bootstrap error before
+      // hello still fails startup, and no extra timer outlives startup.
+      bootstrapPromise.catch((error: unknown) => {
+        if (this.helloReceived) {
+          this.emit('log', `[worker-client] secret bootstrap write failed after hello: ${formatError(error)}`);
+        }
+      });
+      await Promise.race([bootstrapPromise.then(() => helloPromise), helloPromise]);
     } catch (error: unknown) {
       const startupError = error instanceof Error ? error : new Error(String(error));
       await this.cleanupAfterStartupFailure(startupError);

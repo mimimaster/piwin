@@ -14,6 +14,12 @@ import type { ConfiguredChatModelGroup, ModelSource } from './subscription-oauth
 
 export type ConfiguredChatModel = {
   providerId: string;
+  /**
+   * Provider display name (config `providers[].name`). Lets a shell label a
+   * model row with "Claude / Sonnet" instead of the raw providerId without
+   * needing `config/get` (remote shells cannot read it).
+   */
+  providerName?: string;
   protocol?: ModelProviderConfig['protocol'];
   modelId: string;
   label?: string;
@@ -53,6 +59,10 @@ export function projectConfiguredChatModels(
         source: isSubscription ? 'subscription' : 'channel',
         group: isSubscription ? 'subscription' : 'channel',
       };
+      const providerName = provider.name?.trim();
+      if (providerName) {
+        entry.providerName = providerName;
+      }
       if (!isSubscription) {
         entry.protocol = provider.protocol;
       }
@@ -142,6 +152,9 @@ export function readConfiguredChatModel(item: unknown): ConfiguredChatModel | un
     source: isSubscription ? 'subscription' : 'channel',
     group: isSubscription ? 'subscription' : 'channel',
   };
+  if (typeof item.providerName === 'string' && item.providerName.trim().length > 0) {
+    model.providerName = item.providerName.trim();
+  }
   if (isChannelProtocol) {
     model.protocol = protocol;
   }

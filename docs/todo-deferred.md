@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Living execution backlog |
-| Updated | 2026-08-10 |
+| Updated | 2026-09-29 |
 | Roadmap | [`v1-completion-roadmap.md`](./specs/v1-completion-roadmap.md) |
 | Rule | This is the **only** task backlog. Specs explain design and acceptance; this file tracks execution state. |
 
@@ -151,6 +151,15 @@
 | D-ENG-03 | ~~Unsigned desktop package path~~ | **Done** — `pnpm package:desktop` + `docs/release-desktop.md` | done (unsigned) |
 | D-ENG-03b | Code signing / notarization when certs available | `pnpm notarize:desktop` + workflow Notarize step; needs App Store Connect API secrets and Developer ID p12 on GitHub-hosted | later delivery |
 | D-ENG-04 | cleanup corrupt `*.ts ***` filenames if any | eng hygiene | eng |
+| D-WWG-01 | **Read-before-write for `write_file`**: Host hashes a file when Pi `read` finishes (agent-host passes the path to a Host port) and records it in the session file ledger; a `write_file` over an existing file then refuses once if this session never read it or it changed since. Closes the remaining gap in ADR 0069 rev. 2026-09-29 (first whole-file overwrite long after a read). | Host `edit` removes most whole-file overwrites of existing files; measure how many unread overwrites remain before adding a worker→Host read pipe. Spec: docs site `workspace-concurrency` §7. | after 1–2 weeks of `edit` data |
+| D-WWG-02 | ~~Stop shell from marking the whole turn incomplete~~ **Done 2026-09-29 (ADR 0083)**: per-command audits; command-changed files outside the turn's Host writes are excluded from undo. Residual: those files are listed, not undoable. | Undoing command-written files would need their before-bytes, which a fingerprint does not keep. | done (residual later) |
+| D-WWG-03 | Run long tests/builds against a snapshot or scratch worktree so other sessions can edit while the result maps to a known version. | pnpm monorepo `node_modules` per worktree is costly; the mixed-version note covers the risk today. | later |
+| D-WWG-04 | Offer (or default to) a worktree when a second session starts in a workspace another session is running in. | Product/UX decision not taken yet; optimistic gate serves deliberate shared checkouts. | product |
+| D-WWG-05 | Codex-style `apply_patch` format for OpenAI/Codex models. Hashline edits evaluated and not adopted (mixed benchmark evidence, needs a new `read` format). | Ship `edit` (Pi schema) first. | later |
+| D-WWG-06 | Queue UI: name the lease holder ("waiting for session X's `pnpm test`") and offer cancel; today only `queuedMs` is shown. | Separate timing first; holder identity needs a gate query + push. | polish |
+| D-WWG-07 | Two sessions' shells writing the same file race; the later write wins and is only reported afterwards. | Accepted cost of optimistic shell (ADR 0069 rev. 2026-09-29). | never silent |
+| D-WWG-08 | **Undo — remaining.** P1–P4 main path implemented 2026-09-29/30 (ADR 0083): sealing/audits, startup recovery/retention, staged-path safety, durable repair guard, model notices, progress/cancel/reconnect, conflict detail/navigation, backup export, storage-full capture and delete retention notice. Desktop/CLI share Host; Mobile stays read-only. Remaining: per-tool-call undo, mobile write actions, storage usage-management UI and complete remote/SDK-RPC/theme/accessibility acceptance matrix (completion plan §9.1). Old turns under the wrong root remain refused as files-changed without writes. | Partial undo needs a separate version model; management/mobile writes need explicit product scope, matrix needs real-client fixtures. | later |
+| D-WWG-09 | **Turn-change mode metadata (TU-A05).** Capture/compose/operation plans persist bytes and existence, not before/after executable modes. Modifying an existing file preserves its current mode, but deleting then restoring defaults to 0644; mode-only changes are not counted or guarded. | Requires contracts + receipt/version/log migration and cross-platform mode tests; not silently included in P4 safety completion. | next safety slice |
 
 ### 2.6 Theme / Pet residual
 
@@ -196,7 +205,7 @@
 | CE-CHAT-01..05 | Pin, search, edit-resend, modes light | W1 | same | **Partial** — pin/search/edit; modes light residual |
 | CE-OBS-01..02 | Token/context usage events + UI | W1 | same | **Partial** — usage chip + execution usage; densify residual. Cache countdown in usage popover is a client-side 5-min estimate from `updatedAt` (Pi exposes no TTL); replace with host-supplied TTL via `@piwin/contracts` if Pi adds one. |
 | CE-SUB-01..05 | Worktree sub-agent, apply policy, concurrency | W2 | [`w2-subagent-compaction-pty.md`](./specs/w2-subagent-compaction-pty.md) | **Partial 2026-07-21** — worktree spawn/apply/UI; batch concurrency deferred |
-| ORCH-01..05 | Orchestration Scheme（编排方案）Composer opt-in | after CE-SUB | [`orchestration-scheme.md`](./specs/orchestration-scheme.md) | **Queued 2026-08-07** — per-send Off/Ultra Code; no cross-session persist; contracts→host→desktop→cli |
+| ORCH-01..05 | Orchestration Scheme（编排方案）Composer opt-in | after CE-SUB | [`orchestration-scheme.md`](./specs/orchestration-scheme.md) | **Shipped** — per-send scheme; session pill is in-memory. **2026-09-29:** Settings checkbox 「设为默认编排」 stores `desktop.defaultOrchestrationSchemeId` and preselects the Desktop composer for a new chat only. Unchecking leaves none. CLI omit stays Off. |
 | CE-COMP-01..03 | Pi FileOperations surface + Files touched inject | W2 | same | **Partial 2026-07-21** — normalize/inject/banner state; Pi extract best-effort |
 | CE-PTY-01..03 | Real PTY terminal dock | W2 | same | **Partial 2026-07-21** — host pty/* + Desktop Activity/Terminal dock tabs (piped shell; node-pty later) |
 | CE-MD-01..02 | KaTeX + Mermaid | W2 | same | **Done** (soft-fail fences) |

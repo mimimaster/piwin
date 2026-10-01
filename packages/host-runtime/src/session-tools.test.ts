@@ -251,6 +251,10 @@ describe('buildSessionTools', () => {
     await allowNetworkWebSearch(projectsFile, projectPath);
 
     const requestPermission = vi.fn(async () => 'deny' as const);
+    // Missing Brave key, then the DuckDuckGo floor is bot-blocked: no network.
+    // Stubbed so the outcome is real-network independent (the gate, not the
+    // search backend, is what this test proves).
+    vi.stubGlobal('fetch', (async () => new Response('', { status: 202 })) as typeof fetch);
     const { tools } = buildSessionTools({
       webConfig: {
         searchProvider: 'brave',
@@ -277,16 +281,19 @@ describe('buildSessionTools', () => {
 
     const search = tools.find((tool) => tool.descriptor.name === 'web_search');
     if (!search) throw new Error('web_search missing');
-    await expect(
-      executeThroughAdmission(
-        search,
-        { query: 'cached search' },
-        undefined,
-        requestPermission,
-        projectPath,
-        projectsFile,
-      ),
-    ).resolves.toMatchObject({ ok: false, code: 'execution-failed' });
+    const result = await executeThroughAdmission(
+      search,
+      { query: 'cached search' },
+      undefined,
+      requestPermission,
+      projectPath,
+      projectsFile,
+    );
+    // Contract under test: a remembered approval is honored, so the gate never
+    // denies and never prompts. Whether the search backend then returns hits or
+    // fails is its own business — asserting on it is what made this test flaky.
+    expect(result.ok ? undefined : result.code).not.toBe('permission-denied');
     expect(requestPermission).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

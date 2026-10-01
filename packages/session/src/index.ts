@@ -40,6 +40,7 @@ export {
   sessionArchivePoliciesEqual,
 } from './session-lifecycle.js';
 export { createSessionIndexPage, SessionIndexCursorError } from './session-index-page.js';
+export { PauseCheckpointRetiredError } from './pause-checkpoint-retired-error.js';
 export {
   orderSessionIndexRecords,
   projectSessionIndex,
@@ -188,6 +189,22 @@ export {
   USER_AUTHORED_GENERATION,
 } from './transcript-store.js';
 export {
+  FOREIGN_IMPORT_DEFAULT_TURNS,
+  FOREIGN_IMPORT_HARNESSES,
+  FOREIGN_IMPORT_MAX_TURNS,
+  foreignSessionTitle,
+  limitForeignTurns,
+  matchForeignImportPrompt,
+  parseForeignImportArgs,
+  parseForeignTranscript,
+} from './foreign-import.js';
+export type {
+  ForeignImportHarness,
+  ForeignImportMode,
+  ForeignImportRequest,
+  ForeignImportTurn,
+} from './foreign-import.js';
+export {
   readOrInsertUnknownContextState,
   seedDerivedSessionContextState,
 } from './session-context-state-store.js';
@@ -333,3 +350,5 @@ export {
   TOOL_SNAPSHOT_HARD_MAX_BYTES,
 } from './tool-output-snapshot.js';
 export type { ToolOutputSnapshotInput } from './tool-output-snapshot.js';
+
+export { buildSessionTurnSummaries, countTranscriptWork, selectSessionTurnSummaries, sumWorkedIntervals } from './transcript-work-summary.js';

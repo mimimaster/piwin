@@ -7,9 +7,11 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { GitDiffSummary, HostResponse } from '@piwin/contracts';
 import type { ToolCardUi } from './chat-reducer';
 import {
+  collectCallFileChangeStats,
   collectMessageChangedFiles,
   deriveFallbackStatsForTools,
   matchChangedFileStats,
+  mergeChangedFileStats,
   type MessageChangedFile,
   type MessageChangedFileStat,
 } from './collect-message-changed-files';
@@ -127,10 +129,12 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
       setStats(null);
       return;
     }
-    if (!props.projectPath || !props.request) {
-      setStats(deriveFallbackStatsForTools(props.tools, files));
+    const call = collectCallFileChangeStats(props.tools, files);
+    if (call.coveredAll || !props.projectPath || !props.request) {
+      setStats(deriveFallbackStatsForTools(props.tools, files, call.stats));
       return;
     }
+    const uncovered = files.filter((file) => !call.stats.byPath[file.path]);
     let cancelled = false;
     const projectPath = props.projectPath;
     const request = props.request;
@@ -139,11 +143,15 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
         if (cancelled) return;
         const gitMatched = response.success
           ? matchChangedFileStats(
-              files,
+              uncovered,
               (response.data as { summary: GitDiffSummary }).summary.files,
             )
           : null;
-        const finalStats = deriveFallbackStatsForTools(props.tools, files, gitMatched);
+        const finalStats = deriveFallbackStatsForTools(
+          props.tools,
+          files,
+          mergeChangedFileStats(call.stats, gitMatched),
+        );
         setStats({
           additions: finalStats.additions,
           deletions: finalStats.deletions,
@@ -151,7 +159,7 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
         });
       })
       .catch(() => {
-        if (!cancelled) setStats(deriveFallbackStatsForTools(props.tools, files));
+        if (!cancelled) setStats(deriveFallbackStatsForTools(props.tools, files, call.stats));
       });
     return () => {
       cancelled = true;
@@ -234,7 +242,7 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
 }
 
 /** "+a −d"; a zero side is dropped so an add-only turn does not show a red −0. */
-function LineStat(props: {
+export function LineStat(props: {
   className: string;
   additions: number;
   deletions: number;
@@ -263,6 +271,11 @@ const STATUS_TAGS: Record<string, { letter: string; tone: string }> = {
   conflicted: { letter: 'U', tone: 'del' },
 };
 
+/** Single-letter tag (A/M/D/…) and tone for a change status. */
+export function changeStatusTag(status: string | undefined): { letter: string; tone: string } {
+  return STATUS_TAGS[status ?? 'modified'] ?? MODIFIED_TAG;
+}
+
 function FilesChangedRow(props: {
   file: MessageChangedFile;
   projectPath?: string | null | undefined;
@@ -270,7 +283,7 @@ function FilesChangedRow(props: {
   onReview?: (() => void) | undefined;
 }): ReactElement {
   const parts = formatDisplayPathParts(props.file.path, props.projectPath);
-  const tag = STATUS_TAGS[props.stat?.status ?? 'modified'] ?? MODIFIED_TAG;
+  const tag = changeStatusTag(props.stat?.status);
   const content = (
     <>
       <span className={`files-changed-bar-row-tag ${tag.tone}`}>{tag.letter}</span>

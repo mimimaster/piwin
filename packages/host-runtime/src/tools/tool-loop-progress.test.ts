@@ -24,6 +24,7 @@ describe('classifyToolLoopClass', () => {
     expect(classifyToolLoopClass('piwin_subagent_start')).toBe('progress');
     expect(classifyToolLoopClass('piwin_subagent_continue')).toBe('progress');
     expect(classifyToolLoopClass('piwin_subagent_result_apply')).toBe('progress');
+    expect(classifyToolLoopClass('piwin_subagent_result_discard')).toBe('progress');
     expect(classifyToolLoopClass('piwin_subagent_verification_submit')).toBe('progress');
   });
 
@@ -41,6 +42,45 @@ describe('fingerprintToolLoopCall', () => {
         targetPaths: ['apps/desktop/src/artifact-sandbox-frame.tsx'],
       }),
     ).toBe('read:apps/desktop/src/artifact-sandbox-frame.tsx');
+  });
+
+  it('prefers the full shell command over a clipped inputPreview', () => {
+    const clipped =
+      '{"command":"python3 << \'PY\'\nfrom pathlib import Path\nsrc = Path(\'/Volumes/BigDisk/Projects/Pr…';
+    expect(
+      fingerprintToolLoopCall({
+        toolName: 'bash',
+        inputPreview: clipped,
+        command:
+          "python3 << 'PY'\nfrom pathlib import Path\nsrc = Path('/repo/apps/desktop/src')\nlegacy_p = src / 'enhanced-markdown-legacy.tsx'\nprint(len(legacy_p.read_text().splitlines()))\nPY",
+      }),
+    ).not.toBe(
+      fingerprintToolLoopCall({
+        toolName: 'bash',
+        inputPreview: clipped,
+        command:
+          "python3 << 'PY'\nfrom pathlib import Path\nsrc = Path('/repo/apps/desktop/src')\npanel = src / 'file-tree-panel.tsx'\nprint(len(panel.read_text().splitlines()))\nPY",
+      }),
+    );
+  });
+
+  it('keeps paged reads of the same file distinct by lineRange', () => {
+    const path = '/repo/apps/desktop/src/EnhancedMarkdownView.tsx';
+    expect(
+      fingerprintToolLoopCall({
+        toolName: 'read',
+        targetPaths: [path],
+        lineRange: 'L100-129',
+        inputPreview: `{"path":"${path}","o…`,
+      }),
+    ).not.toBe(
+      fingerprintToolLoopCall({
+        toolName: 'read',
+        targetPaths: [path],
+        lineRange: 'L900-939',
+        inputPreview: `{"path":"${path}","o…`,
+      }),
+    );
   });
 
   it('falls back to the tool name when Pi omitted arguments', () => {

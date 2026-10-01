@@ -1,3 +1,4 @@
+import { buildSessionTurnSummaries, selectSessionTurnSummaries } from '@piwin/session/transcript-work-summary';
 import {
   SESSION_TRANSCRIPT_PAGE_MAX_BYTES,
   SESSION_TRANSCRIPT_PAGE_MAX_ITEMS,
@@ -57,6 +58,7 @@ export function createMockSessionTranscriptPage(
     startIndex,
     endIndex,
     messageBytes,
+    turnSummaries: selectSessionTurnSummaries(buildSessionTurnSummaries(messages, revision), startIndex, endIndex),
   };
   const resultPage: typeof page & {
     truncatedMessageIds?: string[];

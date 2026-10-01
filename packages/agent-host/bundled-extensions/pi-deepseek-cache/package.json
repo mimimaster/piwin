@@ -12,7 +12,7 @@
   "piwin": {
     "bundledFrom": "npm:@rohaquinlop/pi-deepseek-cache",
     "npmVersion": "1.0.4",
-    "patch": 1,
-    "patchNotes": "1: drop the composer hit-rate status chip"
+    "patch": 2,
+    "patchNotes": "1: drop the composer hit-rate status chip; 2: split persistence/overlays modules"
   }
 }

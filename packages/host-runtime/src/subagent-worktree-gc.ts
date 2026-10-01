@@ -7,6 +7,7 @@ import { execFile } from 'node:child_process';
 import { readdir, realpath, stat } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import type {
+  SubagentForeignWorktree,
   SubagentWorktreeGcEntry,
   SubagentWorktreeGcMode,
   SubagentWorktreeGcPreview,
@@ -53,6 +54,10 @@ export type SubagentWorktreeGcControllerOptions = {
     worktreePath: string;
     parentRepoPath?: string;
   }) => Promise<WorktreeGitInfo>;
+  /** Every worktree git lists for a repository; defaults to `git worktree list`. */
+  listRepositoryWorktrees?: (repoPath: string) => Promise<
+    ReadonlyArray<{ worktreePath: string; branch: string | null; isPrimary: boolean }>
+  >;
 };
 
 type LeaseRecord = {
@@ -76,6 +81,7 @@ export function createSubagentWorktreeGcController(
   const now = options.now ?? (() => Date.now());
   const measureBytes = options.measureBytes ?? measureDirectoryBytes;
   const lookupGit = options.lookupGit ?? lookupGitWorktree;
+  const listRepositoryWorktrees = options.listRepositoryWorktrees ?? listRepositoryWorktreesViaGit;
   let tail: Promise<unknown> = Promise.resolve();
 
   function enqueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -144,9 +150,49 @@ export function createSubagentWorktreeGcController(
     return entries.slice(0, MAX_PREVIEW_ENTRIES);
   }
 
+  /**
+   * Linked worktrees of the repositories subagents delegated in that live
+   * outside the storage root. Informational only: reclaim never sees them.
+   */
+  async function collectForeign(
+    entries: readonly SubagentWorktreeGcEntry[],
+  ): Promise<SubagentForeignWorktree[]> {
+    const storageRoot = resolve(options.storageRoot);
+    const repos = new Set<string>();
+    for (const lease of collectLeaseRecords(await options.listManifests(), options.isRunActive)) {
+      repos.add(resolve(lease.parentRepoPath));
+    }
+    for (const entry of entries) {
+      if (entry.parentRepoPath) repos.add(resolve(entry.parentRepoPath));
+    }
+    const foreign: SubagentForeignWorktree[] = [];
+    const seen = new Set<string>();
+    for (const repo of repos) {
+      let listed;
+      try {
+        listed = await listRepositoryWorktrees(repo);
+      } catch {
+        continue;
+      }
+      for (const worktree of listed) {
+        const path = resolve(worktree.worktreePath);
+        if (worktree.isPrimary || seen.has(path)) continue;
+        if (await isInsideStorageRoot(storageRoot, path)) continue;
+        if (isSubagentWorktreeBranch(worktree.branch)) continue;
+        seen.add(path);
+        foreign.push({ worktreePath: path, branch: worktree.branch, parentRepoPath: repo });
+      }
+    }
+    return foreign.slice(0, MAX_PREVIEW_ENTRIES);
+  }
+
   return {
     preview() {
-      return enqueue(async () => summarize(await collect('manual')));
+      return enqueue(async () => {
+        const entries = await collect('manual');
+        const foreign = await collectForeign(entries);
+        return { ...summarize(entries), ...(foreign.length > 0 ? { foreign } : {}) };
+      });
     },
     reclaim(input) {
       return enqueue(async () => {
@@ -364,6 +410,17 @@ export async function lookupGitWorktree(input: {
     branch: match.branch,
     ...(primary && !match.isPrimary ? { parentRepoPath: primary.worktreePath } : {}),
   };
+}
+
+async function listRepositoryWorktreesViaGit(
+  repoPath: string,
+): Promise<Array<{ worktreePath: string; branch: string | null; isPrimary: boolean }>> {
+  const listed = await listGitWorktrees({ rootPath: repoPath, isRepository: true });
+  return listed.worktrees.map((entry) => ({
+    worktreePath: entry.worktreePath,
+    branch: entry.branch,
+    isPrimary: entry.isPrimary,
+  }));
 }
 
 export async function listStorageWorktreePaths(storageRoot: string): Promise<string[]> {

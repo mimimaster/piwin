@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import {
   extractUserFacingBody,
   readPlanActionMarker,
@@ -89,6 +89,18 @@ export function TranscriptView({
 
   const gateTurnIndex = gate === null ? -1 : findGateTurn(entries, permission?.runId ?? activeRunId);
   const lastTurnIndex = findLastIndex(entries, (entry) => entry.kind === 'turn');
+  // History turns sealed before this client connected get no push; ask once.
+  const settledRunKey = entries
+    .flatMap((entry) =>
+      entry.kind === 'turn' && entry.turn.runId !== undefined && entry.turn.status !== 'running'
+        ? [entry.turn.runId]
+        : [],
+    )
+    .join('\n');
+  const ensureTurnChanges = live.ensureTurnChanges;
+  useEffect(() => {
+    if (settledRunKey) ensureTurnChanges(settledRunKey.split('\n'));
+  }, [ensureTurnChanges, settledRunKey]);
 
   return (
     <>

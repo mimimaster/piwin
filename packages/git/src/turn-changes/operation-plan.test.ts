@@ -97,4 +97,29 @@ describe('planUndoRedo', () => {
       },
     ]);
   });
+
+  it('marks only command-created files skippable, and only for undo', () => {
+    const files = [
+      { ...file('made.log', null, 'sha-log', false, true), commandOnly: true },
+      { ...file('edited.ts', 'sha-a', 'sha-b', true, true), commandOnly: true },
+      { ...file('written.md', null, 'sha-md', false, true), commandOnly: false },
+    ];
+    const undo = planUndoRedo({ files, direction: 'undo' });
+    expect(undo.map((op) => [op.relativePath, op.skippable ?? false])).toEqual([
+      ['made.log', true],
+      ['edited.ts', false],
+      ['written.md', false],
+    ]);
+    const redo = planUndoRedo({ files, direction: 'redo' });
+    expect(redo.every((op) => op.skippable === undefined)).toBe(true);
+  });
+
+  it('leaves out of a redo the files the undo left in place', () => {
+    const files = [file('a.ts', 'b', 'a', true, true), file('made.log', null, 'l', false, true)];
+    expect(planUndoRedo({ files, direction: 'redo', leftInPlace: ['made.log'] }).map((op) => op.relativePath)).toEqual([
+      'a.ts',
+    ]);
+    // An undo never skips by name: leftInPlace only means something to a redo.
+    expect(planUndoRedo({ files, direction: 'undo', leftInPlace: ['made.log'] })).toHaveLength(2);
+  });
 });

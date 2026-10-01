@@ -467,6 +467,9 @@ export function ProviderModelList({
                   {...(provider.chatApi ? { providerChatApi: provider.chatApi } : {})}
                   {...(provider.baseUrl ? { providerBaseUrl: provider.baseUrl } : {})}
                   providerIsSubscription={isSubscriptionProvider(provider)}
+                  {...(provider.protocol === 'openai-compatible' && provider.systemPromptRole
+                    ? { providerSystemPromptRole: provider.systemPromptRole }
+                    : {})}
                   {...(nativeSearchBlocker ? { nativeSearchBlocker } : {})}
                   disabled={disabled}
                   isChinese={isChinese}

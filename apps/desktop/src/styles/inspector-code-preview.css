@@ -89,6 +89,9 @@
   font-family: var(--font);
   font-size: var(--fs-micro);
   color: var(--text-4);
+  /* Chrome, not code: a drag across the block must not pick up the language tag. */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .enhanced-code {
@@ -167,6 +170,7 @@
   text-align: right;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
+  -webkit-user-select: none;
   user-select: none;
 }
 

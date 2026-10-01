@@ -2,7 +2,7 @@
  * Host custom tool: piwin_subagent_wait — join accepted child batches.
  * Validates every id before waiting. Child failure is a successful observation.
  */
-import { formatError } from '@piwin/contracts';
+import { AUTO_SCHEME_ID, formatError } from '@piwin/contracts';
 import type { HostToolExecutionContext, HostToolRegistration } from '@piwin/contracts';
 import { parseSubagentRunIds } from './subagent-tool-input.js';
 import {
@@ -10,6 +10,7 @@ import {
   SubagentControlError,
 } from './host-runtime-subagent-start.js';
 import type { SubagentRunSeam } from './subagent-run-tool.js';
+import { formatAutoWaitNextSteps } from './auto-scheme-next-steps.js';
 
 export type SubagentWaitToolOptions = {
   sessionId: string;
@@ -68,9 +69,13 @@ export function createSubagentWaitTool(options: SubagentWaitToolOptions): HostTo
           ...(signal ? { signal } : {}),
         });
         const formatted = formatWaitToolResult(result);
+        const nextSteps =
+          options.seam.getActiveScheme?.(context.runId)?.schemeId === AUTO_SCHEME_ID
+            ? formatAutoWaitNextSteps(result.runs)
+            : undefined;
         return {
           ok: true,
-          output: formatted.output,
+          output: nextSteps ? `${formatted.output}\n${nextSteps}` : formatted.output,
           details: formatted.details,
         };
       } catch (error) {

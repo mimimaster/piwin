@@ -38,6 +38,7 @@ import { activateSkillForPrompt } from './activate-skill-for-prompt.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { shouldInjectLiveWorkPreamble } from '../voice/live-work-preamble.js';
 import { applyInlineArtifactLayout } from '../prompt/inline-artifact-layout.js';
+import { DETACHED_REPORT_CONTINUATION_PROMPT } from '../detached-subagent-reports.js';
 
 // These moved into their own modules; re-exported so every existing importer
 // of this entry point keeps the surface it already depends on.
@@ -399,14 +400,42 @@ export async function preparePromptInput(
   // CHT-304/305: Agent increments stay on the Project/Side Chat path.
   // Conversations ignore stale agent-only fields and clear any leftover
   // permission override so a previous plan/ask turn cannot leak.
+  let orchestrationSchemeFullKey: string | undefined;
   if (conversationChat) {
     context.clearSessionPermissionOverride(command.sessionId);
   } else {
-    await applyAgentPromptContext(context, command, run, assembly, promptInput, promptSource.text);
+    const agentContext = await applyAgentPromptContext(
+      context,
+      command,
+      run,
+      assembly,
+      promptInput,
+      promptSource.text,
+    );
+    orchestrationSchemeFullKey = agentContext.orchestrationSchemeFullKey;
   }
 
   // ADR 0026: concisePrompt injection retired with walkthrough generation.
   throwIfPromptPreparationAborted(context, run.runId);
+  if (orchestrationSchemeFullKey !== undefined) {
+    context.orchestrationSchemeInjectedKeys.set(command.sessionId, orchestrationSchemeFullKey);
+  }
+  // Auto tester reports that arrived since the last prompt. Drained only after
+  // the last abort check, so a cancelled preparation keeps them for next time.
+  const detachedReports = context.detachedSubagents?.takeReports(command.sessionId);
+  if (detachedReports) {
+    const body =
+      command.input.source === 'continuation'
+        ? promptInput.text.replace(TURN_CONTINUATION_PROMPT, DETACHED_REPORT_CONTINUATION_PROMPT)
+        : promptInput.text;
+    promptInput.text = `${detachedReports}\n\n${body}`;
+    assembly.add({
+      kind: 'context-ref',
+      label: 'Background tester report',
+      trustOrigin: 'piwin',
+      text: detachedReports,
+    });
+  }
   if (command.input.source !== 'continuation') {
     context.sessionLastPromptText.set(command.sessionId, promptSource.text);
   }

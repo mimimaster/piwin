@@ -50,7 +50,10 @@ import { createSessionRuntimeResidencyController } from './sessions/session-runt
 import { createImmediateSafetyPredicate } from './sessions/immediate-safety-gate.js';
 import { SessionRuntimeReplacementEngine } from './session-runtime-replacement.js';
 import { createSessionHostToolExecutionPort } from './tools/session-host-tool-port.js';
-import { openTurnChangeRuntime } from './turn-changes/runtime-wiring.js';
+import {
+  openTurnChangeRuntime,
+  recoverTurnChangeRuntimeAtStartup,
+} from './turn-changes/runtime-wiring.js';
 import { createSubagentResultService } from './subagent-result-service.js';
 import { descriptorsFromTools } from './tools/build-session-host-tools.js';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
@@ -536,7 +539,36 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       deps.turnChangeRuntime = openTurnChangeRuntime({
         hostInstanceId: deps.hostInstanceId,
         ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+        push: (message) => deps.push(message),
+        retention: {
+          onError: (error) => {
+            deps.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `turn-change retention sweep failed: ${formatError(error)}`,
+            });
+          },
+        },
       });
+      void recoverTurnChangeRuntimeAtStartup(deps.turnChangeRuntime)
+        .then((recovery) => {
+          if (recovery.operations.length > 0) {
+            deps.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `turn-change startup recovery: ${recovery.operations
+                .map((operation) => `${operation.operationId}=${operation.status}`)
+                .join(', ')}`,
+            });
+          }
+        })
+        .catch((error: unknown) => {
+          deps.push({
+            type: 'host/log',
+            level: 'error',
+            message: `turn-change startup recovery failed: ${formatError(error)}`,
+          });
+        });
       deps.subagentResultService = createSubagentResultService({
         changeStore: deps.turnChangeRuntime.store,
         objectStore: deps.turnChangeRuntime.objectStore,

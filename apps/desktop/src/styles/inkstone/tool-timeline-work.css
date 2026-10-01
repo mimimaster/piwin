@@ -1,0 +1,356 @@
+/* S5.4: Work fold (.work-h) with bulb/brain/lamp/square header */
+html[data-theme-id='piwin-inkstone-paper'] .work,
+html[data-theme-id='piwin-inkstone-ink'] .work,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details {
+  margin: 2px 0 4px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h,
+html[data-theme-id='piwin-inkstone-ink'] .work-h,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure-trigger,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure-trigger,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  /* Hover pad stays inside the measure — never bleed past the composer edge. */
+  padding: 0 var(--row-pad);
+  margin-left: 0;
+  width: 100%;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t2);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  line-height: 1.4;
+  outline: none;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+/* The turn-level work summary sits flush with the answer column. The window
+   item clips horizontal bleed, so drop the left pad instead of a negative
+   margin; the bulb's own glyph inset keeps it off the hover edge. */
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure-trigger,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure-trigger {
+  padding-left: 0;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h:hover,
+html[data-theme-id='piwin-inkstone-ink'] .work-h:hover,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure-trigger:hover,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure-trigger:hover,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary:hover,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary:hover {
+  background: var(--s3);
+}
+
+/* Hide Deck RadialBellow/brain icons in Inkstone */
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .turn-summary-radial-bellow,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .turn-summary-radial-bellow,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .turn-summary-active-animation,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .turn-summary-active-animation,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .turn-summary-brain-icon,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .turn-summary-brain-icon {
+  display: none !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h .lamp,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .lamp,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .lamp,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .lamp {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lamp);
+  box-shadow: 0 0 8px 2px var(--lamp-glow);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+  flex: none;
+}
+
+/* The lit core holds steady; the 墨晕 halo does the breathing. One wick, one
+   halo — layering a second offset wave here reads as a loading spinner, which
+   is the opposite of the intent. Sits behind the core (z-index: -1) so the
+   lamp never dims under its own glow. */
+html[data-theme-id='piwin-inkstone-paper'] .work-h .lamp::after,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .lamp::after,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .lamp::after,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .lamp::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, var(--lamp-glow), transparent);
+  animation: ink-bloom calc(var(--breath) * 1.5) var(--ease-out) infinite;
+  pointer-events: none;
+}
+
+/* Trailing group layout lives in transcript-tool-chain.css. Inkstone only
+   restyles the clock so it reads as a quiet instrument, not a second title. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-elapsed {
+  font: 11.5px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--t3);
+  flex: none;
+}
+
+/* With a clock now claiming the right edge, a long path has to ellipsis
+   instead of shoving the readout out of the row's `overflow: hidden`. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  :is(.turn-work-details-label, .turn-work-disclosure-label) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .turn-work-details-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-running-head {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-running-head b {
+  flex: none;
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-narration {
+  display: inline-block;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-running-tail {
+  display: inline-flex;
+  align-items: center;
+  flex: 1 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-details-summary)
+  .work-fold-running-tail code {
+  min-width: 0;
+  max-width: 16em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h .sq,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .sq,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .sq,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--zhu);
+  flex: none;
+}
+
+/* Proto `.tr code` / global `code`: mono chip on --code. Beat Deck's
+   `.turn-work-details .tool-call-card .tool-call-file-pill { background:transparent; padding:0 }`. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(
+    .work-h code,
+    .turn-work-details-summary code,
+    .tr code,
+    .turn-work-details .tool-call-card .tool-call-file-pill,
+    .turn-work-details .tool-call-card .tool-call-preview,
+    .tool-call-card .tool-call-file-pill,
+    .tool-call-card .tool-call-preview
+  ) {
+  font: 11.5px var(--mono);
+  font-weight: 400;
+  color: var(--t1);
+  background: var(--code);
+  padding: 1px 5px;
+  border-radius: 3px;
+  box-shadow: none;
+  border: 0;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h b,
+html[data-theme-id='piwin-inkstone-ink'] .work-h b,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure-trigger b,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure-trigger b,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-label b,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-label b {
+  color: var(--t1);
+  font-weight: 500;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h .fail,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .fail,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure .fail,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure .fail {
+  color: var(--crimson);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h .i,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .i,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure .i,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure .i {
+  color: var(--t3);
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.work-h, .turn-work-disclosure) .chev {
+  margin-left: auto;
+  color: var(--t4);
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.work-h, .turn-work-disclosure, .conversation-thinking-summary)
+  .work-fold-trailing
+  .chev {
+  margin-left: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.work-h:hover, .work-h.is-open, .work.is-open > .work-h, .turn-work-disclosure:hover, .turn-work-disclosure.is-open) .chev {
+  opacity: 1;
+}
+
+/* S5.4.1: Thinking Draft Box (墨晕内省笺)
+   Bounded to the measure column so the draft box never steps past the
+   composer slab edge (hover pad stays inside via --row-pad padding). */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .turn-work-details-body,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-thinking-body {
+  margin-left: 0;
+  width: 100%;
+  overflow: visible;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .think,
+html[data-theme-id='piwin-inkstone-ink'] .think,
+html[data-theme-id='piwin-inkstone-paper'] .turn-thinking,
+html[data-theme-id='piwin-inkstone-ink'] .turn-thinking {
+  position: relative;
+  margin: 6px 0 10px 0;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding: 12px 16px 14px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--l2);
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  overflow: hidden;
+  color: var(--t2);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.58;
+  transition: border-color var(--t-1) var(--ease-out), background var(--t-1) var(--ease-out);
+}
+
+/* 左侧朱砂灵感光条 */
+html[data-theme-id='piwin-inkstone-paper'] .think::before,
+html[data-theme-id='piwin-inkstone-ink'] .think::before,
+html[data-theme-id='piwin-inkstone-paper'] .turn-thinking::before,
+html[data-theme-id='piwin-inkstone-ink'] .turn-thinking::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--zhu);
+  z-index: 2;
+  border-top-left-radius: 7px;
+  border-bottom-left-radius: 7px;
+  transition: opacity var(--t-1) var(--ease-out), background var(--t-1) var(--ease-out);
+}
+
+/* 流式思考过程中的呼吸流动渐变光带 */
+html[data-theme-id='piwin-inkstone-paper'] .think.is-streaming::before,
+html[data-theme-id='piwin-inkstone-ink'] .think.is-streaming::before,
+html[data-theme-id='piwin-inkstone-paper'] .turn-thinking.is-streaming::before,
+html[data-theme-id='piwin-inkstone-ink'] .turn-thinking.is-streaming::before {
+  background: linear-gradient(180deg, var(--zhu), var(--amber), var(--zhu));
+  background-size: 100% 200%;
+  animation: inkstonePulseStrip 2.4s ease-in-out infinite;
+}
+
+@keyframes inkstonePulseStrip {
+  0% {
+    background-position: 0% 0%;
+    opacity: 0.7;
+  }
+  50% {
+    background-position: 0% 100%;
+    opacity: 1;
+  }
+  100% {
+    background-position: 0% 0%;
+    opacity: 0.7;
+  }
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .turn-thinking pre,
+html[data-theme-id='piwin-inkstone-ink'] .turn-thinking pre,
+html[data-theme-id='piwin-inkstone-paper'] .think pre,
+html[data-theme-id='piwin-inkstone-ink'] .think pre {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: transparent;
+}
+
+/* 展开态下的触发器轻微高亮 */
+html[data-theme-id='piwin-inkstone-paper'] .work.is-open > .work-h,
+html[data-theme-id='piwin-inkstone-ink'] .work.is-open > .work-h,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details.is-open > .turn-work-details-summary,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details.is-open > .turn-work-details-summary,
+html[data-theme-id='piwin-inkstone-paper'] .conversation-thinking-wrapper.is-open > .conversation-thinking-summary,
+html[data-theme-id='piwin-inkstone-ink'] .conversation-thinking-wrapper.is-open > .conversation-thinking-summary {
+  color: var(--t1);
+  background: var(--s2);
+}
+

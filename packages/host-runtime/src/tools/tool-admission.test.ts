@@ -431,6 +431,7 @@ describe('host tool admission composition', () => {
       'extensions:list',
       'capabilities:search',
       'artifact:instructions',
+      'subagent:playbook',
       'toolbox:route',
     ]);
     const gate = createHostToolAdmission({

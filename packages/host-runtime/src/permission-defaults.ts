@@ -19,13 +19,16 @@ import { createEmptyRuleSet } from '@piwin/contracts';
  * prefix to indicate regex matching.
  */
 export const BUNDLED_DENY: PermissionRule[] = [
+  // Pipe-to-shell spans later pipeline stages (`curl … | tee x | sh`), so the
+  // trailing `\b` is what keeps `| sha256sum` / `| shellcheck` from tripping a
+  // hard deny that even bypass mode cannot override.
   {
-    target: { kind: 'bash', pattern: 're:curl\\s+[^\\n]*\\|\\s*(?:ba)?sh' },
+    target: { kind: 'bash', pattern: 're:curl\\s+[^\\n]*\\|\\s*(?:ba)?sh\\b' },
     decision: 'deny',
     reason: 'pipe-to-shell',
   },
   {
-    target: { kind: 'bash', pattern: 're:wget\\s+[^\\n]*\\|\\s*(?:ba)?sh' },
+    target: { kind: 'bash', pattern: 're:wget\\s+[^\\n]*\\|\\s*(?:ba)?sh\\b' },
     decision: 'deny',
     reason: 'wget-pipe-shell',
   },

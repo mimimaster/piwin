@@ -4,7 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const sidebar = readFileSync(join(here, 'sidebar.css'), 'utf8');
+const sidebar = [
+  'sidebar-chrome.css',
+  'sidebar-tree.css',
+  'sidebar-sessions.css',
+]
+  .map((name) => readFileSync(join(here, name), 'utf8'))
+  .join('\n');
 
 describe('Inkstone sidebar pane switch', () => {
   it('paints the selected chat/code thumb with s4 surface and elevation', () => {

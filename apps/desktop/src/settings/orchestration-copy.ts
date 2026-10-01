@@ -15,6 +15,9 @@ export type OrchestrationCopy = {
   freehandModelUnavailable: string;
   schemeCount: (count: number) => string;
   roleCount: (count: number) => string;
+  schemeDefaultLabel: string;
+  schemeDefaultAria: (name: string) => string;
+  schemeDefaultHint: string;
 
   /* List */
   schemeNew: string;
@@ -98,6 +101,9 @@ export type OrchestrationCopy = {
   maxConcurrency: string;
   maxConcurrencyHint: string;
   maxTasksPerRun: string;
+  leadReviewFiles: string;
+  leadReviewLines: string;
+  leadReviewHint: string;
   saveAdvanced: string;
   saved: string;
   saveFailed: string;
@@ -117,6 +123,9 @@ const ZH: OrchestrationCopy = {
   freehandModelUnavailable: '已选模型不可用',
   schemeCount: (count) => `${count} 个方案`,
   roleCount: (count) => `${count} 个角色`,
+  schemeDefaultLabel: '设为默认编排',
+  schemeDefaultAria: (name) => `把${name}设为默认编排`,
+  schemeDefaultHint: '勾选一个方案作为默认编排。取消勾选后可以一个都不选。已有会话保持自己的选择。',
 
   schemeNew: '新建方案',
   schemeEdit: '编辑',
@@ -194,6 +203,10 @@ const ZH: OrchestrationCopy = {
   maxConcurrency: '最大并发任务数',
   maxConcurrencyHint: '该值 + 1 为工作进程池容量，上限 8，保存后立即生效',
   maxTasksPerRun: '单轮派发任务上限',
+  leadReviewFiles: 'Auto：Lead 自审的文件数上限',
+  leadReviewLines: 'Auto：Lead 自审的变更行数上限',
+  leadReviewHint:
+    'Auto 的 sidekick 改动超过任一上限，必须经独立 reviewer 才能合入。留空使用默认值（5 个文件 / 300 行）。',
   saveAdvanced: '保存上限',
   saved: '已保存',
   saveFailed: '保存失败',
@@ -213,6 +226,10 @@ const EN: OrchestrationCopy = {
   freehandModelUnavailable: 'Selected model unavailable',
   schemeCount: (count) => `${count} scheme${count === 1 ? '' : 's'}`,
   roleCount: (count) => `${count} role${count === 1 ? '' : 's'}`,
+  schemeDefaultLabel: 'Set as default',
+  schemeDefaultAria: (name) => `Set ${name} as the default orchestration`,
+  schemeDefaultHint:
+    'Check one scheme as the default. Uncheck it to leave none selected. Existing chats keep their own choice.',
 
   schemeNew: 'New scheme',
   schemeEdit: 'Edit',
@@ -293,6 +310,10 @@ const EN: OrchestrationCopy = {
   maxConcurrency: 'Max running at once',
   maxConcurrencyHint: 'This value + 1 is the worker process pool (cap 8). Saves apply immediately.',
   maxTasksPerRun: 'Max per dispatch',
+  leadReviewFiles: 'Auto: Lead self-review, max files',
+  leadReviewLines: 'Auto: Lead self-review, max changed lines',
+  leadReviewHint:
+    'An Auto sidekick candidate above either bound needs an independent reviewer before it can land. Leave empty for the default (5 files / 300 lines).',
   saveAdvanced: 'Save limits',
   saved: 'Saved',
   saveFailed: 'Save failed',

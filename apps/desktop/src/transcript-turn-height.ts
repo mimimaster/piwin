@@ -132,6 +132,15 @@ function readHeightWithSlotUnclipped(slot: HTMLElement, body: HTMLElement): numb
  * clipped visible box. `scrollHeight` is the body's natural size and must win.
  * If both are the clip box, briefly unclip the slot and read again.
  */
+/**
+ * Bodies whose unclipped height was read and matched what the observer said.
+ * In steady state the body's natural height *is* its slot's height, which
+ * looks exactly like the clip deadlock; without this memo every re-measure of
+ * every mounted turn (each window-resize step) unclipped its slot — write
+ * styles, force layout, restore — dozens of forced layouts per step.
+ */
+const confirmedNaturalHeight = new WeakMap<HTMLElement, number>();
+
 export function readMountedTranscriptTurnHeight(options: {
   element: HTMLElement;
   entry: ResizeObserverEntry | undefined;
@@ -142,7 +151,12 @@ export function readMountedTranscriptTurnHeight(options: {
   if (!slot || !isTranscriptTurnClipDeadlock(slot, measured)) {
     return measured;
   }
-  return Math.max(measured, readHeightWithSlotUnclipped(slot, options.element));
+  if (confirmedNaturalHeight.get(options.element) === measured) {
+    return measured;
+  }
+  const natural = Math.max(measured, readHeightWithSlotUnclipped(slot, options.element));
+  if (natural === measured) confirmedNaturalHeight.set(options.element, measured);
+  return natural;
 }
 
 /** Bound speculative sizes only; mounted rows use normalizeTranscriptTurnHeight. */

@@ -133,6 +133,24 @@
   color: var(--text-1, #1d1b17);
 }
 
+.subagent-foreign-worktrees {
+  display: grid;
+  gap: 2px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subagent-foreign-worktrees li {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  color: var(--text-2, #6b665c);
+}
+
 .subagent-tasks-anchor {
   min-width: 0;
   overflow: hidden;

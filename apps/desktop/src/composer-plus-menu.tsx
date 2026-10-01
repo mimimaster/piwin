@@ -17,11 +17,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSwitchItem,
 } from '@piwin/ui-kit';
-import { IconFile, IconImage, IconMcp, IconPlug, IconSkill } from './shell-icons';
+import { IconExtension, IconFile, IconImage, IconMcp, IconPlug, IconSkill } from './shell-icons';
 import { useDesktopLocale } from './desktop-locale-context';
 import type { SessionMcpSwitches } from './hooks/use-session-mcp-switches';
+import type { SlashExtensionCommandInput } from './slash';
 
-export type ComposerPlusSubmenu = 'none' | 'skills' | 'connectors';
+export type ComposerPlusSubmenu = 'none' | 'skills' | 'connectors' | 'extensions';
 
 export type ComposerSkillOption = {
   id: string;
@@ -55,6 +56,11 @@ export type ComposerPlusMenuProps = {
     'supported' | 'disabledServerIds' | 'error' | 'setServerEnabled'
   >;
   onOpenMcpPanel: () => void;
+  /** Active extension commands available in the session. */
+  extensionCommands?: readonly SlashExtensionCommandInput[] | undefined;
+  onSelectExtensionCommand?: ((name: string) => void) | undefined;
+  onOpenExtensionsPanel?: (() => void) | undefined;
+  onOpenMarketplace?: (() => void) | undefined;
   /** Optional for isolated menu consumers that do not expose file uploads. */
   onAttachFile?: () => void;
   /** Optional image-only picker for quick access to screenshots. */
@@ -90,6 +96,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
   const enabledConnectorCount = props.mcpServers.filter(
     (server) => !server.globallyDisabled && !switches?.disabledServerIds.includes(server.id),
   ).length;
+  const extensionCommandCount = props.extensionCommands?.length ?? 0;
 
   return (
     <DropdownMenu
@@ -255,6 +262,56 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
               <DropdownMenuItem onSelect={props.onOpenMcpPanel} testId="plus-menu-open-mcp">
                 {isZh ? '管理连接器…' : 'Manage connectors…'}
               </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
+          <DropdownMenuSub
+            open={props.submenu === 'extensions'}
+            onOpenChange={(open) => props.onSubmenu(open ? 'extensions' : 'none')}
+          >
+            <DropdownMenuSubTrigger testId="plus-menu-extensions">
+              <span className="plus-menu-icon">
+                <IconExtension width={16} height={16} />
+              </span>
+              <span className="plus-menu-label">{isZh ? '扩展' : 'Extensions'}</span>
+              {extensionCommandCount > 0 ? (
+                <span className="plus-menu-count">{extensionCommandCount}</span>
+              ) : null}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="plus-submenu plus-extensions" label="Extensions">
+              <DropdownMenuLabel className="plus-menu-caption muted">
+                {isZh ? '已启用的扩展命令' : 'Extension commands'}
+              </DropdownMenuLabel>
+              {props.extensionCommands && props.extensionCommands.length > 0 ? (
+                props.extensionCommands.map((command) => (
+                  <DropdownMenuItem
+                    key={command.name}
+                    onSelect={() => props.onSelectExtensionCommand?.(command.name)}
+                    testId={`plus-menu-extension-${command.name}`}
+                  >
+                    <span className="plus-menu-icon">
+                      <IconExtension width={14} height={14} />
+                    </span>
+                    <span className="plus-menu-label">/{command.name}</span>
+                    <span className="plus-menu-meta muted">{command.extensionName}</span>
+                  </DropdownMenuItem>
+                ))
+              ) : (
+                <DropdownMenuLabel className="plus-menu-empty muted">
+                  {isZh ? '未启用任何扩展命令' : 'No extension commands enabled'}
+                </DropdownMenuLabel>
+              )}
+              <DropdownMenuSeparator />
+              {props.onOpenMarketplace ? (
+                <DropdownMenuItem onSelect={props.onOpenMarketplace} testId="plus-menu-browse-marketplace">
+                  {isZh ? '浏览扩展市场…' : 'Browse Marketplace…'}
+                </DropdownMenuItem>
+              ) : null}
+              {props.onOpenExtensionsPanel ? (
+                <DropdownMenuItem onSelect={props.onOpenExtensionsPanel} testId="plus-menu-manage-extensions">
+                  {isZh ? '管理扩展…' : 'Manage extensions…'}
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         </>

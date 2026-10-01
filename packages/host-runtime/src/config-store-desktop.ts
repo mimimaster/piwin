@@ -1,4 +1,4 @@
-import type { DesktopRestoreConfig } from '@piwin/contracts';
+import { isValidOrchestrationSchemeId, type DesktopRestoreConfig } from '@piwin/contracts';
 import { asRecord, isModelProtocol, isThinkingLevel } from './config-store-primitives.js';
 
 /**
@@ -34,7 +34,33 @@ export function normalizeDesktopRestoreConfig(value: unknown): DesktopRestoreCon
       };
     }
   }
-  return normalized.composerProfile || normalized.lastSession ? normalized : undefined;
+  const rawSchemeId =
+    typeof record.defaultOrchestrationSchemeId === 'string'
+      ? record.defaultOrchestrationSchemeId.trim()
+      : '';
+  if (isValidOrchestrationSchemeId(rawSchemeId)) {
+    normalized.defaultOrchestrationSchemeId = rawSchemeId;
+  }
+  return normalized.composerProfile ||
+    normalized.lastSession ||
+    normalized.defaultOrchestrationSchemeId
+    ? normalized
+    : undefined;
+}
+
+/**
+ * Older configs stored this preference on `subagents.defaultSchemeId`.
+ * Keep a valid id when `desktop` does not already have one.
+ */
+export function foldLegacyDefaultOrchestrationScheme(
+  desktop: DesktopRestoreConfig | undefined,
+  subagents: unknown,
+): DesktopRestoreConfig | undefined {
+  if (desktop?.defaultOrchestrationSchemeId) return desktop;
+  const record = asRecord(subagents);
+  const legacy = typeof record?.defaultSchemeId === 'string' ? record.defaultSchemeId.trim() : '';
+  if (!isValidOrchestrationSchemeId(legacy)) return desktop;
+  return { ...(desktop ?? {}), defaultOrchestrationSchemeId: legacy };
 }
 
 export function normalizeDesktopComposerProfile(

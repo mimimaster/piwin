@@ -147,10 +147,7 @@ describe('createTurnChangeCoordinator', () => {
       workspaceRoot: childRoot,
     });
 
-    const capture = createToolCapturePort({
-      store,
-      resolveChangeSetId: (runId) => coordinator.getBindingByRun(runId)?.changeSetId,
-    });
+    const capture = createToolCapturePort({ store });
     const objects = createTurnChangeObjectStore({ rootDir: storeRoot });
     const parentTools = buildHostFilesystemTools({
       cwd: parentRoot,

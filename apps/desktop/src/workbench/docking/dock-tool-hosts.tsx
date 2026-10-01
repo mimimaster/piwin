@@ -11,11 +11,11 @@ import {
 } from '../../active-document.js';
 import {
   DeferredBrowserSessionPanel,
-  DeferredChangesPanel,
   DeferredDocPreviewPanel,
   DeferredMediaDocPreview,
   DeferredSurfaceBoundary,
 } from '../../deferred-desktop-surfaces.js';
+import { WorkbenchReviewSurface } from '../../workbench-review-surface.js';
 import { FileDiffInspector } from '../../file-diff-inspector.js';
 import type { HostClient } from '../../host-client.js';
 import type { HostRequestAdapters } from '../../host-request-adapters.js';
@@ -28,6 +28,7 @@ export type DockToolHosts = {
   activeTheme: ThemeManifest;
   artifactThemeKey: string | number;
   projectPath: string | null;
+  activeSessionId: string | null;
   requestGit: HostRequestAdapters['requestGit'];
   addWebElement: (pick: WebElementPickResult) => void;
   artifactTarget: ArtifactCanvasTarget | null;
@@ -151,12 +152,16 @@ export function DockToolSurface(props: { view: WorkspaceView }): ReactElement {
     );
   }
   if (props.view.kind === 'changes') {
+    // Same surface as the non-docked inspector: 本轮变更, workspace Git with
+    // 更多 → 代码撤销记录, and subagent results.
     return (
       <DeferredSurfaceBoundary label="Changes">
-        <DeferredChangesPanel
+        <WorkbenchReviewSurface
+          hostClient={hosts.hostClient}
           projectPath={hosts.projectPath}
-          request={hosts.requestGit as never}
           locale={locale}
+          activeSessionId={hosts.activeSessionId}
+          requestGit={hosts.requestGit}
         />
       </DeferredSurfaceBoundary>
     );

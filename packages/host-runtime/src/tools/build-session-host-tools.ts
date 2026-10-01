@@ -37,6 +37,7 @@ import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-too
 import { createSubagentStartTool } from '../subagent-start-tool.js';
 import { createSubagentContinueTool } from '../subagent-continue-tool.js';
 import { createSubagentResultApplyTool } from '../subagent-result-apply-tool.js';
+import { createSubagentResultDiscardTool } from '../subagent-result-discard-tool.js';
 import { createSubagentVerificationSubmitTool } from '../subagent-verification-submit-tool.js';
 import { createSubagentWaitTool } from '../subagent-wait-tool.js';
 import { createSubagentCancelTool } from '../subagent-cancel-tool.js';
@@ -46,6 +47,7 @@ import {
 } from '../subagent-result-read-tool.js';
 import { createSubagentReviewSubmitTool } from '../subagent-review-submit-tool.js';
 import { createSubagentLeadReviewTool } from '../subagent-lead-review-tool.js';
+import { createSchemePlaybookTool } from '../scheme-playbook-tool.js';
 import type { SubagentReviewService } from '../subagent-review-service.js';
 import type { SubagentReviewCapabilityScope } from '../subagent-review-context.js';
 import { buildImageGenTool } from '../image-gen-tool.js';
@@ -510,6 +512,10 @@ export async function buildSessionHostTools(
         seam,
         ...(options.projectPath ? { workspacePath: options.projectPath } : {}),
       }),
+      createSubagentResultDiscardTool({
+        sessionId: options.sessionId,
+        seam,
+      }),
       createSubagentVerificationSubmitTool({
         sessionId: options.sessionId,
         seam,
@@ -526,6 +532,10 @@ export async function buildSessionHostTools(
     // A reviewer child registers its own scoped submit under the same name.
     if (!options.reviewScope) {
       tools.push(createSubagentLeadReviewTool({ sessionId: options.sessionId, seam }));
+    }
+    const getActiveScheme = seam.getActiveScheme;
+    if (getActiveScheme) {
+      tools.push(createSchemePlaybookTool({ getActiveScheme }));
     }
   }
 

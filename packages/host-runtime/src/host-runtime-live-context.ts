@@ -6,10 +6,15 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
+import { formatError } from '@piwin/contracts';
 import { getSessionRecord } from '@piwin/session';
 import { loadPiwinConfig } from './config-store.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { resolveTurnChangeWorkspaceRoot } from './turn-changes/runtime-wiring.js';
+import {
+  commitTurnChangeModelNotice,
+  readTurnChangeModelNotice,
+} from './turn-changes/turn-change-model-notice.js';
 import { isConversationIndexRecord } from './session-scope.js';
 import { bindNewGrokSession, isGrokRecord } from './grok/grok-session-router.js';
 import { createGrokSessionCapabilities } from './grok/grok-capabilities.js';
@@ -34,6 +39,8 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     sessionFilesTouched: deps.sessionFilesTouched,
     sessionLastPromptText: deps.sessionLastPromptText,
     sideChatSnapshotInjectedVersions: deps.sideChatSnapshotInjectedVersions,
+    orchestrationSchemeInjectedKeys: deps.orchestrationSchemeInjectedKeys,
+    detachedSubagents: deps.detachedSubagents,
     pendingBranchCalibrationBySession: deps.pendingBranchCalibrationBySession,
     compactExportOperations: deps.compactExportOperations,
     sessionModels: deps.sessionModels,
@@ -328,27 +335,56 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
       if (!runtime) {
         return;
       }
-      const child = deps.subagentSessionContexts.get(input.sessionId);
-      const workspaceRoot = resolveTurnChangeWorkspaceRoot({
-        ...(child?.workingDirectory !== undefined
-          ? { childWorkingDirectory: child.workingDirectory }
-          : {}),
-        projectPath: deps.sessionProjects.get(input.sessionId),
-        piwinRoot: deps.options.piwinRoot,
-      });
+      // Best guess at turn start; the first recorded write aligns it to the
+      // root the tool actually wrote under (see ToolCapturePort).
       runtime.coordinator.beginAttempt({
         sessionId: input.sessionId,
         userMessageId: input.userMessageId,
         runId: input.runId,
-        source: child ? 'child' : input.source,
-        workspaceRoot,
+        source: deps.subagentSessionContexts.has(input.sessionId) ? 'child' : input.source,
+        workspaceRoot: resolveSessionTurnChangeRoot(deps, input.sessionId),
       });
     },
+    readTurnChangeNotice: (sessionId) => {
+      const runtime = deps.turnChangeRuntime;
+      if (!runtime) return undefined;
+      const notice = readTurnChangeModelNotice({
+        store: runtime.store,
+        sessionId,
+        workspaceRoot: resolveSessionTurnChangeRoot(deps, sessionId),
+      });
+      return notice
+        ? { text: notice.text, commit: () => commitTurnChangeModelNotice(runtime.store, sessionId, notice) }
+        : undefined;
+    },
     endTurnChangeRun: (runId) => {
-      deps.turnChangeRuntime?.coordinator.endRunSegment(runId);
+      const runtime = deps.turnChangeRuntime;
+      if (!runtime) {
+        return;
+      }
+      runtime.coordinator.endRunSegment(runId);
+      // Sealing waits for this run's captures (a timed-out tool may still be
+      // writing), so it runs after the turn has already been reported ended.
+      void runtime.sealer.onRunEnded(runId).catch((error: unknown) => {
+        deps.push({
+          type: 'host/log',
+          level: 'error',
+          message: `turn-change seal failed for run ${runId}: ${formatError(error)}`,
+        });
+      });
     },
     sessionContextCoordinator: deps.sessionContextCoordinator,
   };
+}
+
+/** The workspace root a session's turns are recorded under (child worktree first). */
+function resolveSessionTurnChangeRoot(deps: HostRuntimeKernel, sessionId: string): string {
+  const child = deps.subagentSessionContexts.get(sessionId);
+  return resolveTurnChangeWorkspaceRoot({
+    ...(child?.workingDirectory !== undefined ? { childWorkingDirectory: child.workingDirectory } : {}),
+    projectPath: deps.sessionProjects.get(sessionId),
+    piwinRoot: deps.options.piwinRoot,
+  });
 }
 
 function createParentSettlementPorts(

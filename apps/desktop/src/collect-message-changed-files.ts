@@ -103,7 +103,7 @@ export type MessageChangedFileStats = {
 };
 
 /** Exact path or one path is a suffix of the other at a path boundary. */
-function pathsReferToSameFile(a: string, b: string): boolean {
+export function pathsReferToSameFile(a: string, b: string): boolean {
   if (a === b) return true;
   const normA = a.replace(/\\/g, '/');
   const normB = b.replace(/\\/g, '/');
@@ -186,4 +186,57 @@ export function deriveFallbackStatsForTools(
   }
 
   return { additions, deletions, matchedPaths, byPath };
+}
+
+/**
+ * Sum each changed file's own per-call changes (Host `fileChange`). These
+ * count only what this message's tools did; the git working-tree summary also
+ * counts other sessions' and earlier turns' edits to the same files, so it is
+ * only a fallback for files without call data (older transcripts).
+ */
+export function collectCallFileChangeStats(
+  tools: readonly ToolCardUi[],
+  files: readonly MessageChangedFile[],
+): { stats: MessageChangedFileStats; coveredAll: boolean } {
+  let additions = 0;
+  let deletions = 0;
+  const matchedPaths: string[] = [];
+  const byPath: Record<string, MessageChangedFileStat> = {};
+  for (const file of files) {
+    let fileAdd = 0;
+    let fileDel = 0;
+    let status: string | undefined;
+    let found = false;
+    for (const tool of tools) {
+      const change = tool.status === 'error' ? undefined : tool.presentation?.fileChange;
+      if (!change || !pathsReferToSameFile(file.path, change.path)) continue;
+      found = true;
+      fileAdd += change.additions ?? 0;
+      fileDel += change.deletions ?? 0;
+      // First call decides added vs modified; a later delete wins.
+      status = status === undefined || change.status === 'deleted' ? change.status : status;
+    }
+    if (!found) continue;
+    additions += fileAdd;
+    deletions += fileDel;
+    matchedPaths.push(file.path);
+    byPath[file.path] = { additions: fileAdd, deletions: fileDel, ...(status ? { status } : {}) };
+  }
+  return {
+    stats: { additions, deletions, matchedPaths, byPath },
+    coveredAll: files.length > 0 && matchedPaths.length === files.length,
+  };
+}
+
+export function mergeChangedFileStats(
+  first: MessageChangedFileStats,
+  second: MessageChangedFileStats | null,
+): MessageChangedFileStats {
+  if (!second) return first;
+  return {
+    additions: first.additions + second.additions,
+    deletions: first.deletions + second.deletions,
+    matchedPaths: [...first.matchedPaths, ...second.matchedPaths],
+    byPath: { ...second.byPath, ...first.byPath },
+  };
 }

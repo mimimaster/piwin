@@ -1,9 +1,11 @@
 import type { ExecutionRunRecord, PermissionPreset, PromptInput } from '@piwin/contracts';
 import {
   DEFAULT_PERMISSION_PRESET,
+  chooseOrchestrationSchemeInjectionForm,
   formatError,
   mergeAgentModeIntoPrompt,
   mergeOrchestrationSchemeIntoPrompt,
+  orchestrationSchemeInjectionKey,
   resolveOrchestrationScheme,
   resolvePermissionPreset,
   resolvePromptPermissionMode,
@@ -71,6 +73,15 @@ export function applyPromptPermissionOverride(
   context.setSessionPermissionOverride(input.sessionId, mode);
 }
 
+export type AgentPromptContextResult = {
+  /**
+   * Scheme block delivered in full by this send. The caller commits it to
+   * `orchestrationSchemeInjectedKeys` only after the final abort check, so a
+   * cancelled preparation resends the full block next time.
+   */
+  orchestrationSchemeFullKey?: string;
+};
+
 /**
  * Project / Side Chat increments: permission floor, agent-mode contract,
  * orchestration preamble, active plan, and files-touched. Conversation
@@ -83,7 +94,8 @@ export async function applyAgentPromptContext(
   assembly: ModelPromptAssembly,
   promptInput: PromptInput,
   promptText: string,
-): Promise<void> {
+): Promise<AgentPromptContextResult> {
+  const result: AgentPromptContextResult = {};
   // Composer Run Mode (permissionPreset) is session-level and must override
   // config YOLO. Plan/Ask agent modes still raise the floor via resolvePreset.
   // Host-internal sources that omit both fields keep the live override.
@@ -138,6 +150,7 @@ export async function applyAgentPromptContext(
         schemes: subagents?.schemes,
         maxConcurrency: subagents?.maxConcurrency,
         maxTasksPerRun: subagents?.maxTasksPerRun,
+        leadReviewLimit: subagents?.leadReviewLimit,
       },
       schemeIdRaw,
       {
@@ -150,7 +163,21 @@ export async function applyAgentPromptContext(
     if (resolved) {
       context.setRunOrchestrationScheme(run.runId, resolved);
       const beforeOrch = promptInput.text;
-      promptInput.text = mergeOrchestrationSchemeIntoPrompt(resolved, promptInput.text);
+      const form = chooseOrchestrationSchemeInjectionForm(
+        resolved,
+        context.orchestrationSchemeInjectedKeys.get(command.sessionId),
+      );
+      promptInput.text = mergeOrchestrationSchemeIntoPrompt(resolved, promptInput.text, form);
+      if (form === 'full') {
+        result.orchestrationSchemeFullKey = orchestrationSchemeInjectionKey(resolved);
+      }
+      const runningTester = context.detachedSubagents?.running(command.sessionId);
+      if (runningTester) {
+        // Not part of the once-per-session block: it changes turn to turn.
+        promptInput.text =
+          `[piwin-tester-running] runId=${runningTester}. It keeps running in the background; ` +
+          `cancel it with piwin_subagent_cancel if this message changes the code under test.\n\n${promptInput.text}`;
+      }
       if (promptInput.text !== beforeOrch) {
         assembly.add({
           kind: 'orchestration',
@@ -262,4 +289,5 @@ export async function applyAgentPromptContext(
       text: filesTouched,
     });
   }
+  return result;
 }

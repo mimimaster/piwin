@@ -448,4 +448,119 @@ describe('createWorkspaceWriteGate', () => {
     await Promise.all([exclusiveWaiter, sharedWaiter]);
     expect(order[0]).toBe('exclusive');
   });
+
+  it('runs shell leases beside file writes and each other, and holds them against exclusive', async () => {
+    const rootPath = await createTempDir('piwin-ws-gate-shell-');
+    const gate = createWorkspaceWriteGate();
+    const shellA = await gate.tryAcquire({
+      workspaceId: 'ws',
+      rootPath,
+      kind: 'shell',
+      mode: 'shared',
+      wait: false,
+      ownerId: 'session-a',
+    });
+    const shellB = await gate.tryAcquire({
+      workspaceId: 'ws',
+      rootPath,
+      kind: 'shell',
+      mode: 'shared',
+      wait: false,
+      ownerId: 'session-b',
+    });
+    const write = await gate.tryAcquire({
+      workspaceId: 'ws',
+      rootPath,
+      kind: 'tool',
+      mode: 'shared',
+      wait: false,
+      paths: [join(rootPath, 'a.ts')],
+      ownerId: 'session-b',
+    });
+    expect([shellA.ok, shellB.ok, write.ok]).toEqual([true, true, true]);
+    if (!shellA.ok || !shellB.ok || !write.ok) {
+      throw new Error('expected optimistic leases');
+    }
+    const blockedExclusive = await gate.tryAcquire({
+      workspaceId: 'ws',
+      rootPath,
+      kind: 'git',
+      mode: 'exclusive',
+      wait: false,
+    });
+    expect(blockedExclusive).toEqual({ ok: false, reason: 'workspace-busy' });
+
+    write.lease.release();
+    shellB.lease.release();
+    const others = gate.activity.othersSince({
+      root: shellA.lease.root,
+      fromTick: shellA.lease.grantedAtTick,
+      ownerId: 'session-a',
+    });
+    expect(others.shellCount).toBe(1);
+    expect(others.fileWrites).toEqual([join(rootPath, 'a.ts')]);
+    shellA.lease.release();
+  });
+
+  it('still requires paths for a shared file-write lease', async () => {
+    const rootPath = await createTempDir('piwin-ws-gate-paths-');
+    const gate = createWorkspaceWriteGate();
+    expect(() =>
+      gate.tryAcquire({ workspaceId: 'ws', rootPath, kind: 'tool', mode: 'shared', wait: true }),
+    ).toThrow('shared acquire requires paths');
+  });
+
+  it('lets shared requests pass a queued exclusive only inside the bypass window', async () => {
+    const rootPath = await createTempDir('piwin-ws-gate-bypass-');
+    let clock = 0;
+    const gate = createWorkspaceWriteGate({ now: () => clock, sharedBypassMs: 1_000 });
+    const longTest = await gate.tryAcquire({
+      workspaceId: 'ws',
+      rootPath,
+      kind: 'shell',
+      mode: 'shared',
+      wait: true,
+      ownerId: 'a',
+    });
+    if (!longTest.ok) throw new Error('expected shell lease');
+
+    let checkoutGranted = false;
+    const checkout = gate
+      .tryAcquire({ workspaceId: 'ws', rootPath, kind: 'tool', mode: 'exclusive', wait: true })
+      .then((result) => {
+        checkoutGranted = true;
+        return result;
+      });
+
+    // Inside the window another session's shell does not queue behind checkout.
+    clock = 500;
+    const early = await gate.tryAcquire({
+      workspaceId: 'ws',
+      rootPath,
+      kind: 'shell',
+      mode: 'shared',
+      wait: false,
+      ownerId: 'b',
+    });
+    expect(early.ok).toBe(true);
+    if (early.ok) early.lease.release();
+
+    // Past the window it does, so checkout is not starved.
+    clock = 1_500;
+    const late = await gate.tryAcquire({
+      workspaceId: 'ws',
+      rootPath,
+      kind: 'shell',
+      mode: 'shared',
+      wait: false,
+      ownerId: 'b',
+    });
+    expect(late).toEqual({ ok: false, reason: 'workspace-busy' });
+
+    longTest.lease.release();
+    const granted = await checkout;
+    expect(checkoutGranted).toBe(true);
+    if (granted.ok) granted.lease.release();
+  });
 });
+

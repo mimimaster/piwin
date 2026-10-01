@@ -385,6 +385,7 @@ export function mergeRecentProjects(
         project.currentBranch === previous[index]?.currentBranch &&
         project.isPrimaryWorktree === previous[index]?.isPrimaryWorktree &&
         project.gitRootPath === previous[index]?.gitRootPath &&
+        project.isCheckoutRoot === previous[index]?.isCheckoutRoot &&
         project.workspaceAvailability === previous[index]?.workspaceAvailability,
     )
   ) {
@@ -601,11 +602,21 @@ function mapListedProject(value: unknown): ProjectRecord | undefined {
 
 function readListedGitWorkspaceFields(value: Record<string, unknown>): Pick<
   ProjectRecord,
-  'gitRepositoryId' | 'isPrimaryWorktree' | 'currentBranch' | 'gitRootPath' | 'workspaceAvailability'
+  | 'gitRepositoryId'
+  | 'isPrimaryWorktree'
+  | 'currentBranch'
+  | 'gitRootPath'
+  | 'isCheckoutRoot'
+  | 'workspaceAvailability'
 > {
   const fields: Pick<
     ProjectRecord,
-    'gitRepositoryId' | 'isPrimaryWorktree' | 'currentBranch' | 'gitRootPath' | 'workspaceAvailability'
+    | 'gitRepositoryId'
+    | 'isPrimaryWorktree'
+    | 'currentBranch'
+    | 'gitRootPath'
+    | 'isCheckoutRoot'
+    | 'workspaceAvailability'
   > = {};
   if (typeof value.gitRepositoryId === 'string' && value.gitRepositoryId.trim().length > 0) {
     fields.gitRepositoryId = value.gitRepositoryId.trim();
@@ -618,6 +629,9 @@ function readListedGitWorkspaceFields(value: Record<string, unknown>): Pick<
   }
   if (typeof value.gitRootPath === 'string' && value.gitRootPath.trim().length > 0) {
     fields.gitRootPath = value.gitRootPath.trim();
+  }
+  if (value.isCheckoutRoot === true || value.isCheckoutRoot === false) {
+    fields.isCheckoutRoot = value.isCheckoutRoot;
   }
   if (value.workspaceAvailability === 'missing') {
     fields.workspaceAvailability = 'missing';

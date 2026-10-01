@@ -161,7 +161,10 @@ button.files-changed-bar-row:hover {
 }
 
 .files-changed-bar-row-name {
-  flex: 0 1 auto;
+  /* Never shrinks while the directory still has room to give up; only
+     truncates once the name alone is wider than the row. */
+  flex: 0 0 auto;
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -231,4 +234,251 @@ button.files-changed-bar-row:hover {
 .msg-action-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ─── Turn change record (Host-sealed; one-click undo / redo) ───────────── */
+/* Header: glyph · title · N files · +a −d · the one action. Files follow
+   as the same ledger rows as the per-call bar; at most one status footer
+   closes the card (info / warn / error). */
+
+.turn-change-bar {
+  container-type: inline-size;
+}
+
+/* One line always: the summary truncates, the action never moves. */
+.turn-change-bar .files-changed-bar-head {
+  flex-wrap: nowrap;
+  min-height: 40px;
+  padding-block: var(--s-1);
+}
+
+.turn-change-bar-summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.turn-change-bar-meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* Narrow column: the directory goes first so file names stay readable,
+   then the action drops its label and keeps the glyph. */
+@container (max-width: 360px) {
+  .turn-change-bar .files-changed-bar-row-dir {
+    display: none;
+  }
+}
+
+@container (max-width: 280px) {
+  .turn-change-bar-action-label,
+  .turn-change-bar .files-changed-bar-stat {
+    display: none;
+  }
+
+  /* Only the header's glyph + label actions collapse to a glyph; text-only
+     actions (查看冲突, 重新检查, the conflict rows) keep their text. */
+  .turn-change-bar-actions .turn-change-bar-action:has(.turn-change-bar-action-label) {
+    width: 28px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+.turn-change-bar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-left: auto;
+  flex: none;
+}
+
+.turn-change-bar-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+  height: 26px;
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+.turn-change-bar-action .i {
+  width: 14px;
+  height: 14px;
+}
+
+.turn-change-bar-action {
+  white-space: nowrap;
+}
+
+.turn-change-bar-action:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.turn-change-bar-action:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.turn-change-bar-action.quiet {
+  box-shadow: none;
+  color: var(--text-2);
+}
+
+.turn-change-bar-action.quiet:hover {
+  color: var(--text-1);
+}
+
+/* Restore is undo run forward: the same glyph, mirrored. */
+.turn-change-bar-redo-glyph {
+  transform: scaleX(-1);
+}
+
+.turn-change-bar-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 22px;
+  padding: 0 var(--s-3);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  color: var(--amber);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+}
+
+.turn-change-bar-pill .i {
+  width: 12px;
+  height: 12px;
+}
+
+.turn-change-bar[data-state='undone'] .files-changed-bar-list,
+.turn-change-bar[data-state='undone'] .files-changed-bar-more {
+  opacity: 0.5;
+}
+
+.turn-change-bar-inline-note {
+  margin: 0;
+  padding: var(--s-2) var(--s-5);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+}
+
+.turn-change-bar-files-pending {
+  border-top: 1px solid var(--line-1);
+}
+
+.turn-change-bar-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-5);
+  border-top: 1px solid var(--line-1);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+  line-height: 1.6;
+}
+
+.turn-change-bar-foot-glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  color: var(--text-3);
+}
+
+.turn-change-bar-foot.warn .turn-change-bar-foot-glyph {
+  color: var(--amber);
+}
+
+.turn-change-bar-foot.error {
+  background: color-mix(in srgb, var(--coral) 10%, transparent);
+}
+
+.turn-change-bar-foot.error .turn-change-bar-foot-glyph {
+  color: var(--coral);
+}
+
+.turn-change-bar-foot-body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.turn-change-bar-foot-sub {
+  margin-top: var(--s-2);
+  color: var(--text-3);
+}
+
+.turn-change-bar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.turn-change-bar-paths-more {
+  display: block;
+  margin-top: var(--s-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--fs-micro);
+  text-align: left;
+  cursor: pointer;
+}
+
+.turn-change-bar-paths-more:hover {
+  color: var(--text-1);
+}
+
+.turn-change-bar-chip {
+  max-width: 100%;
+  padding: 1px var(--s-2);
+  overflow: hidden;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-1) 7%, transparent);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turn-change-bar .files-changed-bar-item .diff-card {
+  margin: var(--s-1) 0 var(--s-2);
+}
+
+/* The open row stays lit so the diff below reads as its continuation. */
+.turn-change-bar button.files-changed-bar-row[aria-expanded='true'] {
+  background: var(--hover);
+}
+
+/* Body-only diff inside the list: the row above already names the file and
+   carries the stats, so the diff reads as the row's continuation. */
+.turn-change-bar .files-changed-bar-item .diff-card.body-only {
+  margin: 0 0 var(--s-2) var(--s-5);
+  border-radius: var(--r-control);
 }

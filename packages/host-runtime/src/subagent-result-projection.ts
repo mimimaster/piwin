@@ -96,7 +96,11 @@ function resolveTargetWorkspaceId(
 ): string {
   const stored = firstDefined(result.targetWorkspaceId, task?.targetWorkspaceId);
   if (stored !== undefined && stored.length > 0) return stored;
-  if (lease) return workspaceIdForRoot(lease.parentRepoPath);
+  if (lease) {
+    // A candidate lands in the checkout it was based on, not the project root.
+    const receiving = lease.mode === 'worktree' ? lease.targetPath : undefined;
+    return workspaceIdForRoot(receiving ?? lease.parentRepoPath);
+  }
   return '';
 }
 
@@ -105,6 +109,7 @@ function resolveAvailability(input: {
   deliveryIntent: SubagentDeliveryIntent;
   applyPolicy: SubagentTaskResult['applyPolicy'] | SubagentPersistedTask['applyPolicy'];
   integrationStatus: SubagentResultSummary['integrationStatus'];
+  noChanges: boolean;
 }): SubagentResultAvailability {
   const view = { allowed: true };
   if (input.legacy) {
@@ -117,12 +122,14 @@ function resolveAvailability(input: {
   }
   const finished =
     input.integrationStatus === 'applied' || input.integrationStatus === 'discarded';
+  // A result with no changes has nothing to apply or decide, only to read.
+  const settled = finished || input.noChanges;
   const applyAllowed =
-    !finished && input.deliveryIntent !== 'report' && input.applyPolicy !== 'none';
+    !settled && input.deliveryIntent !== 'report' && input.applyPolicy !== 'none';
   return {
     view,
     apply: applyAllowed ? { allowed: true } : { allowed: false, reason: finished ? 'already-applied' : 'not-applicable' },
-    resolve: { allowed: !finished },
+    resolve: { allowed: !settled },
     cleanup: { allowed: true },
   };
 }
@@ -194,6 +201,7 @@ export function projectSubagentResultSummary(
       deliveryIntent,
       applyPolicy: firstDefined(source.result.applyPolicy, source.task?.applyPolicy),
       integrationStatus: source.result.integrationStatus,
+      noChanges: source.result.noChanges === true,
     }),
   };
 }

@@ -54,7 +54,8 @@
 
 /* A running batch shimmers its current action. This is the text-level twin of
    the stage ember wash: same meaning, same cycle family. */
-.tool-batch-capsule.is-running .action-marquee-text {
+.tool-batch-capsule.is-running .action-marquee-text,
+.turn-work-segment.is-running .action-marquee-text {
   background: linear-gradient(90deg, var(--text-4) 0%, var(--text-1) 42%, var(--text-4) 78%);
   background-size: 220% 100%;
   -webkit-background-clip: text;

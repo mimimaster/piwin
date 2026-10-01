@@ -1,0 +1,207 @@
+/* ── signal panel ───────────────────────────────────────── */
+.signal {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--sidebar);
+  border-left: 1px solid var(--line);
+}
+.sg-tabs {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.sg-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px 6px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-bottom: 0;
+}
+.sg-tab:hover {
+  color: var(--text);
+}
+.sg-tab.on {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--line);
+  box-shadow: 0 1px 0 var(--card);
+}
+.sg-tab .badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.sg-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sg-pane {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+}
+.sg-pane.on {
+  display: flex;
+}
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.file-row:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.file-row .tag {
+  margin-left: auto;
+  font-size: 10px;
+}
+.file-row .tag .add {
+  color: var(--ok);
+}
+.file-row .tag .del {
+  color: var(--danger);
+}
+.file-row .ic {
+  width: 13px;
+  height: 13px;
+}
+.term-mock {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 11px;
+  background: var(--term);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10.5px;
+  line-height: 1.7;
+  color: var(--term-text);
+}
+.term-mock .ok {
+  color: var(--ok);
+}
+.term-mock .dim {
+  color: var(--faint);
+}
+.outline-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.outline-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.outline-item .ic {
+  width: 12px;
+  height: 12px;
+  color: var(--faint);
+}
+
+/* ── statusbar ──────────────────────────────────────────── */
+.statusbar {
+  grid-area: statusbar;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  color: var(--faint);
+  background: var(--bg);
+}
+.sb-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sb-item .ic {
+  width: 11px;
+  height: 11px;
+}
+.sb-item.run {
+  color: var(--accent);
+  font-weight: 500;
+}
+.statusbar .right {
+  margin-left: auto;
+  display: flex;
+  gap: 12px;
+}
+
+/* variant nav */
+.vbar {
+  position: fixed;
+  bottom: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.vbar a {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--muted);
+  text-decoration: none;
+}
+.vbar a.on {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.vbar a:hover {
+  color: var(--text);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 3px;
+}
+::selection {
+  background: var(--accent-ring);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

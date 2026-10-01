@@ -1,0 +1,282 @@
+/* S4.3 & S4.4: Tree rows & node lines */
+html[data-theme-id='piwin-inkstone-paper'] .sidebar-folder-tree,
+html[data-theme-id='piwin-inkstone-ink'] .sidebar-folder-tree {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  padding: 0 2px 12px 6px;
+  margin-right: 0;
+  gap: 0;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .sidebar-section-label,
+html[data-theme-id='piwin-inkstone-ink'] .sidebar-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 2px 0 8px;
+  font: 600 11px var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t3);
+  margin: 4px 0 2px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .sidebar-section-count,
+html[data-theme-id='piwin-inkstone-ink'] .sidebar-section-count {
+  font: 11px var(--mono);
+  color: var(--t4);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .session-row .session-item,
+html[data-theme-id='piwin-inkstone-ink'] .session-row .session-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
+  padding: 0 8px;
+  /* proto-03 `.row .end` is 70px; 8px inset + 94px cluster (menu/pin/archive
+     + close) keeps the title ellipsis stable when time yields to the buttons.
+     Completed/failed rows add seal clearance so actions sit left of the seal. */
+  padding-right: calc(102px + var(--session-status-seal-clearance, 0px));
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: var(--sans);
+  color: var(--t1);
+  position: relative;
+  background: transparent;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .session-row .session-item:hover,
+html[data-theme-id='piwin-inkstone-ink'] .session-row .session-item:hover {
+  background: var(--s2);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .session-row .session-item.active,
+html[data-theme-id='piwin-inkstone-ink'] .session-row .session-item.active {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tree-folder-summary,
+html[data-theme-id='piwin-inkstone-ink'] .tree-folder-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 2px 0 8px;
+  font-size: 12.5px;
+  color: var(--t2);
+  border-radius: 6px;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+/* Folders are navigation, not the selected leaf. proto-00/03 paint only
+   `.row.sel` (session); a filled folder pill competes with that row. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary.active {
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-branch {
+  font: 11px var(--mono);
+  color: var(--t4);
+  background: var(--s2);
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid var(--l1);
+  line-height: 15px;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+/* Repo-group caption must outrank the folder padding reset above, or every
+   later project looks nested under the first worktree cluster. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-repo-group {
+  min-height: 18px;
+  padding: 4px 8px 0;
+  color: var(--t4);
+  font: 11px var(--mono);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* Folder icon center is 8px pad + 7px half-icon = 15px. The ink line/node
+   already sit on that origin; clustered worktrees add one shared shift so
+   the spine stays under the folder instead of the ungrouped gutter. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-folder-tree {
+  --tree-cluster-shift: 0px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-flow-item.is-grouped,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-virtual-item.is-grouped {
+  --tree-cluster-shift: 12px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary.is-grouped {
+  padding-left: calc(8px + var(--tree-cluster-shift));
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tree-folder-summary:hover,
+html[data-theme-id='piwin-inkstone-ink'] .tree-folder-summary:hover {
+  background: var(--s2);
+}
+
+/* The tree is a flat virtualized list; spacing belongs to each row, rather
+   than a second flex gap which enlarged every prototype 28px row. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-main {
+  height: 26px;
+  padding: 0;
+  font: 500 12.5px var(--sans);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-main:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-main:focus-visible,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle:focus-visible {
+  background: transparent;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle-spacer {
+  width: 14px;
+  flex-basis: 14px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-item-body {
+  padding-right: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-item-name,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-item.active .session-item-name {
+  font-size: 12.5px;
+  font-family: var(--sans);
+  font-weight: 400;
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-time-group {
+  display: flex;
+  align-items: center;
+  height: 20px;
+  min-height: 20px;
+  padding: 0 8px;
+  margin: 10px 0 3px;
+  user-select: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-time-group-title {
+  display: inline-flex;
+  align-items: center;
+  font: 600 11px var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t4);
+  background: transparent;
+  border: none;
+  padding: 0 2px;
+  border-radius: 0;
+  box-shadow: none;
+  white-space: nowrap;
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-time-group::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--l1);
+  margin-left: 8px;
+  opacity: 0.7;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session {
+  position: relative;
+  padding-left: calc(28px + var(--tree-cluster-shift));
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session::before {
+  content: '';
+  position: absolute;
+  left: calc(14.25px + var(--tree-cluster-shift));
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--l3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session::after {
+  content: '';
+  position: absolute;
+  left: calc(11px + var(--tree-cluster-shift));
+  top: 10px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--l3);
+  border-radius: 50%;
+  background: var(--s1);
+  pointer-events: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session:has(.session-item.active)::after {
+  background: var(--zhu);
+  border-color: var(--zhu);
+  box-shadow: 0 0 0 3px var(--zhu-wash);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-item.active::before {
+  display: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-show-more {
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .project-session-show-more {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 26px;
+  min-height: 26px;
+  margin: 0;
+  padding: 0 8px;
+  padding-left: calc(8px + var(--tree-cluster-shift));
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--t3);
+  font: 500 12px var(--sans);
+  letter-spacing: 0.01em;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .project-session-show-more:hover {
+  background: var(--s2);
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .project-session-show-more:active {
+  background: var(--s3);
+  color: var(--t1);
+  opacity: 1;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .project-session-show-more:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--zhu-wash);
+}
+

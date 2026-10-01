@@ -58,8 +58,8 @@ export function useSessionTranscriptActions(input: {
     [dispatch, dispatchNotification, hostClient],
   );
 
-  const handleJumpToHistoryAnchor = useCallback(
-    async (anchor: SessionUserMessageAnchor): Promise<void> => {
+  const handleJumpToTranscriptMessage = useCallback(
+    async (messageId: string): Promise<void> => {
       const sessionId = state.activeSessionId;
       if (!sessionId) return;
       const requestGeneration = ++historySeekRequestGeneration.current;
@@ -68,7 +68,7 @@ export function useSessionTranscriptActions(input: {
         type: 'session/transcript-window',
         query: {
           sessionId,
-          anchorMessageId: anchor.messageId,
+          anchorMessageId: messageId,
           beforeItems: SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
           afterItems: SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
           maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
@@ -96,6 +96,11 @@ export function useSessionTranscriptActions(input: {
       state.activeSessionId,
       state.userMessageIndexEpoch,
     ],
+  );
+
+  const handleJumpToHistoryAnchor = useCallback(
+    (anchor: SessionUserMessageAnchor) => handleJumpToTranscriptMessage(anchor.messageId),
+    [handleJumpToTranscriptMessage],
   );
 
   const handleReturnToLiveTranscript = useCallback((): void => {
@@ -221,6 +226,7 @@ export function useSessionTranscriptActions(input: {
     transcriptHistoryLoading,
     loadUserMessageIndex,
     handleJumpToHistoryAnchor,
+    handleJumpToTranscriptMessage,
     handleReturnToLiveTranscript,
     handleLoadOlderTranscript,
     handleLoadNewerTranscript,

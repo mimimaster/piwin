@@ -103,6 +103,13 @@ export type SubagentLoopControlDisplay =
       integrationStatus: SubagentIntegrationStatus;
     }
   | {
+      kind: 'result-discard';
+      result: SubagentResultRef;
+      integrationStatus: SubagentIntegrationStatus;
+      /** Nothing was pending, so the call changed nothing. */
+      alreadySettled: boolean;
+    }
+  | {
       kind: 'verification-submit';
       result: SubagentResultRef;
       verificationRef: SubagentVerificationRef;
@@ -274,6 +281,13 @@ export function boundSubagentLoopControlDisplay(
         result: copyResultRef(input.result),
         operationId: input.operationId,
         integrationStatus: input.integrationStatus,
+      };
+    case 'result-discard':
+      return {
+        kind: 'result-discard',
+        result: copyResultRef(input.result),
+        integrationStatus: input.integrationStatus,
+        alreadySettled: input.alreadySettled,
       };
     case 'verification-submit':
       return {
@@ -476,6 +490,24 @@ export function readSubagentLoopControlDisplay(value: unknown): SubagentLoopCont
       result,
       operationId,
       integrationStatus: integrationStatus as SubagentIntegrationStatus,
+    });
+  }
+  if (kind === 'result-discard') {
+    const result = readResultRef(value.result);
+    const integrationStatus = value.integrationStatus;
+    if (
+      !result ||
+      typeof integrationStatus !== 'string' ||
+      !INTEGRATION_STATUSES.has(integrationStatus)
+    ) {
+      return undefined;
+    }
+    return boundSubagentLoopControlDisplay({
+      kind: 'result-discard',
+      result,
+      integrationStatus: integrationStatus as SubagentIntegrationStatus,
+      // Absent means a real discard: never claim "nothing pending" without being told.
+      alreadySettled: value.alreadySettled === true,
     });
   }
   if (kind === 'verification-submit') {

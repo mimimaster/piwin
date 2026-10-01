@@ -1,6 +1,7 @@
 /**
  * Idempotent undo/redo/subagent-apply runner on the bounded writer. Prechecks
- * every path before the first write. Does not change git HEAD or index.
+ * every path before the first write (`precheck.ts`). Does not change git HEAD
+ * or index.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -10,14 +11,24 @@ import type { TurnChangeObjectStore } from './object-store.js';
 import type { PlannedFileOp } from './operation-plan.js';
 import type { TurnChangeOperationKind } from './operation-store.js';
 import { assertWritableTurnChangeFile } from './path-policy.js';
+import { precheckTurnChangeOperation, type TurnChangePrecheckReason } from './precheck.js';
+import { recoverTurnChangeOperation } from './recovery.js';
 import type { TurnChangeStore } from './store.js';
 
 export type TurnChangeOperationRunResult = {
   operationId: string;
   status: string;
   replayed: boolean;
-  reason?: 'files-changed' | 'already-applied' | 'candidate-group-selected' | 'needs-repair';
+  reason?:
+    | TurnChangePrecheckReason
+    | 'already-applied'
+    | 'candidate-group-selected'
+    | 'needs-repair'
+    | 'cancelled'
+    | 'write-failed';
   affectedPaths?: string[];
+  /** Undo: command-created files that changed after the turn and were left alone. */
+  skippedPaths?: string[];
 };
 
 export async function runTurnChangeOperation(input: {
@@ -33,6 +44,12 @@ export async function runTurnChangeOperation(input: {
   files: readonly PlannedFileOp[];
   resultId?: string;
   candidateGroupId?: string | null;
+  /** Undo/redo: the workspace for the operation record (`turn-changes/operations`). */
+  workspaceId?: string;
+  /** Called once the operation is recorded, before any file is read or written. */
+  onOperationStarted?: (operationId: string) => void;
+  /** Called after each file is written and verified (`done` of `total`). */
+  onProgress?: (operationId: string, done: number, total: number) => void;
 }): Promise<TurnChangeOperationRunResult> {
   const begun = beginRun(input);
   if (begun.outcome === 'replay') {
@@ -48,25 +65,66 @@ export async function runTurnChangeOperation(input: {
   }
 
   const operationId = begun.operationId;
-  const affectedPaths = await collectMismatchedPaths(input.workspaceRoot, input.files);
-  if (affectedPaths.length > 0) {
+  const userFacing = input.kind !== 'subagent-apply';
+  if (userFacing && input.workspaceId !== undefined) {
+    input.store.recordOperationStart({ operationId, workspaceId: input.workspaceId });
+  }
+  input.onOperationStarted?.(operationId);
+  const finish = (status: string, reason: string | null = null): void => {
+    input.store.updateOperationStatus(operationId, status);
+    if (userFacing) input.store.noteOperationUpdate(operationId, reason);
+  };
+  const precheck = await precheckTurnChangeOperation({
+    workspaceRoot: input.workspaceRoot,
+    files: input.files,
+    objectStore: input.objectStore,
+  });
+  if (!precheck.ok) {
     if (input.kind === 'subagent-apply') {
       input.store.releaseSubagentApplyReservation(operationId);
     } else {
-      input.store.updateOperationStatus(operationId, 'rejected');
+      finish('rejected', precheck.reason);
+    }
+    return {
+      operationId,
+      status: 'rejected',
+      replayed: false,
+      reason: precheck.reason,
+      affectedPaths: precheck.affectedPaths,
+    };
+  }
+  // Files the precheck said to leave alone (changed or already gone) are out
+  // of the operation: nothing is written, backed up or verified for them.
+  const skipped = precheck.skipped ?? [];
+  const omitted = new Set([...skipped, ...(precheck.gone ?? [])]);
+  const files = omitted.size === 0 ? input.files : input.files.filter((file) => !omitted.has(file.relativePath));
+  if (files.length === 0 && skipped.length > 0) {
+    // Everything the turn changed has moved since: nothing is left to undo.
+    if (input.kind === 'subagent-apply') {
+      input.store.releaseSubagentApplyReservation(operationId);
+    } else {
+      finish('rejected', 'files-changed');
     }
     return {
       operationId,
       status: 'rejected',
       replayed: false,
       reason: 'files-changed',
-      affectedPaths,
+      affectedPaths: skipped,
     };
+  }
+  // Last point a cancel is honored: nothing has been written yet.
+  if (userFacing && input.store.isOperationCancelRequested(operationId)) {
+    finish('cancelled', 'cancelled');
+    return { operationId, status: 'cancelled', replayed: false, reason: 'cancelled' };
   }
 
   try {
+    if (userFacing && skipped.length > 0) {
+      input.store.recordOperationSkipped(operationId, skipped);
+    }
     input.store.recordOperationFiles(
-      input.files.map((file) => ({
+      files.map((file) => ({
         operationId,
         relativePath: file.relativePath,
         fromSha: file.fromSha,
@@ -78,26 +136,65 @@ export async function runTurnChangeOperation(input: {
       })),
     );
 
-    for (const file of input.files) {
+    let done = 0;
+    for (const file of files) {
       await applyPlannedFile(input.workspaceRoot, input.objectStore, file);
       input.store.updateOperationFileStatus(operationId, file.relativePath, 'applied');
       await verifyPlannedFile(input.workspaceRoot, file);
       input.store.updateOperationFileStatus(operationId, file.relativePath, 'verified');
+      done += 1;
+      input.onProgress?.(operationId, done, files.length);
     }
 
-    input.store.updateOperationStatus(operationId, 'succeeded');
+    finish('succeeded');
     if (input.kind !== 'subagent-apply') {
       input.store.markAttemptDisposition(
         input.changeSetId,
         input.kind === 'undo' ? 'undone' : 'applied',
       );
     }
-    return { operationId, status: 'succeeded', replayed: false };
+    return {
+      operationId,
+      status: 'succeeded',
+      replayed: false,
+      ...(skipped.length > 0 ? { skippedPaths: [...skipped] } : {}),
+    };
   } catch (error) {
     if (input.kind === 'subagent-apply') {
       input.store.updateOperationStatus(operationId, 'needs-repair');
+      throw error;
     }
-    throw error;
+    // Put back what was already written from the per-file backups. If even
+    // that fails, stop at needs-repair: the repair commands finish it and
+    // nothing silently accepts new writes over a half-applied turn.
+    const status = await rollBackAfterFailure(input, operationId);
+    input.store.noteOperationUpdate(operationId, 'write-failed');
+    console.warn(`[turn-changes] ${input.kind} ${operationId} failed mid-write (${status})`, error);
+    return {
+      operationId,
+      status,
+      replayed: false,
+      reason: status === 'needs-repair' ? 'needs-repair' : 'write-failed',
+    };
+  }
+}
+
+async function rollBackAfterFailure(
+  input: { workspaceRoot: string; store: TurnChangeStore; objectStore: TurnChangeObjectStore },
+  operationId: string,
+): Promise<string> {
+  try {
+    const recovered = await recoverTurnChangeOperation({
+      workspaceRoot: input.workspaceRoot,
+      store: input.store,
+      objectStore: input.objectStore,
+      operationId,
+    });
+    return recovered.status;
+  } catch (error) {
+    console.warn(`[turn-changes] rollback of ${operationId} failed`, error);
+    input.store.updateOperationStatus(operationId, 'needs-repair');
+    return 'needs-repair';
   }
 }
 
@@ -152,38 +249,6 @@ function replayResult(store: TurnChangeStore, operationId: string): TurnChangeOp
     throw new Error('idempotent operation missing');
   }
   return { operationId, status: existing.status, replayed: true };
-}
-
-async function collectMismatchedPaths(
-  workspaceRoot: string,
-  files: readonly PlannedFileOp[],
-): Promise<string[]> {
-  const affectedPaths: string[] = [];
-  for (const file of files) {
-    if (await pathMismatchesFromSha(workspaceRoot, file)) {
-      affectedPaths.push(file.relativePath);
-    }
-  }
-  return affectedPaths;
-}
-
-async function pathMismatchesFromSha(workspaceRoot: string, file: PlannedFileOp): Promise<boolean> {
-  try {
-    const resolved = await assertWritableTurnChangeFile({
-      workspaceRoot,
-      relativePath: file.relativePath,
-    });
-    if (resolved.kind === 'missing') {
-      return file.fromExists || file.fromSha !== null;
-    }
-    if (!file.fromExists || file.fromSha === null) {
-      return true;
-    }
-    const bytes = new Uint8Array(await readFile(resolved.absolutePath));
-    return sha256Hex(bytes) !== file.fromSha;
-  } catch {
-    return true;
-  }
 }
 
 async function applyPlannedFile(

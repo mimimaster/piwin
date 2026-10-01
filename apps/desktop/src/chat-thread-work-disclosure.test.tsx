@@ -407,7 +407,7 @@ describe('ChatThread completed work disclosure', () => {
     expect(trigger?.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('folds the live chain behind one running header and unmounts its rows', () => {
+  it('opens the live chain by default and names the running step in its segment header', () => {
     const messages = [
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -458,20 +458,32 @@ describe('ChatThread completed work disclosure', () => {
 
     const disclosure = container.querySelector('[data-testid="turn-work-disclosure"]');
     expect(disclosure?.getAttribute('data-live')).toBe('true');
-    // The chain is the fold now: its rows stay unmounted until the user opens it.
-    expect(container.querySelector('#msg-work-1')).toBeNull();
-    expect(container.querySelector('#msg-live-1')).toBeNull();
-
-    // The running edit is what the header names (this harness renders in `en`).
     const trigger = container.querySelector<HTMLElement>(
       '[data-testid="turn-work-disclosure-trigger"]',
     );
-    expect(trigger?.textContent).toContain('Running');
-    expect(trigger?.textContent).toContain('tool 2');
-
-    act(() => trigger?.click());
+    // A live chain is open by default. The running segment stays folded: its
+    // own header says what is in flight (the turn header no longer repeats the
+    // command), and its rows mount when the reader opens it.
+    expect(trigger?.getAttribute('aria-expanded')).toBe('true');
+    const segmentHeader = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-segment-header"]',
+    );
+    expect(segmentHeader?.textContent).toContain('Executing');
+    expect(segmentHeader?.textContent).toContain('edit');
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-live-1')).toBeNull();
+    act(() => segmentHeader?.click());
     expect(container.querySelector('#msg-work-1')).not.toBeNull();
     expect(container.querySelector('#msg-live-1')).not.toBeNull();
+
+    // Collapsed by the reader, the turn header names the running edit itself
+    // (this harness renders in `en`) and every row unmounts.
+    act(() => trigger?.click());
+    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
+    expect(trigger?.textContent).toContain('Running');
+    expect(trigger?.textContent).toContain('tool 2');
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-live-1')).toBeNull();
   });
 
   it('does not tuck a mid-turn user-facing reply into the process disclosure', () => {
@@ -576,7 +588,7 @@ describe('ChatThread completed work disclosure', () => {
     ).not.toBeNull();
   });
 
-  it('folds intermediate process rows with captions into a single running disclosure during a live turn', () => {
+  it('opens a live turn into one segment per caption, and names the latest caption when collapsed', () => {
     const earlierCaption = '先读文件。';
     const lastCaption = '接着改这一处。';
     const messages = [
@@ -631,19 +643,39 @@ describe('ChatThread completed work disclosure', () => {
     const disclosure = container.querySelector('[data-testid="turn-work-disclosure"]');
     expect(disclosure).not.toBeNull();
     expect(disclosure?.getAttribute('data-live')).toBe('true');
-    expect(container.querySelector('#msg-work-1')).toBeNull();
-    expect(container.querySelector('#msg-work-2')).toBeNull();
 
     const trigger = container.querySelector<HTMLButtonElement>(
       '[data-testid="turn-work-disclosure-trigger"]',
     );
-    expect(trigger?.textContent).toContain(lastCaption);
-
-    act(() => trigger?.click());
-    expect(container.querySelector('#msg-work-1')).not.toBeNull();
-    expect(container.querySelector('#msg-work-2')).not.toBeNull();
+    expect(trigger?.getAttribute('aria-expanded')).toBe('true');
+    // Each caption opens a segment. The captions are prose and show either
+    // way; the tools stay folded (the running segment by default, the settled
+    // earlier one because it is not the newest) until the reader opens them.
+    const segments = container.querySelectorAll('[data-testid="turn-work-segment"]');
+    expect(segments).toHaveLength(2);
+    expect(segments[0]?.getAttribute('data-open')).toBe('false');
+    expect(segments[1]?.getAttribute('data-open')).toBe('false');
     expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);
     expect(container.querySelector('#msg-work-2 .markdown')?.textContent).toContain(lastCaption);
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(0);
+
+    // Collapsed by the reader, the header carries the latest caption and the
+    // chain unmounts.
+    act(() => trigger?.click());
+    expect(trigger?.textContent).toContain(lastCaption);
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-work-2')).toBeNull();
+    act(() => trigger?.click());
+
+    // Reopening remounts the segments, so look them up again.
+    act(() =>
+      container
+        .querySelectorAll('[data-testid="turn-work-segment"]')[0]
+        ?.querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
+        ?.click(),
+    );
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(1);
+    expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);
   });
 
   it('keeps the Conversation identity header above 已工作 after expand', () => {
@@ -847,5 +879,330 @@ describe('ChatThread completed work disclosure', () => {
     expect(container.querySelector('[data-testid="turn-work-disclosure-trigger"]')).not.toBeNull();
     expect(container.querySelector('#msg-work-1')).toBeNull();
     expect(container.querySelector('#msg-work-2')).toBeNull();
+  });
+
+  it('keeps the chain open while it runs and folds it into 已工作 once the conclusion settles', () => {
+    const liveMessages = [
+      message('user-1', { role: 'user', text: 'Implement it.' }),
+      message('work-1', {
+        runId: 'run-1',
+        tools: [
+          { toolCallId: 'read-1', toolName: 'read', status: 'done', output: '', runId: 'run-1' },
+        ],
+      }),
+      message('work-2', {
+        runId: 'run-1',
+        status: 'streaming',
+        tools: [
+          { toolCallId: 'bash-1', toolName: 'bash', status: 'running', output: '', runId: 'run-1' },
+        ],
+      }),
+    ];
+    act(() =>
+      root.render(
+        renderThread(liveMessages, {
+          streaming: true,
+          activeRunId: 'run-1',
+          runRecordsById: {
+            'run-1': { runId: 'run-1', phaseHistory: [], startedAt: 1_000, endedAt: null },
+          },
+        }),
+      ),
+    );
+    const trigger = (): HTMLButtonElement | null =>
+      container.querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]');
+    // Open on its own: the reader did not have to ask to watch the chain.
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('true');
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
+        ?.click(),
+    );
+    expect(container.querySelector('#msg-work-1')).not.toBeNull();
+
+    // The conclusion streams in below the chain; the turn is still live, so
+    // the chain stays open until the answer is complete.
+    const concludingMessages = [
+      ...liveMessages.slice(0, 2),
+      message('work-2', {
+        runId: 'run-1',
+        tools: [
+          { toolCallId: 'bash-1', toolName: 'bash', status: 'done', output: '', runId: 'run-1' },
+        ],
+      }),
+      message('answer-1', { runId: 'run-1', status: 'streaming', text: 'Do' }),
+    ];
+    act(() =>
+      root.render(
+        renderThread(concludingMessages, {
+          streaming: true,
+          activeRunId: 'run-1',
+          runRecordsById: {
+            'run-1': { runId: 'run-1', phaseHistory: [], startedAt: 1_000, endedAt: null },
+          },
+        }),
+      ),
+    );
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('#msg-answer-1')?.textContent).toContain('Do');
+
+    const settledMessages = [
+      ...liveMessages.slice(0, 2),
+      message('work-2', {
+        runId: 'run-1',
+        tools: [
+          { toolCallId: 'bash-1', toolName: 'bash', status: 'done', output: '', runId: 'run-1' },
+        ],
+      }),
+      message('answer-1', { runId: 'run-1', text: 'Done.' }),
+    ];
+    act(() => root.render(renderThread(settledMessages)));
+
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('false');
+    expect(trigger()?.textContent).toContain('Worked for');
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-answer-1')?.textContent).toContain('Done.');
+
+    // After settle the reader's own toggle sticks.
+    act(() => trigger()?.click());
+    act(() => root.render(renderThread(settledMessages)));
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('leaves a chain the reader collapsed while it ran collapsed at settle', () => {
+    const runRecordsById = {
+      'run-1': { runId: 'run-1', phaseHistory: [], startedAt: 1_000, endedAt: null },
+    };
+    const liveMessages = [
+      message('user-1', { role: 'user', text: 'Implement it.' }),
+      message('work-1', {
+        runId: 'run-1',
+        status: 'streaming',
+        tools: [
+          { toolCallId: 'bash-1', toolName: 'bash', status: 'running', output: '', runId: 'run-1' },
+        ],
+      }),
+    ];
+    act(() =>
+      root.render(
+        renderThread(liveMessages, { streaming: true, activeRunId: 'run-1', runRecordsById }),
+      ),
+    );
+    const trigger = (): HTMLButtonElement | null =>
+      container.querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]');
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('true');
+    act(() => trigger()?.click());
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('false');
+
+    const settledMessages = [
+      liveMessages[0] as ChatMessageUi,
+      message('work-1', {
+        runId: 'run-1',
+        tools: [
+          { toolCallId: 'bash-1', toolName: 'bash', status: 'done', output: '', runId: 'run-1' },
+        ],
+      }),
+      message('answer-1', { runId: 'run-1', text: 'Done.' }),
+    ];
+    act(() => root.render(renderThread(settledMessages)));
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('false');
+    expect(trigger()?.textContent).toContain('Worked for');
+  });
+
+  it('folds a settled browser-driving turn whose screenshots attach media', () => {
+    const screenshot = {
+      id: 'shot-1',
+      kind: 'media' as const,
+      path: '/media/shot-1.jpg',
+      mimeType: 'image/jpeg',
+      byteSize: 10,
+      source: 'generated' as const,
+    };
+    const messages = [
+      message('user-1', { role: 'user', text: 'Check the page.' }),
+      message('work-1', {
+        runId: 'run-1',
+        text: 'Taking a screenshot.',
+        attachments: [screenshot],
+        tools: [
+          {
+            toolCallId: 'shot',
+            toolName: 'browser_screenshot',
+            status: 'done',
+            output: '',
+            runId: 'run-1',
+          },
+        ],
+      }),
+      message('work-2', {
+        runId: 'run-1',
+        tools: [
+          { toolCallId: 'bash-1', toolName: 'bash', status: 'done', output: '', runId: 'run-1' },
+        ],
+      }),
+      message('answer-1', { runId: 'run-1', text: 'Looks right.' }),
+    ];
+    act(() => root.render(renderThread(messages)));
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('#msg-answer-1')?.textContent).toContain('Looks right.');
+  });
+});
+
+describe('ChatThread 已工作 segments', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function settledChain(steps: number): ChatMessageUi[] {
+    const work = Array.from({ length: steps }, (_, index) =>
+      message(`work-${index}`, {
+        text: `Step ${index}.`,
+        runId: 'run-1',
+        tools: [
+          {
+            toolCallId: `bash-${index}`,
+            toolName: 'bash',
+            status: 'done',
+            output: 'ok',
+            runId: 'run-1',
+            presentation: { kind: 'shell', title: 'bash', command: 'pnpm test' },
+          },
+        ],
+      }),
+    );
+    return [
+      message('user-1', { role: 'user', text: 'Fix it.' }),
+      ...work,
+      message('answer', { text: 'Done.', runId: 'run-1' }),
+    ];
+  }
+
+  function openFold(): void {
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]')
+        ?.click(),
+    );
+  }
+
+  it('lists segments and mounts rows only for the open ones', () => {
+    act(() => root.render(renderThread(settledChain(3))));
+    openFold();
+
+    const segments = container.querySelectorAll('[data-testid="turn-work-segment"]');
+    expect(Array.from(segments, (segment) => segment.getAttribute('data-open'))).toEqual([
+      'false',
+      'false',
+      'true',
+    ]);
+    // Every step's narration is on screen; only the newest step's tool is mounted.
+    for (const index of [0, 1, 2]) {
+      expect(container.querySelector(`#msg-work-${index} .markdown`)?.textContent).toContain(
+        `Step ${index}.`,
+      );
+    }
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(1);
+    // The tools row owns no `msg-` anchor (the narration row does), so look
+    // inside the segment rather than for an id.
+    expect(segments[2]?.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
+    expect(segments[0]?.querySelector('[data-testid="tool-call-card"]')).toBeNull();
+    expect(container.querySelector('#msg-answer')).not.toBeNull();
+  });
+
+  it('heads each step 「Ran … · N tools」 like the turn fold, and the narration stays outside it', () => {
+    act(() => root.render(renderThread(settledChain(3))));
+    openFold();
+
+    const first = container.querySelector('[data-testid="turn-work-segment"]');
+    const header = first?.querySelector('[data-testid="turn-work-segment-header"]');
+    expect(header?.textContent).toContain('Ran');
+    expect(header?.textContent).toContain('1 tool');
+    // The header carries the run glyph, not the turn fold's bulb.
+    expect(header?.querySelector('.work-fold-run')).not.toBeNull();
+    expect(header?.querySelector('.work-fold-bulb')).toBeNull();
+    // Narration is a sibling of the fold, not part of its header.
+    expect(header?.textContent).not.toContain('Step 0.');
+    expect(first?.querySelector('#msg-work-0')).not.toBeNull();
+  });
+
+  it('collapses an open step from its spine and, past a few tools, from a foot bar', () => {
+    const many = message('work-big', {
+      text: 'Big step.',
+      runId: 'run-1',
+      tools: Array.from({ length: 9 }, (_, index) => ({
+        toolCallId: `t-${index}`,
+        toolName: 'bash',
+        status: 'done' as const,
+        output: 'ok',
+        runId: 'run-1',
+        presentation: { kind: 'shell' as const, title: 'bash', command: `echo ${index}` },
+      })),
+    });
+    act(() =>
+      root.render(
+        renderThread([
+          message('user-1', { role: 'user', text: 'Fix it.' }),
+          many,
+          message('answer', { text: 'Done.', runId: 'run-1' }),
+        ]),
+      ),
+    );
+    openFold();
+
+    const segment = (): Element | null =>
+      container.querySelector('[data-testid="turn-work-segment"]');
+    expect(segment()?.getAttribute('data-open')).toBe('true');
+    expect(segment()?.querySelector('[data-testid="turn-work-segment-foot"]')).not.toBeNull();
+    act(() =>
+      segment()
+        ?.querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-foot"]')
+        ?.click(),
+    );
+    expect(segment()?.getAttribute('data-open')).toBe('false');
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(0);
+    expect(container.querySelector('#msg-work-big .markdown')?.textContent).toContain('Big step.');
+
+    // Reopened, the spine folds it again.
+    act(() =>
+      segment()
+        ?.querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
+        ?.click(),
+    );
+    act(() =>
+      segment()
+        ?.querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-guide"]')
+        ?.click(),
+    );
+    expect(segment()?.getAttribute('data-open')).toBe('false');
+  });
+
+  it('keeps older segments unmounted until asked for', () => {
+    act(() => root.render(renderThread(settledChain(45))));
+    openFold();
+
+    expect(container.querySelectorAll('[data-testid="turn-work-segment"]')).toHaveLength(40);
+    const earlier = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-segment-earlier"]',
+    );
+    expect(earlier?.textContent).toContain('5');
+    act(() => earlier?.click());
+    expect(container.querySelectorAll('[data-testid="turn-work-segment"]')).toHaveLength(45);
+    expect(container.querySelector('[data-testid="turn-work-segment-earlier"]')).toBeNull();
   });
 });

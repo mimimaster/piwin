@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { clusterProjectsByRepository } from './sidebar-repo-groups';
+import {
+  checkoutAliasPaths,
+  clusterProjectsByRepository,
+  foldCheckoutAliasProjects,
+} from './sidebar-repo-groups';
 
 describe('clusterProjectsByRepository', () => {
   it('groups a registered checkout with a discovered worktree without registering it', () => {
@@ -254,5 +258,93 @@ describe('clusterProjectsByRepository', () => {
         },
       },
     ]);
+  });
+
+  it('folds a symlink alias of the checkout into the record at the git root', () => {
+    const clusters = clusterProjectsByRepository(
+      [
+        { path: '/Volumes/Disk/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+          isPrimaryWorktree: true, isCheckoutRoot: true, currentBranch: 'main' },
+        { path: '/Users/me/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+          isPrimaryWorktree: true, isCheckoutRoot: true, currentBranch: 'main' },
+      ],
+      [
+        { gitRepositoryId: 'repo1', path: '/Users/me/piwin', branch: 'main', isPrimary: true },
+        { gitRepositoryId: 'repo1', path: '/tmp/piwin-head', branch: null, isPrimary: false },
+      ],
+    );
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]).toMatchObject({
+      kind: 'group',
+      members: [{ path: '/Users/me/piwin', aliasPaths: ['/Volumes/Disk/piwin'] }],
+      unregistered: [{ path: '/tmp/piwin-head' }],
+    });
+    if (clusters[0]?.kind === 'group') {
+      expect(clusters[0].members).toHaveLength(1);
+    }
+  });
+
+  it('keeps an ordinary repo flat once its aliases fold to one checkout', () => {
+    const clusters = clusterProjectsByRepository([
+      { path: '/Volumes/Disk/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true },
+      { path: '/Users/me/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true },
+    ]);
+    expect(clusters).toMatchObject([{
+      kind: 'solo',
+      project: { path: '/Users/me/piwin', aliasPaths: ['/Volumes/Disk/piwin'] },
+    }]);
+  });
+
+  it('never folds a subdirectory project or a record without the checkout-root flag', () => {
+    const projects = [
+      { path: '/Users/me/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true },
+      { path: '/Users/me/piwin/apps', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: false },
+      { path: '/Volumes/Disk/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin' },
+    ];
+    expect(foldCheckoutAliasProjects(projects)).toEqual(projects);
+  });
+
+  it('falls back to the first record when no alias sits at the git root', () => {
+    const folded = foldCheckoutAliasProjects([
+      { path: '/Volumes/A/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true },
+      { path: '/Volumes/B/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true },
+    ]);
+    expect(folded).toEqual([
+      { path: '/Volumes/A/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true, aliasPaths: ['/Volumes/B/piwin'] },
+    ]);
+  });
+
+  it('nests a subdirectory reached through the alias path under the folded folder', () => {
+    const clusters = clusterProjectsByRepository([
+      { path: '/Volumes/Disk/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true },
+      { path: '/Users/me/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true },
+      { path: '/Volumes/Disk/piwin/apps/cli', gitRepositoryId: 'repo1',
+        gitRootPath: '/Users/me/piwin', isCheckoutRoot: false },
+    ]);
+    expect(clusters).toMatchObject([{
+      kind: 'solo',
+      project: { path: '/Users/me/piwin', nested: [{ path: '/Volumes/Disk/piwin/apps/cli' }] },
+    }]);
+  });
+
+  it('reports the alias paths a folder stands for so removal can clear them', () => {
+    const projects = [
+      { path: '/Volumes/Disk/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true },
+      { path: '/Users/me/piwin', gitRepositoryId: 'repo1', gitRootPath: '/Users/me/piwin',
+        isCheckoutRoot: true },
+      { path: '/other', gitRepositoryId: 'repo2', gitRootPath: '/other', isCheckoutRoot: true },
+    ];
+    expect(checkoutAliasPaths(projects, '/Users/me/piwin')).toEqual(['/Volumes/Disk/piwin']);
+    expect(checkoutAliasPaths(projects, '/other')).toEqual([]);
   });
 });

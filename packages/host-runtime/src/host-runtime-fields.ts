@@ -67,11 +67,13 @@ import { type PiwinRootLease } from './piwin-root-lease.js';
 import type { SubagentTaskResult } from '@piwin/contracts';
 
 import type { ComposedSessionHostTools, HostRuntimeOptions } from './host-runtime-types.js';
+import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import type { SubscriptionAuthService } from './subscription-auth-service.js';
 import type { LiveCallCoordinator } from './voice/live-call-coordinator.js';
 import type { LiveIntendedSessionGate } from './voice/live-intended-session-gate.js';
 import type { LiveSettingsService } from './voice/live-settings-service.js';
 import type { SessionContextCoordinator } from './session-context-coordinator.js';
+import { DetachedSubagentRegistry } from './detached-subagent-reports.js';
 import type { GrokBackendService } from './grok/grok-backend-service.js';
 
 /** Mutable HostRuntime instance fields. HostRuntime remains the composition root. */
@@ -169,6 +171,10 @@ export class HostRuntimeFields {
   sessionFilesTouched = new Map<string, string>();
   /** SIDE: last injected side-chat context version per session (§7.5(5)). */
   sideChatSnapshotInjectedVersions = new Map<string, number>();
+  /** ORCH: scheme preamble key last delivered in full per session (once-per-session injection). */
+  orchestrationSchemeInjectedKeys = new Map<string, string>();
+  /** Auto tester: detached subagents per session and their pending reports. */
+  detachedSubagents = new DetachedSubagentRegistry();
   pendingBranchCalibrationBySession = new Map<string, import('@piwin/contracts').WorkspaceWrites>();
   compactExportOperations = new Map<
     string,
@@ -392,5 +398,10 @@ export class HostRuntimeFields {
 
   getHostInstanceId(): string {
     return this.hostInstanceId;
+  }
+
+  /** Live instance view for friend modules; the constructed class is HostRuntime. */
+  asKernel(): HostRuntimeKernel {
+    return this as unknown as HostRuntimeKernel;
   }
 }

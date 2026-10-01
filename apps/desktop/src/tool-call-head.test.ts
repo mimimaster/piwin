@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatChainPreviewChip,
   formatPathChip,
+  formatToolTimingParts,
   humanizeToolCallName,
   splitPathChipParts,
   kindVerb,
@@ -303,3 +304,20 @@ describe('recoverSummaryFromInputPreview', () => {
     expect(recoverSummaryFromInputPreview(undefined)).toBeUndefined();
   });
 });
+
+describe('formatToolTimingParts', () => {
+  it('shows a real wait apart from the run time', () => {
+    // 6m20s queued behind another session, 40ms of actual work.
+    expect(formatToolTimingParts(380_040, 380_000)).toEqual(['排队 380s', '40ms']);
+  });
+
+  it('folds sub-second waits and missing queue facts into the duration', () => {
+    expect(formatToolTimingParts(1_200, 300)).toEqual(['1.2s']);
+    expect(formatToolTimingParts(1_200, undefined)).toEqual(['1.2s']);
+  });
+
+  it('still reports the wait when the duration is not known yet', () => {
+    expect(formatToolTimingParts(undefined, 2_500)).toEqual(['排队 2.5s']);
+  });
+});
+

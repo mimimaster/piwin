@@ -28,6 +28,7 @@ import { useTranscriptReveal } from './use-transcript-reveal.js';
 import { useTranscriptHistoryPaging } from './use-transcript-history-paging.js';
 import type { TranscriptReadingAnchorRestorer } from './transcript-reading-anchor.js';
 import { JumpToLatestButton } from './jump-to-latest-button';
+import { TranscriptFoldRail } from './transcript-fold-rail';
 import './styles/transcript-opening.css';
 
 export type TranscriptViewportProps = {
@@ -43,6 +44,8 @@ export type TranscriptViewportProps = {
   awaitingTranscript?: boolean;
   canLoadOlder?: boolean;
   canLoadNewer?: boolean;
+  /** The history view shows every row Host has and ends inside the live tail. */
+  historyCaughtUp?: boolean;
   historyLoading?: boolean;
   onLoadOlder?: (keepMessageId?: string) => Promise<void>;
   onLoadNewer?: (keepMessageId?: string) => Promise<void>;
@@ -76,7 +79,16 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   const trackRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
   const readingAnchorRestorerRef = useRef<TranscriptReadingAnchorRestorer | null>(null);
-  const paging = useTranscriptHistoryPaging({ ...props, scroll, readingAnchorRestorerRef });
+  const returnToLive = useCallback((): void => {
+    props.onReturnToLatest?.();
+    scroll.jumpToLatest();
+  }, [props.onReturnToLatest, scroll.jumpToLatest]);
+  const paging = useTranscriptHistoryPaging({
+    ...props,
+    scroll,
+    readingAnchorRestorerRef,
+    onReturnToLive: returnToLive,
+  });
   handleLoadOlderRef.current = paging.loadOlder;
   const openedSessionPinRef = useRef<{ sessionId: string; pinned: boolean } | null>(null);
 
@@ -171,9 +183,8 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   }, [paging.resetIntent, props.onJumpToHistoryAnchor]);
   const handleJumpToLatest = useCallback((): void => {
     paging.resetIntent();
-    props.onReturnToLatest?.();
-    scroll.jumpToLatest();
-  }, [paging.resetIntent, props.onReturnToLatest, scroll]);
+    returnToLive();
+  }, [paging.resetIntent, returnToLive]);
   const showJumpToLatest =
     props.messageCount > 0 &&
     (props.historyViewActive === true || scroll.showJumpToLatest);
@@ -241,6 +252,11 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           messages={props.messages}
           historyIndex={props.historyIndex}
           onJumpToAnchor={handleJumpToHistoryAnchor}
+        />
+        <TranscriptFoldRail
+          scrollElementRef={scroll.containerRef}
+          beginProgrammaticScroll={scroll.beginProgrammaticScroll}
+          locale={locale}
         />
         <div
           className="chat-stream"

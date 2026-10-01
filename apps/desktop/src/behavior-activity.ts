@@ -153,7 +153,7 @@ export const BEHAVIOR_ACTIVITY_REGISTRY: Readonly<
   'run.compacting': spec('run.compacting', {
     surface: 'timeline-row',
     animation: 'breath-matrix',
-    labelZh: '正在整理上下文…',
+    labelZh: '正在压缩上下文…',
     labelEn: 'Compacting context…',
     keepInHistory: true,
     expandable: false,

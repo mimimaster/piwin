@@ -44,6 +44,12 @@ import {
 } from './subagent-result-projection.js';
 import type { SubagentTaskPreflightContext } from './subagent-orchestrator.js';
 import { resolveSubagentChildPrompt } from './subagent-lifecycle-service.js';
+import { resolveSubagentBaseCheckout } from './subagent-base-checkout.js';
+import {
+  SUBAGENT_RESULT_EXPIRY_MS,
+  expireStaleSubagentResults,
+  readSnapshotCommitTimeMs,
+} from './subagent-result-expiry.js';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
 import { createSubagentWorktreeGcController } from './subagent-worktree-gc.js';
 import { createWriterSlotPool } from './subagent-writer-slots.js';
@@ -51,7 +57,9 @@ import { prepareWorktreeDependencies } from './subagent-worktree-dependencies.js
 import { resolveSubagentParentLocation } from './subagent-parent-scope.js';
 import {
   buildPersistedSubagentRepair,
+  isPersistedSubagentStateCurrent,
   selectPersistedSubagentChild,
+  subagentSessionStatusForResult,
   terminalizePersistedInvocation,
 } from './subagent-reconciliation.js';
 import {
@@ -116,6 +124,19 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
         task.isolationOverride ?? 'readonly',
         defaultProjectPath,
       ).workspacePath;
+    },
+    resolveBaseCheckout: async (task, projectPath) => {
+      const parentRecord = await getSessionRecord(
+        getPiwinSessionIndexPath(rootDir),
+        task.parentSessionId,
+      );
+      return resolveSubagentBaseCheckout({
+        projectPath,
+        ...(task.baseBranch ? { baseBranch: task.baseBranch } : {}),
+        ...(parentRecord?.workingDirectory
+          ? { workingDirectory: parentRecord.workingDirectory }
+          : {}),
+      });
     },
     dirtyBasePolicy: async () => {
       const config = await loadPiwinConfig(deps.options.piwinRoot);
@@ -339,9 +360,39 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
     },
   });
   void (deps.subagentStartupRecovery ?? Promise.resolve()).finally(() => {
-    void deps.subagentWorktreeGc
-      ?.reclaim({ mode: 'auto' })
+    // Settle long-undecided results first so the GC below sees them as
+    // finished rather than as pending integration.
+    void expireStaleSubagentResults({
+      listManifests: () => runStore.listManifests(),
+      isRunActive: (runId) => deps.runRegistry.isActive(runId),
+      readSnapshotTimeMs: readSnapshotCommitTimeMs,
+      discard: async (entry) => {
+        await deps.discardSubagentResult(entry);
+      },
+      warn: (message) => {
+        deps.push({ type: 'host/log', level: 'warn', message });
+      },
+    })
+      .then((expired) => {
+        if (expired.discarded === 0) return;
+        deps.push({
+          type: 'host/log',
+          level: 'info',
+          message: `settled ${String(expired.discarded)} undecided subagent result(s) older than ${String(
+            SUBAGENT_RESULT_EXPIRY_MS / 86_400_000,
+          )} days`,
+        });
+      })
+      .catch((error: unknown) => {
+        deps.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `subagent result expiry failed: ${formatError(error)}`,
+        });
+      })
+      .then(() => deps.subagentWorktreeGc?.reclaim({ mode: 'auto' }))
       .then((result) => {
+        if (!result) return;
         if (result.removedCount === 0) return;
         deps.push({
           type: 'host/log',
@@ -490,14 +541,7 @@ export async function persistSubagentTaskResult(
   const record = await getSessionRecord(indexPath, childSessionId);
   if (!record) return;
   record.updatedAt = new Date().toISOString();
-  record.subagentStatus =
-    result.executionStatus === 'completed'
-      ? 'done'
-      : result.executionStatus === 'cancelled'
-        ? 'cancelled'
-        : result.executionStatus === 'queued' || result.executionStatus === 'running'
-          ? 'running'
-          : 'failed';
+  record.subagentStatus = subagentSessionStatusForResult(result);
   if (result.summaryPreview) record.summaryPreview = result.summaryPreview;
   if (result.worktreePath) record.worktreePath = result.worktreePath;
   record.subagentLifecycle = {
@@ -566,12 +610,13 @@ export async function reconcilePersistedSubagentSessions(
 
       const repair = buildPersistedSubagentRepair(manifest, task, storedResult, child);
       if (!repair) continue;
-      if (repair.recordResult) {
-        await runStore.recordResult(manifest.runId, task.id, repair.result);
-      }
       const invocation = Object.values(manifest.invocations).find(
         (candidate) => candidate.taskId === task.id,
       );
+      if (isPersistedSubagentStateCurrent({ repair, storedResult, child, invocation })) continue;
+      if (repair.recordResult) {
+        await runStore.recordResult(manifest.runId, task.id, repair.result);
+      }
       if (invocation) {
         await runStore.recordInvocation(
           manifest.runId,

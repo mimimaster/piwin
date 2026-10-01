@@ -36,6 +36,8 @@ export type SubagentProviderEnvelope = {
     readonly reasoning?: boolean;
     readonly contextWindow?: number;
     readonly maxOutputTokens?: number;
+    /** ADR 0082: Host-resolved system prompt role; omitted = backend default. */
+    readonly supportsDeveloperRole?: boolean;
   }>;
   readonly auth: WorkerProviderAuthDescriptor;
 };
@@ -113,8 +115,18 @@ export type SubagentWorktreeDependencySetup = {
 export type SubagentWorktreeWorkspaceLease = {
   readonly mode: 'worktree';
   readonly cwd: string;
-  /** Parent repository path (the main worktree/repo root). */
+  /**
+   * Parent repository path (the main worktree/repo root). It is the repository
+   * identity: writer-slot bucket, project write lock and snapshot refs key off
+   * it, so it never changes when a task targets a different checkout.
+   */
   readonly parentRepoPath: string;
+  /**
+   * Checkout the child was based on and that a result is applied back to, when
+   * it is a linked worktree other than the project root (the lead works on a
+   * feature branch in its own worktree). Absent: `parentRepoPath`.
+   */
+  readonly targetPath?: string;
   /** Allocated worktree path. */
   readonly worktreePath: string;
   /** Allocated worktree branch. */
@@ -191,6 +203,25 @@ export type SubagentTaskSpec = {
   reviewRef?: SubagentReviewRef;
   /** Host-only: who may approve this candidate. Absent = independent reviewer. */
   reviewAuthority?: SubagentReviewAuthority;
+  /**
+   * Host-only, with `reviewAuthority: 'lead'`: a candidate over either bound
+   * needs an independent reviewer; the Lead review is refused.
+   */
+  leadReviewLimit?: { maxFiles: number; maxChangedLines: number };
+  /**
+   * Host-only: start the worktree from a snapshot of the parent workspace
+   * (uncommitted and untracked files included) instead of HEAD, and do not
+   * take the project write lock or a writer slot. Used by the detached tester,
+   * whose changes are never applied.
+   */
+  workspaceSnapshot?: boolean;
+  /**
+   * Branch the child starts from, and whose checkout receives the applied
+   * result. The Host resolves it to the worktree that has the branch checked
+   * out, so the model names a branch and never a path. Omitted: the parent
+   * session's own working checkout, else the project root.
+   */
+  baseBranch?: string;
   candidateLineageId?: string;
   candidateGeneration?: number;
   predecessorResult?: SubagentResultRef;
@@ -320,6 +351,12 @@ export type SubagentTaskResult = {
   model?: ModelRef;
   summaryPreview?: string;
   changedFiles?: string[];
+  /**
+   * Set at freeze when the child's tree equals its base tree: nothing to apply,
+   * review or discard. Such a result settles immediately instead of waiting in
+   * `retained` for a decision no one can usefully make.
+   */
+  noChanges?: boolean;
   verification?: string;
   error?: string;
   /** Structured, redacted failure detail (present whenever a task failed). */
