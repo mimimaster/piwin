@@ -24,6 +24,7 @@ import {
   commitResultSnapshot,
   createWorktree,
   isWorktreeUsable,
+  pruneOrphanedBranches,
   removeWorktree,
   resetWorktreeToBase,
   runGitCommand,
@@ -33,6 +34,7 @@ import {
 } from '@piwin/git';
 import {
   DEFAULT_WRITER_SLOT_ID,
+  WRITER_SLOT_BRANCH_PREFIX,
   isWriterSlotBranch,
   isWriterSlotName,
   isWriterSlotWorktreePath,
@@ -94,6 +96,8 @@ export type WriterSlotGitPort = {
   commitResultSnapshot: typeof commitResultSnapshot;
   /** Tree OID of a commit, to tell a stale slot with work from a clean one. */
   treeOfCommit: (repoPath: string, commit: string) => Promise<string>;
+  /** Drop slot branches that no worktree has checked out any more. */
+  pruneOrphanedBranches: typeof pruneOrphanedBranches;
 };
 
 const defaultGitPort: WriterSlotGitPort = {
@@ -104,6 +108,7 @@ const defaultGitPort: WriterSlotGitPort = {
   worktreeRepositoryKey,
   writeWorktreeResultTree,
   commitResultSnapshot,
+  pruneOrphanedBranches,
   treeOfCommit: async (repoPath, commit) =>
     (await runGitCommand({ cwd: repoPath, args: ['rev-parse', `${commit}^{tree}`] })).stdout.trim(),
 };
@@ -203,6 +208,32 @@ export function createWriterSlotPool(
     if (exists) await rm(worktreePath, { recursive: true, force: true });
   }
 
+  /**
+   * A slot that an older build moved onto a second branch (`slot-slot-0` next
+   * to `slot-0`) leaves the first one with nothing checked out. Nothing else
+   * reclaims it: the slot is exempt from GC, so it would sit there forever.
+   * Best effort — a branch that will not delete must not fail a task.
+   */
+  async function pruneOrphanedSlotBranches(
+    projectPath: string,
+    keepBranch: string,
+  ): Promise<void> {
+    try {
+      const removed = await git.pruneOrphanedBranches({
+        projectPath,
+        prefix: WRITER_SLOT_BRANCH_PREFIX,
+        keep: [keepBranch],
+      });
+      if (removed.length > 0) warn(`removed orphaned slot branch(es): ${removed.join(', ')}`);
+    } catch (error) {
+      warn(
+        `could not prune orphaned slot branches: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   function slotPaths(input: {
     projectPath: string;
     storageRoot: string;
@@ -291,6 +322,7 @@ export function createWriterSlotPool(
         baseCommit: input.baseCommit,
         updatedAt: now().toISOString(),
       });
+      await pruneOrphanedSlotBranches(input.projectPath, created.branch);
       return {
         slotId,
         worktreePath: created.worktreePath,
@@ -315,10 +347,14 @@ export function createWriterSlotPool(
     });
     await writeRecord(paths.recordPath, {
       ...record,
+      // The reset just moved the checkout onto `paths.worktreeBranch`; a record
+      // written by an older build may still name the branch it was moved off.
+      worktreeBranch: paths.worktreeBranch,
       state: 'leased',
       baseCommit: input.baseCommit,
       updatedAt: now().toISOString(),
     });
+    await pruneOrphanedSlotBranches(input.projectPath, paths.worktreeBranch);
     return {
       slotId,
       worktreePath: paths.worktreePath,

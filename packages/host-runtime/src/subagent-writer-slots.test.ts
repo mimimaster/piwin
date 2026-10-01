@@ -26,6 +26,8 @@ type FakeGit = WriterSlotGitPort & {
   /** Tree the slot's current contents would freeze to. */
   liveTree: string;
   removeFails: boolean;
+  /** Branches the fake reports as removed by the next prune. */
+  prunable: string[];
   /** Branch each reset/remove was told to use, in call order. */
   resetBranches: Array<string | undefined>;
   removeBranches: Array<string | undefined>;
@@ -39,6 +41,7 @@ function createFakeGit(storageRoot: string, usable = true): FakeGit {
     usable,
     liveTree: 'base-tree',
     removeFails: false,
+    prunable: [],
     resetBranches: [],
     removeBranches: [],
     async createWorktree(input) {
@@ -65,6 +68,10 @@ function createFakeGit(storageRoot: string, usable = true): FakeGit {
     },
     async treeOfCommit() {
       return 'base-tree';
+    },
+    async pruneOrphanedBranches(input) {
+      calls.push(`prune:${input.keep?.join(',') ?? ''}`);
+      return fake.prunable;
     },
     async resetWorktreeToBase(input) {
       calls.push(`reset:${input.baseCommit}`);
@@ -148,6 +155,56 @@ describe('writer slot pool', () => {
     expect(git.resetBranches).toEqual([first.worktreeBranch, first.worktreeBranch, first.worktreeBranch]);
     // Rebuild removes the branch it will recreate, not a differently named one.
     expect(git.removeBranches.at(-1)).toBe(first.worktreeBranch);
+    const record = await pool.read({ projectPath: '/repo', storageRoot });
+    expect(record?.worktreeBranch).toBe(first.worktreeBranch);
+  });
+
+  it('prunes slot branches an older build orphaned, keeping the slot\'s own', async () => {
+    const storageRoot = await temporaryRoot();
+    const git = createFakeGit(storageRoot);
+    git.prunable = ['piwin/subagent/slot-slot-0'];
+    const warnings: string[] = [];
+    const pool = createWriterSlotPool({ git, onWarning: (message) => warnings.push(message) });
+
+    const first = await pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'aaaa1111' });
+    await pool.release({ projectPath: '/repo', storageRoot, slotId: first.slotId });
+    await pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'bbbb2222' });
+
+    // Once after the build and once after the reuse.
+    expect(git.calls.filter((call) => call.startsWith('prune:'))).toEqual([
+      `prune:${first.worktreeBranch}`,
+      `prune:${first.worktreeBranch}`,
+    ]);
+    expect(warnings.some((message) => message.includes('piwin/subagent/slot-slot-0'))).toBe(true);
+  });
+
+  it('never fails a task because a stale branch will not delete', async () => {
+    const storageRoot = await temporaryRoot();
+    const git = createFakeGit(storageRoot);
+    git.pruneOrphanedBranches = async () => {
+      throw new Error('branch is locked');
+    };
+    const warnings: string[] = [];
+    const pool = createWriterSlotPool({ git, onWarning: (message) => warnings.push(message) });
+
+    await expect(
+      pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'aaaa1111' }),
+    ).resolves.toMatchObject({ slotId: DEFAULT_WRITER_SLOT_ID });
+    expect(warnings.some((message) => message.includes('branch is locked'))).toBe(true);
+  });
+
+  it('corrects a record that still names the branch an older build moved the slot off', async () => {
+    const storageRoot = await temporaryRoot();
+    const git = createFakeGit(storageRoot);
+    const pool = createWriterSlotPool({ git });
+    const first = await pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'aaaa1111' });
+    await pool.release({ projectPath: '/repo', storageRoot, slotId: first.slotId });
+    const recordPath = join(storageRoot, 'repo-key', `${first.slotId}.json`);
+    const legacy = JSON.parse(await readFile(recordPath, 'utf8')) as Record<string, unknown>;
+    await writeFile(recordPath, JSON.stringify({ ...legacy, worktreeBranch: 'piwin/subagent/slot-slot-0' }));
+
+    await pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'bbbb2222' });
+
     const record = await pool.read({ projectPath: '/repo', storageRoot });
     expect(record?.worktreeBranch).toBe(first.worktreeBranch);
   });
@@ -263,12 +320,12 @@ describe('writer slot pool', () => {
     await pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'aaaa1111' });
     git.calls.length = 0;
     await pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'bbbb2222' });
-    expect(git.calls).toEqual(['freeze', 'reset:bbbb2222']);
+    expect(git.calls).toEqual(['freeze', 'reset:bbbb2222', 'prune:piwin/subagent/slot-0']);
 
     await pool.release({ projectPath: '/repo', storageRoot, slotId: DEFAULT_WRITER_SLOT_ID });
     git.calls.length = 0;
     await pool.acquire({ projectPath: '/repo', storageRoot, baseCommit: 'cccc3333' });
-    expect(git.calls).toEqual(['reset:cccc3333']);
+    expect(git.calls).toEqual(['reset:cccc3333', 'prune:piwin/subagent/slot-0']);
   });
 
   it('clears a slot directory git can no longer remove before rebuilding', async () => {

@@ -218,6 +218,7 @@ export {
   subagentWorktreeBranch,
   resetWorktreeToBase,
   isWorktreeUsable,
+  pruneOrphanedBranches,
 } from './worktree.js';
 export type {
   CreateWorktreeInput,

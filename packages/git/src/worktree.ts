@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, realpath } from 'node:fs/promises';
 import { join, resolve, basename } from 'node:path';
 import { runGitCommand } from './git-command-runner.js';
+import { listGitWorktrees } from './worktree-list.js';
 import { assertSafeBranchName, assertSafeRef } from './path-safety.js';
 
 export type CreateWorktreeInput = {
@@ -306,4 +307,45 @@ export async function diffWorktreeAgainstMain(
 
 export function worktreeDisplayName(worktreePath: string): string {
   return basename(worktreePath);
+}
+
+/**
+ * Delete local branches under a generated prefix that no worktree has checked
+ * out. A reusable copy that is moved onto a differently named branch leaves the
+ * old one behind with nothing pointing at it; the product owns the prefix, so
+ * anything under it that is not checked out and not in `keep` is safe to drop.
+ * Returns the branches removed. Never throws for a single stubborn branch.
+ */
+export async function pruneOrphanedBranches(input: {
+  projectPath: string;
+  /** Branch-name prefix, e.g. `piwin/subagent/slot-`. */
+  prefix: string;
+  /** Branches to leave alone even if nothing has them checked out. */
+  keep?: readonly string[];
+}): Promise<string[]> {
+  const prefix = input.prefix;
+  assertSafeBranchName(`${prefix}x`);
+  const listed = await runGitCommand({
+    cwd: input.projectPath,
+    args: ['for-each-ref', '--format=%(refname:short)', `refs/heads/${prefix}*`],
+    allowFailure: true,
+  });
+  if (listed.exitCode !== 0) return [];
+  const checkedOut = new Set<string>();
+  const worktrees = await listGitWorktrees({ rootPath: input.projectPath, isRepository: true });
+  for (const worktree of worktrees.worktrees) {
+    if (worktree.branch) checkedOut.add(worktree.branch);
+  }
+  const keep = new Set(input.keep ?? []);
+  const removed: string[] = [];
+  for (const branch of listed.stdout.split('\n').map((line) => line.trim())) {
+    if (!branch.startsWith(prefix) || checkedOut.has(branch) || keep.has(branch)) continue;
+    const deleted = await runGitCommand({
+      cwd: input.projectPath,
+      args: ['branch', '-D', assertSafeBranchName(branch)],
+      allowFailure: true,
+    });
+    if (deleted.exitCode === 0) removed.push(branch);
+  }
+  return removed;
 }

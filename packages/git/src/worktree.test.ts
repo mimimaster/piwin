@@ -8,6 +8,7 @@ import { isWorktreeBaseClean } from './worktree-integration.js';
 import {
   createWorktree,
   isWorktreeUsable,
+  pruneOrphanedBranches,
   removeWorktree,
   resetWorktreeToBase,
   subagentWorktreeBranch,
@@ -140,5 +141,57 @@ describe('writer slot safety', () => {
     );
     // The enclosing repository's work is untouched.
     expect(await readFile(join(enclosing, 'README.md'), 'utf8')).toBe('uncommitted user work\n');
+  });
+});
+
+describe('pruneOrphanedBranches', () => {
+  afterEach(async () => {
+    await Promise.all(
+      temporaryRepositories
+        .splice(0)
+        .map((repositoryPath) => rm(repositoryPath, { recursive: true, force: true })),
+    );
+  });
+
+  async function branches(repositoryPath: string): Promise<string[]> {
+    return (await runGit(repositoryPath, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']))
+      .split('\n')
+      .sort();
+  }
+
+  it('drops unreferenced generated branches and keeps checked-out, kept and foreign ones', async () => {
+    const repositoryPath = await createRepository();
+    const storageRoot = await mkdtemp(join(tmpdir(), 'piwin-worktree-prune-'));
+    temporaryRepositories.push(storageRoot);
+    const slot = await createWorktree({ projectPath: repositoryPath, name: 'slot-0', storageRoot });
+    // What an older reset left behind: a differently named branch the slot was moved off.
+    await runGit(repositoryPath, ['branch', 'piwin/subagent/slot-slot-0']);
+    await runGit(repositoryPath, ['branch', 'piwin/subagent/slot-9']);
+    await runGit(repositoryPath, ['branch', 'piwin/subagent/task-1']);
+    await runGit(repositoryPath, ['branch', 'feat/mine']);
+
+    const removed = await pruneOrphanedBranches({
+      projectPath: repositoryPath,
+      prefix: 'piwin/subagent/slot-',
+      keep: ['piwin/subagent/slot-9'],
+    });
+
+    expect(removed).toEqual(['piwin/subagent/slot-slot-0']);
+    expect(await branches(repositoryPath)).toEqual([
+      'feat/mine',
+      'main',
+      slot.branch,
+      'piwin/subagent/slot-9',
+      'piwin/subagent/task-1',
+    ].sort());
+  });
+
+  it('does nothing outside a repository', async () => {
+    const notARepository = await mkdtemp(join(tmpdir(), 'piwin-worktree-prune-none-'));
+    temporaryRepositories.push(notARepository);
+
+    await expect(
+      pruneOrphanedBranches({ projectPath: notARepository, prefix: 'piwin/subagent/slot-' }),
+    ).resolves.toEqual([]);
   });
 });
