@@ -1,8 +1,8 @@
 <script setup lang="ts">
-const macDirectDmgUrl = 'https://dl.piwinwin.com/piwinwin_0.0.0_aarch64.dmg?v=50f707fe';
-const macSha256Url = 'https://dl.piwinwin.com/piwinwin_0.0.0_aarch64.dmg.sha256?v=50f707fe';
-const winDirectExeUrl = 'https://dl.piwinwin.com/piwinwin_0.0.0_x64-setup.exe?v=b4e6048b';
-const winSha256Url = 'https://dl.piwinwin.com/piwinwin_0.0.0_x64-setup.exe.sha256?v=b4e6048b';
+const macDirectDmgUrl = 'https://dl.piwinwin.com/piwinwin_0.0.0_aarch64.dmg?v=49a52859';
+const macSha256Url = 'https://dl.piwinwin.com/piwinwin_0.0.0_aarch64.dmg.sha256?v=49a52859';
+const winDirectExeUrl = 'https://dl.piwinwin.com/piwinwin_0.0.0_x64-setup.exe?v=2c044fa2';
+const winSha256Url = 'https://dl.piwinwin.com/piwinwin_0.0.0_x64-setup.exe.sha256?v=2c044fa2';
 const releasesUrl = 'https://github.com/mimimaster/piwin/releases';
 </script>
 
