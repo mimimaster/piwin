@@ -7,9 +7,8 @@
 //! deep-link. That cold-start COM activator is intentionally out of this slice.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 
 use crate::attention_notifications::{store_pending_activation, ACTIVATE_EVENT};
 use crate::attention_toast::{
@@ -22,16 +21,6 @@ use crate::attention_notifications::{
 use crate::pet_overlay::raise_main_window;
 
 static READY: AtomicBool = AtomicBool::new(false);
-static HANDLERS: Mutex<
-    Vec<
-        windows::Foundation::TypedEventHandler<
-            windows::UI::Notifications::ToastNotification,
-            windows::core::IInspectable,
-        >,
-    >,
-> = Mutex::new(Vec::new());
-
-const HANDLER_CAP: usize = 32;
 
 struct ToastIdentity {
     aumid: String,
@@ -40,7 +29,6 @@ struct ToastIdentity {
 }
 
 pub fn install(app: &AppHandle) {
-    let _ = APP.set(app.clone());
     READY.store(ensure_identity(app), Ordering::Release);
 }
 
@@ -212,15 +200,15 @@ fn show_toast(app: &AppHandle, aumid: &str, identifier: &str, xml: &str) -> wind
                 activate(&app_handle, session_id, attention_key);
             } else {
                 let raise = app_handle.clone();
-                let _ = raise.run_on_main_thread(move || {
+                let _ = raise.clone().run_on_main_thread(move || {
                     let _ = raise_main_window(&raise);
                 });
             }
             Ok(())
         },
     );
+    // WinRT AddRefs the handler on Activated; no extra retain list needed.
     toast.Activated(&handler)?;
-    retain_handler(handler);
     ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(aumid))?.Show(&toast)?;
     Ok(())
 }
@@ -261,21 +249,6 @@ fn read_setting(app: &AppHandle) -> Option<AttentionAuthorization> {
     let notifier = ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(identity.aumid)).ok()?;
     let setting = notifier.Setting().ok()?;
     Some(map_windows_notification_setting(setting.0))
-}
-
-fn retain_handler(
-    handler: windows::Foundation::TypedEventHandler<
-        windows::UI::Notifications::ToastNotification,
-        windows::core::IInspectable,
-    >,
-) {
-    let Ok(mut handlers) = HANDLERS.lock() else {
-        return;
-    };
-    if handlers.len() >= HANDLER_CAP {
-        handlers.remove(0);
-    }
-    handlers.push(handler);
 }
 
 fn win_fail() -> windows::core::Error {

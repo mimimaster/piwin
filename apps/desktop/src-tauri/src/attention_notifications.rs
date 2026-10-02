@@ -70,13 +70,13 @@ pub struct AttentionActivation {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttentionDeliverInput {
-    identifier: String,
-    thread_id: String,
-    title: String,
-    body: String,
-    session_id: String,
-    attention_key: String,
-    sound: bool,
+    pub(crate) identifier: String,
+    pub(crate) thread_id: String,
+    pub(crate) title: String,
+    pub(crate) body: String,
+    pub(crate) session_id: String,
+    pub(crate) attention_key: String,
+    pub(crate) sound: bool,
 }
 
 #[derive(Default)]
